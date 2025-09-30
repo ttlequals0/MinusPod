@@ -23,13 +23,21 @@ class WhisperModelSingleton:
         """
         if cls._instance is None:
             model_size = os.getenv("WHISPER_MODEL", "small")
-            logger.info(f"Initializing Whisper model: {model_size}")
+            device = os.getenv("WHISPER_DEVICE", "cpu")
+
+            # Set compute type based on device
+            if device == "cuda":
+                compute_type = "float16"  # Use FP16 for GPU
+                logger.info(f"Initializing Whisper model: {model_size} on CUDA with float16")
+            else:
+                compute_type = "int8"  # Use INT8 for CPU
+                logger.info(f"Initializing Whisper model: {model_size} on CPU with int8")
 
             # Initialize base model
             cls._base_model = WhisperModel(
                 model_size,
-                device="cpu",
-                compute_type="int8",
+                device=device,
+                compute_type=compute_type,
             )
 
             # Initialize batched pipeline
@@ -106,11 +114,26 @@ class Transcriber:
             # Create a simple prompt for podcast context
             initial_prompt = "This is a podcast episode."
 
+            # Adjust batch size based on device
+            device = os.getenv("WHISPER_DEVICE", "cpu")
+            if device == "cuda":
+                batch_size = 16  # Larger batch for GPU
+                logger.info("Using GPU-optimized batch size: 16")
+            else:
+                batch_size = 8  # Smaller batch for CPU
+
             # Use the batched pipeline for transcription
             segments_generator, info = model.transcribe(
                 audio_path,
                 language="en",
-                initial_prompt=initial_prompt
+                initial_prompt=initial_prompt,
+                beam_size=5,
+                batch_size=batch_size,
+                vad_filter=True,  # Enable VAD filter to skip silent parts
+                vad_parameters=dict(
+                    min_silence_duration_ms=500,
+                    speech_pad_ms=400
+                )
             )
 
             # Collect segments with real-time progress logging

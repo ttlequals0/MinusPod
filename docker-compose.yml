@@ -13,4 +13,12 @@ services:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - WHISPER_MODEL=small
       - BASE_URL=${BASE_URL:-http://localhost:8000}
+      - WHISPER_DEVICE=cuda
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
     restart: unless-stopped
