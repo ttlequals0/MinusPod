@@ -1,4 +1,5 @@
 faster-whisper>=1.1.0
+ctranslate2==4.4.0
 anthropic==0.49.0
 feedparser==6.0.11
 flask==3.0.3
