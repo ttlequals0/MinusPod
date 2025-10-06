@@ -5,7 +5,6 @@ import tempfile
 import os
 import shutil
 from typing import List, Dict, Optional
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +60,30 @@ class AudioProcessor:
             logger.info(f"Processing audio: {total_duration:.1f}s total, {len(ad_segments)} ad segments")
 
             # Sort ad segments by start time
-            ads = sorted(ad_segments, key=lambda x: x['start'])
+            sorted_segments = sorted(ad_segments, key=lambda x: x['start'])
+
+            # Merge segments with < 1 second gaps
+            merged_ads = []
+            current_segment = None
+
+            for ad in sorted_segments:
+                if current_segment and ad['start'] - current_segment['end'] < 1.0:
+                    # Extend current segment
+                    current_segment['end'] = ad['end']
+                    if 'reason' in ad:
+                        current_segment['reason'] = current_segment.get('reason', '') + '; ' + ad['reason']
+                else:
+                    if current_segment:
+                        merged_ads.append(current_segment)
+                    current_segment = {'start': ad['start'], 'end': ad['end']}
+                    if 'reason' in ad:
+                        current_segment['reason'] = ad['reason']
+
+            if current_segment:
+                merged_ads.append(current_segment)
+
+            ads = merged_ads
+            logger.info(f"After merging: {len(ads)} ad segments")
 
             # Build complex filter for FFMPEG
             # Strategy: Split audio into segments, replace ad segments with beep
@@ -80,8 +102,14 @@ class AudioProcessor:
                     concat_parts.append(f"[s{segment_idx}]")
                     segment_idx += 1
 
-                # Add replacement audio (1 second beep)
-                concat_parts.append("[1:a]")
+                # Calculate how many replacements needed
+                ad_duration = ad_end - ad_start
+                num_replacements = int(ad_duration / 60) + (1 if ad_duration % 60 > 0 else 0)
+
+                # Add repeated replacement audio with volume reduction
+                for i in range(num_replacements):
+                    filter_parts.append(f"[1:a]volume=0.4[beep{segment_idx}_{i}]")
+                    concat_parts.append(f"[beep{segment_idx}_{i}]")
 
                 current_time = ad_end
 

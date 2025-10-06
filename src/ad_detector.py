@@ -57,12 +57,18 @@ class AdDetector:
 - Mentions of other podcasts/shows from the network (cross-promotion)
 - Sponsor messages about credit cards, apps, products, or services
 
-Pay special attention to the beginning of the podcast - if the first few minutes contain multiple back-to-back advertisements before the actual show content starts, mark the entire intro ad block as one segment.
+IMPORTANT: When detecting multi-part ad blocks (e.g., 4 back-to-back ads with minimal gaps), return ONE continuous segment from the start of the first ad to the end of the last ad. Do NOT split continuous ad blocks into multiple segments.
+
+Pay special attention to the beginning of the podcast - if the first few minutes contain multiple back-to-back advertisements before the actual show content starts, mark the entire intro ad block as ONE SINGLE SEGMENT.
 
 Return ONLY a JSON array of ad segments with start/end times in seconds. Be aggressive in detecting ads - it's better to remove too much than too little.
 
 Format:
-[{"start": 0.0, "end": 240.0, "reason": "Intro ad block with multiple sponsors"}, ...]
+[{"start": 0.0, "end": 240.0, "reason": "4-minute intro ad block with multiple sponsors"}, ...]
+
+Example of what to do:
+- If ads run from 0-60s, 61-120s, 121-180s, 181-240s → Return ONE segment: {"start": 0.0, "end": 240.0}
+- Do NOT return multiple segments for continuous ad blocks
 
 If no ads are found, return an empty array: []
 
