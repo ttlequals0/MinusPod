@@ -109,7 +109,14 @@ function Settings() {
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             <div>
               <p className="text-sm text-muted-foreground">Version</p>
-              <p className="font-medium text-foreground">{status.version}</p>
+              <a
+                href={`https://github.com/ttlequals0/podcast-server/releases/tag/v${status.version}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-medium text-primary hover:underline"
+              >
+                {status.version}
+              </a>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Feeds</p>

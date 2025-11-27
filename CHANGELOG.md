@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.22] - 2025-11-27
+
+### Added
+- Version number in Settings now links to GitHub releases page
+- Podcast artwork displayed on episode detail page (responsive sizing for mobile/desktop)
+
+### Fixed
+- Episode detail page mobile UI:
+  - Smaller title on mobile devices
+  - Status badge and Reprocess button flow inline with metadata
+  - Reduced padding on mobile
+- Episode duration displaying with excessive decimal precision (e.g., "2:43:4.450500...")
+  - Now correctly formats as HH:MM:SS
+- Audio playback 403 error when UI and feed are on different domains
+  - Audio player now uses relative path instead of full URL from API
+
+---
+
 ## [0.1.21] - 2025-11-27
 
 ### Changed

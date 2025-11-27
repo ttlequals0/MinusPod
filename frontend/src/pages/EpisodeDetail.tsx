@@ -23,9 +23,10 @@ function EpisodeDetail() {
 
   const formatDuration = (seconds?: number) => {
     if (!seconds) return '';
-    const hours = Math.floor(seconds / 3600);
-    const minutes = Math.floor((seconds % 3600) / 60);
-    const secs = seconds % 60;
+    const totalSecs = Math.floor(seconds);
+    const hours = Math.floor(totalSecs / 3600);
+    const minutes = Math.floor((totalSecs % 3600) / 60);
+    const secs = totalSecs % 60;
     if (hours > 0) {
       return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
     }
@@ -70,26 +71,34 @@ function EpisodeDetail() {
         Back to Feed
       </Link>
 
-      <div className="bg-card rounded-lg border border-border p-6 mb-6">
-        <div className="flex justify-between items-start gap-4">
-          <div>
-            <h1 className="text-2xl font-bold text-foreground">{episode.title}</h1>
-            <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
+      <div className="bg-card rounded-lg border border-border p-4 sm:p-6 mb-6">
+        <div className="flex gap-4">
+          <div className="w-16 h-16 sm:w-24 sm:h-24 flex-shrink-0">
+            <img
+              src={`/api/v1/feeds/${slug}/artwork`}
+              alt="Podcast artwork"
+              className="w-full h-full object-cover rounded-lg"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%239ca3af"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>';
+              }}
+            />
+          </div>
+          <div className="flex flex-col gap-2 min-w-0">
+            <h1 className="text-xl sm:text-2xl font-bold text-foreground">{episode.title}</h1>
+            <div className="flex flex-wrap items-center gap-2 sm:gap-4 text-sm text-muted-foreground">
               <span>{new Date(episode.published).toLocaleDateString()}</span>
               {episode.duration && <span>{formatDuration(episode.duration)}</span>}
+              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[episode.status]}`}>
+                {episode.status}
+              </span>
+              <button
+                onClick={() => reprocessMutation.mutate()}
+                disabled={reprocessMutation.isPending || episode.status === 'processing'}
+                className="px-2 py-0.5 text-xs sm:text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {reprocessMutation.isPending ? 'Reprocessing...' : 'Reprocess'}
+              </button>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className={`px-3 py-1 rounded-full text-sm ${statusColors[episode.status]}`}>
-              {episode.status}
-            </span>
-            <button
-              onClick={() => reprocessMutation.mutate()}
-              disabled={reprocessMutation.isPending || episode.status === 'processing'}
-              className="px-3 py-1 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              {reprocessMutation.isPending ? 'Reprocessing...' : 'Reprocess'}
-            </button>
           </div>
         </div>
 
@@ -97,9 +106,9 @@ function EpisodeDetail() {
           <p className="mt-4 text-muted-foreground">{episode.description}</p>
         )}
 
-        {episode.processed_url && (
+        {episode.status === 'completed' && (
           <div className="mt-4 pt-4 border-t border-border">
-            <audio controls className="w-full" src={episode.processed_url}>
+            <audio controls className="w-full" src={`/episodes/${slug}/${episode.id}.mp3`}>
               Your browser does not support the audio element.
             </audio>
           </div>
