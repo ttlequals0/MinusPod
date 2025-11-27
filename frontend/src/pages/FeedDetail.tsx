@@ -92,13 +92,13 @@ function FeedDetail() {
 
         <div className="mt-6 pt-4 border-t border-border flex flex-wrap gap-4 items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">Feed URL:</span>
-            <code className="text-sm bg-secondary px-2 py-1 rounded truncate max-w-md">
+            <span className="text-sm text-muted-foreground hidden sm:inline">Feed URL:</span>
+            <code className="text-sm bg-secondary px-2 py-1 rounded truncate max-w-md hidden sm:block">
               {feed.feedUrl}
             </code>
             <button
               onClick={copyFeedUrl}
-              className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+              className="flex items-center gap-2 px-3 py-1.5 sm:p-1 rounded sm:rounded-none bg-secondary sm:bg-transparent text-muted-foreground hover:text-foreground transition-colors"
               title="Copy feed URL"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -109,6 +109,7 @@ function FeedDetail() {
                   d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
                 />
               </svg>
+              <span className="text-sm sm:hidden">Copy Feed URL</span>
             </button>
           </div>
           <button

@@ -108,15 +108,23 @@ function Dashboard() {
           <button
             onClick={() => refreshAllMutation.mutate()}
             disabled={refreshAllMutation.isPending}
-            className="px-4 py-2 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors"
+            className="p-2 sm:px-4 sm:py-2 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors"
+            title="Refresh All"
           >
-            {refreshAllMutation.isPending ? 'Refreshing...' : 'Refresh All'}
+            <svg className="w-5 h-5 sm:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span className="hidden sm:inline">{refreshAllMutation.isPending ? 'Refreshing...' : 'Refresh All'}</span>
           </button>
           <Link
             to="/add"
-            className="px-4 py-2 rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            className="p-2 sm:px-4 sm:py-2 rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+            title="Add Feed"
           >
-            Add Feed
+            <svg className="w-5 h-5 sm:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            <span className="hidden sm:inline">Add Feed</span>
           </Link>
         </div>
       </div>
