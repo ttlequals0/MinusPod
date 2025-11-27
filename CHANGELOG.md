@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.24] - 2025-11-27
+
+### Added
+- All-time cumulative "Time Saved" tracking
+  - Persists total time saved across all processed episodes, even after episodes are deleted
+  - Displayed in Settings page under System Status
+  - Available via API at `/api/v1/system/status` in `stats.totalTimeSaved`
+- New `stats` database table for persistent cumulative metrics
+
+### Changed
+- Episode detail page: changed "X:XX removed" to "X:XX time saved" wording
+
+---
+
 ## [0.1.23] - 2025-11-27
 
 ### Changed
@@ -12,7 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Version link in Settings now goes to main repository instead of specific release tag
 
 ### Added
-- Time saved display next to "Detected Ads" heading (e.g., "Detected Ads (5) - 3:54 removed")
+- Time saved display next to "Detected Ads" heading (e.g., "Detected Ads (5) - 3:54 time saved")
 
 ---
 

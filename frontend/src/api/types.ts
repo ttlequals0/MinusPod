@@ -87,4 +87,7 @@ export interface SystemStatus {
     whisperDevice: string;
     baseUrl: string;
   };
+  stats: {
+    totalTimeSaved: number;
+  };
 }

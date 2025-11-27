@@ -301,7 +301,12 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
             processing_time = time.time() - start_time
 
+            # Track cumulative time saved
             if original_duration and new_duration:
+                time_saved = original_duration - new_duration
+                if time_saved > 0:
+                    db.increment_total_time_saved(time_saved)
+
                 audio_logger.info(
                     f"[{slug}:{episode_id}] Complete: {original_duration/60:.1f}->{new_duration/60:.1f}min, "
                     f"{len(ads)} ads, {processing_time:.1f}s"

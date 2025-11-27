@@ -125,7 +125,7 @@ function EpisodeDetail() {
             Detected Ads ({episode.ad_segments.length})
             {episode.timeSaved && episode.timeSaved > 0 && (
               <span className="ml-2 text-base font-normal text-muted-foreground">
-                - {formatDuration(episode.timeSaved)} removed
+                - {formatDuration(episode.timeSaved)} time saved
               </span>
             )}
           </h2>

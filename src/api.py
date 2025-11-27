@@ -613,6 +613,9 @@ def get_system_status():
             'whisperModel': os.environ.get('WHISPER_MODEL', 'small'),
             'whisperDevice': os.environ.get('WHISPER_DEVICE', 'cuda'),
             'baseUrl': os.environ.get('BASE_URL', 'http://localhost:8000')
+        },
+        'stats': {
+            'totalTimeSaved': db.get_total_time_saved()
         }
     })
 

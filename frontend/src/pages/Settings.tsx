@@ -75,6 +75,18 @@ function Settings() {
     return `${minutes}m`;
   };
 
+  const formatDuration = (seconds?: number) => {
+    if (!seconds) return '0:00';
+    const totalSecs = Math.floor(seconds);
+    const hours = Math.floor(totalSecs / 3600);
+    const minutes = Math.floor((totalSecs % 3600) / 60);
+    const secs = totalSecs % 60;
+    if (hours > 0) {
+      return `${hours}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
+    return `${minutes}:${secs.toString().padStart(2, '0')}`;
+  };
+
   if (settingsLoading) {
     return <LoadingSpinner className="py-12" />;
   }
@@ -133,6 +145,10 @@ function Settings() {
             <div>
               <p className="text-sm text-muted-foreground">Uptime</p>
               <p className="font-medium text-foreground">{formatUptime(status.uptime ?? 0)}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">Time Saved</p>
+              <p className="font-medium text-foreground">{formatDuration(status.stats?.totalTimeSaved ?? 0)}</p>
             </div>
           </div>
         ) : null}

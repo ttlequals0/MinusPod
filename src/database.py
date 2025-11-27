@@ -136,6 +136,13 @@ CREATE TABLE IF NOT EXISTS settings (
     updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
 
+-- cumulative stats table (persists even after episodes are deleted)
+CREATE TABLE IF NOT EXISTS stats (
+    key TEXT PRIMARY KEY,
+    value REAL NOT NULL DEFAULT 0,
+    updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+
 CREATE INDEX IF NOT EXISTS idx_podcasts_slug ON podcasts(slug);
 CREATE INDEX IF NOT EXISTS idx_episodes_podcast_id ON episodes(podcast_id);
 CREATE INDEX IF NOT EXISTS idx_episodes_episode_id ON episodes(episode_id);
@@ -854,3 +861,31 @@ class Database:
             {'in': row['source_url'], 'out': f"/{row['slug']}"}
             for row in cursor
         ]
+
+    # ========== Cumulative Stats Methods ==========
+
+    def increment_total_time_saved(self, seconds: float):
+        """Add to the cumulative total time saved. Called when episode processing completes."""
+        if seconds <= 0:
+            return
+
+        conn = self.get_connection()
+        conn.execute(
+            """INSERT INTO stats (key, value, updated_at)
+               VALUES ('total_time_saved', ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+               ON CONFLICT(key) DO UPDATE SET
+                 value = value + excluded.value,
+                 updated_at = excluded.updated_at""",
+            (seconds,)
+        )
+        conn.commit()
+        logger.debug(f"Incremented total time saved by {seconds:.1f} seconds")
+
+    def get_total_time_saved(self) -> float:
+        """Get the cumulative total time saved across all processed episodes."""
+        conn = self.get_connection()
+        cursor = conn.execute(
+            "SELECT value FROM stats WHERE key = 'total_time_saved'"
+        )
+        row = cursor.fetchone()
+        return row['value'] if row else 0.0
