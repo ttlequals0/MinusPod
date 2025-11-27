@@ -175,6 +175,22 @@ All data is stored in the `./data` directory:
 - `podcast.db` - SQLite database with feeds, episodes, and settings
 - `{slug}/` - Per-feed directories with cached RSS and processed audio
 
+## Custom Assets (Optional)
+
+By default, a short audio marker is played where ads were removed. You can customize this by providing your own replacement audio:
+
+1. Create an `assets` directory next to your docker-compose.yml
+2. Place your custom `replace.mp3` file in the assets directory
+3. Uncomment the assets volume mount in docker-compose.yml:
+   ```yaml
+   volumes:
+     - ./data:/app/data
+     - ./assets:/app/assets:ro  # Uncomment this line
+   ```
+4. Restart the container
+
+The `replace.mp3` file will be inserted at each ad break. Keep it short (1-3 seconds) to avoid disrupting the listening experience. If no custom asset is provided, the built-in default marker is used.
+
 ## License
 
 MIT

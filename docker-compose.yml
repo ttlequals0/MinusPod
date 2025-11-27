@@ -7,7 +7,10 @@ services:
       - "8000:8000"
     volumes:
       - ./data:/app/data
-      - ./assets:/app/assets:ro
+      # Optional: Custom assets directory for replacement audio
+      # Place your own replace.mp3 file here to customize the sound played where ads were removed
+      # If not mounted, the built-in default audio marker is used
+      # - ./assets:/app/assets:ro
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       - WHISPER_MODEL=${WHISPER_MODEL:-small}
