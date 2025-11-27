@@ -1,14 +1,23 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { getFeeds, refreshFeed, refreshAllFeeds, deleteFeed } from '../api/feeds';
 import FeedCard from '../components/FeedCard';
+import FeedListItem from '../components/FeedListItem';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 function Dashboard() {
   const queryClient = useQueryClient();
   const [refreshingSlug, setRefreshingSlug] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
+    const stored = localStorage.getItem('dashboardViewMode');
+    return stored === 'list' ? 'list' : 'grid';
+  });
+
+  useEffect(() => {
+    localStorage.setItem('dashboardViewMode', viewMode);
+  }, [viewMode]);
 
   const { data: feeds, isLoading, error } = useQuery({
     queryKey: ['feeds'],
@@ -65,7 +74,37 @@ function Dashboard() {
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-foreground">Feeds</h1>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          <div className="flex border border-border rounded overflow-hidden">
+            <button
+              onClick={() => setViewMode('grid')}
+              className={`p-2 transition-colors ${
+                viewMode === 'grid'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+              }`}
+              aria-label="Grid view"
+              title="Grid view"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+              </svg>
+            </button>
+            <button
+              onClick={() => setViewMode('list')}
+              className={`p-2 transition-colors ${
+                viewMode === 'list'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+              }`}
+              aria-label="List view"
+              title="List view"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+          </div>
           <button
             onClick={() => refreshAllMutation.mutate()}
             disabled={refreshAllMutation.isPending}
@@ -103,10 +142,22 @@ function Dashboard() {
             </a>
           </p>
         </div>
-      ) : (
+      ) : viewMode === 'grid' ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {feeds.map((feed) => (
+          {[...feeds].sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' })).map((feed) => (
             <FeedCard
+              key={feed.slug}
+              feed={feed}
+              onRefresh={(slug) => refreshMutation.mutate(slug)}
+              onDelete={handleDelete}
+              isRefreshing={refreshingSlug === feed.slug}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {[...feeds].sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' })).map((feed) => (
+            <FeedListItem
               key={feed.slug}
               feed={feed}
               onRefresh={(slug) => refreshMutation.mutate(slug)}

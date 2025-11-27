@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.19] - 2025-11-27
+
+### Added
+- Alphabetical sorting of podcasts by name on dashboard
+- List/tile view toggle on dashboard
+  - Grid view: card-based layout (default, previous behavior)
+  - List view: compact row layout showing more feeds at once
+  - View preference persisted to localStorage
+
+---
+
 ## [0.1.18] - 2025-11-27
 
 ### Added

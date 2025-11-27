@@ -50,7 +50,15 @@ The server includes a web-based management UI at `/ui/`:
 
 **Dashboard**
 
-<img src="docs/screenshots/dashboard.png" width="600">
+<img src="docs/dashboard.png" width="600">
+
+**Podcast View**
+
+<img src="docs/podcast-view.png" width="600">
+
+**Episode View**
+
+<img src="docs/episode-view.png" width="600">
 
 **Add Feed**
 
