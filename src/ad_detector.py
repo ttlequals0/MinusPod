@@ -243,6 +243,7 @@ class AdDetector:
                             valid_ads.append({
                                 'start': float(ad['start']),
                                 'end': float(ad['end']),
+                                'confidence': float(ad.get('confidence', 1.0)),
                                 'reason': ad.get('reason', 'Advertisement detected')
                             })
 

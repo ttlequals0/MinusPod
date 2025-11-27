@@ -13,25 +13,63 @@ logger = logging.getLogger(__name__)
 # Default ad detection prompts
 DEFAULT_SYSTEM_PROMPT = """Analyze this podcast transcript and identify ALL advertisement segments.
 
-Look for:
+WHAT TO LOOK FOR:
 - Product endorsements, sponsored content, promotional messages
-- Promo codes, special offers, calls to action
-- Transitions to/from ads (e.g., "This episode is brought to you by...")
+- Promo codes, special offers, discount codes, calls to action
+- Transitions to/from ads (e.g., "This episode is brought to you by...", "Support for this podcast comes from...", "A word from our sponsors")
 - Host-read advertisements, pre-roll, mid-roll, post-roll ads
 - Cross-promotion of other podcasts/shows from the network
-- Sponsor messages about products, apps, services
+- Sponsor messages about products, apps, services, websites
+- Vanity URLs (e.g., "visit example.com/podcastname")
+
+COMMON PODCAST SPONSORS (high confidence if mentioned):
+BetterHelp, Athletic Greens, AG1, Shopify, Amazon, Audible, Squarespace, HelloFresh, Factor, NordVPN, ExpressVPN, Mint Mobile, MasterClass, Calm, Headspace, ZipRecruiter, Indeed, LinkedIn Jobs, Stamps.com, SimpliSafe, Ring, ADT, Casper, Helix Sleep, Purple, Brooklinen, Bombas, Manscaped, Dollar Shave Club, Harry's, Quip, Hims, Hers, Roman, Keeps, Function of Beauty, Native, Liquid IV, Athletic Brewing, Magic Spoon, Thrive Market, Butcher Box, Blue Apron, DoorDash, Uber Eats, Grubhub, Instacart, Rocket Money, Credit Karma, SoFi, Acorns, Betterment, Wealthfront, PolicyGenius, Lemonade, State Farm, Progressive, Geico, Liberty Mutual, T-Mobile, Visible, FanDuel, DraftKings, BetMGM, Toyota, Hyundai, CarMax, Carvana, eBay Motors, ZocDoc, GoodRx, Care/of, Ritual, Seed, HubSpot, NetSuite, Monday.com, Notion, Canva, Grammarly, Babbel, Rosetta Stone, Blinkist, Raycon, Bose, MacPaw, CleanMyMac, Green Chef, Magic Mind, Honeylove, Cozy Earth, Quince, LMNT, Nutrafol, Aura, OneSkin, Incogni, Gametime
+
+COMMON AD PHRASES:
+- "Use code [NAME] at checkout"
+- "Visit [brand].com/[podcastname]"
+- "Get X% off with promo code"
+- "Free trial at..."
+- "Click the link in the description"
+- "Thanks to [brand] for sponsoring"
+- "This portion brought to you by"
+
+AD CHARACTERISTICS:
+- Ad breaks typically last 15-120 seconds
+- Pre-roll ads appear before the intro, mid-roll during the episode, post-roll after the outro
+- Multiple back-to-back sponsor reads should be merged into one segment
 
 MERGING RULES:
 1. Multiple ads separated by gaps of 15 seconds or less = ONE CONTINUOUS SEGMENT
 2. Only split if there's REAL SHOW CONTENT (30+ seconds of actual discussion) between ads
 3. When in doubt, merge segments - better to remove too much than leave ads in
 
-CRITICAL OUTPUT REQUIREMENT:
+OUTPUT FORMAT:
 Return ONLY a valid JSON array. No explanation, no analysis, no markdown formatting.
-Just the raw JSON array directly.
 
-Format: [{{"start": 0.0, "end": 240.0, "reason": "Sponsor block"}}]
-If no ads found: []"""
+Each ad segment must include:
+- "start": Start time in seconds
+- "end": End time in seconds
+- "confidence": Confidence score from 0.0 to 1.0 (1.0 = certain it's an ad)
+- "reason": Brief description of why this is an ad
+
+Format: [{{"start": 0.0, "end": 60.0, "confidence": 0.95, "reason": "Sponsor read for BetterHelp"}}]
+If no ads found: []
+
+EXAMPLE:
+
+Given transcript excerpt:
+[45.0s - 48.0s] And we'll get back to that story in just a moment.
+[48.5s - 52.0s] This episode is brought to you by Athletic Greens.
+[52.5s - 58.0s] AG1 is the daily foundational nutrition supplement that supports whole body health.
+[58.5s - 65.0s] I've been taking it for years and I love how it simplifies my routine.
+[65.5s - 72.0s] Right now they're offering a free one year supply of vitamin D with your first purchase.
+[72.5s - 78.0s] Go to athleticgreens.com/podcast to claim this offer.
+[78.5s - 82.0s] That's athleticgreens.com/podcast.
+[82.5s - 86.0s] Now, back to our conversation with Dr. Smith.
+
+Output:
+[{{"start": 48.5, "end": 82.0, "confidence": 0.98, "reason": "Athletic Greens sponsor read with promo URL"}}]"""
 
 DEFAULT_USER_PROMPT_TEMPLATE = """Podcast: {podcast_name}
 Episode: {episode_title}

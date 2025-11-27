@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.21] - 2025-11-27
+
+### Changed
+- Improved ad detection system prompt with:
+  - List of 90+ common podcast sponsors for higher confidence detection
+  - Common ad phrases (promo codes, vanity URLs, sponsor transitions)
+  - Ad duration hints (15-120 seconds typical)
+  - One-shot example for improved model accuracy
+  - Confidence score field (0.0-1.0) in ad segment output
+- Ad detector now parses and includes confidence scores in results
+  - Backward compatible: defaults to 1.0 if not provided by older prompts
+
+### Note
+- Existing users with customized system prompts in Settings will keep their prompts
+- New installations and users who reset to defaults will get the improved prompt
+
+---
+
 ## [0.1.20] - 2025-11-27
 
 ### Fixed
