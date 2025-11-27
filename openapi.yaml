@@ -1,0 +1,678 @@
+openapi: 3.1.0
+info:
+  title: Podcast Server API
+  description: |
+    REST API for managing podcast feeds with automatic ad detection and removal.
+
+    This API allows you to:
+    - Manage podcast feed subscriptions
+    - View and manage processed episodes
+    - Configure ad detection settings including Claude model selection
+    - Monitor system status and trigger cleanup operations
+  version: 0.1.0
+  contact:
+    name: Podcast Server
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:8000/api/v1
+    description: Local development server
+  - url: '{baseUrl}/api/v1'
+    description: Custom server
+    variables:
+      baseUrl:
+        default: http://localhost:8000
+        description: Base URL of the podcast server
+
+tags:
+  - name: Feeds
+    description: Podcast feed management
+  - name: Episodes
+    description: Episode data and transcripts
+  - name: Settings
+    description: Application settings and configuration
+  - name: System
+    description: System status and maintenance
+
+paths:
+  /feeds:
+    get:
+      tags:
+        - Feeds
+      summary: List all feeds
+      description: Returns a list of all configured podcast feeds with metadata
+      operationId: listFeeds
+      responses:
+        '200':
+          description: List of feeds
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  feeds:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Feed'
+    post:
+      tags:
+        - Feeds
+      summary: Add a new feed
+      description: Add a new podcast feed by providing the source RSS URL
+      operationId: addFeed
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - sourceUrl
+              properties:
+                sourceUrl:
+                  type: string
+                  format: uri
+                  description: URL of the source RSS feed
+                  example: https://feeds.example.com/podcast.xml
+                slug:
+                  type: string
+                  description: Optional custom slug (auto-generated if not provided)
+                  example: my-podcast
+      responses:
+        '201':
+          description: Feed created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  slug:
+                    type: string
+                  sourceUrl:
+                    type: string
+                  feedUrl:
+                    type: string
+                  message:
+                    type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Feed with slug already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /feeds/{slug}:
+    delete:
+      tags:
+        - Feeds
+      summary: Delete a feed
+      description: Delete a podcast feed and all associated data
+      operationId: deleteFeed
+      parameters:
+        - $ref: '#/components/parameters/slug'
+      responses:
+        '200':
+          description: Feed deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  slug:
+                    type: string
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /feeds/{slug}/refresh:
+    post:
+      tags:
+        - Feeds
+      summary: Refresh a single feed
+      description: Fetch the latest RSS feed and update episode list
+      operationId: refreshFeed
+      parameters:
+        - $ref: '#/components/parameters/slug'
+      responses:
+        '200':
+          description: Feed refreshed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  slug:
+                    type: string
+                  message:
+                    type: string
+                  episodeCount:
+                    type: integer
+                  lastRefreshed:
+                    type: string
+                    format: date-time
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /feeds/refresh:
+    post:
+      tags:
+        - Feeds
+      summary: Refresh all feeds
+      description: Refresh RSS feeds for all configured podcasts
+      operationId: refreshAllFeeds
+      responses:
+        '200':
+          description: All feeds refreshed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  feedCount:
+                    type: integer
+
+  /feeds/{slug}/artwork:
+    get:
+      tags:
+        - Feeds
+      summary: Get feed artwork
+      description: Returns the cached podcast artwork image
+      operationId: getFeedArtwork
+      parameters:
+        - $ref: '#/components/parameters/slug'
+      responses:
+        '200':
+          description: Artwork image
+          content:
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /feeds/{slug}/episodes:
+    get:
+      tags:
+        - Episodes
+      summary: List episodes for a feed
+      description: Returns paginated list of episodes for a podcast
+      operationId: listEpisodes
+      parameters:
+        - $ref: '#/components/parameters/slug'
+        - name: status
+          in: query
+          description: Filter by episode status
+          schema:
+            type: string
+            enum: [all, pending, processing, processed, failed]
+            default: all
+        - name: limit
+          in: query
+          description: Maximum number of episodes to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 200
+            default: 50
+        - name: offset
+          in: query
+          description: Number of episodes to skip
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+      responses:
+        '200':
+          description: List of episodes
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  episodes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/EpisodeSummary'
+                  total:
+                    type: integer
+                  limit:
+                    type: integer
+                  offset:
+                    type: integer
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /feeds/{slug}/episodes/{episodeId}:
+    get:
+      tags:
+        - Episodes
+      summary: Get episode details
+      description: Returns detailed information about an episode including ad markers
+      operationId: getEpisode
+      parameters:
+        - $ref: '#/components/parameters/slug'
+        - $ref: '#/components/parameters/episodeId'
+      responses:
+        '200':
+          description: Episode details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EpisodeDetail'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /feeds/{slug}/episodes/{episodeId}/transcript:
+    get:
+      tags:
+        - Episodes
+      summary: Get episode transcript
+      description: Returns the full transcript text for an episode
+      operationId: getEpisodeTranscript
+      parameters:
+        - $ref: '#/components/parameters/slug'
+        - $ref: '#/components/parameters/episodeId'
+      responses:
+        '200':
+          description: Episode transcript
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  episodeId:
+                    type: string
+                  transcript:
+                    type: string
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /settings:
+    get:
+      tags:
+        - Settings
+      summary: Get all settings
+      description: Returns current application settings including ad detection configuration
+      operationId: getSettings
+      responses:
+        '200':
+          description: Current settings
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Settings'
+
+  /settings/ad-detection:
+    put:
+      tags:
+        - Settings
+      summary: Update ad detection settings
+      description: Update Claude model, system prompt, or user prompt template
+      operationId: updateAdDetectionSettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                systemPrompt:
+                  type: string
+                  description: System prompt for Claude ad detection
+                userPromptTemplate:
+                  type: string
+                  description: User prompt template (supports {podcast_name}, {episode_title}, {transcript} placeholders)
+                claudeModel:
+                  type: string
+                  description: Claude model ID to use for ad detection
+                  example: claude-sonnet-4-5-20250929
+      responses:
+        '200':
+          description: Settings updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /settings/ad-detection/reset:
+    post:
+      tags:
+        - Settings
+      summary: Reset ad detection settings
+      description: Reset all ad detection settings to their default values
+      operationId: resetAdDetectionSettings
+      responses:
+        '200':
+          description: Settings reset to defaults
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+  /settings/models:
+    get:
+      tags:
+        - Settings
+      summary: Get available Claude models
+      description: Returns list of available Claude models for ad detection
+      operationId: getAvailableModels
+      responses:
+        '200':
+          description: List of available models
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  models:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Model'
+
+  /system/status:
+    get:
+      tags:
+        - System
+      summary: Get system status
+      description: Returns system status, statistics, and configuration
+      operationId: getSystemStatus
+      responses:
+        '200':
+          description: System status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemStatus'
+
+  /system/cleanup:
+    post:
+      tags:
+        - System
+      summary: Trigger manual cleanup
+      description: Manually trigger cleanup of episodes older than retention period
+      operationId: triggerCleanup
+      responses:
+        '200':
+          description: Cleanup completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  episodesRemoved:
+                    type: integer
+                  spaceFreedMb:
+                    type: number
+
+components:
+  parameters:
+    slug:
+      name: slug
+      in: path
+      required: true
+      description: Podcast feed slug identifier
+      schema:
+        type: string
+        example: my-podcast
+
+    episodeId:
+      name: episodeId
+      in: path
+      required: true
+      description: Episode identifier (MD5 hash)
+      schema:
+        type: string
+        example: abc123def456
+
+  schemas:
+    Feed:
+      type: object
+      properties:
+        slug:
+          type: string
+          description: URL-safe identifier for the feed
+        title:
+          type: string
+          description: Podcast title from RSS feed
+        sourceUrl:
+          type: string
+          format: uri
+          description: Original RSS feed URL
+        feedUrl:
+          type: string
+          format: uri
+          description: Modified RSS feed URL served by this server
+        artworkUrl:
+          type:
+            - string
+            - 'null'
+          description: URL to cached artwork image
+        episodeCount:
+          type: integer
+          description: Total number of episodes
+        processedCount:
+          type: integer
+          description: Number of processed episodes
+        lastRefreshed:
+          type:
+            - string
+            - 'null'
+          format: date-time
+          description: Last RSS refresh timestamp
+        createdAt:
+          type: string
+          format: date-time
+
+    EpisodeSummary:
+      type: object
+      properties:
+        episodeId:
+          type: string
+        title:
+          type: string
+        status:
+          type: string
+          enum: [pending, processing, processed, failed]
+        createdAt:
+          type: string
+          format: date-time
+        processedAt:
+          type:
+            - string
+            - 'null'
+          format: date-time
+        originalDuration:
+          type:
+            - number
+            - 'null'
+          description: Original duration in seconds
+        newDuration:
+          type: number
+          description: Duration after ad removal in seconds
+          nullable: true
+        adsRemoved:
+          type: integer
+        timeSaved:
+          type: number
+          description: Seconds saved by removing ads
+        error:
+          type: string
+          nullable: true
+
+    EpisodeDetail:
+      allOf:
+        - $ref: '#/components/schemas/EpisodeSummary'
+        - type: object
+          properties:
+            originalUrl:
+              type: string
+              format: uri
+            processedUrl:
+              type: string
+              format: uri
+            adMarkers:
+              type: array
+              items:
+                $ref: '#/components/schemas/AdMarker'
+            transcriptAvailable:
+              type: boolean
+
+    AdMarker:
+      type: object
+      properties:
+        start:
+          type: number
+          description: Start time in seconds
+        end:
+          type: number
+          description: End time in seconds
+        reason:
+          type: string
+          description: Reason for marking as ad
+
+    Model:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Model identifier
+          example: claude-sonnet-4-5-20250929
+        name:
+          type: string
+          description: Human-readable model name
+          example: Claude Opus 4.5
+        created:
+          type: string
+          format: date-time
+          nullable: true
+
+    Settings:
+      type: object
+      properties:
+        systemPrompt:
+          type: object
+          properties:
+            value:
+              type: string
+            isDefault:
+              type: boolean
+        userPromptTemplate:
+          type: object
+          properties:
+            value:
+              type: string
+            isDefault:
+              type: boolean
+        claudeModel:
+          type: object
+          properties:
+            value:
+              type: string
+            isDefault:
+              type: boolean
+        retentionPeriodMinutes:
+          type: integer
+        defaults:
+          type: object
+          properties:
+            systemPrompt:
+              type: string
+            userPromptTemplate:
+              type: string
+            claudeModel:
+              type: string
+
+    SystemStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [running]
+        version:
+          type: string
+        feeds:
+          type: object
+          properties:
+            total:
+              type: integer
+        episodes:
+          type: object
+          properties:
+            total:
+              type: integer
+            byStatus:
+              type: object
+              additionalProperties:
+                type: integer
+        storage:
+          type: object
+          properties:
+            usedMb:
+              type: number
+            fileCount:
+              type: integer
+        settings:
+          type: object
+          properties:
+            retentionPeriodMinutes:
+              type: integer
+            whisperModel:
+              type: string
+            whisperDevice:
+              type: string
+            baseUrl:
+              type: string
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        status:
+          type: integer
+        details:
+          type: object
+          nullable: true
+
+  responses:
+    BadRequest:
+      description: Bad request - invalid input
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+    ServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'

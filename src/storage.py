@@ -1,67 +1,110 @@
-"""Storage management with dynamic directory creation."""
+"""Storage management with SQLite database and file operations."""
 import os
 import json
 import logging
+import requests
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List, Tuple
 import tempfile
 import shutil
 
 logger = logging.getLogger(__name__)
 
+
 class Storage:
+    """Storage manager using SQLite for metadata and filesystem for large files."""
+
     def __init__(self, data_dir: str = "/app/data"):
         self.data_dir = Path(data_dir)
-        # Ensure base data directory exists
         self.data_dir.mkdir(exist_ok=True)
+
+        # Create podcasts subdirectory
+        self.podcasts_dir = self.data_dir / "podcasts"
+        self.podcasts_dir.mkdir(exist_ok=True)
+
+        # Initialize database
+        from database import Database
+        self.db = Database(str(self.data_dir))
+
         logger.info(f"Storage initialized with data_dir: {self.data_dir}")
 
     def get_podcast_dir(self, slug: str) -> Path:
         """Get podcast directory, creating if necessary."""
-        podcast_dir = self.data_dir / slug
+        podcast_dir = self.podcasts_dir / slug
         podcast_dir.mkdir(exist_ok=True)
 
         # Ensure episodes directory exists
         episodes_dir = podcast_dir / "episodes"
         episodes_dir.mkdir(exist_ok=True)
 
-        logger.info(f"[{slug}] Podcast directory ready: {podcast_dir}")
         return podcast_dir
 
     def load_data_json(self, slug: str) -> Dict[str, Any]:
-        """Load data.json for a podcast, creating if necessary."""
-        podcast_dir = self.get_podcast_dir(slug)
-        data_file = podcast_dir / "data.json"
+        """Load episode data for a podcast from SQLite."""
+        # Ensure directory exists
+        self.get_podcast_dir(slug)
 
-        if data_file.exists():
-            try:
-                with open(data_file, 'r') as f:
-                    data = json.load(f)
-                    logger.info(f"[{slug}] Loaded data.json with {len(data.get('episodes', {}))} episodes")
-                    return data
-            except json.JSONDecodeError as e:
-                logger.error(f"[{slug}] Invalid data.json, creating new: {e}")
+        podcast = self.db.get_podcast_by_slug(slug)
+        if not podcast:
+            return {"episodes": {}, "last_checked": None}
 
-        # Create default structure
-        data = {
-            "episodes": {},
-            "last_checked": None
+        episodes, _ = self.db.get_episodes(slug, limit=10000)
+
+        episodes_dict = {}
+        for ep in episodes:
+            ep_data = {
+                'status': ep['status'],
+                'original_url': ep['original_url'],
+                'title': ep['title'],
+            }
+            if ep['processed_file']:
+                ep_data['processed_file'] = ep['processed_file']
+            if ep['processed_at']:
+                ep_data['processed_at'] = ep['processed_at']
+            if ep['original_duration']:
+                ep_data['original_duration'] = ep['original_duration']
+            if ep['new_duration']:
+                ep_data['new_duration'] = ep['new_duration']
+            if ep['ads_removed']:
+                ep_data['ads_removed'] = ep['ads_removed']
+            if ep['error_message']:
+                ep_data['error'] = ep['error_message']
+
+            episodes_dict[ep['episode_id']] = ep_data
+
+        return {
+            "episodes": episodes_dict,
+            "last_checked": podcast.get('last_checked_at')
         }
-        self.save_data_json(slug, data)
-        return data
 
     def save_data_json(self, slug: str, data: Dict[str, Any]) -> None:
-        """Save data.json atomically."""
-        podcast_dir = self.get_podcast_dir(slug)
-        data_file = podcast_dir / "data.json"
+        """Save episode data to SQLite."""
+        # Ensure podcast exists
+        podcast = self.db.get_podcast_by_slug(slug)
+        if not podcast:
+            self.db.create_podcast(slug, "")
 
-        # Atomic write: write to temp, then rename
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, dir=podcast_dir, suffix='.tmp') as tmp:
-            json.dump(data, tmp, indent=2)
-            tmp_path = tmp.name
+        # Update last_checked
+        if data.get('last_checked'):
+            self.db.update_podcast(slug, last_checked_at=data['last_checked'])
 
-        shutil.move(tmp_path, data_file)
-        logger.info(f"[{slug}] Saved data.json")
+        # Upsert episodes
+        for episode_id, ep_data in data.get('episodes', {}).items():
+            self.db.upsert_episode(
+                slug,
+                episode_id,
+                original_url=ep_data.get('original_url', ''),
+                title=ep_data.get('title'),
+                status=ep_data.get('status', 'pending'),
+                processed_file=ep_data.get('processed_file'),
+                processed_at=ep_data.get('processed_at') or ep_data.get('failed_at'),
+                original_duration=ep_data.get('original_duration'),
+                new_duration=ep_data.get('new_duration'),
+                ads_removed=ep_data.get('ads_removed', 0),
+                error_message=ep_data.get('error')
+            )
+
+        logger.debug(f"[{slug}] Saved data to database")
 
     def get_episode_path(self, slug: str, episode_id: str, extension: str = ".mp3") -> Path:
         """Get path for episode file."""
@@ -69,20 +112,21 @@ class Storage:
         return podcast_dir / "episodes" / f"{episode_id}{extension}"
 
     def save_rss(self, slug: str, content: str) -> None:
-        """Save modified RSS feed."""
+        """Save modified RSS feed to filesystem."""
         podcast_dir = self.get_podcast_dir(slug)
         rss_file = podcast_dir / "modified-rss.xml"
 
         # Atomic write
-        with tempfile.NamedTemporaryFile(mode='w', delete=False, dir=podcast_dir, suffix='.tmp') as tmp:
+        with tempfile.NamedTemporaryFile(mode='w', delete=False,
+                                         dir=podcast_dir, suffix='.tmp') as tmp:
             tmp.write(content)
             tmp_path = tmp.name
 
         shutil.move(tmp_path, rss_file)
-        logger.info(f"[{slug}] Saved modified RSS feed")
+        logger.debug(f"[{slug}] Saved modified RSS feed")
 
     def get_rss(self, slug: str) -> Optional[str]:
-        """Get cached RSS feed."""
+        """Get cached RSS feed from filesystem."""
         podcast_dir = self.get_podcast_dir(slug)
         rss_file = podcast_dir / "modified-rss.xml"
 
@@ -92,22 +136,241 @@ class Storage:
         return None
 
     def save_transcript(self, slug: str, episode_id: str, transcript: str) -> None:
-        """Save episode transcript."""
+        """Save episode transcript to database and filesystem."""
+        # Save to filesystem (for backward compatibility)
         path = self.get_episode_path(slug, episode_id, "-transcript.txt")
         with open(path, 'w') as f:
             f.write(transcript)
-        logger.info(f"[{slug}:{episode_id}] Saved transcript")
+
+        # Save to database
+        try:
+            self.db.save_episode_details(slug, episode_id, transcript_text=transcript)
+        except ValueError:
+            # Episode might not exist in DB yet
+            logger.debug(f"[{slug}:{episode_id}] Episode not in DB, transcript saved to file only")
+
+        logger.debug(f"[{slug}:{episode_id}] Saved transcript")
+
+    def get_transcript(self, slug: str, episode_id: str) -> Optional[str]:
+        """Get episode transcript from database or filesystem."""
+        # Try database first
+        episode = self.db.get_episode(slug, episode_id)
+        if episode and episode.get('transcript_text'):
+            return episode['transcript_text']
+
+        # Fall back to filesystem
+        path = self.get_episode_path(slug, episode_id, "-transcript.txt")
+        if path.exists():
+            with open(path, 'r') as f:
+                return f.read()
+
+        return None
 
     def save_ads_json(self, slug: str, episode_id: str, ads_data: Any) -> None:
-        """Save Claude's ad detection response."""
+        """Save Claude's ad detection response to database and filesystem."""
+        # Save to filesystem (for backward compatibility)
         path = self.get_episode_path(slug, episode_id, "-ads.json")
         with open(path, 'w') as f:
             json.dump(ads_data, f, indent=2)
-        logger.info(f"[{slug}:{episode_id}] Saved ads detection data")
+
+        # Save to database
+        try:
+            ad_markers = ads_data.get('ads', []) if isinstance(ads_data, dict) else []
+            raw_response = ads_data.get('raw_response') if isinstance(ads_data, dict) else None
+
+            self.db.save_episode_details(
+                slug, episode_id,
+                ad_markers=ad_markers,
+                claude_raw_response=raw_response
+            )
+        except ValueError:
+            logger.debug(f"[{slug}:{episode_id}] Episode not in DB, ads saved to file only")
+
+        logger.debug(f"[{slug}:{episode_id}] Saved ads detection data")
 
     def save_prompt(self, slug: str, episode_id: str, prompt: str) -> None:
-        """Save Claude prompt for debugging."""
+        """Save Claude prompt to database and filesystem."""
+        # Save to filesystem (for backward compatibility)
         path = self.get_episode_path(slug, episode_id, "-prompt.txt")
         with open(path, 'w') as f:
             f.write(prompt)
-        logger.info(f"[{slug}:{episode_id}] Saved Claude prompt")
+
+        # Save to database
+        try:
+            self.db.save_episode_details(slug, episode_id, claude_prompt=prompt)
+        except ValueError:
+            logger.debug(f"[{slug}:{episode_id}] Episode not in DB, prompt saved to file only")
+
+        logger.debug(f"[{slug}:{episode_id}] Saved Claude prompt")
+
+    # ========== Artwork Methods ==========
+
+    def save_artwork(self, slug: str, image_data: bytes, content_type: str,
+                    source_url: str = None) -> bool:
+        """Save podcast artwork to filesystem."""
+        try:
+            podcast_dir = self.get_podcast_dir(slug)
+
+            # Determine extension from content type
+            if 'png' in content_type.lower():
+                ext = '.png'
+            elif 'gif' in content_type.lower():
+                ext = '.gif'
+            else:
+                ext = '.jpg'
+
+            artwork_path = podcast_dir / f"artwork{ext}"
+
+            # Remove old artwork files with different extensions
+            for old_ext in ['.jpg', '.png', '.gif']:
+                old_path = podcast_dir / f"artwork{old_ext}"
+                if old_path.exists() and old_path != artwork_path:
+                    old_path.unlink()
+
+            # Save image
+            with open(artwork_path, 'wb') as f:
+                f.write(image_data)
+
+            # Update database
+            self.db.update_podcast(
+                slug,
+                artwork_url=source_url,
+                artwork_cached=1
+            )
+
+            logger.debug(f"[{slug}] Saved artwork ({len(image_data)} bytes)")
+            return True
+
+        except Exception as e:
+            logger.error(f"[{slug}] Failed to save artwork: {e}")
+            return False
+
+    def get_artwork(self, slug: str) -> Optional[Tuple[bytes, str]]:
+        """Get cached artwork. Returns (data, content_type) or None."""
+        podcast_dir = self.get_podcast_dir(slug)
+
+        for ext, content_type in [('.jpg', 'image/jpeg'),
+                                   ('.png', 'image/png'),
+                                   ('.gif', 'image/gif')]:
+            artwork_path = podcast_dir / f"artwork{ext}"
+            if artwork_path.exists():
+                with open(artwork_path, 'rb') as f:
+                    return f.read(), content_type
+
+        return None
+
+    def download_artwork(self, slug: str, artwork_url: str) -> bool:
+        """Download and cache podcast artwork."""
+        if not artwork_url:
+            return False
+
+        try:
+            # Check if we already have this artwork
+            podcast = self.db.get_podcast_by_slug(slug)
+            if podcast and podcast.get('artwork_url') == artwork_url and podcast.get('artwork_cached'):
+                logger.debug(f"[{slug}] Artwork already cached")
+                return True
+
+            logger.info(f"[{slug}] Downloading artwork from {artwork_url}")
+
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': '*/*',
+                'Accept-Language': 'en-US,en;q=0.9',
+            }
+            response = requests.get(artwork_url, headers=headers, timeout=30, stream=True)
+            response.raise_for_status()
+
+            content_type = response.headers.get('Content-Type', 'image/jpeg')
+
+            # Limit size to 5MB
+            max_size = 5 * 1024 * 1024
+            image_data = b''
+            for chunk in response.iter_content(chunk_size=8192):
+                image_data += chunk
+                if len(image_data) > max_size:
+                    logger.warning(f"[{slug}] Artwork too large, truncating")
+                    break
+
+            return self.save_artwork(slug, image_data, content_type, artwork_url)
+
+        except Exception as e:
+            logger.warning(f"[{slug}] Failed to download artwork: {e}")
+            return False
+
+    # ========== Cleanup Methods ==========
+
+    def delete_processed_file(self, slug: str, episode_id: str) -> bool:
+        """Delete the processed audio file for an episode."""
+        processed_path = self.get_episode_path(slug, episode_id, ".mp3")
+        if processed_path and processed_path.exists():
+            processed_path.unlink()
+            logger.debug(f"[{slug}:{episode_id}] Deleted processed audio file")
+            return True
+        return False
+
+    def delete_transcript(self, slug: str, episode_id: str) -> bool:
+        """Delete the transcript file for an episode."""
+        transcript_path = self.get_episode_path(slug, episode_id, "-transcript.txt")
+        if transcript_path and transcript_path.exists():
+            transcript_path.unlink()
+            logger.debug(f"[{slug}:{episode_id}] Deleted transcript file")
+            return True
+        return False
+
+    def delete_ads_json(self, slug: str, episode_id: str) -> bool:
+        """Delete the ads JSON file for an episode."""
+        ads_path = self.get_episode_path(slug, episode_id, "-ads.json")
+        if ads_path and ads_path.exists():
+            ads_path.unlink()
+            logger.debug(f"[{slug}:{episode_id}] Deleted ads JSON file")
+            return True
+        return False
+
+    def cleanup_episode_files(self, slug: str, episode_id: str) -> int:
+        """Delete all files for an episode. Returns bytes freed."""
+        freed = 0
+
+        for ext in ['.mp3', '-transcript.txt', '-ads.json', '-prompt.txt']:
+            path = self.get_episode_path(slug, episode_id, ext)
+            if path.exists():
+                try:
+                    freed += path.stat().st_size
+                    path.unlink()
+                except Exception as e:
+                    logger.warning(f"Failed to delete {path}: {e}")
+
+        return freed
+
+    def cleanup_podcast_dir(self, slug: str) -> bool:
+        """Delete podcast directory and all files."""
+        podcast_dir = self.podcasts_dir / slug
+
+        if podcast_dir.exists():
+            try:
+                shutil.rmtree(podcast_dir)
+                logger.info(f"[{slug}] Deleted podcast directory")
+                return True
+            except Exception as e:
+                logger.error(f"[{slug}] Failed to delete directory: {e}")
+                return False
+
+        return True
+
+    def get_storage_stats(self) -> Dict[str, Any]:
+        """Get storage statistics."""
+        total_size = 0
+        file_count = 0
+
+        for podcast_dir in self.podcasts_dir.iterdir():
+            if podcast_dir.is_dir():
+                for f in podcast_dir.rglob('*'):
+                    if f.is_file():
+                        total_size += f.stat().st_size
+                        file_count += 1
+
+        return {
+            'total_size_bytes': total_size,
+            'total_size_mb': total_size / (1024 * 1024),
+            'file_count': file_count
+        }

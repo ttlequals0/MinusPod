@@ -4,13 +4,36 @@ import subprocess
 import tempfile
 import os
 import shutil
+from pathlib import Path
 from typing import List, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
+# Get the assets directory - check primary location first, fall back to builtin
+ASSETS_DIR = Path(__file__).parent.parent / "assets"
+ASSETS_BUILTIN_DIR = Path(__file__).parent.parent / "assets_builtin"
+
+
+def get_replace_audio_path() -> str:
+    """Get the path to replace.mp3, checking primary assets first, then builtin."""
+    primary_path = ASSETS_DIR / "replace.mp3"
+    builtin_path = ASSETS_BUILTIN_DIR / "replace.mp3"
+
+    if primary_path.exists():
+        return str(primary_path)
+    elif builtin_path.exists():
+        return str(builtin_path)
+    else:
+        # Return primary path anyway (will fail later with clear error)
+        return str(primary_path)
+
+
+DEFAULT_REPLACE_AUDIO = get_replace_audio_path()
+
+
 class AudioProcessor:
-    def __init__(self, replace_audio_path: str = "./assets/replace.mp3"):
-        self.replace_audio_path = replace_audio_path
+    def __init__(self, replace_audio_path: str = None):
+        self.replace_audio_path = replace_audio_path or DEFAULT_REPLACE_AUDIO
 
     def check_ffmpeg(self) -> bool:
         """Check if FFMPEG is available."""

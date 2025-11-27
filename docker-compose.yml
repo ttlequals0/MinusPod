@@ -2,18 +2,18 @@ version: '3.8'
 
 services:
   podcast-server:
-    build: .
+    image: ttlequals0/podcast-server:latest
     ports:
       - "8000:8000"
     volumes:
       - ./data:/app/data
-      - ./config:/app/config:ro
       - ./assets:/app/assets:ro
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - WHISPER_MODEL=small
+      - WHISPER_MODEL=${WHISPER_MODEL:-small}
       - BASE_URL=${BASE_URL:-http://localhost:8000}
-      - WHISPER_DEVICE=cuda
+      - WHISPER_DEVICE=${WHISPER_DEVICE:-cuda}
+      - RETENTION_PERIOD=${RETENTION_PERIOD:-1440}
     deploy:
       resources:
         reservations:
@@ -22,3 +22,16 @@ services:
               count: 1
               capabilities: [gpu]
     restart: unless-stopped
+    expose:
+      - "8000"
+
+  tunnel:
+    image: cloudflare/cloudflared
+    command: tunnel run
+    environment:
+      - TUNNEL_TOKEN=${TUNNEL_TOKEN}
+    depends_on:
+      - podcast-server
+    restart: unless-stopped
+    profiles:
+      - tunnel

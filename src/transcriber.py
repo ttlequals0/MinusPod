@@ -5,6 +5,18 @@ import os
 import requests
 from typing import List, Dict, Optional, Tuple
 from pathlib import Path
+
+# Suppress ONNX Runtime warnings before importing faster_whisper
+os.environ.setdefault('ORT_LOG_LEVEL', 'ERROR')
+
+# Set cache directories to writable location (for running as non-root user)
+# These must be set BEFORE importing faster_whisper/huggingface
+cache_dir = os.environ.get('HF_HOME', '/app/data/.cache')
+os.environ.setdefault('HF_HOME', cache_dir)
+os.environ.setdefault('HUGGINGFACE_HUB_CACHE', os.path.join(cache_dir, 'hub'))
+os.environ.setdefault('XDG_CACHE_HOME', cache_dir)
+
+import ctranslate2
 from faster_whisper import WhisperModel, BatchedInferencePipeline
 
 logger = logging.getLogger(__name__)
@@ -25,10 +37,18 @@ class WhisperModelSingleton:
             model_size = os.getenv("WHISPER_MODEL", "small")
             device = os.getenv("WHISPER_DEVICE", "cpu")
 
-            # Set compute type based on device
+            # Check CUDA availability and set compute type
             if device == "cuda":
-                compute_type = "float16"  # Use FP16 for GPU
-                logger.info(f"Initializing Whisper model: {model_size} on CUDA with float16")
+                cuda_device_count = ctranslate2.get_cuda_device_count()
+                if cuda_device_count > 0:
+                    logger.info(f"CUDA available: {cuda_device_count} device(s) detected")
+                    compute_type = "float16"  # Use FP16 for GPU
+                    logger.info(f"Initializing Whisper model: {model_size} on CUDA with float16")
+                else:
+                    logger.warning("CUDA requested but not available, falling back to CPU")
+                    device = "cpu"
+                    compute_type = "int8"
+                    logger.info(f"Initializing Whisper model: {model_size} on CPU with int8")
             else:
                 compute_type = "int8"  # Use INT8 for CPU
                 logger.info(f"Initializing Whisper model: {model_size} on CPU with int8")
@@ -79,7 +99,12 @@ class Transcriber:
         """Download audio file from URL."""
         try:
             logger.info(f"Downloading audio from: {url}")
-            response = requests.get(url, stream=True, timeout=timeout)
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Accept': '*/*',
+                'Accept-Language': 'en-US,en;q=0.9',
+            }
+            response = requests.get(url, headers=headers, stream=True, timeout=timeout)
             response.raise_for_status()
 
             # Check file size

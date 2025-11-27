@@ -1,35 +1,83 @@
-"""Main Flask web server for podcast ad removal."""
+"""Main Flask web server for podcast ad removal with web UI."""
 import logging
-import json
 import os
+import sys
 import threading
 import time
 from datetime import datetime
 from pathlib import Path
-from flask import Flask, Response, send_file, abort
+from flask import Flask, Response, send_file, abort, send_from_directory
+from flask_cors import CORS
 from slugify import slugify
 import shutil
 
+# Configure structured logging
+_logging_configured = False
+
+def setup_logging():
+    """Configure application logging."""
+    global _logging_configured
+    if _logging_configured:
+        return
+    _logging_configured = True
+
+    log_level = os.environ.get('LOG_LEVEL', 'INFO').upper()
+
+    # Create formatters
+    formatter = logging.Formatter(
+        '[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+
+    # Console handler only - Docker captures stdout for logging
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(formatter)
+
+    # Configure root logger - clear existing handlers first to prevent duplicates
+    root = logging.getLogger()
+    root.handlers.clear()
+    root.setLevel(getattr(logging, log_level, logging.INFO))
+    root.addHandler(console_handler)
+
+    # Set specific logger levels
+    logging.getLogger('werkzeug').setLevel(logging.INFO)
+    logging.getLogger('urllib3').setLevel(logging.WARNING)
+
+    # Create application loggers
+    for name in ['podcast.api', 'podcast.feed', 'podcast.audio',
+                 'podcast.transcribe', 'podcast.claude', 'podcast.refresh']:
+        logging.getLogger(name).setLevel(getattr(logging, log_level, logging.INFO))
+
+
+setup_logging()
+logger = logging.getLogger('podcast.app')
+feed_logger = logging.getLogger('podcast.feed')
+refresh_logger = logging.getLogger('podcast.refresh')
+audio_logger = logging.getLogger('podcast.audio')
+
+# Initialize Flask app
+app = Flask(__name__)
+
+# Enable CORS for development (Vite dev server)
+CORS(app, resources={
+    r"/api/*": {
+        "origins": ["http://localhost:5173", "http://localhost:3000", "http://localhost:8080"],
+        "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+        "allow_headers": ["Content-Type"]
+    }
+})
+
+# Import and register API blueprint
+from api import api as api_blueprint
+app.register_blueprint(api_blueprint)
+
+# Import components
 from storage import Storage
 from rss_parser import RSSParser
 from transcriber import Transcriber
 from ad_detector import AdDetector
 from audio_processor import AudioProcessor
-
-# Configure logging to both file and console
-logging.basicConfig(
-    level=logging.INFO,
-    format='[%(asctime)s] [%(levelname)s] %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S',
-    handlers=[
-        logging.FileHandler('/app/data/server.log'),
-        logging.StreamHandler()  # Keep console output for Docker logs
-    ]
-)
-logger = logging.getLogger(__name__)
-
-# Initialize Flask app
-app = Flask(__name__)
+from database import Database
 
 # Initialize components
 storage = Storage()
@@ -37,46 +85,51 @@ rss_parser = RSSParser()
 transcriber = Transcriber()
 ad_detector = AdDetector()
 audio_processor = AudioProcessor()
+db = Database()
 
-# Load feed configuration
-def load_feeds():
-    """Load feed configuration from JSON."""
-    config_path = Path("./config/feeds.json")
-    if not config_path.exists():
-        logger.error("feeds.json not found")
-        return []
 
-    try:
-        with open(config_path, 'r') as f:
-            feeds = json.load(f)
-            logger.info(f"Loaded {len(feeds)} feed configurations")
-            return feeds
-    except Exception as e:
-        logger.error(f"Failed to load feeds.json: {e}")
-        return []
+def get_feed_map():
+    """Get feed map from database."""
+    feeds = db.get_feeds_config()
+    return {slugify(feed['out'].strip('/')): feed for feed in feeds}
 
-def reload_feeds():
-    """Reload feed configuration and update global FEED_MAP."""
-    global FEEDS, FEED_MAP
-    FEEDS = load_feeds()
-    FEED_MAP = {slugify(feed['out'].strip('/')): feed for feed in FEEDS}
-    logger.info(f"Reloaded feeds: {list(FEED_MAP.keys())}")
-    return FEED_MAP
-
-# Initial load of feed configuration
-FEEDS = load_feeds()
-FEED_MAP = {slugify(feed['out'].strip('/')): feed for feed in FEEDS}
 
 def refresh_rss_feed(slug: str, feed_url: str):
     """Refresh RSS feed for a podcast."""
     try:
-        logger.info(f"[{slug}] Starting RSS refresh from: {feed_url}")
+        refresh_logger.info(f"[{slug}] Starting RSS refresh from: {feed_url}")
 
         # Fetch original RSS
         feed_content = rss_parser.fetch_feed(feed_url)
         if not feed_content:
-            logger.error(f"[{slug}] Failed to fetch RSS feed")
+            refresh_logger.error(f"[{slug}] Failed to fetch RSS feed")
             return False
+
+        # Parse feed to extract metadata
+        parsed_feed = rss_parser.parse_feed(feed_content)
+        if parsed_feed and parsed_feed.feed:
+            title = parsed_feed.feed.get('title')
+            description = parsed_feed.feed.get('description', '')[:500]
+
+            # Extract artwork URL
+            artwork_url = None
+            if hasattr(parsed_feed.feed, 'image') and hasattr(parsed_feed.feed.image, 'href'):
+                artwork_url = parsed_feed.feed.image.href
+            elif 'image' in parsed_feed.feed and 'href' in parsed_feed.feed.image:
+                artwork_url = parsed_feed.feed.image.href
+
+            # Update podcast metadata in database
+            db.update_podcast(
+                slug,
+                title=title,
+                description=description,
+                artwork_url=artwork_url,
+                last_checked_at=datetime.utcnow().isoformat() + 'Z'
+            )
+
+            # Download artwork if available
+            if artwork_url:
+                storage.download_artwork(slug, artwork_url)
 
         # Modify feed URLs
         modified_rss = rss_parser.modify_feed(feed_content, slug)
@@ -89,41 +142,54 @@ def refresh_rss_feed(slug: str, feed_url: str):
         data['last_checked'] = datetime.utcnow().isoformat() + 'Z'
         storage.save_data_json(slug, data)
 
-        logger.info(f"[{slug}] RSS refresh complete")
+        refresh_logger.info(f"[{slug}] RSS refresh complete")
         return True
     except Exception as e:
-        logger.error(f"[{slug}] RSS refresh failed: {e}")
+        refresh_logger.error(f"[{slug}] RSS refresh failed: {e}")
         return False
+
 
 def refresh_all_feeds():
-    """Refresh all RSS feeds once (no loop)."""
+    """Refresh all RSS feeds once."""
     try:
-        logger.info("Refreshing all RSS feeds")
-        # Reload feeds.json to pick up any changes
-        reload_feeds()
+        refresh_logger.info("Refreshing all RSS feeds")
 
-        for slug, feed_info in FEED_MAP.items():
+        feed_map = get_feed_map()
+        for slug, feed_info in feed_map.items():
             refresh_rss_feed(slug, feed_info['in'])
-        logger.info("RSS refresh complete")
+
+        refresh_logger.info(f"RSS refresh complete for {len(feed_map)} feeds")
         return True
     except Exception as e:
-        logger.error(f"RSS refresh failed: {e}")
+        refresh_logger.error(f"RSS refresh failed: {e}")
         return False
+
+
+def run_cleanup():
+    """Run episode cleanup based on retention period."""
+    try:
+        deleted, freed_mb = db.cleanup_old_episodes()
+        if deleted > 0:
+            refresh_logger.info(f"Cleanup: removed {deleted} episodes, freed {freed_mb:.1f} MB")
+    except Exception as e:
+        refresh_logger.error(f"Cleanup failed: {e}")
+
 
 def background_rss_refresh():
     """Background task to refresh RSS feeds every 15 minutes."""
     while True:
         refresh_all_feeds()
-        # Wait 15 minutes
-        time.sleep(900)
+        run_cleanup()
+        time.sleep(900)  # 15 minutes
 
-def process_episode(slug: str, episode_id: str, episode_url: str, episode_title: str = "Unknown", podcast_name: str = "Unknown"):
+
+def process_episode(slug: str, episode_id: str, episode_url: str,
+                   episode_title: str = "Unknown", podcast_name: str = "Unknown"):
     """Process a single episode (transcribe, detect ads, remove ads)."""
     start_time = time.time()
 
     try:
-        # Log start with title
-        logger.info(f"[{slug}:{episode_id}] Starting: \"{episode_title}\"")
+        audio_logger.info(f"[{slug}:{episode_id}] Starting: \"{episode_title}\"")
 
         # Update status to processing
         data = storage.load_data_json(slug)
@@ -141,23 +207,23 @@ def process_episode(slug: str, episode_id: str, episode_url: str, episode_title:
         transcript_text = None
 
         if transcript_path.exists():
-            logger.info(f"[{slug}:{episode_id}] Found existing transcript, skipping transcription")
-            # Load existing transcript
+            audio_logger.info(f"[{slug}:{episode_id}] Found existing transcript")
             with open(transcript_path, 'r') as f:
                 transcript_text = f.read()
+
             # Parse segments from transcript
             segments = []
             for line in transcript_text.split('\n'):
                 if line.strip() and line.startswith('['):
-                    # Parse format: [00:00:00.000 --> 00:00:05.200] text
                     try:
                         time_part, text_part = line.split('] ', 1)
                         time_range = time_part.strip('[')
                         start_str, end_str = time_range.split(' --> ')
-                        # Convert timestamp to seconds
+
                         def parse_timestamp(ts):
                             parts = ts.split(':')
                             return float(parts[0]) * 3600 + float(parts[1]) * 60 + float(parts[2])
+
                         segments.append({
                             'start': parse_timestamp(start_str),
                             'end': parse_timestamp(end_str),
@@ -167,9 +233,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str, episode_title:
                         continue
 
             if segments:
-                segment_count = len(segments)
                 duration_min = segments[-1]['end'] / 60 if segments else 0
-                logger.info(f"[{slug}:{episode_id}] Loaded transcript: {segment_count} segments, {duration_min:.1f} minutes")
+                audio_logger.info(f"[{slug}:{episode_id}] Loaded {len(segments)} segments, {duration_min:.1f} min")
 
             # Still need to download audio for processing
             audio_path = transcriber.download_audio(episode_url)
@@ -177,45 +242,42 @@ def process_episode(slug: str, episode_id: str, episode_url: str, episode_title:
                 raise Exception("Failed to download audio")
         else:
             # Download and transcribe
-            logger.info(f"[{slug}:{episode_id}] Downloading audio")
+            audio_logger.info(f"[{slug}:{episode_id}] Downloading audio")
             audio_path = transcriber.download_audio(episode_url)
             if not audio_path:
                 raise Exception("Failed to download audio")
 
-            logger.info(f"[{slug}:{episode_id}] Starting transcription")
+            audio_logger.info(f"[{slug}:{episode_id}] Starting transcription")
             segments = transcriber.transcribe(audio_path)
             if not segments:
                 raise Exception("Failed to transcribe audio")
 
-            segment_count = len(segments)
             duration_min = segments[-1]['end'] / 60 if segments else 0
-            logger.info(f"[{slug}:{episode_id}] Transcription completed: {segment_count} segments, {duration_min:.1f} minutes")
+            audio_logger.info(f"[{slug}:{episode_id}] Transcription complete: {len(segments)} segments, {duration_min:.1f} min")
 
             # Save transcript
             transcript_text = transcriber.segments_to_text(segments)
             storage.save_transcript(slug, episode_id, transcript_text)
 
         try:
-
             # Step 2: Detect ads
-            logger.info(f"[{slug}:{episode_id}] Sending to Claude API - Podcast: {podcast_name}, Episode: {episode_title}")
             ad_result = ad_detector.process_transcript(segments, podcast_name, episode_title, slug, episode_id)
             storage.save_ads_json(slug, episode_id, ad_result)
 
             ads = ad_result.get('ads', [])
             if ads:
                 total_ad_time = sum(ad['end'] - ad['start'] for ad in ads)
-                logger.info(f"[{slug}:{episode_id}] Claude detected {len(ads)} ad segments (total {total_ad_time/60:.1f} minutes)")
+                audio_logger.info(f"[{slug}:{episode_id}] Detected {len(ads)} ads ({total_ad_time/60:.1f} min)")
             else:
-                logger.info(f"[{slug}:{episode_id}] No ads detected")
+                audio_logger.info(f"[{slug}:{episode_id}] No ads detected")
 
             # Step 3: Process audio to remove ads
-            logger.info(f"[{slug}:{episode_id}] Starting FFMPEG")
+            audio_logger.info(f"[{slug}:{episode_id}] Starting FFMPEG processing")
             processed_path = audio_processor.process_episode(audio_path, ads)
             if not processed_path:
                 raise Exception("Failed to process audio with FFMPEG")
 
-            # Get durations for logging
+            # Get durations
             original_duration = audio_processor.get_audio_duration(audio_path)
             new_duration = audio_processor.get_audio_duration(processed_path)
 
@@ -237,15 +299,15 @@ def process_episode(slug: str, episode_id: str, episode_url: str, episode_title:
             }
             storage.save_data_json(slug, data)
 
-            # Calculate processing time
             processing_time = time.time() - start_time
 
-            # Final summary log
             if original_duration and new_duration:
-                time_saved = original_duration - new_duration
-                logger.info(f"[{slug}:{episode_id}] Complete: \"{episode_title}\" | {original_duration/60:.1f}→{new_duration/60:.1f}min | {len(ads)} ads removed | {processing_time:.1f}s")
+                audio_logger.info(
+                    f"[{slug}:{episode_id}] Complete: {original_duration/60:.1f}->{new_duration/60:.1f}min, "
+                    f"{len(ads)} ads, {processing_time:.1f}s"
+                )
             else:
-                logger.info(f"[{slug}:{episode_id}] Complete: \"{episode_title}\" | {len(ads)} ads removed | {processing_time:.1f}s")
+                audio_logger.info(f"[{slug}:{episode_id}] Complete: {len(ads)} ads, {processing_time:.1f}s")
 
             return True
 
@@ -256,7 +318,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str, episode_title:
 
     except Exception as e:
         processing_time = time.time() - start_time
-        logger.error(f"[{slug}:{episode_id}] Failed: \"{episode_title}\" | Error: {e} | {processing_time:.1f}s")
+        audio_logger.error(f"[{slug}:{episode_id}] Failed: {e} ({processing_time:.1f}s)")
 
         # Update status to failed
         data = storage.load_data_json(slug)
@@ -270,17 +332,82 @@ def process_episode(slug: str, episode_id: str, episode_url: str, episode_title:
         storage.save_data_json(slug, data)
         return False
 
+
+# ========== Web UI Static File Serving ==========
+
+STATIC_DIR = Path(__file__).parent.parent / 'static' / 'ui'
+ROOT_DIR = Path(__file__).parent.parent
+
+
+@app.route('/ui/')
+@app.route('/ui/<path:path>')
+def serve_ui(path=''):
+    """Serve React UI static files."""
+    if not STATIC_DIR.exists():
+        return "UI not built. Run 'npm run build' in frontend directory.", 404
+
+    # For assets directory, return 404 if file doesn't exist (don't serve index.html)
+    # This prevents MIME type errors when JS/CSS files are not found
+    if path and path.startswith('assets/') and not (STATIC_DIR / path).exists():
+        return f"Asset not found: {path}", 404
+
+    # Serve index.html for SPA routes (non-asset paths)
+    if not path or not (STATIC_DIR / path).exists():
+        return send_from_directory(STATIC_DIR, 'index.html')
+
+    return send_from_directory(STATIC_DIR, path)
+
+
+# ========== API Documentation ==========
+
+@app.route('/docs')
+@app.route('/docs/')
+def swagger_ui():
+    """Serve Swagger UI for API documentation."""
+    return '''<!DOCTYPE html>
+<html>
+<head>
+    <title>Podcast Server API</title>
+    <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
+</head>
+<body>
+    <div id="swagger-ui"></div>
+    <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+    <script>
+        SwaggerUIBundle({
+            url: "/openapi.yaml",
+            dom_id: '#swagger-ui',
+            presets: [SwaggerUIBundle.presets.apis, SwaggerUIBundle.SwaggerUIStandalonePreset],
+            layout: "BaseLayout"
+        });
+    </script>
+</body>
+</html>'''
+
+
+@app.route('/openapi.yaml')
+def serve_openapi():
+    """Serve OpenAPI specification."""
+    openapi_path = ROOT_DIR / 'openapi.yaml'
+    if openapi_path.exists():
+        return send_file(openapi_path, mimetype='application/x-yaml')
+    abort(404)
+
+
+# ========== RSS Feed Routes ==========
+
 @app.route('/<slug>')
 def serve_rss(slug):
     """Serve modified RSS feed."""
-    if slug not in FEED_MAP:
-        # Refresh all feeds to pick up any new ones
-        logger.info(f"[{slug}] Not found in feeds, refreshing all")
-        refresh_all_feeds()
+    feed_map = get_feed_map()
 
-        # Check again after refresh
-        if slug not in FEED_MAP:
-            logger.warning(f"[{slug}] Still not found after refresh")
+    if slug not in feed_map:
+        refresh_logger.info(f"[{slug}] Not found, refreshing feeds")
+        refresh_all_feeds()
+        feed_map = get_feed_map()
+
+        if slug not in feed_map:
+            feed_logger.warning(f"[{slug}] Feed not found")
             abort(404)
 
     # Check if RSS cache exists or is stale
@@ -288,48 +415,49 @@ def serve_rss(slug):
     data = storage.load_data_json(slug)
     last_checked = data.get('last_checked')
 
-    # If no cache or stale (>15 min), refresh immediately
     should_refresh = False
     if not cached_rss:
         should_refresh = True
-        logger.info(f"[{slug}] No RSS cache, fetching immediately")
+        feed_logger.info(f"[{slug}] No RSS cache, refreshing")
     elif last_checked:
         try:
             last_time = datetime.fromisoformat(last_checked.replace('Z', '+00:00'))
             age_minutes = (datetime.utcnow() - last_time.replace(tzinfo=None)).total_seconds() / 60
             if age_minutes > 15:
                 should_refresh = True
-                logger.info(f"[{slug}] RSS cache stale ({age_minutes:.1f} minutes old), refreshing")
+                feed_logger.info(f"[{slug}] RSS cache stale ({age_minutes:.0f}min), refreshing")
         except:
             should_refresh = True
 
     if should_refresh:
-        refresh_rss_feed(slug, FEED_MAP[slug]['in'])
+        refresh_rss_feed(slug, feed_map[slug]['in'])
         cached_rss = storage.get_rss(slug)
 
     if cached_rss:
-        logger.info(f"[{slug}] Serving RSS feed")
+        feed_logger.info(f"[{slug}] Serving RSS feed")
         return Response(cached_rss, mimetype='application/rss+xml')
     else:
-        logger.error(f"[{slug}] RSS feed not available")
+        feed_logger.error(f"[{slug}] RSS feed not available")
         abort(503)
+
 
 @app.route('/episodes/<slug>/<episode_id>.mp3')
 def serve_episode(slug, episode_id):
     """Serve processed episode audio (JIT processing)."""
-    if slug not in FEED_MAP:
-        # Refresh all feeds to pick up any new ones
-        logger.info(f"[{slug}] Not found in feeds for episode {episode_id}, refreshing all")
-        refresh_all_feeds()
+    feed_map = get_feed_map()
 
-        # Check again after refresh
-        if slug not in FEED_MAP:
-            logger.warning(f"[{slug}] Still not found after refresh for episode {episode_id}")
+    if slug not in feed_map:
+        feed_logger.info(f"[{slug}] Not found for episode {episode_id}, refreshing")
+        refresh_all_feeds()
+        feed_map = get_feed_map()
+
+        if slug not in feed_map:
+            feed_logger.warning(f"[{slug}] Feed not found for episode {episode_id}")
             abort(404)
 
-    # Validate episode ID (alphanumeric + dash/underscore)
+    # Validate episode ID
     if not all(c.isalnum() or c in '-_' for c in episode_id):
-        logger.warning(f"[{slug}] Invalid episode ID: {episode_id}")
+        feed_logger.warning(f"[{slug}] Invalid episode ID: {episode_id}")
         abort(400)
 
     # Check episode status
@@ -338,39 +466,33 @@ def serve_episode(slug, episode_id):
     status = episode_info.get('status')
 
     if status == 'processed':
-        # Serve cached processed file
         file_path = storage.get_episode_path(slug, episode_id)
         if file_path.exists():
-            logger.info(f"[{slug}:{episode_id}] Cache hit, serving processed file")
+            feed_logger.info(f"[{slug}:{episode_id}] Cache hit")
             return send_file(file_path, mimetype='audio/mpeg')
         else:
-            logger.error(f"[{slug}:{episode_id}] Processed file missing")
-            status = None  # Reprocess
+            feed_logger.error(f"[{slug}:{episode_id}] Processed file missing")
+            status = None
 
     elif status == 'failed':
-        # Always retry processing instead of serving fallback
-        logger.info(f"[{slug}:{episode_id}] Previous failure detected, retrying processing")
-        status = None  # Reset status to trigger reprocessing
+        feed_logger.info(f"[{slug}:{episode_id}] Retrying failed episode")
+        status = None
 
     elif status == 'processing':
-        # Already processing, return temporary unavailable
-        logger.info(f"[{slug}:{episode_id}] Episode currently processing")
+        feed_logger.info(f"[{slug}:{episode_id}] Currently processing")
         abort(503)
 
-    # Status is None or unknown - need to process
-    # First, we need to find the original URL from the RSS feed
+    # Need to process - find original URL from RSS
     cached_rss = storage.get_rss(slug)
     if not cached_rss:
-        logger.error(f"[{slug}:{episode_id}] No RSS feed available")
+        feed_logger.error(f"[{slug}:{episode_id}] No RSS available")
         abort(404)
 
-    # Parse RSS to find original URL
-    original_feed = rss_parser.fetch_feed(FEED_MAP[slug]['in'])
+    original_feed = rss_parser.fetch_feed(feed_map[slug]['in'])
     if not original_feed:
-        logger.error(f"[{slug}:{episode_id}] Could not fetch original RSS")
+        feed_logger.error(f"[{slug}:{episode_id}] Could not fetch original RSS")
         abort(503)
 
-    # Parse the feed to get podcast name
     parsed_feed = rss_parser.parse_feed(original_feed)
     podcast_name = parsed_feed.feed.get('title', 'Unknown') if parsed_feed else 'Unknown'
 
@@ -384,43 +506,63 @@ def serve_episode(slug, episode_id):
             break
 
     if not original_url:
-        logger.error(f"[{slug}:{episode_id}] Episode not found in RSS feed")
+        feed_logger.error(f"[{slug}:{episode_id}] Episode not found in RSS")
         abort(404)
 
-    logger.info(f"[{slug}:{episode_id}] Starting new processing for {podcast_name}")
+    feed_logger.info(f"[{slug}:{episode_id}] Starting processing")
 
-    # Process episode (blocking)
     if process_episode(slug, episode_id, original_url, episode_title, podcast_name):
-        # Serve the newly processed file
         file_path = storage.get_episode_path(slug, episode_id)
         if file_path.exists():
             return send_file(file_path, mimetype='audio/mpeg')
 
-    # Processing failed, serve original
-    logger.info(f"[{slug}:{episode_id}] Processing failed, serving original")
+    feed_logger.info(f"[{slug}:{episode_id}] Processing failed, redirecting to original")
     return Response(status=302, headers={'Location': original_url})
+
 
 @app.route('/health')
 def health_check():
     """Health check endpoint."""
-    return {'status': 'ok', 'feeds': len(FEEDS)}
+    try:
+        import sys
+        # Add parent directory to path for version module
+        parent_dir = str(Path(__file__).parent.parent)
+        if parent_dir not in sys.path:
+            sys.path.insert(0, parent_dir)
+        from version import __version__
+        version = __version__
+    except ImportError:
+        version = 'unknown'
+
+    feed_map = get_feed_map()
+    return {'status': 'ok', 'feeds': len(feed_map), 'version': version}
+
 
 if __name__ == '__main__':
-    # Log BASE_URL configuration
+    # Import and log version
+    try:
+        sys.path.insert(0, str(Path(__file__).parent.parent))
+        from version import __version__
+        logger.info(f"Podcast Server v{__version__} starting...")
+    except ImportError:
+        logger.warning("Could not import version")
+
     base_url = os.getenv('BASE_URL', 'http://localhost:8000')
-    logger.info(f"BASE_URL configured as: {base_url}")
+    logger.info(f"BASE_URL: {base_url}")
 
     # Start background RSS refresh thread
     refresh_thread = threading.Thread(target=background_rss_refresh, daemon=True)
     refresh_thread.start()
-    logger.info("Started background RSS refresh thread")
+    logger.info("Started background refresh thread")
 
-    # Do initial RSS refresh for all feeds
-    logger.info("Performing initial RSS refresh for all feeds")
-    for slug, feed_info in FEED_MAP.items():
+    # Initial RSS refresh
+    logger.info("Performing initial RSS refresh")
+    feed_map = get_feed_map()
+    for slug, feed_info in feed_map.items():
         refresh_rss_feed(slug, feed_info['in'])
-        logger.info(f"Feed available at: {base_url}/{slug}")
+        logger.info(f"Feed: {base_url}/{slug}")
 
     # Start Flask server
     logger.info("Starting Flask server on port 8000")
-    app.run(host='0.0.0.0', port=8000, debug=False)
+    logger.info(f"Web UI available at: {base_url}/ui/")
+    app.run(host='0.0.0.0', port=8000, debug=False, threaded=True)
