@@ -45,3 +45,9 @@ export async function getEpisode(slug: string, episodeId: string): Promise<Episo
 export async function getArtwork(slug: string): Promise<string> {
   return `/api/v1/feeds/${slug}/artwork`;
 }
+
+export async function reprocessEpisode(slug: string, episodeId: string): Promise<{ message: string; status: string }> {
+  return apiRequest<{ message: string; status: string }>(`/feeds/${slug}/episodes/${episodeId}/reprocess`, {
+    method: 'POST',
+  });
+}

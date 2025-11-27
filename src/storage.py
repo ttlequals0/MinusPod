@@ -300,6 +300,33 @@ class Storage:
 
     # ========== Cleanup Methods ==========
 
+    def delete_processed_file(self, slug: str, episode_id: str) -> bool:
+        """Delete the processed audio file for an episode."""
+        processed_path = self.get_episode_path(slug, episode_id, ".mp3")
+        if processed_path and processed_path.exists():
+            processed_path.unlink()
+            logger.debug(f"[{slug}:{episode_id}] Deleted processed audio file")
+            return True
+        return False
+
+    def delete_transcript(self, slug: str, episode_id: str) -> bool:
+        """Delete the transcript file for an episode."""
+        transcript_path = self.get_episode_path(slug, episode_id, "-transcript.txt")
+        if transcript_path and transcript_path.exists():
+            transcript_path.unlink()
+            logger.debug(f"[{slug}:{episode_id}] Deleted transcript file")
+            return True
+        return False
+
+    def delete_ads_json(self, slug: str, episode_id: str) -> bool:
+        """Delete the ads JSON file for an episode."""
+        ads_path = self.get_episode_path(slug, episode_id, "-ads.json")
+        if ads_path and ads_path.exists():
+            ads_path.unlink()
+            logger.debug(f"[{slug}:{episode_id}] Deleted ads JSON file")
+            return True
+        return False
+
     def cleanup_episode_files(self, slug: str, episode_id: str) -> int:
         """Delete all files for an episode. Returns bytes freed."""
         freed = 0

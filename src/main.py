@@ -29,24 +29,15 @@ def setup_logging():
         datefmt='%Y-%m-%d %H:%M:%S'
     )
 
-    # Console handler
+    # Console handler only - Docker captures stdout for logging
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setFormatter(formatter)
-
-    # File handler (if data dir exists)
-    handlers = [console_handler]
-    log_path = Path('/app/data/server.log')
-    if log_path.parent.exists():
-        file_handler = logging.FileHandler(log_path)
-        file_handler.setFormatter(formatter)
-        handlers.append(file_handler)
 
     # Configure root logger - clear existing handlers first to prevent duplicates
     root = logging.getLogger()
     root.handlers.clear()
     root.setLevel(getattr(logging, log_level, logging.INFO))
-    for handler in handlers:
-        root.addHandler(handler)
+    root.addHandler(console_handler)
 
     # Set specific logger levels
     logging.getLogger('werkzeug').setLevel(logging.INFO)

@@ -1,15 +1,24 @@
 import { useParams, Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
-import { getEpisode } from '../api/feeds';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { getEpisode, reprocessEpisode } from '../api/feeds';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 function EpisodeDetail() {
   const { slug, episodeId } = useParams<{ slug: string; episodeId: string }>();
 
+  const queryClient = useQueryClient();
+
   const { data: episode, isLoading, error } = useQuery({
     queryKey: ['episode', slug, episodeId],
     queryFn: () => getEpisode(slug!, episodeId!),
     enabled: !!slug && !!episodeId,
+  });
+
+  const reprocessMutation = useMutation({
+    mutationFn: () => reprocessEpisode(slug!, episodeId!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
+    },
   });
 
   const formatDuration = (seconds?: number) => {
@@ -70,9 +79,18 @@ function EpisodeDetail() {
               {episode.duration && <span>{formatDuration(episode.duration)}</span>}
             </div>
           </div>
-          <span className={`px-3 py-1 rounded-full text-sm ${statusColors[episode.status]}`}>
-            {episode.status}
-          </span>
+          <div className="flex items-center gap-2">
+            <span className={`px-3 py-1 rounded-full text-sm ${statusColors[episode.status]}`}>
+              {episode.status}
+            </span>
+            <button
+              onClick={() => reprocessMutation.mutate()}
+              disabled={reprocessMutation.isPending || episode.status === 'processing'}
+              className="px-3 py-1 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {reprocessMutation.isPending ? 'Reprocessing...' : 'Reprocess'}
+            </button>
+          </div>
         </div>
 
         {episode.description && (

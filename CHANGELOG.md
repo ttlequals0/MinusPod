@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.18] - 2025-11-27
+
+### Added
+- Force reprocess episode feature via API and UI
+  - New endpoint: POST `/api/v1/feeds/{slug}/episodes/{episode_id}/reprocess`
+  - "Reprocess" button on episode detail page
+  - Deletes cached files (audio, transcript, ads) and re-runs full pipeline
+- API field name compatibility for frontend
+  - Added `id`, `published`, `duration`, `ad_count` fields to episode list response
+  - Added `processed_url`, `ad_segments`, `transcript` fields to episode detail response
+  - Status now returns `completed` instead of `processed` for frontend compatibility
+
+### Fixed
+- Episode list showing "Invalid Date" - API now returns `published` field
+- Episode links returning 404 with "undefined" - API now returns `id` field
+- Episode detail page not showing ads/transcript - field names now match frontend types
+
+### Changed
+- Removed file-based logging (`server.log`) - logs only to console now
+  - Docker captures stdout, eliminating unbounded log file growth
+
+---
+
 ## [0.1.17] - 2025-11-27
 
 ### Fixed

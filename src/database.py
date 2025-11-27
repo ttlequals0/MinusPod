@@ -609,6 +609,48 @@ class Database:
 
         conn.commit()
 
+    def clear_episode_details(self, slug: str, episode_id: str):
+        """Clear transcript and ad markers for an episode."""
+        conn = self.get_connection()
+
+        # Get episode database ID
+        episode = self.get_episode(slug, episode_id)
+        if not episode:
+            return
+
+        db_episode_id = episode['id']
+
+        conn.execute(
+            "DELETE FROM episode_details WHERE episode_id = ?",
+            (db_episode_id,)
+        )
+        conn.commit()
+        logger.debug(f"[{slug}:{episode_id}] Cleared episode details from database")
+
+    def reset_episode_status(self, slug: str, episode_id: str):
+        """Reset episode status to pending for reprocessing."""
+        conn = self.get_connection()
+
+        podcast = self.get_podcast_by_slug(slug)
+        if not podcast:
+            return
+
+        conn.execute(
+            """UPDATE episodes
+               SET status = 'pending',
+                   processed_file = NULL,
+                   processed_at = NULL,
+                   original_duration = NULL,
+                   new_duration = NULL,
+                   ads_removed = NULL,
+                   error_message = NULL,
+                   updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+               WHERE podcast_id = ? AND episode_id = ?""",
+            (podcast['id'], episode_id)
+        )
+        conn.commit()
+        logger.debug(f"[{slug}:{episode_id}] Reset episode status to pending")
+
     # ========== Settings Methods ==========
 
     def get_setting(self, key: str) -> Optional[str]:

@@ -323,10 +323,21 @@ def list_episodes(slug):
         if ep.get('original_duration') and ep.get('new_duration'):
             time_saved = ep['original_duration'] - ep['new_duration']
 
+        # Map status for frontend compatibility
+        status = ep['status']
+        if status == 'processed':
+            status = 'completed'
+
         episode_list.append({
-            'episodeId': ep['episode_id'],
+            # Frontend expected fields
+            'id': ep['episode_id'],
             'title': ep['title'],
-            'status': ep['status'],
+            'status': status,
+            'published': ep['created_at'],
+            'duration': ep['original_duration'],
+            'ad_count': ep['ads_removed'],
+            # Additional fields for backward compatibility
+            'episodeId': ep['episode_id'],
             'createdAt': ep['created_at'],
             'processedAt': ep['processed_at'],
             'originalDuration': ep['original_duration'],
@@ -369,10 +380,25 @@ def get_episode(slug, episode_id):
     if episode.get('original_duration') and episode.get('new_duration'):
         time_saved = episode['original_duration'] - episode['new_duration']
 
+    # Map status for frontend compatibility
+    status = episode['status']
+    if status == 'processed':
+        status = 'completed'
+
     return json_response({
-        'episodeId': episode['episode_id'],
+        # Frontend expected fields (snake_case)
+        'id': episode['episode_id'],
         'title': episode['title'],
-        'status': episode['status'],
+        'status': status,
+        'published': episode['created_at'],
+        'duration': episode['original_duration'],
+        'ad_count': episode['ads_removed'],
+        'original_url': episode['original_url'],
+        'processed_url': f"{base_url}/episodes/{slug}/{episode_id}.mp3",
+        'ad_segments': ad_markers,
+        'transcript': episode.get('transcript_text'),
+        # Additional fields for backward compatibility (camelCase)
+        'episodeId': episode['episode_id'],
         'originalUrl': episode['original_url'],
         'processedUrl': f"{base_url}/episodes/{slug}/{episode_id}.mp3",
         'createdAt': episode['created_at'],
@@ -401,6 +427,65 @@ def get_transcript(slug, episode_id):
         'episodeId': episode_id,
         'transcript': transcript
     })
+
+
+@api.route('/feeds/<slug>/episodes/<episode_id>/reprocess', methods=['POST'])
+@log_request
+def reprocess_episode(slug, episode_id):
+    """Force reprocess an episode by deleting cached data and reprocessing immediately."""
+    db = get_database()
+    storage = get_storage()
+
+    episode = db.get_episode(slug, episode_id)
+    if not episode:
+        return error_response('Episode not found', 404)
+
+    if episode['status'] == 'processing':
+        return error_response('Episode is currently processing', 409)
+
+    try:
+        # 1. Delete processed audio file
+        storage.delete_processed_file(slug, episode_id)
+
+        # 2. Delete transcript file
+        storage.delete_transcript(slug, episode_id)
+
+        # 3. Delete ads JSON file
+        storage.delete_ads_json(slug, episode_id)
+
+        # 4. Clear episode details from database
+        db.clear_episode_details(slug, episode_id)
+
+        # 5. Reset episode status to pending
+        db.reset_episode_status(slug, episode_id)
+
+        # 6. Trigger immediate reprocessing
+        from main import process_episode
+        episode_url = episode.get('original_url')
+        episode_title = episode.get('title', 'Unknown')
+
+        podcast = db.get_podcast_by_slug(slug)
+        podcast_name = podcast.get('title', slug) if podcast else slug
+
+        logger.info(f"Starting reprocess: {slug}:{episode_id}")
+        success = process_episode(slug, episode_id, episode_url, episode_title, podcast_name)
+
+        if success:
+            return json_response({
+                'message': 'Episode reprocessed successfully',
+                'episodeId': episode_id,
+                'status': 'completed'
+            })
+        else:
+            return json_response({
+                'message': 'Episode reprocessing failed',
+                'episodeId': episode_id,
+                'status': 'failed'
+            }, 500)
+
+    except Exception as e:
+        logger.error(f"Failed to reprocess episode {slug}:{episode_id}: {e}")
+        return error_response(f'Failed to reprocess: {str(e)}', 500)
 
 
 # ========== Settings Endpoints ==========
