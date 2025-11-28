@@ -11,6 +11,13 @@ logger = logging.getLogger('podcast.claude')
 # Default model - Claude Sonnet 4.5
 DEFAULT_MODEL = "claude-sonnet-4-5-20250929"
 
+# User prompt template (not configurable via UI - just formats the transcript)
+USER_PROMPT_TEMPLATE = """Podcast: {podcast_name}
+Episode: {episode_title}
+
+Transcript:
+{transcript}"""
+
 # Valid model IDs - used to validate saved settings
 VALID_MODELS = [
     'claude-sonnet-4-5-20250929',
@@ -114,17 +121,8 @@ class AdDetector:
         return DEFAULT_SYSTEM_PROMPT
 
     def get_user_prompt_template(self) -> str:
-        """Get user prompt template from database or default."""
-        try:
-            template = self.db.get_setting('user_prompt_template')
-            if template:
-                return template
-        except Exception as e:
-            logger.warning(f"Could not load user prompt template from DB: {e}")
-
-        # Default fallback
-        from database import DEFAULT_USER_PROMPT_TEMPLATE
-        return DEFAULT_USER_PROMPT_TEMPLATE
+        """Get user prompt template (hardcoded, not configurable)."""
+        return USER_PROMPT_TEMPLATE
 
     def detect_ads(self, segments: List[Dict], podcast_name: str = "Unknown",
                    episode_title: str = "Unknown", slug: str = None,
@@ -160,15 +158,6 @@ class AdDetector:
 
             logger.info(f"[{slug}:{episode_id}] Sending transcript to Claude "
                        f"({len(segments)} segments, {len(transcript)} chars)")
-
-            # Save the prompt for debugging
-            if slug and episode_id:
-                try:
-                    from storage import Storage
-                    storage = Storage()
-                    storage.save_prompt(slug, episode_id, prompt)
-                except Exception as e:
-                    logger.warning(f"Could not save prompt: {e}")
 
             # Call Claude API with configured model
             model = self.get_model()
@@ -234,7 +223,7 @@ class AdDetector:
 
                 if ads is None:
                     logger.warning(f"[{slug}:{episode_id}] No JSON array found in response")
-                    return {"ads": [], "raw_response": response_text, "error": "No JSON found"}
+                    return {"ads": [], "raw_response": response_text, "prompt": prompt, "error": "No JSON found"}
 
                 if isinstance(ads, list):
                     valid_ads = []
@@ -254,16 +243,17 @@ class AdDetector:
                     return {
                         "ads": valid_ads,
                         "raw_response": response_text,
+                        "prompt": prompt,
                         "model": model
                     }
                 else:
                     logger.warning(f"[{slug}:{episode_id}] Response was not a JSON array")
-                    return {"ads": [], "raw_response": response_text, "error": "Response not an array"}
+                    return {"ads": [], "raw_response": response_text, "prompt": prompt, "error": "Response not an array"}
 
             except json.JSONDecodeError as e:
                 logger.error(f"[{slug}:{episode_id}] Failed to parse JSON: {e}")
                 logger.error(f"[{slug}:{episode_id}] Raw response (first 500 chars): {response_text[:500]}")
-                return {"ads": [], "raw_response": response_text, "error": str(e)}
+                return {"ads": [], "raw_response": response_text, "prompt": prompt, "error": str(e)}
 
         except Exception as e:
             logger.error(f"[{slug}:{episode_id}] Ad detection failed: {e}")

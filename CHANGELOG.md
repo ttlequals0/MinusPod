@@ -5,6 +5,52 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.29] - 2025-11-28
+
+### Removed
+- `userPromptTemplate` from Settings UI/API
+  - This setting was not useful to customize (just formats the transcript)
+  - Template is now hardcoded in ad_detector.py
+  - Reduces API surface area and simplifies settings
+
+---
+
+## [0.1.28] - 2025-11-28
+
+### Fixed
+- `claudePrompt` field always null in episode API response
+  - Ad detector was not returning the prompt in its result dictionary
+  - Now properly saved to database and accessible via API
+
+---
+
+## [0.1.27] - 2025-11-28
+
+### Fixed
+- Warning during episode processing: "Storage object has no attribute save_prompt"
+  - Removed dead code block in ad_detector.py that was calling removed storage method
+
+---
+
+## [0.1.26] - 2025-11-28
+
+### Changed
+- Removed redundant file storage for episode metadata
+  - Transcript, ad markers, and Claude prompt/response now stored only in database
+  - Previously written to both database AND filesystem (wasted disk space)
+  - Files removed: `-transcript.txt`, `-ads.json`, `-prompt.txt`
+- Simplified episode cleanup - only deletes `.mp3` files (database cascade handles metadata)
+- `/transcript` endpoint now reads from database instead of filesystem
+
+### Added
+- `claudePrompt` and `claudeRawResponse` fields in episode detail API response
+  - Useful for debugging ad detection issues
+
+### Removed
+- Unused storage methods: `save_transcript`, `get_transcript`, `save_ads_json`, `save_prompt`, `delete_transcript`, `delete_ads_json`, `cleanup_episode_files`
+
+---
+
 ## [0.1.25] - 2025-11-28
 
 ### Fixed

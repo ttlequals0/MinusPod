@@ -318,7 +318,7 @@ paths:
       tags:
         - Settings
       summary: Update ad detection settings
-      description: Update Claude model, system prompt, or user prompt template
+      description: Update Claude model or system prompt
       operationId: updateAdDetectionSettings
       requestBody:
         required: true
@@ -330,9 +330,6 @@ paths:
                 systemPrompt:
                   type: string
                   description: System prompt for Claude ad detection
-                userPromptTemplate:
-                  type: string
-                  description: User prompt template (supports {podcast_name}, {episode_title}, {transcript} placeholders)
                 claudeModel:
                   type: string
                   description: Claude model ID to use for ad detection
@@ -577,13 +574,6 @@ components:
               type: string
             isDefault:
               type: boolean
-        userPromptTemplate:
-          type: object
-          properties:
-            value:
-              type: string
-            isDefault:
-              type: boolean
         claudeModel:
           type: object
           properties:
@@ -597,8 +587,6 @@ components:
           type: object
           properties:
             systemPrompt:
-              type: string
-            userPromptTemplate:
               type: string
             claudeModel:
               type: string

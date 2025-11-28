@@ -45,19 +45,16 @@ export interface SettingValue {
 
 export interface Settings {
   systemPrompt: SettingValue;
-  userPromptTemplate: SettingValue;
   claudeModel: SettingValue;
   retentionPeriodMinutes: number;
   defaults: {
     systemPrompt: string;
-    userPromptTemplate: string;
     claudeModel: string;
   };
 }
 
 export interface UpdateSettingsPayload {
   systemPrompt?: string;
-  userPromptTemplate?: string;
   claudeModel?: string;
 }
 
