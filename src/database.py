@@ -71,11 +71,6 @@ Given transcript excerpt:
 Output:
 [{{"start": 48.5, "end": 82.0, "confidence": 0.98, "reason": "Athletic Greens sponsor read with promo URL"}}]"""
 
-DEFAULT_USER_PROMPT_TEMPLATE = """Podcast: {podcast_name}
-Episode: {episode_title}
-
-Transcript:
-{transcript}"""
 
 SCHEMA_SQL = """
 PRAGMA foreign_keys = ON;
@@ -368,11 +363,6 @@ class Database:
             """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
                ON CONFLICT(key) DO NOTHING""",
             ('system_prompt', DEFAULT_SYSTEM_PROMPT)
-        )
-        conn.execute(
-            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
-               ON CONFLICT(key) DO NOTHING""",
-            ('user_prompt_template', DEFAULT_USER_PROMPT_TEMPLATE)
         )
 
         # Retention period from env or default 24 hours
@@ -740,7 +730,6 @@ class Database:
 
         defaults = {
             'system_prompt': DEFAULT_SYSTEM_PROMPT,
-            'user_prompt_template': DEFAULT_USER_PROMPT_TEMPLATE,
             'retention_period_minutes': os.environ.get('RETENTION_PERIOD', '1440'),
             'claude_model': DEFAULT_MODEL
         }
@@ -789,14 +778,15 @@ class Database:
             # Delete files
             podcast_dir = self.data_dir / "podcasts" / slug / "episodes"
 
-            for ext in ['.mp3', '-transcript.txt', '-ads.json', '-prompt.txt']:
-                file_path = podcast_dir / f"{episode_id}{ext}"
-                if file_path.exists():
-                    try:
-                        freed_bytes += file_path.stat().st_size
-                        file_path.unlink()
-                    except Exception as e:
-                        logger.warning(f"Failed to delete {file_path}: {e}")
+            # Only delete audio file - transcript/ads/prompt stored in database
+            # Database cascade delete handles episode_details table
+            file_path = podcast_dir / f"{episode_id}.mp3"
+            if file_path.exists():
+                try:
+                    freed_bytes += file_path.stat().st_size
+                    file_path.unlink()
+                except Exception as e:
+                    logger.warning(f"Failed to delete {file_path}: {e}")
 
             deleted_count += 1
 

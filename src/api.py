@@ -495,7 +495,7 @@ def reprocess_episode(slug, episode_id):
 def get_settings():
     """Get all settings."""
     db = get_database()
-    from database import DEFAULT_SYSTEM_PROMPT, DEFAULT_USER_PROMPT_TEMPLATE
+    from database import DEFAULT_SYSTEM_PROMPT
     from ad_detector import AdDetector, DEFAULT_MODEL
 
     settings = db.get_all_settings()
@@ -508,10 +508,6 @@ def get_settings():
             'value': settings.get('system_prompt', {}).get('value', DEFAULT_SYSTEM_PROMPT),
             'isDefault': settings.get('system_prompt', {}).get('is_default', True)
         },
-        'userPromptTemplate': {
-            'value': settings.get('user_prompt_template', {}).get('value', DEFAULT_USER_PROMPT_TEMPLATE),
-            'isDefault': settings.get('user_prompt_template', {}).get('is_default', True)
-        },
         'claudeModel': {
             'value': current_model,
             'isDefault': settings.get('claude_model', {}).get('is_default', True)
@@ -519,7 +515,6 @@ def get_settings():
         'retentionPeriodMinutes': int(settings.get('retention_period_minutes', {}).get('value', '1440')),
         'defaults': {
             'systemPrompt': DEFAULT_SYSTEM_PROMPT,
-            'userPromptTemplate': DEFAULT_USER_PROMPT_TEMPLATE,
             'claudeModel': DEFAULT_MODEL
         }
     })
@@ -540,10 +535,6 @@ def update_ad_detection_settings():
         db.set_setting('system_prompt', data['systemPrompt'], is_default=False)
         logger.info("Updated system prompt")
 
-    if 'userPromptTemplate' in data:
-        db.set_setting('user_prompt_template', data['userPromptTemplate'], is_default=False)
-        logger.info("Updated user prompt template")
-
     if 'claudeModel' in data:
         db.set_setting('claude_model', data['claudeModel'], is_default=False)
         logger.info(f"Updated Claude model to: {data['claudeModel']}")
@@ -558,7 +549,6 @@ def reset_ad_detection_settings():
     db = get_database()
 
     db.reset_setting('system_prompt')
-    db.reset_setting('user_prompt_template')
     db.reset_setting('claude_model')
 
     logger.info("Reset ad detection settings to defaults")
