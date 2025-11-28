@@ -136,18 +136,11 @@ class Storage:
         return None
 
     def save_transcript(self, slug: str, episode_id: str, transcript: str) -> None:
-        """Save episode transcript to database and filesystem."""
-        # Save to filesystem (for backward compatibility)
-        path = self.get_episode_path(slug, episode_id, "-transcript.txt")
-        with open(path, 'w') as f:
-            f.write(transcript)
-
-        # Save to database
+        """Save episode transcript to database."""
         try:
             self.db.save_episode_details(slug, episode_id, transcript_text=transcript)
         except ValueError:
-            # Episode might not exist in DB yet
-            logger.debug(f"[{slug}:{episode_id}] Episode not in DB, transcript saved to file only")
+            logger.warning(f"[{slug}:{episode_id}] Episode not in DB, transcript not saved")
 
         logger.debug(f"[{slug}:{episode_id}] Saved transcript")
 
@@ -167,13 +160,7 @@ class Storage:
         return None
 
     def save_ads_json(self, slug: str, episode_id: str, ads_data: Any) -> None:
-        """Save Claude's ad detection response to database and filesystem."""
-        # Save to filesystem (for backward compatibility)
-        path = self.get_episode_path(slug, episode_id, "-ads.json")
-        with open(path, 'w') as f:
-            json.dump(ads_data, f, indent=2)
-
-        # Save to database
+        """Save Claude's ad detection response to database."""
         try:
             ad_markers = ads_data.get('ads', []) if isinstance(ads_data, dict) else []
             raw_response = ads_data.get('raw_response') if isinstance(ads_data, dict) else None
@@ -186,24 +173,10 @@ class Storage:
                 claude_prompt=prompt
             )
         except ValueError:
-            logger.debug(f"[{slug}:{episode_id}] Episode not in DB, ads saved to file only")
+            logger.warning(f"[{slug}:{episode_id}] Episode not in DB, ads not saved")
 
         logger.debug(f"[{slug}:{episode_id}] Saved ads detection data")
 
-    def save_prompt(self, slug: str, episode_id: str, prompt: str) -> None:
-        """Save Claude prompt to database and filesystem."""
-        # Save to filesystem (for backward compatibility)
-        path = self.get_episode_path(slug, episode_id, "-prompt.txt")
-        with open(path, 'w') as f:
-            f.write(prompt)
-
-        # Save to database
-        try:
-            self.db.save_episode_details(slug, episode_id, claude_prompt=prompt)
-        except ValueError:
-            logger.debug(f"[{slug}:{episode_id}] Episode not in DB, prompt saved to file only")
-
-        logger.debug(f"[{slug}:{episode_id}] Saved Claude prompt")
 
     # ========== Artwork Methods ==========
 
