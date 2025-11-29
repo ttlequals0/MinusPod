@@ -6,7 +6,8 @@ import threading
 import time
 from datetime import datetime
 from pathlib import Path
-from flask import Flask, Response, send_file, abort, send_from_directory
+from functools import wraps
+from flask import Flask, Response, send_file, abort, send_from_directory, request
 from flask_cors import CORS
 from slugify import slugify
 import shutil
@@ -54,6 +55,28 @@ logger = logging.getLogger('podcast.app')
 feed_logger = logging.getLogger('podcast.feed')
 refresh_logger = logging.getLogger('podcast.refresh')
 audio_logger = logging.getLogger('podcast.audio')
+
+
+def log_request_detailed(f):
+    """Decorator to log requests with detailed info (IP, user-agent, response time)."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        start_time = time.time()
+        client_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+        user_agent = request.headers.get('User-Agent', 'Unknown')[:100]
+
+        try:
+            result = f(*args, **kwargs)
+            elapsed = (time.time() - start_time) * 1000  # ms
+            status = result.status_code if hasattr(result, 'status_code') else 200
+            feed_logger.info(f"{request.method} {request.path} {status} {elapsed:.0f}ms [{client_ip}] [{user_agent}]")
+            return result
+        except Exception as e:
+            elapsed = (time.time() - start_time) * 1000
+            feed_logger.error(f"{request.method} {request.path} ERROR {elapsed:.0f}ms [{client_ip}] - {e}")
+            raise
+    return decorated
+
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -381,6 +404,7 @@ def serve_openapi():
 # ========== RSS Feed Routes ==========
 
 @app.route('/<slug>')
+@log_request_detailed
 def serve_rss(slug):
     """Serve modified RSS feed."""
     feed_map = get_feed_map()
@@ -426,6 +450,7 @@ def serve_rss(slug):
 
 
 @app.route('/episodes/<slug>/<episode_id>.mp3')
+@log_request_detailed
 def serve_episode(slug, episode_id):
     """Serve processed episode audio (JIT processing)."""
     feed_map = get_feed_map()
@@ -504,6 +529,7 @@ def serve_episode(slug, episode_id):
 
 
 @app.route('/health')
+@log_request_detailed
 def health_check():
     """Health check endpoint."""
     try:

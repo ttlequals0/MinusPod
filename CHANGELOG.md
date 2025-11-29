@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.48] - 2025-11-29
+
+### Added
+- Enhanced request logging with detailed info
+  - All routes now log: IP address, user-agent, response time (ms), status code
+  - Format: `GET /path 200 45ms [192.168.1.100] [Podcast App/1.0]`
+  - Applied to RSS feeds (`/<slug>`), episodes (`/episodes/*`), health check, and all API routes
+  - Static files (`/ui/*`, `/docs`) excluded to reduce noise
+
+---
+
 ## [0.1.47] - 2025-11-29
 
 ### Changed

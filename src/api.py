@@ -27,15 +27,22 @@ def get_database():
 
 
 def log_request(f):
-    """Decorator to log API requests."""
+    """Decorator to log API requests with detailed info (IP, user-agent, response time)."""
     @wraps(f)
     def decorated(*args, **kwargs):
-        logger.info(f"API {request.method} {request.path}")
+        start_time = time.time()
+        client_ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+        user_agent = request.headers.get('User-Agent', 'Unknown')[:100]
+
         try:
             result = f(*args, **kwargs)
+            elapsed = (time.time() - start_time) * 1000  # ms
+            status = result.status_code if hasattr(result, 'status_code') else 200
+            logger.info(f"{request.method} {request.path} {status} {elapsed:.0f}ms [{client_ip}] [{user_agent}]")
             return result
         except Exception as e:
-            logger.error(f"API error: {request.method} {request.path} - {e}")
+            elapsed = (time.time() - start_time) * 1000
+            logger.error(f"{request.method} {request.path} ERROR {elapsed:.0f}ms [{client_ip}] - {e}")
             raise
     return decorated
 
