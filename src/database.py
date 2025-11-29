@@ -13,6 +13,8 @@ logger = logging.getLogger(__name__)
 # Default ad detection prompts
 DEFAULT_SYSTEM_PROMPT = """Analyze this podcast transcript and identify ALL advertisement segments.
 
+CRITICAL: Host-read sponsor segments ARE advertisements. Do NOT distinguish between "traditional ads" and "sponsor reads" - both must be detected and returned. Any content where the host promotes a product, service, or sponsor for compensation is an ad, regardless of how naturally it's integrated.
+
 WHAT TO LOOK FOR:
 - Product endorsements, sponsored content, promotional messages
 - Promo codes, special offers, discount codes, calls to action
@@ -55,6 +57,8 @@ Each ad segment must include:
 
 Format: [{{"start": 0.0, "end": 60.0, "confidence": 0.95, "reason": "Sponsor read for BetterHelp"}}]
 If no ads found: []
+
+REMINDER: Include ALL sponsor reads, even if the host reads them naturally or integrates them conversationally. "Brought to you by" segments are ads.
 
 EXAMPLE:
 
@@ -301,53 +305,6 @@ class Database:
                             ep_data.get('error')
                         )
                     )
-
-                    # Get episode database ID
-                    cursor = conn.execute(
-                        """SELECT id FROM episodes
-                           WHERE podcast_id = ? AND episode_id = ?""",
-                        (podcast_id, episode_id)
-                    )
-                    ep_row = cursor.fetchone()
-                    if not ep_row:
-                        continue
-
-                    db_episode_id = ep_row['id']
-
-                    # Migrate transcript and ad data
-                    transcript_path = podcast_dir / "episodes" / f"{episode_id}-transcript.txt"
-                    ads_path = podcast_dir / "episodes" / f"{episode_id}-ads.json"
-                    prompt_path = podcast_dir / "episodes" / f"{episode_id}-prompt.txt"
-
-                    transcript_text = None
-                    ad_markers_json = None
-                    claude_raw_response = None
-                    claude_prompt = None
-
-                    if transcript_path.exists():
-                        transcript_text = transcript_path.read_text()
-
-                    if ads_path.exists():
-                        try:
-                            ads_data = json.loads(ads_path.read_text())
-                            ad_markers_json = json.dumps(ads_data.get('ads', []))
-                            claude_raw_response = ads_data.get('raw_response')
-                        except json.JSONDecodeError:
-                            pass
-
-                    if prompt_path.exists():
-                        claude_prompt = prompt_path.read_text()
-
-                    if any([transcript_text, ad_markers_json, claude_raw_response, claude_prompt]):
-                        conn.execute(
-                            """INSERT INTO episode_details
-                               (episode_id, transcript_text, ad_markers_json,
-                                claude_raw_response, claude_prompt)
-                               VALUES (?, ?, ?, ?, ?)
-                               ON CONFLICT(episode_id) DO NOTHING""",
-                            (db_episode_id, transcript_text, ad_markers_json,
-                             claude_raw_response, claude_prompt)
-                        )
 
                 logger.info(f"Migrated data for podcast: {slug}")
 

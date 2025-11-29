@@ -145,18 +145,10 @@ class Storage:
         logger.debug(f"[{slug}:{episode_id}] Saved transcript")
 
     def get_transcript(self, slug: str, episode_id: str) -> Optional[str]:
-        """Get episode transcript from database or filesystem."""
-        # Try database first
+        """Get episode transcript from database."""
         episode = self.db.get_episode(slug, episode_id)
         if episode and episode.get('transcript_text'):
             return episode['transcript_text']
-
-        # Fall back to filesystem
-        path = self.get_episode_path(slug, episode_id, "-transcript.txt")
-        if path.exists():
-            with open(path, 'r') as f:
-                return f.read()
-
         return None
 
     def save_ads_json(self, slug: str, episode_id: str, ads_data: Any) -> None:
@@ -284,36 +276,18 @@ class Storage:
             return True
         return False
 
-    def delete_transcript(self, slug: str, episode_id: str) -> bool:
-        """Delete the transcript file for an episode."""
-        transcript_path = self.get_episode_path(slug, episode_id, "-transcript.txt")
-        if transcript_path and transcript_path.exists():
-            transcript_path.unlink()
-            logger.debug(f"[{slug}:{episode_id}] Deleted transcript file")
-            return True
-        return False
-
-    def delete_ads_json(self, slug: str, episode_id: str) -> bool:
-        """Delete the ads JSON file for an episode."""
-        ads_path = self.get_episode_path(slug, episode_id, "-ads.json")
-        if ads_path and ads_path.exists():
-            ads_path.unlink()
-            logger.debug(f"[{slug}:{episode_id}] Deleted ads JSON file")
-            return True
-        return False
 
     def cleanup_episode_files(self, slug: str, episode_id: str) -> int:
         """Delete all files for an episode. Returns bytes freed."""
         freed = 0
 
-        for ext in ['.mp3', '-transcript.txt', '-ads.json', '-prompt.txt']:
-            path = self.get_episode_path(slug, episode_id, ext)
-            if path.exists():
-                try:
-                    freed += path.stat().st_size
-                    path.unlink()
-                except Exception as e:
-                    logger.warning(f"Failed to delete {path}: {e}")
+        path = self.get_episode_path(slug, episode_id, '.mp3')
+        if path.exists():
+            try:
+                freed += path.stat().st_size
+                path.unlink()
+            except Exception as e:
+                logger.warning(f"Failed to delete {path}: {e}")
 
         return freed
 

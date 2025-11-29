@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.36] - 2025-11-29
+
+### Fixed
+- Ad detection returning 0 ads for host-read sponsor segments
+  - Claude was distinguishing between "traditional ads" and "sponsor reads" and excluding the latter
+  - Updated DEFAULT_SYSTEM_PROMPT with explicit instructions that host-read sponsor segments ARE ads
+  - Added CRITICAL section and REMINDER to prevent Claude from excluding naturally-integrated sponsor content
+  - Note: Users with custom system prompts should reset to default in Settings to get the fix
+
+---
+
+## [0.1.35] - 2025-11-29
+
+### Changed
+- Completed filesystem cleanup for transcript and ads data
+  - Removed legacy filesystem fallback in `get_transcript()` - now reads only from database
+  - Removed `delete_transcript()` and `delete_ads_json()` methods (database handles all data)
+  - Simplified `cleanup_episode_files()` to only delete `.mp3` files
+  - Removed filesystem migration code from database initialization
+  - Reprocess endpoint now only clears database (no filesystem delete calls)
+- Filesystem now stores only: artwork, processed mp3, feed.xml
+
+---
+
 ## [0.1.34] - 2025-11-28
 
 ### Changed

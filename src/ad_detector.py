@@ -149,6 +149,9 @@ class AdDetector:
             system_prompt = self.get_system_prompt()
             user_prompt_template = self.get_user_prompt_template()
 
+            logger.info(f"[{slug}:{episode_id}] Using system prompt ({len(system_prompt)} chars)")
+            logger.debug(f"[{slug}:{episode_id}] System prompt first 200 chars: {system_prompt[:200]}...")
+
             # Format user prompt
             prompt = user_prompt_template.format(
                 podcast_name=podcast_name,

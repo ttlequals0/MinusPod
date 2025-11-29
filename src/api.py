@@ -449,19 +449,13 @@ def reprocess_episode(slug, episode_id):
         # 1. Delete processed audio file
         storage.delete_processed_file(slug, episode_id)
 
-        # 2. Delete transcript file
-        storage.delete_transcript(slug, episode_id)
-
-        # 3. Delete ads JSON file
-        storage.delete_ads_json(slug, episode_id)
-
-        # 4. Clear episode details from database
+        # 2. Clear episode details from database (transcript, ads, etc.)
         db.clear_episode_details(slug, episode_id)
 
-        # 5. Reset episode status to pending
+        # 3. Reset episode status to pending
         db.reset_episode_status(slug, episode_id)
 
-        # 6. Trigger immediate reprocessing
+        # 4. Trigger immediate reprocessing
         from main import process_episode
         episode_url = episode.get('original_url')
         episode_title = episode.get('title', 'Unknown')

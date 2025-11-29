@@ -201,15 +201,12 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
         }
         storage.save_data_json(slug, data)
 
-        # Step 1: Check if transcript exists
-        transcript_path = storage.get_episode_path(slug, episode_id, "-transcript.txt")
+        # Step 1: Check if transcript exists in database
         segments = None
-        transcript_text = None
+        transcript_text = storage.get_transcript(slug, episode_id)
 
-        if transcript_path.exists():
-            audio_logger.info(f"[{slug}:{episode_id}] Found existing transcript")
-            with open(transcript_path, 'r') as f:
-                transcript_text = f.read()
+        if transcript_text:
+            audio_logger.info(f"[{slug}:{episode_id}] Found existing transcript in database")
 
             # Parse segments from transcript
             segments = []
