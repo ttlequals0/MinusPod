@@ -130,13 +130,13 @@ class AudioProcessor:
                     if i == 0:
                         # First content segment - just fade out before ad
                         if content_duration > fade_duration:
-                            filter_parts.append(f"[0:a]atrim={current_time}:{ad_start},afade=t=out:st={ad_start - fade_duration}:d={fade_duration}[s{segment_idx}]")
+                            filter_parts.append(f"[0:a]atrim={current_time}:{ad_start},afade=t=out:st={content_duration - fade_duration}:d={fade_duration}[s{segment_idx}]")
                         else:
                             filter_parts.append(f"[0:a]atrim={current_time}:{ad_start}[s{segment_idx}]")
                     else:
                         # Content between ads - fade in at start, fade out at end
                         if content_duration > fade_duration * 2:
-                            filter_parts.append(f"[0:a]atrim={current_time}:{ad_start},afade=t=in:d={fade_duration},afade=t=out:st={ad_start - fade_duration}:d={fade_duration}[s{segment_idx}]")
+                            filter_parts.append(f"[0:a]atrim={current_time}:{ad_start},afade=t=in:d={fade_duration},afade=t=out:st={content_duration - fade_duration}:d={fade_duration}[s{segment_idx}]")
                         else:
                             filter_parts.append(f"[0:a]atrim={current_time}:{ad_start}[s{segment_idx}]")
                     concat_parts.append(f"[s{segment_idx}]")

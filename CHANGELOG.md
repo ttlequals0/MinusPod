@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.41] - 2025-11-29
+
+### Fixed
+- Audio fading not working due to incorrect ffmpeg afade timing
+  - afade st= parameter was using absolute time instead of trimmed segment time
+  - Now correctly calculates fade start relative to segment duration
+
+---
+
 ## [0.1.40] - 2025-11-29
 
 ### Fixed
@@ -16,7 +25,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Audio fading at ad boundaries (0.5s fade-in/fade-out)
   - Smooths transitions when ad boundaries are imprecise
-  - Follows podly_pure_podcasts approach for handling boundary imprecision
   - Note: Users with custom prompts should reset to default in Settings
 
 ---
