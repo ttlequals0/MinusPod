@@ -15,6 +15,8 @@ DEFAULT_SYSTEM_PROMPT = """Analyze this podcast transcript and identify ALL adve
 
 CRITICAL: Host-read sponsor segments ARE advertisements. Do NOT distinguish between "traditional ads" and "sponsor reads" - both must be detected and returned. Any content where the host promotes a product, service, or sponsor for compensation is an ad, regardless of how naturally it's integrated.
 
+PRIORITY: Focus on FINDING all ads first, then refining boundaries. It is better to include an ad with imprecise boundaries than to miss it entirely.
+
 WHAT TO LOOK FOR:
 - Product endorsements, sponsored content, promotional messages
 - Promo codes, special offers, discount codes, calls to action
@@ -25,7 +27,7 @@ WHAT TO LOOK FOR:
 - Vanity URLs (e.g., "visit example.com/podcastname")
 
 COMMON PODCAST SPONSORS (high confidence if mentioned):
-BetterHelp, Athletic Greens, AG1, Shopify, Amazon, Audible, Squarespace, HelloFresh, Factor, NordVPN, ExpressVPN, Mint Mobile, MasterClass, Calm, Headspace, ZipRecruiter, Indeed, LinkedIn Jobs, Stamps.com, SimpliSafe, Ring, ADT, Casper, Helix Sleep, Purple, Brooklinen, Bombas, Manscaped, Dollar Shave Club, Harry's, Quip, Hims, Hers, Roman, Keeps, Function of Beauty, Native, Liquid IV, Athletic Brewing, Magic Spoon, Thrive Market, Butcher Box, Blue Apron, DoorDash, Uber Eats, Grubhub, Instacart, Rocket Money, Credit Karma, SoFi, Acorns, Betterment, Wealthfront, PolicyGenius, Lemonade, State Farm, Progressive, Geico, Liberty Mutual, T-Mobile, Visible, FanDuel, DraftKings, BetMGM, Toyota, Hyundai, CarMax, Carvana, eBay Motors, ZocDoc, GoodRx, Care/of, Ritual, Seed, HubSpot, NetSuite, Monday.com, Notion, Canva, Grammarly, Babbel, Rosetta Stone, Blinkist, Raycon, Bose, MacPaw, CleanMyMac, Green Chef, Magic Mind, Honeylove, Cozy Earth, Quince, LMNT, Nutrafol, Aura, OneSkin, Incogni, Gametime
+BetterHelp, Athletic Greens, AG1, Shopify, Amazon, Audible, Squarespace, HelloFresh, Factor, NordVPN, ExpressVPN, Mint Mobile, MasterClass, Calm, Headspace, ZipRecruiter, Indeed, LinkedIn Jobs, LinkedIn, Stamps.com, SimpliSafe, Ring, ADT, Casper, Helix Sleep, Purple, Brooklinen, Bombas, Manscaped, Dollar Shave Club, Harry's, Quip, Hims, Hers, Roman, Keeps, Function of Beauty, Native, Liquid IV, Athletic Brewing, Magic Spoon, Thrive Market, Butcher Box, Blue Apron, DoorDash, Uber Eats, Grubhub, Instacart, Rocket Money, Credit Karma, SoFi, Acorns, Betterment, Wealthfront, PolicyGenius, Lemonade, State Farm, Progressive, Geico, Liberty Mutual, T-Mobile, Visible, FanDuel, DraftKings, BetMGM, Toyota, Hyundai, CarMax, Carvana, eBay Motors, ZocDoc, GoodRx, Care/of, Ritual, Seed, HubSpot, NetSuite, Monday.com, Notion, Canva, Grammarly, Babbel, Rosetta Stone, Blinkist, Raycon, Bose, MacPaw, CleanMyMac, Green Chef, Magic Mind, Honeylove, Cozy Earth, Quince, LMNT, Nutrafol, Aura, OneSkin, Incogni, Gametime, 1Password, Bitwarden, CacheFly, Deel, DeleteMe, Framer, Miro, Monarch Money, OutSystems, Spaceship, Thinkst Canary, ThreatLocker, Vanta, Veeam, Zapier, Zscaler, Capital One, Ford, WhatsApp
 
 COMMON AD PHRASES:
 - "Use code [NAME] at checkout"
@@ -36,6 +38,12 @@ COMMON AD PHRASES:
 - "Thanks to [brand] for sponsoring"
 - "This portion brought to you by"
 
+AD END SIGNALS (ad typically ends after the LAST of these):
+- Final URL mention: "...example.com" or "that's [URL]"
+- Final call-to-action: "Get started now at...", "Visit...", "Go to..."
+- Final promo code mention
+- Repeated URL: "That's [URL]" or "Again, that's [URL]"
+
 AD CHARACTERISTICS:
 - Ad breaks typically last 15-120 seconds
 - Pre-roll ads appear before the intro, mid-roll during the episode, post-roll after the outro
@@ -45,6 +53,12 @@ MERGING RULES:
 1. Multiple ads separated by gaps of 15 seconds or less = ONE CONTINUOUS SEGMENT
 2. Only split if there's REAL SHOW CONTENT (30+ seconds of actual discussion) between ads
 3. When in doubt, merge segments - better to remove too much than leave ads in
+
+MID-BLOCK BOUNDARIES:
+When a timestamp block contains BOTH ad content AND show content (e.g., ad ends mid-block):
+- Estimate where the ad ends within the block based on the text
+- Use proportional timing: if the ad text is ~20% of the block, end time is ~20% into the block duration
+- Err toward ending earlier rather than including show content
 
 OUTPUT FORMAT:
 Return ONLY a valid JSON array. No explanation, no analysis, no markdown formatting.
@@ -58,7 +72,7 @@ Each ad segment must include:
 Format: [{{"start": 0.0, "end": 60.0, "confidence": 0.95, "reason": "Sponsor read for BetterHelp"}}]
 If no ads found: []
 
-REMINDER: Include ALL sponsor reads, even if the host reads them naturally or integrates them conversationally. "Brought to you by" segments are ads.
+REMINDER: Include ALL sponsor reads, even if the host reads them naturally or integrates them conversationally. "Brought to you by" segments are ads. Do not skip ads because show content appears in the same timestamp block - just adjust the end time.
 
 EXAMPLE:
 

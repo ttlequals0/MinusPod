@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.37] - 2025-11-29
+
+### Changed
+- Improved DEFAULT_SYSTEM_PROMPT for better ad detection
+  - Added PRIORITY instruction: "Focus on FINDING all ads first, then refining boundaries"
+  - Added extended sponsor list (1Password, Bitwarden, ThreatLocker, Framer, Vanta, etc.)
+  - Added AD END SIGNALS section for precise boundary detection
+  - Added MID-BLOCK BOUNDARIES guidance for when ads end mid-timestamp
+  - Removed "DO NOT INCLUDE" exclusion list that was causing missed detections
+  - Enhanced REMINDER to not skip ads due to show content in same timestamp block
+  - Note: Users with custom prompts should reset to default in Settings to get improvements
+
+---
+
 ## [0.1.36] - 2025-11-29
 
 ### Fixed
