@@ -5,6 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.49] - 2025-11-30
+
+### Added
+- API reliability with retry logic for transient Claude API errors
+  - Retries up to 3 times on 529 overloaded, 500, 502, 503, rate limit errors
+  - Exponential backoff with jitter (2s base, 60s max)
+  - Episodes now track `adDetectionStatus` (success/failed) in database and API
+  - New endpoint: `POST /feeds/<slug>/episodes/<episode_id>/retry-ad-detection`
+    - Retries ad detection using existing transcript (no re-transcription needed)
+- Multi-pass ad detection (opt-in feature)
+  - Enable via Settings API: `PUT /settings/ad-detection` with `{"multiPassEnabled": true}`
+  - When enabled, after first-pass processing:
+    1. Re-transcribes the processed audio (where first-pass ads are now beeps)
+    2. Runs second-pass detection looking for missed ads
+    3. First-pass ads provided as context ("we found these, look for similar")
+    4. Processes audio again if additional ads found
+  - Combined ad count and time saved from both passes
+  - Note: Approximately doubles transcription and API costs when enabled
+
+### Changed
+- Expanded DEFAULT_SYSTEM_PROMPT for better ad detection accuracy
+  - Added DETECTION BIAS guidance: "When in doubt, mark it as an ad"
+  - Added RETAIL/CONSUMER BRANDS list (Nordstrom, Macy's, Target, Nike, Sephora, etc.)
+  - Added RETAIL/COMMERCIAL AD INDICATORS section (shopping CTAs, free shipping, price mentions)
+  - Added NETWORK/RADIO-STYLE ADS section for ads without podcast-specific elements
+  - Added second example showing Nordstrom-style retail ad detection
+  - Strengthened REMINDER section to catch all ad types
+  - Note: Users with custom prompts should reset to default in Settings to get improvements
+
+### Fixed
+- Joe Rogan episode type issue: Claude API 529 overloaded error was silently returning 0 ads
+  - Now properly retries and blocks until success or permanent failure
+  - Failed detection clearly marked in UI/API (adDetectionStatus: "failed")
+
+---
+
 ## [0.1.48] - 2025-11-29
 
 ### Added

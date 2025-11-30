@@ -17,6 +17,8 @@ CRITICAL: Host-read sponsor segments ARE advertisements. Do NOT distinguish betw
 
 PRIORITY: Focus on FINDING all ads first, then refining boundaries. It is better to include an ad with imprecise boundaries than to miss it entirely.
 
+DETECTION BIAS: When in doubt, mark it as an ad. False positives (marking content as an ad) are preferred over false negatives (missing an ad). Short promotional segments (15-30 seconds) are still ads and must be detected.
+
 WHAT TO LOOK FOR:
 - Product endorsements, sponsored content, promotional messages
 - Promo codes, special offers, discount codes, calls to action
@@ -29,6 +31,9 @@ WHAT TO LOOK FOR:
 COMMON PODCAST SPONSORS (high confidence if mentioned):
 BetterHelp, Athletic Greens, AG1, Shopify, Amazon, Audible, Squarespace, HelloFresh, Factor, NordVPN, ExpressVPN, Mint Mobile, MasterClass, Calm, Headspace, ZipRecruiter, Indeed, LinkedIn Jobs, LinkedIn, Stamps.com, SimpliSafe, Ring, ADT, Casper, Helix Sleep, Purple, Brooklinen, Bombas, Manscaped, Dollar Shave Club, Harry's, Quip, Hims, Hers, Roman, Keeps, Function of Beauty, Native, Liquid IV, Athletic Brewing, Magic Spoon, Thrive Market, Butcher Box, Blue Apron, DoorDash, Uber Eats, Grubhub, Instacart, Rocket Money, Credit Karma, SoFi, Acorns, Betterment, Wealthfront, PolicyGenius, Lemonade, State Farm, Progressive, Geico, Liberty Mutual, T-Mobile, Visible, FanDuel, DraftKings, BetMGM, Toyota, Hyundai, CarMax, Carvana, eBay Motors, ZocDoc, GoodRx, Care/of, Ritual, Seed, HubSpot, NetSuite, Monday.com, Notion, Canva, Grammarly, Babbel, Rosetta Stone, Blinkist, Raycon, Bose, MacPaw, CleanMyMac, Green Chef, Magic Mind, Honeylove, Cozy Earth, Quince, LMNT, Nutrafol, Aura, OneSkin, Incogni, Gametime, 1Password, Bitwarden, CacheFly, Deel, DeleteMe, Framer, Miro, Monarch Money, OutSystems, Spaceship, Thinkst Canary, ThreatLocker, Vanta, Veeam, Zapier, Zscaler, Capital One, Ford, WhatsApp
 
+RETAIL/CONSUMER BRANDS (also high confidence - network-inserted ads):
+Nordstrom, Macy's, Target, Walmart, Kohl's, Bloomingdale's, JCPenney, TJ Maxx, Home Depot, Lowe's, Best Buy, Costco, Gap, Old Navy, H&M, Zara, Nike, Adidas, Lululemon, Coach, Kate Spade, Michael Kors, Sephora, Ulta, Bath & Body Works, CVS, Walgreens, AutoZone, O'Reilly Auto Parts, Jiffy Lube, Midas, Gold Belly, Farmer's Dog, Caldera Lab, Monster Energy, Red Bull, Whole Foods, Trader Joe's, Kroger
+
 COMMON AD PHRASES:
 - "Use code [NAME] at checkout"
 - "Visit [brand].com/[podcastname]"
@@ -37,6 +42,31 @@ COMMON AD PHRASES:
 - "Click the link in the description"
 - "Thanks to [brand] for sponsoring"
 - "This portion brought to you by"
+
+RETAIL/COMMERCIAL AD INDICATORS:
+- Shopping calls-to-action: "shop at", "find it at", "visit us", "in stores or online", "shop now", "it's time to go shopping"
+- Free shipping/returns language: "free shipping", "free returns", "quick pickup", "same-day delivery"
+- Fashion/apparel terminology: "styles", "looks", "outfits", "fits", "dresses", "accessories", "heels"
+- Promotional enthusiasm: "Oh what fun!", "You'll love", "You'll find", "Discover", "Explore"
+- Holiday/seasonal hooks: "Holiday", "Black Friday", "Cyber Monday", "Back to school", "Summer sale"
+- Price mentions: "under $X", "starting at", "X% off", "sale prices", "styles under 100"
+- Store location language: "At your local", "Visit our store", "locations near you"
+
+NETWORK/RADIO-STYLE ADS:
+These ads may NOT sound like typical host-read content. Identify them by:
+- Produced/polished audio quality (sounds like a radio commercial)
+- Third-party voice (not the podcast hosts)
+- Brand-focused messaging without podcast-specific elements (no promo codes, no vanity URLs)
+- Promotional/advertising tone and language
+- Product descriptions and shopping CTAs
+
+IMPORTANT: These are still ads and MUST be detected, even without:
+- "Brought to you by" transitions
+- Podcast-specific promo codes
+- Vanity URLs like "[brand].com/[podcast]"
+- Host involvement
+
+If content sounds like a retail commercial, car dealership ad, or local business spot, it IS an ad.
 
 AD END SIGNALS (ad typically ends after the LAST of these):
 - Final URL mention: "...example.com" or "that's [URL]"
@@ -85,9 +115,20 @@ Each ad segment must include:
 Format: [{{"start": 0.0, "end": 60.0, "confidence": 0.95, "reason": "Sponsor read for BetterHelp", "end_text": "athleticgreens.com/podcast"}}]
 If no ads found: []
 
-REMINDER: Include ALL sponsor reads, even if the host reads them naturally or integrates them conversationally. "Brought to you by" segments are ads. Do not skip ads because show content appears in the same timestamp block - just adjust the end time.
+REMINDER: Include ALL advertisements regardless of format:
+- Host-read sponsor segments (conversational or formal)
+- Network-inserted retail/commercial ads (may sound like radio commercials)
+- "Brought to you by" segments
+- Short promotional spots (even 15-30 seconds)
+- Ads without promo codes or vanity URLs
 
-EXAMPLE:
+ANY content promoting a product, service, or brand for commercial purposes is an ad. Do not skip ads because:
+- They are short (< 30 seconds)
+- They lack podcast-specific elements (promo codes, vanity URLs)
+- Show content appears in the same timestamp block
+- The brand is not in the known sponsors list
+
+EXAMPLE 1 - Host-Read Sponsor:
 
 Given transcript excerpt:
 [45.0s - 48.0s] That's a great point. Let's take a quick break.
@@ -100,7 +141,24 @@ Given transcript excerpt:
 [82.5s - 86.0s] Now, back to our conversation with Dr. Smith.
 
 Output (note: start at 45.0 includes the transition phrase):
-[{{"start": 45.0, "end": 82.0, "confidence": 0.98, "reason": "Athletic Greens sponsor read with transition and promo URL", "end_text": "athleticgreens.com/podcast"}}]"""
+[{{"start": 45.0, "end": 82.0, "confidence": 0.98, "reason": "Athletic Greens sponsor read with transition and promo URL", "end_text": "athleticgreens.com/podcast"}}]
+
+EXAMPLE 2 - Network/Retail Ad (no host involvement, no promo code):
+
+Given transcript excerpt:
+[180.0s - 183.0s] Thanks so much for joining us today.
+[183.5s - 186.0s] Oh, what fun! Holiday invites are arriving.
+[186.5s - 190.0s] And Nordstrom has your party fits covered.
+[190.5s - 195.0s] You'll find head-to-toe looks for every occasion, including styles under 100.
+[195.5s - 200.0s] Dresses, sets, heels, and accessories from Bardot, Princess Polly, and more.
+[200.5s - 205.0s] Free styling help, free shipping, and quick order pickup make it easy.
+[205.5s - 210.0s] In stores or online, it's time to go shopping at Nordstrom.
+[210.5s - 214.0s] Alright, so getting back to what we were discussing...
+
+Output:
+[{{"start": 183.5, "end": 210.0, "confidence": 0.95, "reason": "Nordstrom retail ad - shopping CTA, promotional language, brand mentions", "end_text": "at Nordstrom"}}]
+
+Note: This ad has NO transition phrase, promo code, or vanity URL - but the promotional retail language and brand mentions clearly identify it as an advertisement."""
 
 
 SCHEMA_SQL = """
@@ -135,6 +193,7 @@ CREATE TABLE IF NOT EXISTS episodes (
     new_duration REAL,
     ads_removed INTEGER DEFAULT 0,
     error_message TEXT,
+    ad_detection_status TEXT DEFAULT NULL CHECK(ad_detection_status IN (NULL, 'success', 'failed')),
     created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE,
@@ -227,6 +286,29 @@ class Database:
         conn.executescript(SCHEMA_SQL)
         conn.commit()
         logger.info(f"Database schema initialized at {self.db_path}")
+
+        # Run schema migrations for existing databases
+        self._run_schema_migrations()
+
+    def _run_schema_migrations(self):
+        """Run schema migrations for existing databases."""
+        conn = self.get_connection()
+
+        # Get existing columns in episodes table
+        cursor = conn.execute("PRAGMA table_info(episodes)")
+        columns = [row['name'] for row in cursor.fetchall()]
+
+        # Migration: Add ad_detection_status column if missing
+        if 'ad_detection_status' not in columns:
+            try:
+                conn.execute("""
+                    ALTER TABLE episodes
+                    ADD COLUMN ad_detection_status TEXT DEFAULT NULL
+                """)
+                conn.commit()
+                logger.info("Migration: Added ad_detection_status column to episodes table")
+            except Exception as e:
+                logger.error(f"Migration failed for ad_detection_status: {e}")
 
     def _migrate_from_json(self):
         """Migrate data from JSON files to SQLite."""
@@ -355,6 +437,13 @@ class Database:
             """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
                ON CONFLICT(key) DO NOTHING""",
             ('retention_period_minutes', retention_minutes)
+        )
+
+        # Multi-pass ad detection (opt-in, default disabled)
+        conn.execute(
+            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
+               ON CONFLICT(key) DO NOTHING""",
+            ('multi_pass_enabled', 'false')
         )
 
         conn.commit()
@@ -529,7 +618,7 @@ class Database:
                 for key, value in kwargs.items():
                     if key in ('original_url', 'title', 'status', 'processed_file',
                                'processed_at', 'original_duration', 'new_duration',
-                               'ads_removed', 'error_message'):
+                               'ads_removed', 'error_message', 'ad_detection_status'):
                         fields.append(f"{key} = ?")
                         values.append(value)
 
@@ -547,8 +636,8 @@ class Database:
                 """INSERT INTO episodes
                    (podcast_id, episode_id, original_url, title, status,
                     processed_file, processed_at, original_duration,
-                    new_duration, ads_removed, error_message)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    new_duration, ads_removed, error_message, ad_detection_status)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     podcast_id,
                     episode_id,
@@ -560,7 +649,8 @@ class Database:
                     kwargs.get('original_duration'),
                     kwargs.get('new_duration'),
                     kwargs.get('ads_removed', 0),
-                    kwargs.get('error_message')
+                    kwargs.get('error_message'),
+                    kwargs.get('ad_detection_status')
                 )
             )
             db_id = cursor.lastrowid
@@ -715,7 +805,8 @@ class Database:
         defaults = {
             'system_prompt': DEFAULT_SYSTEM_PROMPT,
             'retention_period_minutes': os.environ.get('RETENTION_PERIOD', '1440'),
-            'claude_model': DEFAULT_MODEL
+            'claude_model': DEFAULT_MODEL,
+            'multi_pass_enabled': 'false'
         }
 
         if key in defaults:

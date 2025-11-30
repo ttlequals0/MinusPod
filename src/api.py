@@ -417,6 +417,7 @@ def get_episode(slug, episode_id):
         'timeSaved': time_saved,
         'fileSize': file_size,
         'adMarkers': ad_markers,
+        'adDetectionStatus': episode.get('ad_detection_status'),
         'transcript': episode.get('transcript_text'),
         'transcriptAvailable': bool(episode.get('transcript_text')),
         'error': episode.get('error_message'),
@@ -494,6 +495,93 @@ def reprocess_episode(slug, episode_id):
         return error_response(f'Failed to reprocess: {str(e)}', 500)
 
 
+@api.route('/feeds/<slug>/episodes/<episode_id>/retry-ad-detection', methods=['POST'])
+@log_request
+def retry_ad_detection(slug, episode_id):
+    """Retry ad detection for an episode using existing transcript."""
+    db = get_database()
+    storage = get_storage()
+
+    episode = db.get_episode(slug, episode_id)
+    if not episode:
+        return error_response('Episode not found', 404)
+
+    # Get transcript
+    transcript = storage.get_transcript(slug, episode_id)
+    if not transcript:
+        return error_response('No transcript available - full reprocess required', 400)
+
+    try:
+        # Parse transcript back into segments
+        segments = []
+        for line in transcript.split('\n'):
+            if line.strip() and line.startswith('['):
+                try:
+                    # Parse format: [HH:MM:SS.mmm --> HH:MM:SS.mmm] text
+                    time_part, text_part = line.split('] ', 1)
+                    time_range = time_part.strip('[')
+                    start_str, end_str = time_range.split(' --> ')
+
+                    def parse_timestamp(ts):
+                        parts = ts.replace(',', '.').split(':')
+                        if len(parts) == 3:
+                            return float(parts[0]) * 3600 + float(parts[1]) * 60 + float(parts[2])
+                        elif len(parts) == 2:
+                            return float(parts[0]) * 60 + float(parts[1])
+                        else:
+                            return float(parts[0])
+
+                    segments.append({
+                        'start': parse_timestamp(start_str),
+                        'end': parse_timestamp(end_str),
+                        'text': text_part
+                    })
+                except Exception:
+                    continue
+
+        if not segments:
+            return error_response('Could not parse transcript into segments', 400)
+
+        # Get podcast info
+        podcast = db.get_podcast_by_slug(slug)
+        podcast_name = podcast.get('title', slug) if podcast else slug
+
+        # Retry ad detection
+        from ad_detector import AdDetector
+        ad_detector = AdDetector()
+        ad_result = ad_detector.process_transcript(
+            segments, podcast_name, episode.get('title', 'Unknown'), slug, episode_id
+        )
+
+        ad_detection_status = ad_result.get('status', 'failed')
+
+        if ad_detection_status == 'success':
+            storage.save_ads_json(slug, episode_id, ad_result)
+            db.upsert_episode(slug, episode_id, ad_detection_status='success')
+
+            ads = ad_result.get('ads', [])
+            return json_response({
+                'message': 'Ad detection retry successful',
+                'episodeId': episode_id,
+                'adsFound': len(ads),
+                'status': 'success',
+                'note': 'Full reprocess required to apply new ad markers to audio'
+            })
+        else:
+            db.upsert_episode(slug, episode_id, ad_detection_status='failed')
+            return json_response({
+                'message': 'Ad detection retry failed',
+                'episodeId': episode_id,
+                'error': ad_result.get('error'),
+                'retryable': ad_result.get('retryable', False),
+                'status': 'failed'
+            }, 500)
+
+    except Exception as e:
+        logger.error(f"Failed to retry ad detection for {slug}:{episode_id}: {e}")
+        return error_response(f'Failed to retry ad detection: {str(e)}', 500)
+
+
 # ========== Settings Endpoints ==========
 
 @api.route('/settings', methods=['GET'])
@@ -509,6 +597,10 @@ def get_settings():
     # Get current model setting
     current_model = settings.get('claude_model', {}).get('value', DEFAULT_MODEL)
 
+    # Get multi-pass setting (defaults to false)
+    multi_pass_value = settings.get('multi_pass_enabled', {}).get('value', 'false')
+    multi_pass_enabled = multi_pass_value.lower() in ('true', '1', 'yes')
+
     return json_response({
         'systemPrompt': {
             'value': settings.get('system_prompt', {}).get('value', DEFAULT_SYSTEM_PROMPT),
@@ -518,10 +610,15 @@ def get_settings():
             'value': current_model,
             'isDefault': settings.get('claude_model', {}).get('is_default', True)
         },
+        'multiPassEnabled': {
+            'value': multi_pass_enabled,
+            'isDefault': settings.get('multi_pass_enabled', {}).get('is_default', True)
+        },
         'retentionPeriodMinutes': int(os.environ.get('RETENTION_PERIOD') or settings.get('retention_period_minutes', {}).get('value', '1440')),
         'defaults': {
             'systemPrompt': DEFAULT_SYSTEM_PROMPT,
-            'claudeModel': DEFAULT_MODEL
+            'claudeModel': DEFAULT_MODEL,
+            'multiPassEnabled': False
         }
     })
 
@@ -545,6 +642,11 @@ def update_ad_detection_settings():
         db.set_setting('claude_model', data['claudeModel'], is_default=False)
         logger.info(f"Updated Claude model to: {data['claudeModel']}")
 
+    if 'multiPassEnabled' in data:
+        value = 'true' if data['multiPassEnabled'] else 'false'
+        db.set_setting('multi_pass_enabled', value, is_default=False)
+        logger.info(f"Updated multi-pass detection to: {value}")
+
     return json_response({'message': 'Settings updated'})
 
 
@@ -556,6 +658,7 @@ def reset_ad_detection_settings():
 
     db.reset_setting('system_prompt')
     db.reset_setting('claude_model')
+    db.reset_setting('multi_pass_enabled')
 
     logger.info("Reset ad detection settings to defaults")
     return json_response({'message': 'Settings reset to defaults'})

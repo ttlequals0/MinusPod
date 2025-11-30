@@ -274,22 +274,77 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             storage.save_transcript(slug, episode_id, transcript_text)
 
         try:
-            # Step 2: Detect ads
+            # Step 2: Detect ads (first pass)
             ad_result = ad_detector.process_transcript(segments, podcast_name, episode_title, slug, episode_id)
             storage.save_ads_json(slug, episode_id, ad_result)
 
-            ads = ad_result.get('ads', [])
-            if ads:
-                total_ad_time = sum(ad['end'] - ad['start'] for ad in ads)
-                audio_logger.info(f"[{slug}:{episode_id}] Detected {len(ads)} ads ({total_ad_time/60:.1f} min)")
-            else:
-                audio_logger.info(f"[{slug}:{episode_id}] No ads detected")
+            # Check ad detection status
+            ad_detection_status = ad_result.get('status', 'success')
+            first_pass_ads = ad_result.get('ads', [])
 
-            # Step 3: Process audio to remove ads
-            audio_logger.info(f"[{slug}:{episode_id}] Starting FFMPEG processing")
-            processed_path = audio_processor.process_episode(audio_path, ads)
+            if ad_detection_status == 'failed':
+                error_msg = ad_result.get('error', 'Unknown error')
+                audio_logger.error(f"[{slug}:{episode_id}] Ad detection failed: {error_msg}")
+                # Update database with failed status
+                db.upsert_episode(slug, episode_id, ad_detection_status='failed')
+                raise Exception(f"Ad detection failed: {error_msg}")
+
+            # Update database with successful status
+            db.upsert_episode(slug, episode_id, ad_detection_status='success')
+
+            if first_pass_ads:
+                total_ad_time = sum(ad['end'] - ad['start'] for ad in first_pass_ads)
+                audio_logger.info(f"[{slug}:{episode_id}] First pass: Detected {len(first_pass_ads)} ads ({total_ad_time/60:.1f} min)")
+            else:
+                audio_logger.info(f"[{slug}:{episode_id}] First pass: No ads detected")
+
+            # Step 3: Process audio to remove first-pass ads
+            audio_logger.info(f"[{slug}:{episode_id}] Starting FFMPEG processing (first pass)")
+            processed_path = audio_processor.process_episode(audio_path, first_pass_ads)
             if not processed_path:
                 raise Exception("Failed to process audio with FFMPEG")
+
+            # Track all ads (will combine first and second pass)
+            all_ads = first_pass_ads.copy()
+
+            # Step 4: Multi-pass detection (if enabled)
+            if ad_detector.is_multi_pass_enabled() and first_pass_ads:
+                audio_logger.info(f"[{slug}:{episode_id}] Multi-pass enabled, starting second pass")
+
+                # Re-transcribe the processed audio
+                audio_logger.info(f"[{slug}:{episode_id}] Re-transcribing processed audio for second pass")
+                second_pass_segments = transcriber.transcribe(processed_path)
+
+                if second_pass_segments:
+                    # Run second pass detection with first-pass ads as context
+                    second_pass_result = ad_detector.detect_ads_second_pass(
+                        second_pass_segments, first_pass_ads,
+                        podcast_name, episode_title, slug, episode_id
+                    )
+
+                    second_pass_ads = second_pass_result.get('ads', [])
+
+                    if second_pass_ads:
+                        audio_logger.info(f"[{slug}:{episode_id}] Second pass found {len(second_pass_ads)} additional ads")
+
+                        # Process audio again to remove second-pass ads
+                        audio_logger.info(f"[{slug}:{episode_id}] Starting FFMPEG processing (second pass)")
+                        second_processed_path = audio_processor.process_episode(processed_path, second_pass_ads)
+
+                        if second_processed_path:
+                            # Replace first-pass processed file with second-pass
+                            if os.path.exists(processed_path):
+                                os.unlink(processed_path)
+                            processed_path = second_processed_path
+
+                            # Add second-pass ads to combined list
+                            all_ads.extend(second_pass_ads)
+                        else:
+                            audio_logger.warning(f"[{slug}:{episode_id}] Second pass FFMPEG failed, using first pass result")
+                    else:
+                        audio_logger.info(f"[{slug}:{episode_id}] Second pass: No additional ads found")
+                else:
+                    audio_logger.warning(f"[{slug}:{episode_id}] Second pass: Failed to re-transcribe processed audio")
 
             # Get durations
             original_duration = audio_processor.get_audio_duration(audio_path)
@@ -299,13 +354,13 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             final_path = storage.get_episode_path(slug, episode_id)
             shutil.move(processed_path, final_path)
 
-            # Update status to processed
+            # Update status to processed with combined ad count
             db.upsert_episode(slug, episode_id,
                 status='processed',
                 processed_file=f"episodes/{episode_id}.mp3",
                 original_duration=original_duration,
                 new_duration=new_duration,
-                ads_removed=len(ads))
+                ads_removed=len(all_ads))
 
             processing_time = time.time() - start_time
 
@@ -317,10 +372,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
                 audio_logger.info(
                     f"[{slug}:{episode_id}] Complete: {original_duration/60:.1f}->{new_duration/60:.1f}min, "
-                    f"{len(ads)} ads, {processing_time:.1f}s"
+                    f"{len(all_ads)} ads, {processing_time:.1f}s"
                 )
             else:
-                audio_logger.info(f"[{slug}:{episode_id}] Complete: {len(ads)} ads, {processing_time:.1f}s")
+                audio_logger.info(f"[{slug}:{episode_id}] Complete: {len(all_ads)} ads, {processing_time:.1f}s")
 
             return True
 
