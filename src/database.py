@@ -192,6 +192,8 @@ CREATE TABLE IF NOT EXISTS episodes (
     original_duration REAL,
     new_duration REAL,
     ads_removed INTEGER DEFAULT 0,
+    ads_removed_firstpass INTEGER DEFAULT 0,
+    ads_removed_secondpass INTEGER DEFAULT 0,
     error_message TEXT,
     ad_detection_status TEXT DEFAULT NULL CHECK(ad_detection_status IN (NULL, 'success', 'failed')),
     created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
@@ -206,8 +208,10 @@ CREATE TABLE IF NOT EXISTS episode_details (
     episode_id INTEGER UNIQUE NOT NULL,
     transcript_text TEXT,
     ad_markers_json TEXT,
-    claude_raw_response TEXT,
-    claude_prompt TEXT,
+    first_pass_response TEXT,
+    first_pass_prompt TEXT,
+    second_pass_prompt TEXT,
+    second_pass_response TEXT,
     created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     FOREIGN KEY (episode_id) REFERENCES episodes(id) ON DELETE CASCADE
 );
@@ -309,6 +313,86 @@ class Database:
                 logger.info("Migration: Added ad_detection_status column to episodes table")
             except Exception as e:
                 logger.error(f"Migration failed for ad_detection_status: {e}")
+
+        # Get existing columns in episode_details table
+        cursor = conn.execute("PRAGMA table_info(episode_details)")
+        details_columns = [row['name'] for row in cursor.fetchall()]
+
+        # Migration: Rename claude_prompt to first_pass_prompt
+        if 'claude_prompt' in details_columns and 'first_pass_prompt' not in details_columns:
+            try:
+                conn.execute("""
+                    ALTER TABLE episode_details
+                    RENAME COLUMN claude_prompt TO first_pass_prompt
+                """)
+                conn.commit()
+                logger.info("Migration: Renamed claude_prompt to first_pass_prompt")
+            except Exception as e:
+                logger.error(f"Migration failed for claude_prompt rename: {e}")
+
+        # Migration: Rename claude_raw_response to first_pass_response
+        if 'claude_raw_response' in details_columns and 'first_pass_response' not in details_columns:
+            try:
+                conn.execute("""
+                    ALTER TABLE episode_details
+                    RENAME COLUMN claude_raw_response TO first_pass_response
+                """)
+                conn.commit()
+                logger.info("Migration: Renamed claude_raw_response to first_pass_response")
+            except Exception as e:
+                logger.error(f"Migration failed for claude_raw_response rename: {e}")
+
+        # Refresh column list after renames
+        cursor = conn.execute("PRAGMA table_info(episode_details)")
+        details_columns = [row['name'] for row in cursor.fetchall()]
+
+        # Migration: Add second_pass_prompt column if missing
+        if 'second_pass_prompt' not in details_columns:
+            try:
+                conn.execute("""
+                    ALTER TABLE episode_details
+                    ADD COLUMN second_pass_prompt TEXT
+                """)
+                conn.commit()
+                logger.info("Migration: Added second_pass_prompt column to episode_details table")
+            except Exception as e:
+                logger.error(f"Migration failed for second_pass_prompt: {e}")
+
+        # Migration: Add second_pass_response column if missing
+        if 'second_pass_response' not in details_columns:
+            try:
+                conn.execute("""
+                    ALTER TABLE episode_details
+                    ADD COLUMN second_pass_response TEXT
+                """)
+                conn.commit()
+                logger.info("Migration: Added second_pass_response column to episode_details table")
+            except Exception as e:
+                logger.error(f"Migration failed for second_pass_response: {e}")
+
+        # Migration: Add ads_removed_firstpass column if missing
+        if 'ads_removed_firstpass' not in columns:
+            try:
+                conn.execute("""
+                    ALTER TABLE episodes
+                    ADD COLUMN ads_removed_firstpass INTEGER DEFAULT 0
+                """)
+                conn.commit()
+                logger.info("Migration: Added ads_removed_firstpass column to episodes table")
+            except Exception as e:
+                logger.error(f"Migration failed for ads_removed_firstpass: {e}")
+
+        # Migration: Add ads_removed_secondpass column if missing
+        if 'ads_removed_secondpass' not in columns:
+            try:
+                conn.execute("""
+                    ALTER TABLE episodes
+                    ADD COLUMN ads_removed_secondpass INTEGER DEFAULT 0
+                """)
+                conn.commit()
+                logger.info("Migration: Added ads_removed_secondpass column to episodes table")
+            except Exception as e:
+                logger.error(f"Migration failed for ads_removed_secondpass: {e}")
 
     def _migrate_from_json(self):
         """Migrate data from JSON files to SQLite."""
@@ -569,7 +653,8 @@ class Database:
         conn = self.get_connection()
         cursor = conn.execute(
             """SELECT e.*, p.slug, ed.transcript_text, ed.ad_markers_json,
-                      ed.claude_raw_response, ed.claude_prompt
+                      ed.first_pass_response, ed.first_pass_prompt,
+                      ed.second_pass_prompt, ed.second_pass_response
                FROM episodes e
                JOIN podcasts p ON e.podcast_id = p.id
                LEFT JOIN episode_details ed ON e.id = ed.episode_id
@@ -618,7 +703,8 @@ class Database:
                 for key, value in kwargs.items():
                     if key in ('original_url', 'title', 'status', 'processed_file',
                                'processed_at', 'original_duration', 'new_duration',
-                               'ads_removed', 'error_message', 'ad_detection_status'):
+                               'ads_removed', 'ads_removed_firstpass', 'ads_removed_secondpass',
+                               'error_message', 'ad_detection_status'):
                         fields.append(f"{key} = ?")
                         values.append(value)
 
@@ -636,8 +722,9 @@ class Database:
                 """INSERT INTO episodes
                    (podcast_id, episode_id, original_url, title, status,
                     processed_file, processed_at, original_duration,
-                    new_duration, ads_removed, error_message, ad_detection_status)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    new_duration, ads_removed, ads_removed_firstpass, ads_removed_secondpass,
+                    error_message, ad_detection_status)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     podcast_id,
                     episode_id,
@@ -649,6 +736,8 @@ class Database:
                     kwargs.get('original_duration'),
                     kwargs.get('new_duration'),
                     kwargs.get('ads_removed', 0),
+                    kwargs.get('ads_removed_firstpass', 0),
+                    kwargs.get('ads_removed_secondpass', 0),
                     kwargs.get('error_message'),
                     kwargs.get('ad_detection_status')
                 )
@@ -661,9 +750,11 @@ class Database:
     def save_episode_details(self, slug: str, episode_id: str,
                             transcript_text: str = None,
                             ad_markers: List[Dict] = None,
-                            claude_raw_response: str = None,
-                            claude_prompt: str = None):
-        """Save or update episode details (transcript, ad markers)."""
+                            first_pass_response: str = None,
+                            first_pass_prompt: str = None,
+                            second_pass_prompt: str = None,
+                            second_pass_response: str = None):
+        """Save or update episode details (transcript, ad markers, pass data)."""
         conn = self.get_connection()
 
         # Get episode database ID
@@ -692,12 +783,18 @@ class Database:
             if ad_markers_json is not None:
                 updates.append("ad_markers_json = ?")
                 values.append(ad_markers_json)
-            if claude_raw_response is not None:
-                updates.append("claude_raw_response = ?")
-                values.append(claude_raw_response)
-            if claude_prompt is not None:
-                updates.append("claude_prompt = ?")
-                values.append(claude_prompt)
+            if first_pass_response is not None:
+                updates.append("first_pass_response = ?")
+                values.append(first_pass_response)
+            if first_pass_prompt is not None:
+                updates.append("first_pass_prompt = ?")
+                values.append(first_pass_prompt)
+            if second_pass_prompt is not None:
+                updates.append("second_pass_prompt = ?")
+                values.append(second_pass_prompt)
+            if second_pass_response is not None:
+                updates.append("second_pass_response = ?")
+                values.append(second_pass_response)
 
             if updates:
                 values.append(row['id'])
@@ -710,10 +807,12 @@ class Database:
             conn.execute(
                 """INSERT INTO episode_details
                    (episode_id, transcript_text, ad_markers_json,
-                    claude_raw_response, claude_prompt)
-                   VALUES (?, ?, ?, ?, ?)""",
+                    first_pass_response, first_pass_prompt,
+                    second_pass_prompt, second_pass_response)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
                 (db_episode_id, transcript_text, ad_markers_json,
-                 claude_raw_response, claude_prompt)
+                 first_pass_response, first_pass_prompt,
+                 second_pass_prompt, second_pass_response)
             )
 
         conn.commit()

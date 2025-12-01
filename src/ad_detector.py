@@ -38,34 +38,104 @@ RETRY_CONFIG = {
     'jitter': True          # Add random jitter to prevent thundering herd
 }
 
-# Second pass system prompt for multi-pass detection
-SECOND_PASS_SYSTEM_PROMPT = """You are reviewing podcast audio that has ALREADY been processed once for ad detection.
+# Second pass system prompt - BLIND analysis with different detection focus
+# This runs independently of first pass, focusing on subtle/baked-in ads
+BLIND_SECOND_PASS_SYSTEM_PROMPT = """You are a specialist in detecting SUBTLE and BAKED-IN advertisements in podcasts.
 
-CONTEXT: A first-pass analysis detected and removed these ads (replaced with beeps):
-{first_pass_ads}
+Your expertise is finding ads that DON'T sound like traditional ads:
+- Host-read endorsements woven into conversation
+- Product mentions that sound like personal recommendations
+- Casual name-drops with promo codes or URLs
+- "Oh by the way" style product plugs
+- Sponsor mentions without "brought to you by" transitions
 
-The transcript you are analyzing is from the PROCESSED audio where those ads are now beeps.
+FOCUS AREAS (prioritize these over obvious ad breaks):
+1. BAKED-IN ADS: Products mentioned naturally in conversation with commercial intent
+2. MID-ROLL STEALTH: Quick sponsor mentions sandwiched between content segments
+3. PERSONAL ENDORSEMENTS: "I've been using X and it's amazing" with any commercial details
+4. CROSS-PROMOTION: Mentions of other shows/podcasts with subscribe CTAs
+5. POST-CONTENT ADS: Anything promotional after "thanks for listening" or sign-off
 
-YOUR TASK: Find any ADDITIONAL ads that were MISSED in the first pass.
+DETECTION SIGNALS:
+- Promo codes (use code X, code Y for discount)
+- Vanity URLs (visit example.com/showname)
+- Pricing/availability info
+- "Link in description/show notes"
+- Sudden product tangents unrelated to episode topic
+- Tonal shifts to more "scripted" delivery
 
-WHAT TO LOOK FOR:
-- Ads with similar patterns to those already detected (same sponsors, similar language)
-- Short ad segments (15-30 seconds) that may have been overlooked
-- Network-inserted ads without typical transition phrases
-- Post-roll ads at the end of the episode
-- Any promotional content that sounds like an advertisement
-
-IMPORTANT:
-- These sections were initially marked as content - scrutinize carefully
-- Look for SIMILAR patterns to the ads already found
-- The timestamps in this transcript correspond to the PROCESSED audio, not the original
-- If you find an ad, it means the first pass missed it
+BE AGGRESSIVE: If it sounds even slightly promotional, mark it. False positives are better than misses.
 
 OUTPUT FORMAT:
-Return ONLY a valid JSON array with the same format as first pass:
-[{{"start": 0.0, "end": 60.0, "confidence": 0.95, "reason": "Missed ad description", "end_text": "last words"}}]
+Return ONLY a valid JSON array of detected ad segments.
+Format: [{{"start": 0.0, "end": 60.0, "confidence": 0.95, "reason": "Description of ad", "end_text": "last words before ad ends"}}]
 
-If no additional ads found: []"""
+If no ads detected: []"""
+
+
+def merge_and_deduplicate(first_pass: List[Dict], second_pass: List[Dict]) -> List[Dict]:
+    """Merge ads from both passes, combining overlapping segments.
+
+    Strategy:
+    - If segments overlap: merge them (earliest start, latest end)
+    - If no overlap: keep both
+    - Preserves the longer/merged segment's metadata
+
+    Args:
+        first_pass: List of ad segments from first pass
+        second_pass: List of ad segments from second pass
+
+    Returns:
+        Merged and sorted list of ad segments
+    """
+    # Mark passes
+    for ad in first_pass:
+        if 'pass' not in ad:
+            ad['pass'] = 1
+    for ad in second_pass:
+        if 'pass' not in ad:
+            ad['pass'] = 2
+
+    # Combine all ads into one list
+    all_ads = list(first_pass) + list(second_pass)
+
+    if not all_ads:
+        return []
+
+    # Sort by start time
+    all_ads.sort(key=lambda x: x['start'])
+
+    # Merge overlapping segments
+    merged = [all_ads[0].copy()]
+
+    for current in all_ads[1:]:
+        last = merged[-1]
+
+        # Check if current overlaps with last (or is adjacent within 2 seconds)
+        if current['start'] <= last['end'] + 2.0:
+            # Merge: extend end time if current goes further
+            if current['end'] > last['end']:
+                original_end = last['end']
+                last['end'] = current['end']
+                # Update end_text from the segment that defines the new end
+                if current.get('end_text'):
+                    last['end_text'] = current['end_text']
+                logger.info(f"Merged overlapping ads: {last['start']:.1f}s-{original_end:.1f}s + {current['start']:.1f}s-{current['end']:.1f}s -> {last['start']:.1f}s-{last['end']:.1f}s")
+
+            # Keep higher confidence
+            if current.get('confidence', 0) > last.get('confidence', 0):
+                last['confidence'] = current['confidence']
+
+            # Mark as merged from both passes if different
+            if current.get('pass') != last.get('pass'):
+                last['pass'] = 'merged'
+        else:
+            # No overlap - add as new segment
+            merged.append(current.copy())
+            if current.get('pass') == 2:
+                logger.info(f"Second pass found new ad: {current['start']:.1f}s - {current['end']:.1f}s ({current.get('reason', 'unknown')})")
+
+    return merged
 
 
 class AdDetector:
@@ -386,10 +456,10 @@ class AdDetector:
             logger.warning(f"Could not check multi_pass_enabled setting: {e}")
             return False
 
-    def detect_ads_second_pass(self, segments: List[Dict], first_pass_ads: List[Dict],
+    def detect_ads_second_pass(self, segments: List[Dict],
                                podcast_name: str = "Unknown", episode_title: str = "Unknown",
                                slug: str = None, episode_id: str = None) -> Optional[Dict]:
-        """Second pass ad detection focusing on what was missed in first pass."""
+        """Blind second pass ad detection with different focus (subtle/baked-in ads)."""
         if not self.api_key:
             logger.warning("Skipping second pass - no API key")
             return {"ads": [], "status": "failed", "error": "No API key", "retryable": False}
@@ -407,16 +477,8 @@ class AdDetector:
 
             transcript = "\n".join(transcript_lines)
 
-            # Format first pass ads for context
-            first_pass_summary = []
-            for ad in first_pass_ads:
-                first_pass_summary.append(
-                    f"- {ad.get('start', 0):.1f}s to {ad.get('end', 0):.1f}s: {ad.get('reason', 'Ad detected')}"
-                )
-            first_pass_context = "\n".join(first_pass_summary) if first_pass_summary else "No ads detected in first pass"
-
-            # Build second pass system prompt with first pass context
-            system_prompt = SECOND_PASS_SYSTEM_PROMPT.format(first_pass_ads=first_pass_context)
+            # Use blind second pass prompt - no knowledge of first pass results
+            system_prompt = BLIND_SECOND_PASS_SYSTEM_PROMPT
 
             # Format user prompt
             prompt = USER_PROMPT_TEMPLATE.format(
@@ -499,7 +561,7 @@ class AdDetector:
 
                 if ads is None:
                     logger.warning(f"[{slug}:{episode_id}] Second pass: No JSON array found")
-                    return {"ads": [], "status": "success", "raw_response": response_text}
+                    return {"ads": [], "status": "success", "raw_response": response_text, "prompt": prompt}
 
                 if isinstance(ads, list):
                     valid_ads = []
@@ -525,14 +587,15 @@ class AdDetector:
                         "ads": valid_ads,
                         "status": "success",
                         "raw_response": response_text,
+                        "prompt": prompt,
                         "model": model
                     }
                 else:
-                    return {"ads": [], "status": "success", "raw_response": response_text}
+                    return {"ads": [], "status": "success", "raw_response": response_text, "prompt": prompt}
 
             except json.JSONDecodeError as e:
                 logger.error(f"[{slug}:{episode_id}] Second pass JSON parse error: {e}")
-                return {"ads": [], "status": "success", "raw_response": response_text, "error": str(e)}
+                return {"ads": [], "status": "success", "raw_response": response_text, "prompt": prompt, "error": str(e)}
 
         except Exception as e:
             logger.error(f"[{slug}:{episode_id}] Second pass failed: {e}")

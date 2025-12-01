@@ -414,6 +414,8 @@ def get_episode(slug, episode_id):
         'originalUrl': episode['original_url'],
         'processedUrl': f"{base_url}/episodes/{slug}/{episode_id}.mp3",
         'adsRemoved': episode['ads_removed'],
+        'adsRemovedFirstPass': episode.get('ads_removed_firstpass', 0),
+        'adsRemovedSecondPass': episode.get('ads_removed_secondpass', 0),
         'timeSaved': time_saved,
         'fileSize': file_size,
         'adMarkers': ad_markers,
@@ -421,8 +423,10 @@ def get_episode(slug, episode_id):
         'transcript': episode.get('transcript_text'),
         'transcriptAvailable': bool(episode.get('transcript_text')),
         'error': episode.get('error_message'),
-        'claudePrompt': episode.get('claude_prompt'),
-        'claudeRawResponse': episode.get('claude_raw_response')
+        'firstPassPrompt': episode.get('first_pass_prompt'),
+        'firstPassResponse': episode.get('first_pass_response'),
+        'secondPassPrompt': episode.get('second_pass_prompt'),
+        'secondPassResponse': episode.get('second_pass_response')
     })
 
 

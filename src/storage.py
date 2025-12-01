@@ -151,23 +151,68 @@ class Storage:
             return episode['transcript_text']
         return None
 
-    def save_ads_json(self, slug: str, episode_id: str, ads_data: Any) -> None:
-        """Save Claude's ad detection response to database."""
+    def save_ads_json(self, slug: str, episode_id: str, ads_data: Any,
+                      pass_number: int = 1) -> None:
+        """Save Claude's ad detection response to database with pass marker.
+
+        Args:
+            slug: Podcast slug
+            episode_id: Episode ID
+            ads_data: Dict with 'ads', 'raw_response', and 'prompt' keys
+            pass_number: 1 for first pass, 2 for second pass (default: 1)
+        """
         try:
             ad_markers = ads_data.get('ads', []) if isinstance(ads_data, dict) else []
             raw_response = ads_data.get('raw_response') if isinstance(ads_data, dict) else None
             prompt = ads_data.get('prompt') if isinstance(ads_data, dict) else None
 
-            self.db.save_episode_details(
-                slug, episode_id,
-                ad_markers=ad_markers,
-                claude_raw_response=raw_response,
-                claude_prompt=prompt
-            )
+            # Mark each ad with its pass number
+            for ad in ad_markers:
+                ad['pass'] = pass_number
+
+            if pass_number == 1:
+                self.db.save_episode_details(
+                    slug, episode_id,
+                    ad_markers=ad_markers,
+                    first_pass_response=raw_response,
+                    first_pass_prompt=prompt
+                )
+            else:
+                # For second pass, save the prompt/response separately
+                # Ad markers will be merged in save_combined_ads
+                self.db.save_episode_details(
+                    slug, episode_id,
+                    second_pass_prompt=prompt,
+                    second_pass_response=raw_response
+                )
         except ValueError:
             logger.warning(f"[{slug}:{episode_id}] Episode not in DB, ads not saved")
 
-        logger.debug(f"[{slug}:{episode_id}] Saved ads detection data")
+        logger.debug(f"[{slug}:{episode_id}] Saved pass {pass_number} ads detection data")
+
+    def save_combined_ads(self, slug: str, episode_id: str, all_ads: List[Dict]) -> None:
+        """Save combined ad markers from both passes to database."""
+        try:
+            self.db.save_episode_details(slug, episode_id, ad_markers=all_ads)
+        except ValueError:
+            logger.warning(f"[{slug}:{episode_id}] Episode not in DB, combined ads not saved")
+
+        logger.debug(f"[{slug}:{episode_id}] Saved {len(all_ads)} combined ad markers")
+
+    def save_second_pass_data(self, slug: str, episode_id: str,
+                              second_pass_prompt: str = None,
+                              second_pass_response: str = None) -> None:
+        """Save Claude's second pass ad detection data to database."""
+        try:
+            self.db.save_episode_details(
+                slug, episode_id,
+                second_pass_prompt=second_pass_prompt,
+                second_pass_response=second_pass_response
+            )
+        except ValueError:
+            logger.warning(f"[{slug}:{episode_id}] Episode not in DB, second pass data not saved")
+
+        logger.debug(f"[{slug}:{episode_id}] Saved second pass detection data")
 
 
     # ========== Artwork Methods ==========

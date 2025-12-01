@@ -30,6 +30,12 @@ export interface EpisodeDetail extends Episode {
   newDuration?: number;
   timeSaved?: number;
   fileSize?: number;
+  adsRemovedFirstPass?: number;
+  adsRemovedSecondPass?: number;
+  firstPassPrompt?: string;
+  firstPassResponse?: string;
+  secondPassPrompt?: string;
+  secondPassResponse?: string;
 }
 
 export interface AdSegment {
@@ -37,6 +43,7 @@ export interface AdSegment {
   end: number;
   confidence: number;
   reason?: string;
+  pass?: 1 | 2 | 'merged';
 }
 
 export interface SettingValue {
@@ -44,19 +51,27 @@ export interface SettingValue {
   isDefault: boolean;
 }
 
+export interface SettingValueBoolean {
+  value: boolean;
+  isDefault: boolean;
+}
+
 export interface Settings {
   systemPrompt: SettingValue;
   claudeModel: SettingValue;
+  multiPassEnabled: SettingValueBoolean;
   retentionPeriodMinutes: number;
   defaults: {
     systemPrompt: string;
     claudeModel: string;
+    multiPassEnabled: boolean;
   };
 }
 
 export interface UpdateSettingsPayload {
   systemPrompt?: string;
   claudeModel?: string;
+  multiPassEnabled?: boolean;
 }
 
 export interface ClaudeModel {

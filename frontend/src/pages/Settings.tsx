@@ -7,6 +7,7 @@ function Settings() {
   const queryClient = useQueryClient();
   const [systemPrompt, setSystemPrompt] = useState('');
   const [selectedModel, setSelectedModel] = useState('');
+  const [multiPassEnabled, setMultiPassEnabled] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [cleanupConfirm, setCleanupConfirm] = useState(false);
 
@@ -29,6 +30,7 @@ function Settings() {
     if (settings) {
       setSystemPrompt(settings.systemPrompt?.value || '');
       setSelectedModel(settings.claudeModel?.value || '');
+      setMultiPassEnabled(settings.multiPassEnabled?.value ?? false);
     }
   }, [settings]);
 
@@ -36,16 +38,18 @@ function Settings() {
     if (settings) {
       const changed =
         systemPrompt !== (settings.systemPrompt?.value || '') ||
-        selectedModel !== (settings.claudeModel?.value || '');
+        selectedModel !== (settings.claudeModel?.value || '') ||
+        multiPassEnabled !== (settings.multiPassEnabled?.value ?? false);
       setHasChanges(changed);
     }
-  }, [systemPrompt, selectedModel, settings]);
+  }, [systemPrompt, selectedModel, multiPassEnabled, settings]);
 
   const updateMutation = useMutation({
     mutationFn: () =>
       updateSettings({
         systemPrompt,
         claudeModel: selectedModel,
+        multiPassEnabled,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
@@ -207,6 +211,30 @@ function Settings() {
           </select>
           <p className="mt-1 text-sm text-muted-foreground">
             Select which Claude model to use for analyzing transcripts
+          </p>
+        </div>
+      </div>
+
+      <div className="bg-card rounded-lg border border-border p-6">
+        <h2 className="text-lg font-semibold text-foreground mb-4">Multi-Pass Detection</h2>
+        <div>
+          <label className="flex items-center gap-3 cursor-pointer">
+            <div
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                multiPassEnabled ? 'bg-primary' : 'bg-secondary'
+              }`}
+              onClick={() => setMultiPassEnabled(!multiPassEnabled)}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  multiPassEnabled ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </div>
+            <span className="text-sm font-medium text-foreground">Enable Multi-Pass Ad Detection</span>
+          </label>
+          <p className="mt-2 text-sm text-muted-foreground ml-14">
+            Run a second detection pass on processed audio to catch missed ads. Increases processing time and API costs.
           </p>
         </div>
       </div>

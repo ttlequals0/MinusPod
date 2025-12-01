@@ -132,6 +132,11 @@ function EpisodeDetail() {
         <div className="bg-card rounded-lg border border-border p-6 mb-6">
           <h2 className="text-xl font-semibold text-foreground mb-4">
             Detected Ads ({episode.adMarkers.length})
+            {(episode.adsRemovedFirstPass !== undefined && episode.adsRemovedSecondPass !== undefined && episode.adsRemovedSecondPass > 0) && (
+              <span className="ml-2 text-sm font-normal text-muted-foreground">
+                ({episode.adsRemovedFirstPass} first pass, {episode.adsRemovedSecondPass} second pass)
+              </span>
+            )}
             {episode.timeSaved && episode.timeSaved > 0 && (
               <span className="ml-2 text-base font-normal text-muted-foreground">
                 - {formatDuration(episode.timeSaved)} time saved
@@ -144,17 +149,30 @@ function EpisodeDetail() {
                 key={index}
                 className="flex items-center justify-between p-3 bg-secondary/50 rounded-lg"
               >
-                <div>
+                <div className="flex items-center gap-2">
                   <span className="font-mono text-sm">
                     {formatTimestamp(segment.start)} - {formatTimestamp(segment.end)}
                   </span>
-                  {segment.reason && (
-                    <p className="text-sm text-muted-foreground mt-1">{segment.reason}</p>
+                  {segment.pass && (
+                    <span className={`px-1.5 py-0.5 text-xs rounded font-medium ${
+                      segment.pass === 1
+                        ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
+                        : segment.pass === 2
+                        ? 'bg-purple-500/20 text-purple-600 dark:text-purple-400'
+                        : 'bg-green-500/20 text-green-600 dark:text-green-400'
+                    }`}>
+                      {segment.pass === 'merged' ? 'Merged' : `Pass ${segment.pass}`}
+                    </span>
                   )}
                 </div>
-                <span className="text-sm text-muted-foreground">
-                  {Math.round(segment.confidence * 100)}% confidence
-                </span>
+                <div className="flex flex-col items-end">
+                  <span className="text-sm text-muted-foreground">
+                    {Math.round(segment.confidence * 100)}% confidence
+                  </span>
+                  {segment.reason && (
+                    <p className="text-sm text-muted-foreground mt-1 text-right max-w-md">{segment.reason}</p>
+                  )}
+                </div>
               </div>
             ))}
           </div>

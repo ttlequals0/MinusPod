@@ -98,7 +98,7 @@ app.register_blueprint(api_blueprint)
 from storage import Storage
 from rss_parser import RSSParser
 from transcriber import Transcriber
-from ad_detector import AdDetector
+from ad_detector import AdDetector, merge_and_deduplicate
 from audio_processor import AudioProcessor
 from database import Database
 
@@ -276,7 +276,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
         try:
             # Step 2: Detect ads (first pass)
             ad_result = ad_detector.process_transcript(segments, podcast_name, episode_title, slug, episode_id)
-            storage.save_ads_json(slug, episode_id, ad_result)
+            storage.save_ads_json(slug, episode_id, ad_result, pass_number=1)
 
             # Check ad detection status
             ad_detection_status = ad_result.get('status', 'success')
@@ -298,53 +298,48 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             else:
                 audio_logger.info(f"[{slug}:{episode_id}] First pass: No ads detected")
 
-            # Step 3: Process audio to remove first-pass ads
-            audio_logger.info(f"[{slug}:{episode_id}] Starting FFMPEG processing (first pass)")
-            processed_path = audio_processor.process_episode(audio_path, first_pass_ads)
-            if not processed_path:
-                raise Exception("Failed to process audio with FFMPEG")
+            # Track counts per pass
+            first_pass_count = len(first_pass_ads)
+            second_pass_count = 0
 
             # Track all ads (will combine first and second pass)
             all_ads = first_pass_ads.copy()
 
-            # Step 4: Multi-pass detection (if enabled)
-            if ad_detector.is_multi_pass_enabled() and first_pass_ads:
-                audio_logger.info(f"[{slug}:{episode_id}] Multi-pass enabled, starting second pass")
+            # Step 3: Multi-pass detection (if enabled) - PARALLEL approach
+            # Runs second pass on SAME original transcript (not re-transcribed)
+            if ad_detector.is_multi_pass_enabled():
+                audio_logger.info(f"[{slug}:{episode_id}] Multi-pass enabled, starting blind second pass")
 
-                # Re-transcribe the processed audio
-                audio_logger.info(f"[{slug}:{episode_id}] Re-transcribing processed audio for second pass")
-                second_pass_segments = transcriber.transcribe(processed_path)
+                # Run BLIND second pass - independent analysis with different detection focus
+                # Does NOT know what first pass found - we merge/dedupe results ourselves
+                second_pass_result = ad_detector.detect_ads_second_pass(
+                    segments,  # Same transcript, blind analysis
+                    podcast_name, episode_title, slug, episode_id
+                )
 
-                if second_pass_segments:
-                    # Run second pass detection with first-pass ads as context
-                    second_pass_result = ad_detector.detect_ads_second_pass(
-                        second_pass_segments, first_pass_ads,
-                        podcast_name, episode_title, slug, episode_id
-                    )
+                # Save second pass data to database
+                storage.save_ads_json(slug, episode_id, second_pass_result, pass_number=2)
 
-                    second_pass_ads = second_pass_result.get('ads', [])
+                second_pass_ads = second_pass_result.get('ads', [])
 
-                    if second_pass_ads:
-                        audio_logger.info(f"[{slug}:{episode_id}] Second pass found {len(second_pass_ads)} additional ads")
+                if second_pass_ads:
+                    # Merge and deduplicate ads from both passes
+                    all_ads = merge_and_deduplicate(first_pass_ads, second_pass_ads)
+                    second_pass_count = len(all_ads) - first_pass_count  # Unique new ads from second pass
 
-                        # Process audio again to remove second-pass ads
-                        audio_logger.info(f"[{slug}:{episode_id}] Starting FFMPEG processing (second pass)")
-                        second_processed_path = audio_processor.process_episode(processed_path, second_pass_ads)
+                    total_ad_time = sum(ad['end'] - ad['start'] for ad in all_ads)
+                    audio_logger.info(f"[{slug}:{episode_id}] Second pass found {second_pass_count} additional unique ads (total: {len(all_ads)}, {total_ad_time/60:.1f} min)")
 
-                        if second_processed_path:
-                            # Replace first-pass processed file with second-pass
-                            if os.path.exists(processed_path):
-                                os.unlink(processed_path)
-                            processed_path = second_processed_path
-
-                            # Add second-pass ads to combined list
-                            all_ads.extend(second_pass_ads)
-                        else:
-                            audio_logger.warning(f"[{slug}:{episode_id}] Second pass FFMPEG failed, using first pass result")
-                    else:
-                        audio_logger.info(f"[{slug}:{episode_id}] Second pass: No additional ads found")
+                    # Save combined ad markers
+                    storage.save_combined_ads(slug, episode_id, all_ads)
                 else:
-                    audio_logger.warning(f"[{slug}:{episode_id}] Second pass: Failed to re-transcribe processed audio")
+                    audio_logger.info(f"[{slug}:{episode_id}] Second pass: No additional ads found")
+
+            # Step 4: Process audio ONCE with ALL detected ads
+            audio_logger.info(f"[{slug}:{episode_id}] Starting FFMPEG processing ({len(all_ads)} total ads)")
+            processed_path = audio_processor.process_episode(audio_path, all_ads)
+            if not processed_path:
+                raise Exception("Failed to process audio with FFMPEG")
 
             # Get durations
             original_duration = audio_processor.get_audio_duration(audio_path)
@@ -354,13 +349,15 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             final_path = storage.get_episode_path(slug, episode_id)
             shutil.move(processed_path, final_path)
 
-            # Update status to processed with combined ad count
+            # Update status to processed with combined ad count and per-pass counts
             db.upsert_episode(slug, episode_id,
                 status='processed',
                 processed_file=f"episodes/{episode_id}.mp3",
                 original_duration=original_duration,
                 new_duration=new_duration,
-                ads_removed=len(all_ads))
+                ads_removed=len(all_ads),
+                ads_removed_firstpass=first_pass_count,
+                ads_removed_secondpass=second_pass_count)
 
             processing_time = time.time() - start_time
 
