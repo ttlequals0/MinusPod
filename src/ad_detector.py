@@ -351,7 +351,6 @@ class AdDetector:
                         model=model,
                         max_tokens=2000,
                         temperature=0.0,
-                        seed=42,  # Fixed seed for reproducibility
                         system=system_prompt,
                         messages=[{
                             "role": "user",
@@ -556,7 +555,6 @@ class AdDetector:
                         model=model,
                         max_tokens=2000,
                         temperature=0.0,
-                        seed=42,  # Fixed seed for reproducibility
                         system=system_prompt,
                         messages=[{"role": "user", "content": prompt}]
                     )

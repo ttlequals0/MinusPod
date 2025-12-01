@@ -123,6 +123,7 @@ function EpisodeDetail() {
               .replace(/<\/li>/gi, '\n')
               .replace(/<li>/gi, '- ')
               .replace(/<[^>]*>/g, '')
+              .replace(/\n{3,}/g, '\n\n')
               .trim()}
           </p>
         )}
