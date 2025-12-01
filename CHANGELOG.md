@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.56] - 2025-12-01
+
+### Added
+- Description logging: logs when episode description is/isn't included in prompts
+- Prompt hash logging: logs MD5 hash of prompt for debugging non-determinism
+- Seed parameter (42) added to Claude API calls for more deterministic outputs
+
+### Changed
+- Prompts now indicate ads are ALWAYS expected (empty result almost never correct)
+- Description context clarified in prompts (describes content topics, may list sponsors)
+- UI description display preserves formatting (line breaks, list items)
+
+### Fixed
+- Non-determinism in ad detection: same episode could produce different results
+  - Added seed=42 parameter to API calls
+  - Prompt hash logging helps verify if prompts differ between runs
+
+---
+
 ## [0.1.55] - 2025-12-01
 
 ### Fixed

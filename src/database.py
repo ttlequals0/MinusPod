@@ -13,6 +13,8 @@ logger = logging.getLogger(__name__)
 # Default ad detection prompts
 DEFAULT_SYSTEM_PROMPT = """Analyze this podcast transcript and identify ALL advertisement segments.
 
+IMPORTANT: Podcasts ALWAYS contain advertisements. You should expect to find multiple ad segments in every episode. If you detect zero ads, re-analyze the transcript - you likely missed host-read sponsor segments or subtle product mentions. An empty result is almost never correct.
+
 CRITICAL: Host-read sponsor segments ARE advertisements. Do NOT distinguish between "traditional ads" and "sponsor reads" - both must be detected and returned. Any content where the host promotes a product, service, or sponsor for compensation is an ad, regardless of how naturally it's integrated.
 
 PRIORITY: Focus on FINDING all ads first, then refining boundaries. It is better to include an ad with imprecise boundaries than to miss it entirely.

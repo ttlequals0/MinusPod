@@ -5,6 +5,7 @@ import os
 import re
 import time
 import random
+import hashlib
 from typing import List, Dict, Optional
 from anthropic import Anthropic, APIError, APIConnectionError, RateLimitError, InternalServerError
 
@@ -80,6 +81,8 @@ AD END SIGNALS (look for these AFTER the pitch):
 - Host saying "alright" or "okay" before resuming normal content
 
 BE AGGRESSIVE: If it sounds even slightly promotional, mark it. False positives are better than misses.
+
+EXPECT ADS: Podcasts always have ads. If first pass found ads, you should look for additional subtle/baked-in segments they might have missed. An empty result means you haven't looked hard enough.
 
 OUTPUT FORMAT:
 Return ONLY a valid JSON array of detected ad segments.
@@ -315,7 +318,10 @@ class AdDetector:
             # Format user prompt with optional description
             description_section = ""
             if episode_description:
-                description_section = f"Description: {episode_description}\n"
+                description_section = f"Episode Description (this describes the actual content topics discussed; it may also list episode sponsors):\n{episode_description}\n"
+                logger.info(f"[{slug}:{episode_id}] Including episode description ({len(episode_description)} chars)")
+            else:
+                logger.info(f"[{slug}:{episode_id}] No episode description available")
 
             prompt = user_prompt_template.format(
                 podcast_name=podcast_name,
@@ -323,6 +329,10 @@ class AdDetector:
                 description_section=description_section,
                 transcript=transcript
             )
+
+            # Log prompt hash for debugging determinism
+            prompt_hash = hashlib.md5(prompt.encode()).hexdigest()[:8]
+            logger.info(f"[{slug}:{episode_id}] Prompt hash: {prompt_hash}")
 
             logger.info(f"[{slug}:{episode_id}] Sending transcript to Claude "
                        f"({len(segments)} segments, {len(transcript)} chars)")
@@ -341,6 +351,7 @@ class AdDetector:
                         model=model,
                         max_tokens=2000,
                         temperature=0.0,
+                        seed=42,  # Fixed seed for reproducibility
                         system=system_prompt,
                         messages=[{
                             "role": "user",
@@ -514,7 +525,10 @@ class AdDetector:
             # Format user prompt with optional description
             description_section = ""
             if episode_description:
-                description_section = f"Description: {episode_description}\n"
+                description_section = f"Episode Description (this describes the actual content topics discussed; it may also list episode sponsors):\n{episode_description}\n"
+                logger.info(f"[{slug}:{episode_id}] Second pass: Including episode description ({len(episode_description)} chars)")
+            else:
+                logger.info(f"[{slug}:{episode_id}] Second pass: No episode description available")
 
             prompt = USER_PROMPT_TEMPLATE.format(
                 podcast_name=podcast_name,
@@ -522,6 +536,10 @@ class AdDetector:
                 description_section=description_section,
                 transcript=transcript
             )
+
+            # Log prompt hash for debugging determinism
+            prompt_hash = hashlib.md5(prompt.encode()).hexdigest()[:8]
+            logger.info(f"[{slug}:{episode_id}] Second pass prompt hash: {prompt_hash}")
 
             logger.info(f"[{slug}:{episode_id}] Second pass: Sending transcript to Claude "
                        f"({len(segments)} segments, {len(transcript)} chars)")
@@ -538,6 +556,7 @@ class AdDetector:
                         model=model,
                         max_tokens=2000,
                         temperature=0.0,
+                        seed=42,  # Fixed seed for reproducibility
                         system=system_prompt,
                         messages=[{"role": "user", "content": prompt}]
                     )

@@ -116,8 +116,14 @@ function EpisodeDetail() {
         </div>
 
         {episode.description && (
-          <p className="mt-4 text-muted-foreground">
-            {episode.description.replace(/<[^>]*>/g, '')}
+          <p className="mt-4 text-muted-foreground whitespace-pre-wrap">
+            {episode.description
+              .replace(/<br\s*\/?>/gi, '\n')
+              .replace(/<\/p>/gi, '\n\n')
+              .replace(/<\/li>/gi, '\n')
+              .replace(/<li>/gi, '- ')
+              .replace(/<[^>]*>/g, '')
+              .trim()}
           </p>
         )}
 
