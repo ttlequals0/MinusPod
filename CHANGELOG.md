@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.68] - 2025-12-02
+
+### Changed
+- Improved ad detection prompts to reduce false positives
+  - Removed "EXPECT ADS" language that pressured model to invent ads
+  - Made second pass truly blind (no reference to first pass)
+  - Removed cross-promotion from ad detection targets
+  - Added explicit "DO NOT MARK AS ADS" section for cross-promo and guest plugs
+- Added window boundary guidance to prompts
+  - Instructions for handling partial ads at window edges
+  - Clear guidance on marking ads that span window boundaries
+- Enhanced window context in API calls
+  - Clearer formatting with explicit window boundaries
+  - Instructions for partial ad handling
+- Consolidated prompts: removed duplicate BLIND_SECOND_PASS_SYSTEM_PROMPT
+  - Single source of truth in database.py
+- Reduced second pass prompt from ~600 words to ~250 words
+
+---
+
 ## [0.1.67] - 2025-12-02
 
 ### Fixed

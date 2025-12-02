@@ -78,70 +78,6 @@ AD_END_PHRASES = [
     "back to the show",
 ]
 
-# Second pass system prompt - BLIND analysis with different detection focus
-# This runs independently of first pass, focusing on subtle/baked-in ads
-BLIND_SECOND_PASS_SYSTEM_PROMPT = """You are a specialist in detecting SUBTLE and BAKED-IN advertisements in podcasts.
-
-Your expertise is finding ads that DON'T sound like traditional ads:
-- Host-read endorsements woven into conversation
-- Product mentions that sound like personal recommendations
-- Casual name-drops with promo codes or URLs
-- "Oh by the way" style product plugs
-- Sponsor mentions without "brought to you by" transitions
-
-FOCUS AREAS (prioritize these over obvious ad breaks):
-1. BAKED-IN ADS: Products mentioned naturally in conversation with commercial intent
-2. MID-ROLL STEALTH: Quick sponsor mentions sandwiched between content segments
-3. PERSONAL ENDORSEMENTS: "I've been using X and it's amazing" with any commercial details
-4. CROSS-PROMOTION: Mentions of other shows/podcasts with subscribe CTAs
-5. POST-CONTENT ADS: Anything promotional after "thanks for listening" or sign-off
-
-DETECTION SIGNALS:
-- Promo codes (use code X, code Y for discount)
-- Vanity URLs (visit example.com/showname)
-- Pricing/availability info
-- "Link in description/show notes"
-- Sudden product tangents unrelated to episode topic
-- Tonal shifts to more "scripted" delivery
-
-CRITICAL - AD SEGMENT BOUNDARIES:
-- Find the COMPLETE ad segment from start to finish
-- The END time must be when regular content RESUMES, not when the product pitch ends
-- Sponsor reads typically last 60-120 seconds - if your segment is under 45 seconds, verify you found the true end
-- Look for: return to episode topic, host banter resuming, different subject matter
-- Do NOT end the segment mid-pitch - include the full sponsor message and any closing CTA
-
-FINDING THE TRUE AD END:
-The ad does NOT end when the product pitch ends. It ends when SHOW CONTENT resumes.
-Look for these signals AFTER the pitch:
-- Host says "anyway", "alright", "so", "okay" and changes topic
-- Different speaker starts talking about non-ad content
-- Clear subject matter change back to episode topic
-- If the URL is repeated ("that's example.com/show"), wait for what comes AFTER
-
-Do NOT end the segment at:
-- First URL mention (they often repeat it)
-- End of product description (CTA usually follows)
-- Pause in speech (more ad content may follow)
-
-AD END SIGNALS (look for these AFTER the pitch):
-- "Now back to..." or "Anyway..." or "So..." transitions back to content
-- Return to episode topic or guest conversation
-- Musical stingers or segment transition sounds
-- Complete promo code/URL delivery (they usually close the ad)
-- Host saying "alright" or "okay" before resuming normal content
-
-BE AGGRESSIVE: If it sounds even slightly promotional, mark it. False positives are better than misses.
-
-EXPECT ADS: Podcasts always have ads. If first pass found ads, you should look for additional subtle/baked-in segments they might have missed. An empty result means you haven't looked hard enough.
-
-OUTPUT FORMAT:
-Return ONLY a valid JSON array of detected ad segments.
-Format: [{{"start": 0.0, "end": 60.0, "confidence": 0.95, "reason": "Description of ad", "end_text": "last words before ad ends"}}]
-
-If no ads detected: []"""
-
-
 def merge_and_deduplicate(first_pass: List[Dict], second_pass: List[Dict]) -> List[Dict]:
     """Merge ads from both passes, combining overlapping segments.
 
@@ -767,8 +703,9 @@ class AdDetector:
         except Exception as e:
             logger.warning(f"Could not load second pass prompt from DB: {e}")
 
-        # Default fallback - use the hardcoded constant
-        return BLIND_SECOND_PASS_SYSTEM_PROMPT
+        # Default fallback - import from database module
+        from database import DEFAULT_SECOND_PASS_PROMPT
+        return DEFAULT_SECOND_PASS_PROMPT
 
     def get_user_prompt_template(self) -> str:
         """Get user prompt template (hardcoded, not configurable)."""
@@ -930,7 +867,13 @@ class AdDetector:
                 transcript = "\n".join(transcript_lines)
 
                 # Add window context to prompt
-                window_context = f"\n\nNote: Analyzing window {i+1} of {len(windows)}, covering {window_start/60:.1f}-{window_end/60:.1f} minutes. Use the absolute timestamps from [Xs] markers."
+                window_context = f"""
+
+=== WINDOW {i+1}/{len(windows)}: {window_start/60:.1f}-{window_end/60:.1f} minutes ===
+- Use absolute timestamps from transcript (as shown in brackets)
+- If an ad starts before this window, use the first timestamp with note "continues from previous"
+- If an ad extends past this window, use {window_end:.1f} with note "continues in next"
+"""
 
                 prompt = user_prompt_template.format(
                     podcast_name=podcast_name,
@@ -1084,7 +1027,13 @@ class AdDetector:
                 transcript = "\n".join(transcript_lines)
 
                 # Add window context to prompt
-                window_context = f"\n\nNote: Analyzing window {i+1} of {len(windows)}, covering {window_start/60:.1f}-{window_end/60:.1f} minutes. Use the absolute timestamps from [Xs] markers."
+                window_context = f"""
+
+=== WINDOW {i+1}/{len(windows)}: {window_start/60:.1f}-{window_end/60:.1f} minutes ===
+- Use absolute timestamps from transcript (as shown in brackets)
+- If an ad starts before this window, use the first timestamp with note "continues from previous"
+- If an ad extends past this window, use {window_end:.1f} with note "continues in next"
+"""
 
                 prompt = USER_PROMPT_TEMPLATE.format(
                     podcast_name=podcast_name,
