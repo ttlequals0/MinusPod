@@ -667,6 +667,18 @@ class AdDetector:
         from database import DEFAULT_SYSTEM_PROMPT
         return DEFAULT_SYSTEM_PROMPT
 
+    def get_second_pass_prompt(self) -> str:
+        """Get second pass prompt from database or default."""
+        try:
+            prompt = self.db.get_setting('second_pass_prompt')
+            if prompt:
+                return prompt
+        except Exception as e:
+            logger.warning(f"Could not load second pass prompt from DB: {e}")
+
+        # Default fallback - use the hardcoded constant
+        return BLIND_SECOND_PASS_SYSTEM_PROMPT
+
     def get_user_prompt_template(self) -> str:
         """Get user prompt template (hardcoded, not configurable)."""
         return USER_PROMPT_TEMPLATE
@@ -937,8 +949,8 @@ class AdDetector:
 
             transcript = "\n".join(transcript_lines)
 
-            # Use blind second pass prompt - no knowledge of first pass results
-            system_prompt = BLIND_SECOND_PASS_SYSTEM_PROMPT
+            # Use blind second pass prompt from database (or default)
+            system_prompt = self.get_second_pass_prompt()
 
             # Format user prompt with optional description
             description_section = ""

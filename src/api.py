@@ -612,7 +612,7 @@ def retry_ad_detection(slug, episode_id):
 def get_settings():
     """Get all settings."""
     db = get_database()
-    from database import DEFAULT_SYSTEM_PROMPT
+    from database import DEFAULT_SYSTEM_PROMPT, DEFAULT_SECOND_PASS_PROMPT
     from ad_detector import AdDetector, DEFAULT_MODEL
 
     settings = db.get_all_settings()
@@ -629,6 +629,10 @@ def get_settings():
             'value': settings.get('system_prompt', {}).get('value', DEFAULT_SYSTEM_PROMPT),
             'isDefault': settings.get('system_prompt', {}).get('is_default', True)
         },
+        'secondPassPrompt': {
+            'value': settings.get('second_pass_prompt', {}).get('value', DEFAULT_SECOND_PASS_PROMPT),
+            'isDefault': settings.get('second_pass_prompt', {}).get('is_default', True)
+        },
         'claudeModel': {
             'value': current_model,
             'isDefault': settings.get('claude_model', {}).get('is_default', True)
@@ -640,6 +644,7 @@ def get_settings():
         'retentionPeriodMinutes': int(os.environ.get('RETENTION_PERIOD') or settings.get('retention_period_minutes', {}).get('value', '1440')),
         'defaults': {
             'systemPrompt': DEFAULT_SYSTEM_PROMPT,
+            'secondPassPrompt': DEFAULT_SECOND_PASS_PROMPT,
             'claudeModel': DEFAULT_MODEL,
             'multiPassEnabled': False
         }
@@ -661,6 +666,10 @@ def update_ad_detection_settings():
         db.set_setting('system_prompt', data['systemPrompt'], is_default=False)
         logger.info("Updated system prompt")
 
+    if 'secondPassPrompt' in data:
+        db.set_setting('second_pass_prompt', data['secondPassPrompt'], is_default=False)
+        logger.info("Updated second pass prompt")
+
     if 'claudeModel' in data:
         db.set_setting('claude_model', data['claudeModel'], is_default=False)
         logger.info(f"Updated Claude model to: {data['claudeModel']}")
@@ -680,6 +689,7 @@ def reset_ad_detection_settings():
     db = get_database()
 
     db.reset_setting('system_prompt')
+    db.reset_setting('second_pass_prompt')
     db.reset_setting('claude_model')
     db.reset_setting('multi_pass_enabled')
 

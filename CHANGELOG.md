@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.65] - 2025-12-01
+
+### Added
+- Second pass prompt is now configurable via Settings UI and API
+  - New textarea in Settings page (shown when Multi-Pass Detection is enabled)
+  - API endpoint PUT /settings/ad-detection accepts secondPassPrompt field
+  - Stored in database like other settings, with reset-to-defaults support
+
+### Changed
+- Renamed "System Prompt" to "First Pass System Prompt" in Settings UI for clarity
+- Updated OpenAPI documentation with secondPassPrompt fields
+
+---
+
 ## [0.1.64] - 2025-12-01
 
 ### Changed

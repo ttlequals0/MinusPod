@@ -6,6 +6,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 function Settings() {
   const queryClient = useQueryClient();
   const [systemPrompt, setSystemPrompt] = useState('');
+  const [secondPassPrompt, setSecondPassPrompt] = useState('');
   const [selectedModel, setSelectedModel] = useState('');
   const [multiPassEnabled, setMultiPassEnabled] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
@@ -29,6 +30,7 @@ function Settings() {
   useEffect(() => {
     if (settings) {
       setSystemPrompt(settings.systemPrompt?.value || '');
+      setSecondPassPrompt(settings.secondPassPrompt?.value || '');
       setSelectedModel(settings.claudeModel?.value || '');
       setMultiPassEnabled(settings.multiPassEnabled?.value ?? false);
     }
@@ -38,16 +40,18 @@ function Settings() {
     if (settings) {
       const changed =
         systemPrompt !== (settings.systemPrompt?.value || '') ||
+        secondPassPrompt !== (settings.secondPassPrompt?.value || '') ||
         selectedModel !== (settings.claudeModel?.value || '') ||
         multiPassEnabled !== (settings.multiPassEnabled?.value ?? false);
       setHasChanges(changed);
     }
-  }, [systemPrompt, selectedModel, multiPassEnabled, settings]);
+  }, [systemPrompt, secondPassPrompt, selectedModel, multiPassEnabled, settings]);
 
   const updateMutation = useMutation({
     mutationFn: () =>
       updateSettings({
         systemPrompt,
+        secondPassPrompt,
         claudeModel: selectedModel,
         multiPassEnabled,
       }),
@@ -244,7 +248,7 @@ function Settings() {
 
         <div>
           <label htmlFor="systemPrompt" className="block text-sm font-medium text-foreground mb-2">
-            System Prompt
+            First Pass System Prompt
           </label>
           <textarea
             id="systemPrompt"
@@ -254,9 +258,27 @@ function Settings() {
             className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring font-mono text-sm"
           />
           <p className="mt-1 text-sm text-muted-foreground">
-            Instructions sent to Claude for analyzing podcast transcripts and detecting ads
+            Instructions sent to Claude for the initial ad detection pass
           </p>
         </div>
+
+        {multiPassEnabled && (
+          <div className="mt-6">
+            <label htmlFor="secondPassPrompt" className="block text-sm font-medium text-foreground mb-2">
+              Second Pass System Prompt
+            </label>
+            <textarea
+              id="secondPassPrompt"
+              value={secondPassPrompt}
+              onChange={(e) => setSecondPassPrompt(e.target.value)}
+              rows={12}
+              className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring font-mono text-sm"
+            />
+            <p className="mt-1 text-sm text-muted-foreground">
+              Instructions for the second pass to detect subtle or baked-in ads missed by the first pass
+            </p>
+          </div>
+        )}
 
         {(updateMutation.error || resetMutation.error) && (
           <div className="mt-4 p-4 rounded-lg bg-destructive/10 text-destructive">
