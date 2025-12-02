@@ -50,6 +50,12 @@ function EpisodeRow({ episode, feedSlug }: { episode: Episode; feedSlug: string 
       <div className="flex justify-between items-start gap-4">
         <div className="min-w-0 flex-1">
           <h3 className="font-medium text-foreground truncate">{episode.title}</h3>
+          {episode.description && (
+            <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+              {episode.description.replace(/<[^>]*>/g, '').substring(0, 150)}
+              {episode.description.length > 150 ? '...' : ''}
+            </p>
+          )}
           <div className="flex items-center gap-3 mt-1 text-sm text-muted-foreground">
             <span>{new Date(episode.published).toLocaleDateString()}</span>
             {episode.duration && <span>{formatDuration(episode.duration)}</span>}

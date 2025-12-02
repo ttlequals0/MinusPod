@@ -115,16 +115,25 @@ function EpisodeDetail() {
           </div>
         </div>
 
-        {episode.description && (
-          <p className="mt-4 text-muted-foreground">{episode.description}</p>
-        )}
-
         {episode.status === 'completed' && (
           <div className="mt-4 pt-4 border-t border-border">
             <audio controls className="w-full" src={`/episodes/${slug}/${episode.id}.mp3`}>
               Your browser does not support the audio element.
             </audio>
           </div>
+        )}
+
+        {episode.description && (
+          <p className="mt-4 text-muted-foreground whitespace-pre-wrap">
+            {episode.description
+              .replace(/<br\s*\/?>/gi, '\n')
+              .replace(/<\/p>/gi, '\n')
+              .replace(/<\/li>/gi, '\n')
+              .replace(/<li>/gi, '- ')
+              .replace(/<[^>]*>/g, '')
+              .replace(/\n([ \t]*\n)+/g, '\n')
+              .trim()}
+          </p>
         )}
       </div>
 

@@ -146,6 +146,7 @@ class RSSParser:
                     'url': episode_url,
                     'title': entry.get('title', 'Unknown'),
                     'published': entry.get('published', ''),
+                    'description': entry.get('description', ''),
                 })
 
         return episodes

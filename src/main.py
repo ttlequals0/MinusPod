@@ -98,7 +98,7 @@ app.register_blueprint(api_blueprint)
 from storage import Storage
 from rss_parser import RSSParser
 from transcriber import Transcriber
-from ad_detector import AdDetector, merge_and_deduplicate
+from ad_detector import AdDetector, merge_and_deduplicate, refine_ad_boundaries, merge_same_sponsor_ads
 from audio_processor import AudioProcessor
 from database import Database
 
@@ -205,7 +205,8 @@ def background_rss_refresh():
 
 
 def process_episode(slug: str, episode_id: str, episode_url: str,
-                   episode_title: str = "Unknown", podcast_name: str = "Unknown"):
+                   episode_title: str = "Unknown", podcast_name: str = "Unknown",
+                   episode_description: str = None):
     """Process a single episode (transcribe, detect ads, remove ads)."""
     start_time = time.time()
 
@@ -216,6 +217,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
         db.upsert_episode(slug, episode_id,
             original_url=episode_url,
             title=episode_title,
+            description=episode_description,
             status='processing')
 
         # Step 1: Check if transcript exists in database
@@ -275,7 +277,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
         try:
             # Step 2: Detect ads (first pass)
-            ad_result = ad_detector.process_transcript(segments, podcast_name, episode_title, slug, episode_id)
+            ad_result = ad_detector.process_transcript(segments, podcast_name, episode_title, slug, episode_id, episode_description)
             storage.save_ads_json(slug, episode_id, ad_result, pass_number=1)
 
             # Check ad detection status
@@ -314,7 +316,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 # Does NOT know what first pass found - we merge/dedupe results ourselves
                 second_pass_result = ad_detector.detect_ads_second_pass(
                     segments,  # Same transcript, blind analysis
-                    podcast_name, episode_title, slug, episode_id
+                    podcast_name, episode_title, slug, episode_id, episode_description
                 )
 
                 # Save second pass data to database
@@ -344,6 +346,15 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     storage.save_combined_ads(slug, episode_id, all_ads)
                 else:
                     audio_logger.info(f"[{slug}:{episode_id}] Second pass: No additional ads found")
+
+            # Step 3.5: Refine ad boundaries using word timestamps and keyword detection
+            if all_ads and segments:
+                all_ads = refine_ad_boundaries(all_ads, segments)
+
+            # Step 3.6: Merge ads that mention the same sponsor with sponsor content in gaps
+            # This handles Claude fragmenting long ads or mislabeling parts
+            if all_ads and segments:
+                all_ads = merge_same_sponsor_ads(all_ads, segments)
 
             # Step 4: Process audio ONCE with ALL detected ads
             audio_logger.info(f"[{slug}:{episode_id}] Starting FFMPEG processing ({len(all_ads)} total ads)")
@@ -569,10 +580,12 @@ def serve_episode(slug, episode_id):
     episodes = rss_parser.extract_episodes(original_feed)
     original_url = None
     episode_title = "Unknown"
+    episode_description = None
     for ep in episodes:
         if ep['id'] == episode_id:
             original_url = ep['url']
             episode_title = ep.get('title', 'Unknown')
+            episode_description = ep.get('description')
             break
 
     if not original_url:
@@ -581,7 +594,7 @@ def serve_episode(slug, episode_id):
 
     feed_logger.info(f"[{slug}:{episode_id}] Starting processing")
 
-    if process_episode(slug, episode_id, original_url, episode_title, podcast_name):
+    if process_episode(slug, episode_id, original_url, episode_title, podcast_name, episode_description):
         file_path = storage.get_episode_path(slug, episode_id)
         if file_path.exists():
             return send_file(file_path, mimetype='audio/mpeg')

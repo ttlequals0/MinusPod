@@ -5,6 +5,7 @@ import os
 import re
 import time
 import random
+import hashlib
 from typing import List, Dict, Optional
 from anthropic import Anthropic, APIError, APIConnectionError, RateLimitError, InternalServerError
 
@@ -14,9 +15,10 @@ logger = logging.getLogger('podcast.claude')
 DEFAULT_MODEL = "claude-sonnet-4-5-20250929"
 
 # User prompt template (not configurable via UI - just formats the transcript)
+# Description is optional - may contain sponsor lists, chapter markers, or content context
 USER_PROMPT_TEMPLATE = """Podcast: {podcast_name}
 Episode: {episode_title}
-
+{description_section}
 Transcript:
 {transcript}"""
 
@@ -37,6 +39,47 @@ RETRY_CONFIG = {
     'exponential_base': 2,
     'jitter': True          # Add random jitter to prevent thundering herd
 }
+
+# Transition phrases for intelligent ad boundary detection
+# These are used to find precise start/end times using word timestamps
+
+# Phrases that mark ad START (transition INTO ad)
+AD_START_PHRASES = [
+    "let's take a break",
+    "take a quick break",
+    "take a moment",
+    "word from our sponsor",
+    "brought to you by",
+    "thanks to our sponsor",
+    "thank our sponsor",
+    "sponsored by",
+    "a word from",
+    "support comes from",
+    "supported by",
+    "speaking of",
+    "but first",
+    "first let me tell you",
+    "i want to tell you about",
+    "let me tell you about",
+]
+
+# Phrases that mark ad END (transition OUT of ad, back to content)
+AD_END_PHRASES = [
+    "anyway",
+    "alright",
+    "all right",
+    "back to",
+    "so let's",
+    "okay so",
+    "now let's",
+    "let's get back",
+    "returning to",
+    "where were we",
+    "as i was saying",
+    "moving on",
+    "now back to",
+    "back to the show",
+]
 
 # Second pass system prompt - BLIND analysis with different detection focus
 # This runs independently of first pass, focusing on subtle/baked-in ads
@@ -64,7 +107,36 @@ DETECTION SIGNALS:
 - Sudden product tangents unrelated to episode topic
 - Tonal shifts to more "scripted" delivery
 
+CRITICAL - AD SEGMENT BOUNDARIES:
+- Find the COMPLETE ad segment from start to finish
+- The END time must be when regular content RESUMES, not when the product pitch ends
+- Sponsor reads typically last 60-120 seconds - if your segment is under 45 seconds, verify you found the true end
+- Look for: return to episode topic, host banter resuming, different subject matter
+- Do NOT end the segment mid-pitch - include the full sponsor message and any closing CTA
+
+FINDING THE TRUE AD END:
+The ad does NOT end when the product pitch ends. It ends when SHOW CONTENT resumes.
+Look for these signals AFTER the pitch:
+- Host says "anyway", "alright", "so", "okay" and changes topic
+- Different speaker starts talking about non-ad content
+- Clear subject matter change back to episode topic
+- If the URL is repeated ("that's example.com/show"), wait for what comes AFTER
+
+Do NOT end the segment at:
+- First URL mention (they often repeat it)
+- End of product description (CTA usually follows)
+- Pause in speech (more ad content may follow)
+
+AD END SIGNALS (look for these AFTER the pitch):
+- "Now back to..." or "Anyway..." or "So..." transitions back to content
+- Return to episode topic or guest conversation
+- Musical stingers or segment transition sounds
+- Complete promo code/URL delivery (they usually close the ad)
+- Host saying "alright" or "okay" before resuming normal content
+
 BE AGGRESSIVE: If it sounds even slightly promotional, mark it. False positives are better than misses.
+
+EXPECT ADS: Podcasts always have ads. If first pass found ads, you should look for additional subtle/baked-in segments they might have missed. An empty result means you haven't looked hard enough.
 
 OUTPUT FORMAT:
 Return ONLY a valid JSON array of detected ad segments.
@@ -134,6 +206,371 @@ def merge_and_deduplicate(first_pass: List[Dict], second_pass: List[Dict]) -> Li
             merged.append(current.copy())
             if current.get('pass') == 2:
                 logger.info(f"Second pass found new ad: {current['start']:.1f}s - {current['end']:.1f}s ({current.get('reason', 'unknown')})")
+
+    # Validate ad durations and extend short ads that likely ended too early
+    MIN_TYPICAL_AD_DURATION = 30.0  # Most sponsor reads are 60-120 seconds
+    MIN_SPONSOR_READ_DURATION = 90.0  # Threshold for extension consideration
+    URL_EXTENSION_SECONDS = 45.0  # Extension when URL detected in end_text
+
+    for ad in merged:
+        duration = ad['end'] - ad['start']
+        end_text = ad.get('end_text', '').lower()
+
+        # Check if likely incomplete - short duration with URL in end_text
+        has_url = '.com' in end_text or '.tv' in end_text or 'http' in end_text
+
+        if duration < MIN_TYPICAL_AD_DURATION:
+            logger.warning(
+                f"Short ad detected ({duration:.1f}s): {ad['start']:.1f}s - {ad['end']:.1f}s - "
+                f"may have incomplete end time. Reason: {ad.get('reason', 'unknown')}"
+            )
+
+        # Extend ads that are suspiciously short and ended on a URL
+        if duration < MIN_SPONSOR_READ_DURATION and has_url:
+            original_end = ad['end']
+            ad['end'] += URL_EXTENSION_SECONDS
+            ad['extended'] = True
+            logger.info(
+                f"Extended short ad with URL in end_text: {ad['start']:.1f}s-{original_end:.1f}s -> "
+                f"{ad['start']:.1f}s-{ad['end']:.1f}s (+{URL_EXTENSION_SECONDS:.0f}s)"
+            )
+
+    return merged
+
+
+def refine_ad_boundaries(ads: List[Dict], segments: List[Dict]) -> List[Dict]:
+    """Refine ad boundaries using word timestamps and keyword detection.
+
+    For each ad:
+    1. Look at segment before/at ad start for transition phrases
+    2. Use word timestamps to find exact phrase timing
+    3. Adjust ad start to phrase start time
+    4. Similarly for ad end - find return-to-content phrases
+
+    Args:
+        ads: List of detected ad segments
+        segments: List of transcript segments with word timestamps
+
+    Returns:
+        List of ads with refined boundaries
+    """
+    if not ads or not segments:
+        return ads
+
+    # Check if we have word timestamps
+    if not segments[0].get('words'):
+        logger.info("No word timestamps available, skipping boundary refinement")
+        return ads
+
+    # Build a lookup structure: for each segment, store its index
+    # Segments are sorted by start time
+    def find_segment_at_time(target_time: float) -> int:
+        """Find the segment index that contains the target time."""
+        for i, seg in enumerate(segments):
+            if seg['start'] <= target_time <= seg['end']:
+                return i
+            # If target is between segments, return the earlier one
+            if i > 0 and segments[i-1]['end'] < target_time < seg['start']:
+                return i - 1
+        # Default to last segment if past end
+        return len(segments) - 1
+
+    def find_phrase_in_words(words: List[Dict], phrases: List[str], search_start: bool = True) -> Optional[Dict]:
+        """Search for transition phrases in word list.
+
+        Args:
+            words: List of word dicts with 'word', 'start', 'end'
+            phrases: List of phrases to search for
+            search_start: If True, search for ad START phrases (return first match)
+                         If False, search for ad END phrases (return last match)
+
+        Returns:
+            Dict with 'start', 'end', 'phrase' if found, None otherwise
+        """
+        if not words:
+            return None
+
+        # Build text from words for phrase matching
+        word_texts = [w.get('word', '').strip().lower() for w in words]
+        full_text = ' '.join(word_texts)
+
+        matches = []
+        for phrase in phrases:
+            phrase_lower = phrase.lower()
+            # Find phrase in the concatenated text
+            idx = full_text.find(phrase_lower)
+            if idx >= 0:
+                # Map character position back to word index
+                char_count = 0
+                start_word_idx = 0
+                for i, wt in enumerate(word_texts):
+                    if char_count >= idx:
+                        start_word_idx = i
+                        break
+                    char_count += len(wt) + 1  # +1 for space
+
+                # Find end word index
+                phrase_words = phrase_lower.split()
+                end_word_idx = min(start_word_idx + len(phrase_words) - 1, len(words) - 1)
+
+                matches.append({
+                    'start': words[start_word_idx].get('start', 0),
+                    'end': words[end_word_idx].get('end', 0),
+                    'phrase': phrase,
+                    'word_idx': start_word_idx
+                })
+
+        if not matches:
+            return None
+
+        # Return first match for start phrases, last match for end phrases
+        if search_start:
+            return min(matches, key=lambda m: m['word_idx'])
+        else:
+            return max(matches, key=lambda m: m['word_idx'])
+
+    refined_ads = []
+    for ad in ads:
+        refined = ad.copy()
+        original_start = ad['start']
+        original_end = ad['end']
+
+        # --- Refine START boundary ---
+        # Look at the segment containing ad start AND the previous segment
+        start_seg_idx = find_segment_at_time(original_start)
+
+        # Collect words from current and previous segment
+        search_words = []
+        if start_seg_idx > 0:
+            prev_seg = segments[start_seg_idx - 1]
+            search_words.extend(prev_seg.get('words', []))
+        current_seg = segments[start_seg_idx]
+        search_words.extend(current_seg.get('words', []))
+
+        # Search for start transition phrases
+        start_match = find_phrase_in_words(search_words, AD_START_PHRASES, search_start=True)
+        if start_match:
+            new_start = start_match['start']
+            # Only adjust if it moves start earlier (not later)
+            if new_start < original_start:
+                refined['start'] = max(0, new_start)
+                refined['start_refined'] = True
+                refined['start_phrase'] = start_match['phrase']
+                logger.info(
+                    f"Refined ad start: {original_start:.1f}s -> {refined['start']:.1f}s "
+                    f"(found '{start_match['phrase']}')"
+                )
+
+        # --- Refine END boundary ---
+        # Look at the segment containing ad end AND the next segment
+        end_seg_idx = find_segment_at_time(original_end)
+
+        # Collect words from current and next segment
+        search_words = []
+        current_seg = segments[end_seg_idx]
+        search_words.extend(current_seg.get('words', []))
+        if end_seg_idx < len(segments) - 1:
+            next_seg = segments[end_seg_idx + 1]
+            search_words.extend(next_seg.get('words', []))
+
+        # Search for end transition phrases
+        end_match = find_phrase_in_words(search_words, AD_END_PHRASES, search_start=False)
+        if end_match:
+            # For end phrases, we want the time AFTER the phrase (when content resumes)
+            new_end = end_match['end']
+            # Only adjust if it moves end later (not earlier)
+            if new_end > original_end:
+                # Get episode duration from last segment
+                max_duration = segments[-1]['end'] if segments else float('inf')
+                refined['end'] = min(new_end, max_duration)
+                refined['end_refined'] = True
+                refined['end_phrase'] = end_match['phrase']
+                logger.info(
+                    f"Refined ad end: {original_end:.1f}s -> {refined['end']:.1f}s "
+                    f"(found '{end_match['phrase']}')"
+                )
+
+        refined_ads.append(refined)
+
+    return refined_ads
+
+
+def extract_sponsor_names(text: str, ad_reason: str = None) -> set:
+    """Extract potential sponsor names from transcript text and ad reason.
+
+    Looks for:
+    - URLs/domains (e.g., vention, zapier from URLs)
+    - Brand names mentioned in ad reason (e.g., "Vention sponsor read")
+    - Known sponsor patterns
+
+    Args:
+        text: Transcript text to analyze
+        ad_reason: Optional reason field from ad detection
+
+    Returns:
+        Set of potential sponsor name strings (lowercase)
+    """
+    sponsors = set()
+    text_lower = text.lower()
+
+    # Extract domain names from URLs (e.g., "vention" from "ventionteams.com")
+    url_pattern = r'(?:https?://)?(?:www\.)?([a-z0-9]+)(?:teams|\.com|\.tv|\.io|\.co|\.org)'
+    for match in re.finditer(url_pattern, text_lower):
+        sponsor = match.group(1)
+        if len(sponsor) > 2:  # Skip very short matches
+            sponsors.add(sponsor)
+
+    # Also look for explicit "dot com" mentions
+    dotcom_pattern = r'([a-z]+)\s*(?:dot\s*com|\.com)'
+    for match in re.finditer(dotcom_pattern, text_lower):
+        sponsor = match.group(1)
+        if len(sponsor) > 2:
+            sponsors.add(sponsor)
+
+    # Extract brand name from ad reason (e.g., "Vention sponsor read" -> "vention")
+    if ad_reason:
+        reason_lower = ad_reason.lower()
+        # Look for patterns like "X sponsor read", "X ad", "ad for X"
+        reason_patterns = [
+            r'^([a-z]+)\s+(?:sponsor|ad\b)',  # "Vention sponsor read"
+            r'(?:ad for|sponsor(?:ed by)?)\s+([a-z]+)',  # "ad for Vention"
+        ]
+        for pattern in reason_patterns:
+            match = re.search(pattern, reason_lower)
+            if match:
+                brand = match.group(1)
+                if len(brand) > 2 and brand not in ('the', 'and', 'for', 'with'):
+                    sponsors.add(brand)
+
+    return sponsors
+
+
+def get_transcript_text_for_range(segments: List[Dict], start_time: float, end_time: float) -> str:
+    """Get concatenated transcript text for a time range.
+
+    Args:
+        segments: List of transcript segments
+        start_time: Start of range in seconds
+        end_time: End of range in seconds
+
+    Returns:
+        Concatenated text from all segments in range
+    """
+    texts = []
+    for seg in segments:
+        # Include segment if it overlaps with the range
+        if seg['end'] >= start_time and seg['start'] <= end_time:
+            texts.append(seg.get('text', ''))
+    return ' '.join(texts)
+
+
+def merge_same_sponsor_ads(ads: List[Dict], segments: List[Dict], max_gap: float = 300.0) -> List[Dict]:
+    """Merge ads that mention the same sponsor.
+
+    This handles cases where Claude fragments a long ad into multiple pieces
+    or mislabels part of an ad as a different sponsor.
+
+    Merge logic:
+    - If two ads share a sponsor AND gap < 120s: merge unconditionally (likely same ad break)
+    - If two ads share a sponsor AND gap content mentions sponsor: merge (confirmed same sponsor)
+    - If gap > max_gap: never merge
+
+    Args:
+        ads: List of detected ad segments (sorted by start time)
+        segments: List of transcript segments
+        max_gap: Maximum gap in seconds to consider for merging (default 5 minutes)
+
+    Returns:
+        List of ads with same-sponsor segments merged
+    """
+    if not ads or len(ads) < 2 or not segments:
+        return ads
+
+    # Short gap threshold - merge same-sponsor ads unconditionally if gap is short
+    SHORT_GAP_THRESHOLD = 120.0  # 2 minutes
+
+    # Sort ads by start time
+    ads = sorted(ads, key=lambda x: x['start'])
+
+    # Extract sponsor names for each ad (from transcript AND reason field)
+    ad_sponsors = []
+    for ad in ads:
+        ad_text = get_transcript_text_for_range(segments, ad['start'], ad['end'])
+        sponsors = extract_sponsor_names(ad_text, ad.get('reason'))
+        ad_sponsors.append(sponsors)
+        if sponsors:
+            logger.debug(f"Ad {ad['start']:.1f}s-{ad['end']:.1f}s sponsors: {sponsors}")
+
+    # Merge ads that share sponsors
+    merged = []
+    i = 0
+    while i < len(ads):
+        current_ad = ads[i].copy()
+        current_sponsors = ad_sponsors[i].copy()
+
+        # Look ahead for ads to merge
+        j = i + 1
+        while j < len(ads):
+            next_ad = ads[j]
+            next_sponsors = ad_sponsors[j]
+
+            gap_start = current_ad['end']
+            gap_end = next_ad['start']
+            gap_duration = gap_end - gap_start
+
+            # Skip if gap is too large
+            if gap_duration > max_gap:
+                break
+
+            # Find common sponsors
+            common_sponsors = current_sponsors & next_sponsors
+
+            if common_sponsors:
+                should_merge = False
+                merge_reason = ""
+
+                # Short gap - merge unconditionally if same sponsor
+                if gap_duration <= SHORT_GAP_THRESHOLD:
+                    should_merge = True
+                    merge_reason = f"short gap ({gap_duration:.0f}s)"
+                else:
+                    # Longer gap - check if gap content mentions the sponsor
+                    gap_text = get_transcript_text_for_range(segments, gap_start, gap_end)
+                    gap_sponsors = extract_sponsor_names(gap_text)
+
+                    if common_sponsors & gap_sponsors:
+                        should_merge = True
+                        merge_reason = "sponsor in gap"
+
+                if should_merge:
+                    logger.info(
+                        f"Merging same-sponsor ads: {current_ad['start']:.1f}s-{current_ad['end']:.1f}s + "
+                        f"{next_ad['start']:.1f}s-{next_ad['end']:.1f}s "
+                        f"(sponsor: {common_sponsors}, reason: {merge_reason})"
+                    )
+                    # Extend current ad to include next ad
+                    current_ad['end'] = next_ad['end']
+                    current_ad['merged_sponsor'] = True
+                    current_ad['sponsor_names'] = list(common_sponsors)
+                    # Combine reason
+                    if current_ad.get('reason') and next_ad.get('reason'):
+                        current_ad['reason'] = f"{current_ad['reason']} (merged with: {next_ad['reason']})"
+                    # Update end_text from later ad
+                    if next_ad.get('end_text'):
+                        current_ad['end_text'] = next_ad['end_text']
+                    # Add sponsors from merged ad
+                    current_sponsors = current_sponsors | next_sponsors
+                    j += 1
+                    continue
+
+            # No merge possible, stop looking
+            break
+
+        merged.append(current_ad)
+        i = j if j > i + 1 else i + 1
+
+    if len(merged) < len(ads):
+        logger.info(f"Sponsor-based merge: {len(ads)} ads -> {len(merged)} ads")
 
     return merged
 
@@ -230,6 +667,18 @@ class AdDetector:
         from database import DEFAULT_SYSTEM_PROMPT
         return DEFAULT_SYSTEM_PROMPT
 
+    def get_second_pass_prompt(self) -> str:
+        """Get second pass prompt from database or default."""
+        try:
+            prompt = self.db.get_setting('second_pass_prompt')
+            if prompt:
+                return prompt
+        except Exception as e:
+            logger.warning(f"Could not load second pass prompt from DB: {e}")
+
+        # Default fallback - use the hardcoded constant
+        return BLIND_SECOND_PASS_SYSTEM_PROMPT
+
     def get_user_prompt_template(self) -> str:
         """Get user prompt template (hardcoded, not configurable)."""
         return USER_PROMPT_TEMPLATE
@@ -261,7 +710,7 @@ class AdDetector:
 
     def detect_ads(self, segments: List[Dict], podcast_name: str = "Unknown",
                    episode_title: str = "Unknown", slug: str = None,
-                   episode_id: str = None) -> Optional[Dict]:
+                   episode_id: str = None, episode_description: str = None) -> Optional[Dict]:
         """Detect ad segments using Claude API with retry logic for transient errors."""
         if not self.api_key:
             logger.warning("Skipping ad detection - no API key")
@@ -287,12 +736,24 @@ class AdDetector:
             logger.info(f"[{slug}:{episode_id}] Using system prompt ({len(system_prompt)} chars)")
             logger.debug(f"[{slug}:{episode_id}] System prompt first 200 chars: {system_prompt[:200]}...")
 
-            # Format user prompt
+            # Format user prompt with optional description
+            description_section = ""
+            if episode_description:
+                description_section = f"Episode Description (this describes the actual content topics discussed; it may also list episode sponsors):\n{episode_description}\n"
+                logger.info(f"[{slug}:{episode_id}] Including episode description ({len(episode_description)} chars)")
+            else:
+                logger.info(f"[{slug}:{episode_id}] No episode description available")
+
             prompt = user_prompt_template.format(
                 podcast_name=podcast_name,
                 episode_title=episode_title,
+                description_section=description_section,
                 transcript=transcript
             )
+
+            # Log prompt hash for debugging determinism
+            prompt_hash = hashlib.md5(prompt.encode()).hexdigest()[:8]
+            logger.info(f"[{slug}:{episode_id}] Prompt hash: {prompt_hash}")
 
             logger.info(f"[{slug}:{episode_id}] Sending transcript to Claude "
                        f"({len(segments)} segments, {len(transcript)} chars)")
@@ -321,11 +782,18 @@ class AdDetector:
                 except Exception as e:
                     last_error = e
                     if self._is_retryable_error(e) and attempt < max_retries:
-                        delay = self._calculate_backoff(attempt)
-                        logger.warning(
-                            f"[{slug}:{episode_id}] API error (attempt {attempt + 1}/{max_retries + 1}): "
-                            f"{type(e).__name__}: {e}. Retrying in {delay:.1f}s"
-                        )
+                        # For rate limit errors, wait full minute to reset window
+                        if isinstance(e, RateLimitError):
+                            delay = 60.0
+                            logger.warning(
+                                f"[{slug}:{episode_id}] Rate limit hit, waiting {delay:.0f}s for window reset"
+                            )
+                        else:
+                            delay = self._calculate_backoff(attempt)
+                            logger.warning(
+                                f"[{slug}:{episode_id}] API error (attempt {attempt + 1}/{max_retries + 1}): "
+                                f"{type(e).__name__}: {e}. Retrying in {delay:.1f}s"
+                            )
                         time.sleep(delay)
                         continue
                     else:
@@ -417,6 +885,9 @@ class AdDetector:
                     total_ad_time = sum(ad['end'] - ad['start'] for ad in valid_ads)
                     logger.info(f"[{slug}:{episode_id}] Detected {len(valid_ads)} ad segments "
                                f"({total_ad_time/60:.1f} min total)")
+                    for ad in valid_ads:
+                        logger.info(f"[{slug}:{episode_id}] Ad: {ad['start']:.1f}s-{ad['end']:.1f}s "
+                                   f"({ad['end']-ad['start']:.0f}s) end_text='{ad.get('end_text', '')[:50]}'")
 
                     return {
                         "ads": valid_ads,
@@ -440,9 +911,9 @@ class AdDetector:
 
     def process_transcript(self, segments: List[Dict], podcast_name: str = "Unknown",
                           episode_title: str = "Unknown", slug: str = None,
-                          episode_id: str = None) -> Dict:
+                          episode_id: str = None, episode_description: str = None) -> Dict:
         """Process transcript for ad detection."""
-        result = self.detect_ads(segments, podcast_name, episode_title, slug, episode_id)
+        result = self.detect_ads(segments, podcast_name, episode_title, slug, episode_id, episode_description)
         if result is None:
             return {"ads": [], "status": "failed", "error": "Detection failed", "retryable": True}
         return result
@@ -458,7 +929,8 @@ class AdDetector:
 
     def detect_ads_second_pass(self, segments: List[Dict],
                                podcast_name: str = "Unknown", episode_title: str = "Unknown",
-                               slug: str = None, episode_id: str = None) -> Optional[Dict]:
+                               slug: str = None, episode_id: str = None,
+                               episode_description: str = None) -> Optional[Dict]:
         """Blind second pass ad detection with different focus (subtle/baked-in ads)."""
         if not self.api_key:
             logger.warning("Skipping second pass - no API key")
@@ -477,15 +949,27 @@ class AdDetector:
 
             transcript = "\n".join(transcript_lines)
 
-            # Use blind second pass prompt - no knowledge of first pass results
-            system_prompt = BLIND_SECOND_PASS_SYSTEM_PROMPT
+            # Use blind second pass prompt from database (or default)
+            system_prompt = self.get_second_pass_prompt()
 
-            # Format user prompt
+            # Format user prompt with optional description
+            description_section = ""
+            if episode_description:
+                description_section = f"Episode Description (this describes the actual content topics discussed; it may also list episode sponsors):\n{episode_description}\n"
+                logger.info(f"[{slug}:{episode_id}] Second pass: Including episode description ({len(episode_description)} chars)")
+            else:
+                logger.info(f"[{slug}:{episode_id}] Second pass: No episode description available")
+
             prompt = USER_PROMPT_TEMPLATE.format(
                 podcast_name=podcast_name,
                 episode_title=episode_title,
+                description_section=description_section,
                 transcript=transcript
             )
+
+            # Log prompt hash for debugging determinism
+            prompt_hash = hashlib.md5(prompt.encode()).hexdigest()[:8]
+            logger.info(f"[{slug}:{episode_id}] Second pass prompt hash: {prompt_hash}")
 
             logger.info(f"[{slug}:{episode_id}] Second pass: Sending transcript to Claude "
                        f"({len(segments)} segments, {len(transcript)} chars)")
@@ -509,10 +993,17 @@ class AdDetector:
                 except Exception as e:
                     last_error = e
                     if self._is_retryable_error(e) and attempt < max_retries:
-                        delay = self._calculate_backoff(attempt)
-                        logger.warning(
-                            f"[{slug}:{episode_id}] Second pass API error (attempt {attempt + 1}): {e}. Retrying in {delay:.1f}s"
-                        )
+                        # For rate limit errors, wait full minute to reset window
+                        if isinstance(e, RateLimitError):
+                            delay = 60.0
+                            logger.warning(
+                                f"[{slug}:{episode_id}] Rate limit hit, waiting {delay:.0f}s for window reset"
+                            )
+                        else:
+                            delay = self._calculate_backoff(attempt)
+                            logger.warning(
+                                f"[{slug}:{episode_id}] Second pass API error (attempt {attempt + 1}): {e}. Retrying in {delay:.1f}s"
+                            )
                         time.sleep(delay)
                         continue
                     else:
@@ -580,6 +1071,9 @@ class AdDetector:
                         total_ad_time = sum(ad['end'] - ad['start'] for ad in valid_ads)
                         logger.info(f"[{slug}:{episode_id}] Second pass found {len(valid_ads)} additional ads "
                                    f"({total_ad_time/60:.1f} min)")
+                        for ad in valid_ads:
+                            logger.info(f"[{slug}:{episode_id}] Second pass Ad: {ad['start']:.1f}s-{ad['end']:.1f}s "
+                                       f"({ad['end']-ad['start']:.0f}s) end_text='{ad.get('end_text', '')[:50]}'")
                     else:
                         logger.info(f"[{slug}:{episode_id}] Second pass: No additional ads found")
 

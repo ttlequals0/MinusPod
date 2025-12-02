@@ -339,6 +339,7 @@ def list_episodes(slug):
             # Frontend expected fields
             'id': ep['episode_id'],
             'title': ep['title'],
+            'description': ep.get('description'),
             'status': status,
             'published': ep['created_at'],
             'duration': ep['original_duration'],
@@ -404,6 +405,7 @@ def get_episode(slug, episode_id):
         'id': episode['episode_id'],
         'episodeId': episode['episode_id'],
         'title': episode['title'],
+        'description': episode.get('description'),
         'status': status,
         'published': episode['created_at'],
         'createdAt': episode['created_at'],
@@ -472,14 +474,31 @@ def reprocess_episode(slug, episode_id):
 
         # 4. Trigger immediate reprocessing
         from main import process_episode
+        from rss_parser import RSSParser
+
         episode_url = episode.get('original_url')
         episode_title = episode.get('title', 'Unknown')
 
         podcast = db.get_podcast_by_slug(slug)
         podcast_name = podcast.get('title', slug) if podcast else slug
 
+        # Fetch episode description from RSS if available
+        episode_description = None
+        if podcast and podcast.get('source_url'):
+            try:
+                rss_parser = RSSParser()
+                feed_content = rss_parser.fetch_feed(podcast['source_url'])
+                if feed_content:
+                    episodes = rss_parser.extract_episodes(feed_content)
+                    for ep in episodes:
+                        if ep['id'] == episode_id:
+                            episode_description = ep.get('description')
+                            break
+            except Exception as e:
+                logger.warning(f"Could not fetch episode description: {e}")
+
         logger.info(f"Starting reprocess: {slug}:{episode_id}")
-        success = process_episode(slug, episode_id, episode_url, episode_title, podcast_name)
+        success = process_episode(slug, episode_id, episode_url, episode_title, podcast_name, episode_description)
 
         if success:
             return json_response({
@@ -593,7 +612,7 @@ def retry_ad_detection(slug, episode_id):
 def get_settings():
     """Get all settings."""
     db = get_database()
-    from database import DEFAULT_SYSTEM_PROMPT
+    from database import DEFAULT_SYSTEM_PROMPT, DEFAULT_SECOND_PASS_PROMPT
     from ad_detector import AdDetector, DEFAULT_MODEL
 
     settings = db.get_all_settings()
@@ -610,6 +629,10 @@ def get_settings():
             'value': settings.get('system_prompt', {}).get('value', DEFAULT_SYSTEM_PROMPT),
             'isDefault': settings.get('system_prompt', {}).get('is_default', True)
         },
+        'secondPassPrompt': {
+            'value': settings.get('second_pass_prompt', {}).get('value', DEFAULT_SECOND_PASS_PROMPT),
+            'isDefault': settings.get('second_pass_prompt', {}).get('is_default', True)
+        },
         'claudeModel': {
             'value': current_model,
             'isDefault': settings.get('claude_model', {}).get('is_default', True)
@@ -621,6 +644,7 @@ def get_settings():
         'retentionPeriodMinutes': int(os.environ.get('RETENTION_PERIOD') or settings.get('retention_period_minutes', {}).get('value', '1440')),
         'defaults': {
             'systemPrompt': DEFAULT_SYSTEM_PROMPT,
+            'secondPassPrompt': DEFAULT_SECOND_PASS_PROMPT,
             'claudeModel': DEFAULT_MODEL,
             'multiPassEnabled': False
         }
@@ -642,6 +666,10 @@ def update_ad_detection_settings():
         db.set_setting('system_prompt', data['systemPrompt'], is_default=False)
         logger.info("Updated system prompt")
 
+    if 'secondPassPrompt' in data:
+        db.set_setting('second_pass_prompt', data['secondPassPrompt'], is_default=False)
+        logger.info("Updated second pass prompt")
+
     if 'claudeModel' in data:
         db.set_setting('claude_model', data['claudeModel'], is_default=False)
         logger.info(f"Updated Claude model to: {data['claudeModel']}")
@@ -661,6 +689,7 @@ def reset_ad_detection_settings():
     db = get_database()
 
     db.reset_setting('system_prompt')
+    db.reset_setting('second_pass_prompt')
     db.reset_setting('claude_model')
     db.reset_setting('multi_pass_enabled')
 

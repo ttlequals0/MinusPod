@@ -14,6 +14,7 @@ export interface Feed {
 export interface Episode {
   id: string;
   title: string;
+  description?: string;
   published: string;
   duration?: number;
   status: 'pending' | 'processing' | 'completed' | 'failed';
@@ -58,11 +59,13 @@ export interface SettingValueBoolean {
 
 export interface Settings {
   systemPrompt: SettingValue;
+  secondPassPrompt: SettingValue;
   claudeModel: SettingValue;
   multiPassEnabled: SettingValueBoolean;
   retentionPeriodMinutes: number;
   defaults: {
     systemPrompt: string;
+    secondPassPrompt: string;
     claudeModel: string;
     multiPassEnabled: boolean;
   };
@@ -70,6 +73,7 @@ export interface Settings {
 
 export interface UpdateSettingsPayload {
   systemPrompt?: string;
+  secondPassPrompt?: string;
   claudeModel?: string;
   multiPassEnabled?: boolean;
 }

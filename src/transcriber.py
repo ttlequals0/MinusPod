@@ -21,6 +21,59 @@ from faster_whisper import WhisperModel, BatchedInferencePipeline
 
 logger = logging.getLogger(__name__)
 
+# Maximum segment duration for precise ad detection
+MAX_SEGMENT_DURATION = 15.0  # seconds
+
+
+def split_long_segments(segments: List[Dict]) -> List[Dict]:
+    """Split segments longer than MAX_SEGMENT_DURATION using word timestamps.
+
+    This improves ad detection precision by giving Claude finer-grained
+    timestamp boundaries to work with.
+    """
+    result = []
+    for segment in segments:
+        duration = segment['end'] - segment['start']
+        if duration <= MAX_SEGMENT_DURATION:
+            result.append(segment)
+            continue
+
+        # If we have word-level timestamps, split on word boundaries
+        words = segment.get('words', [])
+        if words:
+            current_chunk = {'start': segment['start'], 'text': ''}
+            for word in words:
+                # Get word text - handle both dict and object formats
+                word_text = word.get('word', '') if isinstance(word, dict) else getattr(word, 'word', '')
+                word_end = word.get('end', segment['end']) if isinstance(word, dict) else getattr(word, 'end', segment['end'])
+
+                current_chunk['text'] += word_text
+
+                # Check if chunk duration exceeds target
+                chunk_duration = word_end - current_chunk['start']
+                if chunk_duration >= MAX_SEGMENT_DURATION:
+                    current_chunk['end'] = word_end
+                    result.append({
+                        'start': current_chunk['start'],
+                        'end': current_chunk['end'],
+                        'text': current_chunk['text'].strip()
+                    })
+                    current_chunk = {'start': word_end, 'text': ''}
+
+            # Add remaining words as final chunk
+            if current_chunk['text'].strip():
+                current_chunk['end'] = segment['end']
+                result.append({
+                    'start': current_chunk['start'],
+                    'end': current_chunk['end'],
+                    'text': current_chunk['text'].strip()
+                })
+        else:
+            # No word timestamps - keep as is
+            result.append(segment)
+
+    return result
+
 class WhisperModelSingleton:
     _instance = None
     _base_model = None
@@ -148,12 +201,14 @@ class Transcriber:
                 batch_size = 8  # Smaller batch for CPU
 
             # Use the batched pipeline for transcription
+            # word_timestamps=True enables precise boundary refinement later
             segments_generator, info = model.transcribe(
                 audio_path,
                 language="en",
                 initial_prompt=initial_prompt,
                 beam_size=5,
                 batch_size=batch_size,
+                word_timestamps=True,  # Enable word-level timestamps for boundary refinement
                 vad_filter=True,  # Enable VAD filter to skip silent parts
                 vad_parameters=dict(
                     min_silence_duration_ms=500,
@@ -168,10 +223,20 @@ class Transcriber:
 
             for segment in segments_generator:
                 segment_count += 1
+                # Store word-level timestamps for boundary refinement
+                words = []
+                if segment.words:
+                    for w in segment.words:
+                        words.append({
+                            "word": w.word,
+                            "start": w.start,
+                            "end": w.end
+                        })
                 segment_dict = {
                     "start": segment.start,
                     "end": segment.end,
-                    "text": segment.text.strip()
+                    "text": segment.text.strip(),
+                    "words": words  # Word timestamps for boundary refinement
                 }
                 result.append(segment_dict)
 
@@ -189,6 +254,7 @@ class Transcriber:
 
             duration_min = result[-1]['end'] / 60 if result else 0
             logger.info(f"Transcription completed: {len(result)} segments, {duration_min:.1f} minutes")
+
             return result
         except Exception as e:
             logger.error(f"Transcription failed: {e}")
