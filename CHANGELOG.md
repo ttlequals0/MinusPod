@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.76] - 2025-12-03
+
+### Fixed
+- Same-sponsor ad merge extracting "read" as a sponsor name
+  - `extract_sponsor_names()` was matching "sponsor read" and extracting "read" as a brand
+  - Added exclusion list: read, segment, content, break, complete, partial, full, spot, mention, plug, insert, message, promo, promotion
+  - Prevents false sponsor matches that caused unrelated ads to merge
+- Same-sponsor merge creating over-long ads that get rejected by validator
+  - Added 300s (5 min) maximum duration check before merging
+  - If merge would exceed limit, ads are kept separate instead
+  - Root cause: Two legitimate ads (~155s + ~75s) were incorrectly merged into 351s ad, which AdValidator rejected as too long
+
+---
+
 ## [0.1.75] - 2025-12-02
 
 ### Added

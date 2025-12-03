@@ -372,7 +372,15 @@ def extract_sponsor_names(text: str, ad_reason: str = None) -> set:
             match = re.search(pattern, reason_lower)
             if match:
                 brand = match.group(1)
-                if len(brand) > 2 and brand not in ('the', 'and', 'for', 'with'):
+                # Exclude common non-brand words that appear after "sponsor" or "ad"
+                excluded_words = {
+                    'the', 'and', 'for', 'with',  # articles/prepositions
+                    'read', 'segment', 'content', 'break',  # "sponsor read", "ad segment"
+                    'complete', 'partial', 'full',  # "complete ad segment"
+                    'spot', 'mention', 'plug', 'insert',  # "sponsor mention"
+                    'message', 'promo', 'promotion',  # "ad promo"
+                }
+                if len(brand) > 2 and brand not in excluded_words:
                     sponsors.add(brand)
 
     return sponsors
@@ -476,6 +484,17 @@ def merge_same_sponsor_ads(ads: List[Dict], segments: List[Dict], max_gap: float
                         merge_reason = "sponsor in gap"
 
                 if should_merge:
+                    # Safety check: don't merge if result would be too long (>5 min)
+                    merged_duration = next_ad['end'] - current_ad['start']
+                    MAX_MERGED_DURATION = 300.0  # 5 minutes max
+                    if merged_duration > MAX_MERGED_DURATION:
+                        logger.info(
+                            f"Skipping merge: {current_ad['start']:.1f}s-{current_ad['end']:.1f}s + "
+                            f"{next_ad['start']:.1f}s-{next_ad['end']:.1f}s would be {merged_duration:.0f}s "
+                            f"(>{MAX_MERGED_DURATION:.0f}s max)"
+                        )
+                        break  # Don't merge, would create too-long ad
+
                     logger.info(
                         f"Merging same-sponsor ads: {current_ad['start']:.1f}s-{current_ad['end']:.1f}s + "
                         f"{next_ad['start']:.1f}s-{next_ad['end']:.1f}s "
