@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getSettings, updateSettings, resetSettings, getModels, getSystemStatus, runCleanup } from '../api/settings';
+import { getSettings, updateSettings, resetSettings, getModels, getWhisperModels, getSystemStatus, runCleanup } from '../api/settings';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 function Settings() {
@@ -10,6 +10,7 @@ function Settings() {
   const [selectedModel, setSelectedModel] = useState('');
   const [secondPassModel, setSecondPassModel] = useState('');
   const [multiPassEnabled, setMultiPassEnabled] = useState(false);
+  const [whisperModel, setWhisperModel] = useState('');
   const [hasChanges, setHasChanges] = useState(false);
   const [cleanupConfirm, setCleanupConfirm] = useState(false);
 
@@ -21,6 +22,11 @@ function Settings() {
   const { data: models } = useQuery({
     queryKey: ['models'],
     queryFn: getModels,
+  });
+
+  const { data: whisperModels } = useQuery({
+    queryKey: ['whisperModels'],
+    queryFn: getWhisperModels,
   });
 
   const { data: status, isLoading: statusLoading } = useQuery({
@@ -35,6 +41,7 @@ function Settings() {
       setSelectedModel(settings.claudeModel?.value || '');
       setSecondPassModel(settings.secondPassModel?.value || '');
       setMultiPassEnabled(settings.multiPassEnabled?.value ?? false);
+      setWhisperModel(settings.whisperModel?.value || 'small');
     }
   }, [settings]);
 
@@ -45,10 +52,11 @@ function Settings() {
         secondPassPrompt !== (settings.secondPassPrompt?.value || '') ||
         selectedModel !== (settings.claudeModel?.value || '') ||
         secondPassModel !== (settings.secondPassModel?.value || '') ||
-        multiPassEnabled !== (settings.multiPassEnabled?.value ?? false);
+        multiPassEnabled !== (settings.multiPassEnabled?.value ?? false) ||
+        whisperModel !== (settings.whisperModel?.value || 'small');
       setHasChanges(changed);
     }
-  }, [systemPrompt, secondPassPrompt, selectedModel, secondPassModel, multiPassEnabled, settings]);
+  }, [systemPrompt, secondPassPrompt, selectedModel, secondPassModel, multiPassEnabled, whisperModel, settings]);
 
   const updateMutation = useMutation({
     mutationFn: () =>
@@ -58,6 +66,7 @@ function Settings() {
         claudeModel: selectedModel,
         secondPassModel,
         multiPassEnabled,
+        whisperModel,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
@@ -195,6 +204,35 @@ function Settings() {
             <span className="ml-3 text-sm text-muted-foreground">
               Deleted {cleanupMutation.data.episodesRemoved} episodes
             </span>
+          )}
+        </div>
+      </div>
+
+      <div className="bg-card rounded-lg border border-border p-6">
+        <h2 className="text-lg font-semibold text-foreground mb-4">Whisper Model</h2>
+        <div>
+          <label htmlFor="whisperModel" className="block text-sm font-medium text-foreground mb-2">
+            Model for Transcription
+          </label>
+          <select
+            id="whisperModel"
+            value={whisperModel}
+            onChange={(e) => setWhisperModel(e.target.value)}
+            className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          >
+            {whisperModels?.map((model) => (
+              <option key={model.id} value={model.id}>
+                {model.name} - {model.vram} VRAM, {model.quality}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Larger models produce better transcriptions but require more GPU memory
+          </p>
+          {whisperModels && (
+            <div className="mt-3 text-xs text-muted-foreground">
+              <span className="font-medium">Current:</span> {whisperModels.find(m => m.id === whisperModel)?.speed || ''}
+            </div>
           )}
         </div>
       </div>

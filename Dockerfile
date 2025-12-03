@@ -56,6 +56,9 @@ COPY assets/ ./assets/
 COPY assets/ ./assets_builtin/
 COPY openapi.yaml ./
 
+# Ensure source files are readable
+RUN chmod -R 644 ./src/*.py && chmod 755 ./src
+
 # Copy built frontend from builder stage and fix permissions
 COPY --from=frontend-builder /app/static/ui ./static/ui/
 RUN chmod -R 644 ./static/ui/* && chmod 755 ./static/ui ./static/ui/assets

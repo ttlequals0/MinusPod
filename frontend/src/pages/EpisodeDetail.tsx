@@ -188,6 +188,50 @@ function EpisodeDetail() {
         </div>
       )}
 
+      {episode.rejectedAdMarkers && episode.rejectedAdMarkers.length > 0 && (
+        <div className="bg-card rounded-lg border border-border p-6 mb-6">
+          <h2 className="text-xl font-semibold text-foreground mb-4">
+            Rejected Detections ({episode.rejectedAdMarkers.length})
+            <span className="ml-2 text-sm font-normal text-muted-foreground">
+              - kept in audio
+            </span>
+          </h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            These detections were flagged but not removed due to validation failures.
+          </p>
+          <div className="space-y-3">
+            {episode.rejectedAdMarkers.map((segment, index) => (
+              <div
+                key={index}
+                className="flex items-center justify-between p-3 bg-red-500/10 rounded-lg border border-red-500/20"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-sm">
+                    {formatTimestamp(segment.start)} - {formatTimestamp(segment.end)}
+                  </span>
+                  <span className="px-1.5 py-0.5 text-xs rounded font-medium bg-red-500/20 text-red-600 dark:text-red-400">
+                    Rejected
+                  </span>
+                </div>
+                <div className="flex flex-col items-end">
+                  <span className="text-sm text-muted-foreground">
+                    {Math.round(segment.confidence * 100)}% confidence
+                  </span>
+                  {segment.validation?.flags && segment.validation.flags.length > 0 && (
+                    <p className="text-sm text-red-500 dark:text-red-400 mt-1 text-right max-w-md">
+                      {segment.validation.flags.join(', ')}
+                    </p>
+                  )}
+                  {segment.reason && (
+                    <p className="text-sm text-muted-foreground mt-1 text-right max-w-md">{segment.reason}</p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {episode.transcript && (
         <div className="bg-card rounded-lg border border-border p-6">
           <h2 className="text-xl font-semibold text-foreground mb-4">Transcript</h2>

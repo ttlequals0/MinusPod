@@ -27,6 +27,7 @@ export interface EpisodeDetail extends Episode {
   processedUrl?: string;
   transcript?: string;
   adMarkers?: AdSegment[];
+  rejectedAdMarkers?: AdSegment[];
   originalDuration?: number;
   newDuration?: number;
   timeSaved?: number;
@@ -39,12 +40,21 @@ export interface EpisodeDetail extends Episode {
   secondPassResponse?: string;
 }
 
+export interface AdValidation {
+  decision: 'ACCEPT' | 'REVIEW' | 'REJECT';
+  adjusted_confidence: number;
+  original_confidence?: number;
+  flags: string[];
+  corrections?: string[];
+}
+
 export interface AdSegment {
   start: number;
   end: number;
   confidence: number;
   reason?: string;
   pass?: 1 | 2 | 'merged';
+  validation?: AdValidation;
 }
 
 export interface SettingValue {
@@ -63,6 +73,7 @@ export interface Settings {
   claudeModel: SettingValue;
   secondPassModel: SettingValue;
   multiPassEnabled: SettingValueBoolean;
+  whisperModel: SettingValue;
   retentionPeriodMinutes: number;
   defaults: {
     systemPrompt: string;
@@ -70,6 +81,7 @@ export interface Settings {
     claudeModel: string;
     secondPassModel: string;
     multiPassEnabled: boolean;
+    whisperModel: string;
   };
 }
 
@@ -79,11 +91,20 @@ export interface UpdateSettingsPayload {
   claudeModel?: string;
   secondPassModel?: string;
   multiPassEnabled?: boolean;
+  whisperModel?: string;
 }
 
 export interface ClaudeModel {
   id: string;
   name: string;
+}
+
+export interface WhisperModel {
+  id: string;
+  name: string;
+  vram: string;
+  speed: string;
+  quality: string;
 }
 
 export interface SystemStatus {

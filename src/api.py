@@ -375,12 +375,20 @@ def get_episode(slug, episode_id):
 
     base_url = os.environ.get('BASE_URL', 'http://localhost:8000')
 
-    # Parse ad markers if present
+    # Parse ad markers if present, separating by validation decision
     ad_markers = []
+    rejected_ad_markers = []
     if episode.get('ad_markers_json'):
         try:
             import json
-            ad_markers = json.loads(episode['ad_markers_json'])
+            all_markers = json.loads(episode['ad_markers_json'])
+            # Separate by validation decision - REJECT ads stayed in audio
+            for marker in all_markers:
+                decision = marker.get('validation', {}).get('decision', 'ACCEPT')
+                if decision == 'REJECT':
+                    rejected_ad_markers.append(marker)
+                else:
+                    ad_markers.append(marker)
         except:
             pass
 
@@ -421,6 +429,7 @@ def get_episode(slug, episode_id):
         'timeSaved': time_saved,
         'fileSize': file_size,
         'adMarkers': ad_markers,
+        'rejectedAdMarkers': rejected_ad_markers,
         'adDetectionStatus': episode.get('ad_detection_status'),
         'transcript': episode.get('transcript_text'),
         'transcriptAvailable': bool(episode.get('transcript_text')),
@@ -625,6 +634,10 @@ def get_settings():
     multi_pass_value = settings.get('multi_pass_enabled', {}).get('value', 'false')
     multi_pass_enabled = multi_pass_value.lower() in ('true', '1', 'yes')
 
+    # Get whisper model setting (defaults to env var or 'small')
+    default_whisper_model = os.environ.get('WHISPER_MODEL', 'small')
+    whisper_model = settings.get('whisper_model', {}).get('value', default_whisper_model)
+
     return json_response({
         'systemPrompt': {
             'value': settings.get('system_prompt', {}).get('value', DEFAULT_SYSTEM_PROMPT),
@@ -646,13 +659,18 @@ def get_settings():
             'value': multi_pass_enabled,
             'isDefault': settings.get('multi_pass_enabled', {}).get('is_default', True)
         },
+        'whisperModel': {
+            'value': whisper_model,
+            'isDefault': settings.get('whisper_model', {}).get('is_default', True)
+        },
         'retentionPeriodMinutes': int(os.environ.get('RETENTION_PERIOD') or settings.get('retention_period_minutes', {}).get('value', '1440')),
         'defaults': {
             'systemPrompt': DEFAULT_SYSTEM_PROMPT,
             'secondPassPrompt': DEFAULT_SECOND_PASS_PROMPT,
             'claudeModel': DEFAULT_MODEL,
             'secondPassModel': DEFAULT_MODEL,
-            'multiPassEnabled': False
+            'multiPassEnabled': False,
+            'whisperModel': default_whisper_model
         }
     })
 
@@ -689,6 +707,16 @@ def update_ad_detection_settings():
         db.set_setting('multi_pass_enabled', value, is_default=False)
         logger.info(f"Updated multi-pass detection to: {value}")
 
+    if 'whisperModel' in data:
+        db.set_setting('whisper_model', data['whisperModel'], is_default=False)
+        logger.info(f"Updated Whisper model to: {data['whisperModel']}")
+        # Trigger model reload on next transcription
+        try:
+            from transcriber import WhisperModelSingleton
+            WhisperModelSingleton.mark_for_reload()
+        except Exception as e:
+            logger.warning(f"Could not mark model for reload: {e}")
+
     return json_response({'message': 'Settings updated'})
 
 
@@ -703,6 +731,14 @@ def reset_ad_detection_settings():
     db.reset_setting('claude_model')
     db.reset_setting('second_pass_model')
     db.reset_setting('multi_pass_enabled')
+    db.reset_setting('whisper_model')
+
+    # Mark whisper model for reload
+    try:
+        from transcriber import WhisperModelSingleton
+        WhisperModelSingleton.mark_for_reload()
+    except Exception as e:
+        logger.warning(f"Could not mark model for reload: {e}")
 
     logger.info("Reset ad detection settings to defaults")
     return json_response({'message': 'Settings reset to defaults'})
@@ -717,6 +753,50 @@ def get_available_models():
     ad_detector = AdDetector()
     models = ad_detector.get_available_models()
 
+    return json_response({'models': models})
+
+
+@api.route('/settings/whisper-models', methods=['GET'])
+@log_request
+def get_whisper_models():
+    """Get list of available Whisper models with resource requirements."""
+    models = [
+        {
+            'id': 'tiny',
+            'name': 'Tiny',
+            'vram': '~1GB',
+            'speed': '~1 min/60min',
+            'quality': 'Basic'
+        },
+        {
+            'id': 'base',
+            'name': 'Base',
+            'vram': '~1GB',
+            'speed': '~1.5 min/60min',
+            'quality': 'Good'
+        },
+        {
+            'id': 'small',
+            'name': 'Small (Default)',
+            'vram': '~2GB',
+            'speed': '~2-3 min/60min',
+            'quality': 'Better'
+        },
+        {
+            'id': 'medium',
+            'name': 'Medium',
+            'vram': '~5GB',
+            'speed': '~4-5 min/60min',
+            'quality': '~15% better than Small'
+        },
+        {
+            'id': 'large-v3',
+            'name': 'Large v3',
+            'vram': '~10GB',
+            'speed': '~6-8 min/60min',
+            'quality': '~25% better than Small'
+        }
+    ]
     return json_response({'models': models})
 
 

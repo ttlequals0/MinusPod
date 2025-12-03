@@ -38,6 +38,23 @@ For long episodes, transcripts are processed in overlapping 10-minute windows:
 
 This approach ensures consistent detection quality regardless of episode length. A 60-minute episode is processed as 9 overlapping windows, with any duplicate detections combined into a single ad marker.
 
+### Post-Detection Validation
+
+After ad detection, a validation layer reviews each detection before audio processing:
+
+- **Duration checks** - Rejects ads shorter than 7s or longer than 5 minutes
+- **Confidence thresholds** - Rejects very low confidence detections (<0.3)
+- **Position heuristics** - Boosts confidence for typical ad positions (pre-roll, mid-roll, post-roll)
+- **Transcript verification** - Checks for sponsor names and ad signals in the transcript
+- **Auto-correction** - Merges ads with tiny gaps, clamps boundaries to valid range
+
+Ads are classified as:
+- **ACCEPT** - High confidence, removed from audio
+- **REVIEW** - Medium confidence, removed but flagged for review
+- **REJECT** - Too short/long, low confidence, or missing ad signals - kept in audio
+
+Rejected ads appear in a separate "Rejected Detections" section in the UI, allowing you to verify the validator's decisions.
+
 ## Requirements
 
 - Docker with NVIDIA GPU support (for Whisper)
@@ -154,11 +171,14 @@ The feed URL is shown in the web UI and can be copied to clipboard.
 
 ## API
 
-REST API available at `/api/v1/`. See `openapi.yaml` for full documentation.
+REST API available at `/api/v1/`. Interactive docs at `/docs`. See `openapi.yaml` for full specification.
 
 Key endpoints:
 - `GET /api/v1/feeds` - List all feeds
+- `GET /api/v1/feeds/{slug}` - Get feed details
 - `POST /api/v1/feeds` - Add a new feed
+- `POST /api/v1/feeds/{slug}/episodes/{id}/reprocess` - Force reprocess an episode
+- `POST /api/v1/feeds/{slug}/episodes/{id}/retry-ad-detection` - Retry ad detection only
 - `GET /api/v1/settings` - Get current settings
 - `PUT /api/v1/settings/ad-detection` - Update ad detection config
 

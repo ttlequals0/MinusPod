@@ -2,6 +2,9 @@
 import logging
 import tempfile
 import os
+import re
+import gc
+import subprocess
 import requests
 from typing import List, Dict, Optional, Tuple
 from pathlib import Path
@@ -23,6 +26,26 @@ logger = logging.getLogger(__name__)
 
 # Maximum segment duration for precise ad detection
 MAX_SEGMENT_DURATION = 15.0  # seconds
+
+# Podcast-aware initial prompt with sponsor vocabulary
+AD_VOCABULARY = (
+    "promo code, discount code, use code, "
+    "sponsored by, brought to you by, "
+    "Athletic Greens, AG1, BetterHelp, Squarespace, NordVPN, "
+    "ExpressVPN, HelloFresh, Audible, Masterclass, ZipRecruiter, "
+    "Raycon, Manscaped, Stamps.com, Indeed, LinkedIn, "
+    "SimpliSafe, Casper, Helix Sleep, Brooklinen, Bombas, "
+    "Calm, Headspace, Mint Mobile, Dollar Shave Club"
+)
+
+# Hallucination patterns to filter out (Whisper artifacts)
+HALLUCINATION_PATTERNS = re.compile(
+    r'^(thanks for watching|thank you for watching|please subscribe|'
+    r'like and subscribe|see you next time|bye\.?|'
+    r'\[music\]|\[applause\]|\[laughter\]|\[silence\]|'
+    r'\.+|\s*|you)$',
+    re.IGNORECASE
+)
 
 
 def split_long_segments(segments: List[Dict]) -> List[Dict]:
@@ -77,17 +100,75 @@ def split_long_segments(segments: List[Dict]) -> List[Dict]:
 class WhisperModelSingleton:
     _instance = None
     _base_model = None
+    _current_model_name = None
+    _needs_reload = False
+
+    @classmethod
+    def get_configured_model(cls) -> str:
+        """Get the configured model from database settings."""
+        try:
+            from database import Database
+            db = Database()
+            model = db.get_setting('whisper_model')
+            if model:
+                return model
+        except Exception as e:
+            logger.warning(f"Could not read whisper_model from database: {e}")
+        # Fall back to env var or default
+        return os.getenv("WHISPER_MODEL", "small")
+
+    @classmethod
+    def mark_for_reload(cls):
+        """Mark the model for reload on next use."""
+        cls._needs_reload = True
+        logger.info("Whisper model marked for reload")
+
+    @classmethod
+    def _should_reload(cls) -> bool:
+        """Check if model needs to be reloaded."""
+        if cls._needs_reload:
+            return True
+        configured = cls.get_configured_model()
+        if cls._current_model_name and cls._current_model_name != configured:
+            logger.info(f"Model changed from {cls._current_model_name} to {configured}")
+            return True
+        return False
+
+    @classmethod
+    def _unload_model(cls):
+        """Unload the current model and free GPU memory."""
+        if cls._instance is not None or cls._base_model is not None:
+            logger.info(f"Unloading Whisper model: {cls._current_model_name}")
+            cls._instance = None
+            cls._base_model = None
+            cls._current_model_name = None
+            cls._needs_reload = False
+
+            # Force garbage collection and clear CUDA cache
+            gc.collect()
+            try:
+                import torch
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+                    logger.info("CUDA cache cleared")
+            except ImportError:
+                pass
 
     @classmethod
     def get_instance(cls) -> Tuple[WhisperModel, BatchedInferencePipeline]:
         """
-        Get both the base model and batched pipeline instance
+        Get both the base model and batched pipeline instance.
+        Will reload if the configured model has changed.
         Returns:
             Tuple[WhisperModel, BatchedInferencePipeline]: Base model for operations like language detection,
                                                           and batched pipeline for transcription
         """
+        # Check if we need to reload
+        if cls._instance is not None and cls._should_reload():
+            cls._unload_model()
+
         if cls._instance is None:
-            model_size = os.getenv("WHISPER_MODEL", "small")
+            model_size = cls.get_configured_model()
             device = os.getenv("WHISPER_DEVICE", "cpu")
 
             # Check CUDA availability and set compute type
@@ -117,7 +198,9 @@ class WhisperModelSingleton:
             cls._instance = BatchedInferencePipeline(
                 cls._base_model
             )
-            logger.info("Whisper model and batched pipeline initialized")
+            cls._current_model_name = model_size
+            cls._needs_reload = False
+            logger.info(f"Whisper model '{model_size}' and batched pipeline initialized")
 
         return cls._base_model, cls._instance
 
@@ -128,7 +211,7 @@ class WhisperModelSingleton:
         Returns:
             WhisperModel: Base Whisper model
         """
-        if cls._base_model is None:
+        if cls._base_model is None or cls._should_reload():
             cls.get_instance()
         return cls._base_model
 
@@ -139,14 +222,78 @@ class WhisperModelSingleton:
         Returns:
             BatchedInferencePipeline: Batched pipeline for efficient transcription
         """
-        if cls._instance is None:
+        if cls._instance is None or cls._should_reload():
             cls.get_instance()
         return cls._instance
+
+    @classmethod
+    def get_current_model_name(cls) -> Optional[str]:
+        """Get the name of the currently loaded model."""
+        return cls._current_model_name
 
 class Transcriber:
     def __init__(self):
         # Model is now managed by singleton
         pass
+
+    def get_initial_prompt(self, podcast_name: str = None) -> str:
+        """Generate a podcast-aware initial prompt for Whisper."""
+        if podcast_name:
+            return f"Podcast: {podcast_name}. {AD_VOCABULARY}"
+        return f"This is a podcast episode. {AD_VOCABULARY}"
+
+    def filter_hallucinations(self, segments: List[Dict]) -> List[Dict]:
+        """Filter out common Whisper hallucinations and artifacts."""
+        filtered = []
+        for seg in segments:
+            text = seg.get('text', '').strip()
+            if not text:
+                continue
+            if HALLUCINATION_PATTERNS.match(text):
+                logger.debug(f"Filtered hallucination: {text}")
+                continue
+            # Skip repeated segments (Whisper loop artifacts)
+            if filtered and text == filtered[-1].get('text', '').strip():
+                logger.debug(f"Filtered repeated segment: {text}")
+                continue
+            filtered.append(seg)
+        return filtered
+
+    def preprocess_audio(self, input_path: str) -> Optional[str]:
+        """
+        Normalize audio for consistent transcription.
+        Returns path to preprocessed file, or original path if preprocessing fails.
+        """
+        output_path = tempfile.mktemp(suffix='.wav')
+        try:
+            cmd = [
+                'ffmpeg', '-y', '-i', input_path,
+                '-ar', '16000',  # 16kHz (Whisper native sample rate)
+                '-ac', '1',      # Mono
+                '-af', 'loudnorm=I=-16:LRA=11:TP=-1.5,highpass=f=80,lowpass=f=8000',
+                output_path
+            ]
+            result = subprocess.run(cmd, capture_output=True, timeout=300)
+            if result.returncode == 0:
+                logger.info(f"Audio preprocessed: {input_path} -> {output_path}")
+                return output_path
+            logger.warning(f"Audio preprocessing failed (returncode={result.returncode}), using original")
+            if os.path.exists(output_path):
+                os.unlink(output_path)
+            return None
+        except subprocess.TimeoutExpired:
+            logger.warning("Audio preprocessing timed out, using original")
+            if os.path.exists(output_path):
+                os.unlink(output_path)
+            return None
+        except Exception as e:
+            logger.warning(f"Audio preprocessing error: {e}, using original")
+            if os.path.exists(output_path):
+                try:
+                    os.unlink(output_path)
+                except:
+                    pass
+            return None
 
     def download_audio(self, url: str, timeout: int = 600) -> Optional[str]:
         """Download audio file from URL."""
@@ -181,16 +328,22 @@ class Transcriber:
             logger.error(f"Failed to download audio: {e}")
             return None
 
-    def transcribe(self, audio_path: str) -> List[Dict]:
+    def transcribe(self, audio_path: str, podcast_name: str = None) -> List[Dict]:
         """Transcribe audio file using Faster Whisper with batched pipeline."""
+        preprocessed_path = None
         try:
             # Get the batched pipeline for efficient transcription
             model = WhisperModelSingleton.get_batched_pipeline()
+            current_model = WhisperModelSingleton.get_current_model_name()
 
-            logger.info(f"Starting transcription of: {audio_path}")
+            logger.info(f"Starting transcription of: {audio_path} (model: {current_model})")
 
-            # Create a simple prompt for podcast context
-            initial_prompt = "This is a podcast episode."
+            # Preprocess audio for consistent quality
+            preprocessed_path = self.preprocess_audio(audio_path)
+            transcribe_path = preprocessed_path if preprocessed_path else audio_path
+
+            # Create podcast-aware prompt with sponsor vocabulary
+            initial_prompt = self.get_initial_prompt(podcast_name)
 
             # Adjust batch size based on device
             device = os.getenv("WHISPER_DEVICE", "cpu")
@@ -203,7 +356,7 @@ class Transcriber:
             # Use the batched pipeline for transcription
             # word_timestamps=True enables precise boundary refinement later
             segments_generator, info = model.transcribe(
-                audio_path,
+                transcribe_path,
                 language="en",
                 initial_prompt=initial_prompt,
                 beam_size=5,
@@ -252,6 +405,12 @@ class Transcriber:
                     text_preview = segment.text.strip()[:100] + "..." if len(segment.text.strip()) > 100 else segment.text.strip()
                     logger.info(f"[{self.format_timestamp(segment.start)}] {text_preview}")
 
+            # Filter out hallucinations
+            original_count = len(result)
+            result = self.filter_hallucinations(result)
+            if len(result) < original_count:
+                logger.info(f"Filtered {original_count - len(result)} hallucination segments")
+
             duration_min = result[-1]['end'] / 60 if result else 0
             logger.info(f"Transcription completed: {len(result)} segments, {duration_min:.1f} minutes")
 
@@ -259,6 +418,14 @@ class Transcriber:
         except Exception as e:
             logger.error(f"Transcription failed: {e}")
             return None
+        finally:
+            # Clean up preprocessed file
+            if preprocessed_path and os.path.exists(preprocessed_path):
+                try:
+                    os.unlink(preprocessed_path)
+                    logger.debug(f"Cleaned up preprocessed file: {preprocessed_path}")
+                except:
+                    pass
 
     def format_timestamp(self, seconds: float) -> str:
         """Convert seconds to timestamp format."""

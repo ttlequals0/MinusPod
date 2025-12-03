@@ -99,6 +99,7 @@ from storage import Storage
 from rss_parser import RSSParser
 from transcriber import Transcriber
 from ad_detector import AdDetector, merge_and_deduplicate, refine_ad_boundaries, merge_same_sponsor_ads
+from ad_validator import AdValidator
 from audio_processor import AudioProcessor
 from database import Database
 
@@ -264,7 +265,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 raise Exception("Failed to download audio")
 
             audio_logger.info(f"[{slug}:{episode_id}] Starting transcription")
-            segments = transcriber.transcribe(audio_path)
+            segments = transcriber.transcribe(audio_path, podcast_name=podcast_name)
             if not segments:
                 raise Exception("Failed to transcribe audio")
 
@@ -356,9 +357,43 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             if all_ads and segments:
                 all_ads = merge_same_sponsor_ads(all_ads, segments)
 
-            # Step 4: Process audio ONCE with ALL detected ads
-            audio_logger.info(f"[{slug}:{episode_id}] Starting FFMPEG processing ({len(all_ads)} total ads)")
-            processed_path = audio_processor.process_episode(audio_path, all_ads)
+            # Step 3.7: Validate detected ads
+            # Catches errors, flags suspicious detections, auto-corrects issues
+            if all_ads:
+                episode_duration = segments[-1]['end'] if segments else 0
+                validator = AdValidator(episode_duration, segments)
+                validation_result = validator.validate(all_ads)
+
+                audio_logger.info(
+                    f"[{slug}:{episode_id}] Validation: "
+                    f"{validation_result.accepted} accepted, "
+                    f"{validation_result.reviewed} review, "
+                    f"{validation_result.rejected} rejected"
+                )
+
+                # Store ALL ads (including rejected) for API/UI display
+                all_ads_with_validation = validation_result.ads
+                storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
+
+                # Only remove ACCEPT and REVIEW ads from audio
+                # REJECT ads stay in audio but are stored for display
+                ads_to_remove = [
+                    ad for ad in validation_result.ads
+                    if ad.get('validation', {}).get('decision') != 'REJECT'
+                ]
+
+                rejected_count = validation_result.rejected
+                if rejected_count > 0:
+                    audio_logger.info(
+                        f"[{slug}:{episode_id}] {rejected_count} ads rejected (kept in audio)"
+                    )
+            else:
+                ads_to_remove = []
+                all_ads_with_validation = []
+
+            # Step 4: Process audio ONCE with validated ads (excluding rejected)
+            audio_logger.info(f"[{slug}:{episode_id}] Starting FFMPEG processing ({len(ads_to_remove)} ads to remove)")
+            processed_path = audio_processor.process_episode(audio_path, ads_to_remove)
             if not processed_path:
                 raise Exception("Failed to process audio with FFMPEG")
 
@@ -371,12 +406,13 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             shutil.move(processed_path, final_path)
 
             # Update status to processed with combined ad count and per-pass counts
+            # ads_removed counts only non-rejected ads (ones actually removed from audio)
             db.upsert_episode(slug, episode_id,
                 status='processed',
                 processed_file=f"episodes/{episode_id}.mp3",
                 original_duration=original_duration,
                 new_duration=new_duration,
-                ads_removed=len(all_ads),
+                ads_removed=len(ads_to_remove),
                 ads_removed_firstpass=first_pass_count,
                 ads_removed_secondpass=second_pass_count)
 
@@ -390,10 +426,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
                 audio_logger.info(
                     f"[{slug}:{episode_id}] Complete: {original_duration/60:.1f}->{new_duration/60:.1f}min, "
-                    f"{len(all_ads)} ads, {processing_time:.1f}s"
+                    f"{len(ads_to_remove)} ads removed, {processing_time:.1f}s"
                 )
             else:
-                audio_logger.info(f"[{slug}:{episode_id}] Complete: {len(all_ads)} ads, {processing_time:.1f}s")
+                audio_logger.info(f"[{slug}:{episode_id}] Complete: {len(ads_to_remove)} ads removed, {processing_time:.1f}s")
 
             return True
 

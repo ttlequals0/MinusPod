@@ -45,6 +45,11 @@ This transcript may be a segment of a longer episode.
 - If an ad appears to CONTINUE past this segment, mark end as the last timestamp
 - Note partial ads in the reason field
 
+TIMESTAMP PRECISION:
+Use the exact START timestamp from the [Xs] marker of the first ad segment.
+Use the exact END timestamp from the [Xs] marker of the last ad segment.
+Do not interpolate or estimate times between segments.
+
 OUTPUT FORMAT:
 Return ONLY a valid JSON array. No explanation, no markdown.
 
@@ -90,6 +95,11 @@ This transcript may be a segment of a longer episode.
 - If an ad appears to START before this segment, mark start as the first timestamp
 - If an ad appears to CONTINUE past this segment, mark end as the last timestamp
 - Note partial ads in the reason field
+
+TIMESTAMP PRECISION:
+Use the exact START timestamp from the [Xs] marker of the first ad segment.
+Use the exact END timestamp from the [Xs] marker of the last ad segment.
+Do not interpolate or estimate times between segments.
 
 BE THOROUGH: If it sounds promotional, mark it. False positives are acceptable.
 BE ACCURATE: Don't invent ads. Some segments have no subtle ads, and [] is valid.
@@ -495,6 +505,14 @@ class Database:
             ('second_pass_model', DEFAULT_MODEL)
         )
 
+        # Whisper model (defaults to env var or 'small')
+        whisper_model = os.environ.get('WHISPER_MODEL', 'small')
+        conn.execute(
+            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
+               ON CONFLICT(key) DO NOTHING""",
+            ('whisper_model', whisper_model)
+        )
+
         conn.commit()
         logger.info("Default settings seeded")
 
@@ -873,7 +891,8 @@ class Database:
             'retention_period_minutes': os.environ.get('RETENTION_PERIOD', '1440'),
             'claude_model': DEFAULT_MODEL,
             'second_pass_model': DEFAULT_MODEL,
-            'multi_pass_enabled': 'false'
+            'multi_pass_enabled': 'false',
+            'whisper_model': os.environ.get('WHISPER_MODEL', 'small')
         }
 
         if key in defaults:

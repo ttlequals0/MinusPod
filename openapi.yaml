@@ -9,7 +9,7 @@ info:
     - View and manage processed episodes
     - Configure ad detection settings including Claude model selection
     - Monitor system status and trigger cleanup operations
-  version: 0.1.72
+  version: 0.0.0
   contact:
     name: Podcast Server
   license:
@@ -105,6 +105,23 @@ paths:
                 $ref: '#/components/schemas/Error'
 
   /feeds/{slug}:
+    get:
+      tags:
+        - Feeds
+      summary: Get a single feed
+      description: Returns details for a specific podcast feed
+      operationId: getFeed
+      parameters:
+        - $ref: '#/components/parameters/slug'
+      responses:
+        '200':
+          description: Feed details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Feed'
+        '404':
+          $ref: '#/components/responses/NotFound'
     delete:
       tags:
         - Feeds
@@ -298,6 +315,75 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /feeds/{slug}/episodes/{episodeId}/reprocess:
+    post:
+      tags:
+        - Episodes
+      summary: Force reprocess an episode
+      description: |
+        Deletes all cached data (audio, transcript, ads) and immediately
+        reprocesses the episode from scratch. Use when you want to re-run
+        transcription and ad detection with updated settings.
+      operationId: reprocessEpisode
+      parameters:
+        - $ref: '#/components/parameters/slug'
+        - $ref: '#/components/parameters/episodeId'
+      responses:
+        '200':
+          description: Episode reprocessing started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  status:
+                    type: string
+                    enum: [completed, processing]
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /feeds/{slug}/episodes/{episodeId}/retry-ad-detection:
+    post:
+      tags:
+        - Episodes
+      summary: Retry ad detection
+      description: |
+        Re-runs ad detection using the existing transcript. Faster than full
+        reprocess since it skips transcription. Use when ad detection failed
+        due to API errors or when you want to try with updated prompts.
+      operationId: retryAdDetection
+      parameters:
+        - $ref: '#/components/parameters/slug'
+        - $ref: '#/components/parameters/episodeId'
+      responses:
+        '200':
+          description: Ad detection retry completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  adsDetected:
+                    type: integer
+                  status:
+                    type: string
+        '400':
+          description: Episode has no transcript (must use reprocess instead)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
   /settings:
     get:
       tags:
@@ -344,6 +430,10 @@ paths:
                 multiPassEnabled:
                   type: boolean
                   description: Enable dual-pass ad detection for improved accuracy
+                whisperModel:
+                  type: string
+                  description: Whisper model for transcription (tiny, base, small, medium, large-v3)
+                  example: small
       responses:
         '200':
           description: Settings updated
@@ -394,6 +484,26 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/Model'
+
+  /settings/whisper-models:
+    get:
+      tags:
+        - Settings
+      summary: Get available Whisper models
+      description: Returns list of available Whisper models for transcription with resource requirements
+      operationId: getWhisperModels
+      responses:
+        '200':
+          description: List of available Whisper models
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  models:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WhisperModel'
 
   /system/status:
     get:
@@ -540,6 +650,12 @@ components:
               format: uri
             adMarkers:
               type: array
+              description: Ads that were removed from audio (ACCEPT or REVIEW decision)
+              items:
+                $ref: '#/components/schemas/AdMarker'
+            rejectedAdMarkers:
+              type: array
+              description: Ads flagged but kept in audio (REJECT decision due to low confidence, invalid duration, etc.)
               items:
                 $ref: '#/components/schemas/AdMarker'
             transcriptAvailable:
@@ -573,6 +689,30 @@ components:
             - string
           description: Which detection pass found this ad (1, 2, or "merged" if both)
           example: 1
+        validation:
+          type: object
+          description: Validation results from post-detection validation layer
+          properties:
+            decision:
+              type: string
+              enum: [ACCEPT, REVIEW, REJECT]
+              description: Validation decision - ACCEPT/REVIEW are removed, REJECT stays in audio
+            adjusted_confidence:
+              type: number
+              description: Confidence after position/content adjustments (0.0 to 1.0)
+            original_confidence:
+              type: number
+              description: Original confidence from Claude detection
+            flags:
+              type: array
+              items:
+                type: string
+              description: Validation warnings or errors
+            corrections:
+              type: array
+              items:
+                type: string
+              description: Auto-corrections applied (merged ads, clamped boundaries)
 
     Model:
       type: object
@@ -589,6 +729,30 @@ components:
           type: string
           format: date-time
           nullable: true
+
+    WhisperModel:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Model identifier (tiny, base, small, medium, large-v3)
+          example: small
+        name:
+          type: string
+          description: Human-readable model name
+          example: Small (Default)
+        vram:
+          type: string
+          description: Estimated GPU VRAM requirement
+          example: ~2GB
+        speed:
+          type: string
+          description: Approximate transcription speed
+          example: ~2-3 min/60min
+        quality:
+          type: string
+          description: Relative quality compared to other models
+          example: Better
 
     Settings:
       type: object
@@ -629,6 +793,14 @@ components:
               description: Whether dual-pass ad detection is enabled
             isDefault:
               type: boolean
+        whisperModel:
+          type: object
+          properties:
+            value:
+              type: string
+              description: Whisper model for transcription
+            isDefault:
+              type: boolean
         retentionPeriodMinutes:
           type: integer
         defaults:
@@ -644,6 +816,8 @@ components:
               type: string
             multiPassEnabled:
               type: boolean
+            whisperModel:
+              type: string
 
     SystemStatus:
       type: object

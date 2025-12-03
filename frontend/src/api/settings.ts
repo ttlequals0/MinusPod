@@ -1,5 +1,5 @@
 import { apiRequest } from './client';
-import { Settings, ClaudeModel, SystemStatus, UpdateSettingsPayload } from './types';
+import { Settings, ClaudeModel, WhisperModel, SystemStatus, UpdateSettingsPayload } from './types';
 
 export async function getSettings(): Promise<Settings> {
   return apiRequest<Settings>('/settings');
@@ -20,6 +20,11 @@ export async function resetSettings(): Promise<{ message: string }> {
 
 export async function getModels(): Promise<ClaudeModel[]> {
   const response = await apiRequest<{ models: ClaudeModel[] }>('/settings/models');
+  return response.models;
+}
+
+export async function getWhisperModels(): Promise<WhisperModel[]> {
+  const response = await apiRequest<{ models: WhisperModel[] }>('/settings/whisper-models');
   return response.models;
 }
 
