@@ -274,6 +274,8 @@ from audio_analysis import AudioAnalyzer
 from sponsor_service import SponsorService
 from status_service import StatusService
 from pattern_service import PatternService
+from transcript_generator import TranscriptGenerator
+from chapters_generator import ChaptersGenerator
 
 # Initialize components
 storage = Storage()
@@ -555,8 +557,8 @@ def refresh_rss_feed(slug: str, feed_url: str):
             if queued_count > 0:
                 refresh_logger.info(f"[{slug}] Queued {queued_count} new episode(s) for auto-processing")
 
-        # Modify feed URLs
-        modified_rss = rss_parser.modify_feed(feed_content, slug)
+        # Modify feed URLs (pass storage to include Podcasting 2.0 tags)
+        modified_rss = rss_parser.modify_feed(feed_content, slug, storage=storage)
 
         # Save modified RSS
         storage.save_rss(slug, modified_rss)
@@ -1092,6 +1094,27 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             final_path = storage.get_episode_path(slug, episode_id)
             shutil.move(processed_path, final_path)
 
+            # Generate Podcasting 2.0 assets (VTT transcript and chapters)
+            try:
+                # Generate VTT transcript with adjusted timestamps
+                transcript_gen = TranscriptGenerator()
+                vtt_content = transcript_gen.generate_vtt(segments, ads_to_remove)
+                if vtt_content and len(vtt_content) > 10:
+                    storage.save_transcript_vtt(slug, episode_id, vtt_content)
+                    audio_logger.info(f"[{slug}:{episode_id}] Generated VTT transcript")
+
+                # Generate chapters from ad boundaries and description timestamps
+                chapters_gen = ChaptersGenerator()
+                chapters = chapters_gen.generate_chapters(
+                    segments, ads_to_remove, episode_description,
+                    podcast_name, episode_title
+                )
+                if chapters and chapters.get('chapters'):
+                    storage.save_chapters_json(slug, episode_id, chapters)
+                    audio_logger.info(f"[{slug}:{episode_id}] Generated {len(chapters['chapters'])} chapters")
+            except Exception as e:
+                audio_logger.warning(f"[{slug}:{episode_id}] Failed to generate Podcasting 2.0 assets: {e}")
+
             # Update status to processed with combined ad count and per-pass counts
             # ads_removed counts only non-rejected ads (ones actually removed from audio)
             # Clear reprocess_mode and reprocess_requested_at after successful processing
@@ -1451,6 +1474,43 @@ def serve_episode(slug, episode_id):
             mimetype='application/json',
             headers={'Retry-After': '60'}
         )
+
+
+@app.route('/episodes/<slug>/<episode_id>.vtt')
+@log_request_detailed
+def serve_transcript_vtt(slug, episode_id):
+    """Serve VTT transcript for episode (Podcasting 2.0)."""
+    # Validate episode ID
+    if not all(c.isalnum() or c in '-_' for c in episode_id):
+        feed_logger.warning(f"[{slug}] Invalid episode ID for VTT: {episode_id}")
+        abort(400)
+
+    vtt_content = storage.get_transcript_vtt(slug, episode_id)
+    if not vtt_content:
+        feed_logger.info(f"[{slug}:{episode_id}] VTT transcript not found")
+        abort(404)
+
+    feed_logger.info(f"[{slug}:{episode_id}] Serving VTT transcript")
+    return Response(vtt_content, mimetype='text/vtt')
+
+
+@app.route('/episodes/<slug>/<episode_id>/chapters.json')
+@log_request_detailed
+def serve_chapters_json(slug, episode_id):
+    """Serve chapters JSON for episode (Podcasting 2.0)."""
+    # Validate episode ID
+    if not all(c.isalnum() or c in '-_' for c in episode_id):
+        feed_logger.warning(f"[{slug}] Invalid episode ID for chapters: {episode_id}")
+        abort(400)
+
+    chapters = storage.get_chapters_json(slug, episode_id)
+    if not chapters:
+        feed_logger.info(f"[{slug}:{episode_id}] Chapters not found")
+        abort(404)
+
+    import json
+    feed_logger.info(f"[{slug}:{episode_id}] Serving chapters JSON")
+    return Response(json.dumps(chapters), mimetype='application/json+chapters')
 
 
 @app.route('/health')

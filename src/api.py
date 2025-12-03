@@ -819,13 +819,19 @@ def get_episode(slug, episode_id):
     if status == 'processed':
         status = 'completed'
 
-    # Get file size if processed
+    # Get file size and Podcasting 2.0 asset availability if processed
     file_size = None
+    transcript_vtt_available = False
+    chapters_available = False
+    storage = get_storage()
+
     if status == 'completed':
-        storage = get_storage()
         file_path = storage.get_episode_path(slug, episode_id)
         if file_path.exists():
             file_size = file_path.stat().st_size
+        # Check for Podcasting 2.0 assets
+        transcript_vtt_available = storage.has_transcript_vtt(slug, episode_id)
+        chapters_available = storage.has_chapters_json(slug, episode_id)
 
     # Get corrections for this episode
     corrections = db.get_episode_corrections(episode_id)
@@ -855,6 +861,10 @@ def get_episode(slug, episode_id):
         'adDetectionStatus': episode.get('ad_detection_status'),
         'transcript': episode.get('transcript_text'),
         'transcriptAvailable': bool(episode.get('transcript_text')),
+        'transcriptVttAvailable': transcript_vtt_available,
+        'transcriptVttUrl': f"{base_url}/episodes/{slug}/{episode_id}.vtt" if transcript_vtt_available else None,
+        'chaptersAvailable': chapters_available,
+        'chaptersUrl': f"{base_url}/episodes/{slug}/{episode_id}/chapters.json" if chapters_available else None,
         'error': episode.get('error_message'),
         'firstPassPrompt': episode.get('first_pass_prompt'),
         'firstPassResponse': episode.get('first_pass_response'),
