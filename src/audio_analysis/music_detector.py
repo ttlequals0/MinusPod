@@ -214,7 +214,8 @@ class MusicBedDetector:
     def _merge_frames_to_regions(
         self,
         frames: List[dict],
-        max_gap: float = 2.0
+        max_gap: float = 2.0,
+        max_duration: float = 120.0  # Real music beds rarely exceed 2 min
     ) -> List[AudioSegmentSignal]:
         """Merge consecutive music frames into regions."""
         if not frames:
@@ -232,15 +233,10 @@ class MusicBedDetector:
 
         for frame in frames[1:]:
             gap = frame['start'] - current['end']
+            current_duration = current['end'] - current['start']
 
-            if gap <= max_gap:
-                # Extend current region
-                current['end'] = frame['end']
-                current['confidences'].append(frame['confidence'])
-                current['flatness'].append(frame['spectral_flatness'])
-                current['bass'].append(frame['low_freq_energy'])
-                current['harmonic'].append(frame['harmonic_ratio'])
-            else:
+            # Split if gap too large OR region exceeds max duration
+            if gap > max_gap or current_duration >= max_duration:
                 # Save current region if long enough
                 duration = current['end'] - current['start']
                 if duration >= self.min_region_duration:
@@ -255,6 +251,13 @@ class MusicBedDetector:
                     'bass': [frame['low_freq_energy']],
                     'harmonic': [frame['harmonic_ratio']]
                 }
+            else:
+                # Extend current region
+                current['end'] = frame['end']
+                current['confidences'].append(frame['confidence'])
+                current['flatness'].append(frame['spectral_flatness'])
+                current['bass'].append(frame['low_freq_energy'])
+                current['harmonic'].append(frame['harmonic_ratio'])
 
         # Save final region
         duration = current['end'] - current['start']

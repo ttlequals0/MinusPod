@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.94] - 2025-12-12
+
+### Fixed
+- Ad detection window validation to prevent hallucinated ads
+  - Claude sometimes hallucinates `start=0.0` when no ads found in a window
+  - Ads are now validated against window bounds (with 2 min tolerance)
+  - Ads exceeding 7 minutes are rejected as unrealistically long
+  - Applied to both first pass and second pass detection
+  - Logged as warnings when ads are rejected for debugging
+
+### Changed
+- Music detector now caps region duration at 2 minutes
+  - Real music beds rarely exceed 2 minutes
+  - Prevents unrealistically long music regions from being merged
+- Audio signal filtering now excludes signals over 3 minutes
+  - Prevents bad audio data from reaching Claude prompt
+
+---
+
 ## [0.1.93] - 2025-12-12
 
 ### Fixed

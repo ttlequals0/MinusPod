@@ -714,10 +714,13 @@ class AdDetector:
         if not audio_analysis or not audio_analysis.signals:
             return ""
 
-        # Get signals that overlap with this window
+        MAX_REALISTIC_SIGNAL = 180.0  # 3 minutes - anything longer is suspect
+
+        # Get signals that overlap with this window AND are realistic length
         window_signals = [
             s for s in audio_analysis.signals
             if s.start < window_end and s.end > window_start
+            and (s.end - s.start) <= MAX_REALISTIC_SIGNAL
         ]
 
         if not window_signals:
@@ -1053,6 +1056,29 @@ class AdDetector:
 
                 # Parse ads from response
                 window_ads = self._parse_ads_from_response(response_text, slug, episode_id)
+
+                # Filter ads to window bounds - Claude sometimes hallucinates start=0.0
+                # when no ads found, speculating about "beginning of episode"
+                MIN_OVERLAP_TOLERANCE = 120.0  # 2 min tolerance for boundary ads
+                MAX_AD_DURATION = 420.0  # 7 min max (longest reasonable sponsor read)
+
+                valid_window_ads = []
+                for ad in window_ads:
+                    duration = ad['end'] - ad['start']
+                    in_window = (ad['start'] >= window_start - MIN_OVERLAP_TOLERANCE and
+                                 ad['start'] <= window_end + MIN_OVERLAP_TOLERANCE)
+                    reasonable_length = duration <= MAX_AD_DURATION
+
+                    if in_window and reasonable_length:
+                        valid_window_ads.append(ad)
+                    else:
+                        logger.warning(
+                            f"[{slug}:{episode_id}] Window {i+1} rejected ad: "
+                            f"{ad['start']:.1f}s-{ad['end']:.1f}s ({duration:.0f}s) - "
+                            f"{'outside window' if not in_window else 'too long'}"
+                        )
+
+                window_ads = valid_window_ads
                 logger.info(f"[{slug}:{episode_id}] Window {i+1} found {len(window_ads)} ads")
 
                 all_window_ads.extend(window_ads)
@@ -1224,6 +1250,29 @@ class AdDetector:
 
                 # Parse ads from response
                 window_ads = self._parse_ads_from_response(response_text, slug, episode_id)
+
+                # Filter ads to window bounds - Claude sometimes hallucinates start=0.0
+                # when no ads found, speculating about "beginning of episode"
+                MIN_OVERLAP_TOLERANCE = 120.0  # 2 min tolerance for boundary ads
+                MAX_AD_DURATION = 420.0  # 7 min max (longest reasonable sponsor read)
+
+                valid_window_ads = []
+                for ad in window_ads:
+                    duration = ad['end'] - ad['start']
+                    in_window = (ad['start'] >= window_start - MIN_OVERLAP_TOLERANCE and
+                                 ad['start'] <= window_end + MIN_OVERLAP_TOLERANCE)
+                    reasonable_length = duration <= MAX_AD_DURATION
+
+                    if in_window and reasonable_length:
+                        valid_window_ads.append(ad)
+                    else:
+                        logger.warning(
+                            f"[{slug}:{episode_id}] Second pass Window {i+1} rejected ad: "
+                            f"{ad['start']:.1f}s-{ad['end']:.1f}s ({duration:.0f}s) - "
+                            f"{'outside window' if not in_window else 'too long'}"
+                        )
+
+                window_ads = valid_window_ads
 
                 # Mark all ads as second pass
                 for ad in window_ads:
