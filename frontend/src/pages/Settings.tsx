@@ -11,6 +11,7 @@ function Settings() {
   const [secondPassModel, setSecondPassModel] = useState('');
   const [multiPassEnabled, setMultiPassEnabled] = useState(false);
   const [whisperModel, setWhisperModel] = useState('');
+  const [audioAnalysisEnabled, setAudioAnalysisEnabled] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [cleanupConfirm, setCleanupConfirm] = useState(false);
 
@@ -57,6 +58,7 @@ function Settings() {
       setSecondPassModel(settings.secondPassModel?.value || '');
       setMultiPassEnabled(settings.multiPassEnabled?.value ?? false);
       setWhisperModel(settings.whisperModel?.value || 'small');
+      setAudioAnalysisEnabled(settings.audioAnalysisEnabled?.value ?? false);
     }
   }, [settings]);
 
@@ -68,10 +70,11 @@ function Settings() {
         selectedModel !== (settings.claudeModel?.value || '') ||
         secondPassModel !== (settings.secondPassModel?.value || '') ||
         multiPassEnabled !== (settings.multiPassEnabled?.value ?? false) ||
-        whisperModel !== (settings.whisperModel?.value || 'small');
+        whisperModel !== (settings.whisperModel?.value || 'small') ||
+        audioAnalysisEnabled !== (settings.audioAnalysisEnabled?.value ?? false);
       setHasChanges(changed);
     }
-  }, [systemPrompt, secondPassPrompt, selectedModel, secondPassModel, multiPassEnabled, whisperModel, settings]);
+  }, [systemPrompt, secondPassPrompt, selectedModel, secondPassModel, multiPassEnabled, whisperModel, audioAnalysisEnabled, settings]);
 
   const updateMutation = useMutation({
     mutationFn: () =>
@@ -82,6 +85,7 @@ function Settings() {
         secondPassModel,
         multiPassEnabled,
         whisperModel,
+        audioAnalysisEnabled,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
@@ -277,6 +281,30 @@ function Settings() {
               <span className="font-medium">Current:</span> {whisperModels.find(m => m.id === whisperModel)?.speed || ''}
             </div>
           )}
+        </div>
+      </div>
+
+      <div className="bg-card rounded-lg border border-border p-6">
+        <h2 className="text-lg font-semibold text-foreground mb-4">Audio Analysis</h2>
+        <div>
+          <label className="flex items-center gap-3 cursor-pointer">
+            <div
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                audioAnalysisEnabled ? 'bg-primary' : 'bg-secondary'
+              }`}
+              onClick={() => setAudioAnalysisEnabled(!audioAnalysisEnabled)}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  audioAnalysisEnabled ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </div>
+            <span className="text-sm font-medium text-foreground">Enable Audio Analysis</span>
+          </label>
+          <p className="mt-2 text-sm text-muted-foreground ml-14">
+            Analyze audio characteristics (volume changes, music detection, speaker patterns) to improve ad detection accuracy. Experimental feature.
+          </p>
         </div>
       </div>
 

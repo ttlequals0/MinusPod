@@ -109,7 +109,12 @@ class AudioAnalyzer:
         return settings
 
     def is_enabled(self) -> bool:
-        """Check if audio analysis is enabled."""
+        """Check if audio analysis is enabled (reads from database for live updates)."""
+        if self.db:
+            try:
+                return self.db.get_setting('audio_analysis_enabled') == 'true'
+            except Exception:
+                pass
         return self._enabled
 
     def get_availability(self) -> Dict[str, bool]:

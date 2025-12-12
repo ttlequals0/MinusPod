@@ -8,6 +8,7 @@ more compression than host content, causing noticeable volume changes.
 import subprocess
 import json
 import logging
+import re
 from typing import List, Tuple, Optional
 import os
 
@@ -20,7 +21,7 @@ class VolumeAnalyzer:
     """
     Analyzes volume/loudness patterns to detect ad transitions.
 
-    Uses ffmpeg's loudnorm filter to measure integrated loudness (LUFS)
+    Uses ffmpeg's ebur128 filter in single-pass mode to measure loudness
     and detect regions where volume differs significantly from baseline.
     """
 
@@ -34,7 +35,7 @@ class VolumeAnalyzer:
         Initialize the volume analyzer.
 
         Args:
-            frame_duration: Analysis window size in seconds
+            frame_duration: Analysis window size in seconds for grouping
             anomaly_threshold_db: dB deviation from baseline to flag as anomaly
             min_anomaly_duration: Minimum duration to report as anomaly
         """
@@ -44,7 +45,7 @@ class VolumeAnalyzer:
 
     def analyze(self, audio_path: str) -> Tuple[List[AudioSegmentSignal], Optional[float]]:
         """
-        Analyze audio for volume anomalies.
+        Analyze audio for volume anomalies using single-pass ebur128.
 
         Args:
             audio_path: Path to the audio file
@@ -64,8 +65,8 @@ class VolumeAnalyzer:
 
         logger.info(f"Analyzing volume for {duration:.1f}s audio ({duration/60:.1f} min)")
 
-        # Measure loudness in frames
-        frames = self._measure_loudness_frames(audio_path, duration)
+        # Single-pass loudness measurement
+        frames = self._measure_loudness_single_pass(audio_path, duration)
         if not frames:
             logger.warning("No loudness frames extracted")
             return [], None
@@ -81,7 +82,7 @@ class VolumeAnalyzer:
         mid = len(loudness_values) // 2
         baseline = loudness_values[mid]
 
-        logger.info(f"Loudness baseline: {baseline:.1f} LUFS")
+        logger.info(f"Loudness baseline: {baseline:.1f} LUFS, {len(frames)} frames analyzed")
 
         # Find anomalies
         anomalies = self._find_anomalies(frames, baseline)
@@ -108,74 +109,140 @@ class VolumeAnalyzer:
             logger.error(f"Failed to get duration: {e}")
             return None
 
-    def _measure_loudness_frames(
+    def _measure_loudness_single_pass(
         self,
         audio_path: str,
         total_duration: float
     ) -> List[LoudnessFrame]:
-        """Measure loudness for each frame of the audio."""
-        frames = []
-        current_time = 0.0
+        """
+        Measure loudness using single-pass ebur128 filter.
 
-        while current_time < total_duration:
-            frame_duration = min(self.frame_duration, total_duration - current_time)
-            if frame_duration < 1.0:
-                break
-
-            loudness, peak = self._measure_frame(audio_path, current_time, frame_duration)
-
-            frames.append(LoudnessFrame(
-                start=current_time,
-                end=current_time + frame_duration,
-                loudness_lufs=loudness,
-                peak_dbfs=peak
-            ))
-
-            current_time += self.frame_duration
-
-        return frames
-
-    def _measure_frame(
-        self,
-        audio_path: str,
-        start: float,
-        duration: float
-    ) -> Tuple[float, float]:
-        """Measure loudness for a specific time range using ffmpeg loudnorm."""
+        This runs ffmpeg once on the entire file, parsing the per-frame
+        loudness measurements from stderr. Much faster than frame-by-frame.
+        """
         try:
+            # Run ebur128 with verbose framelog to get per-frame measurements
+            # Output format: [Parsed_ebur128_0 @ ...] t: 0.3     M: -23.5 S: -22.1 ...
             cmd = [
-                'ffmpeg', '-v', 'quiet',
-                '-ss', str(start),
-                '-t', str(duration),
+                'ffmpeg', '-v', 'info',
                 '-i', audio_path,
-                '-af', 'loudnorm=print_format=json',
+                '-af', 'ebur128=framelog=verbose:peak=sample',
                 '-f', 'null', '-'
             ]
 
+            # Calculate timeout based on duration - ~1 minute per hour of audio
+            timeout = max(300, int(total_duration / 60) * 60 + 120)
+            logger.debug(f"Running ebur128 analysis with {timeout}s timeout")
+
             result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=30
+                cmd, capture_output=True, text=True, timeout=timeout
             )
 
-            # Parse JSON from stderr (loudnorm outputs there)
-            stderr = result.stderr
-            json_start = stderr.rfind('{')
-            json_end = stderr.rfind('}') + 1
+            # Parse ebur128 output from stderr
+            # Lines look like: [Parsed_ebur128_0 @ 0x...] t: 5.0    M: -23.5 S: -22.1 ...
+            raw_measurements = self._parse_ebur128_output(result.stderr)
 
-            if json_start >= 0 and json_end > json_start:
-                data = json.loads(stderr[json_start:json_end])
-                loudness = float(data.get('input_i', -24))
-                peak = float(data.get('input_tp', -1))
-                return loudness, peak
+            if not raw_measurements:
+                logger.warning("No ebur128 measurements found in output")
+                return []
+
+            logger.debug(f"Parsed {len(raw_measurements)} raw measurements")
+
+            # Group measurements into frames
+            frames = self._group_into_frames(raw_measurements, total_duration)
+
+            return frames
 
         except subprocess.TimeoutExpired:
-            logger.warning(f"Loudness measurement timeout at {start:.1f}s")
-        except json.JSONDecodeError:
-            pass
+            logger.error(f"ebur128 analysis timeout after {timeout}s")
+            return []
         except Exception as e:
-            logger.debug(f"Loudness measurement failed at {start:.1f}s: {e}")
+            logger.error(f"Single-pass loudness measurement failed: {e}")
+            return []
 
-        # Return default values on failure
-        return -24.0, -1.0
+    def _parse_ebur128_output(self, stderr: str) -> List[Tuple[float, float, float]]:
+        """
+        Parse ebur128 verbose output to extract measurements.
+
+        Returns list of (timestamp, momentary_lufs, sample_peak) tuples.
+        """
+        measurements = []
+
+        # Pattern for ebur128 output lines
+        # Example: [Parsed_ebur128_0 @ 0x...] t: 5.0    M: -23.5 S: -22.1 I: -24.0 ...
+        pattern = re.compile(
+            r'\[Parsed_ebur128_0.*?\]\s+t:\s*([\d.]+)\s+'
+            r'M:\s*([-\d.]+)\s+'  # Momentary loudness
+            r'S:\s*([-\d.]+)',    # Short-term loudness
+            re.IGNORECASE
+        )
+
+        # Also try to capture peak if available
+        peak_pattern = re.compile(
+            r'\[Parsed_ebur128_0.*?\]\s+.*?SPK:\s*([-\d.]+)',
+            re.IGNORECASE
+        )
+
+        for line in stderr.split('\n'):
+            match = pattern.search(line)
+            if match:
+                try:
+                    timestamp = float(match.group(1))
+                    momentary = float(match.group(2))
+                    # Use momentary loudness (M) as it's most responsive to changes
+                    peak = -1.0  # Default peak
+
+                    # Try to get peak from same line
+                    peak_match = peak_pattern.search(line)
+                    if peak_match:
+                        peak = float(peak_match.group(1))
+
+                    measurements.append((timestamp, momentary, peak))
+                except (ValueError, IndexError):
+                    continue
+
+        return measurements
+
+    def _group_into_frames(
+        self,
+        measurements: List[Tuple[float, float, float]],
+        total_duration: float
+    ) -> List[LoudnessFrame]:
+        """
+        Group raw measurements into frames of frame_duration seconds.
+
+        Takes average loudness within each frame window.
+        """
+        if not measurements:
+            return []
+
+        frames = []
+        frame_start = 0.0
+
+        while frame_start < total_duration:
+            frame_end = min(frame_start + self.frame_duration, total_duration)
+
+            # Get measurements within this frame
+            frame_measurements = [
+                (m[1], m[2]) for m in measurements
+                if frame_start <= m[0] < frame_end
+            ]
+
+            if frame_measurements:
+                # Average loudness for the frame
+                avg_loudness = sum(m[0] for m in frame_measurements) / len(frame_measurements)
+                max_peak = max(m[1] for m in frame_measurements)
+
+                frames.append(LoudnessFrame(
+                    start=frame_start,
+                    end=frame_end,
+                    loudness_lufs=avg_loudness,
+                    peak_dbfs=max_peak
+                ))
+
+            frame_start = frame_end
+
+        return frames
 
     def _find_anomalies(
         self,

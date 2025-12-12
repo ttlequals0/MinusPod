@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.93] - 2025-12-12
+
+### Fixed
+- Volume analysis timeout on long episodes
+  - Previous implementation ran ~2000 separate ffmpeg processes for a 2h45m episode
+  - Now uses single-pass ebur128 filter analysis
+  - 165-minute episode analyzed in ~2-3 minutes instead of timing out after 10 minutes
+  - Dynamic timeout based on audio duration
+
+---
+
+## [0.1.92] - 2025-12-12
+
+### Fixed
+- Audio analysis setting not responding to UI toggle
+  - `AudioAnalyzer.is_enabled()` was returning cached startup value
+  - Now reads from database for live setting updates
+  - Toggling audio analysis in Settings now takes effect immediately
+
+---
+
+## [0.1.91] - 2025-12-12
+
+### Added
+- Audio Analysis settings toggle in UI
+  - New Settings page section for enabling/disabling audio analysis
+  - API endpoint support for `audioAnalysisEnabled` setting
+  - Analyzes volume changes, music detection, and speaker patterns
+  - Experimental feature disabled by default
+
+---
+
 ## [0.1.90] - 2025-12-12
 
 ### Fixed

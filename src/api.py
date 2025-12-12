@@ -710,6 +710,10 @@ def get_settings():
     default_whisper_model = os.environ.get('WHISPER_MODEL', 'small')
     whisper_model = settings.get('whisper_model', {}).get('value', default_whisper_model)
 
+    # Get audio analysis setting (defaults to false)
+    audio_analysis_value = settings.get('audio_analysis_enabled', {}).get('value', 'false')
+    audio_analysis_enabled = audio_analysis_value.lower() in ('true', '1', 'yes')
+
     return json_response({
         'systemPrompt': {
             'value': settings.get('system_prompt', {}).get('value', DEFAULT_SYSTEM_PROMPT),
@@ -735,6 +739,10 @@ def get_settings():
             'value': whisper_model,
             'isDefault': settings.get('whisper_model', {}).get('is_default', True)
         },
+        'audioAnalysisEnabled': {
+            'value': audio_analysis_enabled,
+            'isDefault': settings.get('audio_analysis_enabled', {}).get('is_default', True)
+        },
         'retentionPeriodMinutes': int(os.environ.get('RETENTION_PERIOD') or settings.get('retention_period_minutes', {}).get('value', '1440')),
         'defaults': {
             'systemPrompt': DEFAULT_SYSTEM_PROMPT,
@@ -742,7 +750,8 @@ def get_settings():
             'claudeModel': DEFAULT_MODEL,
             'secondPassModel': DEFAULT_MODEL,
             'multiPassEnabled': False,
-            'whisperModel': default_whisper_model
+            'whisperModel': default_whisper_model,
+            'audioAnalysisEnabled': False
         }
     })
 
@@ -789,6 +798,11 @@ def update_ad_detection_settings():
         except Exception as e:
             logger.warning(f"Could not mark model for reload: {e}")
 
+    if 'audioAnalysisEnabled' in data:
+        value = 'true' if data['audioAnalysisEnabled'] else 'false'
+        db.set_setting('audio_analysis_enabled', value, is_default=False)
+        logger.info(f"Updated audio analysis to: {value}")
+
     return json_response({'message': 'Settings updated'})
 
 
@@ -804,6 +818,7 @@ def reset_ad_detection_settings():
     db.reset_setting('second_pass_model')
     db.reset_setting('multi_pass_enabled')
     db.reset_setting('whisper_model')
+    db.reset_setting('audio_analysis_enabled')
 
     # Mark whisper model for reload
     try:
