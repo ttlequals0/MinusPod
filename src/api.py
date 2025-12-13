@@ -88,7 +88,8 @@ def list_feeds():
             'episodeCount': podcast.get('episode_count', 0),
             'processedCount': podcast.get('processed_count', 0),
             'lastRefreshed': podcast.get('last_checked_at'),
-            'createdAt': podcast.get('created_at')
+            'createdAt': podcast.get('created_at'),
+            'lastEpisodeDate': podcast.get('last_episode_date')
         })
 
     return json_response({'feeds': feeds})

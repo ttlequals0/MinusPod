@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.95] - 2025-12-13
+
+### Fixed
+- Dashboard sorting by recent episodes not working
+  - `lastEpisodeDate` field was missing from `/api/v1/feeds` response
+  - Database correctly calculated the value but API didn't return it
+- Orphan podcast directories not cleaned up after deletion
+  - Directories could be recreated if accessed after database deletion
+  - Added automatic cleanup in background task to remove orphan directories
+- Speaker diarization failing with huggingface_hub deprecation
+  - Changed `use_auth_token` parameter to `token` in pyannote pipeline
+
+---
+
 ## [0.1.94] - 2025-12-12
 
 ### Fixed

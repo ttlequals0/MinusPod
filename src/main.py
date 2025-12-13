@@ -211,6 +211,20 @@ def run_cleanup():
     except Exception as e:
         refresh_logger.error(f"Cleanup failed: {e}")
 
+    # Clean orphan podcast directories (podcasts deleted from DB but directories remain)
+    try:
+        valid_slugs = {p['slug'] for p in db.get_all_podcasts()}
+        podcast_base = os.path.join(storage.data_dir, 'podcasts')
+        if os.path.exists(podcast_base):
+            for slug in os.listdir(podcast_base):
+                if slug not in valid_slugs:
+                    orphan_path = os.path.join(podcast_base, slug)
+                    if os.path.isdir(orphan_path):
+                        refresh_logger.warning(f"Removing orphan podcast directory: {slug}")
+                        shutil.rmtree(orphan_path, ignore_errors=True)
+    except Exception as e:
+        refresh_logger.error(f"Orphan cleanup failed: {e}")
+
 
 def background_rss_refresh():
     """Background task to refresh RSS feeds every 15 minutes."""
