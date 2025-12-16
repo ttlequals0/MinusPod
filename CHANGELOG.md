@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.99] - 2025-12-16
+
+### Fixed
+- Cache permission denied error in speaker diarization
+  - Container was missing HOME environment variable
+  - Libraries trying to write to $HOME/.cache failed with "Permission denied: /.cache"
+  - Set HOME=/app in Dockerfile to provide writable cache location
+
+---
+
 ## [0.1.98] - 2025-12-16
 
 ### Added

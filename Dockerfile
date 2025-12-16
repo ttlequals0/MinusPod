@@ -47,7 +47,9 @@ RUN pip install --no-cache-dir -r requirements.txt \
     && find /usr/local -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true
 
 # Set cache directories to /app/data/.cache (works with volume mounts and non-root users)
-ENV WHISPER_MODEL=small \
+# HOME must be set for libraries that check $HOME/.cache directly
+ENV HOME=/app \
+    WHISPER_MODEL=small \
     HF_HOME=/app/data/.cache \
     HUGGINGFACE_HUB_CACHE=/app/data/.cache/hub \
     XDG_CACHE_HOME=/app/data/.cache \
