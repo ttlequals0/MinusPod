@@ -123,8 +123,9 @@ class VolumeAnalyzer:
         try:
             # Run ebur128 with verbose framelog to get per-frame measurements
             # Output format: [Parsed_ebur128_0 @ ...] t: 0.3     M: -23.5 S: -22.1 ...
+            # Note: -v verbose is needed for filter output to appear in stderr
             cmd = [
-                'ffmpeg', '-v', 'info',
+                'ffmpeg', '-v', 'verbose',
                 '-i', audio_path,
                 '-af', 'ebur128=framelog=verbose:peak=sample',
                 '-f', 'null', '-'

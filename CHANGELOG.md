@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.102] - 2025-12-16
+
+### Fixed
+- Volume analysis (ebur128) not producing measurements
+  - Changed ffmpeg verbosity from `-v info` to `-v verbose`
+  - ebur128 filter needs verbose level to output frame-by-frame data
+- Speaker diarization failing with cuDNN version mismatch
+  - pyannote LSTMs triggered cuDNN RNN code path incompatible with our cuDNN 8
+  - Disable cuDNN temporarily when moving pipeline to GPU
+  - Still uses GPU acceleration, just PyTorch native RNN instead of cuDNN
+
+---
+
 ## [0.1.101] - 2025-12-16
 
 ### Improved
