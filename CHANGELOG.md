@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.98] - 2025-12-16
+
+### Added
+- Documentation for pyannote model license requirement in docker-compose.yml
+  - Users must accept license at https://hf.co/pyannote/speaker-diarization-3.1
+  - Token alone is not sufficient; explicit license acceptance required
+
+### Improved
+- Better error messages for speaker diarization failures
+  - Now explicitly mentions license acceptance when pipeline returns None
+  - Logs masked HF token status for debugging deployment issues
+- Added debug logging for ebur128 volume analysis failures
+  - Logs ffmpeg stderr sample when no measurements found
+
+---
+
 ## [0.1.97] - 2025-12-16
 
 ### Fixed

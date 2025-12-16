@@ -144,6 +144,10 @@ class VolumeAnalyzer:
 
             if not raw_measurements:
                 logger.warning("No ebur128 measurements found in output")
+                # Log sample of stderr for debugging
+                stderr_lines = result.stderr.split('\n')
+                stderr_sample = stderr_lines[:20] if len(stderr_lines) > 20 else stderr_lines
+                logger.debug(f"ffmpeg stderr sample ({len(stderr_lines)} lines): {stderr_sample}")
                 return []
 
             logger.debug(f"Parsed {len(raw_measurements)} raw measurements")

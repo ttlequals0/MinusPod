@@ -72,6 +72,13 @@ class SpeakerAnalyzer:
         self.context_window = context_window
         self._pipeline = None
 
+        # Log token status for debugging (masked)
+        if self.hf_token:
+            masked = self.hf_token[:7] + '...' if len(self.hf_token) > 7 else '***'
+            logger.debug(f"HF token configured: {masked}")
+        else:
+            logger.debug("HF token not configured")
+
     def is_available(self) -> bool:
         """Check if this analyzer is available."""
         if not PYANNOTE_AVAILABLE:
@@ -121,6 +128,16 @@ class SpeakerAnalyzer:
                     "pyannote/speaker-diarization-3.1",
                     use_auth_token=self.hf_token
                 )
+
+                if self._pipeline is None:
+                    # Pipeline returned None - usually means license not accepted
+                    logger.error(
+                        "Pipeline.from_pretrained returned None. "
+                        "This usually means the model license has not been accepted. "
+                        "Visit https://hf.co/pyannote/speaker-diarization-3.1 "
+                        "and accept the license while logged into your HuggingFace account."
+                    )
+                    raise RuntimeError("Failed to load pipeline - check model license acceptance")
 
                 if torch.cuda.is_available():
                     self._pipeline.to(torch.device("cuda"))

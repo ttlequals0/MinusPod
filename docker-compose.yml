@@ -19,6 +19,9 @@ services:
       - RETENTION_PERIOD=${RETENTION_PERIOD:-1440}
       # Optional: HuggingFace token for pyannote speaker diarization
       # Required only if speaker analysis is enabled in audio analysis settings
+      # IMPORTANT: You must also accept the model license at:
+      # https://hf.co/pyannote/speaker-diarization-3.1
+      # (log in with the HuggingFace account that owns the token)
       - HF_TOKEN=${HF_TOKEN:-}
     deploy:
       resources:
