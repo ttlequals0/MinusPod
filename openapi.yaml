@@ -484,6 +484,9 @@ paths:
                 multiPassEnabled:
                   type: boolean
                   description: Enable dual-pass ad detection for improved accuracy
+                audioAnalysisEnabled:
+                  type: boolean
+                  description: Enable audio analysis (volume, music, speaker) for improved ad detection
                 whisperModel:
                   type: string
                   description: Whisper model for transcription (tiny, base, small, medium, large-v3)
@@ -847,6 +850,14 @@ components:
               description: Whether dual-pass ad detection is enabled
             isDefault:
               type: boolean
+        audioAnalysisEnabled:
+          type: object
+          properties:
+            value:
+              type: boolean
+              description: Whether audio analysis is enabled for ad detection
+            isDefault:
+              type: boolean
         whisperModel:
           type: object
           properties:
@@ -869,6 +880,8 @@ components:
             secondPassModel:
               type: string
             multiPassEnabled:
+              type: boolean
+            audioAnalysisEnabled:
               type: boolean
             whisperModel:
               type: string

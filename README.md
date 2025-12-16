@@ -69,6 +69,21 @@ Ads are classified as:
 
 Rejected ads appear in a separate "Rejected Detections" section in the UI, allowing you to verify the validator's decisions.
 
+### Audio Analysis (Optional)
+
+Enable audio analysis in Settings for improved ad detection accuracy:
+
+- **Volume Analysis** - Detects loudness changes that indicate ad transitions (ads are often mastered louder)
+- **Music Bed Detection** - Identifies music under speech (common in produced ads)
+- **Speaker Diarization** - Finds monologue sections in conversational podcasts (host reading ads)
+
+These signals are provided to Claude as additional context during ad detection.
+
+**Requirements for Speaker Analysis:**
+- HuggingFace token (HF_TOKEN env var)
+- Accept license at https://hf.co/pyannote/speaker-diarization-3.1
+- GPU recommended (uses pyannote speaker diarization)
+
 ## Requirements
 
 - Docker with NVIDIA GPU support (for Whisper)
