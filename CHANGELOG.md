@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.104] - 2025-12-16
+
+### Fixed
+- Volume analysis (ebur128) regex not matching ffmpeg output format
+  - ffmpeg outputs `TARGET:-23 LUFS` between `t:` and `M:` fields
+  - Updated regex to allow flexible content between timestamp and loudness values
+
+### Improved
+- Reduced log spam from harmless warnings
+  - Suppressed torchaudio MPEG_LAYER_III warnings (MP3 metadata, repeated per chunk)
+  - Suppressed pyannote TF32 reproducibility warning
+  - Suppressed pyannote std() degrees of freedom warning
+  - Set ORT_LOG_LEVEL=3 to suppress onnxruntime GPU discovery warnings
+
+---
+
 ## [0.1.103] - 2025-12-16
 
 ### Fixed

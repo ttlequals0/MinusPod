@@ -187,9 +187,11 @@ class VolumeAnalyzer:
         measurements = []
 
         # Pattern for ebur128 output lines
-        # Example: [Parsed_ebur128_0 @ 0x...] t: 5.0    M: -23.5 S: -22.1 I: -24.0 ...
+        # Example: [Parsed_ebur128_0 @ 0x...] t: 0.1  TARGET:-23 LUFS    M: -23.5 S: -22.1 ...
+        # Note: TARGET field appears between t: and M: in verbose output
         pattern = re.compile(
             r'\[Parsed_ebur128_0.*?\]\s+t:\s*([\d.]+)\s+'
+            r'.*?'                # Allow TARGET and other fields between t: and M:
             r'M:\s*([-\d.]+)\s+'  # Momentary loudness
             r'S:\s*([-\d.]+)',    # Short-term loudness
             re.IGNORECASE

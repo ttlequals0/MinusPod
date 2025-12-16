@@ -10,6 +10,7 @@ import logging
 import os
 import re
 import traceback
+import warnings
 from typing import List, Dict, Optional, Tuple
 from collections import defaultdict
 
@@ -18,6 +19,12 @@ from .base import (
 )
 
 logger = logging.getLogger('podcast.audio_analysis.speaker')
+
+# Suppress harmless warnings from torchaudio and pyannote before importing
+# These warnings don't affect functionality but spam the logs
+warnings.filterwarnings('ignore', message='.*MPEG_LAYER_III.*')
+warnings.filterwarnings('ignore', message='.*TensorFloat-32.*')
+warnings.filterwarnings('ignore', message='.*degrees of freedom.*')
 
 # Check if pyannote is available
 try:
