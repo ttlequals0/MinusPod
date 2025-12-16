@@ -144,13 +144,23 @@ class VolumeAnalyzer:
 
             if not raw_measurements:
                 logger.warning("No ebur128 measurements found in output")
-                # Log ffmpeg return code and stderr sample at WARNING level for debugging
+                # Log ffmpeg return code and lines containing ebur128 data patterns
                 stderr_lines = result.stderr.split('\n')
-                stderr_sample = '\n'.join(stderr_lines[:10])
-                logger.warning(
-                    f"ffmpeg ebur128 failed - returncode={result.returncode}, "
-                    f"stderr ({len(stderr_lines)} lines):\n{stderr_sample}"
-                )
+                # Find lines that look like ebur128 output (contain "t:" and "M:")
+                ebur_lines = [l for l in stderr_lines if 't:' in l and 'M:' in l]
+                if ebur_lines:
+                    sample = '\n'.join(ebur_lines[:5])
+                    logger.warning(
+                        f"ffmpeg ebur128 - returncode={result.returncode}, "
+                        f"found {len(ebur_lines)} data lines but regex didn't match:\n{sample}"
+                    )
+                else:
+                    # No ebur128 lines found at all - show more stderr
+                    sample = '\n'.join(stderr_lines[:20])
+                    logger.warning(
+                        f"ffmpeg ebur128 - returncode={result.returncode}, "
+                        f"no ebur128 data lines found in {len(stderr_lines)} lines:\n{sample}"
+                    )
                 return []
 
             logger.debug(f"Parsed {len(raw_measurements)} raw measurements")

@@ -9,6 +9,7 @@ while others are silent.
 import logging
 import os
 import re
+import traceback
 from typing import List, Dict, Optional, Tuple
 from collections import defaultdict
 
@@ -147,6 +148,7 @@ class SpeakerAnalyzer:
 
             except Exception as e:
                 logger.error(f"Failed to load diarization pipeline: {e}")
+                logger.error(f"Full traceback:\n{traceback.format_exc()}")
                 raise
 
     def _analyze_speakers(

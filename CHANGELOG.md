@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.101] - 2025-12-16
+
+### Improved
+- Better debugging for ebur128 volume analysis failures
+  - Now logs lines containing ebur128 data patterns instead of just first 10 lines
+  - Will show if ffmpeg output format differs from expected regex pattern
+- Full traceback logging for speaker diarization failures
+  - Helps diagnose pyannote internal errors like 'NoneType' has no attribute 'eval'
+
+---
+
 ## [0.1.100] - 2025-12-16
 
 ### Fixed
