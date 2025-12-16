@@ -5,17 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.96] - 2025-12-16
+## [0.1.97] - 2025-12-16
 
 ### Fixed
 - Speaker diarization failing due to huggingface_hub/pyannote version mismatch
-  - pyannote 3.x passes `use_auth_token` to huggingface_hub internally
-  - Newer huggingface_hub deprecated `use_auth_token` in favor of `token`
-  - Fix: Use `huggingface_hub.login()` before loading pipeline instead of passing token parameter
+  - pyannote 3.x uses `use_auth_token` internally when calling huggingface_hub
+  - huggingface_hub v1.0+ removed support for `use_auth_token` parameter
+  - Fix: Pin `huggingface_hub>=0.20.0,<1.0` to maintain compatibility
   - Speaker analysis has never worked since v0.1.85; this is the actual fix
+
+---
+
+## [0.1.96] - 2025-12-16
+
+### Fixed
 - RSS feed fetch failing for servers with malformed gzip responses
   - Some servers claim gzip encoding but send corrupted data
   - Added fallback: retry without compression when gzip decompression fails
+- Speaker diarization fix attempt (incomplete - see v0.1.97)
 
 ---
 
