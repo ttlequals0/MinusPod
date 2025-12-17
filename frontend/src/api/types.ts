@@ -136,3 +136,22 @@ export interface SystemStatus {
     totalTimeSaved: number;
   };
 }
+
+export interface Sponsor {
+  id: number;
+  name: string;
+  aliases: string[];
+  category: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface SponsorNormalization {
+  id: number;
+  pattern: string;
+  replacement: string;
+  is_regex: boolean;
+  priority: number;
+  is_active: boolean;
+  created_at: string;
+}

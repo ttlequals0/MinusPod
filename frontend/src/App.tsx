@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext';
 import Layout from './components/Layout';
+import GlobalStatusBar from './components/GlobalStatusBar';
 import Dashboard from './pages/Dashboard';
 import FeedDetail from './pages/FeedDetail';
 import EpisodeDetail from './pages/EpisodeDetail';
@@ -11,6 +12,7 @@ function App() {
   return (
     <ThemeProvider>
       <BrowserRouter basename="/ui">
+        <GlobalStatusBar />
         <Routes>
           <Route path="/" element={<Layout />}>
             <Route index element={<Dashboard />} />

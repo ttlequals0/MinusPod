@@ -5,6 +5,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.105] - 2025-12-17
+
+### Added
+- Cross-episode ad training system for improved ad detection accuracy
+  - Audio fingerprinting using Chromaprint to detect identical DAI-inserted ads across episodes
+  - Text pattern matching using TF-IDF vectorization and RapidFuzz for repeated sponsor reads
+  - Three-stage detection pipeline: fingerprint match -> text pattern match -> Claude fallback
+  - Pattern hierarchy system: Global -> Network -> Podcast scoping
+  - Auto-promotion of patterns when confirmed across multiple episodes
+- Sponsor management service with 100+ seed sponsors
+  - Automatic text normalization (URLs, email addresses, phone numbers)
+  - 5-minute cache for sponsor lookups
+  - API endpoints for sponsor CRUD operations
+- Real-time processing status via Server-Sent Events (SSE)
+  - Global status bar component showing current processing activity
+  - Live updates for feed refresh and episode processing
+- Transcript editor UI with keyboard navigation
+  - Segment boundary adjustment with J/K/L keys
+  - Pattern correction submission (confirm, false positive, boundary adjustment)
+  - Visual highlighting of ad segments
+- Pattern correction workflow
+  - Submit corrections to refine pattern boundaries
+  - Track correction history per pattern
+  - Auto-promote patterns after threshold confirmations
+- Data retention and cleanup service
+  - Configurable retention periods for episodes and patterns
+  - Automatic cleanup of stale patterns with low confidence
+  - Manual cleanup triggers via API
+- Import/export functionality for patterns and sponsors
+  - Export patterns to JSON for backup or sharing
+  - Import patterns from other instances
+
+### Changed
+- Ad detector now uses 3-stage detection pipeline
+  - Stage 1: Audio fingerprint matching (instant, no API cost)
+  - Stage 2: Text pattern matching (fast, no API cost)
+  - Stage 3: Claude API fallback (only for unknown ads)
+- Updated Dockerfile with libchromaprint-tools for audio fingerprinting
+- Added pyacoustid, rapidfuzz, scikit-learn to requirements.txt
+
+### Technical
+- New database tables: ad_patterns, audio_fingerprints, text_patterns, pattern_corrections, sponsors, sponsor_normalizations
+- New services: sponsor_service.py, status_service.py, audio_fingerprinter.py, text_pattern_matcher.py, pattern_service.py, cleanup_service.py
+- New frontend components: GlobalStatusBar.tsx, TranscriptEditor.tsx
+- New API endpoints for patterns, corrections, sponsors, import/export, SSE status
+
+---
+
 ## [0.1.104] - 2025-12-16
 
 ### Fixed

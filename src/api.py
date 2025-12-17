@@ -3,6 +3,7 @@ import logging
 import os
 import time
 from datetime import datetime
+from typing import Optional
 from flask import Blueprint, jsonify, request, send_file, Response
 from functools import wraps
 
@@ -960,3 +961,667 @@ def _get_version():
         return __version__
     except ImportError:
         return 'unknown'
+
+
+def get_sponsor_service():
+    """Get sponsor service instance."""
+    from sponsor_service import SponsorService
+    return SponsorService(get_database())
+
+
+# ========== Sponsor Endpoints ==========
+
+@api.route('/sponsors', methods=['GET'])
+@log_request
+def list_sponsors():
+    """List all known sponsors."""
+    service = get_sponsor_service()
+    include_inactive = request.args.get('include_inactive', 'false').lower() == 'true'
+
+    sponsors = service.db.get_known_sponsors(active_only=not include_inactive)
+
+    # Parse JSON fields
+    import json
+    result = []
+    for s in sponsors:
+        sponsor_data = dict(s)
+        # Parse aliases from JSON string
+        if isinstance(sponsor_data.get('aliases'), str):
+            try:
+                sponsor_data['aliases'] = json.loads(sponsor_data['aliases'])
+            except json.JSONDecodeError:
+                sponsor_data['aliases'] = []
+        # Parse common_ctas from JSON string
+        if isinstance(sponsor_data.get('common_ctas'), str):
+            try:
+                sponsor_data['common_ctas'] = json.loads(sponsor_data['common_ctas'])
+            except json.JSONDecodeError:
+                sponsor_data['common_ctas'] = []
+        result.append(sponsor_data)
+
+    return json_response({'sponsors': result})
+
+
+@api.route('/sponsors', methods=['POST'])
+@log_request
+def add_sponsor():
+    """Add a new sponsor."""
+    data = request.get_json()
+    if not data or not data.get('name'):
+        return error_response('Name is required', 400)
+
+    service = get_sponsor_service()
+
+    # Check if sponsor already exists
+    existing = service.db.get_known_sponsor_by_name(data['name'])
+    if existing:
+        return error_response(f"Sponsor '{data['name']}' already exists", 409)
+
+    sponsor_id = service.add_sponsor(
+        name=data['name'],
+        aliases=data.get('aliases', []),
+        category=data.get('category')
+    )
+
+    return json_response({
+        'message': 'Sponsor created',
+        'id': sponsor_id
+    }, 201)
+
+
+@api.route('/sponsors/<int:sponsor_id>', methods=['GET'])
+@log_request
+def get_sponsor(sponsor_id):
+    """Get a single sponsor by ID."""
+    db = get_database()
+    sponsor = db.get_known_sponsor_by_id(sponsor_id)
+
+    if not sponsor:
+        return error_response('Sponsor not found', 404)
+
+    import json
+    sponsor_data = dict(sponsor)
+    if isinstance(sponsor_data.get('aliases'), str):
+        try:
+            sponsor_data['aliases'] = json.loads(sponsor_data['aliases'])
+        except json.JSONDecodeError:
+            sponsor_data['aliases'] = []
+    if isinstance(sponsor_data.get('common_ctas'), str):
+        try:
+            sponsor_data['common_ctas'] = json.loads(sponsor_data['common_ctas'])
+        except json.JSONDecodeError:
+            sponsor_data['common_ctas'] = []
+
+    return json_response(sponsor_data)
+
+
+@api.route('/sponsors/<int:sponsor_id>', methods=['PUT'])
+@log_request
+def update_sponsor(sponsor_id):
+    """Update a sponsor."""
+    data = request.get_json()
+    if not data:
+        return error_response('No data provided', 400)
+
+    service = get_sponsor_service()
+
+    # Check sponsor exists
+    existing = service.db.get_known_sponsor_by_id(sponsor_id)
+    if not existing:
+        return error_response('Sponsor not found', 404)
+
+    success = service.update_sponsor(sponsor_id, **data)
+
+    if success:
+        return json_response({'message': 'Sponsor updated'})
+    return error_response('No valid fields to update', 400)
+
+
+@api.route('/sponsors/<int:sponsor_id>', methods=['DELETE'])
+@log_request
+def delete_sponsor(sponsor_id):
+    """Delete (deactivate) a sponsor."""
+    service = get_sponsor_service()
+
+    success = service.delete_sponsor(sponsor_id)
+
+    if success:
+        return json_response({'message': 'Sponsor deleted'})
+    return error_response('Sponsor not found', 404)
+
+
+# ========== Normalization Endpoints ==========
+
+@api.route('/sponsors/normalizations', methods=['GET'])
+@log_request
+def list_normalizations():
+    """List all sponsor normalizations."""
+    service = get_sponsor_service()
+    category = request.args.get('category')
+    include_inactive = request.args.get('include_inactive', 'false').lower() == 'true'
+
+    normalizations = service.db.get_sponsor_normalizations(
+        category=category,
+        active_only=not include_inactive
+    )
+
+    return json_response({'normalizations': normalizations})
+
+
+@api.route('/sponsors/normalizations', methods=['POST'])
+@log_request
+def add_normalization():
+    """Add a new normalization."""
+    data = request.get_json()
+    if not data:
+        return error_response('No data provided', 400)
+
+    required = ['pattern', 'replacement', 'category']
+    missing = [f for f in required if not data.get(f)]
+    if missing:
+        return error_response(f"Missing required fields: {', '.join(missing)}", 400)
+
+    if data['category'] not in ('sponsor', 'url', 'number', 'phrase'):
+        return error_response("Category must be one of: sponsor, url, number, phrase", 400)
+
+    # Validate regex pattern
+    import re
+    try:
+        re.compile(data['pattern'])
+    except re.error as e:
+        return error_response(f"Invalid regex pattern: {e}", 400)
+
+    service = get_sponsor_service()
+
+    norm_id = service.add_normalization(
+        pattern=data['pattern'],
+        replacement=data['replacement'],
+        category=data['category']
+    )
+
+    return json_response({
+        'message': 'Normalization created',
+        'id': norm_id
+    }, 201)
+
+
+@api.route('/sponsors/normalizations/<int:norm_id>', methods=['PUT'])
+@log_request
+def update_normalization(norm_id):
+    """Update a normalization."""
+    data = request.get_json()
+    if not data:
+        return error_response('No data provided', 400)
+
+    # Validate regex pattern if provided
+    if 'pattern' in data:
+        import re
+        try:
+            re.compile(data['pattern'])
+        except re.error as e:
+            return error_response(f"Invalid regex pattern: {e}", 400)
+
+    if 'category' in data and data['category'] not in ('sponsor', 'url', 'number', 'phrase'):
+        return error_response("Category must be one of: sponsor, url, number, phrase", 400)
+
+    service = get_sponsor_service()
+    success = service.update_normalization(norm_id, **data)
+
+    if success:
+        return json_response({'message': 'Normalization updated'})
+    return error_response('Normalization not found or no valid fields', 404)
+
+
+@api.route('/sponsors/normalizations/<int:norm_id>', methods=['DELETE'])
+@log_request
+def delete_normalization(norm_id):
+    """Delete (deactivate) a normalization."""
+    service = get_sponsor_service()
+
+    success = service.delete_normalization(norm_id)
+
+    if success:
+        return json_response({'message': 'Normalization deleted'})
+    return error_response('Normalization not found', 404)
+
+
+# ========== Status Stream Endpoint (SSE) ==========
+
+def get_status_service():
+    """Get status service instance."""
+    from status_service import StatusService
+    return StatusService()
+
+
+@api.route('/status/stream', methods=['GET'])
+def status_stream():
+    """
+    Server-Sent Events stream for real-time processing status updates.
+
+    Returns a continuous event stream with status updates whenever
+    processing state changes.
+    """
+    import json
+    import queue
+
+    def generate():
+        status_service = get_status_service()
+        update_queue = queue.Queue()
+
+        # Subscribe to status updates
+        def on_update(status):
+            try:
+                update_queue.put_nowait(status_service.to_dict())
+            except queue.Full:
+                pass  # Drop update if queue is full
+
+        unsubscribe = status_service.subscribe(on_update)
+
+        try:
+            # Send initial status immediately
+            yield f"data: {json.dumps(status_service.to_dict())}\n\n"
+
+            # Stream updates as they occur
+            while True:
+                try:
+                    # Wait for update with timeout (for keepalive)
+                    status = update_queue.get(timeout=15)
+                    yield f"data: {json.dumps(status)}\n\n"
+                except queue.Empty:
+                    # Send keepalive comment
+                    yield ": keepalive\n\n"
+        finally:
+            unsubscribe()
+
+    return Response(
+        generate(),
+        mimetype='text/event-stream',
+        headers={
+            'Cache-Control': 'no-cache',
+            'Connection': 'keep-alive',
+            'X-Accel-Buffering': 'no'  # Disable nginx buffering
+        }
+    )
+
+
+@api.route('/status', methods=['GET'])
+@log_request
+def get_status():
+    """Get current processing status (one-time fetch, not streaming)."""
+    status_service = get_status_service()
+    return json_response(status_service.to_dict())
+
+
+# ========== Pattern & Correction Endpoints ==========
+
+@api.route('/patterns', methods=['GET'])
+@log_request
+def list_patterns():
+    """List all ad patterns with optional filtering."""
+    scope = request.args.get('scope')
+    podcast_id = request.args.get('podcast_id')
+    network_id = request.args.get('network_id')
+    active_only = request.args.get('active', 'true').lower() == 'true'
+
+    patterns = db.get_ad_patterns(
+        scope=scope,
+        podcast_id=podcast_id,
+        network_id=network_id,
+        active_only=active_only
+    )
+
+    return json_response({'patterns': patterns})
+
+
+@api.route('/patterns/<int:pattern_id>', methods=['GET'])
+@log_request
+def get_pattern(pattern_id):
+    """Get a single pattern by ID."""
+    pattern = db.get_ad_pattern_by_id(pattern_id)
+
+    if not pattern:
+        return error_response('Pattern not found', 404)
+
+    return json_response(pattern)
+
+
+@api.route('/patterns/<int:pattern_id>', methods=['PUT'])
+@log_request
+def update_pattern(pattern_id):
+    """Update a pattern."""
+    data = request.get_json()
+    if not data:
+        return error_response('No data provided', 400)
+
+    pattern = db.get_ad_pattern_by_id(pattern_id)
+    if not pattern:
+        return error_response('Pattern not found', 404)
+
+    # Allowed fields
+    allowed = {'text_template', 'sponsor', 'intro_variants', 'outro_variants',
+               'is_active', 'disabled_reason', 'scope'}
+
+    updates = {k: v for k, v in data.items() if k in allowed}
+
+    if updates:
+        db.update_ad_pattern(pattern_id, **updates)
+        return json_response({'message': 'Pattern updated'})
+
+    return error_response('No valid fields provided', 400)
+
+
+@api.route('/episodes/<slug>/<episode_id>/corrections', methods=['POST'])
+@log_request
+def submit_correction(slug, episode_id):
+    """Submit a correction for a detected ad.
+
+    Correction types:
+    - confirm: Ad detection is correct (increases confirmation_count)
+    - reject: Not actually an ad (increases false_positive_count)
+    - adjust: Correct ad but with adjusted boundaries
+    """
+    data = request.get_json()
+    if not data:
+        return error_response('No data provided', 400)
+
+    correction_type = data.get('type')
+    if correction_type not in ('confirm', 'reject', 'adjust'):
+        return error_response('Invalid correction type', 400)
+
+    original_ad = data.get('original_ad', {})
+    original_start = original_ad.get('start')
+    original_end = original_ad.get('end')
+    pattern_id = original_ad.get('pattern_id')
+
+    if original_start is None or original_end is None:
+        return error_response('Missing original ad boundaries', 400)
+
+    # Get pattern service for recording corrections
+    from pattern_service import PatternService
+    pattern_service = PatternService(db)
+
+    if correction_type == 'confirm':
+        # Increment confirmation count on pattern
+        if pattern_id:
+            pattern_service.record_pattern_match(pattern_id, episode_id)
+
+        db.create_pattern_correction(
+            correction_type='confirm',
+            pattern_id=pattern_id,
+            episode_id=episode_id,
+            original_bounds={'start': original_start, 'end': original_end},
+            text_snippet=data.get('notes')
+        )
+
+        return json_response({'message': 'Correction recorded'})
+
+    elif correction_type == 'reject':
+        # Mark as false positive
+        if pattern_id:
+            pattern = db.get_ad_pattern_by_id(pattern_id)
+            if pattern:
+                new_count = pattern.get('false_positive_count', 0) + 1
+                db.update_ad_pattern(pattern_id, false_positive_count=new_count)
+
+        db.create_pattern_correction(
+            correction_type='false_positive',
+            pattern_id=pattern_id,
+            episode_id=episode_id,
+            original_bounds={'start': original_start, 'end': original_end},
+            text_snippet=data.get('notes')
+        )
+
+        return json_response({'message': 'False positive recorded'})
+
+    elif correction_type == 'adjust':
+        # Save adjusted boundaries
+        adjusted_start = data.get('adjusted_start')
+        adjusted_end = data.get('adjusted_end')
+
+        if adjusted_start is None or adjusted_end is None:
+            return error_response('Missing adjusted boundaries', 400)
+
+        # Record the correction
+        db.create_pattern_correction(
+            correction_type='boundary_adjustment',
+            pattern_id=pattern_id,
+            episode_id=episode_id,
+            original_bounds={'start': original_start, 'end': original_end},
+            corrected_bounds={'start': adjusted_start, 'end': adjusted_end},
+            text_snippet=data.get('notes')
+        )
+
+        # Update pattern intro/outro variants if significant boundary change
+        if pattern_id:
+            # Get transcript text around new boundaries to update variants
+            # This would be done by the caller who has access to transcript
+            pass
+
+        return json_response({'message': 'Adjustment recorded'})
+
+
+# ========== Episode Reprocessing Endpoint ==========
+
+@api.route('/episodes/<slug>/<episode_id>/reprocess', methods=['POST'])
+@log_request
+def reprocess_episode(slug, episode_id):
+    """Reprocess an episode with specified mode.
+
+    Modes:
+    - fresh: Skip pattern cache, Claude analyzes all segments
+    - full: Clear existing detections and do fresh analysis
+
+    Reprocessed episodes are added to the front of the queue.
+    """
+    data = request.get_json() or {}
+    mode = data.get('mode', 'fresh')
+
+    if mode not in ('fresh', 'full'):
+        return error_response('Invalid mode. Use "fresh" or "full"', 400)
+
+    # Get episode
+    episode = db.get_episode(slug, episode_id)
+    if not episode:
+        return error_response('Episode not found', 404)
+
+    # Get podcast info
+    podcast = db.get_podcast(slug)
+    if not podcast:
+        return error_response('Podcast not found', 404)
+
+    # If full mode, clear existing ad data
+    if mode == 'full':
+        try:
+            # Clear any cached ad detection results
+            from storage import Storage
+            storage = Storage()
+            storage.delete_ads_json(slug, episode_id)
+            logger.info(f"[{slug}:{episode_id}] Cleared existing ad data for full reprocess")
+        except Exception as e:
+            logger.warning(f"[{slug}:{episode_id}] Could not clear ad data: {e}")
+
+    # Reset episode status to pending for reprocessing
+    # Store reprocess_mode in the episode so processing can use it
+    db.upsert_episode(
+        slug, episode_id,
+        status='pending'
+    )
+
+    # Store reprocess mode in system_settings for this episode
+    # This will be picked up by the processing pipeline
+    db.set_setting(f'reprocess_{slug}_{episode_id}', mode)
+
+    logger.info(f"[{slug}:{episode_id}] Marked for {mode} reprocessing")
+
+    return json_response({
+        'message': f'Episode queued for {mode} reprocessing',
+        'mode': mode
+    })
+
+
+# ========== Import/Export Endpoints ==========
+
+@api.route('/patterns/export', methods=['GET'])
+@log_request
+def export_patterns():
+    """Export patterns as JSON for backup or sharing.
+
+    Query params:
+    - include_disabled: Include disabled patterns (default: false)
+    - include_corrections: Include correction history (default: false)
+    """
+    include_disabled = request.args.get('include_disabled', 'false').lower() == 'true'
+    include_corrections = request.args.get('include_corrections', 'false').lower() == 'true'
+
+    # Get patterns
+    patterns = db.get_ad_patterns(active_only=not include_disabled)
+
+    # Build export data
+    export_data = {
+        'version': '1.0',
+        'exported_at': datetime.utcnow().isoformat() + 'Z',
+        'pattern_count': len(patterns),
+        'patterns': []
+    }
+
+    for pattern in patterns:
+        pattern_data = {
+            'scope': pattern.get('scope'),
+            'text_template': pattern.get('text_template'),
+            'intro_variants': pattern.get('intro_variants'),
+            'outro_variants': pattern.get('outro_variants'),
+            'sponsor': pattern.get('sponsor'),
+            'confirmation_count': pattern.get('confirmation_count', 0),
+            'false_positive_count': pattern.get('false_positive_count', 0),
+            'is_active': pattern.get('is_active', True),
+            'created_at': pattern.get('created_at'),
+        }
+
+        # Include network/podcast IDs for scoped patterns
+        if pattern.get('network_id'):
+            pattern_data['network_id'] = pattern['network_id']
+        if pattern.get('podcast_id'):
+            pattern_data['podcast_id'] = pattern['podcast_id']
+        if pattern.get('dai_platform'):
+            pattern_data['dai_platform'] = pattern['dai_platform']
+
+        # Optionally include corrections
+        if include_corrections:
+            corrections = db.get_pattern_corrections(pattern_id=pattern['id'])
+            if corrections:
+                pattern_data['corrections'] = corrections
+
+        export_data['patterns'].append(pattern_data)
+
+    return json_response(export_data)
+
+
+@api.route('/patterns/import', methods=['POST'])
+@log_request
+def import_patterns():
+    """Import patterns from JSON.
+
+    Body:
+    - patterns: Array of pattern objects
+    - mode: "merge" (default), "replace", or "supplement"
+      - merge: Update existing patterns, add new ones
+      - replace: Delete all existing patterns, import all
+      - supplement: Only add patterns that don't exist
+    """
+    data = request.get_json()
+    if not data or 'patterns' not in data:
+        return error_response('No patterns provided', 400)
+
+    patterns = data.get('patterns', [])
+    mode = data.get('mode', 'merge')
+
+    if mode not in ('merge', 'replace', 'supplement'):
+        return error_response('Invalid mode. Use "merge", "replace", or "supplement"', 400)
+
+    if not patterns:
+        return error_response('Empty patterns array', 400)
+
+    imported_count = 0
+    updated_count = 0
+    skipped_count = 0
+
+    try:
+        # Replace mode: delete all existing patterns first
+        if mode == 'replace':
+            existing = db.get_ad_patterns(active_only=False)
+            for p in existing:
+                db.delete_ad_pattern(p['id'])
+            logger.info(f"Replace mode: deleted {len(existing)} existing patterns")
+
+        for pattern_data in patterns:
+            # Validate required fields
+            if not pattern_data.get('scope'):
+                skipped_count += 1
+                continue
+
+            # Check for existing similar pattern
+            existing = _find_similar_pattern(pattern_data)
+
+            if existing:
+                if mode == 'supplement':
+                    # Don't update existing patterns
+                    skipped_count += 1
+                    continue
+                elif mode in ('merge', 'replace'):
+                    # Update existing pattern
+                    updates = {
+                        'text_template': pattern_data.get('text_template'),
+                        'intro_variants': pattern_data.get('intro_variants'),
+                        'outro_variants': pattern_data.get('outro_variants'),
+                        'sponsor': pattern_data.get('sponsor'),
+                    }
+                    updates = {k: v for k, v in updates.items() if v is not None}
+                    if updates:
+                        db.update_ad_pattern(existing['id'], **updates)
+                        updated_count += 1
+                    else:
+                        skipped_count += 1
+                    continue
+
+            # Create new pattern
+            db.create_ad_pattern(
+                scope=pattern_data.get('scope'),
+                text_template=pattern_data.get('text_template'),
+                sponsor=pattern_data.get('sponsor'),
+                podcast_id=pattern_data.get('podcast_id'),
+                network_id=pattern_data.get('network_id'),
+                dai_platform=pattern_data.get('dai_platform'),
+                intro_variants=pattern_data.get('intro_variants'),
+                outro_variants=pattern_data.get('outro_variants')
+            )
+            imported_count += 1
+
+        logger.info(f"Import complete: {imported_count} imported, {updated_count} updated, {skipped_count} skipped")
+
+        return json_response({
+            'message': 'Import complete',
+            'imported': imported_count,
+            'updated': updated_count,
+            'skipped': skipped_count
+        })
+
+    except Exception as e:
+        logger.error(f"Import failed: {e}")
+        return error_response(f'Import failed: {str(e)}', 500)
+
+
+def _find_similar_pattern(pattern_data: dict) -> Optional[dict]:
+    """Find an existing pattern similar to the import data."""
+    # Look for exact sponsor match in same scope
+    sponsor = pattern_data.get('sponsor')
+    scope = pattern_data.get('scope')
+
+    if not sponsor:
+        return None
+
+    existing = db.get_ad_patterns(scope=scope, active_only=False)
+    for p in existing:
+        if p.get('sponsor') == sponsor:
+            return p
+
+    return None

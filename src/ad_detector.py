@@ -623,7 +623,16 @@ def deduplicate_window_ads(all_ads: List[Dict], merge_threshold: float = 5.0) ->
 
 
 class AdDetector:
-    """Detect advertisements in podcast transcripts using Claude API."""
+    """Detect advertisements in podcast transcripts using Claude API.
+
+    Detection pipeline (3-stage):
+    1. Audio fingerprint matching - identifies identical DAI-inserted ads
+    2. Text pattern matching - identifies repeated sponsor reads via TF-IDF
+    3. Claude API - analyzes remaining content for unknown ads
+
+    The first two stages are essentially free (no API costs) and can detect
+    ads that have been seen before across episodes.
+    """
 
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or os.environ.get('ANTHROPIC_API_KEY')
@@ -631,6 +640,8 @@ class AdDetector:
             logger.warning("No Anthropic API key found")
         self.client = None
         self._db = None
+        self._audio_fingerprinter = None
+        self._text_pattern_matcher = None
 
     @property
     def db(self):
@@ -639,6 +650,30 @@ class AdDetector:
             from database import Database
             self._db = Database()
         return self._db
+
+    @property
+    def audio_fingerprinter(self):
+        """Lazy load audio fingerprinter."""
+        if self._audio_fingerprinter is None:
+            try:
+                from audio_fingerprinter import AudioFingerprinter
+                self._audio_fingerprinter = AudioFingerprinter(db=self.db)
+            except ImportError:
+                logger.warning("Audio fingerprinting not available")
+                self._audio_fingerprinter = None
+        return self._audio_fingerprinter
+
+    @property
+    def text_pattern_matcher(self):
+        """Lazy load text pattern matcher."""
+        if self._text_pattern_matcher is None:
+            try:
+                from text_pattern_matcher import TextPatternMatcher
+                self._text_pattern_matcher = TextPatternMatcher(db=self.db)
+            except ImportError:
+                logger.warning("Text pattern matching not available")
+                self._text_pattern_matcher = None
+        return self._text_pattern_matcher
 
     def initialize_client(self):
         """Initialize Anthropic client."""
@@ -1108,15 +1143,188 @@ class AdDetector:
     def process_transcript(self, segments: List[Dict], podcast_name: str = "Unknown",
                           episode_title: str = "Unknown", slug: str = None,
                           episode_id: str = None, episode_description: str = None,
-                          audio_analysis=None) -> Dict:
-        """Process transcript for ad detection."""
+                          audio_analysis=None, audio_path: str = None,
+                          podcast_id: str = None, network_id: str = None) -> Dict:
+        """Process transcript for ad detection using three-stage pipeline.
+
+        Pipeline stages:
+        1. Audio fingerprint matching (if audio_path provided)
+        2. Text pattern matching
+        3. Claude API for remaining segments
+
+        Args:
+            segments: Transcript segments
+            podcast_name: Name of podcast
+            episode_title: Title of episode
+            slug: Podcast slug
+            episode_id: Episode ID
+            episode_description: Episode description
+            audio_analysis: Audio analysis results
+            audio_path: Path to audio file for fingerprinting
+            podcast_id: Podcast ID for pattern scoping
+            network_id: Network ID for pattern scoping
+
+        Returns:
+            Dict with ads, status, and detection metadata
+        """
+        all_ads = []
+        pattern_matched_regions = []  # Regions covered by pattern matching
+        detection_stats = {
+            'fingerprint_matches': 0,
+            'text_pattern_matches': 0,
+            'claude_matches': 0
+        }
+
+        # Stage 1: Audio Fingerprint Matching
+        if audio_path and self.audio_fingerprinter and self.audio_fingerprinter.is_available():
+            try:
+                logger.info(f"[{slug}:{episode_id}] Stage 1: Audio fingerprint matching")
+                fp_matches = self.audio_fingerprinter.find_matches(audio_path)
+
+                for match in fp_matches:
+                    ad = {
+                        'start': match.start,
+                        'end': match.end,
+                        'confidence': match.confidence,
+                        'reason': f"Audio fingerprint match (pattern {match.pattern_id})",
+                        'sponsor': match.sponsor,
+                        'detection_stage': 'fingerprint',
+                        'pattern_id': match.pattern_id
+                    }
+                    all_ads.append(ad)
+                    pattern_matched_regions.append((match.start, match.end))
+
+                detection_stats['fingerprint_matches'] = len(fp_matches)
+                if fp_matches:
+                    logger.info(f"[{slug}:{episode_id}] Fingerprint stage found {len(fp_matches)} ads")
+            except Exception as e:
+                logger.warning(f"[{slug}:{episode_id}] Fingerprint matching failed: {e}")
+
+        # Stage 2: Text Pattern Matching
+        if self.text_pattern_matcher and self.text_pattern_matcher.is_available():
+            try:
+                logger.info(f"[{slug}:{episode_id}] Stage 2: Text pattern matching")
+                text_matches = self.text_pattern_matcher.find_matches(
+                    segments,
+                    podcast_id=podcast_id,
+                    network_id=network_id
+                )
+
+                for match in text_matches:
+                    # Skip if already covered by fingerprint match
+                    if self._is_region_covered(match.start, match.end, pattern_matched_regions):
+                        continue
+
+                    ad = {
+                        'start': match.start,
+                        'end': match.end,
+                        'confidence': match.confidence,
+                        'reason': f"Text pattern match ({match.match_type}, pattern {match.pattern_id})",
+                        'sponsor': match.sponsor,
+                        'detection_stage': 'text_pattern',
+                        'pattern_id': match.pattern_id
+                    }
+                    all_ads.append(ad)
+                    pattern_matched_regions.append((match.start, match.end))
+
+                detection_stats['text_pattern_matches'] = len(text_matches)
+                if text_matches:
+                    logger.info(f"[{slug}:{episode_id}] Text pattern stage found {len(text_matches)} ads")
+            except Exception as e:
+                logger.warning(f"[{slug}:{episode_id}] Text pattern matching failed: {e}")
+
+        # Stage 3: Claude API for remaining content
+        logger.info(f"[{slug}:{episode_id}] Stage 3: Claude API detection")
+
+        # If we found pattern matches, we can potentially skip Claude for covered regions
+        # For now, we still run Claude on full transcript but mark pattern-detected regions
         result = self.detect_ads(
             segments, podcast_name, episode_title, slug, episode_id, episode_description,
             audio_analysis=audio_analysis
         )
+
         if result is None:
-            return {"ads": [], "status": "failed", "error": "Detection failed", "retryable": True}
+            result = {"ads": [], "status": "failed", "error": "Detection failed", "retryable": True}
+
+        # Merge Claude detections with pattern matches
+        claude_ads = result.get('ads', [])
+        for ad in claude_ads:
+            # Skip if already detected by pattern matching
+            if self._is_region_covered(ad['start'], ad['end'], pattern_matched_regions):
+                logger.debug(f"[{slug}:{episode_id}] Skipping Claude ad {ad['start']:.1f}s-{ad['end']:.1f}s (covered by pattern)")
+                continue
+            ad['detection_stage'] = 'claude'
+            all_ads.append(ad)
+
+        detection_stats['claude_matches'] = len([a for a in all_ads if a.get('detection_stage') == 'claude'])
+
+        # Sort by start time
+        all_ads.sort(key=lambda x: x['start'])
+
+        # Merge overlapping ads
+        all_ads = self._merge_detection_results(all_ads)
+
+        # Log detection summary
+        total = len(all_ads)
+        fp_count = detection_stats['fingerprint_matches']
+        tp_count = detection_stats['text_pattern_matches']
+        cl_count = detection_stats['claude_matches']
+        logger.info(
+            f"[{slug}:{episode_id}] Detection complete: {total} ads "
+            f"(fingerprint: {fp_count}, text: {tp_count}, claude: {cl_count})"
+        )
+
+        result['ads'] = all_ads
+        result['detection_stats'] = detection_stats
         return result
+
+    def _is_region_covered(self, start: float, end: float,
+                           covered_regions: List[tuple]) -> bool:
+        """Check if a time region is substantially covered by existing detections."""
+        for cov_start, cov_end in covered_regions:
+            # Check for significant overlap (>50%)
+            overlap_start = max(start, cov_start)
+            overlap_end = min(end, cov_end)
+            overlap = max(0, overlap_end - overlap_start)
+
+            duration = end - start
+            if duration > 0 and overlap / duration > 0.5:
+                return True
+        return False
+
+    def _merge_detection_results(self, ads: List[Dict]) -> List[Dict]:
+        """Merge overlapping ads from different detection stages."""
+        if not ads:
+            return []
+
+        # Sort by start time
+        ads = sorted(ads, key=lambda x: x['start'])
+
+        merged = [ads[0].copy()]
+        for current in ads[1:]:
+            last = merged[-1]
+
+            # Check for overlap (within 3 seconds)
+            if current['start'] <= last['end'] + 3.0:
+                # Merge - prefer pattern-detected metadata
+                if current['end'] > last['end']:
+                    last['end'] = current['end']
+
+                # Keep higher confidence
+                if current.get('confidence', 0) > last.get('confidence', 0):
+                    last['confidence'] = current['confidence']
+
+                # Prefer pattern detection stage over claude
+                stage_priority = {'fingerprint': 0, 'text_pattern': 1, 'claude': 2}
+                if stage_priority.get(current.get('detection_stage'), 2) < stage_priority.get(last.get('detection_stage'), 2):
+                    last['detection_stage'] = current['detection_stage']
+                    last['pattern_id'] = current.get('pattern_id')
+                    if current.get('sponsor'):
+                        last['sponsor'] = current['sponsor']
+            else:
+                merged.append(current.copy())
+
+        return merged
 
     def is_multi_pass_enabled(self) -> bool:
         """Check if multi-pass detection is enabled in settings."""

@@ -25,6 +25,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-pip \
     ffmpeg \
     libsndfile1 \
+    libchromaprint-tools \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # Set python3.11 as default python3

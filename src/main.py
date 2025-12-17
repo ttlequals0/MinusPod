@@ -105,6 +105,8 @@ from audio_processor import AudioProcessor
 from database import Database
 from processing_queue import ProcessingQueue
 from audio_analysis import AudioAnalyzer
+from sponsor_service import SponsorService
+from status_service import StatusService
 
 # Initialize components
 storage = Storage()
@@ -114,6 +116,8 @@ ad_detector = AdDetector()
 audio_processor = AudioProcessor()
 db = Database()
 audio_analyzer = AudioAnalyzer(db=db)
+sponsor_service = SponsorService(db)
+status_service = StatusService()
 
 
 def get_feed_map():
@@ -125,12 +129,20 @@ def get_feed_map():
 def refresh_rss_feed(slug: str, feed_url: str):
     """Refresh RSS feed for a podcast."""
     try:
+        # Get podcast name for status display
+        podcast = db.get_podcast(slug)
+        podcast_name = podcast.get('title', slug) if podcast else slug
+
+        # Track feed refresh in status service
+        status_service.start_feed_refresh(slug, podcast_name)
+
         refresh_logger.info(f"[{slug}] Starting RSS refresh from: {feed_url}")
 
         # Fetch original RSS
         feed_content = rss_parser.fetch_feed(feed_url)
         if not feed_content:
             refresh_logger.error(f"[{slug}] Failed to fetch RSS feed")
+            status_service.complete_feed_refresh(slug, 0)
             return False
 
         # Parse feed to extract metadata
@@ -169,9 +181,11 @@ def refresh_rss_feed(slug: str, feed_url: str):
         db.update_podcast(slug, last_checked_at=datetime.utcnow().isoformat() + 'Z')
 
         refresh_logger.info(f"[{slug}] RSS refresh complete")
+        status_service.complete_feed_refresh(slug, 0)  # TODO: Count new episodes
         return True
     except Exception as e:
         refresh_logger.error(f"[{slug}] RSS refresh failed: {e}")
+        status_service.remove_feed_refresh(slug)
         return False
 
 
@@ -314,6 +328,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
     try:
         audio_logger.info(f"[{slug}:{episode_id}] Starting: \"{episode_title}\"")
 
+        # Track status for UI
+        status_service.start_job(slug, episode_id, episode_title, podcast_name)
+        status_service.update_job_stage("downloading", 0)
+
         # Update status to processing
         db.upsert_episode(slug, episode_id,
             original_url=episode_url,
@@ -365,6 +383,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             if not audio_path:
                 raise Exception("Failed to download audio")
 
+            status_service.update_job_stage("transcribing", 20)
             audio_logger.info(f"[{slug}:{episode_id}] Starting transcription")
             segments = transcriber.transcribe(audio_path, podcast_name=podcast_name)
             if not segments:
@@ -404,9 +423,11 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
         try:
             # Step 2: Detect ads (first pass)
+            status_service.update_job_stage("detecting", 50)
             ad_result = ad_detector.process_transcript(
                 segments, podcast_name, episode_title, slug, episode_id, episode_description,
-                audio_analysis=audio_analysis_result
+                audio_analysis=audio_analysis_result,
+                audio_path=audio_path
             )
             storage.save_ads_json(slug, episode_id, ad_result, pass_number=1)
 
@@ -522,6 +543,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 all_ads_with_validation = []
 
             # Step 4: Process audio ONCE with validated ads (excluding rejected)
+            status_service.update_job_stage("processing", 80)
             audio_logger.info(f"[{slug}:{episode_id}] Starting FFMPEG processing ({len(ads_to_remove)} ads to remove)")
             processed_path = audio_processor.process_episode(audio_path, ads_to_remove)
             if not processed_path:
@@ -561,6 +583,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             else:
                 audio_logger.info(f"[{slug}:{episode_id}] Complete: {len(ads_to_remove)} ads removed, {processing_time:.1f}s")
 
+            status_service.complete_job()
             return True
 
         finally:
@@ -573,6 +596,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
         audio_logger.error(f"[{slug}:{episode_id}] Failed: {e} ({processing_time:.1f}s)")
 
         # Update status to failed
+        status_service.fail_job()
         db.upsert_episode(slug, episode_id,
             status='failed',
             error_message=str(e))
@@ -839,6 +863,10 @@ def _startup():
 
     # Reset any episodes stuck in 'processing' status from previous crash
     reset_stuck_processing_episodes()
+
+    # Seed sponsor and normalization data (only inserts if table is empty)
+    sponsor_service.seed_initial_data()
+    logger.info("Sponsor service initialized")
 
     # Start background RSS refresh thread
     refresh_thread = threading.Thread(target=background_rss_refresh, daemon=True)
