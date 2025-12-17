@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.118] - 2025-12-17
+
+### Fixed
+- Mobile transcript editor now shows transcript content
+  - Boundary controls and touch mode toggles collapse by default on mobile
+  - Tap "Adjust Boundaries" to expand controls when needed
+  - Action buttons now horizontal on mobile with smaller text
+  - Reclaims ~150px of vertical space for transcript display
+  - Desktop layout unchanged (controls always visible)
+
+---
+
 ## [0.1.117] - 2025-12-17
 
 ### Added

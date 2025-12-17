@@ -64,6 +64,7 @@ export function TranscriptEditor({
   const [touchMode, setTouchMode] = useState<TouchMode>('seek');
   const [lastTapTime, setLastTapTime] = useState(0);
   const [longPressTimer, setLongPressTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
+  const [mobileControlsExpanded, setMobileControlsExpanded] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   const transcriptRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -384,7 +385,7 @@ export function TranscriptEditor({
     <div
       ref={containerRef}
       tabIndex={0}
-      className="flex flex-col h-[50vh] sm:h-[70vh] max-h-[600px] sm:max-h-[800px] bg-card rounded-lg border border-border outline-none focus:ring-2 focus:ring-primary/50 overflow-hidden"
+      className="flex flex-col h-[70vh] sm:h-[70vh] max-h-[500px] sm:max-h-[800px] bg-card rounded-lg border border-border outline-none focus:ring-2 focus:ring-primary/50 overflow-hidden"
     >
       {/* STICKY TOP: Header, Ad Selector, Boundary Controls */}
       <div className="sticky top-0 z-20 bg-card flex-shrink-0">
@@ -435,117 +436,133 @@ export function TranscriptEditor({
           ))}
         </div>
 
-        {/* Boundary controls - Mobile optimized */}
-        <div className="px-4 py-3 border-b border-border bg-muted/30">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-            <div className="flex items-center gap-2 justify-center sm:justify-start">
-              <span className="text-xs text-muted-foreground">Start:</span>
-              <button
-                onClick={handleNudgeStartBackward}
-                className="p-2 sm:p-1 rounded hover:bg-accent active:bg-accent/80 touch-manipulation"
-                aria-label="Nudge start backward"
-              >
-                <svg className="w-5 h-5 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-              <span className="text-sm font-mono w-16 text-center">
-                {formatTime(adjustedStart)}
-              </span>
-              <button
-                onClick={handleNudgeStartForward}
-                className="p-2 sm:p-1 rounded hover:bg-accent active:bg-accent/80 touch-manipulation"
-                aria-label="Nudge start forward"
-              >
-                <svg className="w-5 h-5 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-            </div>
-
-            <div className="flex items-center gap-2 justify-center sm:justify-start">
-              <span className="text-xs text-muted-foreground">End:</span>
-              <button
-                onClick={handleNudgeEndBackward}
-                className="p-2 sm:p-1 rounded hover:bg-accent active:bg-accent/80 touch-manipulation"
-                aria-label="Nudge end backward"
-              >
-                <svg className="w-5 h-5 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-              <span className="text-sm font-mono w-16 text-center">
-                {formatTime(adjustedEnd)}
-              </span>
-              <button
-                onClick={handleNudgeEndForward}
-                className="p-2 sm:p-1 rounded hover:bg-accent active:bg-accent/80 touch-manipulation"
-                aria-label="Nudge end forward"
-              >
-                <svg className="w-5 h-5 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-            </div>
-
-            <span className="text-xs text-muted-foreground text-center sm:text-left">
-              Duration: {formatTime(adjustedEnd - adjustedStart)}
+        {/* Boundary controls - Collapsible on mobile */}
+        <div className="border-b border-border bg-muted/30">
+          {/* Mobile toggle button - shows current bounds, hidden on sm+ */}
+          <button
+            onClick={() => setMobileControlsExpanded(!mobileControlsExpanded)}
+            className="w-full px-4 py-2 flex items-center justify-between sm:hidden touch-manipulation"
+          >
+            <span className="text-sm font-mono text-muted-foreground">
+              {formatTime(adjustedStart)} - {formatTime(adjustedEnd)}
             </span>
-          </div>
+            <span className="text-xs text-primary">
+              {mobileControlsExpanded ? 'Hide Controls' : 'Adjust Boundaries'}
+            </span>
+          </button>
 
-          {/* Keyboard shortcuts hint - desktop only */}
-          <div className="hidden sm:block mt-2 text-xs text-muted-foreground">
-            <span className="font-mono">Space</span> play/pause{' '}
-            <span className="font-mono">J/K</span> nudge end{' '}
-            <span className="font-mono">Shift+J/K</span> nudge start{' '}
-            <span className="font-mono">C</span> confirm{' '}
-            <span className="font-mono">X</span> reject{' '}
-            <span className="font-mono">Esc</span> reset
-            <br />
-            <span className="font-mono">Click</span> seek{' '}
-            <span className="font-mono">Shift+Click</span> set end{' '}
-            <span className="font-mono">Alt+Click</span> set start
-          </div>
+          {/* Controls - always visible on sm+, conditionally on mobile */}
+          <div className={`px-4 py-3 ${mobileControlsExpanded ? 'block' : 'hidden'} sm:block`}>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+              <div className="flex items-center gap-2 justify-center sm:justify-start">
+                <span className="text-xs text-muted-foreground">Start:</span>
+                <button
+                  onClick={handleNudgeStartBackward}
+                  className="p-2 sm:p-1 rounded hover:bg-accent active:bg-accent/80 touch-manipulation"
+                  aria-label="Nudge start backward"
+                >
+                  <svg className="w-5 h-5 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                <span className="text-sm font-mono w-16 text-center">
+                  {formatTime(adjustedStart)}
+                </span>
+                <button
+                  onClick={handleNudgeStartForward}
+                  className="p-2 sm:p-1 rounded hover:bg-accent active:bg-accent/80 touch-manipulation"
+                  aria-label="Nudge start forward"
+                >
+                  <svg className="w-5 h-5 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
 
-          {/* Mobile mode toggle and instructions */}
-          <div className="sm:hidden mt-3">
-            <div className="flex gap-2 mb-2">
-              <button
-                onClick={() => setTouchMode('seek')}
-                className={`flex-1 px-3 py-2 text-xs rounded-md transition-colors touch-manipulation ${
-                  touchMode === 'seek'
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted text-muted-foreground hover:bg-accent'
-                }`}
-              >
-                Seek Mode
-              </button>
-              <button
-                onClick={() => setTouchMode('setStart')}
-                className={`flex-1 px-3 py-2 text-xs rounded-md transition-colors touch-manipulation ${
-                  touchMode === 'setStart'
-                    ? 'bg-green-600 text-white'
-                    : 'bg-muted text-muted-foreground hover:bg-accent'
-                }`}
-              >
-                Set Start
-              </button>
-              <button
-                onClick={() => setTouchMode('setEnd')}
-                className={`flex-1 px-3 py-2 text-xs rounded-md transition-colors touch-manipulation ${
-                  touchMode === 'setEnd'
-                    ? 'bg-orange-600 text-white'
-                    : 'bg-muted text-muted-foreground hover:bg-accent'
-                }`}
-              >
-                Set End
-              </button>
+              <div className="flex items-center gap-2 justify-center sm:justify-start">
+                <span className="text-xs text-muted-foreground">End:</span>
+                <button
+                  onClick={handleNudgeEndBackward}
+                  className="p-2 sm:p-1 rounded hover:bg-accent active:bg-accent/80 touch-manipulation"
+                  aria-label="Nudge end backward"
+                >
+                  <svg className="w-5 h-5 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                </button>
+                <span className="text-sm font-mono w-16 text-center">
+                  {formatTime(adjustedEnd)}
+                </span>
+                <button
+                  onClick={handleNudgeEndForward}
+                  className="p-2 sm:p-1 rounded hover:bg-accent active:bg-accent/80 touch-manipulation"
+                  aria-label="Nudge end forward"
+                >
+                  <svg className="w-5 h-5 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                  </svg>
+                </button>
+              </div>
+
+              <span className="text-xs text-muted-foreground text-center sm:text-left">
+                Duration: {formatTime(adjustedEnd - adjustedStart)}
+              </span>
             </div>
-            <p className="text-xs text-muted-foreground text-center">
-              {touchMode === 'seek' && 'Tap segment to seek. Double-tap = set start. Long-press = set end.'}
-              {touchMode === 'setStart' && 'Tap any segment to set as START boundary'}
-              {touchMode === 'setEnd' && 'Tap any segment to set as END boundary'}
-            </p>
+
+            {/* Keyboard shortcuts hint - desktop only */}
+            <div className="hidden sm:block mt-2 text-xs text-muted-foreground">
+              <span className="font-mono">Space</span> play/pause{' '}
+              <span className="font-mono">J/K</span> nudge end{' '}
+              <span className="font-mono">Shift+J/K</span> nudge start{' '}
+              <span className="font-mono">C</span> confirm{' '}
+              <span className="font-mono">X</span> reject{' '}
+              <span className="font-mono">Esc</span> reset
+              <br />
+              <span className="font-mono">Click</span> seek{' '}
+              <span className="font-mono">Shift+Click</span> set end{' '}
+              <span className="font-mono">Alt+Click</span> set start
+            </div>
+
+            {/* Mobile mode toggle and instructions */}
+            <div className="sm:hidden mt-3">
+              <div className="flex gap-2 mb-2">
+                <button
+                  onClick={() => setTouchMode('seek')}
+                  className={`flex-1 px-3 py-2 text-xs rounded-md transition-colors touch-manipulation ${
+                    touchMode === 'seek'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted text-muted-foreground hover:bg-accent'
+                  }`}
+                >
+                  Seek Mode
+                </button>
+                <button
+                  onClick={() => setTouchMode('setStart')}
+                  className={`flex-1 px-3 py-2 text-xs rounded-md transition-colors touch-manipulation ${
+                    touchMode === 'setStart'
+                      ? 'bg-green-600 text-white'
+                      : 'bg-muted text-muted-foreground hover:bg-accent'
+                  }`}
+                >
+                  Set Start
+                </button>
+                <button
+                  onClick={() => setTouchMode('setEnd')}
+                  className={`flex-1 px-3 py-2 text-xs rounded-md transition-colors touch-manipulation ${
+                    touchMode === 'setEnd'
+                      ? 'bg-orange-600 text-white'
+                      : 'bg-muted text-muted-foreground hover:bg-accent'
+                  }`}
+                >
+                  Set End
+                </button>
+              </div>
+              <p className="text-xs text-muted-foreground text-center">
+                {touchMode === 'seek' && 'Tap segment to seek. Double-tap = set start. Long-press = set end.'}
+                {touchMode === 'setStart' && 'Tap any segment to set as START boundary'}
+                {touchMode === 'setEnd' && 'Tap any segment to set as END boundary'}
+              </p>
+            </div>
           </div>
         </div>
       </div>
@@ -627,12 +644,12 @@ export function TranscriptEditor({
           </div>
         )}
 
-        {/* Action buttons - Mobile optimized with save status feedback */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 sm:gap-0 px-4 py-3 bg-muted/30">
+        {/* Action buttons - Horizontal layout, compact on mobile */}
+        <div className="flex flex-row flex-wrap items-center justify-between gap-2 px-4 py-2 sm:py-3 bg-muted/30">
           <button
             onClick={handleReject}
             disabled={saveStatus === 'saving'}
-            className={`px-4 py-3 sm:py-2 text-sm rounded touch-manipulation transition-colors ${
+            className={`px-3 py-2 sm:px-4 sm:py-2 text-xs sm:text-sm rounded touch-manipulation transition-colors ${
               saveStatus === 'saving'
                 ? 'bg-destructive/50 text-destructive-foreground cursor-wait'
                 : saveStatus === 'success'
@@ -645,18 +662,18 @@ export function TranscriptEditor({
             {getRejectButtonText()}
           </button>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             <button
               onClick={handleReset}
               disabled={saveStatus === 'saving'}
-              className="flex-1 sm:flex-none px-4 py-3 sm:py-2 text-sm bg-muted text-muted-foreground rounded hover:bg-accent active:bg-accent/80 touch-manipulation disabled:opacity-50"
+              className="px-3 py-2 sm:px-4 sm:py-2 text-xs sm:text-sm bg-muted text-muted-foreground rounded hover:bg-accent active:bg-accent/80 touch-manipulation disabled:opacity-50"
             >
               Reset
             </button>
             <button
               onClick={handleConfirm}
               disabled={saveStatus === 'saving'}
-              className={`flex-1 sm:flex-none px-4 py-3 sm:py-2 text-sm rounded touch-manipulation transition-colors ${
+              className={`px-3 py-2 sm:px-4 sm:py-2 text-xs sm:text-sm rounded touch-manipulation transition-colors ${
                 saveStatus === 'saving'
                   ? 'bg-green-600/50 text-white cursor-wait'
                   : saveStatus === 'success'
@@ -671,7 +688,7 @@ export function TranscriptEditor({
             <button
               onClick={handleSave}
               disabled={saveStatus === 'saving'}
-              className={`flex-1 sm:flex-none px-4 py-3 sm:py-2 text-sm rounded touch-manipulation transition-colors ${
+              className={`px-3 py-2 sm:px-4 sm:py-2 text-xs sm:text-sm rounded touch-manipulation transition-colors ${
                 saveStatus === 'saving'
                   ? 'bg-primary/50 text-primary-foreground cursor-wait'
                   : saveStatus === 'success'
