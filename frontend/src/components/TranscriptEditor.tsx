@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useTranscriptKeyboard } from '../hooks/useTranscriptKeyboard';
+import { X, Check, RotateCcw, Save, Play, Pause, ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from 'lucide-react';
 
 interface TranscriptSegment {
   start: number;
@@ -65,9 +66,20 @@ export function TranscriptEditor({
   const [lastTapTime, setLastTapTime] = useState(0);
   const [longPressTimer, setLongPressTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
   const [mobileControlsExpanded, setMobileControlsExpanded] = useState(false);
+  const [audioSheetExpanded, setAudioSheetExpanded] = useState(false);
+  const [swipeStartX, setSwipeStartX] = useState<number | null>(null);
+  const [isDraggingProgress, setIsDraggingProgress] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   const transcriptRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const progressBarRef = useRef<HTMLDivElement>(null);
+
+  // Haptic feedback helper
+  const triggerHaptic = useCallback((style: 'light' | 'medium' | 'heavy' = 'light') => {
+    if ('vibrate' in navigator) {
+      navigator.vibrate(style === 'light' ? 10 : style === 'medium' ? 20 : 30);
+    }
+  }, []);
 
   const NUDGE_AMOUNT = 0.5; // seconds
   const DOUBLE_TAP_DELAY = 300; // ms
@@ -149,15 +161,48 @@ export function TranscriptEditor({
     }
   }, []);
 
-  // Handle ad selection with auto-scroll
+  // Handle ad selection with auto-scroll and haptic feedback
   const handleAdSelect = useCallback((index: number) => {
     setSelectedAdIndex(index);
+    triggerHaptic('light');
     const ad = detectedAds[index];
     if (ad) {
       // Small delay to allow state update before scroll
       setTimeout(() => scrollToAd(ad), 50);
     }
-  }, [detectedAds, scrollToAd]);
+  }, [detectedAds, scrollToAd, triggerHaptic]);
+
+  // Navigate to previous/next ad (for swipe gestures)
+  const goToPreviousAd = useCallback(() => {
+    if (selectedAdIndex > 0) {
+      handleAdSelect(selectedAdIndex - 1);
+    }
+  }, [selectedAdIndex, handleAdSelect]);
+
+  const goToNextAd = useCallback(() => {
+    if (selectedAdIndex < detectedAds.length - 1) {
+      handleAdSelect(selectedAdIndex + 1);
+    }
+  }, [selectedAdIndex, detectedAds.length, handleAdSelect]);
+
+  // Swipe gesture handlers for ad navigation
+  const handleSwipeStart = useCallback((e: React.TouchEvent) => {
+    setSwipeStartX(e.touches[0].clientX);
+  }, []);
+
+  const handleSwipeEnd = useCallback((e: React.TouchEvent) => {
+    if (swipeStartX === null) return;
+    const deltaX = e.changedTouches[0].clientX - swipeStartX;
+    const SWIPE_THRESHOLD = 50;
+    if (Math.abs(deltaX) > SWIPE_THRESHOLD) {
+      if (deltaX > 0) {
+        goToPreviousAd();
+      } else {
+        goToNextAd();
+      }
+    }
+    setSwipeStartX(null);
+  }, [swipeStartX, goToPreviousAd, goToNextAd]);
 
   const handlePlayPause = useCallback(() => {
     const audio = audioRef.current;
@@ -176,23 +221,28 @@ export function TranscriptEditor({
 
   const handleNudgeEndForward = useCallback(() => {
     setAdjustedEnd((prev) => Math.min(prev + NUDGE_AMOUNT, segments[segments.length - 1]?.end || prev));
-  }, [segments]);
+    triggerHaptic('light');
+  }, [segments, triggerHaptic]);
 
   const handleNudgeEndBackward = useCallback(() => {
     setAdjustedEnd((prev) => Math.max(prev - NUDGE_AMOUNT, adjustedStart + 1));
-  }, [adjustedStart]);
+    triggerHaptic('light');
+  }, [adjustedStart, triggerHaptic]);
 
   const handleNudgeStartForward = useCallback(() => {
     setAdjustedStart((prev) => Math.min(prev + NUDGE_AMOUNT, adjustedEnd - 1));
-  }, [adjustedEnd]);
+    triggerHaptic('light');
+  }, [adjustedEnd, triggerHaptic]);
 
   const handleNudgeStartBackward = useCallback(() => {
     setAdjustedStart((prev) => Math.max(prev - NUDGE_AMOUNT, 0));
-  }, []);
+    triggerHaptic('light');
+  }, [triggerHaptic]);
 
   const handleSave = useCallback(() => {
     if (!selectedAd || saveStatus === 'saving') return;
 
+    triggerHaptic('medium');
     const hasChanges =
       adjustedStart !== selectedAd.start || adjustedEnd !== selectedAd.end;
 
@@ -207,7 +257,7 @@ export function TranscriptEditor({
     if (selectedAdIndex < detectedAds.length - 1) {
       setSelectedAdIndex(selectedAdIndex + 1);
     }
-  }, [selectedAd, adjustedStart, adjustedEnd, onCorrection, selectedAdIndex, detectedAds.length, saveStatus]);
+  }, [selectedAd, adjustedStart, adjustedEnd, onCorrection, selectedAdIndex, detectedAds.length, saveStatus, triggerHaptic]);
 
   const handleReset = useCallback(() => {
     if (selectedAd) {
@@ -218,6 +268,7 @@ export function TranscriptEditor({
 
   const handleConfirm = useCallback(() => {
     if (!selectedAd || saveStatus === 'saving') return;
+    triggerHaptic('medium');
     onCorrection({
       type: 'confirm',
       originalAd: selectedAd,
@@ -225,10 +276,11 @@ export function TranscriptEditor({
     if (selectedAdIndex < detectedAds.length - 1) {
       setSelectedAdIndex(selectedAdIndex + 1);
     }
-  }, [selectedAd, onCorrection, selectedAdIndex, detectedAds.length, saveStatus]);
+  }, [selectedAd, onCorrection, selectedAdIndex, detectedAds.length, saveStatus, triggerHaptic]);
 
   const handleReject = useCallback(() => {
     if (!selectedAd || saveStatus === 'saving') return;
+    triggerHaptic('heavy');
     onCorrection({
       type: 'reject',
       originalAd: selectedAd,
@@ -236,7 +288,7 @@ export function TranscriptEditor({
     if (selectedAdIndex < detectedAds.length - 1) {
       setSelectedAdIndex(selectedAdIndex + 1);
     }
-  }, [selectedAd, onCorrection, selectedAdIndex, detectedAds.length, saveStatus]);
+  }, [selectedAd, onCorrection, selectedAdIndex, detectedAds.length, saveStatus, triggerHaptic]);
 
   // Set up keyboard shortcuts
   useTranscriptKeyboard({
@@ -337,6 +389,30 @@ export function TranscriptEditor({
     seekTo(percentage * duration);
   };
 
+  // Draggable progress bar handlers
+  const handleProgressDragStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    setIsDraggingProgress(true);
+    triggerHaptic('light');
+    const rect = e.currentTarget.getBoundingClientRect();
+    const touchX = e.touches[0].clientX - rect.left;
+    const percentage = Math.max(0, Math.min(1, touchX / rect.width));
+    const duration = segments[segments.length - 1]?.end || 1;
+    seekTo(percentage * duration);
+  }, [segments, triggerHaptic]);
+
+  const handleProgressDrag = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
+    if (!isDraggingProgress) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const touchX = e.touches[0].clientX - rect.left;
+    const percentage = Math.max(0, Math.min(1, touchX / rect.width));
+    const duration = segments[segments.length - 1]?.end || 1;
+    seekTo(percentage * duration);
+  }, [isDraggingProgress, segments]);
+
+  const handleProgressDragEnd = useCallback(() => {
+    setIsDraggingProgress(false);
+  }, []);
+
   const isInAdRegion = (segStart: number, segEnd: number) => {
     return segStart < adjustedEnd && segEnd > adjustedStart;
   };
@@ -385,7 +461,7 @@ export function TranscriptEditor({
     <div
       ref={containerRef}
       tabIndex={0}
-      className="flex flex-col h-[70vh] sm:h-[70vh] max-h-[500px] sm:max-h-[800px] bg-card rounded-lg border border-border outline-none focus:ring-2 focus:ring-primary/50 overflow-hidden"
+      className="flex flex-col h-[75vh] sm:h-[70vh] max-h-[600px] sm:max-h-[800px] landscape:h-[90vh] landscape:max-h-none bg-card rounded-lg border border-border outline-none focus:ring-2 focus:ring-primary/50 overflow-hidden"
     >
       {/* STICKY TOP: Header, Ad Selector, Boundary Controls */}
       <div className="sticky top-0 z-20 bg-card flex-shrink-0">
@@ -420,87 +496,86 @@ export function TranscriptEditor({
         </div>
 
         {/* Ad selector - with momentum scrolling for mobile */}
-        <div className="flex gap-1 px-4 py-2 border-b border-border overflow-x-auto scroll-smooth touch-pan-x">
+        <div className="flex gap-2 px-4 py-2 border-b border-border overflow-x-auto scroll-smooth touch-pan-x landscape:hidden">
           {detectedAds.map((ad, index) => (
             <button
               key={index}
               onClick={() => handleAdSelect(index)}
-              className={`px-3 py-2 sm:px-2 sm:py-1 text-sm sm:text-xs rounded whitespace-nowrap touch-manipulation ${
+              className={`px-4 py-3 sm:px-3 sm:py-1.5 text-sm sm:text-xs rounded-lg whitespace-nowrap touch-manipulation min-h-[44px] sm:min-h-0 active:scale-95 transition-all ${
                 index === selectedAdIndex
                   ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted hover:bg-accent'
+                  : 'bg-muted hover:bg-accent active:bg-accent/80'
               }`}
             >
-              {formatTime(ad.start)} - {formatTime(ad.end)}
+              {formatTime(ad.start)}
             </button>
           ))}
         </div>
+        {/* Landscape: compact ad indicator with swipe hint */}
+        <div className="hidden landscape:flex items-center justify-center gap-2 px-4 py-1.5 border-b border-border text-xs text-muted-foreground">
+          <ChevronLeft className="w-4 h-4" />
+          <span>Ad {selectedAdIndex + 1} of {detectedAds.length}</span>
+          <ChevronRight className="w-4 h-4" />
+        </div>
 
         {/* Boundary controls - Collapsible on mobile */}
-        <div className="border-b border-border bg-muted/30">
+        <div className="border-b border-border bg-muted/30 landscape:hidden">
           {/* Mobile toggle button - shows current bounds, hidden on sm+ */}
           <button
             onClick={() => setMobileControlsExpanded(!mobileControlsExpanded)}
-            className="w-full px-4 py-2 flex items-center justify-between sm:hidden touch-manipulation"
+            className="w-full px-4 py-3 flex items-center justify-between sm:hidden touch-manipulation min-h-[48px] active:bg-accent/50 transition-colors"
           >
             <span className="text-sm font-mono text-muted-foreground">
               {formatTime(adjustedStart)} - {formatTime(adjustedEnd)}
             </span>
-            <span className="text-xs text-primary">
-              {mobileControlsExpanded ? 'Hide Controls' : 'Adjust Boundaries'}
-            </span>
+            <div className="flex items-center gap-1 text-xs text-primary">
+              <span>{mobileControlsExpanded ? 'Hide' : 'Adjust'}</span>
+              {mobileControlsExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+            </div>
           </button>
 
           {/* Controls - always visible on sm+, conditionally on mobile */}
           <div className={`px-4 py-3 ${mobileControlsExpanded ? 'block' : 'hidden'} sm:block`}>
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-              <div className="flex items-center gap-2 justify-center sm:justify-start">
+              <div className="flex items-center gap-3 sm:gap-2 justify-center sm:justify-start">
                 <span className="text-xs text-muted-foreground">Start:</span>
                 <button
                   onClick={handleNudgeStartBackward}
-                  className="p-2 sm:p-1 rounded hover:bg-accent active:bg-accent/80 touch-manipulation"
+                  className="p-3 sm:p-1.5 rounded-lg hover:bg-accent active:bg-accent/80 active:scale-95 touch-manipulation min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center transition-all"
                   aria-label="Nudge start backward"
                 >
-                  <svg className="w-5 h-5 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                  </svg>
+                  <ChevronLeft className="w-5 h-5 sm:w-4 sm:h-4" />
                 </button>
                 <span className="text-sm font-mono w-16 text-center">
                   {formatTime(adjustedStart)}
                 </span>
                 <button
                   onClick={handleNudgeStartForward}
-                  className="p-2 sm:p-1 rounded hover:bg-accent active:bg-accent/80 touch-manipulation"
+                  className="p-3 sm:p-1.5 rounded-lg hover:bg-accent active:bg-accent/80 active:scale-95 touch-manipulation min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center transition-all"
                   aria-label="Nudge start forward"
                 >
-                  <svg className="w-5 h-5 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
+                  <ChevronRight className="w-5 h-5 sm:w-4 sm:h-4" />
                 </button>
               </div>
 
-              <div className="flex items-center gap-2 justify-center sm:justify-start">
+              <div className="flex items-center gap-3 sm:gap-2 justify-center sm:justify-start">
                 <span className="text-xs text-muted-foreground">End:</span>
                 <button
                   onClick={handleNudgeEndBackward}
-                  className="p-2 sm:p-1 rounded hover:bg-accent active:bg-accent/80 touch-manipulation"
+                  className="p-3 sm:p-1.5 rounded-lg hover:bg-accent active:bg-accent/80 active:scale-95 touch-manipulation min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center transition-all"
                   aria-label="Nudge end backward"
                 >
-                  <svg className="w-5 h-5 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                  </svg>
+                  <ChevronLeft className="w-5 h-5 sm:w-4 sm:h-4" />
                 </button>
                 <span className="text-sm font-mono w-16 text-center">
                   {formatTime(adjustedEnd)}
                 </span>
                 <button
                   onClick={handleNudgeEndForward}
-                  className="p-2 sm:p-1 rounded hover:bg-accent active:bg-accent/80 touch-manipulation"
+                  className="p-3 sm:p-1.5 rounded-lg hover:bg-accent active:bg-accent/80 active:scale-95 touch-manipulation min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center transition-all"
                   aria-label="Nudge end forward"
                 >
-                  <svg className="w-5 h-5 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
+                  <ChevronRight className="w-5 h-5 sm:w-4 sm:h-4" />
                 </button>
               </div>
 
@@ -528,49 +603,51 @@ export function TranscriptEditor({
               <div className="flex gap-2 mb-2">
                 <button
                   onClick={() => setTouchMode('seek')}
-                  className={`flex-1 px-3 py-2 text-xs rounded-md transition-colors touch-manipulation ${
+                  className={`flex-1 px-4 py-3 text-xs rounded-lg transition-all touch-manipulation min-h-[48px] active:scale-95 ${
                     touchMode === 'seek'
                       ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted text-muted-foreground hover:bg-accent'
+                      : 'bg-muted text-muted-foreground hover:bg-accent active:bg-accent/80'
                   }`}
                 >
-                  Seek Mode
+                  Seek
                 </button>
                 <button
                   onClick={() => setTouchMode('setStart')}
-                  className={`flex-1 px-3 py-2 text-xs rounded-md transition-colors touch-manipulation ${
+                  className={`flex-1 px-4 py-3 text-xs rounded-lg transition-all touch-manipulation min-h-[48px] active:scale-95 ${
                     touchMode === 'setStart'
                       ? 'bg-green-600 text-white'
-                      : 'bg-muted text-muted-foreground hover:bg-accent'
+                      : 'bg-muted text-muted-foreground hover:bg-accent active:bg-accent/80'
                   }`}
                 >
                   Set Start
                 </button>
                 <button
                   onClick={() => setTouchMode('setEnd')}
-                  className={`flex-1 px-3 py-2 text-xs rounded-md transition-colors touch-manipulation ${
+                  className={`flex-1 px-4 py-3 text-xs rounded-lg transition-all touch-manipulation min-h-[48px] active:scale-95 ${
                     touchMode === 'setEnd'
                       ? 'bg-orange-600 text-white'
-                      : 'bg-muted text-muted-foreground hover:bg-accent'
+                      : 'bg-muted text-muted-foreground hover:bg-accent active:bg-accent/80'
                   }`}
                 >
                   Set End
                 </button>
               </div>
               <p className="text-xs text-muted-foreground text-center">
-                {touchMode === 'seek' && 'Tap segment to seek. Double-tap = set start. Long-press = set end.'}
-                {touchMode === 'setStart' && 'Tap any segment to set as START boundary'}
-                {touchMode === 'setEnd' && 'Tap any segment to set as END boundary'}
+                {touchMode === 'seek' && 'Tap to seek. Double-tap = start. Long-press = end.'}
+                {touchMode === 'setStart' && 'Tap segment to set START boundary'}
+                {touchMode === 'setEnd' && 'Tap segment to set END boundary'}
               </p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* SCROLLABLE: Transcript only */}
+      {/* SCROLLABLE: Transcript only - with swipe gestures for ad navigation */}
       <div
         ref={transcriptRef}
-        className="flex-1 overflow-y-auto p-4 space-y-1 min-h-0"
+        className="flex-1 overflow-y-auto p-4 space-y-2 min-h-0"
+        onTouchStart={handleSwipeStart}
+        onTouchEnd={handleSwipeEnd}
       >
         {segments.map((segment, index) => {
           const inAd = isInAdRegion(segment.start, segment.end);
@@ -588,15 +665,15 @@ export function TranscriptEditor({
               onTouchEnd={(e) => handleTouchEnd(segment, e)}
               onTouchCancel={handleTouchCancel}
               onTouchMove={handleTouchCancel}
-              className={`p-2 rounded cursor-pointer transition-colors select-none ${
+              className={`p-3 sm:p-2 rounded-lg cursor-pointer transition-all select-none min-h-[44px] sm:min-h-0 flex items-start active:bg-accent/30 ${
                 inAd
-                  ? 'bg-red-500/20 hover:bg-red-500/30'
-                  : 'hover:bg-accent'
+                  ? 'bg-red-500/20 hover:bg-red-500/30 active:bg-red-500/40'
+                  : 'hover:bg-accent active:bg-accent/50'
               } ${isCurrent ? 'ring-2 ring-primary' : ''} ${
                 isStartBoundary ? 'border-l-4 border-l-green-500' : ''
               } ${isEndBoundary ? 'border-r-4 border-r-orange-500' : ''}`}
             >
-              <span className="text-xs text-muted-foreground font-mono mr-2">
+              <span className="text-xs text-muted-foreground font-mono mr-3 sm:mr-2 flex-shrink-0 pt-0.5">
                 {formatTime(segment.start)}
               </span>
               <span className={inAd ? 'text-red-400' : ''}>{segment.text}</span>
@@ -606,102 +683,192 @@ export function TranscriptEditor({
       </div>
 
       {/* STICKY BOTTOM: Audio + Actions */}
-      <div className="sticky bottom-0 z-20 bg-card border-t border-border flex-shrink-0">
-        {/* Audio player - Mobile optimized */}
+      {/* Desktop: inline player */}
+      <div className="hidden sm:block sticky bottom-0 z-20 bg-card border-t border-border flex-shrink-0">
         {audioUrl && (
           <div className="px-4 py-3 border-b border-border">
             <audio ref={audioRef} src={audioUrl} className="hidden" />
             <div className="flex items-center gap-3">
               <button
                 onClick={handlePlayPause}
-                className="p-3 sm:p-2 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80 touch-manipulation"
+                className="p-2 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80 touch-manipulation"
                 aria-label={isPlaying ? 'Pause' : 'Play'}
               >
-                {isPlaying ? (
-                  <svg className="w-6 h-6 sm:w-5 sm:h-5" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
-                  </svg>
-                ) : (
-                  <svg className="w-6 h-6 sm:w-5 sm:h-5" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M8 5v14l11-7z" />
-                  </svg>
-                )}
+                {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
               </button>
-              <span className="text-sm font-mono">{formatTime(currentTime)}</span>
+              <span className="text-sm font-mono w-12">{formatTime(currentTime)}</span>
               <div
-                className="flex-1 h-3 sm:h-2 bg-muted rounded-full overflow-hidden cursor-pointer hover:h-4 sm:hover:h-3 transition-all touch-manipulation"
+                className="flex-1 h-2 bg-muted rounded-full overflow-hidden cursor-pointer hover:h-3 transition-all"
                 onClick={handleProgressClick}
-                title="Click to seek"
               >
                 <div
                   className="h-full bg-primary pointer-events-none"
-                  style={{
-                    width: `${(currentTime / (segments[segments.length - 1]?.end || 1)) * 100}%`,
-                  }}
+                  style={{ width: `${(currentTime / (segments[segments.length - 1]?.end || 1)) * 100}%` }}
                 />
               </div>
             </div>
           </div>
         )}
-
-        {/* Action buttons - Horizontal layout, compact on mobile */}
-        <div className="flex flex-row flex-wrap items-center justify-between gap-2 px-4 py-2 sm:py-3 bg-muted/30">
+        {/* Desktop action buttons with text */}
+        <div className="flex items-center justify-between gap-2 px-4 py-3 bg-muted/30">
           <button
             onClick={handleReject}
             disabled={saveStatus === 'saving'}
-            className={`px-3 py-2 sm:px-4 sm:py-2 text-xs sm:text-sm rounded touch-manipulation transition-colors ${
-              saveStatus === 'saving'
-                ? 'bg-destructive/50 text-destructive-foreground cursor-wait'
-                : saveStatus === 'success'
-                ? 'bg-green-600 text-white'
-                : saveStatus === 'error'
-                ? 'bg-red-600 text-white'
-                : 'bg-destructive text-destructive-foreground hover:bg-destructive/90 active:bg-destructive/80'
-            }`}
+            className={`px-4 py-2 text-sm rounded transition-colors ${
+              saveStatus === 'saving' ? 'bg-destructive/50 cursor-wait' : 'bg-destructive hover:bg-destructive/90'
+            } text-destructive-foreground`}
           >
             {getRejectButtonText()}
           </button>
-
-          <div className="flex items-center gap-1 sm:gap-2">
-            <button
-              onClick={handleReset}
-              disabled={saveStatus === 'saving'}
-              className="px-3 py-2 sm:px-4 sm:py-2 text-xs sm:text-sm bg-muted text-muted-foreground rounded hover:bg-accent active:bg-accent/80 touch-manipulation disabled:opacity-50"
-            >
-              Reset
-            </button>
-            <button
-              onClick={handleConfirm}
-              disabled={saveStatus === 'saving'}
-              className={`px-3 py-2 sm:px-4 sm:py-2 text-xs sm:text-sm rounded touch-manipulation transition-colors ${
-                saveStatus === 'saving'
-                  ? 'bg-green-600/50 text-white cursor-wait'
-                  : saveStatus === 'success'
-                  ? 'bg-green-600 text-white'
-                  : saveStatus === 'error'
-                  ? 'bg-red-600 text-white'
-                  : 'bg-green-600 text-white hover:bg-green-700 active:bg-green-800'
-              }`}
-            >
-              {getConfirmButtonText()}
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={saveStatus === 'saving'}
-              className={`px-3 py-2 sm:px-4 sm:py-2 text-xs sm:text-sm rounded touch-manipulation transition-colors ${
-                saveStatus === 'saving'
-                  ? 'bg-primary/50 text-primary-foreground cursor-wait'
-                  : saveStatus === 'success'
-                  ? 'bg-green-600 text-white'
-                  : saveStatus === 'error'
-                  ? 'bg-red-600 text-white'
-                  : 'bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80'
-              }`}
-            >
-              {getSaveButtonText()}
-            </button>
+          <div className="flex items-center gap-2">
+            <button onClick={handleReset} disabled={saveStatus === 'saving'} className="px-4 py-2 text-sm bg-muted rounded hover:bg-accent disabled:opacity-50">Reset</button>
+            <button onClick={handleConfirm} disabled={saveStatus === 'saving'} className={`px-4 py-2 text-sm rounded transition-colors ${saveStatus === 'saving' ? 'bg-green-600/50 cursor-wait' : 'bg-green-600 hover:bg-green-700'} text-white`}>{getConfirmButtonText()}</button>
+            <button onClick={handleSave} disabled={saveStatus === 'saving'} className={`px-4 py-2 text-sm rounded transition-colors ${saveStatus === 'saving' ? 'bg-primary/50 cursor-wait' : 'bg-primary hover:bg-primary/90'} text-primary-foreground`}>{getSaveButtonText()}</button>
           </div>
         </div>
+      </div>
+
+      {/* Mobile: Bottom sheet audio player */}
+      <div className="sm:hidden sticky bottom-0 z-20 bg-card border-t border-border flex-shrink-0">
+        <audio ref={audioRef} src={audioUrl} className="hidden" />
+
+        {/* Grab handle */}
+        <button
+          onClick={() => setAudioSheetExpanded(!audioSheetExpanded)}
+          className="w-full flex justify-center py-2 touch-manipulation"
+        >
+          <div className="w-12 h-1 bg-muted-foreground/30 rounded-full" />
+        </button>
+
+        {/* Mini player (collapsed) */}
+        {!audioSheetExpanded && (
+          <div className="px-4 pb-3 space-y-3">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handlePlayPause}
+                className="p-3 rounded-full bg-primary text-primary-foreground active:scale-95 touch-manipulation min-w-[48px] min-h-[48px] flex items-center justify-center transition-all"
+                aria-label={isPlaying ? 'Pause' : 'Play'}
+              >
+                {isPlaying ? <Pause className="w-6 h-6" /> : <Play className="w-6 h-6" />}
+              </button>
+              <span className="text-sm font-mono w-12">{formatTime(currentTime)}</span>
+              {/* Draggable progress bar */}
+              <div
+                ref={progressBarRef}
+                className={`flex-1 relative bg-muted rounded-full cursor-pointer touch-manipulation transition-all ${isDraggingProgress ? 'h-5' : 'h-4'}`}
+                onClick={handleProgressClick}
+                onTouchStart={handleProgressDragStart}
+                onTouchMove={handleProgressDrag}
+                onTouchEnd={handleProgressDragEnd}
+              >
+                <div
+                  className="absolute top-0 left-0 h-full bg-primary rounded-full pointer-events-none"
+                  style={{ width: `${(currentTime / (segments[segments.length - 1]?.end || 1)) * 100}%` }}
+                />
+                {/* Thumb indicator */}
+                <div
+                  className={`absolute top-1/2 -translate-y-1/2 bg-primary rounded-full shadow-md transition-all pointer-events-none ${isDraggingProgress ? 'w-6 h-6' : 'w-4 h-4'}`}
+                  style={{ left: `calc(${(currentTime / (segments[segments.length - 1]?.end || 1)) * 100}% - ${isDraggingProgress ? '12px' : '8px'})` }}
+                />
+              </div>
+            </div>
+            {/* Icon-only action buttons */}
+            <div className="flex items-center justify-center gap-3">
+              <button
+                onClick={handleReject}
+                disabled={saveStatus === 'saving'}
+                className={`p-3 min-w-[48px] min-h-[48px] rounded-lg touch-manipulation active:scale-95 transition-all flex items-center justify-center ${
+                  saveStatus === 'saving' ? 'bg-destructive/50 cursor-wait' : saveStatus === 'success' ? 'bg-green-600' : saveStatus === 'error' ? 'bg-red-600' : 'bg-destructive/10 text-destructive active:bg-destructive/20'
+                }`}
+                title="Not an Ad"
+              >
+                <X className="w-5 h-5" />
+              </button>
+              <button
+                onClick={handleReset}
+                disabled={saveStatus === 'saving'}
+                className="p-3 min-w-[48px] min-h-[48px] rounded-lg bg-muted touch-manipulation active:scale-95 active:bg-accent transition-all flex items-center justify-center disabled:opacity-50"
+                title="Reset"
+              >
+                <RotateCcw className="w-5 h-5" />
+              </button>
+              <button
+                onClick={handleConfirm}
+                disabled={saveStatus === 'saving'}
+                className={`p-3 min-w-[48px] min-h-[48px] rounded-lg touch-manipulation active:scale-95 transition-all flex items-center justify-center ${
+                  saveStatus === 'saving' ? 'bg-green-600/50 cursor-wait' : saveStatus === 'success' ? 'bg-green-600' : saveStatus === 'error' ? 'bg-red-600' : 'bg-green-600 text-white active:bg-green-700'
+                }`}
+                title="Confirm"
+              >
+                <Check className="w-5 h-5" />
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saveStatus === 'saving'}
+                className={`p-3 min-w-[48px] min-h-[48px] rounded-lg touch-manipulation active:scale-95 transition-all flex items-center justify-center ${
+                  saveStatus === 'saving' ? 'bg-primary/50 cursor-wait' : saveStatus === 'success' ? 'bg-green-600' : saveStatus === 'error' ? 'bg-red-600' : 'bg-primary text-primary-foreground active:bg-primary/90'
+                }`}
+                title="Save Adjusted"
+              >
+                <Save className="w-5 h-5" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Expanded player */}
+        {audioSheetExpanded && (
+          <div className="px-4 pb-4 space-y-4">
+            {/* Large progress bar */}
+            <div
+              ref={progressBarRef}
+              className={`relative bg-muted rounded-full cursor-pointer touch-manipulation transition-all ${isDraggingProgress ? 'h-6' : 'h-5'}`}
+              onClick={handleProgressClick}
+              onTouchStart={handleProgressDragStart}
+              onTouchMove={handleProgressDrag}
+              onTouchEnd={handleProgressDragEnd}
+            >
+              <div
+                className="absolute top-0 left-0 h-full bg-primary rounded-full pointer-events-none"
+                style={{ width: `${(currentTime / (segments[segments.length - 1]?.end || 1)) * 100}%` }}
+              />
+              <div
+                className={`absolute top-1/2 -translate-y-1/2 bg-primary rounded-full shadow-md transition-all pointer-events-none ${isDraggingProgress ? 'w-7 h-7' : 'w-5 h-5'}`}
+                style={{ left: `calc(${(currentTime / (segments[segments.length - 1]?.end || 1)) * 100}% - ${isDraggingProgress ? '14px' : '10px'})` }}
+              />
+            </div>
+
+            {/* Time display */}
+            <div className="flex justify-between text-sm text-muted-foreground font-mono">
+              <span>{formatTime(currentTime)}</span>
+              <span>{formatTime(segments[segments.length - 1]?.end || 0)}</span>
+            </div>
+
+            {/* Large play controls */}
+            <div className="flex items-center justify-center gap-4">
+              <button onClick={goToPreviousAd} className="p-3 rounded-full bg-muted active:bg-accent touch-manipulation min-w-[48px] min-h-[48px] flex items-center justify-center active:scale-95 transition-all">
+                <ChevronLeft className="w-6 h-6" />
+              </button>
+              <button
+                onClick={handlePlayPause}
+                className="p-4 rounded-full bg-primary text-primary-foreground active:scale-95 touch-manipulation min-w-[64px] min-h-[64px] flex items-center justify-center transition-all"
+              >
+                {isPlaying ? <Pause className="w-8 h-8" /> : <Play className="w-8 h-8" />}
+              </button>
+              <button onClick={goToNextAd} className="p-3 rounded-full bg-muted active:bg-accent touch-manipulation min-w-[48px] min-h-[48px] flex items-center justify-center active:scale-95 transition-all">
+                <ChevronRight className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Action buttons with labels in expanded mode */}
+            <div className="flex items-center justify-center gap-2">
+              <button onClick={handleReject} disabled={saveStatus === 'saving'} className="flex-1 py-3 rounded-lg bg-destructive/10 text-destructive text-sm font-medium touch-manipulation active:scale-95 transition-all">Not Ad</button>
+              <button onClick={handleReset} disabled={saveStatus === 'saving'} className="flex-1 py-3 rounded-lg bg-muted text-sm font-medium touch-manipulation active:scale-95 transition-all">Reset</button>
+              <button onClick={handleConfirm} disabled={saveStatus === 'saving'} className="flex-1 py-3 rounded-lg bg-green-600 text-white text-sm font-medium touch-manipulation active:scale-95 transition-all">Confirm</button>
+              <button onClick={handleSave} disabled={saveStatus === 'saving'} className="flex-1 py-3 rounded-lg bg-primary text-primary-foreground text-sm font-medium touch-manipulation active:scale-95 transition-all">Save</button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

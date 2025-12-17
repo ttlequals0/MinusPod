@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.119] - 2025-12-17
+
+### Added
+- Mobile-first transcript editor optimization
+  - **Touch targets**: All buttons now 44-48px for industry-standard accessibility
+  - **Swipe gestures**: Swipe left/right on transcript to navigate between ads
+  - **Haptic feedback**: Vibration on boundary changes, save, confirm, reject actions
+  - **Bottom sheet audio**: Apple Podcasts-style collapsible audio player on mobile
+  - **Draggable progress bar**: Touch-drag seeking with visual thumb indicator
+  - **Icon-only buttons**: Compact X, reset, check, save icons on mobile (labels in expanded mode)
+  - **Landscape mode**: Compact layout with hidden ad selector, swipe navigation hint
+
+### Changed
+- Transcript segments now have better spacing (p-3 on mobile, space-y-2)
+- Ad selector shows only start time to fit more buttons
+- Mobile toggle button includes chevron indicator
+- Expanded player shows prev/next ad navigation buttons
+
+---
+
 ## [0.1.118] - 2025-12-17
 
 ### Fixed
