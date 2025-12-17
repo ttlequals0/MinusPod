@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.108] - 2025-12-17
+
+### Fixed
+- Speaker diarization 10x performance improvement
+  - Changed Docker base image from `nvidia/cuda:12.1.1-cudnn8-runtime` to `nvidia/cuda:12.1.1-runtime` (CUDA-only, no cuDNN)
+  - Re-enabled cuDNN in speaker_analyzer.py - PyTorch now uses its bundled cuDNN without version conflicts
+  - Diarization now runs with full GPU+cuDNN acceleration instead of CPU-fallback RNN kernels
+- Database schema mismatch causing 500 errors on /api/v1/patterns endpoint
+  - Fixed `_create_new_tables_only()` to match SCHEMA_SQL schema for ad_patterns table
+  - Aligned audio_fingerprints and pattern_corrections table schemas
+- GlobalStatusBar overlapping navigation buttons
+  - Added padding-top to Layout component to account for fixed status bar
+
+### Added
+- TranscriptEditor integration in EpisodeDetail page
+  - "Edit Ads" button to toggle transcript editor for reviewing/adjusting ad detections
+  - Approximate transcript segmentation from plain text for editor display
+  - Placeholder for correction submission API
+
+---
+
 ## [0.1.107] - 2025-12-17
 
 ### Fixed

@@ -348,54 +348,48 @@ class Database:
 
     def _create_new_tables_only(self, conn):
         """Create new tables for existing databases without running indexes."""
-        # Create ad_patterns table if not exists
+        # Create ad_patterns table if not exists (must match SCHEMA_SQL exactly)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS ad_patterns (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                pattern_type TEXT NOT NULL CHECK(pattern_type IN ('audio_fingerprint', 'text_pattern')),
-                scope TEXT NOT NULL DEFAULT 'podcast' CHECK(scope IN ('global', 'network', 'podcast')),
+                scope TEXT NOT NULL CHECK(scope IN ('global', 'network', 'podcast')),
                 network_id TEXT,
-                podcast_id INTEGER REFERENCES podcasts(id) ON DELETE SET NULL,
+                podcast_id TEXT,
+                dai_platform TEXT,
+                text_template TEXT,
+                intro_variants TEXT DEFAULT '[]',
+                outro_variants TEXT DEFAULT '[]',
                 sponsor TEXT,
-                duration_seconds REAL,
-                confidence_score REAL DEFAULT 0.0,
-                match_count INTEGER DEFAULT 1,
+                confirmation_count INTEGER DEFAULT 0,
+                false_positive_count INTEGER DEFAULT 0,
                 last_matched_at TEXT,
+                created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                created_from_episode_id TEXT,
                 is_active INTEGER DEFAULT 1,
-                created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+                disabled_at TEXT,
+                disabled_reason TEXT
             )
         """)
 
-        # Create audio_fingerprints table if not exists
+        # Create audio_fingerprints table if not exists (must match SCHEMA_SQL exactly)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS audio_fingerprints (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                pattern_id INTEGER NOT NULL REFERENCES ad_patterns(id) ON DELETE CASCADE,
-                fingerprint_hash TEXT NOT NULL,
-                duration_seconds REAL NOT NULL,
-                sample_rate INTEGER DEFAULT 44100,
+                pattern_id INTEGER UNIQUE,
+                fingerprint BLOB,
+                duration REAL,
                 created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
             )
         """)
 
-        # Create text_patterns table if not exists
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS text_patterns (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                pattern_id INTEGER NOT NULL REFERENCES ad_patterns(id) ON DELETE CASCADE,
-                canonical_text TEXT NOT NULL,
-                tfidf_vector BLOB,
-                word_count INTEGER,
-                created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-            )
-        """)
-
-        # Create pattern_corrections table if not exists
+        # Create pattern_corrections table if not exists (must match SCHEMA_SQL exactly)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS pattern_corrections (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                pattern_id INTEGER REFERENCES ad_patterns(id) ON DELETE SET NULL,
-                episode_id INTEGER REFERENCES episodes(id) ON DELETE SET NULL,
+                pattern_id INTEGER,
+                episode_id TEXT,
+                podcast_title TEXT,
+                episode_title TEXT,
                 correction_type TEXT NOT NULL CHECK(correction_type IN ('false_positive', 'boundary_adjustment', 'confirm', 'promotion')),
                 original_bounds TEXT,
                 corrected_bounds TEXT,

@@ -148,13 +148,10 @@ class SpeakerAnalyzer:
                     raise RuntimeError("Failed to load pipeline - check model license acceptance")
 
                 if torch.cuda.is_available():
-                    # Disable cuDNN globally for this process
-                    # pyannote uses LSTMs which trigger cuDNN RNN code path
-                    # cuDNN 8 + CUDA 12.1 has version mismatch issues with RNN ops
-                    # This keeps GPU acceleration but uses PyTorch native RNN instead
-                    torch.backends.cudnn.enabled = False
+                    # Use GPU with cuDNN enabled (PyTorch bundles compatible cuDNN)
+                    # Base Docker image is CUDA-only (no system cuDNN) to avoid version mismatch
                     self._pipeline.to(torch.device("cuda"))
-                    logger.info("Diarization pipeline loaded on GPU (cuDNN disabled)")
+                    logger.info("Diarization pipeline loaded on GPU with cuDNN")
                 else:
                     logger.info("Diarization pipeline loaded on CPU")
 

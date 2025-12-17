@@ -16,7 +16,9 @@ COPY frontend/ ./
 RUN npm run build
 
 # Stage 2: Python application
-FROM nvidia/cuda:12.1.1-cudnn8-runtime-ubuntu22.04
+# Use CUDA-only image (no cuDNN) - PyTorch bundles its own cuDNN
+# Avoids version mismatch between system cuDNN and PyTorch's bundled cuDNN
+FROM nvidia/cuda:12.1.1-runtime-ubuntu22.04
 
 # Install Python 3.11 and system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -35,7 +37,7 @@ RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
 # Set working directory
 WORKDIR /app
 
-# Pre-install PyTorch 2.3.0 with CUDA 12.1 (compatible with cuDNN 8)
+# Pre-install PyTorch 2.3.0 with CUDA 12.1 (includes bundled cuDNN)
 RUN pip install --no-cache-dir \
     torch==2.3.0+cu121 \
     torchaudio==2.3.0+cu121 \

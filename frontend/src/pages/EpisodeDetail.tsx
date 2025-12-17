@@ -1,10 +1,13 @@
+import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getEpisode, reprocessEpisode } from '../api/feeds';
 import LoadingSpinner from '../components/LoadingSpinner';
+import TranscriptEditor, { AdCorrection } from '../components/TranscriptEditor';
 
 function EpisodeDetail() {
   const { slug, episodeId } = useParams<{ slug: string; episodeId: string }>();
+  const [showEditor, setShowEditor] = useState(false);
 
   const queryClient = useQueryClient();
 
@@ -20,6 +23,49 @@ function EpisodeDetail() {
       queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
     },
   });
+
+  // Handle ad corrections from TranscriptEditor
+  const handleCorrection = (correction: AdCorrection) => {
+    // TODO: Implement API call to submit correction
+    console.log('Ad correction:', correction);
+    // For now, just log the correction - backend API for corrections to be implemented
+  };
+
+  // Convert ad markers to TranscriptEditor format
+  const getDetectedAds = () => {
+    if (!episode?.adMarkers) return [];
+    return episode.adMarkers.map((marker) => ({
+      start: marker.start,
+      end: marker.end,
+      confidence: marker.confidence,
+      reason: marker.reason || '',
+      sponsor: undefined, // Could be extracted from reason if needed
+      pattern_id: undefined,
+      detection_stage: marker.pass === 1 ? 'first_pass' : marker.pass === 2 ? 'second_pass' : 'merged',
+    }));
+  };
+
+  // Generate approximate transcript segments from plain text
+  // This is a placeholder - ideally we'd have timestamped segments from the API
+  const getTranscriptSegments = () => {
+    if (!episode?.transcript || !episode.originalDuration) return [];
+
+    // Split transcript into sentences/chunks
+    const text = episode.transcript;
+    const sentences = text.split(/(?<=[.!?])\s+/).filter((s) => s.trim());
+
+    if (sentences.length === 0) return [];
+
+    // Distribute timestamps evenly across sentences (approximation)
+    const duration = episode.originalDuration;
+    const segmentDuration = duration / sentences.length;
+
+    return sentences.map((sentence, index) => ({
+      start: index * segmentDuration,
+      end: (index + 1) * segmentDuration,
+      text: sentence.trim(),
+    }));
+  };
 
   const formatDuration = (seconds?: number) => {
     if (!seconds) return '';
@@ -139,19 +185,43 @@ function EpisodeDetail() {
 
       {episode.adMarkers && episode.adMarkers.length > 0 && (
         <div className="bg-card rounded-lg border border-border p-6 mb-6">
-          <h2 className="text-xl font-semibold text-foreground mb-4">
-            Detected Ads ({episode.adMarkers.length})
-            {(episode.adsRemovedFirstPass !== undefined && episode.adsRemovedSecondPass !== undefined && episode.adsRemovedSecondPass > 0) && (
-              <span className="ml-2 text-sm font-normal text-muted-foreground">
-                ({episode.adsRemovedFirstPass} first pass, {episode.adsRemovedSecondPass} second pass)
-              </span>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-xl font-semibold text-foreground">
+              Detected Ads ({episode.adMarkers.length})
+              {(episode.adsRemovedFirstPass !== undefined && episode.adsRemovedSecondPass !== undefined && episode.adsRemovedSecondPass > 0) && (
+                <span className="ml-2 text-sm font-normal text-muted-foreground">
+                  ({episode.adsRemovedFirstPass} first pass, {episode.adsRemovedSecondPass} second pass)
+                </span>
+              )}
+              {episode.timeSaved && episode.timeSaved > 0 && (
+                <span className="ml-2 text-base font-normal text-muted-foreground">
+                  - {formatDuration(episode.timeSaved)} time saved
+                </span>
+              )}
+            </h2>
+            {episode.status === 'completed' && episode.transcript && (
+              <button
+                onClick={() => setShowEditor(!showEditor)}
+                className="px-3 py-1.5 text-sm bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 transition-colors"
+              >
+                {showEditor ? 'Hide Editor' : 'Edit Ads'}
+              </button>
             )}
-            {episode.timeSaved && episode.timeSaved > 0 && (
-              <span className="ml-2 text-base font-normal text-muted-foreground">
-                - {formatDuration(episode.timeSaved)} time saved
-              </span>
-            )}
-          </h2>
+          </div>
+
+          {/* TranscriptEditor for reviewing/editing ad detections */}
+          {showEditor && episode.status === 'completed' && (
+            <div className="mb-4">
+              <TranscriptEditor
+                segments={getTranscriptSegments()}
+                detectedAds={getDetectedAds()}
+                audioUrl={`/episodes/${slug}/${episode.id}.mp3`}
+                onCorrection={handleCorrection}
+                onClose={() => setShowEditor(false)}
+              />
+            </div>
+          )}
+
           <div className="space-y-3">
             {episode.adMarkers.map((segment, index) => (
               <div
