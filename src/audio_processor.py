@@ -112,8 +112,21 @@ class AudioProcessor:
             if current_segment:
                 merged_ads.append(current_segment)
 
-            ads = merged_ads
-            logger.info(f"After merging: {len(ads)} ad segments")
+            # Filter out short ad detections (< 10 seconds) - likely false positives
+            MIN_AD_DURATION_FOR_REMOVAL = 10.0  # seconds
+            ads = []
+            skipped_count = 0
+            for ad in merged_ads:
+                duration = ad['end'] - ad['start']
+                if duration >= MIN_AD_DURATION_FOR_REMOVAL:
+                    ads.append(ad)
+                else:
+                    skipped_count += 1
+                    logger.info(f"Skipping short ad ({duration:.1f}s < {MIN_AD_DURATION_FOR_REMOVAL}s): {ad.get('reason', 'unknown')[:50]}")
+
+            if skipped_count > 0:
+                logger.info(f"Skipped {skipped_count} short ad detections (< {MIN_AD_DURATION_FOR_REMOVAL}s)")
+            logger.info(f"After merging and filtering: {len(ads)} ad segments")
 
             # Build complex filter for FFMPEG
             # Strategy: Split audio into segments, replace ad segments with beep
@@ -169,13 +182,18 @@ class AudioProcessor:
                 current_time = ad_end
 
             # Add remaining content after last ad (with fade-in)
+            # Skip if less than 30 seconds remain (post-roll ad residue)
+            POST_ROLL_SKIP_THRESHOLD = 30.0  # seconds
             if current_time < total_duration:
                 content_duration = total_duration - current_time
-                if content_duration > fade_in_duration:
+                if content_duration < POST_ROLL_SKIP_THRESHOLD:
+                    logger.info(f"Skipping {content_duration:.1f}s of post-roll content (< {POST_ROLL_SKIP_THRESHOLD}s threshold)")
+                elif content_duration > fade_in_duration:
                     filter_parts.append(f"[0:a]atrim={current_time}:{total_duration},asetpts=PTS-STARTPTS,afade=t=in:d={fade_in_duration}[s{segment_idx}]")
+                    concat_parts.append(f"[s{segment_idx}]")
                 else:
                     filter_parts.append(f"[0:a]atrim={current_time}:{total_duration},asetpts=PTS-STARTPTS[s{segment_idx}]")
-                concat_parts.append(f"[s{segment_idx}]")
+                    concat_parts.append(f"[s{segment_idx}]")
 
             # Concatenate all parts
             filter_str = ';'.join(filter_parts)

@@ -5,6 +5,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.113] - 2025-12-17
+
+### Fixed
+- Episode count bug: Single feed API endpoint now correctly returns episode counts
+  - Modified `get_podcast_by_slug()` to JOIN episodes table for counts
+  - Matches behavior of feed list endpoint which already had correct counts
+
+### Changed
+- Post-roll ad handling: Skip remaining content if < 30 seconds after last ad
+  - Prevents post-roll ad residue from appearing in processed audio
+  - Configured threshold of 30 seconds catches most post-roll ads
+- Short ad detection filtering: Skip removal of ads < 10 seconds
+  - Very short detections are often false positives or audio gaps
+  - These segments are now left in the processed audio
+
+### Improved
+- Mobile UI for ad marking in TranscriptEditor
+  - Larger touch targets for nudge buttons on mobile (p-2 vs p-1)
+  - Larger play button on mobile (p-3 vs p-2)
+  - Taller progress bar on mobile for easier tapping
+  - Keyboard shortcuts hint hidden on mobile (not useful)
+  - Action buttons stack vertically on mobile for easier tapping
+  - Added `touch-manipulation` and `active:` states for better touch feedback
+
+---
+
 ## [0.1.112] - 2025-12-17
 
 ### Added

@@ -285,17 +285,17 @@ export function TranscriptEditor({
         ))}
       </div>
 
-      {/* Boundary controls */}
+      {/* Boundary controls - Mobile optimized */}
       <div className="px-4 py-3 border-b border-border bg-muted/30">
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+          <div className="flex items-center gap-2 justify-center sm:justify-start">
             <span className="text-xs text-muted-foreground">Start:</span>
             <button
               onClick={handleNudgeStartBackward}
-              className="p-1 rounded hover:bg-accent"
+              className="p-2 sm:p-1 rounded hover:bg-accent active:bg-accent/80 touch-manipulation"
               aria-label="Nudge start backward"
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-5 h-5 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
             </button>
@@ -304,23 +304,23 @@ export function TranscriptEditor({
             </span>
             <button
               onClick={handleNudgeStartForward}
-              className="p-1 rounded hover:bg-accent"
+              className="p-2 sm:p-1 rounded hover:bg-accent active:bg-accent/80 touch-manipulation"
               aria-label="Nudge start forward"
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-5 h-5 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
             </button>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 justify-center sm:justify-start">
             <span className="text-xs text-muted-foreground">End:</span>
             <button
               onClick={handleNudgeEndBackward}
-              className="p-1 rounded hover:bg-accent"
+              className="p-2 sm:p-1 rounded hover:bg-accent active:bg-accent/80 touch-manipulation"
               aria-label="Nudge end backward"
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-5 h-5 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
             </button>
@@ -329,22 +329,22 @@ export function TranscriptEditor({
             </span>
             <button
               onClick={handleNudgeEndForward}
-              className="p-1 rounded hover:bg-accent"
+              className="p-2 sm:p-1 rounded hover:bg-accent active:bg-accent/80 touch-manipulation"
               aria-label="Nudge end forward"
             >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <svg className="w-5 h-5 sm:w-4 sm:h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
             </button>
           </div>
 
-          <span className="text-xs text-muted-foreground">
+          <span className="text-xs text-muted-foreground text-center sm:text-left">
             Duration: {formatTime(adjustedEnd - adjustedStart)}
           </span>
         </div>
 
-        {/* Keyboard shortcuts hint */}
-        <div className="mt-2 text-xs text-muted-foreground">
+        {/* Keyboard shortcuts hint - hidden on mobile */}
+        <div className="hidden sm:block mt-2 text-xs text-muted-foreground">
           <span className="font-mono">Space</span> play/pause{' '}
           <span className="font-mono">J/K</span> nudge end{' '}
           <span className="font-mono">Shift+J/K</span> nudge start{' '}
@@ -383,29 +383,29 @@ export function TranscriptEditor({
         })}
       </div>
 
-      {/* Audio player */}
+      {/* Audio player - Mobile optimized */}
       {audioUrl && (
         <div className="px-4 py-3 border-t border-border">
           <audio ref={audioRef} src={audioUrl} className="hidden" />
           <div className="flex items-center gap-3">
             <button
               onClick={handlePlayPause}
-              className="p-2 rounded-full bg-primary text-primary-foreground hover:bg-primary/90"
+              className="p-3 sm:p-2 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 active:bg-primary/80 touch-manipulation"
               aria-label={isPlaying ? 'Pause' : 'Play'}
             >
               {isPlaying ? (
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                <svg className="w-6 h-6 sm:w-5 sm:h-5" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" />
                 </svg>
               ) : (
-                <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                <svg className="w-6 h-6 sm:w-5 sm:h-5" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M8 5v14l11-7z" />
                 </svg>
               )}
             </button>
             <span className="text-sm font-mono">{formatTime(currentTime)}</span>
             <div
-              className="flex-1 h-2 bg-muted rounded-full overflow-hidden cursor-pointer hover:h-3 transition-all"
+              className="flex-1 h-3 sm:h-2 bg-muted rounded-full overflow-hidden cursor-pointer hover:h-4 sm:hover:h-3 transition-all touch-manipulation"
               onClick={handleProgressClick}
               title="Click to seek"
             >
@@ -420,11 +420,11 @@ export function TranscriptEditor({
         </div>
       )}
 
-      {/* Action buttons */}
-      <div className="flex items-center justify-between px-4 py-3 border-t border-border bg-muted/30">
+      {/* Action buttons - Mobile optimized */}
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 sm:gap-0 px-4 py-3 border-t border-border bg-muted/30">
         <button
           onClick={handleReject}
-          className="px-4 py-2 text-sm bg-destructive text-destructive-foreground rounded hover:bg-destructive/90"
+          className="px-4 py-3 sm:py-2 text-sm bg-destructive text-destructive-foreground rounded hover:bg-destructive/90 active:bg-destructive/80 touch-manipulation"
         >
           Not an Ad
         </button>
@@ -432,19 +432,19 @@ export function TranscriptEditor({
         <div className="flex items-center gap-2">
           <button
             onClick={handleReset}
-            className="px-4 py-2 text-sm bg-muted text-muted-foreground rounded hover:bg-accent"
+            className="flex-1 sm:flex-none px-4 py-3 sm:py-2 text-sm bg-muted text-muted-foreground rounded hover:bg-accent active:bg-accent/80 touch-manipulation"
           >
             Reset
           </button>
           <button
             onClick={handleConfirm}
-            className="px-4 py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700"
+            className="flex-1 sm:flex-none px-4 py-3 sm:py-2 text-sm bg-green-600 text-white rounded hover:bg-green-700 active:bg-green-800 touch-manipulation"
           >
             Confirm
           </button>
           <button
             onClick={handleSave}
-            className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90"
+            className="flex-1 sm:flex-none px-4 py-3 sm:py-2 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90 active:bg-primary/80 touch-manipulation"
           >
             Save Adjusted
           </button>

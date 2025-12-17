@@ -873,11 +873,18 @@ class Database:
         return [dict(row) for row in cursor.fetchall()]
 
     def get_podcast_by_slug(self, slug: str) -> Optional[Dict]:
-        """Get podcast by slug."""
+        """Get podcast by slug with episode counts."""
         conn = self.get_connection()
-        cursor = conn.execute(
-            "SELECT * FROM podcasts WHERE slug = ?", (slug,)
-        )
+        cursor = conn.execute("""
+            SELECT p.*,
+                   COUNT(e.id) as episode_count,
+                   SUM(CASE WHEN e.status = 'processed' THEN 1 ELSE 0 END) as processed_count,
+                   MAX(e.created_at) as last_episode_date
+            FROM podcasts p
+            LEFT JOIN episodes e ON p.id = e.podcast_id
+            WHERE p.slug = ?
+            GROUP BY p.id
+        """, (slug,))
         row = cursor.fetchone()
         return dict(row) if row else None
 
