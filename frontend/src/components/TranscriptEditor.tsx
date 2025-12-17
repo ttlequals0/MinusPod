@@ -7,6 +7,9 @@ interface TranscriptSegment {
   text: string;
 }
 
+// Touch interaction mode for mobile
+type TouchMode = 'seek' | 'setStart' | 'setEnd';
+
 interface DetectedAd {
   start: number;
   end: number;
@@ -53,10 +56,16 @@ export function TranscriptEditor({
   const [adjustedEnd, setAdjustedEnd] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
+  const [touchMode, setTouchMode] = useState<TouchMode>('seek');
+  const [lastTapTime, setLastTapTime] = useState(0);
+  const [longPressTimer, setLongPressTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
   const transcriptRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   const NUDGE_AMOUNT = 0.5; // seconds
+  const DOUBLE_TAP_DELAY = 300; // ms
+  const LONG_PRESS_DELAY = 500; // ms
 
   const selectedAd = detectedAds[selectedAdIndex];
 
@@ -112,6 +121,13 @@ export function TranscriptEditor({
       audioRef.current.currentTime = initialSeekTime;
     }
   }, [initialSeekTime, detectedAds]);
+
+  // Auto-focus container when editor opens for keyboard shortcuts
+  useEffect(() => {
+    if (containerRef.current) {
+      containerRef.current.focus();
+    }
+  }, []);
 
   const handlePlayPause = useCallback(() => {
     const audio = audioRef.current;
@@ -211,6 +227,77 @@ export function TranscriptEditor({
     }
   };
 
+  // Handle segment click with modifier key support
+  const handleSegmentClick = useCallback((segment: TranscriptSegment, e: React.MouseEvent) => {
+    // Shift+click sets END boundary
+    if (e.shiftKey) {
+      setAdjustedEnd(segment.end);
+      return;
+    }
+    // Alt/Option+click or Cmd/Ctrl+click sets START boundary
+    if (e.altKey || e.metaKey || e.ctrlKey) {
+      setAdjustedStart(segment.start);
+      return;
+    }
+    // Normal click seeks audio
+    seekTo(segment.start);
+  }, []);
+
+  // Handle touch start for long-press detection
+  const handleTouchStart = useCallback((segment: TranscriptSegment) => {
+    const timer = setTimeout(() => {
+      // Long press - set END boundary
+      setAdjustedEnd(segment.end);
+      setLongPressTimer(null);
+    }, LONG_PRESS_DELAY);
+    setLongPressTimer(timer);
+  }, []);
+
+  // Handle touch end for tap/double-tap detection
+  const handleTouchEnd = useCallback((segment: TranscriptSegment, e: React.TouchEvent) => {
+    // Cancel long press if it was a short touch
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      setLongPressTimer(null);
+    } else {
+      // Long press already fired, don't process tap
+      return;
+    }
+
+    const now = Date.now();
+    const timeSinceLastTap = now - lastTapTime;
+
+    if (timeSinceLastTap < DOUBLE_TAP_DELAY) {
+      // Double tap - set START boundary
+      e.preventDefault();
+      setAdjustedStart(segment.start);
+      setLastTapTime(0);
+    } else {
+      // Single tap - handle based on touch mode
+      setLastTapTime(now);
+      switch (touchMode) {
+        case 'setStart':
+          setAdjustedStart(segment.start);
+          break;
+        case 'setEnd':
+          setAdjustedEnd(segment.end);
+          break;
+        case 'seek':
+        default:
+          seekTo(segment.start);
+          break;
+      }
+    }
+  }, [touchMode, lastTapTime, longPressTimer]);
+
+  // Clean up long press timer on touch cancel/move
+  const handleTouchCancel = useCallback(() => {
+    if (longPressTimer) {
+      clearTimeout(longPressTimer);
+      setLongPressTimer(null);
+    }
+  }, [longPressTimer]);
+
   // Handle click on progress bar to seek
   const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -237,7 +324,11 @@ export function TranscriptEditor({
   }
 
   return (
-    <div className="flex flex-col h-full bg-card rounded-lg border border-border">
+    <div
+      ref={containerRef}
+      tabIndex={0}
+      className="flex flex-col h-full bg-card rounded-lg border border-border outline-none focus:ring-2 focus:ring-primary/50"
+    >
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border">
         <div className="flex items-center gap-4">
@@ -343,7 +434,7 @@ export function TranscriptEditor({
           </span>
         </div>
 
-        {/* Keyboard shortcuts hint - hidden on mobile */}
+        {/* Keyboard shortcuts hint - desktop only */}
         <div className="hidden sm:block mt-2 text-xs text-muted-foreground">
           <span className="font-mono">Space</span> play/pause{' '}
           <span className="font-mono">J/K</span> nudge end{' '}
@@ -351,6 +442,51 @@ export function TranscriptEditor({
           <span className="font-mono">C</span> confirm{' '}
           <span className="font-mono">X</span> reject{' '}
           <span className="font-mono">Esc</span> reset
+          <br />
+          <span className="font-mono">Click</span> seek{' '}
+          <span className="font-mono">Shift+Click</span> set end{' '}
+          <span className="font-mono">Alt+Click</span> set start
+        </div>
+
+        {/* Mobile mode toggle and instructions */}
+        <div className="sm:hidden mt-3">
+          <div className="flex gap-2 mb-2">
+            <button
+              onClick={() => setTouchMode('seek')}
+              className={`flex-1 px-3 py-2 text-xs rounded-md transition-colors ${
+                touchMode === 'seek'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted text-muted-foreground hover:bg-accent'
+              }`}
+            >
+              Seek Mode
+            </button>
+            <button
+              onClick={() => setTouchMode('setStart')}
+              className={`flex-1 px-3 py-2 text-xs rounded-md transition-colors ${
+                touchMode === 'setStart'
+                  ? 'bg-green-600 text-white'
+                  : 'bg-muted text-muted-foreground hover:bg-accent'
+              }`}
+            >
+              Set Start
+            </button>
+            <button
+              onClick={() => setTouchMode('setEnd')}
+              className={`flex-1 px-3 py-2 text-xs rounded-md transition-colors ${
+                touchMode === 'setEnd'
+                  ? 'bg-orange-600 text-white'
+                  : 'bg-muted text-muted-foreground hover:bg-accent'
+              }`}
+            >
+              Set End
+            </button>
+          </div>
+          <p className="text-xs text-muted-foreground text-center">
+            {touchMode === 'seek' && 'Tap segment to seek. Double-tap = set start. Long-press = set end.'}
+            {touchMode === 'setStart' && 'Tap any segment to set as START boundary'}
+            {touchMode === 'setEnd' && 'Tap any segment to set as END boundary'}
+          </p>
         </div>
       </div>
 
@@ -362,17 +498,25 @@ export function TranscriptEditor({
         {segments.map((segment, index) => {
           const inAd = isInAdRegion(segment.start, segment.end);
           const isCurrent = isCurrentSegment(segment.start, segment.end);
+          const isStartBoundary = Math.abs(segment.start - adjustedStart) < 1;
+          const isEndBoundary = Math.abs(segment.end - adjustedEnd) < 1;
 
           return (
             <div
               key={index}
               data-active={isCurrent}
-              onClick={() => seekTo(segment.start)}
-              className={`p-2 rounded cursor-pointer transition-colors ${
+              onClick={(e) => handleSegmentClick(segment, e)}
+              onTouchStart={() => handleTouchStart(segment)}
+              onTouchEnd={(e) => handleTouchEnd(segment, e)}
+              onTouchCancel={handleTouchCancel}
+              onTouchMove={handleTouchCancel}
+              className={`p-2 rounded cursor-pointer transition-colors select-none ${
                 inAd
                   ? 'bg-red-500/20 hover:bg-red-500/30'
                   : 'hover:bg-accent'
-              } ${isCurrent ? 'ring-2 ring-primary' : ''}`}
+              } ${isCurrent ? 'ring-2 ring-primary' : ''} ${
+                isStartBoundary ? 'border-l-4 border-l-green-500' : ''
+              } ${isEndBoundary ? 'border-r-4 border-r-orange-500' : ''}`}
             >
               <span className="text-xs text-muted-foreground font-mono mr-2">
                 {formatTime(segment.start)}

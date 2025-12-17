@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.114] - 2025-12-17
+
+### Fixed
+- Ad correction save functionality now works
+  - Wired up submitCorrection API call in EpisodeDetail.tsx
+  - Corrections (confirm/reject/adjust) now persist to database
+  - Previously just logged to console with TODO comment
+
+### Added
+- Shift-click range selection for ad boundaries
+  - Shift+Click on transcript segment sets END boundary
+  - Alt/Cmd+Click on transcript segment sets START boundary
+  - Visual indicators show boundary segments (green left border for start, orange right for end)
+- Mobile touch controls for ad editing
+  - Mode toggle buttons: Seek Mode / Set Start / Set End
+  - Double-tap segment to set START boundary
+  - Long-press (500ms) segment to set END boundary
+  - Mobile-specific instructions replace keyboard hints
+- Auto-focus editor for keyboard shortcuts
+  - TranscriptEditor now auto-focuses when opened
+  - Focus ring shows when editor has keyboard focus
+
+### Improved
+- Keyboard shortcuts hint now includes click modifiers
+- Added select-none to transcript segments to prevent text selection during interaction
+
+---
+
 ## [0.1.113] - 2025-12-17
 
 ### Fixed

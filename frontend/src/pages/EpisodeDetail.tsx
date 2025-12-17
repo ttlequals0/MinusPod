@@ -2,6 +2,7 @@ import { useState, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getEpisode, reprocessEpisode } from '../api/feeds';
+import { submitCorrection } from '../api/patterns';
 import LoadingSpinner from '../components/LoadingSpinner';
 import TranscriptEditor, { AdCorrection } from '../components/TranscriptEditor';
 
@@ -26,11 +27,32 @@ function EpisodeDetail() {
     },
   });
 
+  // Mutation for submitting ad corrections
+  const correctionMutation = useMutation({
+    mutationFn: (correction: AdCorrection) =>
+      submitCorrection(slug!, episodeId!, {
+        type: correction.type,
+        original_ad: {
+          start: correction.originalAd.start,
+          end: correction.originalAd.end,
+          pattern_id: correction.originalAd.pattern_id,
+          confidence: correction.originalAd.confidence,
+          reason: correction.originalAd.reason,
+        },
+        adjusted_start: correction.adjustedStart,
+        adjusted_end: correction.adjustedEnd,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
+    },
+    onError: (error) => {
+      console.error('Failed to save correction:', error);
+    },
+  });
+
   // Handle ad corrections from TranscriptEditor
   const handleCorrection = (correction: AdCorrection) => {
-    // TODO: Implement API call to submit correction
-    console.log('Ad correction:', correction);
-    // For now, just log the correction - backend API for corrections to be implemented
+    correctionMutation.mutate(correction);
   };
 
   // Jump to a specific ad in the editor
