@@ -1404,7 +1404,7 @@ def submit_correction(slug, episode_id):
 
 @api.route('/episodes/<slug>/<episode_id>/reprocess', methods=['POST'])
 @log_request
-def reprocess_episode(slug, episode_id):
+def reprocess_episode_with_mode(slug, episode_id):
     """Reprocess an episode with specified mode.
 
     Modes:

@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.106] - 2025-12-17
+
+### Fixed
+- Server failing to start with duplicate endpoint error
+  - Flask AssertionError: "View function mapping is overwriting an existing endpoint function: api.reprocess_episode"
+  - Renamed duplicate `reprocess_episode` function to `reprocess_episode_with_mode`
+
+---
+
 ## [0.1.105] - 2025-12-17
 
 ### Added
