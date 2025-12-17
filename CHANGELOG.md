@@ -5,6 +5,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.115] - 2025-12-17
+
+### Fixed
+- Transcript editor buttons now always visible without scrolling
+  - Sticky header keeps ad selector, boundary controls visible at top
+  - Sticky footer keeps audio player, action buttons visible at bottom
+  - Only the transcript content scrolls
+
+### Added
+- Save feedback on action buttons
+  - Buttons show "Saving..." while API call in progress
+  - Buttons show "Saved!" (green) on success for 2 seconds
+  - Buttons show "Error!" (red) on failure for 3 seconds
+  - Buttons disabled during save to prevent double-clicks
+- Auto-scroll transcript when selecting ad from selector
+  - Clicking ad time button (e.g., "0:00-1:11") scrolls transcript to that ad
+  - Added data-segment-start attribute for efficient element lookup
+
+### Improved
+- Mobile touch targets for ad selector buttons (px-3 py-2 vs px-2 py-1)
+- Added momentum scrolling to ad selector with touch-pan-x
+- Better overflow handling with overflow-hidden on container
+
+---
+
 ## [0.1.114] - 2025-12-17
 
 ### Fixed

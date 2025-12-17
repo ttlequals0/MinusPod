@@ -6,10 +6,14 @@ import { submitCorrection } from '../api/patterns';
 import LoadingSpinner from '../components/LoadingSpinner';
 import TranscriptEditor, { AdCorrection } from '../components/TranscriptEditor';
 
+// Save status type for visual feedback
+type SaveStatus = 'idle' | 'saving' | 'success' | 'error';
+
 function EpisodeDetail() {
   const { slug, episodeId } = useParams<{ slug: string; episodeId: string }>();
   const [showEditor, setShowEditor] = useState(false);
   const [jumpToTime, setJumpToTime] = useState<number | null>(null);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const editorRef = useRef<HTMLDivElement>(null);
 
   const queryClient = useQueryClient();
@@ -42,11 +46,18 @@ function EpisodeDetail() {
         adjusted_start: correction.adjustedStart,
         adjusted_end: correction.adjustedEnd,
       }),
+    onMutate: () => {
+      setSaveStatus('saving');
+    },
     onSuccess: () => {
+      setSaveStatus('success');
+      setTimeout(() => setSaveStatus('idle'), 2000);
       queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
     },
     onError: (error) => {
       console.error('Failed to save correction:', error);
+      setSaveStatus('error');
+      setTimeout(() => setSaveStatus('idle'), 3000);
     },
   });
 
@@ -255,6 +266,7 @@ function EpisodeDetail() {
                 onCorrection={handleCorrection}
                 onClose={() => setShowEditor(false)}
                 initialSeekTime={jumpToTime ?? undefined}
+                saveStatus={saveStatus}
               />
             </div>
           )}
