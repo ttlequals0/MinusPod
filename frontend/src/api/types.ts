@@ -32,6 +32,7 @@ export interface EpisodeDetail extends Episode {
   transcript?: string;
   adMarkers?: AdSegment[];
   rejectedAdMarkers?: AdSegment[];
+  corrections?: EpisodeCorrection[];
   originalDuration?: number;
   newDuration?: number;
   timeSaved?: number;
@@ -50,6 +51,14 @@ export interface AdValidation {
   original_confidence?: number;
   flags: string[];
   corrections?: string[];
+}
+
+export interface EpisodeCorrection {
+  id: number;
+  correction_type: 'confirm' | 'false_positive' | 'boundary_adjustment';
+  original_bounds: { start: number; end: number };
+  corrected_bounds?: { start: number; end: number };
+  created_at: string;
 }
 
 export interface AdSegment {

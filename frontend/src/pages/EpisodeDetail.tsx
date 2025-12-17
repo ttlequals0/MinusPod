@@ -142,6 +142,13 @@ function EpisodeDetail() {
     return `${mb.toFixed(1)} MB`;
   };
 
+  // Helper to find correction for an ad marker
+  const getAdCorrection = (start: number, end: number) => {
+    return episode?.corrections?.find(c =>
+      c.original_bounds.start === start && c.original_bounds.end === end
+    );
+  };
+
   if (isLoading) {
     return <LoadingSpinner className="py-12" />;
   }
@@ -301,6 +308,25 @@ function EpisodeDetail() {
                       Jump
                     </button>
                   )}
+                  {(() => {
+                    const correction = getAdCorrection(segment.start, segment.end);
+                    if (correction) {
+                      return (
+                        <span className={`px-1.5 py-0.5 text-xs rounded font-medium ${
+                          correction.correction_type === 'confirm'
+                            ? 'bg-green-500/20 text-green-600 dark:text-green-400'
+                            : correction.correction_type === 'false_positive'
+                            ? 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400'
+                            : 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
+                        }`}>
+                          {correction.correction_type === 'confirm' ? 'Confirmed'
+                           : correction.correction_type === 'false_positive' ? 'Not Ad'
+                           : 'Adjusted'}
+                        </span>
+                      );
+                    }
+                    return null;
+                  })()}
                 </div>
                 <div className="flex flex-col items-end">
                   <span className="text-sm text-muted-foreground">

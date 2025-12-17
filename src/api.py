@@ -468,6 +468,9 @@ def get_episode(slug, episode_id):
         if file_path.exists():
             file_size = file_path.stat().st_size
 
+    # Get corrections for this episode
+    corrections = db.get_episode_corrections(episode_id)
+
     return json_response({
         'id': episode['episode_id'],
         'episodeId': episode['episode_id'],
@@ -489,6 +492,7 @@ def get_episode(slug, episode_id):
         'fileSize': file_size,
         'adMarkers': ad_markers,
         'rejectedAdMarkers': rejected_ad_markers,
+        'corrections': corrections,
         'adDetectionStatus': episode.get('ad_detection_status'),
         'transcript': episode.get('transcript_text'),
         'transcriptAvailable': bool(episode.get('transcript_text')),

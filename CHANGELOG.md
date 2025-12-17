@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.117] - 2025-12-17
+
+### Added
+- Correction badges show on ad markers in episode detail
+  - "Confirmed" (green) for ads marked as correct
+  - "Not Ad" (yellow) for false positives
+  - "Adjusted" (blue) for boundary adjustments
+  - Badges persist across page refreshes (loaded from database)
+- Backend support for episode corrections lookup
+  - New `get_episode_corrections(episode_id)` method in database.py
+  - Episode API now includes `corrections` array in response
+
+### Fixed
+- Mobile transcript editor height reduced to prevent sticky controls hiding content
+  - Changed from 70vh to 50vh on mobile (50vh sm:70vh)
+  - Reduced max-height from 800px to 600px on mobile (600px sm:800px)
+
+---
+
 ## [0.1.116] - 2025-12-17
 
 ### Fixed

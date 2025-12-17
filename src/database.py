@@ -1627,6 +1627,26 @@ class Database:
 
         return [dict(row) for row in cursor.fetchall()]
 
+    def get_episode_corrections(self, episode_id: str) -> List[Dict]:
+        """Get all corrections for a specific episode."""
+        conn = self.get_connection()
+        cursor = conn.execute(
+            """SELECT id, correction_type, original_bounds, corrected_bounds, created_at
+               FROM pattern_corrections
+               WHERE episode_id = ?
+               ORDER BY created_at DESC""",
+            (episode_id,)
+        )
+        results = []
+        for row in cursor.fetchall():
+            item = dict(row)
+            if item.get('original_bounds'):
+                item['original_bounds'] = json.loads(item['original_bounds'])
+            if item.get('corrected_bounds'):
+                item['corrected_bounds'] = json.loads(item['corrected_bounds'])
+            results.append(item)
+        return results
+
     # ========== Audio Fingerprints Methods ==========
 
     def get_audio_fingerprint(self, pattern_id: int) -> Optional[Dict]:
