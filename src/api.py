@@ -1258,6 +1258,8 @@ def get_status():
 @log_request
 def list_patterns():
     """List all ad patterns with optional filtering."""
+    db = get_database()
+
     scope = request.args.get('scope')
     podcast_id = request.args.get('podcast_id')
     network_id = request.args.get('network_id')
@@ -1277,6 +1279,8 @@ def list_patterns():
 @log_request
 def get_pattern(pattern_id):
     """Get a single pattern by ID."""
+    db = get_database()
+
     pattern = db.get_ad_pattern_by_id(pattern_id)
 
     if not pattern:
@@ -1289,6 +1293,8 @@ def get_pattern(pattern_id):
 @log_request
 def update_pattern(pattern_id):
     """Update a pattern."""
+    db = get_database()
+
     data = request.get_json()
     if not data:
         return error_response('No data provided', 400)
@@ -1320,6 +1326,8 @@ def submit_correction(slug, episode_id):
     - reject: Not actually an ad (increases false_positive_count)
     - adjust: Correct ad but with adjusted boundaries
     """
+    db = get_database()
+
     data = request.get_json()
     if not data:
         return error_response('No data provided', 400)
@@ -1413,6 +1421,8 @@ def reprocess_episode_with_mode(slug, episode_id):
 
     Reprocessed episodes are added to the front of the queue.
     """
+    db = get_database()
+
     data = request.get_json() or {}
     mode = data.get('mode', 'fresh')
 
@@ -1425,7 +1435,7 @@ def reprocess_episode_with_mode(slug, episode_id):
         return error_response('Episode not found', 404)
 
     # Get podcast info
-    podcast = db.get_podcast(slug)
+    podcast = db.get_podcast_by_slug(slug)
     if not podcast:
         return error_response('Podcast not found', 404)
 
@@ -1470,6 +1480,8 @@ def export_patterns():
     - include_disabled: Include disabled patterns (default: false)
     - include_corrections: Include correction history (default: false)
     """
+    db = get_database()
+
     include_disabled = request.args.get('include_disabled', 'false').lower() == 'true'
     include_corrections = request.args.get('include_corrections', 'false').lower() == 'true'
 
@@ -1528,6 +1540,8 @@ def import_patterns():
       - replace: Delete all existing patterns, import all
       - supplement: Only add patterns that don't exist
     """
+    db = get_database()
+
     data = request.get_json()
     if not data or 'patterns' not in data:
         return error_response('No patterns provided', 400)
@@ -1560,7 +1574,7 @@ def import_patterns():
                 continue
 
             # Check for existing similar pattern
-            existing = _find_similar_pattern(pattern_data)
+            existing = _find_similar_pattern(db, pattern_data)
 
             if existing:
                 if mode == 'supplement':
@@ -1610,7 +1624,7 @@ def import_patterns():
         return error_response(f'Import failed: {str(e)}', 500)
 
 
-def _find_similar_pattern(pattern_data: dict) -> Optional[dict]:
+def _find_similar_pattern(db, pattern_data: dict) -> Optional[dict]:
     """Find an existing pattern similar to the import data."""
     # Look for exact sponsor match in same scope
     sponsor = pattern_data.get('sponsor')

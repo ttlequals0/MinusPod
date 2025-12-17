@@ -107,6 +107,7 @@ from processing_queue import ProcessingQueue
 from audio_analysis import AudioAnalyzer
 from sponsor_service import SponsorService
 from status_service import StatusService
+from pattern_service import PatternService
 
 # Initialize components
 storage = Storage()
@@ -118,6 +119,7 @@ db = Database()
 audio_analyzer = AudioAnalyzer(db=db)
 sponsor_service = SponsorService(db)
 status_service = StatusService()
+pattern_service = PatternService(db)
 
 
 def get_feed_map():
@@ -166,6 +168,22 @@ def refresh_rss_feed(slug: str, feed_url: str):
                 artwork_url=artwork_url,
                 last_checked_at=datetime.utcnow().isoformat() + 'Z'
             )
+
+            # Detect DAI platform and network from feed metadata
+            feed_author = parsed_feed.feed.get('author', '')
+            network_info = pattern_service.update_podcast_metadata(
+                podcast_id=slug,
+                feed_url=feed_url,
+                feed_content=feed_content,
+                feed_title=title,
+                feed_description=description,
+                feed_author=feed_author
+            )
+            if network_info.get('dai_platform') or network_info.get('network_id'):
+                refresh_logger.info(
+                    f"[{slug}] Detected: platform={network_info.get('dai_platform')}, "
+                    f"network={network_info.get('network_id')}"
+                )
 
             # Download artwork if available
             if artwork_url:

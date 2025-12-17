@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.110] - 2025-12-17
+
+### Fixed
+- Worker crash during reprocessing (exit code 134) - COMPLETE FIX
+  - v0.1.109 installed cuDNN via pip but libraries weren't in LD_LIBRARY_PATH
+  - Added LD_LIBRARY_PATH to ENV to include pip-installed cuDNN/cuBLAS libs
+  - Path: /usr/local/lib/python3.11/dist-packages/nvidia/cudnn/lib
+
+---
+
+## [0.1.109] - 2025-12-17
+
+### Fixed
+- Worker crash during reprocessing (exit code 134) - INCOMPLETE FIX
+  - Root cause: Base Docker image changed to CUDA-only lacked cuDNN libraries
+  - PyTorch RNN operations used by pyannote speaker diarization still require system cuDNN
+  - Fix: Install nvidia-cudnn-cu12==8.9.2.26 via pip to provide cuDNN libraries
+  - NOTE: Libraries installed but not in LD_LIBRARY_PATH - see v0.1.110
+- API 500 errors on pattern/correction endpoints
+  - Fixed db variable not initialized in list_patterns, get_pattern, update_pattern
+  - Fixed db not initialized in submit_correction, export_patterns, import_patterns
+  - Fixed db not initialized in reprocess_episode_with_mode
+  - Fixed _find_similar_pattern helper missing db parameter
+
+### Added
+- RSS feed network detection integration
+  - Now automatically detects DAI platform (megaphone, acast, art19, etc.) on feed refresh
+  - Now automatically detects podcast network (TWiT, Relay FM, NPR, etc.) on feed refresh
+  - Network and platform info stored in database for pattern scoping
+
+---
+
 ## [0.1.108] - 2025-12-17
 
 ### Fixed
