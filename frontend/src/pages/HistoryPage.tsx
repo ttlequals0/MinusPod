@@ -83,7 +83,10 @@ function HistoryPage() {
     return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  const formatDuration = (seconds: number) => {
+  const formatDuration = (seconds: number | null) => {
+    if (seconds === null || seconds === undefined) {
+      return '-';
+    }
     if (seconds < 60) {
       return `${seconds.toFixed(1)}s`;
     }
