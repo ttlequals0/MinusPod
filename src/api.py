@@ -64,6 +64,42 @@ def error_response(message, status=400, details=None):
     return json_response(data, status)
 
 
+def extract_transcript_segment(transcript: str, start: float, end: float) -> str:
+    """Extract text from transcript between timestamps.
+
+    Transcript format (VTT-like):
+    [00:00:00.000 --> 00:00:27.580] Text content here...
+    [00:00:28.940 --> 00:00:35.120] More text...
+    """
+    import re
+
+    if not transcript:
+        return ''
+
+    def parse_timestamp(ts: str) -> float:
+        """Convert HH:MM:SS.mmm to seconds."""
+        parts = ts.split(':')
+        hours = int(parts[0])
+        mins = int(parts[1])
+        secs = float(parts[2])
+        return hours * 3600 + mins * 60 + secs
+
+    # Pattern: [HH:MM:SS.mmm --> HH:MM:SS.mmm] text
+    pattern = r'\[(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})\]\s*([^\[]+)'
+    segments = []
+
+    for match in re.finditer(pattern, transcript):
+        seg_start = parse_timestamp(match.group(1))
+        seg_end = parse_timestamp(match.group(2))
+        text = match.group(3).strip()
+
+        # Include segment if it overlaps with requested range
+        if seg_end >= start and seg_start <= end:
+            segments.append(text)
+
+    return ' '.join(segments)
+
+
 # ========== Feed Endpoints ==========
 
 @api.route('/feeds', methods=['GET'])
@@ -1564,6 +1600,34 @@ def submit_correction(slug, episode_id):
         # Increment confirmation count on pattern
         if pattern_id:
             pattern_service.record_pattern_match(pattern_id, episode_id)
+        else:
+            # Create new pattern from Claude detection
+            episode = db.get_episode(slug, episode_id)
+            if episode:
+                transcript = episode.get('transcript_text', '')
+
+                # Extract ad text from transcript using timestamps
+                ad_text = extract_transcript_segment(transcript, original_start, original_end)
+
+                if ad_text and len(ad_text) >= 50:  # Minimum for TF-IDF matching
+                    # Get podcast info for scope
+                    podcast = db.get_podcast_by_slug(slug)
+
+                    # Extract sponsor from original ad if available
+                    sponsor = original_ad.get('sponsor')
+
+                    # Create new pattern with podcast scope
+                    new_pattern_id = db.create_ad_pattern(
+                        scope='podcast',
+                        podcast_id=str(podcast['id']) if podcast else None,
+                        text_template=ad_text,
+                        sponsor=sponsor,
+                        intro_variants=[ad_text[:200]] if len(ad_text) > 200 else [ad_text],
+                        outro_variants=[ad_text[-150:]] if len(ad_text) > 150 else [],
+                        created_from_episode_id=episode_id
+                    )
+                    pattern_id = new_pattern_id
+                    logger.info(f"Created new pattern {pattern_id} from confirmed ad in {slug}/{episode_id}")
 
         db.create_pattern_correction(
             correction_type='confirm',
@@ -1573,7 +1637,7 @@ def submit_correction(slug, episode_id):
             text_snippet=data.get('notes')
         )
 
-        return json_response({'message': 'Correction recorded'})
+        return json_response({'message': 'Correction recorded', 'pattern_id': pattern_id})
 
     elif correction_type == 'reject':
         # Mark as false positive

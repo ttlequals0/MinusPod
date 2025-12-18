@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.125] - 2025-12-18
+
+### Added
+- **Pattern Learning from User Confirmations**
+  - When user confirms a Claude-detected ad (no pattern_id), system now creates a new pattern
+  - Extracts ad text from transcript using VTT timestamps
+  - Creates podcast-scoped pattern with intro/outro variants
+  - Minimum 50 characters required for TF-IDF matching
+  - Patterns page will now populate as users confirm ad detections
+  - Helper function `extract_transcript_segment()` for VTT transcript parsing
+
+---
+
 ## [0.1.124] - 2025-12-18
 
 ### Fixed
