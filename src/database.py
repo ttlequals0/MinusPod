@@ -1941,6 +1941,7 @@ class Database:
         conn = self.get_connection()
 
         # Only backfill episodes not already in history
+        # Note: processed_at is often NULL in older records, so use updated_at as fallback
         cursor = conn.execute('''
             INSERT INTO processing_history
                 (podcast_id, podcast_slug, podcast_title, episode_id, episode_title,
@@ -1952,7 +1953,7 @@ class Database:
                 p.title,
                 e.episode_id,
                 e.title,
-                e.processed_at,
+                COALESCE(e.processed_at, e.updated_at),
                 NULL,
                 CASE
                     WHEN e.status = 'failed' THEN 'failed'
@@ -1963,8 +1964,7 @@ class Database:
                 1
             FROM episodes e
             JOIN podcasts p ON e.podcast_id = p.id
-            WHERE e.processed_at IS NOT NULL
-              AND e.status IN ('completed', 'failed', 'processed')
+            WHERE e.status IN ('processed', 'failed')
               AND NOT EXISTS (
                   SELECT 1 FROM processing_history h
                   WHERE h.podcast_id = e.podcast_id

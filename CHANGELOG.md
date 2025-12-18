@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.123] - 2025-12-18
+
+### Fixed
+- **History Data Backfill Bug**
+  - Fixed backfill query that was finding zero episodes to migrate
+  - Root cause: Query required `processed_at IS NOT NULL` but this column was never populated historically
+  - Solution: Use `COALESCE(processed_at, updated_at)` for timestamp, check status `IN ('processed', 'failed')` instead of `'completed'`
+
+---
+
 ## [0.1.122] - 2025-12-18
 
 ### Added
