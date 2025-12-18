@@ -129,6 +129,14 @@ try:
 except Exception as e:
     audio_logger.warning(f"History backfill failed: {e}")
 
+# Backfill patterns from existing corrections (runs once on startup)
+try:
+    patterns_created = db.backfill_patterns_from_corrections()
+    if patterns_created > 0:
+        audio_logger.info(f"Created {patterns_created} patterns from existing corrections")
+except Exception as e:
+    audio_logger.warning(f"Pattern backfill failed: {e}")
+
 
 def get_feed_map():
     """Get feed map from database."""

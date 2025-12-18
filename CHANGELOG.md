@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.126] - 2025-12-18
+
+### Added
+- **Pattern Backfill Migration**
+  - Retroactively creates patterns from existing 'confirm' corrections submitted before v0.1.125
+  - Runs on startup, finds corrections without pattern_id
+  - Extracts ad text from transcript using timestamps in original_bounds
+  - Links created patterns back to the original corrections
+  - Your 13 previous confirmations will now populate the Patterns page
+
+---
+
 ## [0.1.125] - 2025-12-18
 
 ### Added

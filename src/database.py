@@ -1978,6 +1978,114 @@ class Database:
             logger.info(f"Backfilled {count} records to processing_history")
         return count
 
+    def backfill_patterns_from_corrections(self) -> int:
+        """Create patterns from existing 'confirm' corrections that have no pattern_id.
+
+        This retroactively learns from user confirmations that were submitted
+        before the pattern learning feature existed.
+        Returns count of patterns created."""
+        import re
+
+        def parse_timestamp(ts: str) -> float:
+            """Convert HH:MM:SS.mmm to seconds."""
+            parts = ts.split(':')
+            hours = int(parts[0])
+            mins = int(parts[1])
+            secs = float(parts[2])
+            return hours * 3600 + mins * 60 + secs
+
+        def extract_transcript_segment(transcript: str, start: float, end: float) -> str:
+            """Extract text from transcript between timestamps."""
+            if not transcript:
+                return ''
+            pattern = r'\[(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})\]\s*([^\[]+)'
+            segments = []
+            for match in re.finditer(pattern, transcript):
+                seg_start = parse_timestamp(match.group(1))
+                seg_end = parse_timestamp(match.group(2))
+                text = match.group(3).strip()
+                if seg_end >= start and seg_start <= end:
+                    segments.append(text)
+            return ' '.join(segments)
+
+        conn = self.get_connection()
+        created_count = 0
+
+        # Find all 'confirm' corrections without a pattern_id
+        cursor = conn.execute('''
+            SELECT pc.id, pc.episode_id, pc.original_bounds, pc.podcast_title
+            FROM pattern_corrections pc
+            WHERE pc.correction_type = 'confirm'
+              AND pc.pattern_id IS NULL
+        ''')
+        corrections = cursor.fetchall()
+
+        for correction in corrections:
+            correction_id = correction['id']
+            episode_id = correction['episode_id']
+            original_bounds = correction['original_bounds']
+
+            if not episode_id or not original_bounds:
+                continue
+
+            try:
+                bounds = json.loads(original_bounds)
+                start = bounds.get('start')
+                end = bounds.get('end')
+                if start is None or end is None:
+                    continue
+
+                # Get episode with transcript - need to find by episode_id
+                # episode_id in corrections is the episode GUID, not slug
+                cursor2 = conn.execute('''
+                    SELECT e.*, p.id as podcast_db_id, p.slug, ed.transcript_text
+                    FROM episodes e
+                    JOIN podcasts p ON e.podcast_id = p.id
+                    LEFT JOIN episode_details ed ON e.id = ed.episode_id
+                    WHERE e.episode_id = ?
+                ''', (episode_id,))
+                episode = cursor2.fetchone()
+
+                if not episode:
+                    continue
+
+                transcript = episode['transcript_text'] or ''
+                podcast_id = episode['podcast_db_id']
+
+                # Extract ad text from transcript
+                ad_text = extract_transcript_segment(transcript, start, end)
+
+                if ad_text and len(ad_text) >= 50:
+                    # Create new pattern
+                    cursor3 = conn.execute(
+                        '''INSERT INTO ad_patterns
+                           (scope, text_template, podcast_id, intro_variants, outro_variants,
+                            created_from_episode_id)
+                           VALUES (?, ?, ?, ?, ?, ?)''',
+                        ('podcast', ad_text, str(podcast_id),
+                         json.dumps([ad_text[:200]] if len(ad_text) > 200 else [ad_text]),
+                         json.dumps([ad_text[-150:]] if len(ad_text) > 150 else []),
+                         episode_id)
+                    )
+                    new_pattern_id = cursor3.lastrowid
+
+                    # Update correction to link to new pattern
+                    conn.execute(
+                        'UPDATE pattern_corrections SET pattern_id = ? WHERE id = ?',
+                        (new_pattern_id, correction_id)
+                    )
+                    created_count += 1
+                    logger.info(f"Created pattern {new_pattern_id} from correction {correction_id}")
+
+            except (json.JSONDecodeError, KeyError, TypeError) as e:
+                logger.warning(f"Failed to process correction {correction_id}: {e}")
+                continue
+
+        conn.commit()
+        if created_count > 0:
+            logger.info(f"Backfilled {created_count} patterns from corrections")
+        return created_count
+
     def get_processing_history(self, limit: int = 50, offset: int = 0,
                                 status_filter: str = None,
                                 podcast_slug: str = None,
