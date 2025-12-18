@@ -1573,6 +1573,22 @@ class Database:
         row = cursor.fetchone()
         return dict(row) if row else None
 
+    def find_pattern_by_text(self, text_template: str, podcast_id: str = None) -> Optional[Dict]:
+        """Find an existing pattern with the same text_template (for deduplication)."""
+        conn = self.get_connection()
+        if podcast_id:
+            cursor = conn.execute(
+                "SELECT * FROM ad_patterns WHERE text_template = ? AND podcast_id = ?",
+                (text_template, podcast_id)
+            )
+        else:
+            cursor = conn.execute(
+                "SELECT * FROM ad_patterns WHERE text_template = ? AND podcast_id IS NULL",
+                (text_template,)
+            )
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
     def create_ad_pattern(self, scope: str, text_template: str = None,
                           sponsor: str = None, podcast_id: str = None,
                           network_id: str = None, dai_platform: str = None,
@@ -2056,26 +2072,41 @@ class Database:
                 ad_text = extract_transcript_segment(transcript, start, end)
 
                 if ad_text and len(ad_text) >= 50:
-                    # Create new pattern
-                    cursor3 = conn.execute(
-                        '''INSERT INTO ad_patterns
-                           (scope, text_template, podcast_id, intro_variants, outro_variants,
-                            created_from_episode_id)
-                           VALUES (?, ?, ?, ?, ?, ?)''',
-                        ('podcast', ad_text, str(podcast_id),
-                         json.dumps([ad_text[:200]] if len(ad_text) > 200 else [ad_text]),
-                         json.dumps([ad_text[-150:]] if len(ad_text) > 150 else []),
-                         episode_id)
-                    )
-                    new_pattern_id = cursor3.lastrowid
+                    # Check for existing pattern with same text (deduplication)
+                    existing = conn.execute(
+                        '''SELECT id FROM ad_patterns
+                           WHERE text_template = ? AND podcast_id = ?''',
+                        (ad_text, str(podcast_id))
+                    ).fetchone()
 
-                    # Update correction to link to new pattern
-                    conn.execute(
-                        'UPDATE pattern_corrections SET pattern_id = ? WHERE id = ?',
-                        (new_pattern_id, correction_id)
-                    )
-                    created_count += 1
-                    logger.info(f"Created pattern {new_pattern_id} from correction {correction_id}")
+                    if existing:
+                        # Link correction to existing pattern instead of creating duplicate
+                        conn.execute(
+                            'UPDATE pattern_corrections SET pattern_id = ? WHERE id = ?',
+                            (existing['id'], correction_id)
+                        )
+                        logger.info(f"Linked correction {correction_id} to existing pattern {existing['id']}")
+                    else:
+                        # Create new pattern
+                        cursor3 = conn.execute(
+                            '''INSERT INTO ad_patterns
+                               (scope, text_template, podcast_id, intro_variants, outro_variants,
+                                created_from_episode_id)
+                               VALUES (?, ?, ?, ?, ?, ?)''',
+                            ('podcast', ad_text, str(podcast_id),
+                             json.dumps([ad_text[:200]] if len(ad_text) > 200 else [ad_text]),
+                             json.dumps([ad_text[-150:]] if len(ad_text) > 150 else []),
+                             episode_id)
+                        )
+                        new_pattern_id = cursor3.lastrowid
+
+                        # Update correction to link to new pattern
+                        conn.execute(
+                            'UPDATE pattern_corrections SET pattern_id = ? WHERE id = ?',
+                            (new_pattern_id, correction_id)
+                        )
+                        created_count += 1
+                        logger.info(f"Created pattern {new_pattern_id} from correction {correction_id}")
 
             except (json.JSONDecodeError, KeyError, TypeError) as e:
                 logger.warning(f"Failed to process correction {correction_id}: {e}")
@@ -2085,6 +2116,51 @@ class Database:
         if created_count > 0:
             logger.info(f"Backfilled {created_count} patterns from corrections")
         return created_count
+
+    def deduplicate_patterns(self) -> int:
+        """Remove duplicate patterns, keeping the oldest one.
+
+        Returns count of duplicates removed."""
+        conn = self.get_connection()
+
+        # Find duplicates - patterns with same text_template and podcast_id
+        cursor = conn.execute('''
+            SELECT text_template, podcast_id, MIN(id) as keep_id, GROUP_CONCAT(id) as all_ids
+            FROM ad_patterns
+            WHERE text_template IS NOT NULL
+            GROUP BY text_template, podcast_id
+            HAVING COUNT(*) > 1
+        ''')
+        duplicates = cursor.fetchall()
+
+        removed_count = 0
+        for dup in duplicates:
+            keep_id = dup['keep_id']
+            all_ids = [int(x) for x in dup['all_ids'].split(',')]
+            remove_ids = [x for x in all_ids if x != keep_id]
+
+            if remove_ids:
+                # Update corrections to point to the kept pattern
+                placeholders = ','.join('?' * len(remove_ids))
+                conn.execute(
+                    f'''UPDATE pattern_corrections
+                        SET pattern_id = ?
+                        WHERE pattern_id IN ({placeholders})''',
+                    [keep_id] + remove_ids
+                )
+
+                # Delete duplicate patterns
+                conn.execute(
+                    f'''DELETE FROM ad_patterns WHERE id IN ({placeholders})''',
+                    remove_ids
+                )
+                removed_count += len(remove_ids)
+                logger.info(f"Removed {len(remove_ids)} duplicate patterns, kept pattern {keep_id}")
+
+        conn.commit()
+        if removed_count > 0:
+            logger.info(f"Deduplicated {removed_count} patterns total")
+        return removed_count
 
     def get_processing_history(self, limit: int = 50, offset: int = 0,
                                 status_filter: str = None,

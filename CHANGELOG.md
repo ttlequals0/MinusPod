@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.127] - 2025-12-18
+
+### Fixed
+- **Pattern Deduplication**
+  - Added `deduplicate_patterns()` migration to remove duplicate patterns on startup
+  - Real-time pattern creation now checks for existing patterns with same text before creating new ones
+  - Backfill now links corrections to existing patterns instead of creating duplicates
+  - Added `find_pattern_by_text()` method for deduplication lookups
+  - Fixes issue where confirming the same ad multiple times created duplicate patterns
+
+---
+
 ## [0.1.126] - 2025-12-18
 
 ### Added

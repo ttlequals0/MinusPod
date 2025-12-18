@@ -137,6 +137,14 @@ try:
 except Exception as e:
     audio_logger.warning(f"Pattern backfill failed: {e}")
 
+# Deduplicate patterns (cleanup duplicate patterns from earlier bugs)
+try:
+    deduped = db.deduplicate_patterns()
+    if deduped > 0:
+        audio_logger.info(f"Removed {deduped} duplicate patterns")
+except Exception as e:
+    audio_logger.warning(f"Pattern deduplication failed: {e}")
+
 
 def get_feed_map():
     """Get feed map from database."""

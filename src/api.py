@@ -1612,22 +1612,32 @@ def submit_correction(slug, episode_id):
                 if ad_text and len(ad_text) >= 50:  # Minimum for TF-IDF matching
                     # Get podcast info for scope
                     podcast = db.get_podcast_by_slug(slug)
+                    podcast_id_str = str(podcast['id']) if podcast else None
 
-                    # Extract sponsor from original ad if available
-                    sponsor = original_ad.get('sponsor')
+                    # Check for existing pattern with same text (deduplication)
+                    existing_pattern = db.find_pattern_by_text(ad_text, podcast_id_str)
 
-                    # Create new pattern with podcast scope
-                    new_pattern_id = db.create_ad_pattern(
-                        scope='podcast',
-                        podcast_id=str(podcast['id']) if podcast else None,
-                        text_template=ad_text,
-                        sponsor=sponsor,
-                        intro_variants=[ad_text[:200]] if len(ad_text) > 200 else [ad_text],
-                        outro_variants=[ad_text[-150:]] if len(ad_text) > 150 else [],
-                        created_from_episode_id=episode_id
-                    )
-                    pattern_id = new_pattern_id
-                    logger.info(f"Created new pattern {pattern_id} from confirmed ad in {slug}/{episode_id}")
+                    if existing_pattern:
+                        # Use existing pattern instead of creating duplicate
+                        pattern_id = existing_pattern['id']
+                        pattern_service.record_pattern_match(pattern_id, episode_id)
+                        logger.info(f"Linked to existing pattern {pattern_id} for confirmed ad in {slug}/{episode_id}")
+                    else:
+                        # Extract sponsor from original ad if available
+                        sponsor = original_ad.get('sponsor')
+
+                        # Create new pattern with podcast scope
+                        new_pattern_id = db.create_ad_pattern(
+                            scope='podcast',
+                            podcast_id=podcast_id_str,
+                            text_template=ad_text,
+                            sponsor=sponsor,
+                            intro_variants=[ad_text[:200]] if len(ad_text) > 200 else [ad_text],
+                            outro_variants=[ad_text[-150:]] if len(ad_text) > 150 else [],
+                            created_from_episode_id=episode_id
+                        )
+                        pattern_id = new_pattern_id
+                        logger.info(f"Created new pattern {pattern_id} from confirmed ad in {slug}/{episode_id}")
 
         db.create_pattern_correction(
             correction_type='confirm',
