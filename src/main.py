@@ -343,6 +343,14 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
     """Process a single episode (transcribe, detect ads, remove ads)."""
     start_time = time.time()
 
+    # Check for reprocess mode (Gap 3 fix)
+    episode_data = db.get_episode(slug, episode_id)
+    reprocess_mode = episode_data.get('reprocess_mode') if episode_data else None
+    skip_patterns = reprocess_mode == 'full'  # 'full' mode = skip pattern DB, Claude only
+
+    if reprocess_mode:
+        audio_logger.info(f"[{slug}:{episode_id}] Reprocess mode: {reprocess_mode} (skip_patterns={skip_patterns})")
+
     try:
         audio_logger.info(f"[{slug}:{episode_id}] Starting: \"{episode_title}\"")
 
@@ -445,7 +453,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             ad_result = ad_detector.process_transcript(
                 segments, podcast_name, episode_title, slug, episode_id, episode_description,
                 audio_analysis=audio_analysis_result,
-                audio_path=audio_path
+                audio_path=audio_path,
+                skip_patterns=skip_patterns  # Gap 3: 'full' mode skips pattern DB
             )
             storage.save_ads_json(slug, episode_id, ad_result, pass_number=1)
 
@@ -486,7 +495,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 second_pass_result = ad_detector.detect_ads_second_pass(
                     segments,  # Same transcript, blind analysis
                     podcast_name, episode_title, slug, episode_id, episode_description,
-                    audio_analysis=audio_analysis_result
+                    audio_analysis=audio_analysis_result,
+                    skip_patterns=skip_patterns  # Gap 3: 'full' mode skips pattern DB
                 )
 
                 # Save second pass data to database
@@ -577,6 +587,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
             # Update status to processed with combined ad count and per-pass counts
             # ads_removed counts only non-rejected ads (ones actually removed from audio)
+            # Clear reprocess_mode and reprocess_requested_at after successful processing
             db.upsert_episode(slug, episode_id,
                 status='processed',
                 processed_file=f"episodes/{episode_id}.mp3",
@@ -584,7 +595,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 new_duration=new_duration,
                 ads_removed=len(ads_to_remove),
                 ads_removed_firstpass=first_pass_count,
-                ads_removed_secondpass=second_pass_count)
+                ads_removed_secondpass=second_pass_count,
+                reprocess_mode=None,
+                reprocess_requested_at=None)
 
             processing_time = time.time() - start_time
 

@@ -46,6 +46,16 @@ function Layout() {
                   Add Feed
                 </Link>
                 <Link
+                  to="/patterns"
+                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    isActive('/patterns')
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                  }`}
+                >
+                  Patterns
+                </Link>
+                <Link
                   to="/settings"
                   className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                     isActive('/settings')
@@ -137,6 +147,17 @@ function Layout() {
                 }`}
               >
                 Add Feed
+              </Link>
+              <Link
+                to="/patterns"
+                onClick={() => setMobileMenuOpen(false)}
+                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  isActive('/patterns')
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                }`}
+              >
+                Patterns
               </Link>
               <Link
                 to="/settings"

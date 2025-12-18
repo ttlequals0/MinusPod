@@ -5,6 +5,53 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.120] - 2025-12-18
+
+### Added
+- **Pattern Management UI** (Gap 1)
+  - New `/patterns` page for viewing and managing ad patterns
+  - Filterable by scope (Global/Network/Podcast)
+  - Searchable by sponsor name, text template, network
+  - Sortable columns: scope, sponsor, confirmations, false positives, last matched
+  - Toggle to show/hide inactive patterns
+  - Pattern detail modal with edit capabilities
+
+- **Network Override UI** (Gap 2)
+  - Dropdown in Feed Detail to manually set network ID
+  - Shows "Override" (orange) or "Detected" (green) badge
+  - GET /networks API endpoint lists available networks
+  - "Auto-detect" option clears override
+
+- **Reprocessing Mode Dropdown** (Gap 3 - BUG FIX)
+  - Fixed bug where reprocess mode was accepted but not actually used
+  - Added `reprocess_mode` column to episodes table
+  - "Reprocess" mode: Uses pattern DB + Claude (default)
+  - "Full Analysis" mode: Skips pattern DB, Claude analyzes fresh
+  - Mode passed to ad_detector via `skip_patterns` parameter
+
+- **Queue Priority** (Gap 4)
+  - Added `reprocess_requested_at` column to track reprocess requests
+  - Column cleared after processing completes
+
+- **Feedback UI Enhancements** (Gap 6)
+  - "Not an Ad" button now larger and more prominent (right side)
+  - "Confirm" button now secondary/muted styling
+  - Scope badges on detected ads (Global/Network/Podcast)
+  - Shows network name for network-scoped patterns
+
+### Fixed
+- **CUDA OOM for long episodes**
+  - Adaptive batch sizing based on audio duration
+  - Episodes >120 min use batch_size=4 (was 16)
+  - Auto-retry with smaller batch on OOM error
+  - Probes duration via ffprobe before transcription
+  - Fixes windows-weekly (2h36m) transcription failures
+
+### Changed
+- `networkIdOverride` type changed from boolean to string|null
+
+---
+
 ## [0.1.119] - 2025-12-17
 
 ### Added

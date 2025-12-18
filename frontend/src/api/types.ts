@@ -12,7 +12,7 @@ export interface Feed {
   lastEpisodeDate?: string;
   networkId?: string;
   daiPlatform?: string;
-  networkIdOverride?: boolean;
+  networkIdOverride?: string | null;
 }
 
 export interface Episode {

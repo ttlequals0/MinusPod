@@ -22,6 +22,8 @@ interface DetectedAd {
   sponsor?: string;
   pattern_id?: number;
   detection_stage?: string;
+  scope?: string;
+  network_id?: string;
 }
 
 interface TranscriptEditorProps {
@@ -467,13 +469,26 @@ export function TranscriptEditor({
       <div className="sticky top-0 z-20 bg-card flex-shrink-0">
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 flex-wrap">
             <h3 className="text-sm font-medium">
               Ad {selectedAdIndex + 1} of {detectedAds.length}
             </h3>
             {selectedAd.sponsor && (
               <span className="px-2 py-0.5 text-xs bg-primary/10 text-primary rounded">
                 {selectedAd.sponsor}
+              </span>
+            )}
+            {selectedAd.scope && (
+              <span className={`px-2 py-0.5 text-xs rounded ${
+                selectedAd.scope === 'global'
+                  ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
+                  : selectedAd.scope === 'network'
+                  ? 'bg-purple-500/20 text-purple-600 dark:text-purple-400'
+                  : 'bg-green-500/20 text-green-600 dark:text-green-400'
+              }`}>
+                {selectedAd.scope === 'global' ? 'Global' :
+                 selectedAd.scope === 'network' ? `Network: ${selectedAd.network_id || '?'}` :
+                 'Podcast'}
               </span>
             )}
             {selectedAd.detection_stage && (
@@ -709,22 +724,23 @@ export function TranscriptEditor({
             </div>
           </div>
         )}
-        {/* Desktop action buttons with text */}
+        {/* Desktop action buttons with text - Not an Ad is prominent */}
         <div className="flex items-center justify-between gap-2 px-4 py-3 bg-muted/30">
+          <div className="flex items-center gap-2">
+            <button onClick={handleReset} disabled={saveStatus === 'saving'} className="px-4 py-2 text-sm bg-muted rounded hover:bg-accent disabled:opacity-50">Reset</button>
+            <button onClick={handleConfirm} disabled={saveStatus === 'saving'} className={`px-4 py-2 text-sm rounded transition-colors ${saveStatus === 'saving' ? 'bg-muted cursor-wait' : 'bg-muted hover:bg-accent'} text-muted-foreground`}>{getConfirmButtonText()}</button>
+            <button onClick={handleSave} disabled={saveStatus === 'saving'} className={`px-4 py-2 text-sm rounded transition-colors ${saveStatus === 'saving' ? 'bg-primary/50 cursor-wait' : 'bg-primary hover:bg-primary/90'} text-primary-foreground`}>{getSaveButtonText()}</button>
+          </div>
+          {/* NOT AN AD button - prominent, larger, right side */}
           <button
             onClick={handleReject}
             disabled={saveStatus === 'saving'}
-            className={`px-4 py-2 text-sm rounded transition-colors ${
-              saveStatus === 'saving' ? 'bg-destructive/50 cursor-wait' : 'bg-destructive hover:bg-destructive/90'
+            className={`px-6 py-2.5 text-sm font-semibold rounded-lg transition-colors ${
+              saveStatus === 'saving' ? 'bg-destructive/50 cursor-wait' : 'bg-destructive hover:bg-destructive/90 shadow-sm'
             } text-destructive-foreground`}
           >
             {getRejectButtonText()}
           </button>
-          <div className="flex items-center gap-2">
-            <button onClick={handleReset} disabled={saveStatus === 'saving'} className="px-4 py-2 text-sm bg-muted rounded hover:bg-accent disabled:opacity-50">Reset</button>
-            <button onClick={handleConfirm} disabled={saveStatus === 'saving'} className={`px-4 py-2 text-sm rounded transition-colors ${saveStatus === 'saving' ? 'bg-green-600/50 cursor-wait' : 'bg-green-600 hover:bg-green-700'} text-white`}>{getConfirmButtonText()}</button>
-            <button onClick={handleSave} disabled={saveStatus === 'saving'} className={`px-4 py-2 text-sm rounded transition-colors ${saveStatus === 'saving' ? 'bg-primary/50 cursor-wait' : 'bg-primary hover:bg-primary/90'} text-primary-foreground`}>{getSaveButtonText()}</button>
-          </div>
         </div>
       </div>
 

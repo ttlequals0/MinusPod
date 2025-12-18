@@ -949,6 +949,22 @@ def get_whisper_models():
     return json_response({'models': models})
 
 
+@api.route('/networks', methods=['GET'])
+@log_request
+def list_networks():
+    """List all known podcast networks for network override selection."""
+    from pattern_service import KNOWN_NETWORKS
+
+    networks = [
+        {'id': network_id, 'name': network_id.replace('_', ' ').title()}
+        for network_id in KNOWN_NETWORKS.keys()
+    ]
+
+    return json_response({
+        'networks': sorted(networks, key=lambda x: x['name'])
+    })
+
+
 # ========== System Endpoints ==========
 
 @api.route('/system/status', methods=['GET'])
@@ -1476,18 +1492,18 @@ def reprocess_episode_with_mode(slug, episode_id):
     """Reprocess an episode with specified mode.
 
     Modes:
-    - fresh: Skip pattern cache, Claude analyzes all segments
-    - full: Clear existing detections and do fresh analysis
+    - reprocess (default): Use pattern DB + Claude (leverages learned patterns)
+    - full: Skip pattern DB entirely, Claude does fresh analysis without learned patterns
 
-    Reprocessed episodes are added to the front of the queue.
+    Reprocessed episodes are prioritized in the processing queue.
     """
     db = get_database()
 
     data = request.get_json() or {}
-    mode = data.get('mode', 'fresh')
+    mode = data.get('mode', 'reprocess')
 
-    if mode not in ('fresh', 'full'):
-        return error_response('Invalid mode. Use "fresh" or "full"', 400)
+    if mode not in ('reprocess', 'full'):
+        return error_response('Invalid mode. Use "reprocess" or "full"', 400)
 
     # Get episode
     episode = db.get_episode(slug, episode_id)
@@ -1499,7 +1515,7 @@ def reprocess_episode_with_mode(slug, episode_id):
     if not podcast:
         return error_response('Podcast not found', 404)
 
-    # If full mode, clear existing ad data
+    # If full mode, clear existing ad data (fresh slate for Claude)
     if mode == 'full':
         try:
             # Clear any cached ad detection results
@@ -1512,16 +1528,16 @@ def reprocess_episode_with_mode(slug, episode_id):
 
     # Reset episode status to pending for reprocessing
     # Store reprocess_mode in the episode so processing can use it
+    # Store reprocess_requested_at for priority queue ordering
+    from datetime import datetime
     db.upsert_episode(
         slug, episode_id,
-        status='pending'
+        status='pending',
+        reprocess_mode=mode,
+        reprocess_requested_at=datetime.utcnow().isoformat() + 'Z'
     )
 
-    # Store reprocess mode in system_settings for this episode
-    # This will be picked up by the processing pipeline
-    db.set_setting(f'reprocess_{slug}_{episode_id}', mode)
-
-    logger.info(f"[{slug}:{episode_id}] Marked for {mode} reprocessing")
+    logger.info(f"[{slug}:{episode_id}] Marked for {mode} reprocessing (prioritized)")
 
     return json_response({
         'message': f'Episode queued for {mode} reprocessing',

@@ -598,6 +598,30 @@ class Database:
             except Exception as e:
                 logger.error(f"Migration failed for description: {e}")
 
+        # Migration: Add reprocess_mode column if missing (Gap 3 fix)
+        if 'reprocess_mode' not in columns:
+            try:
+                conn.execute("""
+                    ALTER TABLE episodes
+                    ADD COLUMN reprocess_mode TEXT
+                """)
+                conn.commit()
+                logger.info("Migration: Added reprocess_mode column to episodes table")
+            except Exception as e:
+                logger.error(f"Migration failed for reprocess_mode: {e}")
+
+        # Migration: Add reprocess_requested_at column if missing (Gap 4 - priority queue)
+        if 'reprocess_requested_at' not in columns:
+            try:
+                conn.execute("""
+                    ALTER TABLE episodes
+                    ADD COLUMN reprocess_requested_at TEXT
+                """)
+                conn.commit()
+                logger.info("Migration: Added reprocess_requested_at column to episodes table")
+            except Exception as e:
+                logger.error(f"Migration failed for reprocess_requested_at: {e}")
+
         # Refresh details_columns list before checking for new columns
         cursor = conn.execute("PRAGMA table_info(episode_details)")
         details_columns = [row['name'] for row in cursor.fetchall()]
@@ -1039,7 +1063,8 @@ class Database:
                     if key in ('original_url', 'title', 'description', 'status', 'processed_file',
                                'processed_at', 'original_duration', 'new_duration',
                                'ads_removed', 'ads_removed_firstpass', 'ads_removed_secondpass',
-                               'error_message', 'ad_detection_status', 'artwork_url'):
+                               'error_message', 'ad_detection_status', 'artwork_url',
+                               'reprocess_mode', 'reprocess_requested_at'):
                         fields.append(f"{key} = ?")
                         values.append(value)
 

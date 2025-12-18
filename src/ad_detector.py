@@ -1144,7 +1144,8 @@ class AdDetector:
                           episode_title: str = "Unknown", slug: str = None,
                           episode_id: str = None, episode_description: str = None,
                           audio_analysis=None, audio_path: str = None,
-                          podcast_id: str = None, network_id: str = None) -> Dict:
+                          podcast_id: str = None, network_id: str = None,
+                          skip_patterns: bool = False) -> Dict:
         """Process transcript for ad detection using three-stage pipeline.
 
         Pipeline stages:
@@ -1163,6 +1164,7 @@ class AdDetector:
             audio_path: Path to audio file for fingerprinting
             podcast_id: Podcast ID for pattern scoping
             network_id: Network ID for pattern scoping
+            skip_patterns: If True, skip stages 1 & 2 (pattern DB), go directly to Claude
 
         Returns:
             Dict with ads, status, and detection metadata
@@ -1172,11 +1174,15 @@ class AdDetector:
         detection_stats = {
             'fingerprint_matches': 0,
             'text_pattern_matches': 0,
-            'claude_matches': 0
+            'claude_matches': 0,
+            'skip_patterns': skip_patterns
         }
 
-        # Stage 1: Audio Fingerprint Matching
-        if audio_path and self.audio_fingerprinter and self.audio_fingerprinter.is_available():
+        if skip_patterns:
+            logger.info(f"[{slug}:{episode_id}] Full analysis mode: Skipping pattern DB (stages 1 & 2)")
+
+        # Stage 1: Audio Fingerprint Matching (skip if skip_patterns=True)
+        if not skip_patterns and audio_path and self.audio_fingerprinter and self.audio_fingerprinter.is_available():
             try:
                 logger.info(f"[{slug}:{episode_id}] Stage 1: Audio fingerprint matching")
                 fp_matches = self.audio_fingerprinter.find_matches(audio_path)
@@ -1200,8 +1206,8 @@ class AdDetector:
             except Exception as e:
                 logger.warning(f"[{slug}:{episode_id}] Fingerprint matching failed: {e}")
 
-        # Stage 2: Text Pattern Matching
-        if self.text_pattern_matcher and self.text_pattern_matcher.is_available():
+        # Stage 2: Text Pattern Matching (skip if skip_patterns=True)
+        if not skip_patterns and self.text_pattern_matcher and self.text_pattern_matcher.is_available():
             try:
                 logger.info(f"[{slug}:{episode_id}] Stage 2: Text pattern matching")
                 text_matches = self.text_pattern_matcher.find_matches(
@@ -1339,7 +1345,8 @@ class AdDetector:
                                podcast_name: str = "Unknown", episode_title: str = "Unknown",
                                slug: str = None, episode_id: str = None,
                                episode_description: str = None,
-                               audio_analysis=None) -> Optional[Dict]:
+                               audio_analysis=None,
+                               skip_patterns: bool = False) -> Optional[Dict]:
         """Blind second pass ad detection with sliding window approach.
 
         Focuses on subtle/baked-in ads using a separate model and prompt.
@@ -1347,6 +1354,7 @@ class AdDetector:
 
         Args:
             audio_analysis: Optional AudioAnalysisResult with audio signals
+            skip_patterns: Unused in second pass (always Claude-only), kept for API consistency
         """
         if not self.api_key:
             logger.warning("Skipping second pass - no API key")

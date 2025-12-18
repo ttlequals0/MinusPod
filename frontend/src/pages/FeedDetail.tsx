@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getFeed, getEpisodes, refreshFeed, updateFeed } from '../api/feeds';
+import { getFeed, getEpisodes, refreshFeed, updateFeed, getNetworks } from '../api/feeds';
 import EpisodeList from '../components/EpisodeList';
 import LoadingSpinner from '../components/LoadingSpinner';
 
@@ -9,7 +9,7 @@ function FeedDetail() {
   const { slug } = useParams<{ slug: string }>();
   const queryClient = useQueryClient();
   const [isEditingNetwork, setIsEditingNetwork] = useState(false);
-  const [editNetworkId, setEditNetworkId] = useState('');
+  const [editNetworkOverride, setEditNetworkOverride] = useState<string>('');
   const [editDaiPlatform, setEditDaiPlatform] = useState('');
 
   const { data: feed, isLoading: feedLoading, error: feedError } = useQuery({
@@ -24,6 +24,11 @@ function FeedDetail() {
     enabled: !!slug,
   });
 
+  const { data: networks } = useQuery({
+    queryKey: ['networks'],
+    queryFn: getNetworks,
+  });
+
   const refreshMutation = useMutation({
     mutationFn: () => refreshFeed(slug!),
     onSuccess: () => {
@@ -33,7 +38,7 @@ function FeedDetail() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: { networkId?: string; daiPlatform?: string }) => updateFeed(slug!, data),
+    mutationFn: (data: { networkIdOverride?: string | null; daiPlatform?: string }) => updateFeed(slug!, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['feed', slug] });
       setIsEditingNetwork(false);
@@ -41,14 +46,16 @@ function FeedDetail() {
   });
 
   const startEditingNetwork = () => {
-    setEditNetworkId(feed?.networkId || '');
+    // Use networkIdOverride if set, otherwise empty for auto-detect
+    setEditNetworkOverride(feed?.networkIdOverride || '');
     setEditDaiPlatform(feed?.daiPlatform || '');
     setIsEditingNetwork(true);
   };
 
   const saveNetworkEdit = () => {
     updateMutation.mutate({
-      networkId: editNetworkId || undefined,
+      // Send null to clear override, or the selected value
+      networkIdOverride: editNetworkOverride || null,
       daiPlatform: editDaiPlatform || undefined,
     });
   };
@@ -119,13 +126,18 @@ function FeedDetail() {
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="flex items-center gap-1">
                     <label className="text-muted-foreground">Network:</label>
-                    <input
-                      type="text"
-                      value={editNetworkId}
-                      onChange={(e) => setEditNetworkId(e.target.value)}
-                      placeholder="e.g., twit, npr, relay"
-                      className="px-2 py-1 text-sm bg-secondary border border-border rounded w-32"
-                    />
+                    <select
+                      value={editNetworkOverride}
+                      onChange={(e) => setEditNetworkOverride(e.target.value)}
+                      className="px-2 py-1 text-sm bg-secondary border border-border rounded"
+                    >
+                      <option value="">Auto-detect</option>
+                      {networks?.map((network) => (
+                        <option key={network.id} value={network.id}>
+                          {network.name}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div className="flex items-center gap-1">
                     <label className="text-muted-foreground">DAI:</label>
@@ -154,8 +166,12 @@ function FeedDetail() {
               ) : (
                 <div className="flex items-center gap-3">
                   {feed.networkId && (
-                    <span className="px-2 py-0.5 bg-blue-500/20 text-blue-600 dark:text-blue-400 rounded text-xs font-medium">
-                      Network: {feed.networkId}
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                      feed.networkIdOverride
+                        ? 'bg-orange-500/20 text-orange-600 dark:text-orange-400'
+                        : 'bg-green-500/20 text-green-600 dark:text-green-400'
+                    }`}>
+                      {feed.networkIdOverride ? 'Override' : 'Detected'}: {feed.networkId}
                     </span>
                   )}
                   {feed.daiPlatform && (

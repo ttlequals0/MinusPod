@@ -46,16 +46,31 @@ export async function getArtwork(slug: string): Promise<string> {
   return `/api/v1/feeds/${slug}/artwork`;
 }
 
-export async function reprocessEpisode(slug: string, episodeId: string): Promise<{ message: string; status: string }> {
-  return apiRequest<{ message: string; status: string }>(`/feeds/${slug}/episodes/${episodeId}/reprocess`, {
+export async function reprocessEpisode(
+  slug: string,
+  episodeId: string,
+  mode: 'reprocess' | 'full' = 'reprocess'
+): Promise<{ message: string; mode: string }> {
+  return apiRequest<{ message: string; mode: string }>(`/feeds/${slug}/episodes/${episodeId}/reprocess`, {
     method: 'POST',
+    body: { mode },
   });
 }
 
 export interface UpdateFeedPayload {
   networkId?: string;
   daiPlatform?: string;
-  networkIdOverride?: boolean;
+  networkIdOverride?: string | null;  // Network ID override, or null to clear
+}
+
+export interface Network {
+  id: string;
+  name: string;
+}
+
+export async function getNetworks(): Promise<Network[]> {
+  const response = await apiRequest<{ networks: Network[] }>('/networks');
+  return response.networks;
 }
 
 export async function updateFeed(slug: string, data: UpdateFeedPayload): Promise<Feed> {

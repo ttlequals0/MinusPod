@@ -14,6 +14,7 @@ function EpisodeDetail() {
   const [showEditor, setShowEditor] = useState(false);
   const [jumpToTime, setJumpToTime] = useState<number | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
+  const [showReprocessMenu, setShowReprocessMenu] = useState(false);
   const editorRef = useRef<HTMLDivElement>(null);
 
   const queryClient = useQueryClient();
@@ -25,9 +26,10 @@ function EpisodeDetail() {
   });
 
   const reprocessMutation = useMutation({
-    mutationFn: () => reprocessEpisode(slug!, episodeId!),
+    mutationFn: (mode: 'reprocess' | 'full') => reprocessEpisode(slug!, episodeId!, mode),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
+      setShowReprocessMenu(false);
     },
   });
 
@@ -204,13 +206,38 @@ function EpisodeDetail() {
               <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[episode.status]}`}>
                 {episode.status}
               </span>
-              <button
-                onClick={() => reprocessMutation.mutate()}
-                disabled={reprocessMutation.isPending || episode.status === 'processing'}
-                className="px-2 py-0.5 text-xs sm:text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {reprocessMutation.isPending ? 'Reprocessing...' : 'Reprocess'}
-              </button>
+              <div className="relative">
+                <button
+                  onClick={() => setShowReprocessMenu(!showReprocessMenu)}
+                  disabled={reprocessMutation.isPending || episode.status === 'processing'}
+                  className="px-2 py-0.5 text-xs sm:text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1"
+                >
+                  {reprocessMutation.isPending ? 'Reprocessing...' : 'Reprocess'}
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                {showReprocessMenu && !reprocessMutation.isPending && episode.status !== 'processing' && (
+                  <div className="absolute top-full right-0 mt-1 w-52 bg-card border border-border rounded-lg shadow-lg z-10">
+                    <button
+                      onClick={() => reprocessMutation.mutate('reprocess')}
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-accent rounded-t-lg"
+                      title="Use learned patterns + Claude analysis"
+                    >
+                      <div className="font-medium">Reprocess</div>
+                      <div className="text-xs text-muted-foreground">Use patterns + Claude</div>
+                    </button>
+                    <button
+                      onClick={() => reprocessMutation.mutate('full')}
+                      className="w-full px-3 py-2 text-left text-sm hover:bg-accent rounded-b-lg border-t border-border"
+                      title="Skip pattern DB, Claude analyzes everything fresh"
+                    >
+                      <div className="font-medium">Full Analysis</div>
+                      <div className="text-xs text-muted-foreground">Skip patterns, Claude only</div>
+                    </button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

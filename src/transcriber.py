@@ -27,6 +27,15 @@ logger = logging.getLogger(__name__)
 # Maximum segment duration for precise ad detection
 MAX_SEGMENT_DURATION = 15.0  # seconds
 
+# Batch size tiers based on audio duration (in seconds)
+# Longer episodes need smaller batches to avoid CUDA OOM
+BATCH_SIZE_TIERS = [
+    (60 * 60, 16),      # < 60 min: batch_size=16
+    (90 * 60, 12),      # 60-90 min: batch_size=12
+    (120 * 60, 8),      # 90-120 min: batch_size=8
+    (float('inf'), 4),  # > 120 min: batch_size=4
+]
+
 # Podcast-aware initial prompt with sponsor vocabulary
 AD_VOCABULARY = (
     "promo code, discount code, use code, "
@@ -259,6 +268,45 @@ class Transcriber:
             filtered.append(seg)
         return filtered
 
+    def get_audio_duration(self, audio_path: str) -> Optional[float]:
+        """Get audio duration in seconds using ffprobe."""
+        try:
+            cmd = [
+                'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+                '-of', 'default=noprint_wrappers=1:nokey=1', audio_path
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+            if result.returncode == 0:
+                duration = float(result.stdout.strip())
+                logger.info(f"Audio duration: {duration:.1f}s ({duration/60:.1f} min)")
+                return duration
+        except Exception as e:
+            logger.warning(f"Could not get audio duration: {e}")
+        return None
+
+    def get_batch_size_for_duration(self, duration_seconds: Optional[float]) -> int:
+        """Get optimal batch size based on audio duration to prevent CUDA OOM."""
+        if duration_seconds is None:
+            # Default to conservative batch size if duration unknown
+            return 8
+
+        for threshold, batch_size in BATCH_SIZE_TIERS:
+            if duration_seconds < threshold:
+                return batch_size
+
+        return 4  # Fallback for very long episodes
+
+    def clear_cuda_cache(self):
+        """Clear CUDA cache to free GPU memory."""
+        gc.collect()
+        try:
+            import torch
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+                logger.info("CUDA cache cleared")
+        except ImportError:
+            pass
+
     def preprocess_audio(self, input_path: str) -> Optional[str]:
         """
         Normalize audio for consistent transcription.
@@ -329,9 +377,16 @@ class Transcriber:
             return None
 
     def transcribe(self, audio_path: str, podcast_name: str = None) -> List[Dict]:
-        """Transcribe audio file using Faster Whisper with batched pipeline."""
+        """Transcribe audio file using Faster Whisper with batched pipeline.
+
+        Uses adaptive batch sizing based on audio duration to prevent CUDA OOM errors.
+        Automatically retries with smaller batch size on OOM.
+        """
         preprocessed_path = None
         try:
+            # Get audio duration for adaptive batch sizing
+            audio_duration = self.get_audio_duration(audio_path)
+
             # Get the batched pipeline for efficient transcription
             model = WhisperModelSingleton.get_batched_pipeline()
             current_model = WhisperModelSingleton.get_current_model_name()
@@ -345,76 +400,109 @@ class Transcriber:
             # Create podcast-aware prompt with sponsor vocabulary
             initial_prompt = self.get_initial_prompt(podcast_name)
 
-            # Adjust batch size based on device
+            # Adjust batch size based on device and audio duration
             device = os.getenv("WHISPER_DEVICE", "cpu")
             if device == "cuda":
-                batch_size = 16  # Larger batch for GPU
-                logger.info("Using GPU-optimized batch size: 16")
+                # Use adaptive batch size based on duration to prevent OOM
+                batch_size = self.get_batch_size_for_duration(audio_duration)
+                duration_str = f"{audio_duration/60:.1f} min" if audio_duration else "unknown"
+                logger.info(f"Using adaptive batch size: {batch_size} (duration: {duration_str})")
             else:
                 batch_size = 8  # Smaller batch for CPU
 
-            # Use the batched pipeline for transcription
-            # word_timestamps=True enables precise boundary refinement later
-            segments_generator, info = model.transcribe(
-                transcribe_path,
-                language="en",
-                initial_prompt=initial_prompt,
-                beam_size=5,
-                batch_size=batch_size,
-                word_timestamps=True,  # Enable word-level timestamps for boundary refinement
-                vad_filter=True,  # Enable VAD filter to skip silent parts
-                vad_parameters=dict(
-                    min_silence_duration_ms=500,
-                    speech_pad_ms=400
-                )
-            )
+            # Retry logic for CUDA OOM errors
+            max_retries = 3
+            retry_count = 0
 
-            # Collect segments with real-time progress logging
-            result = []
-            segment_count = 0
-            last_log_time = 0
+            while retry_count < max_retries:
+                try:
+                    # Clear CUDA cache before each attempt
+                    if device == "cuda":
+                        self.clear_cuda_cache()
 
-            for segment in segments_generator:
-                segment_count += 1
-                # Store word-level timestamps for boundary refinement
-                words = []
-                if segment.words:
-                    for w in segment.words:
-                        words.append({
-                            "word": w.word,
-                            "start": w.start,
-                            "end": w.end
-                        })
-                segment_dict = {
-                    "start": segment.start,
-                    "end": segment.end,
-                    "text": segment.text.strip(),
-                    "words": words  # Word timestamps for boundary refinement
-                }
-                result.append(segment_dict)
+                    # Use the batched pipeline for transcription
+                    # word_timestamps=True enables precise boundary refinement later
+                    segments_generator, info = model.transcribe(
+                        transcribe_path,
+                        language="en",
+                        initial_prompt=initial_prompt,
+                        beam_size=5,
+                        batch_size=batch_size,
+                        word_timestamps=True,  # Enable word-level timestamps for boundary refinement
+                        vad_filter=True,  # Enable VAD filter to skip silent parts
+                        vad_parameters=dict(
+                            min_silence_duration_ms=500,
+                            speech_pad_ms=400
+                        )
+                    )
 
-                # Log progress every 10 segments
-                if segment_count % 10 == 0:
-                    progress_min = segment.end / 60
-                    logger.info(f"Transcription progress: {segment_count} segments, {progress_min:.1f} minutes processed")
+                    # Collect segments with real-time progress logging
+                    result = []
+                    segment_count = 0
+                    last_log_time = 0
 
-                # Log every 30 seconds of audio processed
-                if segment.end - last_log_time > 30:
-                    last_log_time = segment.end
-                    # Log the last segment's text (truncated)
-                    text_preview = segment.text.strip()[:100] + "..." if len(segment.text.strip()) > 100 else segment.text.strip()
-                    logger.info(f"[{self.format_timestamp(segment.start)}] {text_preview}")
+                    for segment in segments_generator:
+                        segment_count += 1
+                        # Store word-level timestamps for boundary refinement
+                        words = []
+                        if segment.words:
+                            for w in segment.words:
+                                words.append({
+                                    "word": w.word,
+                                    "start": w.start,
+                                    "end": w.end
+                                })
+                        segment_dict = {
+                            "start": segment.start,
+                            "end": segment.end,
+                            "text": segment.text.strip(),
+                            "words": words  # Word timestamps for boundary refinement
+                        }
+                        result.append(segment_dict)
 
-            # Filter out hallucinations
-            original_count = len(result)
-            result = self.filter_hallucinations(result)
-            if len(result) < original_count:
-                logger.info(f"Filtered {original_count - len(result)} hallucination segments")
+                        # Log progress every 10 segments
+                        if segment_count % 10 == 0:
+                            progress_min = segment.end / 60
+                            logger.info(f"Transcription progress: {segment_count} segments, {progress_min:.1f} minutes processed")
 
-            duration_min = result[-1]['end'] / 60 if result else 0
-            logger.info(f"Transcription completed: {len(result)} segments, {duration_min:.1f} minutes")
+                        # Log every 30 seconds of audio processed
+                        if segment.end - last_log_time > 30:
+                            last_log_time = segment.end
+                            # Log the last segment's text (truncated)
+                            text_preview = segment.text.strip()[:100] + "..." if len(segment.text.strip()) > 100 else segment.text.strip()
+                            logger.info(f"[{self.format_timestamp(segment.start)}] {text_preview}")
 
-            return result
+                    # Filter out hallucinations
+                    original_count = len(result)
+                    result = self.filter_hallucinations(result)
+                    if len(result) < original_count:
+                        logger.info(f"Filtered {original_count - len(result)} hallucination segments")
+
+                    duration_min = result[-1]['end'] / 60 if result else 0
+                    logger.info(f"Transcription completed: {len(result)} segments, {duration_min:.1f} minutes")
+
+                    return result
+
+                except Exception as inner_e:
+                    error_str = str(inner_e).lower()
+                    is_oom = 'out of memory' in error_str or 'cuda' in error_str
+
+                    if is_oom and retry_count < max_retries - 1:
+                        retry_count += 1
+                        # Reduce batch size for retry
+                        old_batch_size = batch_size
+                        batch_size = max(1, batch_size // 2)
+                        logger.warning(
+                            f"CUDA OOM detected (attempt {retry_count}/{max_retries}). "
+                            f"Reducing batch size: {old_batch_size} -> {batch_size}"
+                        )
+                        # Clear cache and retry
+                        self.clear_cuda_cache()
+                        continue
+                    else:
+                        # Non-OOM error or max retries reached
+                        raise
+
         except Exception as e:
             logger.error(f"Transcription failed: {e}")
             return None
