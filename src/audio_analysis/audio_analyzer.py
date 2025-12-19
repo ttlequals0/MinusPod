@@ -129,7 +129,8 @@ class AudioAnalyzer:
         self,
         audio_path: str,
         transcript_segments: Optional[List[Dict]] = None,
-        run_parallel: bool = True
+        run_parallel: bool = False,
+        status_callback: Optional[callable] = None
     ) -> AudioAnalysisResult:
         """
         Run comprehensive audio analysis.
@@ -137,7 +138,8 @@ class AudioAnalyzer:
         Args:
             audio_path: Path to the audio file
             transcript_segments: Optional transcript for enhanced analysis
-            run_parallel: Whether to run analyzers in parallel
+            run_parallel: Whether to run analyzers in parallel (default False for better status updates)
+            status_callback: Optional callback(stage, progress) for status updates
 
         Returns:
             AudioAnalysisResult with all detected signals
@@ -152,16 +154,10 @@ class AudioAnalyzer:
 
         logger.info(f"Starting audio analysis: {audio_path}")
 
-        # Run volume and music analysis (lighter weight) in parallel
-        # Speaker analysis runs separately due to memory requirements
-        if run_parallel:
-            signals, errors, baseline = self._run_parallel_analysis(
-                audio_path, transcript_segments
-            )
-        else:
-            signals, errors, baseline = self._run_sequential_analysis(
-                audio_path, transcript_segments
-            )
+        # Run analyses sequentially to provide granular status updates
+        signals, errors, baseline = self._run_sequential_analysis(
+            audio_path, transcript_segments, status_callback
+        )
 
         result.signals = signals
         result.errors = errors
@@ -244,15 +240,18 @@ class AudioAnalyzer:
     def _run_sequential_analysis(
         self,
         audio_path: str,
-        transcript_segments: Optional[List[Dict]]
+        transcript_segments: Optional[List[Dict]],
+        status_callback: Optional[callable] = None
     ) -> tuple:
-        """Run all analyses sequentially."""
+        """Run all analyses sequentially with status updates."""
         signals = []
         errors = []
         baseline = None
 
         # Volume analysis
         if self._volume_enabled:
+            if status_callback:
+                status_callback("analyzing: volume", 30)
             try:
                 vol_signals, vol_baseline = self.volume_analyzer.analyze(audio_path)
                 signals.extend(vol_signals)
@@ -263,6 +262,8 @@ class AudioAnalyzer:
 
         # Music analysis
         if self._music_enabled and self.music_detector.is_available():
+            if status_callback:
+                status_callback("analyzing: music", 35)
             try:
                 music_signals = self.music_detector.analyze(audio_path)
                 signals.extend(music_signals)
@@ -272,6 +273,8 @@ class AudioAnalyzer:
 
         # Speaker analysis
         if self._speaker_enabled and self.speaker_analyzer.is_available():
+            if status_callback:
+                status_callback("analyzing: speakers", 40)
             try:
                 speaker_signals, metrics = self.speaker_analyzer.analyze(
                     audio_path, transcript_segments

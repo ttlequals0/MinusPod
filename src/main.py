@@ -457,11 +457,13 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
         # Step 1.5: Run audio analysis (if enabled)
         audio_analysis_result = None
         if audio_analyzer.is_enabled():
+            status_service.update_job_stage("analyzing", 25)
             audio_logger.info(f"[{slug}:{episode_id}] Running audio analysis")
             try:
                 audio_analysis_result = audio_analyzer.analyze(
                     audio_path,
-                    transcript_segments=segments
+                    transcript_segments=segments,
+                    status_callback=lambda stage, progress: status_service.update_job_stage(stage, progress)
                 )
                 if audio_analysis_result.signals:
                     audio_logger.info(

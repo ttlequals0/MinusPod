@@ -5,7 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.131] - 2025-12-19
+## [0.1.132] - 2025-12-19
+
+### Added
+- **Granular Status Updates for Audio Analysis**
+  - Status bar now shows each analysis phase: "analyzing: volume", "analyzing: music", "analyzing: speakers"
+  - Progress updates at each phase (25% -> 30% -> 35% -> 40% -> 50%)
+  - No longer shows "transcribing" during the entire audio analysis
 
 ### Fixed
 - **Streaming Music Detection Progress Calculation**
