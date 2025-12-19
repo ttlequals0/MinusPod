@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.140] - 2025-12-19
+
+### Fixed
+- **Auto-Reject Segments Where Reason Indicates Not an Ad**
+  - Validator now checks reason text for patterns like "not an advertisement", "episode content", "false positive"
+  - Segments with these patterns are auto-rejected regardless of confidence score
+  - Prevents false positives where Claude detected a segment but noted it's not actually an ad
+
+---
+
+## [0.1.139] - 2025-12-19
+
+### Fixed
+- **Music Detection Progress Still Showing 100% Repeatedly**
+  - Capped streaming progress at 99% during processing
+  - Single 100% message logged only after streaming loop completes
+  - Prevents confusing repeated "100%" logs during music detection
+
+---
+
 ## [0.1.138] - 2025-12-19
 
 ### Added

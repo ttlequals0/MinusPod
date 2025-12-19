@@ -233,7 +233,8 @@ class MusicBedDetector:
                 samples_processed += samples_per_block
 
                 if block_count % 10 == 0:
-                    progress = min(100.0, (samples_processed / total_samples) * 100)
+                    # Cap at 99% during streaming - final 100% logged after loop completes
+                    progress = min(99.0, (samples_processed / total_samples) * 100)
                     logger.info(f"Music detection progress: {progress:.1f}% "
                                 f"({len(music_frames)} music frames found)")
 
@@ -241,6 +242,9 @@ class MusicBedDetector:
             logger.error(f"Streaming analysis error at block {block_count}: "
                          f"{type(e).__name__}: {e}")
             raise
+
+        logger.info(f"Music detection progress: 100.0% "
+                    f"({len(music_frames)} music frames found)")
 
         # Merge consecutive frames into regions
         regions = self._merge_frames_to_regions(music_frames)

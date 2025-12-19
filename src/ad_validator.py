@@ -89,6 +89,17 @@ class AdValidator:
         'possible ad', 'likely ad', 'advertisement segment'
     ]
 
+    # Patterns that indicate Claude determined this is NOT an ad
+    NOT_AD_PATTERNS = re.compile(
+        r'not\s+an?\s+(ad|advertisement|sponsor|promo|commercial)|'
+        r'(episode|show|regular|actual)\s+content|'
+        r'this\s+is\s+(not|n\'t)\s+|'
+        r'does\s+not\s+appear\s+to\s+be|'
+        r'no\s+(ad|advertisement|sponsor)|'
+        r'false\s+positive',
+        re.IGNORECASE
+    )
+
     def __init__(self, episode_duration: float, segments: List[Dict] = None,
                  episode_description: str = None):
         """Initialize validator.
@@ -321,6 +332,12 @@ class AdValidator:
             Adjusted confidence
         """
         reason = ad.get('reason', '').lower()
+
+        # Check if reason indicates this is NOT an ad - auto-reject
+        if self.NOT_AD_PATTERNS.search(reason):
+            flags.append("ERROR: Reason indicates not an ad")
+            logger.info(f"Auto-rejecting segment: reason indicates not an ad: {reason[:100]}")
+            return 0.0  # Force rejection
 
         # Vague reason = penalize
         if any(vague in reason for vague in self.VAGUE_REASONS):
