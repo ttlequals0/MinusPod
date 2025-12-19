@@ -89,8 +89,8 @@ def get_chunk_config_for_duration(duration_seconds: float) -> dict:
         }
     elif duration_seconds > 10800:  # > 3 hours
         return {
-            'chunk_duration': 1800,  # 30 min chunks
-            'chunk_overlap': 45,     # Moderate overlap
+            'chunk_duration': 1200,  # 20 min chunks (reduced for lower peak memory)
+            'chunk_overlap': 60,     # Increased overlap for better speaker matching
             'speaker_match_threshold': 0.45,
         }
     elif duration_seconds > 7200:  # > 2 hours

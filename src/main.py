@@ -454,6 +454,11 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             transcript_text = transcriber.segments_to_text(segments)
             storage.save_transcript(slug, episode_id, transcript_text)
 
+            # Unload Whisper model to free ~5-6GB memory for audio analysis
+            from transcriber import WhisperModelSingleton
+            WhisperModelSingleton.unload_model()
+            audio_logger.info(f"[{slug}:{episode_id}] Unloaded Whisper model before audio analysis")
+
         # Step 1.5: Run audio analysis (if enabled)
         audio_analysis_result = None
         if audio_analyzer.is_enabled():

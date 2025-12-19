@@ -137,6 +137,33 @@ These signals are provided to Claude as additional context during ad detection.
 - Docker with NVIDIA GPU support (for Whisper)
 - Anthropic API key
 
+### Memory Requirements
+
+**GPU VRAM:**
+
+| Whisper Model | VRAM Required |
+|---------------|---------------|
+| tiny | ~1 GB |
+| base | ~1 GB |
+| small | ~2 GB |
+| medium | ~4 GB |
+| large-v3 | ~5-6 GB |
+
+If audio analysis with speaker diarization is enabled, add:
+- Pyannote diarization pipeline: ~2-3 GB VRAM
+- Pyannote embedding model: ~1 GB VRAM
+
+**System RAM:**
+
+| Episode Length | Without Audio Analysis | With Speaker Analysis |
+|----------------|------------------------|----------------------|
+| < 1 hour | 8 GB | 12 GB |
+| 1-2 hours | 8 GB | 16 GB |
+| 2-4 hours | 12 GB | 24 GB |
+| > 4 hours | 16 GB | 32 GB |
+
+Speaker diarization is memory-intensive for long episodes. If processing fails with OOM errors on long episodes (3+ hours), either increase system RAM or disable speaker analysis in Settings.
+
 ## Quick Start
 
 ```bash

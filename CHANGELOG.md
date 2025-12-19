@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.136] - 2025-12-19
+
+### Added
+- **Whisper Model Unloading Before Audio Analysis**
+  - Automatically unloads Whisper model after transcription completes
+  - Frees ~5-6GB memory before speaker diarization starts
+  - Model lazy-reloads on next transcription request
+  - New public `WhisperModelSingleton.unload_model()` method
+
+### Changed
+- **Reduced Chunk Size for 3-4 Hour Episodes**
+  - Speaker diarization now uses 20-minute chunks (was 30 minutes) for episodes >3 hours
+  - Reduces peak memory by ~33% per chunk
+  - Increased overlap to 60s for better speaker matching across boundaries
+  - Allows very long episodes to complete with 24GB system RAM
+
+---
+
 ## [0.1.135] - 2025-12-19
 
 ### Added

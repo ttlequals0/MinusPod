@@ -144,8 +144,13 @@ class WhisperModelSingleton:
         return False
 
     @classmethod
-    def _unload_model(cls):
-        """Unload the current model and free GPU memory."""
+    def unload_model(cls):
+        """Unload the current model and free GPU memory.
+
+        Call this after transcription is complete to free ~5-6GB memory
+        before memory-intensive operations like speaker diarization.
+        The model will lazy-reload on the next transcription request.
+        """
         if cls._instance is not None or cls._base_model is not None:
             logger.info(f"Unloading Whisper model: {cls._current_model_name}")
             cls._instance = None
@@ -174,7 +179,7 @@ class WhisperModelSingleton:
         """
         # Check if we need to reload
         if cls._instance is not None and cls._should_reload():
-            cls._unload_model()
+            cls.unload_model()
 
         if cls._instance is None:
             model_size = cls.get_configured_model()
