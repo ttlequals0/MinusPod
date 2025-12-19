@@ -129,6 +129,7 @@ These signals are provided to Claude as additional context during ad detection.
 **Requirements for Speaker Analysis:**
 - HuggingFace token (HF_TOKEN env var)
 - Accept license at https://hf.co/pyannote/speaker-diarization-3.1
+- Accept license at https://hf.co/pyannote/embedding (for long episode chunked processing)
 - GPU recommended (uses pyannote speaker diarization)
 
 ## Requirements
