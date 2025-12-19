@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.135] - 2025-12-19
+
+### Added
+- **Per-Component Timeouts for Audio Analysis**
+  - Each analysis component (volume, music, speaker) now has its own timeout
+  - Timeouts scale dynamically based on episode duration (~2s/min for volume, ~5s/min for music, ~8s/min for speaker)
+  - Prevents indefinite hangs on any single component
+
+- **Graceful Degradation in Audio Analysis**
+  - If one component fails or times out, processing continues with remaining components
+  - Partial results are still usable for ad detection
+  - Errors are logged but don't abort entire analysis
+
+- **Per-Chunk Retry Logic for Speaker Analysis**
+  - Failed chunks are retried up to 2 times before skipping
+  - CUDA OOM errors trigger memory clearing and 10s delay before retry
+  - Other errors get 5s delay between retries
+  - Logging shows retry attempts for debugging
+
+- **Enhanced Memory Management**
+  - `torch.cuda.synchronize()` called after CUDA operations to ensure completion
+  - Memory logging on retry attempts for debugging
+  - Aggressive garbage collection between chunks
+
+- **Dynamic Chunk Configuration**
+  - Chunk size and overlap now scale based on episode duration
+  - 4+ hour episodes: 40min chunks with 60s overlap
+  - 3-4 hour episodes: 30min chunks with 45s overlap
+  - Stricter speaker matching threshold for longer episodes
+
+### Changed
+- Audio analysis now uses ThreadPoolExecutor for cross-platform timeout support
+
+---
+
 ## [0.1.134] - 2025-12-19
 
 ### Added

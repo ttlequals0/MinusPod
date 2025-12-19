@@ -6,10 +6,11 @@ comprehensive audio signals for ad detection.
 """
 
 import logging
+import subprocess
 import time
 import os
-from typing import Dict, List, Optional, Any
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Dict, List, Optional, Any, Tuple, Callable
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
 from .base import AudioSegmentSignal, AudioAnalysisResult, SignalType
 from .volume_analyzer import VolumeAnalyzer
@@ -17,6 +18,50 @@ from .music_detector import MusicBedDetector
 from .speaker_analyzer import SpeakerAnalyzer
 
 logger = logging.getLogger('podcast.audio_analysis')
+
+
+# Default timeout multipliers (seconds per minute of audio)
+DEFAULT_VOLUME_TIMEOUT_MULTIPLIER = 2.0    # ~2s per min of audio
+DEFAULT_MUSIC_TIMEOUT_MULTIPLIER = 5.0     # ~5s per min of audio
+DEFAULT_SPEAKER_TIMEOUT_MULTIPLIER = 8.0   # ~8s per min of audio
+
+# Minimum timeouts regardless of duration
+MIN_VOLUME_TIMEOUT = 180    # 3 minutes
+MIN_MUSIC_TIMEOUT = 300     # 5 minutes
+MIN_SPEAKER_TIMEOUT = 900   # 15 minutes
+
+
+def get_audio_duration(audio_path: str) -> Optional[float]:
+    """Get audio duration in seconds using ffprobe."""
+    try:
+        cmd = [
+            'ffprobe', '-v', 'quiet',
+            '-show_entries', 'format=duration',
+            '-of', 'default=noprint_wrappers=1:nokey=1',
+            audio_path
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        if result.returncode == 0 and result.stdout.strip():
+            return float(result.stdout.strip())
+    except Exception as e:
+        logger.warning(f"Could not get audio duration: {e}")
+    return None
+
+
+def calculate_component_timeouts(duration_seconds: float) -> Dict[str, int]:
+    """
+    Calculate per-component timeouts based on episode duration.
+
+    Returns timeouts in seconds for each analysis component.
+    Longer episodes get proportionally longer timeouts.
+    """
+    duration_minutes = duration_seconds / 60.0
+
+    return {
+        'volume': max(MIN_VOLUME_TIMEOUT, int(duration_minutes * DEFAULT_VOLUME_TIMEOUT_MULTIPLIER)),
+        'music': max(MIN_MUSIC_TIMEOUT, int(duration_minutes * DEFAULT_MUSIC_TIMEOUT_MULTIPLIER)),
+        'speaker': max(MIN_SPEAKER_TIMEOUT, int(duration_minutes * DEFAULT_SPEAKER_TIMEOUT_MULTIPLIER)),
+    }
 
 
 class AudioAnalyzer:
@@ -124,6 +169,32 @@ class AudioAnalyzer:
             'music': self.music_detector.is_available(),
             'speaker': self.speaker_analyzer.is_available()
         }
+
+    def _run_component_with_timeout(
+        self,
+        name: str,
+        func: Callable,
+        timeout: int
+    ) -> Tuple[Any, Optional[str]]:
+        """
+        Run an analysis component with timeout protection.
+
+        Uses ThreadPoolExecutor for cross-platform timeout support.
+        Returns (result, error) tuple - result is None if timeout/error occurred.
+        """
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(func)
+            try:
+                result = future.result(timeout=timeout)
+                return result, None
+            except FuturesTimeoutError:
+                error_msg = f"{name} analysis exceeded {timeout}s timeout"
+                logger.warning(error_msg)
+                return None, error_msg
+            except Exception as e:
+                error_msg = f"{name} analysis failed: {type(e).__name__}: {e}"
+                logger.warning(error_msg)
+                return None, error_msg
 
     def analyze(
         self,
@@ -243,47 +314,95 @@ class AudioAnalyzer:
         transcript_segments: Optional[List[Dict]],
         status_callback: Optional[callable] = None
     ) -> tuple:
-        """Run all analyses sequentially with status updates."""
+        """
+        Run all analyses sequentially with status updates and timeouts.
+
+        Implements graceful degradation - if one component fails or times out,
+        the analysis continues with remaining components.
+        """
         signals = []
         errors = []
         baseline = None
 
-        # Volume analysis
+        # Get audio duration for timeout calculation
+        duration = get_audio_duration(audio_path)
+        if duration:
+            timeouts = calculate_component_timeouts(duration)
+            logger.info(f"Audio duration: {duration/60:.1f} min, timeouts: "
+                       f"volume={timeouts['volume']}s, music={timeouts['music']}s, "
+                       f"speaker={timeouts['speaker']}s")
+        else:
+            # Fall back to generous defaults for unknown duration
+            timeouts = {
+                'volume': MIN_VOLUME_TIMEOUT * 2,
+                'music': MIN_MUSIC_TIMEOUT * 2,
+                'speaker': MIN_SPEAKER_TIMEOUT * 2
+            }
+            logger.warning("Could not determine audio duration, using default timeouts")
+
+        # Volume analysis (fast, run first)
         if self._volume_enabled:
             if status_callback:
                 status_callback("analyzing: volume", 30)
-            try:
-                vol_signals, vol_baseline = self.volume_analyzer.analyze(audio_path)
+
+            result, error = self._run_component_with_timeout(
+                'volume',
+                lambda: self.volume_analyzer.analyze(audio_path),
+                timeouts['volume']
+            )
+
+            if error:
+                errors.append(error)
+                logger.warning(f"Volume analysis skipped: {error}")
+            elif result:
+                vol_signals, vol_baseline = result
                 signals.extend(vol_signals)
                 baseline = vol_baseline
-            except Exception as e:
-                errors.append(f"volume analysis failed: {e}")
-                logger.warning(f"Volume analysis failed: {e}")
+                logger.info(f"Volume analysis complete: {len(vol_signals)} signals")
 
         # Music analysis
         if self._music_enabled and self.music_detector.is_available():
             if status_callback:
                 status_callback("analyzing: music", 35)
-            try:
-                music_signals = self.music_detector.analyze(audio_path)
-                signals.extend(music_signals)
-            except Exception as e:
-                errors.append(f"music analysis failed: {e}")
-                logger.warning(f"Music analysis failed: {e}")
 
-        # Speaker analysis
+            result, error = self._run_component_with_timeout(
+                'music',
+                lambda: self.music_detector.analyze(audio_path),
+                timeouts['music']
+            )
+
+            if error:
+                errors.append(error)
+                logger.warning(f"Music analysis skipped: {error}")
+            elif result:
+                signals.extend(result)
+                logger.info(f"Music analysis complete: {len(result)} signals")
+
+        # Speaker analysis (slowest, run last)
         if self._speaker_enabled and self.speaker_analyzer.is_available():
             if status_callback:
                 status_callback("analyzing: speakers", 40)
-            try:
-                speaker_signals, metrics = self.speaker_analyzer.analyze(
-                    audio_path, transcript_segments
-                )
+
+            result, error = self._run_component_with_timeout(
+                'speaker',
+                lambda: self.speaker_analyzer.analyze(audio_path, transcript_segments),
+                timeouts['speaker']
+            )
+
+            if error:
+                errors.append(error)
+                logger.warning(f"Speaker analysis skipped: {error}")
+            elif result:
+                speaker_signals, metrics = result
                 signals.extend(speaker_signals)
                 self._last_conversation_metrics = metrics
-            except Exception as e:
-                errors.append(f"speaker analysis failed: {e}")
-                logger.warning(f"Speaker analysis failed: {e}")
+                logger.info(f"Speaker analysis complete: {len(speaker_signals)} signals")
+
+        # Log summary
+        if errors:
+            logger.warning(f"Audio analysis completed with {len(errors)} errors: {errors}")
+        else:
+            logger.info(f"Audio analysis complete: {len(signals)} total signals")
 
         return signals, errors, baseline
 

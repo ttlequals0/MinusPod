@@ -10,9 +10,10 @@ import gc
 import logging
 import os
 import re
+import time
 import traceback
 import warnings
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Optional, Tuple, Any
 from collections import defaultdict
 
 from .base import (
@@ -60,6 +61,50 @@ CHUNK_DURATION_SECONDS = 1800  # 30 minutes per chunk
 CHUNK_OVERLAP_SECONDS = 30     # Overlap between chunks for speaker continuity
 SPEAKER_MATCH_THRESHOLD = 0.5  # Cosine distance threshold for same speaker
 LONG_EPISODE_THRESHOLD = 3600  # Episodes > 1 hour use chunked processing
+
+# Retry configuration for per-chunk processing
+CHUNK_MAX_RETRIES = 2          # Max retries per chunk on failure
+CHUNK_RETRY_DELAY = 5          # Seconds to wait between retries
+OOM_RETRY_DELAY = 10           # Longer delay after OOM errors
+
+
+def get_chunk_config_for_duration(duration_seconds: float) -> dict:
+    """
+    Get optimal chunk configuration based on episode duration.
+
+    Longer episodes use larger chunks (fewer chunks = fewer chunk boundary
+    speaker matching issues), but with more overlap to ensure continuity.
+
+    Args:
+        duration_seconds: Total episode duration in seconds
+
+    Returns:
+        Dict with chunk_duration, chunk_overlap, and speaker_match_threshold
+    """
+    if duration_seconds > 14400:  # > 4 hours
+        return {
+            'chunk_duration': 2400,  # 40 min chunks (fewer chunks)
+            'chunk_overlap': 60,     # More overlap for better matching
+            'speaker_match_threshold': 0.4,  # Stricter matching
+        }
+    elif duration_seconds > 10800:  # > 3 hours
+        return {
+            'chunk_duration': 1800,  # 30 min chunks
+            'chunk_overlap': 45,     # Moderate overlap
+            'speaker_match_threshold': 0.45,
+        }
+    elif duration_seconds > 7200:  # > 2 hours
+        return {
+            'chunk_duration': 1800,  # 30 min chunks
+            'chunk_overlap': 30,
+            'speaker_match_threshold': 0.5,
+        }
+    else:  # 1-2 hours
+        return {
+            'chunk_duration': CHUNK_DURATION_SECONDS,
+            'chunk_overlap': CHUNK_OVERLAP_SECONDS,
+            'speaker_match_threshold': SPEAKER_MATCH_THRESHOLD,
+        }
 
 
 class SpeakerAnalyzer:
@@ -216,11 +261,112 @@ class SpeakerAnalyzer:
 
         return waveform, 16000
 
-    def _clear_memory(self):
-        """Clear CUDA cache and run garbage collection between chunks."""
-        gc.collect()
+    def _clear_memory(self, force_gc: bool = True, log_usage: bool = False):
+        """
+        Clear CUDA cache and run garbage collection between chunks.
+
+        Args:
+            force_gc: Whether to force garbage collection
+            log_usage: Whether to log current memory usage
+        """
+        if force_gc:
+            gc.collect()
+
         if torch.cuda.is_available():
+            # Synchronize to ensure all CUDA operations complete
+            torch.cuda.synchronize()
             torch.cuda.empty_cache()
+
+            if log_usage:
+                try:
+                    allocated = torch.cuda.memory_allocated() / (1024 ** 3)
+                    reserved = torch.cuda.memory_reserved() / (1024 ** 3)
+                    logger.debug(
+                        f"GPU memory: {allocated:.2f}GB allocated, "
+                        f"{reserved:.2f}GB reserved"
+                    )
+                except Exception:
+                    pass
+
+    def _process_chunk_with_retry(
+        self,
+        audio_path: str,
+        chunk_start: float,
+        chunk_end: float,
+        chunk_idx: int,
+        max_retries: int = CHUNK_MAX_RETRIES
+    ) -> Tuple[Optional[Any], Optional[torch.Tensor], int]:
+        """
+        Process a single chunk with retry logic for transient failures.
+
+        Args:
+            audio_path: Path to audio file
+            chunk_start: Start time in seconds
+            chunk_end: End time in seconds
+            chunk_idx: Chunk index for logging
+            max_retries: Maximum number of retries
+
+        Returns:
+            Tuple of (diarization_result, waveform, sample_rate) or (None, None, 0) on failure
+        """
+        import torchaudio
+
+        for attempt in range(max_retries + 1):
+            try:
+                # Clear memory before each attempt
+                self._clear_memory(force_gc=True, log_usage=(attempt > 0))
+
+                # Load audio chunk
+                waveform, sample_rate = self._load_audio_chunk(
+                    audio_path, chunk_start, chunk_end
+                )
+
+                # Pad to 10-second boundary to avoid pyannote chunk mismatch
+                pyannote_chunk = 160000  # 10 seconds at 16kHz
+                remainder = waveform.shape[1] % pyannote_chunk
+                if remainder != 0:
+                    waveform = torch.nn.functional.pad(
+                        waveform, (0, pyannote_chunk - remainder)
+                    )
+
+                # Run diarization on chunk
+                diarization = self._pipeline({
+                    "waveform": waveform,
+                    "sample_rate": sample_rate
+                })
+
+                return diarization, waveform, sample_rate
+
+            except torch.cuda.OutOfMemoryError as e:
+                logger.warning(
+                    f"Chunk {chunk_idx + 1} attempt {attempt + 1}: CUDA OOM error"
+                )
+                self._clear_memory(force_gc=True, log_usage=True)
+
+                if attempt < max_retries:
+                    time.sleep(OOM_RETRY_DELAY)
+                else:
+                    logger.error(
+                        f"Chunk {chunk_idx + 1} failed after {max_retries + 1} attempts: "
+                        f"CUDA out of memory"
+                    )
+                    return None, None, 0
+
+            except Exception as e:
+                logger.warning(
+                    f"Chunk {chunk_idx + 1} attempt {attempt + 1} failed: "
+                    f"{type(e).__name__}: {e}"
+                )
+
+                if attempt < max_retries:
+                    time.sleep(CHUNK_RETRY_DELAY)
+                else:
+                    logger.error(
+                        f"Chunk {chunk_idx + 1} failed after {max_retries + 1} attempts: {e}"
+                    )
+                    return None, None, 0
+
+        return None, None, 0
 
     def _extract_speaker_embeddings(
         self,
@@ -460,8 +606,22 @@ class SpeakerAnalyzer:
         Chunked diarization for long episodes to prevent OOM.
 
         Processes audio in time-based chunks with overlap, matching speakers
-        across chunks using embedding similarity.
+        across chunks using embedding similarity. Uses dynamic chunk sizing
+        based on episode duration for optimal performance.
         """
+        # Get dynamic chunk configuration based on duration
+        chunk_config = get_chunk_config_for_duration(total_duration)
+        chunk_duration = chunk_config['chunk_duration']
+        chunk_overlap = chunk_config['chunk_overlap']
+        speaker_threshold = chunk_config['speaker_match_threshold']
+
+        total_chunks = int((total_duration + chunk_duration - 1) / (chunk_duration - chunk_overlap))
+        logger.info(
+            f"Chunked diarization: {total_duration/3600:.1f}h episode, "
+            f"{chunk_duration/60:.0f}min chunks, {chunk_overlap}s overlap, "
+            f"~{total_chunks} chunks"
+        )
+
         all_segments = []
         global_embeddings = {}  # Global speaker ID -> embedding
         next_speaker_id = 0
@@ -470,7 +630,7 @@ class SpeakerAnalyzer:
         chunk_idx = 0
 
         while chunk_start < total_duration:
-            chunk_end = min(chunk_start + CHUNK_DURATION_SECONDS, total_duration)
+            chunk_end = min(chunk_start + chunk_duration, total_duration)
 
             logger.info(
                 f"Processing chunk {chunk_idx + 1}: "
@@ -479,31 +639,26 @@ class SpeakerAnalyzer:
             )
 
             try:
-                # Load only this chunk
-                waveform, sample_rate = self._load_audio_chunk(
-                    audio_path, chunk_start, chunk_end
+                # Process chunk with retry logic
+                diarization, waveform, sample_rate = self._process_chunk_with_retry(
+                    audio_path, chunk_start, chunk_end, chunk_idx
                 )
 
-                # Pad to 10-second boundary to avoid pyannote chunk mismatch
-                pyannote_chunk = 160000  # 10 seconds at 16kHz
-                remainder = waveform.shape[1] % pyannote_chunk
-                if remainder != 0:
-                    waveform = torch.nn.functional.pad(
-                        waveform, (0, pyannote_chunk - remainder)
+                if diarization is None:
+                    # Chunk processing failed after retries - continue with next chunk
+                    logger.warning(
+                        f"Chunk {chunk_idx + 1} could not be processed, skipping"
                     )
-
-                # Run diarization on chunk
-                diarization = self._pipeline({
-                    "waveform": waveform,
-                    "sample_rate": sample_rate
-                })
+                    chunk_start = chunk_end - chunk_overlap
+                    chunk_idx += 1
+                    continue
 
                 # Convert to segments with global timestamps
                 chunk_segments = []
                 for turn, _, speaker in diarization.itertracks(yield_label=True):
                     # Skip segments in overlap region (except first chunk)
                     # This prevents duplicate segments at boundaries
-                    if chunk_idx > 0 and turn.start < CHUNK_OVERLAP_SECONDS:
+                    if chunk_idx > 0 and turn.start < chunk_overlap:
                         continue
 
                     chunk_segments.append(SpeakerSegment(
@@ -567,7 +722,7 @@ class SpeakerAnalyzer:
                 self._clear_memory()
 
             # Move to next chunk (with overlap for continuity)
-            chunk_start = chunk_end - CHUNK_OVERLAP_SECONDS
+            chunk_start = chunk_end - chunk_overlap
             chunk_idx += 1
 
         logger.info(
