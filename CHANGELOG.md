@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.143] - 2025-12-19
+
+### Added
+- **Add New Sponsors on the Fly**
+  - Pattern detail modal now has "Add New" button when entering unknown sponsor
+  - Creates sponsor in database immediately for autocomplete
+  - Shows helper text when sponsor doesn't exist in list
+
+- **Pattern Management API Endpoints**
+  - DELETE `/patterns/<id>` to remove individual patterns
+  - POST `/patterns/deduplicate` for manual deduplication trigger
+  - POST `/patterns/merge` to merge similar patterns into one
+
+### Fixed
+- **Navigation Arrows Only Work Once**
+  - Fixed stale closure issue in transcript editor navigation
+  - Arrow buttons now correctly use current selected ad index
+  - Uses ref pattern to avoid capturing stale state in callbacks
+
+- **Rejected Ads Buttons No Visual Feedback**
+  - "Confirm as Ad" and "Not an Ad" buttons now show save status
+  - Dynamic text: "Saving...", "Saved!", "Error!" based on state
+  - Visual styling changes to indicate success/error states
+
+- **Audio Analysis Override Not Visible**
+  - Moved audio analysis control out of "Edit" mode
+  - Now always visible as inline dropdown on podcast detail page
+  - Shows status badge when override is active
+
+---
+
 ## [0.1.142] - 2025-12-19
 
 ### Added

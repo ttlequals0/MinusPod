@@ -209,22 +209,46 @@ function FeedDetail() {
                       DAI: {feed.daiPlatform}
                     </span>
                   )}
-                  {feed.audioAnalysisOverride !== undefined && feed.audioAnalysisOverride !== null && (
-                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                      feed.audioAnalysisOverride
-                        ? 'bg-green-500/20 text-green-600 dark:text-green-400'
-                        : 'bg-red-500/20 text-red-600 dark:text-red-400'
-                    }`}>
-                      Audio: {feed.audioAnalysisOverride ? 'Enabled' : 'Disabled'}
-                    </span>
-                  )}
                   <button
                     onClick={startEditingNetwork}
                     className="text-xs text-muted-foreground hover:text-foreground"
                   >
-                    {feed.networkId || feed.daiPlatform || feed.audioAnalysisOverride !== null ? 'Edit' : '+ Add Settings'}
+                    {feed.networkId || feed.daiPlatform ? 'Edit' : '+ Add Network'}
                   </button>
                 </div>
+              )}
+            </div>
+
+            {/* Audio Analysis Control - Always visible */}
+            <div className="mt-3 flex items-center gap-3 text-sm">
+              <span className="text-muted-foreground">Audio Analysis:</span>
+              <select
+                value={
+                  feed.audioAnalysisOverride === true ? 'enable' :
+                  feed.audioAnalysisOverride === false ? 'disable' : 'global'
+                }
+                onChange={(e) => {
+                  const value = e.target.value;
+                  let audioOverride: boolean | null = null;
+                  if (value === 'enable') audioOverride = true;
+                  else if (value === 'disable') audioOverride = false;
+                  updateMutation.mutate({ audioAnalysisOverride: audioOverride });
+                }}
+                disabled={updateMutation.isPending}
+                className="px-2 py-1 text-sm bg-secondary border border-border rounded"
+              >
+                <option value="global">Use Global Setting</option>
+                <option value="enable">Always Enable</option>
+                <option value="disable">Always Disable</option>
+              </select>
+              {feed.audioAnalysisOverride !== null && feed.audioAnalysisOverride !== undefined && (
+                <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                  feed.audioAnalysisOverride
+                    ? 'bg-green-500/20 text-green-600 dark:text-green-400'
+                    : 'bg-red-500/20 text-red-600 dark:text-red-400'
+                }`}>
+                  {feed.audioAnalysisOverride ? 'Enabled' : 'Disabled'}
+                </span>
               )}
             </div>
           </div>

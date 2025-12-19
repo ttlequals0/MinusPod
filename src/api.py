@@ -1636,6 +1636,120 @@ def update_pattern(pattern_id):
     return error_response('No valid fields provided', 400)
 
 
+@api.route('/patterns/<int:pattern_id>', methods=['DELETE'])
+@log_request
+def delete_pattern(pattern_id):
+    """Delete a pattern."""
+    db = get_database()
+
+    pattern = db.get_ad_pattern_by_id(pattern_id)
+    if not pattern:
+        return error_response('Pattern not found', 404)
+
+    db.delete_ad_pattern(pattern_id)
+    return json_response({'message': 'Pattern deleted'})
+
+
+@api.route('/patterns/deduplicate', methods=['POST'])
+@log_request
+def deduplicate_patterns():
+    """Manually trigger pattern deduplication."""
+    db = get_database()
+
+    try:
+        removed = db.deduplicate_patterns()
+        return json_response({
+            'message': f'Removed {removed} duplicate patterns',
+            'removed_count': removed
+        })
+    except Exception as e:
+        logger.error(f"Deduplication failed: {e}")
+        return error_response(f'Deduplication failed: {str(e)}', 500)
+
+
+@api.route('/patterns/merge', methods=['POST'])
+@log_request
+def merge_patterns():
+    """Merge multiple patterns into one.
+
+    Request body:
+    {
+        "keep_id": 123,  // Pattern to keep
+        "merge_ids": [124, 125, ...]  // Patterns to merge into keep_id
+    }
+    """
+    db = get_database()
+
+    data = request.get_json()
+    if not data:
+        return error_response('No data provided', 400)
+
+    keep_id = data.get('keep_id')
+    merge_ids = data.get('merge_ids', [])
+
+    if not keep_id or not merge_ids:
+        return error_response('Missing keep_id or merge_ids', 400)
+
+    # Validate patterns exist
+    keep_pattern = db.get_ad_pattern_by_id(keep_id)
+    if not keep_pattern:
+        return error_response(f'Pattern {keep_id} not found', 404)
+
+    for merge_id in merge_ids:
+        if merge_id == keep_id:
+            continue
+        pattern = db.get_ad_pattern_by_id(merge_id)
+        if not pattern:
+            return error_response(f'Pattern {merge_id} not found', 404)
+
+    try:
+        conn = db.get_connection()
+
+        # Sum up confirmation and false positive counts
+        total_confirmations = keep_pattern.get('confirmation_count', 0)
+        total_false_positives = keep_pattern.get('false_positive_count', 0)
+
+        for merge_id in merge_ids:
+            if merge_id == keep_id:
+                continue
+            pattern = db.get_ad_pattern_by_id(merge_id)
+            total_confirmations += pattern.get('confirmation_count', 0)
+            total_false_positives += pattern.get('false_positive_count', 0)
+
+        # Update the kept pattern with merged stats
+        db.update_ad_pattern(keep_id,
+            confirmation_count=total_confirmations,
+            false_positive_count=total_false_positives
+        )
+
+        # Move corrections to kept pattern
+        placeholders = ','.join('?' * len(merge_ids))
+        conn.execute(
+            f'''UPDATE pattern_corrections
+                SET pattern_id = ?
+                WHERE pattern_id IN ({placeholders})''',
+            [keep_id] + merge_ids
+        )
+
+        # Delete merged patterns
+        conn.execute(
+            f'''DELETE FROM ad_patterns WHERE id IN ({placeholders})''',
+            merge_ids
+        )
+        conn.commit()
+
+        return json_response({
+            'message': f'Merged {len(merge_ids)} patterns into pattern {keep_id}',
+            'kept_pattern_id': keep_id,
+            'merged_count': len(merge_ids),
+            'total_confirmations': total_confirmations,
+            'total_false_positives': total_false_positives
+        })
+    except Exception as e:
+        logger.error(f"Pattern merge failed: {e}")
+        return error_response(f'Merge failed: {str(e)}', 500)
+
+
 @api.route('/episodes/<slug>/<episode_id>/corrections', methods=['POST'])
 @log_request
 def submit_correction(slug, episode_id):

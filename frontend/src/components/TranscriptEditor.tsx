@@ -67,6 +67,10 @@ export function TranscriptEditor({
   const [internalSelectedAdIndex, setInternalSelectedAdIndex] = useState(0);
   const selectedAdIndex = externalSelectedAdIndex ?? internalSelectedAdIndex;
 
+  // Ref to always have current selectedAdIndex for callbacks (avoids stale closures)
+  const selectedAdIndexRef = useRef(selectedAdIndex);
+  selectedAdIndexRef.current = selectedAdIndex;
+
   const setSelectedAdIndex = useCallback((index: number) => {
     if (onSelectedAdIndexChange) {
       onSelectedAdIndexChange(index);
@@ -210,17 +214,20 @@ export function TranscriptEditor({
   }, [detectedAds, scrollToAd, triggerHaptic]);
 
   // Navigate to previous/next ad (for swipe gestures)
+  // Uses ref to avoid stale closure with controlled state
   const goToPreviousAd = useCallback(() => {
-    if (selectedAdIndex > 0) {
-      handleAdSelect(selectedAdIndex - 1);
+    const currentIndex = selectedAdIndexRef.current;
+    if (currentIndex > 0) {
+      handleAdSelect(currentIndex - 1);
     }
-  }, [selectedAdIndex, handleAdSelect]);
+  }, [handleAdSelect]);
 
   const goToNextAd = useCallback(() => {
-    if (selectedAdIndex < detectedAds.length - 1) {
-      handleAdSelect(selectedAdIndex + 1);
+    const currentIndex = selectedAdIndexRef.current;
+    if (currentIndex < detectedAds.length - 1) {
+      handleAdSelect(currentIndex + 1);
     }
-  }, [selectedAdIndex, detectedAds.length, handleAdSelect]);
+  }, [detectedAds.length, handleAdSelect]);
 
   // Swipe gesture handlers for ad navigation
   const handleSwipeStart = useCallback((e: React.TouchEvent) => {

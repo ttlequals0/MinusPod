@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AdPattern, updatePattern } from '../api/patterns';
-import { getSponsors } from '../api/sponsors';
+import { getSponsors, addSponsor } from '../api/sponsors';
 
 interface PatternDetailModalProps {
   pattern: AdPattern;
@@ -10,6 +10,7 @@ interface PatternDetailModalProps {
 }
 
 function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProps) {
+  const queryClient = useQueryClient();
   const [isEditing, setIsEditing] = useState(false);
   const [editedPattern, setEditedPattern] = useState({
     text_template: pattern.text_template || '',
@@ -23,6 +24,26 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
     queryKey: ['sponsors'],
     queryFn: getSponsors,
   });
+
+  // Check if entered sponsor exists in list
+  const sponsorExists = sponsors?.some(s =>
+    s.name.toLowerCase() === editedPattern.sponsor.toLowerCase()
+  );
+  const showAddSponsorButton = editedPattern.sponsor.trim() && !sponsorExists;
+
+  // Mutation to add new sponsor
+  const addSponsorMutation = useMutation({
+    mutationFn: (name: string) => addSponsor({ name }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['sponsors'] });
+    },
+  });
+
+  const handleAddSponsor = async () => {
+    if (editedPattern.sponsor.trim()) {
+      await addSponsorMutation.mutateAsync(editedPattern.sponsor.trim());
+    }
+  };
 
   const updateMutation = useMutation({
     mutationFn: () => updatePattern(pattern.id, {
@@ -105,19 +126,36 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
                 <label className="block text-sm font-medium text-foreground mb-1">
                   Sponsor
                 </label>
-                <input
-                  type="text"
-                  list="sponsor-suggestions"
-                  value={editedPattern.sponsor}
-                  onChange={(e) => setEditedPattern(prev => ({ ...prev, sponsor: e.target.value }))}
-                  placeholder="Start typing to see suggestions..."
-                  className="w-full px-3 py-2 bg-secondary border border-border rounded text-sm"
-                />
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    list="sponsor-suggestions"
+                    value={editedPattern.sponsor}
+                    onChange={(e) => setEditedPattern(prev => ({ ...prev, sponsor: e.target.value }))}
+                    placeholder="Start typing to see suggestions..."
+                    className="flex-1 px-3 py-2 bg-secondary border border-border rounded text-sm"
+                  />
+                  {showAddSponsorButton && (
+                    <button
+                      type="button"
+                      onClick={handleAddSponsor}
+                      disabled={addSponsorMutation.isPending}
+                      className="px-3 py-2 text-xs bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50 whitespace-nowrap"
+                    >
+                      {addSponsorMutation.isPending ? 'Adding...' : 'Add New'}
+                    </button>
+                  )}
+                </div>
                 <datalist id="sponsor-suggestions">
                   {sponsors?.map((s) => (
                     <option key={s.id} value={s.name} />
                   ))}
                 </datalist>
+                {showAddSponsorButton && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    "{editedPattern.sponsor}" is not in the sponsor list. Click "Add New" to add it.
+                  </p>
+                )}
               </div>
 
               <div>

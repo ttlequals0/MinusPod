@@ -422,9 +422,16 @@ function EpisodeDetail() {
                       },
                     })}
                     disabled={correctionMutation.isPending}
-                    className="px-3 py-1.5 text-xs bg-green-600 hover:bg-green-700 text-white rounded disabled:opacity-50 transition-colors"
+                    className={`px-3 py-1.5 text-xs rounded disabled:opacity-50 transition-colors ${
+                      saveStatus === 'success' ? 'bg-green-700 text-white' :
+                      saveStatus === 'error' ? 'bg-red-600 text-white' :
+                      'bg-green-600 hover:bg-green-700 text-white'
+                    }`}
                   >
-                    Confirm as Ad
+                    {saveStatus === 'saving' ? 'Saving...' :
+                     saveStatus === 'success' ? 'Saved!' :
+                     saveStatus === 'error' ? 'Error!' :
+                     'Confirm as Ad'}
                   </button>
                   <button
                     onClick={() => handleCorrection({
@@ -437,9 +444,16 @@ function EpisodeDetail() {
                       },
                     })}
                     disabled={correctionMutation.isPending}
-                    className="px-3 py-1.5 text-xs bg-destructive hover:bg-destructive/90 text-destructive-foreground rounded disabled:opacity-50 transition-colors"
+                    className={`px-3 py-1.5 text-xs rounded disabled:opacity-50 transition-colors ${
+                      saveStatus === 'success' ? 'bg-green-700 text-white' :
+                      saveStatus === 'error' ? 'bg-red-600 text-white' :
+                      'bg-destructive hover:bg-destructive/90 text-destructive-foreground'
+                    }`}
                   >
-                    Not an Ad
+                    {saveStatus === 'saving' ? 'Saving...' :
+                     saveStatus === 'success' ? 'Saved!' :
+                     saveStatus === 'error' ? 'Error!' :
+                     'Not an Ad'}
                   </button>
                 </div>
               </div>
