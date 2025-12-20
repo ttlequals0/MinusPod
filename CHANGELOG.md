@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.145] - 2025-12-20
+
+### Changed
+- **Theme Update: Bootswatch Slate**
+  - Dark mode now uses Slate theme colors (#272b30 background, cyan accents)
+  - Light mode updated to Slate-inspired light variant
+  - Added Roboto font from Google Fonts
+  - Responsive design applies to all screen sizes including mobile
+
+---
+
 ## [0.1.144] - 2025-12-19
 
 ### Added

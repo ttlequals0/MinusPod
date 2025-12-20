@@ -3,45 +3,47 @@
 @tailwind utilities;
 
 @layer base {
+  /* Slate-inspired light mode */
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222 47% 11%;
+    --background: 210 17% 95%;
+    --foreground: 213 10% 17%;
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
-    --primary: 262 83% 58%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96%;
-    --secondary-foreground: 222 47% 11%;
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
-    --accent: 210 40% 96%;
-    --accent-foreground: 222 47% 11%;
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 262 83% 58%;
+    --card-foreground: 213 10% 17%;
+    --primary: 194 66% 45%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 210 10% 90%;
+    --secondary-foreground: 213 10% 17%;
+    --muted: 210 10% 90%;
+    --muted-foreground: 210 5% 45%;
+    --accent: 210 10% 92%;
+    --accent-foreground: 213 10% 17%;
+    --destructive: 1 82% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 210 15% 85%;
+    --input: 210 15% 85%;
+    --ring: 194 66% 45%;
     --radius: 0.5rem;
   }
 
+  /* Bootswatch Slate dark mode */
   .dark {
-    --background: 222 47% 11%;
-    --foreground: 210 40% 98%;
-    --card: 217 33% 17%;
-    --card-foreground: 210 40% 98%;
-    --primary: 262 83% 58%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 217 33% 17%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 65%;
-    --accent: 217 33% 17%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62% 50%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217 33% 25%;
-    --input: 217 33% 25%;
-    --ring: 262 83% 58%;
+    --background: 213 10% 17%;
+    --foreground: 0 0% 67%;
+    --card: 210 8% 25%;
+    --card-foreground: 0 0% 100%;
+    --primary: 194 66% 61%;
+    --primary-foreground: 213 10% 17%;
+    --secondary: 210 8% 25%;
+    --secondary-foreground: 0 0% 67%;
+    --muted: 210 6% 34%;
+    --muted-foreground: 0 0% 60%;
+    --accent: 210 8% 30%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 1 82% 65%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 210 8% 22%;
+    --input: 210 8% 22%;
+    --ring: 194 66% 61%;
   }
 }
 
