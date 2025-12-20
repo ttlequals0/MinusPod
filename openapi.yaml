@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 0.1.141
+  version: 0.1.145
   contact:
     name: Podcast Server
   license:
@@ -617,6 +617,49 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
+    delete:
+      tags:
+        - Patterns
+      summary: Delete a pattern
+      description: Permanently delete an ad pattern from the database
+      operationId: deletePattern
+      parameters:
+        - $ref: '#/components/parameters/patternId'
+      responses:
+        '200':
+          description: Pattern deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /patterns/deduplicate:
+    post:
+      tags:
+        - Patterns
+      summary: Deduplicate patterns
+      description: Manually trigger deduplication of similar patterns in the database
+      operationId: deduplicatePatterns
+      responses:
+        '200':
+          description: Deduplication completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  removed_count:
+                    type: integer
+                    description: Number of duplicate patterns removed
+        '500':
+          $ref: '#/components/responses/ServerError'
 
   /patterns/export:
     get:

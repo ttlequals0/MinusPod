@@ -221,39 +221,32 @@ The transcript editor allows you to review and adjust ad detections directly in 
 
 ### Screenshots
 
-**Dashboard**
+#### Dashboard
+| Desktop | Mobile |
+|---------|--------|
+| <img src="docs/screenshots/dashboard-desktop.png" width="500"> | <img src="docs/screenshots/dashboard-mobile.png" width="200"> |
 
-<img src="docs/screenshots/dashboard.png" width="600">
+#### Feed Detail
+| Desktop | Mobile |
+|---------|--------|
+| <img src="docs/screenshots/feed-detail-desktop.png" width="500"> | <img src="docs/screenshots/feed-detail-mobile.png" width="200"> |
 
-**Podcast View**
+#### Episode Detail
+| Desktop | Mobile |
+|---------|--------|
+| <img src="docs/screenshots/episode-detail-desktop.png" width="500"> | <img src="docs/screenshots/episode-detail-mobile.png" width="200"> |
 
-<img src="docs/screenshots/podcast-view.png" width="600">
+#### Ad Patterns
+| Desktop | Mobile |
+|---------|--------|
+| <img src="docs/screenshots/patterns-desktop.png" width="500"> | <img src="docs/screenshots/patterns-mobile.png" width="200"> |
 
-**Episode View**
+#### Settings
+| Desktop | Mobile |
+|---------|--------|
+| <img src="docs/screenshots/settings-desktop.png" width="500"> | <img src="docs/screenshots/settings-mobile.png" width="200"> |
 
-<img src="docs/screenshots/episode-view.png" width="600">
-
-**Add Feed**
-
-<img src="docs/screenshots/add-feed.png" width="600">
-
-**Settings**
-
-<img src="docs/screenshots/settings.png" width="600">
-
-**Patterns**
-
-<img src="docs/screenshots/patterns.png" width="600">
-
-**History**
-
-<img src="docs/screenshots/history.png" width="600">
-
-**Mobile**
-
-<img src="docs/screenshots/mobile.png" width="300">
-
-**API Documentation**
+#### API Documentation
 
 <img src="docs/screenshots/api-docs.png" width="600">
 
