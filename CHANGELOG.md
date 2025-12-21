@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.151] - 2025-12-21
+
+### Fixed
+- **Race Condition in ProcessingQueue**
+  - Fixed lock release order in ProcessingQueue.release()
+  - State was cleared before lock release, causing potential race conditions
+  - Now releases lock first, then clears state
+
+- **Auto-Process Tight Loop**
+  - Added exponential backoff when queue is busy (30s to 5min max)
+  - Prevents CPU spin when processing queue is perpetually occupied
+  - Backoff resets on successful processing start
+
+- **Retry Logic for Transient vs Permanent Errors**
+  - Errors are now classified as transient (network, rate limits) or permanent (invalid data)
+  - Only transient errors increment retry count
+  - Permanent errors immediately mark episode as permanently_failed
+  - Prevents wasting retries on errors that won't resolve
+
+- **False Positive Handling in Pattern Matching**
+  - Pattern matching now respects user-rejected ads (false positives)
+  - Ads previously marked as false positive are excluded from pattern matches
+  - Applies to both audio fingerprint and text pattern matching stages
+
+### Added
+- **was_cut Flag for Ad Markers**
+  - Ad markers now include `was_cut: true/false` to indicate if ad was removed from audio
+  - Ads with confidence < 80% are kept in audio but flagged as `was_cut: false`
+  - Helps UI distinguish between cut and uncut ads
+
+---
+
 ## [0.1.150] - 2025-12-21
 
 ### Fixed

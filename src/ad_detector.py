@@ -1181,13 +1181,29 @@ class AdDetector:
         if skip_patterns:
             logger.info(f"[{slug}:{episode_id}] Full analysis mode: Skipping pattern DB (stages 1 & 2)")
 
+        # Get false positive corrections for this episode to prevent re-proposing rejected ads
+        false_positive_regions = []
+        if not skip_patterns and self.db:
+            try:
+                false_positive_regions = self.db.get_false_positive_corrections(episode_id)
+                if false_positive_regions:
+                    logger.debug(f"[{slug}:{episode_id}] Found {len(false_positive_regions)} false positive regions to exclude")
+            except Exception as e:
+                logger.warning(f"[{slug}:{episode_id}] Failed to get false positive corrections: {e}")
+
         # Stage 1: Audio Fingerprint Matching (skip if skip_patterns=True)
         if not skip_patterns and audio_path and self.audio_fingerprinter and self.audio_fingerprinter.is_available():
             try:
                 logger.info(f"[{slug}:{episode_id}] Stage 1: Audio fingerprint matching")
                 fp_matches = self.audio_fingerprinter.find_matches(audio_path)
 
+                fp_added = 0
                 for match in fp_matches:
+                    # Skip if this region was previously marked as false positive
+                    if self._is_region_covered(match.start, match.end, [(fp['start'], fp['end']) for fp in false_positive_regions]):
+                        logger.debug(f"[{slug}:{episode_id}] Skipping fingerprint match {match.start:.1f}s-{match.end:.1f}s (false positive)")
+                        continue
+
                     ad = {
                         'start': match.start,
                         'end': match.end,
@@ -1199,8 +1215,9 @@ class AdDetector:
                     }
                     all_ads.append(ad)
                     pattern_matched_regions.append((match.start, match.end))
+                    fp_added += 1
 
-                detection_stats['fingerprint_matches'] = len(fp_matches)
+                detection_stats['fingerprint_matches'] = fp_added
                 if fp_matches:
                     logger.info(f"[{slug}:{episode_id}] Fingerprint stage found {len(fp_matches)} ads")
             except Exception as e:
@@ -1216,9 +1233,15 @@ class AdDetector:
                     network_id=network_id
                 )
 
+                tp_added = 0
                 for match in text_matches:
                     # Skip if already covered by fingerprint match
                     if self._is_region_covered(match.start, match.end, pattern_matched_regions):
+                        continue
+
+                    # Skip if this region was previously marked as false positive
+                    if self._is_region_covered(match.start, match.end, [(fp['start'], fp['end']) for fp in false_positive_regions]):
+                        logger.debug(f"[{slug}:{episode_id}] Skipping text pattern match {match.start:.1f}s-{match.end:.1f}s (false positive)")
                         continue
 
                     ad = {
@@ -1232,8 +1255,9 @@ class AdDetector:
                     }
                     all_ads.append(ad)
                     pattern_matched_regions.append((match.start, match.end))
+                    tp_added += 1
 
-                detection_stats['text_pattern_matches'] = len(text_matches)
+                detection_stats['text_pattern_matches'] = tp_added
                 if text_matches:
                     logger.info(f"[{slug}:{episode_id}] Text pattern stage found {len(text_matches)} ads")
             except Exception as e:

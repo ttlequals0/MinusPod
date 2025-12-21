@@ -87,6 +87,77 @@ def log_request_detailed(f):
 # Maximum retry attempts for failed episodes before marking as permanently_failed
 MAX_EPISODE_RETRIES = 3
 
+# Import exception types for error classification
+import requests.exceptions
+try:
+    from anthropic import APIError, APIConnectionError, RateLimitError, InternalServerError
+    ANTHROPIC_EXCEPTIONS = True
+except ImportError:
+    ANTHROPIC_EXCEPTIONS = False
+
+
+def is_transient_error(error: Exception) -> bool:
+    """Determine if an error is transient (worth retrying) or permanent.
+
+    Transient errors (retry):
+    - Network timeouts and connection errors
+    - Rate limiting
+    - Server-side errors (5xx)
+
+    Permanent errors (don't retry):
+    - Invalid requests (4xx client errors)
+    - Invalid audio format
+    - File not found
+    - Value errors (bad data)
+    """
+    # Network/connection errors are transient
+    if isinstance(error, (
+        requests.exceptions.Timeout,
+        requests.exceptions.ConnectionError,
+        ConnectionError,
+        TimeoutError,
+    )):
+        return True
+
+    # Anthropic errors
+    if ANTHROPIC_EXCEPTIONS:
+        # Transient Anthropic errors
+        if isinstance(error, (RateLimitError, APIConnectionError, InternalServerError)):
+            return True
+        # Permanent Anthropic errors (BadRequestError, AuthenticationError, etc.)
+        if isinstance(error, APIError):
+            return False
+
+    # Permanent errors - don't retry
+    if isinstance(error, (
+        ValueError,
+        FileNotFoundError,
+        PermissionError,
+        TypeError,
+    )):
+        return False
+
+    # Check error message for common permanent failure patterns
+    error_msg = str(error).lower()
+    permanent_patterns = [
+        'invalid audio',
+        'unsupported format',
+        'corrupt',
+        'authentication',
+        'unauthorized',
+        'forbidden',
+        'not found',
+        '400 ',
+        '401 ',
+        '403 ',
+        '404 ',
+    ]
+    if any(pattern in error_msg for pattern in permanent_patterns):
+        return False
+
+    # Default: assume transient for unknown errors (safer to retry)
+    return True
+
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -357,6 +428,7 @@ def background_rss_refresh():
 def background_queue_processor():
     """Background task to process queued episodes for auto-processing."""
     refresh_logger.info("Auto-process queue processor started")
+    backoff_seconds = 30  # Initial backoff for busy queue
     while True:
         try:
             # Get next queued episode
@@ -383,6 +455,8 @@ def background_queue_processor():
                     )
 
                     if started:
+                        # Reset backoff on successful start
+                        backoff_seconds = 30
                         # Wait for processing to complete (poll status)
                         max_wait = 600  # 10 minutes max
                         waited = 0
@@ -403,14 +477,16 @@ def background_queue_processor():
                             db.update_queue_status(queue_id, 'failed', error_msg)
                             refresh_logger.warning(f"[{slug}:{episode_id}] Auto-process failed: {error_msg}")
                     elif reason == "already_processing":
-                        # Episode is already being processed, wait and check again
-                        refresh_logger.info(f"[{slug}:{episode_id}] Already processing, waiting...")
-                        time.sleep(30)
+                        # Episode is already being processed, wait with backoff
+                        refresh_logger.info(f"[{slug}:{episode_id}] Already processing, waiting {backoff_seconds}s...")
+                        time.sleep(backoff_seconds)
+                        backoff_seconds = min(backoff_seconds * 2, 300)  # Max 5 minutes
                     else:
-                        # Queue is busy with another episode, try again later
+                        # Queue is busy with another episode, try again later with backoff
                         db.update_queue_status(queue_id, 'pending')  # Put back in queue
-                        refresh_logger.debug(f"[{slug}:{episode_id}] Queue busy, will retry later")
-                        time.sleep(30)
+                        refresh_logger.debug(f"[{slug}:{episode_id}] Queue busy, will retry in {backoff_seconds}s")
+                        time.sleep(backoff_seconds)
+                        backoff_seconds = min(backoff_seconds * 2, 300)  # Max 5 minutes
 
                 except Exception as e:
                     db.update_queue_status(queue_id, 'failed', str(e))
@@ -733,10 +809,6 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     f"{validation_result.rejected} rejected"
                 )
 
-                # Store ALL ads (including rejected) for API/UI display
-                all_ads_with_validation = validation_result.ads
-                storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
-
                 # Only remove ACCEPT and REVIEW ads from audio that meet confidence threshold
                 # REJECT ads and low-confidence ads stay in audio but are stored for display
                 ads_to_remove = []
@@ -744,17 +816,24 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 for ad in validation_result.ads:
                     validation = ad.get('validation', {})
                     if validation.get('decision') == 'REJECT':
+                        ad['was_cut'] = False  # Rejected ads are kept in audio
                         continue
                     # Check confidence - use adjusted_confidence if available, else original
                     confidence = validation.get('adjusted_confidence', ad.get('confidence', 1.0))
                     if confidence < MIN_CUT_CONFIDENCE:
                         low_confidence_count += 1
+                        ad['was_cut'] = False  # Low-confidence ads are kept in audio
                         audio_logger.info(
                             f"[{slug}:{episode_id}] Keeping low-confidence ad in audio: "
                             f"{ad['start']:.1f}s-{ad['end']:.1f}s ({confidence:.0%} < {MIN_CUT_CONFIDENCE:.0%})"
                         )
                         continue
+                    ad['was_cut'] = True  # This ad will be cut from audio
                     ads_to_remove.append(ad)
+
+                # Store ALL ads (including rejected) for API/UI display with was_cut flag
+                all_ads_with_validation = validation_result.ads
+                storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
 
                 rejected_count = validation_result.rejected
                 if rejected_count > 0 or low_confidence_count > 0:
@@ -842,16 +921,26 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
         # Update status to failed with retry count
         status_service.fail_job()
 
-        # Get current retry count and increment
-        current_retry = (episode_data.get('retry_count', 0) or 0) if episode_data else 0
-        new_retry_count = current_retry + 1
+        # Classify error as transient (worth retrying) or permanent
+        transient = is_transient_error(e)
 
-        # Determine if permanently failed
-        if new_retry_count >= MAX_EPISODE_RETRIES:
-            new_status = 'permanently_failed'
-            audio_logger.warning(f"[{slug}:{episode_id}] Max retries reached ({MAX_EPISODE_RETRIES}), marking as permanently failed")
+        # Get current retry count
+        current_retry = (episode_data.get('retry_count', 0) or 0) if episode_data else 0
+
+        # Only increment retry count for transient errors
+        if transient:
+            new_retry_count = current_retry + 1
+            if new_retry_count >= MAX_EPISODE_RETRIES:
+                new_status = 'permanently_failed'
+                audio_logger.warning(f"[{slug}:{episode_id}] Max retries reached ({MAX_EPISODE_RETRIES}), marking as permanently failed")
+            else:
+                new_status = 'failed'
+                audio_logger.info(f"[{slug}:{episode_id}] Transient error, will retry (attempt {new_retry_count}/{MAX_EPISODE_RETRIES})")
         else:
-            new_status = 'failed'
+            # Permanent error - don't retry, mark as permanently failed immediately
+            new_status = 'permanently_failed'
+            new_retry_count = current_retry  # Don't increment
+            audio_logger.warning(f"[{slug}:{episode_id}] Permanent error, not retrying: {type(e).__name__}")
 
         db.upsert_episode(slug, episode_id,
             status=new_status,

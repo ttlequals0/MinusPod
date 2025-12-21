@@ -42,11 +42,11 @@ class ProcessingQueue:
 
     def release(self):
         """Release processing lock."""
-        self._current_episode = None
         try:
             self._processing_lock.release()
         except RuntimeError:
             pass  # Lock wasn't held
+        self._current_episode = None
 
     def get_current(self) -> Optional[Tuple[str, str]]:
         """Get currently processing episode (slug, episode_id) or None."""
