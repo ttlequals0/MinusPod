@@ -1056,7 +1056,8 @@ class AdDetector:
                             max_tokens=2000,
                             temperature=0.0,
                             system=system_prompt,
-                            messages=[{"role": "user", "content": prompt}]
+                            messages=[{"role": "user", "content": prompt}],
+                            timeout=120.0  # 2 minute timeout
                         )
                         break
                     except Exception as e:
@@ -1457,7 +1458,8 @@ class AdDetector:
                             max_tokens=2000,
                             temperature=0.0,
                             system=system_prompt,
-                            messages=[{"role": "user", "content": prompt}]
+                            messages=[{"role": "user", "content": prompt}],
+                            timeout=120.0  # 2 minute timeout
                         )
                         break
                     except Exception as e:

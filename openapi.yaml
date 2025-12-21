@@ -1164,6 +1164,53 @@ paths:
                     items:
                       $ref: '#/components/schemas/WhisperModel'
 
+  /health:
+    get:
+      tags:
+        - System
+      summary: Health check
+      description: |
+        Health check endpoint for monitoring and load balancers.
+        Returns 200 if healthy, 503 if unhealthy.
+        Checks database connectivity, storage access, and queue availability.
+      operationId: healthCheck
+      responses:
+        '200':
+          description: System is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [healthy]
+                  checks:
+                    type: object
+                    properties:
+                      database:
+                        type: boolean
+                      storage:
+                        type: boolean
+                      queue_available:
+                        type: boolean
+                  version:
+                    type: string
+        '503':
+          description: System is unhealthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [unhealthy]
+                  checks:
+                    type: object
+                  version:
+                    type: string
+
   /system/status:
     get:
       tags:

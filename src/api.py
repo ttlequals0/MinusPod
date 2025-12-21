@@ -6,6 +6,8 @@ import time
 from datetime import datetime
 from typing import Optional
 from flask import Blueprint, jsonify, request, send_file, Response
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from functools import wraps
 
 logger = logging.getLogger('podcast.api')
@@ -14,6 +16,20 @@ logger = logging.getLogger('podcast.api')
 _start_time = time.time()
 
 api = Blueprint('api', __name__, url_prefix='/api/v1')
+
+# Rate limiter - will be initialized when blueprint is registered with app
+# Default limits: 200 requests per minute, 1000 per hour
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=["200 per minute", "1000 per hour"],
+    storage_uri="memory://",
+)
+
+
+def init_limiter(app):
+    """Initialize rate limiter with Flask app."""
+    limiter.init_app(app)
+    logger.info("Rate limiter initialized: 200/min, 1000/hr default limits")
 
 
 def get_storage():
@@ -179,6 +195,7 @@ def list_feeds():
 
 
 @api.route('/feeds', methods=['POST'])
+@limiter.limit("10 per minute")
 @log_request
 def add_feed():
     """Add a new podcast feed."""
@@ -414,6 +431,7 @@ def delete_feed(slug):
 
 
 @api.route('/feeds/<slug>/refresh', methods=['POST'])
+@limiter.limit("10 per minute")
 @log_request
 def refresh_feed(slug):
     """Refresh a single podcast feed."""
@@ -448,6 +466,7 @@ def refresh_feed(slug):
 
 
 @api.route('/feeds/refresh', methods=['POST'])
+@limiter.limit("2 per minute")
 @log_request
 def refresh_all_feeds():
     """Refresh all podcast feeds."""
@@ -650,6 +669,7 @@ def get_transcript(slug, episode_id):
 
 
 @api.route('/feeds/<slug>/episodes/<episode_id>/reprocess', methods=['POST'])
+@limiter.limit("5 per minute")
 @log_request
 def reprocess_episode(slug, episode_id):
     """Force reprocess an episode by deleting cached data and reprocessing immediately."""
@@ -730,6 +750,7 @@ def reprocess_episode(slug, episode_id):
 
 
 @api.route('/feeds/<slug>/episodes/<episode_id>/retry-ad-detection', methods=['POST'])
+@limiter.limit("5 per minute")
 @log_request
 def retry_ad_detection(slug, episode_id):
     """Retry ad detection for an episode using existing transcript."""
@@ -1255,6 +1276,54 @@ def list_networks():
 
 
 # ========== System Endpoints ==========
+
+@api.route('/health', methods=['GET'])
+def health_check():
+    """Health check endpoint for monitoring.
+
+    Returns 200 if healthy, 503 if unhealthy.
+    Does not require authentication.
+    """
+    db = get_database()
+    storage = get_storage()
+
+    checks = {}
+
+    # Database check
+    try:
+        conn = db.get_connection()
+        conn.execute('SELECT 1')
+        checks['database'] = True
+    except Exception:
+        checks['database'] = False
+
+    # Storage check - verify data directory is writable
+    try:
+        storage_path = storage.data_dir
+        checks['storage'] = os.access(storage_path, os.W_OK)
+    except Exception:
+        checks['storage'] = False
+
+    # Processing queue check
+    try:
+        from processing_queue import ProcessingQueue
+        queue = ProcessingQueue()
+        checks['queue_available'] = not queue.is_busy()
+    except Exception:
+        checks['queue_available'] = False
+
+    # Determine overall status - database and storage are critical
+    critical_checks = [checks['database'], checks['storage']]
+    status = 'healthy' if all(critical_checks) else 'unhealthy'
+
+    response_data = {
+        'status': status,
+        'checks': checks,
+        'version': _get_version()
+    }
+
+    return jsonify(response_data), 200 if status == 'healthy' else 503
+
 
 @api.route('/system/status', methods=['GET'])
 @log_request

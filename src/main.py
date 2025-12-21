@@ -1,6 +1,7 @@
 """Main Flask web server for podcast ad removal with web UI."""
 import logging
 import os
+import signal
 import sys
 import threading
 import time
@@ -16,21 +17,61 @@ import shutil
 
 # Configure structured logging
 _logging_configured = False
+import json as _json
+
+
+class JSONFormatter(logging.Formatter):
+    """JSON log formatter for structured logging.
+
+    Outputs logs as JSON objects for easier parsing by log aggregators
+    like Loki, Elasticsearch, or CloudWatch.
+    """
+
+    def format(self, record: logging.LogRecord) -> str:
+        """Format log record as JSON."""
+        log_data = {
+            'timestamp': self.formatTime(record, self.datefmt),
+            'level': record.levelname,
+            'logger': record.name,
+            'message': record.getMessage(),
+        }
+
+        # Add extra fields if present
+        if hasattr(record, 'episode_id'):
+            log_data['episode_id'] = record.episode_id
+        if hasattr(record, 'slug'):
+            log_data['slug'] = record.slug
+
+        # Add exception info if present
+        if record.exc_info:
+            log_data['exception'] = self.formatException(record.exc_info)
+
+        return _json.dumps(log_data)
+
 
 def setup_logging():
-    """Configure application logging."""
+    """Configure application logging.
+
+    Environment variables:
+        LOG_LEVEL: Logging level (DEBUG, INFO, WARNING, ERROR). Default: INFO
+        LOG_FORMAT: Log output format ('text' or 'json'). Default: text
+    """
     global _logging_configured
     if _logging_configured:
         return
     _logging_configured = True
 
     log_level = os.environ.get('LOG_LEVEL', 'INFO').upper()
+    log_format = os.environ.get('LOG_FORMAT', 'text').lower()
 
-    # Create formatters
-    formatter = logging.Formatter(
-        '[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
-    )
+    # Create appropriate formatter based on LOG_FORMAT
+    if log_format == 'json':
+        formatter = JSONFormatter(datefmt='%Y-%m-%dT%H:%M:%S')
+    else:
+        formatter = logging.Formatter(
+            '[%(asctime)s] [%(levelname)s] [%(name)s] %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+        )
 
     # Console handler only - Docker captures stdout for logging
     console_handler = logging.StreamHandler(sys.stdout)
@@ -172,8 +213,9 @@ CORS(app, resources={
 })
 
 # Import and register API blueprint
-from api import api as api_blueprint
+from api import api as api_blueprint, init_limiter
 app.register_blueprint(api_blueprint)
+init_limiter(app)
 
 # Import components
 from storage import Storage
@@ -216,6 +258,40 @@ try:
         audio_logger.info(f"Created {patterns_created} patterns from existing corrections")
 except Exception as e:
     audio_logger.warning(f"Pattern backfill failed: {e}")
+
+# Graceful shutdown support
+shutdown_event = threading.Event()
+processing_queue = ProcessingQueue()
+
+
+def graceful_shutdown(signum, frame):
+    """Handle shutdown signals gracefully.
+
+    Waits for current processing to complete (up to 5 minutes)
+    before exiting.
+    """
+    sig_name = signal.Signals(signum).name
+    logger.info(f"Received {sig_name} signal, initiating graceful shutdown...")
+
+    # Signal all background threads to stop
+    shutdown_event.set()
+
+    # Wait for processing queue to finish current episode (max 5 minutes)
+    max_wait = 300
+    waited = 0
+    while processing_queue.is_busy() and waited < max_wait:
+        current = processing_queue.get_current()
+        if current:
+            logger.info(f"Waiting for processing to complete: {current[0]}:{current[1]} ({waited}s/{max_wait}s)")
+        time.sleep(5)
+        waited += 5
+
+    if processing_queue.is_busy():
+        logger.warning("Shutdown timeout reached, forcing exit with incomplete processing")
+    else:
+        logger.info("All processing complete, shutting down cleanly")
+
+    sys.exit(0)
 
 # Deduplicate patterns (cleanup duplicate patterns from earlier bugs)
 try:
@@ -418,18 +494,26 @@ def run_cleanup():
 
 
 def background_rss_refresh():
-    """Background task to refresh RSS feeds every 15 minutes."""
-    while True:
+    """Background task to refresh RSS feeds every 15 minutes.
+
+    Uses shutdown_event.wait() instead of time.sleep() to allow
+    graceful shutdown interruption.
+    """
+    while not shutdown_event.is_set():
         refresh_all_feeds()
         run_cleanup()
-        time.sleep(900)  # 15 minutes
+        # Wait 15 minutes, but allow early exit on shutdown
+        shutdown_event.wait(timeout=900)
 
 
 def background_queue_processor():
-    """Background task to process queued episodes for auto-processing."""
+    """Background task to process queued episodes for auto-processing.
+
+    Uses shutdown_event for graceful shutdown support.
+    """
     refresh_logger.info("Auto-process queue processor started")
     backoff_seconds = 30  # Initial backoff for busy queue
-    while True:
+    while not shutdown_event.is_set():
         try:
             # Get next queued episode
             queued = db.get_next_queued_episode()
@@ -460,8 +544,8 @@ def background_queue_processor():
                         # Wait for processing to complete (poll status)
                         max_wait = 600  # 10 minutes max
                         waited = 0
-                        while waited < max_wait:
-                            time.sleep(10)
+                        while waited < max_wait and not shutdown_event.is_set():
+                            shutdown_event.wait(timeout=10)
                             waited += 10
                             episode = db.get_episode(slug, episode_id)
                             if episode and episode['status'] in ('processed', 'failed', 'permanently_failed'):
@@ -479,13 +563,13 @@ def background_queue_processor():
                     elif reason == "already_processing":
                         # Episode is already being processed, wait with backoff
                         refresh_logger.info(f"[{slug}:{episode_id}] Already processing, waiting {backoff_seconds}s...")
-                        time.sleep(backoff_seconds)
+                        shutdown_event.wait(timeout=backoff_seconds)
                         backoff_seconds = min(backoff_seconds * 2, 300)  # Max 5 minutes
                     else:
                         # Queue is busy with another episode, try again later with backoff
                         db.update_queue_status(queue_id, 'pending')  # Put back in queue
                         refresh_logger.debug(f"[{slug}:{episode_id}] Queue busy, will retry in {backoff_seconds}s")
-                        time.sleep(backoff_seconds)
+                        shutdown_event.wait(timeout=backoff_seconds)
                         backoff_seconds = min(backoff_seconds * 2, 300)  # Max 5 minutes
 
                 except Exception as e:
@@ -494,14 +578,14 @@ def background_queue_processor():
 
             else:
                 # No queued episodes, wait before checking again
-                time.sleep(30)
+                shutdown_event.wait(timeout=30)
 
             # Periodically clean up completed queue items
             db.clear_completed_queue_items(older_than_hours=24)
 
         except Exception as e:
             refresh_logger.error(f"Queue processor error: {e}")
-            time.sleep(60)  # Wait before retrying on error
+            shutdown_event.wait(timeout=60)  # Wait before retrying on error
 
 
 def reset_stuck_processing_episodes():
@@ -1244,6 +1328,11 @@ def _startup():
 
     # Reset any episodes stuck in 'processing' status from previous crash
     reset_stuck_processing_episodes()
+
+    # Register signal handlers for graceful shutdown
+    signal.signal(signal.SIGTERM, graceful_shutdown)
+    signal.signal(signal.SIGINT, graceful_shutdown)
+    logger.info("Registered signal handlers for graceful shutdown")
 
     # Seed sponsor and normalization data (only inserts if table is empty)
     sponsor_service.seed_initial_data()

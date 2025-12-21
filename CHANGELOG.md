@@ -5,6 +5,51 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.152] - 2025-12-21
+
+### Added
+- **Health Check Endpoint**
+  - GET /api/v1/health returns system health status
+  - Checks database connectivity, storage writability, and queue availability
+  - Returns 200 (healthy) or 503 (unhealthy) with detailed check results
+  - Added to OpenAPI specification
+
+- **Graceful Shutdown**
+  - Server now handles SIGTERM/SIGINT signals gracefully
+  - Waits up to 5 minutes for current processing to complete before exit
+  - Background threads use shutdown_event for clean termination
+  - Logs shutdown progress and current processing status
+
+- **Rate Limiting**
+  - Added flask-limiter for API rate limiting
+  - Default limits: 200 requests/minute, 1000 requests/hour
+  - Stricter limits on expensive endpoints:
+    - Add feed: 10/minute
+    - Refresh feed: 10/minute
+    - Refresh all feeds: 2/minute
+    - Reprocess episode: 5/minute
+    - Retry ad detection: 5/minute
+
+- **Database Backup Automation**
+  - Automatic SQLite backup during cleanup cycle (every 15 minutes)
+  - Uses SQLite backup API for consistency during writes
+  - Backups stored in data/backups/ with timestamps
+  - Retains last 7 backups by default (configurable)
+
+- **Structured Logging (JSON Format)**
+  - New LOG_FORMAT environment variable ('text' or 'json')
+  - JSON format outputs structured logs for log aggregators
+  - Includes timestamp, level, logger, message, and exception info
+  - Default remains 'text' for human-readable output
+
+### Changed
+- **Request Timeouts**
+  - Claude API calls now have 120-second timeout
+  - Audio downloads use (10s connect, 300s read) timeout tuple
+  - RSS feed fetching already had 30-second timeout
+
+---
+
 ## [0.1.151] - 2025-12-21
 
 ### Fixed

@@ -6,8 +6,11 @@ Handles:
 - Purging disabled patterns after retention period
 - Confidence decay for unused patterns
 - Database VACUUM for space reclamation
+- Database backup automation
 """
 import logging
+import os
+import sqlite3
 from datetime import datetime, timedelta
 from typing import Dict, Optional
 
@@ -21,6 +24,8 @@ DEFAULT_SETTINGS = {
     'auto_vacuum': True,          # Run VACUUM after purge
     'confidence_decay_percent': 10,  # Max decay per run
     'min_confirmations_to_decay': 5,  # Don't decay patterns with few confirmations
+    'backup_enabled': True,       # Enable automatic backups
+    'backup_keep_count': 7,       # Number of backups to retain
 }
 
 
@@ -95,7 +100,8 @@ class CleanupService:
             'patterns_purged': 0,
             'episodes_deleted': 0,
             'patterns_decayed': 0,
-            'vacuum_run': False
+            'vacuum_run': False,
+            'backup_created': False
         }
 
         # Run each task
@@ -107,6 +113,11 @@ class CleanupService:
         if self._get_setting('auto_vacuum'):
             self._vacuum()
             results['vacuum_run'] = True
+
+        # Create database backup
+        if self._get_setting('backup_enabled'):
+            backup_path = self.backup_database()
+            results['backup_created'] = backup_path is not None
 
         logger.info(f"Cleanup complete: {results}")
         return results
@@ -320,6 +331,89 @@ class CleanupService:
             logger.info("Database VACUUM completed")
         except Exception as e:
             logger.error(f"VACUUM failed: {e}")
+
+    def backup_database(self) -> Optional[str]:
+        """
+        Create a timestamped backup of the SQLite database.
+
+        Uses SQLite's backup API for consistency (safe during writes).
+        Cleans up old backups, keeping only the configured number.
+
+        Returns:
+            Path to backup file, or None if backup failed
+        """
+        if not self.db:
+            return None
+
+        try:
+            # Get database path
+            db_path = self.db.db_path
+            if not db_path or not os.path.exists(db_path):
+                logger.warning("Database path not found, skipping backup")
+                return None
+
+            # Create backup directory next to database
+            db_dir = os.path.dirname(db_path)
+            backup_dir = os.path.join(db_dir, 'backups')
+            os.makedirs(backup_dir, exist_ok=True)
+
+            # Generate timestamped backup filename
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            backup_filename = f'podcast_{timestamp}.db'
+            backup_path = os.path.join(backup_dir, backup_filename)
+
+            # Use SQLite backup API for safe, consistent backup
+            source_conn = self.db.get_connection()
+            backup_conn = sqlite3.connect(backup_path)
+
+            try:
+                source_conn.backup(backup_conn)
+                backup_conn.close()
+                logger.info(f"Database backup created: {backup_path}")
+            except Exception as e:
+                backup_conn.close()
+                # Clean up failed backup
+                if os.path.exists(backup_path):
+                    os.remove(backup_path)
+                raise e
+
+            # Clean up old backups
+            self._cleanup_old_backups(backup_dir)
+
+            return backup_path
+
+        except Exception as e:
+            logger.error(f"Database backup failed: {e}")
+            return None
+
+    def _cleanup_old_backups(self, backup_dir: str):
+        """Remove old backups, keeping only the configured number."""
+        keep_count = self._get_setting('backup_keep_count')
+
+        try:
+            # Get all backup files sorted by modification time (newest first)
+            backups = []
+            for f in os.listdir(backup_dir):
+                if f.startswith('podcast_') and f.endswith('.db'):
+                    path = os.path.join(backup_dir, f)
+                    backups.append((path, os.path.getmtime(path)))
+
+            backups.sort(key=lambda x: x[1], reverse=True)
+
+            # Remove backups beyond keep_count
+            for path, _ in backups[keep_count:]:
+                try:
+                    os.remove(path)
+                    logger.debug(f"Removed old backup: {path}")
+                except OSError as e:
+                    logger.warning(f"Failed to remove old backup {path}: {e}")
+
+            removed = max(0, len(backups) - keep_count)
+            if removed:
+                logger.info(f"Cleaned up {removed} old backup(s), keeping {keep_count}")
+
+        except Exception as e:
+            logger.error(f"Failed to cleanup old backups: {e}")
 
     def get_statistics(self) -> Dict:
         """

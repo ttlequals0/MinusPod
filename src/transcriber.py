@@ -348,8 +348,13 @@ class Transcriber:
                     pass
             return None
 
-    def download_audio(self, url: str, timeout: int = 600) -> Optional[str]:
-        """Download audio file from URL."""
+    def download_audio(self, url: str, timeout: tuple = (10, 300)) -> Optional[str]:
+        """Download audio file from URL.
+
+        Args:
+            url: Audio file URL
+            timeout: (connect_timeout, read_timeout) in seconds
+        """
         try:
             logger.info(f"Downloading audio from: {url}")
             headers = {
