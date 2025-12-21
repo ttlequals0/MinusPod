@@ -891,6 +891,24 @@ class Database:
             except Exception:
                 pass  # Column already exists
 
+        # Migration: Create FTS5 search index table
+        try:
+            conn.execute("""
+                CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
+                    content_type,
+                    content_id,
+                    podcast_slug,
+                    title,
+                    body,
+                    metadata,
+                    tokenize='porter unicode61'
+                )
+            """)
+            conn.commit()
+            logger.info("Migration: Created FTS5 search_index table")
+        except Exception as e:
+            logger.debug(f"FTS5 search_index creation (may already exist): {e}")
+
     def _migrate_from_json(self):
         """Migrate data from JSON files to SQLite."""
         conn = self.get_connection()
@@ -2757,3 +2775,170 @@ class Database:
         )
         conn.commit()
         return cursor.rowcount
+
+    # ========== Full-Text Search Methods ==========
+
+    def rebuild_search_index(self) -> int:
+        """Rebuild the FTS5 search index from scratch.
+
+        Indexes:
+        - Episodes: title, description, transcript
+        - Podcasts: title, description
+        - Patterns: text, sponsor
+        - Sponsors: name, aliases
+
+        Returns count of indexed items.
+        """
+        conn = self.get_connection()
+        count = 0
+
+        # Clear existing index
+        conn.execute("DELETE FROM search_index")
+
+        # Index podcasts
+        cursor = conn.execute("""
+            SELECT slug, title, description
+            FROM podcasts
+        """)
+        for row in cursor:
+            conn.execute("""
+                INSERT INTO search_index (content_type, content_id, podcast_slug, title, body, metadata)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, ('podcast', row['slug'], row['slug'], row['title'],
+                  row['description'] or '', ''))
+            count += 1
+
+        # Index episodes with transcripts
+        cursor = conn.execute("""
+            SELECT e.episode_id, e.title, e.description, p.slug, ed.transcript
+            FROM episodes e
+            JOIN podcasts p ON e.podcast_id = p.id
+            LEFT JOIN episode_details ed ON e.podcast_id = ed.podcast_id AND e.episode_id = ed.episode_id
+            WHERE e.status = 'processed'
+        """)
+        for row in cursor:
+            # Limit transcript size to avoid huge index entries
+            transcript = (row['transcript'] or '')[:100000]  # ~100k chars max
+            conn.execute("""
+                INSERT INTO search_index (content_type, content_id, podcast_slug, title, body, metadata)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, ('episode', row['episode_id'], row['slug'], row['title'],
+                  transcript, row['description'] or ''))
+            count += 1
+
+        # Index patterns
+        cursor = conn.execute("""
+            SELECT id, text, sponsor, scope
+            FROM ad_patterns
+            WHERE is_active = 1
+        """)
+        for row in cursor:
+            conn.execute("""
+                INSERT INTO search_index (content_type, content_id, podcast_slug, title, body, metadata)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, ('pattern', str(row['id']), row['scope'] or 'global',
+                  row['sponsor'] or 'Unknown', row['text'] or '', ''))
+            count += 1
+
+        # Index sponsors
+        cursor = conn.execute("""
+            SELECT id, name, aliases
+            FROM known_sponsors
+            WHERE is_active = 1
+        """)
+        for row in cursor:
+            conn.execute("""
+                INSERT INTO search_index (content_type, content_id, podcast_slug, title, body, metadata)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, ('sponsor', str(row['id']), 'global', row['name'],
+                  row['aliases'] or '', ''))
+            count += 1
+
+        conn.commit()
+        logger.info(f"Search index rebuilt with {count} items")
+        return count
+
+    def search(self, query: str, content_type: Optional[str] = None, limit: int = 50) -> List[Dict]:
+        """Full-text search across indexed content.
+
+        Args:
+            query: Search query (supports FTS5 query syntax)
+            content_type: Filter by type ('episode', 'podcast', 'pattern', 'sponsor')
+            limit: Maximum results to return
+
+        Returns:
+            List of search results with type, id, slug, title, snippet, and score
+        """
+        conn = self.get_connection()
+
+        # Clean query for FTS5 (escape special characters)
+        clean_query = query.replace('"', '""').strip()
+        if not clean_query:
+            return []
+
+        # Add wildcards for partial matching
+        search_query = f'"{clean_query}"* OR {clean_query}*'
+
+        try:
+            if content_type:
+                cursor = conn.execute("""
+                    SELECT
+                        content_type,
+                        content_id,
+                        podcast_slug,
+                        title,
+                        snippet(search_index, 4, '<mark>', '</mark>', '...', 64) as snippet,
+                        bm25(search_index) as score
+                    FROM search_index
+                    WHERE search_index MATCH ?
+                    AND content_type = ?
+                    ORDER BY bm25(search_index)
+                    LIMIT ?
+                """, (search_query, content_type, limit))
+            else:
+                cursor = conn.execute("""
+                    SELECT
+                        content_type,
+                        content_id,
+                        podcast_slug,
+                        title,
+                        snippet(search_index, 4, '<mark>', '</mark>', '...', 64) as snippet,
+                        bm25(search_index) as score
+                    FROM search_index
+                    WHERE search_index MATCH ?
+                    ORDER BY bm25(search_index)
+                    LIMIT ?
+                """, (search_query, limit))
+
+            results = []
+            for row in cursor:
+                results.append({
+                    'type': row['content_type'],
+                    'id': row['content_id'],
+                    'podcastSlug': row['podcast_slug'],
+                    'title': row['title'],
+                    'snippet': row['snippet'],
+                    'score': abs(row['score'])  # BM25 returns negative scores
+                })
+
+            return results
+
+        except Exception as e:
+            logger.error(f"Search error for query '{query}': {e}")
+            return []
+
+    def get_search_index_stats(self) -> Dict[str, int]:
+        """Get statistics about the search index."""
+        conn = self.get_connection()
+
+        stats = {}
+        cursor = conn.execute("""
+            SELECT content_type, COUNT(*) as count
+            FROM search_index
+            GROUP BY content_type
+        """)
+        for row in cursor:
+            stats[row['content_type']] = row['count']
+
+        stats['total'] = sum(stats.values())
+        return stats

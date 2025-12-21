@@ -78,18 +78,16 @@ function Layout() {
               </nav>
             </div>
             <div className="flex items-center gap-2">
-              <a
-                href="https://podcastindex.org/"
-                target="_blank"
-                rel="noopener noreferrer"
+              <Link
+                to="/search"
                 className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
-                aria-label="Search podcasts on Podcast Index"
-                title="Search Podcast Index"
+                aria-label="Search"
+                title="Search"
               >
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
                 </svg>
-              </a>
+              </Link>
               <button
                 onClick={toggleTheme}
                 className="p-2 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"

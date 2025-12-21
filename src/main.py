@@ -203,6 +203,35 @@ def is_transient_error(error: Exception) -> bool:
 # Initialize Flask app
 app = Flask(__name__)
 
+# Session configuration for authentication
+import secrets
+
+
+def get_or_create_secret_key():
+    """Get secret key from database or create and persist one.
+
+    This ensures all Gunicorn workers use the same key, preventing
+    session validation failures when requests hit different workers.
+    """
+    from database import Database
+    db = Database()
+
+    secret_key = db.get_setting('flask_secret_key')
+    if not secret_key:
+        secret_key = secrets.token_hex(32)
+        db.set_setting('flask_secret_key', secret_key)
+        logger.info("Generated and persisted new Flask secret key")
+
+    return secret_key
+
+
+# Use environment variable if set, otherwise use persistent database key
+app.secret_key = os.environ.get('SECRET_KEY') or get_or_create_secret_key()
+app.config['SESSION_COOKIE_SECURE'] = os.environ.get('SESSION_COOKIE_SECURE', 'false').lower() == 'true'
+app.config['SESSION_COOKIE_HTTPONLY'] = True
+app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+app.config['PERMANENT_SESSION_LIFETIME'] = int(os.environ.get('SESSION_LIFETIME_HOURS', '24')) * 3600
+
 # Enable gzip compression for responses
 from flask_compress import Compress
 compress = Compress()

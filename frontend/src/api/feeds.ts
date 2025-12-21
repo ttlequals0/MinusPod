@@ -114,14 +114,19 @@ export interface ReprocessAllResult {
   message: string;
   queued: number;
   skipped: number;
+  mode: string;
   episodes: {
     queued: Array<{ episodeId: string; title: string }>;
     skipped: Array<{ episodeId: string; reason: string }>;
   };
 }
 
-export async function reprocessAllEpisodes(slug: string): Promise<ReprocessAllResult> {
+export async function reprocessAllEpisodes(
+  slug: string,
+  mode: 'reprocess' | 'full' = 'reprocess'
+): Promise<ReprocessAllResult> {
   return apiRequest<ReprocessAllResult>(`/feeds/${slug}/reprocess-all`, {
     method: 'POST',
+    body: { mode },
   });
 }

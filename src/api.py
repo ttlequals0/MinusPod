@@ -5,10 +5,11 @@ import os
 import time
 from datetime import datetime
 from typing import Optional
-from flask import Blueprint, jsonify, request, send_file, Response
+from flask import Blueprint, jsonify, request, send_file, Response, session
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from functools import wraps
+from werkzeug.security import generate_password_hash, check_password_hash
 
 logger = logging.getLogger('podcast.api')
 
@@ -30,6 +31,67 @@ def init_limiter(app):
     """Initialize rate limiter with Flask app."""
     limiter.init_app(app)
     logger.info("Rate limiter initialized: 200/min, 1000/hr default limits")
+
+
+# Paths that don't require authentication
+AUTH_EXEMPT_PATHS = {
+    '/api/v1/health',
+    '/api/v1/auth/status',
+    '/api/v1/auth/login',
+    '/api/v1/auth/logout',
+}
+
+# Path prefixes that don't require authentication
+AUTH_EXEMPT_PREFIXES = (
+    '/api/v1/auth/',
+    '/api/v1/status/stream',  # SSE stream - EventSource can't handle 401 gracefully
+)
+
+
+@api.before_request
+def check_auth():
+    """Check authentication before each request.
+
+    Exempt paths:
+    - /health - health check endpoint
+    - /auth/* - authentication endpoints
+    - /feeds/<slug>/rss - RSS feed endpoints (for podcast apps)
+    - /feeds/<slug>/episodes/<id>/audio - audio files (for podcast apps)
+    """
+    path = request.path
+
+    # Check exact path exemptions
+    if path in AUTH_EXEMPT_PATHS:
+        return None
+
+    # Check prefix exemptions
+    for prefix in AUTH_EXEMPT_PREFIXES:
+        if path.startswith(prefix):
+            return None
+
+    # Allow RSS feeds without auth (for podcast apps)
+    if '/rss' in path:
+        return None
+
+    # Allow audio files without auth (for podcast apps)
+    if '/audio' in path:
+        return None
+
+    # Allow artwork without auth (img tags don't redirect on 401)
+    if '/artwork' in path:
+        return None
+
+    # Check if password is set
+    db = get_database()
+    password_hash = db.get_setting('app_password')
+    if not password_hash or password_hash == '':
+        return None  # No password set, allow access
+
+    # Check session
+    if not session.get('authenticated', False):
+        return error_response('Authentication required', 401)
+
+    return None
 
 
 def get_storage():
@@ -901,9 +963,20 @@ def reprocess_all_episodes(slug):
 
     This is useful when ad detection logic has improved and you want to
     re-detect ads in all episodes of a podcast.
+
+    Modes:
+    - reprocess (default): Use pattern DB + Claude (leverages learned patterns)
+    - full: Skip pattern DB entirely, Claude does fresh analysis without learned patterns
     """
     db = get_database()
     storage = get_storage()
+
+    # Get mode from request body
+    data = request.get_json() or {}
+    mode = data.get('mode', 'reprocess')
+
+    if mode not in ('reprocess', 'full'):
+        return error_response('Invalid mode. Use "reprocess" or "full"', 400)
 
     podcast = db.get_podcast_by_slug(slug)
     if not podcast:
@@ -916,7 +989,8 @@ def reprocess_all_episodes(slug):
         return json_response({
             'message': 'No processed episodes to reprocess',
             'queued': 0,
-            'skipped': 0
+            'skipped': 0,
+            'mode': mode
         })
 
     queued = []
@@ -937,8 +1011,23 @@ def reprocess_all_episodes(slug):
             # Clear episode details from database
             db.clear_episode_details(slug, episode_id)
 
-            # Reset status to pending (will be picked up by scheduler)
-            db.reset_episode_status(slug, episode_id)
+            # If full mode, clear existing ad data (fresh slate for Claude)
+            if mode == 'full':
+                try:
+                    storage.delete_ads_json(slug, episode_id)
+                    logger.info(f"[{slug}:{episode_id}] Cleared existing ad data for full reprocess")
+                except Exception as e:
+                    logger.warning(f"[{slug}:{episode_id}] Could not clear ad data: {e}")
+
+            # Reset status to pending with reprocess mode for priority queue
+            db.upsert_episode(
+                slug, episode_id,
+                status='pending',
+                reprocess_mode=mode,
+                reprocess_requested_at=datetime.utcnow().isoformat() + 'Z',
+                retry_count=0,
+                error_message=None
+            )
 
             queued.append({'episodeId': episode_id, 'title': episode.get('title', '')})
             logger.info(f"Queued for reprocessing: {slug}:{episode_id}")
@@ -947,12 +1036,13 @@ def reprocess_all_episodes(slug):
             logger.error(f"Failed to queue {slug}:{episode_id} for reprocessing: {e}")
             skipped.append({'episodeId': episode_id, 'reason': str(e)})
 
-    logger.info(f"Batch reprocess {slug}: {len(queued)} queued, {len(skipped)} skipped")
+    logger.info(f"Batch reprocess {slug} (mode={mode}): {len(queued)} queued, {len(skipped)} skipped")
 
     return json_response({
-        'message': f'Queued {len(queued)} episodes for reprocessing',
+        'message': f'Queued {len(queued)} episodes for {mode} reprocessing',
         'queued': len(queued),
         'skipped': len(skipped),
+        'mode': mode,
         'episodes': {
             'queued': queued,
             'skipped': skipped
@@ -2470,3 +2560,214 @@ def _find_similar_pattern(db, pattern_data: dict) -> Optional[dict]:
             return p
 
     return None
+
+
+# ========== Authentication Endpoints ==========
+
+@api.route('/auth/status', methods=['GET'])
+@log_request
+def auth_status():
+    """Check authentication status.
+
+    Returns whether password is set and if current session is authenticated.
+    This endpoint is always accessible (no auth required).
+    """
+    db = get_database()
+    password_hash = db.get_setting('app_password')
+    password_set = password_hash is not None and password_hash != ''
+
+    # If no password is set, everyone is authenticated
+    if not password_set:
+        authenticated = True
+    else:
+        authenticated = session.get('authenticated', False)
+
+    return json_response({
+        'passwordSet': password_set,
+        'authenticated': authenticated
+    })
+
+
+@api.route('/auth/login', methods=['POST'])
+@limiter.limit("5 per minute")
+@log_request
+def auth_login():
+    """Login with password.
+
+    Request body:
+    {
+        "password": "your-password"
+    }
+    """
+    db = get_database()
+    stored_hash = db.get_setting('app_password')
+    password_set = stored_hash is not None and stored_hash != ''
+
+    if not password_set:
+        return json_response({
+            'authenticated': True,
+            'message': 'No password configured'
+        })
+
+    data = request.get_json()
+    if not data or 'password' not in data:
+        return error_response('Password is required', 400)
+
+    password = data['password']
+
+    if not stored_hash or not check_password_hash(stored_hash, password):
+        logger.warning(f"Failed login attempt from {request.remote_addr}")
+        return error_response('Invalid password', 401)
+
+    # Set session
+    session.permanent = True
+    session['authenticated'] = True
+    logger.info(f"Successful login from {request.remote_addr}")
+
+    return json_response({
+        'authenticated': True,
+        'message': 'Login successful'
+    })
+
+
+@api.route('/auth/logout', methods=['POST'])
+@log_request
+def auth_logout():
+    """Logout and clear session."""
+    session.clear()
+    logger.info(f"Logout from {request.remote_addr}")
+
+    return json_response({
+        'authenticated': False,
+        'message': 'Logged out successfully'
+    })
+
+
+@api.route('/auth/password', methods=['PUT'])
+@limiter.limit("3 per hour")
+@log_request
+def auth_set_password():
+    """Set or change the application password.
+
+    If no password is currently set, this creates a new password.
+    If a password is set, the current password must be provided.
+
+    Request body:
+    {
+        "currentPassword": "old-password",  // Required if password is set
+        "newPassword": "new-password"       // Min 8 characters
+    }
+
+    To remove password protection, set newPassword to empty string or null.
+    """
+    data = request.get_json()
+    if not data:
+        return error_response('Request body required', 400)
+
+    db = get_database()
+    current_hash = db.get_setting('app_password')
+    password_set = current_hash is not None and current_hash != ''
+
+    # If password is set, verify current password
+    if password_set:
+        current_password = data.get('currentPassword', '')
+        if not check_password_hash(current_hash, current_password):
+            logger.warning(f"Failed password change attempt from {request.remote_addr}")
+            return error_response('Current password is incorrect', 401)
+
+    new_password = data.get('newPassword', '')
+
+    # Remove password protection if empty
+    if not new_password:
+        db.set_setting('app_password', '')
+        logger.info(f"Password protection removed by {request.remote_addr}")
+        return json_response({
+            'message': 'Password protection removed',
+            'passwordSet': False
+        })
+
+    # Validate new password
+    if len(new_password) < 8:
+        return error_response('Password must be at least 8 characters', 400)
+
+    # Hash and store new password
+    password_hash = generate_password_hash(new_password)
+    db.set_setting('app_password', password_hash)
+    logger.info(f"Password {'changed' if password_set else 'set'} by {request.remote_addr}")
+
+    # Ensure current session is authenticated
+    session.permanent = True
+    session['authenticated'] = True
+
+    return json_response({
+        'message': f"Password {'changed' if password_set else 'set'} successfully",
+        'passwordSet': True
+    })
+
+
+# ========== Search Endpoints ==========
+
+@api.route('/search', methods=['GET'])
+@log_request
+def search():
+    """Full-text search across all content.
+
+    Query params:
+        q: Search query (required)
+        type: Filter by content type (episode, podcast, pattern, sponsor)
+        limit: Maximum results (default 50, max 100)
+
+    Returns:
+        List of search results with type, id, podcastSlug, title, snippet, score
+    """
+    query = request.args.get('q', '').strip()
+    if not query:
+        return error_response('Search query (q) is required', 400)
+
+    content_type = request.args.get('type')
+    if content_type and content_type not in ('episode', 'podcast', 'pattern', 'sponsor'):
+        return error_response('Invalid type. Use: episode, podcast, pattern, sponsor', 400)
+
+    try:
+        limit = min(int(request.args.get('limit', 50)), 100)
+    except ValueError:
+        limit = 50
+
+    db = get_database()
+    results = db.search(query, content_type=content_type, limit=limit)
+
+    return json_response({
+        'query': query,
+        'results': results,
+        'total': len(results)
+    })
+
+
+@api.route('/search/rebuild', methods=['POST'])
+@limiter.limit("1 per minute")
+@log_request
+def rebuild_search_index():
+    """Rebuild the full-text search index.
+
+    This reindexes all content (podcasts, episodes, patterns, sponsors).
+    May take a few seconds for large databases.
+    """
+    db = get_database()
+    count = db.rebuild_search_index()
+
+    return json_response({
+        'message': f'Search index rebuilt with {count} items',
+        'indexedCount': count
+    })
+
+
+@api.route('/search/stats', methods=['GET'])
+@log_request
+def search_stats():
+    """Get search index statistics."""
+    db = get_database()
+    stats = db.get_search_index_stats()
+
+    return json_response({
+        'stats': stats
+    })

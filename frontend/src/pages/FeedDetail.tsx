@@ -10,6 +10,8 @@ function FeedDetail() {
   const queryClient = useQueryClient();
   const [isEditingNetwork, setIsEditingNetwork] = useState(false);
   const [showReprocessConfirm, setShowReprocessConfirm] = useState(false);
+  const [showReprocessDropdown, setShowReprocessDropdown] = useState(false);
+  const [selectedReprocessMode, setSelectedReprocessMode] = useState<'reprocess' | 'full'>('reprocess');
   const [reprocessResult, setReprocessResult] = useState<ReprocessAllResult | null>(null);
   const [editNetworkOverride, setEditNetworkOverride] = useState<string>('');
   const [editDaiPlatform, setEditDaiPlatform] = useState('');
@@ -50,7 +52,7 @@ function FeedDetail() {
   });
 
   const reprocessAllMutation = useMutation({
-    mutationFn: () => reprocessAllEpisodes(slug!),
+    mutationFn: (mode: 'reprocess' | 'full') => reprocessAllEpisodes(slug!, mode),
     onSuccess: (result) => {
       setReprocessResult(result);
       setShowReprocessConfirm(false);
@@ -352,14 +354,46 @@ function FeedDetail() {
             </button>
           </div>
           <div className="flex gap-2">
-            <button
-              onClick={() => setShowReprocessConfirm(true)}
-              disabled={reprocessAllMutation.isPending}
-              className="px-4 py-2 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors"
-              title="Reprocess all processed episodes"
-            >
-              {reprocessAllMutation.isPending ? 'Queuing...' : 'Reprocess All'}
-            </button>
+            {/* Reprocess Dropdown */}
+            <div className="relative">
+              <button
+                onClick={() => setShowReprocessDropdown(!showReprocessDropdown)}
+                disabled={reprocessAllMutation.isPending}
+                className="px-4 py-2 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors flex items-center gap-2"
+                title="Reprocess all processed episodes"
+              >
+                {reprocessAllMutation.isPending ? 'Queuing...' : 'Reprocess All'}
+                <svg className={`w-4 h-4 transition-transform ${showReprocessDropdown ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              {showReprocessDropdown && (
+                <div className="absolute right-0 mt-1 w-56 bg-card border border-border rounded-lg shadow-lg z-10">
+                  <button
+                    onClick={() => {
+                      setSelectedReprocessMode('reprocess');
+                      setShowReprocessDropdown(false);
+                      setShowReprocessConfirm(true);
+                    }}
+                    className="w-full px-4 py-2 text-left hover:bg-accent transition-colors rounded-t-lg"
+                  >
+                    <span className="block text-sm font-medium text-foreground">Patterns + Claude</span>
+                    <span className="block text-xs text-muted-foreground">Use learned patterns for faster detection</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setSelectedReprocessMode('full');
+                      setShowReprocessDropdown(false);
+                      setShowReprocessConfirm(true);
+                    }}
+                    className="w-full px-4 py-2 text-left hover:bg-accent transition-colors rounded-b-lg border-t border-border"
+                  >
+                    <span className="block text-sm font-medium text-foreground">Claude Only</span>
+                    <span className="block text-xs text-muted-foreground">Fresh analysis without patterns</span>
+                  </button>
+                </div>
+              )}
+            </div>
             <button
               onClick={() => refreshMutation.mutate()}
               disabled={refreshMutation.isPending}
@@ -383,7 +417,19 @@ function FeedDetail() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-card border border-border rounded-lg shadow-xl max-w-md w-full">
             <div className="p-6">
-              <h2 className="text-xl font-semibold text-foreground mb-4">Reprocess All Episodes</h2>
+              <h2 className="text-xl font-semibold text-foreground mb-4">
+                Reprocess All Episodes
+              </h2>
+              <div className="mb-4 p-3 rounded-lg bg-accent/50">
+                <p className="text-sm font-medium text-foreground">
+                  Mode: {selectedReprocessMode === 'reprocess' ? 'Patterns + Claude' : 'Claude Only'}
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {selectedReprocessMode === 'reprocess'
+                    ? 'Uses learned patterns for faster ad detection'
+                    : 'Fresh analysis without pattern database'}
+                </p>
+              </div>
               <p className="text-sm text-muted-foreground mb-4">
                 This will queue all processed episodes for reprocessing. Existing processed audio files will be deleted and episodes will be re-transcribed and re-analyzed.
               </p>
@@ -398,7 +444,7 @@ function FeedDetail() {
                   Cancel
                 </button>
                 <button
-                  onClick={() => reprocessAllMutation.mutate()}
+                  onClick={() => reprocessAllMutation.mutate(selectedReprocessMode)}
                   disabled={reprocessAllMutation.isPending}
                   className="px-4 py-2 rounded bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
                 >
@@ -416,6 +462,9 @@ function FeedDetail() {
           <div className="bg-card border border-border rounded-lg shadow-xl max-w-md w-full">
             <div className="p-6">
               <h2 className="text-xl font-semibold text-foreground mb-4">Reprocess Queued</h2>
+              <p className="text-xs text-muted-foreground mb-4">
+                Mode: {reprocessResult.mode === 'reprocess' ? 'Patterns + Claude' : 'Claude Only'}
+              </p>
               <div className="grid grid-cols-2 gap-4 text-center mb-4">
                 <div className="p-3 rounded-lg bg-green-500/10">
                   <p className="text-2xl font-bold text-green-600 dark:text-green-400">{reprocessResult.queued}</p>
@@ -428,7 +477,7 @@ function FeedDetail() {
               </div>
               {reprocessResult.queued > 0 && (
                 <p className="text-sm text-muted-foreground mb-4">
-                  {reprocessResult.queued} episodes have been queued for reprocessing. They will be processed in the background.
+                  {reprocessResult.queued} episodes have been queued for {reprocessResult.mode === 'reprocess' ? 'pattern-assisted' : 'full Claude'} reprocessing. They will be processed in the background.
                 </p>
               )}
               <button
