@@ -6,6 +6,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.161] - 2025-12-21
+
+### Fixed
+- **Transcript Editor Boundary Controls Visibility**
+  - Fixed boundary controls (Start/End time inputs) not visible on desktop
+  - Removed `landscape:hidden` class that hid controls when viewport is wider than tall
+  - Time input fields now stay visible when mobile keyboard opens
+  - Transcript list hides temporarily on mobile during time input editing
+  - Ensures boundary controls remain accessible on both desktop and mobile
+
+---
+
 ## [0.1.160] - 2025-12-21
 
 ### Fixed

@@ -648,7 +648,7 @@ export function TranscriptEditor({
         </div>
 
         {/* Boundary controls - Collapsible on mobile */}
-        <div className="border-b border-border bg-muted/30 landscape:hidden">
+        <div className="border-b border-border bg-muted/30">
           {/* Mobile toggle button - shows current bounds, hidden on sm+ */}
           <button
             onClick={() => setMobileControlsExpanded(!mobileControlsExpanded)}
@@ -822,9 +822,12 @@ export function TranscriptEditor({
       </div>
 
       {/* SCROLLABLE: Transcript only - with swipe gestures for ad navigation */}
+      {/* Hidden on mobile when editing time inputs to keep boundary controls visible above keyboard */}
       <div
         ref={transcriptRef}
-        className="flex-1 overflow-y-auto p-4 space-y-2 min-h-0"
+        className={`flex-1 overflow-y-auto p-4 space-y-2 min-h-0 ${
+          (isEditingStart || isEditingEnd) ? 'hidden sm:block' : ''
+        }`}
         onTouchStart={handleSwipeStart}
         onTouchEnd={handleSwipeEnd}
       >
