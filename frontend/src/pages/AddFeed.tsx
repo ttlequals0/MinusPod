@@ -1,7 +1,58 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { addFeed } from '../api/feeds';
+
+// URL validation patterns
+const URL_PATTERN = /^https?:\/\/[a-zA-Z0-9][-a-zA-Z0-9]*(\.[a-zA-Z0-9][-a-zA-Z0-9]*)+.*$/;
+const RSS_EXTENSIONS = ['.xml', '.rss', '.atom', '/rss', '/feed'];
+
+interface UrlValidation {
+  isValid: boolean;
+  error: string | null;
+  warning: string | null;
+}
+
+function validateUrl(url: string): UrlValidation {
+  if (!url.trim()) {
+    return { isValid: false, error: null, warning: null };
+  }
+
+  // Check for valid URL structure
+  if (!URL_PATTERN.test(url)) {
+    // Check if missing protocol
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      return {
+        isValid: false,
+        error: 'URL must start with http:// or https://',
+        warning: null
+      };
+    }
+    return {
+      isValid: false,
+      error: 'Invalid URL format',
+      warning: null
+    };
+  }
+
+  // Check for HTTPS recommendation
+  const isHttps = url.startsWith('https://');
+
+  // Check if it looks like an RSS feed
+  const looksLikeRss = RSS_EXTENSIONS.some(ext =>
+    url.toLowerCase().includes(ext)
+  );
+
+  return {
+    isValid: true,
+    error: null,
+    warning: !looksLikeRss && isHttps
+      ? 'This URL may not be an RSS feed. Ensure it points to a valid podcast RSS feed.'
+      : !isHttps
+        ? 'Consider using HTTPS for secure connections.'
+        : null
+  };
+}
 
 function AddFeed() {
   const navigate = useNavigate();
@@ -9,6 +60,10 @@ function AddFeed() {
   const [sourceUrl, setSourceUrl] = useState('');
   const [customSlug, setCustomSlug] = useState('');
   const [showSlug, setShowSlug] = useState(false);
+  const [touched, setTouched] = useState(false);
+
+  // Validate URL as user types
+  const urlValidation = useMemo(() => validateUrl(sourceUrl), [sourceUrl]);
 
   const mutation = useMutation({
     mutationFn: () => addFeed(sourceUrl, customSlug || undefined),
@@ -20,7 +75,8 @@ function AddFeed() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (sourceUrl.trim()) {
+    setTouched(true);
+    if (sourceUrl.trim() && urlValidation.isValid) {
       mutation.mutate();
     }
   };
@@ -39,13 +95,32 @@ function AddFeed() {
             id="sourceUrl"
             value={sourceUrl}
             onChange={(e) => setSourceUrl(e.target.value)}
+            onBlur={() => setTouched(true)}
             placeholder="https://example.com/podcast/feed.xml"
             required
-            className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            className={`w-full px-4 py-2 rounded-lg border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring ${
+              touched && urlValidation.error
+                ? 'border-destructive focus:ring-destructive'
+                : touched && urlValidation.warning
+                  ? 'border-yellow-500 focus:ring-yellow-500'
+                  : 'border-input'
+            }`}
           />
-          <p className="mt-1 text-sm text-muted-foreground">
-            Enter the URL of the podcast RSS feed you want to add
-          </p>
+          {touched && urlValidation.error && (
+            <p className="mt-1 text-sm text-destructive">
+              {urlValidation.error}
+            </p>
+          )}
+          {touched && !urlValidation.error && urlValidation.warning && (
+            <p className="mt-1 text-sm text-yellow-600 dark:text-yellow-500">
+              {urlValidation.warning}
+            </p>
+          )}
+          {(!touched || (!urlValidation.error && !urlValidation.warning)) && (
+            <p className="mt-1 text-sm text-muted-foreground">
+              Enter the URL of the podcast RSS feed you want to add
+            </p>
+          )}
         </div>
 
         <div>
@@ -86,7 +161,7 @@ function AddFeed() {
         <div className="flex gap-4">
           <button
             type="submit"
-            disabled={mutation.isPending || !sourceUrl.trim()}
+            disabled={mutation.isPending || !sourceUrl.trim() || (touched && !urlValidation.isValid)}
             className="flex-1 px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
           >
             {mutation.isPending ? 'Adding Feed...' : 'Add Feed'}

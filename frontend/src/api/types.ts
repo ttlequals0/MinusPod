@@ -91,6 +91,7 @@ export interface Settings {
   whisperModel: SettingValue;
   audioAnalysisEnabled: SettingValueBoolean;
   autoProcessEnabled: SettingValueBoolean;
+  audioBitrate: SettingValue;
   retentionPeriodMinutes: number;
   defaults: {
     systemPrompt: string;
@@ -101,6 +102,7 @@ export interface Settings {
     whisperModel: string;
     audioAnalysisEnabled: boolean;
     autoProcessEnabled: boolean;
+    audioBitrate: string;
   };
 }
 
@@ -113,6 +115,7 @@ export interface UpdateSettingsPayload {
   whisperModel?: string;
   audioAnalysisEnabled?: boolean;
   autoProcessEnabled?: boolean;
+  audioBitrate?: string;
 }
 
 export interface ClaudeModel {

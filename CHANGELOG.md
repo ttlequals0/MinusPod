@@ -5,6 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.155] - 2025-12-21
+
+### Added
+- **Phase 5: Features and UI Improvements**
+
+- **Pattern Promotion Improvements**
+  - Lowered similarity threshold from 0.85 to 0.75 for more pattern matches
+  - Added sponsor-based global promotion (3+ podcasts with same sponsor)
+  - Added debug logging for pattern match candidates (score > 0.5)
+  - Added info logging for successful pattern matches
+
+- **SSE Reconnection Enhancement**
+  - Exponential backoff for SSE reconnection (1s, 2s, 4s... max 30s)
+  - Tracks reconnection attempts and resets on successful connection
+
+- **URL Validation Feedback**
+  - Real-time URL validation in Add Feed form
+  - Validates protocol (http/https required), domain format
+  - Warning for non-https URLs
+
+- **OPML Import**
+  - POST /api/v1/feeds/import-opml endpoint for batch feed import
+  - Accepts OPML file upload, parses RSS/Atom feeds
+  - Returns imported/skipped/failed counts
+  - Import modal in Dashboard with file upload
+
+- **Batch Reprocess Endpoint**
+  - POST /api/v1/feeds/{slug}/reprocess-all endpoint
+  - Queues all processed episodes for reprocessing
+  - "Reprocess All" button in Feed Detail with confirmation modal
+
+- **Audio Output Quality Setting**
+  - Configurable audio bitrate setting (64k, 96k, 128k, 192k, 256k)
+  - Added audio_bitrate setting to database
+  - AudioProcessor accepts bitrate parameter
+  - Settings page dropdown for quality selection
+
+---
+
 ## [0.1.154] - 2025-12-21
 
 ### Added

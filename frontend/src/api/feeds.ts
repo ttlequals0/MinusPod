@@ -81,3 +81,47 @@ export async function updateFeed(slug: string, data: UpdateFeedPayload): Promise
     body: data,
   });
 }
+
+export interface OpmlImportResult {
+  imported: number;
+  skipped: number;
+  failed: number;
+  feeds: {
+    imported: Array<{ url: string; slug: string }>;
+    skipped: Array<{ url: string; slug: string; reason: string }>;
+    failed: Array<{ url: string; error: string }>;
+  };
+}
+
+export async function importOpml(file: File): Promise<OpmlImportResult> {
+  const formData = new FormData();
+  formData.append('opml', file);
+
+  const response = await fetch('/api/v1/feeds/import-opml', {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    throw new Error(data.error || `Import failed: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+export interface ReprocessAllResult {
+  message: string;
+  queued: number;
+  skipped: number;
+  episodes: {
+    queued: Array<{ episodeId: string; title: string }>;
+    skipped: Array<{ episodeId: string; reason: string }>;
+  };
+}
+
+export async function reprocessAllEpisodes(slug: string): Promise<ReprocessAllResult> {
+  return apiRequest<ReprocessAllResult>(`/feeds/${slug}/reprocess-all`, {
+    method: 'POST',
+  });
+}

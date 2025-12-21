@@ -1034,13 +1034,19 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # Step 4: Process audio ONCE with validated ads (excluding rejected)
             status_service.update_job_stage("processing", 80)
             audio_logger.info(f"[{slug}:{episode_id}] Starting FFMPEG processing ({len(ads_to_remove)} ads to remove)")
-            processed_path = audio_processor.process_episode(audio_path, ads_to_remove)
+
+            # Get audio bitrate from settings (allows runtime changes)
+            settings = db.get_all_settings()
+            bitrate = settings.get('audio_bitrate', {}).get('value', '128k')
+            local_audio_processor = AudioProcessor(bitrate=bitrate)
+
+            processed_path = local_audio_processor.process_episode(audio_path, ads_to_remove)
             if not processed_path:
                 raise Exception("Failed to process audio with FFMPEG")
 
             # Get durations
-            original_duration = audio_processor.get_audio_duration(audio_path)
-            new_duration = audio_processor.get_audio_duration(processed_path)
+            original_duration = local_audio_processor.get_audio_duration(audio_path)
+            new_duration = local_audio_processor.get_audio_duration(processed_path)
 
             # Move processed file to final location
             final_path = storage.get_episode_path(slug, episode_id)

@@ -19,7 +19,8 @@ logger = logging.getLogger('podcast.patterns')
 # Promotion thresholds
 PODCAST_TO_NETWORK_THRESHOLD = 3  # 3+ podcasts in same network match
 NETWORK_TO_GLOBAL_THRESHOLD = 2   # 2+ networks match
-PROMOTION_SIMILARITY_THRESHOLD = 0.85  # Text similarity for pattern merging
+PROMOTION_SIMILARITY_THRESHOLD = 0.75  # Text similarity for pattern merging (lowered for better cross-podcast matching)
+SPONSOR_GLOBAL_THRESHOLD = 3  # 3+ podcasts with same sponsor -> promote to global
 
 # Known DAI platforms and their RSS signatures
 DAI_PLATFORMS = {
@@ -562,3 +563,128 @@ class PatternService:
                 logger.error(f"Failed to update podcast metadata: {e}")
 
         return result
+
+    def check_sponsor_global_promotion(self, sponsor: str) -> bool:
+        """
+        Check if a sponsor appears in 3+ podcasts, warranting global promotion.
+
+        Args:
+            sponsor: The sponsor name to check
+
+        Returns:
+            True if sponsor qualifies for global promotion
+        """
+        if not self.db or not sponsor:
+            return False
+
+        try:
+            # Get all podcast-scoped patterns for this sponsor
+            all_patterns = self.db.get_ad_patterns(scope='podcast')
+            sponsor_lower = sponsor.lower()
+
+            # Count unique podcasts with this sponsor
+            podcasts_with_sponsor = set()
+            for pattern in all_patterns:
+                pattern_sponsor = pattern.get('sponsor', '')
+                if pattern_sponsor and pattern_sponsor.lower() == sponsor_lower:
+                    podcast_id = pattern.get('podcast_id')
+                    if podcast_id:
+                        podcasts_with_sponsor.add(podcast_id)
+
+            count = len(podcasts_with_sponsor)
+            if count >= SPONSOR_GLOBAL_THRESHOLD:
+                logger.info(
+                    f"Sponsor '{sponsor}' found in {count} podcasts, "
+                    f"qualifies for global promotion"
+                )
+                return True
+
+            return False
+
+        except Exception as e:
+            logger.error(f"Error checking sponsor global promotion: {e}")
+            return False
+
+    def auto_promote_sponsor_patterns(self, sponsor: str) -> int:
+        """
+        Automatically promote all patterns for a sponsor to global scope.
+
+        Called when sponsor appears in 3+ podcasts.
+
+        Args:
+            sponsor: The sponsor name
+
+        Returns:
+            Number of patterns promoted
+        """
+        if not self.db or not sponsor:
+            return 0
+
+        try:
+            # Check if this sponsor already has global patterns
+            global_patterns = self.db.get_ad_patterns(scope='global')
+            sponsor_lower = sponsor.lower()
+
+            for pattern in global_patterns:
+                pattern_sponsor = pattern.get('sponsor', '')
+                if pattern_sponsor and pattern_sponsor.lower() == sponsor_lower:
+                    logger.debug(f"Sponsor '{sponsor}' already has global patterns")
+                    return 0
+
+            # Get all podcast-scoped patterns for this sponsor
+            all_patterns = self.db.get_ad_patterns(scope='podcast')
+            patterns_to_promote = []
+
+            for pattern in all_patterns:
+                pattern_sponsor = pattern.get('sponsor', '')
+                if pattern_sponsor and pattern_sponsor.lower() == sponsor_lower:
+                    patterns_to_promote.append(pattern)
+
+            if not patterns_to_promote:
+                return 0
+
+            # Find the pattern with highest confirmation count to use as template
+            best_pattern = max(
+                patterns_to_promote,
+                key=lambda p: p.get('confirmation_count', 0)
+            )
+
+            # Create new global pattern
+            global_id = self.db.create_ad_pattern(
+                scope='global',
+                text_template=best_pattern.get('text_template'),
+                sponsor=sponsor,
+                intro_variants=best_pattern.get('intro_variants', []),
+                outro_variants=best_pattern.get('outro_variants', [])
+            )
+
+            if global_id:
+                # Sum all confirmation counts
+                total_confirmations = sum(
+                    p.get('confirmation_count', 0) for p in patterns_to_promote
+                )
+                self.db.update_ad_pattern(
+                    global_id,
+                    confirmation_count=total_confirmations
+                )
+
+                logger.info(
+                    f"Created global pattern {global_id} for sponsor '{sponsor}' "
+                    f"(from {len(patterns_to_promote)} podcast patterns)"
+                )
+
+                # Log the promotion
+                self.db.create_pattern_correction(
+                    pattern_id=global_id,
+                    correction_type='auto_promotion',
+                    text_snippet=f"Auto-created global pattern for sponsor '{sponsor}' "
+                                 f"appearing in {len(patterns_to_promote)} podcasts"
+                )
+
+                return 1
+
+            return 0
+
+        except Exception as e:
+            logger.error(f"Error promoting sponsor patterns: {e}")
+            return 0

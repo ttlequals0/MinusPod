@@ -1074,6 +1074,13 @@ class Database:
             ('auto_process_enabled', 'true')
         )
 
+        # Audio output bitrate (defaults to 128k)
+        conn.execute(
+            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
+               ON CONFLICT(key) DO NOTHING""",
+            ('audio_bitrate', '128k')
+        )
+
         conn.commit()
         logger.info("Default settings seeded")
 

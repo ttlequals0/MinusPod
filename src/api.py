@@ -280,6 +280,138 @@ def add_feed():
         return error_response(f'Failed to add feed: {str(e)}', 500)
 
 
+@api.route('/feeds/import-opml', methods=['POST'])
+@limiter.limit("5 per minute")
+@log_request
+def import_opml():
+    """Import podcast feeds from an OPML file.
+
+    Accepts a multipart form upload with an 'opml' file field.
+    Returns counts of successfully imported and failed feeds.
+    """
+    import xml.etree.ElementTree as ET
+
+    if 'opml' not in request.files:
+        return error_response('No OPML file provided', 400)
+
+    opml_file = request.files['opml']
+    if not opml_file.filename:
+        return error_response('Empty file name', 400)
+
+    # Check file extension
+    if not opml_file.filename.lower().endswith(('.opml', '.xml')):
+        return error_response('File must be .opml or .xml', 400)
+
+    try:
+        content = opml_file.read().decode('utf-8')
+        root = ET.fromstring(content)
+    except ET.ParseError as e:
+        logger.error(f"OPML parse error: {e}")
+        return error_response('Invalid OPML file format', 400)
+    except UnicodeDecodeError as e:
+        logger.error(f"OPML encoding error: {e}")
+        return error_response('File must be UTF-8 encoded', 400)
+
+    # Find all outline elements with xmlUrl (RSS feeds)
+    feeds_found = []
+    for outline in root.iter('outline'):
+        xml_url = outline.get('xmlUrl')
+        if xml_url:
+            title = outline.get('text') or outline.get('title') or ''
+            feeds_found.append({'url': xml_url, 'title': title})
+
+    if not feeds_found:
+        return error_response('No RSS feeds found in OPML file', 400)
+
+    # Import feeds
+    db = get_database()
+    from slugify import slugify as make_slug
+    from rss_parser import RSSParser
+
+    imported = []
+    failed = []
+    skipped = []
+
+    for feed_info in feeds_found:
+        source_url = feed_info['url'].strip()
+        title = feed_info['title'].strip()
+
+        # Generate slug
+        slug = make_slug(title) if title else None
+
+        # If no title, try to fetch from RSS
+        if not slug:
+            rss_parser = RSSParser()
+            try:
+                feed_content = rss_parser.fetch_feed(source_url)
+                if feed_content:
+                    parsed_feed = rss_parser.parse_feed(feed_content)
+                    if parsed_feed and parsed_feed.feed:
+                        fetched_title = parsed_feed.feed.get('title', '')
+                        if fetched_title:
+                            slug = make_slug(fetched_title)
+            except Exception:
+                pass
+
+        # Fallback to URL-based slug
+        if not slug:
+            from urllib.parse import urlparse
+            parsed = urlparse(source_url)
+            slug_base = parsed.path.strip('/').split('/')[-1] or parsed.netloc
+            slug_base = slug_base.replace('.xml', '').replace('.rss', '')
+            slug = make_slug(slug_base) if slug_base else None
+
+        if not slug:
+            failed.append({'url': source_url, 'error': 'Could not generate slug'})
+            continue
+
+        # Check if slug already exists
+        existing = db.get_podcast_by_slug(slug)
+        if existing:
+            skipped.append({'url': source_url, 'slug': slug, 'reason': 'Already exists'})
+            continue
+
+        # Create podcast
+        try:
+            db.create_podcast(slug, source_url, title or None)
+            imported.append({'url': source_url, 'slug': slug})
+            logger.info(f"OPML import: Created feed {slug}")
+        except Exception as e:
+            failed.append({'url': source_url, 'error': str(e)})
+            logger.error(f"OPML import failed for {source_url}: {e}")
+
+    # Invalidate feed cache
+    if imported:
+        from main import invalidate_feed_cache
+        invalidate_feed_cache()
+
+        # Trigger refresh for imported feeds
+        try:
+            from main import refresh_rss_feed
+            for feed in imported[:5]:  # Limit to first 5 to avoid overload
+                podcast = db.get_podcast_by_slug(feed['slug'])
+                if podcast:
+                    refresh_rss_feed(feed['slug'], podcast['source_url'])
+        except Exception as e:
+            logger.warning(f"OPML import: Failed to trigger refreshes: {e}")
+
+    logger.info(
+        f"OPML import complete: {len(imported)} imported, "
+        f"{len(skipped)} skipped, {len(failed)} failed"
+    )
+
+    return json_response({
+        'imported': len(imported),
+        'skipped': len(skipped),
+        'failed': len(failed),
+        'feeds': {
+            'imported': imported,
+            'skipped': skipped,
+            'failed': failed
+        }
+    }, 201 if imported else 200)
+
+
 @api.route('/feeds/<slug>', methods=['GET'])
 @log_request
 def get_feed(slug):
@@ -759,6 +891,73 @@ def reprocess_episode(slug, episode_id):
     except Exception as e:
         logger.error(f"Failed to reprocess episode {slug}:{episode_id}: {e}")
         return error_response(f'Failed to reprocess: {str(e)}', 500)
+
+
+@api.route('/feeds/<slug>/reprocess-all', methods=['POST'])
+@limiter.limit("2 per minute")
+@log_request
+def reprocess_all_episodes(slug):
+    """Queue all processed episodes for reprocessing.
+
+    This is useful when ad detection logic has improved and you want to
+    re-detect ads in all episodes of a podcast.
+    """
+    db = get_database()
+    storage = get_storage()
+
+    podcast = db.get_podcast_by_slug(slug)
+    if not podcast:
+        return error_response('Feed not found', 404)
+
+    # Get all episodes that have been processed
+    episodes, _ = db.get_episodes(slug, status='processed')
+
+    if not episodes:
+        return json_response({
+            'message': 'No processed episodes to reprocess',
+            'queued': 0,
+            'skipped': 0
+        })
+
+    queued = []
+    skipped = []
+
+    for episode in episodes:
+        episode_id = episode['episode_id']
+
+        # Skip if already processing
+        if episode.get('status') == 'processing':
+            skipped.append({'episodeId': episode_id, 'reason': 'Already processing'})
+            continue
+
+        try:
+            # Delete processed audio file
+            storage.delete_processed_file(slug, episode_id)
+
+            # Clear episode details from database
+            db.clear_episode_details(slug, episode_id)
+
+            # Reset status to pending (will be picked up by scheduler)
+            db.reset_episode_status(slug, episode_id)
+
+            queued.append({'episodeId': episode_id, 'title': episode.get('title', '')})
+            logger.info(f"Queued for reprocessing: {slug}:{episode_id}")
+
+        except Exception as e:
+            logger.error(f"Failed to queue {slug}:{episode_id} for reprocessing: {e}")
+            skipped.append({'episodeId': episode_id, 'reason': str(e)})
+
+    logger.info(f"Batch reprocess {slug}: {len(queued)} queued, {len(skipped)} skipped")
+
+    return json_response({
+        'message': f'Queued {len(queued)} episodes for reprocessing',
+        'queued': len(queued),
+        'skipped': len(skipped),
+        'episodes': {
+            'queued': queued,
+            'skipped': skipped
+        }
+    })
 
 
 @api.route('/feeds/<slug>/episodes/<episode_id>/retry-ad-detection', methods=['POST'])

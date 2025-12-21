@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { getFeeds, refreshFeed, refreshAllFeeds, deleteFeed } from '../api/feeds';
+import { getFeeds, refreshFeed, refreshAllFeeds, deleteFeed, importOpml, OpmlImportResult } from '../api/feeds';
 import FeedCard from '../components/FeedCard';
 import FeedListItem from '../components/FeedListItem';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -10,6 +10,9 @@ function Dashboard() {
   const queryClient = useQueryClient();
   const [refreshingSlug, setRefreshingSlug] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [showOpmlModal, setShowOpmlModal] = useState(false);
+  const [opmlResult, setOpmlResult] = useState<OpmlImportResult | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
     const stored = localStorage.getItem('dashboardViewMode');
     return stored === 'list' ? 'list' : 'grid';
@@ -55,6 +58,31 @@ function Dashboard() {
       setDeleteConfirm(null);
     },
   });
+
+  const opmlMutation = useMutation({
+    mutationFn: importOpml,
+    onSuccess: (result) => {
+      setOpmlResult(result);
+      queryClient.invalidateQueries({ queryKey: ['feeds'] });
+    },
+  });
+
+  const handleOpmlImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      opmlMutation.mutate(file);
+    }
+    // Reset input so same file can be selected again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const closeOpmlModal = () => {
+    setShowOpmlModal(false);
+    setOpmlResult(null);
+    opmlMutation.reset();
+  };
 
   const handleDelete = (slug: string) => {
     if (deleteConfirm === slug) {
@@ -154,6 +182,16 @@ function Dashboard() {
             </svg>
             <span className="hidden sm:inline">{refreshAllMutation.isPending ? 'Refreshing...' : 'Refresh All'}</span>
           </button>
+          <button
+            onClick={() => setShowOpmlModal(true)}
+            className="p-2 sm:px-4 sm:py-2 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
+            title="Import OPML"
+          >
+            <svg className="w-5 h-5 sm:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+            </svg>
+            <span className="hidden sm:inline">Import OPML</span>
+          </button>
           <Link
             to="/add"
             className="p-2 sm:px-4 sm:py-2 rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
@@ -166,6 +204,15 @@ function Dashboard() {
           </Link>
         </div>
       </div>
+
+      {/* Hidden file input for OPML import */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleOpmlImport}
+        accept=".opml,.xml"
+        className="hidden"
+      />
 
       {!feeds || feeds.length === 0 ? (
         <div className="text-center py-12 bg-card rounded-lg border border-border">
@@ -231,6 +278,120 @@ function Dashboard() {
       {deleteConfirm && (
         <div className="fixed bottom-4 right-4 bg-card border border-border rounded-lg p-4 shadow-lg">
           <p className="text-sm text-foreground">Click delete again to confirm</p>
+        </div>
+      )}
+
+      {/* OPML Import Modal */}
+      {showOpmlModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-card border border-border rounded-lg shadow-xl max-w-md w-full max-h-[80vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex justify-between items-start mb-4">
+                <h2 className="text-xl font-semibold text-foreground">Import OPML</h2>
+                <button
+                  onClick={closeOpmlModal}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {!opmlResult && !opmlMutation.isPending && !opmlMutation.error && (
+                <div className="space-y-4">
+                  <p className="text-sm text-muted-foreground">
+                    Import podcast feeds from an OPML file. This is commonly exported from podcast apps.
+                  </p>
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full px-4 py-8 border-2 border-dashed border-border rounded-lg hover:border-primary hover:bg-accent/50 transition-colors text-center"
+                  >
+                    <svg className="w-8 h-8 mx-auto mb-2 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                    </svg>
+                    <p className="text-sm text-foreground font-medium">Click to select OPML file</p>
+                    <p className="text-xs text-muted-foreground mt-1">.opml or .xml files supported</p>
+                  </button>
+                </div>
+              )}
+
+              {opmlMutation.isPending && (
+                <div className="text-center py-8">
+                  <LoadingSpinner />
+                  <p className="text-sm text-muted-foreground mt-4">Importing feeds...</p>
+                </div>
+              )}
+
+              {opmlMutation.error && (
+                <div className="space-y-4">
+                  <div className="p-4 rounded-lg bg-destructive/10 text-destructive">
+                    {(opmlMutation.error as Error).message}
+                  </div>
+                  <button
+                    onClick={() => {
+                      opmlMutation.reset();
+                      fileInputRef.current?.click();
+                    }}
+                    className="w-full px-4 py-2 rounded bg-primary text-primary-foreground hover:bg-primary/90"
+                  >
+                    Try Again
+                  </button>
+                </div>
+              )}
+
+              {opmlResult && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-3 gap-4 text-center">
+                    <div className="p-3 rounded-lg bg-green-500/10">
+                      <p className="text-2xl font-bold text-green-600 dark:text-green-400">{opmlResult.imported}</p>
+                      <p className="text-xs text-muted-foreground">Imported</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-yellow-500/10">
+                      <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{opmlResult.skipped}</p>
+                      <p className="text-xs text-muted-foreground">Skipped</p>
+                    </div>
+                    <div className="p-3 rounded-lg bg-red-500/10">
+                      <p className="text-2xl font-bold text-red-600 dark:text-red-400">{opmlResult.failed}</p>
+                      <p className="text-xs text-muted-foreground">Failed</p>
+                    </div>
+                  </div>
+
+                  {opmlResult.feeds.imported.length > 0 && (
+                    <div>
+                      <p className="text-sm font-medium text-foreground mb-2">Imported feeds:</p>
+                      <ul className="text-xs text-muted-foreground space-y-1 max-h-32 overflow-y-auto">
+                        {opmlResult.feeds.imported.slice(0, 10).map((feed, i) => (
+                          <li key={i} className="truncate">{feed.slug}</li>
+                        ))}
+                        {opmlResult.feeds.imported.length > 10 && (
+                          <li className="text-primary">+{opmlResult.feeds.imported.length - 10} more</li>
+                        )}
+                      </ul>
+                    </div>
+                  )}
+
+                  {opmlResult.feeds.failed.length > 0 && (
+                    <div>
+                      <p className="text-sm font-medium text-destructive mb-2">Failed imports:</p>
+                      <ul className="text-xs text-muted-foreground space-y-1 max-h-32 overflow-y-auto">
+                        {opmlResult.feeds.failed.slice(0, 5).map((feed, i) => (
+                          <li key={i} className="truncate" title={feed.error}>{feed.url}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={closeOpmlModal}
+                    className="w-full px-4 py-2 rounded bg-primary text-primary-foreground hover:bg-primary/90"
+                  >
+                    Done
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>

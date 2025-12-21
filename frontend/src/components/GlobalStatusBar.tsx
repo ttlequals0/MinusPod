@@ -51,11 +51,17 @@ function formatDuration(seconds: number): string {
   return `${mins}m ${secs}s`;
 }
 
+// SSE reconnection constants
+const SSE_INITIAL_DELAY = 1000;  // Start with 1 second
+const SSE_MAX_DELAY = 30000;     // Max 30 seconds
+const SSE_BACKOFF_MULTIPLIER = 2;
+
 function GlobalStatusBar() {
   const [status, setStatus] = useState<StatusData | null>(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [elapsed, setElapsed] = useState(0);
+  const [, setReconnectAttempt] = useState(0);
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
 
@@ -86,6 +92,7 @@ function GlobalStatusBar() {
 
       eventSource.onopen = () => {
         setIsConnected(true);
+        setReconnectAttempt(0); // Reset backoff on successful connection
       };
 
       eventSource.onmessage = (event) => {
@@ -104,11 +111,24 @@ function GlobalStatusBar() {
         setIsConnected(false);
         eventSource.close();
 
-        // Reconnect after a delay
-        if (reconnectTimeoutRef.current) {
-          clearTimeout(reconnectTimeoutRef.current);
-        }
-        reconnectTimeoutRef.current = window.setTimeout(connect, 5000);
+        // Calculate exponential backoff delay
+        setReconnectAttempt((prev) => {
+          const attempt = prev + 1;
+          const delay = Math.min(
+            SSE_INITIAL_DELAY * Math.pow(SSE_BACKOFF_MULTIPLIER, attempt - 1),
+            SSE_MAX_DELAY
+          );
+
+          console.log(`SSE reconnecting in ${delay}ms (attempt ${attempt})`);
+
+          // Reconnect after exponential delay
+          if (reconnectTimeoutRef.current) {
+            clearTimeout(reconnectTimeoutRef.current);
+          }
+          reconnectTimeoutRef.current = window.setTimeout(connect, delay);
+
+          return attempt;
+        });
       };
     }
 

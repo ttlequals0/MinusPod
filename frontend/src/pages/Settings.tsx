@@ -13,6 +13,7 @@ function Settings() {
   const [whisperModel, setWhisperModel] = useState('');
   const [audioAnalysisEnabled, setAudioAnalysisEnabled] = useState(false);
   const [autoProcessEnabled, setAutoProcessEnabled] = useState(true);
+  const [audioBitrate, setAudioBitrate] = useState('128k');
   const [hasChanges, setHasChanges] = useState(false);
   const [cleanupConfirm, setCleanupConfirm] = useState(false);
 
@@ -61,6 +62,7 @@ function Settings() {
       setWhisperModel(settings.whisperModel?.value || 'small');
       setAudioAnalysisEnabled(settings.audioAnalysisEnabled?.value ?? false);
       setAutoProcessEnabled(settings.autoProcessEnabled?.value ?? true);
+      setAudioBitrate(settings.audioBitrate?.value || '128k');
     }
   }, [settings]);
 
@@ -74,10 +76,11 @@ function Settings() {
         multiPassEnabled !== (settings.multiPassEnabled?.value ?? false) ||
         whisperModel !== (settings.whisperModel?.value || 'small') ||
         audioAnalysisEnabled !== (settings.audioAnalysisEnabled?.value ?? false) ||
-        autoProcessEnabled !== (settings.autoProcessEnabled?.value ?? true);
+        autoProcessEnabled !== (settings.autoProcessEnabled?.value ?? true) ||
+        audioBitrate !== (settings.audioBitrate?.value || '128k');
       setHasChanges(changed);
     }
-  }, [systemPrompt, secondPassPrompt, selectedModel, secondPassModel, multiPassEnabled, whisperModel, audioAnalysisEnabled, autoProcessEnabled, settings]);
+  }, [systemPrompt, secondPassPrompt, selectedModel, secondPassModel, multiPassEnabled, whisperModel, audioAnalysisEnabled, autoProcessEnabled, audioBitrate, settings]);
 
   const updateMutation = useMutation({
     mutationFn: () =>
@@ -90,6 +93,7 @@ function Settings() {
         whisperModel,
         audioAnalysisEnabled,
         autoProcessEnabled,
+        audioBitrate,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
@@ -285,6 +289,30 @@ function Settings() {
               <span className="font-medium">Current:</span> {whisperModels.find(m => m.id === whisperModel)?.speed || ''}
             </div>
           )}
+        </div>
+      </div>
+
+      <div className="bg-card rounded-lg border border-border p-6">
+        <h2 className="text-lg font-semibold text-foreground mb-4">Audio Output Quality</h2>
+        <div>
+          <label htmlFor="audioBitrate" className="block text-sm font-medium text-foreground mb-2">
+            Output Bitrate
+          </label>
+          <select
+            id="audioBitrate"
+            value={audioBitrate}
+            onChange={(e) => setAudioBitrate(e.target.value)}
+            className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          >
+            <option value="64k">64 kbps - Smallest file size</option>
+            <option value="96k">96 kbps - Good for speech</option>
+            <option value="128k">128 kbps - Standard quality (recommended)</option>
+            <option value="192k">192 kbps - High quality</option>
+            <option value="256k">256 kbps - Maximum quality</option>
+          </select>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Higher bitrates produce better audio quality but larger file sizes
+          </p>
         </div>
       </div>
 

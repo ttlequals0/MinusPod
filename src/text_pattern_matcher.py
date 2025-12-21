@@ -270,9 +270,24 @@ class TextPatternMatcher:
                 best_idx = np.argmax(similarities)
                 best_score = similarities[best_idx]
 
+                # Log potential matches for debugging
+                if best_score >= 0.5:
+                    pattern_preview = patterns[best_idx] if best_idx < len(patterns) else None
+                    if pattern_preview:
+                        logger.debug(
+                            f"Pattern match candidate: score={best_score:.2f} "
+                            f"pattern_id={pattern_preview.id} "
+                            f"sponsor={pattern_preview.sponsor}"
+                        )
+
                 if best_score >= TFIDF_THRESHOLD:
                     pattern = patterns[best_idx] if best_idx < len(patterns) else None
                     if pattern:
+                        logger.info(
+                            f"Pattern match found: score={best_score:.2f} "
+                            f"pattern_id={pattern.id} sponsor={pattern.sponsor} "
+                            f"scope={pattern.scope}"
+                        )
                         # Map character positions to timestamps
                         start_time, end_time = self._char_pos_to_time(
                             start_pos, end_pos, segment_map, segments

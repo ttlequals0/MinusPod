@@ -32,8 +32,9 @@ DEFAULT_REPLACE_AUDIO = get_replace_audio_path()
 
 
 class AudioProcessor:
-    def __init__(self, replace_audio_path: str = None):
+    def __init__(self, replace_audio_path: str = None, bitrate: str = '128k'):
         self.replace_audio_path = replace_audio_path or DEFAULT_REPLACE_AUDIO
+        self.bitrate = bitrate
         self._beep_duration = None  # Cached beep duration
 
     def check_ffmpeg(self) -> bool:
@@ -209,7 +210,7 @@ class AudioProcessor:
                 '-filter_complex', filter_str,
                 '-map', '[out]',
                 '-acodec', 'libmp3lame',
-                '-ab', '128k',
+                '-ab', self.bitrate,
                 output_path
             ]
 
