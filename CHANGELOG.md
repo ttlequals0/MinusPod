@@ -6,6 +6,87 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.164] - 2025-12-21
+
+### Changed
+- **Mobile Time Input UX Improvements**
+  - Hide ad selector chips when editing time inputs to free up screen space
+  - Hide audio player and action buttons when editing time inputs
+  - Show Start and End fields side-by-side when editing (row layout)
+  - Transcript segments now visible while editing, providing context
+  - UI elements restore automatically when done editing (on blur)
+  - Desktop layout unchanged (uses responsive breakpoints)
+
+---
+
+## [0.1.163] - 2025-12-21
+
+### Fixed
+- **iOS Safari Mobile Keyboard Fix**
+  - Changed container height from `vh` to `dvh` (dynamic viewport height)
+  - `dvh` automatically adjusts when iOS keyboard opens
+  - Time input fields now remain visible and usable on iOS Safari
+  - Supported on iOS Safari 15.4+, Chrome 108+, Firefox 101+
+
+---
+
+## [0.1.162] - 2025-12-21
+
+### Fixed
+- **Mobile Keyboard No Longer Resizes Viewport**
+  - Added `interactive-widget=overlays-content` to viewport meta tag
+  - Keyboard now overlays content instead of pushing UI elements off screen
+  - Supported in Chrome 108+, Firefox 132+ (Safari falls back gracefully)
+  - Removed previous workaround that hid transcript during time input editing
+
+- **Desktop Boundary Controls Spacing**
+  - Start/End time fields now centered with consistent spacing
+  - Changed from `justify-between` to `justify-center` layout
+
+---
+
+## [0.1.161] - 2025-12-21
+
+### Fixed
+- **Transcript Editor Boundary Controls Visibility**
+  - Fixed boundary controls (Start/End time inputs) not visible on desktop
+  - Removed `landscape:hidden` class that hid controls when viewport is wider than tall
+  - Time input fields now stay visible when mobile keyboard opens
+  - Transcript list hides temporarily on mobile during time input editing
+  - Ensures boundary controls remain accessible on both desktop and mobile
+
+---
+
+## [0.1.160] - 2025-12-21
+
+### Fixed
+- **Transcript Editor Mobile Keyboard Bug**
+  - Fixed keyboard dismissing when typing in time input fields on mobile
+  - Added refs and useEffect to restore focus after state change re-renders
+  - Added `inputMode="decimal"` for numeric keypad on mobile
+  - Reordered onFocus logic to set value before editing state for smoother UX
+
+---
+
+## [0.1.159] - 2025-12-21
+
+### Added
+- **Transcript Editor Manual Time Entry**
+  - Start and end times now editable via direct text input
+  - Supports MM:SS format (e.g., "1:30") or seconds only (e.g., "90")
+  - Click to edit, Enter to confirm, Escape to cancel
+  - Auto-select on focus for easy replacement
+
+### Changed
+- **Transcript Editor Mobile Improvements**
+  - Increased mobile viewport height from 75vh to 85vh (more transcript visible)
+  - Increased max-height from 600px to 750px
+  - Reduced segment padding and min-height for tighter layout
+  - Smaller font sizes on mobile: timestamps 10px, text xs
+  - Boundary time display now uses smaller font on mobile
+
+---
+
 ## [0.1.158] - 2025-12-21
 
 ### Added

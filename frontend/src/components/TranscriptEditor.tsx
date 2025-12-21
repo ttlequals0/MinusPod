@@ -52,6 +52,26 @@ function formatTime(seconds: number): string {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
+// Parse time input - supports MM:SS format or seconds only
+function parseTimeInput(input: string, maxSeconds: number): number | null {
+  const trimmed = input.trim();
+  // Try MM:SS format (e.g., "1:30" or "01:30")
+  const mmss = trimmed.match(/^(\d+):(\d{1,2})$/);
+  if (mmss) {
+    const mins = parseInt(mmss[1], 10);
+    const secs = parseInt(mmss[2], 10);
+    if (secs < 60) {
+      return Math.min(Math.max(0, mins * 60 + secs), maxSeconds);
+    }
+  }
+  // Try seconds only (e.g., "90" = 1:30)
+  const secsOnly = parseFloat(trimmed);
+  if (!isNaN(secsOnly)) {
+    return Math.min(Math.max(0, secsOnly), maxSeconds);
+  }
+  return null;
+}
+
 export function TranscriptEditor({
   segments,
   detectedAds,
@@ -91,9 +111,28 @@ export function TranscriptEditor({
   const [isDraggingProgress, setIsDraggingProgress] = useState(false);
   const [preserveSeekPosition, setPreserveSeekPosition] = useState(false);
   const [showReason, setShowReason] = useState(false);
+  const [startInputValue, setStartInputValue] = useState('');
+  const [endInputValue, setEndInputValue] = useState('');
+  const [isEditingStart, setIsEditingStart] = useState(false);
+  const [isEditingEnd, setIsEditingEnd] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   const transcriptRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const startInputRef = useRef<HTMLInputElement>(null);
+  const endInputRef = useRef<HTMLInputElement>(null);
+
+  // Restore focus after state change re-render (fixes mobile keyboard dismissal)
+  useEffect(() => {
+    if (isEditingStart && startInputRef.current) {
+      startInputRef.current.focus();
+    }
+  }, [isEditingStart]);
+
+  useEffect(() => {
+    if (isEditingEnd && endInputRef.current) {
+      endInputRef.current.focus();
+    }
+  }, [isEditingEnd]);
   const progressBarRef = useRef<HTMLDivElement>(null);
 
   // Haptic feedback helper
@@ -507,7 +546,7 @@ export function TranscriptEditor({
     <div
       ref={containerRef}
       tabIndex={0}
-      className="flex flex-col h-[75vh] sm:h-[70vh] max-h-[600px] sm:max-h-[800px] landscape:h-[90vh] landscape:max-h-none bg-card rounded-lg border border-border outline-none focus:ring-2 focus:ring-primary/50 overflow-hidden"
+      className="flex flex-col h-[85dvh] sm:h-[70vh] max-h-[750px] sm:max-h-[800px] landscape:h-[90dvh] landscape:max-h-none bg-card rounded-lg border border-border outline-none focus:ring-2 focus:ring-primary/50 overflow-hidden"
     >
       {/* STICKY TOP: Header, Ad Selector, Boundary Controls */}
       <div className="sticky top-0 z-20 bg-card flex-shrink-0">
@@ -569,8 +608,8 @@ export function TranscriptEditor({
           </div>
         )}
 
-        {/* Ad selector - with momentum scrolling for mobile */}
-        <div className="flex gap-2 px-4 py-2 border-b border-border overflow-x-auto scroll-smooth touch-pan-x landscape:hidden">
+        {/* Ad selector - with momentum scrolling for mobile, hidden when editing time inputs */}
+        <div className={`flex gap-2 px-4 py-2 border-b border-border overflow-x-auto scroll-smooth touch-pan-x landscape:hidden ${(isEditingStart || isEditingEnd) ? 'hidden' : ''}`}>
           {detectedAds.map((ad, index) => (
             <button
               key={index}
@@ -609,13 +648,13 @@ export function TranscriptEditor({
         </div>
 
         {/* Boundary controls - Collapsible on mobile */}
-        <div className="border-b border-border bg-muted/30 landscape:hidden">
+        <div className="border-b border-border bg-muted/30">
           {/* Mobile toggle button - shows current bounds, hidden on sm+ */}
           <button
             onClick={() => setMobileControlsExpanded(!mobileControlsExpanded)}
             className="w-full px-4 py-3 flex items-center justify-between sm:hidden touch-manipulation min-h-[48px] active:bg-accent/50 transition-colors"
           >
-            <span className="text-sm font-mono text-muted-foreground">
+            <span className="text-xs sm:text-sm font-mono text-muted-foreground">
               {formatTime(adjustedStart)} - {formatTime(adjustedEnd)}
             </span>
             <div className="flex items-center gap-1 text-xs text-primary">
@@ -626,7 +665,7 @@ export function TranscriptEditor({
 
           {/* Controls - always visible on sm+, conditionally on mobile */}
           <div className={`px-4 py-3 ${mobileControlsExpanded ? 'block' : 'hidden'} sm:block`}>
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
+            <div className={`flex ${(isEditingStart || isEditingEnd) ? 'flex-row flex-wrap items-center justify-center' : 'flex-col'} sm:flex-row sm:items-center sm:justify-center gap-3 sm:gap-6`}>
               <div className="flex items-center gap-3 sm:gap-2 justify-center sm:justify-start">
                 <span className="text-xs text-muted-foreground">Start:</span>
                 <button
@@ -636,9 +675,34 @@ export function TranscriptEditor({
                 >
                   <ChevronLeft className="w-5 h-5 sm:w-4 sm:h-4" />
                 </button>
-                <span className="text-sm font-mono w-16 text-center">
-                  {formatTime(adjustedStart)}
-                </span>
+                <input
+                  ref={startInputRef}
+                  type="text"
+                  inputMode="decimal"
+                  value={isEditingStart ? startInputValue : formatTime(adjustedStart)}
+                  onChange={(e) => setStartInputValue(e.target.value)}
+                  onFocus={(e) => {
+                    setStartInputValue(formatTime(adjustedStart));
+                    setIsEditingStart(true);
+                    // Selection happens after focus restoration in useEffect
+                    setTimeout(() => e.target.select(), 0);
+                  }}
+                  onBlur={() => {
+                    const parsed = parseTimeInput(startInputValue, segments[segments.length - 1]?.end || 0);
+                    if (parsed !== null && parsed < adjustedEnd) {
+                      setAdjustedStart(parsed);
+                    }
+                    setIsEditingStart(false);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.currentTarget.blur();
+                    } else if (e.key === 'Escape') {
+                      setIsEditingStart(false);
+                    }
+                  }}
+                  className="w-16 text-center text-xs sm:text-sm font-mono bg-transparent border border-border rounded px-1 py-0.5 focus:border-primary focus:outline-none"
+                />
                 <button
                   onClick={handleNudgeStartForward}
                   className="p-3 sm:p-1.5 rounded-lg hover:bg-accent active:bg-accent/80 active:scale-95 touch-manipulation min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center transition-all"
@@ -657,9 +721,34 @@ export function TranscriptEditor({
                 >
                   <ChevronLeft className="w-5 h-5 sm:w-4 sm:h-4" />
                 </button>
-                <span className="text-sm font-mono w-16 text-center">
-                  {formatTime(adjustedEnd)}
-                </span>
+                <input
+                  ref={endInputRef}
+                  type="text"
+                  inputMode="decimal"
+                  value={isEditingEnd ? endInputValue : formatTime(adjustedEnd)}
+                  onChange={(e) => setEndInputValue(e.target.value)}
+                  onFocus={(e) => {
+                    setEndInputValue(formatTime(adjustedEnd));
+                    setIsEditingEnd(true);
+                    // Selection happens after focus restoration in useEffect
+                    setTimeout(() => e.target.select(), 0);
+                  }}
+                  onBlur={() => {
+                    const parsed = parseTimeInput(endInputValue, segments[segments.length - 1]?.end || 0);
+                    if (parsed !== null && parsed > adjustedStart) {
+                      setAdjustedEnd(parsed);
+                    }
+                    setIsEditingEnd(false);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.currentTarget.blur();
+                    } else if (e.key === 'Escape') {
+                      setIsEditingEnd(false);
+                    }
+                  }}
+                  className="w-16 text-center text-xs sm:text-sm font-mono bg-transparent border border-border rounded px-1 py-0.5 focus:border-primary focus:outline-none"
+                />
                 <button
                   onClick={handleNudgeEndForward}
                   className="p-3 sm:p-1.5 rounded-lg hover:bg-accent active:bg-accent/80 active:scale-95 touch-manipulation min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center transition-all"
@@ -755,7 +844,7 @@ export function TranscriptEditor({
               onTouchEnd={(e) => handleTouchEnd(segment, e)}
               onTouchCancel={handleTouchCancel}
               onTouchMove={handleTouchCancel}
-              className={`p-3 sm:p-2 rounded-lg cursor-pointer transition-all select-none min-h-[44px] sm:min-h-0 flex items-start active:bg-accent/30 ${
+              className={`p-2 rounded-lg cursor-pointer transition-all select-none min-h-[40px] sm:min-h-0 flex items-start active:bg-accent/30 ${
                 inAd
                   ? 'bg-red-500/20 hover:bg-red-500/30 active:bg-red-500/40'
                   : 'hover:bg-accent active:bg-accent/50'
@@ -763,10 +852,10 @@ export function TranscriptEditor({
                 isStartBoundary ? 'border-l-4 border-l-green-500' : ''
               } ${isEndBoundary ? 'border-r-4 border-r-orange-500' : ''}`}
             >
-              <span className="text-xs text-muted-foreground font-mono mr-3 sm:mr-2 flex-shrink-0 pt-0.5">
+              <span className="text-[10px] sm:text-xs text-muted-foreground font-mono mr-2 flex-shrink-0 pt-0.5">
                 {formatTime(segment.start)}
               </span>
-              <span className={inAd ? 'text-red-400' : ''}>{segment.text}</span>
+              <span className={`text-xs sm:text-sm ${inAd ? 'text-red-400' : ''}`}>{segment.text}</span>
             </div>
           );
         })}
@@ -847,8 +936,8 @@ export function TranscriptEditor({
         </div>
       </div>
 
-      {/* Mobile: Bottom sheet audio player */}
-      <div className="sm:hidden sticky bottom-0 z-20 bg-card border-t border-border flex-shrink-0">
+      {/* Mobile: Bottom sheet audio player - hidden when editing time inputs */}
+      <div className={`sm:hidden sticky bottom-0 z-20 bg-card border-t border-border flex-shrink-0 ${(isEditingStart || isEditingEnd) ? 'hidden' : ''}`}>
         <audio ref={audioRef} src={audioUrl} className="hidden" />
 
         {/* Grab handle */}
