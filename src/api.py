@@ -44,6 +44,7 @@ AUTH_EXEMPT_PATHS = {
 # Path prefixes that don't require authentication
 AUTH_EXEMPT_PREFIXES = (
     '/api/v1/auth/',
+    '/api/v1/status/stream',  # SSE stream - EventSource can't handle 401 gracefully
 )
 
 
@@ -74,6 +75,10 @@ def check_auth():
 
     # Allow audio files without auth (for podcast apps)
     if '/audio' in path:
+        return None
+
+    # Allow artwork without auth (img tags don't redirect on 401)
+    if '/artwork' in path:
         return None
 
     # Check if password is set

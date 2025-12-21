@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.157] - 2025-12-21
+
+### Fixed
+- **Authentication Session Persistence**
+  - Fixed multi-worker SECRET_KEY issue causing random 401 errors
+  - SECRET_KEY now persisted in database instead of random per-worker generation
+  - All Gunicorn workers now share the same key for consistent session validation
+  - Session cookies now work correctly across all workers
+
+- **Auth Exemptions**
+  - Added SSE stream (/status/stream) to auth exemptions to prevent reconnect loops
+  - Added artwork endpoints to auth exemptions for img tag compatibility
+
+---
+
 ## [0.1.156] - 2025-12-21
 
 ### Added
