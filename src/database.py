@@ -2696,3 +2696,12 @@ class Database:
         )
         conn.commit()
         return cursor.rowcount
+
+    def clear_pending_queue_items(self) -> int:
+        """Clear all pending items from the auto-process queue. Returns count deleted."""
+        conn = self.get_connection()
+        cursor = conn.execute(
+            """DELETE FROM auto_process_queue WHERE status = 'pending'"""
+        )
+        conn.commit()
+        return cursor.rowcount

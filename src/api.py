@@ -1329,6 +1329,19 @@ def get_queue_status():
     })
 
 
+@api.route('/system/queue', methods=['DELETE'])
+@log_request
+def clear_queue():
+    """Clear all pending items from the auto-process queue."""
+    db = get_database()
+    deleted = db.clear_pending_queue_items()
+    logger.info(f"Cleared {deleted} pending items from auto-process queue")
+    return json_response({
+        'message': f'Cleared {deleted} pending items from queue',
+        'deleted': deleted
+    })
+
+
 def _get_version():
     """Get application version."""
     try:
