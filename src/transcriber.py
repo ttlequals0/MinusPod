@@ -5,6 +5,7 @@ import os
 import re
 import gc
 import subprocess
+import hashlib
 import requests
 from typing import List, Dict, Optional, Tuple
 from pathlib import Path
@@ -384,6 +385,74 @@ class Transcriber:
             return temp_path
         except Exception as e:
             logger.error(f"Failed to download audio: {e}")
+            return None
+
+    def download_audio_with_resume(self, url: str, timeout: int = 600) -> Optional[str]:
+        """Download audio file with resume support for interrupted downloads.
+
+        Uses consistent temp file path based on URL hash so interrupted downloads
+        can be resumed. Supports HTTP Range requests for partial content retrieval.
+
+        Args:
+            url: Audio file URL
+            timeout: Read timeout in seconds (default 10 minutes)
+
+        Returns:
+            Path to downloaded file, or None on failure
+        """
+        # Generate consistent temp path based on URL hash
+        url_hash = hashlib.md5(url.encode()).hexdigest()[:16]
+        temp_path = os.path.join(tempfile.gettempdir(), f'podcast_dl_{url_hash}.mp3')
+
+        downloaded = 0
+        if os.path.exists(temp_path):
+            downloaded = os.path.getsize(temp_path)
+            logger.info(f"Resuming download from {downloaded} bytes: {url}")
+
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (compatible; PodcastAdRemover/1.0)',
+            'Accept': '*/*',
+        }
+        if downloaded > 0:
+            headers['Range'] = f'bytes={downloaded}-'
+
+        try:
+            response = requests.get(url, headers=headers, stream=True, timeout=(10, timeout))
+
+            # Check if server supports range requests
+            if downloaded > 0 and response.status_code == 200:
+                # Server doesn't support resume (returned full file), start fresh
+                logger.info("Server doesn't support resume, starting fresh download")
+                downloaded = 0
+                try:
+                    os.remove(temp_path)
+                except OSError:
+                    pass
+
+            response.raise_for_status()
+
+            # Validate file size
+            content_length = response.headers.get('Content-Length')
+            if content_length:
+                total_size = int(content_length) + downloaded
+                size_mb = total_size / (1024 * 1024)
+                if size_mb > 500:
+                    logger.error(f"Audio file too large: {size_mb:.1f}MB (max 500MB)")
+                    return None
+                logger.info(f"Audio file size: {size_mb:.1f}MB")
+
+            # Download with resume support
+            mode = 'ab' if downloaded > 0 else 'wb'
+            with open(temp_path, mode) as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+
+            logger.info(f"Downloaded audio to: {temp_path}")
+            return temp_path
+
+        except Exception as e:
+            logger.error(f"Download failed (partial file kept for resume): {e}")
+            # Keep partial file for resume on next attempt
             return None
 
     def transcribe(self, audio_path: str, podcast_name: str = None) -> List[Dict]:

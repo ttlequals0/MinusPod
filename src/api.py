@@ -255,6 +255,10 @@ def add_feed():
         podcast_id = db.create_podcast(slug, source_url)
         logger.info(f"Created new feed: {slug} -> {source_url}")
 
+        # Invalidate feed cache since we added a new feed
+        from main import invalidate_feed_cache
+        invalidate_feed_cache()
+
         # Trigger initial refresh in background
         try:
             from main import refresh_rss_feed
@@ -378,6 +382,10 @@ def update_feed(slug):
         db.update_podcast(slug, **updates)
         logger.info(f"Updated feed {slug}: {updates}")
 
+        # Invalidate feed cache since we modified a feed
+        from main import invalidate_feed_cache
+        invalidate_feed_cache()
+
         # Return updated feed data
         podcast = db.get_podcast_by_slug(slug)
         base_url = os.environ.get('BASE_URL', 'http://localhost:8000')
@@ -418,6 +426,10 @@ def delete_feed(slug):
     try:
         # Delete from database (cascade deletes episodes)
         db.delete_podcast(slug)
+
+        # Invalidate feed cache since we deleted a feed
+        from main import invalidate_feed_cache
+        invalidate_feed_cache()
 
         # Delete files
         storage.cleanup_podcast_dir(slug)

@@ -5,6 +5,7 @@ ctranslate2==4.4.0
 # API and web
 anthropic==0.49.0
 flask==3.0.3
+flask-compress>=1.14
 flask-cors==4.0.0
 flask-limiter>=3.5.0
 gunicorn==23.0.0

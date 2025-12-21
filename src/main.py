@@ -203,6 +203,21 @@ def is_transient_error(error: Exception) -> bool:
 # Initialize Flask app
 app = Flask(__name__)
 
+# Enable gzip compression for responses
+from flask_compress import Compress
+compress = Compress()
+app.config['COMPRESS_MIMETYPES'] = [
+    'application/json',
+    'text/html',
+    'text/xml',
+    'application/xml',
+    'application/rss+xml',
+    'text/plain',
+]
+app.config['COMPRESS_LEVEL'] = 6  # Balance between speed and compression
+app.config['COMPRESS_MIN_SIZE'] = 500  # Only compress responses > 500 bytes
+compress.init_app(app)
+
 # Enable CORS for development (Vite dev server)
 CORS(app, resources={
     r"/api/*": {
@@ -242,6 +257,45 @@ audio_analyzer = AudioAnalyzer(db=db)
 sponsor_service = SponsorService(db)
 status_service = StatusService()
 pattern_service = PatternService(db)
+
+# Thread-safe TTL cache for reducing database queries
+class TTLCache:
+    """Simple thread-safe cache with time-to-live expiration."""
+
+    def __init__(self, ttl_seconds: int = 30):
+        self._cache = {}
+        self._lock = threading.Lock()
+        self._ttl = ttl_seconds
+
+    def get(self, key: str):
+        """Get cached value if not expired, else return None."""
+        with self._lock:
+            if key in self._cache:
+                value, expires = self._cache[key]
+                if time.time() < expires:
+                    return value
+                del self._cache[key]
+        return None
+
+    def set(self, key: str, value):
+        """Set cached value with TTL."""
+        with self._lock:
+            self._cache[key] = (value, time.time() + self._ttl)
+
+    def invalidate(self, key: str = None):
+        """Invalidate specific key or entire cache."""
+        with self._lock:
+            if key:
+                self._cache.pop(key, None)
+            else:
+                self._cache.clear()
+
+
+# Initialize caches for performance
+_feed_cache = TTLCache(ttl_seconds=30)
+_settings_cache = TTLCache(ttl_seconds=60)
+_parsed_feeds_cache = TTLCache(ttl_seconds=60)
+
 
 # Backfill processing history from existing episodes (runs once on startup)
 try:
@@ -311,15 +365,45 @@ except Exception as e:
 
 
 def get_feed_map():
-    """Get feed map from database."""
+    """Get feed map from database, with TTL caching."""
+    cached = _feed_cache.get('all_feeds')
+    if cached is not None:
+        return cached
+
     feeds = db.get_feeds_config()
-    return {slugify(feed['out'].strip('/')): feed for feed in feeds}
+    result = {slugify(feed['out'].strip('/')): feed for feed in feeds}
+    _feed_cache.set('all_feeds', result)
+    return result
+
+
+def invalidate_feed_cache():
+    """Invalidate feed cache after any feed modification."""
+    _feed_cache.invalidate('all_feeds')
+
+
+def get_parsed_feed(slug: str, source_url: str):
+    """Get cached parsed feed or parse fresh.
+
+    Reduces redundant RSS fetching and parsing by caching parsed feeds
+    for 60 seconds.
+    """
+    cached = _parsed_feeds_cache.get(slug)
+    if cached is not None:
+        refresh_logger.debug(f"[{slug}] Using cached parsed feed")
+        return cached
+
+    feed_content = rss_parser.fetch_feed(source_url)
+    if feed_content:
+        parsed = rss_parser.parse_feed(feed_content)
+        _parsed_feeds_cache.set(slug, parsed)
+        return parsed
+    return None
 
 
 def refresh_rss_feed(slug: str, feed_url: str):
     """Refresh RSS feed for a podcast."""
     try:
-        # Get podcast name for status display
+        # Get podcast name and etag for conditional fetch
         podcast = db.get_podcast(slug)
         podcast_name = podcast.get('title', slug) if podcast else slug
 
@@ -328,8 +412,22 @@ def refresh_rss_feed(slug: str, feed_url: str):
 
         refresh_logger.info(f"[{slug}] Starting RSS refresh from: {feed_url}")
 
-        # Fetch original RSS
-        feed_content = rss_parser.fetch_feed(feed_url)
+        # Fetch original RSS with conditional GET (ETag/Last-Modified)
+        existing_etag = podcast.get('etag') if podcast else None
+        existing_last_modified = podcast.get('last_modified_header') if podcast else None
+
+        feed_content, new_etag, new_last_modified = rss_parser.fetch_feed_conditional(
+            feed_url,
+            etag=existing_etag,
+            last_modified=existing_last_modified
+        )
+
+        # Handle 304 Not Modified - feed hasn't changed
+        if feed_content is None and (new_etag or new_last_modified):
+            refresh_logger.info(f"[{slug}] Feed unchanged (304), skipping refresh")
+            status_service.complete_feed_refresh(slug, 0)
+            return True
+
         if not feed_content:
             refresh_logger.error(f"[{slug}] Failed to fetch RSS feed")
             status_service.complete_feed_refresh(slug, 0)
@@ -356,6 +454,10 @@ def refresh_rss_feed(slug: str, feed_url: str):
                 artwork_url=artwork_url,
                 last_checked_at=datetime.utcnow().isoformat() + 'Z'
             )
+
+            # Update ETag for conditional GET on next refresh
+            if new_etag or new_last_modified:
+                db.update_podcast_etag(slug, new_etag, new_last_modified)
 
             # Detect DAI platform and network from feed metadata
             feed_author = parsed_feed.feed.get('author', '')

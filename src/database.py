@@ -860,6 +860,37 @@ class Database:
         except Exception as e:
             logger.debug(f"Index creation (may already exist): {e}")
 
+        # Performance indexes for Phase 3 optimization
+        performance_indexes = [
+            # Compound index for episode queries by podcast + status
+            'CREATE INDEX IF NOT EXISTS idx_episodes_podcast_status ON episodes(podcast_id, status)',
+            # Published date for sorting recent episodes
+            'CREATE INDEX IF NOT EXISTS idx_episodes_published ON episodes(published_at DESC)',
+            # Pattern corrections queries
+            'CREATE INDEX IF NOT EXISTS idx_corrections_episode ON pattern_corrections(episode_id)',
+            'CREATE INDEX IF NOT EXISTS idx_corrections_type ON pattern_corrections(correction_type)',
+            # Ad patterns by podcast
+            'CREATE INDEX IF NOT EXISTS idx_patterns_podcast ON ad_patterns(podcast_id)',
+        ]
+        for idx_sql in performance_indexes:
+            try:
+                conn.execute(idx_sql)
+            except Exception as e:
+                logger.debug(f"Index creation (may already exist): {e}")
+        conn.commit()
+
+        # Migration: Add ETag columns for conditional GET support
+        etag_columns = [
+            "ALTER TABLE podcasts ADD COLUMN etag TEXT",
+            "ALTER TABLE podcasts ADD COLUMN last_modified_header TEXT",
+        ]
+        for col_sql in etag_columns:
+            try:
+                conn.execute(col_sql)
+                conn.commit()
+            except Exception:
+                pass  # Column already exists
+
     def _migrate_from_json(self):
         """Migrate data from JSON files to SQLite."""
         conn = self.get_connection()
@@ -1102,7 +1133,8 @@ class Database:
         for key, value in kwargs.items():
             if key in ('title', 'description', 'artwork_url', 'artwork_cached',
                        'last_checked_at', 'source_url', 'network_id', 'dai_platform',
-                       'network_id_override', 'audio_analysis_override', 'auto_process_override'):
+                       'network_id_override', 'audio_analysis_override', 'auto_process_override',
+                       'etag', 'last_modified_header'):
                 fields.append(f"{key} = ?")
                 values.append(value)
 
@@ -1127,6 +1159,19 @@ class Database:
         )
         conn.commit()
         return cursor.rowcount > 0
+
+    def update_podcast_etag(self, slug: str, etag: str, last_modified: str) -> bool:
+        """Update ETag and Last-Modified header for conditional GET support.
+
+        Args:
+            slug: Podcast slug
+            etag: ETag header value from RSS server
+            last_modified: Last-Modified header value from RSS server
+
+        Returns:
+            True if update succeeded
+        """
+        return self.update_podcast(slug, etag=etag, last_modified_header=last_modified)
 
     def get_podcast(self, slug: str) -> Optional[Dict]:
         """Alias for get_podcast_by_slug for backwards compatibility."""

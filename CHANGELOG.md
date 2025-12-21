@@ -5,6 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.153] - 2025-12-21
+
+### Added
+- **Phase 3: Performance Optimization**
+
+- **TTL Cache for Feed Map**
+  - Thread-safe TTLCache class with configurable expiration
+  - Feed map cached for 30 seconds to reduce database queries
+  - Automatic cache invalidation on feed create/update/delete
+
+- **Gzip Response Compression**
+  - Added flask-compress for automatic response compression
+  - Compresses JSON, XML, RSS, and text responses over 500 bytes
+  - Compression level 6 for balance between speed and size
+
+- **Database Performance Indexes**
+  - Compound index on episodes(podcast_id, status) for filtered queries
+  - Index on episodes(published_at DESC) for sorting
+  - Indexes on pattern_corrections for episode and type lookups
+  - Index on ad_patterns(podcast_id) for podcast-scoped queries
+
+- **In-Memory RSS Cache**
+  - Parsed feed cache with 60-second TTL
+  - Reduces redundant RSS fetching and parsing
+
+- **RSS Conditional GET (ETag/Last-Modified)**
+  - Added etag and last_modified_header columns to podcasts table
+  - Uses If-None-Match and If-Modified-Since headers
+  - Skips full refresh when feed returns 304 Not Modified
+  - Reduces bandwidth and server load for unchanged feeds
+
+- **Audio Download Resume**
+  - New download_audio_with_resume() method with HTTP Range support
+  - Consistent temp file path based on URL hash for resume tracking
+  - Keeps partial files on failure for resume on next attempt
+  - Graceful fallback when server doesn't support Range requests
+
+---
+
 ## [0.1.152] - 2025-12-21
 
 ### Added

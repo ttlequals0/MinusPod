@@ -39,6 +39,67 @@ class RSSParser:
             logger.error(f"Failed to fetch RSS feed: {e}")
             return None
 
+    def fetch_feed_conditional(self, url: str, etag: str = None,
+                               last_modified: str = None, timeout: int = 30):
+        """Fetch RSS feed with conditional GET support.
+
+        Uses If-None-Match and If-Modified-Since headers to avoid downloading
+        unchanged feeds, reducing bandwidth and server load.
+
+        Args:
+            url: RSS feed URL
+            etag: Previously received ETag header value
+            last_modified: Previously received Last-Modified header value
+            timeout: Request timeout in seconds
+
+        Returns:
+            Tuple of (content, new_etag, new_last_modified)
+            If feed not modified (304), returns (None, etag, last_modified)
+            On error, returns (None, None, None)
+        """
+        headers = {'User-Agent': 'PodcastAdRemover/1.0'}
+
+        if etag:
+            headers['If-None-Match'] = etag
+        if last_modified:
+            headers['If-Modified-Since'] = last_modified
+
+        try:
+            response = requests.get(url, headers=headers, timeout=timeout)
+
+            if response.status_code == 304:
+                logger.info(f"Feed not modified (304): {url}")
+                return None, etag, last_modified
+
+            response.raise_for_status()
+
+            new_etag = response.headers.get('ETag')
+            new_last_modified = response.headers.get('Last-Modified')
+
+            logger.info(f"Fetched RSS feed, size: {len(response.content)} bytes")
+            return response.text, new_etag, new_last_modified
+
+        except requests.exceptions.ContentDecodingError as e:
+            # Retry without accepting compressed responses
+            logger.warning(f"Gzip decompression failed, retrying: {e}")
+            try:
+                headers['Accept-Encoding'] = 'identity'
+                response = requests.get(url, headers=headers, timeout=timeout)
+                if response.status_code == 304:
+                    return None, etag, last_modified
+                response.raise_for_status()
+                return (
+                    response.text,
+                    response.headers.get('ETag'),
+                    response.headers.get('Last-Modified')
+                )
+            except requests.RequestException:
+                return None, None, None
+
+        except requests.RequestException as e:
+            logger.error(f"Conditional fetch failed: {e}")
+            return None, None, None
+
     def parse_feed(self, feed_content: str) -> Dict:
         """Parse RSS feed content."""
         try:
