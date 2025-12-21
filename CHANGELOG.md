@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.147] - 2025-12-21
+
+### Fixed
+- **Auto-Process Only Recent Episodes**
+  - Now only queues episodes published within the last 48 hours
+  - Prevents processing entire backlog when adding new podcasts
+  - Parses RSS publish dates (RFC 2822 format) to determine recency
+
+- **Pagination UI Improvements**
+  - History page: Pagination now visible on mobile (moved outside desktop-only div)
+  - History/Patterns pages: Added page number buttons with ellipsis for quick navigation
+  - Example: 1 2 3 ... 10 for easier page jumping
+
+- **Episode Detail Header**
+  - Cleaner layout: Title + Edit button on first row
+  - Pass info and time saved on separate line below
+  - Less cluttered appearance on all screen sizes
+
+### Changed
+- **OpenAPI Documentation**
+  - Added missing PATCH /feeds/{slug} endpoint
+  - Added GET /system/queue endpoint for auto-process queue status
+  - Added autoProcessEnabled to Settings schema
+  - Added autoProcessOverride to Feed schema
+  - Added totalPages to history response
+  - Updated version to 0.1.147
+
+---
+
 ## [0.1.146] - 2025-12-21
 
 ### Added

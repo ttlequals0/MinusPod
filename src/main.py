@@ -5,7 +5,8 @@ import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime
+from datetime import datetime, timedelta
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from functools import wraps
 from flask import Flask, Response, send_file, abort, send_from_directory, request
@@ -230,19 +231,41 @@ def refresh_rss_feed(slug: str, feed_url: str):
                 storage.download_artwork(slug, artwork_url)
 
         # Queue new episodes for auto-processing if enabled
+        # Only queue episodes published within the last 48 hours to avoid processing entire backlog
         if db.is_auto_process_enabled_for_podcast(slug):
             episodes = rss_parser.extract_episodes(feed_content)
             queued_count = 0
+            cutoff_time = datetime.utcnow() - timedelta(hours=48)
+
             for ep in episodes:
                 # Check if episode already exists in database
                 existing = db.get_episode(slug, ep['id'])
                 if existing is None:
-                    # New episode - queue for processing
-                    queue_id = db.queue_episode_for_processing(
-                        slug, ep['id'], ep['url'], ep.get('title')
-                    )
-                    if queue_id:
-                        queued_count += 1
+                    # Parse publish date to check if recent
+                    published_str = ep.get('published', '')
+                    is_recent = False
+                    if published_str:
+                        try:
+                            # RSS dates are typically RFC 2822 format
+                            pub_date = parsedate_to_datetime(published_str)
+                            # Make comparison timezone-naive
+                            if pub_date.tzinfo:
+                                pub_date = pub_date.replace(tzinfo=None)
+                            is_recent = pub_date >= cutoff_time
+                        except (ValueError, TypeError):
+                            # If we can't parse the date, skip this episode for auto-process
+                            refresh_logger.debug(f"[{slug}] Could not parse date for episode: {ep.get('title')}")
+                            is_recent = False
+
+                    if is_recent:
+                        # New recent episode - queue for processing
+                        queue_id = db.queue_episode_for_processing(
+                            slug, ep['id'], ep['url'], ep.get('title')
+                        )
+                        if queue_id:
+                            queued_count += 1
+                            refresh_logger.debug(f"[{slug}] Queued recent episode: {ep.get('title')}")
+
             if queued_count > 0:
                 refresh_logger.info(f"[{slug}] Queued {queued_count} new episode(s) for auto-processing")
 

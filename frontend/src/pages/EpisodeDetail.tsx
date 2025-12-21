@@ -267,31 +267,37 @@ function EpisodeDetail() {
 
       {episode.adMarkers && episode.adMarkers.length > 0 && (
         <div className="bg-card rounded-lg border border-border p-6 mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-foreground">
-              Detected Ads ({episode.adMarkers.length})
-              {(episode.adsRemovedFirstPass !== undefined && episode.adsRemovedSecondPass !== undefined && episode.adsRemovedSecondPass > 0) && (
-                <span className="ml-2 text-sm font-normal text-muted-foreground">
-                  ({episode.adsRemovedFirstPass} first pass, {episode.adsRemovedSecondPass} second pass)
-                </span>
+          <div className="mb-4">
+            {/* Row 1: Title + Edit button */}
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold text-foreground">
+                Detected Ads ({episode.adMarkers.length})
+              </h2>
+              {episode.status === 'completed' && episode.transcript && (
+                <button
+                  onClick={() => setShowEditor(!showEditor)}
+                  className="flex items-center gap-2 px-3 py-1.5 text-sm bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                  {showEditor ? 'Hide Editor' : 'Edit Ads'}
+                </button>
               )}
-              {episode.timeSaved && episode.timeSaved > 0 && (
-                <span className="ml-2 text-base font-normal text-muted-foreground">
-                  - {formatDuration(episode.timeSaved)} time saved
-                </span>
-              )}
-            </h2>
-            {episode.status === 'completed' && episode.transcript && (
-              <button
-                onClick={() => setShowEditor(!showEditor)}
-                className="flex items-center gap-2 px-3 py-1.5 text-sm bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
-                {showEditor ? 'Hide Editor' : 'Edit Ads'}
-              </button>
+            </div>
+            {/* Row 2: Pass info + time saved */}
+            {((episode.adsRemovedFirstPass !== undefined && episode.adsRemovedSecondPass !== undefined && episode.adsRemovedSecondPass > 0) || (episode.timeSaved && episode.timeSaved > 0)) && (
+              <div className="mt-1 text-sm text-muted-foreground">
+                {(episode.adsRemovedFirstPass !== undefined && episode.adsRemovedSecondPass !== undefined && episode.adsRemovedSecondPass > 0) && (
+                  <span>{episode.adsRemovedFirstPass} first pass, {episode.adsRemovedSecondPass} second pass</span>
+                )}
+                {episode.timeSaved && episode.timeSaved > 0 && (
+                  <span className={episode.adsRemovedSecondPass && episode.adsRemovedSecondPass > 0 ? 'ml-2' : ''}>
+                    {episode.adsRemovedSecondPass && episode.adsRemovedSecondPass > 0 ? '- ' : ''}{formatDuration(episode.timeSaved)} time saved
+                  </span>
+                )}
+              </div>
             )}
           </div>
 

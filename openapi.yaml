@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 0.1.145
+  version: 0.1.147
   contact:
     name: Podcast Server
   license:
@@ -155,6 +155,50 @@ paths:
                     type: string
                   slug:
                     type: string
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags:
+        - Feeds
+      summary: Update feed settings
+      description: Update podcast feed settings like network override, DAI platform, and processing overrides
+      operationId: updateFeed
+      parameters:
+        - $ref: '#/components/parameters/slug'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                networkIdOverride:
+                  type:
+                    - string
+                    - 'null'
+                  description: Override network ID (null to use auto-detected)
+                daiPlatform:
+                  type: string
+                  description: DAI platform identifier (e.g., megaphone, acast)
+                audioAnalysisOverride:
+                  type:
+                    - boolean
+                    - 'null'
+                  description: Override audio analysis setting (null uses global)
+                autoProcessOverride:
+                  type:
+                    - boolean
+                    - 'null'
+                  description: Override auto-process setting (null uses global)
+      responses:
+        '200':
+          description: Feed updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Feed'
+        '400':
+          $ref: '#/components/responses/BadRequest'
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -903,6 +947,10 @@ paths:
                       $ref: '#/components/schemas/ProcessingHistoryEntry'
                   total:
                     type: integer
+                    description: Total number of history entries matching the filter
+                  totalPages:
+                    type: integer
+                    description: Total number of pages available
                   limit:
                     type: integer
                   offset:
@@ -1042,6 +1090,9 @@ paths:
                   type: string
                   description: Whisper model for transcription (tiny, base, small, medium, large-v3)
                   example: small
+                autoProcessEnabled:
+                  type: boolean
+                  description: Enable automatic processing of new episodes when feeds refresh
       responses:
         '200':
           description: Settings updated
@@ -1150,6 +1201,37 @@ paths:
                   spaceFreedMb:
                     type: number
 
+  /system/queue:
+    get:
+      tags:
+        - System
+      summary: Get auto-process queue status
+      description: Returns the current status of the auto-process queue for new episodes
+      operationId: getQueueStatus
+      responses:
+        '200':
+          description: Queue status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pending:
+                    type: integer
+                    description: Episodes waiting to be processed
+                  processing:
+                    type: integer
+                    description: Episodes currently being processed
+                  completed:
+                    type: integer
+                    description: Episodes that completed processing
+                  failed:
+                    type: integer
+                    description: Episodes that failed processing
+                  total:
+                    type: integer
+                    description: Total episodes in queue
+
 components:
   parameters:
     slug:
@@ -1217,6 +1299,16 @@ components:
         createdAt:
           type: string
           format: date-time
+        audioAnalysisOverride:
+          type:
+            - boolean
+            - 'null'
+          description: Override audio analysis setting for this feed (null uses global setting)
+        autoProcessOverride:
+          type:
+            - boolean
+            - 'null'
+          description: Override auto-process setting for this feed (null uses global setting)
 
     EpisodeSummary:
       type: object
@@ -1426,6 +1518,14 @@ components:
               description: Whisper model for transcription
             isDefault:
               type: boolean
+        autoProcessEnabled:
+          type: object
+          properties:
+            value:
+              type: boolean
+              description: Whether auto-processing of new episodes is enabled
+            isDefault:
+              type: boolean
         retentionPeriodMinutes:
           type: integer
         defaults:
@@ -1445,6 +1545,8 @@ components:
               type: boolean
             whisperModel:
               type: string
+            autoProcessEnabled:
+              type: boolean
 
     SystemStatus:
       type: object
