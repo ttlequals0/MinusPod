@@ -13,6 +13,8 @@ function PatternsPage() {
   const [selectedPattern, setSelectedPattern] = useState<AdPattern | null>(null);
   const [sortField, setSortField] = useState<keyof AdPattern>('confirmation_count');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [page, setPage] = useState(1);
+  const limit = 20;
 
   const { data: patterns, isLoading, error, refetch } = useQuery({
     queryKey: ['patterns', scopeFilter, showInactive],
@@ -29,6 +31,7 @@ function PatternsPage() {
       setSortField(field);
       setSortDirection('desc');
     }
+    setPage(1); // Reset to first page on sort change
   };
 
   const filteredPatterns = patterns?.filter(pattern => {
@@ -63,6 +66,10 @@ function PatternsPage() {
     return sortDirection === 'asc' ? comparison : -comparison;
   });
 
+  // Pagination
+  const totalPages = Math.ceil((sortedPatterns?.length || 0) / limit);
+  const paginatedPatterns = sortedPatterns?.slice((page - 1) * limit, page * limit);
+
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return '-';
     return new Date(dateStr).toLocaleDateString();
@@ -81,6 +88,38 @@ function PatternsPage() {
       );
     }
     return null;
+  };
+
+  const getStatusBadge = (isActive: boolean) => {
+    if (isActive) {
+      return (
+        <span className="px-2 py-0.5 text-xs rounded bg-green-500/20 text-green-600 dark:text-green-400">
+          Active
+        </span>
+      );
+    }
+    return (
+      <span className="px-2 py-0.5 text-xs rounded bg-red-500/20 text-red-600 dark:text-red-400">
+        Inactive
+      </span>
+    );
+  };
+
+  // Generate page numbers with ellipsis for large page counts
+  const getPageNumbers = (current: number, total: number): (number | 'ellipsis')[] => {
+    const pages: (number | 'ellipsis')[] = [];
+    if (total <= 7) {
+      for (let i = 1; i <= total; i++) pages.push(i);
+    } else {
+      pages.push(1);
+      if (current > 3) pages.push('ellipsis');
+      for (let i = Math.max(2, current - 1); i <= Math.min(total - 1, current + 1); i++) {
+        pages.push(i);
+      }
+      if (current < total - 2) pages.push('ellipsis');
+      pages.push(total);
+    }
+    return pages;
   };
 
   const SortHeader = ({ field, label }: { field: keyof AdPattern; label: string }) => (
@@ -126,7 +165,10 @@ function PatternsPage() {
             <label className="text-sm text-muted-foreground">Scope:</label>
             <select
               value={scopeFilter}
-              onChange={(e) => setScopeFilter(e.target.value as ScopeFilter)}
+              onChange={(e) => {
+                setScopeFilter(e.target.value as ScopeFilter);
+                setPage(1);
+              }}
               className="px-3 py-1.5 text-sm bg-secondary border border-border rounded"
             >
               <option value="all">All</option>
@@ -141,7 +183,10 @@ function PatternsPage() {
             <input
               type="text"
               value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setPage(1);
+              }}
               placeholder="Search by sponsor, text, network..."
               className="w-full px-3 py-1.5 text-sm bg-secondary border border-border rounded"
             />
@@ -152,7 +197,10 @@ function PatternsPage() {
             <input
               type="checkbox"
               checked={showInactive}
-              onChange={(e) => setShowInactive(e.target.checked)}
+              onChange={(e) => {
+                setShowInactive(e.target.checked);
+                setPage(1);
+              }}
               className="rounded"
             />
             <span className="text-sm text-muted-foreground">Show inactive</span>
@@ -160,8 +208,48 @@ function PatternsPage() {
         </div>
       </div>
 
-      {/* Table */}
-      <div className="bg-card rounded-lg border border-border overflow-hidden">
+      {/* Mobile Card Layout */}
+      <div className="sm:hidden space-y-3 mb-4">
+        {paginatedPatterns?.map((pattern) => (
+          <div
+            key={pattern.id}
+            className="bg-card rounded-lg border border-border p-4 cursor-pointer hover:bg-accent/50 transition-colors"
+            onClick={() => setSelectedPattern(pattern)}
+          >
+            <div className="flex items-center justify-between mb-2">
+              {getScopeBadge(pattern)}
+              {getStatusBadge(pattern.is_active)}
+            </div>
+            <div className="text-sm font-medium text-foreground mb-1">
+              {pattern.sponsor || '(Unknown)'}
+            </div>
+            {pattern.text_template && (
+              <div className="text-xs text-muted-foreground truncate mb-3">
+                {pattern.text_template.substring(0, 80)}...
+              </div>
+            )}
+            <div className="flex items-center gap-4 text-xs text-muted-foreground">
+              <span className="text-green-600 dark:text-green-400">
+                Confirmed: {pattern.confirmation_count}
+              </span>
+              <span className={pattern.false_positive_count > 0 ? 'text-red-600 dark:text-red-400' : ''}>
+                False Pos: {pattern.false_positive_count}
+              </span>
+              <span className="ml-auto">
+                {formatDate(pattern.last_matched_at)}
+              </span>
+            </div>
+          </div>
+        ))}
+        {paginatedPatterns?.length === 0 && (
+          <div className="bg-card rounded-lg border border-border p-8 text-center text-muted-foreground">
+            No patterns found
+          </div>
+        )}
+      </div>
+
+      {/* Desktop Table Layout */}
+      <div className="hidden sm:block bg-card rounded-lg border border-border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-border">
             <thead className="bg-muted/50">
@@ -177,7 +265,7 @@ function PatternsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {sortedPatterns?.map((pattern) => (
+              {paginatedPatterns?.map((pattern) => (
                 <tr
                   key={pattern.id}
                   className="hover:bg-accent/50 cursor-pointer transition-colors"
@@ -214,19 +302,11 @@ function PatternsPage() {
                     {formatDate(pattern.last_matched_at)}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
-                    {pattern.is_active ? (
-                      <span className="px-2 py-0.5 text-xs rounded bg-green-500/20 text-green-600 dark:text-green-400">
-                        Active
-                      </span>
-                    ) : (
-                      <span className="px-2 py-0.5 text-xs rounded bg-red-500/20 text-red-600 dark:text-red-400">
-                        Inactive
-                      </span>
-                    )}
+                    {getStatusBadge(pattern.is_active)}
                   </td>
                 </tr>
               ))}
-              {sortedPatterns?.length === 0 && (
+              {paginatedPatterns?.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
                     No patterns found
@@ -237,6 +317,48 @@ function PatternsPage() {
           </table>
         </div>
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 mt-4 bg-card rounded-lg border border-border">
+          <div className="text-sm text-muted-foreground">
+            Page {page} of {totalPages} ({sortedPatterns?.length || 0} total)
+          </div>
+          <div className="flex items-center gap-1 sm:gap-2 flex-wrap justify-center">
+            <button
+              onClick={() => setPage(Math.max(1, page - 1))}
+              disabled={page === 1}
+              className="px-3 py-1.5 text-sm rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors"
+            >
+              Previous
+            </button>
+            {getPageNumbers(page, totalPages).map((p, i) =>
+              p === 'ellipsis' ? (
+                <span key={`e${i}`} className="px-2 text-muted-foreground">...</span>
+              ) : (
+                <button
+                  key={p}
+                  onClick={() => setPage(p)}
+                  className={`px-3 py-1.5 text-sm rounded transition-colors ${
+                    p === page
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                  }`}
+                >
+                  {p}
+                </button>
+              )
+            )}
+            <button
+              onClick={() => setPage(Math.min(totalPages, page + 1))}
+              disabled={page === totalPages}
+              className="px-3 py-1.5 text-sm rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Detail Modal */}
       {selectedPattern && (

@@ -5,7 +5,8 @@ import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime
+from datetime import datetime, timedelta
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from functools import wraps
 from flask import Flask, Response, send_file, abort, send_from_directory, request
@@ -81,6 +82,10 @@ def log_request_detailed(f):
             feed_logger.error(f"{request.method} {request.path} ERROR {elapsed:.0f}ms [{client_ip}] - {e}")
             raise
     return decorated
+
+
+# Maximum retry attempts for failed episodes before marking as permanently_failed
+MAX_EPISODE_RETRIES = 3
 
 
 # Initialize Flask app
@@ -225,6 +230,53 @@ def refresh_rss_feed(slug: str, feed_url: str):
             if artwork_url:
                 storage.download_artwork(slug, artwork_url)
 
+        # Queue new episodes for auto-processing if enabled
+        # Only queue episodes published within the last 48 hours to avoid processing entire backlog
+        if db.is_auto_process_enabled_for_podcast(slug):
+            episodes = rss_parser.extract_episodes(feed_content)
+            queued_count = 0
+            cutoff_time = datetime.utcnow() - timedelta(hours=48)
+
+            for ep in episodes:
+                # Check if episode already exists in database
+                existing = db.get_episode(slug, ep['id'])
+                if existing is None:
+                    # Parse publish date to check if recent
+                    published_str = ep.get('published', '')
+                    is_recent = False
+                    if published_str:
+                        try:
+                            # RSS dates are typically RFC 2822 format
+                            pub_date = parsedate_to_datetime(published_str)
+                            # Make comparison timezone-naive
+                            if pub_date.tzinfo:
+                                pub_date = pub_date.replace(tzinfo=None)
+                            is_recent = pub_date >= cutoff_time
+                        except (ValueError, TypeError):
+                            # If we can't parse the date, skip this episode for auto-process
+                            refresh_logger.debug(f"[{slug}] Could not parse date for episode: {ep.get('title')}")
+                            is_recent = False
+
+                    if is_recent:
+                        # New recent episode - queue for processing
+                        # Convert pubDate to ISO format for storage
+                        iso_published = None
+                        if published_str:
+                            try:
+                                parsed_pub = parsedate_to_datetime(published_str)
+                                iso_published = parsed_pub.strftime('%Y-%m-%dT%H:%M:%SZ')
+                            except (ValueError, TypeError):
+                                pass
+                        queue_id = db.queue_episode_for_processing(
+                            slug, ep['id'], ep['url'], ep.get('title'), iso_published
+                        )
+                        if queue_id:
+                            queued_count += 1
+                            refresh_logger.debug(f"[{slug}] Queued recent episode: {ep.get('title')}")
+
+            if queued_count > 0:
+                refresh_logger.info(f"[{slug}] Queued {queued_count} new episode(s) for auto-processing")
+
         # Modify feed URLs
         modified_rss = rss_parser.modify_feed(feed_content, slug)
 
@@ -302,6 +354,80 @@ def background_rss_refresh():
         time.sleep(900)  # 15 minutes
 
 
+def background_queue_processor():
+    """Background task to process queued episodes for auto-processing."""
+    refresh_logger.info("Auto-process queue processor started")
+    while True:
+        try:
+            # Get next queued episode
+            queued = db.get_next_queued_episode()
+
+            if queued:
+                queue_id = queued['id']
+                slug = queued['podcast_slug']
+                episode_id = queued['episode_id']
+                original_url = queued['original_url']
+                title = queued.get('title', 'Unknown')
+                podcast_name = queued.get('podcast_title', slug)
+                published_at = queued.get('published_at')
+
+                refresh_logger.info(f"[{slug}:{episode_id}] Auto-processing queued episode: {title}")
+
+                # Mark as processing
+                db.update_queue_status(queue_id, 'processing')
+
+                try:
+                    # Try to start background processing using the existing queue
+                    started, reason = start_background_processing(
+                        slug, episode_id, original_url, title, podcast_name, None, None, published_at
+                    )
+
+                    if started:
+                        # Wait for processing to complete (poll status)
+                        max_wait = 600  # 10 minutes max
+                        waited = 0
+                        while waited < max_wait:
+                            time.sleep(10)
+                            waited += 10
+                            episode = db.get_episode(slug, episode_id)
+                            if episode and episode['status'] in ('processed', 'failed', 'permanently_failed'):
+                                break
+
+                        # Check final status
+                        episode = db.get_episode(slug, episode_id)
+                        if episode and episode['status'] == 'processed':
+                            db.update_queue_status(queue_id, 'completed')
+                            refresh_logger.info(f"[{slug}:{episode_id}] Auto-process completed successfully")
+                        else:
+                            error_msg = episode.get('error_message', 'Processing failed') if episode else 'Unknown error'
+                            db.update_queue_status(queue_id, 'failed', error_msg)
+                            refresh_logger.warning(f"[{slug}:{episode_id}] Auto-process failed: {error_msg}")
+                    elif reason == "already_processing":
+                        # Episode is already being processed, wait and check again
+                        refresh_logger.info(f"[{slug}:{episode_id}] Already processing, waiting...")
+                        time.sleep(30)
+                    else:
+                        # Queue is busy with another episode, try again later
+                        db.update_queue_status(queue_id, 'pending')  # Put back in queue
+                        refresh_logger.debug(f"[{slug}:{episode_id}] Queue busy, will retry later")
+                        time.sleep(30)
+
+                except Exception as e:
+                    db.update_queue_status(queue_id, 'failed', str(e))
+                    refresh_logger.error(f"[{slug}:{episode_id}] Auto-process error: {e}")
+
+            else:
+                # No queued episodes, wait before checking again
+                time.sleep(30)
+
+            # Periodically clean up completed queue items
+            db.clear_completed_queue_items(older_than_hours=24)
+
+        except Exception as e:
+            refresh_logger.error(f"Queue processor error: {e}")
+            time.sleep(60)  # Wait before retrying on error
+
+
 def reset_stuck_processing_episodes():
     """Reset any episodes stuck in 'processing' status from previous crash."""
     conn = db.get_connection()
@@ -328,18 +454,18 @@ def reset_stuck_processing_episodes():
         refresh_logger.info(f"Reset {len(stuck)} stuck episodes to pending")
 
 
-def _process_episode_background(slug, episode_id, original_url, title, podcast_name, description, artwork_url):
+def _process_episode_background(slug, episode_id, original_url, title, podcast_name, description, artwork_url, published_at=None):
     """Background thread wrapper for process_episode with queue management."""
     queue = ProcessingQueue()
     try:
-        process_episode(slug, episode_id, original_url, title, podcast_name, description, artwork_url)
+        process_episode(slug, episode_id, original_url, title, podcast_name, description, artwork_url, published_at)
     except Exception as e:
         audio_logger.error(f"[{slug}:{episode_id}] Background processing failed: {e}")
     finally:
         queue.release()
 
 
-def start_background_processing(slug, episode_id, original_url, title, podcast_name, description, artwork_url):
+def start_background_processing(slug, episode_id, original_url, title, podcast_name, description, artwork_url, published_at=None):
     """
     Start processing in background thread.
 
@@ -365,7 +491,7 @@ def start_background_processing(slug, episode_id, original_url, title, podcast_n
     # Start background thread
     processing_thread = threading.Thread(
         target=_process_episode_background,
-        args=(slug, episode_id, original_url, title, podcast_name, description, artwork_url),
+        args=(slug, episode_id, original_url, title, podcast_name, description, artwork_url, published_at),
         daemon=True
     )
     processing_thread.start()
@@ -375,7 +501,8 @@ def start_background_processing(slug, episode_id, original_url, title, podcast_n
 
 def process_episode(slug: str, episode_id: str, episode_url: str,
                    episode_title: str = "Unknown", podcast_name: str = "Unknown",
-                   episode_description: str = None, episode_artwork_url: str = None):
+                   episode_description: str = None, episode_artwork_url: str = None,
+                   episode_published_at: str = None):
     """Process a single episode (transcribe, detect ads, remove ads)."""
     start_time = time.time()
 
@@ -400,6 +527,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             title=episode_title,
             description=episode_description,
             artwork_url=episode_artwork_url,
+            published_at=episode_published_at,
             status='processing')
 
         # Step 1: Check if transcript exists in database
@@ -711,10 +839,23 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
         processing_time = time.time() - start_time
         audio_logger.error(f"[{slug}:{episode_id}] Failed: {e} ({processing_time:.1f}s)")
 
-        # Update status to failed
+        # Update status to failed with retry count
         status_service.fail_job()
+
+        # Get current retry count and increment
+        current_retry = (episode_data.get('retry_count', 0) or 0) if episode_data else 0
+        new_retry_count = current_retry + 1
+
+        # Determine if permanently failed
+        if new_retry_count >= MAX_EPISODE_RETRIES:
+            new_status = 'permanently_failed'
+            audio_logger.warning(f"[{slug}:{episode_id}] Max retries reached ({MAX_EPISODE_RETRIES}), marking as permanently failed")
+        else:
+            new_status = 'failed'
+
         db.upsert_episode(slug, episode_id,
-            status='failed',
+            status=new_status,
+            retry_count=new_retry_count,
             error_message=str(e))
 
         # Record processing history for failure
@@ -894,8 +1035,24 @@ def serve_episode(slug, episode_id):
             feed_logger.error(f"[{slug}:{episode_id}] Processed file missing")
             status = None
 
+    elif status == 'permanently_failed':
+        feed_logger.warning(f"[{slug}:{episode_id}] Episode permanently failed, not retrying")
+        return Response(
+            "Episode processing has permanently failed after multiple attempts",
+            status=410  # Gone - resource no longer available
+        )
+
     elif status == 'failed':
-        feed_logger.info(f"[{slug}:{episode_id}] Retrying failed episode")
+        retry_count = episode.get('retry_count', 0) or 0
+        if retry_count >= MAX_EPISODE_RETRIES:
+            # Mark as permanently failed
+            feed_logger.warning(f"[{slug}:{episode_id}] Max retries ({MAX_EPISODE_RETRIES}) exceeded, marking permanently failed")
+            db.upsert_episode(slug, episode_id, status='permanently_failed')
+            return Response(
+                "Episode processing has permanently failed after multiple attempts",
+                status=410
+            )
+        feed_logger.info(f"[{slug}:{episode_id}] Retrying failed episode (attempt {retry_count + 1}/{MAX_EPISODE_RETRIES})")
         status = None
 
     elif status == 'processing':
@@ -1007,6 +1164,11 @@ def _startup():
     refresh_thread = threading.Thread(target=background_rss_refresh, daemon=True)
     refresh_thread.start()
     logger.info("Started background refresh thread")
+
+    # Start background queue processor thread for auto-processing
+    queue_thread = threading.Thread(target=background_queue_processor, daemon=True)
+    queue_thread.start()
+    logger.info("Started auto-process queue processor thread")
 
     # Initial RSS refresh
     logger.info("Performing initial RSS refresh")

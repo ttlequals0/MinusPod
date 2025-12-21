@@ -135,18 +135,26 @@ class VolumeAnalyzer:
             timeout = max(300, int(total_duration / 60) * 60 + 120)
             logger.debug(f"Running ebur128 analysis with {timeout}s timeout")
 
+            # Don't use text=True - FFMPEG can output non-UTF-8 characters
+            # which would cause UnicodeDecodeError
             result = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=timeout
+                cmd, capture_output=True, timeout=timeout
             )
+
+            # Safely decode stderr, replacing any non-UTF-8 characters
+            try:
+                stderr_text = result.stderr.decode('utf-8', errors='replace')
+            except Exception:
+                stderr_text = str(result.stderr)[:10000]
 
             # Parse ebur128 output from stderr
             # Lines look like: [Parsed_ebur128_0 @ 0x...] t: 5.0    M: -23.5 S: -22.1 ...
-            raw_measurements = self._parse_ebur128_output(result.stderr)
+            raw_measurements = self._parse_ebur128_output(stderr_text)
 
             if not raw_measurements:
                 logger.warning("No ebur128 measurements found in output")
                 # Log ffmpeg return code and lines containing ebur128 data patterns
-                stderr_lines = result.stderr.split('\n')
+                stderr_lines = stderr_text.split('\n')
                 # Find lines that look like ebur128 output (contain "t:" and "M:")
                 ebur_lines = [l for l in stderr_lines if 't:' in l and 'M:' in l]
                 if ebur_lines:

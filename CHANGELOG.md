@@ -5,6 +5,105 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.150] - 2025-12-21
+
+### Fixed
+- **Volume Analyzer UTF-8 Encoding Bug**
+  - Fixed crash when FFMPEG ebur128 filter outputs non-UTF-8 characters
+  - Same fix as v0.1.146 but for the audio analysis volume measurement
+  - Root cause of "Single-pass loudness measurement failed" errors
+
+---
+
+## [0.1.149] - 2025-12-21
+
+### Added
+- **Clear Auto-Process Queue Endpoint**
+  - DELETE /api/v1/system/queue - clears all pending items from auto-process queue
+  - Useful for clearing backlog when queue was filled before 48-hour filter
+
+---
+
+## [0.1.148] - 2025-12-21
+
+### Fixed
+- **Episode Published Dates Now Show Correct Values**
+  - Previously, all episodes showed their database creation date as the published date
+  - Now stores and displays actual RSS pubDate (when episode was originally published)
+  - Added `published_at` column to episodes table
+  - API returns `published_at` with fallback to `created_at` for backward compatibility
+
+### Changed
+- **Auto-Process Queue**
+  - Queue now stores episode published date for passing through to processing
+  - Added `published_at` column to auto_process_queue table
+  - Reprocess endpoint now fetches and stores pubDate from RSS
+
+---
+
+## [0.1.147] - 2025-12-21
+
+### Fixed
+- **Auto-Process Only Recent Episodes**
+  - Now only queues episodes published within the last 48 hours
+  - Prevents processing entire backlog when adding new podcasts
+  - Parses RSS publish dates (RFC 2822 format) to determine recency
+
+- **Pagination UI Improvements**
+  - History page: Pagination now visible on mobile (moved outside desktop-only div)
+  - History/Patterns pages: Added page number buttons with ellipsis for quick navigation
+  - Example: 1 2 3 ... 10 for easier page jumping
+
+- **Episode Detail Header**
+  - Cleaner layout: Title + Edit button on first row
+  - Pass info and time saved on separate line below
+  - Less cluttered appearance on all screen sizes
+
+### Changed
+- **OpenAPI Documentation**
+  - Added missing PATCH /feeds/{slug} endpoint
+  - Added GET /system/queue endpoint for auto-process queue status
+  - Added autoProcessEnabled to Settings schema
+  - Added autoProcessOverride to Feed schema
+  - Added totalPages to history response
+  - Updated version to 0.1.147
+
+---
+
+## [0.1.146] - 2025-12-21
+
+### Added
+- **Auto-Process New Episodes**
+  - Global setting to automatically download and process new episodes when feeds refresh (default: ON)
+  - Per-podcast override (Use Global / Enable / Disable) in feed settings
+  - Background queue processor handles auto-processing one at a time
+  - New auto_process_queue table tracks pending auto-downloads
+
+- **Retry Limit for Failed Episodes**
+  - Episodes now track retry count (max 3 attempts)
+  - After 3 failures, episode marked as `permanently_failed` (HTTP 410)
+  - Manual reprocess resets retry counter
+
+### Fixed
+- **FFMPEG UTF-8 Encoding Bug**
+  - Fixed crash when FFMPEG outputs non-UTF-8 characters in stderr
+  - Now uses `errors='replace'` for safe decoding
+  - Root cause of stuck episodes that kept failing
+
+- **History Page Pagination**
+  - Backend now returns `totalPages` field
+  - Pagination controls work correctly
+
+### Changed
+- **Mobile UI Improvements**
+  - Patterns page: Card layout on mobile, pagination added (20 per page)
+  - History page: Card layout on mobile
+  - Feed Detail: Stacked settings layout on mobile, auto-process control added
+  - Episode Detail: Pencil icon on Edit Ads button, full-width action buttons
+  - All touch targets increased to 40px+ for mobile
+
+---
+
 ## [0.1.145] - 2025-12-20
 
 ### Changed
