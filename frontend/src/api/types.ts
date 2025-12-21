@@ -14,6 +14,7 @@ export interface Feed {
   daiPlatform?: string;
   networkIdOverride?: string | null;
   audioAnalysisOverride?: boolean | null;
+  autoProcessOverride?: boolean | null;
 }
 
 export interface Episode {
@@ -89,6 +90,7 @@ export interface Settings {
   multiPassEnabled: SettingValueBoolean;
   whisperModel: SettingValue;
   audioAnalysisEnabled: SettingValueBoolean;
+  autoProcessEnabled: SettingValueBoolean;
   retentionPeriodMinutes: number;
   defaults: {
     systemPrompt: string;
@@ -98,6 +100,7 @@ export interface Settings {
     multiPassEnabled: boolean;
     whisperModel: string;
     audioAnalysisEnabled: boolean;
+    autoProcessEnabled: boolean;
   };
 }
 
@@ -109,6 +112,7 @@ export interface UpdateSettingsPayload {
   multiPassEnabled?: boolean;
   whisperModel?: string;
   audioAnalysisEnabled?: boolean;
+  autoProcessEnabled?: boolean;
 }
 
 export interface ClaudeModel {

@@ -284,8 +284,12 @@ function EpisodeDetail() {
             {episode.status === 'completed' && episode.transcript && (
               <button
                 onClick={() => setShowEditor(!showEditor)}
-                className="px-3 py-1.5 text-sm bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 transition-colors"
+                className="flex items-center gap-2 px-3 py-1.5 text-sm bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 transition-colors"
               >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
                 {showEditor ? 'Hide Editor' : 'Edit Ads'}
               </button>
             )}
@@ -393,8 +397,8 @@ function EpisodeDetail() {
                   const correction = getAdCorrection(segment.start, segment.end);
                   return (
                     <>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <span className="font-mono text-sm">
                             {formatTimestamp(segment.start)} - {formatTimestamp(segment.end)}
                           </span>
@@ -424,7 +428,7 @@ function EpisodeDetail() {
                         <p className="text-sm text-muted-foreground mt-1">{segment.reason}</p>
                       )}
                       {!correction && (
-                        <div className="flex gap-2 mt-3">
+                        <div className="flex flex-col sm:flex-row gap-2 mt-3">
                           <button
                             onClick={() => handleCorrection({
                               type: 'confirm',
@@ -436,10 +440,10 @@ function EpisodeDetail() {
                               },
                             })}
                             disabled={correctionMutation.isPending}
-                            className={`px-3 py-1.5 text-xs rounded disabled:opacity-50 transition-colors ${
+                            className={`flex-1 sm:flex-none px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${
                               saveStatus === 'success' ? 'bg-green-700 text-white' :
                               saveStatus === 'error' ? 'bg-red-600 text-white' :
-                              'bg-green-600 hover:bg-green-700 text-white'
+                              'bg-green-600 hover:bg-green-700 active:bg-green-800 text-white'
                             }`}
                           >
                             {saveStatus === 'saving' ? 'Saving...' :
@@ -458,10 +462,10 @@ function EpisodeDetail() {
                               },
                             })}
                             disabled={correctionMutation.isPending}
-                            className={`px-3 py-1.5 text-xs rounded disabled:opacity-50 transition-colors ${
+                            className={`flex-1 sm:flex-none px-3 py-2 sm:py-1.5 text-sm sm:text-xs rounded disabled:opacity-50 transition-colors touch-manipulation min-h-[40px] sm:min-h-0 ${
                               saveStatus === 'success' ? 'bg-green-700 text-white' :
                               saveStatus === 'error' ? 'bg-red-600 text-white' :
-                              'bg-destructive hover:bg-destructive/90 text-destructive-foreground'
+                              'bg-destructive hover:bg-destructive/90 active:bg-destructive/80 text-destructive-foreground'
                             }`}
                           >
                             {saveStatus === 'saving' ? 'Saving...' :

@@ -214,10 +214,18 @@ class AudioProcessor:
             ]
 
             logger.info(f"Running FFMPEG to remove ads")
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+            # Use capture_output without text=True to get raw bytes
+            # FFMPEG can output non-UTF-8 characters (progress bars, special chars)
+            # which would cause UnicodeDecodeError if we used text=True
+            result = subprocess.run(cmd, capture_output=True, timeout=300)
 
             if result.returncode != 0:
-                logger.error(f"FFMPEG failed: {result.stderr}")
+                # Safely decode stderr, replacing any non-UTF-8 characters
+                try:
+                    stderr_text = result.stderr.decode('utf-8', errors='replace')
+                except Exception:
+                    stderr_text = str(result.stderr)[:500]
+                logger.error(f"FFMPEG failed: {stderr_text}")
                 return False
 
             # Verify output

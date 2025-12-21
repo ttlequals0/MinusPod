@@ -126,6 +126,7 @@ CREATE TABLE IF NOT EXISTS podcasts (
     dai_platform TEXT,
     network_id_override TEXT,
     audio_analysis_override TEXT,
+    auto_process_override TEXT,
     created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
@@ -138,7 +139,8 @@ CREATE TABLE IF NOT EXISTS episodes (
     original_url TEXT NOT NULL,
     title TEXT,
     description TEXT,
-    status TEXT DEFAULT 'pending' CHECK(status IN ('pending','processing','processed','failed')),
+    status TEXT DEFAULT 'pending' CHECK(status IN ('pending','processing','processed','failed','permanently_failed')),
+    retry_count INTEGER DEFAULT 0,
     processed_file TEXT,
     processed_at TEXT,
     original_duration REAL,
@@ -278,6 +280,25 @@ CREATE TABLE IF NOT EXISTS processing_history (
 CREATE INDEX IF NOT EXISTS idx_history_processed_at ON processing_history(processed_at DESC);
 CREATE INDEX IF NOT EXISTS idx_history_podcast_episode ON processing_history(podcast_id, episode_id);
 CREATE INDEX IF NOT EXISTS idx_history_status ON processing_history(status);
+
+-- auto_process_queue table (queue for automatic episode processing)
+CREATE TABLE IF NOT EXISTS auto_process_queue (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    podcast_id INTEGER NOT NULL,
+    episode_id TEXT NOT NULL,
+    original_url TEXT NOT NULL,
+    title TEXT,
+    status TEXT DEFAULT 'pending' CHECK(status IN ('pending','processing','completed','failed')),
+    attempts INTEGER DEFAULT 0,
+    error_message TEXT,
+    created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE,
+    UNIQUE(podcast_id, episode_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_queue_status ON auto_process_queue(status);
+CREATE INDEX IF NOT EXISTS idx_queue_created ON auto_process_queue(created_at);
 
 CREATE INDEX IF NOT EXISTS idx_podcasts_slug ON podcasts(slug);
 CREATE INDEX IF NOT EXISTS idx_episodes_podcast_id ON episodes(podcast_id);
@@ -752,6 +773,59 @@ class Database:
             except Exception as e:
                 logger.error(f"Migration failed for podcasts created_at: {e}")
 
+        # Migration: Add auto_process_override column to podcasts if missing
+        if 'auto_process_override' not in podcasts_columns:
+            try:
+                conn.execute("""
+                    ALTER TABLE podcasts
+                    ADD COLUMN auto_process_override TEXT
+                """)
+                conn.commit()
+                logger.info("Migration: Added auto_process_override column to podcasts table")
+            except Exception as e:
+                logger.error(f"Migration failed for auto_process_override: {e}")
+
+        # Refresh episodes columns for retry_count migration
+        cursor = conn.execute("PRAGMA table_info(episodes)")
+        columns = [row['name'] for row in cursor.fetchall()]
+
+        # Migration: Add retry_count column to episodes if missing
+        if 'retry_count' not in columns:
+            try:
+                conn.execute("""
+                    ALTER TABLE episodes
+                    ADD COLUMN retry_count INTEGER DEFAULT 0
+                """)
+                conn.commit()
+                logger.info("Migration: Added retry_count column to episodes table")
+            except Exception as e:
+                logger.error(f"Migration failed for retry_count: {e}")
+
+        # Migration: Create auto_process_queue table if not exists
+        try:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS auto_process_queue (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    podcast_id INTEGER NOT NULL,
+                    episode_id TEXT NOT NULL,
+                    original_url TEXT NOT NULL,
+                    title TEXT,
+                    status TEXT DEFAULT 'pending' CHECK(status IN ('pending','processing','completed','failed')),
+                    attempts INTEGER DEFAULT 0,
+                    error_message TEXT,
+                    created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                    updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                    FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE,
+                    UNIQUE(podcast_id, episode_id)
+                )
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_queue_status ON auto_process_queue(status)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_queue_created ON auto_process_queue(created_at)")
+            conn.commit()
+            logger.info("Migration: Created auto_process_queue table")
+        except Exception as e:
+            logger.debug(f"auto_process_queue table creation (may already exist): {e}")
+
         # Create new indexes for podcasts table (will fail silently if already exist)
         try:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_podcasts_network_id ON podcasts(network_id)")
@@ -936,6 +1010,13 @@ class Database:
                 (key, value)
             )
 
+        # Auto-process new episodes (enabled by default)
+        conn.execute(
+            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
+               ON CONFLICT(key) DO NOTHING""",
+            ('auto_process_enabled', 'true')
+        )
+
         conn.commit()
         logger.info("Default settings seeded")
 
@@ -995,7 +1076,7 @@ class Database:
         for key, value in kwargs.items():
             if key in ('title', 'description', 'artwork_url', 'artwork_cached',
                        'last_checked_at', 'source_url', 'network_id', 'dai_platform',
-                       'network_id_override', 'audio_analysis_override'):
+                       'network_id_override', 'audio_analysis_override', 'auto_process_override'):
                 fields.append(f"{key} = ?")
                 values.append(value)
 
@@ -1145,7 +1226,7 @@ class Database:
                                'processed_at', 'original_duration', 'new_duration',
                                'ads_removed', 'ads_removed_firstpass', 'ads_removed_secondpass',
                                'error_message', 'ad_detection_status', 'artwork_url',
-                               'reprocess_mode', 'reprocess_requested_at'):
+                               'reprocess_mode', 'reprocess_requested_at', 'retry_count'):
                         fields.append(f"{key} = ?")
                         values.append(value)
 
@@ -1164,8 +1245,8 @@ class Database:
                    (podcast_id, episode_id, original_url, title, description, status,
                     processed_file, processed_at, original_duration,
                     new_duration, ads_removed, ads_removed_firstpass, ads_removed_secondpass,
-                    error_message, ad_detection_status, artwork_url)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    error_message, ad_detection_status, artwork_url, retry_count)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     podcast_id,
                     episode_id,
@@ -1182,7 +1263,8 @@ class Database:
                     kwargs.get('ads_removed_secondpass', 0),
                     kwargs.get('error_message'),
                     kwargs.get('ad_detection_status'),
-                    kwargs.get('artwork_url')
+                    kwargs.get('artwork_url'),
+                    kwargs.get('retry_count', 0)
                 )
             )
             db_id = cursor.lastrowid
@@ -1331,12 +1413,13 @@ class Database:
                    new_duration = NULL,
                    ads_removed = NULL,
                    error_message = NULL,
+                   retry_count = 0,
                    updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
                WHERE podcast_id = ? AND episode_id = ?""",
             (podcast['id'], episode_id)
         )
         conn.commit()
-        logger.debug(f"[{slug}:{episode_id}] Reset episode status to pending")
+        logger.debug(f"[{slug}:{episode_id}] Reset episode status to pending (retry_count reset)")
 
     # ========== Settings Methods ==========
 
@@ -2463,3 +2546,125 @@ class Database:
         )
 
         return [dict(row) for row in cursor.fetchall()]
+
+    # ========== Auto-Process Queue Methods ==========
+
+    def is_auto_process_enabled(self) -> bool:
+        """Check if auto-process is enabled globally."""
+        setting = self.get_setting('auto_process_enabled')
+        return setting == 'true' if setting else True  # Default to enabled
+
+    def is_auto_process_enabled_for_podcast(self, slug: str) -> bool:
+        """Check if auto-process is enabled for a specific podcast.
+
+        Returns: True if enabled (considering both global and podcast-level settings)
+        """
+        # Check global setting first
+        global_enabled = self.is_auto_process_enabled()
+
+        # Get podcast-level override
+        podcast = self.get_podcast_by_slug(slug)
+        if not podcast:
+            return global_enabled
+
+        override = podcast.get('auto_process_override')
+        if override == 'true':
+            return True
+        elif override == 'false':
+            return False
+        else:
+            # No override, use global setting
+            return global_enabled
+
+    def queue_episode_for_processing(self, slug: str, episode_id: str,
+                                      original_url: str, title: str = None) -> Optional[int]:
+        """Add an episode to the auto-process queue. Returns queue ID or None if already queued."""
+        conn = self.get_connection()
+
+        # Get podcast ID
+        podcast = self.get_podcast_by_slug(slug)
+        if not podcast:
+            logger.error(f"Cannot queue episode: podcast not found: {slug}")
+            return None
+
+        podcast_id = podcast['id']
+
+        try:
+            cursor = conn.execute(
+                """INSERT INTO auto_process_queue
+                   (podcast_id, episode_id, original_url, title)
+                   VALUES (?, ?, ?, ?)
+                   ON CONFLICT(podcast_id, episode_id) DO NOTHING""",
+                (podcast_id, episode_id, original_url, title)
+            )
+            conn.commit()
+            return cursor.lastrowid if cursor.rowcount > 0 else None
+        except Exception as e:
+            logger.error(f"Failed to queue episode for processing: {e}")
+            return None
+
+    def get_next_queued_episode(self) -> Optional[Dict]:
+        """Get the next pending episode from the queue (FIFO order)."""
+        conn = self.get_connection()
+        cursor = conn.execute(
+            """SELECT q.*, p.slug as podcast_slug, p.title as podcast_title
+               FROM auto_process_queue q
+               JOIN podcasts p ON q.podcast_id = p.id
+               WHERE q.status = 'pending'
+               ORDER BY q.created_at ASC
+               LIMIT 1"""
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+    def update_queue_status(self, queue_id: int, status: str,
+                            error_message: str = None) -> bool:
+        """Update the status of a queued episode."""
+        conn = self.get_connection()
+        if error_message:
+            conn.execute(
+                """UPDATE auto_process_queue SET
+                   status = ?,
+                   error_message = ?,
+                   attempts = attempts + 1,
+                   updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+                   WHERE id = ?""",
+                (status, error_message, queue_id)
+            )
+        else:
+            conn.execute(
+                """UPDATE auto_process_queue SET
+                   status = ?,
+                   updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+                   WHERE id = ?""",
+                (status, queue_id)
+            )
+        conn.commit()
+        return True
+
+    def get_queue_status(self) -> Dict:
+        """Get auto-process queue status summary."""
+        conn = self.get_connection()
+        cursor = conn.execute(
+            """SELECT
+               COUNT(*) FILTER (WHERE status = 'pending') as pending,
+               COUNT(*) FILTER (WHERE status = 'processing') as processing,
+               COUNT(*) FILTER (WHERE status = 'completed') as completed,
+               COUNT(*) FILTER (WHERE status = 'failed') as failed,
+               COUNT(*) as total
+               FROM auto_process_queue"""
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else {'pending': 0, 'processing': 0, 'completed': 0, 'failed': 0, 'total': 0}
+
+    def clear_completed_queue_items(self, older_than_hours: int = 24) -> int:
+        """Clear completed queue items older than specified hours. Returns count deleted."""
+        conn = self.get_connection()
+        cutoff = (datetime.utcnow() - timedelta(hours=older_than_hours)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        cursor = conn.execute(
+            """DELETE FROM auto_process_queue
+               WHERE status = 'completed' AND updated_at < ?""",
+            (cutoff,)
+        )
+        conn.commit()
+        return cursor.rowcount

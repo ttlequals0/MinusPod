@@ -83,6 +83,10 @@ def log_request_detailed(f):
     return decorated
 
 
+# Maximum retry attempts for failed episodes before marking as permanently_failed
+MAX_EPISODE_RETRIES = 3
+
+
 # Initialize Flask app
 app = Flask(__name__)
 
@@ -225,6 +229,23 @@ def refresh_rss_feed(slug: str, feed_url: str):
             if artwork_url:
                 storage.download_artwork(slug, artwork_url)
 
+        # Queue new episodes for auto-processing if enabled
+        if db.is_auto_process_enabled_for_podcast(slug):
+            episodes = rss_parser.extract_episodes(feed_content)
+            queued_count = 0
+            for ep in episodes:
+                # Check if episode already exists in database
+                existing = db.get_episode(slug, ep['id'])
+                if existing is None:
+                    # New episode - queue for processing
+                    queue_id = db.queue_episode_for_processing(
+                        slug, ep['id'], ep['url'], ep.get('title')
+                    )
+                    if queue_id:
+                        queued_count += 1
+            if queued_count > 0:
+                refresh_logger.info(f"[{slug}] Queued {queued_count} new episode(s) for auto-processing")
+
         # Modify feed URLs
         modified_rss = rss_parser.modify_feed(feed_content, slug)
 
@@ -300,6 +321,79 @@ def background_rss_refresh():
         refresh_all_feeds()
         run_cleanup()
         time.sleep(900)  # 15 minutes
+
+
+def background_queue_processor():
+    """Background task to process queued episodes for auto-processing."""
+    refresh_logger.info("Auto-process queue processor started")
+    while True:
+        try:
+            # Get next queued episode
+            queued = db.get_next_queued_episode()
+
+            if queued:
+                queue_id = queued['id']
+                slug = queued['podcast_slug']
+                episode_id = queued['episode_id']
+                original_url = queued['original_url']
+                title = queued.get('title', 'Unknown')
+                podcast_name = queued.get('podcast_title', slug)
+
+                refresh_logger.info(f"[{slug}:{episode_id}] Auto-processing queued episode: {title}")
+
+                # Mark as processing
+                db.update_queue_status(queue_id, 'processing')
+
+                try:
+                    # Try to start background processing using the existing queue
+                    started, reason = start_background_processing(
+                        slug, episode_id, original_url, title, podcast_name, None, None
+                    )
+
+                    if started:
+                        # Wait for processing to complete (poll status)
+                        max_wait = 600  # 10 minutes max
+                        waited = 0
+                        while waited < max_wait:
+                            time.sleep(10)
+                            waited += 10
+                            episode = db.get_episode(slug, episode_id)
+                            if episode and episode['status'] in ('processed', 'failed', 'permanently_failed'):
+                                break
+
+                        # Check final status
+                        episode = db.get_episode(slug, episode_id)
+                        if episode and episode['status'] == 'processed':
+                            db.update_queue_status(queue_id, 'completed')
+                            refresh_logger.info(f"[{slug}:{episode_id}] Auto-process completed successfully")
+                        else:
+                            error_msg = episode.get('error_message', 'Processing failed') if episode else 'Unknown error'
+                            db.update_queue_status(queue_id, 'failed', error_msg)
+                            refresh_logger.warning(f"[{slug}:{episode_id}] Auto-process failed: {error_msg}")
+                    elif reason == "already_processing":
+                        # Episode is already being processed, wait and check again
+                        refresh_logger.info(f"[{slug}:{episode_id}] Already processing, waiting...")
+                        time.sleep(30)
+                    else:
+                        # Queue is busy with another episode, try again later
+                        db.update_queue_status(queue_id, 'pending')  # Put back in queue
+                        refresh_logger.debug(f"[{slug}:{episode_id}] Queue busy, will retry later")
+                        time.sleep(30)
+
+                except Exception as e:
+                    db.update_queue_status(queue_id, 'failed', str(e))
+                    refresh_logger.error(f"[{slug}:{episode_id}] Auto-process error: {e}")
+
+            else:
+                # No queued episodes, wait before checking again
+                time.sleep(30)
+
+            # Periodically clean up completed queue items
+            db.clear_completed_queue_items(older_than_hours=24)
+
+        except Exception as e:
+            refresh_logger.error(f"Queue processor error: {e}")
+            time.sleep(60)  # Wait before retrying on error
 
 
 def reset_stuck_processing_episodes():
@@ -711,10 +805,23 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
         processing_time = time.time() - start_time
         audio_logger.error(f"[{slug}:{episode_id}] Failed: {e} ({processing_time:.1f}s)")
 
-        # Update status to failed
+        # Update status to failed with retry count
         status_service.fail_job()
+
+        # Get current retry count and increment
+        current_retry = (episode_data.get('retry_count', 0) or 0) if episode_data else 0
+        new_retry_count = current_retry + 1
+
+        # Determine if permanently failed
+        if new_retry_count >= MAX_EPISODE_RETRIES:
+            new_status = 'permanently_failed'
+            audio_logger.warning(f"[{slug}:{episode_id}] Max retries reached ({MAX_EPISODE_RETRIES}), marking as permanently failed")
+        else:
+            new_status = 'failed'
+
         db.upsert_episode(slug, episode_id,
-            status='failed',
+            status=new_status,
+            retry_count=new_retry_count,
             error_message=str(e))
 
         # Record processing history for failure
@@ -894,8 +1001,24 @@ def serve_episode(slug, episode_id):
             feed_logger.error(f"[{slug}:{episode_id}] Processed file missing")
             status = None
 
+    elif status == 'permanently_failed':
+        feed_logger.warning(f"[{slug}:{episode_id}] Episode permanently failed, not retrying")
+        return Response(
+            "Episode processing has permanently failed after multiple attempts",
+            status=410  # Gone - resource no longer available
+        )
+
     elif status == 'failed':
-        feed_logger.info(f"[{slug}:{episode_id}] Retrying failed episode")
+        retry_count = episode.get('retry_count', 0) or 0
+        if retry_count >= MAX_EPISODE_RETRIES:
+            # Mark as permanently failed
+            feed_logger.warning(f"[{slug}:{episode_id}] Max retries ({MAX_EPISODE_RETRIES}) exceeded, marking permanently failed")
+            db.upsert_episode(slug, episode_id, status='permanently_failed')
+            return Response(
+                "Episode processing has permanently failed after multiple attempts",
+                status=410
+            )
+        feed_logger.info(f"[{slug}:{episode_id}] Retrying failed episode (attempt {retry_count + 1}/{MAX_EPISODE_RETRIES})")
         status = None
 
     elif status == 'processing':
@@ -1007,6 +1130,11 @@ def _startup():
     refresh_thread = threading.Thread(target=background_rss_refresh, daemon=True)
     refresh_thread.start()
     logger.info("Started background refresh thread")
+
+    # Start background queue processor thread for auto-processing
+    queue_thread = threading.Thread(target=background_queue_processor, daemon=True)
+    queue_thread.start()
+    logger.info("Started auto-process queue processor thread")
 
     # Initial RSS refresh
     logger.info("Performing initial RSS refresh")

@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.146] - 2025-12-21
+
+### Added
+- **Auto-Process New Episodes**
+  - Global setting to automatically download and process new episodes when feeds refresh (default: ON)
+  - Per-podcast override (Use Global / Enable / Disable) in feed settings
+  - Background queue processor handles auto-processing one at a time
+  - New auto_process_queue table tracks pending auto-downloads
+
+- **Retry Limit for Failed Episodes**
+  - Episodes now track retry count (max 3 attempts)
+  - After 3 failures, episode marked as `permanently_failed` (HTTP 410)
+  - Manual reprocess resets retry counter
+
+### Fixed
+- **FFMPEG UTF-8 Encoding Bug**
+  - Fixed crash when FFMPEG outputs non-UTF-8 characters in stderr
+  - Now uses `errors='replace'` for safe decoding
+  - Root cause of stuck episodes that kept failing
+
+- **History Page Pagination**
+  - Backend now returns `totalPages` field
+  - Pagination controls work correctly
+
+### Changed
+- **Mobile UI Improvements**
+  - Patterns page: Card layout on mobile, pagination added (20 per page)
+  - History page: Card layout on mobile
+  - Feed Detail: Stacked settings layout on mobile, auto-process control added
+  - Episode Detail: Pencil icon on Edit Ads button, full-width action buttons
+  - All touch targets increased to 40px+ for mobile
+
+---
+
 ## [0.1.145] - 2025-12-20
 
 ### Changed

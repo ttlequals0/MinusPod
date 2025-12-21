@@ -280,6 +280,14 @@ def get_feed(slug):
     elif audio_override_value == 'false':
         audio_override_result = False
 
+    # Convert auto_process_override from string to boolean/null
+    auto_process_override_value = podcast.get('auto_process_override')
+    auto_process_override_result = None
+    if auto_process_override_value == 'true':
+        auto_process_override_result = True
+    elif auto_process_override_value == 'false':
+        auto_process_override_result = False
+
     return json_response({
         'slug': podcast['slug'],
         'title': podcast['title'] or podcast['slug'],
@@ -293,7 +301,8 @@ def get_feed(slug):
         'networkId': podcast.get('network_id'),
         'daiPlatform': podcast.get('dai_platform'),
         'networkIdOverride': podcast.get('network_id_override'),
-        'audioAnalysisOverride': audio_override_result
+        'audioAnalysisOverride': audio_override_result,
+        'autoProcessOverride': auto_process_override_result
     })
 
 
@@ -334,6 +343,16 @@ def update_feed(slug):
             updates['audio_analysis_override'] = 'true'
         elif override_value is False:
             updates['audio_analysis_override'] = 'false'
+
+    # Handle auto-process override specially (can be null, true, or false)
+    if 'autoProcessOverride' in data:
+        override_value = data['autoProcessOverride']
+        if override_value is None:
+            updates['auto_process_override'] = None
+        elif override_value is True:
+            updates['auto_process_override'] = 'true'
+        elif override_value is False:
+            updates['auto_process_override'] = 'false'
 
     if not updates:
         return error_response('No valid fields to update', 400)
@@ -903,9 +922,11 @@ def get_processing_history():
             'reprocessNumber': entry['reprocess_number']
         })
 
+    import math
     return json_response({
         'history': history,
         'total': total_count,
+        'totalPages': math.ceil(total_count / limit) if total_count > 0 else 1,
         'limit': limit,
         'offset': offset
     })
@@ -1020,6 +1041,10 @@ def get_settings():
     audio_analysis_value = settings.get('audio_analysis_enabled', {}).get('value', 'false')
     audio_analysis_enabled = audio_analysis_value.lower() in ('true', '1', 'yes')
 
+    # Get auto-process setting (defaults to true)
+    auto_process_value = settings.get('auto_process_enabled', {}).get('value', 'true')
+    auto_process_enabled = auto_process_value.lower() in ('true', '1', 'yes')
+
     return json_response({
         'systemPrompt': {
             'value': settings.get('system_prompt', {}).get('value', DEFAULT_SYSTEM_PROMPT),
@@ -1049,6 +1074,10 @@ def get_settings():
             'value': audio_analysis_enabled,
             'isDefault': settings.get('audio_analysis_enabled', {}).get('is_default', True)
         },
+        'autoProcessEnabled': {
+            'value': auto_process_enabled,
+            'isDefault': settings.get('auto_process_enabled', {}).get('is_default', True)
+        },
         'retentionPeriodMinutes': int(os.environ.get('RETENTION_PERIOD') or settings.get('retention_period_minutes', {}).get('value', '1440')),
         'defaults': {
             'systemPrompt': DEFAULT_SYSTEM_PROMPT,
@@ -1057,7 +1086,8 @@ def get_settings():
             'secondPassModel': DEFAULT_MODEL,
             'multiPassEnabled': False,
             'whisperModel': default_whisper_model,
-            'audioAnalysisEnabled': False
+            'audioAnalysisEnabled': False,
+            'autoProcessEnabled': True
         }
     })
 
@@ -1108,6 +1138,11 @@ def update_ad_detection_settings():
         value = 'true' if data['audioAnalysisEnabled'] else 'false'
         db.set_setting('audio_analysis_enabled', value, is_default=False)
         logger.info(f"Updated audio analysis to: {value}")
+
+    if 'autoProcessEnabled' in data:
+        value = 'true' if data['autoProcessEnabled'] else 'false'
+        db.set_setting('auto_process_enabled', value, is_default=False)
+        logger.info(f"Updated auto-process to: {value}")
 
     return json_response({'message': 'Settings updated'})
 
@@ -1265,6 +1300,22 @@ def trigger_cleanup():
         'message': 'All episodes deleted',
         'episodesRemoved': deleted_count,
         'spaceFreedMb': round(freed_mb, 2)
+    })
+
+
+@api.route('/system/queue', methods=['GET'])
+@log_request
+def get_queue_status():
+    """Get auto-process queue status."""
+    db = get_database()
+    queue_stats = db.get_queue_status()
+
+    return json_response({
+        'pending': queue_stats.get('pending', 0),
+        'processing': queue_stats.get('processing', 0),
+        'completed': queue_stats.get('completed', 0),
+        'failed': queue_stats.get('failed', 0),
+        'total': queue_stats.get('total', 0)
     })
 
 
@@ -1927,12 +1978,15 @@ def reprocess_episode_with_mode(slug, episode_id):
     # Reset episode status to pending for reprocessing
     # Store reprocess_mode in the episode so processing can use it
     # Store reprocess_requested_at for priority queue ordering
+    # Reset retry_count to allow fresh attempts
     from datetime import datetime
     db.upsert_episode(
         slug, episode_id,
         status='pending',
         reprocess_mode=mode,
-        reprocess_requested_at=datetime.utcnow().isoformat() + 'Z'
+        reprocess_requested_at=datetime.utcnow().isoformat() + 'Z',
+        retry_count=0,
+        error_message=None
     )
 
     logger.info(f"[{slug}:{episode_id}] Marked for {mode} reprocessing (prioritized)")

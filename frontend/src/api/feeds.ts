@@ -62,6 +62,7 @@ export interface UpdateFeedPayload {
   daiPlatform?: string;
   networkIdOverride?: string | null;  // Network ID override, or null to clear
   audioAnalysisOverride?: boolean | null;  // Audio analysis override: true=enable, false=disable, null=use global
+  autoProcessOverride?: boolean | null;  // Auto-process override: true=enable, false=disable, null=use global
 }
 
 export interface Network {

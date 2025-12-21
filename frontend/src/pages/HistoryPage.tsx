@@ -207,8 +207,56 @@ function HistoryPage() {
         )}
       </div>
 
-      {/* Table */}
-      <div className="bg-card border border-border rounded-lg overflow-hidden">
+      {/* Mobile Card Layout */}
+      <div className="sm:hidden space-y-3 mb-4">
+        {history.length === 0 ? (
+          <div className="bg-card rounded-lg border border-border p-8 text-center text-muted-foreground">
+            No processing history found
+          </div>
+        ) : (
+          history.map((entry: ProcessingHistoryEntry) => (
+            <div key={entry.id} className="bg-card rounded-lg border border-border p-4">
+              <div className="flex items-center justify-between mb-2">
+                <Link
+                  to={`/feeds/${entry.podcastSlug}`}
+                  className="text-primary hover:underline text-sm font-medium truncate max-w-[200px]"
+                  title={entry.podcastTitle}
+                >
+                  {entry.podcastTitle}
+                </Link>
+                {entry.status === 'completed' ? (
+                  <span className="px-2 py-0.5 text-xs rounded bg-green-500/20 text-green-600 dark:text-green-400">
+                    Completed
+                  </span>
+                ) : (
+                  <span
+                    className="px-2 py-0.5 text-xs rounded bg-red-500/20 text-red-600 dark:text-red-400 cursor-help"
+                    title={entry.errorMessage || 'Processing failed'}
+                  >
+                    Failed
+                  </span>
+                )}
+              </div>
+              <Link
+                to={`/feeds/${entry.podcastSlug}/episodes/${entry.episodeId}`}
+                className="text-primary hover:underline text-sm block truncate mb-3"
+                title={entry.episodeTitle}
+              >
+                {entry.episodeTitle}
+              </Link>
+              <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                <span>{formatDate(entry.processedAt)}</span>
+                <span>{formatDuration(entry.processingDurationSeconds)}</span>
+                <span>Ads: {entry.adsDetected}</span>
+                {entry.reprocessNumber > 1 && <span>#{entry.reprocessNumber}</span>}
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Desktop Table Layout */}
+      <div className="hidden sm:block bg-card border border-border rounded-lg overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-muted/50">
@@ -220,9 +268,9 @@ function HistoryPage() {
                   Episode
                 </th>
                 <SortHeader field="processedAt" label="Processed" />
-                <SortHeader field="processingDurationSeconds" label="Duration" className="hidden sm:table-cell" />
+                <SortHeader field="processingDurationSeconds" label="Duration" className="hidden md:table-cell" />
                 <SortHeader field="adsDetected" label="Ads" />
-                <SortHeader field="reprocessNumber" label="Reprocess #" className="hidden sm:table-cell" />
+                <SortHeader field="reprocessNumber" label="Reprocess #" className="hidden md:table-cell" />
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Status
                 </th>
@@ -259,13 +307,13 @@ function HistoryPage() {
                     <td className="px-4 py-3 text-sm text-muted-foreground whitespace-nowrap">
                       {formatDate(entry.processedAt)}
                     </td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground hidden sm:table-cell">
+                    <td className="px-4 py-3 text-sm text-muted-foreground hidden md:table-cell">
                       {formatDuration(entry.processingDurationSeconds)}
                     </td>
                     <td className="px-4 py-3 text-sm text-foreground">
                       {entry.adsDetected}
                     </td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground hidden sm:table-cell">
+                    <td className="px-4 py-3 text-sm text-muted-foreground hidden md:table-cell">
                       {entry.reprocessNumber > 1 ? `#${entry.reprocessNumber}` : '-'}
                     </td>
                     <td className="px-4 py-3">
