@@ -118,6 +118,21 @@ export function TranscriptEditor({
   const audioRef = useRef<HTMLAudioElement>(null);
   const transcriptRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const startInputRef = useRef<HTMLInputElement>(null);
+  const endInputRef = useRef<HTMLInputElement>(null);
+
+  // Restore focus after state change re-render (fixes mobile keyboard dismissal)
+  useEffect(() => {
+    if (isEditingStart && startInputRef.current) {
+      startInputRef.current.focus();
+    }
+  }, [isEditingStart]);
+
+  useEffect(() => {
+    if (isEditingEnd && endInputRef.current) {
+      endInputRef.current.focus();
+    }
+  }, [isEditingEnd]);
   const progressBarRef = useRef<HTMLDivElement>(null);
 
   // Haptic feedback helper
@@ -661,13 +676,16 @@ export function TranscriptEditor({
                   <ChevronLeft className="w-5 h-5 sm:w-4 sm:h-4" />
                 </button>
                 <input
+                  ref={startInputRef}
                   type="text"
+                  inputMode="decimal"
                   value={isEditingStart ? startInputValue : formatTime(adjustedStart)}
                   onChange={(e) => setStartInputValue(e.target.value)}
                   onFocus={(e) => {
-                    setIsEditingStart(true);
                     setStartInputValue(formatTime(adjustedStart));
-                    e.target.select();
+                    setIsEditingStart(true);
+                    // Selection happens after focus restoration in useEffect
+                    setTimeout(() => e.target.select(), 0);
                   }}
                   onBlur={() => {
                     const parsed = parseTimeInput(startInputValue, segments[segments.length - 1]?.end || 0);
@@ -704,13 +722,16 @@ export function TranscriptEditor({
                   <ChevronLeft className="w-5 h-5 sm:w-4 sm:h-4" />
                 </button>
                 <input
+                  ref={endInputRef}
                   type="text"
+                  inputMode="decimal"
                   value={isEditingEnd ? endInputValue : formatTime(adjustedEnd)}
                   onChange={(e) => setEndInputValue(e.target.value)}
                   onFocus={(e) => {
-                    setIsEditingEnd(true);
                     setEndInputValue(formatTime(adjustedEnd));
-                    e.target.select();
+                    setIsEditingEnd(true);
+                    // Selection happens after focus restoration in useEffect
+                    setTimeout(() => e.target.select(), 0);
                   }}
                   onBlur={() => {
                     const parsed = parseTimeInput(endInputValue, segments[segments.length - 1]?.end || 0);

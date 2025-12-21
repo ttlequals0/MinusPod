@@ -6,6 +6,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.160] - 2025-12-21
+
+### Fixed
+- **Transcript Editor Mobile Keyboard Bug**
+  - Fixed keyboard dismissing when typing in time input fields on mobile
+  - Added refs and useEffect to restore focus after state change re-renders
+  - Added `inputMode="decimal"` for numeric keypad on mobile
+  - Reordered onFocus logic to set value before editing state for smoother UX
+
+---
+
 ## [0.1.159] - 2025-12-21
 
 ### Added
