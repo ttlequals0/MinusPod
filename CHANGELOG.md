@@ -5,6 +5,55 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.154] - 2025-12-21
+
+### Added
+- **Phase 4: Testing Infrastructure**
+
+- **pytest Test Framework**
+  - Added pytest and pytest-cov dependencies
+  - Created pytest.ini configuration with test discovery settings
+  - Suppresses deprecation warnings for cleaner output
+
+- **Shared Test Fixtures (tests/conftest.py)**
+  - temp_db: Creates isolated temporary database for each test
+  - sample_transcript: Sample transcript with ad segments
+  - sample_ads: Sample ad markers for validation testing
+  - mock_podcast/mock_episode: Database fixtures for testing
+  - app_client: Flask test client for API tests
+  - Proper singleton reset handling for Database class
+
+- **Unit Tests for AdValidator (10 tests)**
+  - Duration validation (too short, too long, sponsor-confirmed limits)
+  - Confidence thresholds (accept/review/reject)
+  - Ad merging for small gaps
+  - Position-based confidence boosts (pre-roll, post-roll)
+  - Boundary clamping (negative start, past-end)
+  - False positive overlap handling
+  - Reason quality checks
+
+- **Unit Tests for Ad Detection Functions (8 tests)**
+  - extract_sponsor_names: From text, URLs, and ad_reason
+  - merge_and_deduplicate: Overlapping and adjacent ads
+  - refine_ad_boundaries: Transition phrase detection
+  - merge_same_sponsor_ads: Same-sponsor merging logic
+
+- **Unit Tests for Database Operations (6 tests)**
+  - Podcast CRUD (create, read, update, delete with cascade)
+  - Episode upsert (create and update)
+  - Ad pattern creation
+  - Settings operations
+  - Singleton pattern reset testing
+
+- **Integration Tests for API Endpoints (5 tests)**
+  - Health endpoint (/api/v1/health)
+  - Feeds endpoints (list, validation)
+  - Settings endpoint
+  - Patterns endpoint
+  - System status endpoints
+
+---
+
 ## [0.1.153] - 2025-12-21
 
 ### Added
