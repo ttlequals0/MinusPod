@@ -517,7 +517,8 @@ def get_feed(slug):
         'daiPlatform': podcast.get('dai_platform'),
         'networkIdOverride': podcast.get('network_id_override'),
         'audioAnalysisOverride': audio_override_result,
-        'autoProcessOverride': auto_process_override_result
+        'autoProcessOverride': auto_process_override_result,
+        'skipSecondPass': bool(podcast.get('skip_second_pass', 0))
     })
 
 
@@ -569,6 +570,10 @@ def update_feed(slug):
         elif override_value is False:
             updates['auto_process_override'] = 'false'
 
+    # Handle skip second pass (boolean stored as integer)
+    if 'skipSecondPass' in data:
+        updates['skip_second_pass'] = 1 if data['skipSecondPass'] else 0
+
     if not updates:
         return error_response('No valid fields to update', 400)
 
@@ -599,6 +604,7 @@ def update_feed(slug):
             'daiPlatform': podcast.get('dai_platform'),
             'networkIdOverride': podcast.get('network_id_override'),
             'audioAnalysisOverride': audio_override_result,
+            'skipSecondPass': bool(podcast.get('skip_second_pass', 0)),
             'feedUrl': f"{base_url}/{slug}"
         })
     except Exception as e:

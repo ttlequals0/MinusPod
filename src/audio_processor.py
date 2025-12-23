@@ -99,8 +99,8 @@ class AudioProcessor:
 
             for ad in sorted_segments:
                 if current_segment and ad['start'] - current_segment['end'] < 1.0:
-                    # Extend current segment
-                    current_segment['end'] = ad['end']
+                    # Extend current segment (use max to handle overlapping/contained ads)
+                    current_segment['end'] = max(current_segment['end'], ad['end'])
                     if 'reason' in ad:
                         current_segment['reason'] = current_segment.get('reason', '') + '; ' + ad['reason']
                 else:

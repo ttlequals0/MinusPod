@@ -6,6 +6,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.165] - 2025-12-23
+
+### Added
+- **Per-Podcast Second Pass Toggle**
+  - New `skipSecondPass` setting for podcasts that discuss products (tech shows, etc.)
+  - Second pass detection was too aggressive for shows like Windows Weekly
+  - Prevents false positives where product discussions are flagged as "subtle ads"
+  - Toggle via API: `PATCH /api/v1/feeds/{slug}` with `{"skipSecondPass": true}`
+  - Setting is logged during processing: "Second pass skipped (podcast setting)"
+
+### Fixed
+- **Ad Merge Bug for Overlapping Segments**
+  - Fixed bug where overlapping/contained ads would shrink instead of extend
+  - Example: Ad A (100-300s) + Ad B (150-200s) now correctly merges to 100-300s
+  - Previously would incorrectly shrink to 100-200s, causing audio artifacts
+
+---
+
 ## [0.1.164] - 2025-12-21
 
 ### Changed

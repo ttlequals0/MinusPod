@@ -127,6 +127,7 @@ CREATE TABLE IF NOT EXISTS podcasts (
     network_id_override TEXT,
     audio_analysis_override TEXT,
     auto_process_override TEXT,
+    skip_second_pass INTEGER DEFAULT 0,
     created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
@@ -796,6 +797,18 @@ class Database:
                 logger.info("Migration: Added auto_process_override column to podcasts table")
             except Exception as e:
                 logger.error(f"Migration failed for auto_process_override: {e}")
+
+        # Migration: Add skip_second_pass column to podcasts if missing
+        if 'skip_second_pass' not in podcasts_columns:
+            try:
+                conn.execute("""
+                    ALTER TABLE podcasts
+                    ADD COLUMN skip_second_pass INTEGER DEFAULT 0
+                """)
+                conn.commit()
+                logger.info("Migration: Added skip_second_pass column to podcasts table")
+            except Exception as e:
+                logger.error(f"Migration failed for skip_second_pass: {e}")
 
         # Refresh episodes columns for retry_count migration
         cursor = conn.execute("PRAGMA table_info(episodes)")
