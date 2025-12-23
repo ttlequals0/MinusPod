@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getSettings, updateSettings, resetSettings, getModels, getWhisperModels, getSystemStatus, runCleanup, getProcessingEpisodes, cancelProcessing } from '../api/settings';
+import { getSettings, updateSettings, resetSettings, resetPrompts, getModels, getWhisperModels, getSystemStatus, runCleanup, getProcessingEpisodes, cancelProcessing } from '../api/settings';
 import { setPassword, removePassword } from '../api/auth';
 import { useAuth } from '../context/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -115,6 +115,13 @@ function Settings() {
 
   const resetMutation = useMutation({
     mutationFn: resetSettings,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
+    },
+  });
+
+  const resetPromptsMutation = useMutation({
+    mutationFn: resetPrompts,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
     },
@@ -623,13 +630,13 @@ function Settings() {
           </div>
         )}
 
-        {(updateMutation.error || resetMutation.error) && (
+        {(updateMutation.error || resetMutation.error || resetPromptsMutation.error) && (
           <div className="mt-4 p-4 rounded-lg bg-destructive/10 text-destructive">
-            {((updateMutation.error || resetMutation.error) as Error).message}
+            {((updateMutation.error || resetMutation.error || resetPromptsMutation.error) as Error).message}
           </div>
         )}
 
-        <div className="mt-6 flex gap-4">
+        <div className="mt-6 flex flex-wrap gap-4">
           <button
             onClick={() => updateMutation.mutate()}
             disabled={updateMutation.isPending || !hasChanges}
@@ -638,11 +645,18 @@ function Settings() {
             {updateMutation.isPending ? 'Saving...' : 'Save Changes'}
           </button>
           <button
+            onClick={() => resetPromptsMutation.mutate()}
+            disabled={resetPromptsMutation.isPending}
+            className="px-4 py-2 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors"
+          >
+            {resetPromptsMutation.isPending ? 'Resetting...' : 'Reset Prompts Only'}
+          </button>
+          <button
             onClick={() => resetMutation.mutate()}
             disabled={resetMutation.isPending}
             className="px-4 py-2 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors"
           >
-            {resetMutation.isPending ? 'Resetting...' : 'Reset to Defaults'}
+            {resetMutation.isPending ? 'Resetting...' : 'Reset All Settings'}
           </button>
         </div>
       </div>

@@ -1187,6 +1187,7 @@ class AdDetector:
 
         # Get false positive corrections for this episode to prevent re-proposing rejected ads
         false_positive_regions = []
+        false_positive_texts = []
         if not skip_patterns and self.db:
             try:
                 false_positive_regions = self.db.get_false_positive_corrections(episode_id)
@@ -1194,6 +1195,15 @@ class AdDetector:
                     logger.debug(f"[{slug}:{episode_id}] Found {len(false_positive_regions)} false positive regions to exclude")
             except Exception as e:
                 logger.warning(f"[{slug}:{episode_id}] Failed to get false positive corrections: {e}")
+
+            # Get cross-episode false positive texts for content matching
+            try:
+                fp_entries = self.db.get_podcast_false_positive_texts(slug)
+                false_positive_texts = [e['text'] for e in fp_entries if e.get('text')]
+                if false_positive_texts:
+                    logger.debug(f"[{slug}:{episode_id}] Loaded {len(false_positive_texts)} cross-episode false positive texts")
+            except Exception as e:
+                logger.warning(f"[{slug}:{episode_id}] Failed to get cross-episode false positives: {e}")
 
         # Stage 1: Audio Fingerprint Matching (skip if skip_patterns=True)
         if not skip_patterns and audio_path and self.audio_fingerprinter and self.audio_fingerprinter.is_available():
@@ -1282,13 +1292,33 @@ class AdDetector:
 
         # Merge Claude detections with pattern matches
         claude_ads = result.get('ads', [])
+        cross_episode_skipped = 0
         for ad in claude_ads:
             # Skip if already detected by pattern matching
             if self._is_region_covered(ad['start'], ad['end'], pattern_matched_regions):
                 logger.debug(f"[{slug}:{episode_id}] Skipping Claude ad {ad['start']:.1f}s-{ad['end']:.1f}s (covered by pattern)")
                 continue
+
+            # Skip if matches a cross-episode false positive
+            if false_positive_texts and self.text_pattern_matcher:
+                ad_text = self._get_segment_text(segments, ad['start'], ad['end'])
+                if ad_text and len(ad_text) >= 50:
+                    is_fp, similarity = self.text_pattern_matcher.matches_false_positive(
+                        ad_text, false_positive_texts
+                    )
+                    if is_fp:
+                        logger.info(
+                            f"[{slug}:{episode_id}] Skipping Claude ad {ad['start']:.1f}s-{ad['end']:.1f}s "
+                            f"(matches cross-episode false positive, similarity={similarity:.2f})"
+                        )
+                        cross_episode_skipped += 1
+                        continue
+
             ad['detection_stage'] = 'claude'
             all_ads.append(ad)
+
+        if cross_episode_skipped > 0:
+            logger.info(f"[{slug}:{episode_id}] Skipped {cross_episode_skipped} detections due to cross-episode false positives")
 
         detection_stats['claude_matches'] = len([a for a in all_ads if a.get('detection_stage') == 'claude'])
 
@@ -1325,6 +1355,15 @@ class AdDetector:
             if duration > 0 and overlap / duration > 0.5:
                 return True
         return False
+
+    def _get_segment_text(self, segments: List[Dict], start: float, end: float) -> str:
+        """Extract transcript text within a time range."""
+        text_parts = []
+        for seg in segments:
+            # Include segment if it overlaps with the requested range
+            if seg.get('end', 0) >= start and seg.get('start', 0) <= end:
+                text_parts.append(seg.get('text', ''))
+        return ' '.join(text_parts).strip()
 
     def _merge_detection_results(self, ads: List[Dict]) -> List[Dict]:
         """Merge overlapping ads from different detection stages."""

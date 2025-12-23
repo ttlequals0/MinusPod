@@ -805,6 +805,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
     if reprocess_mode:
         audio_logger.info(f"[{slug}:{episode_id}] Reprocess mode: {reprocess_mode} (skip_patterns={skip_patterns})")
 
+    # Get podcast settings for processing behavior
+    podcast_settings = db.get_podcast_by_slug(slug)
+    skip_second_pass = podcast_settings.get('skip_second_pass', 0) if podcast_settings else 0
+
     try:
         audio_logger.info(f"[{slug}:{episode_id}] Starting: \"{episode_title}\"")
 
@@ -949,7 +953,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
             # Step 3: Multi-pass detection (if enabled) - PARALLEL approach
             # Runs second pass on SAME original transcript (not re-transcribed)
-            if ad_detector.is_multi_pass_enabled():
+            # Can be disabled per-podcast for shows with lots of product discussions
+            if skip_second_pass:
+                audio_logger.info(f"[{slug}:{episode_id}] Second pass skipped (podcast setting)")
+            elif ad_detector.is_multi_pass_enabled():
                 audio_logger.info(f"[{slug}:{episode_id}] Multi-pass enabled, starting blind second pass")
 
                 # Run BLIND second pass - independent analysis with different detection focus

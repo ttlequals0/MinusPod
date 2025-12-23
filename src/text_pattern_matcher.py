@@ -624,3 +624,50 @@ class TextPatternMatcher:
         except Exception as e:
             logger.error(f"Failed to create pattern: {e}")
             return None
+
+    def matches_false_positive(
+        self,
+        text: str,
+        false_positive_texts: List[str],
+        threshold: float = 0.75
+    ) -> Tuple[bool, float]:
+        """Check if text is similar to any false positive.
+
+        Uses TF-IDF cosine similarity to compare candidate text against
+        previously rejected segments.
+
+        Args:
+            text: Candidate text to check
+            false_positive_texts: List of previously rejected segment texts
+            threshold: Minimum similarity score to consider a match
+
+        Returns:
+            Tuple of (is_match, highest_similarity_score)
+        """
+        if not text or not false_positive_texts or len(text) < MIN_TEXT_LENGTH:
+            return False, 0.0
+
+        try:
+            from sklearn.feature_extraction.text import TfidfVectorizer
+            from sklearn.metrics.pairwise import cosine_similarity
+
+            # Fit on false positive texts + the candidate
+            all_texts = false_positive_texts + [text]
+            vectorizer = TfidfVectorizer(ngram_range=(1, 3), stop_words='english')
+            vectors = vectorizer.fit_transform(all_texts)
+
+            # Compare candidate (last) against all false positives
+            candidate_vec = vectors[-1]
+            fp_vectors = vectors[:-1]
+
+            similarities = cosine_similarity(candidate_vec, fp_vectors)[0]
+            max_similarity = float(max(similarities)) if len(similarities) > 0 else 0.0
+
+            return max_similarity >= threshold, max_similarity
+
+        except ImportError:
+            logger.warning("scikit-learn not available for false positive matching")
+            return False, 0.0
+        except Exception as e:
+            logger.warning(f"False positive matching failed: {e}")
+            return False, 0.0

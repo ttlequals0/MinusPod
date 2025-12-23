@@ -6,6 +6,72 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.168] - 2025-12-23
+
+### Added
+- **Pattern Creation from Boundary Adjustments**
+  - Saving an adjustment now creates a pattern (like confirm does)
+  - Uses the ADJUSTED boundaries to extract transcript text
+  - Enables cross-episode pattern learning from corrected ad boundaries
+  - If pattern already exists, increments confirmation count
+  - Stores adjusted text in correction for future matching
+
+---
+
+## [0.1.167] - 2025-12-23
+
+### Added
+- **Cross-Episode False Positive Matching**
+  - When marking a segment as "not an ad", the transcript text is now stored
+  - Future detections across all episodes of the same podcast are compared against rejected segments
+  - Uses TF-IDF similarity matching (threshold: 0.75) to skip similar content
+  - Prevents the same show intro/outro from being repeatedly flagged as ads
+  - New API endpoint: `POST /api/v1/patterns/backfill-false-positives` to populate text for existing corrections
+  - New database method: `get_podcast_false_positive_texts()` for cross-episode lookup
+  - Logs when detections are skipped due to cross-episode false positive match
+
+---
+
+## [0.1.166] - 2025-12-23
+
+### Added
+- **Independent Prompt Reset**
+  - New "Reset Prompts Only" button in Settings page
+  - Resets only system prompts without affecting models or toggles
+  - New API endpoint: `POST /api/v1/settings/prompts/reset`
+
+- **Pattern Statistics & Audit**
+  - New pattern stats display on Patterns page header
+  - Shows: total, active, by scope, unknown sponsor count, high false positive count
+  - New API endpoint: `GET /api/v1/patterns/stats`
+  - Tracks stale patterns (not matched in 30+ days)
+
+### Fixed
+- **Pattern Creation Without Sponsor**
+  - No longer creates patterns when sponsor cannot be detected
+  - Previously created patterns with NULL sponsor showing as "(Unknown)"
+  - Added logging to confirm/reject correction handlers for debugging
+
+---
+
+## [0.1.165] - 2025-12-23
+
+### Added
+- **Per-Podcast Second Pass Toggle**
+  - New `skipSecondPass` setting for podcasts that discuss products (tech shows, etc.)
+  - Second pass detection was too aggressive for shows like Windows Weekly
+  - Prevents false positives where product discussions are flagged as "subtle ads"
+  - Toggle via API: `PATCH /api/v1/feeds/{slug}` with `{"skipSecondPass": true}`
+  - Setting is logged during processing: "Second pass skipped (podcast setting)"
+
+### Fixed
+- **Ad Merge Bug for Overlapping Segments**
+  - Fixed bug where overlapping/contained ads would shrink instead of extend
+  - Example: Ad A (100-300s) + Ad B (150-200s) now correctly merges to 100-300s
+  - Previously would incorrectly shrink to 100-200s, causing audio artifacts
+
+---
+
 ## [0.1.164] - 2025-12-21
 
 ### Changed

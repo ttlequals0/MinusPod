@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getPatterns, AdPattern } from '../api/patterns';
+import { getPatterns, getPatternStats, AdPattern } from '../api/patterns';
 import PatternDetailModal from '../components/PatternDetailModal';
 import LoadingSpinner from '../components/LoadingSpinner';
 
@@ -22,6 +22,11 @@ function PatternsPage() {
       scope: scopeFilter === 'all' ? undefined : scopeFilter,
       active: showInactive ? undefined : true,
     }),
+  });
+
+  const { data: stats } = useQuery({
+    queryKey: ['patternStats'],
+    queryFn: getPatternStats,
   });
 
   const handleSort = (field: keyof AdPattern) => {
@@ -156,6 +161,47 @@ function PatternsPage() {
           {sortedPatterns?.length || 0} patterns
         </div>
       </div>
+
+      {/* Stats Summary */}
+      {stats && (
+        <div className="bg-card rounded-lg border border-border p-4 mb-6">
+          <h2 className="text-sm font-medium text-foreground mb-3">Pattern Statistics</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4 text-sm">
+            <div>
+              <p className="text-muted-foreground">Total</p>
+              <p className="font-medium text-foreground">{stats.total}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Active</p>
+              <p className="font-medium text-green-600 dark:text-green-400">{stats.active}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Global</p>
+              <p className="font-medium text-foreground">{stats.by_scope.global}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Network</p>
+              <p className="font-medium text-foreground">{stats.by_scope.network}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Podcast</p>
+              <p className="font-medium text-foreground">{stats.by_scope.podcast}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Unknown Sponsor</p>
+              <p className={`font-medium ${stats.no_sponsor > 0 ? 'text-yellow-600 dark:text-yellow-400' : 'text-foreground'}`}>
+                {stats.no_sponsor}
+              </p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">High False Pos.</p>
+              <p className={`font-medium ${stats.high_false_positive_count > 0 ? 'text-red-600 dark:text-red-400' : 'text-foreground'}`}>
+                {stats.high_false_positive_count}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="bg-card rounded-lg border border-border p-4 mb-6">

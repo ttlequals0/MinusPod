@@ -18,6 +18,12 @@ export async function resetSettings(): Promise<{ message: string }> {
   });
 }
 
+export async function resetPrompts(): Promise<{ message: string }> {
+  return apiRequest<{ message: string }>('/settings/prompts/reset', {
+    method: 'POST',
+  });
+}
+
 export async function getModels(): Promise<ClaudeModel[]> {
   const response = await apiRequest<{ models: ClaudeModel[] }>('/settings/models');
   return response.models;

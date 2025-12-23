@@ -37,6 +37,46 @@ export interface PatternCorrection {
   notes?: string;
 }
 
+// Pattern Stats
+
+export interface PatternStats {
+  total: number;
+  active: number;
+  inactive: number;
+  by_scope: {
+    global: number;
+    network: number;
+    podcast: number;
+  };
+  no_sponsor: number;
+  never_matched: number;
+  stale_count: number;
+  high_false_positive_count: number;
+  stale_patterns: Array<{
+    id: number;
+    sponsor: string | null;
+    last_matched_at: string;
+    confirmation_count: number;
+  }>;
+  no_sponsor_patterns: Array<{
+    id: number;
+    scope: string;
+    podcast_name: string | null;
+    created_at: string;
+    text_preview: string;
+  }>;
+  high_false_positive_patterns: Array<{
+    id: number;
+    sponsor: string | null;
+    confirmation_count: number;
+    false_positive_count: number;
+  }>;
+}
+
+export async function getPatternStats(): Promise<PatternStats> {
+  return apiRequest<PatternStats>('/patterns/stats');
+}
+
 // Pattern API
 
 export async function getPatterns(params?: {

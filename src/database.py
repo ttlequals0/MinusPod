@@ -127,6 +127,7 @@ CREATE TABLE IF NOT EXISTS podcasts (
     network_id_override TEXT,
     audio_analysis_override TEXT,
     auto_process_override TEXT,
+    skip_second_pass INTEGER DEFAULT 0,
     created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
@@ -796,6 +797,18 @@ class Database:
                 logger.info("Migration: Added auto_process_override column to podcasts table")
             except Exception as e:
                 logger.error(f"Migration failed for auto_process_override: {e}")
+
+        # Migration: Add skip_second_pass column to podcasts if missing
+        if 'skip_second_pass' not in podcasts_columns:
+            try:
+                conn.execute("""
+                    ALTER TABLE podcasts
+                    ADD COLUMN skip_second_pass INTEGER DEFAULT 0
+                """)
+                conn.commit()
+                logger.info("Migration: Added skip_second_pass column to podcasts table")
+            except Exception as e:
+                logger.error(f"Migration failed for skip_second_pass: {e}")
 
         # Refresh episodes columns for retry_count migration
         cursor = conn.execute("PRAGMA table_info(episodes)")
@@ -1979,6 +1992,45 @@ class Database:
                         })
                 except (json.JSONDecodeError, KeyError, ValueError):
                     pass
+        return results
+
+    def get_podcast_false_positive_texts(self, podcast_slug: str, limit: int = 100) -> List[Dict]:
+        """Get all false positive texts for a podcast for cross-episode matching.
+
+        Returns list of dicts with:
+        - text: The rejected segment text
+        - episode_id: Which episode it came from
+        - start, end: Original time bounds
+        """
+        conn = self.get_connection()
+        cursor = conn.execute('''
+            SELECT pc.text_snippet, pc.episode_id, pc.original_bounds, pc.created_at
+            FROM pattern_corrections pc
+            JOIN episodes e ON pc.episode_id = e.episode_id
+            JOIN podcasts p ON e.podcast_id = p.id
+            WHERE p.slug = ?
+            AND pc.correction_type = 'false_positive'
+            AND pc.text_snippet IS NOT NULL
+            AND length(pc.text_snippet) >= 50
+            ORDER BY pc.created_at DESC
+            LIMIT ?
+        ''', (podcast_slug, limit))
+
+        results = []
+        for row in cursor.fetchall():
+            bounds = {}
+            if row['original_bounds']:
+                try:
+                    bounds = json.loads(row['original_bounds'])
+                except (json.JSONDecodeError, ValueError):
+                    pass
+            results.append({
+                'text': row['text_snippet'],
+                'episode_id': row['episode_id'],
+                'start': bounds.get('start'),
+                'end': bounds.get('end'),
+                'created_at': row['created_at']
+            })
         return results
 
     # ========== Audio Fingerprints Methods ==========

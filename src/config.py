@@ -56,6 +56,12 @@ PROMOTION_SIMILARITY_THRESHOLD = 0.75  # TF-IDF similarity for pattern merging
 SPONSOR_GLOBAL_THRESHOLD = 3       # Podcasts with same sponsor for global promotion
 
 # ============================================================
+# False Positive Cross-Episode Matching
+# ============================================================
+FALSE_POSITIVE_SIMILARITY_THRESHOLD = 0.75  # TF-IDF similarity to match rejected content
+MAX_FALSE_POSITIVE_TEXTS = 100              # Max false positives to load per podcast
+
+# ============================================================
 # Processing Limits
 # ============================================================
 MAX_EPISODE_RETRIES = 3         # Retries before permanent failure

@@ -97,9 +97,10 @@ When processing new episodes, the system first checks for known patterns before 
 - **Claude Analysis** - Falls back to AI analysis for uncovered segments
 
 **User Corrections:**
-In the transcript editor, you can confirm or reject detected ads:
+In the transcript editor, you can confirm, reject, or adjust detected ads:
 - **Confirm** - Creates/updates patterns in the database, incrementing confirmation count
-- **Mark as Not Ad** - Flags as false positive, incrementing false_positive_count (auto-disables patterns with high false positive rates). These corrections are automatically applied during reprocessing - the segment will be kept in audio.
+- **Adjust Boundaries** - Corrects start/end times for an ad; also creates patterns from adjusted boundaries (like confirm), ensuring accurate pattern text is learned
+- **Mark as Not Ad** - Flags as false positive and stores the transcript text. Similar text is automatically excluded in future episodes of the same podcast using TF-IDF similarity matching (cross-episode false positive learning)
 
 **Pattern Management:**
 Access the Patterns page from the navigation bar to:

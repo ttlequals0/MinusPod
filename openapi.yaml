@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 0.1.158
+  version: 0.1.168
   contact:
     name: Podcast Server
   license:
@@ -646,7 +646,11 @@ paths:
 
         Actions:
         - confirm: Mark detection as correct (creates/updates pattern)
-        - reject: Mark as false positive (increments false_positive_count)
+        - reject: Mark as false positive. Stores transcript text for cross-episode matching -
+          similar text in future episodes of the same podcast will be automatically excluded
+          using TF-IDF similarity matching (threshold: 0.75)
+        - adjust: Correct ad boundaries. Also creates patterns from the adjusted boundaries
+          (like confirm), ensuring accurate pattern text is learned from the corrected segment
       operationId: submitCorrections
       parameters:
         - $ref: '#/components/parameters/slug'
@@ -820,6 +824,36 @@ paths:
                     type: string
         '404':
           $ref: '#/components/responses/NotFound'
+
+  /patterns/backfill-false-positives:
+    post:
+      tags:
+        - Patterns
+      summary: Backfill false positive texts
+      description: |
+        Backfill transcript text for existing false positive corrections that were
+        created before cross-episode matching was enabled. This extracts the
+        transcript text from each correction's original boundaries and stores it
+        for future cross-episode matching.
+      operationId: backfillFalsePositiveTexts
+      responses:
+        '200':
+          description: Backfill completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  updated:
+                    type: integer
+                    description: Number of corrections updated with transcript text
+                  skipped:
+                    type: integer
+                    description: Number of corrections skipped (missing transcript, too short)
+        '500':
+          $ref: '#/components/responses/ServerError'
 
   /patterns/deduplicate:
     post:
@@ -1873,13 +1907,20 @@ components:
           description: Index of the ad in the episode's ad list
         action:
           type: string
-          enum: [confirm, reject]
+          enum: [confirm, reject, adjust]
           description: |
             - confirm: Mark detection as correct (creates/updates pattern)
-            - reject: Mark as false positive
+            - reject: Mark as false positive (stores text for cross-episode exclusion)
+            - adjust: Correct boundaries (also creates pattern from adjusted segment)
         sponsor:
           type: string
-          description: Sponsor name to associate (for confirm action)
+          description: Sponsor name to associate (for confirm/adjust actions)
+        adjustedStart:
+          type: number
+          description: Corrected start time in seconds (required for adjust action)
+        adjustedEnd:
+          type: number
+          description: Corrected end time in seconds (required for adjust action)
 
     ProcessingStatus:
       type: object

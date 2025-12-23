@@ -517,7 +517,8 @@ def get_feed(slug):
         'daiPlatform': podcast.get('dai_platform'),
         'networkIdOverride': podcast.get('network_id_override'),
         'audioAnalysisOverride': audio_override_result,
-        'autoProcessOverride': auto_process_override_result
+        'autoProcessOverride': auto_process_override_result,
+        'skipSecondPass': bool(podcast.get('skip_second_pass', 0))
     })
 
 
@@ -569,6 +570,10 @@ def update_feed(slug):
         elif override_value is False:
             updates['auto_process_override'] = 'false'
 
+    # Handle skip second pass (boolean stored as integer)
+    if 'skipSecondPass' in data:
+        updates['skip_second_pass'] = 1 if data['skipSecondPass'] else 0
+
     if not updates:
         return error_response('No valid fields to update', 400)
 
@@ -599,6 +604,7 @@ def update_feed(slug):
             'daiPlatform': podcast.get('dai_platform'),
             'networkIdOverride': podcast.get('network_id_override'),
             'audioAnalysisOverride': audio_override_result,
+            'skipSecondPass': bool(podcast.get('skip_second_pass', 0)),
             'feedUrl': f"{base_url}/{slug}"
         })
     except Exception as e:
@@ -1504,6 +1510,19 @@ def reset_ad_detection_settings():
     return json_response({'message': 'Settings reset to defaults'})
 
 
+@api.route('/settings/prompts/reset', methods=['POST'])
+@log_request
+def reset_prompts_only():
+    """Reset only the prompts to defaults (not models or other settings)."""
+    db = get_database()
+
+    db.reset_setting('system_prompt')
+    db.reset_setting('second_pass_prompt')
+
+    logger.info("Reset prompts to defaults")
+    return json_response({'message': 'Prompts reset to defaults'})
+
+
 @api.route('/settings/models', methods=['GET'])
 @log_request
 def get_available_models():
@@ -2039,6 +2058,95 @@ def list_patterns():
     return json_response({'patterns': patterns})
 
 
+@api.route('/patterns/stats', methods=['GET'])
+@log_request
+def get_pattern_stats():
+    """Get pattern statistics for audit purposes."""
+    from datetime import datetime, timedelta
+
+    db = get_database()
+    patterns = db.get_ad_patterns(active_only=False)
+
+    # Calculate stats
+    stats = {
+        'total': len(patterns),
+        'active': 0,
+        'inactive': 0,
+        'by_scope': {'global': 0, 'network': 0, 'podcast': 0},
+        'no_sponsor': 0,
+        'never_matched': 0,
+        'stale_count': 0,
+        'high_false_positive_count': 0,
+        'stale_patterns': [],
+        'no_sponsor_patterns': [],
+        'high_false_positive_patterns': [],
+    }
+
+    stale_threshold = datetime.now() - timedelta(days=30)
+
+    for p in patterns:
+        # Active/inactive
+        if p.get('is_active', True):
+            stats['active'] += 1
+        else:
+            stats['inactive'] += 1
+
+        # By scope
+        scope = p.get('scope', 'podcast')
+        if scope in stats['by_scope']:
+            stats['by_scope'][scope] += 1
+
+        # No sponsor (Unknown)
+        if not p.get('sponsor'):
+            stats['no_sponsor'] += 1
+            stats['no_sponsor_patterns'].append({
+                'id': p['id'],
+                'scope': p.get('scope'),
+                'podcast_name': p.get('podcast_name'),
+                'created_at': p.get('created_at'),
+                'text_preview': (p.get('text_template') or '')[:100]
+            })
+
+        # Never matched
+        if p.get('confirmation_count', 0) == 0:
+            stats['never_matched'] += 1
+
+        # Stale (not matched in 30+ days)
+        last_matched = p.get('last_matched_at')
+        if last_matched:
+            try:
+                last_date = datetime.fromisoformat(last_matched.replace('Z', '+00:00'))
+                if last_date.replace(tzinfo=None) < stale_threshold:
+                    stats['stale_count'] += 1
+                    stats['stale_patterns'].append({
+                        'id': p['id'],
+                        'sponsor': p.get('sponsor'),
+                        'last_matched_at': last_matched,
+                        'confirmation_count': p.get('confirmation_count', 0)
+                    })
+            except (ValueError, TypeError):
+                pass
+
+        # High false positives (more FPs than confirmations)
+        fp_count = p.get('false_positive_count', 0)
+        conf_count = p.get('confirmation_count', 0)
+        if fp_count > 0 and fp_count >= conf_count:
+            stats['high_false_positive_count'] += 1
+            stats['high_false_positive_patterns'].append({
+                'id': p['id'],
+                'sponsor': p.get('sponsor'),
+                'confirmation_count': conf_count,
+                'false_positive_count': fp_count
+            })
+
+    # Limit list sizes for response
+    stats['stale_patterns'] = stats['stale_patterns'][:20]
+    stats['no_sponsor_patterns'] = stats['no_sponsor_patterns'][:20]
+    stats['high_false_positive_patterns'] = stats['high_false_positive_patterns'][:20]
+
+    return json_response(stats)
+
+
 @api.route('/patterns/<int:pattern_id>', methods=['GET'])
 @log_request
 def get_pattern(pattern_id):
@@ -2227,6 +2335,8 @@ def submit_correction(slug, episode_id):
     pattern_service = PatternService(db)
 
     if correction_type == 'confirm':
+        logger.info(f"CORRECTION: type=confirm, episode={slug}/{episode_id}, pattern_id={pattern_id}, start={original_start}, end={original_end}")
+
         # Increment confirmation count on pattern
         if pattern_id:
             pattern_service.record_pattern_match(pattern_id, episode_id)
@@ -2258,18 +2368,22 @@ def submit_correction(slug, episode_id):
                         if not sponsor:
                             sponsor = extract_sponsor_from_text(ad_text)
 
-                        # Create new pattern with podcast scope
-                        new_pattern_id = db.create_ad_pattern(
-                            scope='podcast',
-                            podcast_id=podcast_id_str,
-                            text_template=ad_text,
-                            sponsor=sponsor,
-                            intro_variants=[ad_text[:200]] if len(ad_text) > 200 else [ad_text],
-                            outro_variants=[ad_text[-150:]] if len(ad_text) > 150 else [],
-                            created_from_episode_id=episode_id
-                        )
-                        pattern_id = new_pattern_id
-                        logger.info(f"Created new pattern {pattern_id} from confirmed ad in {slug}/{episode_id}")
+                        # Only create pattern if sponsor is known
+                        if sponsor:
+                            new_pattern_id = db.create_ad_pattern(
+                                scope='podcast',
+                                podcast_id=podcast_id_str,
+                                text_template=ad_text,
+                                sponsor=sponsor,
+                                intro_variants=[ad_text[:200]] if len(ad_text) > 200 else [ad_text],
+                                outro_variants=[ad_text[-150:]] if len(ad_text) > 150 else [],
+                                created_from_episode_id=episode_id
+                            )
+                            pattern_id = new_pattern_id
+                            logger.info(f"Created new pattern {pattern_id} (sponsor: {sponsor}) from confirmed ad in {slug}/{episode_id}")
+                        else:
+                            # Skip pattern creation - no sponsor detected
+                            logger.info(f"Skipped pattern creation (no sponsor detected) for confirmed ad in {slug}/{episode_id}")
 
         db.create_pattern_correction(
             correction_type='confirm',
@@ -2282,19 +2396,32 @@ def submit_correction(slug, episode_id):
         return json_response({'message': 'Correction recorded', 'pattern_id': pattern_id})
 
     elif correction_type == 'reject':
+        logger.info(f"CORRECTION: type=reject, episode={slug}/{episode_id}, pattern_id={pattern_id}, start={original_start}, end={original_end}")
+
+        # Extract transcript text for cross-episode matching
+        rejected_text = None
+        episode = db.get_episode(slug, episode_id)
+        if episode:
+            transcript = episode.get('transcript_text', '')
+            if transcript:
+                rejected_text = extract_transcript_segment(transcript, original_start, original_end)
+                if rejected_text:
+                    logger.debug(f"Extracted {len(rejected_text)} chars of rejected text for cross-episode matching")
+
         # Mark as false positive
         if pattern_id:
             pattern = db.get_ad_pattern_by_id(pattern_id)
             if pattern:
                 new_count = pattern.get('false_positive_count', 0) + 1
                 db.update_ad_pattern(pattern_id, false_positive_count=new_count)
+                logger.info(f"Incremented false_positive_count to {new_count} for pattern {pattern_id}")
 
         db.create_pattern_correction(
             correction_type='false_positive',
             pattern_id=pattern_id,
             episode_id=episode_id,
             original_bounds={'start': original_start, 'end': original_end},
-            text_snippet=data.get('notes')
+            text_snippet=rejected_text  # Store transcript text for cross-episode matching
         )
 
         return json_response({'message': 'False positive recorded'})
@@ -2307,23 +2434,69 @@ def submit_correction(slug, episode_id):
         if adjusted_start is None or adjusted_end is None:
             return error_response('Missing adjusted boundaries', 400)
 
-        # Record the correction
+        logger.info(f"CORRECTION: type=adjust, episode={slug}/{episode_id}, pattern_id={pattern_id}, "
+                    f"original={original_start:.1f}-{original_end:.1f}, adjusted={adjusted_start:.1f}-{adjusted_end:.1f}")
+
+        # Extract transcript text using ADJUSTED boundaries for pattern learning
+        adjusted_text = None
+        episode = db.get_episode(slug, episode_id)
+        if episode:
+            transcript = episode.get('transcript_text', '')
+            if transcript:
+                adjusted_text = extract_transcript_segment(transcript, adjusted_start, adjusted_end)
+
+        # If we have a pattern, increment confirmation count
+        if pattern_id:
+            from pattern_service import PatternService
+            pattern_service = PatternService(db)
+            pattern_service.record_pattern_match(pattern_id, episode_id)
+            logger.info(f"Recorded adjustment as confirmation for pattern {pattern_id}")
+        elif adjusted_text and len(adjusted_text) >= 50:
+            # No pattern exists - create one from adjusted boundaries (like confirm does)
+            podcast = db.get_podcast_by_slug(slug)
+            podcast_id_str = str(podcast['id']) if podcast else None
+
+            # Check for existing pattern with same text
+            existing_pattern = db.find_pattern_by_text(adjusted_text, podcast_id_str)
+
+            if existing_pattern:
+                pattern_id = existing_pattern['id']
+                from pattern_service import PatternService
+                pattern_service = PatternService(db)
+                pattern_service.record_pattern_match(pattern_id, episode_id)
+                logger.info(f"Linked adjustment to existing pattern {pattern_id}")
+            else:
+                # Extract sponsor
+                sponsor = original_ad.get('sponsor')
+                if not sponsor:
+                    sponsor = extract_sponsor_from_text(adjusted_text)
+
+                if sponsor:
+                    new_pattern_id = db.create_ad_pattern(
+                        scope='podcast',
+                        podcast_id=podcast_id_str,
+                        text_template=adjusted_text,
+                        sponsor=sponsor,
+                        intro_variants=[adjusted_text[:200]] if len(adjusted_text) > 200 else [adjusted_text],
+                        outro_variants=[adjusted_text[-150:]] if len(adjusted_text) > 150 else [],
+                        created_from_episode_id=episode_id
+                    )
+                    pattern_id = new_pattern_id
+                    logger.info(f"Created new pattern {pattern_id} (sponsor: {sponsor}) from adjusted ad in {slug}/{episode_id}")
+                else:
+                    logger.info(f"Skipped pattern creation (no sponsor detected) for adjusted ad in {slug}/{episode_id}")
+
+        # Record the correction with adjusted text for cross-episode learning
         db.create_pattern_correction(
             correction_type='boundary_adjustment',
             pattern_id=pattern_id,
             episode_id=episode_id,
             original_bounds={'start': original_start, 'end': original_end},
             corrected_bounds={'start': adjusted_start, 'end': adjusted_end},
-            text_snippet=data.get('notes')
+            text_snippet=adjusted_text  # Store adjusted text for pattern learning
         )
 
-        # Update pattern intro/outro variants if significant boundary change
-        if pattern_id:
-            # Get transcript text around new boundaries to update variants
-            # This would be done by the caller who has access to transcript
-            pass
-
-        return json_response({'message': 'Adjustment recorded'})
+        return json_response({'message': 'Adjustment recorded', 'pattern_id': pattern_id})
 
 
 # ========== Episode Reprocessing Endpoint ==========
@@ -2560,6 +2733,75 @@ def _find_similar_pattern(db, pattern_data: dict) -> Optional[dict]:
             return p
 
     return None
+
+
+@api.route('/patterns/backfill-false-positives', methods=['POST'])
+@log_request
+def backfill_false_positive_texts():
+    """Backfill transcript text for existing false positive corrections.
+
+    Populates text_snippet field for corrections that don't have it.
+    This enables cross-episode false positive matching.
+    """
+    db = get_database()
+    conn = db.get_connection()
+
+    # Get corrections without text
+    cursor = conn.execute('''
+        SELECT pc.id, pc.episode_id, pc.original_bounds, p.slug
+        FROM pattern_corrections pc
+        JOIN episodes e ON pc.episode_id = e.episode_id
+        JOIN podcasts p ON e.podcast_id = p.id
+        WHERE pc.correction_type = 'false_positive'
+        AND (pc.text_snippet IS NULL OR pc.text_snippet = '')
+    ''')
+
+    rows = cursor.fetchall()
+    logger.info(f"Found {len(rows)} false positive corrections to backfill")
+
+    updated = 0
+    skipped = 0
+    for row in rows:
+        # Get episode transcript
+        episode = db.get_episode(row['slug'], row['episode_id'])
+        if not episode or not episode.get('transcript_text'):
+            skipped += 1
+            continue
+
+        bounds_str = row['original_bounds']
+        if not bounds_str:
+            skipped += 1
+            continue
+
+        try:
+            bounds = json.loads(bounds_str)
+            start, end = bounds.get('start'), bounds.get('end')
+            if start is None or end is None:
+                skipped += 1
+                continue
+
+            # Extract text
+            text = extract_transcript_segment(episode['transcript_text'], start, end)
+            if text and len(text) >= 50:
+                conn.execute(
+                    'UPDATE pattern_corrections SET text_snippet = ? WHERE id = ?',
+                    (text, row['id'])
+                )
+                updated += 1
+            else:
+                skipped += 1
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.warning(f"Failed to parse bounds for correction {row['id']}: {e}")
+            skipped += 1
+
+    conn.commit()
+    logger.info(f"Backfill complete: {updated} updated, {skipped} skipped")
+
+    return json_response({
+        'message': 'Backfill complete',
+        'updated': updated,
+        'skipped': skipped
+    })
 
 
 # ========== Authentication Endpoints ==========
