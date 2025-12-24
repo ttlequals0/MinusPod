@@ -16,6 +16,7 @@ function EpisodeDetail() {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [showReprocessMenu, setShowReprocessMenu] = useState(false);
   const [editorSelectedAdIndex, setEditorSelectedAdIndex] = useState(0);
+  const [savedScrollY, setSavedScrollY] = useState<number | null>(null);
   const editorRef = useRef<HTMLDivElement>(null);
 
   const queryClient = useQueryClient();
@@ -275,7 +276,12 @@ function EpisodeDetail() {
               </h2>
               {episode.status === 'completed' && episode.transcript && (
                 <button
-                  onClick={() => setShowEditor(!showEditor)}
+                  onClick={() => {
+                    if (!showEditor) {
+                      setSavedScrollY(window.scrollY);
+                    }
+                    setShowEditor(!showEditor);
+                  }}
                   className="flex items-center gap-2 px-3 py-1.5 text-sm bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 transition-colors"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -309,7 +315,13 @@ function EpisodeDetail() {
                 detectedAds={detectedAds}
                 audioUrl={`/episodes/${slug}/${episode.id}.mp3`}
                 onCorrection={handleCorrection}
-                onClose={() => setShowEditor(false)}
+                onClose={() => {
+                  setShowEditor(false);
+                  if (savedScrollY !== null) {
+                    setTimeout(() => window.scrollTo(0, savedScrollY), 0);
+                    setSavedScrollY(null);
+                  }
+                }}
                 initialSeekTime={jumpToTime ?? undefined}
                 saveStatus={saveStatus}
                 selectedAdIndex={editorSelectedAdIndex}

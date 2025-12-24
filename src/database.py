@@ -922,6 +922,16 @@ class Database:
         except Exception as e:
             logger.debug(f"FTS5 search_index creation (may already exist): {e}")
 
+        # Auto-populate search index if empty
+        try:
+            cursor = conn.execute("SELECT COUNT(*) FROM search_index")
+            if cursor.fetchone()[0] == 0:
+                logger.info("Search index is empty, rebuilding...")
+                count = self.rebuild_search_index()
+                logger.info(f"Search index populated with {count} items")
+        except Exception as e:
+            logger.warning(f"Failed to auto-populate search index: {e}")
+
     def _migrate_from_json(self):
         """Migrate data from JSON files to SQLite."""
         conn = self.get_connection()
