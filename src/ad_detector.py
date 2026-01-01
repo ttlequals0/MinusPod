@@ -43,6 +43,11 @@ WINDOW_SIZE_SECONDS = 600.0   # 10 minutes per window
 WINDOW_OVERLAP_SECONDS = 180.0  # 3 minutes overlap between windows
 WINDOW_STEP_SECONDS = WINDOW_SIZE_SECONDS - WINDOW_OVERLAP_SECONDS  # 7 minutes
 
+# Early ad snapping threshold
+# If an ad starts within this many seconds of the episode start, snap it to 0:00
+# Pre-roll ads often have brief intro audio before detection kicks in
+EARLY_AD_SNAP_THRESHOLD = 30.0
+
 # Transition phrases for intelligent ad boundary detection
 # These are used to find precise start/end times using word timestamps
 
@@ -331,6 +336,40 @@ def refine_ad_boundaries(ads: List[Dict], segments: List[Dict]) -> List[Dict]:
         refined_ads.append(refined)
 
     return refined_ads
+
+
+def snap_early_ads_to_zero(ads: List[Dict], threshold: float = EARLY_AD_SNAP_THRESHOLD) -> List[Dict]:
+    """Snap ads that start near the beginning of the episode to 0:00.
+
+    Pre-roll ads often have a brief intro or music before the actual ad content
+    is detected. If an ad starts within the threshold of the episode start,
+    it's almost certainly a pre-roll ad that should start at 0:00.
+
+    Args:
+        ads: List of detected ad segments
+        threshold: Maximum seconds from start to trigger snapping (default 30.0)
+
+    Returns:
+        List of ads with early ads snapped to 0:00
+    """
+    if not ads:
+        return ads
+
+    snapped = []
+    for ad in ads:
+        ad_copy = ad.copy()
+        if ad_copy['start'] > 0 and ad_copy['start'] <= threshold:
+            original_start = ad_copy['start']
+            ad_copy['start'] = 0.0
+            ad_copy['start_snapped'] = True
+            ad_copy['original_start'] = original_start
+            logger.info(
+                f"Snapped early ad to 0:00: {original_start:.1f}s -> 0.0s "
+                f"(was within {threshold:.0f}s threshold)"
+            )
+        snapped.append(ad_copy)
+
+    return snapped
 
 
 def extract_sponsor_names(text: str, ad_reason: str = None) -> set:

@@ -193,6 +193,16 @@ class StatusService:
             self._write_status_file(status)
         self._notify_subscribers()
 
+    def get_queue_position(self, slug: str, episode_id: str) -> int:
+        """Get queue position for an episode (1-based, 0 if not queued)."""
+        with self._status_lock:
+            status = self._read_status_file()
+            queued = status.get('queued_episodes', [])
+            for i, e in enumerate(queued):
+                if e['slug'] == slug and e['episode_id'] == episode_id:
+                    return i + 1  # 1-based position
+            return 0
+
     def start_feed_refresh(self, slug: str, podcast_name: str):
         """Mark a feed refresh as starting."""
         with self._status_lock:

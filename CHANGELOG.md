@@ -6,6 +6,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.172] - 2026-01-01
+
+### Added
+- **Early Ad Snapping to 0:00**
+  - Ads that start within 30 seconds of episode start are snapped to 0:00
+  - Pre-roll ads often have brief intro audio before detection kicks in
+  - New constant `EARLY_AD_SNAP_THRESHOLD = 30.0` in ad_detector.py
+  - Logged when snapping occurs: "Snapped early ad to 0:00: X.Xs -> 0.0s"
+
+- **Queue Position Tracking**
+  - New `get_queue_position()` method in StatusService
+  - Returns 1-based queue position for episodes waiting to be processed
+  - Enables users to know when their episode will be processed
+
+### Changed
+- **Queue Busy Response**
+  - Changed from HTTP 302 redirect to HTTP 503 Service Unavailable
+  - Previously: Redirected to original (unprocessed) audio URL when queue busy
+  - Now: Returns 503 with JSON body containing queue position and Retry-After header
+  - Podcast players will now retry instead of caching the unprocessed file
+  - Response includes: status, message, queuePosition, retryAfter (60 seconds)
+
+---
+
 ## [0.1.171] - 2025-12-24
 
 ### Fixed

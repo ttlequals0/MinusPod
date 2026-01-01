@@ -265,7 +265,7 @@ init_limiter(app)
 from storage import Storage
 from rss_parser import RSSParser
 from transcriber import Transcriber
-from ad_detector import AdDetector, merge_and_deduplicate, refine_ad_boundaries, merge_same_sponsor_ads
+from ad_detector import AdDetector, merge_and_deduplicate, refine_ad_boundaries, snap_early_ads_to_zero, merge_same_sponsor_ads
 from ad_validator import AdValidator
 from audio_processor import AudioProcessor
 from database import Database
@@ -1000,6 +1000,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             if all_ads and segments:
                 all_ads = refine_ad_boundaries(all_ads, segments)
 
+            # Step 3.5.1: Snap early ads to 0:00 (pre-roll ads often have brief intro)
+            if all_ads:
+                all_ads = snap_early_ads_to_zero(all_ads)
+
             # Step 3.6: Merge ads that mention the same sponsor with sponsor content in gaps
             # This handles Claude fragmenting long ads or mislabeling parts
             if all_ads and segments:
@@ -1432,9 +1436,21 @@ def serve_episode(slug, episode_id):
             headers={'Retry-After': '30'}
         )
     else:
-        # Queue is busy with another episode
-        feed_logger.info(f"[{slug}:{episode_id}] Queue busy ({reason}), redirecting to original")
-        return Response(status=302, headers={'Location': original_url})
+        # Queue is busy with another episode - queue this one and return 503
+        status_service.queue_episode(slug, episode_id, episode_title, podcast_name)
+        queue_position = status_service.get_queue_position(slug, episode_id)
+        feed_logger.info(f"[{slug}:{episode_id}] Queue busy ({reason}), queued at position {queue_position}")
+        return Response(
+            _json.dumps({
+                'status': 'queued',
+                'message': f'Episode queued for processing at position {queue_position}',
+                'queuePosition': queue_position,
+                'retryAfter': 60
+            }),
+            status=503,
+            mimetype='application/json',
+            headers={'Retry-After': '60'}
+        )
 
 
 @app.route('/health')
