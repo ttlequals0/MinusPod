@@ -6,6 +6,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.177] - 2026-01-03
+
+### Fixed
+- **Chapter generation bugfix**: Fixed `_reverse_adjust_timestamp` to correctly map adjusted times back to original transcript times when first ad starts at 0. This was preventing AI topic splitting from finding the correct transcript segment.
+- Added debug logging to `split_long_segments` for troubleshooting
+
+---
+
 ## [0.1.176] - 2026-01-03
 
 ### Added

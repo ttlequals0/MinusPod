@@ -361,7 +361,10 @@ class ChaptersGenerator:
 
             # Skip if segment is short enough
             if segment_duration <= max_segment_duration:
+                logger.debug(f"Chapter {i}: {segment_duration:.0f}s <= {max_segment_duration}s, skipping split")
                 continue
+
+            logger.info(f"Chapter {i}: {segment_duration:.0f}s > {max_segment_duration}s, attempting AI split")
 
             # Get transcript for this long segment
             # Convert adjusted times back to original times for transcript lookup
@@ -375,7 +378,10 @@ class ChaptersGenerator:
             # Ask Claude to find topic boundaries
             num_splits = min(int(segment_duration / 600), 4)  # ~10 min chunks, max 4 splits
             if num_splits < 1:
+                logger.debug(f"Chapter {i}: num_splits < 1, skipping")
                 continue
+
+            logger.info(f"Chapter {i}: Requesting {num_splits} topic boundaries from AI (original {original_start:.0f}-{original_end:.0f})")
 
             try:
                 new_chapters = self._detect_topic_boundaries(
@@ -810,40 +816,44 @@ Transcript:
         """
         Reverse the timestamp adjustment to get original time.
 
-        This is an approximation since we add back ad durations.
+        Maps adjusted (post-ad-removal) time back to original time.
 
         Args:
             adjusted_time: Time after ad removal
             ads_removed: List of removed ads
 
         Returns:
-            Approximate original timestamp
+            Original timestamp
         """
         if not ads_removed:
             return adjusted_time
 
         sorted_ads = sorted(ads_removed, key=lambda x: x['start'])
-        current_adjusted = 0.0
-        current_original = 0.0
+
+        # Calculate cumulative ad duration up to each point
+        # Original time = Adjusted time + total ad duration before that point
+        total_ad_duration = 0.0
+        last_ad_end = 0.0
 
         for ad in sorted_ads:
             ad_start = ad.get('start', 0)
             ad_end = ad.get('end', 0)
             ad_duration = ad_end - ad_start
 
-            # Calculate adjusted position of ad start
-            ad_start_adjusted = ad_start - current_original + current_adjusted
+            # Calculate what original time this adjusted_time would be at
+            # if we stopped here
+            original_candidate = adjusted_time + total_ad_duration
 
-            if adjusted_time <= ad_start_adjusted:
-                # Target is before this ad
-                return current_original + (adjusted_time - current_adjusted)
+            # If the candidate falls before this ad starts, we found it
+            if original_candidate < ad_start:
+                return original_candidate
 
-            # Move past this ad
-            current_original = ad_end
-            current_adjusted = ad_start_adjusted
+            # Add this ad's duration
+            total_ad_duration += ad_duration
+            last_ad_end = ad_end
 
-        # Target is after all ads
-        return current_original + (adjusted_time - current_adjusted)
+        # After all ads, just add total duration
+        return adjusted_time + total_ad_duration
 
     def _call_claude_for_titles(
         self,
