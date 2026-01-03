@@ -77,9 +77,11 @@ class AdValidator:
     ]
 
     # Patterns that indicate Claude determined this is NOT an ad
+    # Note: negative lookbehinds exclude "unrelated to", "different from", "not "
+    # which actually indicate it IS an ad (e.g., "unrelated to episode content")
     NOT_AD_PATTERNS = re.compile(
         r'not\s+an?\s+(ad|advertisement|sponsor|promo|commercial)|'
-        r'(episode|show|regular|actual)\s+content|'
+        r'(?<!unrelated to )(?<!different from )(?<!not )(episode|show|regular|actual)\s+content|'
         r'this\s+is\s+(not|n\'t)\s+|'
         r'does\s+not\s+appear\s+to\s+be|'
         r'no\s+(ad|advertisement|sponsor)|'

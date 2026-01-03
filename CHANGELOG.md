@@ -6,6 +6,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.184] - 2026-01-03
+
+### Fixed
+- **Ad validation false positive bug**: Fixed `NOT_AD_PATTERNS` regex that incorrectly rejected high-confidence ads (99%) when Claude's reason contained phrases like "unrelated to episode content". The regex now uses negative lookbehinds to exclude "unrelated to", "different from", and "not " prefixes which actually indicate something IS an ad.
+
+---
+
 ## [0.1.183] - 2026-01-03
 
 ### Fixed
