@@ -68,12 +68,42 @@ class ChaptersGenerator:
             return int(parts[0]) * 3600 + int(parts[1]) * 60 + float(parts[2])
         return 0.0
 
+    def _html_to_text(self, html: str) -> str:
+        """
+        Convert HTML to plain text for parsing.
+
+        Converts <br>, <p>, <li> tags to newlines and strips other HTML.
+        """
+        if not html:
+            return ""
+
+        text = html
+        # Convert block elements and breaks to newlines
+        text = re.sub(r'<br\s*/?>', '\n', text, flags=re.IGNORECASE)
+        text = re.sub(r'</p>', '\n', text, flags=re.IGNORECASE)
+        text = re.sub(r'</li>', '\n', text, flags=re.IGNORECASE)
+        text = re.sub(r'</div>', '\n', text, flags=re.IGNORECASE)
+        # Strip remaining HTML tags
+        text = re.sub(r'<[^>]+>', '', text)
+        # Decode common HTML entities
+        text = text.replace('&amp;', '&')
+        text = text.replace('&lt;', '<')
+        text = text.replace('&gt;', '>')
+        text = text.replace('&quot;', '"')
+        text = text.replace('&#39;', "'")
+        text = text.replace('&nbsp;', ' ')
+        # Normalize whitespace but preserve newlines
+        text = re.sub(r'[ \t]+', ' ', text)
+        text = re.sub(r'\n\s*\n', '\n\n', text)
+
+        return text.strip()
+
     def parse_description_timestamps(self, description: str) -> List[Dict]:
         """
         Parse timestamps from episode description.
 
         Args:
-            description: Episode description text
+            description: Episode description text (can be HTML)
 
         Returns:
             List of {'original_time': float, 'title': str}
@@ -81,11 +111,14 @@ class ChaptersGenerator:
         if not description:
             return []
 
+        # Convert HTML to plain text first
+        text = self._html_to_text(description)
+
         chapters = []
         seen_times = set()
 
         for pattern in TIMESTAMP_PATTERNS:
-            for match in re.finditer(pattern, description, re.MULTILINE | re.IGNORECASE):
+            for match in re.finditer(pattern, text, re.MULTILINE | re.IGNORECASE):
                 timestamp_str, title = match.groups()
                 title = title.strip()
 
@@ -279,6 +312,389 @@ class ChaptersGenerator:
             merged[0]['startTime'] = 0
 
         return merged
+
+    def split_long_segments(
+        self,
+        chapters: List[Dict],
+        segments: List[Dict],
+        ads_removed: List[Dict],
+        episode_duration: float,
+        max_segment_duration: float = 900.0  # 15 minutes
+    ) -> List[Dict]:
+        """
+        Split long segments using AI to detect topic changes.
+
+        Args:
+            chapters: Current chapter list
+            segments: Transcript segments
+            ads_removed: List of removed ads
+            episode_duration: Total episode duration
+            max_segment_duration: Max segment length before splitting (default 15 min)
+
+        Returns:
+            Updated chapter list with long segments split
+        """
+        if not segments or not chapters:
+            return chapters
+
+        self._initialize_client()
+        if not self.client:
+            logger.warning("No Anthropic client available for segment splitting")
+            return chapters
+
+        result = []
+        for i, chapter in enumerate(chapters):
+            result.append(chapter)
+
+            # Get end time of this segment
+            if i + 1 < len(chapters):
+                segment_end = chapters[i + 1]['startTime']
+            else:
+                # Last chapter - use episode duration adjusted for removed ads
+                total_ad_duration = sum(
+                    ad.get('end', 0) - ad.get('start', 0)
+                    for ad in ads_removed
+                )
+                segment_end = episode_duration - total_ad_duration
+
+            segment_duration = segment_end - chapter['startTime']
+
+            # Skip if segment is short enough
+            if segment_duration <= max_segment_duration:
+                continue
+
+            # Get transcript for this long segment
+            # Convert adjusted times back to original times for transcript lookup
+            original_start = self._reverse_adjust_timestamp(chapter['startTime'], ads_removed)
+            original_end = self._reverse_adjust_timestamp(segment_end, ads_removed)
+
+            transcript_text = self._get_full_transcript_range(segments, original_start, original_end)
+            if not transcript_text or len(transcript_text) < 500:
+                continue
+
+            # Ask Claude to find topic boundaries
+            num_splits = min(int(segment_duration / 600), 4)  # ~10 min chunks, max 4 splits
+            if num_splits < 1:
+                continue
+
+            try:
+                new_chapters = self._detect_topic_boundaries(
+                    transcript_text, original_start, original_end, num_splits
+                )
+
+                # Adjust times and add to result
+                for new_chapter in new_chapters:
+                    adjusted_time = self.adjust_timestamp(new_chapter['original_time'], ads_removed)
+                    # Skip if too close to existing chapter
+                    if any(abs(ch['startTime'] - adjusted_time) < 60 for ch in result):
+                        continue
+                    result.append({
+                        'startTime': adjusted_time,
+                        'title': new_chapter.get('title'),
+                        'source': 'ai_split',
+                        'needs_title': not new_chapter.get('title')
+                    })
+            except Exception as e:
+                logger.warning(f"Failed to split long segment: {e}")
+                continue
+
+        # Re-sort after adding new chapters
+        result.sort(key=lambda x: x['startTime'])
+        return result
+
+    def _get_full_transcript_range(
+        self,
+        segments: List[Dict],
+        start_time: float,
+        end_time: float
+    ) -> str:
+        """Get full transcript text for a time range with timestamps."""
+        lines = []
+        for segment in segments:
+            seg_start = segment.get('start', 0)
+            seg_end = segment.get('end', 0)
+
+            if seg_end < start_time:
+                continue
+            if seg_start > end_time:
+                break
+
+            text = segment.get('text', '').strip()
+            if text:
+                mins = int(seg_start // 60)
+                secs = int(seg_start % 60)
+                lines.append(f"[{mins:02d}:{secs:02d}] {text}")
+
+        return '\n'.join(lines)
+
+    def detect_topics_from_description(
+        self,
+        description: str,
+        segments: List[Dict],
+        ads_removed: List[Dict],
+        episode_duration: float
+    ) -> List[Dict]:
+        """
+        Detect chapters from topic sections in description (no timestamps).
+
+        Handles descriptions like:
+        <p>Windows 11</p><ul><li>Feature 1</li>...</ul>
+        <p>AI</p><ul><li>Item 1</li>...</ul>
+
+        Args:
+            description: Episode description HTML
+            segments: Transcript segments
+            ads_removed: Removed ads list
+            episode_duration: Total duration
+
+        Returns:
+            List of chapters with matched timestamps
+        """
+        if not description or not segments:
+            return []
+
+        # Extract topic headers from HTML structure
+        topics = self._extract_topic_headers(description)
+        if len(topics) < 2:
+            return []
+
+        logger.info(f"Found {len(topics)} topic headers in description: {topics}")
+
+        self._initialize_client()
+        if not self.client:
+            return []
+
+        # Get transcript summary for matching
+        transcript_summary = self._get_transcript_summary(segments, max_chars=6000)
+
+        # Ask Claude to match topics to transcript positions
+        return self._match_topics_to_transcript(
+            topics, transcript_summary, segments, ads_removed
+        )
+
+    def _extract_topic_headers(self, description: str) -> List[str]:
+        """
+        Extract topic headers from HTML description.
+
+        Looks for patterns like:
+        - <p>Topic Name</p> followed by <ul>
+        - <strong>Topic Name</strong>
+        - <h2>Topic Name</h2>, <h3>Topic Name</h3>
+        """
+        topics = []
+
+        # Pattern 1: <p>Short text</p> followed by <ul> (common podcast show notes format)
+        # Match: <p>Windows 11</p><ul> or <p>AI</p><ul>
+        pattern1 = r'<p>([^<]{2,40})</p>\s*<ul'
+        for match in re.finditer(pattern1, description, re.IGNORECASE):
+            header = match.group(1).strip()
+            # Skip if it looks like a sentence (has lowercase after first word)
+            if header and not re.search(r'\.\s|,\s', header):
+                topics.append(header)
+
+        # Pattern 2: <strong>Topic</strong> or <b>Topic</b> as standalone
+        pattern2 = r'<(?:strong|b)>([^<]{2,40})</(?:strong|b)>'
+        for match in re.finditer(pattern2, description, re.IGNORECASE):
+            header = match.group(1).strip()
+            if header and len(header) < 40:
+                topics.append(header)
+
+        # Pattern 3: <h2> or <h3> headers
+        pattern3 = r'<h[23][^>]*>([^<]{2,40})</h[23]>'
+        for match in re.finditer(pattern3, description, re.IGNORECASE):
+            header = match.group(1).strip()
+            if header:
+                topics.append(header)
+
+        # Pattern 4: Look in plain text for short lines followed by list items
+        text = self._html_to_text(description)
+        lines = text.split('\n')
+        for i, line in enumerate(lines):
+            line = line.strip()
+
+            # Skip empty, very short, or very long lines
+            if not line or len(line) < 2 or len(line) > 40:
+                continue
+
+            # Skip lines that look like list items or timestamps
+            if line.startswith('-') or line.startswith('*') or re.match(r'^\d', line):
+                continue
+
+            # Check if this is a short standalone line (potential header)
+            # followed by content (non-empty next line or end of list)
+            if i + 1 < len(lines):
+                next_line = lines[i + 1].strip()
+                # Short line followed by content = likely a header
+                if next_line and len(line) < 30 and not re.search(r'[.!?]$', line):
+                    topics.append(line)
+
+        # Deduplicate while preserving order
+        seen = set()
+        unique_topics = []
+        for topic in topics:
+            topic_lower = topic.lower().strip()
+            if topic_lower not in seen and len(topic_lower) > 1:
+                seen.add(topic_lower)
+                unique_topics.append(topic)
+
+        return unique_topics[:10]  # Max 10 topics
+
+    def _get_transcript_summary(self, segments: List[Dict], max_chars: int = 6000) -> str:
+        """Get transcript with timestamps, sampled if too long."""
+        lines = []
+        total_chars = 0
+
+        # Sample every Nth segment if needed
+        step = max(1, len(segments) // 200)
+
+        for i, segment in enumerate(segments):
+            if i % step != 0:
+                continue
+
+            text = segment.get('text', '').strip()
+            if not text:
+                continue
+
+            start = segment.get('start', 0)
+            mins = int(start // 60)
+            secs = int(start % 60)
+            line = f"[{mins:02d}:{secs:02d}] {text}"
+
+            if total_chars + len(line) > max_chars:
+                break
+
+            lines.append(line)
+            total_chars += len(line)
+
+        return '\n'.join(lines)
+
+    def _match_topics_to_transcript(
+        self,
+        topics: List[str],
+        transcript: str,
+        segments: List[Dict],
+        ads_removed: List[Dict]
+    ) -> List[Dict]:
+        """Use Claude to match topic headers to transcript timestamps."""
+        topics_list = '\n'.join(f"- {t}" for t in topics)
+
+        prompt = f"""Match these podcast episode topics to their approximate start times in the transcript.
+
+Topics from episode description:
+{topics_list}
+
+For each topic, find where it's discussed in the transcript and provide the timestamp.
+Format your response as one line per topic:
+MM:SS Topic Name
+
+Only include topics you can clearly identify in the transcript. Skip topics you can't find.
+
+Transcript:
+{transcript}"""
+
+        try:
+            response = self.client.messages.create(
+                model="claude-3-5-haiku-20241022",
+                max_tokens=400,
+                temperature=0.3,
+                messages=[{"role": "user", "content": prompt}]
+            )
+
+            result_text = response.content[0].text.strip()
+            chapters = []
+
+            for line in result_text.split('\n'):
+                line = line.strip()
+                if not line:
+                    continue
+
+                match = re.match(r'^(\d{1,2}:\d{2})\s+(.+)$', line)
+                if match:
+                    timestamp_str, title = match.groups()
+                    try:
+                        original_time = self.parse_timestamp_to_seconds(timestamp_str)
+                        adjusted_time = self.adjust_timestamp(original_time, ads_removed)
+                        chapters.append({
+                            'startTime': adjusted_time,
+                            'title': title.strip(),
+                            'source': 'topic_match',
+                            'needs_title': False
+                        })
+                    except (ValueError, IndexError):
+                        continue
+
+            logger.info(f"Matched {len(chapters)} topics to transcript positions")
+            return chapters
+
+        except Exception as e:
+            logger.error(f"Failed to match topics to transcript: {e}")
+            return []
+
+    def _detect_topic_boundaries(
+        self,
+        transcript: str,
+        start_time: float,
+        end_time: float,
+        num_splits: int
+    ) -> List[Dict]:
+        """
+        Use Claude to detect topic boundaries in transcript.
+
+        Returns list of {'original_time': float, 'title': str}
+        """
+        prompt = f"""Analyze this podcast transcript segment and identify {num_splits} major topic changes.
+
+The segment runs from {int(start_time//60)}:{int(start_time%60):02d} to {int(end_time//60)}:{int(end_time%60):02d}.
+
+For each topic change, provide:
+1. The timestamp where the new topic begins (from the [MM:SS] markers)
+2. A short title (3-7 words) for the new topic
+
+Format your response as one topic per line:
+MM:SS Topic Title Here
+
+Only include clear topic transitions, not minor tangents. Skip the very beginning since that's already a chapter.
+
+Transcript:
+{transcript[:8000]}"""
+
+        try:
+            response = self.client.messages.create(
+                model="claude-3-5-haiku-20241022",
+                max_tokens=300,
+                temperature=0.3,
+                messages=[{"role": "user", "content": prompt}]
+            )
+
+            result_text = response.content[0].text.strip()
+            chapters = []
+
+            for line in result_text.split('\n'):
+                line = line.strip()
+                if not line:
+                    continue
+
+                # Parse "MM:SS Title" format
+                match = re.match(r'^(\d{1,2}:\d{2})\s+(.+)$', line)
+                if match:
+                    timestamp_str, title = match.groups()
+                    try:
+                        seconds = self.parse_timestamp_to_seconds(timestamp_str)
+                        # Validate time is within range
+                        if start_time < seconds < end_time:
+                            chapters.append({
+                                'original_time': seconds,
+                                'title': title.strip()
+                            })
+                    except (ValueError, IndexError):
+                        continue
+
+            logger.info(f"AI detected {len(chapters)} topic boundaries in long segment")
+            return chapters
+
+        except Exception as e:
+            logger.error(f"Failed to detect topic boundaries: {e}")
+            return []
 
     def get_transcript_excerpt(
         self,
@@ -587,6 +1003,25 @@ class ChaptersGenerator:
         merged_chapters = self.merge_chapters(
             description_chapters, ad_gap_chapters, ads_removed
         )
+
+        # Step 3b: If no description chapters found, try topic-based detection
+        if not description_chapters and episode_description:
+            topic_chapters = self.detect_topics_from_description(
+                episode_description, segments, ads_removed, episode_duration
+            )
+            if topic_chapters:
+                for ch in topic_chapters:
+                    # Skip if too close to existing chapter
+                    if any(abs(existing['startTime'] - ch['startTime']) < 60 for existing in merged_chapters):
+                        continue
+                    merged_chapters.append(ch)
+                merged_chapters.sort(key=lambda x: x['startTime'])
+
+        # Step 3c: Split long segments using AI topic detection
+        if segments:
+            merged_chapters = self.split_long_segments(
+                merged_chapters, segments, ads_removed, episode_duration
+            )
 
         # Step 4: Generate titles for chapters that need them
         if segments:
