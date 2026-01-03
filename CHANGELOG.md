@@ -6,6 +6,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.175] - 2026-01-03
+
+### Fixed
+- **Force refresh option for feeds**: Added `force` parameter to feed refresh API endpoints (`POST /api/v1/feeds/<slug>/refresh` and `POST /api/v1/feeds/refresh`) to bypass conditional GET (304 Not Modified) and regenerate RSS even when source feed hasn't changed. This is needed after code updates that change RSS format.
+
+---
+
 ## [0.1.174] - 2026-01-03
 
 ### Fixed

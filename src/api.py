@@ -646,7 +646,13 @@ def delete_feed(slug):
 @limiter.limit("10 per minute")
 @log_request
 def refresh_feed(slug):
-    """Refresh a single podcast feed."""
+    """Refresh a single podcast feed.
+
+    Optional request body:
+    {
+        "force": true  // Force full refresh, bypassing conditional GET (304)
+    }
+    """
     db = get_database()
 
     podcast = db.get_podcast_by_slug(slug)
@@ -655,6 +661,15 @@ def refresh_feed(slug):
 
     if not podcast.get('source_url'):
         return error_response('Feed has no source URL', 400)
+
+    # Check for force parameter
+    force = False
+    data = request.get_json(silent=True)
+    if data and data.get('force'):
+        force = True
+        # Clear ETag to force non-conditional fetch
+        db.update_podcast_etag(slug, None, None)
+        logger.info(f"Force refresh requested for {slug}, cleared ETag")
 
     try:
         from main import refresh_rss_feed
@@ -681,12 +696,28 @@ def refresh_feed(slug):
 @limiter.limit("2 per minute")
 @log_request
 def refresh_all_feeds():
-    """Refresh all podcast feeds."""
+    """Refresh all podcast feeds.
+
+    Optional request body:
+    {
+        "force": true  // Force full refresh for all feeds, bypassing conditional GET (304)
+    }
+    """
     try:
+        db = get_database()
+
+        # Check for force parameter
+        data = request.get_json(silent=True)
+        if data and data.get('force'):
+            # Clear all ETags to force non-conditional fetch
+            podcasts = db.get_all_podcasts()
+            for podcast in podcasts:
+                db.update_podcast_etag(podcast['slug'], None, None)
+            logger.info(f"Force refresh requested, cleared ETags for {len(podcasts)} feeds")
+
         from main import refresh_all_feeds as do_refresh
         do_refresh()
 
-        db = get_database()
         podcasts = db.get_all_podcasts()
 
         logger.info("Refreshed all feeds")
