@@ -6,6 +6,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.173] - 2026-01-03
+
+### Added
+- **Podcasting 2.0 Transcript and Chapters Support**
+  - VTT transcripts with timestamps adjusted for removed ads
+  - JSON chapters generated from ad boundaries and episode description timestamps
+  - AI-generated chapter titles using Claude Haiku
+  - New RSS namespace: `xmlns:podcast="https://podcastindex.org/namespace/1.0"`
+  - `<podcast:transcript>` tag with VTT file URL, `rel="captions"`, and language attribute
+  - `<podcast:chapters>` tag with chapters JSON URL
+- New serving endpoints:
+  - `GET /episodes/<slug>/<episode_id>.vtt` - VTT transcript
+  - `GET /episodes/<slug>/<episode_id>/chapters.json` - Chapters JSON
+- Settings UI toggles for VTT transcripts and chapters generation
+- Episode detail shows VTT and Chapters badges when available
+- Download links for VTT and chapters in episode detail page
+
+### Fixed
+- **Chapters startTime compatibility with podcast apps**
+  - Changed from float values (738.8) to integers (739)
+  - Changed minimum startTime from 0 to 1 (required by some apps like Pocket Casts)
+  - Based on analysis of working No Agenda podcast feed format
+
+### Changed
+- VTT and chapters stored in database instead of filesystem
+- RSS transcript tag now includes `rel="captions"` attribute
+- Chapters MIME type changed to `application/json` (from non-standard type)
+
+---
+
 ## [0.1.172] - 2026-01-01
 
 ### Added

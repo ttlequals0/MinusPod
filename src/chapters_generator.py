@@ -536,10 +536,12 @@ class ChaptersGenerator:
             JSON string
         """
         # Clean up chapters for output
+        # Use integers for startTime (some podcast apps don't handle floats)
+        # Use min value of 1 (some apps expect chapters to start at 1, not 0)
         output_chapters = []
         for chapter in chapters:
             output_chapter = {
-                'startTime': round(chapter['startTime'], 1),
+                'startTime': max(1, int(round(chapter['startTime']))),
                 'title': chapter.get('title', 'Untitled')
             }
             output_chapters.append(output_chapter)
@@ -595,10 +597,12 @@ class ChaptersGenerator:
             merged_chapters = self._apply_generic_titles(merged_chapters)
 
         # Step 5: Build output
+        # Use integers for startTime (some podcast apps don't handle floats)
+        # Use min value of 1 (some apps expect chapters to start at 1, not 0)
         output_chapters = []
         for chapter in merged_chapters:
             output_chapters.append({
-                'startTime': round(chapter['startTime'], 1),
+                'startTime': max(1, int(round(chapter['startTime']))),
                 'title': chapter.get('title', 'Untitled')
             })
 
