@@ -548,7 +548,8 @@ def refresh_rss_feed(slug: str, feed_url: str):
                             except (ValueError, TypeError):
                                 pass
                         queue_id = db.queue_episode_for_processing(
-                            slug, ep['id'], ep['url'], ep.get('title'), iso_published
+                            slug, ep['id'], ep['url'], ep.get('title'), iso_published,
+                            ep.get('description')
                         )
                         if queue_id:
                             queued_count += 1
@@ -659,6 +660,7 @@ def background_queue_processor():
                 title = queued.get('title', 'Unknown')
                 podcast_name = queued.get('podcast_title', slug)
                 published_at = queued.get('published_at')
+                description = queued.get('description')
 
                 refresh_logger.info(f"[{slug}:{episode_id}] Auto-processing queued episode: {title}")
 
@@ -668,7 +670,7 @@ def background_queue_processor():
                 try:
                     # Try to start background processing using the existing queue
                     started, reason = start_background_processing(
-                        slug, episode_id, original_url, title, podcast_name, None, None, published_at
+                        slug, episode_id, original_url, title, podcast_name, description, None, published_at
                     )
 
                     if started:

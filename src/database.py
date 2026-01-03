@@ -867,6 +867,20 @@ class Database:
         except Exception as e:
             logger.debug(f"auto_process_queue published_at migration: {e}")
 
+        # Migration: Add description to auto_process_queue if missing
+        try:
+            cursor = conn.execute("PRAGMA table_info(auto_process_queue)")
+            queue_columns = [row['name'] for row in cursor.fetchall()]
+            if 'description' not in queue_columns:
+                conn.execute("""
+                    ALTER TABLE auto_process_queue
+                    ADD COLUMN description TEXT
+                """)
+                conn.commit()
+                logger.info("Migration: Added description column to auto_process_queue table")
+        except Exception as e:
+            logger.debug(f"auto_process_queue description migration: {e}")
+
         # Create new indexes for podcasts table (will fail silently if already exist)
         try:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_podcasts_network_id ON podcasts(network_id)")
@@ -2792,7 +2806,8 @@ class Database:
 
     def queue_episode_for_processing(self, slug: str, episode_id: str,
                                       original_url: str, title: str = None,
-                                      published_at: str = None) -> Optional[int]:
+                                      published_at: str = None,
+                                      description: str = None) -> Optional[int]:
         """Add an episode to the auto-process queue. Returns queue ID or None if already queued."""
         conn = self.get_connection()
 
@@ -2807,10 +2822,10 @@ class Database:
         try:
             cursor = conn.execute(
                 """INSERT INTO auto_process_queue
-                   (podcast_id, episode_id, original_url, title, published_at)
-                   VALUES (?, ?, ?, ?, ?)
+                   (podcast_id, episode_id, original_url, title, published_at, description)
+                   VALUES (?, ?, ?, ?, ?, ?)
                    ON CONFLICT(podcast_id, episode_id) DO NOTHING""",
-                (podcast_id, episode_id, original_url, title, published_at)
+                (podcast_id, episode_id, original_url, title, published_at, description)
             )
             conn.commit()
             return cursor.lastrowid if cursor.rowcount > 0 else None
