@@ -369,6 +369,40 @@ class Transcriber:
                     pass
             return None
 
+    def check_audio_availability(self, url: str, timeout: int = 10) -> tuple:
+        """Check if audio URL is accessible without downloading.
+
+        Performs a HEAD request to verify the CDN has the file ready.
+        Use this before downloading to avoid failures on newly published episodes
+        where the CDN hasn't propagated the file yet.
+
+        Args:
+            url: Audio file URL to check
+            timeout: Request timeout in seconds
+
+        Returns:
+            Tuple of (available: bool, error_message: str or None)
+        """
+        try:
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            }
+            response = requests.head(url, headers=headers, timeout=timeout, allow_redirects=True)
+
+            if response.status_code == 200:
+                return True, None
+            elif response.status_code in (404, 403):
+                return False, f"CDN not ready ({response.status_code})"
+            elif response.status_code >= 500:
+                return False, f"CDN server error ({response.status_code})"
+            else:
+                # Other 2xx/3xx - proceed with download
+                return True, None
+        except requests.exceptions.Timeout:
+            return False, "CDN timeout"
+        except requests.RequestException as e:
+            return False, f"CDN check failed: {e}"
+
     def download_audio(self, url: str, timeout: tuple = (10, 300)) -> Optional[str]:
         """Download audio file from URL.
 

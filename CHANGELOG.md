@@ -6,6 +6,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.187] - 2026-01-07
+
+### Fixed
+- **Transcripts/chapters now appear immediately in podcast apps**: RSS cache is now invalidated after episode processing completes, ensuring Podcasting 2.0 tags are included right away instead of waiting for next feed refresh
+- **Reduced failures for newly published episodes**: Added CDN availability check (HEAD request) before downloading audio. When CDN returns 4xx/5xx, the error is classified as transient and will be retried instead of failing immediately
+- **Improved back-to-back ad detection**: When an ad's end_text contains a different sponsor's URL (e.g., ad for "Better Wild" ending with "mintmobile.com"), the system now looks for the next detected ad. If that ad's sponsor matches the end_text URL, the current ad is extended to meet it, eliminating gaps between consecutive ads from different sponsors
+
+---
+
 ## [0.1.186] - 2026-01-03
 
 ### Fixed

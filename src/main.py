@@ -178,8 +178,19 @@ def is_transient_error(error: Exception) -> bool:
     )):
         return False
 
-    # Check error message for common permanent failure patterns
+    # Check error message for patterns
     error_msg = str(error).lower()
+
+    # Transient patterns - check before permanent patterns
+    transient_patterns = [
+        'cdn not ready',
+        'cdn timeout',
+        'cdn server error',
+        'cdn check failed',
+    ]
+    if any(pattern in error_msg for pattern in transient_patterns):
+        return True
+
     permanent_patterns = [
         'invalid audio',
         'unsupported format',
@@ -861,11 +872,21 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 duration_min = segments[-1]['end'] / 60 if segments else 0
                 audio_logger.info(f"[{slug}:{episode_id}] Loaded {len(segments)} segments, {duration_min:.1f} min")
 
+            # Check CDN availability before downloading
+            available, cdn_error = transcriber.check_audio_availability(episode_url)
+            if not available:
+                raise Exception(f"CDN not ready: {cdn_error}")
+
             # Still need to download audio for processing
             audio_path = transcriber.download_audio(episode_url)
             if not audio_path:
                 raise Exception("Failed to download audio")
         else:
+            # Check CDN availability before downloading
+            available, cdn_error = transcriber.check_audio_availability(episode_url)
+            if not available:
+                raise Exception(f"CDN not ready: {cdn_error}")
+
             # Download and transcribe
             audio_logger.info(f"[{slug}:{episode_id}] Downloading audio")
             audio_path = transcriber.download_audio(episode_url)
@@ -1134,6 +1155,15 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 ads_removed_secondpass=second_pass_count,
                 reprocess_mode=None,
                 reprocess_requested_at=None)
+
+            # Invalidate RSS cache so it regenerates with new Podcasting 2.0 tags
+            try:
+                rss_cache_path = storage.get_podcast_dir(slug) / "modified-rss.xml"
+                if rss_cache_path.exists():
+                    rss_cache_path.unlink()
+                    audio_logger.debug(f"[{slug}:{episode_id}] Invalidated RSS cache")
+            except Exception as cache_err:
+                audio_logger.warning(f"[{slug}:{episode_id}] Failed to invalidate RSS cache: {cache_err}")
 
             processing_time = time.time() - start_time
 
