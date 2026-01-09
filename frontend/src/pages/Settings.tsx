@@ -26,6 +26,8 @@ function Settings() {
   const [audioAnalysisEnabled, setAudioAnalysisEnabled] = useState(false);
   const [autoProcessEnabled, setAutoProcessEnabled] = useState(true);
   const [audioBitrate, setAudioBitrate] = useState('128k');
+  const [vttTranscriptsEnabled, setVttTranscriptsEnabled] = useState(true);
+  const [chaptersEnabled, setChaptersEnabled] = useState(true);
   const [hasChanges, setHasChanges] = useState(false);
   const [cleanupConfirm, setCleanupConfirm] = useState(false);
 
@@ -75,6 +77,8 @@ function Settings() {
       setAudioAnalysisEnabled(settings.audioAnalysisEnabled?.value ?? false);
       setAutoProcessEnabled(settings.autoProcessEnabled?.value ?? true);
       setAudioBitrate(settings.audioBitrate?.value || '128k');
+      setVttTranscriptsEnabled(settings.vttTranscriptsEnabled?.value ?? true);
+      setChaptersEnabled(settings.chaptersEnabled?.value ?? true);
     }
   }, [settings]);
 
@@ -89,10 +93,12 @@ function Settings() {
         whisperModel !== (settings.whisperModel?.value || 'small') ||
         audioAnalysisEnabled !== (settings.audioAnalysisEnabled?.value ?? false) ||
         autoProcessEnabled !== (settings.autoProcessEnabled?.value ?? true) ||
-        audioBitrate !== (settings.audioBitrate?.value || '128k');
+        audioBitrate !== (settings.audioBitrate?.value || '128k') ||
+        vttTranscriptsEnabled !== (settings.vttTranscriptsEnabled?.value ?? true) ||
+        chaptersEnabled !== (settings.chaptersEnabled?.value ?? true);
       setHasChanges(changed);
     }
-  }, [systemPrompt, secondPassPrompt, selectedModel, secondPassModel, multiPassEnabled, whisperModel, audioAnalysisEnabled, autoProcessEnabled, audioBitrate, settings]);
+  }, [systemPrompt, secondPassPrompt, selectedModel, secondPassModel, multiPassEnabled, whisperModel, audioAnalysisEnabled, autoProcessEnabled, audioBitrate, vttTranscriptsEnabled, chaptersEnabled, settings]);
 
   const updateMutation = useMutation({
     mutationFn: () =>
@@ -106,6 +112,8 @@ function Settings() {
         audioAnalysisEnabled,
         autoProcessEnabled,
         audioBitrate,
+        vttTranscriptsEnabled,
+        chaptersEnabled,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
@@ -591,6 +599,53 @@ function Settings() {
             </p>
           </div>
         )}
+      </div>
+
+      <div className="bg-card rounded-lg border border-border p-6">
+        <h2 className="text-lg font-semibold text-foreground mb-4">Podcasting 2.0</h2>
+        <div className="space-y-4">
+          <div>
+            <label className="flex items-center gap-3 cursor-pointer">
+              <div
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  vttTranscriptsEnabled ? 'bg-primary' : 'bg-secondary'
+                }`}
+                onClick={() => setVttTranscriptsEnabled(!vttTranscriptsEnabled)}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    vttTranscriptsEnabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </div>
+              <span className="text-sm font-medium text-foreground">Generate VTT Transcripts</span>
+            </label>
+            <p className="mt-2 text-sm text-muted-foreground ml-14">
+              Create WebVTT transcripts with adjusted timestamps for podcast apps
+            </p>
+          </div>
+
+          <div>
+            <label className="flex items-center gap-3 cursor-pointer">
+              <div
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                  chaptersEnabled ? 'bg-primary' : 'bg-secondary'
+                }`}
+                onClick={() => setChaptersEnabled(!chaptersEnabled)}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    chaptersEnabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </div>
+              <span className="text-sm font-medium text-foreground">Generate Chapters</span>
+            </label>
+            <p className="mt-2 text-sm text-muted-foreground ml-14">
+              Create JSON chapters from ad boundaries and description timestamps
+            </p>
+          </div>
+        </div>
       </div>
 
       <div className="bg-card rounded-lg border border-border p-6">

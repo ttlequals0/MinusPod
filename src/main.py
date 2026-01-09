@@ -178,8 +178,19 @@ def is_transient_error(error: Exception) -> bool:
     )):
         return False
 
-    # Check error message for common permanent failure patterns
+    # Check error message for patterns
     error_msg = str(error).lower()
+
+    # Transient patterns - check before permanent patterns
+    transient_patterns = [
+        'cdn not ready',
+        'cdn timeout',
+        'cdn server error',
+        'cdn check failed',
+    ]
+    if any(pattern in error_msg for pattern in transient_patterns):
+        return True
+
     permanent_patterns = [
         'invalid audio',
         'unsupported format',
@@ -274,6 +285,8 @@ from audio_analysis import AudioAnalyzer
 from sponsor_service import SponsorService
 from status_service import StatusService
 from pattern_service import PatternService
+from transcript_generator import TranscriptGenerator
+from chapters_generator import ChaptersGenerator
 
 # Initialize components
 storage = Storage()
@@ -429,8 +442,15 @@ def get_parsed_feed(slug: str, source_url: str):
     return None
 
 
-def refresh_rss_feed(slug: str, feed_url: str):
-    """Refresh RSS feed for a podcast."""
+def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
+    """Refresh RSS feed for a podcast.
+
+    Args:
+        slug: Podcast slug
+        feed_url: URL of the original RSS feed
+        force: If True, bypass conditional GET (ETag/Last-Modified) to force full fetch.
+               Use this when the RSS cache was deleted and needs regeneration.
+    """
     try:
         # Get podcast name and etag for conditional fetch
         podcast = db.get_podcast(slug)
@@ -442,8 +462,9 @@ def refresh_rss_feed(slug: str, feed_url: str):
         refresh_logger.info(f"[{slug}] Starting RSS refresh from: {feed_url}")
 
         # Fetch original RSS with conditional GET (ETag/Last-Modified)
-        existing_etag = podcast.get('etag') if podcast else None
-        existing_last_modified = podcast.get('last_modified_header') if podcast else None
+        # Skip conditional GET if force=True (cache was deleted, need full content)
+        existing_etag = None if force else (podcast.get('etag') if podcast else None)
+        existing_last_modified = None if force else (podcast.get('last_modified_header') if podcast else None)
 
         feed_content, new_etag, new_last_modified = rss_parser.fetch_feed_conditional(
             feed_url,
@@ -546,7 +567,8 @@ def refresh_rss_feed(slug: str, feed_url: str):
                             except (ValueError, TypeError):
                                 pass
                         queue_id = db.queue_episode_for_processing(
-                            slug, ep['id'], ep['url'], ep.get('title'), iso_published
+                            slug, ep['id'], ep['url'], ep.get('title'), iso_published,
+                            ep.get('description')
                         )
                         if queue_id:
                             queued_count += 1
@@ -555,8 +577,8 @@ def refresh_rss_feed(slug: str, feed_url: str):
             if queued_count > 0:
                 refresh_logger.info(f"[{slug}] Queued {queued_count} new episode(s) for auto-processing")
 
-        # Modify feed URLs
-        modified_rss = rss_parser.modify_feed(feed_content, slug)
+        # Modify feed URLs (pass storage to include Podcasting 2.0 tags)
+        modified_rss = rss_parser.modify_feed(feed_content, slug, storage=storage)
 
         # Save modified RSS
         storage.save_rss(slug, modified_rss)
@@ -657,6 +679,7 @@ def background_queue_processor():
                 title = queued.get('title', 'Unknown')
                 podcast_name = queued.get('podcast_title', slug)
                 published_at = queued.get('published_at')
+                description = queued.get('description')
 
                 refresh_logger.info(f"[{slug}:{episode_id}] Auto-processing queued episode: {title}")
 
@@ -666,7 +689,7 @@ def background_queue_processor():
                 try:
                     # Try to start background processing using the existing queue
                     started, reason = start_background_processing(
-                        slug, episode_id, original_url, title, podcast_name, None, None, published_at
+                        slug, episode_id, original_url, title, podcast_name, description, None, published_at
                     )
 
                     if started:
@@ -687,8 +710,16 @@ def background_queue_processor():
                         if episode and episode['status'] == 'processed':
                             db.update_queue_status(queue_id, 'completed')
                             refresh_logger.info(f"[{slug}:{episode_id}] Auto-process completed successfully")
+                        elif episode and episode['status'] == 'processing':
+                            # Still processing after timeout - don't mark as failed, let it continue
+                            # Put back in queue to check again later
+                            db.update_queue_status(queue_id, 'pending')
+                            refresh_logger.info(f"[{slug}:{episode_id}] Still processing after {max_wait}s, will check again later")
                         else:
-                            error_msg = episode.get('error_message', 'Processing failed') if episode else 'Unknown error'
+                            # Actually failed - get the real error message
+                            error_msg = episode.get('error_message') if episode else None
+                            if not error_msg:
+                                error_msg = f"Processing ended with status: {episode.get('status') if episode else 'unknown'}"
                             db.update_queue_status(queue_id, 'failed', error_msg)
                             refresh_logger.warning(f"[{slug}:{episode_id}] Auto-process failed: {error_msg}")
                     elif reason == "already_processing":
@@ -857,11 +888,21 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 duration_min = segments[-1]['end'] / 60 if segments else 0
                 audio_logger.info(f"[{slug}:{episode_id}] Loaded {len(segments)} segments, {duration_min:.1f} min")
 
+            # Check CDN availability before downloading
+            available, cdn_error = transcriber.check_audio_availability(episode_url)
+            if not available:
+                raise Exception(f"CDN not ready: {cdn_error}")
+
             # Still need to download audio for processing
             audio_path = transcriber.download_audio(episode_url)
             if not audio_path:
                 raise Exception("Failed to download audio")
         else:
+            # Check CDN availability before downloading
+            available, cdn_error = transcriber.check_audio_availability(episode_url)
+            if not available:
+                raise Exception(f"CDN not ready: {cdn_error}")
+
             # Download and transcribe
             audio_logger.info(f"[{slug}:{episode_id}] Downloading audio")
             audio_path = transcriber.download_audio(episode_url)
@@ -1092,6 +1133,31 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             final_path = storage.get_episode_path(slug, episode_id)
             shutil.move(processed_path, final_path)
 
+            # Generate Podcasting 2.0 assets (VTT transcript and chapters)
+            try:
+                # Check settings for VTT transcripts
+                vtt_enabled = db.get_setting('vtt_transcripts_enabled')
+                if vtt_enabled is None or vtt_enabled.lower() == 'true':
+                    transcript_gen = TranscriptGenerator()
+                    vtt_content = transcript_gen.generate_vtt(segments, ads_to_remove)
+                    if vtt_content and len(vtt_content) > 10:
+                        storage.save_transcript_vtt(slug, episode_id, vtt_content)
+                        audio_logger.info(f"[{slug}:{episode_id}] Generated VTT transcript")
+
+                # Check settings for chapters
+                chapters_enabled = db.get_setting('chapters_enabled')
+                if chapters_enabled is None or chapters_enabled.lower() == 'true':
+                    chapters_gen = ChaptersGenerator()
+                    chapters = chapters_gen.generate_chapters(
+                        segments, ads_to_remove, episode_description,
+                        podcast_name, episode_title
+                    )
+                    if chapters and chapters.get('chapters'):
+                        storage.save_chapters_json(slug, episode_id, chapters)
+                        audio_logger.info(f"[{slug}:{episode_id}] Generated {len(chapters['chapters'])} chapters")
+            except Exception as e:
+                audio_logger.warning(f"[{slug}:{episode_id}] Failed to generate Podcasting 2.0 assets: {e}")
+
             # Update status to processed with combined ad count and per-pass counts
             # ads_removed counts only non-rejected ads (ones actually removed from audio)
             # Clear reprocess_mode and reprocess_requested_at after successful processing
@@ -1105,6 +1171,15 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 ads_removed_secondpass=second_pass_count,
                 reprocess_mode=None,
                 reprocess_requested_at=None)
+
+            # Regenerate RSS cache to include new Podcasting 2.0 tags (transcript/chapters)
+            try:
+                feed_map = get_feed_map()
+                if slug in feed_map:
+                    refresh_rss_feed(slug, feed_map[slug]['in'], force=True)
+                    audio_logger.debug(f"[{slug}:{episode_id}] Regenerated RSS cache with Podcasting 2.0 tags")
+            except Exception as cache_err:
+                audio_logger.warning(f"[{slug}:{episode_id}] Failed to regenerate RSS cache: {cache_err}")
 
             processing_time = time.time() - start_time
 
@@ -1298,8 +1373,10 @@ def serve_rss(slug):
     last_checked = data.get('last_checked')
 
     should_refresh = False
+    force_refresh = False  # Force full fetch bypasses 304 - use when cache is missing
     if not cached_rss:
         should_refresh = True
+        force_refresh = True  # No cache, must get full content (can't use 304)
         feed_logger.info(f"[{slug}] No RSS cache, refreshing")
     elif last_checked:
         try:
@@ -1312,7 +1389,7 @@ def serve_rss(slug):
             should_refresh = True
 
     if should_refresh:
-        refresh_rss_feed(slug, feed_map[slug]['in'])
+        refresh_rss_feed(slug, feed_map[slug]['in'], force=force_refresh)
         cached_rss = storage.get_rss(slug)
 
     if cached_rss:
@@ -1451,6 +1528,47 @@ def serve_episode(slug, episode_id):
             mimetype='application/json',
             headers={'Retry-After': '60'}
         )
+
+
+@app.route('/episodes/<slug>/<episode_id>.vtt')
+@log_request_detailed
+def serve_transcript_vtt(slug, episode_id):
+    """Serve VTT transcript for episode (Podcasting 2.0)."""
+    # Validate episode ID
+    if not all(c.isalnum() or c in '-_' for c in episode_id):
+        feed_logger.warning(f"[{slug}] Invalid episode ID for VTT: {episode_id}")
+        abort(400)
+
+    vtt_content = storage.get_transcript_vtt(slug, episode_id)
+    if not vtt_content:
+        feed_logger.info(f"[{slug}:{episode_id}] VTT transcript not found")
+        abort(404)
+
+    feed_logger.info(f"[{slug}:{episode_id}] Serving VTT transcript")
+    response = Response(vtt_content, mimetype='text/vtt')
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    return response
+
+
+@app.route('/episodes/<slug>/<episode_id>/chapters.json')
+@log_request_detailed
+def serve_chapters_json(slug, episode_id):
+    """Serve chapters JSON for episode (Podcasting 2.0)."""
+    # Validate episode ID
+    if not all(c.isalnum() or c in '-_' for c in episode_id):
+        feed_logger.warning(f"[{slug}] Invalid episode ID for chapters: {episode_id}")
+        abort(400)
+
+    chapters = storage.get_chapters_json(slug, episode_id)
+    if not chapters:
+        feed_logger.info(f"[{slug}:{episode_id}] Chapters not found")
+        abort(404)
+
+    import json
+    feed_logger.info(f"[{slug}:{episode_id}] Serving chapters JSON")
+    response = Response(json.dumps(chapters), mimetype='application/json+chapters')
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    return response
 
 
 @app.route('/health')

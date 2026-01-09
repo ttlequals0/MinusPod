@@ -1,7 +1,7 @@
 import { useState, useRef, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getEpisode, reprocessEpisode } from '../api/feeds';
+import { getEpisode, reprocessEpisode, regenerateChapters } from '../api/feeds';
 import { submitCorrection } from '../api/patterns';
 import LoadingSpinner from '../components/LoadingSpinner';
 import TranscriptEditor, { AdCorrection } from '../components/TranscriptEditor';
@@ -32,6 +32,13 @@ function EpisodeDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
       setShowReprocessMenu(false);
+    },
+  });
+
+  const regenerateChaptersMutation = useMutation({
+    mutationFn: () => regenerateChapters(slug!, episodeId!),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
     },
   });
 
@@ -208,6 +215,16 @@ function EpisodeDetail() {
               <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[episode.status]}`}>
                 {episode.status}
               </span>
+              {episode.transcriptVttAvailable && (
+                <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-500/20 text-blue-600 dark:text-blue-400">
+                  VTT
+                </span>
+              )}
+              {episode.chaptersAvailable && (
+                <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-purple-500/20 text-purple-600 dark:text-purple-400">
+                  Chapters
+                </span>
+              )}
               <div className="relative">
                 <button
                   onClick={() => setShowReprocessMenu(!showReprocessMenu)}
@@ -231,12 +248,26 @@ function EpisodeDetail() {
                     </button>
                     <button
                       onClick={() => reprocessMutation.mutate('full')}
-                      className="w-full px-3 py-2 text-left text-sm hover:bg-accent rounded-b-lg border-t border-border"
+                      className={`w-full px-3 py-2 text-left text-sm hover:bg-accent border-t border-border ${!episode.transcriptVttAvailable ? 'rounded-b-lg' : ''}`}
                       title="Skip pattern DB, Claude analyzes everything fresh"
                     >
                       <div className="font-medium">Full Analysis</div>
                       <div className="text-xs text-muted-foreground">Skip patterns, Claude only</div>
                     </button>
+                    {episode.transcriptVttAvailable && (
+                      <button
+                        onClick={() => {
+                          regenerateChaptersMutation.mutate();
+                          setShowReprocessMenu(false);
+                        }}
+                        disabled={regenerateChaptersMutation.isPending}
+                        className="w-full px-3 py-2 text-left text-sm hover:bg-accent rounded-b-lg border-t border-border disabled:opacity-50"
+                        title="Regenerate chapters from existing transcript"
+                      >
+                        <div className="font-medium">Regenerate Chapters</div>
+                        <div className="text-xs text-muted-foreground">Use existing transcript</div>
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -249,6 +280,28 @@ function EpisodeDetail() {
             <audio controls className="w-full" src={`/episodes/${slug}/${episode.id}.mp3`}>
               Your browser does not support the audio element.
             </audio>
+            {(episode.transcriptVttAvailable || episode.chaptersAvailable) && (
+              <div className="flex flex-wrap gap-2 mt-3">
+                {episode.transcriptVttAvailable && episode.transcriptVttUrl && (
+                  <a
+                    href={episode.transcriptVttUrl}
+                    download
+                    className="px-3 py-1 text-sm bg-blue-500/20 text-blue-600 dark:text-blue-400 rounded hover:bg-blue-500/30 transition-colors"
+                  >
+                    Download VTT
+                  </a>
+                )}
+                {episode.chaptersAvailable && episode.chaptersUrl && (
+                  <a
+                    href={episode.chaptersUrl}
+                    download
+                    className="px-3 py-1 text-sm bg-purple-500/20 text-purple-600 dark:text-purple-400 rounded hover:bg-purple-500/30 transition-colors"
+                  >
+                    Download Chapters
+                  </a>
+                )}
+              </div>
+            )}
           </div>
         )}
 

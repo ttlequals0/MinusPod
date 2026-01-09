@@ -32,6 +32,10 @@ export interface EpisodeDetail extends Episode {
   originalUrl?: string;
   processedUrl?: string;
   transcript?: string;
+  transcriptVttAvailable?: boolean;
+  transcriptVttUrl?: string;
+  chaptersAvailable?: boolean;
+  chaptersUrl?: string;
   adMarkers?: AdSegment[];
   rejectedAdMarkers?: AdSegment[];
   corrections?: EpisodeCorrection[];
@@ -92,6 +96,8 @@ export interface Settings {
   audioAnalysisEnabled: SettingValueBoolean;
   autoProcessEnabled: SettingValueBoolean;
   audioBitrate: SettingValue;
+  vttTranscriptsEnabled: SettingValueBoolean;
+  chaptersEnabled: SettingValueBoolean;
   retentionPeriodMinutes: number;
   defaults: {
     systemPrompt: string;
@@ -103,6 +109,8 @@ export interface Settings {
     audioAnalysisEnabled: boolean;
     autoProcessEnabled: boolean;
     audioBitrate: string;
+    vttTranscriptsEnabled: boolean;
+    chaptersEnabled: boolean;
   };
 }
 
@@ -116,6 +124,8 @@ export interface UpdateSettingsPayload {
   audioAnalysisEnabled?: boolean;
   autoProcessEnabled?: boolean;
   audioBitrate?: string;
+  vttTranscriptsEnabled?: boolean;
+  chaptersEnabled?: boolean;
 }
 
 export interface ClaudeModel {

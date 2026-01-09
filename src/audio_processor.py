@@ -148,9 +148,43 @@ class AudioProcessor:
                 beep_split = f"[1:a]asplit={num_ads}" + "".join(f"[beep_in{i}]" for i in range(num_ads))
                 filter_parts.append(beep_split)
 
+            # Threshold for trimming end-of-episode ads (beep then cut)
+            POST_ROLL_TRIM_THRESHOLD = 30.0  # seconds
+
             for i, ad in enumerate(ads):
                 ad_start = ad['start']
                 ad_end = ad['end']
+                is_last_ad = (i == num_ads - 1)
+
+                # Check if this is an end-of-episode ad that should be trimmed after beep
+                # (last ad with < 30s of content remaining after it)
+                remaining_after_ad = total_duration - ad_end
+                if is_last_ad and remaining_after_ad < POST_ROLL_TRIM_THRESHOLD:
+                    # End-of-episode ad: add content, beep, then end (no trailing content)
+                    logger.info(f"End-of-episode ad at {ad_start:.1f}s - will add beep then end (only {remaining_after_ad:.1f}s would remain)")
+                    if ad_start > current_time:
+                        content_duration = ad_start - current_time
+                        # Add final content with fade out at end
+                        if i == 0:
+                            if content_duration > fade_out_duration:
+                                filter_parts.append(f"[0:a]atrim={current_time}:{ad_start},asetpts=PTS-STARTPTS,afade=t=out:st={content_duration - fade_out_duration}:d={fade_out_duration}[s{segment_idx}]")
+                            else:
+                                filter_parts.append(f"[0:a]atrim={current_time}:{ad_start},asetpts=PTS-STARTPTS[s{segment_idx}]")
+                        else:
+                            if content_duration > fade_in_duration + fade_out_duration:
+                                filter_parts.append(f"[0:a]atrim={current_time}:{ad_start},asetpts=PTS-STARTPTS,afade=t=in:d={fade_in_duration},afade=t=out:st={content_duration - fade_out_duration}:d={fade_out_duration}[s{segment_idx}]")
+                            else:
+                                filter_parts.append(f"[0:a]atrim={current_time}:{ad_start},asetpts=PTS-STARTPTS[s{segment_idx}]")
+                        concat_parts.append(f"[s{segment_idx}]")
+                        segment_idx += 1
+
+                    # Add beep before ending episode
+                    beep_fade_out_start = max(0, beep_duration - beep_fade_duration)
+                    beep_input = f"[beep_in{i}]" if num_ads > 1 else "[1:a]"
+                    filter_parts.append(f"{beep_input}afade=t=in:d={beep_fade_duration},afade=t=out:st={beep_fade_out_start}:d={beep_fade_duration},volume=0.4[beep{segment_idx}]")
+                    concat_parts.append(f"[beep{segment_idx}]")
+                    # Episode ends here - don't process remaining content
+                    break
 
                 # Add content before ad (with fades at boundaries)
                 if ad_start > current_time:
@@ -181,20 +215,20 @@ class AudioProcessor:
                 concat_parts.append(f"[beep{segment_idx}]")
 
                 current_time = ad_end
-
-            # Add remaining content after last ad (with fade-in)
-            # Skip if less than 30 seconds remain (post-roll ad residue)
-            POST_ROLL_SKIP_THRESHOLD = 30.0  # seconds
-            if current_time < total_duration:
-                content_duration = total_duration - current_time
-                if content_duration < POST_ROLL_SKIP_THRESHOLD:
-                    logger.info(f"Skipping {content_duration:.1f}s of post-roll content (< {POST_ROLL_SKIP_THRESHOLD}s threshold)")
-                elif content_duration > fade_in_duration:
-                    filter_parts.append(f"[0:a]atrim={current_time}:{total_duration},asetpts=PTS-STARTPTS,afade=t=in:d={fade_in_duration}[s{segment_idx}]")
-                    concat_parts.append(f"[s{segment_idx}]")
-                else:
-                    filter_parts.append(f"[0:a]atrim={current_time}:{total_duration},asetpts=PTS-STARTPTS[s{segment_idx}]")
-                    concat_parts.append(f"[s{segment_idx}]")
+            else:
+                # Only add remaining content if we didn't break (trim end-of-episode ad)
+                # Add remaining content after last ad (with fade-in)
+                # Skip if less than 30 seconds remain (post-roll ad residue)
+                if current_time < total_duration:
+                    content_duration = total_duration - current_time
+                    if content_duration < POST_ROLL_TRIM_THRESHOLD:
+                        logger.info(f"Skipping {content_duration:.1f}s of post-roll content (< {POST_ROLL_TRIM_THRESHOLD}s threshold)")
+                    elif content_duration > fade_in_duration:
+                        filter_parts.append(f"[0:a]atrim={current_time}:{total_duration},asetpts=PTS-STARTPTS,afade=t=in:d={fade_in_duration}[s{segment_idx}]")
+                        concat_parts.append(f"[s{segment_idx}]")
+                    else:
+                        filter_parts.append(f"[0:a]atrim={current_time}:{total_duration},asetpts=PTS-STARTPTS[s{segment_idx}]")
+                        concat_parts.append(f"[s{segment_idx}]")
 
             # Concatenate all parts
             filter_str = ';'.join(filter_parts)

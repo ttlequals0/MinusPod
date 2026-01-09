@@ -6,6 +6,139 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.188] - 2026-01-09
+
+### Fixed
+- **RSS 503 errors after episode processing**: RSS cache was being deleted after processing, but when upstream returned 304 Not Modified there was no content to regenerate. Now regenerates RSS immediately after processing completes, and forces full fetch when cache is missing as a fallback.
+- **Auto-process timeout incorrectly marked as failure**: When processing takes longer than 10 minutes (common for 1-2 hour episodes), the auto-process queue was marking the episode as "failed" with no error message, even though processing was still running. Now correctly detects ongoing processing and re-queues for later status check instead of failing.
+
+---
+
+## [0.1.187] - 2026-01-07
+
+### Fixed
+- **Transcripts/chapters now appear immediately in podcast apps**: RSS cache is now invalidated after episode processing completes, ensuring Podcasting 2.0 tags are included right away instead of waiting for next feed refresh
+- **Reduced failures for newly published episodes**: Added CDN availability check (HEAD request) before downloading audio. When CDN returns 4xx/5xx, the error is classified as transient and will be retried instead of failing immediately
+- **Improved back-to-back ad detection**: When an ad's end_text contains a different sponsor's URL (e.g., ad for "Better Wild" ending with "mintmobile.com"), the system now looks for the next detected ad. If that ad's sponsor matches the end_text URL, the current ad is extended to meet it, eliminating gaps between consecutive ads from different sponsors
+
+---
+
+## [0.1.186] - 2026-01-03
+
+### Fixed
+- **Podcasting 2.0 chapters not appearing in podcast apps**: Fixed incorrect MIME type for chapters. The spec requires `application/json+chapters` but we were using `application/json`. Updated both the RSS tag type attribute and HTTP Content-Type header.
+
+---
+
+## [0.1.185] - 2026-01-03
+
+### Fixed
+- **Episode descriptions missing for auto-processed episodes**: Episodes processed via the auto-process queue were not receiving descriptions from the RSS feed. The queue system now stores and passes descriptions through to processing. Episodes that were only auto-processed will need to be reprocessed to get their descriptions populated.
+
+---
+
+## [0.1.184] - 2026-01-03
+
+### Fixed
+- **Ad validation false positive bug**: Fixed `NOT_AD_PATTERNS` regex that incorrectly rejected high-confidence ads (99%) when Claude's reason contained phrases like "unrelated to episode content". The regex now uses negative lookbehinds to exclude "unrelated to", "different from", and "not " prefixes which actually indicate something IS an ad.
+
+---
+
+## [0.1.183] - 2026-01-03
+
+### Fixed
+- **AI topic detection prompt**: Made Claude output format explicit with "OUTPUT FORMAT: Return ONLY topic lines, one per line. No introduction, no explanation, no numbering." and added examples. This prevents Claude from adding preamble like "Here are the 6 major topic changes:" that caused parsing to fail.
+
+---
+
+## [0.1.181] - 2026-01-03
+
+### Fixed
+- **VTT chapter regeneration**: Fixed critical bug where regenerating chapters from VTT caused double timestamp adjustment. VTT segments are already adjusted for removed ads, so the regenerate endpoint now uses a new `generate_chapters_from_vtt` method that works directly with VTT timestamps and uses AI topic detection without ad-based adjustment.
+
+### Changed
+- **UI improvement**: Moved "Regenerate Chapters" into the Reprocess dropdown menu for cleaner UI
+
+---
+
+## [0.1.179] - 2026-01-03
+
+### Added
+- **Regenerate chapters endpoint**: New API endpoint `POST /feeds/<slug>/episodes/<episode_id>/regenerate-chapters` to regenerate chapters without full reprocessing. Uses existing VTT transcript and ad markers.
+- **UI button for regenerate chapters**: Added "Regenerate Chapters" button to episode detail page for episodes with VTT transcripts
+
+---
+
+## [0.1.178] - 2026-01-03
+
+### Fixed
+- **Chapter generation debugging**: Added detailed logging to see Claude's response when detecting topic boundaries. This will help diagnose why AI split is returning 0 topics.
+- Improved regex pattern to handle various timestamp formats (MM:SS, MM:SS:, MM:SS -)
+
+---
+
+## [0.1.177] - 2026-01-03
+
+### Fixed
+- **Chapter generation bugfix**: Fixed `_reverse_adjust_timestamp` to correctly map adjusted times back to original transcript times when first ad starts at 0. This was preventing AI topic splitting from finding the correct transcript segment.
+- Added debug logging to `split_long_segments` for troubleshooting
+
+---
+
+## [0.1.176] - 2026-01-03
+
+### Added
+- **Improved chapter generation**:
+  - Fixed HTML description parsing for timestamp extraction (handles `<br>` tags properly)
+  - Content-aware chapter detection: Long segments (>15 min) are automatically split using AI topic detection
+  - Topic-based chapter detection: Descriptions with topic headers but no timestamps (like Windows Weekly show notes) are matched to transcript positions using AI
+
+---
+
+## [0.1.175] - 2026-01-03
+
+### Fixed
+- **Force refresh option for feeds**: Added `force` parameter to feed refresh API endpoints (`POST /api/v1/feeds/<slug>/refresh` and `POST /api/v1/feeds/refresh`) to bypass conditional GET (304 Not Modified) and regenerate RSS even when source feed hasn't changed. This is needed after code updates that change RSS format.
+
+---
+
+## [0.1.174] - 2026-01-03
+
+### Fixed
+- **End-of-episode ad handling**: When the last ad has less than 30 seconds of content remaining after it, the episode now ends with a beep instead of including the trailing content (which is often post-roll ad residue)
+
+---
+
+## [0.1.173] - 2026-01-03
+
+### Added
+- **Podcasting 2.0 Transcript and Chapters Support**
+  - VTT transcripts with timestamps adjusted for removed ads
+  - JSON chapters generated from ad boundaries and episode description timestamps
+  - AI-generated chapter titles using Claude Haiku
+  - New RSS namespace: `xmlns:podcast="https://podcastindex.org/namespace/1.0"`
+  - `<podcast:transcript>` tag with VTT file URL, `rel="captions"`, and language attribute
+  - `<podcast:chapters>` tag with chapters JSON URL
+- New serving endpoints:
+  - `GET /episodes/<slug>/<episode_id>.vtt` - VTT transcript
+  - `GET /episodes/<slug>/<episode_id>/chapters.json` - Chapters JSON
+- Settings UI toggles for VTT transcripts and chapters generation
+- Episode detail shows VTT and Chapters badges when available
+- Download links for VTT and chapters in episode detail page
+
+### Fixed
+- **Chapters startTime compatibility with podcast apps**
+  - Changed from float values (738.8) to integers (739)
+  - Changed minimum startTime from 0 to 1 (required by some apps like Pocket Casts)
+  - Based on analysis of working No Agenda podcast feed format
+
+### Changed
+- VTT and chapters stored in database instead of filesystem
+- RSS transcript tag now includes `rel="captions"` attribute
+- Chapters MIME type changed to `application/json` (from non-standard type)
+
+---
+
 ## [0.1.172] - 2026-01-01
 
 ### Added

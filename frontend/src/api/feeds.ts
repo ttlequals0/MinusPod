@@ -130,3 +130,23 @@ export async function reprocessAllEpisodes(
     body: { mode },
   });
 }
+
+export interface RegenerateChaptersResult {
+  message: string;
+  chapterCount: number;
+  chapters: Array<{
+    title: string;
+    startTime: number;
+    endTime?: number;
+  }>;
+}
+
+export async function regenerateChapters(
+  slug: string,
+  episodeId: string
+): Promise<RegenerateChaptersResult> {
+  return apiRequest<RegenerateChaptersResult>(
+    `/feeds/${slug}/episodes/${episodeId}/regenerate-chapters`,
+    { method: 'POST' }
+  );
+}

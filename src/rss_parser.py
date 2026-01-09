@@ -118,16 +118,24 @@ class RSSParser:
         # Use MD5 hash of URL for consistent ID
         return hashlib.md5(episode_url.encode()).hexdigest()[:12]
 
-    def modify_feed(self, feed_content: str, slug: str) -> str:
-        """Modify RSS feed to use our server URLs."""
+    def modify_feed(self, feed_content: str, slug: str, storage=None) -> str:
+        """Modify RSS feed to use our server URLs.
+
+        Args:
+            feed_content: Original RSS feed XML
+            slug: Podcast slug
+            storage: Optional Storage instance for checking Podcasting 2.0 assets
+        """
         feed = self.parse_feed(feed_content)
         if not feed:
             return feed_content
 
-        # Build modified RSS
+        # Build modified RSS with Podcasting 2.0 namespace
         lines = []
         lines.append('<?xml version="1.0" encoding="UTF-8"?>')
-        lines.append('<rss version="2.0" xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd">')
+        lines.append('<rss version="2.0" '
+                     'xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" '
+                     'xmlns:podcast="https://podcastindex.org/namespace/1.0">')
         lines.append('<channel>')
 
         # Copy channel metadata
@@ -198,6 +206,18 @@ class RSSParser:
                 artwork_url = entry.itunes_image.get('href')
             if artwork_url:
                 lines.append(f'  <itunes:image href="{self._escape_xml(artwork_url)}" />')
+
+            # Podcasting 2.0 tags (transcript and chapters)
+            if storage:
+                # Add transcript tag if VTT file exists
+                if storage.has_transcript_vtt(slug, episode_id):
+                    transcript_url = f"{self.base_url}/episodes/{slug}/{episode_id}.vtt"
+                    lines.append(f'  <podcast:transcript url="{transcript_url}" type="text/vtt" language="en" rel="captions" />')
+
+                # Add chapters tag if chapters JSON exists
+                if storage.has_chapters_json(slug, episode_id):
+                    chapters_url = f"{self.base_url}/episodes/{slug}/{episode_id}/chapters.json"
+                    lines.append(f'  <podcast:chapters url="{chapters_url}" type="application/json+chapters" />')
 
             lines.append('</item>')
 

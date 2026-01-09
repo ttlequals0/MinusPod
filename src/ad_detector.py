@@ -178,6 +178,37 @@ def merge_and_deduplicate(first_pass: List[Dict], second_pass: List[Dict]) -> Li
                 f"{ad['start']:.1f}s-{ad['end']:.1f}s (+{URL_EXTENSION_SECONDS:.0f}s)"
             )
 
+    # Check for sponsor mismatch in end_text (indicates back-to-back ads)
+    # If end_text mentions a different sponsor URL than the ad's own sponsor,
+    # it means another ad likely follows immediately - extend to meet the next ad
+    for i, ad in enumerate(merged):
+        end_text_sponsor = extract_url_sponsor(ad.get('end_text', ''))
+        if end_text_sponsor:
+            ad_sponsors = extract_sponsor_names(ad.get('reason', ''), ad.get('reason', ''))
+            # If end_text mentions a different sponsor, look for next ad to merge with
+            if end_text_sponsor not in ad_sponsors:
+                original_end = ad['end']
+                extended_to = None
+
+                # Check if next ad exists and matches the end_text sponsor
+                if i + 1 < len(merged):
+                    next_ad = merged[i + 1]
+                    next_sponsors = extract_sponsor_names(next_ad.get('reason', ''), next_ad.get('reason', ''))
+                    gap = next_ad['start'] - ad['end']
+
+                    # If next ad matches end_text sponsor and gap is reasonable, extend to meet it
+                    if end_text_sponsor in next_sponsors and gap <= 60.0:
+                        ad['end'] = next_ad['start']
+                        extended_to = f"next ad start ({next_ad['start']:.1f}s, gap was {gap:.1f}s)"
+
+                if extended_to:
+                    ad['end_text_sponsor_mismatch'] = True
+                    logger.info(
+                        f"Extended ad due to end_text sponsor mismatch: "
+                        f"end_text has '{end_text_sponsor}' but ad sponsors are {ad_sponsors}, "
+                        f"extended {original_end:.1f}s -> {ad['end']:.1f}s ({extended_to})"
+                    )
+
     return merged
 
 
@@ -370,6 +401,30 @@ def snap_early_ads_to_zero(ads: List[Dict], threshold: float = EARLY_AD_SNAP_THR
         snapped.append(ad_copy)
 
     return snapped
+
+
+def extract_url_sponsor(text: str) -> Optional[str]:
+    """Extract sponsor name from URL in text.
+
+    Used to detect when end_text contains a different sponsor's URL,
+    indicating back-to-back ads from different sponsors.
+
+    Args:
+        text: Text that may contain a URL (e.g., 'mintmobile.com')
+
+    Returns:
+        Sponsor name extracted from URL (e.g., 'mintmobile'), or None
+    """
+    if not text:
+        return None
+    url_pattern = r'([a-z0-9]+)\.(?:com|tv|io|co|org|net)'
+    match = re.search(url_pattern, text.lower())
+    if match:
+        sponsor = match.group(1)
+        # Only filter protocol prefixes, not domains
+        if sponsor not in ('www', 'http', 'https') and len(sponsor) > 2:
+            return sponsor
+    return None
 
 
 def extract_sponsor_names(text: str, ad_reason: str = None) -> set:

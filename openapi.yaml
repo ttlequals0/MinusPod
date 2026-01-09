@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 0.1.168
+  version: 0.1.184
   contact:
     name: Podcast Server
   license:
@@ -557,6 +557,55 @@ paths:
                     enum: [completed, processing]
         '400':
           $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /feeds/{slug}/episodes/{episodeId}/regenerate-chapters:
+    post:
+      tags:
+        - Episodes
+      summary: Regenerate chapters from transcript
+      description: |
+        Regenerates chapters for an episode using the existing VTT transcript.
+        Uses AI topic detection to identify natural chapter boundaries without
+        requiring full reprocessing. The VTT transcript must already exist.
+      operationId: regenerateChapters
+      parameters:
+        - $ref: '#/components/parameters/slug'
+        - $ref: '#/components/parameters/episodeId'
+      responses:
+        '200':
+          description: Chapters regenerated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Chapters regenerated
+                  episodeId:
+                    type: string
+                  chapterCount:
+                    type: integer
+                  chapters:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        startTime:
+                          type: integer
+                          description: Chapter start time in milliseconds
+                        title:
+                          type: string
+        '400':
+          description: No VTT transcript available (full reprocess required)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '404':
           $ref: '#/components/responses/NotFound'
         '500':

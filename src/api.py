@@ -646,7 +646,13 @@ def delete_feed(slug):
 @limiter.limit("10 per minute")
 @log_request
 def refresh_feed(slug):
-    """Refresh a single podcast feed."""
+    """Refresh a single podcast feed.
+
+    Optional request body:
+    {
+        "force": true  // Force full refresh, bypassing conditional GET (304)
+    }
+    """
     db = get_database()
 
     podcast = db.get_podcast_by_slug(slug)
@@ -655,6 +661,15 @@ def refresh_feed(slug):
 
     if not podcast.get('source_url'):
         return error_response('Feed has no source URL', 400)
+
+    # Check for force parameter
+    force = False
+    data = request.get_json(silent=True)
+    if data and data.get('force'):
+        force = True
+        # Clear ETag to force non-conditional fetch
+        db.update_podcast_etag(slug, None, None)
+        logger.info(f"Force refresh requested for {slug}, cleared ETag")
 
     try:
         from main import refresh_rss_feed
@@ -681,12 +696,28 @@ def refresh_feed(slug):
 @limiter.limit("2 per minute")
 @log_request
 def refresh_all_feeds():
-    """Refresh all podcast feeds."""
+    """Refresh all podcast feeds.
+
+    Optional request body:
+    {
+        "force": true  // Force full refresh for all feeds, bypassing conditional GET (304)
+    }
+    """
     try:
+        db = get_database()
+
+        # Check for force parameter
+        data = request.get_json(silent=True)
+        if data and data.get('force'):
+            # Clear all ETags to force non-conditional fetch
+            podcasts = db.get_all_podcasts()
+            for podcast in podcasts:
+                db.update_podcast_etag(podcast['slug'], None, None)
+            logger.info(f"Force refresh requested, cleared ETags for {len(podcasts)} feeds")
+
         from main import refresh_all_feeds as do_refresh
         do_refresh()
 
-        db = get_database()
         podcasts = db.get_all_podcasts()
 
         logger.info("Refreshed all feeds")
@@ -819,13 +850,18 @@ def get_episode(slug, episode_id):
     if status == 'processed':
         status = 'completed'
 
-    # Get file size if processed
+    # Get file size and Podcasting 2.0 asset availability if processed
     file_size = None
+    storage = get_storage()
+
     if status == 'completed':
-        storage = get_storage()
         file_path = storage.get_episode_path(slug, episode_id)
         if file_path.exists():
             file_size = file_path.stat().st_size
+
+    # Check for Podcasting 2.0 assets (stored in database now)
+    transcript_vtt_available = bool(episode.get('transcript_vtt'))
+    chapters_available = bool(episode.get('chapters_json'))
 
     # Get corrections for this episode
     corrections = db.get_episode_corrections(episode_id)
@@ -855,6 +891,10 @@ def get_episode(slug, episode_id):
         'adDetectionStatus': episode.get('ad_detection_status'),
         'transcript': episode.get('transcript_text'),
         'transcriptAvailable': bool(episode.get('transcript_text')),
+        'transcriptVttAvailable': transcript_vtt_available,
+        'transcriptVttUrl': f"/episodes/{slug}/{episode_id}.vtt" if transcript_vtt_available else None,
+        'chaptersAvailable': chapters_available,
+        'chaptersUrl': f"/episodes/{slug}/{episode_id}/chapters.json" if chapters_available else None,
         'error': episode.get('error_message'),
         'firstPassPrompt': episode.get('first_pass_prompt'),
         'firstPassResponse': episode.get('first_pass_response'),
@@ -959,6 +999,97 @@ def reprocess_episode(slug, episode_id):
     except Exception as e:
         logger.error(f"Failed to reprocess episode {slug}:{episode_id}: {e}")
         return error_response(f'Failed to reprocess: {str(e)}', 500)
+
+
+@api.route('/feeds/<slug>/episodes/<episode_id>/regenerate-chapters', methods=['POST'])
+@limiter.limit("10 per minute")
+@log_request
+def regenerate_chapters(slug, episode_id):
+    """Regenerate chapters for an episode without full reprocessing.
+
+    Uses existing VTT transcript to regenerate chapters with AI topic detection.
+    VTT segments are already adjusted (ads removed), so we don't use ad boundaries.
+    """
+    db = get_database()
+    storage = get_storage()
+
+    episode = db.get_episode(slug, episode_id)
+    if not episode:
+        return error_response('Episode not found', 404)
+
+    # Get VTT transcript
+    vtt_content = storage.get_transcript_vtt(slug, episode_id)
+    if not vtt_content:
+        return error_response('No VTT transcript available - full reprocess required', 400)
+
+    # Parse VTT back to segments
+    segments = _parse_vtt_to_segments(vtt_content)
+    if not segments:
+        return error_response('Failed to parse VTT transcript', 500)
+
+    # Get episode info
+    episode_description = episode.get('description', '')
+    podcast = db.get_podcast_by_slug(slug)
+    podcast_name = podcast.get('title', slug) if podcast else slug
+    episode_title = episode.get('title', 'Unknown')
+
+    try:
+        from chapters_generator import ChaptersGenerator
+
+        chapters_gen = ChaptersGenerator()
+
+        # VTT segments are ALREADY adjusted (ads removed), so pass empty ads_removed
+        # This prevents double-adjustment of timestamps
+        # The AI topic detection will find natural chapter points in the content
+        chapters = chapters_gen.generate_chapters_from_vtt(
+            segments, episode_description, podcast_name, episode_title
+        )
+
+        if chapters and chapters.get('chapters'):
+            storage.save_chapters_json(slug, episode_id, chapters)
+            logger.info(f"[{slug}:{episode_id}] Regenerated {len(chapters['chapters'])} chapters from VTT")
+            return json_response({
+                'message': 'Chapters regenerated',
+                'episodeId': episode_id,
+                'chapterCount': len(chapters['chapters']),
+                'chapters': chapters['chapters']
+            })
+        else:
+            return error_response('Failed to generate chapters', 500)
+
+    except Exception as e:
+        logger.error(f"Failed to regenerate chapters for {slug}:{episode_id}: {e}")
+        return error_response(f'Failed to regenerate chapters: {str(e)}', 500)
+
+
+def _parse_vtt_to_segments(vtt_content: str) -> list:
+    """Parse VTT content back to segment list."""
+    import re
+    segments = []
+
+    # VTT format: HH:MM:SS.mmm --> HH:MM:SS.mmm or MM:SS.mmm --> MM:SS.mmm
+    pattern = r'(\d{1,2}:\d{2}:\d{2}\.\d{3}|\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{1,2}:\d{2}:\d{2}\.\d{3}|\d{2}:\d{2}\.\d{3})\s*\n(.+?)(?=\n\n|\n\d|\Z)'
+
+    for match in re.finditer(pattern, vtt_content, re.DOTALL):
+        start_str, end_str, text = match.groups()
+
+        # Parse timestamp to seconds
+        def parse_vtt_time(time_str):
+            parts = time_str.split(':')
+            if len(parts) == 3:
+                h, m, s = parts
+                return int(h) * 3600 + int(m) * 60 + float(s)
+            else:
+                m, s = parts
+                return int(m) * 60 + float(s)
+
+        segments.append({
+            'start': parse_vtt_time(start_str),
+            'end': parse_vtt_time(end_str),
+            'text': text.strip()
+        })
+
+    return segments
 
 
 @api.route('/feeds/<slug>/reprocess-all', methods=['POST'])
@@ -1383,6 +1514,12 @@ def get_settings():
     auto_process_value = settings.get('auto_process_enabled', {}).get('value', 'true')
     auto_process_enabled = auto_process_value.lower() in ('true', '1', 'yes')
 
+    # Get Podcasting 2.0 settings (defaults to true)
+    vtt_value = settings.get('vtt_transcripts_enabled', {}).get('value', 'true')
+    vtt_enabled = vtt_value.lower() in ('true', '1', 'yes')
+    chapters_value = settings.get('chapters_enabled', {}).get('value', 'true')
+    chapters_enabled = chapters_value.lower() in ('true', '1', 'yes')
+
     return json_response({
         'systemPrompt': {
             'value': settings.get('system_prompt', {}).get('value', DEFAULT_SYSTEM_PROMPT),
@@ -1416,6 +1553,14 @@ def get_settings():
             'value': auto_process_enabled,
             'isDefault': settings.get('auto_process_enabled', {}).get('is_default', True)
         },
+        'vttTranscriptsEnabled': {
+            'value': vtt_enabled,
+            'isDefault': settings.get('vtt_transcripts_enabled', {}).get('is_default', True)
+        },
+        'chaptersEnabled': {
+            'value': chapters_enabled,
+            'isDefault': settings.get('chapters_enabled', {}).get('is_default', True)
+        },
         'retentionPeriodMinutes': int(os.environ.get('RETENTION_PERIOD') or settings.get('retention_period_minutes', {}).get('value', '1440')),
         'defaults': {
             'systemPrompt': DEFAULT_SYSTEM_PROMPT,
@@ -1425,7 +1570,9 @@ def get_settings():
             'multiPassEnabled': False,
             'whisperModel': default_whisper_model,
             'audioAnalysisEnabled': False,
-            'autoProcessEnabled': True
+            'autoProcessEnabled': True,
+            'vttTranscriptsEnabled': True,
+            'chaptersEnabled': True
         }
     })
 
@@ -1482,6 +1629,16 @@ def update_ad_detection_settings():
         db.set_setting('auto_process_enabled', value, is_default=False)
         logger.info(f"Updated auto-process to: {value}")
 
+    if 'vttTranscriptsEnabled' in data:
+        value = 'true' if data['vttTranscriptsEnabled'] else 'false'
+        db.set_setting('vtt_transcripts_enabled', value, is_default=False)
+        logger.info(f"Updated VTT transcripts to: {value}")
+
+    if 'chaptersEnabled' in data:
+        value = 'true' if data['chaptersEnabled'] else 'false'
+        db.set_setting('chapters_enabled', value, is_default=False)
+        logger.info(f"Updated chapters generation to: {value}")
+
     return json_response({'message': 'Settings updated'})
 
 
@@ -1498,6 +1655,8 @@ def reset_ad_detection_settings():
     db.reset_setting('multi_pass_enabled')
     db.reset_setting('whisper_model')
     db.reset_setting('audio_analysis_enabled')
+    db.reset_setting('vtt_transcripts_enabled')
+    db.reset_setting('chapters_enabled')
 
     # Mark whisper model for reload
     try:
@@ -1506,7 +1665,7 @@ def reset_ad_detection_settings():
     except Exception as e:
         logger.warning(f"Could not mark model for reload: {e}")
 
-    logger.info("Reset ad detection settings to defaults")
+    logger.info("Reset all settings to defaults")
     return json_response({'message': 'Settings reset to defaults'})
 
 

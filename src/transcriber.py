@@ -57,6 +57,17 @@ HALLUCINATION_PATTERNS = re.compile(
     re.IGNORECASE
 )
 
+# Vocabulary hallucination patterns (Whisper sometimes outputs the initial prompt)
+# These are partial matches - if any of these appear, the segment is likely a hallucination
+VOCABULARY_HALLUCINATION_PATTERNS = re.compile(
+    r'(promo code|discount code|use code|sponsored by|brought to you by|'
+    r'Athletic Greens|AG1|BetterHelp|Squarespace|NordVPN|ExpressVPN|'
+    r'HelloFresh|Audible|Masterclass|ZipRecruiter|Raycon|Manscaped|'
+    r'Stamps\.com|Indeed|LinkedIn|SimpliSafe|Casper|Helix Sleep|'
+    r'Brooklinen|Bombas|Calm|Headspace|Mint Mobile|Dollar Shave Club)',
+    re.IGNORECASE
+)
+
 
 def split_long_segments(segments: List[Dict]) -> List[Dict]:
     """Split segments longer than MAX_SEGMENT_DURATION using word timestamps.
@@ -267,6 +278,15 @@ class Transcriber:
             if HALLUCINATION_PATTERNS.match(text):
                 logger.debug(f"Filtered hallucination: {text}")
                 continue
+            # Filter vocabulary hallucinations (Whisper outputs the initial prompt)
+            # Only filter short segments that are primarily vocabulary words
+            if len(text) < 100 and VOCABULARY_HALLUCINATION_PATTERNS.search(text):
+                # Check if the text is mostly vocabulary (not real speech with sponsor mention)
+                # Real ad reads are typically longer and have more context
+                word_count = len(text.split())
+                if word_count < 15:
+                    logger.debug(f"Filtered vocabulary hallucination: {text}")
+                    continue
             # Skip repeated segments (Whisper loop artifacts)
             if filtered and text == filtered[-1].get('text', '').strip():
                 logger.debug(f"Filtered repeated segment: {text}")
@@ -348,6 +368,40 @@ class Transcriber:
                 except:
                     pass
             return None
+
+    def check_audio_availability(self, url: str, timeout: int = 10) -> tuple:
+        """Check if audio URL is accessible without downloading.
+
+        Performs a HEAD request to verify the CDN has the file ready.
+        Use this before downloading to avoid failures on newly published episodes
+        where the CDN hasn't propagated the file yet.
+
+        Args:
+            url: Audio file URL to check
+            timeout: Request timeout in seconds
+
+        Returns:
+            Tuple of (available: bool, error_message: str or None)
+        """
+        try:
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            }
+            response = requests.head(url, headers=headers, timeout=timeout, allow_redirects=True)
+
+            if response.status_code == 200:
+                return True, None
+            elif response.status_code in (404, 403):
+                return False, f"CDN not ready ({response.status_code})"
+            elif response.status_code >= 500:
+                return False, f"CDN server error ({response.status_code})"
+            else:
+                # Other 2xx/3xx - proceed with download
+                return True, None
+        except requests.exceptions.Timeout:
+            return False, "CDN timeout"
+        except requests.RequestException as e:
+            return False, f"CDN check failed: {e}"
 
     def download_audio(self, url: str, timeout: tuple = (10, 300)) -> Optional[str]:
         """Download audio file from URL.
