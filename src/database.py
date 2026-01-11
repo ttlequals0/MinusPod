@@ -1987,6 +1987,71 @@ class Database:
         conn.commit()
         return cursor.rowcount
 
+    def cleanup_duplicate_episodes(self, slug: str) -> int:
+        """
+        Remove duplicate episodes from a feed, keeping only the latest version.
+
+        Duplicates are identified by matching title (case-insensitive) and
+        created_at date. When duplicates exist, keeps the one with the most
+        recent created_at timestamp.
+
+        Args:
+            slug: The podcast feed slug
+
+        Returns:
+            Number of duplicate episodes removed
+        """
+        podcast_id = self.get_podcast_id(slug)
+        if not podcast_id:
+            return 0
+
+        conn = self.get_connection()
+
+        # Find duplicate groups by title + date
+        cursor = conn.execute("""
+            SELECT LOWER(TRIM(title)) as norm_title,
+                   DATE(created_at) as created_date,
+                   GROUP_CONCAT(episode_id) as episode_ids,
+                   COUNT(*) as cnt
+            FROM episodes
+            WHERE podcast_id = ?
+            GROUP BY norm_title, created_date
+            HAVING cnt > 1
+        """, (podcast_id,))
+
+        duplicates = cursor.fetchall()
+        removed = 0
+
+        for row in duplicates:
+            episode_ids = row['episode_ids'].split(',')
+
+            # Get full details to find the latest one
+            placeholders = ','.join(['?'] * len(episode_ids))
+            detail_cursor = conn.execute(f"""
+                SELECT episode_id, created_at
+                FROM episodes
+                WHERE podcast_id = ? AND episode_id IN ({placeholders})
+                ORDER BY created_at DESC
+            """, [podcast_id] + episode_ids)
+
+            details = detail_cursor.fetchall()
+
+            # Keep the first (most recent), delete the rest
+            for old_ep in details[1:]:
+                old_id = old_ep['episode_id']
+                conn.execute(
+                    "DELETE FROM episodes WHERE podcast_id = ? AND episode_id = ?",
+                    (podcast_id, old_id)
+                )
+                removed += 1
+                logger.info(f"Removed duplicate episode {old_id} from {slug}")
+
+        if removed > 0:
+            conn.commit()
+            logger.info(f"Cleaned up {removed} duplicate episodes from {slug}")
+
+        return removed
+
     # ========== Pattern Corrections Methods ==========
 
     def create_pattern_correction(self, correction_type: str, pattern_id: int = None,

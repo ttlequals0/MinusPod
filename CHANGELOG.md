@@ -6,6 +6,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.189] - 2026-01-11
+
+### Fixed
+- **Duplicate episodes in RSS feeds**: Same episode appearing multiple times due to CDN updates (e.g., `?updated=` params) are now de-duplicated. Episodes are matched by normalized title + published date, keeping only the latest version - matching podcast app behavior.
+
+### Changed
+- **Ad editor UX improvement**: Replaced absolute MM:SS timestamp inputs with simpler relative adjustment controls. Users can now adjust ad boundaries with +/- buttons and see "Start: +X sec" / "End: -Y sec" which is more intuitive since the audio they hear is the processed version with ads removed.
+
+### Added
+- `cleanup_duplicate_episodes()` database function for removing existing duplicates
+
+---
+
 ## [0.1.188] - 2026-01-09
 
 ### Fixed

@@ -4,6 +4,7 @@ import logging
 import hashlib
 import os
 from datetime import datetime
+from email.utils import parsedate_to_datetime
 from typing import Dict, List, Optional
 import requests
 from slugify import slugify
@@ -239,6 +240,79 @@ class RSSParser:
             .replace('"', '&quot;')
             .replace("'", '&apos;'))
 
+    def deduplicate_episodes(self, episodes: List[Dict]) -> List[Dict]:
+        """
+        De-duplicate episodes, keeping only the latest version of each.
+
+        Duplicates are identified by matching title (normalized) and
+        published date (same day). When duplicates exist, keep the one
+        with the most recent published timestamp or latest URL update.
+
+        This matches podcast app behavior which typically shows only
+        the latest version when an episode is updated.
+
+        Args:
+            episodes: List of episode dicts from extract_episodes()
+
+        Returns:
+            De-duplicated list with only the latest version of each episode
+        """
+        if not episodes:
+            return episodes
+
+        # Group episodes by normalized title + publish date
+        groups: Dict[tuple, List[Dict]] = {}
+        for ep in episodes:
+            # Normalize title: lowercase, strip whitespace
+            title_key = (ep.get('title') or '').lower().strip()
+
+            # Extract date portion only (ignore time for grouping)
+            pub_str = ep.get('published', '')
+            try:
+                pub_dt = parsedate_to_datetime(pub_str)
+                date_key = pub_dt.strftime('%Y-%m-%d')
+            except (ValueError, TypeError):
+                date_key = pub_str[:10] if pub_str else 'unknown'
+
+            key = (title_key, date_key)
+
+            if key not in groups:
+                groups[key] = []
+            groups[key].append(ep)
+
+        # For each group, keep only the latest version
+        deduplicated = []
+        for key, group in groups.items():
+            if len(group) == 1:
+                deduplicated.append(group[0])
+            else:
+                # Sort by published timestamp (most recent first)
+                # Then by URL (to handle ?updated= params - higher = newer)
+                def sort_key(ep):
+                    try:
+                        pub_dt = parsedate_to_datetime(ep.get('published', ''))
+                        pub_ts = pub_dt.timestamp()
+                    except (ValueError, TypeError):
+                        pub_ts = 0
+                    url = ep.get('url', '')
+                    return (pub_ts, url)
+
+                group.sort(key=sort_key, reverse=True)
+                latest = group[0]
+
+                logger.info(
+                    f"De-duplicated {len(group)} versions of "
+                    f"'{key[0][:50]}' ({key[1]}) - keeping latest"
+                )
+                deduplicated.append(latest)
+
+        if len(deduplicated) < len(episodes):
+            logger.info(
+                f"Removed {len(episodes) - len(deduplicated)} duplicate episodes"
+            )
+
+        return deduplicated
+
     def extract_episodes(self, feed_content: str) -> List[Dict]:
         """Extract episode information from feed."""
         feed = self.parse_feed(feed_content)
@@ -270,4 +344,5 @@ class RSSParser:
                     'artwork_url': artwork_url,
                 })
 
-        return episodes
+        # De-duplicate episodes (keep latest when multiple versions exist)
+        return self.deduplicate_episodes(episodes)

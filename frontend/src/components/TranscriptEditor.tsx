@@ -52,25 +52,6 @@ function formatTime(seconds: number): string {
   return `${mins}:${secs.toString().padStart(2, '0')}`;
 }
 
-// Parse time input - supports MM:SS format or seconds only
-function parseTimeInput(input: string, maxSeconds: number): number | null {
-  const trimmed = input.trim();
-  // Try MM:SS format (e.g., "1:30" or "01:30")
-  const mmss = trimmed.match(/^(\d+):(\d{1,2})$/);
-  if (mmss) {
-    const mins = parseInt(mmss[1], 10);
-    const secs = parseInt(mmss[2], 10);
-    if (secs < 60) {
-      return Math.min(Math.max(0, mins * 60 + secs), maxSeconds);
-    }
-  }
-  // Try seconds only (e.g., "90" = 1:30)
-  const secsOnly = parseFloat(trimmed);
-  if (!isNaN(secsOnly)) {
-    return Math.min(Math.max(0, secsOnly), maxSeconds);
-  }
-  return null;
-}
 
 export function TranscriptEditor({
   segments,
@@ -100,6 +81,9 @@ export function TranscriptEditor({
   }, [onSelectedAdIndexChange]);
   const [adjustedStart, setAdjustedStart] = useState(0);
   const [adjustedEnd, setAdjustedEnd] = useState(0);
+  // Relative adjustments in seconds (negative = earlier, positive = later)
+  const [startAdjustment, setStartAdjustment] = useState(0);
+  const [endAdjustment, setEndAdjustment] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [touchMode, setTouchMode] = useState<TouchMode>('seek');
@@ -111,28 +95,9 @@ export function TranscriptEditor({
   const [isDraggingProgress, setIsDraggingProgress] = useState(false);
   const [preserveSeekPosition, setPreserveSeekPosition] = useState(false);
   const [showReason, setShowReason] = useState(false);
-  const [startInputValue, setStartInputValue] = useState('');
-  const [endInputValue, setEndInputValue] = useState('');
-  const [isEditingStart, setIsEditingStart] = useState(false);
-  const [isEditingEnd, setIsEditingEnd] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   const transcriptRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const startInputRef = useRef<HTMLInputElement>(null);
-  const endInputRef = useRef<HTMLInputElement>(null);
-
-  // Restore focus after state change re-render (fixes mobile keyboard dismissal)
-  useEffect(() => {
-    if (isEditingStart && startInputRef.current) {
-      startInputRef.current.focus();
-    }
-  }, [isEditingStart]);
-
-  useEffect(() => {
-    if (isEditingEnd && endInputRef.current) {
-      endInputRef.current.focus();
-    }
-  }, [isEditingEnd]);
   const progressBarRef = useRef<HTMLDivElement>(null);
 
   // Haptic feedback helper
@@ -153,6 +118,9 @@ export function TranscriptEditor({
     if (selectedAd) {
       setAdjustedStart(selectedAd.start);
       setAdjustedEnd(selectedAd.end);
+      // Reset relative adjustments
+      setStartAdjustment(0);
+      setEndAdjustment(0);
     }
   }, [selectedAd]);
 
@@ -608,8 +576,8 @@ export function TranscriptEditor({
           </div>
         )}
 
-        {/* Ad selector - with momentum scrolling for mobile, hidden when editing time inputs */}
-        <div className={`flex gap-2 px-4 py-2 border-b border-border overflow-x-auto scroll-smooth touch-pan-x landscape:hidden ${(isEditingStart || isEditingEnd) ? 'hidden' : ''}`}>
+        {/* Ad selector - with momentum scrolling for mobile */}
+        <div className="flex gap-2 px-4 py-2 border-b border-border overflow-x-auto scroll-smooth touch-pan-x landscape:hidden">
           {detectedAds.map((ad, index) => (
             <button
               key={index}
@@ -665,102 +633,120 @@ export function TranscriptEditor({
 
           {/* Controls - always visible on sm+, conditionally on mobile */}
           <div className={`px-4 py-3 ${mobileControlsExpanded ? 'block' : 'hidden'} sm:block`}>
-            <div className={`flex ${(isEditingStart || isEditingEnd) ? 'flex-row flex-wrap items-center justify-center' : 'flex-col'} sm:flex-row sm:items-center sm:justify-center gap-3 sm:gap-6`}>
-              <div className="flex items-center gap-3 sm:gap-2 justify-center sm:justify-start">
-                <span className="text-xs text-muted-foreground">Start:</span>
+            {/* Relative Adjustment Controls */}
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-center gap-3 sm:gap-6">
+              {/* Start Adjustment */}
+              <div className="flex items-center gap-2 justify-center sm:justify-start">
+                <span className="text-xs text-muted-foreground w-10">Start:</span>
                 <button
-                  onClick={handleNudgeStartBackward}
-                  className="p-3 sm:p-1.5 rounded-lg hover:bg-accent active:bg-accent/80 active:scale-95 touch-manipulation min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center transition-all"
-                  aria-label="Nudge start backward"
+                  onClick={() => {
+                    const newAdj = startAdjustment - 1;
+                    setStartAdjustment(newAdj);
+                    const newStart = Math.max(0, (selectedAd?.start || 0) + newAdj);
+                    setAdjustedStart(newStart);
+                    triggerHaptic();
+                  }}
+                  className="p-3 sm:p-2 rounded-lg bg-muted hover:bg-accent active:bg-accent/80 active:scale-95 touch-manipulation min-w-[44px] min-h-[44px] sm:min-w-[32px] sm:min-h-[32px] flex items-center justify-center transition-all font-bold text-lg"
+                  aria-label="Decrease start adjustment"
                 >
-                  <ChevronLeft className="w-5 h-5 sm:w-4 sm:h-4" />
+                  -
                 </button>
                 <input
-                  ref={startInputRef}
-                  type="text"
-                  inputMode="decimal"
-                  value={isEditingStart ? startInputValue : formatTime(adjustedStart)}
-                  onChange={(e) => setStartInputValue(e.target.value)}
-                  onFocus={(e) => {
-                    setStartInputValue(formatTime(adjustedStart));
-                    setIsEditingStart(true);
-                    // Selection happens after focus restoration in useEffect
-                    setTimeout(() => e.target.select(), 0);
+                  type="number"
+                  value={startAdjustment}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value) || 0;
+                    setStartAdjustment(val);
+                    const newStart = Math.max(0, (selectedAd?.start || 0) + val);
+                    setAdjustedStart(newStart);
                   }}
-                  onBlur={() => {
-                    const parsed = parseTimeInput(startInputValue, segments[segments.length - 1]?.end || 0);
-                    if (parsed !== null && parsed < adjustedEnd) {
-                      setAdjustedStart(parsed);
-                    }
-                    setIsEditingStart(false);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.currentTarget.blur();
-                    } else if (e.key === 'Escape') {
-                      setIsEditingStart(false);
-                    }
-                  }}
-                  className="w-16 text-center text-xs sm:text-sm font-mono bg-transparent border border-border rounded px-1 py-0.5 focus:border-primary focus:outline-none"
+                  className="w-16 text-center text-sm font-mono bg-transparent border border-border rounded px-1 py-1.5 focus:border-primary focus:outline-none"
+                  step="1"
                 />
                 <button
-                  onClick={handleNudgeStartForward}
-                  className="p-3 sm:p-1.5 rounded-lg hover:bg-accent active:bg-accent/80 active:scale-95 touch-manipulation min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center transition-all"
-                  aria-label="Nudge start forward"
+                  onClick={() => {
+                    const newAdj = startAdjustment + 1;
+                    setStartAdjustment(newAdj);
+                    const newStart = Math.max(0, (selectedAd?.start || 0) + newAdj);
+                    setAdjustedStart(newStart);
+                    triggerHaptic();
+                  }}
+                  className="p-3 sm:p-2 rounded-lg bg-muted hover:bg-accent active:bg-accent/80 active:scale-95 touch-manipulation min-w-[44px] min-h-[44px] sm:min-w-[32px] sm:min-h-[32px] flex items-center justify-center transition-all font-bold text-lg"
+                  aria-label="Increase start adjustment"
                 >
-                  <ChevronRight className="w-5 h-5 sm:w-4 sm:h-4" />
+                  +
                 </button>
+                <span className="text-xs text-muted-foreground">sec</span>
               </div>
 
-              <div className="flex items-center gap-3 sm:gap-2 justify-center sm:justify-start">
-                <span className="text-xs text-muted-foreground">End:</span>
+              {/* End Adjustment */}
+              <div className="flex items-center gap-2 justify-center sm:justify-start">
+                <span className="text-xs text-muted-foreground w-10">End:</span>
                 <button
-                  onClick={handleNudgeEndBackward}
-                  className="p-3 sm:p-1.5 rounded-lg hover:bg-accent active:bg-accent/80 active:scale-95 touch-manipulation min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center transition-all"
-                  aria-label="Nudge end backward"
+                  onClick={() => {
+                    const newAdj = endAdjustment - 1;
+                    setEndAdjustment(newAdj);
+                    const maxEnd = segments[segments.length - 1]?.end || 9999;
+                    const newEnd = Math.min(maxEnd, (selectedAd?.end || 0) + newAdj);
+                    setAdjustedEnd(newEnd);
+                    triggerHaptic();
+                  }}
+                  className="p-3 sm:p-2 rounded-lg bg-muted hover:bg-accent active:bg-accent/80 active:scale-95 touch-manipulation min-w-[44px] min-h-[44px] sm:min-w-[32px] sm:min-h-[32px] flex items-center justify-center transition-all font-bold text-lg"
+                  aria-label="Decrease end adjustment"
                 >
-                  <ChevronLeft className="w-5 h-5 sm:w-4 sm:h-4" />
+                  -
                 </button>
                 <input
-                  ref={endInputRef}
-                  type="text"
-                  inputMode="decimal"
-                  value={isEditingEnd ? endInputValue : formatTime(adjustedEnd)}
-                  onChange={(e) => setEndInputValue(e.target.value)}
-                  onFocus={(e) => {
-                    setEndInputValue(formatTime(adjustedEnd));
-                    setIsEditingEnd(true);
-                    // Selection happens after focus restoration in useEffect
-                    setTimeout(() => e.target.select(), 0);
+                  type="number"
+                  value={endAdjustment}
+                  onChange={(e) => {
+                    const val = parseFloat(e.target.value) || 0;
+                    setEndAdjustment(val);
+                    const maxEnd = segments[segments.length - 1]?.end || 9999;
+                    const newEnd = Math.min(maxEnd, (selectedAd?.end || 0) + val);
+                    setAdjustedEnd(newEnd);
                   }}
-                  onBlur={() => {
-                    const parsed = parseTimeInput(endInputValue, segments[segments.length - 1]?.end || 0);
-                    if (parsed !== null && parsed > adjustedStart) {
-                      setAdjustedEnd(parsed);
-                    }
-                    setIsEditingEnd(false);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.currentTarget.blur();
-                    } else if (e.key === 'Escape') {
-                      setIsEditingEnd(false);
-                    }
-                  }}
-                  className="w-16 text-center text-xs sm:text-sm font-mono bg-transparent border border-border rounded px-1 py-0.5 focus:border-primary focus:outline-none"
+                  className="w-16 text-center text-sm font-mono bg-transparent border border-border rounded px-1 py-1.5 focus:border-primary focus:outline-none"
+                  step="1"
                 />
                 <button
-                  onClick={handleNudgeEndForward}
-                  className="p-3 sm:p-1.5 rounded-lg hover:bg-accent active:bg-accent/80 active:scale-95 touch-manipulation min-w-[44px] min-h-[44px] sm:min-w-0 sm:min-h-0 flex items-center justify-center transition-all"
-                  aria-label="Nudge end forward"
+                  onClick={() => {
+                    const newAdj = endAdjustment + 1;
+                    setEndAdjustment(newAdj);
+                    const maxEnd = segments[segments.length - 1]?.end || 9999;
+                    const newEnd = Math.min(maxEnd, (selectedAd?.end || 0) + newAdj);
+                    setAdjustedEnd(newEnd);
+                    triggerHaptic();
+                  }}
+                  className="p-3 sm:p-2 rounded-lg bg-muted hover:bg-accent active:bg-accent/80 active:scale-95 touch-manipulation min-w-[44px] min-h-[44px] sm:min-w-[32px] sm:min-h-[32px] flex items-center justify-center transition-all font-bold text-lg"
+                  aria-label="Increase end adjustment"
                 >
-                  <ChevronRight className="w-5 h-5 sm:w-4 sm:h-4" />
+                  +
                 </button>
+                <span className="text-xs text-muted-foreground">sec</span>
               </div>
+            </div>
 
-              <span className="text-xs text-muted-foreground text-center sm:text-left">
-                Duration: {formatTime(adjustedEnd - adjustedStart)}
-              </span>
+            {/* Time display */}
+            <div className="mt-2 text-xs text-muted-foreground text-center">
+              {selectedAd && (
+                <>
+                  <span className="font-mono">
+                    {formatTime(selectedAd.start)} - {formatTime(selectedAd.end)}
+                  </span>
+                  {(startAdjustment !== 0 || endAdjustment !== 0) && (
+                    <>
+                      <span className="mx-2">-{'>'}</span>
+                      <span className="font-mono text-primary">
+                        {formatTime(adjustedStart)} - {formatTime(adjustedEnd)}
+                      </span>
+                    </>
+                  )}
+                  <span className="ml-3">
+                    ({formatTime(adjustedEnd - adjustedStart)})
+                  </span>
+                </>
+              )}
             </div>
 
             {/* Keyboard shortcuts hint - desktop only */}
@@ -936,8 +922,8 @@ export function TranscriptEditor({
         </div>
       </div>
 
-      {/* Mobile: Bottom sheet audio player - hidden when editing time inputs */}
-      <div className={`sm:hidden sticky bottom-0 z-20 bg-card border-t border-border flex-shrink-0 ${(isEditingStart || isEditingEnd) ? 'hidden' : ''}`}>
+      {/* Mobile: Bottom sheet audio player */}
+      <div className="sm:hidden sticky bottom-0 z-20 bg-card border-t border-border flex-shrink-0">
         <audio ref={audioRef} src={audioUrl} className="hidden" />
 
         {/* Grab handle */}
