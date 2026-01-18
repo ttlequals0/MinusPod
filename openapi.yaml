@@ -1315,6 +1315,13 @@ paths:
                 autoProcessEnabled:
                   type: boolean
                   description: Enable automatic processing of new episodes when feeds refresh
+                minCutConfidence:
+                  type: number
+                  format: float
+                  minimum: 0.50
+                  maximum: 0.95
+                  description: Minimum confidence threshold to cut an ad from audio. Lower = more aggressive (removes more potential ads), higher = more conservative
+                  example: 0.80
       responses:
         '200':
           description: Settings updated
@@ -1795,6 +1802,15 @@ components:
               description: Whether auto-processing of new episodes is enabled
             isDefault:
               type: boolean
+        minCutConfidence:
+          type: object
+          properties:
+            value:
+              type: number
+              format: float
+              description: Minimum confidence threshold to cut an ad from audio (0.50-0.95)
+            isDefault:
+              type: boolean
         retentionPeriodMinutes:
           type: integer
         defaults:
@@ -1816,6 +1832,9 @@ components:
               type: string
             autoProcessEnabled:
               type: boolean
+            minCutConfidence:
+              type: number
+              format: float
 
     SystemStatus:
       type: object

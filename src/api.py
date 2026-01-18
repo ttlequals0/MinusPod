@@ -1520,6 +1520,13 @@ def get_settings():
     chapters_value = settings.get('chapters_enabled', {}).get('value', 'true')
     chapters_enabled = chapters_value.lower() in ('true', '1', 'yes')
 
+    # Get min cut confidence (ad detection aggressiveness)
+    min_cut_confidence_str = settings.get('min_cut_confidence', {}).get('value', '0.80')
+    try:
+        min_cut_confidence = float(min_cut_confidence_str)
+    except (ValueError, TypeError):
+        min_cut_confidence = 0.80
+
     return json_response({
         'systemPrompt': {
             'value': settings.get('system_prompt', {}).get('value', DEFAULT_SYSTEM_PROMPT),
@@ -1561,6 +1568,10 @@ def get_settings():
             'value': chapters_enabled,
             'isDefault': settings.get('chapters_enabled', {}).get('is_default', True)
         },
+        'minCutConfidence': {
+            'value': min_cut_confidence,
+            'isDefault': settings.get('min_cut_confidence', {}).get('is_default', True)
+        },
         'retentionPeriodMinutes': int(os.environ.get('RETENTION_PERIOD') or settings.get('retention_period_minutes', {}).get('value', '1440')),
         'defaults': {
             'systemPrompt': DEFAULT_SYSTEM_PROMPT,
@@ -1572,7 +1583,8 @@ def get_settings():
             'audioAnalysisEnabled': False,
             'autoProcessEnabled': True,
             'vttTranscriptsEnabled': True,
-            'chaptersEnabled': True
+            'chaptersEnabled': True,
+            'minCutConfidence': 0.80
         }
     })
 
@@ -1638,6 +1650,12 @@ def update_ad_detection_settings():
         value = 'true' if data['chaptersEnabled'] else 'false'
         db.set_setting('chapters_enabled', value, is_default=False)
         logger.info(f"Updated chapters generation to: {value}")
+
+    if 'minCutConfidence' in data:
+        # Clamp to valid range (0.50 - 0.95)
+        value = max(0.50, min(0.95, float(data['minCutConfidence'])))
+        db.set_setting('min_cut_confidence', str(value), is_default=False)
+        logger.info(f"Updated min cut confidence to: {value}")
 
     return json_response({'message': 'Settings updated'})
 

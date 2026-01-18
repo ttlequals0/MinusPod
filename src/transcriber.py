@@ -294,6 +294,57 @@ class Transcriber:
             filtered.append(seg)
         return filtered
 
+    def _detect_non_english_segment(self, text: str, primary_language: str) -> bool:
+        """Detect if a segment is likely non-English (potential DAI ad).
+
+        Uses multiple heuristics:
+        1. High ratio of non-ASCII characters (Spanish, etc.)
+        2. Common Spanish/other language patterns
+        3. If primary detected language is not English and segment has markers
+
+        Args:
+            text: The segment text
+            primary_language: The overall detected language from Whisper
+
+        Returns:
+            True if segment appears to be non-English
+        """
+        if not text or len(text) < 10:
+            return False
+
+        # Check for high ratio of accented/non-ASCII characters
+        non_ascii_chars = sum(1 for c in text if ord(c) > 127)
+        non_ascii_ratio = non_ascii_chars / len(text)
+
+        # Spanish and other language indicators
+        spanish_patterns = [
+            'usted', 'puede', 'para', 'como', 'ahora', 'llame', 'gratis',
+            'oferta', 'hoy', 'desde', 'hasta', 'numero', 'telefono',
+            'visite', 'compre', 'ahorre', 'descuento', 'promocion'
+        ]
+
+        text_lower = text.lower()
+
+        # Check for Spanish ad patterns
+        spanish_word_count = sum(1 for word in spanish_patterns if word in text_lower)
+
+        # Heuristics for non-English detection
+        is_likely_foreign = (
+            # High non-ASCII ratio suggests accented language
+            non_ascii_ratio > 0.05 or
+            # Multiple Spanish words detected
+            spanish_word_count >= 2 or
+            # Primary language is not English and segment has some markers
+            (primary_language not in ['en', 'english', 'unknown'] and
+             (non_ascii_ratio > 0.02 or spanish_word_count >= 1))
+        )
+
+        if is_likely_foreign:
+            logger.debug(f"Non-English segment detected: non_ascii={non_ascii_ratio:.2f}, "
+                        f"spanish_words={spanish_word_count}, primary_lang={primary_language}")
+
+        return is_likely_foreign
+
     def get_audio_duration(self, audio_path: str) -> Optional[float]:
         """Get audio duration in seconds using ffprobe."""
         try:
@@ -555,25 +606,33 @@ class Transcriber:
 
                     # Use the batched pipeline for transcription
                     # word_timestamps=True enables precise boundary refinement later
+                    # language=None enables auto-detection to catch non-English DAI ads
                     segments_generator, info = model.transcribe(
                         transcribe_path,
-                        language="en",
+                        language=None,  # Auto-detect to catch non-English ads (Spanish, etc.)
                         initial_prompt=initial_prompt,
                         beam_size=5,
                         batch_size=batch_size,
                         word_timestamps=True,  # Enable word-level timestamps for boundary refinement
                         vad_filter=True,  # Enable VAD filter to skip silent parts
                         vad_parameters=dict(
-                            min_silence_duration_ms=500,
-                            speech_pad_ms=400
+                            min_silence_duration_ms=1000,  # Increased from 500 - less aggressive skipping
+                            speech_pad_ms=600,  # Increased from 400 - more padding for ad segments
+                            threshold=0.3  # Lower threshold = more sensitive to speech in ads
                         )
                     )
+
+                    # Log detected language
+                    detected_lang = info.language if hasattr(info, 'language') else 'unknown'
+                    lang_prob = info.language_probability if hasattr(info, 'language_probability') else 0
+                    logger.info(f"Detected primary language: {detected_lang} (probability: {lang_prob:.2f})")
 
                     # Collect segments with real-time progress logging
                     result = []
                     segment_count = 0
                     last_log_time = 0
 
+                    non_english_count = 0
                     for segment in segments_generator:
                         segment_count += 1
                         # Store word-level timestamps for boundary refinement
@@ -585,12 +644,27 @@ class Transcriber:
                                     "start": w.start,
                                     "end": w.end
                                 })
+
+                        # Detect non-English segments (potential DAI ads)
+                        # Whisper segments don't have per-segment language, but we can
+                        # detect non-English by checking for non-ASCII characters or
+                        # using the overall detected language with segment analysis
+                        segment_text = segment.text.strip()
+                        is_foreign = self._detect_non_english_segment(segment_text, detected_lang)
+
                         segment_dict = {
                             "start": segment.start,
                             "end": segment.end,
-                            "text": segment.text.strip(),
+                            "text": segment_text,
                             "words": words  # Word timestamps for boundary refinement
                         }
+
+                        # Flag non-English segments for ad detection
+                        if is_foreign:
+                            segment_dict["is_foreign_language"] = True
+                            segment_dict["detected_language"] = "non-english"
+                            non_english_count += 1
+
                         result.append(segment_dict)
 
                         # Log progress every 10 segments
@@ -610,6 +684,10 @@ class Transcriber:
                     result = self.filter_hallucinations(result)
                     if len(result) < original_count:
                         logger.info(f"Filtered {original_count - len(result)} hallucination segments")
+
+                    # Log non-English segments (potential DAI ads)
+                    if non_english_count > 0:
+                        logger.info(f"Flagged {non_english_count} non-English segments as potential ads")
 
                     duration_min = result[-1]['end'] / 60 if result else 0
                     logger.info(f"Transcription completed: {len(result)} segments, {duration_min:.1f} minutes")

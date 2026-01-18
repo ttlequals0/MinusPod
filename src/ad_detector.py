@@ -1081,6 +1081,12 @@ class AdDetector:
         try:
             self.initialize_client()
 
+            # Pre-detect non-English segments as automatic ads (DAI in other languages)
+            foreign_language_ads = self._detect_foreign_language_ads(segments, slug, episode_id)
+            if foreign_language_ads:
+                logger.info(f"[{slug}:{episode_id}] Auto-detected {len(foreign_language_ads)} "
+                           f"non-English segments as ads")
+
             # Create overlapping windows from transcript
             windows = create_windows(segments)
             total_duration = segments[-1]['end'] if segments else 0
@@ -1218,6 +1224,11 @@ class AdDetector:
 
             # Deduplicate ads across windows
             final_ads = deduplicate_window_ads(all_window_ads)
+
+            # Merge in foreign language ads (auto-detected non-English segments)
+            if foreign_language_ads:
+                final_ads = self._merge_detection_results(final_ads + foreign_language_ads)
+                logger.info(f"[{slug}:{episode_id}] Merged {len(foreign_language_ads)} foreign language ads")
 
             total_ad_time = sum(ad['end'] - ad['start'] for ad in final_ads)
             logger.info(f"[{slug}:{episode_id}] Total after dedup: {len(final_ads)} ads ({total_ad_time/60:.1f} min)")
@@ -1458,6 +1469,72 @@ class AdDetector:
             if seg.get('end', 0) >= start and seg.get('start', 0) <= end:
                 text_parts.append(seg.get('text', ''))
         return ' '.join(text_parts).strip()
+
+    def _detect_foreign_language_ads(
+        self, segments: List[Dict], slug: str = None, episode_id: str = None
+    ) -> List[Dict]:
+        """Auto-detect non-English segments as ads (DAI in other languages).
+
+        Non-English segments (Spanish, etc.) are almost always dynamically inserted
+        ads from ad networks targeting specific demographics. These should be
+        automatically flagged as ads.
+
+        Args:
+            segments: Transcript segments with optional is_foreign_language flag
+            slug: Podcast slug for logging
+            episode_id: Episode ID for logging
+
+        Returns:
+            List of ad markers for foreign language segments
+        """
+        foreign_ads = []
+
+        # Find consecutive foreign language segments and merge them
+        current_ad_start = None
+        current_ad_end = None
+
+        for seg in segments:
+            if seg.get('is_foreign_language'):
+                if current_ad_start is None:
+                    # Start new foreign language region
+                    current_ad_start = seg['start']
+                # Extend region
+                current_ad_end = seg['end']
+            else:
+                # Not foreign language - close any open region
+                if current_ad_start is not None:
+                    duration = current_ad_end - current_ad_start
+                    # Only flag regions longer than 5 seconds
+                    if duration >= 5.0:
+                        foreign_ads.append({
+                            'start': current_ad_start,
+                            'end': current_ad_end,
+                            'confidence': 0.95,  # High confidence for language detection
+                            'reason': 'Non-English language segment (likely DAI ad)',
+                            'detection_stage': 'language',
+                            'end_text': '[Foreign language content]'
+                        })
+                        logger.info(
+                            f"[{slug}:{episode_id}] Foreign language ad: "
+                            f"{current_ad_start:.1f}s-{current_ad_end:.1f}s ({duration:.1f}s)"
+                        )
+                    current_ad_start = None
+                    current_ad_end = None
+
+        # Close final region if needed
+        if current_ad_start is not None:
+            duration = current_ad_end - current_ad_start
+            if duration >= 5.0:
+                foreign_ads.append({
+                    'start': current_ad_start,
+                    'end': current_ad_end,
+                    'confidence': 0.95,
+                    'reason': 'Non-English language segment (likely DAI ad)',
+                    'detection_stage': 'language',
+                    'end_text': '[Foreign language content]'
+                })
+
+        return foreign_ads
 
     def _merge_detection_results(self, ads: List[Dict]) -> List[Dict]:
         """Merge overlapping ads from different detection stages."""

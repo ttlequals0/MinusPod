@@ -239,6 +239,9 @@ class AdValidator:
         # Step 3: Merge tiny gaps
         ads = self._merge_close_ads(ads, result)
 
+        # Step 3.5: Extend trailing ad to end of episode if close
+        ads = self._extend_trailing_ad(ads, result)
+
         # Step 4: Validate each ad
         for ad in ads:
             validated = self._validate_ad(ad)
@@ -517,6 +520,46 @@ class AdValidator:
                 result.corrections.append(
                     f"Clamped end {original:.1f}s to duration {self.episode_duration:.1f}s"
                 )
+        return ads
+
+    def _extend_trailing_ad(self, ads: List[Dict],
+                            result: ValidationResult,
+                            max_gap: float = 30.0) -> List[Dict]:
+        """Extend the last ad to the end of episode if close enough.
+
+        DAI post-roll ads often end slightly before the actual episode end.
+        If an ad ends within max_gap seconds of the episode end, extend it.
+
+        Args:
+            ads: List of ad markers
+            result: ValidationResult to record corrections
+            max_gap: Maximum gap (seconds) to extend. Default 30s.
+
+        Returns:
+            Ads with potentially extended trailing ad
+        """
+        if not ads or self.episode_duration <= 0:
+            return ads
+
+        # Sort by start time and get last ad
+        sorted_ads = sorted(ads, key=lambda x: x['start'])
+        last_ad = sorted_ads[-1]
+
+        gap_to_end = self.episode_duration - last_ad['end']
+
+        # Only extend if gap is positive and within threshold
+        if 0 < gap_to_end <= max_gap:
+            original_end = last_ad['end']
+            last_ad['end'] = self.episode_duration
+            result.corrections.append(
+                f"Extended trailing ad from {original_end:.1f}s to episode end "
+                f"({self.episode_duration:.1f}s) - gap was {gap_to_end:.1f}s"
+            )
+            logger.info(
+                f"Extended trailing ad to episode end: {original_end:.1f}s -> "
+                f"{self.episode_duration:.1f}s (gap: {gap_to_end:.1f}s)"
+            )
+
         return ads
 
     def _merge_close_ads(self, ads: List[Dict],

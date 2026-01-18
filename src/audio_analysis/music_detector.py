@@ -17,7 +17,12 @@ logger = logging.getLogger('podcast.audio_analysis.music')
 
 # Streaming configuration for long episodes
 LONG_EPISODE_THRESHOLD = 3600  # > 1 hour uses streaming
-STREAM_BLOCK_LENGTH = 256  # ~4 minutes per block at default settings
+STREAM_BLOCK_LENGTH = 512  # ~8 minutes per block (increased for efficiency)
+
+# Fast mode configuration for long episodes
+FAST_MODE_THRESHOLD = 5400  # > 1.5 hours uses fast mode
+FAST_MODE_FRAME_SKIP = 3  # Analyze every 3rd frame in fast mode
+FAST_MODE_SKIP_HPSS = True  # Skip expensive HPSS computation in fast mode
 
 # Check if librosa is available
 LIBROSA_AVAILABLE = False
@@ -99,9 +104,13 @@ class MusicBedDetector:
         duration = self._get_audio_duration(audio_path)
         logger.info(f"Audio duration: {duration:.1f}s for music detection")
 
-        if duration > LONG_EPISODE_THRESHOLD:
+        if duration > FAST_MODE_THRESHOLD:
+            # Very long episodes use fast mode with frame skipping
+            logger.info(f"Using fast streaming analysis for very long episode ({duration/3600:.1f}h)")
+            return self._analyze_streaming(audio_path, duration, fast_mode=True)
+        elif duration > LONG_EPISODE_THRESHOLD:
             logger.info(f"Using streaming analysis for long episode ({duration/3600:.1f}h)")
-            return self._analyze_streaming(audio_path, duration)
+            return self._analyze_streaming(audio_path, duration, fast_mode=False)
         else:
             logger.info("Using standard analysis for short episode")
             return self._analyze_standard(audio_path, duration)
@@ -158,8 +167,16 @@ class MusicBedDetector:
         logger.info(f"Found {len(regions)} music bed regions")
         return regions
 
-    def _analyze_streaming(self, audio_path: str, duration: float) -> List[AudioSegmentSignal]:
-        """Streaming analysis - processes in blocks (for episodes > 1 hour)."""
+    def _analyze_streaming(
+        self, audio_path: str, duration: float, fast_mode: bool = False
+    ) -> List[AudioSegmentSignal]:
+        """Streaming analysis - processes in blocks (for episodes > 1 hour).
+
+        Args:
+            audio_path: Path to audio file
+            duration: Audio duration in seconds
+            fast_mode: If True, skip frames and use faster feature extraction
+        """
         hop_length = int(self.sr * self.frame_duration)
         frame_length = hop_length * 2
 
@@ -167,9 +184,16 @@ class MusicBedDetector:
         block_count = 0
         samples_processed = 0
         total_samples = int(duration * self.sr)
+        frame_index = 0  # Track frame index for skipping
 
-        logger.info(f"Streaming analysis: hop={hop_length}, frame={frame_length}, "
-                    f"block_length={STREAM_BLOCK_LENGTH}, total_samples={total_samples}")
+        # Fast mode settings
+        frame_skip = FAST_MODE_FRAME_SKIP if fast_mode else 1
+        skip_hpss = FAST_MODE_SKIP_HPSS if fast_mode else False
+
+        mode_str = "FAST" if fast_mode else "standard"
+        logger.info(f"Streaming analysis ({mode_str}): hop={hop_length}, frame={frame_length}, "
+                    f"block_length={STREAM_BLOCK_LENGTH}, frame_skip={frame_skip}, "
+                    f"skip_hpss={skip_hpss}")
 
         # Stream audio in blocks
         stream = librosa.stream(
@@ -195,6 +219,12 @@ class MusicBedDetector:
 
                 # Process frames within this block
                 for i in range(0, len(block) - frame_length, hop_length):
+                    frame_index += 1
+
+                    # Skip frames in fast mode (analyze every Nth frame)
+                    if fast_mode and frame_index % frame_skip != 0:
+                        continue
+
                     # Calculate absolute time position
                     sample_pos = samples_processed + i
                     start_time = sample_pos / self.sr
@@ -207,17 +237,21 @@ class MusicBedDetector:
                     if rms < 0.001:
                         continue
 
-                    # Extract features
+                    # Extract features (skip HPSS in fast mode - it's expensive)
                     spectral_flatness = self._compute_spectral_flatness(frame)
                     low_freq_energy = self._compute_low_freq_energy(frame)
-                    harmonic_ratio = self._compute_harmonic_ratio(frame)
 
-                    # Compute music probability
-                    music_prob = self._compute_music_probability(
-                        spectral_flatness,
-                        low_freq_energy,
-                        harmonic_ratio
-                    )
+                    if skip_hpss:
+                        # Fast mode: use simplified probability without harmonic ratio
+                        harmonic_ratio = 0.5  # Neutral default
+                        music_prob = self._compute_music_probability_fast(
+                            spectral_flatness, low_freq_energy
+                        )
+                    else:
+                        harmonic_ratio = self._compute_harmonic_ratio(frame)
+                        music_prob = self._compute_music_probability(
+                            spectral_flatness, low_freq_energy, harmonic_ratio
+                        )
 
                     if music_prob > self.music_threshold:
                         music_frames.append({
@@ -235,7 +269,7 @@ class MusicBedDetector:
                 if block_count % 10 == 0:
                     # Cap at 99% during streaming - final 100% logged after loop completes
                     progress = min(99.0, (samples_processed / total_samples) * 100)
-                    logger.info(f"Music detection progress: {progress:.1f}% "
+                    logger.info(f"Music detection progress ({mode_str}): {progress:.1f}% "
                                 f"({len(music_frames)} music frames found)")
 
         except Exception as e:
@@ -243,14 +277,16 @@ class MusicBedDetector:
                          f"{type(e).__name__}: {e}")
             raise
 
-        logger.info(f"Music detection progress: 100.0% "
+        logger.info(f"Music detection progress ({mode_str}): 100.0% "
                     f"({len(music_frames)} music frames found)")
 
         # Merge consecutive frames into regions
-        regions = self._merge_frames_to_regions(music_frames)
+        # In fast mode, use larger gap tolerance due to frame skipping
+        max_gap = 4.0 if fast_mode else 2.0
+        regions = self._merge_frames_to_regions(music_frames, max_gap=max_gap)
 
-        logger.info(f"Streaming analysis complete: processed {block_count} blocks, "
-                    f"found {len(regions)} music bed regions")
+        logger.info(f"Streaming analysis complete ({mode_str}): processed {block_count} blocks, "
+                    f"analyzed {frame_index // frame_skip} frames, found {len(regions)} music bed regions")
         return regions
 
     def _compute_spectral_flatness(self, frame: Any) -> float:
@@ -320,6 +356,30 @@ class MusicBedDetector:
             0.35 * flatness_score +
             0.35 * bass_score +
             0.30 * harmonic_score
+        )
+
+        return float(np.clip(music_prob, 0, 1))
+
+    def _compute_music_probability_fast(
+        self,
+        spectral_flatness: float,
+        low_freq_energy: float
+    ) -> float:
+        """Fast music probability using only spectral flatness and bass energy.
+
+        Used in fast mode to avoid expensive HPSS computation.
+        Slightly more aggressive thresholds to compensate for missing harmonic info.
+        """
+        # Low spectral flatness = more musical (invert)
+        flatness_score = 1.0 - min(spectral_flatness * 10, 1.0)
+
+        # High low-freq energy = likely music bed
+        bass_score = min(low_freq_energy * 5, 1.0)
+
+        # Weighted combination (without harmonic, redistribute weights)
+        music_prob = (
+            0.50 * flatness_score +
+            0.50 * bass_score
         )
 
         return float(np.clip(music_prob, 0, 1))

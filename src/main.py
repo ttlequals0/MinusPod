@@ -99,9 +99,27 @@ feed_logger = logging.getLogger('podcast.feed')
 refresh_logger = logging.getLogger('podcast.refresh')
 audio_logger = logging.getLogger('podcast.audio')
 
-# Minimum confidence threshold to cut an ad from audio
-# Ads below this threshold are kept in audio to avoid false positives
-MIN_CUT_CONFIDENCE = 0.80
+# Default minimum confidence threshold to cut an ad from audio
+# This can be overridden via the 'min_cut_confidence' setting
+DEFAULT_MIN_CUT_CONFIDENCE = 0.80
+
+
+def get_min_cut_confidence() -> float:
+    """Get the minimum confidence threshold for cutting ads from audio.
+
+    This is configurable via the 'min_cut_confidence' setting (aggressiveness slider).
+    Lower = more aggressive (removes more potential ads)
+    Higher = more conservative (removes only high-confidence ads)
+    """
+    try:
+        value = db.get_setting('min_cut_confidence')
+        if value:
+            threshold = float(value)
+            # Clamp to valid range
+            return max(0.50, min(0.95, threshold))
+    except (ValueError, TypeError):
+        pass
+    return DEFAULT_MIN_CUT_CONFIDENCE
 
 
 def log_request_detailed(f):
@@ -1080,6 +1098,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 # REJECT ads and low-confidence ads stay in audio but are stored for display
                 ads_to_remove = []
                 low_confidence_count = 0
+                min_cut_confidence = get_min_cut_confidence()
                 for ad in validation_result.ads:
                     validation = ad.get('validation', {})
                     if validation.get('decision') == 'REJECT':
@@ -1087,12 +1106,12 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                         continue
                     # Check confidence - use adjusted_confidence if available, else original
                     confidence = validation.get('adjusted_confidence', ad.get('confidence', 1.0))
-                    if confidence < MIN_CUT_CONFIDENCE:
+                    if confidence < min_cut_confidence:
                         low_confidence_count += 1
                         ad['was_cut'] = False  # Low-confidence ads are kept in audio
                         audio_logger.info(
                             f"[{slug}:{episode_id}] Keeping low-confidence ad in audio: "
-                            f"{ad['start']:.1f}s-{ad['end']:.1f}s ({confidence:.0%} < {MIN_CUT_CONFIDENCE:.0%})"
+                            f"{ad['start']:.1f}s-{ad['end']:.1f}s ({confidence:.0%} < {min_cut_confidence:.0%})"
                         )
                         continue
                     ad['was_cut'] = True  # This ad will be cut from audio
@@ -1106,7 +1125,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 if rejected_count > 0 or low_confidence_count > 0:
                     audio_logger.info(
                         f"[{slug}:{episode_id}] Kept in audio: {rejected_count} rejected, "
-                        f"{low_confidence_count} low-confidence (<{MIN_CUT_CONFIDENCE:.0%})"
+                        f"{low_confidence_count} low-confidence (<{min_cut_confidence:.0%})"
                     )
             else:
                 ads_to_remove = []

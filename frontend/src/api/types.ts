@@ -86,6 +86,11 @@ export interface SettingValueBoolean {
   isDefault: boolean;
 }
 
+export interface SettingValueNumber {
+  value: number;
+  isDefault: boolean;
+}
+
 export interface Settings {
   systemPrompt: SettingValue;
   secondPassPrompt: SettingValue;
@@ -98,6 +103,7 @@ export interface Settings {
   audioBitrate: SettingValue;
   vttTranscriptsEnabled: SettingValueBoolean;
   chaptersEnabled: SettingValueBoolean;
+  minCutConfidence: SettingValueNumber;
   retentionPeriodMinutes: number;
   defaults: {
     systemPrompt: string;
@@ -111,6 +117,7 @@ export interface Settings {
     audioBitrate: string;
     vttTranscriptsEnabled: boolean;
     chaptersEnabled: boolean;
+    minCutConfidence: number;
   };
 }
 
@@ -126,6 +133,7 @@ export interface UpdateSettingsPayload {
   audioBitrate?: string;
   vttTranscriptsEnabled?: boolean;
   chaptersEnabled?: boolean;
+  minCutConfidence?: number;
 }
 
 export interface ClaudeModel {

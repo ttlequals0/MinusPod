@@ -6,6 +6,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.190] - 2026-01-18
+
+### Fixed
+- **Music analysis timeout on long episodes**: Episodes over 1.5 hours now use "fast mode" that analyzes every 3rd frame and skips expensive HPSS (Harmonic-Percussive Source Separation) computation. This prevents the 805s+ timeouts that were occurring on 2+ hour episodes like Security Now.
+- **Non-English DAI ads not detected**: Changed Whisper from `language="en"` to `language=None` for auto-detection. Non-English segments (especially Spanish ads) are now automatically flagged and treated as ads.
+- **VAD filter too aggressive**: Adjusted VAD parameters to be more sensitive (`min_silence_duration_ms`: 500->1000, `speech_pad_ms`: 400->600, `threshold`: 0.3). This helps capture music-heavy ad segments that were being skipped.
+- **End-of-episode ads not fully trimmed**: Ads that end within 30 seconds of the episode end are now extended to the actual end, eliminating leftover ad snippets at the end.
+
+### Added
+- **Ad detection aggressiveness slider**: New setting to control how confident the system must be before removing an ad. Lower values (50%) are more aggressive and remove more potential ads, while higher values (95%) are more conservative. Accessible via Settings page slider.
+- Foreign language detection in transcription pipeline with `is_foreign_language` and `detected_language` segment attributes
+- `_detect_foreign_language_ads()` method in ad detector that auto-detects non-English segments as DAI ads with 95% confidence
+- Fast mode music detection: `_compute_music_probability_fast()` using only spectral flatness and bass energy
+
+### Changed
+- Music detector streaming analysis now uses adaptive frame skipping based on episode length
+- Block length increased from 256 to 512 for more efficient streaming processing
+
+---
+
 ## [0.1.189] - 2026-01-11
 
 ### Fixed

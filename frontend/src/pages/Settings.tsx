@@ -28,6 +28,7 @@ function Settings() {
   const [audioBitrate, setAudioBitrate] = useState('128k');
   const [vttTranscriptsEnabled, setVttTranscriptsEnabled] = useState(true);
   const [chaptersEnabled, setChaptersEnabled] = useState(true);
+  const [minCutConfidence, setMinCutConfidence] = useState(0.80);
   const [hasChanges, setHasChanges] = useState(false);
   const [cleanupConfirm, setCleanupConfirm] = useState(false);
 
@@ -79,6 +80,7 @@ function Settings() {
       setAudioBitrate(settings.audioBitrate?.value || '128k');
       setVttTranscriptsEnabled(settings.vttTranscriptsEnabled?.value ?? true);
       setChaptersEnabled(settings.chaptersEnabled?.value ?? true);
+      setMinCutConfidence(settings.minCutConfidence?.value ?? 0.80);
     }
   }, [settings]);
 
@@ -95,10 +97,11 @@ function Settings() {
         autoProcessEnabled !== (settings.autoProcessEnabled?.value ?? true) ||
         audioBitrate !== (settings.audioBitrate?.value || '128k') ||
         vttTranscriptsEnabled !== (settings.vttTranscriptsEnabled?.value ?? true) ||
-        chaptersEnabled !== (settings.chaptersEnabled?.value ?? true);
+        chaptersEnabled !== (settings.chaptersEnabled?.value ?? true) ||
+        minCutConfidence !== (settings.minCutConfidence?.value ?? 0.80);
       setHasChanges(changed);
     }
-  }, [systemPrompt, secondPassPrompt, selectedModel, secondPassModel, multiPassEnabled, whisperModel, audioAnalysisEnabled, autoProcessEnabled, audioBitrate, vttTranscriptsEnabled, chaptersEnabled, settings]);
+  }, [systemPrompt, secondPassPrompt, selectedModel, secondPassModel, multiPassEnabled, whisperModel, audioAnalysisEnabled, autoProcessEnabled, audioBitrate, vttTranscriptsEnabled, chaptersEnabled, minCutConfidence, settings]);
 
   const updateMutation = useMutation({
     mutationFn: () =>
@@ -114,6 +117,7 @@ function Settings() {
         audioBitrate,
         vttTranscriptsEnabled,
         chaptersEnabled,
+        minCutConfidence,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
@@ -502,6 +506,34 @@ function Settings() {
           </label>
           <p className="mt-2 text-sm text-muted-foreground ml-14">
             Analyze audio characteristics (volume changes, music detection, speaker patterns) to improve ad detection accuracy. Experimental feature.
+          </p>
+        </div>
+      </div>
+
+      <div className="bg-card rounded-lg border border-border p-6">
+        <h2 className="text-lg font-semibold text-foreground mb-4">Ad Detection Aggressiveness</h2>
+        <div>
+          <label htmlFor="minCutConfidence" className="block text-sm font-medium text-foreground mb-2">
+            Minimum Confidence Threshold: {Math.round(minCutConfidence * 100)}%
+          </label>
+          <input
+            type="range"
+            id="minCutConfidence"
+            min="0.50"
+            max="0.95"
+            step="0.05"
+            value={minCutConfidence}
+            onChange={(e) => setMinCutConfidence(parseFloat(e.target.value))}
+            className="w-full h-2 bg-secondary rounded-lg appearance-none cursor-pointer accent-primary"
+          />
+          <div className="flex justify-between text-xs text-muted-foreground mt-1">
+            <span>More Aggressive (50%)</span>
+            <span>More Conservative (95%)</span>
+          </div>
+          <p className="mt-3 text-sm text-muted-foreground">
+            Controls how confident the system must be before removing an ad.
+            Lower values remove more potential ads but may include false positives.
+            Higher values are safer but may miss some ads.
           </p>
         </div>
       </div>

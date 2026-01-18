@@ -1152,6 +1152,16 @@ class Database:
                 (key, value)
             )
 
+        # Ad detection aggressiveness (minimum confidence to cut from audio)
+        # Lower = more aggressive (removes more potential ads)
+        # Higher = more conservative (removes only high-confidence ads)
+        # Range: 0.50 to 0.95, default 0.80
+        conn.execute(
+            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
+               ON CONFLICT(key) DO NOTHING""",
+            ('min_cut_confidence', '0.80')
+        )
+
         # Auto-process new episodes (enabled by default)
         conn.execute(
             """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
