@@ -524,7 +524,7 @@ function Settings() {
             step="0.05"
             value={minCutConfidence}
             onChange={(e) => setMinCutConfidence(parseFloat(e.target.value))}
-            className="w-full h-2 bg-secondary rounded-lg appearance-none cursor-pointer accent-primary"
+            className="w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
           />
           <div className="flex justify-between text-xs text-muted-foreground mt-1">
             <span>More Aggressive (50%)</span>
