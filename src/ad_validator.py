@@ -12,6 +12,7 @@ from config import (
     MID_ROLL_2, MID_ROLL_3, POST_ROLL, MAX_AD_PERCENTAGE, MAX_ADS_PER_5MIN,
     MERGE_GAP_THRESHOLD
 )
+from utils.text import extract_text_from_segments
 
 logger = logging.getLogger(__name__)
 
@@ -193,7 +194,12 @@ class AdValidator:
             return False
 
         segment_duration = end - start
-        if segment_duration <= 0:
+
+        # Use minimum threshold to prevent floating point division issues
+        # 1 millisecond minimum to avoid near-zero duration segments
+        MIN_DURATION_THRESHOLD = 0.001
+        if segment_duration < MIN_DURATION_THRESHOLD:
+            logger.warning(f"Skipping overlap check for near-zero duration segment: {segment_duration}")
             return False
 
         for fp in self.false_positive_corrections:
@@ -449,21 +455,9 @@ class AdValidator:
     def _get_text_in_range(self, start: float, end: float) -> str:
         """Get transcript text within time range.
 
-        Args:
-            start: Start time in seconds
-            end: End time in seconds
-
-        Returns:
-            Concatenated transcript text
+        Delegates to utils.text.extract_text_from_segments.
         """
-        text_parts = []
-        for seg in self.segments:
-            seg_start = seg.get('start', 0)
-            seg_end = seg.get('end', 0)
-            # Include segment if it overlaps with the range
-            if seg_end >= start and seg_start <= end:
-                text_parts.append(seg.get('text', ''))
-        return ' '.join(text_parts)
+        return extract_text_from_segments(self.segments, start, end)
 
     def _make_decision(self, confidence: float, flags: List[str],
                         duration: float = 0.0) -> Decision:

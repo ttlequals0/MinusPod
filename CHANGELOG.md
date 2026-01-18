@@ -6,6 +6,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.191] - 2026-01-18
+
+### Fixed
+- **Off-by-one error in text pattern matching**: Fixed asymmetric boundary comparison in `_char_pos_to_time()` that caused incorrect timestamp mapping for pattern matches at segment boundaries
+- **Timestamp calculation in phrase finding**: Fixed character-to-word index mapping in `find_phrase_in_words()` which was breaking at the wrong word and failing for last-word matches
+- **Race condition in ad merging**: Extracted sponsor mismatch extension into separate `_extend_ads_for_sponsor_mismatch()` function to prevent mutation during iteration
+- **Temp file leak in audio preprocessing**: Added `finally` block cleanup in `preprocess_audio()` to prevent orphaned temp files on error paths
+- **Division by zero in ad validation**: Added MIN_DURATION_THRESHOLD constant (1ms) to protect against edge cases in duration calculations
+- **Pattern scope filtering not working**: Fixed `_filter_patterns_by_scope()` to actually compare podcast_id and network_id instead of just checking scope string
+- **TF-IDF vocabulary mismatch**: Added BASE_AD_VOCABULARY with common podcast ad terms to prevent sklearn vectorizer from ignoring unseen terms in new text
+
+### Added
+- **Shared utilities module** (`src/utils/`): Consolidated duplicate functions across codebase
+  - `utils/audio.py`: `get_audio_duration()` with ffprobe stderr logging, `AudioMetadata` caching class
+  - `utils/time.py`: `parse_timestamp()`, `format_time()`
+  - `utils/text.py`: `extract_text_in_range()`, `extract_text_from_segments()`
+  - `utils/gpu.py`: `clear_gpu_memory()`, `get_gpu_memory_info()`
+- **Automatic pattern learning**: High-confidence Claude detections (>=85%) now automatically create podcast-scoped patterns via `_learn_from_detections()`
+- **Pattern match recording**: Pattern matches are now recorded for promotion metrics via `record_pattern_match()`
+- **Centralized configuration constants**: Added TFIDF_MATCH_THRESHOLD, FUZZY_MATCH_THRESHOLD, FINGERPRINT_MATCH_THRESHOLD, subprocess timeouts to config.py
+
+### Changed
+- **Increased sliding window size**: Pattern matching window increased from 500 to 1500 characters (~60 seconds of speech) with 500 character step for better coverage of longer ads
+- **Consolidated duplicate code**: Removed 6 copies of `get_audio_duration()`, 6 copies of `parse_timestamp()`, 5 copies of transcript extraction, 3 copies of GPU cleanup
+
+---
+
 ## [0.1.190] - 2026-01-18
 
 ### Fixed

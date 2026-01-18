@@ -13,6 +13,7 @@ from typing import List, Tuple, Optional
 import os
 
 from .base import AudioSegmentSignal, LoudnessFrame, SignalType
+from utils.audio import get_audio_duration
 
 logger = logging.getLogger('podcast.audio_analysis.volume')
 
@@ -91,23 +92,11 @@ class VolumeAnalyzer:
         return anomalies, baseline
 
     def _get_duration(self, audio_path: str) -> Optional[float]:
-        """Get audio duration using ffprobe."""
-        try:
-            cmd = [
-                'ffprobe', '-v', 'quiet',
-                '-show_entries', 'format=duration',
-                '-of', 'json',
-                audio_path
-            ]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-            if result.returncode != 0:
-                logger.warning(f"ffprobe failed: {result.stderr}")
-                return None
-            data = json.loads(result.stdout)
-            return float(data['format']['duration'])
-        except Exception as e:
-            logger.error(f"Failed to get duration: {e}")
-            return None
+        """Get audio duration using ffprobe.
+
+        Delegates to utils.audio.get_audio_duration for consistency.
+        """
+        return get_audio_duration(audio_path)
 
     def _measure_loudness_single_pass(
         self,

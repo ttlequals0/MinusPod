@@ -15,6 +15,8 @@ from flask_cors import CORS
 from slugify import slugify
 import shutil
 
+from utils.time import parse_timestamp
+
 # Configure structured logging
 _logging_configured = False
 import json as _json
@@ -99,9 +101,8 @@ feed_logger = logging.getLogger('podcast.feed')
 refresh_logger = logging.getLogger('podcast.refresh')
 audio_logger = logging.getLogger('podcast.audio')
 
-# Default minimum confidence threshold to cut an ad from audio
-# This can be overridden via the 'min_cut_confidence' setting
-DEFAULT_MIN_CUT_CONFIDENCE = 0.80
+# Import default confidence threshold from centralized config
+from config import MIN_CUT_CONFIDENCE
 
 
 def get_min_cut_confidence() -> float:
@@ -110,6 +111,8 @@ def get_min_cut_confidence() -> float:
     This is configurable via the 'min_cut_confidence' setting (aggressiveness slider).
     Lower = more aggressive (removes more potential ads)
     Higher = more conservative (removes only high-confidence ads)
+
+    Default value is MIN_CUT_CONFIDENCE from config.py
     """
     try:
         value = db.get_setting('min_cut_confidence')
@@ -119,7 +122,7 @@ def get_min_cut_confidence() -> float:
             return max(0.50, min(0.95, threshold))
     except (ValueError, TypeError):
         pass
-    return DEFAULT_MIN_CUT_CONFIDENCE
+    return MIN_CUT_CONFIDENCE
 
 
 def log_request_detailed(f):
@@ -889,10 +892,6 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                         time_part, text_part = line.split('] ', 1)
                         time_range = time_part.strip('[')
                         start_str, end_str = time_range.split(' --> ')
-
-                        def parse_timestamp(ts):
-                            parts = ts.split(':')
-                            return float(parts[0]) * 3600 + float(parts[1]) * 60 + float(parts[2])
 
                         segments.append({
                             'start': parse_timestamp(start_str),

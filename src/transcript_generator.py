@@ -2,6 +2,8 @@
 import logging
 from typing import List, Dict, Optional
 
+from utils.time import parse_timestamp
+
 logger = logging.getLogger(__name__)
 
 
@@ -185,10 +187,6 @@ class TranscriptGenerator:
                 time_part, text_part = line.split('] ', 1)
                 time_range = time_part.strip('[')
                 start_str, end_str = time_range.split(' --> ')
-
-                def parse_timestamp(ts: str) -> float:
-                    parts = ts.split(':')
-                    return float(parts[0]) * 3600 + float(parts[1]) * 60 + float(parts[2])
 
                 segments.append({
                     'start': parse_timestamp(start_str),

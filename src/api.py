@@ -11,6 +11,9 @@ from flask_limiter.util import get_remote_address
 from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
 
+from utils.time import parse_timestamp
+from utils.text import extract_text_in_range
+
 logger = logging.getLogger('podcast.api')
 
 # Track server start time for uptime calculation
@@ -142,40 +145,13 @@ def error_response(message, status=400, details=None):
     return json_response(data, status)
 
 
+# Alias for backward compatibility
 def extract_transcript_segment(transcript: str, start: float, end: float) -> str:
     """Extract text from transcript between timestamps.
 
-    Transcript format (VTT-like):
-    [00:00:00.000 --> 00:00:27.580] Text content here...
-    [00:00:28.940 --> 00:00:35.120] More text...
+    Delegates to utils.text.extract_text_in_range.
     """
-    import re
-
-    if not transcript:
-        return ''
-
-    def parse_timestamp(ts: str) -> float:
-        """Convert HH:MM:SS.mmm to seconds."""
-        parts = ts.split(':')
-        hours = int(parts[0])
-        mins = int(parts[1])
-        secs = float(parts[2])
-        return hours * 3600 + mins * 60 + secs
-
-    # Pattern: [HH:MM:SS.mmm --> HH:MM:SS.mmm] text
-    pattern = r'\[(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})\]\s*([^\[]+)'
-    segments = []
-
-    for match in re.finditer(pattern, transcript):
-        seg_start = parse_timestamp(match.group(1))
-        seg_end = parse_timestamp(match.group(2))
-        text = match.group(3).strip()
-
-        # Include segment if it overlaps with requested range
-        if seg_end >= start and seg_start <= end:
-            segments.append(text)
-
-    return ' '.join(segments)
+    return extract_text_in_range(transcript, start, end)
 
 
 def extract_sponsor_from_text(ad_text: str) -> str:
@@ -1215,15 +1191,7 @@ def retry_ad_detection(slug, episode_id):
                     time_range = time_part.strip('[')
                     start_str, end_str = time_range.split(' --> ')
 
-                    def parse_timestamp(ts):
-                        parts = ts.replace(',', '.').split(':')
-                        if len(parts) == 3:
-                            return float(parts[0]) * 3600 + float(parts[1]) * 60 + float(parts[2])
-                        elif len(parts) == 2:
-                            return float(parts[0]) * 60 + float(parts[1])
-                        else:
-                            return float(parts[0])
-
+                    # Uses utils.time.parse_timestamp imported at module level
                     segments.append({
                         'start': parse_timestamp(start_str),
                         'end': parse_timestamp(end_str),

@@ -6,7 +6,6 @@ comprehensive audio signals for ad detection.
 """
 
 import logging
-import subprocess
 import time
 import os
 from typing import Dict, List, Optional, Any, Tuple, Callable
@@ -16,6 +15,9 @@ from .base import AudioSegmentSignal, AudioAnalysisResult, SignalType
 from .volume_analyzer import VolumeAnalyzer
 from .music_detector import MusicBedDetector
 from .speaker_analyzer import SpeakerAnalyzer
+
+# Import from utils for consistent audio duration implementation
+from utils.audio import get_audio_duration
 
 logger = logging.getLogger('podcast.audio_analysis')
 
@@ -29,23 +31,6 @@ DEFAULT_SPEAKER_TIMEOUT_MULTIPLIER = 8.0   # ~8s per min of audio
 MIN_VOLUME_TIMEOUT = 180    # 3 minutes
 MIN_MUSIC_TIMEOUT = 300     # 5 minutes
 MIN_SPEAKER_TIMEOUT = 900   # 15 minutes
-
-
-def get_audio_duration(audio_path: str) -> Optional[float]:
-    """Get audio duration in seconds using ffprobe."""
-    try:
-        cmd = [
-            'ffprobe', '-v', 'quiet',
-            '-show_entries', 'format=duration',
-            '-of', 'default=noprint_wrappers=1:nokey=1',
-            audio_path
-        ]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-        if result.returncode == 0 and result.stdout.strip():
-            return float(result.stdout.strip())
-    except Exception as e:
-        logger.warning(f"Could not get audio duration: {e}")
-    return None
 
 
 def calculate_component_timeouts(duration_seconds: float) -> Dict[str, int]:

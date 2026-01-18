@@ -83,3 +83,30 @@ RSS_REFRESH_INTERVAL = 900      # Seconds between RSS refreshes (15 min)
 AUTO_PROCESS_INITIAL_BACKOFF = 30   # Initial backoff when queue busy
 AUTO_PROCESS_MAX_BACKOFF = 300      # Maximum backoff (5 min)
 GRACEFUL_SHUTDOWN_TIMEOUT = 300     # Seconds to wait for processing
+
+# ============================================================
+# Text Pattern Matching Thresholds
+# ============================================================
+TFIDF_MATCH_THRESHOLD = 0.70         # TF-IDF similarity for content matching
+FUZZY_MATCH_THRESHOLD = 0.75         # Fuzzy string match threshold
+FINGERPRINT_MATCH_THRESHOLD = 0.65   # Audio fingerprint similarity threshold
+
+# ============================================================
+# Ad Duration Estimation
+# ============================================================
+DEFAULT_AD_DURATION_ESTIMATE = 60.0  # Assumed ad length when only intro/outro found
+SPONSOR_MISMATCH_MAX_GAP = 60.0      # Max gap for sponsor mismatch extension
+
+# ============================================================
+# Audio Processing
+# ============================================================
+MIN_AD_DURATION_FOR_REMOVAL = 10.0   # Min ad duration to actually remove from audio
+POST_ROLL_TRIM_THRESHOLD = 30.0      # Threshold for trimming post-roll content
+
+# ============================================================
+# Subprocess Timeouts (seconds)
+# ============================================================
+FFPROBE_TIMEOUT = 30                 # ffprobe duration/metadata queries
+FFMPEG_SHORT_TIMEOUT = 60            # Short ffmpeg operations
+FFMPEG_LONG_TIMEOUT = 300            # Long ffmpeg operations (processing)
+FPCALC_TIMEOUT = 60                  # Audio fingerprint generation

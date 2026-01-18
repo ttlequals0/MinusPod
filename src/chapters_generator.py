@@ -5,6 +5,9 @@ import os
 import re
 from typing import List, Dict, Optional, Tuple
 
+from utils.time import parse_timestamp
+from utils.text import extract_text_from_segments
+
 logger = logging.getLogger(__name__)
 
 # Minimum chapter duration in seconds (3 minutes)
@@ -59,14 +62,7 @@ class ChaptersGenerator:
         Returns:
             Time in seconds
         """
-        parts = timestamp.split(':')
-        if len(parts) == 2:
-            # M:SS or MM:SS
-            return int(parts[0]) * 60 + float(parts[1])
-        elif len(parts) == 3:
-            # H:MM:SS or HH:MM:SS
-            return int(parts[0]) * 3600 + int(parts[1]) * 60 + float(parts[2])
-        return 0.0
+        return parse_timestamp(timestamp)
 
     def _html_to_text(self, html: str) -> str:
         """
@@ -731,6 +727,8 @@ Transcript:
         """
         Get transcript excerpt for a time range.
 
+        Delegates to utils.text.extract_text_from_segments.
+
         Args:
             segments: Transcript segments
             start_time: Start of range (in original/unadjusted time)
@@ -740,21 +738,7 @@ Transcript:
         Returns:
             Transcript excerpt text
         """
-        words = []
-        for segment in segments:
-            seg_start = segment.get('start', 0)
-            seg_end = segment.get('end', 0)
-
-            # Include segments that overlap with range
-            if seg_end > start_time and seg_start < end_time:
-                text = segment.get('text', '').strip()
-                if text:
-                    words.extend(text.split())
-
-                if len(words) >= max_words:
-                    break
-
-        return ' '.join(words[:max_words])
+        return extract_text_from_segments(segments, start_time, end_time, max_words)
 
     def generate_chapter_titles(
         self,

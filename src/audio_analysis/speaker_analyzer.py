@@ -19,6 +19,7 @@ from collections import defaultdict
 from .base import (
     AudioSegmentSignal, SpeakerSegment, ConversationMetrics, SignalType
 )
+from utils.gpu import clear_gpu_memory, get_gpu_memory_info
 
 logger = logging.getLogger('podcast.audio_analysis.speaker')
 
@@ -265,28 +266,24 @@ class SpeakerAnalyzer:
         """
         Clear CUDA cache and run garbage collection between chunks.
 
+        Delegates to utils.gpu.clear_gpu_memory() for core cleanup.
+
         Args:
-            force_gc: Whether to force garbage collection
+            force_gc: Whether to force garbage collection (passed to clear_gpu_memory)
             log_usage: Whether to log current memory usage
         """
-        if force_gc:
-            gc.collect()
+        # Use consolidated GPU cleanup
+        clear_gpu_memory()
 
-        if torch.cuda.is_available():
-            # Synchronize to ensure all CUDA operations complete
-            torch.cuda.synchronize()
-            torch.cuda.empty_cache()
-
-            if log_usage:
-                try:
-                    allocated = torch.cuda.memory_allocated() / (1024 ** 3)
-                    reserved = torch.cuda.memory_reserved() / (1024 ** 3)
-                    logger.debug(
-                        f"GPU memory: {allocated:.2f}GB allocated, "
-                        f"{reserved:.2f}GB reserved"
-                    )
-                except Exception:
-                    pass
+        if log_usage:
+            mem_info = get_gpu_memory_info()
+            if mem_info:
+                allocated = mem_info.get('allocated', 0) / (1024 ** 3)
+                reserved = mem_info.get('cached', 0) / (1024 ** 3)
+                logger.debug(
+                    f"GPU memory: {allocated:.2f}GB allocated, "
+                    f"{reserved:.2f}GB reserved"
+                )
 
     def _process_chunk_with_retry(
         self,

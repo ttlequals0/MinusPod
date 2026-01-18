@@ -7,6 +7,8 @@ import shutil
 from pathlib import Path
 from typing import List, Dict, Optional
 
+from utils.audio import get_audio_duration as _get_audio_duration
+
 logger = logging.getLogger(__name__)
 
 # Get the assets directory - check primary location first, fall back to builtin
@@ -48,20 +50,11 @@ class AudioProcessor:
             return False
 
     def get_audio_duration(self, audio_path: str) -> Optional[float]:
-        """Get duration of audio file in seconds."""
-        try:
-            cmd = [
-                'ffprobe', '-v', 'error',
-                '-show_entries', 'format=duration',
-                '-of', 'default=noprint_wrappers=1:nokey=1',
-                audio_path
-            ]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-            if result.returncode == 0:
-                return float(result.stdout.strip())
-        except Exception as e:
-            logger.error(f"Failed to get audio duration: {e}")
-        return None
+        """Get duration of audio file in seconds.
+
+        Delegates to utils.audio.get_audio_duration for consistent implementation.
+        """
+        return _get_audio_duration(audio_path)
 
     def get_beep_duration(self) -> float:
         """Get duration of beep audio (cached)."""

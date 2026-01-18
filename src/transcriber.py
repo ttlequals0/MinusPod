@@ -10,6 +10,9 @@ import requests
 from typing import List, Dict, Optional, Tuple
 from pathlib import Path
 
+from utils.audio import get_audio_duration as _get_audio_duration
+from utils.gpu import clear_gpu_memory
+
 # Suppress ONNX Runtime warnings before importing faster_whisper
 os.environ.setdefault('ORT_LOG_LEVEL', 'ERROR')
 
@@ -171,14 +174,8 @@ class WhisperModelSingleton:
             cls._needs_reload = False
 
             # Force garbage collection and clear CUDA cache
-            gc.collect()
-            try:
-                import torch
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-                    logger.info("CUDA cache cleared")
-            except ImportError:
-                pass
+            clear_gpu_memory()
+            logger.info("CUDA cache cleared")
 
     @classmethod
     def get_instance(cls) -> Tuple[WhisperModel, BatchedInferencePipeline]:
@@ -346,20 +343,14 @@ class Transcriber:
         return is_likely_foreign
 
     def get_audio_duration(self, audio_path: str) -> Optional[float]:
-        """Get audio duration in seconds using ffprobe."""
-        try:
-            cmd = [
-                'ffprobe', '-v', 'error', '-show_entries', 'format=duration',
-                '-of', 'default=noprint_wrappers=1:nokey=1', audio_path
-            ]
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
-            if result.returncode == 0:
-                duration = float(result.stdout.strip())
-                logger.info(f"Audio duration: {duration:.1f}s ({duration/60:.1f} min)")
-                return duration
-        except Exception as e:
-            logger.warning(f"Could not get audio duration: {e}")
-        return None
+        """Get audio duration in seconds using ffprobe.
+
+        Delegates to utils.audio.get_audio_duration for consistent implementation.
+        """
+        duration = _get_audio_duration(audio_path)
+        if duration is not None:
+            logger.info(f"Audio duration: {duration:.1f}s ({duration/60:.1f} min)")
+        return duration
 
     def get_batch_size_for_duration(self, duration_seconds: Optional[float]) -> int:
         """Get optimal batch size based on audio duration to prevent CUDA OOM."""
@@ -374,22 +365,22 @@ class Transcriber:
         return 4  # Fallback for very long episodes
 
     def clear_cuda_cache(self):
-        """Clear CUDA cache to free GPU memory."""
-        gc.collect()
-        try:
-            import torch
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-                logger.info("CUDA cache cleared")
-        except ImportError:
-            pass
+        """Clear CUDA cache to free GPU memory.
+
+        Delegates to utils.gpu.clear_gpu_memory().
+        """
+        clear_gpu_memory()
+        logger.info("CUDA cache cleared")
 
     def preprocess_audio(self, input_path: str) -> Optional[str]:
         """
         Normalize audio for consistent transcription.
-        Returns path to preprocessed file, or original path if preprocessing fails.
+        Returns path to preprocessed file, or None if preprocessing fails.
+        Caller is responsible for cleaning up the returned temp file.
         """
         output_path = tempfile.mktemp(suffix='.wav')
+        success = False
+
         try:
             cmd = [
                 'ffmpeg', '-y', '-i', input_path,
@@ -401,24 +392,26 @@ class Transcriber:
             result = subprocess.run(cmd, capture_output=True, timeout=300)
             if result.returncode == 0:
                 logger.info(f"Audio preprocessed: {input_path} -> {output_path}")
+                success = True
                 return output_path
-            logger.warning(f"Audio preprocessing failed (returncode={result.returncode}), using original")
-            if os.path.exists(output_path):
-                os.unlink(output_path)
+            logger.warning(
+                f"Audio preprocessing failed (returncode={result.returncode}), "
+                f"stderr: {result.stderr.decode('utf-8', errors='replace')[:200] if result.stderr else 'none'}"
+            )
             return None
         except subprocess.TimeoutExpired:
             logger.warning("Audio preprocessing timed out, using original")
-            if os.path.exists(output_path):
-                os.unlink(output_path)
             return None
         except Exception as e:
             logger.warning(f"Audio preprocessing error: {e}, using original")
-            if os.path.exists(output_path):
+            return None
+        finally:
+            # Clean up temp file on any failure path
+            if not success and os.path.exists(output_path):
                 try:
                     os.unlink(output_path)
-                except:
+                except OSError:
                     pass
-            return None
 
     def check_audio_availability(self, url: str, timeout: int = 10) -> tuple:
         """Check if audio URL is accessible without downloading.

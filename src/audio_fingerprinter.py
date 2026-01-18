@@ -14,6 +14,8 @@ from dataclasses import dataclass
 from typing import List, Optional, Tuple
 import json
 
+from utils.audio import get_audio_duration as _utils_get_audio_duration
+
 logger = logging.getLogger('podcast.fingerprint')
 
 # Fingerprint matching threshold (0-1, lower = more strict)
@@ -374,21 +376,12 @@ class AudioFingerprinter:
             return []
 
     def _get_audio_duration(self, audio_path: str) -> float:
-        """Get duration of audio file in seconds."""
-        try:
-            result = subprocess.run(
-                [
-                    'ffprobe', '-v', 'error',
-                    '-show_entries', 'format=duration',
-                    '-of', 'default=noprint_wrappers=1:nokey=1',
-                    audio_path
-                ],
-                capture_output=True,
-                timeout=10
-            )
-            return float(result.stdout.decode().strip())
-        except Exception:
-            return 0.0
+        """Get duration of audio file in seconds.
+
+        Delegates to utils.audio.get_audio_duration for consistent implementation.
+        """
+        duration = _utils_get_audio_duration(audio_path)
+        return duration if duration is not None else 0.0
 
     def _merge_overlapping_matches(
         self,

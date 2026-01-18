@@ -8,6 +8,9 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Optional, Dict, List, Any, Tuple
 
+from utils.time import parse_timestamp
+from utils.text import extract_text_in_range
+
 logger = logging.getLogger(__name__)
 
 # Default ad detection prompts
@@ -2451,31 +2454,10 @@ class Database:
 
         This retroactively learns from user confirmations that were submitted
         before the pattern learning feature existed.
-        Returns count of patterns created."""
-        import re
+        Returns count of patterns created.
 
-        def parse_timestamp(ts: str) -> float:
-            """Convert HH:MM:SS.mmm to seconds."""
-            parts = ts.split(':')
-            hours = int(parts[0])
-            mins = int(parts[1])
-            secs = float(parts[2])
-            return hours * 3600 + mins * 60 + secs
-
-        def extract_transcript_segment(transcript: str, start: float, end: float) -> str:
-            """Extract text from transcript between timestamps."""
-            if not transcript:
-                return ''
-            pattern = r'\[(\d{2}:\d{2}:\d{2}\.\d{3})\s*-->\s*(\d{2}:\d{2}:\d{2}\.\d{3})\]\s*([^\[]+)'
-            segments = []
-            for match in re.finditer(pattern, transcript):
-                seg_start = parse_timestamp(match.group(1))
-                seg_end = parse_timestamp(match.group(2))
-                text = match.group(3).strip()
-                if seg_end >= start and seg_start <= end:
-                    segments.append(text)
-            return ' '.join(segments)
-
+        Uses utils.time.parse_timestamp and utils.text.extract_text_in_range.
+        """
         conn = self.get_connection()
         created_count = 0
 
