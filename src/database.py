@@ -1906,11 +1906,11 @@ class Database:
         """Get ad patterns with optional filtering. Includes podcast_name when available."""
         conn = self.get_connection()
 
-        # Join with podcasts to get podcast name
+        # Join with podcasts to get podcast name (podcast_id stores slugs since v0.1.194)
         query = """
             SELECT ap.*, p.title as podcast_name, p.slug as podcast_slug
             FROM ad_patterns ap
-            LEFT JOIN podcasts p ON ap.podcast_id = CAST(p.id AS TEXT)
+            LEFT JOIN podcasts p ON ap.podcast_id = p.slug
             WHERE 1=1
         """
         params = []
@@ -1933,10 +1933,14 @@ class Database:
         return [dict(row) for row in cursor.fetchall()]
 
     def get_ad_pattern_by_id(self, pattern_id: int) -> Optional[Dict]:
-        """Get a single ad pattern by ID."""
+        """Get a single ad pattern by ID with podcast info."""
         conn = self.get_connection()
         cursor = conn.execute(
-            "SELECT * FROM ad_patterns WHERE id = ?", (pattern_id,)
+            """SELECT ap.*, p.title as podcast_name, p.slug as podcast_slug
+               FROM ad_patterns ap
+               LEFT JOIN podcasts p ON ap.podcast_id = p.slug
+               WHERE ap.id = ?""",
+            (pattern_id,)
         )
         row = cursor.fetchone()
         return dict(row) if row else None

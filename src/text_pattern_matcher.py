@@ -621,7 +621,8 @@ class TextPatternMatcher:
         sponsor: str = None,
         scope: str = "podcast",
         podcast_id: str = None,
-        network_id: str = None
+        network_id: str = None,
+        episode_id: str = None
     ) -> Optional[int]:
         """
         Create a new ad pattern from a detected ad segment.
@@ -634,6 +635,7 @@ class TextPatternMatcher:
             scope: Pattern scope ("global", "network", "podcast")
             podcast_id: Podcast ID for podcast-scoped patterns
             network_id: Network ID for network-scoped patterns
+            episode_id: Episode ID for tracking pattern origin
 
         Returns:
             Pattern ID if created, None otherwise
@@ -663,7 +665,8 @@ class TextPatternMatcher:
                 outro_variants=json.dumps([outro]) if outro else "[]",
                 sponsor=sponsor,
                 podcast_id=podcast_id,
-                network_id=network_id
+                network_id=network_id,
+                created_from_episode_id=episode_id
             )
 
             logger.info(f"Created text pattern {pattern_id} for sponsor: {sponsor}")

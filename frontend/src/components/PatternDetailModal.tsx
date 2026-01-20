@@ -278,9 +278,20 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
                   <span className="ml-2 text-foreground">{pattern.dai_platform}</span>
                 </div>
               )}
+              {pattern.podcast_slug && (
+                <div>
+                  <span className="text-muted-foreground">Podcast:</span>
+                  <a
+                    href={`/feeds/${pattern.podcast_slug}/episodes`}
+                    className="ml-2 text-primary hover:underline"
+                  >
+                    {pattern.podcast_slug}
+                  </a>
+                </div>
+              )}
               {pattern.created_from_episode_id && (
                 <div>
-                  <span className="text-muted-foreground">Created from:</span>
+                  <span className="text-muted-foreground">Origin Episode:</span>
                   <span className="ml-2 text-foreground font-mono text-xs">{pattern.created_from_episode_id}</span>
                 </div>
               )}

@@ -1530,7 +1530,7 @@ class AdDetector:
 
         # Learn patterns from high-confidence Claude detections
         if slug and all_ads:
-            patterns_learned = self._learn_from_detections(all_ads, segments, slug)
+            patterns_learned = self._learn_from_detections(all_ads, segments, slug, episode_id)
             if patterns_learned > 0:
                 detection_stats['patterns_learned'] = patterns_learned
 
@@ -1581,7 +1581,7 @@ class AdDetector:
         return None
 
     def _learn_from_detections(
-        self, ads: List[Dict], segments: List[Dict], podcast_id: str
+        self, ads: List[Dict], segments: List[Dict], podcast_id: str, episode_id: str = None
     ) -> int:
         """Create patterns from high-confidence Claude detections.
 
@@ -1592,6 +1592,7 @@ class AdDetector:
             ads: List of detected ads with confidence and detection_stage
             segments: Transcript segments for text extraction
             podcast_id: Podcast slug for scoping patterns
+            episode_id: Episode ID for tracking pattern origin
 
         Returns:
             Number of patterns created
@@ -1626,7 +1627,8 @@ class AdDetector:
                     end=ad['end'],
                     sponsor=sponsor,
                     scope='podcast',
-                    podcast_id=podcast_id
+                    podcast_id=podcast_id,
+                    episode_id=episode_id
                 )
 
                 if pattern_id:

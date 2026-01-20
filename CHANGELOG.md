@@ -6,6 +6,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.195] - 2026-01-20
+
+### Fixed
+- **Pattern detail page missing podcast info**: Fixed join condition in `get_ad_patterns()` which was incorrectly comparing slug against cast numeric ID. Also updated `get_ad_pattern_by_id()` to include the same join so individual pattern lookups return `podcast_name` and `podcast_slug`
+- **Auto-learned patterns missing episode ID**: `create_pattern_from_ad()` and `_learn_from_detections()` now accept and pass through `episode_id` so auto-learned patterns have `created_from_episode_id` populated
+
+### Changed
+- **Pattern detail modal shows podcast link**: Podcast-scoped patterns now show the podcast slug as a clickable link to the podcast's episode list
+- **Renamed "Created from" to "Origin Episode"**: Clearer label in pattern detail modal
+
+---
+
 ## [0.1.194] - 2026-01-20
 
 ### Fixed
