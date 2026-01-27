@@ -22,6 +22,10 @@ STATUS_FILE = os.path.join(
     'processing_status.json'
 )
 
+# Staleness thresholds (seconds)
+MAX_JOB_DURATION = 1800      # 30 minutes - auto-clear stuck jobs
+MAX_QUEUE_ENTRY_AGE = 3600   # 1 hour - remove stale queue entries
+
 
 @dataclass
 class ProcessingJob:
@@ -79,7 +83,13 @@ class StatusService:
         os.makedirs(os.path.dirname(STATUS_FILE), exist_ok=True)
 
     def _read_status_file(self) -> dict:
-        """Read status from shared file with locking."""
+        """Read status from shared file with locking.
+
+        Also performs staleness cleanup: auto-clears jobs running longer
+        than MAX_JOB_DURATION and removes queue entries older than
+        MAX_QUEUE_ENTRY_AGE. This handles cases where workers are
+        SIGKILL'd and never call complete_job()/fail_job().
+        """
         try:
             if not os.path.exists(STATUS_FILE):
                 return self._empty_status()
@@ -90,9 +100,50 @@ class StatusService:
                     content = f.read()
                     if not content:
                         return self._empty_status()
-                    return json.loads(content)
+                    status = json.loads(content)
                 finally:
                     fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+
+            # Staleness cleanup
+            needs_write = False
+            now = time.time()
+
+            # Auto-clear stuck current_job
+            job = status.get('current_job')
+            if job and job.get('started_at'):
+                elapsed = now - job['started_at']
+                if elapsed > MAX_JOB_DURATION:
+                    import logging
+                    logger = logging.getLogger('podcast.status')
+                    logger.warning(
+                        f"Auto-clearing stale job: {job.get('title', 'unknown')} "
+                        f"(running {elapsed/60:.0f} min, max {MAX_JOB_DURATION/60:.0f} min)"
+                    )
+                    status['current_job'] = None
+                    needs_write = True
+
+            # Remove stale queue entries
+            queued = status.get('queued_episodes', [])
+            if queued:
+                fresh = [
+                    e for e in queued
+                    if now - e.get('queued_at', now) <= MAX_QUEUE_ENTRY_AGE
+                ]
+                if len(fresh) < len(queued):
+                    import logging
+                    logger = logging.getLogger('podcast.status')
+                    logger.warning(
+                        f"Removed {len(queued) - len(fresh)} stale queue entries "
+                        f"(older than {MAX_QUEUE_ENTRY_AGE/60:.0f} min)"
+                    )
+                    status['queued_episodes'] = fresh
+                    needs_write = True
+
+            if needs_write:
+                status['last_updated'] = now
+                self._write_status_file(status)
+
+            return status
         except (json.JSONDecodeError, IOError):
             return self._empty_status()
 
@@ -110,6 +161,18 @@ class StatusService:
             os.rename(temp_file, STATUS_FILE)
         except IOError:
             pass  # Best effort - don't crash on write failures
+
+    def set_server_start_time(self, start_time: float):
+        """Store server start time in shared status file.
+
+        Only writes if no start time is already recorded, so the first
+        worker to start sets the canonical time for all workers.
+        """
+        with self._status_lock:
+            status = self._read_status_file()
+            if not status.get('server_start_time'):
+                status['server_start_time'] = start_time
+                self._write_status_file(status)
 
     def _empty_status(self) -> dict:
         """Return empty status dict."""

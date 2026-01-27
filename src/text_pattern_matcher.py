@@ -278,7 +278,7 @@ class TextPatternMatcher:
         """Find matches using TF-IDF content similarity."""
         matches = []
 
-        if not self._pattern_vectors or self._pattern_vectors.shape[0] == 0:
+        if self._pattern_vectors is None or self._pattern_vectors.shape[0] == 0:
             return matches
 
         try:

@@ -92,6 +92,18 @@ FUZZY_MATCH_THRESHOLD = 0.75         # Fuzzy string match threshold
 FINGERPRINT_MATCH_THRESHOLD = 0.65   # Audio fingerprint similarity threshold
 
 # ============================================================
+# Ad Boundary Extension (content-based)
+# ============================================================
+BOUNDARY_EXTENSION_WINDOW = 10.0   # Seconds before/after ad to check for ad content
+BOUNDARY_EXTENSION_MAX = 15.0      # Max seconds to extend a boundary
+AD_CONTENT_URL_PATTERNS = ['.com', '.tv', '.co', '.org', '.net', '.io']
+AD_CONTENT_PROMO_PHRASES = [
+    'use code', 'percent off', 'visit', 'sign up', 'free trial',
+    'promo code', 'check out', 'head to', 'go to', 'click the link',
+    'dot com', 'slash', 'coupon', 'discount', 'offer code',
+]
+
+# ============================================================
 # Ad Duration Estimation
 # ============================================================
 DEFAULT_AD_DURATION_ESTIMATE = 60.0  # Assumed ad length when only intro/outro found

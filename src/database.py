@@ -1985,7 +1985,7 @@ class Database:
             query += " AND ap.network_id = ?"
             params.append(network_id)
 
-        query += " ORDER BY ap.confirmation_count DESC, ap.created_at DESC"
+        query += " ORDER BY ap.created_at DESC"
 
         cursor = conn.execute(query, params)
         return [dict(row) for row in cursor.fetchall()]

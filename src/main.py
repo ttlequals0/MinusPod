@@ -297,7 +297,7 @@ init_limiter(app)
 from storage import Storage
 from rss_parser import RSSParser
 from transcriber import Transcriber
-from ad_detector import AdDetector, merge_and_deduplicate, refine_ad_boundaries, snap_early_ads_to_zero, merge_same_sponsor_ads
+from ad_detector import AdDetector, merge_and_deduplicate, refine_ad_boundaries, snap_early_ads_to_zero, merge_same_sponsor_ads, extend_ad_boundaries_by_content
 from ad_validator import AdValidator
 from audio_processor import AudioProcessor
 from database import Database
@@ -1059,7 +1059,11 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             if all_ads and segments:
                 all_ads = refine_ad_boundaries(all_ads, segments)
 
-            # Step 3.5.1: Snap early ads to 0:00 (pre-roll ads often have brief intro)
+            # Step 3.5.1: Extend ad boundaries by checking adjacent content
+            if all_ads and segments:
+                all_ads = extend_ad_boundaries_by_content(all_ads, segments)
+
+            # Step 3.5.2: Snap early ads to 0:00 (pre-roll ads often have brief intro)
             if all_ads:
                 all_ads = snap_early_ads_to_zero(all_ads)
 

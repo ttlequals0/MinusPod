@@ -17,7 +17,29 @@ from utils.text import extract_text_in_range
 logger = logging.getLogger('podcast.api')
 
 # Track server start time for uptime calculation
-_start_time = time.time()
+# Stored in shared file so all gunicorn workers report the same uptime
+def _get_start_time():
+    """Get server start time from shared status file for multi-worker consistency."""
+    from status_service import STATUS_FILE
+    try:
+        if os.path.exists(STATUS_FILE):
+            with open(STATUS_FILE, 'r') as f:
+                status = json.load(f)
+                if status.get('server_start_time'):
+                    return status['server_start_time']
+    except (json.JSONDecodeError, IOError, KeyError):
+        pass
+    # First worker to start - record the time
+    start_time = time.time()
+    try:
+        from status_service import StatusService
+        svc = StatusService()
+        svc.set_server_start_time(start_time)
+    except Exception:
+        pass
+    return start_time
+
+_start_time = _get_start_time()
 
 api = Blueprint('api', __name__, url_prefix='/api/v1')
 

@@ -11,7 +11,7 @@ function PatternsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showInactive, setShowInactive] = useState(false);
   const [selectedPattern, setSelectedPattern] = useState<AdPattern | null>(null);
-  const [sortField, setSortField] = useState<keyof AdPattern>('confirmation_count');
+  const [sortField, setSortField] = useState<keyof AdPattern>('created_at');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
   const limit = 20;
@@ -304,6 +304,7 @@ function PatternsPage() {
                 <SortHeader field="sponsor" label="Sponsor" />
                 <SortHeader field="confirmation_count" label="Confirmed" />
                 <SortHeader field="false_positive_count" label="False Pos." />
+                <SortHeader field="created_at" label="Created" />
                 <SortHeader field="last_matched_at" label="Last Matched" />
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Status
@@ -345,6 +346,9 @@ function PatternsPage() {
                     </span>
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap text-sm text-muted-foreground">
+                    {formatDate(pattern.created_at)}
+                  </td>
+                  <td className="px-4 py-3 whitespace-nowrap text-sm text-muted-foreground">
                     {formatDate(pattern.last_matched_at)}
                   </td>
                   <td className="px-4 py-3 whitespace-nowrap">
@@ -354,7 +358,7 @@ function PatternsPage() {
               ))}
               {paginatedPatterns?.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
                     No patterns found
                   </td>
                 </tr>

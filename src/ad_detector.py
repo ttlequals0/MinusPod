@@ -12,7 +12,9 @@ from anthropic import Anthropic, APIError, APIConnectionError, RateLimitError, I
 from config import (
     MIN_TYPICAL_AD_DURATION, MIN_SPONSOR_READ_DURATION, SHORT_GAP_THRESHOLD,
     MAX_MERGED_DURATION, MAX_REALISTIC_SIGNAL, MIN_OVERLAP_TOLERANCE,
-    MAX_AD_DURATION_WINDOW, WINDOW_SIZE_SECONDS, WINDOW_OVERLAP_SECONDS
+    MAX_AD_DURATION_WINDOW, WINDOW_SIZE_SECONDS, WINDOW_OVERLAP_SECONDS,
+    BOUNDARY_EXTENSION_WINDOW, BOUNDARY_EXTENSION_MAX,
+    AD_CONTENT_URL_PATTERNS, AD_CONTENT_PROMO_PHRASES
 )
 
 logger = logging.getLogger('podcast.claude')
@@ -452,6 +454,121 @@ def snap_early_ads_to_zero(ads: List[Dict], threshold: float = EARLY_AD_SNAP_THR
         snapped.append(ad_copy)
 
     return snapped
+
+
+def extend_ad_boundaries_by_content(ads: List[Dict], segments: List[Dict]) -> List[Dict]:
+    """Extend ad boundaries by checking adjacent segments for ad-like content.
+
+    For each detected ad, examines transcript text immediately before and after
+    the ad boundary. If the adjacent text contains ad indicators (sponsor names,
+    URLs, promotional language), the boundary is extended to include it.
+
+    This addresses DAI ads where detection cuts off ~5 seconds too early,
+    missing the final call-to-action or URL mention.
+
+    Args:
+        ads: List of detected ad segments
+        segments: List of transcript segments with 'start', 'end', 'text'
+
+    Returns:
+        List of ads with boundaries extended where ad content continues
+    """
+    if not ads or not segments:
+        return ads
+
+    extended = []
+    for ad in ads:
+        ad_copy = ad.copy()
+        ad_start = ad['start']
+        ad_end = ad['end']
+
+        # Get the ad's own text to extract sponsor names
+        ad_text = get_transcript_text_for_range(segments, ad_start, ad_end).lower()
+        ad_sponsors = extract_sponsor_names(ad_text, ad.get('reason'))
+
+        # Check text AFTER ad end for continuation
+        after_text = get_transcript_text_for_range(
+            segments, ad_end, ad_end + BOUNDARY_EXTENSION_WINDOW
+        ).lower()
+
+        if after_text and _text_has_ad_content(after_text, ad_sponsors):
+            # Find the last segment in the extension window
+            new_end = ad_end
+            for seg in segments:
+                if seg['start'] >= ad_end and seg['start'] < ad_end + BOUNDARY_EXTENSION_MAX:
+                    seg_text = seg.get('text', '').lower()
+                    if _text_has_ad_content(seg_text, ad_sponsors):
+                        new_end = seg['end']
+                    else:
+                        break  # Stop at first non-ad segment
+
+            if new_end > ad_end:
+                logger.info(
+                    f"Extended ad end by content: {ad_end:.1f}s -> {new_end:.1f}s "
+                    f"(+{new_end - ad_end:.1f}s, sponsors: {ad_sponsors})"
+                )
+                ad_copy['end'] = new_end
+                ad_copy['end_extended_by_content'] = True
+
+        # Check text BEFORE ad start for continuation
+        before_text = get_transcript_text_for_range(
+            segments, max(0, ad_start - BOUNDARY_EXTENSION_WINDOW), ad_start
+        ).lower()
+
+        if before_text and _text_has_ad_content(before_text, ad_sponsors):
+            new_start = ad_start
+            # Walk backwards through segments
+            for seg in reversed(segments):
+                if seg['end'] <= ad_start and seg['end'] > ad_start - BOUNDARY_EXTENSION_MAX:
+                    seg_text = seg.get('text', '').lower()
+                    if _text_has_ad_content(seg_text, ad_sponsors):
+                        new_start = seg['start']
+                    else:
+                        break
+
+            if new_start < ad_start:
+                logger.info(
+                    f"Extended ad start by content: {ad_start:.1f}s -> {new_start:.1f}s "
+                    f"(-{ad_start - new_start:.1f}s, sponsors: {ad_sponsors})"
+                )
+                ad_copy['start'] = new_start
+                ad_copy['start_extended_by_content'] = True
+
+        extended.append(ad_copy)
+
+    return extended
+
+
+def _text_has_ad_content(text: str, sponsor_names: set = None) -> bool:
+    """Check if text contains ad-like content indicators.
+
+    Args:
+        text: Lowercase text to check
+        sponsor_names: Set of known sponsor names from the parent ad
+
+    Returns:
+        True if text contains ad content indicators
+    """
+    if not text:
+        return False
+
+    # Check for sponsor name mentions
+    if sponsor_names:
+        for sponsor in sponsor_names:
+            if sponsor in text:
+                return True
+
+    # Check for URL patterns
+    for pattern in AD_CONTENT_URL_PATTERNS:
+        if pattern in text:
+            return True
+
+    # Check for promotional phrases
+    for phrase in AD_CONTENT_PROMO_PHRASES:
+        if phrase in text:
+            return True
+
+    return False
 
 
 def extract_url_sponsor(text: str) -> Optional[str]:

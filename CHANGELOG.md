@@ -6,6 +6,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.197] - 2026-01-27
+
+### Fixed
+- **Text pattern matching completely broken**: Fixed numpy/scipy sparse matrix boolean evaluation error (`not self._pattern_vectors`) that caused "The truth value of an array with more than one element is ambiguous" on every processed episode since patterns were loaded. Changed to `self._pattern_vectors is None`. This was blocking ALL text pattern matching.
+- **Settings page uptime flicker**: Different gunicorn workers had different `_start_time` values because each imports `api.py` independently. Server start time is now stored in shared `processing_status.json` so all workers report consistent uptime.
+- **Stale processing/queue state after worker SIGKILL**: Added staleness detection to `StatusService._read_status_file()`. Jobs running longer than 30 minutes are auto-cleared; queue entries older than 1 hour are removed. This prevents permanently stuck status after OOM kills.
+- **Chapter duration inconsistency**: Added `_enforce_min_duration()` to chapters generator that enforces the 3-minute minimum across all chapter sources (description timestamps, ad gaps, AI topic splits). Previously only ad-gap chapters had minimum duration enforcement.
+
+### Added
+- **Content-based ad boundary extension**: New `extend_ad_boundaries_by_content()` in ad detection pipeline checks transcript segments immediately before/after each detected ad for sponsor names, URLs, and promotional language. Extends boundaries to capture the full ad when detection cuts off ~5 seconds early (common with DAI ads). Configurable via `config.py` constants.
+- **Created date column on Patterns page**: Added sortable "Created" column to the patterns table and changed default sort to newest-first (`created_at DESC`).
+
+---
+
 ## [0.1.196] - 2026-01-20
 
 ### Fixed
