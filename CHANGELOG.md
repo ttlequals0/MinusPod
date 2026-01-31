@@ -6,6 +6,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.206] - 2026-01-31
+
+### Fixed
+- **JSON object response parsing**: Claude in JSON mode sometimes returns `{"ads": [...]}` objects instead of raw arrays. Added Strategy 0 to `_parse_ads_from_response()` that extracts arrays from objects with "ads" key.
+- **Timestamp format parsing**: Added `parse_timestamp()` helper that handles multiple formats: seconds (1178.5), MM:SS ("19:38"), HH:MM:SS ("1:19:38"), and strings with "s" suffix ("1178.5s"). Fixes "could not convert string to float" errors when Claude returns human-readable timestamps.
+
+---
+
 ## [0.1.205] - 2026-01-31
 
 ### Fixed

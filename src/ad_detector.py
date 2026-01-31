@@ -47,6 +47,52 @@ RETRY_CONFIG = {
 # WINDOW_SIZE_SECONDS and WINDOW_OVERLAP_SECONDS imported from config.py
 WINDOW_STEP_SECONDS = WINDOW_SIZE_SECONDS - WINDOW_OVERLAP_SECONDS  # 7 minutes
 
+def parse_timestamp(value) -> float:
+    """Parse timestamp value to seconds.
+
+    Handles multiple formats:
+    - Float/int: 1178.5 -> 1178.5
+    - String seconds: "1178.5" -> 1178.5
+    - MM:SS format: "19:38" -> 1178.0
+    - HH:MM:SS format: "1:19:38" -> 4778.0
+    - String with 's' suffix: "1178.5s" -> 1178.5
+    """
+    if isinstance(value, (int, float)):
+        return float(value)
+
+    if isinstance(value, str):
+        # Remove 's' suffix if present
+        value = value.strip().rstrip('s').strip()
+
+        # Try direct float conversion first
+        try:
+            return float(value)
+        except ValueError:
+            pass
+
+        # Try MM:SS or HH:MM:SS format
+        parts = value.split(':')
+        if len(parts) == 2:
+            # MM:SS
+            try:
+                minutes = int(parts[0])
+                seconds = float(parts[1])
+                return minutes * 60 + seconds
+            except ValueError:
+                pass
+        elif len(parts) == 3:
+            # HH:MM:SS
+            try:
+                hours = int(parts[0])
+                minutes = int(parts[1])
+                seconds = float(parts[2])
+                return hours * 3600 + minutes * 60 + seconds
+            except ValueError:
+                pass
+
+    raise ValueError(f"Cannot parse timestamp: {value}")
+
+
 # Early ad snapping threshold
 # If an ad starts within this many seconds of the episode start, snap it to 0:00
 # Pre-roll ads often have brief intro audio before detection kicks in
@@ -1183,14 +1229,29 @@ class AdDetector:
         try:
             ads = None
 
+            # Strategy 0: Try to parse as JSON object with "ads" key
+            # Handles responses like {"ads": [...]} from JSON mode
+            try:
+                parsed = json.loads(response_text.strip())
+                if isinstance(parsed, dict) and 'ads' in parsed:
+                    if isinstance(parsed['ads'], list):
+                        ads = parsed['ads']
+                        logger.debug(f"[{slug}:{episode_id}] Extracted ads from JSON object")
+                elif isinstance(parsed, list):
+                    ads = parsed
+                    logger.debug(f"[{slug}:{episode_id}] Parsed as JSON array directly")
+            except json.JSONDecodeError:
+                pass
+
             # Strategy 1: Try to extract from markdown code block first
-            code_block_match = re.search(r'```(?:json)?\s*(\[[\s\S]*?\])\s*```', response_text)
-            if code_block_match:
-                try:
-                    ads = json.loads(code_block_match.group(1))
-                    logger.debug(f"[{slug}:{episode_id}] Extracted JSON from code block")
-                except json.JSONDecodeError:
-                    pass
+            if ads is None:
+                code_block_match = re.search(r'```(?:json)?\s*(\[[\s\S]*?\])\s*```', response_text)
+                if code_block_match:
+                    try:
+                        ads = json.loads(code_block_match.group(1))
+                        logger.debug(f"[{slug}:{episode_id}] Extracted JSON from code block")
+                    except json.JSONDecodeError:
+                        pass
 
             # Strategy 2: Find all potential JSON arrays and use the last valid one
             if ads is None:
@@ -1228,16 +1289,20 @@ class AdDetector:
             valid_ads = []
             for ad in ads:
                 if isinstance(ad, dict) and 'start' in ad and 'end' in ad:
-                    start = float(ad['start'])
-                    end = float(ad['end'])
-                    if end > start:  # Skip invalid segments
-                        valid_ads.append({
-                            'start': start,
-                            'end': end,
-                            'confidence': float(ad.get('confidence', 1.0)),
-                            'reason': ad.get('reason', 'Advertisement detected'),
-                            'end_text': ad.get('end_text', '')
-                        })
+                    try:
+                        start = parse_timestamp(ad['start'])
+                        end = parse_timestamp(ad['end'])
+                        if end > start:  # Skip invalid segments
+                            valid_ads.append({
+                                'start': start,
+                                'end': end,
+                                'confidence': float(ad.get('confidence', 1.0)),
+                                'reason': ad.get('reason', 'Advertisement detected'),
+                                'end_text': ad.get('end_text', '')
+                            })
+                    except ValueError as e:
+                        logger.warning(f"[{slug}:{episode_id}] Skipping ad with invalid timestamp: {e}")
+                        continue
 
             return valid_ads
 
