@@ -3,7 +3,6 @@ import logging
 import tempfile
 import os
 import re
-import gc
 import subprocess
 import hashlib
 import requests

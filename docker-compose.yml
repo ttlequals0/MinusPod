@@ -82,7 +82,6 @@ services:
 
       # Optional: Protect the wrapper endpoint with an API key
       # - ENABLE_API_KEY_PROTECTION=true
-      - PLACEHOLDER=1  # Required to have at least one env var
     volumes:
       # Persist Claude CLI authentication
       - claude-auth:/root/.claude

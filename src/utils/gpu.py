@@ -5,7 +5,6 @@ Provides shared GPU memory management and system memory querying functions.
 
 import gc
 import logging
-import os
 from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)

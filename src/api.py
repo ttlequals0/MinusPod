@@ -5,7 +5,7 @@ import os
 import time
 from datetime import datetime
 from typing import Optional
-from flask import Blueprint, jsonify, request, send_file, Response, session
+from flask import Blueprint, jsonify, request, Response, session
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from functools import wraps

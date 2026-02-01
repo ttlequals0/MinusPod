@@ -3,11 +3,9 @@ import feedparser
 import logging
 import hashlib
 import os
-from datetime import datetime
 from email.utils import parsedate_to_datetime
 from typing import Dict, List, Optional
 import requests
-from slugify import slugify
 
 logger = logging.getLogger(__name__)
 

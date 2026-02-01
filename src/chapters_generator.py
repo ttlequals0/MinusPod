@@ -1,7 +1,6 @@
 """JSON chapters generator for Podcasting 2.0 support."""
 import json
 import logging
-import os
 import re
 from typing import List, Dict, Optional, Tuple
 

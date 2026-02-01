@@ -6,11 +6,32 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.219] - 2026-02-01
+
+### Changed
+- **Codebase cleanup**: Comprehensive cleanup to remove dead code, unused dependencies, and stale artifacts:
+  - Deleted stale `tmp/` directory (docker-compose.wrapper.yml, llm_client.py copy, migration docs)
+  - Removed unused `soundfile` dependency from requirements.txt
+  - Removed unused imports from 9 Python files (ad_detector, chapters_generator, rss_parser, storage, text_pattern_matcher, transcriber, gpu, pattern_service, api)
+  - Removed unused exception imports (APIError, APIConnectionError, RateLimitError, InternalServerError) from ad_detector.py
+  - Fixed .gitignore duplicates (.env, *.db, *.log, pixelprobe.db) and removed contradictory CLAUDE.md entry
+  - Removed TODO comment from main.py
+  - Removed PLACEHOLDER env var from docker-compose.yml claude-wrapper service
+
+---
+
+## [0.1.218] - 2026-02-01
+
+### Fixed
+- **Reasoning field precedence bug in sponsor extraction**: Removed `reasoning` from `SPONSOR_PRIORITY_FIELDS` as it was incorrectly taking precedence over `sponsor_name` in Phase 2 pattern matching. The `reasoning` field contains descriptive text (e.g., "Host read ad for eBay promoting...") and was being returned instead of the actual sponsor name. Now `reasoning` is only used in Phase 4 for regex-based text extraction as a fallback when no direct sponsor name is found.
+
+---
+
 ## [0.1.217] - 2026-02-01
 
 ### Improved
 - **Enhanced sponsor name extraction from OpenAI wrapper responses**: Added Phase 4 text extraction to extract sponsor names from descriptive fields like `reasoning` and `summary` when direct fields are missing or invalid. Improvements include:
-  - Added `reasoning` to priority fields (catches "This is a BetterHelp ad" style responses)
+  - Added `reasoning` to priority fields (catches "This is a BetterHelp ad" style responses) [Note: reverted in v0.1.218]
   - Added `ad_name` and `note` to pattern keywords for fuzzy matching
   - Added `summary` to fallback fields
   - New regex-based extraction parses sponsor names from text like "X advertisement", "ad for X", "promoting X"

@@ -149,7 +149,6 @@ static/
 
 
 # Sensitive files
-.env
 .env.local
 .env.production
 *.key
@@ -171,11 +170,8 @@ backup/
 .claude/
 test_env/
 test-venv/
-pixelprobe.db
-*.db
 docs/development/
 docker-compose.local.yml
-CLAUDE.md
 
 # Testing/evaluation docs (user notes)
 ad_detection_baseline.md.playwright-mcp/

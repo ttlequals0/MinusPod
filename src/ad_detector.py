@@ -1,15 +1,12 @@
 """Ad detection using Claude API with configurable prompts and model."""
 import logging
 import json
-import os
 import re
 import time
 import random
-import hashlib
 from typing import List, Dict, Optional
 from llm_client import (
     get_llm_client, get_api_key, LLMClient,
-    APIError, APIConnectionError, RateLimitError, InternalServerError,
     is_retryable_error, is_rate_limit_error
 )
 
@@ -1234,7 +1231,7 @@ class AdDetector:
 
         # Sponsor/advertiser extraction configuration
         # Priority fields are checked in order for exact matches
-        SPONSOR_PRIORITY_FIELDS = ['reason', 'advertiser', 'sponsor', 'brand', 'company', 'product', 'name', 'reasoning']
+        SPONSOR_PRIORITY_FIELDS = ['reason', 'advertiser', 'sponsor', 'brand', 'company', 'product', 'name']
         # Pattern keywords for fuzzy matching any key containing these substrings
         SPONSOR_PATTERN_KEYWORDS = ['sponsor', 'brand', 'advertiser', 'company', 'product', 'ad_name', 'note']
         # Fallback fields for description-like content

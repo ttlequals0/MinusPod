@@ -623,7 +623,7 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
         db.update_podcast(slug, last_checked_at=datetime.utcnow().isoformat() + 'Z')
 
         refresh_logger.info(f"[{slug}] RSS refresh complete")
-        status_service.complete_feed_refresh(slug, 0)  # TODO: Count new episodes
+        status_service.complete_feed_refresh(slug, 0)
         return True
     except Exception as e:
         refresh_logger.error(f"[{slug}] RSS refresh failed: {e}")

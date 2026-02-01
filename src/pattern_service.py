@@ -2,13 +2,12 @@
 Pattern Service - Manages ad pattern hierarchy and automatic promotion.
 
 Handles:
-- Three-tier pattern hierarchy: Global → Network → Podcast
+- Three-tier pattern hierarchy: Global -> Network -> Podcast
 - Automatic pattern promotion based on match frequency
 - RSS metadata extraction for network/DAI platform detection
 - Pattern lookup with scope priority
 """
 import logging
-import re
 import json
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Tuple

@@ -1,5 +1,4 @@
 """Storage management with SQLite database and file operations."""
-import os
 import json
 import logging
 import requests
