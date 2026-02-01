@@ -6,6 +6,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.212] - 2026-02-01
+
+### Fixed
+- **Expanded advertiser field fallback chain**: Added `ad_sponsor`, `sponsor_name`, and `sponsor_or_product` to the fallback chain for extracting advertiser names. These field names were discovered via enhanced logging when Claude uses alternate response structures. Fixes more cases where ads showed as generic "Advertisement detected" instead of actual advertiser names like "Stash", "Ethos", "Mint Mobile".
+
+---
+
 ## [0.1.211] - 2026-01-31
 
 ### Changed

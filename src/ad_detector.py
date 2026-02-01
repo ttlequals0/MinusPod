@@ -1316,11 +1316,12 @@ class AdDetector:
                             if end > start:  # Skip invalid segments
                                 # Try various field name patterns for reason/advertiser
                                 reason = (ad.get('reason') or ad.get('advertiser') or
-                                          ad.get('sponsor') or ad.get('brand') or
-                                          ad.get('company') or ad.get('product') or
-                                          ad.get('name') or ad.get('description') or
-                                          ad.get('content_summary') or ad.get('ad_content') or
-                                          ad.get('category') or
+                                          ad.get('sponsor') or ad.get('ad_sponsor') or
+                                          ad.get('sponsor_name') or ad.get('sponsor_or_product') or
+                                          ad.get('brand') or ad.get('company') or
+                                          ad.get('product') or ad.get('name') or
+                                          ad.get('description') or ad.get('content_summary') or
+                                          ad.get('ad_content') or ad.get('category') or
                                           'Advertisement detected')
                                 # Log extracted ad details for production visibility
                                 logger.info(f"[{slug}:{episode_id}] Extracted ad: {start:.1f}s-{end:.1f}s, reason='{reason}', fields={list(ad.keys())}")
