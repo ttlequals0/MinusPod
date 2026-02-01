@@ -26,6 +26,19 @@ MIN_TEXT_LENGTH = 50
 # Maximum intro/outro phrase length to check
 MAX_PHRASE_LENGTH = 200
 
+# Common ad transition phrases (for detecting multi-sponsor contamination)
+AD_TRANSITION_PHRASES = [
+    "this episode is brought to you by",
+    "this podcast is sponsored by",
+    "support for this podcast comes from",
+    "and now a word from",
+    "brought to you by",
+    "this episode is sponsored by",
+    "today's episode is brought to you by",
+    "today's sponsor is",
+    "thanks to",
+]
+
 # Base vocabulary for TF-IDF - common terms in podcast ads
 # These ensure the vectorizer recognizes ad-related words even without patterns
 BASE_AD_VOCABULARY = [
@@ -645,7 +658,7 @@ class TextPatternMatcher:
             return None
 
         # Validate ad duration - reject contaminated multi-ad spans
-        MAX_PATTERN_DURATION = 180  # 3 minutes - longest reasonable ad read
+        MAX_PATTERN_DURATION = 120  # 2 minutes - longest reasonable single ad read
         duration = end - start
         if duration > MAX_PATTERN_DURATION:
             logger.warning(
@@ -677,6 +690,26 @@ class TextPatternMatcher:
         # Extract outro (last ~30 words)
         outro = " ".join(words[-30:]) if len(words) > 30 else ""
 
+        # Check for multiple ad transitions (contamination indicator)
+        ad_text_lower = ad_text.lower()
+        transition_count = sum(1 for phrase in AD_TRANSITION_PHRASES
+                               if phrase in ad_text_lower)
+        if transition_count > 1:
+            logger.warning(
+                f"Skipping pattern creation: found {transition_count} ad transitions - "
+                f"likely multi-ad contamination"
+            )
+            return None
+
+        # Validate sponsor appears in intro (if provided)
+        if sponsor and intro:
+            if sponsor.lower() not in intro.lower():
+                logger.warning(
+                    f"Skipping pattern creation: sponsor '{sponsor}' not in intro - "
+                    f"may be contaminated or misattributed"
+                )
+                return None
+
         try:
             pattern_id = self.db.create_ad_pattern(
                 scope=scope,
@@ -699,6 +732,158 @@ class TextPatternMatcher:
         except Exception as e:
             logger.error(f"Failed to create pattern: {e}")
             return None
+
+    def detect_multi_sponsor_pattern(self, pattern: Dict) -> List[str]:
+        """Detect if pattern text contains multiple sponsors.
+
+        Scans the text_template for common ad transition phrases that indicate
+        sponsor reads. If more than one is found, the pattern is contaminated
+        with multiple ads that were incorrectly merged.
+
+        Args:
+            pattern: Pattern dict with 'text_template' field
+
+        Returns:
+            List of sponsor names found if multiple detected, empty list if single/none
+        """
+        text = pattern.get('text_template', '').lower()
+        if not text:
+            return []
+
+        # Find all sponsor transition phrases
+        sponsors = []
+        for phrase in AD_TRANSITION_PHRASES:
+            start = 0
+            while True:
+                idx = text.find(phrase, start)
+                if idx == -1:
+                    break
+                # Extract ~50 chars after phrase for sponsor name
+                after = text[idx + len(phrase):idx + len(phrase) + 50]
+                # First word(s) after phrase is likely sponsor
+                words = after.strip().split()
+                if words:
+                    sponsor_candidate = words[0].strip('.,!?:')
+                    # Skip common words that aren't sponsors
+                    skip_words = {'the', 'our', 'a', 'an', 'and', 'today', 'this'}
+                    if sponsor_candidate and sponsor_candidate not in skip_words:
+                        if sponsor_candidate not in sponsors:
+                            sponsors.append(sponsor_candidate)
+                start = idx + 1
+
+        return sponsors if len(sponsors) > 1 else []
+
+    def split_pattern(self, pattern_id: int) -> List[int]:
+        """Split a multi-sponsor pattern into separate patterns.
+
+        Detects ad transition phrases in the pattern text and splits at each
+        transition point to create individual single-sponsor patterns.
+        The original pattern is disabled after successful split.
+
+        Args:
+            pattern_id: ID of the pattern to split
+
+        Returns:
+            List of new pattern IDs created, empty if no split needed/possible
+        """
+        if not self.db:
+            logger.error("Cannot split pattern: no database connection")
+            return []
+
+        pattern = self.db.get_ad_pattern_by_id(pattern_id)
+        if not pattern:
+            logger.error(f"Pattern {pattern_id} not found")
+            return []
+
+        text = pattern.get('text_template', '')
+        if not text:
+            logger.warning(f"Pattern {pattern_id} has no text_template")
+            return []
+
+        text_lower = text.lower()
+        new_ids = []
+
+        # Find split points at ad transitions
+        split_points = []
+        for phrase in AD_TRANSITION_PHRASES:
+            idx = text_lower.find(phrase)
+            while idx != -1:
+                split_points.append(idx)
+                idx = text_lower.find(phrase, idx + 1)
+
+        split_points = sorted(set(split_points))
+
+        if len(split_points) < 2:
+            logger.info(f"Pattern {pattern_id} doesn't need splitting "
+                       f"(only {len(split_points)} transition phrase found)")
+            return []
+
+        logger.info(f"Pattern {pattern_id}: found {len(split_points)} ad transitions, "
+                   f"splitting into separate patterns")
+
+        # Create new patterns for each segment
+        for i, start in enumerate(split_points):
+            end = split_points[i + 1] if i + 1 < len(split_points) else len(text)
+            segment = text[start:end].strip()
+
+            if len(segment) < MIN_TEXT_LENGTH:
+                logger.debug(f"Skipping segment {i}: too short ({len(segment)} chars)")
+                continue
+
+            # Extract sponsor from segment
+            segment_lower = segment.lower()
+            sponsor = None
+            for phrase in AD_TRANSITION_PHRASES:
+                if phrase in segment_lower:
+                    idx = segment_lower.find(phrase)
+                    after = segment[idx + len(phrase):idx + len(phrase) + 30]
+                    words = after.strip().split()
+                    if words:
+                        candidate = words[0].strip('.,!?:')
+                        skip_words = {'the', 'our', 'a', 'an', 'and', 'today', 'this'}
+                        if candidate and candidate not in skip_words:
+                            sponsor = candidate.title()
+                            break
+
+            # Create intro/outro for new pattern
+            words = segment.split()
+            intro = " ".join(words[:50]) if len(words) > 50 else ""
+            outro = " ".join(words[-30:]) if len(words) > 30 else ""
+
+            try:
+                new_id = self.db.create_ad_pattern(
+                    scope=pattern.get('scope', 'podcast'),
+                    text_template=segment,
+                    intro_variants=json.dumps([intro]) if intro else "[]",
+                    outro_variants=json.dumps([outro]) if outro else "[]",
+                    sponsor=sponsor,
+                    podcast_id=pattern.get('podcast_id'),
+                    network_id=pattern.get('network_id'),
+                    created_from_episode_id=pattern.get('created_from_episode_id')
+                )
+                if new_id:
+                    new_ids.append(new_id)
+                    logger.info(f"Created split pattern {new_id} with sponsor '{sponsor}' "
+                               f"({len(segment)} chars)")
+            except Exception as e:
+                logger.error(f"Failed to create split pattern: {e}")
+
+        # Disable original pattern if we created new ones
+        if new_ids:
+            from datetime import datetime
+            self.db.update_ad_pattern(
+                pattern_id,
+                is_active=0,
+                disabled_at=datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'),
+                disabled_reason=f"Split into patterns: {new_ids}"
+            )
+            logger.info(f"Disabled original pattern {pattern_id}, "
+                       f"replaced with {len(new_ids)} split patterns: {new_ids}")
+
+            # Reload patterns
+            self._load_patterns()
+
+        return new_ids
 
     def matches_false_positive(
         self,

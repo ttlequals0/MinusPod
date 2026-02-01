@@ -6,6 +6,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.220] - 2026-02-01
+
+### Fixed
+- **Multi-sponsor pattern contamination**: Added `detect_multi_sponsor_pattern()` and `split_pattern()` methods to `TextPatternMatcher` to detect and split patterns that were incorrectly created with multiple sponsor reads merged together. These methods scan for common ad transition phrases ("this episode is brought to you by", "brought to you by", etc.) and create separate patterns for each sponsor.
+
+- **Prevention of future contamination**: Added validation to `create_pattern_from_ad()` to reject patterns with:
+  - Duration > 120 seconds (reduced from 180s) - single ads rarely exceed 2 minutes
+  - Multiple ad transition phrases detected - indicates merged multi-ad spans
+  - Sponsor name not appearing in intro text - may indicate misattribution
+
+- **Missing descriptions in reason field**: Enhanced `_parse_ads_from_response()` to extract Claude's explanation/description from response and combine with sponsor name in the reason field. Now checks `explanation`, `content_summary`, `description`, `ad_description`, `message`, `content`, and `summary` fields. Descriptions over 150 characters are truncated.
+
+---
+
 ## [0.1.219] - 2026-02-01
 
 ### Changed

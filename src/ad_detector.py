@@ -1381,6 +1381,27 @@ class AdDetector:
                             if end > start:  # Skip invalid segments
                                 # Extract sponsor/advertiser name using priority fields + pattern matching
                                 reason = extract_sponsor_name(ad)
+
+                                # Extract description from Claude's response to enrich the reason
+                                description = None
+                                desc_fields = ['explanation', 'content_summary', 'description',
+                                               'ad_description', 'message', 'content', 'summary']
+                                for desc_field in desc_fields:
+                                    desc = ad.get(desc_field)
+                                    if desc and isinstance(desc, str) and len(desc) > 10:
+                                        description = desc
+                                        break
+
+                                # Combine sponsor + description in reason field
+                                if description:
+                                    if reason and reason != 'Advertisement detected':
+                                        # Truncate long descriptions
+                                        if len(description) > 150:
+                                            description = description[:147] + "..."
+                                        reason = f"{reason}: {description}"
+                                    elif not reason or reason == 'Advertisement detected':
+                                        reason = description
+
                                 # Log extracted ad details for production visibility
                                 logger.info(f"[{slug}:{episode_id}] Extracted ad: {start:.1f}s-{end:.1f}s, reason='{reason}', fields={list(ad.keys())}")
                                 valid_ads.append({
