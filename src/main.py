@@ -1655,6 +1655,13 @@ def _startup():
     base_url = os.getenv('BASE_URL', 'http://localhost:8000')
     logger.info(f"BASE_URL: {base_url}")
 
+    # Verify LLM endpoint is reachable (important for openai-compatible providers)
+    try:
+        from llm_client import verify_llm_connection
+        verify_llm_connection()
+    except Exception as e:
+        logger.warning(f"LLM verification skipped: {e}")
+
     # Reset any episodes stuck in 'processing' status from previous crash
     reset_stuck_processing_episodes()
 

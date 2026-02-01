@@ -6,6 +6,110 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.215] - 2026-02-01
+
+### Changed
+- **Refactored advertiser field extraction**: Replaced the hardcoded 16-field fallback chain with a flexible three-phase approach:
+  1. Priority fields checked in order: `reason`, `advertiser`, `sponsor`, `brand`, `company`, `product`, `name`
+  2. Pattern matching scans all keys for substrings: `sponsor`, `brand`, `advertiser`, `company`, `product` (catches variants like `ad_sponsor`, `sponsor_name`, `detected_brand`)
+  3. Fallback fields: `description`, `content_summary`, `ad_content`, `category`
+- This eliminates the need to manually add new field names whenever Claude uses a variation
+
+---
+
+## [0.1.214] - 2026-02-01
+
+### Fixed
+- **Added `detected_brand` to fallback chain**: Claude sometimes uses `detected_brand` as the field name for advertiser. Added to the fallback chain to extract sponsor names from this field.
+
+---
+
+## [0.1.213] - 2026-02-01
+
+### Fixed
+- **Filter invalid sponsor values**: Added validation to filter out literal string values like "None", "unknown", "null", "n/a" that Claude sometimes returns as sponsor names. These invalid values are now properly skipped in the fallback chain, allowing the next valid field to be used or falling back to "Advertisement detected" instead of displaying unhelpful values.
+
+---
+
+## [0.1.212] - 2026-02-01
+
+### Fixed
+- **Expanded advertiser field fallback chain**: Added `ad_sponsor`, `sponsor_name`, and `sponsor_or_product` to the fallback chain for extracting advertiser names. These field names were discovered via enhanced logging when Claude uses alternate response structures. Fixes more cases where ads showed as generic "Advertisement detected" instead of actual advertiser names like "Stash", "Ethos", "Mint Mobile".
+
+---
+
+## [0.1.211] - 2026-01-31
+
+### Changed
+- **Enhanced ad extraction logging**: Promoted ad extraction logging from DEBUG to INFO level for production visibility. When ads are extracted from LLM responses, logs now show the timestamps, reason/advertiser, and available fields - helping diagnose when ad names show as generic "Advertisement detected" instead of actual advertiser names.
+
+### Fixed
+- **Added `category` to advertiser field fallback**: Some Claude responses use `category` as the advertiser/reason field. Added to the fallback chain to extract more descriptive ad names.
+
+---
+
+## [0.1.210] - 2026-01-31
+
+### Fixed
+- **Display advertiser names in pattern-matched ads**: Text pattern and fingerprint matches now use the sponsor name from the database pattern as the `reason` field instead of generic labels like "Text pattern match (outro, pattern 69)". Falls back to generic label if no sponsor is defined for the pattern.
+
+---
+
+## [0.1.209] - 2026-01-31
+
+### Fixed
+- **Expanded advertiser name extraction**: Added more field name patterns for extracting advertiser/sponsor names from Claude responses: `sponsor`, `brand`, `company`, `name`, `description`, `ad_content`. Fixes ads showing as generic "Advertisement detected" instead of the actual advertiser name.
+- **Debug logging for ad extraction**: Added debug logging to show extracted ad details and available fields, helping diagnose future field name issues.
+
+---
+
+## [0.1.208] - 2026-01-31
+
+### Fixed
+- **Handle Claude's elaborate response structures**: Claude sometimes ignores the prompt's output format and returns elaborate structured objects with `segments` or `advertisement_segments` keys instead of `ads`. Updated Strategy 0 in `_parse_ads_from_response()` to extract ads from these alternate structures, filtering `segments` arrays to only include items with `type: "advertisement"`.
+- **Handle alternate field names in ad validation**: Claude uses inconsistent field names (`start_time` vs `start`, `advertiser` vs `reason`, etc.). Updated validation loop to check multiple field name patterns: `start`/`start_time`/`ad_start_timestamp`/`start_time_seconds` for timestamps, and `reason`/`advertiser`/`product`/`content_summary` for descriptions.
+- **v0.1.207 regression**: Fixed regression where objects with `segments` key containing ads were treated as "no ads found" because they lacked an explicit `ads` key.
+
+---
+
+## [0.1.207] - 2026-01-31
+
+### Fixed
+- **JSON object without 'ads' key**: When Claude returns a valid JSON object but without an "ads" key (e.g., `{"status": "no_ads_detected"}`), treat it as "no ads found" rather than falling through to legacy parsing strategies that could fail with "Extra data" errors.
+
+---
+
+## [0.1.206] - 2026-01-31
+
+### Fixed
+- **JSON object response parsing**: Claude in JSON mode sometimes returns `{"ads": [...]}` objects instead of raw arrays. Added Strategy 0 to `_parse_ads_from_response()` that extracts arrays from objects with "ads" key.
+- **Timestamp format parsing**: Added `parse_timestamp()` helper that handles multiple formats: seconds (1178.5), MM:SS ("19:38"), HH:MM:SS ("1:19:38"), and strings with "s" suffix ("1178.5s"). Fixes "could not convert string to float" errors when Claude returns human-readable timestamps.
+
+---
+
+## [0.1.205] - 2026-01-31
+
+### Fixed
+- **JSON response format for OpenAI-compatible LLM backends**: Added `response_format` parameter to `LLMClient.messages_create()` interface and pass `{"type": "json_object"}` for ad detection calls. This triggers JSON mode in the Claude Code OpenAI wrapper, ensuring clean JSON responses instead of markdown-wrapped output that caused "No valid JSON array found in response" warnings.
+
+---
+
+## [0.1.203] - 2026-01-30
+
+### Added
+- **Optional OpenAI-compatible LLM support**: New abstraction layer (`llm_client.py`) allows using alternative LLM backends instead of direct Anthropic API. Supports:
+  - Direct Anthropic API (default, uses API credits)
+  - OpenAI-compatible APIs (Claude Code wrapper for Max subscription, Ollama, etc.)
+- **LLM provider configuration**: New environment variables `LLM_PROVIDER`, `OPENAI_BASE_URL`, `OPENAI_API_KEY`, `OPENAI_MODEL` for configuring alternative backends
+- **Docker Compose wrapper service**: Optional `claude-wrapper` service for running the Claude Code OpenAI wrapper (enable with `--profile wrapper`)
+
+### Changed
+- **Ad detector refactored for LLM abstraction**: `ad_detector.py` now uses `llm_client.py` for all LLM interactions, maintaining backward compatibility
+- **Chapters generator refactored for LLM abstraction**: `chapters_generator.py` now uses `llm_client.py` for all LLM interactions
+- **Updated requirements**: Added `openai>=1.0.0` dependency for OpenAI-compatible API support
+
+---
+
 ## [0.1.202] - 2026-01-29
 
 ### Fixed

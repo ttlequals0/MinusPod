@@ -12,11 +12,31 @@ services:
       # If not mounted, the built-in default audio marker is used
       # - ./assets:/app/assets:ro
     environment:
+      # =================================================================
+      # LLM Provider Configuration
+      # =================================================================
+      # Option 1: Direct Anthropic API (default, uses API credits)
+      - LLM_PROVIDER=${LLM_PROVIDER:-anthropic}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+
+      # Option 2: OpenAI-compatible API (Claude Code wrapper, Ollama, etc.)
+      # Set LLM_PROVIDER=openai-compatible and configure:
+      # - OPENAI_BASE_URL=http://claude-wrapper:8000/v1
+      # - OPENAI_API_KEY=${OPENAI_API_KEY:-not-needed}
+      # - OPENAI_MODEL=claude-sonnet-4-5-20250929
+
+      # =================================================================
+      # Whisper Configuration
+      # =================================================================
       - WHISPER_MODEL=${WHISPER_MODEL:-small}
-      - BASE_URL=${BASE_URL:-http://localhost:8000}
       - WHISPER_DEVICE=${WHISPER_DEVICE:-cuda}
+
+      # =================================================================
+      # Server Configuration
+      # =================================================================
+      - BASE_URL=${BASE_URL:-http://localhost:8000}
       - RETENTION_PERIOD=${RETENTION_PERIOD:-1440}
+
       # Optional: HuggingFace token for pyannote speaker diarization
       # Required only if speaker analysis is enabled in audio analysis settings
       # IMPORTANT: You must also accept the model license at:
@@ -33,6 +53,42 @@ services:
     restart: unless-stopped
     expose:
       - "8000"
+    # Uncomment if using the wrapper service
+    # depends_on:
+    #   - claude-wrapper
+
+  # =================================================================
+  # Claude Code OpenAI Wrapper (Optional)
+  # =================================================================
+  # Uses your Claude Max subscription instead of API credits
+  # Enable with: docker compose --profile wrapper up -d
+  #
+  # First time setup:
+  # 1. docker compose --profile wrapper run --rm claude-wrapper claude auth login
+  # 2. Follow the OAuth prompts to authenticate
+  # 3. docker compose --profile wrapper up -d
+  #
+  # Or use API key directly by setting ANTHROPIC_API_KEY in the wrapper
+  claude-wrapper:
+    image: ghcr.io/richardatct/claude-code-openai-wrapper:latest
+    ports:
+      - "8001:8000"  # Expose on different port to avoid conflict
+    environment:
+      # Option A: Use API key (simpler, uses API credits)
+      # - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+
+      # Option B: Use OAuth (uses Max subscription)
+      # Leave ANTHROPIC_API_KEY unset and use `claude auth login`
+
+      # Optional: Protect the wrapper endpoint with an API key
+      # - ENABLE_API_KEY_PROTECTION=true
+      - PLACEHOLDER=1  # Required to have at least one env var
+    volumes:
+      # Persist Claude CLI authentication
+      - claude-auth:/root/.claude
+    restart: unless-stopped
+    profiles:
+      - wrapper
 
   tunnel:
     image: cloudflare/cloudflared
@@ -44,3 +100,6 @@ services:
     restart: unless-stopped
     profiles:
       - tunnel
+
+volumes:
+  claude-auth:

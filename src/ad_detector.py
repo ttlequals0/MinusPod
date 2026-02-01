@@ -7,7 +7,11 @@ import time
 import random
 import hashlib
 from typing import List, Dict, Optional
-from anthropic import Anthropic, APIError, APIConnectionError, RateLimitError, InternalServerError
+from llm_client import (
+    get_llm_client, get_api_key, LLMClient,
+    APIError, APIConnectionError, RateLimitError, InternalServerError,
+    is_retryable_error, is_rate_limit_error
+)
 
 from config import (
     MIN_TYPICAL_AD_DURATION, MIN_SPONSOR_READ_DURATION, SHORT_GAP_THRESHOLD,
@@ -42,6 +46,52 @@ RETRY_CONFIG = {
 # Sliding window step (derived from config values)
 # WINDOW_SIZE_SECONDS and WINDOW_OVERLAP_SECONDS imported from config.py
 WINDOW_STEP_SECONDS = WINDOW_SIZE_SECONDS - WINDOW_OVERLAP_SECONDS  # 7 minutes
+
+def parse_timestamp(value) -> float:
+    """Parse timestamp value to seconds.
+
+    Handles multiple formats:
+    - Float/int: 1178.5 -> 1178.5
+    - String seconds: "1178.5" -> 1178.5
+    - MM:SS format: "19:38" -> 1178.0
+    - HH:MM:SS format: "1:19:38" -> 4778.0
+    - String with 's' suffix: "1178.5s" -> 1178.5
+    """
+    if isinstance(value, (int, float)):
+        return float(value)
+
+    if isinstance(value, str):
+        # Remove 's' suffix if present
+        value = value.strip().rstrip('s').strip()
+
+        # Try direct float conversion first
+        try:
+            return float(value)
+        except ValueError:
+            pass
+
+        # Try MM:SS or HH:MM:SS format
+        parts = value.split(':')
+        if len(parts) == 2:
+            # MM:SS
+            try:
+                minutes = int(parts[0])
+                seconds = float(parts[1])
+                return minutes * 60 + seconds
+            except ValueError:
+                pass
+        elif len(parts) == 3:
+            # HH:MM:SS
+            try:
+                hours = int(parts[0])
+                minutes = int(parts[1])
+                seconds = float(parts[2])
+                return hours * 3600 + minutes * 60 + seconds
+            except ValueError:
+                pass
+
+    raise ValueError(f"Cannot parse timestamp: {value}")
+
 
 # Early ad snapping threshold
 # If an ad starts within this many seconds of the episode start, snap it to 0:00
@@ -901,15 +951,20 @@ class AdDetector:
     """
 
     def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or os.environ.get('ANTHROPIC_API_KEY')
+        self.api_key = api_key or get_api_key()
         if not self.api_key:
-            logger.warning("No Anthropic API key found")
-        self.client = None
+            logger.warning("No LLM API key found")
+        self._llm_client: Optional[LLMClient] = None
         self._db = None
         self._audio_fingerprinter = None
         self._text_pattern_matcher = None
         self._pattern_service = None
         self._sponsor_service = None
+
+    @property
+    def client(self) -> Optional[LLMClient]:
+        """Backward compatibility property for accessing the LLM client."""
+        return self._llm_client
 
     @property
     def db(self):
@@ -968,34 +1023,27 @@ class AdDetector:
         return self._sponsor_service
 
     def initialize_client(self):
-        """Initialize Anthropic client."""
-        if self.client is None and self.api_key:
+        """Initialize LLM client."""
+        if self._llm_client is None and self.api_key:
             try:
-                self.client = Anthropic(api_key=self.api_key)
-                logger.info("Anthropic client initialized")
+                self._llm_client = get_llm_client()
+                logger.info(f"LLM client initialized: {self._llm_client.get_provider_name()}")
             except Exception as e:
-                logger.error(f"Failed to initialize Anthropic client: {e}")
+                logger.error(f"Failed to initialize LLM client: {e}")
                 raise
 
     def get_available_models(self) -> List[Dict]:
-        """Get list of available Claude models from API."""
+        """Get list of available models from LLM provider."""
         try:
             self.initialize_client()
-            if not self.client:
+            if not self._llm_client:
                 return []
 
-            # Anthropic API models endpoint
-            response = self.client.models.list()
-            models = []
-            for model in response.data:
-                # Filter to only include claude models suitable for this task
-                if 'claude' in model.id.lower():
-                    models.append({
-                        'id': model.id,
-                        'name': model.display_name if hasattr(model, 'display_name') else model.id,
-                        'created': model.created if hasattr(model, 'created') else None
-                    })
-            return models
+            models = self._llm_client.list_models()
+            return [
+                {'id': m.id, 'name': m.name, 'created': m.created}
+                for m in models
+            ]
         except Exception as e:
             logger.warning(f"Could not fetch models from API: {e}")
             # Return known models as fallback
@@ -1003,8 +1051,6 @@ class AdDetector:
                 {'id': 'claude-sonnet-4-5-20250929', 'name': 'Claude Sonnet 4.5'},
                 {'id': 'claude-opus-4-5-20251101', 'name': 'Claude Opus 4.5'},
                 {'id': 'claude-sonnet-4-20250514', 'name': 'Claude Sonnet 4'},
-                {'id': 'claude-opus-4-1-20250414', 'name': 'Claude Opus 4.1'},
-                {'id': 'claude-3-5-sonnet-20241022', 'name': 'Claude 3.5 Sonnet'},
             ]
 
     def get_model(self) -> str:
@@ -1156,18 +1202,7 @@ class AdDetector:
 
     def _is_retryable_error(self, error: Exception) -> bool:
         """Check if an error is transient and should be retried."""
-        # Rate limit and connection errors are retryable
-        if isinstance(error, (APIConnectionError, RateLimitError)):
-            return True
-        # Internal server errors (500, 503, 529 overloaded) are retryable
-        if isinstance(error, InternalServerError):
-            return True
-        # Check for specific status codes in generic APIError
-        if isinstance(error, APIError):
-            status = getattr(error, 'status_code', None)
-            if status in (429, 500, 502, 503, 529):
-                return True
-        return False
+        return is_retryable_error(error)
 
     def _calculate_backoff(self, attempt: int) -> float:
         """Calculate exponential backoff delay with optional jitter."""
@@ -1191,17 +1226,83 @@ class AdDetector:
         Returns:
             List of validated ad dicts with start, end, confidence, reason, end_text
         """
+        # Helper to filter out invalid sponsor values like literal "None", "unknown", etc.
+        def get_valid_value(value):
+            if value and str(value).strip().lower() not in ('none', 'unknown', 'null', 'n/a', 'na', ''):
+                return value
+            return None
+
+        # Sponsor/advertiser extraction configuration
+        # Priority fields are checked in order for exact matches
+        SPONSOR_PRIORITY_FIELDS = ['reason', 'advertiser', 'sponsor', 'brand', 'company', 'product', 'name']
+        # Pattern keywords for fuzzy matching any key containing these substrings
+        SPONSOR_PATTERN_KEYWORDS = ['sponsor', 'brand', 'advertiser', 'company', 'product']
+        # Fallback fields for description-like content
+        SPONSOR_FALLBACK_FIELDS = ['description', 'content_summary', 'ad_content', 'category']
+
+        def extract_sponsor_name(ad: dict) -> str:
+            """Extract sponsor/advertiser name from ad dict using priority fields and pattern matching."""
+            # Phase 1: Check priority fields in order
+            for field in SPONSOR_PRIORITY_FIELDS:
+                value = get_valid_value(ad.get(field))
+                if value:
+                    return value
+
+            # Phase 2: Pattern match any key containing sponsor/brand/advertiser keywords
+            for key in ad.keys():
+                key_lower = key.lower()
+                for keyword in SPONSOR_PATTERN_KEYWORDS:
+                    if keyword in key_lower:
+                        value = get_valid_value(ad.get(key))
+                        if value:
+                            return value
+
+            # Phase 3: Fallback to description-like fields
+            for field in SPONSOR_FALLBACK_FIELDS:
+                value = get_valid_value(ad.get(field))
+                if value:
+                    return value
+
+            return 'Advertisement detected'
+
         try:
             ads = None
 
+            # Strategy 0: Try to parse as JSON object and extract ads from various structures
+            # Handles responses like {"ads": [...]}, {"segments": [...]}, {"advertisement_segments": [...]}
+            try:
+                parsed = json.loads(response_text.strip())
+                if isinstance(parsed, dict):
+                    if 'ads' in parsed and isinstance(parsed['ads'], list):
+                        ads = parsed['ads']
+                        logger.debug(f"[{slug}:{episode_id}] Extracted ads from 'ads' key")
+                    elif 'advertisement_segments' in parsed and isinstance(parsed['advertisement_segments'], list):
+                        ads = parsed['advertisement_segments']
+                        logger.debug(f"[{slug}:{episode_id}] Extracted ads from 'advertisement_segments' key")
+                    elif 'segments' in parsed and isinstance(parsed['segments'], list):
+                        # Filter to only advertisement type segments
+                        ads = [s for s in parsed['segments']
+                               if isinstance(s, dict) and s.get('type') == 'advertisement']
+                        logger.debug(f"[{slug}:{episode_id}] Extracted {len(ads)} ads from 'segments' array")
+                    else:
+                        # No recognizable ad structure - check for other possible keys
+                        ads = []
+                        logger.debug(f"[{slug}:{episode_id}] JSON object without recognizable ad key - no ads")
+                elif isinstance(parsed, list):
+                    ads = parsed
+                    logger.debug(f"[{slug}:{episode_id}] Parsed as JSON array directly")
+            except json.JSONDecodeError:
+                pass
+
             # Strategy 1: Try to extract from markdown code block first
-            code_block_match = re.search(r'```(?:json)?\s*(\[[\s\S]*?\])\s*```', response_text)
-            if code_block_match:
-                try:
-                    ads = json.loads(code_block_match.group(1))
-                    logger.debug(f"[{slug}:{episode_id}] Extracted JSON from code block")
-                except json.JSONDecodeError:
-                    pass
+            if ads is None:
+                code_block_match = re.search(r'```(?:json)?\s*(\[[\s\S]*?\])\s*```', response_text)
+                if code_block_match:
+                    try:
+                        ads = json.loads(code_block_match.group(1))
+                        logger.debug(f"[{slug}:{episode_id}] Extracted JSON from code block")
+                    except json.JSONDecodeError:
+                        pass
 
             # Strategy 2: Find all potential JSON arrays and use the last valid one
             if ads is None:
@@ -1235,20 +1336,37 @@ class AdDetector:
                 logger.warning(f"[{slug}:{episode_id}] No valid JSON array found in response")
                 return []
 
-            # Validate and normalize ads
+            # Validate and normalize ads - handle various field name patterns
             valid_ads = []
             for ad in ads:
-                if isinstance(ad, dict) and 'start' in ad and 'end' in ad:
-                    start = float(ad['start'])
-                    end = float(ad['end'])
-                    if end > start:  # Skip invalid segments
-                        valid_ads.append({
-                            'start': start,
-                            'end': end,
-                            'confidence': float(ad.get('confidence', 1.0)),
-                            'reason': ad.get('reason', 'Advertisement detected'),
-                            'end_text': ad.get('end_text', '')
-                        })
+                if isinstance(ad, dict):
+                    # Log raw ad object for debugging
+                    logger.debug(f"[{slug}:{episode_id}] Raw ad from LLM: {json.dumps(ad, default=str)[:500]}")
+                    # Try various field name patterns for start/end times
+                    start_val = (ad.get('start') or ad.get('start_time') or
+                                 ad.get('ad_start_timestamp') or ad.get('start_time_seconds'))
+                    end_val = (ad.get('end') or ad.get('end_time') or
+                               ad.get('ad_end_timestamp') or ad.get('end_time_seconds'))
+
+                    if start_val is not None and end_val is not None:
+                        try:
+                            start = parse_timestamp(start_val)
+                            end = parse_timestamp(end_val)
+                            if end > start:  # Skip invalid segments
+                                # Extract sponsor/advertiser name using priority fields + pattern matching
+                                reason = extract_sponsor_name(ad)
+                                # Log extracted ad details for production visibility
+                                logger.info(f"[{slug}:{episode_id}] Extracted ad: {start:.1f}s-{end:.1f}s, reason='{reason}', fields={list(ad.keys())}")
+                                valid_ads.append({
+                                    'start': start,
+                                    'end': end,
+                                    'confidence': float(ad.get('confidence', 0.8)),
+                                    'reason': reason,
+                                    'end_text': ad.get('end_text', '')
+                                })
+                        except ValueError as e:
+                            logger.warning(f"[{slug}:{episode_id}] Skipping ad with invalid timestamp: {e}")
+                            continue
 
             return valid_ads
 
@@ -1349,19 +1467,20 @@ class AdDetector:
 
                 for attempt in range(max_retries + 1):
                     try:
-                        response = self.client.messages.create(
+                        response = self._llm_client.messages_create(
                             model=model,
                             max_tokens=2000,
                             temperature=0.0,
                             system=system_prompt,
                             messages=[{"role": "user", "content": prompt}],
-                            timeout=120.0  # 2 minute timeout
+                            timeout=120.0,
+                            response_format={"type": "json_object"}
                         )
                         break
                     except Exception as e:
                         last_error = e
                         if self._is_retryable_error(e) and attempt < max_retries:
-                            if isinstance(e, RateLimitError):
+                            if is_rate_limit_error(e):
                                 delay = 60.0
                                 logger.warning(f"[{slug}:{episode_id}] Window {i+1} rate limit, waiting {delay:.0f}s")
                             else:
@@ -1384,8 +1503,8 @@ class AdDetector:
                     logger.error(f"[{slug}:{episode_id}] Window {i+1} - no response after retries")
                     continue
 
-                # Parse response
-                response_text = response.content[0].text if response.content else ""
+                # Parse response (LLMResponse.content is already extracted text)
+                response_text = response.content
                 all_raw_responses.append(f"=== Window {i+1} ({window_start/60:.1f}-{window_end/60:.1f}min) ===\n{response_text}")
 
                 # Parse ads from response
@@ -1521,7 +1640,7 @@ class AdDetector:
                         'start': match.start,
                         'end': match.end,
                         'confidence': match.confidence,
-                        'reason': f"Audio fingerprint match (pattern {match.pattern_id})",
+                        'reason': match.sponsor if match.sponsor else f"Audio fingerprint match",
                         'sponsor': match.sponsor,
                         'detection_stage': 'fingerprint',
                         'pattern_id': match.pattern_id
@@ -1565,7 +1684,7 @@ class AdDetector:
                         'start': match.start,
                         'end': match.end,
                         'confidence': match.confidence,
-                        'reason': f"Text pattern match ({match.match_type}, pattern {match.pattern_id})",
+                        'reason': match.sponsor if match.sponsor else f"Text pattern match ({match.match_type})",
                         'sponsor': match.sponsor,
                         'detection_stage': 'text_pattern',
                         'pattern_id': match.pattern_id
@@ -1969,19 +2088,20 @@ class AdDetector:
 
                 for attempt in range(max_retries + 1):
                     try:
-                        response = self.client.messages.create(
+                        response = self._llm_client.messages_create(
                             model=model,
                             max_tokens=2000,
                             temperature=0.0,
                             system=system_prompt,
                             messages=[{"role": "user", "content": prompt}],
-                            timeout=120.0  # 2 minute timeout
+                            timeout=120.0,
+                            response_format={"type": "json_object"}
                         )
                         break
                     except Exception as e:
                         last_error = e
                         if self._is_retryable_error(e) and attempt < max_retries:
-                            if isinstance(e, RateLimitError):
+                            if is_rate_limit_error(e):
                                 delay = 60.0
                                 logger.warning(f"[{slug}:{episode_id}] Second pass Window {i+1} rate limit, waiting {delay:.0f}s")
                             else:
@@ -2002,8 +2122,8 @@ class AdDetector:
                     logger.error(f"[{slug}:{episode_id}] Second pass Window {i+1} - no response after retries")
                     continue
 
-                # Parse response
-                response_text = response.content[0].text if response.content else ""
+                # Parse response (LLMResponse.content is already extracted text)
+                response_text = response.content
                 all_raw_responses.append(f"=== Window {i+1} ({window_start/60:.1f}-{window_end/60:.1f}min) ===\n{response_text}")
 
                 # Parse ads from response

@@ -4,6 +4,7 @@ ctranslate2==4.4.0
 
 # API and web
 anthropic==0.49.0
+openai>=1.0.0  # For OpenAI-compatible API support (Claude Code wrapper, Ollama)
 flask==3.0.3
 flask-compress>=1.14
 flask-cors==4.0.0
