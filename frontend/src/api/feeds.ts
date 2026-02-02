@@ -51,7 +51,7 @@ export async function reprocessEpisode(
   episodeId: string,
   mode: 'reprocess' | 'full' = 'reprocess'
 ): Promise<{ message: string; mode: string }> {
-  return apiRequest<{ message: string; mode: string }>(`/feeds/${slug}/episodes/${episodeId}/reprocess`, {
+  return apiRequest<{ message: string; mode: string }>(`/episodes/${slug}/${episodeId}/reprocess`, {
     method: 'POST',
     body: { mode },
   });

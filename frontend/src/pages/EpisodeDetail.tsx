@@ -5,6 +5,7 @@ import { getEpisode, reprocessEpisode, regenerateChapters } from '../api/feeds';
 import { submitCorrection } from '../api/patterns';
 import LoadingSpinner from '../components/LoadingSpinner';
 import TranscriptEditor, { AdCorrection } from '../components/TranscriptEditor';
+import PatternLink from '../components/PatternLink';
 
 // Save status type for visual feedback
 type SaveStatus = 'idle' | 'saving' | 'success' | 'error';
@@ -439,7 +440,9 @@ function EpisodeDetail() {
                 </div>
                 {/* Row 2: Description - full width below badges for better mobile display */}
                 {segment.reason && (
-                  <p className="text-sm text-muted-foreground mt-2 break-words">{segment.reason}</p>
+                  <p className="text-sm text-muted-foreground mt-2 break-words">
+                    <PatternLink reason={segment.reason} />
+                  </p>
                 )}
               </div>
             ))}

@@ -6,6 +6,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.222] - 2026-02-02
+
+### Added
+- **Pattern ID column on Patterns page**: Added sortable ID column as the first column in the patterns table. Pattern IDs are now visible in both desktop table view and mobile card view.
+
+- **Clickable pattern links in ad reasons**: Pattern references like "(pattern #63)" in detected ad descriptions are now clickable links that navigate to the pattern detail modal on the Patterns page.
+
+- **Pattern search by ID**: The search filter on the Patterns page now also matches pattern IDs, so you can search for "63" to find pattern #63.
+
+### Fixed
+- **"Full Analysis" mode ignored during reprocess**: Fixed a bug where clicking "Full Analysis" in the reprocess menu would still use patterns instead of pure Claude analysis. The frontend was calling the wrong API endpoint (`/feeds/{slug}/episodes/{episodeId}/reprocess`) which ignored the mode parameter. Now correctly calls `/episodes/{slug}/{episodeId}/reprocess` which properly handles the mode.
+
+---
+
 ## [0.1.221] - 2026-02-02
 
 ### Improved

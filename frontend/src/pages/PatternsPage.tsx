@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useSearchParams } from 'react-router-dom';
 import { getPatterns, getPatternStats, AdPattern } from '../api/patterns';
 import PatternDetailModal from '../components/PatternDetailModal';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -15,6 +16,7 @@ function PatternsPage() {
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [page, setPage] = useState(1);
   const limit = 20;
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const { data: patterns, isLoading, error, refetch } = useQuery({
     queryKey: ['patterns', scopeFilter, showInactive],
@@ -39,10 +41,24 @@ function PatternsPage() {
     setPage(1); // Reset to first page on sort change
   };
 
+  // Handle ?id= query param to open pattern detail
+  useEffect(() => {
+    const idParam = searchParams.get('id');
+    if (idParam && patterns) {
+      const pattern = patterns.find(p => p.id === parseInt(idParam));
+      if (pattern) {
+        setSelectedPattern(pattern);
+        // Clear the param after opening
+        setSearchParams({});
+      }
+    }
+  }, [patterns, searchParams, setSearchParams]);
+
   const filteredPatterns = patterns?.filter(pattern => {
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       return (
+        pattern.id.toString().includes(query) ||
         pattern.sponsor?.toLowerCase().includes(query) ||
         pattern.text_template?.toLowerCase().includes(query) ||
         pattern.network_id?.toLowerCase().includes(query) ||
@@ -263,8 +279,11 @@ function PatternsPage() {
             onClick={() => setSelectedPattern(pattern)}
           >
             <div className="flex items-center justify-between mb-2">
-              {getScopeBadge(pattern)}
-              {getStatusBadge(pattern.is_active)}
+              <span className="text-xs font-mono text-muted-foreground">#{pattern.id}</span>
+              <div className="flex items-center gap-2">
+                {getScopeBadge(pattern)}
+                {getStatusBadge(pattern.is_active)}
+              </div>
             </div>
             <div className="text-sm font-medium text-foreground mb-1">
               {pattern.sponsor || '(Unknown)'}
@@ -300,6 +319,7 @@ function PatternsPage() {
           <table className="min-w-full divide-y divide-border">
             <thead className="bg-muted/50">
               <tr>
+                <SortHeader field="id" label="ID" />
                 <SortHeader field="scope" label="Scope" />
                 <SortHeader field="sponsor" label="Sponsor" />
                 <SortHeader field="confirmation_count" label="Confirmed" />
@@ -318,6 +338,9 @@ function PatternsPage() {
                   className="hover:bg-accent/50 cursor-pointer transition-colors"
                   onClick={() => setSelectedPattern(pattern)}
                 >
+                  <td className="px-4 py-3 whitespace-nowrap text-sm font-mono text-muted-foreground">
+                    #{pattern.id}
+                  </td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     {getScopeBadge(pattern)}
                   </td>
@@ -358,7 +381,7 @@ function PatternsPage() {
               ))}
               {paginatedPatterns?.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
                     No patterns found
                   </td>
                 </tr>

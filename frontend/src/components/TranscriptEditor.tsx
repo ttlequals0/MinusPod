@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useTranscriptKeyboard } from '../hooks/useTranscriptKeyboard';
 import { X, Check, RotateCcw, Save, Play, Pause, ChevronLeft, ChevronRight, ChevronUp, ChevronDown } from 'lucide-react';
+import PatternLink from './PatternLink';
 
 interface TranscriptSegment {
   start: number;
@@ -572,7 +573,9 @@ export function TranscriptEditor({
         {/* Collapsible reason section */}
         {showReason && selectedAd.reason && (
           <div className="px-4 py-2 border-b border-border bg-muted/30 text-sm text-muted-foreground">
-            <p className="break-words">{selectedAd.reason}</p>
+            <p className="break-words">
+              <PatternLink reason={selectedAd.reason} />
+            </p>
           </div>
         )}
 
