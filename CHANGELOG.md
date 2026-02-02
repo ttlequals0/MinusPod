@@ -6,6 +6,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.224] - 2026-02-02
+
+### Fixed
+- **Reprocess endpoint timeout**: Fixed 504 Gateway Timeout when reprocessing episodes. The endpoint was calling `process_episode()` synchronously, causing nginx to timeout before processing completed. Now uses `start_background_processing()` (same pattern as JIT processing) and returns 202 Accepted immediately. The frontend polls for status updates via existing mechanisms.
+
+---
+
 ## [0.1.223] - 2026-02-02
 
 ### Fixed
