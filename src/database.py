@@ -856,6 +856,80 @@ class Database:
             except Exception as e:
                 logger.error(f"Migration failed for retry_count: {e}")
 
+        # Migration: Update episodes status CHECK constraint to include 'permanently_failed'
+        # SQLite doesn't support ALTER TABLE to modify constraints, so we recreate the table
+        try:
+            cursor = conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='episodes'")
+            create_sql = cursor.fetchone()
+            if create_sql and 'permanently_failed' not in create_sql[0]:
+                logger.info("Migration: Updating episodes table CHECK constraint for permanently_failed status...")
+
+                # Get current column list from old table
+                cursor = conn.execute("PRAGMA table_info(episodes)")
+                old_columns = [row['name'] for row in cursor.fetchall()]
+
+                # 1. Create new table with correct constraint (matches current SCHEMA_SQL)
+                conn.execute("""
+                    CREATE TABLE episodes_new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        podcast_id INTEGER NOT NULL,
+                        episode_id TEXT NOT NULL,
+                        original_url TEXT NOT NULL,
+                        title TEXT,
+                        description TEXT,
+                        status TEXT DEFAULT 'pending' CHECK(status IN ('pending','processing','processed','failed','permanently_failed')),
+                        retry_count INTEGER DEFAULT 0,
+                        processed_file TEXT,
+                        processed_at TEXT,
+                        original_duration REAL,
+                        new_duration REAL,
+                        ads_removed INTEGER DEFAULT 0,
+                        ads_removed_firstpass INTEGER DEFAULT 0,
+                        ads_removed_secondpass INTEGER DEFAULT 0,
+                        error_message TEXT,
+                        ad_detection_status TEXT DEFAULT NULL CHECK(ad_detection_status IN (NULL, 'success', 'failed')),
+                        artwork_url TEXT,
+                        reprocess_mode TEXT,
+                        reprocess_requested_at TEXT,
+                        published_at TEXT,
+                        created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                        updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                        FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE,
+                        UNIQUE(podcast_id, episode_id)
+                    )
+                """)
+
+                # Get new table columns
+                cursor = conn.execute("PRAGMA table_info(episodes_new)")
+                new_columns = [row['name'] for row in cursor.fetchall()]
+
+                # Find common columns (exist in both tables)
+                common_columns = [c for c in old_columns if c in new_columns]
+                columns_str = ', '.join(common_columns)
+
+                # 2. Copy data (only common columns, defaults fill the rest)
+                conn.execute(f"""
+                    INSERT INTO episodes_new ({columns_str})
+                    SELECT {columns_str} FROM episodes
+                """)
+
+                # 3. Drop old table
+                conn.execute("DROP TABLE episodes")
+
+                # 4. Rename new table
+                conn.execute("ALTER TABLE episodes_new RENAME TO episodes")
+
+                # 5. Recreate indexes
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_podcast ON episodes(podcast_id)")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_status ON episodes(status)")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_processed_at ON episodes(processed_at)")
+
+                conn.commit()
+                logger.info("Migration: Successfully updated episodes table CHECK constraint")
+        except Exception as e:
+            logger.error(f"Migration failed for episodes CHECK constraint: {e}")
+            raise  # This is critical - app cannot function without this migration
+
         # Migration: Create auto_process_queue table if not exists
         try:
             conn.execute("""

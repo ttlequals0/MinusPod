@@ -6,6 +6,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.228] - 2026-02-05
+
+### Fixed
+- **App startup failure**: Added migration to update episodes table CHECK constraint to include `permanently_failed` status. The `permanently_failed` status was added in v0.1.225 code but the migration to update existing databases' CHECK constraint was missing. SQLite requires table recreation to modify constraints.
+
+---
+
 ## [0.1.227] - 2026-02-05
 
 ### Fixed
