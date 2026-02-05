@@ -6,6 +6,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.232] - 2026-02-05
+
+### Fixed
+- **Ad detection parsing failures**: Fixed bug in `_parse_ads_from_response()` where valid ads were not being extracted from Claude's responses. Added support for `ads_and_sponsorships` response key (Claude sometimes uses this instead of just `ads`). Added support for `start_timestamp`/`end_timestamp` field names (Claude's alternate naming convention). This fixes 0 ads detected for episodes where Claude was correctly identifying ads but the parser couldn't extract them.
+- **CUDA OOM from legacy reprocess endpoint**: The old `/feeds/<slug>/episodes/<episode_id>/reprocess` endpoint was calling `process_episode()` directly, bypassing the `ProcessingQueue` lock that prevents concurrent GPU processing. This allowed two episodes to transcribe simultaneously, exhausting GPU memory. Updated to use `start_background_processing()` like the new endpoint, ensuring proper queue coordination. The endpoint now returns 202 Accepted and processes asynchronously.
+
+---
+
 ## [0.1.231] - 2026-02-05
 
 ### Fixed

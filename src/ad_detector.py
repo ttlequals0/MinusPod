@@ -1368,6 +1368,9 @@ class AdDetector:
                     elif 'advertisement_segments' in parsed and isinstance(parsed['advertisement_segments'], list):
                         ads = parsed['advertisement_segments']
                         extraction_method = "json_object_advertisement_segments_key"
+                    elif 'ads_and_sponsorships' in parsed and isinstance(parsed['ads_and_sponsorships'], list):
+                        ads = parsed['ads_and_sponsorships']
+                        extraction_method = "json_object_ads_and_sponsorships_key"
                     elif 'segments' in parsed and isinstance(parsed['segments'], list):
                         # Filter to only advertisement type segments
                         ads = [s for s in parsed['segments']
@@ -1432,9 +1435,9 @@ class AdDetector:
                     # Log raw ad object for debugging
                     logger.debug(f"[{slug}:{episode_id}] Raw ad from LLM: {json.dumps(ad, default=str)[:500]}")
                     # Try various field name patterns for start/end times
-                    start_val = (ad.get('start') or ad.get('start_time') or
+                    start_val = (ad.get('start') or ad.get('start_time') or ad.get('start_timestamp') or
                                  ad.get('ad_start_timestamp') or ad.get('start_time_seconds'))
-                    end_val = (ad.get('end') or ad.get('end_time') or
+                    end_val = (ad.get('end') or ad.get('end_time') or ad.get('end_timestamp') or
                                ad.get('ad_end_timestamp') or ad.get('end_time_seconds'))
 
                     if start_val is not None and end_val is not None:

@@ -919,7 +919,11 @@ def get_transcript(slug, episode_id):
 @limiter.limit("5 per minute")
 @log_request
 def reprocess_episode(slug, episode_id):
-    """Force reprocess an episode by deleting cached data and reprocessing immediately."""
+    """Force reprocess an episode by deleting cached data and reprocessing.
+
+    NOTE: This is the legacy endpoint. Prefer /episodes/<slug>/<episode_id>/reprocess
+    which supports reprocess modes (reprocess vs full).
+    """
     db = get_database()
     storage = get_storage()
 
@@ -929,6 +933,10 @@ def reprocess_episode(slug, episode_id):
 
     if episode['status'] == 'processing':
         return error_response('Episode is currently processing', 409)
+
+    podcast = db.get_podcast_by_slug(slug)
+    if not podcast:
+        return error_response('Podcast not found', 404)
 
     try:
         # 1. Delete processed audio file
@@ -940,56 +948,37 @@ def reprocess_episode(slug, episode_id):
         # 3. Reset episode status to pending
         db.reset_episode_status(slug, episode_id)
 
-        # 4. Trigger immediate reprocessing
-        from main import process_episode
-        from rss_parser import RSSParser
-
+        # 4. Get episode metadata for processing
         episode_url = episode.get('original_url')
         episode_title = episode.get('title', 'Unknown')
+        podcast_name = podcast.get('title', slug)
+        episode_description = episode.get('description')
+        episode_published_at = episode.get('published_at')
 
-        podcast = db.get_podcast_by_slug(slug)
-        podcast_name = podcast.get('title', slug) if podcast else slug
+        # 5. Start background processing (non-blocking, uses ProcessingQueue lock)
+        from main import start_background_processing
+        logger.info(f"[{slug}:{episode_id}] Starting reprocess (async)")
 
-        # Fetch episode description and published date from RSS if available
-        episode_description = None
-        episode_published_at = None
-        if podcast and podcast.get('source_url'):
-            try:
-                rss_parser = RSSParser()
-                feed_content = rss_parser.fetch_feed(podcast['source_url'])
-                if feed_content:
-                    episodes = rss_parser.extract_episodes(feed_content)
-                    for ep in episodes:
-                        if ep['id'] == episode_id:
-                            episode_description = ep.get('description')
-                            # Get published date from RSS and convert to ISO format
-                            published_str = ep.get('published', '')
-                            if published_str:
-                                try:
-                                    from email.utils import parsedate_to_datetime
-                                    parsed_pub = parsedate_to_datetime(published_str)
-                                    episode_published_at = parsed_pub.strftime('%Y-%m-%dT%H:%M:%SZ')
-                                except (ValueError, TypeError):
-                                    pass
-                            break
-            except Exception as e:
-                logger.warning(f"Could not fetch episode metadata: {e}")
+        started, reason = start_background_processing(
+            slug, episode_id, episode_url, episode_title,
+            podcast_name, episode_description, None, episode_published_at
+        )
 
-        logger.info(f"Starting reprocess: {slug}:{episode_id}")
-        success = process_episode(slug, episode_id, episode_url, episode_title, podcast_name, episode_description, None, episode_published_at)
-
-        if success:
+        if started:
             return json_response({
-                'message': 'Episode reprocessed successfully',
+                'message': 'Episode reprocess started',
                 'episodeId': episode_id,
-                'status': 'completed'
-            })
+                'status': 'processing'
+            }, 202)  # 202 Accepted - processing started asynchronously
         else:
+            # Queue is busy - episode is queued, will be picked up by background processor
+            logger.info(f"[{slug}:{episode_id}] Queue busy ({reason}), episode queued for processing")
             return json_response({
-                'message': 'Episode reprocessing failed',
+                'message': 'Episode queued for reprocess',
                 'episodeId': episode_id,
-                'status': 'failed'
-            }, 500)
+                'status': 'queued',
+                'reason': reason
+            }, 202)
 
     except Exception as e:
         logger.error(f"Failed to reprocess episode {slug}:{episode_id}: {e}")
