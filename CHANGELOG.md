@@ -6,6 +6,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.233] - 2026-02-05
+
+### Fixed
+- **Reprocess button does nothing when queue is busy**: When clicking "Reprocess" while another episode was processing, the API returned "queued" but never actually added the episode to the processing queue. The `background_queue_processor()` only reads from the `auto_process_queue` table, so episodes that bypassed this table were never picked up. Both reprocess endpoints (`/reprocess` and `/episodes/{id}/reprocess`) now call `db.queue_episode_for_processing()` when the processing lock is busy, ensuring episodes are actually added to the queue for background processing.
+
+---
+
 ## [0.1.232] - 2026-02-05
 
 ### Fixed

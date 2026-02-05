@@ -971,8 +971,12 @@ def reprocess_episode(slug, episode_id):
                 'status': 'processing'
             }, 202)  # 202 Accepted - processing started asynchronously
         else:
-            # Queue is busy - episode is queued, will be picked up by background processor
-            logger.info(f"[{slug}:{episode_id}] Queue busy ({reason}), episode queued for processing")
+            # Queue is busy - add to processing queue so background processor picks it up
+            db.queue_episode_for_processing(
+                slug, episode_id, episode_url, episode_title,
+                episode_published_at, episode_description
+            )
+            logger.info(f"[{slug}:{episode_id}] Queue busy ({reason}), added to processing queue")
             return json_response({
                 'message': 'Episode queued for reprocess',
                 'episodeId': episode_id,
@@ -2826,8 +2830,12 @@ def reprocess_episode_with_mode(slug, episode_id):
                 'status': 'processing'
             }, 202)  # 202 Accepted
         else:
-            # Queue is busy - episode is queued, will be picked up by background processor
-            logger.info(f"[{slug}:{episode_id}] Queue busy ({reason}), episode queued for processing")
+            # Queue is busy - add to processing queue so background processor picks it up
+            db.queue_episode_for_processing(
+                slug, episode_id, episode_url, episode_title,
+                episode_published_at, episode_description
+            )
+            logger.info(f"[{slug}:{episode_id}] Queue busy ({reason}), added to processing queue")
             return json_response({
                 'message': f'Episode queued for {mode} reprocess',
                 'mode': mode,
