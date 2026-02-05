@@ -6,6 +6,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.234] - 2026-02-05
+
+### Fixed
+- **Ad detection parsing missing ads_detected key and nested structures**: Fixed bug in `_parse_ads_from_response()` where Claude's ad detections were not being extracted due to missing parser support. Added support for `ads_detected` key (Claude sometimes uses this instead of `ads`). Added support for nested `window` structure (e.g., `{"window": {"ads_detected": [...]}}`). The `parse_timestamp()` function already handles string timestamps with "s" suffix (e.g., "28.8s"). This fixes episodes where Claude correctly detected ads but the parser failed to extract them.
+
+---
+
 ## [0.1.233] - 2026-02-05
 
 ### Fixed

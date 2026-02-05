@@ -1359,27 +1359,45 @@ class AdDetector:
 
             # Strategy 0: Try to parse as JSON object and extract ads from various structures
             # Handles responses like {"ads": [...]}, {"segments": [...]}, {"advertisement_segments": [...]}
+            # Also handles nested structures like {"window": {"ads_detected": [...]}}
             try:
                 parsed = json.loads(cleaned_text)
                 if isinstance(parsed, dict):
-                    if 'ads' in parsed and isinstance(parsed['ads'], list):
-                        ads = parsed['ads']
-                        extraction_method = "json_object_ads_key"
-                    elif 'advertisement_segments' in parsed and isinstance(parsed['advertisement_segments'], list):
-                        ads = parsed['advertisement_segments']
-                        extraction_method = "json_object_advertisement_segments_key"
-                    elif 'ads_and_sponsorships' in parsed and isinstance(parsed['ads_and_sponsorships'], list):
-                        ads = parsed['ads_and_sponsorships']
-                        extraction_method = "json_object_ads_and_sponsorships_key"
-                    elif 'segments' in parsed and isinstance(parsed['segments'], list):
-                        # Filter to only advertisement type segments
-                        ads = [s for s in parsed['segments']
-                               if isinstance(s, dict) and s.get('type') == 'advertisement']
-                        extraction_method = "json_object_segments_key"
-                    else:
-                        # No recognizable ad structure - check for other possible keys
-                        ads = []
-                        extraction_method = "json_object_no_ads"
+                    # Check for nested window structure first (e.g., {"window": {"ads_detected": [...]}})
+                    if 'window' in parsed and isinstance(parsed['window'], dict):
+                        window = parsed['window']
+                        for key in ['ads_detected', 'ads', 'advertisement_segments', 'ads_and_sponsorships', 'segments']:
+                            if key in window and isinstance(window[key], list):
+                                if key == 'segments':
+                                    ads = [s for s in window[key]
+                                           if isinstance(s, dict) and s.get('type') == 'advertisement']
+                                else:
+                                    ads = window[key]
+                                extraction_method = f"json_object_window_{key}"
+                                break
+                    # Check top-level keys if window didn't match
+                    if ads is None:
+                        if 'ads' in parsed and isinstance(parsed['ads'], list):
+                            ads = parsed['ads']
+                            extraction_method = "json_object_ads_key"
+                        elif 'ads_detected' in parsed and isinstance(parsed['ads_detected'], list):
+                            ads = parsed['ads_detected']
+                            extraction_method = "json_object_ads_detected_key"
+                        elif 'advertisement_segments' in parsed and isinstance(parsed['advertisement_segments'], list):
+                            ads = parsed['advertisement_segments']
+                            extraction_method = "json_object_advertisement_segments_key"
+                        elif 'ads_and_sponsorships' in parsed and isinstance(parsed['ads_and_sponsorships'], list):
+                            ads = parsed['ads_and_sponsorships']
+                            extraction_method = "json_object_ads_and_sponsorships_key"
+                        elif 'segments' in parsed and isinstance(parsed['segments'], list):
+                            # Filter to only advertisement type segments
+                            ads = [s for s in parsed['segments']
+                                   if isinstance(s, dict) and s.get('type') == 'advertisement']
+                            extraction_method = "json_object_segments_key"
+                        else:
+                            # No recognizable ad structure - check for other possible keys
+                            ads = []
+                            extraction_method = "json_object_no_ads"
                 elif isinstance(parsed, list):
                     ads = parsed
                     extraction_method = "json_array_direct"
