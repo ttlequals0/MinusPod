@@ -723,9 +723,9 @@ def background_queue_processor():
             orphan_check_interval += 1
             if orphan_check_interval >= 10:
                 orphan_check_interval = 0
-                orphaned = db.reset_orphaned_queue_items(stuck_minutes=35)
-                if orphaned > 0:
-                    refresh_logger.info(f"Reset {orphaned} orphaned queue items")
+                reset_count, failed_count = db.reset_orphaned_queue_items(stuck_minutes=35)
+                if reset_count > 0 or failed_count > 0:
+                    refresh_logger.info(f"Reset {reset_count} orphaned queue items, {failed_count} exceeded max attempts")
 
             # Get next queued episode
             queued = db.get_next_queued_episode()

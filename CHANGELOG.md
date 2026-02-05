@@ -6,6 +6,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.231] - 2026-02-05
+
+### Fixed
+- **Infinite episode retry loop**: Fixed bug introduced in v0.1.225 where `reset_orphaned_queue_items()` would reset stuck queue items to 'pending' indefinitely without incrementing the `attempts` counter. Episodes that repeatedly fail (e.g., CUDA OOM on long episodes) would cycle forever: fail -> reset to pending -> retry -> fail -> repeat. Now the function increments `attempts` on each reset and marks items as permanently 'failed' after exceeding `max_attempts` (default 3). This stops resource-consuming episodes from blocking the queue indefinitely.
+
+---
+
 ## [0.1.230] - 2026-02-05
 
 ### Fixed

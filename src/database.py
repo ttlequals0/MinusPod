@@ -3179,38 +3179,59 @@ class Database:
         conn.commit()
         return cursor.rowcount
 
-    def reset_orphaned_queue_items(self, stuck_minutes: int = 35) -> int:
+    def reset_orphaned_queue_items(self, stuck_minutes: int = 35, max_attempts: int = 3) -> Tuple[int, int]:
         """Reset queue items stuck in 'processing' for too long.
 
         This catches orphaned queue items where the worker crashed or was killed
-        without properly updating the status. Items stuck longer than stuck_minutes
-        are reset to 'pending' for retry.
+        without properly updating the status. Items exceeding max_attempts are
+        marked as 'failed' permanently. Items under max_attempts are reset to
+        'pending' with incremented attempts counter.
 
         Args:
             stuck_minutes: Minutes after which a 'processing' item is considered orphaned
+            max_attempts: Maximum retry attempts before marking as permanently failed
 
         Returns:
-            Count of reset items
+            Tuple of (reset_count, failed_count)
         """
         conn = self.get_connection()
+
+        # First: Mark items that exceeded max attempts as permanently failed
+        cursor = conn.execute(
+            """UPDATE auto_process_queue
+               SET status = 'failed',
+                   updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now'),
+                   error_message = 'Exceeded max retry attempts'
+               WHERE status = 'processing'
+               AND attempts >= ?
+               AND datetime(updated_at) < datetime('now', ? || ' minutes')
+               RETURNING id, episode_id""",
+            (max_attempts, f'-{stuck_minutes}')
+        )
+        failed_items = cursor.fetchall()
+
+        # Second: Reset items under max attempts, incrementing counter
         cursor = conn.execute(
             """UPDATE auto_process_queue
                SET status = 'pending',
+                   attempts = attempts + 1,
                    updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now'),
                    error_message = 'Reset after processing timeout'
                WHERE status = 'processing'
+               AND attempts < ?
                AND datetime(updated_at) < datetime('now', ? || ' minutes')
                RETURNING id, episode_id""",
-            (f'-{stuck_minutes}',)
+            (max_attempts, f'-{stuck_minutes}')
         )
-        orphans = cursor.fetchall()
+        reset_items = cursor.fetchall()
         conn.commit()
 
-        if orphans:
-            for row in orphans:
-                logger.info(f"Reset orphaned queue item: id={row['id']}, episode_id={row['episode_id']}")
+        for row in failed_items:
+            logger.warning(f"Queue item exceeded max attempts, marking failed: id={row['id']}, episode_id={row['episode_id']}")
+        for row in reset_items:
+            logger.info(f"Reset orphaned queue item: id={row['id']}, episode_id={row['episode_id']}")
 
-        return len(orphans)
+        return len(reset_items), len(failed_items)
 
     # ========== Full-Text Search Methods ==========
 
