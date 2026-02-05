@@ -1567,6 +1567,37 @@ class Database:
         row = cursor.fetchone()
         return dict(row) if row else None
 
+    def get_episode_by_title_and_date(self, slug: str, title: str, published_at: str) -> Optional[Dict]:
+        """Get episode by title and publish date (for deduplication).
+
+        This catches cases where the same episode has different IDs due to
+        changing RSS GUIDs or dynamic URL parameters.
+
+        Args:
+            slug: Podcast slug
+            title: Episode title (exact match)
+            published_at: Publish date in ISO format
+
+        Returns:
+            Episode dict if found, None otherwise
+        """
+        if not title or not published_at:
+            return None
+
+        conn = self.get_connection()
+        podcast = self.get_podcast_by_slug(slug)
+        if not podcast:
+            return None
+
+        cursor = conn.execute(
+            """SELECT e.*, p.slug FROM episodes e
+               JOIN podcasts p ON e.podcast_id = p.id
+               WHERE p.slug = ? AND e.title = ? AND e.published_at = ?""",
+            (slug, title, published_at)
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
     def upsert_episode(self, slug: str, episode_id: str, **kwargs) -> int:
         """Insert or update an episode. Returns episode database ID."""
         conn = self.get_connection()

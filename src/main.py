@@ -576,8 +576,29 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
                 # Check if episode already exists in database
                 existing = db.get_episode(slug, ep['id'])
                 if existing is None:
-                    # Parse publish date to check if recent
+                    # Also check by title+pubDate to catch ID changes (Megaphone feeds, etc.)
+                    # This prevents duplicate processing when RSS GUID changes
                     published_str = ep.get('published', '')
+                    iso_published = None
+                    if published_str:
+                        try:
+                            parsed_pub = parsedate_to_datetime(published_str)
+                            iso_published = parsed_pub.strftime('%Y-%m-%dT%H:%M:%SZ')
+                        except (ValueError, TypeError):
+                            pass
+
+                    if iso_published and ep.get('title'):
+                        existing_by_title = db.get_episode_by_title_and_date(
+                            slug, ep.get('title'), iso_published
+                        )
+                        if existing_by_title:
+                            refresh_logger.warning(
+                                f"[{slug}] Episode ID changed: {existing_by_title['episode_id']} -> {ep['id']}, "
+                                f"title: {ep.get('title')}"
+                            )
+                            continue  # Skip - episode already exists with different ID
+
+                    # Parse publish date to check if recent
                     is_recent = False
                     if published_str:
                         try:
@@ -594,14 +615,7 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
 
                     if is_recent:
                         # New recent episode - queue for processing
-                        # Convert pubDate to ISO format for storage
-                        iso_published = None
-                        if published_str:
-                            try:
-                                parsed_pub = parsedate_to_datetime(published_str)
-                                iso_published = parsed_pub.strftime('%Y-%m-%dT%H:%M:%SZ')
-                            except (ValueError, TypeError):
-                                pass
+                        # iso_published already calculated above for deduplication check
                         queue_id = db.queue_episode_for_processing(
                             slug, ep['id'], ep['url'], ep.get('title'), iso_published,
                             ep.get('description')

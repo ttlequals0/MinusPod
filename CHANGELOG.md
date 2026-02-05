@@ -6,6 +6,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.229] - 2026-02-05
+
+### Fixed
+- **Concurrent episode processing causing CUDA OOM**: ProcessingQueue was using `threading.Lock` which only prevents concurrent access within a single Python process. With 2 Gunicorn workers (separate processes), each had its own lock, allowing both to process episodes simultaneously and exhausting GPU memory. Replaced with `fcntl.flock()` file-based locking that coordinates across all worker processes. The lock file and state are stored in `/app/data/` for cross-process visibility.
+
+- **Episode ID instability causing duplicates**: Same episodes were appearing multiple times in the database with different IDs because some RSS feeds (especially Megaphone) have unstable GUIDs or dynamic URL parameters. Added title+pubDate deduplication check in `refresh_rss_feed()` - before queuing a "new" episode, we now check if an episode with the same title and publish date already exists. If found, the episode is skipped with a warning log. Added `get_episode_by_title_and_date()` method to database.py.
+
+---
+
 ## [0.1.228] - 2026-02-05
 
 ### Fixed
