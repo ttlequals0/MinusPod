@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 # Must match StatusService.MAX_JOB_DURATION for consistency
-MAX_JOB_DURATION = 1800  # 30 minutes - auto-clear stuck jobs
+MAX_JOB_DURATION = 3600  # 60 minutes - auto-clear stuck jobs
 
 logger = logging.getLogger('podcast.processing_queue')
 
@@ -83,31 +83,36 @@ class ProcessingQueue:
         return (time.time() - state['acquired_at']) > MAX_JOB_DURATION
 
     def _clear_stale_state(self) -> bool:
-        """Clear stale state if job exceeded max duration. Returns True if cleared."""
+        """Clear stale state if job exceeded max duration. Returns True if cleared.
+
+        If THIS process holds the lock, the job is still alive (just long-running),
+        so we only log a warning. Only clear state for truly orphaned jobs where the
+        lock is not held by this process.
+        """
         state = self._read_state()
         if not self._is_stale(state):
             return False
 
         elapsed = time.time() - state['acquired_at']
         current = state.get('current_episode')
+
+        # If THIS process holds the lock, the job is still alive - not orphaned.
+        # Long episodes legitimately exceed MAX_JOB_DURATION. Only log, don't clear.
+        if self._lock_fd is not None:
+            if current:
+                logger.warning(
+                    f"Long-running job: {current[0]}:{current[1]} "
+                    f"({elapsed/60:.0f} min) - still in progress, not clearing"
+                )
+            return False
+
+        # Lock NOT held by this process - orphaned from a crashed process
         if current:
             logger.warning(
-                f"Auto-clearing stale ProcessingQueue state: {current[0]}:{current[1]} "
-                f"(running {elapsed/60:.0f} min, max {MAX_JOB_DURATION/60:.0f} min)"
+                f"Clearing orphaned queue state: {current[0]}:{current[1]} "
+                f"({elapsed/60:.0f} min, process no longer holds lock)"
             )
-
-        # Clear the state file
         self._write_state(None, None, None)
-
-        # Try to release file lock if we hold it
-        if self._lock_fd is not None:
-            try:
-                fcntl.flock(self._lock_fd, fcntl.LOCK_UN)
-                self._lock_fd.close()
-                self._lock_fd = None
-            except OSError:
-                pass
-
         return True
 
     def acquire(self, slug: str, episode_id: str, timeout: float = 0) -> bool:

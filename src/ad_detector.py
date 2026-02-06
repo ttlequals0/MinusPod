@@ -1249,10 +1249,16 @@ class AdDetector:
         SPONSOR_PRIORITY_FIELDS = ['sponsor_name', 'advertiser', 'sponsor', 'brand', 'company', 'product', 'name']
         # Pattern keywords for fuzzy matching any key containing these substrings
         SPONSOR_PATTERN_KEYWORDS = ['sponsor', 'brand', 'advertiser', 'company', 'product', 'ad_name', 'note']
-        # Fallback fields for description-like content
-        SPONSOR_FALLBACK_FIELDS = ['description', 'content_summary', 'ad_content', 'category', 'summary']
-        # Text fields to search for sponsor mentions in descriptive text
-        SPONSOR_TEXT_FIELDS = ['reasoning', 'summary', 'description', 'note']
+
+        # Structural fields that never contain sponsor/description info.
+        # Everything NOT in this set is a candidate for dynamic scanning.
+        STRUCTURAL_FIELDS = frozenset({
+            'start', 'end', 'start_time', 'end_time', 'start_timestamp', 'end_timestamp',
+            'ad_start_timestamp', 'ad_end_timestamp', 'start_time_seconds', 'end_time_seconds',
+            'confidence', 'end_text', 'is_ad', 'type', 'classification',
+            'start_seconds', 'end_seconds', 'duration', 'duration_seconds',
+            'music_bed', 'music_bed_confidence',
+        })
 
         # Invalid capture words - common English words that indicate regex captured garbage
         # e.g., "not an advertisement" -> regex captures "not an" as sponsor
@@ -1262,6 +1268,22 @@ class AdDetector:
             'is', 'was', 'are', 'were', 'with', 'from', 'for', 'by',
             'clear', 'any', 'some', 'host', 'their', 'its', 'our',
         })
+
+        def _text_is_duplicate(a: str, b: str) -> bool:
+            """Check if two strings are essentially the same text (one starts with the other or >80% word overlap)."""
+            a_lower = a.lower().strip()
+            b_lower = b.lower().strip()
+            # One starts with the other
+            if a_lower.startswith(b_lower) or b_lower.startswith(a_lower):
+                return True
+            # High word overlap
+            a_words = set(a_lower.split())
+            b_words = set(b_lower.split())
+            if not a_words or not b_words:
+                return False
+            overlap = len(a_words & b_words)
+            smaller = min(len(a_words), len(b_words))
+            return overlap / smaller > 0.8 if smaller > 0 else False
 
         def extract_sponsor_from_text(text: str) -> str | None:
             """Extract sponsor name from descriptive text like 'This is a BetterHelp advertisement'."""
@@ -1305,7 +1327,7 @@ class AdDetector:
             return None
 
         def extract_sponsor_name(ad: dict) -> str:
-            """Extract sponsor/advertiser name from ad dict using priority fields and pattern matching."""
+            """Extract sponsor/advertiser name from ad dict using priority fields, pattern matching, and dynamic scanning."""
             # Phase 1: Check priority fields in order
             for field in SPONSOR_PRIORITY_FIELDS:
                 value = get_valid_value(ad.get(field))
@@ -1321,17 +1343,26 @@ class AdDetector:
                         if value:
                             return value
 
-            # Phase 3: Fallback to description-like fields
-            for field in SPONSOR_FALLBACK_FIELDS:
-                value = get_valid_value(ad.get(field))
-                if value:
-                    return value
+            # Phase 3: Dynamic scan - check ALL non-structural string fields for short values
+            # that could be sponsor names (< 80 chars). This catches whatever field names
+            # Claude invents (topics, label, sponsor_or_topic, etc.)
+            priority_lower = {f.lower() for f in SPONSOR_PRIORITY_FIELDS}
+            for key, val in ad.items():
+                key_lower = key.lower()
+                if key_lower in STRUCTURAL_FIELDS or key_lower in priority_lower:
+                    continue
+                if isinstance(val, str) and len(val) < 80:
+                    value = get_valid_value(val)
+                    if value:
+                        return value
 
-            # Phase 4: Extract sponsor from longer text fields using regex patterns
-            for field in SPONSOR_TEXT_FIELDS:
-                text = ad.get(field)
-                if text:
-                    sponsor = extract_sponsor_from_text(str(text))
+            # Phase 4: Dynamic scan - check ALL non-structural string fields for longer text
+            # and try to extract sponsor names using regex patterns
+            for key, val in ad.items():
+                if key.lower() in STRUCTURAL_FIELDS:
+                    continue
+                if isinstance(val, str) and len(val) > 10:
+                    sponsor = extract_sponsor_from_text(val)
                     if sponsor:
                         return sponsor
 
@@ -1446,6 +1477,13 @@ class AdDetector:
                 logger.warning(f"[{slug}:{episode_id}] No valid JSON array found in response")
                 return []
 
+            # Classifications that indicate non-ad content
+            NOT_AD_CLASSIFICATIONS = frozenset({
+                'content', 'not_ad', 'editorial', 'organic',
+                'show_content', 'regular_content', 'interview',
+                'conversation', 'segment', 'topic'
+            })
+
             # Validate and normalize ads - handle various field name patterns
             valid_ads = []
             for ad in ads:
@@ -1463,6 +1501,21 @@ class AdDetector:
                             start = parse_timestamp(start_val)
                             end = parse_timestamp(end_val)
                             if end > start:  # Skip invalid segments
+                                # Filter out explicitly marked non-ads
+                                is_ad_val = ad.get('is_ad')
+                                if is_ad_val is not None:
+                                    if str(is_ad_val).lower() in ('false', 'no', '0', 'none'):
+                                        logger.info(f"[{slug}:{episode_id}] Skipping non-ad: "
+                                                    f"{start:.1f}s-{end:.1f}s (is_ad={is_ad_val})")
+                                        continue
+
+                                # Filter by classification/type field
+                                classification = str(ad.get('classification') or ad.get('type') or '').lower()
+                                if classification in NOT_AD_CLASSIFICATIONS:
+                                    logger.info(f"[{slug}:{episode_id}] Skipping non-ad: "
+                                                f"{start:.1f}s-{end:.1f}s (classification={classification})")
+                                    continue
+
                                 # Extract sponsor/advertiser name using priority fields + pattern matching
                                 # First check if Claude already provided a valid reason with sponsor info
                                 existing_reason = ad.get('reason')
@@ -1476,22 +1529,30 @@ class AdDetector:
                                     reason = extract_sponsor_name(ad)
 
                                 # Extract description from Claude's response to enrich the reason
+                                # Dynamic scan: check ALL non-structural string fields > 10 chars
+                                # Skip 'reason' (already used above); duplication with sponsor handled at combine time
                                 description = None
-                                desc_fields = ['notes', 'explanation', 'content_summary', 'description',
-                                               'ad_description', 'message', 'content', 'summary']
-                                for desc_field in desc_fields:
-                                    desc = ad.get(desc_field)
-                                    if desc and isinstance(desc, str) and len(desc) > 10:
-                                        description = desc
-                                        break
+                                for key, val in ad.items():
+                                    if key.lower() in STRUCTURAL_FIELDS:
+                                        continue
+                                    if key == 'reason':
+                                        continue  # Already handled as primary reason
+                                    if isinstance(val, str) and len(val) > 10:
+                                        # Prefer longer descriptive text over short values
+                                        if description is None or len(val) > len(description):
+                                            description = val
+                                # Truncate if very long (will be further truncated below)
+                                if description and len(description) > 300:
+                                    description = description[:297] + "..."
 
                                 # Combine sponsor + description in reason field
                                 if description:
                                     if reason and reason != 'Advertisement detected':
-                                        # Truncate long descriptions
-                                        if len(description) > 150:
-                                            description = description[:147] + "..."
-                                        reason = f"{reason}: {description}"
+                                        # Avoid duplication: check if description is essentially the same text
+                                        if not _text_is_duplicate(reason, description):
+                                            if len(description) > 150:
+                                                description = description[:147] + "..."
+                                            reason = f"{reason}: {description}"
                                     elif not reason or reason == 'Advertisement detected':
                                         reason = description
 

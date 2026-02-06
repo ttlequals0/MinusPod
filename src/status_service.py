@@ -23,7 +23,7 @@ STATUS_FILE = os.path.join(
 )
 
 # Staleness thresholds (seconds)
-MAX_JOB_DURATION = 1800      # 30 minutes - auto-clear stuck jobs
+MAX_JOB_DURATION = 3600      # 60 minutes - auto-clear stuck jobs (must match processing_queue.py)
 MAX_QUEUE_ENTRY_AGE = 3600   # 1 hour - remove stale queue entries
 
 

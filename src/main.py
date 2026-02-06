@@ -723,7 +723,7 @@ def background_queue_processor():
             orphan_check_interval += 1
             if orphan_check_interval >= 10:
                 orphan_check_interval = 0
-                reset_count, failed_count = db.reset_orphaned_queue_items(stuck_minutes=35)
+                reset_count, failed_count = db.reset_orphaned_queue_items(stuck_minutes=65)
                 if reset_count > 0 or failed_count > 0:
                     refresh_logger.info(f"Reset {reset_count} orphaned queue items, {failed_count} exceeded max attempts")
 
@@ -754,7 +754,7 @@ def background_queue_processor():
                         # Reset backoff on successful start
                         backoff_seconds = 30
                         # Wait for processing to complete (poll status)
-                        max_wait = 600  # 10 minutes max
+                        max_wait = 3600  # 60 minutes max (match MAX_JOB_DURATION)
                         waited = 0
                         while waited < max_wait and not shutdown_event.is_set():
                             shutdown_event.wait(timeout=10)
