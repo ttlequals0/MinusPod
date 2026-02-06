@@ -6,6 +6,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.235] - 2026-02-06
+
+### Fixed
+- **Ad detection reason parsing shows generic "Advertisement detected" instead of sponsor names**: Fixed parsing logic in `_parse_ads_from_response()` that was missing field names Claude uses. Added `sponsor_name` to `SPONSOR_PRIORITY_FIELDS` (Claude often returns this instead of just `sponsor`). Added `reason` and `notes` to description fields (Claude provides context in these). Added pre-check for valid `reason` field before running sponsor extraction - if Claude already provided a valid reason, use it directly instead of overwriting with extraction logic. This fixes the cascade where bad parsing led to no pattern creation (patterns are rejected when sponsor is "Advertisement detected").
+- **Reason field duplicated in sponsor + description output**: When Claude provided a valid `reason` field (e.g., "BetterHelp advertisement for therapy"), the pre-check block correctly used it as the sponsor reason, but then the description extraction loop also matched the same `reason` field, producing duplicated output like "BetterHelp advertisement: BetterHelp advertisement". Removed `reason` from `desc_fields` since it is already handled by the pre-check block.
+- **Crash on `end_text: null` from Claude response**: When Claude returns `"end_text": null` in JSON, `dict.get('end_text', '')` returns `None` (not `""`) because the key exists with an explicit null value. This caused `TypeError: 'NoneType' object is not subscriptable` when slicing for log output. Fixed all three `end_text` access points to use `or ''` pattern which correctly converts None to empty string.
+
+---
+
 ## [0.1.234] - 2026-02-05
 
 ### Fixed

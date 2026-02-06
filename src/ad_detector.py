@@ -1246,7 +1246,7 @@ class AdDetector:
 
         # Sponsor/advertiser extraction configuration
         # Priority fields are checked in order for exact matches
-        SPONSOR_PRIORITY_FIELDS = ['advertiser', 'sponsor', 'brand', 'company', 'product', 'name']
+        SPONSOR_PRIORITY_FIELDS = ['sponsor_name', 'advertiser', 'sponsor', 'brand', 'company', 'product', 'name']
         # Pattern keywords for fuzzy matching any key containing these substrings
         SPONSOR_PATTERN_KEYWORDS = ['sponsor', 'brand', 'advertiser', 'company', 'product', 'ad_name', 'note']
         # Fallback fields for description-like content
@@ -1464,11 +1464,20 @@ class AdDetector:
                             end = parse_timestamp(end_val)
                             if end > start:  # Skip invalid segments
                                 # Extract sponsor/advertiser name using priority fields + pattern matching
-                                reason = extract_sponsor_name(ad)
+                                # First check if Claude already provided a valid reason with sponsor info
+                                existing_reason = ad.get('reason')
+                                if existing_reason and isinstance(existing_reason, str) and len(existing_reason) > 3:
+                                    reason_lower = existing_reason.lower().strip()
+                                    if reason_lower not in INVALID_SPONSOR_VALUES:
+                                        reason = existing_reason
+                                    else:
+                                        reason = extract_sponsor_name(ad)
+                                else:
+                                    reason = extract_sponsor_name(ad)
 
                                 # Extract description from Claude's response to enrich the reason
                                 description = None
-                                desc_fields = ['explanation', 'content_summary', 'description',
+                                desc_fields = ['notes', 'explanation', 'content_summary', 'description',
                                                'ad_description', 'message', 'content', 'summary']
                                 for desc_field in desc_fields:
                                     desc = ad.get(desc_field)
@@ -1493,7 +1502,7 @@ class AdDetector:
                                     'end': end,
                                     'confidence': float(ad.get('confidence', 0.8)),
                                     'reason': reason,
-                                    'end_text': ad.get('end_text', '')
+                                    'end_text': ad.get('end_text') or ''
                                 })
                         except ValueError as e:
                             logger.warning(f"[{slug}:{episode_id}] Skipping ad with invalid timestamp: {e}")
@@ -1691,7 +1700,7 @@ class AdDetector:
 
             for ad in final_ads:
                 logger.info(f"[{slug}:{episode_id}] Ad: {ad['start']:.1f}s-{ad['end']:.1f}s "
-                           f"({ad['end']-ad['start']:.0f}s) end_text='{ad.get('end_text', '')[:50]}'")
+                           f"({ad['end']-ad['start']:.0f}s) end_text='{(ad.get('end_text') or '')[:50]}'")
 
             return {
                 "ads": final_ads,
@@ -2362,7 +2371,7 @@ class AdDetector:
                 logger.info(f"[{slug}:{episode_id}] Second pass total: {len(final_ads)} ads ({total_ad_time/60:.1f} min)")
                 for ad in final_ads:
                     logger.info(f"[{slug}:{episode_id}] Second pass Ad: {ad['start']:.1f}s-{ad['end']:.1f}s "
-                               f"({ad['end']-ad['start']:.0f}s) end_text='{ad.get('end_text', '')[:50]}'")
+                               f"({ad['end']-ad['start']:.0f}s) end_text='{(ad.get('end_text') or '')[:50]}'")
             else:
                 logger.info(f"[{slug}:{episode_id}] Second pass: No additional ads found")
 
