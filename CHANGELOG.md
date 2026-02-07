@@ -6,6 +6,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.238] - 2026-02-07
+
+### Fixed
+- **Incorrect model IDs in fallback lists**: Fixed `claude-opus-4-1-20250414` to correct date suffix `claude-opus-4-1-20250805`. Removed `claude-3-5-sonnet-20241022` which is no longer in the Anthropic catalog. Added missing `claude-haiku-4-5-20251001` (Haiku 4.5) and `claude-opus-4-20250514` (legacy Opus 4) to all three fallback lists: `AnthropicClient._get_fallback_models()`, `OpenAICompatibleClient._get_fallback_models()`, and `AdDetector.get_available_models()`. Also added `claude-opus-4-1-20250805` and `claude-opus-4-20250514` to the `ad_detector.py` fallback which was missing them entirely.
+
+---
+
 ## [0.1.237] - 2026-02-07
 
 ### Added

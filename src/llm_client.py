@@ -190,10 +190,11 @@ class AnthropicClient(LLMClient):
         return [
             LLMModel(id='claude-opus-4-6', name='Claude Opus 4.6'),
             LLMModel(id='claude-sonnet-4-5-20250929', name='Claude Sonnet 4.5'),
+            LLMModel(id='claude-haiku-4-5-20251001', name='Claude Haiku 4.5'),
             LLMModel(id='claude-opus-4-5-20251101', name='Claude Opus 4.5'),
+            LLMModel(id='claude-opus-4-1-20250805', name='Claude Opus 4.1'),
             LLMModel(id='claude-sonnet-4-20250514', name='Claude Sonnet 4'),
-            LLMModel(id='claude-opus-4-1-20250414', name='Claude Opus 4.1'),
-            LLMModel(id='claude-3-5-sonnet-20241022', name='Claude 3.5 Sonnet'),
+            LLMModel(id='claude-opus-4-20250514', name='Claude Opus 4'),
         ]
 
     def get_provider_name(self) -> str:
@@ -298,10 +299,11 @@ class OpenAICompatibleClient(LLMClient):
         return [
             LLMModel(id='claude-opus-4-6', name='Claude Opus 4.6'),
             LLMModel(id='claude-sonnet-4-5-20250929', name='Claude Sonnet 4.5'),
+            LLMModel(id='claude-haiku-4-5-20251001', name='Claude Haiku 4.5'),
             LLMModel(id='claude-opus-4-5-20251101', name='Claude Opus 4.5'),
+            LLMModel(id='claude-opus-4-1-20250805', name='Claude Opus 4.1'),
             LLMModel(id='claude-sonnet-4-20250514', name='Claude Sonnet 4'),
-            LLMModel(id='claude-opus-4-1-20250414', name='Claude Opus 4.1'),
-            LLMModel(id='claude-3-5-sonnet-20241022', name='Claude 3.5 Sonnet'),
+            LLMModel(id='claude-opus-4-20250514', name='Claude Opus 4'),
         ]
 
     def get_provider_name(self) -> str:
