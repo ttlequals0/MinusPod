@@ -6,6 +6,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.237] - 2026-02-07
+
+### Added
+- **Dynamic sponsor injection into Claude prompts**: `SponsorService.get_claude_sponsor_list()` existed but was never called. System and second-pass prompts now append a "DYNAMIC SPONSOR DATABASE" section at detection time with all known sponsors from the database. This supplements the hardcoded seed list without modifying the stored/customizable prompt text. Sponsors added via API or discovered during processing now actually influence future detections.
+- **Podcast-specific sponsor history in detection context**: Both first and second pass now query `ad_patterns` for the podcast being processed and include "Previously detected sponsors for this podcast: X, Y, Z" in the description section. This gives Claude prior knowledge of which sponsors have appeared in this podcast before.
+- **Configured models always shown in model list**: New `_ensure_configured_models_present()` ensures that models set as first-pass or second-pass model always appear in the `/settings/models` API response, even if the wrapper API doesn't advertise them. Logs when a configured model is injected.
+
+### Fixed
+- **Opus 4.6 missing from fallback model lists**: Added `claude-opus-4-6` to fallback lists in `AnthropicClient`, `OpenAICompatibleClient`, and `AdDetector.get_available_models()`. Fallbacks are used when the wrapper API is unreachable.
+
+---
+
 ## [0.1.236] - 2026-02-06
 
 ### Fixed

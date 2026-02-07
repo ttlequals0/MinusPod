@@ -1030,25 +1030,58 @@ class AdDetector:
                 raise
 
     def get_available_models(self) -> List[Dict]:
-        """Get list of available models from LLM provider."""
+        """Get list of available models from LLM provider.
+
+        Ensures currently configured models always appear in the list,
+        even if the API doesn't advertise them.
+        """
         try:
             self.initialize_client()
             if not self._llm_client:
                 return []
 
             models = self._llm_client.list_models()
-            return [
+            model_list = [
                 {'id': m.id, 'name': m.name, 'created': m.created}
                 for m in models
             ]
+            return self._ensure_configured_models_present(model_list)
         except Exception as e:
             logger.warning(f"Could not fetch models from API: {e}")
             # Return known models as fallback
             return [
+                {'id': 'claude-opus-4-6', 'name': 'Claude Opus 4.6'},
                 {'id': 'claude-sonnet-4-5-20250929', 'name': 'Claude Sonnet 4.5'},
                 {'id': 'claude-opus-4-5-20251101', 'name': 'Claude Opus 4.5'},
                 {'id': 'claude-sonnet-4-20250514', 'name': 'Claude Sonnet 4'},
             ]
+
+    def _ensure_configured_models_present(self, models_list: List[Dict]) -> List[Dict]:
+        """Ensure currently-configured models always appear in the model list.
+
+        If the API/wrapper doesn't advertise a model that's actively configured
+        (e.g., set as first or second pass model), inject it so the settings UI
+        shows it and doesn't lose the selection.
+        """
+        existing_ids = {m['id'] for m in models_list}
+        configured_models = []
+        try:
+            configured_models.append(self.get_model())
+            configured_models.append(self.get_second_pass_model())
+        except Exception:
+            pass
+
+        for model_id in configured_models:
+            if model_id and model_id not in existing_ids:
+                logger.info(f"Added configured model '{model_id}' to model list")
+                models_list.insert(0, {
+                    'id': model_id,
+                    'name': model_id,
+                    'created': None
+                })
+                existing_ids.add(model_id)
+
+        return models_list
 
     def get_model(self) -> str:
         """Get configured model from database or default."""
@@ -1168,30 +1201,73 @@ class AdDetector:
         return f"{minutes}:{secs:02d}"
 
     def get_system_prompt(self) -> str:
-        """Get system prompt from database or default."""
+        """Get system prompt from database or default, with dynamic sponsors appended."""
         try:
             prompt = self.db.get_setting('system_prompt')
             if prompt:
-                return prompt
+                return self._inject_dynamic_sponsors(prompt)
         except Exception as e:
             logger.warning(f"Could not load system prompt from DB: {e}")
 
         # Default fallback
         from database import DEFAULT_SYSTEM_PROMPT
-        return DEFAULT_SYSTEM_PROMPT
+        return self._inject_dynamic_sponsors(DEFAULT_SYSTEM_PROMPT)
 
     def get_second_pass_prompt(self) -> str:
-        """Get second pass prompt from database or default."""
+        """Get second pass prompt from database or default, with dynamic sponsors appended."""
         try:
             prompt = self.db.get_setting('second_pass_prompt')
             if prompt:
-                return prompt
+                return self._inject_dynamic_sponsors(prompt)
         except Exception as e:
             logger.warning(f"Could not load second pass prompt from DB: {e}")
 
         # Default fallback - import from database module
         from database import DEFAULT_SECOND_PASS_PROMPT
-        return DEFAULT_SECOND_PASS_PROMPT
+        return self._inject_dynamic_sponsors(DEFAULT_SECOND_PASS_PROMPT)
+
+    def _inject_dynamic_sponsors(self, prompt: str) -> str:
+        """Append dynamic sponsor database to a prompt at detection time.
+
+        This supplements the hardcoded sponsor list in the stored prompt with
+        any sponsors added via API or discovered during processing.
+        """
+        try:
+            if not self.sponsor_service:
+                return prompt
+            sponsor_list = self.sponsor_service.get_claude_sponsor_list()
+            if not sponsor_list:
+                return prompt
+            return (
+                prompt
+                + "\n\nDYNAMIC SPONSOR DATABASE (current known sponsors - treat as high confidence):\n"
+                + sponsor_list
+            )
+        except Exception as e:
+            logger.warning(f"Could not inject dynamic sponsors into prompt: {e}")
+            return prompt
+
+    def _get_podcast_sponsor_history(self, podcast_slug: str) -> str:
+        """Get previously detected sponsor names for a podcast from ad_patterns.
+
+        Returns a formatted string for inclusion in the description section,
+        or empty string if no sponsors found.
+        """
+        if not podcast_slug:
+            return ""
+        try:
+            patterns = self.db.get_ad_patterns(podcast_id=podcast_slug)
+            sponsors = set()
+            for p in patterns:
+                sponsor = p.get('sponsor')
+                if sponsor and sponsor.lower() not in ('unknown', 'advertisement detected', ''):
+                    sponsors.add(sponsor)
+            if sponsors:
+                sponsor_list = ', '.join(sorted(sponsors))
+                return f"Previously detected sponsors for this podcast: {sponsor_list}\n"
+        except Exception as e:
+            logger.warning(f"Could not fetch sponsor history for {podcast_slug}: {e}")
+        return ""
 
     def get_user_prompt_template(self) -> str:
         """Get user prompt template (hardcoded, not configurable)."""
@@ -1627,6 +1703,12 @@ class AdDetector:
             if episode_description:
                 description_section += f"Episode Description (this describes the actual content topics discussed; it may also list episode sponsors):\n{episode_description}\n"
                 logger.info(f"[{slug}:{episode_id}] Including episode description ({len(episode_description)} chars)")
+
+            # Add podcast-specific sponsor history from ad_patterns
+            sponsor_history = self._get_podcast_sponsor_history(slug)
+            if sponsor_history:
+                description_section += sponsor_history
+                logger.info(f"[{slug}:{episode_id}] Including sponsor history: {sponsor_history.strip()}")
 
             all_window_ads = []
             all_raw_responses = []
@@ -2297,6 +2379,12 @@ class AdDetector:
             if episode_description:
                 description_section += f"Episode Description (this describes the actual content topics discussed; it may also list episode sponsors):\n{episode_description}\n"
                 logger.info(f"[{slug}:{episode_id}] Second pass: Including episode description ({len(episode_description)} chars)")
+
+            # Add podcast-specific sponsor history from ad_patterns
+            sponsor_history = self._get_podcast_sponsor_history(slug)
+            if sponsor_history:
+                description_section += sponsor_history
+                logger.info(f"[{slug}:{episode_id}] Second pass: Including sponsor history: {sponsor_history.strip()}")
 
             all_window_ads = []
             all_raw_responses = []
