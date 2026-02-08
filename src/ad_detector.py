@@ -1655,6 +1655,14 @@ class AdDetector:
                                 has_ad_language = bool(extract_sponsor_from_text(reason)) if reason else False
 
                                 if not has_sponsor_field and not has_known_sponsor and not has_ad_language:
+                                    # Low confidence + no evidence = reject regardless of duration
+                                    if norm_conf < 0.5:
+                                        logger.info(
+                                            f"[{slug}:{episode_id}] Rejecting low-confidence non-sponsor: "
+                                            f"{start:.1f}s-{end:.1f}s ({duration:.0f}s, conf={norm_conf:.0%}) - "
+                                            f"reason: {reason[:100] if reason else 'None'}"
+                                        )
+                                        continue
                                     # No positive ad evidence -- apply duration gate
                                     # Short segments (<120s) get benefit of doubt (could be new/unknown sponsor)
                                     # Long segments (>=120s) are almost certainly content descriptions

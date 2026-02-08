@@ -826,10 +826,12 @@ def get_episode(slug, episode_id):
         try:
             import json
             all_markers = json.loads(episode['ad_markers_json'])
-            # Separate by validation decision - REJECT ads stayed in audio
+            # Separate by validation decision and cut status
+            # Only actually-removed ads go in adMarkers; everything else is rejected
             for marker in all_markers:
                 decision = marker.get('validation', {}).get('decision', 'ACCEPT')
-                if decision == 'REJECT':
+                was_cut = marker.get('was_cut', True)
+                if decision == 'REJECT' or not was_cut:
                     rejected_ad_markers.append(marker)
                 else:
                     ad_markers.append(marker)

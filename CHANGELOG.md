@@ -6,6 +6,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.240] - 2026-02-08
+
+### Fixed
+- **Low-confidence segments without sponsor evidence accepted as ads**: Added a confidence gate (< 50%) before the existing duration gate in dynamic validation. Segments with no sponsor field, no known sponsor match, and no ad-language patterns are now rejected if confidence is below 50%, regardless of duration. Previously, short segments (< 120s) with confidence as low as 30-40% would pass through even when Claude's own reason described them as non-ads.
+- **False positive sponsor matches from substring collision**: `find_sponsor_in_text()` and `get_sponsors_in_text()` used naive `in` substring matching, so short sponsor names or aliases (e.g., "cam") could match inside unrelated words (e.g., "Cam Newton"). Both functions now use `re.search()` with word boundaries (`\b`). Names and aliases shorter than 3 characters are skipped entirely to prevent false positives.
+- **`was_cut=false` ads displayed alongside actually-removed ads in UI**: The API endpoint separated ad markers only by validator decision (REJECT vs everything else), so low-confidence REVIEW ads with `was_cut=false` appeared in `adMarkers` next to real removed ads. The separation logic now also checks `was_cut`: any ad with `was_cut=false` goes into `rejectedAdMarkers` regardless of validation decision.
+
+---
+
 ## [0.1.239] - 2026-02-07
 
 ### Fixed

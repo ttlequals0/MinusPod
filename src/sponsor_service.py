@@ -301,15 +301,19 @@ class SponsorService:
         return names
 
     def find_sponsor_in_text(self, text: str) -> Optional[str]:
-        """Identify sponsor mentioned in text. Returns canonical sponsor name or None."""
+        """Identify sponsor mentioned in text. Returns canonical sponsor name or None.
+
+        Uses word-boundary matching to avoid false positives from short names
+        appearing inside longer words (e.g. "cam" matching "Cam Newton").
+        Names/aliases shorter than 3 characters are skipped.
+        """
         if not text:
             return None
 
-        text_lower = text.lower()
-
         for sponsor in self.get_sponsors():
-            # Check main name
-            if sponsor['name'].lower() in text_lower:
+            # Check main name (skip if too short for reliable matching)
+            name = sponsor['name']
+            if len(name) >= 3 and re.search(r'\b' + re.escape(name) + r'\b', text, re.IGNORECASE):
                 return sponsor['name']
 
             # Check aliases
@@ -321,22 +325,27 @@ class SponsorService:
                     aliases = []
 
             for alias in aliases:
-                if alias.lower() in text_lower:
+                if len(alias) >= 3 and re.search(r'\b' + re.escape(alias) + r'\b', text, re.IGNORECASE):
                     return sponsor['name']
 
         return None
 
     def get_sponsors_in_text(self, text: str) -> List[str]:
-        """Find all sponsors mentioned in text. Returns list of canonical names."""
+        """Find all sponsors mentioned in text. Returns list of canonical names.
+
+        Uses word-boundary matching to avoid false positives from short names
+        appearing inside longer words. Names/aliases shorter than 3 characters
+        are skipped.
+        """
         if not text:
             return []
 
-        text_lower = text.lower()
         found = []
 
         for sponsor in self.get_sponsors():
-            # Check main name
-            if sponsor['name'].lower() in text_lower:
+            # Check main name (skip if too short for reliable matching)
+            name = sponsor['name']
+            if len(name) >= 3 and re.search(r'\b' + re.escape(name) + r'\b', text, re.IGNORECASE):
                 found.append(sponsor['name'])
                 continue
 
@@ -349,7 +358,7 @@ class SponsorService:
                     aliases = []
 
             for alias in aliases:
-                if alias.lower() in text_lower:
+                if len(alias) >= 3 and re.search(r'\b' + re.escape(alias) + r'\b', text, re.IGNORECASE):
                     found.append(sponsor['name'])
                     break
 
