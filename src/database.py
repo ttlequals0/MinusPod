@@ -5,7 +5,7 @@ import logging
 import json
 import os
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, List, Any, Tuple
 
 from utils.time import parse_timestamp
@@ -1914,7 +1914,7 @@ class Database:
             if retention_minutes <= 0:
                 return 0, 0.0
 
-            cutoff = datetime.utcnow() - timedelta(minutes=retention_minutes)
+            cutoff = datetime.now(timezone.utc) - timedelta(minutes=retention_minutes)
             cutoff_str = cutoff.strftime('%Y-%m-%dT%H:%M:%SZ')
 
             # Get episodes to delete
@@ -2854,38 +2854,7 @@ class Database:
         """Extract sponsor names for patterns that have text_template but no sponsor.
 
         Returns count of patterns updated."""
-        import re
-
-        def extract_sponsor_from_text(ad_text: str) -> str:
-            """Extract sponsor from ad text by looking for URLs and patterns."""
-            if not ad_text:
-                return None
-
-            # Look for domains
-            domain_pattern = r'(?:visit\s+)?(?:www\.)?([a-zA-Z0-9-]+)\.(?:com|ai|io|org|net|co|gov)(?:/[^\s]*)?'
-            domains = re.findall(domain_pattern, ad_text.lower())
-
-            ignore_domains = {'example', 'website', 'podcast', 'episode', 'click', 'link'}
-            domains = [d for d in domains if d not in ignore_domains]
-
-            if domains:
-                return domains[0].replace('-', ' ').title()
-
-            # Look for sponsor phrases
-            sponsor_patterns = [
-                r'brought to you by\s+([A-Z][a-zA-Z0-9\s]+?)(?:\.|,|!|\s+is|\s+where|\s+the)',
-                r'sponsored by\s+([A-Z][a-zA-Z0-9\s]+?)(?:\.|,|!|\s+is|\s+where|\s+the)',
-                r'thanks to\s+([A-Z][a-zA-Z0-9\s]+?)(?:\s+for|\.|,|!)',
-            ]
-
-            for pattern in sponsor_patterns:
-                match = re.search(pattern, ad_text, re.IGNORECASE)
-                if match:
-                    sponsor = match.group(1).strip()
-                    if len(sponsor) < 50:
-                        return sponsor
-
-            return None
+        from sponsor_service import SponsorService
 
         conn = self.get_connection()
         updated_count = 0
@@ -2898,7 +2867,7 @@ class Database:
         patterns = cursor.fetchall()
 
         for pattern in patterns:
-            sponsor = extract_sponsor_from_text(pattern['text_template'])
+            sponsor = SponsorService.extract_sponsor_from_text(pattern['text_template'])
             if sponsor:
                 conn.execute(
                     'UPDATE ad_patterns SET sponsor = ? WHERE id = ?',
@@ -3161,7 +3130,7 @@ class Database:
     def clear_completed_queue_items(self, older_than_hours: int = 24) -> int:
         """Clear completed queue items older than specified hours. Returns count deleted."""
         conn = self.get_connection()
-        cutoff = (datetime.utcnow() - timedelta(hours=older_than_hours)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=older_than_hours)).strftime('%Y-%m-%dT%H:%M:%SZ')
         cursor = conn.execute(
             """DELETE FROM auto_process_queue
                WHERE status = 'completed' AND updated_at < ?""",

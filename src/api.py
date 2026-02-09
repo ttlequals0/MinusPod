@@ -3,7 +3,7 @@ import json
 import logging
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from flask import Blueprint, jsonify, request, Response, session
 from flask_limiter import Limiter
@@ -13,6 +13,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 from utils.time import parse_timestamp
 from utils.text import extract_text_in_range
+from sponsor_service import SponsorService
 
 logger = logging.getLogger('podcast.api')
 
@@ -175,44 +176,9 @@ def extract_transcript_segment(transcript: str, start: float, end: float) -> str
 def extract_sponsor_from_text(ad_text: str) -> str:
     """Extract sponsor name from ad text by looking for URLs and common patterns.
 
-    Looks for:
-    - Domain names (e.g., hex.ai, thisisnewjersey.com)
-    - Common sponsor phrases (e.g., "brought to you by X", "sponsored by X")
+    Delegates to SponsorService.extract_sponsor_from_text (canonical implementation).
     """
-    import re
-
-    if not ad_text:
-        return None
-
-    # Look for URLs/domains mentioned in the text
-    # Match patterns like: example.com, example.ai, visit example dot com
-    domain_pattern = r'(?:visit\s+)?(?:www\.)?([a-zA-Z0-9-]+)\.(?:com|ai|io|org|net|co|gov)(?:/[^\s]*)?'
-    domains = re.findall(domain_pattern, ad_text.lower())
-
-    # Filter out common non-sponsor domains
-    ignore_domains = {'example', 'website', 'podcast', 'episode', 'click', 'link'}
-    domains = [d for d in domains if d not in ignore_domains]
-
-    if domains:
-        # Return the first meaningful domain as sponsor
-        sponsor = domains[0].replace('-', ' ').title()
-        return sponsor
-
-    # Look for "brought to you by X" or "sponsored by X" patterns
-    sponsor_patterns = [
-        r'brought to you by\s+([A-Z][a-zA-Z0-9\s]+?)(?:\.|,|!|\s+is|\s+where|\s+the)',
-        r'sponsored by\s+([A-Z][a-zA-Z0-9\s]+?)(?:\.|,|!|\s+is|\s+where|\s+the)',
-        r'thanks to\s+([A-Z][a-zA-Z0-9\s]+?)(?:\s+for|\.|,|!)',
-    ]
-
-    for pattern in sponsor_patterns:
-        match = re.search(pattern, ad_text, re.IGNORECASE)
-        if match:
-            sponsor = match.group(1).strip()
-            if len(sponsor) < 50:  # Sanity check
-                return sponsor
-
-    return None
+    return SponsorService.extract_sponsor_from_text(ad_text)
 
 
 # ========== Feed Endpoints ==========
@@ -824,7 +790,6 @@ def get_episode(slug, episode_id):
     rejected_ad_markers = []
     if episode.get('ad_markers_json'):
         try:
-            import json
             all_markers = json.loads(episode['ad_markers_json'])
             # Separate by validation decision and cut status
             # Only actually-removed ads go in adMarkers; everything else is rejected
@@ -835,7 +800,7 @@ def get_episode(slug, episode_id):
                     rejected_ad_markers.append(marker)
                 else:
                     ad_markers.append(marker)
-        except:
+        except (json.JSONDecodeError, TypeError, KeyError):
             pass
 
     time_saved = 0
@@ -1143,7 +1108,7 @@ def reprocess_all_episodes(slug):
                 slug, episode_id,
                 status='pending',
                 reprocess_mode=mode,
-                reprocess_requested_at=datetime.utcnow().isoformat() + 'Z',
+                reprocess_requested_at=datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
                 retry_count=0,
                 error_message=None
             )
@@ -1916,7 +1881,6 @@ def list_sponsors():
     sponsors = service.db.get_known_sponsors(active_only=not include_inactive)
 
     # Parse JSON fields
-    import json
     result = []
     for s in sponsors:
         sponsor_data = dict(s)
@@ -1974,7 +1938,6 @@ def get_sponsor(sponsor_id):
     if not sponsor:
         return error_response('Sponsor not found', 404)
 
-    import json
     sponsor_data = dict(sponsor)
     if isinstance(sponsor_data.get('aliases'), str):
         try:
@@ -2136,7 +2099,6 @@ def status_stream():
     Returns a continuous event stream with status updates whenever
     processing state changes.
     """
-    import json
     import queue
 
     def generate():
@@ -2214,7 +2176,7 @@ def list_patterns():
 @log_request
 def get_pattern_stats():
     """Get pattern statistics for audit purposes."""
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
 
     db = get_database()
     patterns = db.get_ad_patterns(active_only=False)
@@ -2234,7 +2196,7 @@ def get_pattern_stats():
         'high_false_positive_patterns': [],
     }
 
-    stale_threshold = datetime.now() - timedelta(days=30)
+    stale_threshold = datetime.now(timezone.utc) - timedelta(days=30)
 
     for p in patterns:
         # Active/inactive
@@ -2268,7 +2230,7 @@ def get_pattern_stats():
         if last_matched:
             try:
                 last_date = datetime.fromisoformat(last_matched.replace('Z', '+00:00'))
-                if last_date.replace(tzinfo=None) < stale_threshold:
+                if last_date < stale_threshold:
                     stats['stale_count'] += 1
                     stats['stale_patterns'].append({
                         'id': p['id'],
@@ -2800,7 +2762,7 @@ def reprocess_episode_with_mode(slug, episode_id):
             slug, episode_id,
             status='pending',
             reprocess_mode=mode,
-            reprocess_requested_at=datetime.utcnow().isoformat() + 'Z',
+            reprocess_requested_at=datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
             retry_count=0,
             error_message=None
         )
@@ -2872,7 +2834,7 @@ def export_patterns():
     # Build export data
     export_data = {
         'version': '1.0',
-        'exported_at': datetime.utcnow().isoformat() + 'Z',
+        'exported_at': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
         'pattern_count': len(patterns),
         'patterns': []
     }

@@ -15,7 +15,13 @@ from config import (
     MAX_MERGED_DURATION, MAX_REALISTIC_SIGNAL, MIN_OVERLAP_TOLERANCE,
     MAX_AD_DURATION_WINDOW, WINDOW_SIZE_SECONDS, WINDOW_OVERLAP_SECONDS,
     BOUNDARY_EXTENSION_WINDOW, BOUNDARY_EXTENSION_MAX,
-    AD_CONTENT_URL_PATTERNS, AD_CONTENT_PROMO_PHRASES
+    AD_CONTENT_URL_PATTERNS, AD_CONTENT_PROMO_PHRASES,
+    LOW_CONFIDENCE, CONTENT_DURATION_THRESHOLD, LOW_EVIDENCE_WARN_THRESHOLD
+)
+from utils.constants import (
+    INVALID_SPONSOR_VALUES, STRUCTURAL_FIELDS,
+    SPONSOR_PRIORITY_FIELDS, SPONSOR_PATTERN_KEYWORDS,
+    INVALID_SPONSOR_CAPTURE_WORDS, NOT_AD_CLASSIFICATIONS,
 )
 
 logger = logging.getLogger('podcast.claude')
@@ -1302,14 +1308,6 @@ class AdDetector:
         Returns:
             List of validated ad dicts with start, end, confidence, reason, end_text
         """
-        # Invalid sponsor values that indicate extraction failure or garbage data
-        INVALID_SPONSOR_VALUES = frozenset({
-            'none', 'unknown', 'null', 'n/a', 'na', '', 'no', 'yes',
-            'ad', 'ads', 'sponsor', 'sponsors', 'advertisement', 'advertisements',
-            'multiple', 'various', 'detected', 'advertisement detected',
-            'host read', 'host-read', 'mid-roll', 'pre-roll', 'post-roll'
-        })
-
         # Helper to filter out invalid sponsor values like literal "None", "unknown", etc.
         def get_valid_value(value):
             if not value:
@@ -1322,31 +1320,6 @@ class AdDetector:
             if str_value.lower() in INVALID_SPONSOR_VALUES:
                 return None
             return str_value
-
-        # Sponsor/advertiser extraction configuration
-        # Priority fields are checked in order for exact matches
-        SPONSOR_PRIORITY_FIELDS = ['sponsor_name', 'advertiser', 'sponsor', 'brand', 'company', 'product', 'name']
-        # Pattern keywords for fuzzy matching any key containing these substrings
-        SPONSOR_PATTERN_KEYWORDS = ['sponsor', 'brand', 'advertiser', 'company', 'product', 'ad_name', 'note']
-
-        # Structural fields that never contain sponsor/description info.
-        # Everything NOT in this set is a candidate for dynamic scanning.
-        STRUCTURAL_FIELDS = frozenset({
-            'start', 'end', 'start_time', 'end_time', 'start_timestamp', 'end_timestamp',
-            'ad_start_timestamp', 'ad_end_timestamp', 'start_time_seconds', 'end_time_seconds',
-            'confidence', 'end_text', 'is_ad', 'type', 'classification',
-            'start_seconds', 'end_seconds', 'duration', 'duration_seconds',
-            'music_bed', 'music_bed_confidence',
-        })
-
-        # Invalid capture words - common English words that indicate regex captured garbage
-        # e.g., "not an advertisement" -> regex captures "not an" as sponsor
-        INVALID_SPONSOR_CAPTURE_WORDS = frozenset({
-            'not', 'no', 'this', 'that', 'the', 'a', 'an', 'another',
-            'consistent', 'possible', 'potential', 'likely', 'seems',
-            'is', 'was', 'are', 'were', 'with', 'from', 'for', 'by',
-            'clear', 'any', 'some', 'host', 'their', 'its', 'our',
-        })
 
         def _text_is_duplicate(a: str, b: str) -> bool:
             """Check if two strings are essentially the same text (one starts with the other or >80% word overlap)."""
@@ -1550,18 +1523,18 @@ class AdDetector:
 
                 if start_idx >= 0 and end_idx > start_idx:
                     json_str = clean_response[start_idx:end_idx]
-                    ads = json.loads(json_str)
+                    try:
+                        ads = json.loads(json_str)
+                        extraction_method = "bracket_fallback"
+                    except json.JSONDecodeError as e:
+                        logger.warning(
+                            f"[{slug}:{episode_id}] Strategy 3 JSON parse failed: {e} "
+                            f"(length={len(json_str)}, start={json_str[:50]!r}, end={json_str[-50:]!r})"
+                        )
 
             if ads is None or not isinstance(ads, list):
                 logger.warning(f"[{slug}:{episode_id}] No valid JSON array found in response")
                 return []
-
-            # Classifications that indicate non-ad content
-            NOT_AD_CLASSIFICATIONS = frozenset({
-                'content', 'not_ad', 'editorial', 'organic',
-                'show_content', 'regular_content', 'interview',
-                'conversation', 'segment', 'topic'
-            })
 
             # Validate and normalize ads - handle various field name patterns
             valid_ads = []
@@ -1656,7 +1629,7 @@ class AdDetector:
 
                                 if not has_sponsor_field and not has_known_sponsor and not has_ad_language:
                                     # Low confidence + no evidence = reject regardless of duration
-                                    if norm_conf < 0.5:
+                                    if norm_conf < LOW_CONFIDENCE:
                                         logger.info(
                                             f"[{slug}:{episode_id}] Rejecting low-confidence non-sponsor: "
                                             f"{start:.1f}s-{end:.1f}s ({duration:.0f}s, conf={norm_conf:.0%}) - "
@@ -1664,9 +1637,9 @@ class AdDetector:
                                         )
                                         continue
                                     # No positive ad evidence -- apply duration gate
-                                    # Short segments (<120s) get benefit of doubt (could be new/unknown sponsor)
-                                    # Long segments (>=120s) are almost certainly content descriptions
-                                    if duration >= 120:
+                                    # Short segments (<CONTENT_DURATION_THRESHOLD) get benefit of doubt
+                                    # Long segments are almost certainly content descriptions
+                                    if duration >= CONTENT_DURATION_THRESHOLD:
                                         logger.info(
                                             f"[{slug}:{episode_id}] Rejecting suspected content: "
                                             f"{start:.1f}s-{end:.1f}s ({duration:.0f}s) - "
@@ -1674,7 +1647,7 @@ class AdDetector:
                                         )
                                         continue
                                     # For shorter segments without evidence, log warning but allow through
-                                    elif duration >= 60:
+                                    elif duration >= LOW_EVIDENCE_WARN_THRESHOLD:
                                         logger.warning(
                                             f"[{slug}:{episode_id}] Low-confidence ad (no sponsor found): "
                                             f"{start:.1f}s-{end:.1f}s ({duration:.0f}s) - "
@@ -2128,7 +2101,7 @@ class AdDetector:
 
         # Learn patterns from high-confidence Claude detections
         if slug and all_ads:
-            patterns_learned = self._learn_from_detections(all_ads, segments, slug, episode_id)
+            patterns_learned = self._learn_from_detections(all_ads, segments, slug, episode_id, audio_path=audio_path)
             if patterns_learned > 0:
                 detection_stats['patterns_learned'] = patterns_learned
 
@@ -2159,12 +2132,8 @@ class AdDetector:
                 text_parts.append(seg.get('text', ''))
         return ' '.join(text_parts).strip()
 
-    # Invalid sponsor values that indicate extraction failure
-    INVALID_SPONSOR_REASONS = frozenset({
-        'no', 'yes', 'unknown', 'none', 'na', 'n/a', 'ad', 'ads',
-        'sponsor', 'sponsors', 'advertisement', 'advertisements',
-        'multiple', 'various', 'detected', 'advertisement detected'
-    })
+    # Reuse centralized constant (superset of the old INVALID_SPONSOR_REASONS)
+    INVALID_SPONSOR_REASONS = INVALID_SPONSOR_VALUES
 
     def _extract_sponsor_from_reason(self, reason: str) -> Optional[str]:
         """Extract sponsor name from ad detection reason using known sponsors DB.
@@ -2197,7 +2166,8 @@ class AdDetector:
         return None
 
     def _learn_from_detections(
-        self, ads: List[Dict], segments: List[Dict], podcast_id: str, episode_id: str = None
+        self, ads: List[Dict], segments: List[Dict], podcast_id: str,
+        episode_id: str = None, audio_path: str = None
     ) -> int:
         """Create patterns from high-confidence Claude detections.
 
@@ -2209,6 +2179,7 @@ class AdDetector:
             segments: Transcript segments for text extraction
             podcast_id: Podcast slug for scoping patterns
             episode_id: Episode ID for tracking pattern origin
+            audio_path: Path to audio file for fingerprint storage
 
         Returns:
             Number of patterns created
@@ -2264,6 +2235,18 @@ class AdDetector:
                         f"Created pattern {pattern_id} from Claude detection: "
                         f"{ad['start']:.1f}s-{ad['end']:.1f}s, sponsor={sponsor}"
                     )
+
+                    # Store audio fingerprint alongside the text pattern
+                    if audio_path and self.audio_fingerprinter and self.audio_fingerprinter.is_available():
+                        try:
+                            self.audio_fingerprinter.store_fingerprint(
+                                pattern_id=pattern_id,
+                                audio_path=audio_path,
+                                start=ad['start'],
+                                end=ad['end']
+                            )
+                        except Exception as fp_e:
+                            logger.debug(f"Could not store fingerprint for pattern {pattern_id}: {fp_e}")
             except Exception as e:
                 logger.warning(f"Failed to create pattern from detection: {e}")
 

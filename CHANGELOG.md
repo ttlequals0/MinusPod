@@ -6,6 +6,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.241] - 2026-02-09
+
+### Changed
+- **Centralized shared constants into `utils/constants.py`**: Deduplicated `INVALID_SPONSOR_VALUES` (3 definitions across `ad_detector.py` and `text_pattern_matcher.py`), `STRUCTURAL_FIELDS`, `SPONSOR_PRIORITY_FIELDS`, `SPONSOR_PATTERN_KEYWORDS`, `INVALID_SPONSOR_CAPTURE_WORDS`, and `NOT_AD_CLASSIFICATIONS` into a single source of truth. All consumers now import from `utils.constants`.
+- **Consolidated `extract_sponsor_from_text()` into `SponsorService`**: Removed 3 identical implementations (module-level in `api.py`, local function in `database.py`, and local function in `ad_detector.py`). `SponsorService.extract_sponsor_from_text()` is now the canonical static method; `api.py` delegates to it, `database.py` uses a lazy import.
+- **Extracted `_parse_aliases()` helper in `SponsorService`**: Replaced 3 identical JSON alias-parsing blocks in `get_sponsor_names()`, `find_sponsor_in_text()`, and `get_sponsors_in_text()` with a single `_parse_aliases()` static method.
+- **Precompiled sponsor regex patterns in `SponsorService`**: Word-boundary patterns for sponsor matching are now compiled once during `_refresh_cache_if_needed()` and stored as `_compiled_patterns` dict, instead of recompiling per search call.
+- **Replaced `datetime.utcnow()` with `datetime.now(timezone.utc)`**: Updated all 19 call sites across 7 files (`cleanup_service.py`, `main.py`, `api.py`, `database.py`, `sponsor_service.py`, `pattern_service.py`, `text_pattern_matcher.py`). Removed `.replace(tzinfo=None)` workarounds that were needed for mixed tz-aware/naive comparisons. All timestamp strings stored to DB now use `strftime('%Y-%m-%dT%H:%M:%SZ')` to match SQLite's default format, replacing `.isoformat() + 'Z'` which would have produced malformed `+00:00Z` suffixes with tz-aware datetimes.
+- **Replaced hardcoded thresholds with config constants**: Added `CONTENT_DURATION_THRESHOLD` (120s) and `LOW_EVIDENCE_WARN_THRESHOLD` (60s) to `config.py`. Updated `ad_detector.py` to use `LOW_CONFIDENCE`, `CONTENT_DURATION_THRESHOLD`, and `LOW_EVIDENCE_WARN_THRESHOLD` instead of hardcoded `0.5`, `120`, and `60`.
+- **Eliminated redundant stale-state checks in `ProcessingQueue`**: `is_processing()` and `is_busy()` no longer call `_clear_stale_state()` directly since `get_current()` already does it.
+- **Removed 4 redundant inline `import json` statements in `api.py`**: `json` is already imported at module level.
+
+### Fixed
+- **Atomic state file write in `ProcessingQueue`**: `_write_state()` now writes to a `.tmp` file and renames atomically, preventing corrupt state if the process crashes or OOMs mid-write.
+- **Strategy 3 JSON parse unhandled exception**: `ad_detector.py` Strategy 3 (bracket fallback) `json.loads()` was not wrapped in try/except unlike Strategies 1-2. Now catches `json.JSONDecodeError` with diagnostic logging (content length, first/last chars).
+- **5 bare `except:` clauses replaced with specific types**: `api.py` (json/type/key errors), `main.py` x2 (value/type errors), `transcriber.py` x2 (OS errors for file cleanup).
+
+### Added
+- **Wired up pattern learning pipeline**: 4 functions (260 lines) that were part of the designed pattern learning system but had zero callers are now connected:
+  - `merge_similar_patterns()`: Called from `promote_pattern()` after promotion to consolidate similar patterns at the new scope level.
+  - `check_sponsor_global_promotion()` and `auto_promote_sponsor_patterns()`: Called from `record_pattern_match()` when a sponsor hits the global threshold (3+ podcasts).
+  - `store_fingerprint()`: Called from `_learn_from_detections()` after creating a text pattern, to also store the audio fingerprint for the same segment.
+
+---
+
 ## [0.1.240] - 2026-02-08
 
 ### Fixed

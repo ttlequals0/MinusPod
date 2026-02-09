@@ -11,6 +11,7 @@ from typing import List, Optional, Dict, Tuple
 import json
 
 from utils.text import extract_text_from_segments
+from utils.constants import INVALID_SPONSOR_VALUES
 
 logger = logging.getLogger('podcast.textmatch')
 
@@ -627,12 +628,8 @@ class TextPatternMatcher:
         """
         return extract_text_from_segments(segments, start, end)
 
-    # Invalid sponsor names that should not create patterns
-    INVALID_SPONSORS = frozenset({
-        'no', 'yes', 'unknown', 'none', 'na', 'n/a', 'ad', 'ads',
-        'sponsor', 'sponsors', 'multiple', 'various', 'advertisement',
-        'advertisements', 'detected', 'advertisement detected'
-    })
+    # Reuse centralized constant (superset of the old local set)
+    INVALID_SPONSORS = INVALID_SPONSOR_VALUES
 
     def create_pattern_from_ad(
         self,
@@ -887,11 +884,11 @@ class TextPatternMatcher:
 
         # Disable original pattern if we created new ones
         if new_ids:
-            from datetime import datetime
+            from datetime import datetime, timezone
             self.db.update_ad_pattern(
                 pattern_id,
                 is_active=0,
-                disabled_at=datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'),
+                disabled_at=datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
                 disabled_reason=f"Split into patterns: {new_ids}"
             )
             logger.info(f"Disabled original pattern {pattern_id}, "

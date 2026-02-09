@@ -66,13 +66,19 @@ class ProcessingQueue:
         return {'current_episode': None, 'acquired_at': None}
 
     def _write_state(self, slug: Optional[str], episode_id: Optional[str], acquired_at: Optional[float]):
-        """Write processing state to shared file."""
+        """Write processing state to shared file atomically.
+
+        Writes to a temp file first, then renames to prevent corrupt state
+        if the process crashes or OOMs mid-write.
+        """
         try:
             state = {
                 'current_episode': [slug, episode_id] if slug and episode_id else None,
                 'acquired_at': acquired_at
             }
-            self._state_file_path.write_text(json.dumps(state))
+            tmp_path = self._state_file_path.with_suffix('.tmp')
+            tmp_path.write_text(json.dumps(state))
+            tmp_path.rename(self._state_file_path)
         except OSError as e:
             logger.warning(f"Could not write state file: {e}")
 
@@ -217,18 +223,10 @@ class ProcessingQueue:
         return tuple(current) if current else None
 
     def is_processing(self, slug: str, episode_id: str) -> bool:
-        """Check if specific episode is currently being processed.
-
-        Performs staleness check before returning.
-        """
-        self._clear_stale_state()
-        current = self.get_current()
+        """Check if specific episode is currently being processed."""
+        current = self.get_current()  # already calls _clear_stale_state
         return current is not None and current == (slug, episode_id)
 
     def is_busy(self) -> bool:
-        """Check if any episode is currently being processed.
-
-        Performs staleness check before returning.
-        """
-        self._clear_stale_state()
-        return self.get_current() is not None
+        """Check if any episode is currently being processed."""
+        return self.get_current() is not None  # already calls _clear_stale_state

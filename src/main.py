@@ -6,7 +6,7 @@ import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 from functools import wraps
@@ -538,7 +538,7 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
                 title=title,
                 description=description,
                 artwork_url=artwork_url,
-                last_checked_at=datetime.utcnow().isoformat() + 'Z'
+                last_checked_at=datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
             )
 
             # Update ETag for conditional GET on next refresh
@@ -570,7 +570,7 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
         if db.is_auto_process_enabled_for_podcast(slug):
             episodes = rss_parser.extract_episodes(feed_content)
             queued_count = 0
-            cutoff_time = datetime.utcnow() - timedelta(hours=48)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=48)
 
             for ep in episodes:
                 # Check if episode already exists in database
@@ -604,9 +604,9 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
                         try:
                             # RSS dates are typically RFC 2822 format
                             pub_date = parsedate_to_datetime(published_str)
-                            # Make comparison timezone-naive
-                            if pub_date.tzinfo:
-                                pub_date = pub_date.replace(tzinfo=None)
+                            # Ensure timezone-aware for comparison
+                            if pub_date.tzinfo is None:
+                                pub_date = pub_date.replace(tzinfo=timezone.utc)
                             is_recent = pub_date >= cutoff_time
                         except (ValueError, TypeError):
                             # If we can't parse the date, skip this episode for auto-process
@@ -634,7 +634,7 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
         storage.save_rss(slug, modified_rss)
 
         # Update last_checked timestamp
-        db.update_podcast(slug, last_checked_at=datetime.utcnow().isoformat() + 'Z')
+        db.update_podcast(slug, last_checked_at=datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'))
 
         refresh_logger.info(f"[{slug}] RSS refresh complete")
         status_service.complete_feed_refresh(slug, 0)
@@ -980,7 +980,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                             'end': parse_timestamp(end_str),
                             'text': text_part
                         })
-                    except:
+                    except (ValueError, TypeError):
                         continue
 
             if segments:
@@ -1507,11 +1507,11 @@ def serve_rss(slug):
     elif last_checked:
         try:
             last_time = datetime.fromisoformat(last_checked.replace('Z', '+00:00'))
-            age_minutes = (datetime.utcnow() - last_time.replace(tzinfo=None)).total_seconds() / 60
+            age_minutes = (datetime.now(timezone.utc) - last_time).total_seconds() / 60
             if age_minutes > 15:
                 should_refresh = True
                 feed_logger.info(f"[{slug}] RSS cache stale ({age_minutes:.0f}min), refreshing")
-        except:
+        except (ValueError, TypeError):
             should_refresh = True
 
     if should_refresh:

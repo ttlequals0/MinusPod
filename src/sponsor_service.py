@@ -2,8 +2,10 @@
 import re
 import json
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Optional
+
+from utils.constants import INVALID_SPONSOR_VALUES, INVALID_SPONSOR_CAPTURE_WORDS
 
 logger = logging.getLogger(__name__)
 
@@ -200,15 +202,43 @@ class SponsorService:
         self._cache_sponsors = None
         self._cache_time = None
         self._cache_ttl = timedelta(minutes=5)
+        self._compiled_patterns = {}  # {canonical_name: compiled_regex}
+
+    @staticmethod
+    def _parse_aliases(aliases) -> list:
+        """Parse aliases from DB value (JSON string or list)."""
+        if isinstance(aliases, list):
+            return aliases
+        if isinstance(aliases, str):
+            try:
+                return json.loads(aliases)
+            except json.JSONDecodeError:
+                return []
+        return []
 
     def _refresh_cache_if_needed(self):
         """Cache for 5 minutes to avoid constant DB hits."""
-        if self._cache_time and (datetime.utcnow() - self._cache_time) < self._cache_ttl:
+        if self._cache_time and (datetime.now(timezone.utc) - self._cache_time) < self._cache_ttl:
             return
 
         self._cache_normalizations = self.db.get_sponsor_normalizations(active_only=True)
         self._cache_sponsors = self.db.get_known_sponsors(active_only=True)
-        self._cache_time = datetime.utcnow()
+        self._cache_time = datetime.now(timezone.utc)
+
+        # Precompile word-boundary regex patterns for sponsor matching
+        self._compiled_patterns = {}
+        for sponsor in self._cache_sponsors:
+            name = sponsor['name']
+            if len(name) < 3:
+                continue
+            # Build pattern matching canonical name + all aliases
+            alternatives = [re.escape(name)]
+            for alias in self._parse_aliases(sponsor.get('aliases', '[]')):
+                if len(alias) >= 3:
+                    alternatives.append(re.escape(alias))
+            pattern_str = r'\b(?:' + '|'.join(alternatives) + r')\b'
+            self._compiled_patterns[name] = re.compile(pattern_str, re.IGNORECASE)
+
         logger.debug(f"Refreshed sponsor cache: {len(self._cache_sponsors)} sponsors, "
                     f"{len(self._cache_normalizations)} normalizations")
 
@@ -290,78 +320,41 @@ class SponsorService:
         names = []
         for sponsor in self.get_sponsors():
             names.append(sponsor['name'])
-            # Parse aliases from JSON string
-            aliases = sponsor.get('aliases', '[]')
-            if isinstance(aliases, str):
-                try:
-                    aliases = json.loads(aliases)
-                except json.JSONDecodeError:
-                    aliases = []
-            names.extend(aliases)
+            names.extend(self._parse_aliases(sponsor.get('aliases', '[]')))
         return names
 
     def find_sponsor_in_text(self, text: str) -> Optional[str]:
         """Identify sponsor mentioned in text. Returns canonical sponsor name or None.
 
-        Uses word-boundary matching to avoid false positives from short names
-        appearing inside longer words (e.g. "cam" matching "Cam Newton").
-        Names/aliases shorter than 3 characters are skipped.
+        Uses precompiled word-boundary patterns to avoid false positives from short
+        names appearing inside longer words. Names/aliases shorter than 3 characters
+        are skipped.
         """
         if not text:
             return None
 
-        for sponsor in self.get_sponsors():
-            # Check main name (skip if too short for reliable matching)
-            name = sponsor['name']
-            if len(name) >= 3 and re.search(r'\b' + re.escape(name) + r'\b', text, re.IGNORECASE):
-                return sponsor['name']
-
-            # Check aliases
-            aliases = sponsor.get('aliases', '[]')
-            if isinstance(aliases, str):
-                try:
-                    aliases = json.loads(aliases)
-                except json.JSONDecodeError:
-                    aliases = []
-
-            for alias in aliases:
-                if len(alias) >= 3 and re.search(r'\b' + re.escape(alias) + r'\b', text, re.IGNORECASE):
-                    return sponsor['name']
+        self._refresh_cache_if_needed()
+        for name, pattern in self._compiled_patterns.items():
+            if pattern.search(text):
+                return name
 
         return None
 
     def get_sponsors_in_text(self, text: str) -> List[str]:
         """Find all sponsors mentioned in text. Returns list of canonical names.
 
-        Uses word-boundary matching to avoid false positives from short names
-        appearing inside longer words. Names/aliases shorter than 3 characters
+        Uses precompiled word-boundary patterns to avoid false positives from short
+        names appearing inside longer words. Names/aliases shorter than 3 characters
         are skipped.
         """
         if not text:
             return []
 
+        self._refresh_cache_if_needed()
         found = []
-
-        for sponsor in self.get_sponsors():
-            # Check main name (skip if too short for reliable matching)
-            name = sponsor['name']
-            if len(name) >= 3 and re.search(r'\b' + re.escape(name) + r'\b', text, re.IGNORECASE):
-                found.append(sponsor['name'])
-                continue
-
-            # Check aliases
-            aliases = sponsor.get('aliases', '[]')
-            if isinstance(aliases, str):
-                try:
-                    aliases = json.loads(aliases)
-                except json.JSONDecodeError:
-                    aliases = []
-
-            for alias in aliases:
-                if len(alias) >= 3 and re.search(r'\b' + re.escape(alias) + r'\b', text, re.IGNORECASE):
-                    found.append(sponsor['name'])
-                    break
-
+        for name, pattern in self._compiled_patterns.items():
+            if pattern.search(text):
+                found.append(name)
         return found
 
     # ========== Export for Claude prompt / Whisper ==========
@@ -374,6 +367,46 @@ class SponsorService:
     def get_normalization_dict(self) -> Dict[str, str]:
         """For Whisper post-processing. Returns {pattern: replacement}."""
         return {n['pattern']: n['replacement'] for n in self.get_normalizations()}
+
+    # ========== Sponsor Extraction from Text ==========
+
+    @staticmethod
+    def extract_sponsor_from_text(ad_text: str) -> Optional[str]:
+        """Extract sponsor name from ad text by looking for URLs and common patterns.
+
+        Looks for:
+        - Domain names (e.g., hex.ai, thisisnewjersey.com)
+        - Common sponsor phrases (e.g., "brought to you by X", "sponsored by X")
+        """
+        if not ad_text:
+            return None
+
+        # Look for URLs/domains mentioned in the text
+        domain_pattern = r'(?:visit\s+)?(?:www\.)?([a-zA-Z0-9-]+)\.(?:com|ai|io|org|net|co|gov)(?:/[^\s]*)?'
+        domains = re.findall(domain_pattern, ad_text.lower())
+
+        ignore_domains = {'example', 'website', 'podcast', 'episode', 'click', 'link'}
+        domains = [d for d in domains if d not in ignore_domains]
+
+        if domains:
+            sponsor = domains[0].replace('-', ' ').title()
+            return sponsor
+
+        # Look for "brought to you by X" or "sponsored by X" patterns
+        sponsor_patterns = [
+            r'brought to you by\s+([A-Z][a-zA-Z0-9\s]+?)(?:\.|,|!|\s+is|\s+where|\s+the)',
+            r'sponsored by\s+([A-Z][a-zA-Z0-9\s]+?)(?:\.|,|!|\s+is|\s+where|\s+the)',
+            r'thanks to\s+([A-Z][a-zA-Z0-9\s]+?)(?:\s+for|\.|,|!)',
+        ]
+
+        for pattern in sponsor_patterns:
+            match = re.search(pattern, ad_text, re.IGNORECASE)
+            if match:
+                sponsor = match.group(1).strip()
+                if len(sponsor) < 50:
+                    return sponsor
+
+        return None
 
     # ========== CRUD Wrappers ==========
 
