@@ -6,6 +6,190 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.241] - 2026-02-09
+
+### Changed
+- **Centralized shared constants into `utils/constants.py`**: Deduplicated `INVALID_SPONSOR_VALUES` (3 definitions across `ad_detector.py` and `text_pattern_matcher.py`), `STRUCTURAL_FIELDS`, `SPONSOR_PRIORITY_FIELDS`, `SPONSOR_PATTERN_KEYWORDS`, `INVALID_SPONSOR_CAPTURE_WORDS`, and `NOT_AD_CLASSIFICATIONS` into a single source of truth. All consumers now import from `utils.constants`.
+- **Consolidated `extract_sponsor_from_text()` into `SponsorService`**: Removed 3 identical implementations (module-level in `api.py`, local function in `database.py`, and local function in `ad_detector.py`). `SponsorService.extract_sponsor_from_text()` is now the canonical static method; `api.py` delegates to it, `database.py` uses a lazy import.
+- **Extracted `_parse_aliases()` helper in `SponsorService`**: Replaced 3 identical JSON alias-parsing blocks in `get_sponsor_names()`, `find_sponsor_in_text()`, and `get_sponsors_in_text()` with a single `_parse_aliases()` static method.
+- **Precompiled sponsor regex patterns in `SponsorService`**: Word-boundary patterns for sponsor matching are now compiled once during `_refresh_cache_if_needed()` and stored as `_compiled_patterns` dict, instead of recompiling per search call.
+- **Replaced `datetime.utcnow()` with `datetime.now(timezone.utc)`**: Updated all 19 call sites across 7 files (`cleanup_service.py`, `main.py`, `api.py`, `database.py`, `sponsor_service.py`, `pattern_service.py`, `text_pattern_matcher.py`). Removed `.replace(tzinfo=None)` workarounds that were needed for mixed tz-aware/naive comparisons. All timestamp strings stored to DB now use `strftime('%Y-%m-%dT%H:%M:%SZ')` to match SQLite's default format, replacing `.isoformat() + 'Z'` which would have produced malformed `+00:00Z` suffixes with tz-aware datetimes.
+- **Replaced hardcoded thresholds with config constants**: Added `CONTENT_DURATION_THRESHOLD` (120s) and `LOW_EVIDENCE_WARN_THRESHOLD` (60s) to `config.py`. Updated `ad_detector.py` to use `LOW_CONFIDENCE`, `CONTENT_DURATION_THRESHOLD`, and `LOW_EVIDENCE_WARN_THRESHOLD` instead of hardcoded `0.5`, `120`, and `60`.
+- **Eliminated redundant stale-state checks in `ProcessingQueue`**: `is_processing()` and `is_busy()` no longer call `_clear_stale_state()` directly since `get_current()` already does it.
+- **Removed 4 redundant inline `import json` statements in `api.py`**: `json` is already imported at module level.
+
+### Fixed
+- **Atomic state file write in `ProcessingQueue`**: `_write_state()` now writes to a `.tmp` file and renames atomically, preventing corrupt state if the process crashes or OOMs mid-write.
+- **Strategy 3 JSON parse unhandled exception**: `ad_detector.py` Strategy 3 (bracket fallback) `json.loads()` was not wrapped in try/except unlike Strategies 1-2. Now catches `json.JSONDecodeError` with diagnostic logging (content length, first/last chars).
+- **5 bare `except:` clauses replaced with specific types**: `api.py` (json/type/key errors), `main.py` x2 (value/type errors), `transcriber.py` x2 (OS errors for file cleanup).
+
+### Added
+- **Updated OpenAPI spec from 0.1.184 to current**: Added 16 missing endpoint definitions (OPML import, batch reprocess, sponsor CRUD, normalization CRUD, pattern stats/health/merge, search endpoints, queue clear, prompts reset). Updated 3 existing sponsor/normalization endpoints to reflect the new SponsorService CRUD API. Added `Sponsor`, `Normalization`, and `SearchResult` schemas. Version is now served dynamically from `version.py` at runtime.
+- **Wired up pattern learning pipeline**: 4 functions (260 lines) that were part of the designed pattern learning system but had zero callers are now connected:
+  - `merge_similar_patterns()`: Called from `promote_pattern()` after promotion to consolidate similar patterns at the new scope level.
+  - `check_sponsor_global_promotion()` and `auto_promote_sponsor_patterns()`: Called from `record_pattern_match()` when a sponsor hits the global threshold (3+ podcasts).
+  - `store_fingerprint()`: Called from `_learn_from_detections()` after creating a text pattern, to also store the audio fingerprint for the same segment.
+
+---
+
+## [0.1.240] - 2026-02-08
+
+### Fixed
+- **Low-confidence segments without sponsor evidence accepted as ads**: Added a confidence gate (< 50%) before the existing duration gate in dynamic validation. Segments with no sponsor field, no known sponsor match, and no ad-language patterns are now rejected if confidence is below 50%, regardless of duration. Previously, short segments (< 120s) with confidence as low as 30-40% would pass through even when Claude's own reason described them as non-ads.
+- **False positive sponsor matches from substring collision**: `find_sponsor_in_text()` and `get_sponsors_in_text()` used naive `in` substring matching, so short sponsor names or aliases (e.g., "cam") could match inside unrelated words (e.g., "Cam Newton"). Both functions now use `re.search()` with word boundaries (`\b`). Names and aliases shorter than 3 characters are skipped entirely to prevent false positives.
+- **`was_cut=false` ads displayed alongside actually-removed ads in UI**: The API endpoint separated ad markers only by validator decision (REJECT vs everything else), so low-confidence REVIEW ads with `was_cut=false` appeared in `adMarkers` next to real removed ads. The separation logic now also checks `was_cut`: any ad with `was_cut=false` goes into `rejectedAdMarkers` regardless of validation decision.
+
+---
+
+## [0.1.239] - 2026-02-07
+
+### Fixed
+- **Content segments parsed as ads when LLM returns descriptive reasons without sponsor info**: Added dynamic ad-evidence validation in `_parse_ads_from_response()` that requires positive proof a segment is an ad (known sponsor in database, ad-language patterns, or explicit sponsor field) before accepting it. Segments >= 120s with no evidence are rejected; 60-120s segments log a warning. This replaces the whack-a-mole approach of growing blocklists with every new LLM output variation. The check is database-driven via `SponsorService.find_sponsor_in_text()` so new sponsors added via API automatically work without code changes.
+- **Confidence values displayed as 10000% in UI**: When Claude returns confidence as a percentage (e.g., `100.0` instead of `1.0`), the parser now normalizes to 0-1 range by dividing values > 1.0 by 100, then clamping to [0.0, 1.0].
+
+---
+
+## [0.1.238] - 2026-02-07
+
+### Fixed
+- **Incorrect model IDs in fallback lists**: Fixed `claude-opus-4-1-20250414` to correct date suffix `claude-opus-4-1-20250805`. Removed `claude-3-5-sonnet-20241022` which is no longer in the Anthropic catalog. Added missing `claude-haiku-4-5-20251001` (Haiku 4.5) and `claude-opus-4-20250514` (legacy Opus 4) to all three fallback lists: `AnthropicClient._get_fallback_models()`, `OpenAICompatibleClient._get_fallback_models()`, and `AdDetector.get_available_models()`. Also added `claude-opus-4-1-20250805` and `claude-opus-4-20250514` to the `ad_detector.py` fallback which was missing them entirely.
+
+---
+
+## [0.1.237] - 2026-02-07
+
+### Added
+- **Dynamic sponsor injection into Claude prompts**: `SponsorService.get_claude_sponsor_list()` existed but was never called. System and second-pass prompts now append a "DYNAMIC SPONSOR DATABASE" section at detection time with all known sponsors from the database. This supplements the hardcoded seed list without modifying the stored/customizable prompt text. Sponsors added via API or discovered during processing now actually influence future detections.
+- **Podcast-specific sponsor history in detection context**: Both first and second pass now query `ad_patterns` for the podcast being processed and include "Previously detected sponsors for this podcast: X, Y, Z" in the description section. This gives Claude prior knowledge of which sponsors have appeared in this podcast before.
+- **Configured models always shown in model list**: New `_ensure_configured_models_present()` ensures that models set as first-pass or second-pass model always appear in the `/settings/models` API response, even if the wrapper API doesn't advertise them. Logs when a configured model is injected.
+
+### Fixed
+- **Opus 4.6 missing from fallback model lists**: Added `claude-opus-4-6` to fallback lists in `AnthropicClient`, `OpenAICompatibleClient`, and `AdDetector.get_available_models()`. Fallbacks are used when the wrapper API is unreachable.
+
+---
+
+## [0.1.236] - 2026-02-06
+
+### Fixed
+- **Non-ads extracted as ads when Claude marks them `is_ad: false`**: Added filtering in `_parse_ads_from_response()` to skip entries where `is_ad` is explicitly false/no/0 or where `classification`/`type` indicates non-ad content (content, editorial, organic, interview, etc.). This was the root cause of episodes like `it-s-a-thing:1af1082d376d` losing over half their duration -- Claude's second pass returned segments with `is_ad: false` and `classification: "content"` but the parser treated ALL entries as ads regardless.
+- **Generic "Advertisement detected" fallback from unknown field names**: Replaced static allowlists for sponsor and description extraction with dynamic field scanning. Instead of maintaining lists of field names Claude might use, the parser now defines STRUCTURAL_FIELDS (timestamps, booleans, config) and treats everything else as a candidate for sponsor/description info. This eliminates the recurring need to patch field names (previously patched in v0.1.217, 218, 220, 232, 234, 235).
+- **Reason field duplication when sponsor and description overlap**: Added `_text_is_duplicate()` helper that checks if one string starts with the other or they share >80% of words. Prevents output like "BetterHelp advertisement: BetterHelp advertisement for therapy services".
+- **Processing queue kills long-running jobs via stale lock detection**: `_clear_stale_state()` was called from `is_busy()`/`get_current()` without `_fd_lock` protection. When a long episode exceeded `MAX_JOB_DURATION`, stale detection would release the lock from under the running thread, allowing another episode to acquire it and causing concurrent processing failures. Now checks if the current process holds the lock before clearing -- if it does, the job is still alive (just long-running) and only a warning is logged.
+- **Queue timeouts too aggressive for long episodes**: Increased `MAX_JOB_DURATION` from 30 to 60 minutes in both `processing_queue.py` and `status_service.py`. Increased `background_queue_processor()` max_wait from 10 to 60 minutes and orphan check threshold from 35 to 65 minutes.
+
+---
+
+## [0.1.235] - 2026-02-06
+
+### Fixed
+- **Ad detection reason parsing shows generic "Advertisement detected" instead of sponsor names**: Fixed parsing logic in `_parse_ads_from_response()` that was missing field names Claude uses. Added `sponsor_name` to `SPONSOR_PRIORITY_FIELDS` (Claude often returns this instead of just `sponsor`). Added `reason` and `notes` to description fields (Claude provides context in these). Added pre-check for valid `reason` field before running sponsor extraction - if Claude already provided a valid reason, use it directly instead of overwriting with extraction logic. This fixes the cascade where bad parsing led to no pattern creation (patterns are rejected when sponsor is "Advertisement detected").
+- **Reason field duplicated in sponsor + description output**: When Claude provided a valid `reason` field (e.g., "BetterHelp advertisement for therapy"), the pre-check block correctly used it as the sponsor reason, but then the description extraction loop also matched the same `reason` field, producing duplicated output like "BetterHelp advertisement: BetterHelp advertisement". Removed `reason` from `desc_fields` since it is already handled by the pre-check block.
+- **Crash on `end_text: null` from Claude response**: When Claude returns `"end_text": null` in JSON, `dict.get('end_text', '')` returns `None` (not `""`) because the key exists with an explicit null value. This caused `TypeError: 'NoneType' object is not subscriptable` when slicing for log output. Fixed all three `end_text` access points to use `or ''` pattern which correctly converts None to empty string.
+
+---
+
+## [0.1.234] - 2026-02-05
+
+### Fixed
+- **Ad detection parsing missing ads_detected key and nested structures**: Fixed bug in `_parse_ads_from_response()` where Claude's ad detections were not being extracted due to missing parser support. Added support for `ads_detected` key (Claude sometimes uses this instead of `ads`). Added support for nested `window` structure (e.g., `{"window": {"ads_detected": [...]}}`). The `parse_timestamp()` function already handles string timestamps with "s" suffix (e.g., "28.8s"). This fixes episodes where Claude correctly detected ads but the parser failed to extract them.
+
+---
+
+## [0.1.233] - 2026-02-05
+
+### Fixed
+- **Reprocess button does nothing when queue is busy**: When clicking "Reprocess" while another episode was processing, the API returned "queued" but never actually added the episode to the processing queue. The `background_queue_processor()` only reads from the `auto_process_queue` table, so episodes that bypassed this table were never picked up. Both reprocess endpoints (`/reprocess` and `/episodes/{id}/reprocess`) now call `db.queue_episode_for_processing()` when the processing lock is busy, ensuring episodes are actually added to the queue for background processing.
+
+---
+
+## [0.1.232] - 2026-02-05
+
+### Fixed
+- **Ad detection parsing failures**: Fixed bug in `_parse_ads_from_response()` where valid ads were not being extracted from Claude's responses. Added support for `ads_and_sponsorships` response key (Claude sometimes uses this instead of just `ads`). Added support for `start_timestamp`/`end_timestamp` field names (Claude's alternate naming convention). This fixes 0 ads detected for episodes where Claude was correctly identifying ads but the parser couldn't extract them.
+- **CUDA OOM from legacy reprocess endpoint**: The old `/feeds/<slug>/episodes/<episode_id>/reprocess` endpoint was calling `process_episode()` directly, bypassing the `ProcessingQueue` lock that prevents concurrent GPU processing. This allowed two episodes to transcribe simultaneously, exhausting GPU memory. Updated to use `start_background_processing()` like the new endpoint, ensuring proper queue coordination. The endpoint now returns 202 Accepted and processes asynchronously.
+
+---
+
+## [0.1.231] - 2026-02-05
+
+### Fixed
+- **Infinite episode retry loop**: Fixed bug introduced in v0.1.225 where `reset_orphaned_queue_items()` would reset stuck queue items to 'pending' indefinitely without incrementing the `attempts` counter. Episodes that repeatedly fail (e.g., CUDA OOM on long episodes) would cycle forever: fail -> reset to pending -> retry -> fail -> repeat. Now the function increments `attempts` on each reset and marks items as permanently 'failed' after exceeding `max_attempts` (default 3). This stops resource-consuming episodes from blocking the queue indefinitely.
+
+---
+
+## [0.1.230] - 2026-02-05
+
+### Fixed
+- **Concurrent episode processing despite fcntl.flock**: Fixed bug where two episodes could still process simultaneously within the same Gunicorn worker. The issue was that `acquire()` always opened a new file descriptor, overwriting `_lock_fd` and orphaning the previous fd. Since `flock()` is per-fd (not per-file) within the same process, the second `flock()` on a different fd would succeed. Added `_fd_lock` threading lock to synchronize access to `_lock_fd` across threads, and added early rejection if `_lock_fd` is already set (meaning this process already holds the lock). Promoted lock acquire/release logging from DEBUG to INFO for production visibility.
+
+---
+
+## [0.1.229] - 2026-02-05
+
+### Fixed
+- **Concurrent episode processing causing CUDA OOM**: ProcessingQueue was using `threading.Lock` which only prevents concurrent access within a single Python process. With 2 Gunicorn workers (separate processes), each had its own lock, allowing both to process episodes simultaneously and exhausting GPU memory. Replaced with `fcntl.flock()` file-based locking that coordinates across all worker processes. The lock file and state are stored in `/app/data/` for cross-process visibility.
+
+- **Episode ID instability causing duplicates**: Same episodes were appearing multiple times in the database with different IDs because some RSS feeds (especially Megaphone) have unstable GUIDs or dynamic URL parameters. Added title+pubDate deduplication check in `refresh_rss_feed()` - before queuing a "new" episode, we now check if an episode with the same title and publish date already exists. If found, the episode is skipped with a warning log. Added `get_episode_by_title_and_date()` method to database.py.
+
+---
+
+## [0.1.228] - 2026-02-05
+
+### Fixed
+- **App startup failure**: Added migration to update episodes table CHECK constraint to include `permanently_failed` status. The `permanently_failed` status was added in v0.1.225 code but the migration to update existing databases' CHECK constraint was missing. SQLite requires table recreation to modify constraints.
+
+---
+
+## [0.1.227] - 2026-02-05
+
+### Fixed
+- **SQLite database locking**: Fixed "database is locked" errors that occurred during concurrent database access (e.g., when transcription completed while another operation was writing). Added `PRAGMA journal_mode = WAL` for Write-Ahead Logging (allows concurrent readers with one writer) and `PRAGMA busy_timeout = 30000` (SQLite retries for 30 seconds instead of failing immediately). The existing `timeout=30.0` in `sqlite3.connect()` is Python's lock acquisition timeout, not SQLite's busy timeout - SQLite's default busy_timeout is 0 which fails immediately on lock contention.
+
+---
+
+## [0.1.226] - 2026-02-05
+
+### Fixed
+- **Duplicate episode ID generation**: Fixed bug where the same episode would be processed repeatedly with different IDs. The issue occurred because `generate_episode_id()` used only the audio URL, which can include dynamic CDN tracking parameters (e.g., Megaphone's `awCollectionId`/`awEpisodeId`). When these parameters changed between RSS refreshes, the same episode appeared as "new" with a different ID, causing infinite reprocessing loops. Now uses RSS GUID (stable identifier per RSS spec) with URL fallback for feeds without GUIDs.
+
+- **Dead code cleanup**: Removed two calls to non-existent `storage.delete_ads_json()` method in reprocess endpoints. The method was removed in v0.1.26 but calls remained wrapped in try/except, causing harmless warnings. Data clearing is already handled by `db.clear_episode_details()`.
+
+- **Queue race condition**: Moved `status_service.start_job()` call from inside the processing thread to immediately after acquiring the ProcessingQueue lock in `start_background_processing()`. This prevents a new episode from starting before StatusService knows about the current one, closing a timing gap that allowed episode overlap.
+
+- **Ad detection progress updates**: Added `progress_callback` parameter to `detect_ads()`, `detect_ads_second_pass()`, and `process_transcript()` methods. Now reports progress for each detection window (e.g., "detecting:3/12"), keeping the UI progress indicator alive during the 2-5+ minute ad detection phase that previously caused the progress bar to disappear.
+
+---
+
+## [0.1.225] - 2026-02-05
+
+### Fixed
+- **Sponsor extraction garbage capture**: Fixed regex patterns in `extract_sponsor_from_text()` that would incorrectly extract common English words as sponsor names (e.g., "not an" from "This is not an advertisement", "consistent with" from Claude reasoning). Added `INVALID_SPONSOR_CAPTURE_WORDS` validation and rejection of all-lowercase multi-word phrases.
+
+- **Queue race condition**: Fixed race condition where `db.update_queue_status(queue_id, 'processing')` was called BEFORE the processing lock was acquired. If the worker crashed between these calls, the queue item would remain stuck in 'processing' status. Now the status is only updated AFTER successfully acquiring the lock.
+
+- **Stuck episode retry tracking**: Enhanced `reset_stuck_processing_episodes()` to track retry count and mark episodes as `permanently_failed` after 3 crashes (MAX_EPISODE_RETRIES). Prevents infinite retry loops for episodes that consistently crash workers (e.g., OOM issues).
+
+### Added
+- **Orphaned queue detection**: Added `db.reset_orphaned_queue_items()` method to detect and reset queue items stuck in 'processing' for over 35 minutes. Called periodically from the queue processor to recover from worker crashes without restart.
+
+- **Confidence threshold logging**: Added log line at start of episode processing showing current confidence threshold (e.g., "Confidence threshold: 80%"). Helps verify the aggressiveness slider setting is being applied.
+
+- **Podcast description in prompts**: Now passes the podcast-level description (in addition to episode description) to Claude prompts for both first and second pass ad detection. This provides additional context about the show format and typical sponsors.
+
+### Improved
+- **JSON format instructions**: Enhanced JSON output instructions for Anthropic API to be more explicit: numbered requirements, explicit "use null not None" rule, clearer formatting. Reduces JSON parse errors from malformed responses.
+
+- **Podcast description in UI**: Added missing `description` field to `/feeds/{slug}` API response. The UI already supported displaying podcast descriptions but the API wasn't returning it.
+
+---
+
+## [0.1.224] - 2026-02-02
+
+### Fixed
+- **Reprocess endpoint timeout**: Fixed 504 Gateway Timeout when reprocessing episodes. The endpoint was calling `process_episode()` synchronously, causing nginx to timeout before processing completed. Now uses `start_background_processing()` (same pattern as JIT processing) and returns 202 Accepted immediately. The frontend polls for status updates via existing mechanisms.
+
+---
+
 ## [0.1.223] - 2026-02-02
 
 ### Fixed

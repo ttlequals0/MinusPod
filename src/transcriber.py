@@ -931,7 +931,7 @@ class Transcriber:
                 try:
                     os.unlink(preprocessed_path)
                     logger.debug(f"Cleaned up preprocessed file: {preprocessed_path}")
-                except:
+                except OSError:
                     pass
 
     def transcribe_chunked(self, audio_path: str, podcast_name: str = None) -> List[Dict]:
@@ -1163,5 +1163,5 @@ class Transcriber:
                 try:
                     os.unlink(audio_path)
                     logger.info(f"Cleaned up temp file: {audio_path}")
-                except:
+                except OSError:
                     pass

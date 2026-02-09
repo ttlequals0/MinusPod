@@ -129,13 +129,28 @@ class AnthropicClient(LLMClient):
     ) -> LLMResponse:
         self._ensure_client()
 
-        # Note: Anthropic API doesn't support response_format parameter,
-        # so we accept it for interface compatibility but don't use it
+        # Anthropic API doesn't support response_format parameter natively,
+        # so we add explicit JSON instructions to the system prompt when requested
+        effective_system = system
+        if response_format and response_format.get('type') == 'json_object':
+            json_instruction = (
+                "\n\n<output_format>CRITICAL JSON REQUIREMENTS:\n"
+                "1. Respond with ONLY valid JSON - no markdown, no ```json, no text\n"
+                "2. Start directly with '[' or '{', end with ']' or '}'\n"
+                "3. Use double quotes for strings, no trailing commas\n"
+                "4. Use null for missing values (not None)\n"
+                "Malformed JSON causes parsing failures.</output_format>"
+            )
+            # Only add if not already present
+            if '<output_format>' not in system:
+                effective_system = system + json_instruction
+                logger.debug("Added JSON format instructions to system prompt")
+
         response = self._client.messages.create(
             model=model,
             max_tokens=max_tokens,
             temperature=temperature,
-            system=system,
+            system=effective_system,
             messages=messages,
             timeout=timeout
         )
@@ -173,11 +188,13 @@ class AnthropicClient(LLMClient):
     def _get_fallback_models(self) -> List[LLMModel]:
         """Return known models as fallback."""
         return [
+            LLMModel(id='claude-opus-4-6', name='Claude Opus 4.6'),
             LLMModel(id='claude-sonnet-4-5-20250929', name='Claude Sonnet 4.5'),
+            LLMModel(id='claude-haiku-4-5-20251001', name='Claude Haiku 4.5'),
             LLMModel(id='claude-opus-4-5-20251101', name='Claude Opus 4.5'),
+            LLMModel(id='claude-opus-4-1-20250805', name='Claude Opus 4.1'),
             LLMModel(id='claude-sonnet-4-20250514', name='Claude Sonnet 4'),
-            LLMModel(id='claude-opus-4-1-20250414', name='Claude Opus 4.1'),
-            LLMModel(id='claude-3-5-sonnet-20241022', name='Claude 3.5 Sonnet'),
+            LLMModel(id='claude-opus-4-20250514', name='Claude Opus 4'),
         ]
 
     def get_provider_name(self) -> str:
@@ -280,9 +297,13 @@ class OpenAICompatibleClient(LLMClient):
     def _get_fallback_models(self) -> List[LLMModel]:
         """Return fallback models."""
         return [
+            LLMModel(id='claude-opus-4-6', name='Claude Opus 4.6'),
             LLMModel(id='claude-sonnet-4-5-20250929', name='Claude Sonnet 4.5'),
+            LLMModel(id='claude-haiku-4-5-20251001', name='Claude Haiku 4.5'),
+            LLMModel(id='claude-opus-4-5-20251101', name='Claude Opus 4.5'),
+            LLMModel(id='claude-opus-4-1-20250805', name='Claude Opus 4.1'),
             LLMModel(id='claude-sonnet-4-20250514', name='Claude Sonnet 4'),
-            LLMModel(id='claude-3-5-sonnet-20241022', name='Claude 3.5 Sonnet'),
+            LLMModel(id='claude-opus-4-20250514', name='Claude Opus 4'),
         ]
 
     def get_provider_name(self) -> str:

@@ -380,20 +380,18 @@ REST API available at `/api/v1/`. Interactive docs at `/docs`. See `openapi.yaml
 
 Key endpoints:
 - `GET /api/v1/feeds` - List all feeds
-- `GET /api/v1/feeds/{slug}` - Get feed details
 - `POST /api/v1/feeds` - Add a new feed
+- `POST /api/v1/feeds/import-opml` - Import feeds from OPML file
 - `POST /api/v1/feeds/{slug}/episodes/{id}/reprocess` - Force reprocess (supports `mode`: reprocess/full)
+- `POST /api/v1/feeds/{slug}/reprocess-all` - Batch reprocess all episodes
 - `POST /api/v1/feeds/{slug}/episodes/{id}/retry-ad-detection` - Retry ad detection only
 - `POST /api/v1/feeds/{slug}/episodes/{id}/corrections` - Submit ad corrections
-- `GET /api/v1/episodes/processing` - List episodes currently processing
-- `POST /api/v1/feeds/{slug}/episodes/{id}/cancel` - Cancel stuck processing episode
 - `GET /api/v1/patterns` - List ad patterns (filter by scope)
-- `PUT /api/v1/patterns/{id}` - Update pattern
-- `GET /api/v1/history` - Get processing history with pagination
-- `GET /api/v1/history/stats` - Get processing statistics
-- `GET /api/v1/history/export` - Export history as CSV or JSON
-- `GET /api/v1/networks` - List known podcast networks
-- `GET /api/v1/status` - Get current processing status
+- `GET /api/v1/patterns/stats` - Pattern database statistics
+- `GET /api/v1/sponsors` - List/create/update/delete sponsors (full CRUD)
+- `GET /api/v1/search?q=query` - Full-text search across all content
+- `GET /api/v1/history` - Processing history with pagination and export
+- `GET /api/v1/status` - Current processing status
 - `GET /api/v1/status/stream` - SSE endpoint for real-time status updates
 - `GET /api/v1/settings` - Get current settings
 - `PUT /api/v1/settings/ad-detection` - Update ad detection config

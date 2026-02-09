@@ -112,9 +112,18 @@ class RSSParser:
             logger.error(f"Failed to parse RSS feed: {e}")
             return None
 
-    def generate_episode_id(self, episode_url: str) -> str:
-        """Generate consistent episode ID from URL."""
-        # Use MD5 hash of URL for consistent ID
+    def generate_episode_id(self, episode_url: str, guid: str = None) -> str:
+        """Generate consistent episode ID from GUID or URL.
+
+        Uses RSS GUID if available (stable identifier), falls back to URL hash.
+        This prevents duplicate episode IDs when CDNs include dynamic tracking
+        parameters in audio URLs (e.g., Megaphone's awCollectionId/awEpisodeId).
+        """
+        # Prefer GUID as it's meant to be stable per RSS spec
+        if guid and guid.strip():
+            clean_guid = guid.strip()
+            return hashlib.md5(clean_guid.encode()).hexdigest()[:12]
+        # Fallback to URL hash for feeds without GUIDs
         return hashlib.md5(episode_url.encode()).hexdigest()[:12]
 
     def modify_feed(self, feed_content: str, slug: str, storage=None) -> str:
@@ -173,7 +182,7 @@ class RSSParser:
                 logger.warning(f"Skipping entry without audio: {entry.get('title', 'Unknown')}")
                 continue
 
-            episode_id = self.generate_episode_id(episode_url)
+            episode_id = self.generate_episode_id(episode_url, entry.get('id'))
             modified_url = f"{self.base_url}/episodes/{slug}/{episode_id}.mp3"
 
             lines.append('<item>')
@@ -334,7 +343,7 @@ class RSSParser:
                     artwork_url = entry.itunes_image.get('href')
 
                 episodes.append({
-                    'id': self.generate_episode_id(episode_url),
+                    'id': self.generate_episode_id(episode_url, entry.get('id', '')),
                     'url': episode_url,
                     'title': entry.get('title', 'Unknown'),
                     'published': entry.get('published', ''),

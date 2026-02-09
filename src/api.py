@@ -3,7 +3,7 @@ import json
 import logging
 import os
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from flask import Blueprint, jsonify, request, Response, session
 from flask_limiter import Limiter
@@ -13,6 +13,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 from utils.time import parse_timestamp
 from utils.text import extract_text_in_range
+from sponsor_service import SponsorService
 
 logger = logging.getLogger('podcast.api')
 
@@ -175,44 +176,9 @@ def extract_transcript_segment(transcript: str, start: float, end: float) -> str
 def extract_sponsor_from_text(ad_text: str) -> str:
     """Extract sponsor name from ad text by looking for URLs and common patterns.
 
-    Looks for:
-    - Domain names (e.g., hex.ai, thisisnewjersey.com)
-    - Common sponsor phrases (e.g., "brought to you by X", "sponsored by X")
+    Delegates to SponsorService.extract_sponsor_from_text (canonical implementation).
     """
-    import re
-
-    if not ad_text:
-        return None
-
-    # Look for URLs/domains mentioned in the text
-    # Match patterns like: example.com, example.ai, visit example dot com
-    domain_pattern = r'(?:visit\s+)?(?:www\.)?([a-zA-Z0-9-]+)\.(?:com|ai|io|org|net|co|gov)(?:/[^\s]*)?'
-    domains = re.findall(domain_pattern, ad_text.lower())
-
-    # Filter out common non-sponsor domains
-    ignore_domains = {'example', 'website', 'podcast', 'episode', 'click', 'link'}
-    domains = [d for d in domains if d not in ignore_domains]
-
-    if domains:
-        # Return the first meaningful domain as sponsor
-        sponsor = domains[0].replace('-', ' ').title()
-        return sponsor
-
-    # Look for "brought to you by X" or "sponsored by X" patterns
-    sponsor_patterns = [
-        r'brought to you by\s+([A-Z][a-zA-Z0-9\s]+?)(?:\.|,|!|\s+is|\s+where|\s+the)',
-        r'sponsored by\s+([A-Z][a-zA-Z0-9\s]+?)(?:\.|,|!|\s+is|\s+where|\s+the)',
-        r'thanks to\s+([A-Z][a-zA-Z0-9\s]+?)(?:\s+for|\.|,|!)',
-    ]
-
-    for pattern in sponsor_patterns:
-        match = re.search(pattern, ad_text, re.IGNORECASE)
-        if match:
-            sponsor = match.group(1).strip()
-            if len(sponsor) < 50:  # Sanity check
-                return sponsor
-
-    return None
+    return SponsorService.extract_sponsor_from_text(ad_text)
 
 
 # ========== Feed Endpoints ==========
@@ -500,6 +466,7 @@ def get_feed(slug):
     return json_response({
         'slug': podcast['slug'],
         'title': podcast['title'] or podcast['slug'],
+        'description': podcast.get('description'),
         'sourceUrl': podcast['source_url'],
         'feedUrl': feed_url,
         'artworkUrl': f"/api/v1/feeds/{podcast['slug']}/artwork" if podcast.get('artwork_cached') else podcast.get('artwork_url'),
@@ -823,16 +790,17 @@ def get_episode(slug, episode_id):
     rejected_ad_markers = []
     if episode.get('ad_markers_json'):
         try:
-            import json
             all_markers = json.loads(episode['ad_markers_json'])
-            # Separate by validation decision - REJECT ads stayed in audio
+            # Separate by validation decision and cut status
+            # Only actually-removed ads go in adMarkers; everything else is rejected
             for marker in all_markers:
                 decision = marker.get('validation', {}).get('decision', 'ACCEPT')
-                if decision == 'REJECT':
+                was_cut = marker.get('was_cut', True)
+                if decision == 'REJECT' or not was_cut:
                     rejected_ad_markers.append(marker)
                 else:
                     ad_markers.append(marker)
-        except:
+        except (json.JSONDecodeError, TypeError, KeyError):
             pass
 
     time_saved = 0
@@ -918,7 +886,11 @@ def get_transcript(slug, episode_id):
 @limiter.limit("5 per minute")
 @log_request
 def reprocess_episode(slug, episode_id):
-    """Force reprocess an episode by deleting cached data and reprocessing immediately."""
+    """Force reprocess an episode by deleting cached data and reprocessing.
+
+    NOTE: This is the legacy endpoint. Prefer /episodes/<slug>/<episode_id>/reprocess
+    which supports reprocess modes (reprocess vs full).
+    """
     db = get_database()
     storage = get_storage()
 
@@ -928,6 +900,10 @@ def reprocess_episode(slug, episode_id):
 
     if episode['status'] == 'processing':
         return error_response('Episode is currently processing', 409)
+
+    podcast = db.get_podcast_by_slug(slug)
+    if not podcast:
+        return error_response('Podcast not found', 404)
 
     try:
         # 1. Delete processed audio file
@@ -939,56 +915,41 @@ def reprocess_episode(slug, episode_id):
         # 3. Reset episode status to pending
         db.reset_episode_status(slug, episode_id)
 
-        # 4. Trigger immediate reprocessing
-        from main import process_episode
-        from rss_parser import RSSParser
-
+        # 4. Get episode metadata for processing
         episode_url = episode.get('original_url')
         episode_title = episode.get('title', 'Unknown')
+        podcast_name = podcast.get('title', slug)
+        episode_description = episode.get('description')
+        episode_published_at = episode.get('published_at')
 
-        podcast = db.get_podcast_by_slug(slug)
-        podcast_name = podcast.get('title', slug) if podcast else slug
+        # 5. Start background processing (non-blocking, uses ProcessingQueue lock)
+        from main import start_background_processing
+        logger.info(f"[{slug}:{episode_id}] Starting reprocess (async)")
 
-        # Fetch episode description and published date from RSS if available
-        episode_description = None
-        episode_published_at = None
-        if podcast and podcast.get('source_url'):
-            try:
-                rss_parser = RSSParser()
-                feed_content = rss_parser.fetch_feed(podcast['source_url'])
-                if feed_content:
-                    episodes = rss_parser.extract_episodes(feed_content)
-                    for ep in episodes:
-                        if ep['id'] == episode_id:
-                            episode_description = ep.get('description')
-                            # Get published date from RSS and convert to ISO format
-                            published_str = ep.get('published', '')
-                            if published_str:
-                                try:
-                                    from email.utils import parsedate_to_datetime
-                                    parsed_pub = parsedate_to_datetime(published_str)
-                                    episode_published_at = parsed_pub.strftime('%Y-%m-%dT%H:%M:%SZ')
-                                except (ValueError, TypeError):
-                                    pass
-                            break
-            except Exception as e:
-                logger.warning(f"Could not fetch episode metadata: {e}")
+        started, reason = start_background_processing(
+            slug, episode_id, episode_url, episode_title,
+            podcast_name, episode_description, None, episode_published_at
+        )
 
-        logger.info(f"Starting reprocess: {slug}:{episode_id}")
-        success = process_episode(slug, episode_id, episode_url, episode_title, podcast_name, episode_description, None, episode_published_at)
-
-        if success:
+        if started:
             return json_response({
-                'message': 'Episode reprocessed successfully',
+                'message': 'Episode reprocess started',
                 'episodeId': episode_id,
-                'status': 'completed'
-            })
+                'status': 'processing'
+            }, 202)  # 202 Accepted - processing started asynchronously
         else:
+            # Queue is busy - add to processing queue so background processor picks it up
+            db.queue_episode_for_processing(
+                slug, episode_id, episode_url, episode_title,
+                episode_published_at, episode_description
+            )
+            logger.info(f"[{slug}:{episode_id}] Queue busy ({reason}), added to processing queue")
             return json_response({
-                'message': 'Episode reprocessing failed',
+                'message': 'Episode queued for reprocess',
                 'episodeId': episode_id,
-                'status': 'failed'
-            }, 500)
+                'status': 'queued',
+                'reason': reason
+            }, 202)
 
     except Exception as e:
         logger.error(f"Failed to reprocess episode {slug}:{episode_id}: {e}")
@@ -1142,20 +1103,12 @@ def reprocess_all_episodes(slug):
             # Clear episode details from database
             db.clear_episode_details(slug, episode_id)
 
-            # If full mode, clear existing ad data (fresh slate for Claude)
-            if mode == 'full':
-                try:
-                    storage.delete_ads_json(slug, episode_id)
-                    logger.info(f"[{slug}:{episode_id}] Cleared existing ad data for full reprocess")
-                except Exception as e:
-                    logger.warning(f"[{slug}:{episode_id}] Could not clear ad data: {e}")
-
             # Reset status to pending with reprocess mode for priority queue
             db.upsert_episode(
                 slug, episode_id,
                 status='pending',
                 reprocess_mode=mode,
-                reprocess_requested_at=datetime.utcnow().isoformat() + 'Z',
+                reprocess_requested_at=datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
                 retry_count=0,
                 error_message=None
             )
@@ -1928,7 +1881,6 @@ def list_sponsors():
     sponsors = service.db.get_known_sponsors(active_only=not include_inactive)
 
     # Parse JSON fields
-    import json
     result = []
     for s in sponsors:
         sponsor_data = dict(s)
@@ -1986,7 +1938,6 @@ def get_sponsor(sponsor_id):
     if not sponsor:
         return error_response('Sponsor not found', 404)
 
-    import json
     sponsor_data = dict(sponsor)
     if isinstance(sponsor_data.get('aliases'), str):
         try:
@@ -2148,7 +2099,6 @@ def status_stream():
     Returns a continuous event stream with status updates whenever
     processing state changes.
     """
-    import json
     import queue
 
     def generate():
@@ -2226,7 +2176,7 @@ def list_patterns():
 @log_request
 def get_pattern_stats():
     """Get pattern statistics for audit purposes."""
-    from datetime import datetime, timedelta
+    from datetime import datetime, timedelta, timezone
 
     db = get_database()
     patterns = db.get_ad_patterns(active_only=False)
@@ -2246,7 +2196,7 @@ def get_pattern_stats():
         'high_false_positive_patterns': [],
     }
 
-    stale_threshold = datetime.now() - timedelta(days=30)
+    stale_threshold = datetime.now(timezone.utc) - timedelta(days=30)
 
     for p in patterns:
         # Active/inactive
@@ -2280,7 +2230,7 @@ def get_pattern_stats():
         if last_matched:
             try:
                 last_date = datetime.fromisoformat(last_matched.replace('Z', '+00:00'))
-                if last_date.replace(tzinfo=None) < stale_threshold:
+                if last_date < stale_threshold:
                     stats['stale_count'] += 1
                     stats['stale_patterns'].append({
                         'id': p['id'],
@@ -2812,7 +2762,7 @@ def reprocess_episode_with_mode(slug, episode_id):
             slug, episode_id,
             status='pending',
             reprocess_mode=mode,
-            reprocess_requested_at=datetime.utcnow().isoformat() + 'Z',
+            reprocess_requested_at=datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
             retry_count=0,
             error_message=None
         )
@@ -2821,65 +2771,41 @@ def reprocess_episode_with_mode(slug, episode_id):
         storage.delete_processed_file(slug, episode_id)
         db.clear_episode_details(slug, episode_id)
 
-        # 3. If full mode, also clear ads JSON
-        if mode == 'full':
-            try:
-                storage.delete_ads_json(slug, episode_id)
-                logger.info(f"[{slug}:{episode_id}] Cleared ad data for full reprocess")
-            except Exception as e:
-                logger.warning(f"[{slug}:{episode_id}] Could not clear ad data: {e}")
-
-        # 4. Get episode metadata for processing
-        from main import process_episode
-        from rss_parser import RSSParser
-
+        # 3. Get episode metadata for processing
         episode_url = episode.get('original_url')
         episode_title = episode.get('title', 'Unknown')
         podcast_name = podcast.get('title', slug)
+        episode_description = episode.get('description')
+        episode_published_at = episode.get('published_at')
 
-        # Fetch description/published from RSS if available
-        episode_description = None
-        episode_published_at = None
-        if podcast.get('source_url'):
-            try:
-                rss_parser = RSSParser()
-                feed_content = rss_parser.fetch_feed(podcast['source_url'])
-                if feed_content:
-                    episodes = rss_parser.extract_episodes(feed_content)
-                    for ep in episodes:
-                        if ep['id'] == episode_id:
-                            episode_description = ep.get('description')
-                            published_str = ep.get('published', '')
-                            if published_str:
-                                try:
-                                    from email.utils import parsedate_to_datetime
-                                    parsed_pub = parsedate_to_datetime(published_str)
-                                    episode_published_at = parsed_pub.strftime('%Y-%m-%dT%H:%M:%SZ')
-                                except (ValueError, TypeError):
-                                    pass
-                            break
-            except Exception as e:
-                logger.warning(f"Could not fetch episode metadata: {e}")
+        # 5. Start background processing (non-blocking)
+        from main import start_background_processing
+        logger.info(f"[{slug}:{episode_id}] Starting {mode} reprocess (async)")
 
-        # 5. Process immediately (like old endpoint)
-        logger.info(f"[{slug}:{episode_id}] Starting {mode} reprocess")
-        success = process_episode(
+        started, reason = start_background_processing(
             slug, episode_id, episode_url, episode_title,
             podcast_name, episode_description, None, episode_published_at
         )
 
-        if success:
+        if started:
             return json_response({
-                'message': f'Episode reprocessed with {mode} mode',
+                'message': f'Episode {mode} reprocess started',
                 'mode': mode,
-                'status': 'completed'
-            })
+                'status': 'processing'
+            }, 202)  # 202 Accepted
         else:
+            # Queue is busy - add to processing queue so background processor picks it up
+            db.queue_episode_for_processing(
+                slug, episode_id, episode_url, episode_title,
+                episode_published_at, episode_description
+            )
+            logger.info(f"[{slug}:{episode_id}] Queue busy ({reason}), added to processing queue")
             return json_response({
-                'message': f'{mode.capitalize()} reprocess failed',
+                'message': f'Episode queued for {mode} reprocess',
                 'mode': mode,
-                'status': 'failed'
-            }, 500)
+                'status': 'queued',
+                'reason': reason
+            }, 202)
 
     except Exception as e:
         logger.error(f"[{slug}:{episode_id}] {mode} reprocess failed: {e}")
@@ -2908,7 +2834,7 @@ def export_patterns():
     # Build export data
     export_data = {
         'version': '1.0',
-        'exported_at': datetime.utcnow().isoformat() + 'Z',
+        'exported_at': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
         'pattern_count': len(patterns),
         'patterns': []
     }

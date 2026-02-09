@@ -6,7 +6,7 @@ import sys
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 from pathlib import Path
 from functools import wraps
@@ -538,7 +538,7 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
                 title=title,
                 description=description,
                 artwork_url=artwork_url,
-                last_checked_at=datetime.utcnow().isoformat() + 'Z'
+                last_checked_at=datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
             )
 
             # Update ETag for conditional GET on next refresh
@@ -570,22 +570,43 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
         if db.is_auto_process_enabled_for_podcast(slug):
             episodes = rss_parser.extract_episodes(feed_content)
             queued_count = 0
-            cutoff_time = datetime.utcnow() - timedelta(hours=48)
+            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=48)
 
             for ep in episodes:
                 # Check if episode already exists in database
                 existing = db.get_episode(slug, ep['id'])
                 if existing is None:
-                    # Parse publish date to check if recent
+                    # Also check by title+pubDate to catch ID changes (Megaphone feeds, etc.)
+                    # This prevents duplicate processing when RSS GUID changes
                     published_str = ep.get('published', '')
+                    iso_published = None
+                    if published_str:
+                        try:
+                            parsed_pub = parsedate_to_datetime(published_str)
+                            iso_published = parsed_pub.strftime('%Y-%m-%dT%H:%M:%SZ')
+                        except (ValueError, TypeError):
+                            pass
+
+                    if iso_published and ep.get('title'):
+                        existing_by_title = db.get_episode_by_title_and_date(
+                            slug, ep.get('title'), iso_published
+                        )
+                        if existing_by_title:
+                            refresh_logger.warning(
+                                f"[{slug}] Episode ID changed: {existing_by_title['episode_id']} -> {ep['id']}, "
+                                f"title: {ep.get('title')}"
+                            )
+                            continue  # Skip - episode already exists with different ID
+
+                    # Parse publish date to check if recent
                     is_recent = False
                     if published_str:
                         try:
                             # RSS dates are typically RFC 2822 format
                             pub_date = parsedate_to_datetime(published_str)
-                            # Make comparison timezone-naive
-                            if pub_date.tzinfo:
-                                pub_date = pub_date.replace(tzinfo=None)
+                            # Ensure timezone-aware for comparison
+                            if pub_date.tzinfo is None:
+                                pub_date = pub_date.replace(tzinfo=timezone.utc)
                             is_recent = pub_date >= cutoff_time
                         except (ValueError, TypeError):
                             # If we can't parse the date, skip this episode for auto-process
@@ -594,14 +615,7 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
 
                     if is_recent:
                         # New recent episode - queue for processing
-                        # Convert pubDate to ISO format for storage
-                        iso_published = None
-                        if published_str:
-                            try:
-                                parsed_pub = parsedate_to_datetime(published_str)
-                                iso_published = parsed_pub.strftime('%Y-%m-%dT%H:%M:%SZ')
-                            except (ValueError, TypeError):
-                                pass
+                        # iso_published already calculated above for deduplication check
                         queue_id = db.queue_episode_for_processing(
                             slug, ep['id'], ep['url'], ep.get('title'), iso_published,
                             ep.get('description')
@@ -620,7 +634,7 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
         storage.save_rss(slug, modified_rss)
 
         # Update last_checked timestamp
-        db.update_podcast(slug, last_checked_at=datetime.utcnow().isoformat() + 'Z')
+        db.update_podcast(slug, last_checked_at=datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'))
 
         refresh_logger.info(f"[{slug}] RSS refresh complete")
         status_service.complete_feed_refresh(slug, 0)
@@ -702,8 +716,17 @@ def background_queue_processor():
     """
     refresh_logger.info("Auto-process queue processor started")
     backoff_seconds = 30  # Initial backoff for busy queue
+    orphan_check_interval = 0  # Counter for orphan check (every 10 iterations)
     while not shutdown_event.is_set():
         try:
+            # Periodically check for orphaned queue items (every ~5 minutes)
+            orphan_check_interval += 1
+            if orphan_check_interval >= 10:
+                orphan_check_interval = 0
+                reset_count, failed_count = db.reset_orphaned_queue_items(stuck_minutes=65)
+                if reset_count > 0 or failed_count > 0:
+                    refresh_logger.info(f"Reset {reset_count} orphaned queue items, {failed_count} exceeded max attempts")
+
             # Get next queued episode
             queued = db.get_next_queued_episode()
 
@@ -719,9 +742,6 @@ def background_queue_processor():
 
                 refresh_logger.info(f"[{slug}:{episode_id}] Auto-processing queued episode: {title}")
 
-                # Mark as processing
-                db.update_queue_status(queue_id, 'processing')
-
                 try:
                     # Try to start background processing using the existing queue
                     started, reason = start_background_processing(
@@ -729,10 +749,12 @@ def background_queue_processor():
                     )
 
                     if started:
+                        # Only mark as processing AFTER we successfully acquired the lock
+                        db.update_queue_status(queue_id, 'processing')
                         # Reset backoff on successful start
                         backoff_seconds = 30
                         # Wait for processing to complete (poll status)
-                        max_wait = 600  # 10 minutes max
+                        max_wait = 3600  # 60 minutes max (match MAX_JOB_DURATION)
                         waited = 0
                         while waited < max_wait and not shutdown_event.is_set():
                             shutdown_event.wait(timeout=10)
@@ -787,29 +809,65 @@ def background_queue_processor():
 
 
 def reset_stuck_processing_episodes():
-    """Reset any episodes stuck in 'processing' status from previous crash."""
+    """Reset any episodes stuck in 'processing' status from previous crash.
+
+    Tracks retry count and marks episodes as permanently_failed after MAX_EPISODE_RETRIES
+    to prevent infinite retry loops for episodes that consistently crash workers.
+    """
     conn = db.get_connection()
     cursor = conn.execute(
-        """SELECT e.id, e.episode_id, p.slug
+        """SELECT e.id, e.episode_id, e.retry_count, p.slug
            FROM episodes e
            JOIN podcasts p ON e.podcast_id = p.id
            WHERE e.status = 'processing'"""
     )
     stuck = cursor.fetchall()
 
+    reset_count = 0
+    failed_count = 0
+
     for row in stuck:
-        refresh_logger.warning(
-            f"Resetting stuck episode: {row['slug']}/{row['episode_id']}"
-        )
-        conn.execute(
-            "UPDATE episodes SET status = 'pending', error_message = 'Reset after restart' "
-            "WHERE id = ?",
-            (row['id'],)
-        )
+        current_retry_count = row['retry_count'] or 0
+        new_retry_count = current_retry_count + 1
+
+        if new_retry_count >= MAX_EPISODE_RETRIES:
+            # Too many retries - mark as permanently failed
+            refresh_logger.warning(
+                f"Marking episode as permanently_failed after {new_retry_count} crashes: "
+                f"{row['slug']}/{row['episode_id']}"
+            )
+            conn.execute(
+                """UPDATE episodes SET
+                   status = 'permanently_failed',
+                   retry_count = ?,
+                   error_message = 'Exceeded retry limit after repeated processing crashes'
+                   WHERE id = ?""",
+                (new_retry_count, row['id'])
+            )
+            failed_count += 1
+        else:
+            # Still have retries left - reset to pending
+            refresh_logger.warning(
+                f"Resetting stuck episode (attempt {new_retry_count}/{MAX_EPISODE_RETRIES}): "
+                f"{row['slug']}/{row['episode_id']}"
+            )
+            conn.execute(
+                """UPDATE episodes SET
+                   status = 'pending',
+                   retry_count = ?,
+                   error_message = 'Reset after restart (retry attempt)'
+                   WHERE id = ?""",
+                (new_retry_count, row['id'])
+            )
+            reset_count += 1
+
     conn.commit()
 
     if stuck:
-        refresh_logger.info(f"Reset {len(stuck)} stuck episodes to pending")
+        refresh_logger.info(
+            f"Stuck episode cleanup: {reset_count} reset to pending, "
+            f"{failed_count} marked permanently_failed"
+        )
 
 
 def _process_episode_background(slug, episode_id, original_url, title, podcast_name, description, artwork_url, published_at=None):
@@ -846,6 +904,10 @@ def start_background_processing(slug, episode_id, original_url, title, podcast_n
             return False, f"queue_busy:{current[0]}:{current[1]}"
         return False, "queue_busy"
 
+    # Update StatusService IMMEDIATELY after lock acquired (prevents race condition)
+    # This ensures the new episode is tracked before any other episode can start
+    status_service.start_job(slug, episode_id, title, podcast_name)
+
     # Start background thread
     processing_thread = threading.Thread(
         target=_process_episode_background,
@@ -875,9 +937,14 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
     # Get podcast settings for processing behavior
     podcast_settings = db.get_podcast_by_slug(slug)
     skip_second_pass = podcast_settings.get('skip_second_pass', 0) if podcast_settings else 0
+    podcast_description = podcast_settings.get('description') if podcast_settings else None
 
     try:
         audio_logger.info(f"[{slug}:{episode_id}] Starting: \"{episode_title}\"")
+
+        # Log confidence threshold at start of processing
+        min_cut_confidence = get_min_cut_confidence()
+        audio_logger.info(f"[{slug}:{episode_id}] Confidence threshold: {min_cut_confidence:.0%}")
 
         # Track status for UI
         status_service.start_job(slug, episode_id, episode_title, podcast_name)
@@ -913,7 +980,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                             'end': parse_timestamp(end_str),
                             'text': text_part
                         })
-                    except:
+                    except (ValueError, TypeError):
                         continue
 
             if segments:
@@ -989,6 +1056,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 # Continue without audio analysis - it's optional
 
         try:
+            # Define progress callback to keep UI indicator alive during long detection
+            def detection_progress_callback(stage, percent):
+                status_service.update_job_stage(stage, percent)
+
             # Step 2: Detect ads (first pass)
             status_service.update_job_stage("detecting", 50)
             ad_result = ad_detector.process_transcript(
@@ -996,7 +1067,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 audio_analysis=audio_analysis_result,
                 audio_path=audio_path,
                 podcast_id=slug,  # Pass slug as podcast_id for pattern matching
-                skip_patterns=skip_patterns  # Gap 3: 'full' mode skips pattern DB
+                skip_patterns=skip_patterns,  # Gap 3: 'full' mode skips pattern DB
+                podcast_description=podcast_description,  # Pass podcast-level description for context
+                progress_callback=detection_progress_callback  # Keep UI alive during detection
             )
             storage.save_ads_json(slug, episode_id, ad_result, pass_number=1)
 
@@ -1041,7 +1114,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     segments,  # Same transcript, blind analysis
                     podcast_name, episode_title, slug, episode_id, episode_description,
                     audio_analysis=audio_analysis_result,
-                    skip_patterns=skip_patterns  # Gap 3: 'full' mode skips pattern DB
+                    skip_patterns=skip_patterns,  # Gap 3: 'full' mode skips pattern DB
+                    podcast_description=podcast_description,  # Pass podcast-level description for context
+                    progress_callback=detection_progress_callback  # Keep UI alive during second pass
                 )
 
                 # Save second pass data to database
@@ -1432,11 +1507,11 @@ def serve_rss(slug):
     elif last_checked:
         try:
             last_time = datetime.fromisoformat(last_checked.replace('Z', '+00:00'))
-            age_minutes = (datetime.utcnow() - last_time.replace(tzinfo=None)).total_seconds() / 60
+            age_minutes = (datetime.now(timezone.utc) - last_time).total_seconds() / 60
             if age_minutes > 15:
                 should_refresh = True
                 feed_logger.info(f"[{slug}] RSS cache stale ({age_minutes:.0f}min), refreshing")
-        except:
+        except (ValueError, TypeError):
             should_refresh = True
 
     if should_refresh:

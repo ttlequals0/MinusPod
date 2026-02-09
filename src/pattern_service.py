@@ -11,7 +11,7 @@ import logging
 import json
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Tuple
-from datetime import datetime
+from datetime import datetime, timezone
 
 from config import (
     PODCAST_TO_NETWORK_THRESHOLD,
@@ -308,6 +308,22 @@ class PatternService:
             )
 
             logger.info(f"Promoted pattern {pattern_id} to {new_scope} scope")
+
+            # Consolidate similar patterns at the new scope level
+            scope_patterns = self.db.get_ad_patterns(scope=new_scope)
+            template = pattern.get('text_template', '')
+            similar_ids = [pattern_id]
+            for p in scope_patterns:
+                if p['id'] != pattern_id and self._patterns_similar(template, p.get('text_template', '')):
+                    similar_ids.append(p['id'])
+            if len(similar_ids) > 1:
+                merged_id = self.merge_similar_patterns(similar_ids, new_scope)
+                if merged_id:
+                    logger.info(
+                        f"Merged promoted pattern {pattern_id} with "
+                        f"{len(similar_ids) - 1} similar {new_scope} patterns into {merged_id}"
+                    )
+
             return True
 
         except Exception as e:
@@ -490,7 +506,7 @@ class PatternService:
             # Update last_matched_at
             self.db.update_ad_pattern(
                 pattern_id,
-                last_matched_at=datetime.utcnow().isoformat()
+                last_matched_at=datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
             )
 
             # Increment confirmation count
@@ -498,6 +514,11 @@ class PatternService:
             if pattern:
                 new_count = pattern.get('confirmation_count', 0) + 1
                 self.db.update_ad_pattern(pattern_id, confirmation_count=new_count)
+
+                # Check if this sponsor qualifies for global promotion
+                sponsor = pattern.get('sponsor')
+                if sponsor and self.check_sponsor_global_promotion(sponsor):
+                    self.auto_promote_sponsor_patterns(sponsor)
 
             # Check for promotion
             new_scope = self.check_for_promotion(pattern_id)

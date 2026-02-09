@@ -11,7 +11,7 @@ Handles:
 import logging
 import os
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional
 
 logger = logging.getLogger('podcast.cleanup')
@@ -133,8 +133,8 @@ class CleanupService:
             return 0
 
         stale_days = self._get_setting('pattern_stale_days')
-        cutoff_date = datetime.utcnow() - timedelta(days=stale_days)
-        cutoff_str = cutoff_date.isoformat()
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=stale_days)
+        cutoff_str = cutoff_date.strftime('%Y-%m-%dT%H:%M:%SZ')
 
         try:
             # Get active patterns not matched since cutoff
@@ -173,7 +173,7 @@ class CleanupService:
             self.db.update_ad_pattern(
                 pattern_id,
                 is_active=False,
-                disabled_at=datetime.utcnow().isoformat(),
+                disabled_at=datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
                 disabled_reason=reason
             )
         except Exception as e:
@@ -190,8 +190,8 @@ class CleanupService:
             return 0
 
         purge_days = self._get_setting('pattern_purge_days')
-        cutoff_date = datetime.utcnow() - timedelta(days=purge_days)
-        cutoff_str = cutoff_date.isoformat()
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=purge_days)
+        cutoff_str = cutoff_date.strftime('%Y-%m-%dT%H:%M:%SZ')
 
         try:
             # Get disabled patterns
@@ -242,8 +242,8 @@ class CleanupService:
             return 0
 
         episode_days = self._get_setting('episode_days')
-        cutoff_date = datetime.utcnow() - timedelta(days=episode_days)
-        cutoff_str = cutoff_date.isoformat()
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=episode_days)
+        cutoff_str = cutoff_date.strftime('%Y-%m-%dT%H:%M:%SZ')
 
         try:
             # Get all episodes
@@ -282,8 +282,8 @@ class CleanupService:
         min_confirmations = self._get_setting('min_confirmations_to_decay')
 
         # Only decay patterns not matched in 30 days
-        cutoff_date = datetime.utcnow() - timedelta(days=30)
-        cutoff_str = cutoff_date.isoformat()
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=30)
+        cutoff_str = cutoff_date.strftime('%Y-%m-%dT%H:%M:%SZ')
 
         try:
             patterns = self.db.get_ad_patterns(active_only=True)
@@ -443,7 +443,7 @@ class CleanupService:
 
             # Count stale patterns
             stale_days = self._get_setting('pattern_stale_days')
-            cutoff = (datetime.utcnow() - timedelta(days=stale_days)).isoformat()
+            cutoff = (datetime.now(timezone.utc) - timedelta(days=stale_days)).strftime('%Y-%m-%dT%H:%M:%SZ')
             stats['stale_patterns'] = len([
                 p for p in all_patterns
                 if p.get('is_active') and (

@@ -22,6 +22,10 @@ LONG_AD_WARN = 180.0            # Warn if longer than 3 min
 MAX_AD_DURATION = 300.0         # Reject if longer (5 min)
 MAX_AD_DURATION_CONFIRMED = 900.0  # Allow 15 min if sponsor confirmed
 
+# Ad evidence thresholds
+CONTENT_DURATION_THRESHOLD = 120.0  # Segments >= this without evidence are likely content
+LOW_EVIDENCE_WARN_THRESHOLD = 60.0  # Warn for segments >= this without evidence
+
 # Ad detector specific durations
 MIN_TYPICAL_AD_DURATION = 30.0  # Most sponsor reads are 60-120 seconds
 MIN_SPONSOR_READ_DURATION = 90.0  # Threshold for extension consideration

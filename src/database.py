@@ -5,7 +5,7 @@ import logging
 import json
 import os
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, List, Any, Tuple
 
 from utils.time import parse_timestamp
@@ -369,6 +369,10 @@ class Database:
                 timeout=30.0
             )
             self._local.connection.row_factory = sqlite3.Row
+            # Enable WAL mode for better concurrent access (reads don't block writes)
+            self._local.connection.execute("PRAGMA journal_mode = WAL")
+            # Set busy timeout to 30 seconds (SQLite will retry instead of failing immediately)
+            self._local.connection.execute("PRAGMA busy_timeout = 30000")
             self._local.connection.execute("PRAGMA foreign_keys = ON")
         return self._local.connection
 
@@ -851,6 +855,80 @@ class Database:
                 logger.info("Migration: Added retry_count column to episodes table")
             except Exception as e:
                 logger.error(f"Migration failed for retry_count: {e}")
+
+        # Migration: Update episodes status CHECK constraint to include 'permanently_failed'
+        # SQLite doesn't support ALTER TABLE to modify constraints, so we recreate the table
+        try:
+            cursor = conn.execute("SELECT sql FROM sqlite_master WHERE type='table' AND name='episodes'")
+            create_sql = cursor.fetchone()
+            if create_sql and 'permanently_failed' not in create_sql[0]:
+                logger.info("Migration: Updating episodes table CHECK constraint for permanently_failed status...")
+
+                # Get current column list from old table
+                cursor = conn.execute("PRAGMA table_info(episodes)")
+                old_columns = [row['name'] for row in cursor.fetchall()]
+
+                # 1. Create new table with correct constraint (matches current SCHEMA_SQL)
+                conn.execute("""
+                    CREATE TABLE episodes_new (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        podcast_id INTEGER NOT NULL,
+                        episode_id TEXT NOT NULL,
+                        original_url TEXT NOT NULL,
+                        title TEXT,
+                        description TEXT,
+                        status TEXT DEFAULT 'pending' CHECK(status IN ('pending','processing','processed','failed','permanently_failed')),
+                        retry_count INTEGER DEFAULT 0,
+                        processed_file TEXT,
+                        processed_at TEXT,
+                        original_duration REAL,
+                        new_duration REAL,
+                        ads_removed INTEGER DEFAULT 0,
+                        ads_removed_firstpass INTEGER DEFAULT 0,
+                        ads_removed_secondpass INTEGER DEFAULT 0,
+                        error_message TEXT,
+                        ad_detection_status TEXT DEFAULT NULL CHECK(ad_detection_status IN (NULL, 'success', 'failed')),
+                        artwork_url TEXT,
+                        reprocess_mode TEXT,
+                        reprocess_requested_at TEXT,
+                        published_at TEXT,
+                        created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                        updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                        FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE,
+                        UNIQUE(podcast_id, episode_id)
+                    )
+                """)
+
+                # Get new table columns
+                cursor = conn.execute("PRAGMA table_info(episodes_new)")
+                new_columns = [row['name'] for row in cursor.fetchall()]
+
+                # Find common columns (exist in both tables)
+                common_columns = [c for c in old_columns if c in new_columns]
+                columns_str = ', '.join(common_columns)
+
+                # 2. Copy data (only common columns, defaults fill the rest)
+                conn.execute(f"""
+                    INSERT INTO episodes_new ({columns_str})
+                    SELECT {columns_str} FROM episodes
+                """)
+
+                # 3. Drop old table
+                conn.execute("DROP TABLE episodes")
+
+                # 4. Rename new table
+                conn.execute("ALTER TABLE episodes_new RENAME TO episodes")
+
+                # 5. Recreate indexes
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_podcast ON episodes(podcast_id)")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_status ON episodes(status)")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_processed_at ON episodes(processed_at)")
+
+                conn.commit()
+                logger.info("Migration: Successfully updated episodes table CHECK constraint")
+        except Exception as e:
+            logger.error(f"Migration failed for episodes CHECK constraint: {e}")
+            raise  # This is critical - app cannot function without this migration
 
         # Migration: Create auto_process_queue table if not exists
         try:
@@ -1489,6 +1567,37 @@ class Database:
         row = cursor.fetchone()
         return dict(row) if row else None
 
+    def get_episode_by_title_and_date(self, slug: str, title: str, published_at: str) -> Optional[Dict]:
+        """Get episode by title and publish date (for deduplication).
+
+        This catches cases where the same episode has different IDs due to
+        changing RSS GUIDs or dynamic URL parameters.
+
+        Args:
+            slug: Podcast slug
+            title: Episode title (exact match)
+            published_at: Publish date in ISO format
+
+        Returns:
+            Episode dict if found, None otherwise
+        """
+        if not title or not published_at:
+            return None
+
+        conn = self.get_connection()
+        podcast = self.get_podcast_by_slug(slug)
+        if not podcast:
+            return None
+
+        cursor = conn.execute(
+            """SELECT e.*, p.slug FROM episodes e
+               JOIN podcasts p ON e.podcast_id = p.id
+               WHERE p.slug = ? AND e.title = ? AND e.published_at = ?""",
+            (slug, title, published_at)
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
     def upsert_episode(self, slug: str, episode_id: str, **kwargs) -> int:
         """Insert or update an episode. Returns episode database ID."""
         conn = self.get_connection()
@@ -1805,7 +1914,7 @@ class Database:
             if retention_minutes <= 0:
                 return 0, 0.0
 
-            cutoff = datetime.utcnow() - timedelta(minutes=retention_minutes)
+            cutoff = datetime.now(timezone.utc) - timedelta(minutes=retention_minutes)
             cutoff_str = cutoff.strftime('%Y-%m-%dT%H:%M:%SZ')
 
             # Get episodes to delete
@@ -2745,38 +2854,7 @@ class Database:
         """Extract sponsor names for patterns that have text_template but no sponsor.
 
         Returns count of patterns updated."""
-        import re
-
-        def extract_sponsor_from_text(ad_text: str) -> str:
-            """Extract sponsor from ad text by looking for URLs and patterns."""
-            if not ad_text:
-                return None
-
-            # Look for domains
-            domain_pattern = r'(?:visit\s+)?(?:www\.)?([a-zA-Z0-9-]+)\.(?:com|ai|io|org|net|co|gov)(?:/[^\s]*)?'
-            domains = re.findall(domain_pattern, ad_text.lower())
-
-            ignore_domains = {'example', 'website', 'podcast', 'episode', 'click', 'link'}
-            domains = [d for d in domains if d not in ignore_domains]
-
-            if domains:
-                return domains[0].replace('-', ' ').title()
-
-            # Look for sponsor phrases
-            sponsor_patterns = [
-                r'brought to you by\s+([A-Z][a-zA-Z0-9\s]+?)(?:\.|,|!|\s+is|\s+where|\s+the)',
-                r'sponsored by\s+([A-Z][a-zA-Z0-9\s]+?)(?:\.|,|!|\s+is|\s+where|\s+the)',
-                r'thanks to\s+([A-Z][a-zA-Z0-9\s]+?)(?:\s+for|\.|,|!)',
-            ]
-
-            for pattern in sponsor_patterns:
-                match = re.search(pattern, ad_text, re.IGNORECASE)
-                if match:
-                    sponsor = match.group(1).strip()
-                    if len(sponsor) < 50:
-                        return sponsor
-
-            return None
+        from sponsor_service import SponsorService
 
         conn = self.get_connection()
         updated_count = 0
@@ -2789,7 +2867,7 @@ class Database:
         patterns = cursor.fetchall()
 
         for pattern in patterns:
-            sponsor = extract_sponsor_from_text(pattern['text_template'])
+            sponsor = SponsorService.extract_sponsor_from_text(pattern['text_template'])
             if sponsor:
                 conn.execute(
                     'UPDATE ad_patterns SET sponsor = ? WHERE id = ?',
@@ -3052,7 +3130,7 @@ class Database:
     def clear_completed_queue_items(self, older_than_hours: int = 24) -> int:
         """Clear completed queue items older than specified hours. Returns count deleted."""
         conn = self.get_connection()
-        cutoff = (datetime.utcnow() - timedelta(hours=older_than_hours)).strftime('%Y-%m-%dT%H:%M:%SZ')
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=older_than_hours)).strftime('%Y-%m-%dT%H:%M:%SZ')
         cursor = conn.execute(
             """DELETE FROM auto_process_queue
                WHERE status = 'completed' AND updated_at < ?""",
@@ -3069,6 +3147,60 @@ class Database:
         )
         conn.commit()
         return cursor.rowcount
+
+    def reset_orphaned_queue_items(self, stuck_minutes: int = 35, max_attempts: int = 3) -> Tuple[int, int]:
+        """Reset queue items stuck in 'processing' for too long.
+
+        This catches orphaned queue items where the worker crashed or was killed
+        without properly updating the status. Items exceeding max_attempts are
+        marked as 'failed' permanently. Items under max_attempts are reset to
+        'pending' with incremented attempts counter.
+
+        Args:
+            stuck_minutes: Minutes after which a 'processing' item is considered orphaned
+            max_attempts: Maximum retry attempts before marking as permanently failed
+
+        Returns:
+            Tuple of (reset_count, failed_count)
+        """
+        conn = self.get_connection()
+
+        # First: Mark items that exceeded max attempts as permanently failed
+        cursor = conn.execute(
+            """UPDATE auto_process_queue
+               SET status = 'failed',
+                   updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now'),
+                   error_message = 'Exceeded max retry attempts'
+               WHERE status = 'processing'
+               AND attempts >= ?
+               AND datetime(updated_at) < datetime('now', ? || ' minutes')
+               RETURNING id, episode_id""",
+            (max_attempts, f'-{stuck_minutes}')
+        )
+        failed_items = cursor.fetchall()
+
+        # Second: Reset items under max attempts, incrementing counter
+        cursor = conn.execute(
+            """UPDATE auto_process_queue
+               SET status = 'pending',
+                   attempts = attempts + 1,
+                   updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now'),
+                   error_message = 'Reset after processing timeout'
+               WHERE status = 'processing'
+               AND attempts < ?
+               AND datetime(updated_at) < datetime('now', ? || ' minutes')
+               RETURNING id, episode_id""",
+            (max_attempts, f'-{stuck_minutes}')
+        )
+        reset_items = cursor.fetchall()
+        conn.commit()
+
+        for row in failed_items:
+            logger.warning(f"Queue item exceeded max attempts, marking failed: id={row['id']}, episode_id={row['episode_id']}")
+        for row in reset_items:
+            logger.info(f"Reset orphaned queue item: id={row['id']}, episode_id={row['episode_id']}")
+
+        return len(reset_items), len(failed_items)
 
     # ========== Full-Text Search Methods ==========
 
