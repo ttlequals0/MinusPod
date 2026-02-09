@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 0.1.184
+  version: 0.1.241
   contact:
     name: Podcast Server
   license:
@@ -49,6 +49,8 @@ tags:
     description: Processing history and statistics
   - name: System
     description: System status and maintenance
+  - name: Search
+    description: Full-text search across all content
 
 paths:
   /auth/status:
@@ -251,6 +253,86 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '409':
           description: Feed with slug already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /feeds/import-opml:
+    post:
+      tags:
+        - Feeds
+      summary: Import feeds from OPML file
+      description: |
+        Import podcast feeds from an OPML file upload. Accepts .opml or .xml files.
+        Automatically generates slugs from feed titles and refreshes the first 5 imported feeds.
+      operationId: importOpml
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - opml
+              properties:
+                opml:
+                  type: string
+                  format: binary
+                  description: OPML file (.opml or .xml)
+      responses:
+        '201':
+          description: Feeds imported successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  imported:
+                    type: integer
+                    description: Number of feeds successfully imported
+                  skipped:
+                    type: integer
+                    description: Number of feeds skipped (already exist)
+                  failed:
+                    type: integer
+                    description: Number of feeds that failed to import
+                  feeds:
+                    type: object
+                    properties:
+                      imported:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            url:
+                              type: string
+                            slug:
+                              type: string
+                      skipped:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            url:
+                              type: string
+                            slug:
+                              type: string
+                            reason:
+                              type: string
+                      failed:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            url:
+                              type: string
+                            error:
+                              type: string
+        '200':
+          description: No feeds were imported (all skipped or failed)
+        '400':
+          description: Invalid OPML file or no file provided
           content:
             application/json:
               schema:
@@ -610,6 +692,76 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/ServerError'
+
+  /feeds/{slug}/reprocess-all:
+    post:
+      tags:
+        - Processing
+      summary: Reprocess all episodes for a feed
+      description: |
+        Queue all processed episodes of a podcast for reprocessing. Useful when
+        ad detection logic has improved and you want to re-detect ads across all episodes.
+      operationId: reprocessAllEpisodes
+      parameters:
+        - $ref: '#/components/parameters/slug'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                mode:
+                  type: string
+                  enum: [reprocess, full]
+                  default: reprocess
+                  description: |
+                    Processing mode:
+                    - reprocess: Use pattern DB + Claude (leverages learned patterns)
+                    - full: Claude only, skip pattern DB (fresh analysis)
+      responses:
+        '200':
+          description: Episodes queued for reprocessing
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  queued:
+                    type: integer
+                    description: Number of episodes queued
+                  skipped:
+                    type: integer
+                    description: Number of episodes skipped
+                  mode:
+                    type: string
+                  episodes:
+                    type: object
+                    properties:
+                      queued:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            episodeId:
+                              type: string
+                            title:
+                              type: string
+                      skipped:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            episodeId:
+                              type: string
+                            reason:
+                              type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /feeds/{slug}/episodes/{episodeId}/retry-ad-detection:
     post:
@@ -991,6 +1143,149 @@ paths:
                   skipped:
                     type: integer
 
+  /patterns/stats:
+    get:
+      tags:
+        - Patterns
+      summary: Get pattern statistics
+      description: |
+        Returns aggregate statistics about the pattern database including
+        counts by scope, stale patterns, patterns without sponsors, and
+        patterns with high false positive rates.
+      operationId: getPatternStats
+      responses:
+        '200':
+          description: Pattern statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total:
+                    type: integer
+                  active:
+                    type: integer
+                  inactive:
+                    type: integer
+                  by_scope:
+                    type: object
+                    properties:
+                      global:
+                        type: integer
+                      network:
+                        type: integer
+                      podcast:
+                        type: integer
+                  no_sponsor:
+                    type: integer
+                    description: Patterns without a sponsor name
+                  never_matched:
+                    type: integer
+                    description: Patterns that have never been confirmed
+                  stale_count:
+                    type: integer
+                    description: Patterns not matched in 30+ days
+                  high_false_positive_count:
+                    type: integer
+                    description: Patterns with more false positives than confirmations
+                  stale_patterns:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                        sponsor:
+                          type: string
+                        last_matched_at:
+                          type: string
+                        confirmation_count:
+                          type: integer
+                  no_sponsor_patterns:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                        scope:
+                          type: string
+                        podcast_name:
+                          type: string
+                        created_at:
+                          type: string
+                        text_preview:
+                          type: string
+                  high_false_positive_patterns:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                        sponsor:
+                          type: string
+                        confirmation_count:
+                          type: integer
+                        false_positive_count:
+                          type: integer
+
+  /patterns/health:
+    get:
+      tags:
+        - Patterns
+      summary: Check pattern health
+      description: |
+        Identify oversized patterns that are too large to match effectively.
+        Returns patterns exceeding character thresholds, likely containing
+        multiple merged ads.
+      operationId: getPatternHealth
+      responses:
+        '200':
+          description: Pattern health report
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_patterns:
+                    type: integer
+                  healthy:
+                    type: integer
+                  issues_count:
+                    type: integer
+                  critical_count:
+                    type: integer
+                    description: Patterns over 3500 chars
+                  warning_count:
+                    type: integer
+                    description: Patterns over 2500 chars
+                  issues:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                        sponsor:
+                          type: string
+                        podcast_id:
+                          type: string
+                        podcast_name:
+                          type: string
+                        template_len:
+                          type: integer
+                        confirmation_count:
+                          type: integer
+                        severity:
+                          type: string
+                          enum: [warning, critical]
+                        issue:
+                          type: string
+                        recommendation:
+                          type: string
+                          enum: [review, delete]
+
   /patterns/contaminated:
     get:
       tags:
@@ -1071,6 +1366,151 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /patterns/merge:
+    post:
+      tags:
+        - Patterns
+      summary: Merge patterns
+      description: |
+        Merge multiple patterns into a single pattern. The kept pattern receives
+        the combined confirmation and false positive counts from all merged patterns.
+        Corrections are reassigned and merged patterns are deleted.
+      operationId: mergePatterns
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - keep_id
+                - merge_ids
+              properties:
+                keep_id:
+                  type: integer
+                  description: ID of the pattern to keep
+                merge_ids:
+                  type: array
+                  items:
+                    type: integer
+                  description: IDs of patterns to merge into the kept pattern
+      responses:
+        '200':
+          description: Patterns merged successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  kept_pattern_id:
+                    type: integer
+                  merged_count:
+                    type: integer
+                  total_confirmations:
+                    type: integer
+                  total_false_positives:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+  /search:
+    get:
+      tags:
+        - Search
+      summary: Full-text search
+      description: |
+        Search across all content including episodes, podcasts, patterns,
+        and sponsors. Returns ranked results with relevance scores and
+        text snippets.
+      operationId: search
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: Search query
+          schema:
+            type: string
+        - name: type
+          in: query
+          description: Filter by content type
+          schema:
+            type: string
+            enum: [episode, podcast, pattern, sponsor]
+        - name: limit
+          in: query
+          description: Maximum results to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  query:
+                    type: string
+                  results:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SearchResult'
+                  total:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /search/rebuild:
+    post:
+      tags:
+        - Search
+      summary: Rebuild search index
+      description: |
+        Rebuild the full-text search index from scratch. Reindexes all
+        content including podcasts, episodes, patterns, and sponsors.
+        Rate limited to 1 request per minute.
+      operationId: rebuildSearchIndex
+      responses:
+        '200':
+          description: Search index rebuilt
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  indexedCount:
+                    type: integer
+                    description: Total items indexed
+
+  /search/stats:
+    get:
+      tags:
+        - Search
+      summary: Get search index statistics
+      description: Returns statistics about the search index including item counts by type
+      operationId: getSearchStats
+      responses:
+        '200':
+          description: Search index statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  stats:
+                    type: object
+
   /networks:
     get:
       tags:
@@ -1095,9 +1535,16 @@ paths:
     get:
       tags:
         - Sponsors
-      summary: List unique sponsors
-      description: Returns list of unique sponsor names from the pattern database
+      summary: List all sponsors
+      description: Returns list of all known sponsors with their aliases and metadata
       operationId: listSponsors
+      parameters:
+        - name: include_inactive
+          in: query
+          description: Include inactive (deleted) sponsors
+          schema:
+            type: boolean
+            default: false
       responses:
         '200':
           description: List of sponsors
@@ -1109,49 +1556,36 @@ paths:
                   sponsors:
                     type: array
                     items:
-                      type: string
-
-  /sponsors/normalizations:
-    get:
-      tags:
-        - Sponsors
-      summary: Get sponsor normalizations
-      description: Returns mapping of sponsor name variations to canonical names
-      operationId: getSponsorNormalizations
-      responses:
-        '200':
-          description: Sponsor normalizations
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  normalizations:
-                    type: object
-                    additionalProperties:
-                      type: string
-                    description: Map of variation to canonical name
+                      $ref: '#/components/schemas/Sponsor'
     post:
       tags:
         - Sponsors
-      summary: Update sponsor normalizations
-      description: Add or update sponsor name normalization mappings
-      operationId: updateSponsorNormalizations
+      summary: Add a new sponsor
+      description: Create a new sponsor entry with optional aliases and category
+      operationId: addSponsor
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
+              required:
+                - name
               properties:
-                normalizations:
-                  type: object
-                  additionalProperties:
+                name:
+                  type: string
+                  description: Canonical sponsor name
+                aliases:
+                  type: array
+                  items:
                     type: string
-                  description: Map of variation to canonical name
+                  description: Alternative names for this sponsor
+                category:
+                  type: string
+                  description: Sponsor category
       responses:
-        '200':
-          description: Normalizations updated
+        '201':
+          description: Sponsor created
           content:
             application/json:
               schema:
@@ -1159,6 +1593,226 @@ paths:
                 properties:
                   message:
                     type: string
+                  id:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Sponsor already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /sponsors/{sponsorId}:
+    get:
+      tags:
+        - Sponsors
+      summary: Get a single sponsor
+      description: Returns details for a specific sponsor by ID
+      operationId: getSponsor
+      parameters:
+        - $ref: '#/components/parameters/sponsorId'
+      responses:
+        '200':
+          description: Sponsor details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Sponsor'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags:
+        - Sponsors
+      summary: Update a sponsor
+      description: Update sponsor properties like name, aliases, or category
+      operationId: updateSponsor
+      parameters:
+        - $ref: '#/components/parameters/sponsorId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                aliases:
+                  type: array
+                  items:
+                    type: string
+                category:
+                  type: string
+      responses:
+        '200':
+          description: Sponsor updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags:
+        - Sponsors
+      summary: Delete a sponsor
+      description: Deactivate a sponsor (soft delete)
+      operationId: deleteSponsor
+      parameters:
+        - $ref: '#/components/parameters/sponsorId'
+      responses:
+        '200':
+          description: Sponsor deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /sponsors/normalizations:
+    get:
+      tags:
+        - Sponsors
+      summary: List sponsor normalizations
+      description: Returns list of sponsor name normalization rules with optional filtering
+      operationId: listNormalizations
+      parameters:
+        - name: category
+          in: query
+          description: Filter by normalization category
+          schema:
+            type: string
+            enum: [sponsor, url, number, phrase]
+        - name: include_inactive
+          in: query
+          description: Include inactive normalizations
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: List of normalizations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  normalizations:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Normalization'
+    post:
+      tags:
+        - Sponsors
+      summary: Add a normalization rule
+      description: Create a new sponsor name normalization rule using regex pattern matching
+      operationId: addNormalization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - pattern
+                - replacement
+                - category
+              properties:
+                pattern:
+                  type: string
+                  description: Regex pattern to match against sponsor names
+                replacement:
+                  type: string
+                  description: Canonical replacement name
+                category:
+                  type: string
+                  enum: [sponsor, url, number, phrase]
+                  description: Normalization category
+      responses:
+        '201':
+          description: Normalization created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  id:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /sponsors/normalizations/{normId}:
+    put:
+      tags:
+        - Sponsors
+      summary: Update a normalization rule
+      description: Update an existing normalization rule's pattern, replacement, or category
+      operationId: updateNormalization
+      parameters:
+        - $ref: '#/components/parameters/normId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                pattern:
+                  type: string
+                  description: Regex pattern to match
+                replacement:
+                  type: string
+                  description: Canonical replacement name
+                category:
+                  type: string
+                  enum: [sponsor, url, number, phrase]
+      responses:
+        '200':
+          description: Normalization updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags:
+        - Sponsors
+      summary: Delete a normalization rule
+      description: Deactivate a normalization rule (soft delete)
+      operationId: deleteNormalization
+      parameters:
+        - $ref: '#/components/parameters/normId'
+      responses:
+        '200':
+          description: Normalization deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /status:
     get:
@@ -1433,6 +2087,24 @@ paths:
                   message:
                     type: string
 
+  /settings/prompts/reset:
+    post:
+      tags:
+        - Settings
+      summary: Reset prompts only
+      description: Reset only the system prompts to defaults without affecting model selection or other settings
+      operationId: resetPromptsOnly
+      responses:
+        '200':
+          description: Prompts reset to defaults
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
   /settings/models:
     get:
       tags:
@@ -1587,6 +2259,25 @@ paths:
                   total:
                     type: integer
                     description: Total episodes in queue
+    delete:
+      tags:
+        - System
+      summary: Clear auto-process queue
+      description: Clear all pending items from the auto-process queue
+      operationId: clearQueue
+      responses:
+        '200':
+          description: Queue cleared
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  deleted:
+                    type: integer
+                    description: Number of pending items removed
 
 components:
   parameters:
@@ -1616,6 +2307,24 @@ components:
       schema:
         type: integer
         example: 42
+
+    sponsorId:
+      name: sponsorId
+      in: path
+      required: true
+      description: Sponsor identifier (integer)
+      schema:
+        type: integer
+        example: 1
+
+    normId:
+      name: normId
+      in: path
+      required: true
+      description: Normalization rule identifier (integer)
+      schema:
+        type: integer
+        example: 1
 
   schemas:
     Feed:
@@ -2149,6 +2858,88 @@ components:
             - integer
             - 'null'
           description: Reprocess number (null for first processing)
+
+    Sponsor:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Sponsor ID
+        name:
+          type: string
+          description: Canonical sponsor name
+        aliases:
+          type: array
+          items:
+            type: string
+          description: Alternative names for this sponsor
+        category:
+          type:
+            - string
+            - 'null'
+          description: Sponsor category
+        common_ctas:
+          type: array
+          items:
+            type: string
+          description: Common calls to action associated with this sponsor
+        is_active:
+          type: boolean
+          description: Whether the sponsor is active
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Normalization:
+      type: object
+      properties:
+        id:
+          type: integer
+          description: Normalization rule ID
+        pattern:
+          type: string
+          description: Regex pattern to match
+        replacement:
+          type: string
+          description: Canonical replacement string
+        category:
+          type: string
+          enum: [sponsor, url, number, phrase]
+          description: Normalization category
+        is_active:
+          type: boolean
+          description: Whether the rule is active
+        created_at:
+          type: string
+          format: date-time
+
+    SearchResult:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [episode, podcast, pattern, sponsor]
+          description: Type of matched content
+        id:
+          type: string
+          description: Identifier of the matched item
+        podcastSlug:
+          type:
+            - string
+            - 'null'
+          description: Podcast slug (for episode results)
+        title:
+          type: string
+          description: Title or name of the matched item
+        snippet:
+          type: string
+          description: Text snippet showing the match context
+        score:
+          type: number
+          description: Relevance score
 
     Error:
       type: object

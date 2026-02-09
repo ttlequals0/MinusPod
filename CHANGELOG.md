@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **5 bare `except:` clauses replaced with specific types**: `api.py` (json/type/key errors), `main.py` x2 (value/type errors), `transcriber.py` x2 (OS errors for file cleanup).
 
 ### Added
+- **Updated OpenAPI spec from 0.1.184 to current**: Added 16 missing endpoint definitions (OPML import, batch reprocess, sponsor CRUD, normalization CRUD, pattern stats/health/merge, search endpoints, queue clear, prompts reset). Updated 3 existing sponsor/normalization endpoints to reflect the new SponsorService CRUD API. Added `Sponsor`, `Normalization`, and `SearchResult` schemas. Version is now served dynamically from `version.py` at runtime.
 - **Wired up pattern learning pipeline**: 4 functions (260 lines) that were part of the designed pattern learning system but had zero callers are now connected:
   - `merge_similar_patterns()`: Called from `promote_pattern()` after promotion to consolidate similar patterns at the new scope level.
   - `check_sponsor_global_promotion()` and `auto_promote_sponsor_patterns()`: Called from `record_pattern_match()` when a sponsor hits the global threshold (3+ podcasts).
