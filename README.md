@@ -17,27 +17,29 @@ Processing happens on-demand when you play an episode. First play takes a few mi
 
 | Feature | Description | Enable In |
 |---------|-------------|-----------|
-| **Multi-Pass Detection** | Two independent Claude passes with different prompts catch more ads | Settings |
+| **Verification Pass** | Post-cut re-detection catches missed ads by re-transcribing processed audio | Automatic |
+| **Audio Enforcement** | Volume and transition signals programmatically validate and extend ad detections | Automatic |
 | **Pattern Learning** | System learns from corrections, patterns promote from podcast to network to global scope | Automatic |
-| **Audio Analysis** | Volume, music, and speaker analysis provide additional detection signals | Settings |
 | **Confidence Thresholds** | >=80% confidence: cut; 50-79%: kept for review; <50%: rejected | Automatic |
 
 See detailed sections below for configuration and usage.
 
-### Multi-Pass Detection
+### Verification Pass
 
-Enable dual-pass ad detection in Settings for improved accuracy:
+After the first pass detects and removes ads, a verification pipeline runs on the processed audio:
 
-- **First Pass** - Standard ad detection finds obvious sponsor reads and ad breaks
-- **Second Pass** - Blind analysis with different focus catches subtle baked-in ads, casual product mentions, and cross-promotions that the first pass might miss
-- **Smart Merge** - Overlapping detections from both passes are merged (earliest start, latest end) for maximum coverage
+1. **Re-transcribe** - The processed audio is re-transcribed on CPU using Whisper
+2. **Audio Analysis** - Volume analysis and transition detection run on the processed audio
+3. **Claude Detection** - A "what doesn't belong" prompt detects any remaining ad content
+4. **Audio Enforcement** - Programmatic signal matching validates and extends detections
+5. **Re-cut** - If missed ads are found, the pass 1 output is re-cut directly
 
-Each detected ad shows a badge indicating which pass found it:
-- **Pass 1** (blue) - Found by first pass only
-- **Pass 2** (purple) - Found by second pass only
-- **Merged** (green) - Found by both passes (boundaries combined)
+Each detected ad shows a badge indicating which stage found it:
+- **First Pass** (blue) - Found by Claude's first pass
+- **Audio Enforced** (orange) - Found by programmatic audio signal matching
+- **Verification** (purple) - Found by the post-cut verification pass
 
-Multi-pass increases processing time and API costs but catches more ads.
+The verification model can be configured separately from the first pass model in Settings.
 
 ### Sliding Window Processing
 
@@ -128,21 +130,13 @@ When reprocessing an episode from the UI, two modes are available:
 
 Full Analysis is useful when you want to re-evaluate an episode without the influence of learned patterns (e.g., after disabling patterns that caused false positives).
 
-### Audio Analysis (Optional)
+### Audio Analysis
 
-Enable audio analysis in Settings for improved ad detection accuracy:
+Audio analysis runs automatically on every episode (lightweight, uses only ffmpeg):
 
-- **Volume Analysis** - Detects loudness changes that indicate ad transitions (ads are often mastered louder)
-- **Music Bed Detection** - Identifies music under speech (common in produced ads)
-- **Speaker Diarization** - Finds monologue sections in conversational podcasts (host reading ads)
-
-These signals are provided to Claude as additional context during ad detection.
-
-**Requirements for Speaker Analysis:**
-- HuggingFace token (HF_TOKEN env var)
-- Accept license at https://hf.co/pyannote/speaker-diarization-3.1
-- Accept license at https://hf.co/pyannote/embedding (for long episode chunked processing)
-- GPU recommended (uses pyannote speaker diarization)
+- **Volume Analysis** - Detects loudness anomalies using EBU R128 measurement. Identifies sections mastered at different levels than the content baseline.
+- **Transition Detection** - Finds abrupt frame-to-frame loudness jumps that indicate dynamically inserted ad (DAI) boundaries. Pairs up/down transitions into candidate ad regions.
+- **Audio Enforcement** - After Claude detection, uncovered audio signals with ad language in the transcript are promoted to ads. DAI transitions with high confidence (>=0.8) or sponsor matches are also promoted. Existing ad boundaries are extended when signals partially overlap.
 
 ## Requirements
 
@@ -161,20 +155,14 @@ These signals are provided to Claude as additional context during ad detection.
 | medium | ~4 GB |
 | large-v3 | ~5-6 GB |
 
-If audio analysis with speaker diarization is enabled, add:
-- Pyannote diarization pipeline: ~2-3 GB VRAM
-- Pyannote embedding model: ~1 GB VRAM
-
 **System RAM:**
 
-| Episode Length | Without Audio Analysis | With Speaker Analysis |
-|----------------|------------------------|----------------------|
-| < 1 hour | 8 GB | 12 GB |
-| 1-2 hours | 8 GB | 16 GB |
-| 2-4 hours | 12 GB | 24 GB |
-| > 4 hours | 16 GB | 32 GB |
-
-Speaker diarization is memory-intensive for long episodes. If processing fails with OOM errors on long episodes (3+ hours), either increase system RAM or disable speaker analysis in Settings.
+| Episode Length | RAM Required |
+|----------------|-------------|
+| < 1 hour | 8 GB |
+| 1-2 hours | 8 GB |
+| 2-4 hours | 12 GB |
+| > 4 hours | 16 GB |
 
 ## Quick Start
 
@@ -287,9 +275,8 @@ All configuration is managed through the web UI or REST API. No config files nee
 
 Customize ad detection in Settings:
 - **Claude Model** - Model for first pass ad detection
-- **Multi-Pass Detection** - Enable dual-pass analysis for better accuracy
-- **Second Pass Model** - Separate model for second pass (visible when multi-pass enabled)
-- **System Prompts** - Customizable prompts for first and second pass detection
+- **Verification Model** - Separate model for the post-cut verification pass
+- **System Prompts** - Customizable prompts for first pass and verification detection
 
 ## Finding Podcast RSS Feeds
 

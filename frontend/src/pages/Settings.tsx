@@ -18,12 +18,10 @@ function Settings() {
   const [isChangingPassword, setIsChangingPassword] = useState(false);
 
   const [systemPrompt, setSystemPrompt] = useState('');
-  const [secondPassPrompt, setSecondPassPrompt] = useState('');
+  const [verificationPrompt, setVerificationPrompt] = useState('');
   const [selectedModel, setSelectedModel] = useState('');
-  const [secondPassModel, setSecondPassModel] = useState('');
-  const [multiPassEnabled, setMultiPassEnabled] = useState(false);
+  const [verificationModel, setVerificationModel] = useState('');
   const [whisperModel, setWhisperModel] = useState('');
-  const [audioAnalysisEnabled, setAudioAnalysisEnabled] = useState(false);
   const [autoProcessEnabled, setAutoProcessEnabled] = useState(true);
   const [audioBitrate, setAudioBitrate] = useState('128k');
   const [vttTranscriptsEnabled, setVttTranscriptsEnabled] = useState(true);
@@ -70,12 +68,10 @@ function Settings() {
   useEffect(() => {
     if (settings) {
       setSystemPrompt(settings.systemPrompt?.value || '');
-      setSecondPassPrompt(settings.secondPassPrompt?.value || '');
+      setVerificationPrompt(settings.verificationPrompt?.value || '');
       setSelectedModel(settings.claudeModel?.value || '');
-      setSecondPassModel(settings.secondPassModel?.value || '');
-      setMultiPassEnabled(settings.multiPassEnabled?.value ?? false);
+      setVerificationModel(settings.verificationModel?.value || '');
       setWhisperModel(settings.whisperModel?.value || 'small');
-      setAudioAnalysisEnabled(settings.audioAnalysisEnabled?.value ?? false);
       setAutoProcessEnabled(settings.autoProcessEnabled?.value ?? true);
       setAudioBitrate(settings.audioBitrate?.value || '128k');
       setVttTranscriptsEnabled(settings.vttTranscriptsEnabled?.value ?? true);
@@ -88,12 +84,10 @@ function Settings() {
     if (settings) {
       const changed =
         systemPrompt !== (settings.systemPrompt?.value || '') ||
-        secondPassPrompt !== (settings.secondPassPrompt?.value || '') ||
+        verificationPrompt !== (settings.verificationPrompt?.value || '') ||
         selectedModel !== (settings.claudeModel?.value || '') ||
-        secondPassModel !== (settings.secondPassModel?.value || '') ||
-        multiPassEnabled !== (settings.multiPassEnabled?.value ?? false) ||
+        verificationModel !== (settings.verificationModel?.value || '') ||
         whisperModel !== (settings.whisperModel?.value || 'small') ||
-        audioAnalysisEnabled !== (settings.audioAnalysisEnabled?.value ?? false) ||
         autoProcessEnabled !== (settings.autoProcessEnabled?.value ?? true) ||
         audioBitrate !== (settings.audioBitrate?.value || '128k') ||
         vttTranscriptsEnabled !== (settings.vttTranscriptsEnabled?.value ?? true) ||
@@ -101,18 +95,16 @@ function Settings() {
         minCutConfidence !== (settings.minCutConfidence?.value ?? 0.80);
       setHasChanges(changed);
     }
-  }, [systemPrompt, secondPassPrompt, selectedModel, secondPassModel, multiPassEnabled, whisperModel, audioAnalysisEnabled, autoProcessEnabled, audioBitrate, vttTranscriptsEnabled, chaptersEnabled, minCutConfidence, settings]);
+  }, [systemPrompt, verificationPrompt, selectedModel, verificationModel, whisperModel, autoProcessEnabled, audioBitrate, vttTranscriptsEnabled, chaptersEnabled, minCutConfidence, settings]);
 
   const updateMutation = useMutation({
     mutationFn: () =>
       updateSettings({
         systemPrompt,
-        secondPassPrompt,
+        verificationPrompt,
         claudeModel: selectedModel,
-        secondPassModel,
-        multiPassEnabled,
+        verificationModel,
         whisperModel,
-        audioAnalysisEnabled,
         autoProcessEnabled,
         audioBitrate,
         vttTranscriptsEnabled,
@@ -488,26 +480,9 @@ function Settings() {
 
       <div className="bg-card rounded-lg border border-border p-6">
         <h2 className="text-lg font-semibold text-foreground mb-4">Audio Analysis</h2>
-        <div>
-          <label className="flex items-center gap-3 cursor-pointer">
-            <div
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                audioAnalysisEnabled ? 'bg-primary' : 'bg-secondary'
-              }`}
-              onClick={() => setAudioAnalysisEnabled(!audioAnalysisEnabled)}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  audioAnalysisEnabled ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </div>
-            <span className="text-sm font-medium text-foreground">Enable Audio Analysis</span>
-          </label>
-          <p className="mt-2 text-sm text-muted-foreground ml-14">
-            Analyze audio characteristics (volume changes, music detection, speaker patterns) to improve ad detection accuracy. Experimental feature.
-          </p>
-        </div>
+        <p className="text-sm text-muted-foreground">
+          Volume and transition analysis runs automatically on every episode. Detects volume anomalies and abrupt loudness transitions that indicate dynamically inserted ads. Audio signals are enforced programmatically after Claude detection.
+        </p>
       </div>
 
       <div className="bg-card rounded-lg border border-border p-6">
@@ -587,50 +562,30 @@ function Settings() {
       </div>
 
       <div className="bg-card rounded-lg border border-border p-6">
-        <h2 className="text-lg font-semibold text-foreground mb-4">Multi-Pass Detection</h2>
+        <h2 className="text-lg font-semibold text-foreground mb-4">Verification Pass</h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          After the first pass removes detected ads, the verification pass re-transcribes the processed audio and runs detection again to catch any missed ads. Can be skipped per-podcast.
+        </p>
         <div>
-          <label className="flex items-center gap-3 cursor-pointer">
-            <div
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                multiPassEnabled ? 'bg-primary' : 'bg-secondary'
-              }`}
-              onClick={() => setMultiPassEnabled(!multiPassEnabled)}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  multiPassEnabled ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </div>
-            <span className="text-sm font-medium text-foreground">Enable Multi-Pass Ad Detection</span>
+          <label htmlFor="verificationModel" className="block text-sm font-medium text-foreground mb-2">
+            Verification Model
           </label>
-          <p className="mt-2 text-sm text-muted-foreground ml-14">
-            Run a second detection pass on processed audio to catch missed ads. Increases processing time and API costs.
+          <select
+            id="verificationModel"
+            value={verificationModel}
+            onChange={(e) => setVerificationModel(e.target.value)}
+            className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+          >
+            {models?.map((model) => (
+              <option key={model.id} value={model.id}>
+                {model.name}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Model for verification detection (can differ from first pass for cost optimization)
           </p>
         </div>
-
-        {multiPassEnabled && (
-          <div className="mt-6 pt-4 border-t border-border">
-            <label htmlFor="secondPassModel" className="block text-sm font-medium text-foreground mb-2">
-              Second Pass Model
-            </label>
-            <select
-              id="secondPassModel"
-              value={secondPassModel}
-              onChange={(e) => setSecondPassModel(e.target.value)}
-              className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
-            >
-              {models?.map((model) => (
-                <option key={model.id} value={model.id}>
-                  {model.name}
-                </option>
-              ))}
-            </select>
-            <p className="mt-1 text-sm text-muted-foreground">
-              Model for second pass detection (can differ from first pass for cost optimization)
-            </p>
-          </div>
-        )}
       </div>
 
       <div className="bg-card rounded-lg border border-border p-6">
@@ -699,23 +654,21 @@ function Settings() {
           </p>
         </div>
 
-        {multiPassEnabled && (
-          <div className="mt-6">
-            <label htmlFor="secondPassPrompt" className="block text-sm font-medium text-foreground mb-2">
-              Second Pass System Prompt
-            </label>
-            <textarea
-              id="secondPassPrompt"
-              value={secondPassPrompt}
-              onChange={(e) => setSecondPassPrompt(e.target.value)}
-              rows={12}
-              className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring font-mono text-sm"
-            />
-            <p className="mt-1 text-sm text-muted-foreground">
-              Instructions for the second pass to detect subtle or baked-in ads missed by the first pass
-            </p>
-          </div>
-        )}
+        <div className="mt-6">
+          <label htmlFor="verificationPrompt" className="block text-sm font-medium text-foreground mb-2">
+            Verification Prompt
+          </label>
+          <textarea
+            id="verificationPrompt"
+            value={verificationPrompt}
+            onChange={(e) => setVerificationPrompt(e.target.value)}
+            rows={12}
+            className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring font-mono text-sm"
+          />
+          <p className="mt-1 text-sm text-muted-foreground">
+            Instructions for the verification pass to detect ads missed by the first pass on the processed audio
+          </p>
+        </div>
 
         {(updateMutation.error || resetMutation.error || resetPromptsMutation.error) && (
           <div className="mt-4 p-4 rounded-lg bg-destructive/10 text-destructive">

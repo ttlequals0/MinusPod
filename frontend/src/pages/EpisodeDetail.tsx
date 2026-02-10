@@ -100,7 +100,7 @@ function EpisodeDetail() {
       reason: marker.reason || '',
       sponsor: undefined, // Could be extracted from reason if needed
       pattern_id: undefined,
-      detection_stage: marker.pass === 1 ? 'first_pass' : marker.pass === 2 ? 'second_pass' : 'merged',
+      detection_stage: marker.detection_stage || 'first_pass',
     }));
   }, [episode?.adMarkers]);
 
@@ -346,15 +346,15 @@ function EpisodeDetail() {
                 </button>
               )}
             </div>
-            {/* Row 2: Pass info + time saved */}
-            {((episode.adsRemovedFirstPass !== undefined && episode.adsRemovedSecondPass !== undefined && episode.adsRemovedSecondPass > 0) || (episode.timeSaved && episode.timeSaved > 0)) && (
+            {/* Row 2: Detection stage info + time saved */}
+            {((episode.adsRemovedFirstPass !== undefined && episode.adsRemovedVerification !== undefined && episode.adsRemovedVerification > 0) || (episode.timeSaved && episode.timeSaved > 0)) && (
               <div className="mt-1 text-sm text-muted-foreground">
-                {(episode.adsRemovedFirstPass !== undefined && episode.adsRemovedSecondPass !== undefined && episode.adsRemovedSecondPass > 0) && (
-                  <span>{episode.adsRemovedFirstPass} first pass, {episode.adsRemovedSecondPass} second pass</span>
+                {(episode.adsRemovedFirstPass !== undefined && episode.adsRemovedVerification !== undefined && episode.adsRemovedVerification > 0) && (
+                  <span>{episode.adsRemovedFirstPass} first pass, {episode.adsRemovedVerification} verification</span>
                 )}
                 {episode.timeSaved && episode.timeSaved > 0 && (
-                  <span className={episode.adsRemovedSecondPass && episode.adsRemovedSecondPass > 0 ? 'ml-2' : ''}>
-                    {episode.adsRemovedSecondPass && episode.adsRemovedSecondPass > 0 ? '- ' : ''}{formatDuration(episode.timeSaved)} time saved
+                  <span className={episode.adsRemovedVerification && episode.adsRemovedVerification > 0 ? 'ml-2' : ''}>
+                    {episode.adsRemovedVerification && episode.adsRemovedVerification > 0 ? '- ' : ''}{formatDuration(episode.timeSaved)} time saved
                   </span>
                 )}
               </div>
@@ -395,15 +395,17 @@ function EpisodeDetail() {
                   <span className="font-mono text-sm">
                     {formatTimestamp(segment.start)} - {formatTimestamp(segment.end)}
                   </span>
-                  {segment.pass && (
+                  {segment.detection_stage && (
                     <span className={`px-1.5 py-0.5 text-xs rounded font-medium ${
-                      segment.pass === 1
-                        ? 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
-                        : segment.pass === 2
+                      segment.detection_stage === 'verification'
                         ? 'bg-purple-500/20 text-purple-600 dark:text-purple-400'
-                        : 'bg-green-500/20 text-green-600 dark:text-green-400'
+                        : segment.detection_stage === 'audio_enforced'
+                        ? 'bg-orange-500/20 text-orange-600 dark:text-orange-400'
+                        : 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
                     }`}>
-                      {segment.pass === 'merged' ? 'Merged' : `Pass ${segment.pass}`}
+                      {segment.detection_stage === 'verification' ? 'Verification'
+                        : segment.detection_stage === 'audio_enforced' ? 'Audio Enforced'
+                        : 'First Pass'}
                     </span>
                   )}
                   {episode.transcript && (

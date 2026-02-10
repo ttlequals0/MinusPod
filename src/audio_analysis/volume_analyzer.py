@@ -44,7 +44,7 @@ class VolumeAnalyzer:
         self.anomaly_threshold_db = anomaly_threshold_db
         self.min_anomaly_duration = min_anomaly_duration
 
-    def analyze(self, audio_path: str) -> Tuple[List[AudioSegmentSignal], Optional[float]]:
+    def analyze(self, audio_path: str) -> Tuple[List[AudioSegmentSignal], Optional[float], List]:
         """
         Analyze audio for volume anomalies using single-pass ebur128.
 
@@ -52,17 +52,17 @@ class VolumeAnalyzer:
             audio_path: Path to the audio file
 
         Returns:
-            Tuple of (list of volume anomaly signals, baseline loudness in LUFS)
+            Tuple of (list of volume anomaly signals, baseline loudness in LUFS, raw loudness frames)
         """
         if not os.path.exists(audio_path):
             logger.error(f"Audio file not found: {audio_path}")
-            return [], None
+            return [], None, []
 
         # Get audio duration
         duration = self._get_duration(audio_path)
         if duration is None or duration < self.frame_duration:
             logger.warning(f"Audio too short for volume analysis: {duration}s")
-            return [], None
+            return [], None, []
 
         logger.info(f"Analyzing volume for {duration:.1f}s audio ({duration/60:.1f} min)")
 
@@ -70,13 +70,13 @@ class VolumeAnalyzer:
         frames = self._measure_loudness_single_pass(audio_path, duration)
         if not frames:
             logger.warning("No loudness frames extracted")
-            return [], None
+            return [], None, []
 
         # Calculate baseline
         loudness_values = [f.loudness_lufs for f in frames if f.loudness_lufs > -70]
         if not loudness_values:
             logger.warning("No valid loudness measurements")
-            return [], None
+            return [], None, frames
 
         # Use median as baseline (robust to outliers)
         loudness_values.sort()
@@ -89,7 +89,7 @@ class VolumeAnalyzer:
         anomalies = self._find_anomalies(frames, baseline)
 
         logger.info(f"Found {len(anomalies)} volume anomalies")
-        return anomalies, baseline
+        return anomalies, baseline, frames
 
     def _get_duration(self, audio_path: str) -> Optional[float]:
         """Get audio duration using ffprobe.

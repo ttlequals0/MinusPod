@@ -6,6 +6,31 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.242] - 2026-02-10
+
+### Changed
+- **Replaced two-pass architecture with verification pipeline**: The blind second pass (re-analyzing the same transcript with a different prompt) is replaced by a post-cut verification pass that re-transcribes the processed audio on CPU and runs full detection with a "what doesn't belong" prompt. If missed ads are found, the pass 1 output is re-cut directly. No timestamp mapping needed since verification operates entirely in processed-audio coordinates.
+- **Removed audio context injection from Claude's prompt**: Audio signals (volume anomalies, transitions) were previously formatted as text and injected into Claude's sliding window prompt. This indirect approach is replaced by programmatic audio enforcement (see below) that acts as a post-Claude step.
+- **Removed speaker diarization and music bed detection**: Dropped pyannote.audio and librosa dependencies entirely. Speaker analysis and music detection added GPU memory pressure, processing time, and heavy dependencies (nvidia-cudnn-cu12, HF_TOKEN auth) for marginal benefit. Audio analysis now runs volume analysis only (ffmpeg ebur128, zero extra dependencies) plus the new transition detector.
+- **Audio analysis always enabled**: Removed the global `audioAnalysisEnabled` toggle and per-feed `audioAnalysisOverride` settings. Volume analysis via ffmpeg is lightweight and always runs.
+- **Settings renamed**: `secondPassPrompt` -> `verificationPrompt`, `secondPassModel` -> `verificationModel`. Old settings are automatically migrated. `multiPassEnabled` toggle removed (verification always runs).
+- **AdMarker schema updated**: `pass` field (1, 2, "merged") replaced with `detection_stage` enum (`first_pass`, `audio_enforced`, `verification`).
+
+### Added
+- **Abrupt transition detection**: New `TransitionDetector` analyzes frame-to-frame loudness jumps in the existing volume analyzer output (zero extra cost). Pairs up/down transitions into candidate DAI (dynamically inserted ad) regions with configurable thresholds (`TRANSITION_THRESHOLD_DB`, `MIN/MAX_TRANSITION_AD_DURATION`).
+- **Audio signal enforcement**: New `AudioEnforcer` runs after Claude's first pass to programmatically check whether audio signals overlap with detected ads. Uncovered DAI transition pairs with ad language in the transcript (or high confidence >= 0.8, or sponsor match) become new ads. Volume anomalies require both ad language AND sponsor match (higher bar). Existing ads are extended up to 30s when a signal partially overlaps their boundaries.
+- **Verification pass module**: New `VerificationPass` class encapsulates the full post-cut pipeline: CPU re-transcription (using faster_whisper directly, not WhisperModelSingleton), audio analysis on processed audio, Claude detection with verification prompt/model, audio enforcement, and ad validation.
+- **Separate verification model setting**: The verification pass can use a different Claude model from the first pass, configurable in Settings as "Verification Model".
+
+### Removed
+- **Dependencies**: `librosa>=0.10.0`, `pyannote.audio>=3.1.0,<4.0.0`, `nvidia-cudnn-cu12==8.9.2.26`. Removed `huggingface_hub` upper version pin (`<1.0` was a pyannote constraint).
+- **Files**: `src/audio_analysis/speaker_analyzer.py`, `src/audio_analysis/music_detector.py`.
+- **Methods**: `detect_ads_second_pass()`, `is_multi_pass_enabled()`, `get_second_pass_prompt()`, `get_second_pass_model()`, `_format_audio_context()`, `_format_time()`, `format_for_claude()`, `is_enabled_for_podcast()` from AudioAnalyzer.
+- **Settings**: `multi_pass_enabled`, `audio_analysis_enabled`, `volume_analysis_enabled`, `music_detection_enabled`, `speaker_analysis_enabled`, `music_confidence_threshold`, `monologue_duration_threshold`.
+- **Dataclasses**: `SpeakerSegment`, `ConversationMetrics`. `SignalType.MUSIC_BED`, `MONOLOGUE`, `SPEAKER_CHANGE` enum values.
+
+---
+
 ## [0.1.241] - 2026-02-09
 
 ### Changed

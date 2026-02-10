@@ -114,6 +114,13 @@ DEFAULT_AD_DURATION_ESTIMATE = 60.0  # Assumed ad length when only intro/outro f
 SPONSOR_MISMATCH_MAX_GAP = 60.0      # Max gap for sponsor mismatch extension
 
 # ============================================================
+# Transition Detection (DAI ads)
+# ============================================================
+TRANSITION_THRESHOLD_DB = 3.5        # Min dB jump between frames to flag
+MIN_TRANSITION_AD_DURATION = 15.0    # Min seconds for a valid transition-bounded ad
+MAX_TRANSITION_AD_DURATION = 180.0   # Max seconds for a valid transition-bounded ad
+
+# ============================================================
 # Audio Processing
 # ============================================================
 MIN_AD_DURATION_FOR_REMOVAL = 10.0   # Min ad duration to actually remove from audio

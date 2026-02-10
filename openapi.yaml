@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 0.1.241
+  version: 0.1.242
   contact:
     name: Podcast Server
   license:
@@ -401,11 +401,6 @@ paths:
                 daiPlatform:
                   type: string
                   description: DAI platform identifier (e.g., megaphone, acast)
-                audioAnalysisOverride:
-                  type:
-                    - boolean
-                    - 'null'
-                  description: Override audio analysis setting (null uses global)
                 autoProcessOverride:
                   type:
                     - boolean
@@ -2025,23 +2020,17 @@ paths:
                 systemPrompt:
                   type: string
                   description: System prompt for Claude ad detection (first pass)
-                secondPassPrompt:
+                verificationPrompt:
                   type: string
-                  description: System prompt for second pass ad detection (subtle/baked-in ads)
+                  description: System prompt for verification pass (post-cut re-detection of missed ads)
                 claudeModel:
                   type: string
                   description: Claude model ID to use for first pass ad detection
                   example: claude-sonnet-4-5-20250929
-                secondPassModel:
+                verificationModel:
                   type: string
-                  description: Claude model ID for second pass ad detection (can differ from first pass)
+                  description: Claude model ID for verification pass (can differ from first pass)
                   example: claude-sonnet-4-5-20250929
-                multiPassEnabled:
-                  type: boolean
-                  description: Enable dual-pass ad detection for improved accuracy
-                audioAnalysisEnabled:
-                  type: boolean
-                  description: Enable audio analysis (volume, music, speaker) for improved ad detection
                 whisperModel:
                   type: string
                   description: Whisper model for transcription (tiny, base, small, medium, large-v3)
@@ -2364,11 +2353,6 @@ components:
         createdAt:
           type: string
           format: date-time
-        audioAnalysisOverride:
-          type:
-            - boolean
-            - 'null'
-          description: Override audio analysis setting for this feed (null uses global setting)
         autoProcessOverride:
           type:
             - boolean
@@ -2437,9 +2421,9 @@ components:
             adsRemovedFirstPass:
               type: integer
               description: Number of ads detected by first pass (includes merged)
-            adsRemovedSecondPass:
+            adsRemovedVerification:
               type: integer
-              description: Number of ads detected by second pass (includes merged)
+              description: Number of ads detected by verification pass
 
     AdMarker:
       type: object
@@ -2457,12 +2441,11 @@ components:
         reason:
           type: string
           description: Reason for marking as ad
-        pass:
-          type:
-            - integer
-            - string
-          description: Which detection pass found this ad (1, 2, or "merged" if both)
-          example: 1
+        detection_stage:
+          type: string
+          enum: [first_pass, audio_enforced, verification]
+          description: Which detection stage found this ad
+          example: first_pass
         validation:
           type: object
           description: Validation results from post-detection validation layer
@@ -2538,7 +2521,7 @@ components:
               type: string
             isDefault:
               type: boolean
-        secondPassPrompt:
+        verificationPrompt:
           type: object
           properties:
             value:
@@ -2552,27 +2535,11 @@ components:
               type: string
             isDefault:
               type: boolean
-        secondPassModel:
+        verificationModel:
           type: object
           properties:
             value:
               type: string
-            isDefault:
-              type: boolean
-        multiPassEnabled:
-          type: object
-          properties:
-            value:
-              type: boolean
-              description: Whether dual-pass ad detection is enabled
-            isDefault:
-              type: boolean
-        audioAnalysisEnabled:
-          type: object
-          properties:
-            value:
-              type: boolean
-              description: Whether audio analysis is enabled for ad detection
             isDefault:
               type: boolean
         whisperModel:
@@ -2607,16 +2574,12 @@ components:
           properties:
             systemPrompt:
               type: string
-            secondPassPrompt:
+            verificationPrompt:
               type: string
             claudeModel:
               type: string
-            secondPassModel:
+            verificationModel:
               type: string
-            multiPassEnabled:
-              type: boolean
-            audioAnalysisEnabled:
-              type: boolean
             whisperModel:
               type: string
             autoProcessEnabled:

@@ -13,7 +13,6 @@ export interface Feed {
   networkId?: string;
   daiPlatform?: string;
   networkIdOverride?: string | null;
-  audioAnalysisOverride?: boolean | null;
   autoProcessOverride?: boolean | null;
 }
 
@@ -44,11 +43,11 @@ export interface EpisodeDetail extends Episode {
   timeSaved?: number;
   fileSize?: number;
   adsRemovedFirstPass?: number;
-  adsRemovedSecondPass?: number;
+  adsRemovedVerification?: number;
   firstPassPrompt?: string;
   firstPassResponse?: string;
-  secondPassPrompt?: string;
-  secondPassResponse?: string;
+  verificationPrompt?: string;
+  verificationResponse?: string;
 }
 
 export interface AdValidation {
@@ -72,7 +71,7 @@ export interface AdSegment {
   end: number;
   confidence: number;
   reason?: string;
-  pass?: 1 | 2 | 'merged';
+  detection_stage?: 'first_pass' | 'claude' | 'fingerprint' | 'text_pattern' | 'language' | 'audio_enforced' | 'verification';
   validation?: AdValidation;
 }
 
@@ -93,12 +92,10 @@ export interface SettingValueNumber {
 
 export interface Settings {
   systemPrompt: SettingValue;
-  secondPassPrompt: SettingValue;
+  verificationPrompt: SettingValue;
   claudeModel: SettingValue;
-  secondPassModel: SettingValue;
-  multiPassEnabled: SettingValueBoolean;
+  verificationModel: SettingValue;
   whisperModel: SettingValue;
-  audioAnalysisEnabled: SettingValueBoolean;
   autoProcessEnabled: SettingValueBoolean;
   audioBitrate: SettingValue;
   vttTranscriptsEnabled: SettingValueBoolean;
@@ -107,14 +104,11 @@ export interface Settings {
   retentionPeriodMinutes: number;
   defaults: {
     systemPrompt: string;
-    secondPassPrompt: string;
+    verificationPrompt: string;
     claudeModel: string;
-    secondPassModel: string;
-    multiPassEnabled: boolean;
+    verificationModel: string;
     whisperModel: string;
-    audioAnalysisEnabled: boolean;
     autoProcessEnabled: boolean;
-    audioBitrate: string;
     vttTranscriptsEnabled: boolean;
     chaptersEnabled: boolean;
     minCutConfidence: number;
@@ -123,12 +117,10 @@ export interface Settings {
 
 export interface UpdateSettingsPayload {
   systemPrompt?: string;
-  secondPassPrompt?: string;
+  verificationPrompt?: string;
   claudeModel?: string;
-  secondPassModel?: string;
-  multiPassEnabled?: boolean;
+  verificationModel?: string;
   whisperModel?: string;
-  audioAnalysisEnabled?: boolean;
   autoProcessEnabled?: boolean;
   audioBitrate?: string;
   vttTranscriptsEnabled?: boolean;

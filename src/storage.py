@@ -213,9 +213,13 @@ class Storage:
             raw_response = ads_data.get('raw_response') if isinstance(ads_data, dict) else None
             prompt = ads_data.get('prompt') if isinstance(ads_data, dict) else None
 
-            # Mark each ad with its pass number
+            # Mark each ad with its detection stage if not already set
             for ad in ad_markers:
-                ad['pass'] = pass_number
+                if 'detection_stage' not in ad:
+                    if pass_number == 1:
+                        ad['detection_stage'] = 'first_pass'
+                    else:
+                        ad['detection_stage'] = 'verification'
 
             if pass_number == 1:
                 self.db.save_episode_details(
@@ -225,8 +229,7 @@ class Storage:
                     first_pass_prompt=prompt
                 )
             else:
-                # For second pass, save the prompt/response separately
-                # Ad markers will be merged in save_combined_ads
+                # For verification pass, save the prompt/response separately
                 self.db.save_episode_details(
                     slug, episode_id,
                     second_pass_prompt=prompt,
@@ -246,20 +249,20 @@ class Storage:
 
         logger.debug(f"[{slug}:{episode_id}] Saved {len(all_ads)} combined ad markers")
 
-    def save_second_pass_data(self, slug: str, episode_id: str,
-                              second_pass_prompt: str = None,
-                              second_pass_response: str = None) -> None:
-        """Save Claude's second pass ad detection data to database."""
+    def save_verification_data(self, slug: str, episode_id: str,
+                               verification_prompt: str = None,
+                               verification_response: str = None) -> None:
+        """Save verification pass detection data to database."""
         try:
             self.db.save_episode_details(
                 slug, episode_id,
-                second_pass_prompt=second_pass_prompt,
-                second_pass_response=second_pass_response
+                second_pass_prompt=verification_prompt,
+                second_pass_response=verification_response
             )
         except ValueError:
-            logger.warning(f"[{slug}:{episode_id}] Episode not in DB, second pass data not saved")
+            logger.warning(f"[{slug}:{episode_id}] Episode not in DB, verification data not saved")
 
-        logger.debug(f"[{slug}:{episode_id}] Saved second pass detection data")
+        logger.debug(f"[{slug}:{episode_id}] Saved verification detection data")
 
 
     # ========== Artwork Methods ==========

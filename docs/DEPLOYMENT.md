@@ -33,7 +33,6 @@ docker logs -f podcast-server
 | `WHISPER_MODEL` | No | small | Whisper model size (tiny/small/medium/large-v3) |
 | `WHISPER_DEVICE` | No | cuda | Device for Whisper (cuda/cpu) |
 | `RETENTION_PERIOD` | No | 1440 | Minutes to keep processed episodes |
-| `HF_TOKEN` | No | - | HuggingFace token for speaker diarization |
 | `LOG_FORMAT` | No | text | Log format (text/json) |
 | `LOG_LEVEL` | No | INFO | Log level (DEBUG/INFO/WARNING/ERROR) |
 | `SECRET_KEY` | No | auto-generated | Flask secret key for sessions |

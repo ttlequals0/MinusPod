@@ -447,14 +447,6 @@ def get_feed(slug):
     base_url = os.environ.get('BASE_URL', 'http://localhost:8000')
     feed_url = f"{base_url}/{slug}"
 
-    # Convert audio_analysis_override from string to boolean/null
-    audio_override_value = podcast.get('audio_analysis_override')
-    audio_override_result = None
-    if audio_override_value == 'true':
-        audio_override_result = True
-    elif audio_override_value == 'false':
-        audio_override_result = False
-
     # Convert auto_process_override from string to boolean/null
     auto_process_override_value = podcast.get('auto_process_override')
     auto_process_override_result = None
@@ -477,9 +469,7 @@ def get_feed(slug):
         'networkId': podcast.get('network_id'),
         'daiPlatform': podcast.get('dai_platform'),
         'networkIdOverride': podcast.get('network_id_override'),
-        'audioAnalysisOverride': audio_override_result,
         'autoProcessOverride': auto_process_override_result,
-        'skipSecondPass': bool(podcast.get('skip_second_pass', 0))
     })
 
 
@@ -511,16 +501,6 @@ def update_feed(slug):
         if api_field in data:
             updates[db_field] = data[api_field]
 
-    # Handle audio analysis override specially (can be null, true, or false)
-    if 'audioAnalysisOverride' in data:
-        override_value = data['audioAnalysisOverride']
-        if override_value is None:
-            updates['audio_analysis_override'] = None
-        elif override_value is True:
-            updates['audio_analysis_override'] = 'true'
-        elif override_value is False:
-            updates['audio_analysis_override'] = 'false'
-
     # Handle auto-process override specially (can be null, true, or false)
     if 'autoProcessOverride' in data:
         override_value = data['autoProcessOverride']
@@ -530,10 +510,6 @@ def update_feed(slug):
             updates['auto_process_override'] = 'true'
         elif override_value is False:
             updates['auto_process_override'] = 'false'
-
-    # Handle skip second pass (boolean stored as integer)
-    if 'skipSecondPass' in data:
-        updates['skip_second_pass'] = 1 if data['skipSecondPass'] else 0
 
     if not updates:
         return error_response('No valid fields to update', 400)
@@ -550,22 +526,12 @@ def update_feed(slug):
         podcast = db.get_podcast_by_slug(slug)
         base_url = os.environ.get('BASE_URL', 'http://localhost:8000')
 
-        # Convert audio_analysis_override from string to boolean/null
-        audio_override_value = podcast.get('audio_analysis_override')
-        audio_override_result = None
-        if audio_override_value == 'true':
-            audio_override_result = True
-        elif audio_override_value == 'false':
-            audio_override_result = False
-
         return json_response({
             'slug': podcast['slug'],
             'title': podcast['title'] or podcast['slug'],
             'networkId': podcast.get('network_id'),
             'daiPlatform': podcast.get('dai_platform'),
             'networkIdOverride': podcast.get('network_id_override'),
-            'audioAnalysisOverride': audio_override_result,
-            'skipSecondPass': bool(podcast.get('skip_second_pass', 0)),
             'feedUrl': f"{base_url}/{slug}"
         })
     except Exception as e:
@@ -844,7 +810,7 @@ def get_episode(slug, episode_id):
         'processedUrl': f"{base_url}/episodes/{slug}/{episode_id}.mp3",
         'adsRemoved': episode['ads_removed'],
         'adsRemovedFirstPass': episode.get('ads_removed_firstpass', 0),
-        'adsRemovedSecondPass': episode.get('ads_removed_secondpass', 0),
+        'adsRemovedVerification': episode.get('ads_removed_secondpass', 0),
         'timeSaved': time_saved,
         'fileSize': file_size,
         'adMarkers': ad_markers,
@@ -860,8 +826,8 @@ def get_episode(slug, episode_id):
         'error': episode.get('error_message'),
         'firstPassPrompt': episode.get('first_pass_prompt'),
         'firstPassResponse': episode.get('first_pass_response'),
-        'secondPassPrompt': episode.get('second_pass_prompt'),
-        'secondPassResponse': episode.get('second_pass_response'),
+        'verificationPrompt': episode.get('second_pass_prompt'),
+        'verificationResponse': episode.get('second_pass_response'),
         'artworkUrl': episode.get('artwork_url')
     })
 
@@ -1429,26 +1395,18 @@ def export_processing_history():
 def get_settings():
     """Get all settings."""
     db = get_database()
-    from database import DEFAULT_SYSTEM_PROMPT, DEFAULT_SECOND_PASS_PROMPT
+    from database import DEFAULT_SYSTEM_PROMPT, DEFAULT_VERIFICATION_PROMPT
     from ad_detector import AdDetector, DEFAULT_MODEL
 
     settings = db.get_all_settings()
 
     # Get current model settings
     current_model = settings.get('claude_model', {}).get('value', DEFAULT_MODEL)
-    second_pass_model = settings.get('second_pass_model', {}).get('value', DEFAULT_MODEL)
-
-    # Get multi-pass setting (defaults to false)
-    multi_pass_value = settings.get('multi_pass_enabled', {}).get('value', 'false')
-    multi_pass_enabled = multi_pass_value.lower() in ('true', '1', 'yes')
+    verification_model = settings.get('verification_model', {}).get('value', DEFAULT_MODEL)
 
     # Get whisper model setting (defaults to env var or 'small')
     default_whisper_model = os.environ.get('WHISPER_MODEL', 'small')
     whisper_model = settings.get('whisper_model', {}).get('value', default_whisper_model)
-
-    # Get audio analysis setting (defaults to false)
-    audio_analysis_value = settings.get('audio_analysis_enabled', {}).get('value', 'false')
-    audio_analysis_enabled = audio_analysis_value.lower() in ('true', '1', 'yes')
 
     # Get auto-process setting (defaults to true)
     auto_process_value = settings.get('auto_process_enabled', {}).get('value', 'true')
@@ -1472,29 +1430,21 @@ def get_settings():
             'value': settings.get('system_prompt', {}).get('value', DEFAULT_SYSTEM_PROMPT),
             'isDefault': settings.get('system_prompt', {}).get('is_default', True)
         },
-        'secondPassPrompt': {
-            'value': settings.get('second_pass_prompt', {}).get('value', DEFAULT_SECOND_PASS_PROMPT),
-            'isDefault': settings.get('second_pass_prompt', {}).get('is_default', True)
+        'verificationPrompt': {
+            'value': settings.get('verification_prompt', {}).get('value', DEFAULT_VERIFICATION_PROMPT),
+            'isDefault': settings.get('verification_prompt', {}).get('is_default', True)
         },
         'claudeModel': {
             'value': current_model,
             'isDefault': settings.get('claude_model', {}).get('is_default', True)
         },
-        'secondPassModel': {
-            'value': second_pass_model,
-            'isDefault': settings.get('second_pass_model', {}).get('is_default', True)
-        },
-        'multiPassEnabled': {
-            'value': multi_pass_enabled,
-            'isDefault': settings.get('multi_pass_enabled', {}).get('is_default', True)
+        'verificationModel': {
+            'value': verification_model,
+            'isDefault': settings.get('verification_model', {}).get('is_default', True)
         },
         'whisperModel': {
             'value': whisper_model,
             'isDefault': settings.get('whisper_model', {}).get('is_default', True)
-        },
-        'audioAnalysisEnabled': {
-            'value': audio_analysis_enabled,
-            'isDefault': settings.get('audio_analysis_enabled', {}).get('is_default', True)
         },
         'autoProcessEnabled': {
             'value': auto_process_enabled,
@@ -1515,12 +1465,10 @@ def get_settings():
         'retentionPeriodMinutes': int(os.environ.get('RETENTION_PERIOD') or settings.get('retention_period_minutes', {}).get('value', '1440')),
         'defaults': {
             'systemPrompt': DEFAULT_SYSTEM_PROMPT,
-            'secondPassPrompt': DEFAULT_SECOND_PASS_PROMPT,
+            'verificationPrompt': DEFAULT_VERIFICATION_PROMPT,
             'claudeModel': DEFAULT_MODEL,
-            'secondPassModel': DEFAULT_MODEL,
-            'multiPassEnabled': False,
+            'verificationModel': DEFAULT_MODEL,
             'whisperModel': default_whisper_model,
-            'audioAnalysisEnabled': False,
             'autoProcessEnabled': True,
             'vttTranscriptsEnabled': True,
             'chaptersEnabled': True,
@@ -1544,22 +1492,17 @@ def update_ad_detection_settings():
         db.set_setting('system_prompt', data['systemPrompt'], is_default=False)
         logger.info("Updated system prompt")
 
-    if 'secondPassPrompt' in data:
-        db.set_setting('second_pass_prompt', data['secondPassPrompt'], is_default=False)
-        logger.info("Updated second pass prompt")
+    if 'verificationPrompt' in data:
+        db.set_setting('verification_prompt', data['verificationPrompt'], is_default=False)
+        logger.info("Updated verification prompt")
 
     if 'claudeModel' in data:
         db.set_setting('claude_model', data['claudeModel'], is_default=False)
         logger.info(f"Updated Claude model to: {data['claudeModel']}")
 
-    if 'secondPassModel' in data:
-        db.set_setting('second_pass_model', data['secondPassModel'], is_default=False)
-        logger.info(f"Updated second pass model to: {data['secondPassModel']}")
-
-    if 'multiPassEnabled' in data:
-        value = 'true' if data['multiPassEnabled'] else 'false'
-        db.set_setting('multi_pass_enabled', value, is_default=False)
-        logger.info(f"Updated multi-pass detection to: {value}")
+    if 'verificationModel' in data:
+        db.set_setting('verification_model', data['verificationModel'], is_default=False)
+        logger.info(f"Updated verification model to: {data['verificationModel']}")
 
     if 'whisperModel' in data:
         db.set_setting('whisper_model', data['whisperModel'], is_default=False)
@@ -1570,11 +1513,6 @@ def update_ad_detection_settings():
             WhisperModelSingleton.mark_for_reload()
         except Exception as e:
             logger.warning(f"Could not mark model for reload: {e}")
-
-    if 'audioAnalysisEnabled' in data:
-        value = 'true' if data['audioAnalysisEnabled'] else 'false'
-        db.set_setting('audio_analysis_enabled', value, is_default=False)
-        logger.info(f"Updated audio analysis to: {value}")
 
     if 'autoProcessEnabled' in data:
         value = 'true' if data['autoProcessEnabled'] else 'false'
@@ -1607,12 +1545,10 @@ def reset_ad_detection_settings():
     db = get_database()
 
     db.reset_setting('system_prompt')
-    db.reset_setting('second_pass_prompt')
+    db.reset_setting('verification_prompt')
     db.reset_setting('claude_model')
-    db.reset_setting('second_pass_model')
-    db.reset_setting('multi_pass_enabled')
+    db.reset_setting('verification_model')
     db.reset_setting('whisper_model')
-    db.reset_setting('audio_analysis_enabled')
     db.reset_setting('vtt_transcripts_enabled')
     db.reset_setting('chapters_enabled')
 
@@ -1634,7 +1570,7 @@ def reset_prompts_only():
     db = get_database()
 
     db.reset_setting('system_prompt')
-    db.reset_setting('second_pass_prompt')
+    db.reset_setting('verification_prompt')
 
     logger.info("Reset prompts to defaults")
     return json_response({'message': 'Prompts reset to defaults'})

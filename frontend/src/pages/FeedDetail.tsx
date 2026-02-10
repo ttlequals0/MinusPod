@@ -15,7 +15,6 @@ function FeedDetail() {
   const [reprocessResult, setReprocessResult] = useState<ReprocessAllResult | null>(null);
   const [editNetworkOverride, setEditNetworkOverride] = useState<string>('');
   const [editDaiPlatform, setEditDaiPlatform] = useState('');
-  const [editAudioAnalysisOverride, setEditAudioAnalysisOverride] = useState<string>('global');
   const [editAutoProcessOverride, setEditAutoProcessOverride] = useState<string>('global');
 
   const { data: feed, isLoading: feedLoading, error: feedError } = useQuery({
@@ -44,7 +43,7 @@ function FeedDetail() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: { networkIdOverride?: string | null; daiPlatform?: string; audioAnalysisOverride?: boolean | null; autoProcessOverride?: boolean | null }) => updateFeed(slug!, data),
+    mutationFn: (data: { networkIdOverride?: string | null; daiPlatform?: string; autoProcessOverride?: boolean | null; skipVerification?: boolean }) => updateFeed(slug!, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['feed', slug] });
       setIsEditingNetwork(false);
@@ -70,14 +69,6 @@ function FeedDetail() {
     // Use networkIdOverride if set, otherwise empty for auto-detect
     setEditNetworkOverride(feed?.networkIdOverride || '');
     setEditDaiPlatform(feed?.daiPlatform || '');
-    // Initialize audio analysis override: 'global' (null), 'enable' (true), 'disable' (false)
-    if (feed?.audioAnalysisOverride === true) {
-      setEditAudioAnalysisOverride('enable');
-    } else if (feed?.audioAnalysisOverride === false) {
-      setEditAudioAnalysisOverride('disable');
-    } else {
-      setEditAudioAnalysisOverride('global');
-    }
     // Initialize auto-process override
     if (feed?.autoProcessOverride === true) {
       setEditAutoProcessOverride('enable');
@@ -90,14 +81,6 @@ function FeedDetail() {
   };
 
   const saveNetworkEdit = () => {
-    // Convert audio analysis override value
-    let audioOverride: boolean | null = null;
-    if (editAudioAnalysisOverride === 'enable') {
-      audioOverride = true;
-    } else if (editAudioAnalysisOverride === 'disable') {
-      audioOverride = false;
-    }
-
     // Convert auto-process override value
     let autoProcessOverride: boolean | null = null;
     if (editAutoProcessOverride === 'enable') {
@@ -110,7 +93,6 @@ function FeedDetail() {
       // Send null to clear override, or the selected value
       networkIdOverride: editNetworkOverride || null,
       daiPlatform: editDaiPlatform || undefined,
-      audioAnalysisOverride: audioOverride,
       autoProcessOverride: autoProcessOverride,
     });
   };
@@ -204,18 +186,6 @@ function FeedDetail() {
                       className="px-2 py-1 text-sm bg-secondary border border-border rounded w-32"
                     />
                   </div>
-                  <div className="flex items-center gap-1">
-                    <label className="text-muted-foreground">Audio Analysis:</label>
-                    <select
-                      value={editAudioAnalysisOverride}
-                      onChange={(e) => setEditAudioAnalysisOverride(e.target.value)}
-                      className="px-2 py-1 text-sm bg-secondary border border-border rounded"
-                    >
-                      <option value="global">Use Global</option>
-                      <option value="enable">Enable</option>
-                      <option value="disable">Disable</option>
-                    </select>
-                  </div>
                   <button
                     onClick={saveNetworkEdit}
                     disabled={updateMutation.isPending}
@@ -258,40 +228,6 @@ function FeedDetail() {
 
             {/* Podcast Settings - Always visible */}
             <div className="mt-4 space-y-3">
-              {/* Audio Analysis Control */}
-              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap">Audio Analysis:</span>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <select
-                    value={
-                      feed.audioAnalysisOverride === true ? 'enable' :
-                      feed.audioAnalysisOverride === false ? 'disable' : 'global'
-                    }
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      let audioOverride: boolean | null = null;
-                      if (value === 'enable') audioOverride = true;
-                      else if (value === 'disable') audioOverride = false;
-                      updateMutation.mutate({ audioAnalysisOverride: audioOverride });
-                    }}
-                    disabled={updateMutation.isPending}
-                    className="px-2 py-1.5 text-sm bg-secondary border border-border rounded flex-1 sm:flex-none min-w-0"
-                  >
-                    <option value="global">Use Global Setting</option>
-                    <option value="enable">Always Enable</option>
-                    <option value="disable">Always Disable</option>
-                  </select>
-                  {feed.audioAnalysisOverride !== null && feed.audioAnalysisOverride !== undefined && (
-                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${
-                      feed.audioAnalysisOverride
-                        ? 'bg-green-500/20 text-green-600 dark:text-green-400'
-                        : 'bg-red-500/20 text-red-600 dark:text-red-400'
-                    }`}>
-                      {feed.audioAnalysisOverride ? 'Enabled' : 'Disabled'}
-                    </span>
-                  )}
-                </div>
-              </div>
 
               {/* Auto-Process Control */}
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">

@@ -111,6 +111,40 @@ OUTPUT: JSON array only, no explanation.
 Format: [{{"start": 0.0, "end": 60.0, "confidence": 0.95, "reason": "description", "end_text": "last words"}}]"""
 
 
+# Verification pass prompt - runs on processed audio to catch missed ads
+DEFAULT_VERIFICATION_PROMPT = """You are analyzing a PROCESSED podcast episode where ads have already been removed.
+Your job is to find any remaining advertisements that were missed in the first detection pass.
+
+This transcript comes from audio that has already had detected ads cut out. Any ads you find
+here were MISSED by the initial detection. Focus on content that does NOT belong in the
+main podcast content.
+
+LOOK FOR:
+1. Sponsor reads that survived the first pass
+2. Promotional content with promo codes, vanity URLs, or "link in show notes"
+3. "Brought to you by" or "sponsored by" segments
+4. Product endorsements with commercial signals (pricing, discounts, free trials)
+5. Mid-roll ad transitions that were only partially removed
+6. Content that feels out of place or interrupts the natural flow
+
+DO NOT MARK AS ADS:
+- Regular podcast content, even if it mentions products in passing
+- Cross-promotion of the host's other shows or network podcasts
+- Guest plugging their own work/projects being discussed
+- Genuine personal recommendations without commercial signals
+
+TIMESTAMP PRECISION:
+Use the exact START timestamp from the [Xs] marker of the first ad segment.
+Use the exact END timestamp from the [Xs] marker of the last ad segment.
+Do not interpolate or estimate times between segments.
+
+BE CONSERVATIVE: Only mark clear advertisements. This is a second check, so precision matters
+more than recall. If unsure, do not mark it.
+
+OUTPUT: JSON array only, no explanation.
+Format: [{{"start": 0.0, "end": 60.0, "confidence": 0.95, "reason": "description", "end_text": "last words"}}]"""
+
+
 SCHEMA_SQL = """
 PRAGMA foreign_keys = ON;
 PRAGMA journal_mode = WAL;
@@ -1287,27 +1321,44 @@ class Database:
             ('retention_period_minutes', retention_minutes)
         )
 
-        # Multi-pass ad detection (opt-in, default disabled)
+        # Verification pass prompt
         conn.execute(
             """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
                ON CONFLICT(key) DO NOTHING""",
-            ('multi_pass_enabled', 'false')
+            ('verification_prompt', DEFAULT_VERIFICATION_PROMPT)
         )
 
-        # Second pass system prompt
-        conn.execute(
-            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
-               ON CONFLICT(key) DO NOTHING""",
-            ('second_pass_prompt', DEFAULT_SECOND_PASS_PROMPT)
-        )
-
-        # Second pass model (defaults to Sonnet 4.5)
+        # Verification pass model (defaults to same as first pass)
         from ad_detector import DEFAULT_MODEL
         conn.execute(
             """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
                ON CONFLICT(key) DO NOTHING""",
-            ('second_pass_model', DEFAULT_MODEL)
+            ('verification_model', DEFAULT_MODEL)
         )
+
+        # Migrate old second_pass settings to verification settings
+        try:
+            old_prompt = None
+            old_model = None
+            cursor = conn.execute("SELECT key, value FROM settings WHERE key IN ('second_pass_prompt', 'second_pass_model')")
+            for row in cursor:
+                if row[0] == 'second_pass_prompt':
+                    old_prompt = row[1]
+                elif row[0] == 'second_pass_model':
+                    old_model = row[1]
+
+            if old_prompt:
+                conn.execute(
+                    "INSERT INTO settings (key, value, is_default) VALUES (?, ?, 0) ON CONFLICT(key) DO NOTHING",
+                    ('verification_prompt', old_prompt)
+                )
+            if old_model:
+                conn.execute(
+                    "INSERT INTO settings (key, value, is_default) VALUES (?, ?, 0) ON CONFLICT(key) DO NOTHING",
+                    ('verification_model', old_model)
+                )
+        except Exception as e:
+            logger.warning(f"Settings migration (second_pass -> verification): {e}")
 
         # Whisper model (defaults to env var or 'small')
         whisper_model = os.environ.get('WHISPER_MODEL', 'small')
@@ -1317,15 +1368,10 @@ class Database:
             ('whisper_model', whisper_model)
         )
 
-        # Audio analysis settings (disabled by default)
+        # Audio analysis settings
         audio_analysis_settings = [
-            ('audio_analysis_enabled', 'false'),
-            ('volume_analysis_enabled', 'true'),
-            ('music_detection_enabled', 'true'),
-            ('speaker_analysis_enabled', 'true'),
             ('volume_threshold_db', '3.0'),
-            ('music_confidence_threshold', '0.6'),
-            ('monologue_duration_threshold', '45.0'),
+            ('transition_threshold_db', '3.5'),
         ]
         for key, value in audio_analysis_settings:
             conn.execute(
@@ -1474,27 +1520,6 @@ class Database:
     def get_podcast(self, slug: str) -> Optional[Dict]:
         """Alias for get_podcast_by_slug for backwards compatibility."""
         return self.get_podcast_by_slug(slug)
-
-    def get_podcast_audio_analysis_override(self, slug: str) -> Optional[bool]:
-        """Get podcast-level audio analysis override.
-
-        Returns:
-            None - use global setting
-            True - force enable audio analysis
-            False - force disable audio analysis
-        """
-        podcast = self.get_podcast_by_slug(slug)
-        if not podcast:
-            return None
-
-        override_value = podcast.get('audio_analysis_override')
-        if override_value is None:
-            return None
-        elif override_value == 'true':
-            return True
-        elif override_value == 'false':
-            return False
-        return None
 
     # ========== Episode Methods ==========
 
@@ -1875,11 +1900,10 @@ class Database:
 
         defaults = {
             'system_prompt': DEFAULT_SYSTEM_PROMPT,
-            'second_pass_prompt': DEFAULT_SECOND_PASS_PROMPT,
+            'verification_prompt': DEFAULT_VERIFICATION_PROMPT,
             'retention_period_minutes': os.environ.get('RETENTION_PERIOD', '1440'),
             'claude_model': DEFAULT_MODEL,
-            'second_pass_model': DEFAULT_MODEL,
-            'multi_pass_enabled': 'false',
+            'verification_model': DEFAULT_MODEL,
             'whisper_model': os.environ.get('WHISPER_MODEL', 'small'),
             'vtt_transcripts_enabled': 'true',
             'chapters_enabled': 'true'
