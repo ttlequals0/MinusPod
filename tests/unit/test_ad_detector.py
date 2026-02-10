@@ -8,7 +8,6 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 from ad_detector import (
     extract_sponsor_names,
     refine_ad_boundaries,
-    merge_and_deduplicate,
     merge_same_sponsor_ads
 )
 
@@ -61,81 +60,6 @@ class TestExtractSponsorNames:
 
         assert isinstance(sponsors, set)
 
-
-class TestMergeAndDeduplicate:
-    """Tests for merge_and_deduplicate function."""
-
-    def test_merge_overlapping_ads(self):
-        """Overlapping ads from different passes should be merged."""
-        first_pass = [
-            {'start': 30.0, 'end': 60.0, 'confidence': 0.90, 'reason': 'First pass ad'}
-        ]
-        second_pass = [
-            {'start': 50.0, 'end': 90.0, 'confidence': 0.85, 'reason': 'Second pass ad'}
-        ]
-
-        merged = merge_and_deduplicate(first_pass, second_pass)
-
-        assert len(merged) == 1
-        assert merged[0]['start'] == 30.0
-        assert merged[0]['end'] == 90.0
-
-    def test_merge_adjacent_ads(self):
-        """Adjacent ads (within 2 seconds) should be merged."""
-        first_pass = [
-            {'start': 30.0, 'end': 60.0, 'confidence': 0.90, 'reason': 'First ad'}
-        ]
-        second_pass = [
-            {'start': 61.0, 'end': 90.0, 'confidence': 0.85, 'reason': 'Second ad'}
-        ]
-
-        merged = merge_and_deduplicate(first_pass, second_pass)
-
-        # Should be merged due to small gap
-        assert len(merged) == 1 or (len(merged) == 2 and merged[1]['start'] - merged[0]['end'] > 2)
-
-    def test_deduplicate_same_ad(self):
-        """Duplicate ads detected in both passes should result in one."""
-        first_pass = [
-            {'start': 30.0, 'end': 90.0, 'confidence': 0.90, 'reason': 'Same ad'}
-        ]
-        second_pass = [
-            {'start': 30.0, 'end': 90.0, 'confidence': 0.85, 'reason': 'Same ad duplicate'}
-        ]
-
-        merged = merge_and_deduplicate(first_pass, second_pass)
-
-        assert len(merged) == 1
-
-    def test_keep_separate_non_overlapping(self):
-        """Non-overlapping ads should remain separate."""
-        first_pass = [
-            {'start': 30.0, 'end': 60.0, 'confidence': 0.90, 'reason': 'First ad'}
-        ]
-        second_pass = [
-            {'start': 200.0, 'end': 250.0, 'confidence': 0.85, 'reason': 'Different ad'}
-        ]
-
-        merged = merge_and_deduplicate(first_pass, second_pass)
-
-        assert len(merged) == 2
-
-    def test_empty_first_pass(self):
-        """Handle empty first pass gracefully."""
-        first_pass = []
-        second_pass = [
-            {'start': 30.0, 'end': 60.0, 'confidence': 0.85, 'reason': 'Second pass only'}
-        ]
-
-        merged = merge_and_deduplicate(first_pass, second_pass)
-
-        assert len(merged) == 1
-
-    def test_empty_both_passes(self):
-        """Handle both passes empty."""
-        merged = merge_and_deduplicate([], [])
-
-        assert merged == []
 
 
 class TestRefineBoundaries:

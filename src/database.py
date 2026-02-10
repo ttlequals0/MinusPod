@@ -27,6 +27,7 @@ WHAT TO LOOK FOR:
 - Promo codes, vanity URLs (example.com/podcast), calls to action
 - Product endorsements, sponsored content, promotional messages
 - Network-inserted retail ads (may sound like radio commercials)
+- Dynamically inserted ads that may differ in tone or cadence from the host content
 
 COMMON PODCAST SPONSORS (high confidence if mentioned):
 BetterHelp, Athletic Greens, AG1, Shopify, Amazon, Audible, Squarespace, HelloFresh, Factor, NordVPN, ExpressVPN, Mint Mobile, MasterClass, Calm, Headspace, ZipRecruiter, Indeed, LinkedIn Jobs, LinkedIn, Stamps.com, SimpliSafe, Ring, ADT, Casper, Helix Sleep, Purple, Brooklinen, Bombas, Manscaped, Dollar Shave Club, Harry's, Quip, Hims, Hers, Roman, Keeps, Function of Beauty, Native, Liquid IV, Athletic Brewing, Magic Spoon, Thrive Market, Butcher Box, Blue Apron, DoorDash, Uber Eats, Grubhub, Instacart, Rocket Money, Credit Karma, SoFi, Acorns, Betterment, Wealthfront, PolicyGenius, Lemonade, State Farm, Progressive, Geico, Liberty Mutual, T-Mobile, Visible, FanDuel, DraftKings, BetMGM, Toyota, Hyundai, CarMax, Carvana, eBay Motors, ZocDoc, GoodRx, Care/of, Ritual, Seed, HubSpot, NetSuite, Monday.com, Notion, Canva, Grammarly, Babbel, Rosetta Stone, Blinkist, Raycon, Bose, MacPaw, CleanMyMac, Green Chef, Magic Mind, Honeylove, Cozy Earth, Quince, LMNT, Nutrafol, Aura, OneSkin, Incogni, Gametime, 1Password, Bitwarden, CacheFly, Deel, DeleteMe, Framer, Miro, Monarch Money, OutSystems, Spaceship, Thinkst Canary, ThreatLocker, Vanta, Veeam, Zapier, Zscaler, Capital One, Ford, WhatsApp
@@ -67,31 +68,47 @@ EXAMPLE:
 
 Output: [{{"start": 45.0, "end": 82.0, "confidence": 0.98, "reason": "Athletic Greens sponsor read", "end_text": "athleticgreens.com/podcast"}}]"""
 
-# Default second pass system prompt - BLIND analysis for subtle/baked-in ads
-DEFAULT_SECOND_PASS_PROMPT = """Detect SUBTLE and BAKED-IN advertisements that don't use traditional ad transitions.
+# Verification pass prompt - runs on processed audio to catch missed ads
+DEFAULT_VERIFICATION_PROMPT = """You are reviewing a podcast episode that has ALREADY had advertisements removed. The audio has been processed — detected ads were cut and replaced with a brief transition tone. Your job is to find anything that was MISSED or only partially removed.
 
-YOUR FOCUS (ignore obvious "brought to you by" ads):
-1. Host endorsements woven into conversation ("I've been using X...")
-2. Casual product mentions with promo codes or URLs
-3. "Oh by the way" style plugs
-4. Quick mid-roll sponsor mentions without transitions
-5. Post-signoff promotional content
+CONTEXT:
+This is a second pass over processed audio. The first pass already detected and removed obvious ads. What remains should be clean episode content. Anything promotional that is still present was either:
+1. An ad that was completely missed
+2. A fragment of an ad that was partially cut (boundary was off by a few seconds)
+3. A subtle baked-in ad that blended with the conversation
 
-DO NOT MARK AS ADS:
-- Cross-promotion of host's other shows or network podcasts
-- Guest plugging their own work/projects
-- Genuine personal recommendations without commercial signals
+WHAT TO LOOK FOR:
 
-DETECTION SIGNALS:
-- Promo codes, vanity URLs, "link in show notes"
-- Pricing, discounts, availability info
-- Product tangents unrelated to episode topic
-- Tonal shift to scripted delivery
+AD FRAGMENTS (highest priority):
+- Orphaned URLs: "dot com slash podcast", "dot com slash [code]"
+- Orphaned promo codes: "use code [X] for", "code [X] at checkout"
+- Orphaned calls to action: "link in the show notes", "check it out at", "sign up at"
+- Trailing sponsor mentions: "that's [brand].com", "thanks to [sponsor]"
+- Leading transitions that survived the cut: "and now a word from", "this episode is brought to you"
+These fragments appear near transition points where the previous cut boundary was slightly off.
 
-AD BOUNDARIES:
-- START: First promotional statement
-- END: When regular content resumes (not when pitch ends)
-- Typical length: 45-120 seconds. Under 30s = verify you found the full segment.
+MISSED ADS:
+- Full sponsor reads that the first pass missed entirely
+- Mid-roll ads without obvious transition phrases ("I've been using [product]...")
+- Dynamically inserted ads that may differ in tone from the host content
+- Quick mid-roll mentions with URLs or promo codes
+- Post-signoff promotional content after the episode's natural ending
+
+WHAT IS NOT AN AD:
+- A guest discussing their own work, book, or project in the context of the interview
+- The host mentioning their own other shows, social media, or Patreon
+- Genuine topic discussion that happens to mention a brand name in passing
+- Episode content that sounds slightly awkward due to surrounding ad removal
+- Cross-promotion of shows within the same podcast network (unless it includes promo codes or external URLs)
+
+HOW TO IDENTIFY FRAGMENTS:
+A fragment is promotional language that appears abruptly at the start or end of a content section. In the processed audio, the flow should be: natural conversation → transition tone → natural conversation. If instead you see: natural conversation → transition tone → "...dot com slash podcast. Anyway, back to..." → natural conversation, that trailing "dot com slash podcast" is a fragment from an incompletely removed ad.
+
+AD BOUNDARY RULES:
+- AD START: First promotional word or transition phrase
+- AD END: Where clean episode content resumes (after the last URL, promo code, or call to action)
+- For fragments: mark the ENTIRE fragment including any surrounding promotional context
+- MERGING: Multiple fragments or ads with gaps < 15 seconds = ONE segment
 
 WINDOW CONTEXT:
 This transcript may be a segment of a longer episode.
@@ -104,45 +121,34 @@ Use the exact START timestamp from the [Xs] marker of the first ad segment.
 Use the exact END timestamp from the [Xs] marker of the last ad segment.
 Do not interpolate or estimate times between segments.
 
-BE THOROUGH: If it sounds promotional, mark it. False positives are acceptable.
-BE ACCURATE: Don't invent ads. Some segments have no subtle ads, and [] is valid.
+BE THOROUGH: If it sounds promotional and doesn't belong in cleaned content, mark it.
+BE ACCURATE: Don't invent ads. Many episodes will be completely clean after the first pass. An empty result [] is expected and valid for well-processed episodes.
 
-OUTPUT: JSON array only, no explanation.
-Format: [{{"start": 0.0, "end": 60.0, "confidence": 0.95, "reason": "description", "end_text": "last words"}}]"""
+OUTPUT FORMAT:
+Return ONLY a valid JSON array. No explanation, no markdown.
 
+Each ad segment: {{"start": seconds, "end": seconds, "confidence": 0.0-1.0, "reason": "brief description", "end_text": "last 3-5 words"}}
 
-# Verification pass prompt - runs on processed audio to catch missed ads
-DEFAULT_VERIFICATION_PROMPT = """You are analyzing a PROCESSED podcast episode where ads have already been removed.
-Your job is to find any remaining advertisements that were missed in the first detection pass.
+FRAGMENT EXAMPLE:
+[120.0s - 122.0s] So yeah, that's really interesting.
+[122.5s - 124.0s] [transition tone]
+[124.5s - 128.0s] at athleticgreens.com slash podcast. Anyway, moving on to
+[128.5s - 132.0s] the next topic I wanted to discuss was the new research.
 
-This transcript comes from audio that has already had detected ads cut out. Any ads you find
-here were MISSED by the initial detection. Focus on content that does NOT belong in the
-main podcast content.
+Output: [{{"start": 124.5, "end": 128.0, "confidence": 0.95, "reason": "Athletic Greens ad fragment — orphaned URL after cut boundary", "end_text": "moving on to"}}]
 
-LOOK FOR:
-1. Sponsor reads that survived the first pass
-2. Promotional content with promo codes, vanity URLs, or "link in show notes"
-3. "Brought to you by" or "sponsored by" segments
-4. Product endorsements with commercial signals (pricing, discounts, free trials)
-5. Mid-roll ad transitions that were only partially removed
-6. Content that feels out of place or interrupts the natural flow
+MISSED AD EXAMPLE:
+[340.0s - 342.0s] You know what I've been really into lately?
+[342.5s - 348.0s] I've been using this app called Calm and it's been amazing for my sleep.
+[348.5s - 365.0s] They have these sleep stories and meditations... You can try it free for 30 days at calm.com/podcast.
+[365.5s - 368.0s] But anyway, getting back to what we were saying about
 
-DO NOT MARK AS ADS:
-- Regular podcast content, even if it mentions products in passing
-- Cross-promotion of the host's other shows or network podcasts
-- Guest plugging their own work/projects being discussed
-- Genuine personal recommendations without commercial signals
+Output: [{{"start": 340.0, "end": 365.0, "confidence": 0.92, "reason": "Calm app sponsor read — missed baked-in ad with free trial URL", "end_text": "calm.com/podcast"}}]
 
-TIMESTAMP PRECISION:
-Use the exact START timestamp from the [Xs] marker of the first ad segment.
-Use the exact END timestamp from the [Xs] marker of the last ad segment.
-Do not interpolate or estimate times between segments.
+CLEAN EPISODE EXAMPLE:
+[no promotional content found in transcript]
 
-BE CONSERVATIVE: Only mark clear advertisements. This is a second check, so precision matters
-more than recall. If unsure, do not mark it.
-
-OUTPUT: JSON array only, no explanation.
-Format: [{{"start": 0.0, "end": 60.0, "confidence": 0.95, "reason": "description", "end_text": "last words"}}]"""
+Output: []"""
 
 
 SCHEMA_SQL = """

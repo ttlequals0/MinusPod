@@ -564,7 +564,7 @@ function Settings() {
       <div className="bg-card rounded-lg border border-border p-6">
         <h2 className="text-lg font-semibold text-foreground mb-4">Verification Pass</h2>
         <p className="text-sm text-muted-foreground mb-4">
-          After the first pass removes detected ads, the verification pass re-transcribes the processed audio and runs detection again to catch any missed ads. Can be skipped per-podcast.
+          After the first pass removes detected ads, the verification pass re-transcribes the processed audio and runs detection again to catch any missed ads.
         </p>
         <div>
           <label htmlFor="verificationModel" className="block text-sm font-medium text-foreground mb-2">

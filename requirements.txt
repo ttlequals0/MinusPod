@@ -17,6 +17,7 @@ feedparser==6.0.11
 python-slugify==8.0.4
 
 # Audio analysis (torch/torchaudio 2.3.0+cu121 pre-installed in Dockerfile)
+numpy<2.0  # numpy 2.x requires X86_V2 CPU instructions; target server lacks them
 huggingface_hub>=0.20.0
 
 # Cross-episode ad training (audio fingerprinting and text matching)

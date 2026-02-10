@@ -6,6 +6,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.244] - 2026-02-10
+
+### Changed
+- **Detailed verification prompt**: Replaced simplified verification pass prompt with full version including fragment detection (highest priority), missed ad patterns, "how to identify fragments" guidance, ad boundary rules, and three concrete examples (fragment, missed ad, clean episode).
+- **First pass prompt improvement**: Added "dynamically inserted ads" detection line to first pass prompt WHAT TO LOOK FOR section.
+
+### Removed
+- **Dead second pass prompt**: Removed unused `DEFAULT_SECOND_PASS_PROMPT` constant (blind second pass was replaced by verification pipeline in v0.1.242).
+- **Stale UI text**: Removed "Can be skipped per-podcast" from verification pass Settings description (no longer applicable).
+
+## [0.1.243] - 2026-02-10
+
+### Fixed
+- **Pin numpy<2.0 for CPU compatibility**: numpy 2.x requires X86_V2 CPU instructions which the target server lacks, causing a RuntimeError on startup via ctranslate2 import. Pinning numpy<2.0 resolves the crash introduced when the huggingface_hub upper pin was removed (pyannote constraint gone).
+
 ## [0.1.242] - 2026-02-10
 
 ### Changed
