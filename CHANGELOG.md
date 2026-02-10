@@ -6,6 +6,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.247] - 2026-02-10
+
+### Fixed
+- **Verification pass uses GPU instead of CPU**: Verification transcription was creating a fresh CPU model (20-30x slower) instead of reusing the GPU singleton. Now calls `WhisperModelSingleton.get_instance()` which lazy-reloads the GPU model after it was freed for audio analysis. ~30-min episodes go from 15-30 min to ~1-2 min for verification transcription.
+- **ACCEPT decisions now always cut**: Validator ACCEPT (confidence >= 0.60) and the cutting filter (MIN_CUT_CONFIDENCE = 0.80) were contradictory -- ads with 0.60-0.79 confidence were ACCEPTed then not cut. Now ACCEPT = always cut, REJECT = never cut, REVIEW = confidence gate. This prevents validated ads like sponsor reads from being silently kept in audio.
+- **AudioEnforcer false positives from confidence-only path**: DAI transition pairs with confidence >= 0.80 could create ads without any ad language in the transcript, causing false positives when strong audio transitions occurred during normal show content. Raised threshold from 0.80 to 0.95 (`DAI_CONFIDENCE_ONLY_THRESHOLD`). Ads with ad language in transcript are unaffected.
+- **Mid-roll position boost gaps**: Position windows had dead zones (0.35-0.45, 0.55-0.65) where ads received no position boost. Simplified from three narrow windows (`MID_ROLL_1/2/3`) to a single continuous range (0.15-0.85) so all mid-roll ads get the +0.05 confidence boost.
+
 ## [0.1.246] - 2026-02-10
 
 ### Fixed

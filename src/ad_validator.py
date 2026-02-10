@@ -9,7 +9,7 @@ from config import (
     MIN_AD_DURATION, SHORT_AD_WARN, LONG_AD_WARN, MAX_AD_DURATION,
     MAX_AD_DURATION_CONFIRMED, HIGH_CONFIDENCE, LOW_CONFIDENCE,
     REJECT_CONFIDENCE, HIGH_CONFIDENCE_OVERRIDE, PRE_ROLL, MID_ROLL_1,
-    MID_ROLL_2, MID_ROLL_3, POST_ROLL, MAX_AD_PERCENTAGE, MAX_ADS_PER_5MIN,
+    POST_ROLL, MAX_AD_PERCENTAGE, MAX_ADS_PER_5MIN,
     MERGE_GAP_THRESHOLD
 )
 from utils.text import extract_text_from_segments
@@ -372,8 +372,7 @@ class AdValidator:
         elif POST_ROLL[0] <= position <= POST_ROLL[1]:
             # Post-roll is common
             return min(1.0, confidence + 0.05)
-        elif any(start <= position <= end for start, end in
-                 [MID_ROLL_1, MID_ROLL_2, MID_ROLL_3]):
+        elif MID_ROLL_1[0] <= position <= MID_ROLL_1[1]:
             # Mid-roll positions are common
             return min(1.0, confidence + 0.05)
         return confidence

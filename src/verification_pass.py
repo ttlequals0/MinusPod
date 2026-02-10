@@ -17,7 +17,7 @@ class VerificationPass:
     Runs the full detection pipeline on processed audio to find missed ads.
 
     The verification pass:
-    1. Re-transcribes the pass 1 output on CPU
+    1. Re-transcribes the pass 1 output on GPU (singleton lazy-reloads)
     2. Runs audio analysis (volume + transitions)
     3. Runs Claude detection with verification prompt
     4. Runs audio enforcement on verification results
@@ -46,9 +46,9 @@ class VerificationPass:
             'segments': transcript segments from verification
             'status': 'clean', 'found_ads', or 'no_segments'
         """
-        # Step 1: Re-transcribe processed audio on CPU
-        logger.info(f"[{slug}:{episode_id}] Verification: Re-transcribing processed audio on CPU")
-        verification_segments = self._transcribe_on_cpu(processed_audio_path)
+        # Step 1: Re-transcribe processed audio on GPU
+        logger.info(f"[{slug}:{episode_id}] Verification: Re-transcribing processed audio on GPU")
+        verification_segments = self._transcribe_on_gpu(processed_audio_path)
 
         if not verification_segments:
             logger.warning(f"[{slug}:{episode_id}] Verification: No segments from re-transcription")
@@ -102,21 +102,27 @@ class VerificationPass:
             'status': 'found_ads'
         }
 
-    def _transcribe_on_cpu(self, audio_path: str) -> List[Dict]:
-        """Transcribe using faster_whisper directly on CPU.
+    def _transcribe_on_gpu(self, audio_path: str) -> List[Dict]:
+        """Re-transcribe using WhisperModelSingleton (GPU).
 
-        GPU model is already unloaded after first pass transcription.
-        We create a fresh CPU model to avoid polluting WhisperModelSingleton state.
+        GPU model was unloaded after first-pass transcription to free memory
+        for audio analysis. By verification time, GPU is free -- singleton
+        lazy-reloads on access.
         """
         try:
-            from faster_whisper import WhisperModel
             from transcriber import WhisperModelSingleton
 
             model_size = WhisperModelSingleton.get_configured_model()
-            logger.info(f"Verification: Loading {model_size} model on CPU for re-transcription")
+            logger.info(f"Verification: Loading {model_size} model on GPU for re-transcription")
 
-            model = WhisperModel(model_size, device="cpu", compute_type="int8")
-            segments_gen, info = model.transcribe(audio_path, beam_size=5)
+            # get_instance() lazy-loads GPU model if unloaded
+            base_model, pipeline = WhisperModelSingleton.get_instance()
+
+            segments_gen, info = pipeline.transcribe(
+                audio_path,
+                batch_size=16,
+                beam_size=5,
+            )
 
             segments = []
             for seg in segments_gen:
@@ -128,10 +134,9 @@ class VerificationPass:
                         'text': text
                     })
 
-            del model
-            logger.info(f"Verification: CPU transcription complete, {len(segments)} segments")
+            logger.info(f"Verification: GPU transcription complete, {len(segments)} segments")
             return segments
 
         except Exception as e:
-            logger.error(f"Verification CPU transcription failed: {e}")
+            logger.error(f"Verification GPU transcription failed: {e}")
             return []

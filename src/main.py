@@ -1158,27 +1158,31 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     f"{validation_result.rejected} rejected"
                 )
 
-                # Only remove ACCEPT and REVIEW ads from audio that meet confidence threshold
-                # REJECT ads and low-confidence ads stay in audio but are stored for display
+                # ACCEPT = always cut, REJECT = never cut, REVIEW = confidence gate
                 ads_to_remove = []
                 low_confidence_count = 0
                 min_cut_confidence = get_min_cut_confidence()
                 for ad in validation_result.ads:
                     validation = ad.get('validation', {})
-                    if validation.get('decision') == 'REJECT':
-                        ad['was_cut'] = False  # Rejected ads are kept in audio
+                    decision = validation.get('decision')
+                    if decision == 'REJECT':
+                        ad['was_cut'] = False
                         continue
-                    # Check confidence - use adjusted_confidence if available, else original
+                    if decision == 'ACCEPT':
+                        ad['was_cut'] = True
+                        ads_to_remove.append(ad)
+                        continue
+                    # REVIEW: apply confidence threshold
                     confidence = validation.get('adjusted_confidence', ad.get('confidence', 1.0))
                     if confidence < min_cut_confidence:
                         low_confidence_count += 1
-                        ad['was_cut'] = False  # Low-confidence ads are kept in audio
+                        ad['was_cut'] = False
                         audio_logger.info(
-                            f"[{slug}:{episode_id}] Keeping low-confidence ad in audio: "
+                            f"[{slug}:{episode_id}] Keeping REVIEW ad in audio: "
                             f"{ad['start']:.1f}s-{ad['end']:.1f}s ({confidence:.0%} < {min_cut_confidence:.0%})"
                         )
                         continue
-                    ad['was_cut'] = True  # This ad will be cut from audio
+                    ad['was_cut'] = True
                     ads_to_remove.append(ad)
 
                 # Store ALL ads (including rejected) for API/UI display with was_cut flag

@@ -10,6 +10,8 @@ import logging
 import re
 from typing import List, Dict, Optional
 
+from config import DAI_CONFIDENCE_ONLY_THRESHOLD
+
 logger = logging.getLogger('podcast.audio_enforcer')
 
 
@@ -70,8 +72,8 @@ class AudioEnforcer:
 
             if signal.signal_type == 'dai_transition_pair':
                 # DAI transitions: create ad if ad language present OR
-                # high confidence (>=0.8) even without ad language
-                if self._has_ad_language(text) or signal.confidence >= 0.8:
+                # very high confidence even without ad language
+                if self._has_ad_language(text) or signal.confidence >= DAI_CONFIDENCE_ONLY_THRESHOLD:
                     new_ads.append(self._signal_to_ad(signal, text, 'audio_enforced'))
                 elif self.sponsor_service:
                     sponsor = self.sponsor_service.find_sponsor_in_text(text)
