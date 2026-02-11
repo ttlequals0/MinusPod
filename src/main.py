@@ -1116,10 +1116,34 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             if all_ads and segments:
                 all_ads = merge_same_sponsor_ads(all_ads, segments)
 
+            # Get episode duration from audio file (more accurate than transcript end)
+            episode_duration = audio_processor.get_audio_duration(audio_path)
+            if not episode_duration:
+                episode_duration = segments[-1]['end'] if segments else 0
+
+            # Step 3.6.1: Heuristic pre/post-roll detection
+            # Catches ads at episode boundaries that Claude missed due to LLM nondeterminism
+            if segments:
+                from roll_detector import detect_preroll, detect_postroll
+                preroll_ad = detect_preroll(segments, all_ads, podcast_name=podcast_name)
+                if preroll_ad:
+                    all_ads.append(preroll_ad)
+                    audio_logger.info(
+                        f"[{slug}:{episode_id}] Heuristic pre-roll: "
+                        f"0.0s-{preroll_ad['end']:.1f}s"
+                    )
+
+                postroll_ad = detect_postroll(segments, all_ads, episode_duration=episode_duration)
+                if postroll_ad:
+                    all_ads.append(postroll_ad)
+                    audio_logger.info(
+                        f"[{slug}:{episode_id}] Heuristic post-roll: "
+                        f"{postroll_ad['start']:.1f}s-{postroll_ad['end']:.1f}s"
+                    )
+
             # Step 3.7: Validate detected ads
             # Catches errors, flags suspicious detections, auto-corrects issues
             if all_ads:
-                episode_duration = segments[-1]['end'] if segments else 0
 
                 # Load user-marked false positives to auto-reject during validation
                 false_positive_corrections = db.get_false_positive_corrections(episode_id)
@@ -1129,9 +1153,11 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                         f"false positive corrections"
                     )
 
+                min_cut_confidence = get_min_cut_confidence()
                 validator = AdValidator(
                     episode_duration, segments, episode_description,
-                    false_positive_corrections=false_positive_corrections
+                    false_positive_corrections=false_positive_corrections,
+                    min_cut_confidence=min_cut_confidence
                 )
                 validation_result = validator.validate(all_ads)
 
@@ -1145,7 +1171,6 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 # ACCEPT = always cut, REJECT = never cut, REVIEW = confidence gate
                 ads_to_remove = []
                 low_confidence_count = 0
-                min_cut_confidence = get_min_cut_confidence()
                 for ad in validation_result.ads:
                     validation = ad.get('validation', {})
                     decision = validation.get('decision')
@@ -1172,6 +1197,17 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 # Store ALL ads (including rejected) for API/UI display with was_cut flag
                 all_ads_with_validation = validation_result.ads
                 storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
+
+                # Learn patterns from high-confidence detections that were actually cut
+                cut_ads = [a for a in all_ads_with_validation if a.get('was_cut')]
+                if cut_ads and slug:
+                    patterns_learned = ad_detector._learn_from_detections(
+                        cut_ads, segments, slug, episode_id, audio_path=audio_path
+                    )
+                    if patterns_learned > 0:
+                        audio_logger.info(
+                            f"[{slug}:{episode_id}] Learned {patterns_learned} new patterns from cut ads"
+                        )
 
                 rejected_count = validation_result.rejected
                 if rejected_count > 0 or low_confidence_count > 0:
@@ -1204,7 +1240,6 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             v_ads_for_ui = []
             current_pass = "pass2"
             try:
-                status_service.update_job_stage("pass2:verifying", 85)
                 from verification_pass import VerificationPass
                 verifier = VerificationPass(
                     ad_detector=ad_detector,
@@ -1227,7 +1262,35 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 # Original-timestamp ads for UI/DB, processed-timestamp ads for cutting
                 verification_ads_original = verification_result.get('ads', [])
                 verification_ads_processed = verification_result.get('ads_processed', [])
+                verification_segments = verification_result.get('segments', [])
                 storage.save_ads_json(slug, episode_id, verification_result, pass_number=2)
+
+                # Heuristic roll detection on pass 2 output
+                if verification_segments:
+                    processed_dur = verification_segments[-1]['end'] if verification_segments else 0
+                    preroll_v = detect_preroll(
+                        verification_segments, verification_ads_processed,
+                        podcast_name=podcast_name
+                    )
+                    if preroll_v:
+                        verification_ads_processed.append(preroll_v)
+                        verification_ads_original.append(preroll_v.copy())
+                        audio_logger.info(
+                            f"[{slug}:{episode_id}] Pass 2 heuristic pre-roll: "
+                            f"0.0s-{preroll_v['end']:.1f}s"
+                        )
+
+                    postroll_v = detect_postroll(
+                        verification_segments, verification_ads_processed,
+                        episode_duration=processed_dur
+                    )
+                    if postroll_v:
+                        verification_ads_processed.append(postroll_v)
+                        verification_ads_original.append(postroll_v.copy())
+                        audio_logger.info(
+                            f"[{slug}:{episode_id}] Pass 2 heuristic post-roll: "
+                            f"{postroll_v['start']:.1f}s-{postroll_v['end']:.1f}s"
+                        )
 
                 if verification_ads_processed:
                     audio_logger.info(
@@ -1236,11 +1299,11 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                     )
 
                     # Validate using processed-timestamp ads (matches re-transcribed audio)
-                    verification_segments = verification_result.get('segments', [])
                     if verification_segments:
                         processed_duration = verification_segments[-1]['end']
                         v_validator = AdValidator(processed_duration, verification_segments,
-                                                 episode_description)
+                                                 episode_description,
+                                                 min_cut_confidence=min_cut_confidence)
                         v_validation = v_validator.validate(verification_ads_processed)
 
                         # Build index set of non-rejected ads to filter both lists in sync
@@ -1307,6 +1370,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # Re-save combined ads with pass 2 verification ads appended for UI display
             if v_ads_for_ui:
                 all_ads_with_validation = list(all_ads_with_validation) + v_ads_for_ui
+                all_ads_with_validation.sort(key=lambda x: x['start'])
                 storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
 
             new_duration = local_audio_processor.get_audio_duration(processed_path)

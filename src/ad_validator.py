@@ -7,7 +7,7 @@ from enum import Enum
 
 from config import (
     MIN_AD_DURATION, SHORT_AD_WARN, LONG_AD_WARN, MAX_AD_DURATION,
-    MAX_AD_DURATION_CONFIRMED, HIGH_CONFIDENCE, LOW_CONFIDENCE,
+    MAX_AD_DURATION_CONFIRMED, LOW_CONFIDENCE,
     REJECT_CONFIDENCE, HIGH_CONFIDENCE_OVERRIDE, PRE_ROLL, MID_ROLL_1,
     POST_ROLL, MAX_AD_PERCENTAGE, MAX_ADS_PER_5MIN,
     MERGE_GAP_THRESHOLD
@@ -46,7 +46,7 @@ class AdValidator:
 
     # Thresholds imported from config.py:
     # MIN_AD_DURATION, SHORT_AD_WARN, LONG_AD_WARN, MAX_AD_DURATION,
-    # MAX_AD_DURATION_CONFIRMED, HIGH_CONFIDENCE, LOW_CONFIDENCE,
+    # MAX_AD_DURATION_CONFIRMED, LOW_CONFIDENCE,
     # REJECT_CONFIDENCE, HIGH_CONFIDENCE_OVERRIDE, PRE_ROLL, MID_ROLL_*,
     # POST_ROLL, MAX_AD_PERCENTAGE, MAX_ADS_PER_5MIN, MERGE_GAP_THRESHOLD
 
@@ -92,7 +92,8 @@ class AdValidator:
 
     def __init__(self, episode_duration: float, segments: List[Dict] = None,
                  episode_description: str = None,
-                 false_positive_corrections: List[Dict] = None):
+                 false_positive_corrections: List[Dict] = None,
+                 min_cut_confidence: float = 0.80):
         """Initialize validator.
 
         Args:
@@ -101,12 +102,14 @@ class AdValidator:
             episode_description: Episode description (may contain sponsor info)
             false_positive_corrections: List of dicts with 'start' and 'end' keys
                                         for user-marked false positives to auto-reject
+            min_cut_confidence: Minimum confidence to auto-accept (user's slider value)
         """
         self.episode_duration = episode_duration
         self.segments = segments or []
         self.episode_description = episode_description or ""
         self.description_sponsors = self._extract_sponsors_from_description()
         self.false_positive_corrections = false_positive_corrections or []
+        self.min_cut_confidence = min_cut_confidence
 
         if self.false_positive_corrections:
             logger.info(f"Loaded {len(self.false_positive_corrections)} false positive corrections")
@@ -439,7 +442,7 @@ class AdValidator:
             return min(1.0, confidence + 0.05)
 
         # No signals found - only flag if not already high confidence
-        if confidence < HIGH_CONFIDENCE:
+        if confidence < 0.85:
             flags.append("WARN: No ad signals in transcript")
 
         # Verify end_text exists in transcript
@@ -481,11 +484,12 @@ class AdValidator:
                 )
                 return Decision.ACCEPT
 
+        # ERROR flags or very low confidence -> always reject
         if has_errors or confidence < REJECT_CONFIDENCE:
             return Decision.REJECT
-        elif confidence >= HIGH_CONFIDENCE and not any('WARN' in f for f in flags):
-            return Decision.ACCEPT
-        elif confidence >= 0.6 and not has_errors:
+
+        # Use user's slider threshold instead of hardcoded 0.85/0.60
+        if confidence >= self.min_cut_confidence:
             return Decision.ACCEPT
         else:
             return Decision.REVIEW

@@ -7,7 +7,6 @@ for easy tuning and consistency across the codebase.
 # ============================================================
 # Confidence Thresholds (0.0 - 1.0 scale)
 # ============================================================
-HIGH_CONFIDENCE = 0.85          # Auto-accept threshold
 LOW_CONFIDENCE = 0.50           # Warn/flag for review
 REJECT_CONFIDENCE = 0.30        # Auto-reject as false positive
 HIGH_CONFIDENCE_OVERRIDE = 0.90 # Override duration limits if above this

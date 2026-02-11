@@ -17,6 +17,7 @@
 # Testing Requirements
 
 - Always make sure the app builds and starts successfully
+- Use a venv for all python testing
 
 # Docker Guidelines
 

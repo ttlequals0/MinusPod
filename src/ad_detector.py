@@ -1324,16 +1324,13 @@ class AdDetector:
                                     continue
 
                                 # Extract sponsor/advertiser name using priority fields + pattern matching
-                                # First check if Claude already provided a valid reason with sponsor info
-                                existing_reason = ad.get('reason')
-                                if existing_reason and isinstance(existing_reason, str) and len(existing_reason) > 3:
-                                    reason_lower = existing_reason.lower().strip()
-                                    if reason_lower not in INVALID_SPONSOR_VALUES:
+                                # Try extract_sponsor_name first for a real sponsor name.
+                                # If it returns the default, fall back to Claude's raw reason.
+                                reason = extract_sponsor_name(ad)
+                                if reason == 'Advertisement detected':
+                                    existing_reason = ad.get('reason')
+                                    if existing_reason and isinstance(existing_reason, str) and len(existing_reason) > 3:
                                         reason = existing_reason
-                                    else:
-                                        reason = extract_sponsor_name(ad)
-                                else:
-                                    reason = extract_sponsor_name(ad)
 
                                 # Extract description from Claude's response to enrich the reason
                                 # Dynamic scan: check ALL non-structural string fields > 10 chars
@@ -1862,11 +1859,7 @@ class AdDetector:
             f"(fingerprint: {fp_count}, text: {tp_count}, claude: {cl_count})"
         )
 
-        # Learn patterns from high-confidence Claude detections
-        if slug and all_ads:
-            patterns_learned = self._learn_from_detections(all_ads, segments, slug, episode_id, audio_path=audio_path)
-            if patterns_learned > 0:
-                detection_stats['patterns_learned'] = patterns_learned
+        # Pattern learning moved to main.py (after validation sets was_cut)
 
         result['ads'] = all_ads
         result['detection_stats'] = detection_stats
@@ -1924,8 +1917,7 @@ class AdDetector:
             if sponsor_lower in self.INVALID_SPONSOR_REASONS or len(sponsor_lower) < 2:
                 logger.debug(f"Rejecting invalid extracted sponsor: '{sponsor}'")
                 return None
-            # Normalize: lowercase, remove spaces (for pattern storage consistency)
-            return sponsor.lower().replace(' ', '')
+            return sponsor
         return None
 
     def _learn_from_detections(
@@ -1954,6 +1946,11 @@ class AdDetector:
         min_confidence = 0.85  # Only learn from high-confidence detections
 
         for ad in ads:
+            # Only learn from ads that were actually removed
+            if not ad.get('was_cut', False):
+                logger.debug(f"Skipping pattern for uncut ad: {ad['start']:.1f}s-{ad['end']:.1f}s")
+                continue
+
             # Only learn from Claude detections (not fingerprint/text pattern)
             if ad.get('detection_stage') != 'claude':
                 continue
@@ -1974,12 +1971,52 @@ class AdDetector:
                     )
                     continue
 
-            # Get sponsor from ad dict or extract from reason
-            sponsor = ad.get('sponsor')
+            # 4-tier sponsor resolution
+            sponsor = None
+            raw_sponsor = ad.get('sponsor')
+            reason_text = ad.get('reason', '')
+
+            # Tier 1: sponsor DB lookup on raw sponsor field
+            if raw_sponsor and self.sponsor_service:
+                sponsor = self.sponsor_service.find_sponsor_in_text(raw_sponsor)
+
+            # Tier 2: sponsor DB lookup on reason text
+            if not sponsor and reason_text and self.sponsor_service:
+                sponsor = self.sponsor_service.find_sponsor_in_text(reason_text)
+
+            # Tier 3: extract from reason via regex patterns
             if not sponsor:
-                sponsor = self._extract_sponsor_from_reason(ad.get('reason', ''))
+                sponsor = self._extract_sponsor_from_reason(reason_text)
+
+            # Tier 4: use raw sponsor if it looks valid
+            if not sponsor and raw_sponsor:
+                raw_lower = raw_sponsor.lower().strip()
+                if raw_lower not in INVALID_SPONSOR_VALUES and len(raw_lower) >= 2:
+                    sponsor = raw_sponsor
+
             if not sponsor:
                 continue
+
+            # Gate A: reject sponsors that are strict prefixes of known sponsors
+            if self.sponsor_service:
+                sponsor_lower = sponsor.lower()
+                all_sponsors = self.sponsor_service.get_sponsors()
+                is_prefix = False
+                for s in all_sponsors:
+                    known = s['name'].lower()
+                    if known != sponsor_lower and known.startswith(sponsor_lower + ' '):
+                        logger.info(f"Skipping pattern: '{sponsor}' is prefix of '{s['name']}'")
+                        is_prefix = True
+                        break
+                if is_prefix:
+                    continue
+
+            # Gate B: reject single short words for unknown sponsors
+            if self.sponsor_service and not self.sponsor_service.find_sponsor_in_text(sponsor):
+                words = sponsor.strip().split()
+                if len(words) == 1 and len(sponsor.strip()) < 6:
+                    logger.info(f"Skipping pattern for unknown short sponsor: '{sponsor}'")
+                    continue
 
             try:
                 pattern_id = self.text_pattern_matcher.create_pattern_from_ad(
@@ -2186,7 +2223,7 @@ class AdDetector:
             for i, window in enumerate(windows):
                 if progress_callback:
                     progress = 85 + int((i / max(len(windows), 1)) * 10)
-                    progress_callback(f"verifying:{i+1}/{len(windows)}", progress)
+                    progress_callback(f"detecting:{i+1}/{len(windows)}", progress)
 
                 window_segments = window['segments']
                 window_start = window['start']

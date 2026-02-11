@@ -6,6 +6,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.250] - 2026-02-11
+
+### Added
+- **Heuristic pre/post-roll detection** (Phase 15): New `roll_detector.py` with regex-based detection for ads at episode boundaries that Claude missed due to LLM nondeterminism. Detects ad indicators (URLs, phone numbers, CTAs, promo codes) before show intro (pre-roll) and after sign-off (post-roll). Requires 2+ pattern matches with conservative confidence (0.80-0.95). Runs in both Pass 1 and Pass 2.
+
+### Changed
+- **Confidence slider is now the single source of truth** (Phase 11): AdValidator's `_make_decision` no longer has hardcoded 0.85/0.60 dual-thresholds that bypassed the user's min_cut_confidence slider. The ACCEPT/REVIEW boundary now uses the slider value (default 80%). Ads between REJECT_CONFIDENCE and the slider correctly get REVIEW instead of being silently auto-accepted. Removed `HIGH_CONFIDENCE` constant from config.py.
+- **Pattern learning quality gates** (Phase 10): `_learn_from_detections` now only creates patterns from ads that were actually cut (`was_cut=True`). Sponsor extraction uses 4-tier DB resolution (DB lookup on sponsor field, DB lookup on reason text, regex extraction, raw sponsor fallback) with two rejection gates: prefix check (rejects "Capital" when "Capital One" exists in DB) and short-word check for unknown sponsors. Removed space-stripping from `_extract_sponsor_from_reason` that corrupted multi-word names.
+- **Pattern learning moved from ad_detector to main.py**: `_learn_from_detections` call moved to after validation sets `was_cut`, so the `was_cut` gate works correctly.
+- **Episode duration from audio file** (Phase 14): `episode_duration` now uses `audio_processor.get_audio_duration()` instead of `segments[-1]['end']`. Fixes trailing ads not being extended when audio file is longer than last transcribed word (Whisper stops at speech end, missing trailing silence/music/jingle).
+
+### Fixed
+- **Reason fallback logic** (Phase 9): `extract_sponsor_name()` is now tried first; only falls back to Claude's raw reason field if it returns the default "Advertisement detected". Previously the raw reason was checked first but rejected valid values like "mid-roll" or "host read" that appeared in `INVALID_SPONSOR_VALUES`.
+- **Pass 2 ads displayed out of chronological order** (Phase 12): Combined ads list now sorted by start timestamp after appending pass 2 verification ads.
+- **Pass 2 status showing "Verifying" instead of substages** (Phase 13): Changed verification detection callback from `verifying:N/M` to `detecting:N/M` so the UI shows "Pass 2: Detecting ads" instead of overwriting substage labels. Removed premature `pass2:verifying` status update. Cleaned up `pass2:verifying` label from frontend status bar.
+
 ## [0.1.249] - 2026-02-11
 
 ### Fixed
