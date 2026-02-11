@@ -1304,6 +1304,11 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 audio_logger.error(f"[{slug}:{episode_id}] Verification pass failed: {e}")
                 # Continue with pass 1 output
 
+            # Re-save combined ads with pass 2 verification ads appended for UI display
+            if v_ads_for_ui:
+                all_ads_with_validation = list(all_ads_with_validation) + v_ads_for_ui
+                storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
+
             new_duration = local_audio_processor.get_audio_duration(processed_path)
 
             # Move processed file to final location

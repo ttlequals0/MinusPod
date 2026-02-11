@@ -47,6 +47,9 @@ const STAGE_LABELS: Record<string, string> = {
   'pass1:analyzing': 'Pass 1: Analyzing audio',
   'pass1:detecting': 'Pass 1: Detecting ads',
   'pass1:processing': 'Pass 1: Processing audio',
+  'pass2:transcribing': 'Pass 2: Transcribing',
+  'pass2:analyzing': 'Pass 2: Analyzing audio',
+  'pass2:detecting': 'Pass 2: Detecting ads',
   'pass2:verifying': 'Pass 2: Verifying',
 };
 

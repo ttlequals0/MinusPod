@@ -54,6 +54,8 @@ class VerificationPass:
             'status': 'clean', 'found_ads', 'no_segments', or 'transcription_failed'
         """
         # Step 1: Re-transcribe processed audio on GPU
+        if progress_callback:
+            progress_callback("transcribing", 85)
         logger.info(f"[{slug}:{episode_id}] Verification: Re-transcribing processed audio on GPU")
         verification_segments = self._transcribe_on_gpu(processed_audio_path)
 
@@ -65,6 +67,8 @@ class VerificationPass:
                     f"from re-transcription")
 
         # Step 2: Audio analysis on processed audio
+        if progress_callback:
+            progress_callback("analyzing", 88)
         processed_analysis = None
         try:
             processed_analysis = self.audio_analyzer.analyze(processed_audio_path)
@@ -75,6 +79,8 @@ class VerificationPass:
             logger.warning(f"[{slug}:{episode_id}] Verification audio analysis failed: {e}")
 
         # Step 3: Claude detection with verification prompt + audio context
+        if progress_callback:
+            progress_callback("detecting", 90)
         verification_result = self.ad_detector.run_verification_detection(
             verification_segments, podcast_name, episode_title,
             slug, episode_id, episode_description,
