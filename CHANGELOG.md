@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.253] - 2026-02-12
+
+### Fixed
+- **Pre-roll ads starting at 0.0s silently dropped**: The LLM response parser used Python `or`-chains to extract start/end timestamps from Claude's JSON response. Since `0.0` is falsy in Python, `0.0 or ad.get('start_time')` would skip the valid value and fall through to `None`, causing the ad to be silently discarded at the `start_val is not None` check. Replaced `or`-chains with `_first_not_none()` helper that correctly treats `0` and `0.0` as valid values. Every pre-roll ad starting at timestamp 0.0 was previously being lost.
+
 ## [0.1.252] - 2026-02-12
 
 ### Changed

@@ -795,6 +795,14 @@ def deduplicate_window_ads(all_ads: List[Dict], merge_threshold: float = 5.0) ->
     return merged
 
 
+def _first_not_none(*values):
+    """Return the first value that is not None. Unlike `or`, treats 0 and 0.0 as valid."""
+    for v in values:
+        if v is not None:
+            return v
+    return None
+
+
 class AdDetector:
     """Detect advertisements in podcast transcripts using Claude API.
 
@@ -1298,10 +1306,15 @@ class AdDetector:
                     # Log raw ad object for debugging
                     logger.debug(f"[{slug}:{episode_id}] Raw ad from LLM: {json.dumps(ad, default=str)[:500]}")
                     # Try various field name patterns for start/end times
-                    start_val = (ad.get('start') or ad.get('start_time') or ad.get('start_timestamp') or
-                                 ad.get('ad_start_timestamp') or ad.get('start_time_seconds'))
-                    end_val = (ad.get('end') or ad.get('end_time') or ad.get('end_timestamp') or
-                               ad.get('ad_end_timestamp') or ad.get('end_time_seconds'))
+                    # Use _first_not_none instead of `or` to avoid dropping 0.0 (pre-roll ads)
+                    start_val = _first_not_none(
+                        ad.get('start'), ad.get('start_time'), ad.get('start_timestamp'),
+                        ad.get('ad_start_timestamp'), ad.get('start_time_seconds')
+                    )
+                    end_val = _first_not_none(
+                        ad.get('end'), ad.get('end_time'), ad.get('end_timestamp'),
+                        ad.get('ad_end_timestamp'), ad.get('end_time_seconds')
+                    )
 
                     if start_val is not None and end_val is not None:
                         try:
