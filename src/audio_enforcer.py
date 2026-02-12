@@ -69,9 +69,11 @@ class AudioEnforcer:
         header = (
             "\n=== AUDIO SIGNALS ===\n"
             "The following audio signals were detected in this window. "
-            "These may indicate dynamically inserted ads (DAI) or "
-            "production changes. Use them as supporting evidence alongside "
-            "transcript content -- do not treat them as proof of ads on their own.\n"
+            "These are SUPPORTING EVIDENCE ONLY. They may indicate ad boundaries "
+            "but do NOT constitute ads by themselves. You MUST find promotional "
+            "content in the transcript (sponsor names, URLs, promo codes, product "
+            "pitches) to flag an ad. Silence gaps, volume changes, or transitions "
+            "with no promotional transcript content are NOT ads.\n"
         )
 
         return header + "\n".join(lines) + "\n"

@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.252] - 2026-02-12
+
+### Changed
+- **Detection prompts updated to reduce false positives** (Phase 16): Removed "when in doubt, mark it as an ad" bias from Pass 1 prompt. Both Pass 1 and Pass 2 prompts now require identifiable promotional language (sponsor names, URLs, promo codes, product pitches, calls to action) to flag an ad. Added "WHAT IS NOT AN AD" section to Pass 1 listing silence/pauses, topic transitions, and audio-only anomalies. Added "AUDIO SIGNALS" section to Pass 1 explicitly stating signals are supporting evidence only. Added CRITICAL paragraph to Pass 2 requiring promotional transcript content. Removed "BE THOROUGH" over-flagging encouragement from Pass 2. Strengthened audio_enforcer.py header to reinforce that audio signals without promotional content are not ads. Addresses SN 1064 false positive where a 2935-2970s silence gap was flagged as an ad at 65% confidence.
+
 ## [0.1.251] - 2026-02-11
 
 ### Fixed

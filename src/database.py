@@ -18,9 +18,18 @@ DEFAULT_SYSTEM_PROMPT = """Analyze this podcast transcript and identify ALL adve
 
 DETECTION RULES:
 - Host-read sponsor segments ARE ads. Any product promotion for compensation is an ad.
-- When in doubt, mark it as an ad. False positives are preferred over missing ads.
+- An ad MUST contain promotional language in the transcript. You must be able to point to specific words (sponsor names, URLs, promo codes, product pitches, calls to action) that make it an ad.
 - Include the transition phrase ("let's take a break") in the ad segment, not just the pitch.
 - Ad breaks typically last 60-120 seconds. Shorter segments may indicate incomplete detection.
+- If no ads are found in this window, return: []
+
+WHAT IS NOT AN AD:
+- Silence, pauses, or dead air between segments -- these are normal production gaps, not ads
+- Topic transitions or content gaps where the host changes subjects
+- Audio signal changes (volume shifts, tone changes) without any promotional transcript content
+- A guest discussing their own work, book, or project in the context of the interview
+- The host mentioning their own other shows, social media, or Patreon
+- Brand names mentioned in passing as part of genuine topic discussion
 
 WHAT TO LOOK FOR:
 - Transitions: "This episode is brought to you by...", "A word from our sponsors", "Let's take a break"
@@ -28,6 +37,13 @@ WHAT TO LOOK FOR:
 - Product endorsements, sponsored content, promotional messages
 - Network-inserted retail ads (may sound like radio commercials)
 - Dynamically inserted ads that may differ in tone or cadence from the host content
+
+AUDIO SIGNALS:
+Audio analysis may detect volume anomalies, DAI transitions, or silence gaps in the episode.
+These signals are SUPPORTING EVIDENCE ONLY. They help locate potential ad boundaries but do NOT
+constitute ads by themselves. You MUST find promotional content in the transcript (sponsor names,
+URLs, promo codes, product pitches, calls to action) to flag a segment as an ad. A volume change
+or silence gap with no promotional language is just normal audio production -- not an ad.
 
 COMMON PODCAST SPONSORS (high confidence if mentioned):
 BetterHelp, Athletic Greens, AG1, Shopify, Amazon, Audible, Squarespace, HelloFresh, Factor, NordVPN, ExpressVPN, Mint Mobile, MasterClass, Calm, Headspace, ZipRecruiter, Indeed, LinkedIn Jobs, LinkedIn, Stamps.com, SimpliSafe, Ring, ADT, Casper, Helix Sleep, Purple, Brooklinen, Bombas, Manscaped, Dollar Shave Club, Harry's, Quip, Hims, Hers, Roman, Keeps, Function of Beauty, Native, Liquid IV, Athletic Brewing, Magic Spoon, Thrive Market, Butcher Box, Blue Apron, DoorDash, Uber Eats, Grubhub, Instacart, Rocket Money, Credit Karma, SoFi, Acorns, Betterment, Wealthfront, PolicyGenius, Lemonade, State Farm, Progressive, Geico, Liberty Mutual, T-Mobile, Visible, FanDuel, DraftKings, BetMGM, Toyota, Hyundai, CarMax, Carvana, eBay Motors, ZocDoc, GoodRx, Care/of, Ritual, Seed, HubSpot, NetSuite, Monday.com, Notion, Canva, Grammarly, Babbel, Rosetta Stone, Blinkist, Raycon, Bose, MacPaw, CleanMyMac, Green Chef, Magic Mind, Honeylove, Cozy Earth, Quince, LMNT, Nutrafol, Aura, OneSkin, Incogni, Gametime, 1Password, Bitwarden, CacheFly, Deel, DeleteMe, Framer, Miro, Monarch Money, OutSystems, Spaceship, Thinkst Canary, ThreatLocker, Vanta, Veeam, Zapier, Zscaler, Capital One, Ford, WhatsApp
@@ -66,7 +82,14 @@ EXAMPLE:
 [78.5s - 82.0s] That's athleticgreens.com/podcast.
 [82.5s - 86.0s] Now, back to our conversation.
 
-Output: [{{"start": 45.0, "end": 82.0, "confidence": 0.98, "reason": "Athletic Greens sponsor read", "end_text": "athleticgreens.com/podcast"}}]"""
+Output: [{{"start": 45.0, "end": 82.0, "confidence": 0.98, "reason": "Athletic Greens sponsor read", "end_text": "athleticgreens.com/podcast"}}]
+
+NOT AN AD EXAMPLE (silence/content gap):
+[290.0s - 293.0s] So that's really the core of what GPT-4 can do.
+[293.5s - 296.0s] [silence]
+[296.5s - 300.0s] Now the other thing I wanted to talk about is the fine-tuning process.
+
+Output: []"""
 
 # Verification pass prompt - runs on processed audio to catch missed ads
 DEFAULT_VERIFICATION_PROMPT = """You are reviewing a podcast episode that has ALREADY had advertisements removed. The audio has been processed — detected ads were cut and replaced with a brief transition tone. Your job is to find anything that was MISSED or only partially removed.
@@ -100,6 +123,11 @@ WHAT IS NOT AN AD:
 - Genuine topic discussion that happens to mention a brand name in passing
 - Episode content that sounds slightly awkward due to surrounding ad removal
 - Cross-promotion of shows within the same podcast network (unless it includes promo codes or external URLs)
+- Silence, pauses, or dead air -- these are normal, not missed ads
+- Content gaps or topic transitions between segments
+- Audio artifacts from the first pass ad removal (slight volume changes near cut points are expected)
+
+CRITICAL: Every ad you flag must contain identifiable promotional language in the transcript -- a sponsor name, URL, promo code, product pitch, or call to action. If the transcript text in a region is just normal conversation, silence, or a topic change, it is NOT an ad regardless of any audio signal changes.
 
 HOW TO IDENTIFY FRAGMENTS:
 A fragment is promotional language that appears abruptly at the start or end of a content section. In the processed audio, the flow should be: natural conversation → transition tone → natural conversation. If instead you see: natural conversation → transition tone → "...dot com slash podcast. Anyway, back to..." → natural conversation, that trailing "dot com slash podcast" is a fragment from an incompletely removed ad.
@@ -121,7 +149,6 @@ Use the exact START timestamp from the [Xs] marker of the first ad segment.
 Use the exact END timestamp from the [Xs] marker of the last ad segment.
 Do not interpolate or estimate times between segments.
 
-BE THOROUGH: If it sounds promotional and doesn't belong in cleaned content, mark it.
 BE ACCURATE: Don't invent ads. Many episodes will be completely clean after the first pass. An empty result [] is expected and valid for well-processed episodes.
 
 OUTPUT FORMAT:
