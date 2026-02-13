@@ -6,6 +6,7 @@ that can identify identical or near-identical audio segments across episodes.
 This is particularly effective for DAI (Dynamic Ad Insertion) ads that are
 inserted as identical audio files.
 """
+import ctypes
 import logging
 import os
 import subprocess
@@ -222,7 +223,7 @@ class AudioFingerprinter:
         except ImportError:
             logger.warning("acoustid module not available for fingerprint comparison")
             return 0.0
-        except TypeError as e:
+        except (TypeError, ctypes.ArgumentError) as e:
             logger.error(f"Fingerprint comparison failed (bad data): {e}")
             return -1.0
         except Exception as e:

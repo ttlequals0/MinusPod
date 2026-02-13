@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.255] - 2026-02-13
+
+### Fixed
+- **v0.1.254 fix missed ctypes.ArgumentError**: The corrupt fingerprint exception is `ctypes.ArgumentError` (from the C library binding), not Python's `TypeError`. The `<class 'TypeError'>` in the error message was the ctypes description of the type mismatch, not the exception class. Updated the catch to handle both `TypeError` and `ctypes.ArgumentError`.
+
 ## [0.1.254] - 2026-02-13
 
 ### Fixed
