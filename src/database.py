@@ -3341,6 +3341,34 @@ class Database:
         logger.info(f"Search index rebuilt with {count} items")
         return count
 
+    def index_episode(self, episode_id: str, slug: str) -> bool:
+        """Index or re-index a single episode in the search index."""
+        conn = self.get_connection()
+        try:
+            row = conn.execute("""
+                SELECT e.episode_id, e.title, e.description, p.slug, ed.transcript_text
+                FROM episodes e
+                JOIN podcasts p ON e.podcast_id = p.id
+                LEFT JOIN episode_details ed ON e.id = ed.episode_id
+                WHERE e.episode_id = ? AND p.slug = ?
+            """, (episode_id, slug)).fetchone()
+            if not row:
+                return False
+            conn.execute(
+                "DELETE FROM search_index WHERE content_type = 'episode' AND content_id = ?",
+                (episode_id,))
+            transcript = (row['transcript_text'] or '')[:100000]
+            conn.execute("""
+                INSERT INTO search_index (content_type, content_id, podcast_slug, title, body, metadata)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, ('episode', row['episode_id'], row['slug'], row['title'],
+                  transcript, row['description'] or ''))
+            conn.commit()
+            return True
+        except Exception as e:
+            logger.error(f"Failed to index episode {episode_id}: {e}")
+            return False
+
     def search(self, query: str, content_type: Optional[str] = None, limit: int = 50) -> List[Dict]:
         """Full-text search across indexed content.
 

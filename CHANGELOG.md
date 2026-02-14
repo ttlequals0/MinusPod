@@ -6,6 +6,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.256] - 2026-02-14
+
+### Added
+- **Silent-gap ad merge** (Phase 18): Consecutive ads separated by up to 30s of silence (no speech) are now merged into a single ad. Previously only ads within 5s were merged, leaving fragmented detections when an ad break contained a brief silence between sponsors. New `_has_speech_in_range()` method checks transcript segments to distinguish silent gaps from content. `MAX_SILENT_GAP` constant (30s) added to config.
+- **Incremental search index updates** (Phase 19): New `index_episode()` method indexes a single episode immediately after processing, so it appears in search results without waiting for a full rebuild. Periodic full rebuild runs every 6 hours via `run_cleanup()`.
+- **VTT-based transcript timestamps in UI** (Phase 20): EpisodeDetail now fetches and parses the actual VTT transcript file for accurate timestamps instead of approximating by evenly distributing text across the episode duration. Falls back to the old approximation when VTT is unavailable.
+- **Processed transcript text storage** (Phase 20): New `generate_text()` method on TranscriptGenerator produces a `[HH:MM:SS.sss --> HH:MM:SS.sss] text` format stored in the database after processing. This is the ad-free, timestamp-adjusted transcript used by search indexing.
+
+### Changed
+- **Renamed to MinusPod** (Phase 22): Service name, Docker image, frontend title, package name, API docs title, README heading, and deployment docs all updated from "Podcast Server" / "podcast-server" to "MinusPod" / "minuspod".
+- **Pass label text in UI** (Phase 20): Detection stage labels changed from "first pass" / "verification" to "pass 1" / "pass 2" for consistency.
+
+### Fixed
+- **Fingerprint scan wastes iterations when all fingerprints are broken** (Phase 17): When every known fingerprint in the database is corrupt, the sliding window loop still iterated through the entire audio file doing ffmpeg+fpcalc work for nothing. Added a bail-out check that breaks immediately when all known fingerprints are in the broken set.
+
+### Removed
+- **Dead code cleanup** (Phase 21): Removed three unused functions: `extract_url_sponsor()` from ad_detector.py, `extract_segments_with_timestamps()` from utils/text.py, `format_time_simple()` from utils/time.py.
+
 ## [0.1.255] - 2026-02-13
 
 ### Fixed

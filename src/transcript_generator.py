@@ -156,6 +156,52 @@ class TranscriptGenerator:
 
         return "\n".join(lines)
 
+    def generate_text(
+        self,
+        segments: List[Dict],
+        ads_removed: List[Dict]
+    ) -> str:
+        """
+        Generate plain text transcript with adjusted timestamps.
+
+        Output format: [HH:MM:SS.sss --> HH:MM:SS.sss] text
+
+        Args:
+            segments: Whisper transcript segments with start, end, text
+            ads_removed: Removed ad markers with start, end
+
+        Returns:
+            Text transcript with timestamps
+        """
+        if not segments:
+            return ""
+
+        lines = []
+        for segment in segments:
+            if self.is_segment_in_ad(segment, ads_removed):
+                continue
+
+            text = segment.get('text', '').strip()
+            if not text:
+                continue
+
+            original_start = segment.get('start', 0)
+            original_end = segment.get('end', 0)
+
+            adjusted_start = self.adjust_timestamp(original_start, ads_removed)
+            adjusted_end = self.adjust_timestamp(original_end, ads_removed)
+
+            if adjusted_end <= adjusted_start:
+                continue
+
+            start_ts = self.format_vtt_timestamp(adjusted_start)
+            end_ts = self.format_vtt_timestamp(adjusted_end)
+
+            lines.append(f"[{start_ts} --> {end_ts}] {text}")
+
+        logger.info(f"Generated text transcript with {len(lines)} segments")
+        return "\n".join(lines)
+
     def generate_vtt_from_text(
         self,
         transcript_text: str,

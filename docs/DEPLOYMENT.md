@@ -11,8 +11,8 @@
 
 ```bash
 # Clone repository
-git clone https://github.com/ttlequals0/podcast-server.git
-cd podcast-server
+git clone https://github.com/ttlequals0/minuspod.git
+cd minuspod
 
 # Create .env file
 echo "ANTHROPIC_API_KEY=your-key-here" > .env
@@ -21,7 +21,7 @@ echo "ANTHROPIC_API_KEY=your-key-here" > .env
 docker-compose up -d
 
 # View logs
-docker logs -f podcast-server
+docker logs -f minuspod
 ```
 
 ## Environment Variables
@@ -91,7 +91,7 @@ docker-compose restart
 docker info | grep -i nvidia
 
 # Check GPU visibility in container
-docker exec podcast-server nvidia-smi
+docker exec minuspod nvidia-smi
 ```
 
 If GPU not available, set `WHISPER_DEVICE=cpu` (slower but works).
@@ -133,7 +133,7 @@ docker-compose start
 
 ```bash
 # Pull latest image
-docker pull ttlequals0/podcast-server:latest
+docker pull ttlequals0/minuspod:latest
 
 # Recreate container
 docker-compose up -d
@@ -145,13 +145,13 @@ docker-compose up -d
 
 ```bash
 # View all logs
-docker logs podcast-server
+docker logs minuspod
 
 # Follow logs
-docker logs -f podcast-server
+docker logs -f minuspod
 
 # Last 100 lines
-docker logs --tail 100 podcast-server
+docker logs --tail 100 minuspod
 ```
 
 ## Resource Usage

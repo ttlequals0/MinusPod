@@ -10,7 +10,7 @@ from config import (
     MAX_AD_DURATION_CONFIRMED, LOW_CONFIDENCE,
     REJECT_CONFIDENCE, HIGH_CONFIDENCE_OVERRIDE, PRE_ROLL, MID_ROLL_1,
     POST_ROLL, MAX_AD_PERCENTAGE, MAX_ADS_PER_5MIN,
-    MERGE_GAP_THRESHOLD
+    MERGE_GAP_THRESHOLD, MAX_SILENT_GAP
 )
 from utils.text import extract_text_from_segments
 
@@ -559,6 +559,19 @@ class AdValidator:
 
         return ads
 
+    def _has_speech_in_range(self, start: float, end: float) -> bool:
+        """Check if any transcript segments contain speech in the given range."""
+        if not self.segments:
+            return True  # Assume speech if no segments available
+        for seg in self.segments:
+            seg_start = seg.get('start', 0)
+            seg_end = seg.get('end', 0)
+            if seg_start < end and seg_end > start:
+                text = seg.get('text', '').strip()
+                if text and len(text) > 1:
+                    return True
+        return False
+
     def _merge_close_ads(self, ads: List[Dict],
                          result: ValidationResult) -> List[Dict]:
         """Merge ads with tiny gaps.
@@ -581,16 +594,23 @@ class AdValidator:
             gap = current['start'] - last['end']
 
             if 0 <= gap < MERGE_GAP_THRESHOLD:
-                # Merge: extend last ad to cover current
+                # Always merge small gaps (< 5s)
                 last['end'] = max(last['end'], current['end'])
                 last['validation_merged'] = True
-                # Combine reasons if different
                 if current.get('reason') and current['reason'] != last.get('reason'):
                     last['reason'] = f"{last.get('reason', '')} + {current['reason']}"
-                # Use higher confidence
                 if current.get('confidence', 0) > last.get('confidence', 0):
                     last['confidence'] = current['confidence']
                 result.corrections.append(f"Merged ads with {gap:.1f}s gap")
+            elif 0 <= gap < MAX_SILENT_GAP and not self._has_speech_in_range(last['end'], current['start']):
+                # Merge larger gaps if no speech in between
+                last['end'] = max(last['end'], current['end'])
+                last['validation_merged'] = True
+                if current.get('reason') and current['reason'] != last.get('reason'):
+                    last['reason'] = f"{last.get('reason', '')} + {current['reason']}"
+                if current.get('confidence', 0) > last.get('confidence', 0):
+                    last['confidence'] = current['confidence']
+                result.corrections.append(f"Merged ads across {gap:.1f}s silent gap")
             else:
                 merged.append(current.copy())
 

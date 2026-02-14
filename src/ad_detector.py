@@ -478,30 +478,6 @@ def _text_has_ad_content(text: str, sponsor_names: set = None) -> bool:
     return False
 
 
-def extract_url_sponsor(text: str) -> Optional[str]:
-    """Extract sponsor name from URL in text.
-
-    Used to detect when end_text contains a different sponsor's URL,
-    indicating back-to-back ads from different sponsors.
-
-    Args:
-        text: Text that may contain a URL (e.g., 'mintmobile.com')
-
-    Returns:
-        Sponsor name extracted from URL (e.g., 'mintmobile'), or None
-    """
-    if not text:
-        return None
-    url_pattern = r'([a-z0-9]+)\.(?:com|tv|io|co|org|net)'
-    match = re.search(url_pattern, text.lower())
-    if match:
-        sponsor = match.group(1)
-        # Only filter protocol prefixes, not domains
-        if sponsor not in ('www', 'http', 'https') and len(sponsor) > 2:
-            return sponsor
-    return None
-
-
 def extract_sponsor_names(text: str, ad_reason: str = None) -> set:
     """Extract potential sponsor names from transcript text and ad reason.
 

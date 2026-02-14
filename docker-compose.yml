@@ -1,8 +1,8 @@
 version: '3.8'
 
 services:
-  podcast-server:
-    image: ttlequals0/podcast-server:latest
+  minuspod:
+    image: ttlequals0/minuspod:latest
     ports:
       - "8000:8000"
     volumes:
@@ -89,7 +89,7 @@ services:
     environment:
       - TUNNEL_TOKEN=${TUNNEL_TOKEN}
     depends_on:
-      - podcast-server
+      - minuspod
     restart: unless-stopped
     profiles:
       - tunnel

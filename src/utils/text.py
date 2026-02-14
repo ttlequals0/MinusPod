@@ -57,50 +57,6 @@ def extract_text_in_range(
     return ' '.join(segments)
 
 
-def extract_segments_with_timestamps(
-    transcript: str,
-    start: Optional[float] = None,
-    end: Optional[float] = None
-) -> List[dict]:
-    """Extract transcript segments with their timestamps.
-
-    Args:
-        transcript: Full transcript text with timestamps
-        start: Optional start time filter (seconds)
-        end: Optional end time filter (seconds)
-
-    Returns:
-        List of dicts with 'start', 'end', and 'text' keys
-    """
-    if not transcript:
-        return []
-
-    pattern = r'\[(\d{1,2}:\d{2}:\d{2}(?:\.\d{1,3})?)\s*-->\s*(\d{1,2}:\d{2}:\d{2}(?:\.\d{1,3})?)\]\s*([^\[]+)'
-
-    segments = []
-    for match in re.finditer(pattern, transcript):
-        seg_start = parse_timestamp(match.group(1))
-        seg_end = parse_timestamp(match.group(2))
-        text = match.group(3).strip()
-
-        if not text:
-            continue
-
-        # Apply time filters if provided
-        if start is not None and seg_end < start:
-            continue
-        if end is not None and seg_start > end:
-            continue
-
-        segments.append({
-            'start': seg_start,
-            'end': seg_end,
-            'text': text
-        })
-
-    return segments
-
-
 def extract_text_from_segments(
     segments: List[dict],
     start: float,

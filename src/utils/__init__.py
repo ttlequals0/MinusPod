@@ -1,4 +1,4 @@
-"""Shared utility functions for podcast-server.
+"""Shared utility functions for MinusPod.
 
 This module provides common utilities used across the codebase:
 - audio: Audio file operations (duration, metadata)

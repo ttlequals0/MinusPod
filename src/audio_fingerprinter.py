@@ -307,6 +307,11 @@ class AudioFingerprinter:
         # Slide through audio looking for matches
         position = 0.0
         while position < total_duration - MIN_SEGMENT_DURATION:
+            # Bail out if all known fingerprints are broken/corrupt
+            if len(broken_patterns) >= len(known_fingerprints):
+                logger.info("All known fingerprints are broken/skipped, ending scan early")
+                break
+
             # Generate fingerprint for current window
             chunk_fp = self.generate_fingerprint(
                 audio_path,

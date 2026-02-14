@@ -44,7 +44,7 @@ function Login() {
       <div className="w-full max-w-sm">
         <div className="bg-card border border-border rounded-lg shadow-lg p-8">
           <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold text-foreground">Podcast Server</h1>
+            <h1 className="text-2xl font-bold text-foreground">MinusPod</h1>
             <p className="text-sm text-muted-foreground mt-2">Enter password to continue</p>
           </div>
 

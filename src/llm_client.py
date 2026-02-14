@@ -1,5 +1,5 @@
 """
-LLM Client Abstraction for Podcast Server
+LLM Client Abstraction for MinusPod
 
 Supports multiple backends:
 - anthropic: Direct Anthropic API (default, uses API credits)

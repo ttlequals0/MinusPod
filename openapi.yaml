@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: Podcast Server API
+  title: MinusPod API
   description: |
     REST API for managing podcast feeds with automatic ad detection and removal.
 
@@ -14,7 +14,7 @@ info:
     - Submit corrections to improve ad detection accuracy
   version: 0.1.242
   contact:
-    name: Podcast Server
+    name: MinusPod
   license:
     name: MIT
 

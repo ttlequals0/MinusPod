@@ -695,6 +695,16 @@ def run_cleanup():
     except Exception as e:
         refresh_logger.error(f"Orphan cleanup failed: {e}")
 
+    # Periodic search index rebuild (every 6 hours)
+    try:
+        last_rebuild = getattr(run_cleanup, '_last_index_rebuild', 0)
+        if time.time() - last_rebuild > 21600:
+            count = db.rebuild_search_index()
+            run_cleanup._last_index_rebuild = time.time()
+            refresh_logger.info(f"Periodic search index rebuild: {count} items indexed")
+    except Exception as e:
+        refresh_logger.error(f"Search index rebuild failed: {e}")
+
 
 def background_rss_refresh():
     """Background task to refresh RSS feeds every 15 minutes.
@@ -1400,12 +1410,18 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             try:
                 # Check settings for VTT transcripts
                 vtt_enabled = db.get_setting('vtt_transcripts_enabled')
+                transcript_gen = TranscriptGenerator()
+
                 if vtt_enabled is None or vtt_enabled.lower() == 'true':
-                    transcript_gen = TranscriptGenerator()
                     vtt_content = transcript_gen.generate_vtt(segments, all_cuts_for_assets)
                     if vtt_content and len(vtt_content) > 10:
                         storage.save_transcript_vtt(slug, episode_id, vtt_content)
                         audio_logger.info(f"[{slug}:{episode_id}] Generated VTT transcript")
+
+                # Store processed transcript text for search indexing (always, independent of VTT setting)
+                processed_text = transcript_gen.generate_text(segments, all_cuts_for_assets)
+                if processed_text:
+                    db.save_episode_details(slug, episode_id, transcript_text=processed_text)
 
                 # Check settings for chapters
                 chapters_enabled = db.get_setting('chapters_enabled')
@@ -1434,6 +1450,12 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 ads_removed_secondpass=verification_count,
                 reprocess_mode=None,
                 reprocess_requested_at=None)
+
+            # Update search index for this episode immediately
+            try:
+                db.index_episode(episode_id, slug)
+            except Exception as idx_err:
+                audio_logger.warning(f"[{slug}:{episode_id}] Failed to update search index: {idx_err}")
 
             # Regenerate RSS cache to include new Podcasting 2.0 tags (transcript/chapters)
             try:
@@ -1583,7 +1605,7 @@ def swagger_ui():
     return '''<!DOCTYPE html>
 <html>
 <head>
-    <title>Podcast Server API</title>
+    <title>MinusPod API</title>
     <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
 </head>
 <body>
@@ -1871,7 +1893,7 @@ def _startup():
     try:
         sys.path.insert(0, str(Path(__file__).parent.parent))
         from version import __version__
-        logger.info(f"Podcast Server v{__version__} starting...")
+        logger.info(f"MinusPod v{__version__} starting...")
     except ImportError:
         logger.warning("Could not import version")
 

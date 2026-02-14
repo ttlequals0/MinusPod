@@ -1,4 +1,4 @@
-# Podcast Ad Removal Server
+# MinusPod
 
 Removes ads from podcasts using Whisper transcription. Serves modified RSS feeds that work with any podcast app.
 
@@ -329,16 +329,16 @@ Instead of using API credits, you can use the [Claude Code OpenAI Wrapper](https
    docker compose --profile wrapper run --rm claude-wrapper claude auth login
    ```
 
-3. Configure podcast-server to use the wrapper by updating your `.env`:
+3. Configure minuspod to use the wrapper by updating your `.env`:
    ```bash
    LLM_PROVIDER=openai-compatible
    OPENAI_BASE_URL=http://claude-wrapper:8000/v1
    OPENAI_API_KEY=not-needed
    ```
 
-4. Restart podcast-server:
+4. Restart minuspod:
    ```bash
-   docker compose up -d podcast-server
+   docker compose up -d minuspod
    ```
 
 The wrapper exposes an OpenAI-compatible API that routes requests through your Claude Max subscription instead of consuming API credits.
@@ -389,7 +389,7 @@ The docker-compose includes an optional Cloudflare tunnel service for secure rem
 
 1. Create a tunnel at [Cloudflare Zero Trust](https://one.dash.cloudflare.com/)
 2. Add `TUNNEL_TOKEN` to your `.env` file
-3. Configure the tunnel to point to `http://podcast-server:8000`
+3. Configure the tunnel to point to `http://minuspod:8000`
 
 ### Security Recommendations
 

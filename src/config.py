@@ -47,6 +47,7 @@ POST_ROLL = (0.95, 1.0)         # Last 5%
 MAX_AD_PERCENTAGE = 0.30        # 30% of episode is suspicious
 MAX_ADS_PER_5MIN = 1            # More than 1 ad per 5 min is suspicious
 MERGE_GAP_THRESHOLD = 5.0       # Merge ads within 5s
+MAX_SILENT_GAP = 30.0           # Merge ads across silent gaps up to 30s
 
 # ============================================================
 # Pattern Matching

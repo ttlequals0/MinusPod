@@ -22,7 +22,7 @@ function Layout() {
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-8">
               <Link to="/" className="text-xl font-semibold text-foreground">
-                Podcast Server
+                MinusPod
               </Link>
               <nav className="hidden sm:flex gap-4">
                 <Link

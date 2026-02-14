@@ -71,25 +71,3 @@ def format_time(seconds: float, include_hours: bool = False) -> str:
     if hours > 0 or include_hours:
         return f"{hours}:{minutes:02d}:{secs:05.2f}"
     return f"{minutes}:{secs:05.2f}"
-
-
-def format_time_simple(seconds: float) -> str:
-    """Format seconds as simple MM:SS or HH:MM:SS string (no decimals).
-
-    Args:
-        seconds: Time in seconds
-
-    Returns:
-        Formatted timestamp string
-    """
-    if seconds < 0:
-        seconds = 0
-
-    total_seconds = int(seconds)
-    hours = total_seconds // 3600
-    minutes = (total_seconds % 3600) // 60
-    secs = total_seconds % 60
-
-    if hours > 0:
-        return f"{hours}:{minutes:02d}:{secs:02d}"
-    return f"{minutes}:{secs:02d}"
