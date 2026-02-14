@@ -759,7 +759,11 @@ def deduplicate_window_ads(all_ads: List[Dict], merge_threshold: float = 5.0) ->
             # Keep higher confidence
             if current.get('confidence', 0) > last.get('confidence', 0):
                 last['confidence'] = current['confidence']
-                last['reason'] = current.get('reason', last.get('reason', ''))
+            # Prefer the more descriptive reason regardless of confidence
+            current_reason = current.get('reason', '')
+            last_reason = last.get('reason', '')
+            if len(current_reason) > len(last_reason):
+                last['reason'] = current_reason
             # Mark as merged from windows
             last['merged_windows'] = True
         else:
@@ -1316,10 +1320,13 @@ class AdDetector:
                                 # Try extract_sponsor_name first for a real sponsor name.
                                 # If it returns the default, fall back to Claude's raw reason.
                                 reason = extract_sponsor_name(ad)
+                                existing_reason = ad.get('reason')
                                 if reason == 'Advertisement detected':
-                                    existing_reason = ad.get('reason')
                                     if existing_reason and isinstance(existing_reason, str) and len(existing_reason) > 3:
                                         reason = existing_reason
+                                elif existing_reason and isinstance(existing_reason, str) and len(existing_reason) > len(reason) + 5:
+                                    # Claude's reason is substantially more descriptive than the bare sponsor name
+                                    reason = existing_reason
 
                                 # Extract description from Claude's response to enrich the reason
                                 # Dynamic scan: check ALL non-structural string fields > 10 chars
@@ -2139,6 +2146,11 @@ class AdDetector:
                     last['pattern_id'] = current.get('pattern_id')
                     if current.get('sponsor'):
                         last['sponsor'] = current['sponsor']
+                # Prefer the more descriptive reason
+                current_reason = current.get('reason', '')
+                last_reason = last.get('reason', '')
+                if len(current_reason) > len(last_reason):
+                    last['reason'] = current_reason
             else:
                 merged.append(current.copy())
 

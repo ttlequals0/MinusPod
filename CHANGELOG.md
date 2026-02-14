@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.257] - 2026-02-14
+
+### Fixed
+- **Ad marker reasons show bare sponsor names instead of descriptions**: Three independent bugs caused ad markers to display unhelpful reasons like "Ironclad" or "Contains" instead of descriptive text. (1) Cross-stage merge in `_merge_detection_results` never updated the `reason` field when merging overlapping ads from different detection stages -- now picks the longer (more descriptive) reason. (2) Window deduplication in `deduplicate_window_ads` replaced reason based solely on confidence -- now keeps the more descriptive reason regardless of which window had higher confidence. (3) Claude reason extraction preferred `extract_sponsor_name` (bare name) over Claude's raw `reason` field -- now falls back to Claude's reason when it is substantially more descriptive than the bare sponsor name.
+
 ## [0.1.256] - 2026-02-14
 
 ### Added
