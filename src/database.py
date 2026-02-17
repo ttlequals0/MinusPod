@@ -2422,6 +2422,32 @@ class Database:
                     pass
         return results
 
+    def get_confirmed_corrections(self, episode_id: str) -> List[Dict]:
+        """Get confirmed corrections for an episode with parsed bounds.
+
+        Returns list of dicts with 'start' and 'end' keys for easy overlap checking.
+        """
+        conn = self.get_connection()
+        cursor = conn.execute(
+            """SELECT original_bounds FROM pattern_corrections
+               WHERE episode_id = ? AND correction_type = 'confirm'""",
+            (episode_id,)
+        )
+        results = []
+        for row in cursor.fetchall():
+            bounds = row['original_bounds']
+            if bounds:
+                try:
+                    parsed = json.loads(bounds)
+                    if 'start' in parsed and 'end' in parsed:
+                        results.append({
+                            'start': float(parsed['start']),
+                            'end': float(parsed['end'])
+                        })
+                except (json.JSONDecodeError, KeyError, ValueError):
+                    pass
+        return results
+
     def get_podcast_false_positive_texts(self, podcast_slug: str, limit: int = 100) -> List[Dict]:
         """Get all false positive texts for a podcast for cross-episode matching.
 

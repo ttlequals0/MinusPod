@@ -6,6 +6,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2026-02-17
+
+### Fixed
+- **Rejected ad not restored after user confirmation**: Four cascading bugs prevented
+  user "Confirm as Ad" corrections from taking effect on reprocess.
+  - `NOT_AD_PATTERNS` regex false positive: "transition from show content" in ad reasons
+    incorrectly triggered rejection. Replaced negative lookbehind with positive assertion.
+  - Confirmed corrections ignored during reprocessing: Added `get_confirmed_corrections()`
+    to database and `_overlaps_confirmed()` to validator. Confirmed ads now force-accept
+    at confidence 1.0 (priority: false_positive REJECT > confirmed ACCEPT > normal).
+  - Frontend omitted `sponsor` field from correction payload, preventing sponsor
+    extraction on the backend.
+  - Confirm handler sponsor extraction used adjusted timestamps against original
+    timestamps. Added reason-text fallback before transcript-based extraction.
+
 ## [1.0.0] - 2026-02-14
 
 Major release: pipeline redesign, MinusPod rebrand, and ad detection overhaul.

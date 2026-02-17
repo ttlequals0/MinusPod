@@ -323,3 +323,178 @@ class TestAdValidatorReasonQuality:
 
         # Confidence should be reduced from original
         assert result.ads[0]['validation']['adjusted_confidence'] < 0.70
+
+
+class TestNotAdPatternsRegex:
+    """Tests for NOT_AD_PATTERNS regex accuracy."""
+
+    def test_transition_from_show_content_not_matched(self):
+        """Regression: 'transition from show content' must NOT trigger rejection."""
+        validator = AdValidator(episode_duration=600.0, segments=[])
+
+        ad = {
+            'start': 100.0,
+            'end': 200.0,
+            'confidence': 0.99,
+            'reason': 'ZipRecruiter sponsor read - transition from show content to ad'
+        }
+
+        result = validator.validate([ad])
+
+        assert result.rejected == 0, (
+            "Reason containing 'transition from show content' should not be rejected"
+        )
+
+    def test_return_to_show_content_not_matched(self):
+        """'return to show content' must NOT trigger rejection."""
+        validator = AdValidator(episode_duration=600.0, segments=[])
+
+        ad = {
+            'start': 100.0,
+            'end': 200.0,
+            'confidence': 0.95,
+            'reason': 'Ad segment before return to show content'
+        }
+
+        result = validator.validate([ad])
+
+        assert result.rejected == 0, (
+            "Reason containing 'return to show content' should not be rejected"
+        )
+
+    def test_is_show_content_still_matched(self):
+        """'is show content' MUST still trigger rejection."""
+        validator = AdValidator(episode_duration=600.0, segments=[])
+
+        ad = {
+            'start': 100.0,
+            'end': 200.0,
+            'confidence': 0.80,
+            'reason': 'This segment is show content, not a sponsor'
+        }
+
+        result = validator.validate([ad])
+
+        assert result.rejected == 1
+
+    def test_appears_to_be_regular_content_still_matched(self):
+        """'appears to be regular content' MUST still trigger rejection."""
+        validator = AdValidator(episode_duration=600.0, segments=[])
+
+        ad = {
+            'start': 100.0,
+            'end': 200.0,
+            'confidence': 0.80,
+            'reason': 'This appears to be regular content'
+        }
+
+        result = validator.validate([ad])
+
+        assert result.rejected == 1
+
+    def test_not_an_ad_still_matched(self):
+        """'not an ad' MUST still trigger rejection."""
+        validator = AdValidator(episode_duration=600.0, segments=[])
+
+        ad = {
+            'start': 100.0,
+            'end': 200.0,
+            'confidence': 0.80,
+            'reason': 'This is not an advertisement'
+        }
+
+        result = validator.validate([ad])
+
+        assert result.rejected == 1
+
+    def test_false_positive_still_matched(self):
+        """'false positive' MUST still trigger rejection."""
+        validator = AdValidator(episode_duration=600.0, segments=[])
+
+        ad = {
+            'start': 100.0,
+            'end': 200.0,
+            'confidence': 0.80,
+            'reason': 'Likely a false positive detection'
+        }
+
+        result = validator.validate([ad])
+
+        assert result.rejected == 1
+
+
+class TestConfirmedCorrections:
+    """Tests for user-confirmed correction handling."""
+
+    def test_confirmed_correction_force_accept(self):
+        """Low-confidence ad overlapping confirmed correction gets ACCEPT at 1.0."""
+        confirmed = [
+            {'start': 100.0, 'end': 200.0}
+        ]
+
+        validator = AdValidator(
+            episode_duration=600.0,
+            segments=[],
+            confirmed_corrections=confirmed
+        )
+
+        ad = {
+            'start': 110.0,
+            'end': 190.0,
+            'confidence': 0.40,
+            'reason': 'Low confidence sponsor mention'
+        }
+
+        result = validator.validate([ad])
+
+        assert result.accepted == 1
+        assert result.ads[0]['validation']['decision'] == Decision.ACCEPT.value
+        assert result.ads[0]['validation']['adjusted_confidence'] == 1.0
+
+    def test_false_positive_wins_over_confirmed(self):
+        """Segment with both corrections gets REJECT (false_positive priority)."""
+        false_positives = [
+            {'start': 100.0, 'end': 200.0}
+        ]
+        confirmed = [
+            {'start': 100.0, 'end': 200.0}
+        ]
+
+        validator = AdValidator(
+            episode_duration=600.0,
+            segments=[],
+            false_positive_corrections=false_positives,
+            confirmed_corrections=confirmed
+        )
+
+        ad = {
+            'start': 110.0,
+            'end': 190.0,
+            'confidence': 0.95,
+            'reason': 'High confidence ad'
+        }
+
+        result = validator.validate([ad])
+
+        assert result.rejected == 1
+        assert result.ads[0]['validation']['decision'] == Decision.REJECT.value
+
+    def test_no_confirmed_corrections_normal_flow(self):
+        """Without confirmed corrections, normal validation applies."""
+        validator = AdValidator(
+            episode_duration=600.0,
+            segments=[],
+            confirmed_corrections=[]
+        )
+
+        ad = {
+            'start': 100.0,
+            'end': 200.0,
+            'confidence': 0.40,
+            'reason': 'Low confidence mention'
+        }
+
+        result = validator.validate([ad])
+
+        # Low confidence with no boosts should not be accepted
+        assert result.ads[0]['validation']['decision'] != Decision.ACCEPT.value
