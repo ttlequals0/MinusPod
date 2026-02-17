@@ -1163,10 +1163,18 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                         f"false positive corrections"
                     )
 
+                confirmed_corrections = db.get_confirmed_corrections(episode_id)
+                if confirmed_corrections:
+                    audio_logger.info(
+                        f"[{slug}:{episode_id}] Loaded {len(confirmed_corrections)} "
+                        f"confirmed corrections"
+                    )
+
                 min_cut_confidence = get_min_cut_confidence()
                 validator = AdValidator(
                     episode_duration, segments, episode_description,
                     false_positive_corrections=false_positive_corrections,
+                    confirmed_corrections=confirmed_corrections,
                     min_cut_confidence=min_cut_confidence
                 )
                 validation_result = validator.validate(all_ads)

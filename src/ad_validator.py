@@ -78,11 +78,12 @@ class AdValidator:
     ]
 
     # Patterns that indicate Claude determined this is NOT an ad
-    # Note: negative lookbehinds exclude "unrelated to", "different from", "not "
-    # which actually indicate it IS an ad (e.g., "unrelated to episode content")
+    # The second branch only matches "(show|episode|regular|actual) content" when
+    # preceded by assertion verbs (is, appears to be, etc.) or at start-of-string.
+    # This avoids false positives on phrases like "transition from show content".
     NOT_AD_PATTERNS = re.compile(
         r'not\s+an?\s+(ad|advertisement|sponsor|promo|commercial)|'
-        r'(?<!unrelated to )(?<!different from )(?<!not )(episode|show|regular|actual)\s+content|'
+        r'(?:^|(?:is|appears\s+to\s+be|seems\s+like|contains)\s+)(episode|show|regular|actual)\s+content|'
         r'this\s+is\s+(not|n\'t)\s+|'
         r'does\s+not\s+appear\s+to\s+be|'
         r'no\s+(ad|advertisement|sponsor)|'
@@ -93,6 +94,7 @@ class AdValidator:
     def __init__(self, episode_duration: float, segments: List[Dict] = None,
                  episode_description: str = None,
                  false_positive_corrections: List[Dict] = None,
+                 confirmed_corrections: List[Dict] = None,
                  min_cut_confidence: float = 0.80):
         """Initialize validator.
 
@@ -102,6 +104,8 @@ class AdValidator:
             episode_description: Episode description (may contain sponsor info)
             false_positive_corrections: List of dicts with 'start' and 'end' keys
                                         for user-marked false positives to auto-reject
+            confirmed_corrections: List of dicts with 'start' and 'end' keys
+                                   for user-confirmed ads to auto-accept
             min_cut_confidence: Minimum confidence to auto-accept (user's slider value)
         """
         self.episode_duration = episode_duration
@@ -109,10 +113,13 @@ class AdValidator:
         self.episode_description = episode_description or ""
         self.description_sponsors = self._extract_sponsors_from_description()
         self.false_positive_corrections = false_positive_corrections or []
+        self.confirmed_corrections = confirmed_corrections or []
         self.min_cut_confidence = min_cut_confidence
 
         if self.false_positive_corrections:
             logger.info(f"Loaded {len(self.false_positive_corrections)} false positive corrections")
+        if self.confirmed_corrections:
+            logger.info(f"Loaded {len(self.confirmed_corrections)} confirmed corrections")
 
     def _extract_sponsors_from_description(self) -> set:
         """Extract sponsor names from episode description.
@@ -222,6 +229,44 @@ class AdValidator:
 
         return False
 
+    def _overlaps_confirmed(self, start: float, end: float,
+                            overlap_threshold: float = 0.5) -> bool:
+        """Check if a time range overlaps with any user-confirmed correction.
+
+        Args:
+            start: Segment start time in seconds
+            end: Segment end time in seconds
+            overlap_threshold: Minimum overlap ratio to consider a match (0.0-1.0)
+                              Default 0.5 means 50% overlap required
+
+        Returns:
+            True if segment overlaps significantly with a confirmed correction
+        """
+        if not self.confirmed_corrections:
+            return False
+
+        segment_duration = end - start
+
+        MIN_DURATION_THRESHOLD = 0.001
+        if segment_duration < MIN_DURATION_THRESHOLD:
+            logger.warning(f"Skipping overlap check for near-zero duration segment: {segment_duration}")
+            return False
+
+        for cc in self.confirmed_corrections:
+            cc_start = cc['start']
+            cc_end = cc['end']
+
+            overlap_start = max(start, cc_start)
+            overlap_end = min(end, cc_end)
+            overlap_duration = max(0, overlap_end - overlap_start)
+
+            if overlap_duration > 0:
+                overlap_ratio = overlap_duration / segment_duration
+                if overlap_ratio >= overlap_threshold:
+                    return True
+
+        return False
+
     def validate(self, ads: List[Dict]) -> ValidationResult:
         """Validate all ads and return results.
 
@@ -307,6 +352,22 @@ class AdValidator:
             ad['validation'] = {
                 'decision': Decision.REJECT.value,
                 'adjusted_confidence': 0.0,
+                'original_confidence': ad.get('confidence', 1.0),
+                'flags': flags,
+                'corrections': corrections
+            }
+            return ad
+
+        # Check for user-confirmed corrections (second priority)
+        if self._overlaps_confirmed(ad['start'], ad['end']):
+            flags.append("INFO: User confirmed as ad")
+            logger.info(
+                f"Auto-accepting segment {ad['start']:.1f}s-{ad['end']:.1f}s: "
+                f"overlaps with user-confirmed correction"
+            )
+            ad['validation'] = {
+                'decision': Decision.ACCEPT.value,
+                'adjusted_confidence': 1.0,
                 'original_confidence': ad.get('confidence', 1.0),
                 'flags': flags,
                 'corrections': corrections

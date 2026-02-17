@@ -54,6 +54,7 @@ function EpisodeDetail() {
           pattern_id: correction.originalAd.pattern_id,
           confidence: correction.originalAd.confidence,
           reason: correction.originalAd.reason,
+          sponsor: correction.originalAd.sponsor,
         },
         adjusted_start: correction.adjustedStart,
         adjusted_end: correction.adjustedEnd,

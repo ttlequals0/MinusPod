@@ -2525,8 +2525,11 @@ def submit_correction(slug, episode_id):
                         pattern_service.record_pattern_match(pattern_id, episode_id)
                         logger.info(f"Linked to existing pattern {pattern_id} for confirmed ad in {slug}/{episode_id}")
                     else:
-                        # Extract sponsor from original ad or from ad text
+                        # Extract sponsor from original ad, reason text, or ad text
                         sponsor = original_ad.get('sponsor')
+                        if not sponsor:
+                            reason = original_ad.get('reason', '')
+                            sponsor = extract_sponsor_from_text(reason)
                         if not sponsor:
                             sponsor = extract_sponsor_from_text(ad_text)
 
