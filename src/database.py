@@ -37,6 +37,13 @@ WHAT TO LOOK FOR:
 - Product endorsements, sponsored content, promotional messages
 - Network-inserted retail ads (may sound like radio commercials)
 - Dynamically inserted ads that may differ in tone or cadence from the host content
+- Short brand tagline ads (15-45 seconds): Network-inserted spots that sound like polished
+  radio/TV commercials rather than host reads. They use concentrated marketing language
+  ("bringing you the latest", "where innovation lands first", "explore what's new", "level up
+  your game") without promo codes or URLs. They are typically voiced by someone other than the
+  host and feel tonally distinct from the surrounding editorial content. Common structure: brand
+  name + tagline + product category pitch + brand name repeat. Flag these even though they lack
+  traditional ad markers like promo codes.
 
 AUDIO SIGNALS:
 Audio analysis may detect volume anomalies, DAI transitions, or silence gaps in the episode.
@@ -49,7 +56,7 @@ COMMON PODCAST SPONSORS (high confidence if mentioned):
 BetterHelp, Athletic Greens, AG1, Shopify, Amazon, Audible, Squarespace, HelloFresh, Factor, NordVPN, ExpressVPN, Mint Mobile, MasterClass, Calm, Headspace, ZipRecruiter, Indeed, LinkedIn Jobs, LinkedIn, Stamps.com, SimpliSafe, Ring, ADT, Casper, Helix Sleep, Purple, Brooklinen, Bombas, Manscaped, Dollar Shave Club, Harry's, Quip, Hims, Hers, Roman, Keeps, Function of Beauty, Native, Liquid IV, Athletic Brewing, Magic Spoon, Thrive Market, Butcher Box, Blue Apron, DoorDash, Uber Eats, Grubhub, Instacart, Rocket Money, Credit Karma, SoFi, Acorns, Betterment, Wealthfront, PolicyGenius, Lemonade, State Farm, Progressive, Geico, Liberty Mutual, T-Mobile, Visible, FanDuel, DraftKings, BetMGM, Toyota, Hyundai, CarMax, Carvana, eBay Motors, ZocDoc, GoodRx, Care/of, Ritual, Seed, HubSpot, NetSuite, Monday.com, Notion, Canva, Grammarly, Babbel, Rosetta Stone, Blinkist, Raycon, Bose, MacPaw, CleanMyMac, Green Chef, Magic Mind, Honeylove, Cozy Earth, Quince, LMNT, Nutrafol, Aura, OneSkin, Incogni, Gametime, 1Password, Bitwarden, CacheFly, Deel, DeleteMe, Framer, Miro, Monarch Money, OutSystems, Spaceship, Thinkst Canary, ThreatLocker, Vanta, Veeam, Zapier, Zscaler, Capital One, Ford, WhatsApp
 
 RETAIL/CONSUMER BRANDS (network-inserted ads):
-Nordstrom, Macy's, Target, Walmart, Kohl's, Bloomingdale's, JCPenney, TJ Maxx, Home Depot, Lowe's, Best Buy, Costco, Gap, Old Navy, H&M, Zara, Nike, Adidas, Lululemon, Coach, Kate Spade, Michael Kors, Sephora, Ulta, Bath & Body Works, CVS, Walgreens, AutoZone, O'Reilly Auto Parts, Jiffy Lube, Midas, Gold Belly, Farmer's Dog, Caldera Lab, Monster Energy, Red Bull, Whole Foods, Trader Joe's, Kroger
+Nordstrom, Macy's, Target, Walmart, Kohl's, Bloomingdale's, JCPenney, TJ Maxx, Home Depot, Lowe's, Best Buy, Costco, Gap, Old Navy, H&M, Zara, Nike, Adidas, Lululemon, Coach, Kate Spade, Michael Kors, Sephora, Ulta, Bath & Body Works, CVS, Walgreens, AutoZone, O'Reilly Auto Parts, Jiffy Lube, Midas, Gold Belly, Farmer's Dog, Caldera Lab, Monster Energy, Red Bull, Whole Foods, Trader Joe's, Kroger, GNC
 
 AD BOUNDARY RULES:
 - AD START: Include transition phrases like "Let's take a break", "A word from our sponsors"
@@ -89,7 +96,18 @@ NOT AN AD EXAMPLE (silence/content gap):
 [293.5s - 296.0s] [silence]
 [296.5s - 300.0s] Now the other thing I wanted to talk about is the fine-tuning process.
 
-Output: []"""
+Output: []
+
+SHORT BRAND TAGLINE EXAMPLE (this IS an ad):
+[874.2s - 877.0s] FreshField Market, your destination for what's next in nutrition.
+[877.0s - 886.0s] Curated by experts who know what works, we bring you the best in health and wellness.
+[886.0s - 893.0s] Whether you're training hard, living well, or chasing your best self,
+[893.0s - 898.5s] FreshField Market is where the future of wellness begins. Explore more at FreshField.
+
+Output: [{{"start": 874.2, "end": 898.5, "confidence": 0.95, "reason": "FreshField Market network-inserted brand tagline ad", "end_text": "wellness begins. Explore more at FreshField"}}]
+
+Note: No promo code, no call to action -- but this is concentrated marketing copy
+for a brand with product positioning language. It is not editorial content."""
 
 # Verification pass prompt - runs on processed audio to catch missed ads
 DEFAULT_VERIFICATION_PROMPT = """You are reviewing a podcast episode that has ALREADY had advertisements removed. The audio has been processed — detected ads were cut and replaced with a brief transition tone. Your job is to find anything that was MISSED or only partially removed.
@@ -114,6 +132,10 @@ MISSED ADS:
 - Full sponsor reads that the first pass missed entirely
 - Mid-roll ads without obvious transition phrases ("I've been using [product]...")
 - Dynamically inserted ads that may differ in tone from the host content
+- Short brand tagline ads (15-45 seconds): Network-inserted spots with concentrated marketing
+  language but no promo codes or URLs. These sound like polished radio commercials -- a brand
+  name, tagline, product pitch, and brand repeat. They are NOT host reads and feel tonally
+  distinct from surrounding content. Flag these even without traditional ad markers.
 - Quick mid-roll mentions with URLs or promo codes
 - Post-signoff promotional content after the episode's natural ending
 
@@ -126,6 +148,10 @@ WHAT IS NOT AN AD:
 - Silence, pauses, or dead air -- these are normal, not missed ads
 - Content gaps or topic transitions between segments
 - Audio artifacts from the first pass ad removal (slight volume changes near cut points are expected)
+
+NOTE: A short, polished segment with marketing language for a brand IS still an ad even if
+it lacks promo codes or URLs. The distinction is: editorial content discusses a brand in
+context of a story; a tagline ad is pure promotional copy with no informational value.
 
 CRITICAL: Every ad you flag must contain identifiable promotional language in the transcript -- a sponsor name, URL, promo code, product pitch, or call to action. If the transcript text in a region is just normal conversation, silence, or a topic change, it is NOT an ad regardless of any audio signal changes.
 
@@ -1152,6 +1178,37 @@ class Database:
         # Migration: Clean up contaminated patterns (>3500 chars)
         # These are patterns created from merged multi-ad spans and will never match
         self._cleanup_contaminated_patterns()
+
+        # Migration: Update default prompts to v1.0.2 (DAI tagline guidance)
+        try:
+            cursor = conn.execute(
+                "SELECT value, is_default FROM settings WHERE key = 'system_prompt'"
+            )
+            row = cursor.fetchone()
+            if row and row['is_default'] and 'TAGLINE' not in (row['value'] or ''):
+                conn.execute(
+                    "UPDATE settings SET value = ? WHERE key = 'system_prompt'",
+                    (DEFAULT_SYSTEM_PROMPT,)
+                )
+                conn.commit()
+                logger.info("Migration: Updated default system_prompt to v1.0.2 (DAI tagline guidance)")
+        except Exception as e:
+            logger.warning(f"Migration failed for system_prompt v1.0.2: {e}")
+
+        try:
+            cursor = conn.execute(
+                "SELECT value, is_default FROM settings WHERE key = 'verification_prompt'"
+            )
+            row = cursor.fetchone()
+            if row and row['is_default'] and 'brand tagline ads' not in (row['value'] or ''):
+                conn.execute(
+                    "UPDATE settings SET value = ? WHERE key = 'verification_prompt'",
+                    (DEFAULT_VERIFICATION_PROMPT,)
+                )
+                conn.commit()
+                logger.info("Migration: Updated default verification_prompt to v1.0.2 (DAI tagline guidance)")
+        except Exception as e:
+            logger.warning(f"Migration failed for verification_prompt v1.0.2: {e}")
 
     def _cleanup_contaminated_patterns(self):
         """Delete patterns with text_template > 3500 chars (contaminated).

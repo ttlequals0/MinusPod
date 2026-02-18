@@ -20,6 +20,7 @@ SHORT_AD_WARN = 30.0            # Warn if shorter than 30s
 LONG_AD_WARN = 180.0            # Warn if longer than 3 min
 MAX_AD_DURATION = 300.0         # Reject if longer (5 min)
 MAX_AD_DURATION_CONFIRMED = 900.0  # Allow 15 min if sponsor confirmed
+MIN_UNCOVERED_TAIL_DURATION = 15.0  # Min seconds for an uncovered tail to be preserved
 
 # Ad evidence thresholds
 CONTENT_DURATION_THRESHOLD = 120.0  # Segments >= this without evidence are likely content
@@ -96,6 +97,9 @@ FINGERPRINT_MATCH_THRESHOLD = 0.65   # Audio fingerprint similarity threshold
 # ============================================================
 # Ad Boundary Extension (content-based)
 # ============================================================
+# Timestamp Validation (Claude hallucination correction)
+MIN_KEYWORD_LENGTH = 3              # Minimum keyword length for transcript search
+
 BOUNDARY_EXTENSION_WINDOW = 10.0   # Seconds before/after ad to check for ad content
 BOUNDARY_EXTENSION_MAX = 15.0      # Max seconds to extend a boundary
 AD_CONTENT_URL_PATTERNS = ['.com', '.tv', '.co', '.org', '.net', '.io']

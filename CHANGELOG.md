@@ -6,6 +6,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2026-02-18
+
+### Fixed
+- **Missed tagline-style DAI ads**: Added detection guidance for short (15-45s) brand tagline
+  ads that lack promo codes or URLs -- polished radio-commercial-style spots with concentrated
+  marketing language. Added synthetic example to prompt and GNC to brand list. DB migration
+  auto-updates default prompts (preserves user customizations).
+- **Claude timestamp hallucination**: New `validate_ad_timestamps()` checks whether ad keywords
+  actually appear at the reported transcript position. If not, searches the window for the
+  correct location and corrects the timestamps before downstream filtering.
+- **Pattern-overlap filtering silently dropping uncovered tails**: Replaced binary
+  `_is_region_covered()` with `get_uncovered_portions()` in the Claude/pattern merge loop.
+  Uncovered portions >= 15s are now preserved as separate ad segments instead of being
+  discarded when a pattern covers >50% of a merged Claude ad.
+
 ## [1.0.1] - 2026-02-17
 
 ### Fixed

@@ -16,7 +16,8 @@ from config import (
     MAX_AD_DURATION_WINDOW, WINDOW_SIZE_SECONDS, WINDOW_OVERLAP_SECONDS,
     BOUNDARY_EXTENSION_WINDOW, BOUNDARY_EXTENSION_MAX,
     AD_CONTENT_URL_PATTERNS, AD_CONTENT_PROMO_PHRASES,
-    LOW_CONFIDENCE, CONTENT_DURATION_THRESHOLD, LOW_EVIDENCE_WARN_THRESHOLD
+    LOW_CONFIDENCE, CONTENT_DURATION_THRESHOLD, LOW_EVIDENCE_WARN_THRESHOLD,
+    MIN_KEYWORD_LENGTH, MIN_UNCOVERED_TAIL_DURATION
 )
 from utils.constants import (
     INVALID_SPONSOR_VALUES, STRUCTURAL_FIELDS,
@@ -553,6 +554,266 @@ def get_transcript_text_for_range(segments: List[Dict], start_time: float, end_t
         if seg['end'] >= start_time and seg['start'] <= end_time:
             texts.append(seg.get('text', ''))
     return ' '.join(texts)
+
+
+# --- Timestamp validation (Fix 1: Claude hallucination correction) ---
+
+# Common words that appear in ad reasons but are not brand names
+_NON_BRAND_WORDS = {
+    'ad', 'ads', 'sponsor', 'sponsored', 'advertisement', 'commercial',
+    'host', 'read', 'segment', 'content', 'break', 'detected', 'detection',
+    'network', 'inserted', 'dynamically', 'transition', 'promotional',
+    'promo', 'promotion', 'mention', 'mentioned', 'plug', 'spot',
+    'the', 'and', 'for', 'with', 'from', 'this', 'that', 'into',
+    'brand', 'tagline', 'product', 'pitch', 'marketing', 'copy',
+    'complete', 'partial', 'full', 'brief', 'short', 'long',
+    'message', 'insert', 'mid', 'roll', 'pre', 'post',
+}
+
+
+def _extract_ad_keywords(ad: Dict) -> List[str]:
+    """Extract searchable brand/sponsor keywords from an ad's metadata.
+
+    Uses the sponsor field as primary signal, then extracts capitalized words
+    from reason and end_text fields.
+
+    Args:
+        ad: Ad dict with optional 'sponsor', 'reason', 'end_text' fields
+
+    Returns:
+        Lowercase deduplicated list of keywords (length >= MIN_KEYWORD_LENGTH)
+    """
+    keywords = set()
+
+    # Primary: sponsor field
+    sponsor = ad.get('sponsor', '')
+    if sponsor and sponsor.lower() not in {'unknown', 'none', ''}:
+        keywords.add(sponsor.lower())
+
+    # Secondary: capitalized words from reason and end_text
+    for field in ('reason', 'end_text'):
+        text = ad.get(field, '')
+        if not text:
+            continue
+        # Find capitalized words (likely brand names)
+        caps = re.findall(r'\b[A-Z][a-zA-Z]{2,}\b', text)
+        for word in caps:
+            low = word.lower()
+            if low not in _NON_BRAND_WORDS and len(low) >= MIN_KEYWORD_LENGTH:
+                keywords.add(low)
+
+    return list(keywords)
+
+
+def _find_keyword_region(segments: List[Dict], keywords: List[str],
+                         window_start: float, window_end: float) -> Optional[Dict]:
+    """Search window segments for keyword occurrences and return the best cluster.
+
+    Finds segments containing any keyword, clusters them (merge if gap < 30s),
+    and returns the cluster with the most keyword hits.
+
+    Args:
+        segments: Transcript segments within the window
+        keywords: Lowercase keywords to search for
+        window_start: Window start time in seconds
+        window_end: Window end time in seconds
+
+    Returns:
+        Dict with 'start' and 'end' of best cluster, or None if no matches
+    """
+    if not keywords or not segments:
+        return None
+
+    # Find all segments containing any keyword
+    matching_segments = []
+    for seg in segments:
+        if seg['start'] < window_start or seg['start'] > window_end:
+            continue
+        text_lower = seg.get('text', '').lower()
+        hits = sum(1 for kw in keywords if kw in text_lower)
+        if hits > 0:
+            matching_segments.append({
+                'start': seg['start'],
+                'end': seg['end'],
+                'hits': hits
+            })
+
+    if not matching_segments:
+        return None
+
+    # Cluster matching segments (merge if gap < 30s)
+    matching_segments.sort(key=lambda x: x['start'])
+    clusters = [{'start': matching_segments[0]['start'],
+                 'end': matching_segments[0]['end'],
+                 'hits': matching_segments[0]['hits']}]
+
+    for seg in matching_segments[1:]:
+        last = clusters[-1]
+        if seg['start'] - last['end'] < 30.0:
+            last['end'] = max(last['end'], seg['end'])
+            last['hits'] += seg['hits']
+        else:
+            clusters.append({'start': seg['start'], 'end': seg['end'],
+                             'hits': seg['hits']})
+
+    # Return cluster with most keyword hits
+    best = max(clusters, key=lambda c: c['hits'])
+    return {'start': best['start'], 'end': best['end']}
+
+
+def validate_ad_timestamps(ads: List[Dict], segments: List[Dict],
+                           window_start: float, window_end: float) -> List[Dict]:
+    """Validate and correct ad timestamps against actual transcript content.
+
+    For each ad, checks whether the keywords (sponsor, brand names) actually
+    appear at the reported position in the transcript. If not, searches the
+    window for where they actually appear and corrects the timestamps.
+
+    Args:
+        ads: List of ad dicts from Claude
+        segments: Transcript segments for the window
+        window_start: Window start time in seconds
+        window_end: Window end time in seconds
+
+    Returns:
+        List of ads with corrected timestamps where needed
+    """
+    if not ads:
+        return []
+
+    validated = []
+    for ad in ads:
+        keywords = _extract_ad_keywords(ad)
+
+        # No extractable keywords -- can't validate, pass through
+        if not keywords:
+            validated.append(ad)
+            continue
+
+        # Check if keywords exist at the reported position
+        reported_text = get_transcript_text_for_range(
+            segments, ad['start'], ad['end']
+        ).lower()
+
+        found_at_position = any(kw in reported_text for kw in keywords)
+
+        if found_at_position:
+            # Timestamps look correct
+            validated.append(ad)
+            continue
+
+        # Keywords not found at reported position -- search the window
+        region = _find_keyword_region(segments, keywords, window_start, window_end)
+
+        if region is None:
+            # Keywords not found anywhere in window -- pass through unchanged
+            # (let downstream filtering handle it)
+            validated.append(ad)
+            continue
+
+        # Correct the timestamps
+        original_duration = ad['end'] - ad['start']
+        corrected = ad.copy()
+        corrected['start'] = region['start']
+        corrected['end'] = min(region['start'] + original_duration, window_end)
+        logger.info(
+            f"Timestamp correction: ad '{ad.get('reason', '')[:50]}' "
+            f"moved from {ad['start']:.1f}-{ad['end']:.1f}s "
+            f"to {corrected['start']:.1f}-{corrected['end']:.1f}s "
+            f"(keywords: {keywords})"
+        )
+        validated.append(corrected)
+
+    return validated
+
+
+# --- Uncovered tail preservation (Fix 2) ---
+
+def get_uncovered_portions(ad: Dict, covered_regions: List[tuple],
+                           min_duration: float = None) -> List[Dict]:
+    """Find portions of an ad not covered by pattern-matched regions.
+
+    Instead of binary "covered or not", this identifies uncovered gaps
+    (head, middle, tail) and returns them as separate ad segments.
+
+    Args:
+        ad: Ad dict with 'start' and 'end'
+        covered_regions: List of (start, end) tuples from pattern matches
+        min_duration: Minimum duration for an uncovered portion to keep
+                     (defaults to MIN_UNCOVERED_TAIL_DURATION)
+
+    Returns:
+        List of ad copies with adjusted start/end for uncovered portions.
+        Empty list if fully covered. Original ad unchanged if >50% uncovered.
+    """
+    if min_duration is None:
+        min_duration = MIN_UNCOVERED_TAIL_DURATION
+
+    ad_start = ad['start']
+    ad_end = ad['end']
+    ad_duration = ad_end - ad_start
+
+    if ad_duration <= 0:
+        return []
+
+    # Clip covered regions to ad boundaries and collect
+    clipped = []
+    for cov_start, cov_end in covered_regions:
+        c_start = max(cov_start, ad_start)
+        c_end = min(cov_end, ad_end)
+        if c_start < c_end:
+            clipped.append((c_start, c_end))
+
+    if not clipped:
+        # No overlap at all -- return original ad
+        return [ad]
+
+    # Merge overlapping coverage regions
+    clipped.sort()
+    merged_coverage = [clipped[0]]
+    for start, end in clipped[1:]:
+        last_start, last_end = merged_coverage[-1]
+        if start <= last_end:
+            merged_coverage[-1] = (last_start, max(last_end, end))
+        else:
+            merged_coverage.append((start, end))
+
+    # Calculate total covered duration
+    total_covered = sum(end - start for start, end in merged_coverage)
+
+    # If >50% uncovered, overlap is incidental -- return original ad
+    if total_covered / ad_duration <= 0.5:
+        return [ad]
+
+    # Identify uncovered gaps
+    uncovered = []
+    cursor = ad_start
+
+    for cov_start, cov_end in merged_coverage:
+        if cursor < cov_start:
+            uncovered.append((cursor, cov_start))
+        cursor = max(cursor, cov_end)
+
+    # Trailing tail
+    if cursor < ad_end:
+        uncovered.append((cursor, ad_end))
+
+    # Filter by minimum duration
+    uncovered = [(s, e) for s, e in uncovered if (e - s) >= min_duration]
+
+    if not uncovered:
+        # Fully covered (no significant gaps)
+        return []
+
+    # Build ad copies for each uncovered portion
+    portions = []
+    for start, end in uncovered:
+        portion = ad.copy()
+        portion['start'] = start
+        portion['end'] = end
+        portions.append(portion)
+
+    return portions
 
 
 def merge_same_sponsor_ads(ads: List[Dict], segments: List[Dict], max_gap: float = 300.0) -> List[Dict]:
@@ -1593,6 +1854,12 @@ class AdDetector:
                 # Parse ads from response
                 window_ads = self._parse_ads_from_response(response_text, slug, episode_id)
 
+                # Validate timestamps against actual transcript content
+                # (catches Claude hallucinating ad positions)
+                window_ads = validate_ad_timestamps(
+                    window_ads, window_segments, window_start, window_end
+                )
+
                 # Filter ads to window bounds - Claude sometimes hallucinates start=0.0
                 # when no ads found, speculating about "beginning of episode"
                 # MIN_OVERLAP_TOLERANCE, MAX_AD_DURATION_WINDOW imported from config.py
@@ -1821,28 +2088,39 @@ class AdDetector:
         claude_ads = result.get('ads', [])
         cross_episode_skipped = 0
         for ad in claude_ads:
-            # Skip if already detected by pattern matching
-            if self._is_region_covered(ad['start'], ad['end'], pattern_matched_regions):
-                logger.debug(f"[{slug}:{episode_id}] Skipping Claude ad {ad['start']:.1f}s-{ad['end']:.1f}s (covered by pattern)")
+            uncovered_portions = get_uncovered_portions(ad, pattern_matched_regions)
+
+            if not uncovered_portions:
+                logger.debug(f"[{slug}:{episode_id}] Claude ad {ad['start']:.1f}s-{ad['end']:.1f}s "
+                             f"fully covered by patterns")
                 continue
 
-            # Skip if matches a cross-episode false positive
-            if false_positive_texts and self.text_pattern_matcher:
-                ad_text = self._get_segment_text(segments, ad['start'], ad['end'])
-                if ad_text and len(ad_text) >= 50:
-                    is_fp, similarity = self.text_pattern_matcher.matches_false_positive(
-                        ad_text, false_positive_texts
-                    )
-                    if is_fp:
-                        logger.info(
-                            f"[{slug}:{episode_id}] Skipping Claude ad {ad['start']:.1f}s-{ad['end']:.1f}s "
-                            f"(matches cross-episode false positive, similarity={similarity:.2f})"
-                        )
-                        cross_episode_skipped += 1
-                        continue
+            # Log if ad was trimmed (not returned as-is)
+            if not (len(uncovered_portions) == 1
+                    and uncovered_portions[0]['start'] == ad['start']
+                    and uncovered_portions[0]['end'] == ad['end']):
+                for portion in uncovered_portions:
+                    logger.info(f"[{slug}:{episode_id}] Preserved uncovered portion: "
+                                f"{portion['start']:.1f}s-{portion['end']:.1f}s "
+                                f"(from Claude ad {ad['start']:.1f}s-{ad['end']:.1f}s)")
 
-            ad['detection_stage'] = 'claude'
-            all_ads.append(ad)
+            for portion in uncovered_portions:
+                # Existing false positive check (applied per-portion now)
+                if false_positive_texts and self.text_pattern_matcher:
+                    ad_text = self._get_segment_text(segments, portion['start'], portion['end'])
+                    if ad_text and len(ad_text) >= 50:
+                        is_fp, similarity = self.text_pattern_matcher.matches_false_positive(
+                            ad_text, false_positive_texts
+                        )
+                        if is_fp:
+                            logger.info(f"[{slug}:{episode_id}] Skipping portion "
+                                        f"{portion['start']:.1f}s-{portion['end']:.1f}s "
+                                        f"(cross-episode false positive, similarity={similarity:.2f})")
+                            cross_episode_skipped += 1
+                            continue
+
+                portion['detection_stage'] = 'claude'
+                all_ads.append(portion)
 
         if cross_episode_skipped > 0:
             logger.info(f"[{slug}:{episode_id}] Skipped {cross_episode_skipped} detections due to cross-episode false positives")
