@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.4] - 2026-02-18
+
+### Fixed
+- **ChaptersGenerator `self.client` AttributeError**: Replaced 4 remaining references to the removed `client` backward-compat property with `self._llm_client` (the actual backing field). Regression introduced in v1.0.3 Phase D item 21 when backward-compatibility aliases were removed.
+
 ## [1.0.3] - 2026-02-18
 
 ### Changed (Code Simplification)

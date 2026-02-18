@@ -294,7 +294,7 @@ class ChaptersGenerator:
             return chapters
 
         self._initialize_client()
-        if not self.client:
+        if not self._llm_client:
             logger.warning("No Anthropic client available for segment splitting")
             return chapters
 
@@ -423,7 +423,7 @@ class ChaptersGenerator:
         logger.info(f"Found {len(topics)} topic headers in description: {topics}")
 
         self._initialize_client()
-        if not self.client:
+        if not self._llm_client:
             return []
 
         # Get transcript summary for matching
@@ -734,7 +734,7 @@ Transcript:
 
         # Initialize client
         self._initialize_client()
-        if not self.client:
+        if not self._llm_client:
             logger.warning("Claude client not available, using generic titles")
             return self._apply_generic_titles(chapters)
 
@@ -1129,7 +1129,7 @@ Transcript:
         # Use AI to detect topic changes if episode is long enough
         if episode_duration > 900:  # > 15 minutes
             self._initialize_client()
-            if self.client:
+            if self._llm_client:
                 # Get full transcript with timestamps
                 transcript_text = self._get_full_transcript_range(segments, 0, episode_duration)
 
