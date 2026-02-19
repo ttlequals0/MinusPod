@@ -6,6 +6,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.6] - 2026-02-19
+
+### Fixed
+- **`parse_timestamp` silently returning 0.0 on bad input**: Restored `ValueError` on unparseable timestamps (regression from v1.0.3 consolidation). All 7 callers with `try/except ValueError` were effectively dead code; garbage timestamps silently became 0.0 (episode start), creating false markers at time zero.
+- **Permanent LLM errors retried indefinitely**: Added early `return False` in `is_retryable_error()` for non-retryable Anthropic/OpenAI status codes, preventing fallthrough to string-pattern matching. Added `is_llm_api_error()` helper and guard in `is_transient_error()` so permanent API errors (e.g. `BadRequestError`, `AuthenticationError`) are not misclassified as transient.
+- **Stale schema comment on `pattern_corrections` table**: Updated from "audit log ... never deleted" to reflect that conflicting entries are cleaned up on reversal (v1.0.5 behavior).
+
 ## [1.0.5] - 2026-02-19
 
 ### Fixed

@@ -150,7 +150,7 @@ def log_request_detailed(f):
 MAX_EPISODE_RETRIES = 3
 
 import requests.exceptions
-from llm_client import is_retryable_error
+from llm_client import is_retryable_error, is_llm_api_error
 
 
 def is_transient_error(error: Exception) -> bool:
@@ -172,6 +172,10 @@ def is_transient_error(error: Exception) -> bool:
     # Delegate LLM API error checks to the shared classifier
     if is_retryable_error(error):
         return True
+
+    # Known LLM API error that wasn't retryable -- permanent
+    if is_llm_api_error(error):
+        return False
 
     # Permanent errors - don't retry
     if isinstance(error, (

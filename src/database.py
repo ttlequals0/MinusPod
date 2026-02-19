@@ -315,7 +315,7 @@ CREATE TABLE IF NOT EXISTS ad_patterns (
     disabled_reason TEXT
 );
 
--- pattern_corrections table (audit log of user corrections - never deleted)
+-- pattern_corrections table (user corrections; conflicting entries cleaned up on reversal)
 CREATE TABLE IF NOT EXISTS pattern_corrections (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     pattern_id INTEGER,

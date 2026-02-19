@@ -22,14 +22,14 @@ def parse_timestamp(ts) -> float:
 
     Also handles comma as decimal separator (common in some VTT files).
 
-    Returns:
-        Time in seconds (float), or 0.0 if parsing fails
+    Raises:
+        ValueError: If the timestamp cannot be parsed
     """
     if isinstance(ts, (int, float)):
         return float(ts)
 
     if not ts or not isinstance(ts, str):
-        return 0.0
+        raise ValueError(f"Cannot parse timestamp: {ts!r}")
 
     # Normalize: strip whitespace, remove 's' suffix, replace comma decimal
     ts = ts.strip().rstrip('s').strip().replace(',', '.')
@@ -56,7 +56,7 @@ def parse_timestamp(ts) -> float:
     except (ValueError, IndexError):
         pass
 
-    return 0.0
+    raise ValueError(f"Cannot parse timestamp: {ts!r}")
 
 
 def format_time(seconds: float, include_hours: bool = False) -> str:

@@ -448,6 +448,7 @@ def is_retryable_error(error: Exception) -> bool:
             status = getattr(error, 'status_code', None)
             if status in (429, 500, 502, 503, 529):
                 return True
+            return False  # Non-retryable Anthropic error -- don't fall to string matching
 
     # OpenAI errors
     try:
@@ -461,6 +462,7 @@ def is_retryable_error(error: Exception) -> bool:
             status = getattr(error, 'status_code', None)
             if status in (429, 500, 502, 503, 529):
                 return True
+            return False  # Non-retryable OpenAI error
     except ImportError:
         pass
 
@@ -468,6 +470,21 @@ def is_retryable_error(error: Exception) -> bool:
     error_str = str(error).lower()
     retryable_patterns = ['timeout', 'connection', 'temporarily', '429', '500', '502', '503', '504', '529']
     return any(pattern in error_str for pattern in retryable_patterns)
+
+
+def is_llm_api_error(error: Exception) -> bool:
+    """Check if error is any Anthropic or OpenAI API error type."""
+    if ANTHROPIC_ERRORS_AVAILABLE:
+        from anthropic import APIError
+        if isinstance(error, APIError):
+            return True
+    try:
+        from openai import APIError as OpenAIAPIError
+        if isinstance(error, OpenAIAPIError):
+            return True
+    except ImportError:
+        pass
+    return False
 
 
 def is_rate_limit_error(error: Exception) -> bool:
