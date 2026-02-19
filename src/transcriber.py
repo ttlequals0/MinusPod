@@ -10,6 +10,7 @@ from typing import List, Dict, Optional, Tuple
 from pathlib import Path
 
 from utils.audio import get_audio_duration as _get_audio_duration
+from utils.time import format_vtt_timestamp
 from utils.gpu import clear_gpu_memory, get_available_memory_gb, get_gpu_memory_info
 from config import (
     CHUNK_OVERLAP_SECONDS,
@@ -19,6 +20,7 @@ from config import (
     MEMORY_SAFETY_MARGIN,
     WHISPER_MEMORY_PROFILES,
     WHISPER_DEFAULT_PROFILE,
+    BROWSER_USER_AGENT, APP_USER_AGENT,
 )
 
 # Suppress ONNX Runtime warnings before importing faster_whisper
@@ -636,7 +638,7 @@ class Transcriber:
         """
         try:
             headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'User-Agent': BROWSER_USER_AGENT,
             }
             response = requests.head(url, headers=headers, timeout=timeout, allow_redirects=True)
 
@@ -664,7 +666,7 @@ class Transcriber:
         try:
             logger.info(f"Downloading audio from: {url}")
             headers = {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'User-Agent': BROWSER_USER_AGENT,
                 'Accept': '*/*',
                 'Accept-Language': 'en-US,en;q=0.9',
             }
@@ -715,7 +717,7 @@ class Transcriber:
             logger.info(f"Resuming download from {downloaded} bytes: {url}")
 
         headers = {
-            'User-Agent': 'Mozilla/5.0 (compatible; PodcastAdRemover/1.0)',
+            'User-Agent': f'Mozilla/5.0 (compatible; {APP_USER_AGENT})',
             'Accept': '*/*',
         }
         if downloaded > 0:
@@ -1119,18 +1121,15 @@ class Transcriber:
         return all_segments
 
     def format_timestamp(self, seconds: float) -> str:
-        """Convert seconds to timestamp format."""
-        hours = int(seconds // 3600)
-        minutes = int((seconds % 3600) // 60)
-        secs = seconds % 60
-        return f"{hours:02d}:{minutes:02d}:{secs:06.3f}"
+        """Convert seconds to VTT timestamp format (HH:MM:SS.mmm)."""
+        return format_vtt_timestamp(seconds)
 
     def segments_to_text(self, segments: List[Dict]) -> str:
         """Convert segments to readable text format."""
         lines = []
         for segment in segments:
-            start_ts = self.format_timestamp(segment['start'])
-            end_ts = self.format_timestamp(segment['end'])
+            start_ts = format_vtt_timestamp(segment['start'])
+            end_ts = format_vtt_timestamp(segment['end'])
             lines.append(f"[{start_ts} --> {end_ts}] {segment['text']}")
         return '\n'.join(lines)
 

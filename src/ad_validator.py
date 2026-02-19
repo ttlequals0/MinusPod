@@ -187,85 +187,48 @@ class AdValidator:
 
         return False
 
-    def _overlaps_false_positive(self, start: float, end: float,
-                                  overlap_threshold: float = 0.5) -> bool:
-        """Check if a time range overlaps with any user-marked false positive.
+    def _overlaps_corrections(self, corrections: List[Dict], start: float, end: float,
+                               overlap_threshold: float = 0.5) -> bool:
+        """Check if a time range overlaps with any correction in the given list.
 
         Args:
+            corrections: List of correction dicts with 'start' and 'end' keys
             start: Segment start time in seconds
             end: Segment end time in seconds
             overlap_threshold: Minimum overlap ratio to consider a match (0.0-1.0)
-                              Default 0.5 means 50% overlap required
 
         Returns:
-            True if segment overlaps significantly with a false positive correction
+            True if segment overlaps significantly with any correction
         """
-        if not self.false_positive_corrections:
+        if not corrections:
             return False
 
         segment_duration = end - start
-
-        # Use minimum threshold to prevent floating point division issues
-        # 1 millisecond minimum to avoid near-zero duration segments
-        MIN_DURATION_THRESHOLD = 0.001
-        if segment_duration < MIN_DURATION_THRESHOLD:
+        if segment_duration < 0.001:
             logger.warning(f"Skipping overlap check for near-zero duration segment: {segment_duration}")
             return False
 
-        for fp in self.false_positive_corrections:
-            fp_start = fp['start']
-            fp_end = fp['end']
-
-            # Calculate overlap
-            overlap_start = max(start, fp_start)
-            overlap_end = min(end, fp_end)
+        for corr in corrections:
+            overlap_start = max(start, corr['start'])
+            overlap_end = min(end, corr['end'])
             overlap_duration = max(0, overlap_end - overlap_start)
 
             if overlap_duration > 0:
-                # Check if overlap is significant relative to the detected segment
                 overlap_ratio = overlap_duration / segment_duration
                 if overlap_ratio >= overlap_threshold:
                     return True
 
         return False
+
+    def _overlaps_false_positive(self, start: float, end: float,
+                                  overlap_threshold: float = 0.5) -> bool:
+        """Check if a time range overlaps with any user-marked false positive."""
+        return self._overlaps_corrections(self.false_positive_corrections, start, end, overlap_threshold)
 
     def _overlaps_confirmed(self, start: float, end: float,
                             overlap_threshold: float = 0.5) -> bool:
-        """Check if a time range overlaps with any user-confirmed correction.
-
-        Args:
-            start: Segment start time in seconds
-            end: Segment end time in seconds
-            overlap_threshold: Minimum overlap ratio to consider a match (0.0-1.0)
-                              Default 0.5 means 50% overlap required
-
-        Returns:
-            True if segment overlaps significantly with a confirmed correction
-        """
-        if not self.confirmed_corrections:
-            return False
-
-        segment_duration = end - start
-
-        MIN_DURATION_THRESHOLD = 0.001
-        if segment_duration < MIN_DURATION_THRESHOLD:
-            logger.warning(f"Skipping overlap check for near-zero duration segment: {segment_duration}")
-            return False
-
-        for cc in self.confirmed_corrections:
-            cc_start = cc['start']
-            cc_end = cc['end']
-
-            overlap_start = max(start, cc_start)
-            overlap_end = min(end, cc_end)
-            overlap_duration = max(0, overlap_end - overlap_start)
-
-            if overlap_duration > 0:
-                overlap_ratio = overlap_duration / segment_duration
-                if overlap_ratio >= overlap_threshold:
-                    return True
-
-        return False
+        """Check if a time range overlaps with any user-confirmed correction."""
+        return self._overlaps_corrections(self.confirmed_corrections, start, end, overlap_threshold)
 
     def validate(self, ads: List[Dict]) -> ValidationResult:
         """Validate all ads and return results.
@@ -343,7 +306,7 @@ class AdValidator:
 
         # Check for user-marked false positives first (highest priority)
         if self._overlaps_false_positive(ad['start'], ad['end']):
-            flags.append("ERROR: User marked as false positive")
+            flags.append("INFO: User marked as false positive")
             logger.info(
                 f"Auto-rejecting segment {ad['start']:.1f}s-{ad['end']:.1f}s: "
                 f"overlaps with user-marked false positive"

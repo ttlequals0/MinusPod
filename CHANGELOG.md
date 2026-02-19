@@ -6,6 +6,50 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.6] - 2026-02-19
+
+### Fixed
+- **`parse_timestamp` silently returning 0.0 on bad input**: Restored `ValueError` on unparseable timestamps (regression from v1.0.3 consolidation). All 7 callers with `try/except ValueError` were effectively dead code; garbage timestamps silently became 0.0 (episode start), creating false markers at time zero.
+- **Permanent LLM errors retried indefinitely**: Added early `return False` in `is_retryable_error()` for non-retryable Anthropic/OpenAI status codes, preventing fallthrough to string-pattern matching. Added `is_llm_api_error()` helper and guard in `is_transient_error()` so permanent API errors (e.g. `BadRequestError`, `AuthenticationError`) are not misclassified as transient.
+- **Stale schema comment on `pattern_corrections` table**: Updated from "audit log ... never deleted" to reflect that conflicting entries are cleaned up on reversal (v1.0.5 behavior).
+
+## [1.0.5] - 2026-02-19
+
+### Fixed
+- **Conflicting corrections not cleaned up on user action reversal**: When a user changed their mind about a correction (e.g., marked false positive then confirmed, or vice versa), both corrections persisted in the database. The false_positive check has higher priority in validation, so a confirm could never override a prior false_positive for the same segment. Now `delete_conflicting_corrections()` removes the opposite correction type (with 50% overlap match) before inserting the new one.
+- **Misleading flag prefix in ad_validator.py**: Changed "ERROR: User marked as false positive" to "INFO:" since this is an intentional user action, not an error condition.
+
+## [1.0.4] - 2026-02-18
+
+### Fixed
+- **ChaptersGenerator `self.client` AttributeError**: Replaced 4 remaining references to the removed `client` backward-compat property with `self._llm_client` (the actual backing field). Regression introduced in v1.0.3 Phase D item 21 when backward-compatibility aliases were removed.
+
+## [1.0.3] - 2026-02-18
+
+### Changed (Code Simplification)
+
+- **Consolidated duplicate `parse_timestamp` implementations**: Merged 3 separate versions (utils/time.py, ad_detector.py, chapters_generator.py) into a single canonical version in `utils/time.py` that handles all input types (int, float, string with 's' suffix, HH:MM:SS, MM:SS, VTT comma decimals).
+- **Consolidated duplicate `adjust_timestamp` implementations**: Merged transcript_generator.py and chapters_generator.py versions into `utils/time.py`. Both modules now import the shared function.
+- **Consolidated duplicate `format_vtt_timestamp`**: Merged transcriber.py and transcript_generator.py versions into `utils/time.py` (HH:MM:SS.mmm format).
+- **Consolidated `FALLBACK_MODELS` list**: Defined once in `llm_client.py` at module level, replacing 3 identical lists in AnthropicClient, OpenAICompatibleClient, and AdDetector.
+- **Simplified `is_transient_error` in main.py**: Now delegates LLM API error classification to `llm_client.is_retryable_error()` instead of duplicating the logic.
+- **Moved `first_not_none` to utils/time.py**: Extracted from ad_detector.py for reuse; critical for preserving 0.0 pre-roll timestamps.
+- **Consolidated FFPROBE_TIMEOUT**: utils/audio.py now imports from config.py instead of defining its own copy.
+- **Consolidated User-Agent strings**: Added `BROWSER_USER_AGENT` and `APP_USER_AGENT` constants to config.py; updated storage.py, rss_parser.py, and transcriber.py.
+- **Decomposed `process_episode()` (~640 lines)**: Extracted 7 named pipeline stage functions (`_download_and_transcribe`, `_run_audio_analysis`, `_detect_ads_first_pass`, `_refine_and_validate`, `_run_verification_pass`, `_generate_assets`, `_finalize_episode`) plus `_handle_processing_failure`. The orchestrator is now ~70 lines.
+- **Extracted `_extract_json_ads_array()` from `_parse_ads_from_response()`**: 4 JSON extraction strategies (direct parse, markdown code block, regex scan, bracket fallback) now in a dedicated method.
+- **Simplified `_run_schema_migrations()` (~590 lines -> ~120 lines)**: Added `_add_column_if_missing()`, `_rename_column_if_needed()`, and `_get_table_columns()` helpers. All 25+ repetitive ALTER TABLE blocks replaced with data-driven lists.
+- **Updated hardcoded model in chapters_generator.py**: Replaced `"claude-3-5-haiku-20241022"` with configurable `CHAPTERS_MODEL` constant set to `"claude-haiku-4-5-20251001"`.
+- **Merged identical `complete_job()`/`fail_job()` in status_service.py**: Both now delegate to shared `_clear_current_job()`.
+- **Extracted common overlap check in ad_validator.py**: `_overlaps_false_positive()` and `_overlaps_confirmed()` now delegate to parameterized `_overlaps_corrections()`.
+- **Fixed overly broad auth path exemptions in api.py**: Changed `/rss` substring check to `path.endswith('/rss')` and scoped `/audio` and `/artwork` checks to `/api/v1/feeds/` prefix.
+- **Moved inline stdlib imports to module level**: `import re` and `import math` in api.py, `import time` in database.py.
+- **Added `transaction()` context manager to Database**: Provides `with db.transaction() as conn:` for automatic commit/rollback.
+- **Removed backward-compatibility aliases**: `get_podcast()` in database.py, `client` properties in ad_detector.py and chapters_generator.py.
+- **Removed unnecessary ImportError guards**: Local module imports in ad_detector.py lazy properties (audio_fingerprinter, text_pattern_matcher, pattern_service, sponsor_service) no longer wrapped in try/except ImportError.
+- **Added VTT parse failure logging**: transcript_generator.py now warns when VTT parsing returns empty segments.
+- **Removed `parse_timestamp_to_seconds()` wrapper**: chapters_generator.py callers now use `parse_timestamp()` directly from utils.time.
+
 ## [1.0.2] - 2026-02-18
 
 ### Fixed

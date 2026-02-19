@@ -7,6 +7,8 @@ from email.utils import parsedate_to_datetime
 from typing import Dict, List, Optional
 import requests
 
+from config import APP_USER_AGENT
+
 logger = logging.getLogger(__name__)
 
 class RSSParser:
@@ -56,7 +58,7 @@ class RSSParser:
             If feed not modified (304), returns (None, etag, last_modified)
             On error, returns (None, None, None)
         """
-        headers = {'User-Agent': 'PodcastAdRemover/1.0'}
+        headers = {'User-Agent': APP_USER_AGENT}
 
         if etag:
             headers['If-None-Match'] = etag

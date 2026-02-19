@@ -8,10 +8,9 @@ import os
 import subprocess
 from typing import Dict, Optional, Tuple
 
-logger = logging.getLogger(__name__)
+from config import FFPROBE_TIMEOUT
 
-# Timeout for ffprobe operations
-FFPROBE_TIMEOUT = 30
+logger = logging.getLogger(__name__)
 
 
 def get_audio_duration(audio_path: str) -> Optional[float]:

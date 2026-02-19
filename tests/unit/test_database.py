@@ -240,6 +240,142 @@ class TestSettingsOperations:
         assert settings['my_setting']['value'] == 'updated'
 
 
+class TestDeleteConflictingCorrections:
+    """Tests for delete_conflicting_corrections()."""
+
+    def test_confirm_deletes_false_positive(self, temp_db):
+        """Confirming an ad should delete a prior false_positive for the same segment."""
+        episode_id = 'ep-conflict-001'
+
+        # Create a false_positive correction
+        temp_db.create_pattern_correction(
+            correction_type='false_positive',
+            episode_id=episode_id,
+            original_bounds={'start': 100.0, 'end': 200.0}
+        )
+
+        # Verify it exists
+        corrections = temp_db.get_episode_corrections(episode_id)
+        assert len(corrections) == 1
+        assert corrections[0]['correction_type'] == 'false_positive'
+
+        # Delete conflicting corrections when confirming the same segment
+        deleted = temp_db.delete_conflicting_corrections(episode_id, 'confirm', 100.0, 200.0)
+        assert deleted == 1
+
+        # Verify the false_positive was removed
+        corrections = temp_db.get_episode_corrections(episode_id)
+        assert len(corrections) == 0
+
+    def test_false_positive_deletes_confirm(self, temp_db):
+        """Rejecting an ad should delete a prior confirm for the same segment."""
+        episode_id = 'ep-conflict-002'
+
+        # Create a confirm correction
+        temp_db.create_pattern_correction(
+            correction_type='confirm',
+            episode_id=episode_id,
+            original_bounds={'start': 300.0, 'end': 400.0}
+        )
+
+        # Delete conflicting corrections when marking as false positive
+        deleted = temp_db.delete_conflicting_corrections(episode_id, 'false_positive', 300.0, 400.0)
+        assert deleted == 1
+
+        corrections = temp_db.get_episode_corrections(episode_id)
+        assert len(corrections) == 0
+
+    def test_no_conflict_with_non_overlapping_bounds(self, temp_db):
+        """Non-overlapping corrections should not be deleted."""
+        episode_id = 'ep-conflict-003'
+
+        temp_db.create_pattern_correction(
+            correction_type='false_positive',
+            episode_id=episode_id,
+            original_bounds={'start': 100.0, 'end': 200.0}
+        )
+
+        # Confirm a completely different segment
+        deleted = temp_db.delete_conflicting_corrections(episode_id, 'confirm', 500.0, 600.0)
+        assert deleted == 0
+
+        # Original correction should still exist
+        corrections = temp_db.get_episode_corrections(episode_id)
+        assert len(corrections) == 1
+
+    def test_partial_overlap_above_threshold(self, temp_db):
+        """Segments overlapping >= 50% should be considered conflicting."""
+        episode_id = 'ep-conflict-004'
+
+        # Segment: 100-200 (100s duration)
+        temp_db.create_pattern_correction(
+            correction_type='false_positive',
+            episode_id=episode_id,
+            original_bounds={'start': 100.0, 'end': 200.0}
+        )
+
+        # New segment: 90-200 (110s duration, overlap=100s, 100/110=91%)
+        deleted = temp_db.delete_conflicting_corrections(episode_id, 'confirm', 90.0, 200.0)
+        assert deleted == 1
+
+    def test_partial_overlap_below_threshold(self, temp_db):
+        """Segments overlapping < 50% should not be considered conflicting."""
+        episode_id = 'ep-conflict-005'
+
+        # Segment: 100-200
+        temp_db.create_pattern_correction(
+            correction_type='false_positive',
+            episode_id=episode_id,
+            original_bounds={'start': 100.0, 'end': 200.0}
+        )
+
+        # New segment: 150-400 (250s duration, overlap=50s, 50/250=20%)
+        deleted = temp_db.delete_conflicting_corrections(episode_id, 'confirm', 150.0, 400.0)
+        assert deleted == 0
+
+        corrections = temp_db.get_episode_corrections(episode_id)
+        assert len(corrections) == 1
+
+    def test_adjust_does_not_delete_anything(self, temp_db):
+        """Adjust corrections should not conflict with either type."""
+        episode_id = 'ep-conflict-006'
+
+        temp_db.create_pattern_correction(
+            correction_type='false_positive',
+            episode_id=episode_id,
+            original_bounds={'start': 100.0, 'end': 200.0}
+        )
+        temp_db.create_pattern_correction(
+            correction_type='confirm',
+            episode_id=episode_id,
+            original_bounds={'start': 100.0, 'end': 200.0}
+        )
+
+        deleted = temp_db.delete_conflicting_corrections(episode_id, 'adjust', 100.0, 200.0)
+        assert deleted == 0
+
+        corrections = temp_db.get_episode_corrections(episode_id)
+        assert len(corrections) == 2
+
+    def test_only_deletes_for_matching_episode(self, temp_db):
+        """Should not delete corrections from a different episode."""
+        ep1 = 'ep-conflict-007a'
+        ep2 = 'ep-conflict-007b'
+
+        temp_db.create_pattern_correction(
+            correction_type='false_positive',
+            episode_id=ep1,
+            original_bounds={'start': 100.0, 'end': 200.0}
+        )
+
+        # Delete for a different episode
+        deleted = temp_db.delete_conflicting_corrections(ep2, 'confirm', 100.0, 200.0)
+        assert deleted == 0
+
+        corrections = temp_db.get_episode_corrections(ep1)
+        assert len(corrections) == 1
+
+
 class TestDatabaseSingleton:
     """Tests for database singleton pattern."""
 

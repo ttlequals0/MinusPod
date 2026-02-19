@@ -4,7 +4,7 @@ import logging
 import re
 from typing import List, Dict, Optional, Tuple
 
-from utils.time import parse_timestamp
+from utils.time import parse_timestamp, adjust_timestamp
 from utils.text import extract_text_from_segments
 from llm_client import (
     get_llm_client, get_api_key, LLMClient,
@@ -15,6 +15,10 @@ logger = logging.getLogger(__name__)
 
 # Minimum chapter duration in seconds (3 minutes)
 MIN_CHAPTER_DURATION = 180.0
+
+# Model used for chapter generation tasks (titles, topic detection, splitting).
+# Uses Haiku for cost efficiency -- these are simple classification/generation tasks.
+CHAPTERS_MODEL = "claude-haiku-4-5-20251001"
 
 # Patterns to match timestamps in episode descriptions
 TIMESTAMP_PATTERNS = [
@@ -39,11 +43,6 @@ class ChaptersGenerator:
         self.api_key = api_key or get_api_key()
         self._llm_client: Optional[LLMClient] = None
 
-    @property
-    def client(self) -> Optional[LLMClient]:
-        """Backward compatibility property for accessing the LLM client."""
-        return self._llm_client
-
     def _initialize_client(self):
         """Initialize LLM client if not already done."""
         if self._llm_client is None and self.api_key:
@@ -52,24 +51,6 @@ class ChaptersGenerator:
                 logger.debug(f"LLM client initialized for chapters generator: {self._llm_client.get_provider_name()}")
             except Exception as e:
                 logger.error(f"Failed to initialize LLM client: {e}")
-
-    def parse_timestamp_to_seconds(self, timestamp: str) -> float:
-        """
-        Parse a timestamp string to seconds.
-
-        Supports formats:
-        - M:SS (e.g., "1:30")
-        - MM:SS (e.g., "01:30")
-        - H:MM:SS (e.g., "1:30:45")
-        - HH:MM:SS (e.g., "01:30:45")
-
-        Args:
-            timestamp: Timestamp string
-
-        Returns:
-            Time in seconds
-        """
-        return parse_timestamp(timestamp)
 
     def _html_to_text(self, html: str) -> str:
         """
@@ -134,7 +115,7 @@ class ChaptersGenerator:
                     continue
 
                 try:
-                    seconds = self.parse_timestamp_to_seconds(timestamp_str)
+                    seconds = parse_timestamp(timestamp_str)
 
                     # Avoid duplicates (within 5 seconds)
                     time_key = round(seconds / 5) * 5
@@ -155,34 +136,6 @@ class ChaptersGenerator:
 
         logger.info(f"Parsed {len(chapters)} timestamps from description")
         return chapters
-
-    def adjust_timestamp(self, original_time: float, ads_removed: List[Dict]) -> float:
-        """
-        Adjust a timestamp to account for removed ads.
-
-        Args:
-            original_time: Original timestamp in seconds
-            ads_removed: List of removed ads
-
-        Returns:
-            Adjusted timestamp
-        """
-        if not ads_removed:
-            return original_time
-
-        adjustment = 0.0
-        sorted_ads = sorted(ads_removed, key=lambda x: x['start'])
-
-        for ad in sorted_ads:
-            ad_start = ad.get('start', 0)
-            ad_end = ad.get('end', 0)
-
-            if ad_end <= original_time:
-                adjustment += (ad_end - ad_start)
-            else:
-                break
-
-        return max(0.0, original_time - adjustment)
 
     def detect_ad_gap_chapters(
         self,
@@ -273,7 +226,7 @@ class ChaptersGenerator:
         merged = []
 
         for chapter in description_chapters:
-            adjusted_time = self.adjust_timestamp(chapter['original_time'], ads_removed)
+            adjusted_time = adjust_timestamp(chapter['original_time'], ads_removed)
             merged.append({
                 'startTime': adjusted_time,
                 'title': chapter['title'],
@@ -283,7 +236,7 @@ class ChaptersGenerator:
 
         # Add ad gap chapters that don't overlap with description chapters
         for chapter in ad_gap_chapters:
-            adjusted_time = self.adjust_timestamp(chapter['original_time'], ads_removed)
+            adjusted_time = adjust_timestamp(chapter['original_time'], ads_removed)
 
             # Check if this time is close to an existing chapter (within 60 seconds)
             is_duplicate = False
@@ -341,7 +294,7 @@ class ChaptersGenerator:
             return chapters
 
         self._initialize_client()
-        if not self.client:
+        if not self._llm_client:
             logger.warning("No Anthropic client available for segment splitting")
             return chapters
 
@@ -393,7 +346,7 @@ class ChaptersGenerator:
 
                 # Adjust times and add to result
                 for new_chapter in new_chapters:
-                    adjusted_time = self.adjust_timestamp(new_chapter['original_time'], ads_removed)
+                    adjusted_time = adjust_timestamp(new_chapter['original_time'], ads_removed)
                     # Skip if too close to existing chapter
                     if any(abs(ch['startTime'] - adjusted_time) < 60 for ch in result):
                         continue
@@ -470,7 +423,7 @@ class ChaptersGenerator:
         logger.info(f"Found {len(topics)} topic headers in description: {topics}")
 
         self._initialize_client()
-        if not self.client:
+        if not self._llm_client:
             return []
 
         # Get transcript summary for matching
@@ -603,7 +556,7 @@ Transcript:
 
         try:
             response = self._llm_client.messages_create(
-                model="claude-3-5-haiku-20241022",
+                model=CHAPTERS_MODEL,
                 max_tokens=400,
                 system="",
                 temperature=0.3,
@@ -622,8 +575,8 @@ Transcript:
                 if match:
                     timestamp_str, title = match.groups()
                     try:
-                        original_time = self.parse_timestamp_to_seconds(timestamp_str)
-                        adjusted_time = self.adjust_timestamp(original_time, ads_removed)
+                        original_time = parse_timestamp(timestamp_str)
+                        adjusted_time = adjust_timestamp(original_time, ads_removed)
                         chapters.append({
                             'startTime': adjusted_time,
                             'title': title.strip(),
@@ -673,7 +626,7 @@ Transcript:
 
         try:
             response = self._llm_client.messages_create(
-                model="claude-3-5-haiku-20241022",
+                model=CHAPTERS_MODEL,
                 max_tokens=300,
                 system="",
                 temperature=0.3,
@@ -705,7 +658,7 @@ Transcript:
                 if match:
                     timestamp_str, title = match.groups()
                     try:
-                        seconds = self.parse_timestamp_to_seconds(timestamp_str)
+                        seconds = parse_timestamp(timestamp_str)
                         if start_time <= seconds < end_time:
                             chapters.append({
                                 'original_time': seconds,
@@ -781,7 +734,7 @@ Transcript:
 
         # Initialize client
         self._initialize_client()
-        if not self.client:
+        if not self._llm_client:
             logger.warning("Claude client not available, using generic titles")
             return self._apply_generic_titles(chapters)
 
@@ -916,7 +869,7 @@ Transcript:
 
         try:
             response = self._llm_client.messages_create(
-                model="claude-3-5-haiku-20241022",  # Use Haiku for cost efficiency
+                model=CHAPTERS_MODEL,  # Use Haiku for cost efficiency
                 max_tokens=500,
                 system="",
                 temperature=0.3,
@@ -1176,7 +1129,7 @@ Transcript:
         # Use AI to detect topic changes if episode is long enough
         if episode_duration > 900:  # > 15 minutes
             self._initialize_client()
-            if self.client:
+            if self._llm_client:
                 # Get full transcript with timestamps
                 transcript_text = self._get_full_transcript_range(segments, 0, episode_duration)
 

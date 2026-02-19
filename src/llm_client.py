@@ -55,6 +55,19 @@ class LLMModel:
     created: Optional[str] = None
 
 
+# Known Claude models used as fallback when the API model list is unavailable.
+# Defined once here to avoid duplication across client implementations.
+FALLBACK_MODELS = [
+    LLMModel(id='claude-opus-4-6', name='Claude Opus 4.6'),
+    LLMModel(id='claude-sonnet-4-5-20250929', name='Claude Sonnet 4.5'),
+    LLMModel(id='claude-haiku-4-5-20251001', name='Claude Haiku 4.5'),
+    LLMModel(id='claude-opus-4-5-20251101', name='Claude Opus 4.5'),
+    LLMModel(id='claude-opus-4-1-20250805', name='Claude Opus 4.1'),
+    LLMModel(id='claude-sonnet-4-20250514', name='Claude Sonnet 4'),
+    LLMModel(id='claude-opus-4-20250514', name='Claude Opus 4'),
+]
+
+
 class LLMClient(ABC):
     """Abstract base class for LLM clients."""
 
@@ -187,15 +200,7 @@ class AnthropicClient(LLMClient):
 
     def _get_fallback_models(self) -> List[LLMModel]:
         """Return known models as fallback."""
-        return [
-            LLMModel(id='claude-opus-4-6', name='Claude Opus 4.6'),
-            LLMModel(id='claude-sonnet-4-5-20250929', name='Claude Sonnet 4.5'),
-            LLMModel(id='claude-haiku-4-5-20251001', name='Claude Haiku 4.5'),
-            LLMModel(id='claude-opus-4-5-20251101', name='Claude Opus 4.5'),
-            LLMModel(id='claude-opus-4-1-20250805', name='Claude Opus 4.1'),
-            LLMModel(id='claude-sonnet-4-20250514', name='Claude Sonnet 4'),
-            LLMModel(id='claude-opus-4-20250514', name='Claude Opus 4'),
-        ]
+        return list(FALLBACK_MODELS)
 
     def get_provider_name(self) -> str:
         return "anthropic"
@@ -296,15 +301,7 @@ class OpenAICompatibleClient(LLMClient):
 
     def _get_fallback_models(self) -> List[LLMModel]:
         """Return fallback models."""
-        return [
-            LLMModel(id='claude-opus-4-6', name='Claude Opus 4.6'),
-            LLMModel(id='claude-sonnet-4-5-20250929', name='Claude Sonnet 4.5'),
-            LLMModel(id='claude-haiku-4-5-20251001', name='Claude Haiku 4.5'),
-            LLMModel(id='claude-opus-4-5-20251101', name='Claude Opus 4.5'),
-            LLMModel(id='claude-opus-4-1-20250805', name='Claude Opus 4.1'),
-            LLMModel(id='claude-sonnet-4-20250514', name='Claude Sonnet 4'),
-            LLMModel(id='claude-opus-4-20250514', name='Claude Opus 4'),
-        ]
+        return list(FALLBACK_MODELS)
 
     def get_provider_name(self) -> str:
         return f"openai-compatible ({self.base_url})"
@@ -451,6 +448,7 @@ def is_retryable_error(error: Exception) -> bool:
             status = getattr(error, 'status_code', None)
             if status in (429, 500, 502, 503, 529):
                 return True
+            return False  # Non-retryable Anthropic error -- don't fall to string matching
 
     # OpenAI errors
     try:
@@ -464,6 +462,7 @@ def is_retryable_error(error: Exception) -> bool:
             status = getattr(error, 'status_code', None)
             if status in (429, 500, 502, 503, 529):
                 return True
+            return False  # Non-retryable OpenAI error
     except ImportError:
         pass
 
@@ -471,6 +470,21 @@ def is_retryable_error(error: Exception) -> bool:
     error_str = str(error).lower()
     retryable_patterns = ['timeout', 'connection', 'temporarily', '429', '500', '502', '503', '504', '529']
     return any(pattern in error_str for pattern in retryable_patterns)
+
+
+def is_llm_api_error(error: Exception) -> bool:
+    """Check if error is any Anthropic or OpenAI API error type."""
+    if ANTHROPIC_ERRORS_AVAILABLE:
+        from anthropic import APIError
+        if isinstance(error, APIError):
+            return True
+    try:
+        from openai import APIError as OpenAIAPIError
+        if isinstance(error, OpenAIAPIError):
+            return True
+    except ImportError:
+        pass
+    return False
 
 
 def is_rate_limit_error(error: Exception) -> bool:

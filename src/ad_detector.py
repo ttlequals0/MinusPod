@@ -6,9 +6,10 @@ import time
 import random
 from typing import List, Dict, Optional
 from llm_client import (
-    get_llm_client, get_api_key, LLMClient,
+    get_llm_client, get_api_key, LLMClient, FALLBACK_MODELS,
     is_retryable_error, is_rate_limit_error
 )
+from utils.time import parse_timestamp, first_not_none
 
 from config import (
     MIN_TYPICAL_AD_DURATION, MIN_SPONSOR_READ_DURATION, SHORT_GAP_THRESHOLD,
@@ -50,52 +51,6 @@ RETRY_CONFIG = {
 # Sliding window step (derived from config values)
 # WINDOW_SIZE_SECONDS and WINDOW_OVERLAP_SECONDS imported from config.py
 WINDOW_STEP_SECONDS = WINDOW_SIZE_SECONDS - WINDOW_OVERLAP_SECONDS  # 7 minutes
-
-def parse_timestamp(value) -> float:
-    """Parse timestamp value to seconds.
-
-    Handles multiple formats:
-    - Float/int: 1178.5 -> 1178.5
-    - String seconds: "1178.5" -> 1178.5
-    - MM:SS format: "19:38" -> 1178.0
-    - HH:MM:SS format: "1:19:38" -> 4778.0
-    - String with 's' suffix: "1178.5s" -> 1178.5
-    """
-    if isinstance(value, (int, float)):
-        return float(value)
-
-    if isinstance(value, str):
-        # Remove 's' suffix if present
-        value = value.strip().rstrip('s').strip()
-
-        # Try direct float conversion first
-        try:
-            return float(value)
-        except ValueError:
-            pass
-
-        # Try MM:SS or HH:MM:SS format
-        parts = value.split(':')
-        if len(parts) == 2:
-            # MM:SS
-            try:
-                minutes = int(parts[0])
-                seconds = float(parts[1])
-                return minutes * 60 + seconds
-            except ValueError:
-                pass
-        elif len(parts) == 3:
-            # HH:MM:SS
-            try:
-                hours = int(parts[0])
-                minutes = int(parts[1])
-                seconds = float(parts[2])
-                return hours * 3600 + minutes * 60 + seconds
-            except ValueError:
-                pass
-
-    raise ValueError(f"Cannot parse timestamp: {value}")
-
 
 # Early ad snapping threshold
 # If an ad starts within this many seconds of the episode start, snap it to 0:00
@@ -1041,14 +996,6 @@ def deduplicate_window_ads(all_ads: List[Dict], merge_threshold: float = 5.0) ->
     return merged
 
 
-def _first_not_none(*values):
-    """Return the first value that is not None. Unlike `or`, treats 0 and 0.0 as valid."""
-    for v in values:
-        if v is not None:
-            return v
-    return None
-
-
 class AdDetector:
     """Detect advertisements in podcast transcripts using Claude API.
 
@@ -1073,11 +1020,6 @@ class AdDetector:
         self._sponsor_service = None
 
     @property
-    def client(self) -> Optional[LLMClient]:
-        """Backward compatibility property for accessing the LLM client."""
-        return self._llm_client
-
-    @property
     def db(self):
         """Lazy load database connection."""
         if self._db is None:
@@ -1089,48 +1031,32 @@ class AdDetector:
     def audio_fingerprinter(self):
         """Lazy load audio fingerprinter."""
         if self._audio_fingerprinter is None:
-            try:
-                from audio_fingerprinter import AudioFingerprinter
-                self._audio_fingerprinter = AudioFingerprinter(db=self.db)
-            except ImportError:
-                logger.warning("Audio fingerprinting not available")
-                self._audio_fingerprinter = None
+            from audio_fingerprinter import AudioFingerprinter
+            self._audio_fingerprinter = AudioFingerprinter(db=self.db)
         return self._audio_fingerprinter
 
     @property
     def text_pattern_matcher(self):
         """Lazy load text pattern matcher."""
         if self._text_pattern_matcher is None:
-            try:
-                from text_pattern_matcher import TextPatternMatcher
-                self._text_pattern_matcher = TextPatternMatcher(db=self.db)
-            except ImportError:
-                logger.warning("Text pattern matching not available")
-                self._text_pattern_matcher = None
+            from text_pattern_matcher import TextPatternMatcher
+            self._text_pattern_matcher = TextPatternMatcher(db=self.db)
         return self._text_pattern_matcher
 
     @property
     def pattern_service(self):
         """Lazy load pattern service for match recording."""
         if self._pattern_service is None:
-            try:
-                from pattern_service import PatternService
-                self._pattern_service = PatternService(db=self.db)
-            except ImportError:
-                logger.warning("Pattern service not available")
-                self._pattern_service = None
+            from pattern_service import PatternService
+            self._pattern_service = PatternService(db=self.db)
         return self._pattern_service
 
     @property
     def sponsor_service(self):
         """Lazy load sponsor service for sponsor lookup."""
         if self._sponsor_service is None:
-            try:
-                from sponsor_service import SponsorService
-                self._sponsor_service = SponsorService(db=self.db)
-            except ImportError:
-                logger.warning("Sponsor service not available")
-                self._sponsor_service = None
+            from sponsor_service import SponsorService
+            self._sponsor_service = SponsorService(db=self.db)
         return self._sponsor_service
 
     def initialize_client(self):
@@ -1162,15 +1088,8 @@ class AdDetector:
             return self._ensure_configured_models_present(model_list)
         except Exception as e:
             logger.warning(f"Could not fetch models from API: {e}")
-            # Return known models as fallback
             return [
-                {'id': 'claude-opus-4-6', 'name': 'Claude Opus 4.6'},
-                {'id': 'claude-sonnet-4-5-20250929', 'name': 'Claude Sonnet 4.5'},
-                {'id': 'claude-haiku-4-5-20251001', 'name': 'Claude Haiku 4.5'},
-                {'id': 'claude-opus-4-5-20251101', 'name': 'Claude Opus 4.5'},
-                {'id': 'claude-opus-4-1-20250805', 'name': 'Claude Opus 4.1'},
-                {'id': 'claude-sonnet-4-20250514', 'name': 'Claude Sonnet 4'},
-                {'id': 'claude-opus-4-20250514', 'name': 'Claude Opus 4'},
+                {'id': m.id, 'name': m.name} for m in FALLBACK_MODELS
             ]
 
     def _ensure_configured_models_present(self, models_list: List[Dict]) -> List[Dict]:
@@ -1305,39 +1224,123 @@ class AdDetector:
             delay = delay * (0.5 + random.random())  # 50-150% of delay
         return delay
 
+    def _extract_json_ads_array(self, response_text: str, slug: str = None,
+                                episode_id: str = None):
+        """Extract a JSON array of ad dicts from Claude's response text.
+
+        Tries 4 strategies in order:
+        0. Direct JSON parse (handles various wrapper object structures)
+        1. Markdown code block extraction
+        2. Regex scan for JSON arrays (uses last valid match)
+        3. Bracket-delimited fallback (first '[' to last ']')
+
+        Returns (ads_list, extraction_method) or (None, None) if no valid JSON found.
+        """
+        # Pre-process: Remove common preamble patterns that break JSON parsing
+        cleaned_text = response_text.strip()
+        preamble_patterns = [
+            r'^(?:Here (?:are|is) (?:the )?(?:detected )?ads?[:\s]*)',
+            r'^(?:I (?:found|detected|identified)[^:]*[:\s]*)',
+            r'^(?:The following (?:ads|advertisements)[^:]*[:\s]*)',
+            r'^(?:Based on (?:my|the) analysis[^:]*[:\s]*)',
+            r'^(?:After (?:reviewing|analyzing)[^:]*[:\s]*)',
+        ]
+        for pattern in preamble_patterns:
+            match = re.match(pattern, cleaned_text, re.IGNORECASE)
+            if match:
+                cleaned_text = cleaned_text[match.end():].strip()
+                logger.debug(f"[{slug}:{episode_id}] Removed preamble: '{match.group()[:50]}'")
+                break
+
+        # Strategy 0: Direct JSON parse
+        try:
+            parsed = json.loads(cleaned_text)
+            if isinstance(parsed, list):
+                return parsed, "json_array_direct"
+            if isinstance(parsed, dict):
+                # Check nested window structure
+                if 'window' in parsed and isinstance(parsed['window'], dict):
+                    window = parsed['window']
+                    for key in ['ads_detected', 'ads', 'advertisement_segments', 'ads_and_sponsorships', 'segments']:
+                        if key in window and isinstance(window[key], list):
+                            ads = window[key]
+                            if key == 'segments':
+                                ads = [s for s in ads if isinstance(s, dict) and s.get('type') == 'advertisement']
+                            return ads, f"json_object_window_{key}"
+                # Check top-level ad keys
+                ad_keys = ['ads', 'ads_detected', 'advertisement_segments', 'ads_and_sponsorships']
+                for key in ad_keys:
+                    if key in parsed and isinstance(parsed[key], list):
+                        return parsed[key], f"json_object_{key}_key"
+                if 'segments' in parsed and isinstance(parsed['segments'], list):
+                    ads = [s for s in parsed['segments']
+                           if isinstance(s, dict) and s.get('type') == 'advertisement']
+                    return ads, "json_object_segments_key"
+                return [], "json_object_no_ads"
+        except json.JSONDecodeError:
+            pass
+
+        # Strategy 1: Markdown code block
+        code_block_match = re.search(r'```(?:json)?\s*(\[[\s\S]*?\])\s*```', response_text)
+        if code_block_match:
+            try:
+                return json.loads(code_block_match.group(1)), "markdown_code_block"
+            except json.JSONDecodeError:
+                pass
+
+        # Strategy 2: Regex scan for JSON arrays (use last valid match)
+        last_valid_ads = None
+        for match in re.finditer(r'\[(?:[^\[\]]*|\[(?:[^\[\]]*|\[[^\[\]]*\])*\])*\]', response_text):
+            try:
+                potential_ads = json.loads(match.group())
+                if isinstance(potential_ads, list):
+                    if not potential_ads or (potential_ads and isinstance(potential_ads[0], dict) and 'start' in potential_ads[0]):
+                        last_valid_ads = potential_ads
+            except json.JSONDecodeError:
+                continue
+        if last_valid_ads is not None:
+            return last_valid_ads, "regex_json_array"
+
+        # Strategy 3: Bracket-delimited fallback
+        clean_response = re.sub(r'```json\s*', '', response_text)
+        clean_response = re.sub(r'```\s*', '', clean_response)
+        start_idx = clean_response.find('[')
+        end_idx = clean_response.rfind(']') + 1
+        if start_idx >= 0 and end_idx > start_idx:
+            json_str = clean_response[start_idx:end_idx]
+            try:
+                return json.loads(json_str), "bracket_fallback"
+            except json.JSONDecodeError as e:
+                logger.warning(
+                    f"[{slug}:{episode_id}] Strategy 3 JSON parse failed: {e} "
+                    f"(length={len(json_str)}, start={json_str[:50]!r}, end={json_str[-50:]!r})"
+                )
+
+        return None, None
+
     def _parse_ads_from_response(self, response_text: str, slug: str = None,
                                   episode_id: str = None) -> List[Dict]:
         """Parse ad segments from Claude's JSON response.
 
-        Args:
-            response_text: Raw text response from Claude
-            slug: Podcast slug for logging
-            episode_id: Episode ID for logging
-
         Returns:
             List of validated ad dicts with start, end, confidence, reason, end_text
         """
-        # Helper to filter out invalid sponsor values like literal "None", "unknown", etc.
         def get_valid_value(value):
             if not value:
                 return None
             str_value = str(value).strip()
-            # Reject empty or too-short values
             if len(str_value) < 2:
                 return None
-            # Reject known invalid values
             if str_value.lower() in INVALID_SPONSOR_VALUES:
                 return None
             return str_value
 
         def _text_is_duplicate(a: str, b: str) -> bool:
-            """Check if two strings are essentially the same text (one starts with the other or >80% word overlap)."""
+            """Check if two strings are essentially the same text."""
             a_lower = a.lower().strip()
             b_lower = b.lower().strip()
-            # One starts with the other
             if a_lower.startswith(b_lower) or b_lower.startswith(a_lower):
                 return True
-            # High word overlap
             a_words = set(a_lower.split())
             b_words = set(b_lower.split())
             if not a_words or not b_words:
@@ -1347,55 +1350,41 @@ class AdDetector:
             return overlap / smaller > 0.8 if smaller > 0 else False
 
         def extract_sponsor_from_text(text: str) -> str | None:
-            """Extract sponsor name from descriptive text like 'This is a BetterHelp advertisement'."""
+            """Extract sponsor name from descriptive text."""
             if not text:
                 return None
-            # Patterns to match sponsor mentions in text
             patterns = [
-                # "X sponsor read" or "X ad read"
                 r'^(\w+(?:\s+\w+)?)\s+(?:sponsor|ad)\s+read',
-                # "This is a X advertisement"
                 r'(?:this is (?:a|an) )?(\w+(?:\s+\w+)?)\s+(?:ad|advertisement|sponsor)',
-                # "Ad/sponsor for/by/from X"
                 r'(?:ad|advertisement|sponsor)(?:ship)?\s+(?:for|by|from)\s+(\w+(?:\s+\w+)?)',
-                # "promoting X"
                 r'promoting\s+(\w+(?:\s+\w+)?)',
-                # "brought to you by X"
                 r'brought to you by\s+(\w+(?:\s+\w+)?)',
             ]
             for pattern in patterns:
                 match = re.search(pattern, text, re.IGNORECASE)
                 if match:
                     sponsor = match.group(1).strip()
-                    # Validate extracted sponsor
                     if len(sponsor) < 2:
                         continue
                     if sponsor.lower() in INVALID_SPONSOR_VALUES:
                         continue
-                    # Filter out common words that aren't sponsors
                     if sponsor.lower() in ('a', 'an', 'the', 'this', 'that', 'another', 'host'):
                         continue
-                    # Reject if first word is a common English word (indicates garbage capture)
-                    # e.g., "not an" from "This is not an advertisement"
                     first_word = sponsor.split()[0].lower() if sponsor.split() else ''
                     if first_word in INVALID_SPONSOR_CAPTURE_WORDS:
                         continue
-                    # Reject all-lowercase multi-word phrases (proper nouns are capitalized)
-                    # e.g., "consistent with" is not a sponsor name
                     if ' ' in sponsor and sponsor == sponsor.lower():
                         continue
                     return sponsor
             return None
 
         def extract_sponsor_name(ad: dict) -> str:
-            """Extract sponsor/advertiser name from ad dict using priority fields, pattern matching, and dynamic scanning."""
-            # Phase 1: Check priority fields in order
+            """Extract sponsor/advertiser name using priority fields, keywords, and dynamic scanning."""
             for field in SPONSOR_PRIORITY_FIELDS:
                 value = get_valid_value(ad.get(field))
                 if value:
                     return value
 
-            # Phase 2: Pattern match any key containing sponsor/brand/advertiser keywords
             for key in ad.keys():
                 key_lower = key.lower()
                 for keyword in SPONSOR_PATTERN_KEYWORDS:
@@ -1404,9 +1393,6 @@ class AdDetector:
                         if value:
                             return value
 
-            # Phase 3: Dynamic scan - check ALL non-structural string fields for short values
-            # that could be sponsor names (< 80 chars). This catches whatever field names
-            # Claude invents (topics, label, sponsor_or_topic, etc.)
             priority_lower = {f.lower() for f in SPONSOR_PRIORITY_FIELDS}
             for key, val in ad.items():
                 key_lower = key.lower()
@@ -1417,8 +1403,6 @@ class AdDetector:
                     if value:
                         return value
 
-            # Phase 4: Dynamic scan - check ALL non-structural string fields for longer text
-            # and try to extract sponsor names using regex patterns
             for key, val in ad.items():
                 if key.lower() in STRUCTURAL_FIELDS:
                     continue
@@ -1430,116 +1414,7 @@ class AdDetector:
             return 'Advertisement detected'
 
         try:
-            ads = None
-            extraction_method = None
-
-            # Pre-process: Remove common preamble patterns that break JSON parsing
-            cleaned_text = response_text.strip()
-            preamble_patterns = [
-                r'^(?:Here (?:are|is) (?:the )?(?:detected )?ads?[:\s]*)',
-                r'^(?:I (?:found|detected|identified)[^:]*[:\s]*)',
-                r'^(?:The following (?:ads|advertisements)[^:]*[:\s]*)',
-                r'^(?:Based on (?:my|the) analysis[^:]*[:\s]*)',
-                r'^(?:After (?:reviewing|analyzing)[^:]*[:\s]*)',
-            ]
-            for pattern in preamble_patterns:
-                match = re.match(pattern, cleaned_text, re.IGNORECASE)
-                if match:
-                    cleaned_text = cleaned_text[match.end():].strip()
-                    logger.debug(f"[{slug}:{episode_id}] Removed preamble: '{match.group()[:50]}'")
-                    break
-
-            # Strategy 0: Try to parse as JSON object and extract ads from various structures
-            # Handles responses like {"ads": [...]}, {"segments": [...]}, {"advertisement_segments": [...]}
-            # Also handles nested structures like {"window": {"ads_detected": [...]}}
-            try:
-                parsed = json.loads(cleaned_text)
-                if isinstance(parsed, dict):
-                    # Check for nested window structure first (e.g., {"window": {"ads_detected": [...]}})
-                    if 'window' in parsed and isinstance(parsed['window'], dict):
-                        window = parsed['window']
-                        for key in ['ads_detected', 'ads', 'advertisement_segments', 'ads_and_sponsorships', 'segments']:
-                            if key in window and isinstance(window[key], list):
-                                if key == 'segments':
-                                    ads = [s for s in window[key]
-                                           if isinstance(s, dict) and s.get('type') == 'advertisement']
-                                else:
-                                    ads = window[key]
-                                extraction_method = f"json_object_window_{key}"
-                                break
-                    # Check top-level keys if window didn't match
-                    if ads is None:
-                        if 'ads' in parsed and isinstance(parsed['ads'], list):
-                            ads = parsed['ads']
-                            extraction_method = "json_object_ads_key"
-                        elif 'ads_detected' in parsed and isinstance(parsed['ads_detected'], list):
-                            ads = parsed['ads_detected']
-                            extraction_method = "json_object_ads_detected_key"
-                        elif 'advertisement_segments' in parsed and isinstance(parsed['advertisement_segments'], list):
-                            ads = parsed['advertisement_segments']
-                            extraction_method = "json_object_advertisement_segments_key"
-                        elif 'ads_and_sponsorships' in parsed and isinstance(parsed['ads_and_sponsorships'], list):
-                            ads = parsed['ads_and_sponsorships']
-                            extraction_method = "json_object_ads_and_sponsorships_key"
-                        elif 'segments' in parsed and isinstance(parsed['segments'], list):
-                            # Filter to only advertisement type segments
-                            ads = [s for s in parsed['segments']
-                                   if isinstance(s, dict) and s.get('type') == 'advertisement']
-                            extraction_method = "json_object_segments_key"
-                        else:
-                            # No recognizable ad structure - check for other possible keys
-                            ads = []
-                            extraction_method = "json_object_no_ads"
-                elif isinstance(parsed, list):
-                    ads = parsed
-                    extraction_method = "json_array_direct"
-            except json.JSONDecodeError:
-                pass
-
-            # Strategy 1: Try to extract from markdown code block first
-            if ads is None:
-                code_block_match = re.search(r'```(?:json)?\s*(\[[\s\S]*?\])\s*```', response_text)
-                if code_block_match:
-                    try:
-                        ads = json.loads(code_block_match.group(1))
-                        extraction_method = "markdown_code_block"
-                    except json.JSONDecodeError:
-                        pass
-
-            # Strategy 2: Find all potential JSON arrays and use the last valid one
-            if ads is None:
-                last_valid_ads = None
-                for match in re.finditer(r'\[(?:[^\[\]]*|\[(?:[^\[\]]*|\[[^\[\]]*\])*\])*\]', response_text):
-                    try:
-                        potential_ads = json.loads(match.group())
-                        if isinstance(potential_ads, list):
-                            if not potential_ads or (potential_ads and isinstance(potential_ads[0], dict) and 'start' in potential_ads[0]):
-                                last_valid_ads = potential_ads
-                    except json.JSONDecodeError:
-                        continue
-
-                if last_valid_ads is not None:
-                    ads = last_valid_ads
-                    extraction_method = "regex_json_array"
-
-            # Strategy 3: Fallback to original first-to-last bracket logic
-            if ads is None:
-                clean_response = re.sub(r'```json\s*', '', response_text)
-                clean_response = re.sub(r'```\s*', '', clean_response)
-
-                start_idx = clean_response.find('[')
-                end_idx = clean_response.rfind(']') + 1
-
-                if start_idx >= 0 and end_idx > start_idx:
-                    json_str = clean_response[start_idx:end_idx]
-                    try:
-                        ads = json.loads(json_str)
-                        extraction_method = "bracket_fallback"
-                    except json.JSONDecodeError as e:
-                        logger.warning(
-                            f"[{slug}:{episode_id}] Strategy 3 JSON parse failed: {e} "
-                            f"(length={len(json_str)}, start={json_str[:50]!r}, end={json_str[-50:]!r})"
-                        )
+            ads, extraction_method = self._extract_json_ads_array(response_text, slug, episode_id)
 
             if ads is None or not isinstance(ads, list):
                 logger.warning(f"[{slug}:{episode_id}] No valid JSON array found in response")
@@ -1552,12 +1427,12 @@ class AdDetector:
                     # Log raw ad object for debugging
                     logger.debug(f"[{slug}:{episode_id}] Raw ad from LLM: {json.dumps(ad, default=str)[:500]}")
                     # Try various field name patterns for start/end times
-                    # Use _first_not_none instead of `or` to avoid dropping 0.0 (pre-roll ads)
-                    start_val = _first_not_none(
+                    # Use first_not_none instead of `or` to avoid dropping 0.0 (pre-roll ads)
+                    start_val = first_not_none(
                         ad.get('start'), ad.get('start_time'), ad.get('start_timestamp'),
                         ad.get('ad_start_timestamp'), ad.get('start_time_seconds')
                     )
-                    end_val = _first_not_none(
+                    end_val = first_not_none(
                         ad.get('end'), ad.get('end_time'), ad.get('end_timestamp'),
                         ad.get('ad_end_timestamp'), ad.get('end_time_seconds')
                     )

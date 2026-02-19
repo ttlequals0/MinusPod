@@ -169,3 +169,15 @@ WHISPER_MEMORY_PROFILES = {
     'turbo': (5.0, 0.20),     # ~5GB VRAM (distilled large)
 }
 WHISPER_DEFAULT_PROFILE = (5.0, 0.20)  # Conservative default (medium-like)
+
+# ============================================================
+# User-Agent Strings
+# ============================================================
+# Browser-like UA for downloading audio from CDNs that block bots
+BROWSER_USER_AGENT = (
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
+    'AppleWebKit/537.36 (KHTML, like Gecko) '
+    'Chrome/120.0.0.0 Safari/537.36'
+)
+# Application UA for RSS feeds and API requests
+APP_USER_AGENT = 'PodcastAdRemover/1.0'

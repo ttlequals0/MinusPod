@@ -4,6 +4,7 @@ import threading
 import logging
 import json
 import os
+import time
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, List, Any, Tuple
@@ -314,7 +315,7 @@ CREATE TABLE IF NOT EXISTS ad_patterns (
     disabled_reason TEXT
 );
 
--- pattern_corrections table (audit log of user corrections - never deleted)
+-- pattern_corrections table (user corrections; conflicting entries cleaned up on reversal)
 CREATE TABLE IF NOT EXISTS pattern_corrections (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     pattern_id INTEGER,
@@ -469,9 +470,32 @@ class Database:
             self._local.connection.execute("PRAGMA foreign_keys = ON")
         return self._local.connection
 
+    class _TransactionContext:
+        """Context manager for database transactions with automatic commit/rollback."""
+        def __init__(self, conn):
+            self.conn = conn
+        def __enter__(self):
+            return self.conn
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            if exc_type is None:
+                self.conn.commit()
+            else:
+                self.conn.rollback()
+            return False
+
+    def transaction(self):
+        """Context manager for database transactions.
+
+        Usage:
+            with db.transaction() as conn:
+                conn.execute("INSERT ...")
+                conn.execute("UPDATE ...")
+            # Auto-commits on success, auto-rolls back on exception
+        """
+        return self._TransactionContext(self.get_connection())
+
     def _init_schema(self):
         """Initialize database schema with retry logic for concurrent workers."""
-        import time
         max_retries = 5
         base_delay = 0.5  # seconds
 
@@ -619,335 +643,99 @@ class Database:
         conn.commit()
         logger.info("Created new tables for cross-episode training and processing history")
 
+    def _add_column_if_missing(self, conn, table: str, column: str,
+                               definition: str, existing_columns: set) -> bool:
+        """Add a column to a table if it doesn't already exist.
+
+        Returns True if the column was added, False if it already existed.
+        """
+        if column in existing_columns:
+            return False
+        try:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
+            conn.commit()
+            logger.info(f"Migration: Added {column} column to {table} table")
+            return True
+        except Exception as e:
+            logger.error(f"Migration failed for {table}.{column}: {e}")
+            return False
+
+    def _rename_column_if_needed(self, conn, table: str, old_name: str,
+                                  new_name: str, existing_columns: set) -> bool:
+        """Rename a column if the old name exists and new name doesn't."""
+        if old_name in existing_columns and new_name not in existing_columns:
+            try:
+                conn.execute(f"ALTER TABLE {table} RENAME COLUMN {old_name} TO {new_name}")
+                conn.commit()
+                logger.info(f"Migration: Renamed {table}.{old_name} to {new_name}")
+                return True
+            except Exception as e:
+                logger.error(f"Migration failed for {table} rename {old_name}: {e}")
+        return False
+
+    def _get_table_columns(self, conn, table: str) -> set:
+        """Get the set of column names for a table."""
+        cursor = conn.execute(f"PRAGMA table_info({table})")
+        return {row['name'] for row in cursor.fetchall()}
+
     def _run_schema_migrations(self):
         """Run schema migrations for existing databases."""
         conn = self.get_connection()
 
-        # Get existing columns in episodes table
-        cursor = conn.execute("PRAGMA table_info(episodes)")
-        columns = [row['name'] for row in cursor.fetchall()]
+        # -- Episodes table columns --
+        ep_cols = self._get_table_columns(conn, 'episodes')
+        episodes_migrations = [
+            ('ad_detection_status', 'TEXT DEFAULT NULL'),
+            ('created_at', "TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))"),
+            ('artwork_url', 'TEXT'),
+            ('processed_file', 'TEXT'),
+            ('processed_at', 'TEXT'),
+            ('original_duration', 'REAL'),
+            ('ads_removed_firstpass', 'INTEGER DEFAULT 0'),
+            ('ads_removed_secondpass', 'INTEGER DEFAULT 0'),
+            ('description', 'TEXT'),
+            ('reprocess_mode', 'TEXT'),
+            ('reprocess_requested_at', 'TEXT'),
+            ('published_at', 'TEXT'),
+            ('retry_count', 'INTEGER DEFAULT 0'),
+        ]
+        for col, definition in episodes_migrations:
+            self._add_column_if_missing(conn, 'episodes', col, definition, ep_cols)
 
-        # Migration: Add ad_detection_status column if missing
-        if 'ad_detection_status' not in columns:
-            try:
-                conn.execute("""
-                    ALTER TABLE episodes
-                    ADD COLUMN ad_detection_status TEXT DEFAULT NULL
-                """)
-                conn.commit()
-                logger.info("Migration: Added ad_detection_status column to episodes table")
-            except Exception as e:
-                logger.error(f"Migration failed for ad_detection_status: {e}")
+        # -- Episode details table columns --
+        det_cols = self._get_table_columns(conn, 'episode_details')
 
-        # Migration: Add created_at column if missing
-        if 'created_at' not in columns:
-            try:
-                conn.execute("""
-                    ALTER TABLE episodes
-                    ADD COLUMN created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-                """)
-                conn.commit()
-                logger.info("Migration: Added created_at column to episodes table")
-            except Exception as e:
-                logger.error(f"Migration failed for created_at: {e}")
+        # Renames (legacy column names)
+        self._rename_column_if_needed(conn, 'episode_details', 'claude_prompt', 'first_pass_prompt', det_cols)
+        self._rename_column_if_needed(conn, 'episode_details', 'claude_raw_response', 'first_pass_response', det_cols)
 
-        # Migration: Add artwork_url column if missing
-        if 'artwork_url' not in columns:
-            try:
-                conn.execute("""
-                    ALTER TABLE episodes
-                    ADD COLUMN artwork_url TEXT
-                """)
-                conn.commit()
-                logger.info("Migration: Added artwork_url column to episodes table")
-            except Exception as e:
-                logger.error(f"Migration failed for artwork_url: {e}")
+        # Refresh after renames
+        det_cols = self._get_table_columns(conn, 'episode_details')
+        details_migrations = [
+            ('second_pass_prompt', 'TEXT'),
+            ('second_pass_response', 'TEXT'),
+            ('audio_analysis_json', 'TEXT'),
+            ('transcript_vtt', 'TEXT'),
+            ('chapters_json', 'TEXT'),
+        ]
+        for col, definition in details_migrations:
+            self._add_column_if_missing(conn, 'episode_details', col, definition, det_cols)
 
-        # Migration: Add processed_file column if missing
-        if 'processed_file' not in columns:
-            try:
-                conn.execute("""
-                    ALTER TABLE episodes
-                    ADD COLUMN processed_file TEXT
-                """)
-                conn.commit()
-                logger.info("Migration: Added processed_file column to episodes table")
-            except Exception as e:
-                logger.error(f"Migration failed for processed_file: {e}")
-
-        # Migration: Add processed_at column if missing
-        if 'processed_at' not in columns:
-            try:
-                conn.execute("""
-                    ALTER TABLE episodes
-                    ADD COLUMN processed_at TEXT
-                """)
-                conn.commit()
-                logger.info("Migration: Added processed_at column to episodes table")
-            except Exception as e:
-                logger.error(f"Migration failed for processed_at: {e}")
-
-        # Migration: Add original_duration column if missing
-        if 'original_duration' not in columns:
-            try:
-                conn.execute("""
-                    ALTER TABLE episodes
-                    ADD COLUMN original_duration REAL
-                """)
-                conn.commit()
-                logger.info("Migration: Added original_duration column to episodes table")
-            except Exception as e:
-                logger.error(f"Migration failed for original_duration: {e}")
-
-        # Get existing columns in episode_details table
-        cursor = conn.execute("PRAGMA table_info(episode_details)")
-        details_columns = [row['name'] for row in cursor.fetchall()]
-
-        # Migration: Rename claude_prompt to first_pass_prompt
-        if 'claude_prompt' in details_columns and 'first_pass_prompt' not in details_columns:
-            try:
-                conn.execute("""
-                    ALTER TABLE episode_details
-                    RENAME COLUMN claude_prompt TO first_pass_prompt
-                """)
-                conn.commit()
-                logger.info("Migration: Renamed claude_prompt to first_pass_prompt")
-            except Exception as e:
-                logger.error(f"Migration failed for claude_prompt rename: {e}")
-
-        # Migration: Rename claude_raw_response to first_pass_response
-        if 'claude_raw_response' in details_columns and 'first_pass_response' not in details_columns:
-            try:
-                conn.execute("""
-                    ALTER TABLE episode_details
-                    RENAME COLUMN claude_raw_response TO first_pass_response
-                """)
-                conn.commit()
-                logger.info("Migration: Renamed claude_raw_response to first_pass_response")
-            except Exception as e:
-                logger.error(f"Migration failed for claude_raw_response rename: {e}")
-
-        # Refresh column list after renames
-        cursor = conn.execute("PRAGMA table_info(episode_details)")
-        details_columns = [row['name'] for row in cursor.fetchall()]
-
-        # Migration: Add second_pass_prompt column if missing
-        if 'second_pass_prompt' not in details_columns:
-            try:
-                conn.execute("""
-                    ALTER TABLE episode_details
-                    ADD COLUMN second_pass_prompt TEXT
-                """)
-                conn.commit()
-                logger.info("Migration: Added second_pass_prompt column to episode_details table")
-            except Exception as e:
-                logger.error(f"Migration failed for second_pass_prompt: {e}")
-
-        # Migration: Add second_pass_response column if missing
-        if 'second_pass_response' not in details_columns:
-            try:
-                conn.execute("""
-                    ALTER TABLE episode_details
-                    ADD COLUMN second_pass_response TEXT
-                """)
-                conn.commit()
-                logger.info("Migration: Added second_pass_response column to episode_details table")
-            except Exception as e:
-                logger.error(f"Migration failed for second_pass_response: {e}")
-
-        # Migration: Add ads_removed_firstpass column if missing
-        if 'ads_removed_firstpass' not in columns:
-            try:
-                conn.execute("""
-                    ALTER TABLE episodes
-                    ADD COLUMN ads_removed_firstpass INTEGER DEFAULT 0
-                """)
-                conn.commit()
-                logger.info("Migration: Added ads_removed_firstpass column to episodes table")
-            except Exception as e:
-                logger.error(f"Migration failed for ads_removed_firstpass: {e}")
-
-        # Migration: Add ads_removed_secondpass column if missing
-        if 'ads_removed_secondpass' not in columns:
-            try:
-                conn.execute("""
-                    ALTER TABLE episodes
-                    ADD COLUMN ads_removed_secondpass INTEGER DEFAULT 0
-                """)
-                conn.commit()
-                logger.info("Migration: Added ads_removed_secondpass column to episodes table")
-            except Exception as e:
-                logger.error(f"Migration failed for ads_removed_secondpass: {e}")
-
-        # Migration: Add description column if missing
-        if 'description' not in columns:
-            try:
-                conn.execute("""
-                    ALTER TABLE episodes
-                    ADD COLUMN description TEXT
-                """)
-                conn.commit()
-                logger.info("Migration: Added description column to episodes table")
-            except Exception as e:
-                logger.error(f"Migration failed for description: {e}")
-
-        # Migration: Add reprocess_mode column if missing (Gap 3 fix)
-        if 'reprocess_mode' not in columns:
-            try:
-                conn.execute("""
-                    ALTER TABLE episodes
-                    ADD COLUMN reprocess_mode TEXT
-                """)
-                conn.commit()
-                logger.info("Migration: Added reprocess_mode column to episodes table")
-            except Exception as e:
-                logger.error(f"Migration failed for reprocess_mode: {e}")
-
-        # Migration: Add reprocess_requested_at column if missing (Gap 4 - priority queue)
-        if 'reprocess_requested_at' not in columns:
-            try:
-                conn.execute("""
-                    ALTER TABLE episodes
-                    ADD COLUMN reprocess_requested_at TEXT
-                """)
-                conn.commit()
-                logger.info("Migration: Added reprocess_requested_at column to episodes table")
-            except Exception as e:
-                logger.error(f"Migration failed for reprocess_requested_at: {e}")
-
-        # Migration: Add published_at column if missing (RSS pubDate)
-        if 'published_at' not in columns:
-            try:
-                conn.execute("""
-                    ALTER TABLE episodes
-                    ADD COLUMN published_at TEXT
-                """)
-                conn.commit()
-                logger.info("Migration: Added published_at column to episodes table")
-            except Exception as e:
-                logger.error(f"Migration failed for published_at: {e}")
-
-        # Refresh details_columns list before checking for new columns
-        cursor = conn.execute("PRAGMA table_info(episode_details)")
-        details_columns = [row['name'] for row in cursor.fetchall()]
-
-        # Migration: Add audio_analysis_json column if missing
-        if 'audio_analysis_json' not in details_columns:
-            try:
-                conn.execute("""
-                    ALTER TABLE episode_details
-                    ADD COLUMN audio_analysis_json TEXT
-                """)
-                conn.commit()
-                logger.info("Migration: Added audio_analysis_json column to episode_details table")
-            except Exception as e:
-                logger.error(f"Migration failed for audio_analysis_json: {e}")
-
-        # ========== Cross-Episode Training Migrations ==========
-
-        # Get existing columns in podcasts table
-        cursor = conn.execute("PRAGMA table_info(podcasts)")
-        podcasts_columns = [row['name'] for row in cursor.fetchall()]
-
-        # Migration: Add network_id column to podcasts if missing
-        if 'network_id' not in podcasts_columns:
-            try:
-                conn.execute("""
-                    ALTER TABLE podcasts
-                    ADD COLUMN network_id TEXT
-                """)
-                conn.commit()
-                logger.info("Migration: Added network_id column to podcasts table")
-            except Exception as e:
-                logger.error(f"Migration failed for network_id: {e}")
-
-        # Migration: Add dai_platform column to podcasts if missing
-        if 'dai_platform' not in podcasts_columns:
-            try:
-                conn.execute("""
-                    ALTER TABLE podcasts
-                    ADD COLUMN dai_platform TEXT
-                """)
-                conn.commit()
-                logger.info("Migration: Added dai_platform column to podcasts table")
-            except Exception as e:
-                logger.error(f"Migration failed for dai_platform: {e}")
-
-        # Migration: Add network_id_override column to podcasts if missing
-        if 'network_id_override' not in podcasts_columns:
-            try:
-                conn.execute("""
-                    ALTER TABLE podcasts
-                    ADD COLUMN network_id_override TEXT
-                """)
-                conn.commit()
-                logger.info("Migration: Added network_id_override column to podcasts table")
-            except Exception as e:
-                logger.error(f"Migration failed for network_id_override: {e}")
-
-        # Migration: Add audio_analysis_override column to podcasts if missing
-        if 'audio_analysis_override' not in podcasts_columns:
-            try:
-                conn.execute("""
-                    ALTER TABLE podcasts
-                    ADD COLUMN audio_analysis_override TEXT
-                """)
-                conn.commit()
-                logger.info("Migration: Added audio_analysis_override column to podcasts table")
-            except Exception as e:
-                logger.error(f"Migration failed for audio_analysis_override: {e}")
-
-        # Migration: Add created_at column to podcasts if missing
-        if 'created_at' not in podcasts_columns:
-            try:
-                conn.execute("""
-                    ALTER TABLE podcasts
-                    ADD COLUMN created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-                """)
-                conn.commit()
-                logger.info("Migration: Added created_at column to podcasts table")
-            except Exception as e:
-                logger.error(f"Migration failed for podcasts created_at: {e}")
-
-        # Migration: Add auto_process_override column to podcasts if missing
-        if 'auto_process_override' not in podcasts_columns:
-            try:
-                conn.execute("""
-                    ALTER TABLE podcasts
-                    ADD COLUMN auto_process_override TEXT
-                """)
-                conn.commit()
-                logger.info("Migration: Added auto_process_override column to podcasts table")
-            except Exception as e:
-                logger.error(f"Migration failed for auto_process_override: {e}")
-
-        # Migration: Add skip_second_pass column to podcasts if missing
-        if 'skip_second_pass' not in podcasts_columns:
-            try:
-                conn.execute("""
-                    ALTER TABLE podcasts
-                    ADD COLUMN skip_second_pass INTEGER DEFAULT 0
-                """)
-                conn.commit()
-                logger.info("Migration: Added skip_second_pass column to podcasts table")
-            except Exception as e:
-                logger.error(f"Migration failed for skip_second_pass: {e}")
-
-        # Refresh episodes columns for retry_count migration
-        cursor = conn.execute("PRAGMA table_info(episodes)")
-        columns = [row['name'] for row in cursor.fetchall()]
-
-        # Migration: Add retry_count column to episodes if missing
-        if 'retry_count' not in columns:
-            try:
-                conn.execute("""
-                    ALTER TABLE episodes
-                    ADD COLUMN retry_count INTEGER DEFAULT 0
-                """)
-                conn.commit()
-                logger.info("Migration: Added retry_count column to episodes table")
-            except Exception as e:
-                logger.error(f"Migration failed for retry_count: {e}")
+        # -- Podcasts table columns --
+        pod_cols = self._get_table_columns(conn, 'podcasts')
+        podcasts_migrations = [
+            ('network_id', 'TEXT'),
+            ('dai_platform', 'TEXT'),
+            ('network_id_override', 'TEXT'),
+            ('audio_analysis_override', 'TEXT'),
+            ('created_at', "TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))"),
+            ('auto_process_override', 'TEXT'),
+            ('skip_second_pass', 'INTEGER DEFAULT 0'),
+            ('etag', 'TEXT'),
+            ('last_modified_header', 'TEXT'),
+        ]
+        for col, definition in podcasts_migrations:
+            self._add_column_if_missing(conn, 'podcasts', col, definition, pod_cols)
 
         # Migration: Update episodes status CHECK constraint to include 'permanently_failed'
         # SQLite doesn't support ALTER TABLE to modify constraints, so we recreate the table
@@ -1103,18 +891,6 @@ class Database:
                 logger.debug(f"Index creation (may already exist): {e}")
         conn.commit()
 
-        # Migration: Add ETag columns for conditional GET support
-        etag_columns = [
-            "ALTER TABLE podcasts ADD COLUMN etag TEXT",
-            "ALTER TABLE podcasts ADD COLUMN last_modified_header TEXT",
-        ]
-        for col_sql in etag_columns:
-            try:
-                conn.execute(col_sql)
-                conn.commit()
-            except Exception:
-                pass  # Column already exists
-
         # Migration: Create FTS5 search index table
         try:
             conn.execute("""
@@ -1142,34 +918,6 @@ class Database:
                 logger.info(f"Search index populated with {count} items")
         except Exception as e:
             logger.warning(f"Failed to auto-populate search index: {e}")
-
-        # Refresh episode_details columns after previous migrations
-        cursor = conn.execute("PRAGMA table_info(episode_details)")
-        details_columns = [row['name'] for row in cursor.fetchall()]
-
-        # Migration: Add transcript_vtt column if missing
-        if 'transcript_vtt' not in details_columns:
-            try:
-                conn.execute("""
-                    ALTER TABLE episode_details
-                    ADD COLUMN transcript_vtt TEXT
-                """)
-                conn.commit()
-                logger.info("Migration: Added transcript_vtt column to episode_details table")
-            except Exception as e:
-                logger.error(f"Migration failed for transcript_vtt: {e}")
-
-        # Migration: Add chapters_json column if missing
-        if 'chapters_json' not in details_columns:
-            try:
-                conn.execute("""
-                    ALTER TABLE episode_details
-                    ADD COLUMN chapters_json TEXT
-                """)
-                conn.commit()
-                logger.info("Migration: Added chapters_json column to episode_details table")
-            except Exception as e:
-                logger.error(f"Migration failed for chapters_json: {e}")
 
         # Migration: Convert numeric podcast_ids to slugs in ad_patterns table
         # This fixes a bug where auto-created patterns stored numeric IDs instead of slugs
@@ -1606,10 +1354,6 @@ class Database:
             True if update succeeded
         """
         return self.update_podcast(slug, etag=etag, last_modified_header=last_modified)
-
-    def get_podcast(self, slug: str) -> Optional[Dict]:
-        """Alias for get_podcast_by_slug for backwards compatibility."""
-        return self.get_podcast_by_slug(slug)
 
     # ========== Episode Methods ==========
 
@@ -2413,6 +2157,52 @@ class Database:
         )
         conn.commit()
         return cursor.lastrowid
+
+    def delete_conflicting_corrections(self, episode_id: str, correction_type: str,
+                                        bounds_start: float, bounds_end: float) -> int:
+        """Delete corrections that conflict with a new correction being submitted.
+
+        When user confirms an ad, delete false_positive corrections for same bounds.
+        When user rejects an ad, delete confirm corrections for same bounds.
+
+        Returns number of deleted rows.
+        """
+        # Determine the conflicting type
+        if correction_type == 'confirm':
+            conflicting_type = 'false_positive'
+        elif correction_type == 'false_positive':
+            conflicting_type = 'confirm'
+        else:
+            return 0  # adjust doesn't conflict with either
+
+        conn = self.get_connection()
+        cursor = conn.execute(
+            """SELECT id, original_bounds FROM pattern_corrections
+               WHERE episode_id = ? AND correction_type = ?""",
+            (episode_id, conflicting_type)
+        )
+
+        deleted = 0
+        for row in cursor.fetchall():
+            if row['original_bounds']:
+                try:
+                    parsed = json.loads(row['original_bounds'])
+                    fp_start = float(parsed.get('start', 0))
+                    fp_end = float(parsed.get('end', 0))
+                    # Check overlap (same 50% threshold as validator)
+                    overlap_start = max(bounds_start, fp_start)
+                    overlap_end = min(bounds_end, fp_end)
+                    overlap = max(0, overlap_end - overlap_start)
+                    segment_duration = bounds_end - bounds_start
+                    if segment_duration > 0 and overlap / segment_duration >= 0.5:
+                        conn.execute("DELETE FROM pattern_corrections WHERE id = ?", (row['id'],))
+                        deleted += 1
+                except (json.JSONDecodeError, KeyError, ValueError):
+                    pass
+
+        if deleted:
+            conn.commit()
+        return deleted
 
     def get_pattern_corrections(self, pattern_id: int = None, limit: int = 100) -> List[Dict]:
         """Get pattern corrections, optionally filtered by pattern_id."""

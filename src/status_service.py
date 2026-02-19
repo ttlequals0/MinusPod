@@ -218,8 +218,8 @@ class StatusService:
                 self._write_status_file(status)
         self._notify_subscribers()
 
-    def complete_job(self):
-        """Mark the current job as complete."""
+    def _clear_current_job(self):
+        """Clear the current job from status tracking."""
         with self._status_lock:
             status = self._read_status_file()
             status['current_job'] = None
@@ -227,14 +227,13 @@ class StatusService:
             self._write_status_file(status)
         self._notify_subscribers()
 
+    def complete_job(self):
+        """Mark the current job as complete."""
+        self._clear_current_job()
+
     def fail_job(self):
         """Mark the current job as failed."""
-        with self._status_lock:
-            status = self._read_status_file()
-            status['current_job'] = None
-            status['last_updated'] = time.time()
-            self._write_status_file(status)
-        self._notify_subscribers()
+        self._clear_current_job()
 
     def queue_episode(self, slug: str, episode_id: str, title: str, podcast_name: str):
         """Add an episode to the queue."""

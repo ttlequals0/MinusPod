@@ -1,7 +1,9 @@
 """REST API for MinusPod web UI."""
 import json
 import logging
+import math
 import os
+import re
 import time
 from datetime import datetime, timezone
 from typing import Optional
@@ -92,15 +94,15 @@ def check_auth():
             return None
 
     # Allow RSS feeds without auth (for podcast apps)
-    if '/rss' in path:
+    if path.endswith('/rss'):
         return None
 
     # Allow audio files without auth (for podcast apps)
-    if '/audio' in path:
+    if '/audio' in path and path.startswith('/api/v1/feeds/'):
         return None
 
     # Allow artwork without auth (img tags don't redirect on 401)
-    if '/artwork' in path:
+    if '/artwork' in path and path.startswith('/api/v1/feeds/'):
         return None
 
     # Check if password is set
@@ -985,7 +987,6 @@ def regenerate_chapters(slug, episode_id):
 
 def _parse_vtt_to_segments(vtt_content: str) -> list:
     """Parse VTT content back to segment list."""
-    import re
     segments = []
 
     # VTT format: HH:MM:SS.mmm --> HH:MM:SS.mmm or MM:SS.mmm --> MM:SS.mmm
@@ -1297,7 +1298,6 @@ def get_processing_history():
             'reprocessNumber': entry['reprocess_number']
         })
 
-    import math
     return json_response({
         'history': history,
         'total': total_count,
@@ -1959,7 +1959,6 @@ def add_normalization():
         return error_response("Category must be one of: sponsor, url, number, phrase", 400)
 
     # Validate regex pattern
-    import re
     try:
         re.compile(data['pattern'])
     except re.error as e:
@@ -1989,7 +1988,6 @@ def update_normalization(norm_id):
 
     # Validate regex pattern if provided
     if 'pattern' in data:
-        import re
         try:
             re.compile(data['pattern'])
         except re.error as e:
@@ -2550,6 +2548,11 @@ def submit_correction(slug, episode_id):
                             # Skip pattern creation - no sponsor detected
                             logger.info(f"Skipped pattern creation (no sponsor detected) for confirmed ad in {slug}/{episode_id}")
 
+        # Delete any conflicting false_positive corrections for this segment
+        deleted = db.delete_conflicting_corrections(episode_id, 'confirm', original_start, original_end)
+        if deleted:
+            logger.info(f"Deleted {deleted} conflicting false_positive correction(s) for {slug}/{episode_id}")
+
         db.create_pattern_correction(
             correction_type='confirm',
             pattern_id=pattern_id,
@@ -2580,6 +2583,11 @@ def submit_correction(slug, episode_id):
                 new_count = pattern.get('false_positive_count', 0) + 1
                 db.update_ad_pattern(pattern_id, false_positive_count=new_count)
                 logger.info(f"Incremented false_positive_count to {new_count} for pattern {pattern_id}")
+
+        # Delete any conflicting confirm corrections for this segment
+        deleted = db.delete_conflicting_corrections(episode_id, 'false_positive', original_start, original_end)
+        if deleted:
+            logger.info(f"Deleted {deleted} conflicting confirm correction(s) for {slug}/{episode_id}")
 
         db.create_pattern_correction(
             correction_type='false_positive',
