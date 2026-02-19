@@ -12,6 +12,7 @@ from pathlib import Path
 from utils.audio import get_audio_duration as _get_audio_duration
 from utils.time import format_vtt_timestamp
 from utils.gpu import clear_gpu_memory, get_available_memory_gb, get_gpu_memory_info
+from utils.url import validate_url, SSRFError
 from config import (
     CHUNK_OVERLAP_SECONDS,
     CHUNK_MIN_DURATION_SECONDS,
@@ -637,6 +638,12 @@ class Transcriber:
             Tuple of (available: bool, error_message: str or None)
         """
         try:
+            validate_url(url)
+        except SSRFError as e:
+            logger.warning(f"SSRF blocked in check_audio_availability: {e}")
+            return False, f"URL blocked: {e}"
+
+        try:
             headers = {
                 'User-Agent': BROWSER_USER_AGENT,
             }
@@ -663,6 +670,12 @@ class Transcriber:
             url: Audio file URL
             timeout: (connect_timeout, read_timeout) in seconds
         """
+        try:
+            validate_url(url)
+        except SSRFError as e:
+            logger.warning(f"SSRF blocked in download_audio: {e}")
+            return None
+
         try:
             logger.info(f"Downloading audio from: {url}")
             headers = {
@@ -707,6 +720,12 @@ class Transcriber:
         Returns:
             Path to downloaded file, or None on failure
         """
+        try:
+            validate_url(url)
+        except SSRFError as e:
+            logger.warning(f"SSRF blocked in download_audio_with_resume: {e}")
+            return None
+
         # Generate consistent temp path based on URL hash
         url_hash = hashlib.md5(url.encode()).hexdigest()[:16]
         temp_path = os.path.join(tempfile.gettempdir(), f'podcast_dl_{url_hash}.mp3')

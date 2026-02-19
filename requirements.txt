@@ -25,6 +25,9 @@ pyacoustid>=1.2.0
 rapidfuzz>=3.0.0
 scikit-learn>=1.3.0
 
+# Security
+nh3>=0.2.14
+
 # Testing
 pytest>=7.4.0
 pytest-cov>=4.1.0

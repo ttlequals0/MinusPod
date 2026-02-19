@@ -6,6 +6,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.7] - 2026-02-19
+
+### Security
+- **SSRF protection for outbound requests**: User-supplied feed URLs (via `add_feed` and `import_opml`) and second-order URLs from RSS content (artwork, audio) are now validated before any outbound request. Blocks private/reserved IPs, loopback, link-local, cloud metadata endpoints (169.254.169.254, 168.63.129.16), restricted schemes (only http/https allowed), and non-standard ports. Validation applied at API entry points and as defense-in-depth in `rss_parser.py`, `storage.py`, and `transcriber.py`.
+- **Stored XSS fix in search snippets**: FTS5 search snippets containing unsanitized RSS description HTML are now sanitized server-side via `nh3` (only `<mark>` tags preserved). Frontend `Search.tsx` replaced unsafe innerHTML rendering with a safe React rendering helper that splits on `<mark>` boundaries and renders all other content as escaped text.
+
+### Added
+- `src/utils/url.py` -- SSRF URL validation module (`validate_url`, `SSRFError`)
+- `ALLOWED_URL_SCHEMES` and `ALLOWED_URL_PORTS` constants in `src/utils/constants.py`
+- `nh3` dependency for HTML sanitization
+
 ## [1.0.6] - 2026-02-19
 
 ### Fixed

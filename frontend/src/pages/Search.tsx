@@ -1,10 +1,25 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, ReactNode } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { search, rebuildSearchIndex, getSearchStats, SearchResult } from '../api/search';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 type FilterType = 'all' | 'episode' | 'podcast' | 'pattern' | 'sponsor';
+
+/**
+ * Safely render a search snippet with <mark> highlights as React elements.
+ * All other content is rendered as plain text (auto-escaped by React).
+ */
+function renderSnippet(snippet: string): ReactNode[] {
+  const parts = snippet.split(/(<mark>.*?<\/mark>)/g);
+  return parts.map((part, i) => {
+    const match = part.match(/^<mark>(.*?)<\/mark>$/);
+    if (match) {
+      return <mark key={i}>{match[1]}</mark>;
+    }
+    return part;
+  });
+}
 
 function Search() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -274,10 +289,9 @@ function SearchResultCard({ result, link }: { result: SearchResult; link: string
             <p className="text-xs text-muted-foreground truncate">{result.podcastSlug}</p>
           )}
           {result.snippet && (
-            <p
-              className="text-sm text-muted-foreground mt-1 line-clamp-2"
-              dangerouslySetInnerHTML={{ __html: result.snippet }}
-            />
+            <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+              {renderSnippet(result.snippet)}
+            </p>
           )}
         </div>
       </div>

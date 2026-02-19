@@ -8,6 +8,7 @@ from typing import Dict, List, Optional
 import requests
 
 from config import APP_USER_AGENT
+from utils.url import validate_url, SSRFError
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +18,12 @@ class RSSParser:
 
     def fetch_feed(self, url: str, timeout: int = 30) -> Optional[str]:
         """Fetch RSS feed from URL."""
+        try:
+            validate_url(url)
+        except SSRFError as e:
+            logger.warning(f"SSRF blocked in fetch_feed: {e} (url={url})")
+            return None
+
         try:
             logger.info(f"Fetching RSS feed from: {url}")
             response = requests.get(url, timeout=timeout)
@@ -58,6 +65,12 @@ class RSSParser:
             If feed not modified (304), returns (None, etag, last_modified)
             On error, returns (None, None, None)
         """
+        try:
+            validate_url(url)
+        except SSRFError as e:
+            logger.warning(f"SSRF blocked in fetch_feed_conditional: {e} (url={url})")
+            return None, None, None
+
         headers = {'User-Agent': APP_USER_AGENT}
 
         if etag:

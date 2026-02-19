@@ -19,7 +19,9 @@ from utils.constants import (
     INVALID_SPONSOR_VALUES, STRUCTURAL_FIELDS,
     SPONSOR_PRIORITY_FIELDS, SPONSOR_PATTERN_KEYWORDS,
     INVALID_SPONSOR_CAPTURE_WORDS, NOT_AD_CLASSIFICATIONS,
+    ALLOWED_URL_SCHEMES, ALLOWED_URL_PORTS,
 )
+from utils.url import validate_url, SSRFError
 
 __all__ = [
     'get_audio_duration',
@@ -38,4 +40,8 @@ __all__ = [
     'SPONSOR_PATTERN_KEYWORDS',
     'INVALID_SPONSOR_CAPTURE_WORDS',
     'NOT_AD_CLASSIFICATIONS',
+    'ALLOWED_URL_SCHEMES',
+    'ALLOWED_URL_PORTS',
+    'validate_url',
+    'SSRFError',
 ]

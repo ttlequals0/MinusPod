@@ -9,6 +9,8 @@ from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, List, Any, Tuple
 
+import nh3
+
 from utils.time import parse_timestamp
 from utils.text import extract_text_in_range
 
@@ -3242,6 +3244,13 @@ class Database:
             logger.error(f"Failed to index episode {episode_id}: {e}")
             return False
 
+    @staticmethod
+    def _sanitize_snippet(snippet):
+        """Sanitize FTS5 snippet HTML, allowing only <mark> highlight tags."""
+        if not snippet:
+            return snippet
+        return nh3.clean(snippet, tags={"mark"}, attributes={})
+
     def search(self, query: str, content_type: Optional[str] = None, limit: int = 50) -> List[Dict]:
         """Full-text search across indexed content.
 
@@ -3301,7 +3310,7 @@ class Database:
                     'id': row['content_id'],
                     'podcastSlug': row['podcast_slug'],
                     'title': row['title'],
-                    'snippet': row['snippet'],
+                    'snippet': self._sanitize_snippet(row['snippet']),
                     'score': abs(row['score'])  # BM25 returns negative scores
                 })
 

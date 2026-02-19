@@ -15,6 +15,7 @@ from werkzeug.security import generate_password_hash, check_password_hash
 
 from utils.time import parse_timestamp
 from utils.text import extract_text_in_range
+from utils.url import validate_url, SSRFError
 from sponsor_service import SponsorService
 
 logger = logging.getLogger('podcast.api')
@@ -236,6 +237,13 @@ def add_feed():
     if not source_url:
         return error_response('sourceUrl cannot be empty', 400)
 
+    # SSRF protection: validate URL before any outbound request
+    try:
+        validate_url(source_url)
+    except SSRFError as e:
+        logger.warning(f"SSRF blocked in add_feed: {e} (url={source_url})")
+        return error_response(f'Invalid feed URL: {e}', 400)
+
     # Generate slug from podcast name or use provided slug
     slug = data.get('slug', '').strip()
     if not slug:
@@ -359,6 +367,14 @@ def import_opml():
     for feed_info in feeds_found:
         source_url = feed_info['url'].strip()
         title = feed_info['title'].strip()
+
+        # SSRF protection: validate each feed URL
+        try:
+            validate_url(source_url)
+        except SSRFError as e:
+            logger.warning(f"SSRF blocked in OPML import: {e} (url={source_url})")
+            failed.append({'url': source_url, 'error': f'Invalid URL: {e}'})
+            continue
 
         # Generate slug
         slug = make_slug(title) if title else None

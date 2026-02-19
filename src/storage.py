@@ -8,6 +8,7 @@ import tempfile
 import shutil
 
 from config import BROWSER_USER_AGENT
+from utils.url import validate_url, SSRFError
 
 logger = logging.getLogger(__name__)
 
@@ -334,6 +335,12 @@ class Storage:
             if podcast and podcast.get('artwork_url') == artwork_url and podcast.get('artwork_cached'):
                 logger.debug(f"[{slug}] Artwork already cached")
                 return True
+
+            try:
+                validate_url(artwork_url)
+            except SSRFError as e:
+                logger.warning(f"[{slug}] SSRF blocked in download_artwork: {e}")
+                return False
 
             logger.info(f"[{slug}] Downloading artwork from {artwork_url}")
 

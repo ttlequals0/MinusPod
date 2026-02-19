@@ -49,3 +49,9 @@ NOT_AD_CLASSIFICATIONS = frozenset({
     'show_content', 'regular_content', 'interview',
     'conversation', 'segment', 'topic'
 })
+
+# SSRF protection: allowed URL schemes for outbound requests
+ALLOWED_URL_SCHEMES = frozenset({'http', 'https'})
+
+# SSRF protection: allowed ports for outbound requests (empty = allow all)
+ALLOWED_URL_PORTS = frozenset({80, 443, 8080, 8443})
