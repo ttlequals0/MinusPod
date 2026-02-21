@@ -6,6 +6,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.8] - 2026-02-21
+
+### Changed
+- **Tightened "WHAT IS NOT AN AD" host mention rule**: Added "organically" qualifier and conversational context to the host self-promotion exclusion in both system and verification prompts, preventing produced cross-promos from being incorrectly excluded
+- **Removed blanket network cross-promo exclusion from verification prompt**: The rule "Cross-promotion of shows within the same podcast network (unless it includes promo codes or external URLs)" was too broad and caused produced promo segments to be missed
+
+### Added
+- **"PLATFORM-INSERTED ADS" section in both prompts**: New detection guidance for hosting platform pre/post-rolls (Acast, Spotify for Podcasters, iHeart Radio), cross-promotions for other podcasts, and network promos with clear distinction between organic host mentions and produced promotional segments
+- **DB migration to auto-update default prompts on existing installs**: Migration uses `PLATFORM-INSERTED ADS` sentinel to detect old prompts and only updates if `is_default` is set (custom prompts are preserved)
+
 ## [1.0.7] - 2026-02-19
 
 ### Security

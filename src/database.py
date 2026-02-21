@@ -31,8 +31,19 @@ WHAT IS NOT AN AD:
 - Topic transitions or content gaps where the host changes subjects
 - Audio signal changes (volume shifts, tone changes) without any promotional transcript content
 - A guest discussing their own work, book, or project in the context of the interview
-- The host mentioning their own other shows, social media, or Patreon
+- The host organically mentioning their own other shows, social media, or Patreon as part of conversation
 - Brand names mentioned in passing as part of genuine topic discussion
+
+PLATFORM-INSERTED ADS (these ARE ads -- flag them):
+- Hosting platform pre/post-rolls: "Acast powers the world's best podcasts", "Hosted on Acast",
+  "Spotify for Podcasters", "iHeart Radio", etc. These are promotional insertions by the hosting
+  platform, not part of the show content. They typically bookend the episode.
+- Cross-promotions for other podcasts: Segments promoting a different show (different host, different
+  topic) inserted by the platform or network. These are ads even without promo codes.
+- Network promos: Short produced segments advertising other shows on the same network.
+- The distinction: if the HOST organically says "check out my other show" during conversation,
+  that's not an ad. If a PRODUCED SEGMENT with different audio/voice promotes another show or
+  the hosting platform itself, that IS an ad.
 
 WHAT TO LOOK FOR:
 - Transitions: "This episode is brought to you by...", "A word from our sponsors", "Let's take a break"
@@ -144,13 +155,22 @@ MISSED ADS:
 
 WHAT IS NOT AN AD:
 - A guest discussing their own work, book, or project in the context of the interview
-- The host mentioning their own other shows, social media, or Patreon
+- The host organically mentioning their own other shows, social media, or Patreon during conversation
 - Genuine topic discussion that happens to mention a brand name in passing
 - Episode content that sounds slightly awkward due to surrounding ad removal
-- Cross-promotion of shows within the same podcast network (unless it includes promo codes or external URLs)
 - Silence, pauses, or dead air -- these are normal, not missed ads
 - Content gaps or topic transitions between segments
 - Audio artifacts from the first pass ad removal (slight volume changes near cut points are expected)
+
+PLATFORM-INSERTED ADS (these ARE ads -- flag them if still present):
+- Hosting platform pre/post-rolls: "Acast powers the world's best podcasts", "Hosted on Acast",
+  "Spotify for Podcasters", "iHeart Radio", etc. These are promotional insertions, not show content.
+- Cross-promotions for other podcasts: Produced segments promoting a different show (different host,
+  different topic) inserted by the platform or network. These are ads even without promo codes.
+- Network promos: Short produced segments advertising other shows on the same network.
+- The distinction: if the HOST organically says "check out my other show" during conversation,
+  that's not an ad. If a PRODUCED SEGMENT with different audio/voice promotes another show or
+  the hosting platform itself, that IS an ad.
 
 NOTE: A short, polished segment with marketing language for a brand IS still an ad even if
 it lacks promo codes or URLs. The distinction is: editorial content discusses a brand in
@@ -959,6 +979,37 @@ class Database:
                 logger.info("Migration: Updated default verification_prompt to v1.0.2 (DAI tagline guidance)")
         except Exception as e:
             logger.warning(f"Migration failed for verification_prompt v1.0.2: {e}")
+
+        # Migration: Update default prompts to v1.0.8 (platform-inserted ads guidance)
+        try:
+            cursor = conn.execute(
+                "SELECT value, is_default FROM settings WHERE key = 'system_prompt'"
+            )
+            row = cursor.fetchone()
+            if row and row['is_default'] and 'PLATFORM-INSERTED ADS' not in (row['value'] or ''):
+                conn.execute(
+                    "UPDATE settings SET value = ? WHERE key = 'system_prompt'",
+                    (DEFAULT_SYSTEM_PROMPT,)
+                )
+                conn.commit()
+                logger.info("Migration: Updated default system_prompt to v1.0.8 (platform-inserted ads)")
+        except Exception as e:
+            logger.warning(f"Migration failed for system_prompt v1.0.8: {e}")
+
+        try:
+            cursor = conn.execute(
+                "SELECT value, is_default FROM settings WHERE key = 'verification_prompt'"
+            )
+            row = cursor.fetchone()
+            if row and row['is_default'] and 'PLATFORM-INSERTED ADS' not in (row['value'] or ''):
+                conn.execute(
+                    "UPDATE settings SET value = ? WHERE key = 'verification_prompt'",
+                    (DEFAULT_VERIFICATION_PROMPT,)
+                )
+                conn.commit()
+                logger.info("Migration: Updated default verification_prompt to v1.0.8 (platform-inserted ads)")
+        except Exception as e:
+            logger.warning(f"Migration failed for verification_prompt v1.0.8: {e}")
 
     def _cleanup_contaminated_patterns(self):
         """Delete patterns with text_template > 3500 chars (contaminated).
