@@ -401,3 +401,124 @@ class TestDatabaseSingleton:
 
         # Clean up
         Database._instance = None
+
+
+class TestResetFailedQueueItems:
+    """Tests for reset_failed_queue_items() auto-retry logic."""
+
+    def _setup_podcast_and_episode(self, db, slug, episode_id, episode_status='failed', retry_count=0):
+        """Helper: create a podcast + episode and return podcast_id."""
+        db.create_podcast(slug, f'https://example.com/{slug}.xml', slug)
+        db.upsert_episode(slug, episode_id,
+                          original_url=f'https://example.com/{episode_id}.mp3',
+                          status=episode_status,
+                          retry_count=retry_count)
+        podcast = db.get_podcast_by_slug(slug)
+        return podcast['id']
+
+    def _queue_item(self, db, podcast_id, episode_id, status='failed', attempts=1, minutes_ago=10):
+        """Helper: insert a queue item with a backdated updated_at."""
+        conn = db.get_connection()
+        conn.execute(
+            """INSERT INTO auto_process_queue
+               (podcast_id, episode_id, original_url, title, status, attempts, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, datetime('now', ?))""",
+            (podcast_id, episode_id, f'https://example.com/{episode_id}.mp3',
+             'Test', status, attempts, f'-{minutes_ago} minutes')
+        )
+        conn.commit()
+
+    def test_resets_eligible_transient_failure(self, temp_db):
+        """Failed queue items with transient episode failure should be reset to pending."""
+        pid = self._setup_podcast_and_episode(temp_db, 'pod1', 'ep1', 'failed', retry_count=0)
+        self._queue_item(temp_db, pid, 'ep1', status='failed', attempts=1, minutes_ago=10)
+
+        count = temp_db.reset_failed_queue_items(max_retries=3)
+
+        assert count == 1
+        queued = temp_db.get_next_queued_episode()
+        assert queued is not None
+        assert queued['episode_id'] == 'ep1'
+
+    def test_skips_permanently_failed_episode(self, temp_db):
+        """Queue items for permanently_failed episodes should NOT be reset."""
+        pid = self._setup_podcast_and_episode(temp_db, 'pod2', 'ep2', 'permanently_failed', retry_count=3)
+        self._queue_item(temp_db, pid, 'ep2', status='failed', attempts=1, minutes_ago=10)
+
+        count = temp_db.reset_failed_queue_items(max_retries=3)
+
+        assert count == 0
+        queued = temp_db.get_next_queued_episode()
+        assert queued is None
+
+    def test_respects_retry_limit(self, temp_db):
+        """Queue items where episode retry_count >= max_retries should NOT be reset."""
+        pid = self._setup_podcast_and_episode(temp_db, 'pod3', 'ep3', 'failed', retry_count=3)
+        self._queue_item(temp_db, pid, 'ep3', status='failed', attempts=3, minutes_ago=60)
+
+        count = temp_db.reset_failed_queue_items(max_retries=3)
+
+        assert count == 0
+
+    def test_backoff_attempt1_requires_5_minutes(self, temp_db):
+        """Attempt 1 should require 5 minutes of backoff before retry."""
+        pid = self._setup_podcast_and_episode(temp_db, 'pod4', 'ep4', 'failed', retry_count=0)
+
+        # 3 minutes ago - too soon for 5-minute backoff
+        self._queue_item(temp_db, pid, 'ep4', status='failed', attempts=1, minutes_ago=3)
+        count = temp_db.reset_failed_queue_items(max_retries=3)
+        assert count == 0
+
+        # Update to 6 minutes ago - should now be eligible
+        conn = temp_db.get_connection()
+        conn.execute(
+            "UPDATE auto_process_queue SET updated_at = datetime('now', '-6 minutes') WHERE episode_id = 'ep4'"
+        )
+        conn.commit()
+        count = temp_db.reset_failed_queue_items(max_retries=3)
+        assert count == 1
+
+    def test_backoff_attempt2_requires_15_minutes(self, temp_db):
+        """Attempt 2 should require 15 minutes of backoff."""
+        pid = self._setup_podcast_and_episode(temp_db, 'pod5', 'ep5', 'failed', retry_count=1)
+
+        # 10 minutes ago - too soon for 15-minute backoff
+        self._queue_item(temp_db, pid, 'ep5', status='failed', attempts=2, minutes_ago=10)
+        count = temp_db.reset_failed_queue_items(max_retries=3)
+        assert count == 0
+
+        # 20 minutes ago - should be eligible
+        conn = temp_db.get_connection()
+        conn.execute(
+            "UPDATE auto_process_queue SET updated_at = datetime('now', '-20 minutes') WHERE episode_id = 'ep5'"
+        )
+        conn.commit()
+        count = temp_db.reset_failed_queue_items(max_retries=3)
+        assert count == 1
+
+    def test_backoff_attempt3_requires_45_minutes(self, temp_db):
+        """Attempt 3+ should require 45 minutes of backoff."""
+        pid = self._setup_podcast_and_episode(temp_db, 'pod6', 'ep6', 'failed', retry_count=2)
+
+        # 30 minutes ago - too soon for 45-minute backoff
+        self._queue_item(temp_db, pid, 'ep6', status='failed', attempts=3, minutes_ago=30)
+        count = temp_db.reset_failed_queue_items(max_retries=3)
+        assert count == 0
+
+        # 50 minutes ago - should be eligible
+        conn = temp_db.get_connection()
+        conn.execute(
+            "UPDATE auto_process_queue SET updated_at = datetime('now', '-50 minutes') WHERE episode_id = 'ep6'"
+        )
+        conn.commit()
+        count = temp_db.reset_failed_queue_items(max_retries=3)
+        assert count == 1
+
+    def test_skips_already_processed_episode(self, temp_db):
+        """If episode was already processed (e.g., by client retry), skip it."""
+        pid = self._setup_podcast_and_episode(temp_db, 'pod7', 'ep7', 'processed', retry_count=1)
+        self._queue_item(temp_db, pid, 'ep7', status='failed', attempts=1, minutes_ago=10)
+
+        count = temp_db.reset_failed_queue_items(max_retries=3)
+
+        assert count == 0

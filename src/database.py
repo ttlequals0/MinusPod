@@ -3185,6 +3185,43 @@ class Database:
 
         return len(reset_items), len(failed_items)
 
+    def reset_failed_queue_items(self, max_retries: int = 3) -> int:
+        """Reset failed queue items eligible for automatic retry with backoff.
+
+        Backoff: attempt 1 → 5 min, attempt 2 → 15 min, attempt 3+ → 45 min.
+        Only resets where episode status is 'failed' (not 'permanently_failed')
+        and retry_count < max_retries.
+        """
+        conn = self.get_connection()
+        cursor = conn.execute(
+            """UPDATE auto_process_queue
+               SET status = 'pending',
+                   updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+               WHERE id IN (
+                   SELECT q.id
+                   FROM auto_process_queue q
+                   JOIN episodes e ON q.podcast_id = e.podcast_id
+                                    AND q.episode_id = e.episode_id
+                   WHERE q.status = 'failed'
+                     AND e.status = 'failed'
+                     AND e.retry_count < ?
+                     AND datetime(q.updated_at) < datetime('now',
+                         CASE
+                             WHEN q.attempts <= 1 THEN '-5 minutes'
+                             WHEN q.attempts = 2 THEN '-15 minutes'
+                             ELSE '-45 minutes'
+                         END
+                     )
+               )
+               RETURNING id, episode_id""",
+            (max_retries,)
+        )
+        reset_items = cursor.fetchall()
+        conn.commit()
+        for row in reset_items:
+            logger.info(f"Reset failed queue item for retry: id={row['id']}, episode_id={row['episode_id']}")
+        return len(reset_items)
+
     # ========== Full-Text Search Methods ==========
 
     def rebuild_search_index(self) -> int:
