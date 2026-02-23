@@ -708,6 +708,10 @@ def background_queue_processor():
                 if reset_count > 0 or failed_count > 0:
                     refresh_logger.info(f"Reset {reset_count} orphaned queue items, {failed_count} exceeded max attempts")
 
+                retry_count = db.reset_failed_queue_items(max_retries=MAX_EPISODE_RETRIES)
+                if retry_count > 0:
+                    refresh_logger.info(f"Reset {retry_count} failed queue items for automatic retry")
+
             # Get next queued episode
             queued = db.get_next_queued_episode()
 
@@ -760,7 +764,11 @@ def background_queue_processor():
                             if not error_msg:
                                 error_msg = f"Processing ended with status: {episode.get('status') if episode else 'unknown'}"
                             db.update_queue_status(queue_id, 'failed', error_msg)
-                            refresh_logger.warning(f"[{slug}:{episode_id}] Auto-process failed: {error_msg}")
+                            episode_status = episode.get('status') if episode else None
+                            if episode_status == 'permanently_failed':
+                                refresh_logger.warning(f"[{slug}:{episode_id}] Auto-process permanently failed: {error_msg}")
+                            else:
+                                refresh_logger.info(f"[{slug}:{episode_id}] Auto-process failed (transient), will auto-retry: {error_msg}")
                     elif reason == "already_processing":
                         # Episode is already being processed, wait with backoff
                         refresh_logger.info(f"[{slug}:{episode_id}] Already processing, waiting {backoff_seconds}s...")
