@@ -3185,12 +3185,12 @@ class Database:
 
         return len(reset_items), len(failed_items)
 
-    def reset_failed_queue_items(self, max_retries: int = 3) -> int:
+    def reset_failed_queue_items(self, max_retries: int = 3, max_age_hours: int = 48) -> int:
         """Reset failed queue items eligible for automatic retry with backoff.
 
         Backoff: attempt 1 → 5 min, attempt 2 → 15 min, attempt 3+ → 45 min.
-        Only resets where episode status is 'failed' (not 'permanently_failed')
-        and retry_count < max_retries.
+        Only resets where episode status is 'failed' (not 'permanently_failed'),
+        retry_count < max_retries, and the item failed within max_age_hours.
         """
         conn = self.get_connection()
         cursor = conn.execute(
@@ -3205,6 +3205,7 @@ class Database:
                    WHERE q.status = 'failed'
                      AND e.status = 'failed'
                      AND e.retry_count < ?
+                     AND datetime(q.updated_at) > datetime('now', '-' || ? || ' hours')
                      AND datetime(q.updated_at) < datetime('now',
                          CASE
                              WHEN q.attempts <= 1 THEN '-5 minutes'
@@ -3214,7 +3215,7 @@ class Database:
                      )
                )
                RETURNING id, episode_id""",
-            (max_retries,)
+            (max_retries, max_age_hours)
         )
         reset_items = cursor.fetchall()
         conn.commit()

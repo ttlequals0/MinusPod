@@ -514,6 +514,23 @@ class TestResetFailedQueueItems:
         count = temp_db.reset_failed_queue_items(max_retries=3)
         assert count == 1
 
+    def test_skips_old_failed_items(self, temp_db):
+        """Failed queue items older than max_age_hours should NOT be retried."""
+        pid = self._setup_podcast_and_episode(temp_db, 'pod8', 'ep8', 'failed', retry_count=1)
+        # Failed 72 hours ago - well past the 48-hour default
+        conn = temp_db.get_connection()
+        conn.execute(
+            """INSERT INTO auto_process_queue
+               (podcast_id, episode_id, original_url, title, status, attempts, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, datetime('now', '-72 hours'))""",
+            (pid, 'ep8', 'https://example.com/ep8.mp3', 'Test', 'failed', 1)
+        )
+        conn.commit()
+
+        count = temp_db.reset_failed_queue_items(max_retries=3, max_age_hours=48)
+
+        assert count == 0
+
     def test_skips_already_processed_episode(self, temp_db):
         """If episode was already processed (e.g., by client retry), skip it."""
         pid = self._setup_podcast_and_episode(temp_db, 'pod7', 'ep7', 'processed', retry_count=1)
