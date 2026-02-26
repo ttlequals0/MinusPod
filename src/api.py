@@ -1601,6 +1601,13 @@ def get_available_models():
     ad_detector = AdDetector()
     models = ad_detector.get_available_models()
 
+    # Refresh model pricing with any newly discovered models
+    try:
+        db = get_database()
+        db.refresh_model_pricing(models)
+    except Exception as e:
+        logger.warning(f"Failed to refresh model pricing: {e}")
+
     return json_response({'models': models})
 
 
@@ -1750,9 +1757,20 @@ def get_system_status():
             'baseUrl': os.environ.get('BASE_URL', 'http://localhost:8000')
         },
         'stats': {
-            'totalTimeSaved': db.get_total_time_saved()
+            'totalTimeSaved': db.get_total_time_saved(),
+            'totalInputTokens': int(db.get_stat('total_input_tokens')),
+            'totalOutputTokens': int(db.get_stat('total_output_tokens')),
+            'totalLlmCost': round(db.get_stat('total_llm_cost'), 2),
         }
     })
+
+
+@api.route('/system/token-usage', methods=['GET'])
+@log_request
+def get_token_usage():
+    """Get LLM token usage summary with per-model breakdown."""
+    db = get_database()
+    return json_response(db.get_token_usage_summary())
 
 
 @api.route('/system/cleanup', methods=['POST'])

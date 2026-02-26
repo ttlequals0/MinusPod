@@ -209,6 +209,16 @@ function Settings() {
     return `${minutes}:${secs.toString().padStart(2, '0')}`;
   };
 
+  const formatTokenCount = (tokens: number): string => {
+    if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M`;
+    if (tokens >= 1_000) return `${(tokens / 1_000).toFixed(1)}K`;
+    return String(tokens);
+  };
+
+  const formatCost = (cost: number): string => {
+    return `$${cost.toFixed(2)}`;
+  };
+
   if (settingsLoading) {
     return <LoadingSpinner className="py-12" />;
   }
@@ -271,6 +281,16 @@ function Settings() {
             <div>
               <p className="text-sm text-muted-foreground">Time Saved</p>
               <p className="font-medium text-foreground">{formatDuration(status.stats?.totalTimeSaved ?? 0)}</p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">LLM Tokens</p>
+              <p className="font-medium text-foreground">
+                {formatTokenCount(status.stats?.totalInputTokens ?? 0)} in / {formatTokenCount(status.stats?.totalOutputTokens ?? 0)} out
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-muted-foreground">LLM Cost</p>
+              <p className="font-medium text-foreground">{formatCost(status.stats?.totalLlmCost ?? 0)}</p>
             </div>
           </div>
         ) : null}

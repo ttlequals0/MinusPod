@@ -5,6 +5,8 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
+from database import DEFAULT_MODEL_PRICING
+
 
 class TestPodcastOperations:
     """Tests for podcast CRUD operations."""
@@ -539,3 +541,87 @@ class TestResetFailedQueueItems:
         count = temp_db.reset_failed_queue_items(max_retries=3)
 
         assert count == 0
+
+
+class TestTokenUsage:
+    """Tests for LLM token usage tracking and cost calculation."""
+
+    def test_record_token_usage_creates_entry(self, temp_db):
+        """Single call creates per-model row and global stats."""
+        temp_db.record_token_usage('claude-haiku-4-5-20251001', 1000, 500)
+
+        summary = temp_db.get_token_usage_summary()
+        assert summary['totalInputTokens'] == 1000
+        assert summary['totalOutputTokens'] == 500
+        assert summary['totalCost'] > 0
+        assert len(summary['models']) == 1
+        assert summary['models'][0]['modelId'] == 'claude-haiku-4-5-20251001'
+        assert summary['models'][0]['callCount'] == 1
+
+    def test_record_token_usage_accumulates(self, temp_db):
+        """Multiple calls for the same model increment correctly."""
+        temp_db.record_token_usage('claude-haiku-4-5-20251001', 1000, 500)
+        temp_db.record_token_usage('claude-haiku-4-5-20251001', 2000, 1000)
+
+        summary = temp_db.get_token_usage_summary()
+        assert summary['totalInputTokens'] == 3000
+        assert summary['totalOutputTokens'] == 1500
+        assert len(summary['models']) == 1
+        assert summary['models'][0]['callCount'] == 2
+        assert summary['models'][0]['totalInputTokens'] == 3000
+
+    def test_record_token_usage_multiple_models(self, temp_db):
+        """Per-model isolation works, global totals sum correctly."""
+        temp_db.record_token_usage('claude-haiku-4-5-20251001', 1000, 500)
+        temp_db.record_token_usage('claude-sonnet-4-20250514', 2000, 1000)
+
+        summary = temp_db.get_token_usage_summary()
+        assert summary['totalInputTokens'] == 3000
+        assert summary['totalOutputTokens'] == 1500
+        assert len(summary['models']) == 2
+
+    def test_calculate_token_cost_exact_match(self, temp_db):
+        """Cost is calculated correctly with known model pricing."""
+        conn = temp_db.get_connection()
+        # Haiku: $1.0/Mtok in, $5.0/Mtok out
+        cost = temp_db._calculate_token_cost(conn, 'claude-haiku-4-5-20251001', 1_000_000, 1_000_000)
+        assert abs(cost - 6.0) < 0.001  # $1 input + $5 output
+
+    def test_calculate_token_cost_prefix_match(self, temp_db):
+        """Model ID with extra suffix matches on prefix."""
+        conn = temp_db.get_connection()
+        # 'claude-haiku-4-5-20251001-extra' should prefix-match to 'claude-haiku-4-5-20251001'
+        cost = temp_db._calculate_token_cost(conn, 'claude-haiku-4-5-20251001-extra', 1_000_000, 0)
+        assert abs(cost - 1.0) < 0.001
+
+    def test_calculate_token_cost_unknown_model(self, temp_db):
+        """Unknown model returns 0 cost without crashing."""
+        conn = temp_db.get_connection()
+        cost = temp_db._calculate_token_cost(conn, 'unknown-model-xyz', 1_000_000, 1_000_000)
+        assert cost == 0.0
+
+    def test_get_token_usage_summary_empty(self, temp_db):
+        """Empty database returns zero totals."""
+        summary = temp_db.get_token_usage_summary()
+        assert summary['totalInputTokens'] == 0
+        assert summary['totalOutputTokens'] == 0
+        assert summary['totalCost'] == 0
+        assert summary['models'] == []
+
+    def test_get_token_usage_summary_with_data(self, temp_db):
+        """Summary returns correct structure and values."""
+        temp_db.record_token_usage('claude-haiku-4-5-20251001', 100_000, 50_000)
+
+        summary = temp_db.get_token_usage_summary()
+        assert summary['totalInputTokens'] == 100_000
+        assert summary['totalOutputTokens'] == 50_000
+        assert summary['totalCost'] > 0
+
+        model = summary['models'][0]
+        assert model['modelId'] == 'claude-haiku-4-5-20251001'
+        assert model['displayName'] == 'Claude Haiku 4.5'
+        assert model['totalInputTokens'] == 100_000
+        assert model['totalOutputTokens'] == 50_000
+        assert model['callCount'] == 1
+        assert model['inputCostPerMtok'] == 1.0
+        assert model['outputCostPerMtok'] == 5.0

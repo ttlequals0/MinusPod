@@ -165,7 +165,28 @@ export interface SystemStatus {
   };
   stats: {
     totalTimeSaved: number;
+    totalInputTokens: number;
+    totalOutputTokens: number;
+    totalLlmCost: number;
   };
+}
+
+export interface TokenUsageModel {
+  modelId: string;
+  displayName: string;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalCost: number;
+  callCount: number;
+  inputCostPerMtok: number | null;
+  outputCostPerMtok: number | null;
+}
+
+export interface TokenUsageSummary {
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalCost: number;
+  models: TokenUsageModel[];
 }
 
 export interface Sponsor {

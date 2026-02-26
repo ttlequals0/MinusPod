@@ -435,6 +435,25 @@ CREATE INDEX IF NOT EXISTS idx_fingerprints_pattern ON audio_fingerprints(patter
 CREATE INDEX IF NOT EXISTS idx_corrections_pattern ON pattern_corrections(pattern_id);
 CREATE INDEX IF NOT EXISTS idx_sponsors_name ON known_sponsors(name) WHERE is_active = 1;
 CREATE INDEX IF NOT EXISTS idx_normalizations_pattern ON sponsor_normalizations(pattern) WHERE is_active = 1;
+
+-- model_pricing table (LLM model cost rates)
+CREATE TABLE IF NOT EXISTS model_pricing (
+    model_id TEXT PRIMARY KEY,
+    display_name TEXT NOT NULL,
+    input_cost_per_mtok REAL NOT NULL,
+    output_cost_per_mtok REAL NOT NULL,
+    updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
+
+-- token_usage table (per-model cumulative LLM token usage)
+CREATE TABLE IF NOT EXISTS token_usage (
+    model_id TEXT PRIMARY KEY,
+    total_input_tokens INTEGER NOT NULL DEFAULT 0,
+    total_output_tokens INTEGER NOT NULL DEFAULT 0,
+    total_cost REAL NOT NULL DEFAULT 0.0,
+    call_count INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+);
 """
 
 # Indexes that depend on columns added by migrations - created separately
@@ -443,6 +462,17 @@ CREATE INDEX IF NOT EXISTS idx_podcasts_network_id ON podcasts(network_id);
 CREATE INDEX IF NOT EXISTS idx_podcasts_dai_platform ON podcasts(dai_platform);
 CREATE INDEX IF NOT EXISTS idx_patterns_scope ON ad_patterns(scope, network_id, podcast_id) WHERE is_active = 1;
 """
+
+# Default pricing for known Anthropic models (USD per 1M tokens)
+DEFAULT_MODEL_PRICING = {
+    'claude-opus-4-6':            {'name': 'Claude Opus 4.6',   'input': 5.0,  'output': 25.0},
+    'claude-opus-4-5-20251101':   {'name': 'Claude Opus 4.5',   'input': 5.0,  'output': 25.0},
+    'claude-opus-4-1-20250805':   {'name': 'Claude Opus 4.1',   'input': 15.0, 'output': 75.0},
+    'claude-opus-4-20250514':     {'name': 'Claude Opus 4',     'input': 15.0, 'output': 75.0},
+    'claude-sonnet-4-5-20250929': {'name': 'Claude Sonnet 4.5', 'input': 3.0,  'output': 15.0},
+    'claude-sonnet-4-20250514':   {'name': 'Claude Sonnet 4',   'input': 3.0,  'output': 15.0},
+    'claude-haiku-4-5-20251001':  {'name': 'Claude Haiku 4.5',  'input': 1.0,  'output': 5.0},
+}
 
 
 class Database:
@@ -661,6 +691,29 @@ class Database:
         conn.execute("CREATE INDEX IF NOT EXISTS idx_history_processed_at ON processing_history(processed_at DESC)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_history_podcast_episode ON processing_history(podcast_id, episode_id)")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_history_status ON processing_history(status)")
+
+        # Create model_pricing table if not exists
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS model_pricing (
+                model_id TEXT PRIMARY KEY,
+                display_name TEXT NOT NULL,
+                input_cost_per_mtok REAL NOT NULL,
+                output_cost_per_mtok REAL NOT NULL,
+                updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+            )
+        """)
+
+        # Create token_usage table if not exists
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS token_usage (
+                model_id TEXT PRIMARY KEY,
+                total_input_tokens INTEGER NOT NULL DEFAULT 0,
+                total_output_tokens INTEGER NOT NULL DEFAULT 0,
+                total_cost REAL NOT NULL DEFAULT 0.0,
+                call_count INTEGER NOT NULL DEFAULT 0,
+                updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+            )
+        """)
 
         conn.commit()
         logger.info("Created new tables for cross-episode training and processing history")
@@ -1010,6 +1063,40 @@ class Database:
                 logger.info("Migration: Updated default verification_prompt to v1.0.8 (platform-inserted ads)")
         except Exception as e:
             logger.warning(f"Migration failed for verification_prompt v1.0.8: {e}")
+
+        # Migration: Create token usage tables and seed default model pricing
+        try:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS model_pricing (
+                    model_id TEXT PRIMARY KEY,
+                    display_name TEXT NOT NULL,
+                    input_cost_per_mtok REAL NOT NULL,
+                    output_cost_per_mtok REAL NOT NULL,
+                    updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS token_usage (
+                    model_id TEXT PRIMARY KEY,
+                    total_input_tokens INTEGER NOT NULL DEFAULT 0,
+                    total_output_tokens INTEGER NOT NULL DEFAULT 0,
+                    total_cost REAL NOT NULL DEFAULT 0.0,
+                    call_count INTEGER NOT NULL DEFAULT 0,
+                    updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+                )
+            """)
+            # Seed default pricing (ON CONFLICT DO NOTHING preserves manual edits)
+            for model_id, info in DEFAULT_MODEL_PRICING.items():
+                conn.execute(
+                    """INSERT INTO model_pricing (model_id, display_name, input_cost_per_mtok, output_cost_per_mtok)
+                       VALUES (?, ?, ?, ?)
+                       ON CONFLICT(model_id) DO NOTHING""",
+                    (model_id, info['name'], info['input'], info['output'])
+                )
+            conn.commit()
+            logger.info("Migration: Created token usage tables and seeded model pricing")
+        except Exception as e:
+            logger.warning(f"Migration failed for token usage tables: {e}")
 
     def _cleanup_contaminated_patterns(self):
         """Delete patterns with text_template > 3500 chars (contaminated).
@@ -1952,6 +2039,149 @@ class Database:
         )
         row = cursor.fetchone()
         return row['value'] if row else 0.0
+
+    def get_stat(self, key: str) -> float:
+        """Get a single cumulative stat value by key."""
+        conn = self.get_connection()
+        cursor = conn.execute("SELECT value FROM stats WHERE key = ?", (key,))
+        row = cursor.fetchone()
+        return row['value'] if row else 0.0
+
+    # ========== Token Usage Methods ==========
+
+    def _calculate_token_cost(self, conn, model_id: str,
+                              input_tokens: int, output_tokens: int) -> float:
+        """Calculate cost for a single LLM call based on model pricing.
+
+        Tries exact match first, then prefix match for versioned model IDs.
+        Returns 0.0 with a warning for unknown models.
+        """
+        # Exact match
+        cursor = conn.execute(
+            "SELECT input_cost_per_mtok, output_cost_per_mtok FROM model_pricing WHERE model_id = ?",
+            (model_id,)
+        )
+        row = cursor.fetchone()
+
+        # Prefix match: strip trailing version suffix (e.g. claude-sonnet-4-5-20250929 -> claude-sonnet-4-5)
+        if not row:
+            cursor = conn.execute(
+                """SELECT input_cost_per_mtok, output_cost_per_mtok FROM model_pricing
+                   WHERE ? LIKE model_id || '%'
+                   ORDER BY length(model_id) DESC LIMIT 1""",
+                (model_id,)
+            )
+            row = cursor.fetchone()
+
+        if not row:
+            logger.warning(f"No pricing found for model '{model_id}', cost recorded as $0")
+            return 0.0
+
+        input_cost = (input_tokens / 1_000_000) * row['input_cost_per_mtok']
+        output_cost = (output_tokens / 1_000_000) * row['output_cost_per_mtok']
+        return input_cost + output_cost
+
+    def record_token_usage(self, model_id: str, input_tokens: int, output_tokens: int):
+        """Record token usage for an LLM call. Atomic upsert to per-model and global stats."""
+        if not model_id or (input_tokens <= 0 and output_tokens <= 0):
+            return
+
+        conn = self.get_connection()
+        cost = self._calculate_token_cost(conn, model_id, input_tokens, output_tokens)
+
+        # Upsert per-model token_usage row
+        conn.execute(
+            """INSERT INTO token_usage (model_id, total_input_tokens, total_output_tokens, total_cost, call_count, updated_at)
+               VALUES (?, ?, ?, ?, 1, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+               ON CONFLICT(model_id) DO UPDATE SET
+                 total_input_tokens = total_input_tokens + excluded.total_input_tokens,
+                 total_output_tokens = total_output_tokens + excluded.total_output_tokens,
+                 total_cost = total_cost + excluded.total_cost,
+                 call_count = call_count + 1,
+                 updated_at = excluded.updated_at""",
+            (model_id, input_tokens, output_tokens, cost)
+        )
+
+        # Update global stats counters
+        for key, value in [('total_input_tokens', float(input_tokens)),
+                           ('total_output_tokens', float(output_tokens)),
+                           ('total_llm_cost', cost)]:
+            conn.execute(
+                """INSERT INTO stats (key, value, updated_at)
+                   VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+                   ON CONFLICT(key) DO UPDATE SET
+                     value = value + excluded.value,
+                     updated_at = excluded.updated_at""",
+                (key, value)
+            )
+
+        conn.commit()
+        logger.debug(
+            f"Token usage: model={model_id} in={input_tokens} out={output_tokens} cost=${cost:.6f}"
+        )
+
+    def get_token_usage_summary(self) -> Dict:
+        """Get global totals and per-model breakdown of token usage."""
+        conn = self.get_connection()
+
+        # Global totals from stats table
+        total_input = self.get_stat('total_input_tokens')
+        total_output = self.get_stat('total_output_tokens')
+        total_cost = self.get_stat('total_llm_cost')
+
+        # Per-model breakdown with pricing info
+        cursor = conn.execute(
+            """SELECT tu.model_id, tu.total_input_tokens, tu.total_output_tokens,
+                      tu.total_cost, tu.call_count,
+                      mp.display_name, mp.input_cost_per_mtok, mp.output_cost_per_mtok
+               FROM token_usage tu
+               LEFT JOIN model_pricing mp ON tu.model_id = mp.model_id
+               ORDER BY tu.total_cost DESC"""
+        )
+
+        models = []
+        for row in cursor:
+            models.append({
+                'modelId': row['model_id'],
+                'displayName': row['display_name'] or row['model_id'],
+                'totalInputTokens': row['total_input_tokens'],
+                'totalOutputTokens': row['total_output_tokens'],
+                'totalCost': round(row['total_cost'], 6),
+                'callCount': row['call_count'],
+                'inputCostPerMtok': row['input_cost_per_mtok'] if row['input_cost_per_mtok'] is not None else None,
+                'outputCostPerMtok': row['output_cost_per_mtok'] if row['output_cost_per_mtok'] is not None else None,
+            })
+
+        return {
+            'totalInputTokens': int(total_input),
+            'totalOutputTokens': int(total_output),
+            'totalCost': round(total_cost, 6),
+            'models': models,
+        }
+
+    def refresh_model_pricing(self, available_models: List[Dict]):
+        """Insert pricing for newly discovered models from DEFAULT_MODEL_PRICING.
+
+        Called when the model list is refreshed via GET /settings/models.
+        Uses ON CONFLICT DO NOTHING to preserve any manual price overrides.
+        """
+        conn = self.get_connection()
+        inserted = 0
+        for model in available_models:
+            model_id = model.get('id', '')
+            if model_id in DEFAULT_MODEL_PRICING:
+                info = DEFAULT_MODEL_PRICING[model_id]
+                cursor = conn.execute(
+                    """INSERT INTO model_pricing (model_id, display_name, input_cost_per_mtok, output_cost_per_mtok)
+                       VALUES (?, ?, ?, ?)
+                       ON CONFLICT(model_id) DO NOTHING""",
+                    (model_id, info['name'], info['input'], info['output'])
+                )
+                if cursor.rowcount > 0:
+                    inserted += 1
+        conn.commit()
+        if inserted > 0:
+            logger.info(f"Refreshed model pricing: {inserted} new models added")
 
     # ========== System Settings Methods (for schema versioning) ==========
 

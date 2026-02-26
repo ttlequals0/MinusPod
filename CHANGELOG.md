@@ -6,6 +6,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.11] - 2026-02-26
+
+### Added
+- **LLM token usage tracking with cost calculation**: Every LLM API call (ad detection, verification, chapters) now records input/output token counts and estimated cost. Tracks per-model breakdown in `token_usage` table with pricing from `model_pricing` table seeded with current Anthropic rates. Usage callback wired into `LLMClient` base class so all call sites are tracked automatically with zero code changes.
+- **New API endpoint `GET /api/v1/system/token-usage`**: Returns global totals (input/output tokens, total cost) and per-model breakdown with pricing info.
+- **LLM Tokens and LLM Cost tiles in System Status**: Settings page now shows cumulative token usage (formatted as "1.2M in / 456K out") and total USD cost alongside existing stats.
+- **Model pricing refresh on `GET /settings/models`**: Newly discovered models are automatically priced from built-in defaults when the model list is fetched.
+
 ## [1.0.10] - 2026-02-24
 
 ### Fixed

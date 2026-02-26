@@ -71,6 +71,21 @@ FALLBACK_MODELS = [
 class LLMClient(ABC):
     """Abstract base class for LLM clients."""
 
+    def __init__(self):
+        self._usage_callback = None
+
+    def set_usage_callback(self, callback):
+        """Set a callback to be invoked with (model, usage_dict) after each LLM call."""
+        self._usage_callback = callback
+
+    def _notify_usage(self, response: 'LLMResponse'):
+        """Notify the usage callback if set. Errors are logged but never propagated."""
+        if self._usage_callback and response.usage:
+            try:
+                self._usage_callback(response.model, response.usage)
+            except Exception as e:
+                logger.warning(f"Token usage recording failed: {e}")
+
     @abstractmethod
     def messages_create(
         self,
@@ -118,6 +133,7 @@ class AnthropicClient(LLMClient):
     """Native Anthropic API client."""
 
     def __init__(self, api_key: Optional[str] = None):
+        super().__init__()
         self.api_key = api_key or os.environ.get('ANTHROPIC_API_KEY')
         self._client = None
 
@@ -170,7 +186,7 @@ class AnthropicClient(LLMClient):
 
         content = response.content[0].text if response.content else ""
 
-        return LLMResponse(
+        llm_response = LLMResponse(
             content=content,
             model=response.model,
             usage={
@@ -179,6 +195,8 @@ class AnthropicClient(LLMClient):
             } if response.usage else None,
             raw_response=response
         )
+        self._notify_usage(llm_response)
+        return llm_response
 
     def list_models(self) -> List[LLMModel]:
         self._ensure_client()
@@ -221,6 +239,7 @@ class OpenAICompatibleClient(LLMClient):
         api_key: Optional[str] = None,
         default_model: Optional[str] = None
     ):
+        super().__init__()
         self.base_url = base_url or os.environ.get('OPENAI_BASE_URL', 'http://localhost:8000/v1')
         self.api_key = api_key or os.environ.get('OPENAI_API_KEY', 'not-needed')
         self.default_model = default_model or os.environ.get('OPENAI_MODEL', 'claude-sonnet-4-5-20250929')
@@ -268,7 +287,7 @@ class OpenAICompatibleClient(LLMClient):
 
         content = response.choices[0].message.content if response.choices else ""
 
-        return LLMResponse(
+        llm_response = LLMResponse(
             content=content,
             model=response.model,
             usage={
@@ -277,6 +296,8 @@ class OpenAICompatibleClient(LLMClient):
             } if response.usage else None,
             raw_response=response
         )
+        self._notify_usage(llm_response)
+        return llm_response
 
     def list_models(self) -> List[LLMModel]:
         """List models from the OpenAI-compatible API."""
@@ -338,6 +359,20 @@ class OpenAICompatibleClient(LLMClient):
 _cached_client: Optional[LLMClient] = None
 
 
+def _record_token_usage(model: str, usage: Dict):
+    """Module-level callback for recording token usage to the database."""
+    try:
+        from database import Database
+        db = Database()
+        db.record_token_usage(
+            model_id=model,
+            input_tokens=usage.get('input_tokens', 0),
+            output_tokens=usage.get('output_tokens', 0),
+        )
+    except Exception as e:
+        logger.warning(f"Failed to record token usage: {e}")
+
+
 def get_llm_client(force_new: bool = False) -> LLMClient:
     """
     Factory function that returns the appropriate LLM client based on config.
@@ -373,6 +408,7 @@ def get_llm_client(force_new: bool = False) -> LLMClient:
         logger.warning(f"Unknown LLM_PROVIDER '{provider}', defaulting to anthropic")
         _cached_client = AnthropicClient()
 
+    _cached_client.set_usage_callback(_record_token_usage)
     logger.info(f"LLM client initialized: {_cached_client.get_provider_name()}")
     return _cached_client
 

@@ -1,5 +1,5 @@
 import { apiRequest } from './client';
-import { Settings, ClaudeModel, WhisperModel, SystemStatus, UpdateSettingsPayload } from './types';
+import { Settings, ClaudeModel, WhisperModel, SystemStatus, UpdateSettingsPayload, TokenUsageSummary } from './types';
 
 export async function getSettings(): Promise<Settings> {
   return apiRequest<Settings>('/settings');
@@ -36,6 +36,10 @@ export async function getWhisperModels(): Promise<WhisperModel[]> {
 
 export async function getSystemStatus(): Promise<SystemStatus> {
   return apiRequest<SystemStatus>('/system/status');
+}
+
+export async function getTokenUsage(): Promise<TokenUsageSummary> {
+  return apiRequest<TokenUsageSummary>('/system/token-usage');
 }
 
 export async function runCleanup(): Promise<{ message: string; episodesRemoved: number; spaceFreedMb: number }> {
