@@ -992,21 +992,22 @@ def regenerate_chapters(slug, episode_id):
         start_episode_token_tracking()
         chapters_gen = ChaptersGenerator()
 
-        # VTT segments are ALREADY adjusted (ads removed), so pass empty ads_removed
-        # This prevents double-adjustment of timestamps
-        # The AI topic detection will find natural chapter points in the content
-        chapters = chapters_gen.generate_chapters_from_vtt(
-            segments, episode_description, podcast_name, episode_title
-        )
-
-        token_totals = get_episode_token_totals()
-        if token_totals['input_tokens'] > 0:
-            db.increment_episode_token_usage(
-                episode_id,
-                token_totals['input_tokens'],
-                token_totals['output_tokens'],
-                token_totals['cost'],
+        try:
+            # VTT segments are ALREADY adjusted (ads removed), so pass empty ads_removed
+            # This prevents double-adjustment of timestamps
+            # The AI topic detection will find natural chapter points in the content
+            chapters = chapters_gen.generate_chapters_from_vtt(
+                segments, episode_description, podcast_name, episode_title
             )
+        finally:
+            token_totals = get_episode_token_totals()
+            if token_totals['input_tokens'] > 0:
+                db.increment_episode_token_usage(
+                    episode_id,
+                    token_totals['input_tokens'],
+                    token_totals['output_tokens'],
+                    token_totals['cost'],
+                )
 
         if chapters and chapters.get('chapters'):
             storage.save_chapters_json(slug, episode_id, chapters)
@@ -1192,19 +1193,20 @@ def retry_ad_detection(slug, episode_id):
 
         from ad_detector import AdDetector
         ad_detector = AdDetector()
-        ad_result = ad_detector.process_transcript(
-            segments, podcast_name, episode.get('title', 'Unknown'), slug, episode_id,
-            podcast_id=slug  # Pass slug as podcast_id for pattern matching
-        )
-
-        token_totals = get_episode_token_totals()
-        if token_totals['input_tokens'] > 0:
-            db.increment_episode_token_usage(
-                episode_id,
-                token_totals['input_tokens'],
-                token_totals['output_tokens'],
-                token_totals['cost'],
+        try:
+            ad_result = ad_detector.process_transcript(
+                segments, podcast_name, episode.get('title', 'Unknown'), slug, episode_id,
+                podcast_id=slug  # Pass slug as podcast_id for pattern matching
             )
+        finally:
+            token_totals = get_episode_token_totals()
+            if token_totals['input_tokens'] > 0:
+                db.increment_episode_token_usage(
+                    episode_id,
+                    token_totals['input_tokens'],
+                    token_totals['output_tokens'],
+                    token_totals['cost'],
+                )
 
         ad_detection_status = ad_result.get('status', 'failed')
 

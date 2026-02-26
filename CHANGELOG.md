@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.17] - 2026-02-26
+
+### Fixed
+- **Thread safety for per-episode token accumulator**: Replaced shared module-level dict with `threading.local()` so each thread (background processor, HTTP handler) gets an independent accumulator. Prevents concurrent requests from corrupting each other's token counts under Gunicorn's `--threads 8`.
+- **Missing try/finally for token tracking in standalone API endpoints**: `/regenerate-chapters` and `/retry-ad-detection` now wrap LLM calls in `try/finally` so `get_episode_token_totals()` and DB persistence always run even if the LLM call raises.
+
 ## [1.0.16] - 2026-02-26
 
 ### Fixed

@@ -18,6 +18,7 @@ Configuration via environment variables:
 
 import logging
 import os
+import threading
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import List, Dict, Optional, Any
@@ -358,58 +359,71 @@ class OpenAICompatibleClient(LLMClient):
 
 _cached_client: Optional[LLMClient] = None
 
-# Per-episode token accumulator (safe because processing is single-episode-at-a-time)
-_episode_accumulator = {
-    'active': False,
-    'input_tokens': 0,
-    'output_tokens': 0,
-    'cost': 0.0,
-}
+# Per-episode token accumulator using thread-local storage.
+# Each thread (background processor, HTTP handler) gets its own
+# independent accumulator so concurrent callers cannot corrupt each other.
+_episode_accumulator = threading.local()
+
+
+def _get_accumulator_active() -> bool:
+    """Return whether the current thread's accumulator is active."""
+    return getattr(_episode_accumulator, 'active', False)
 
 
 def start_episode_token_tracking():
-    """Reset and activate the per-episode token accumulator."""
-    _episode_accumulator['active'] = True
-    _episode_accumulator['input_tokens'] = 0
-    _episode_accumulator['output_tokens'] = 0
-    _episode_accumulator['cost'] = 0.0
-    logger.info("Episode token tracking: ACTIVATED")
+    """Reset and activate the per-episode token accumulator for the current thread."""
+    _episode_accumulator.active = True
+    _episode_accumulator.input_tokens = 0
+    _episode_accumulator.output_tokens = 0
+    _episode_accumulator.cost = 0.0
+    logger.info(f"Episode token tracking: ACTIVATED (thread={threading.current_thread().name})")
 
 
 def get_episode_token_totals() -> Dict:
-    """Return accumulated totals, deactivate, and reset the accumulator."""
+    """Return accumulated totals, deactivate, and reset the accumulator for the current thread."""
     totals = {
-        'input_tokens': _episode_accumulator['input_tokens'],
-        'output_tokens': _episode_accumulator['output_tokens'],
-        'cost': _episode_accumulator['cost'],
+        'input_tokens': getattr(_episode_accumulator, 'input_tokens', 0),
+        'output_tokens': getattr(_episode_accumulator, 'output_tokens', 0),
+        'cost': getattr(_episode_accumulator, 'cost', 0.0),
     }
-    logger.info(f"Episode token totals: in={totals['input_tokens']} out={totals['output_tokens']} cost=${totals['cost']:.6f}")
-    _episode_accumulator['active'] = False
-    _episode_accumulator['input_tokens'] = 0
-    _episode_accumulator['output_tokens'] = 0
-    _episode_accumulator['cost'] = 0.0
+    logger.info(
+        f"Episode token totals: in={totals['input_tokens']} out={totals['output_tokens']}"
+        f" cost=${totals['cost']:.6f} (thread={threading.current_thread().name})"
+    )
+    _episode_accumulator.active = False
+    _episode_accumulator.input_tokens = 0
+    _episode_accumulator.output_tokens = 0
+    _episode_accumulator.cost = 0.0
     return totals
 
 
 def _record_token_usage(model: str, usage: Dict):
     """Module-level callback for recording token usage to the database."""
+    input_tokens = usage.get('input_tokens', 0)
+    output_tokens = usage.get('output_tokens', 0)
+    cost = 0.0
+
     try:
         from database import Database
         db = Database()
-        input_tokens = usage.get('input_tokens', 0)
-        output_tokens = usage.get('output_tokens', 0)
         cost = db.record_token_usage(
             model_id=model,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
         )
-        logger.info(f"Token callback: model={model} in={input_tokens} out={output_tokens} cost=${cost:.6f} accum_active={_episode_accumulator['active']}")
-        if _episode_accumulator['active']:
-            _episode_accumulator['input_tokens'] += input_tokens
-            _episode_accumulator['output_tokens'] += output_tokens
-            _episode_accumulator['cost'] += cost
     except Exception as e:
-        logger.warning(f"Failed to record token usage: {e}")
+        logger.warning(f"Failed to record token usage to DB: {e}")
+
+    accum_active = _get_accumulator_active()
+    logger.info(
+        f"Token callback: model={model} in={input_tokens} out={output_tokens}"
+        f" cost=${cost:.6f} accum_active={accum_active}"
+        f" (thread={threading.current_thread().name})"
+    )
+    if accum_active:
+        _episode_accumulator.input_tokens += input_tokens
+        _episode_accumulator.output_tokens += output_tokens
+        _episode_accumulator.cost += cost
 
 
 def get_llm_client(force_new: bool = False) -> LLMClient:
