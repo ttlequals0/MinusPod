@@ -132,6 +132,8 @@ export interface UpdateSettingsPayload {
 export interface ClaudeModel {
   id: string;
   name: string;
+  inputCostPerMtok?: number;
+  outputCostPerMtok?: number;
 }
 
 export interface WhisperModel {

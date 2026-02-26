@@ -1605,6 +1605,15 @@ def get_available_models():
     try:
         db = get_database()
         db.refresh_model_pricing(models)
+
+        # Enrich models with pricing info
+        pricing_rows = db.get_model_pricing()
+        pricing_lookup = {p['modelId']: p for p in pricing_rows}
+        for model in models:
+            pricing = pricing_lookup.get(model['id'])
+            if pricing:
+                model['inputCostPerMtok'] = pricing['inputCostPerMtok']
+                model['outputCostPerMtok'] = pricing['outputCostPerMtok']
     except Exception as e:
         logger.warning(f"Failed to refresh model pricing: {e}")
 
@@ -1771,6 +1780,14 @@ def get_token_usage():
     """Get LLM token usage summary with per-model breakdown."""
     db = get_database()
     return json_response(db.get_token_usage_summary())
+
+
+@api.route('/system/model-pricing', methods=['GET'])
+@log_request
+def get_model_pricing():
+    """Get all known model pricing rates."""
+    db = get_database()
+    return json_response({'models': db.get_model_pricing()})
 
 
 @api.route('/system/cleanup', methods=['POST'])

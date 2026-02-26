@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **New API endpoint `GET /api/v1/system/token-usage`**: Returns global totals (input/output tokens, total cost) and per-model breakdown with pricing info.
 - **LLM Tokens and LLM Cost tiles in System Status**: Settings page now shows cumulative token usage (formatted as "1.2M in / 456K out") and total USD cost alongside existing stats.
 - **Model pricing refresh on `GET /settings/models`**: Newly discovered models are automatically priced from built-in defaults when the model list is fetched.
+- **New API endpoint `GET /api/v1/system/model-pricing`**: Returns all known model pricing rates from the `model_pricing` table for API consumers.
+- **Pricing enrichment on `GET /settings/models`**: Model list response now includes `inputCostPerMtok` and `outputCostPerMtok` fields when pricing is known.
+- **Cost display in model dropdowns**: Settings page model selectors show per-token pricing inline (e.g. "Claude Haiku 4.5 ($1 / $5 per MTok)").
 
 ## [1.0.10] - 2026-02-24
 

@@ -192,7 +192,7 @@ The server includes a web-based management UI at `/ui/`:
 - **Patterns** - View and manage cross-episode ad patterns with sponsor names
 - **History** - View processing history with stats, filtering, and export
 - **Settings** - Configure ad detection prompts and Claude model
-- **System Status** - View statistics and run cleanup
+- **System Status** - View statistics, LLM token usage and cost, and run cleanup
 - **Real-Time Status Bar** - Shows current processing progress across all pages
 
 ### Transcript Editor (Mobile-First)
@@ -380,6 +380,8 @@ Key endpoints:
 - `GET /api/v1/history` - Processing history with pagination and export
 - `GET /api/v1/status` - Current processing status
 - `GET /api/v1/status/stream` - SSE endpoint for real-time status updates
+- `GET /api/v1/system/token-usage` - LLM token usage and cost breakdown by model
+- `GET /api/v1/system/model-pricing` - All known LLM model pricing rates
 - `GET /api/v1/settings` - Get current settings
 - `PUT /api/v1/settings/ad-detection` - Update ad detection config
 

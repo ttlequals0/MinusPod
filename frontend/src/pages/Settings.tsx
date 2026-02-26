@@ -4,6 +4,18 @@ import { getSettings, updateSettings, resetSettings, resetPrompts, getModels, ge
 import { setPassword, removePassword } from '../api/auth';
 import { useAuth } from '../context/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
+import type { ClaudeModel } from '../api/types';
+
+function formatModelLabel(model: ClaudeModel): string {
+  if (model.inputCostPerMtok != null && model.outputCostPerMtok != null) {
+    const fmtIn = model.inputCostPerMtok % 1 === 0
+      ? model.inputCostPerMtok.toFixed(0) : model.inputCostPerMtok.toFixed(2);
+    const fmtOut = model.outputCostPerMtok % 1 === 0
+      ? model.outputCostPerMtok.toFixed(0) : model.outputCostPerMtok.toFixed(2);
+    return `${model.name} ($${fmtIn} / $${fmtOut} per MTok)`;
+  }
+  return model.name;
+}
 
 function Settings() {
   const queryClient = useQueryClient();
@@ -571,7 +583,7 @@ function Settings() {
           >
             {models?.map((model) => (
               <option key={model.id} value={model.id}>
-                {model.name}
+                {formatModelLabel(model)}
               </option>
             ))}
           </select>
@@ -598,7 +610,7 @@ function Settings() {
           >
             {models?.map((model) => (
               <option key={model.id} value={model.id}>
-                {model.name}
+                {formatModelLabel(model)}
               </option>
             ))}
           </select>

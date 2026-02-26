@@ -2196,6 +2196,98 @@ paths:
               schema:
                 $ref: '#/components/schemas/SystemStatus'
 
+  /system/token-usage:
+    get:
+      tags:
+        - System
+      summary: Get LLM token usage
+      description: Returns cumulative LLM token usage with global totals and per-model breakdown including pricing info
+      operationId: getTokenUsage
+      responses:
+        '200':
+          description: Token usage summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totalInputTokens:
+                    type: integer
+                    description: Total input tokens across all models
+                  totalOutputTokens:
+                    type: integer
+                    description: Total output tokens across all models
+                  totalCost:
+                    type: number
+                    description: Total estimated cost in USD
+                  models:
+                    type: array
+                    description: Per-model usage breakdown
+                    items:
+                      type: object
+                      properties:
+                        modelId:
+                          type: string
+                          description: Model identifier
+                        displayName:
+                          type: string
+                          description: Human-readable model name
+                        totalInputTokens:
+                          type: integer
+                        totalOutputTokens:
+                          type: integer
+                        totalCost:
+                          type: number
+                          description: Estimated cost in USD for this model
+                        callCount:
+                          type: integer
+                          description: Number of API calls made with this model
+                        inputCostPerMtok:
+                          type: number
+                          nullable: true
+                          description: Input cost per million tokens (USD)
+                        outputCostPerMtok:
+                          type: number
+                          nullable: true
+                          description: Output cost per million tokens (USD)
+
+  /system/model-pricing:
+    get:
+      tags:
+        - System
+      summary: Get model pricing rates
+      description: Returns all known LLM model pricing rates from the model_pricing table
+      operationId: getModelPricing
+      responses:
+        '200':
+          description: Model pricing list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  models:
+                    type: array
+                    description: All known model pricing entries
+                    items:
+                      type: object
+                      properties:
+                        modelId:
+                          type: string
+                          description: Model identifier
+                        displayName:
+                          type: string
+                          description: Human-readable model name
+                        inputCostPerMtok:
+                          type: number
+                          description: Input cost per million tokens (USD)
+                        outputCostPerMtok:
+                          type: number
+                          description: Output cost per million tokens (USD)
+                        updatedAt:
+                          type: string
+                          description: Last updated timestamp
+
   /system/cleanup:
     post:
       tags:
@@ -2490,6 +2582,14 @@ components:
           type: string
           format: date-time
           nullable: true
+        inputCostPerMtok:
+          type: number
+          nullable: true
+          description: Input cost per million tokens (USD), present when pricing is known
+        outputCostPerMtok:
+          type: number
+          nullable: true
+          description: Output cost per million tokens (USD), present when pricing is known
 
     WhisperModel:
       type: object
@@ -2632,6 +2732,21 @@ components:
               type: string
             baseUrl:
               type: string
+        stats:
+          type: object
+          properties:
+            totalTimeSaved:
+              type: number
+              description: Total seconds of ad time removed across all episodes
+            totalInputTokens:
+              type: integer
+              description: Cumulative LLM input tokens consumed
+            totalOutputTokens:
+              type: integer
+              description: Cumulative LLM output tokens consumed
+            totalLlmCost:
+              type: number
+              description: Estimated cumulative LLM cost in USD
 
     ProcessingEpisode:
       type: object

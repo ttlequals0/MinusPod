@@ -2159,6 +2159,24 @@ class Database:
             'models': models,
         }
 
+    def get_model_pricing(self) -> List[Dict]:
+        """Get all model pricing entries."""
+        conn = self.get_connection()
+        cursor = conn.execute(
+            """SELECT model_id, display_name, input_cost_per_mtok, output_cost_per_mtok, updated_at
+               FROM model_pricing ORDER BY display_name"""
+        )
+        return [
+            {
+                'modelId': row['model_id'],
+                'displayName': row['display_name'],
+                'inputCostPerMtok': row['input_cost_per_mtok'],
+                'outputCostPerMtok': row['output_cost_per_mtok'],
+                'updatedAt': row['updated_at'],
+            }
+            for row in cursor
+        ]
+
     def refresh_model_pricing(self, available_models: List[Dict]):
         """Insert pricing for newly discovered models from DEFAULT_MODEL_PRICING.
 
