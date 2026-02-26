@@ -273,7 +273,7 @@ function HistoryPage() {
                 <span>{formatDate(entry.processedAt)}</span>
                 <span>{formatDuration(entry.processingDurationSeconds)}</span>
                 <span>Ads: {entry.adsDetected}</span>
-                {entry.llmCost != null && entry.llmCost > 0 && <span>${entry.llmCost.toFixed(4)}</span>}
+                {entry.llmCost != null && entry.llmCost > 0 && <span>${entry.llmCost.toFixed(2)}</span>}
                 {entry.reprocessNumber > 1 && <span>#{entry.reprocessNumber}</span>}
               </div>
             </div>
@@ -341,7 +341,7 @@ function HistoryPage() {
                       {entry.adsDetected}
                     </td>
                     <td className="px-4 py-3 text-sm text-muted-foreground hidden md:table-cell">
-                      {entry.llmCost != null && entry.llmCost > 0 ? `$${entry.llmCost.toFixed(4)}` : '-'}
+                      {entry.llmCost != null && entry.llmCost > 0 ? `$${entry.llmCost.toFixed(2)}` : '-'}
                     </td>
                     <td className="px-4 py-3 text-sm text-muted-foreground hidden md:table-cell">
                       {entry.reprocessNumber > 1 ? `#${entry.reprocessNumber}` : '-'}

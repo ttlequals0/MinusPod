@@ -373,6 +373,7 @@ def start_episode_token_tracking():
     _episode_accumulator['input_tokens'] = 0
     _episode_accumulator['output_tokens'] = 0
     _episode_accumulator['cost'] = 0.0
+    logger.info("Episode token tracking: ACTIVATED")
 
 
 def get_episode_token_totals() -> Dict:
@@ -382,6 +383,7 @@ def get_episode_token_totals() -> Dict:
         'output_tokens': _episode_accumulator['output_tokens'],
         'cost': _episode_accumulator['cost'],
     }
+    logger.info(f"Episode token totals: in={totals['input_tokens']} out={totals['output_tokens']} cost=${totals['cost']:.6f}")
     _episode_accumulator['active'] = False
     _episode_accumulator['input_tokens'] = 0
     _episode_accumulator['output_tokens'] = 0
@@ -401,6 +403,7 @@ def _record_token_usage(model: str, usage: Dict):
             input_tokens=input_tokens,
             output_tokens=output_tokens,
         )
+        logger.info(f"Token callback: model={model} in={input_tokens} out={output_tokens} cost=${cost:.6f} accum_active={_episode_accumulator['active']}")
         if _episode_accumulator['active']:
             _episode_accumulator['input_tokens'] += input_tokens
             _episode_accumulator['output_tokens'] += output_tokens

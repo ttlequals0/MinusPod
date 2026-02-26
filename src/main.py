@@ -1328,6 +1328,7 @@ def _finalize_episode(slug, episode_id, episode_title, podcast_name,
         audio_logger.info(f"[{slug}:{episode_id}] Complete: {len(ads_to_remove)} ads removed, {processing_time:.1f}s")
 
     token_totals = get_episode_token_totals()
+    audio_logger.info(f"[{slug}:{episode_id}] Token totals: in={token_totals['input_tokens']} out={token_totals['output_tokens']} cost=${token_totals['cost']:.6f}")
 
     try:
         podcast_data = db.get_podcast_by_slug(slug)
@@ -1383,6 +1384,7 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
         retry_count=new_retry_count, error_message=str(error))
 
     token_totals = get_episode_token_totals()
+    audio_logger.info(f"[{slug}:{episode_id}] Token totals: in={token_totals['input_tokens']} out={token_totals['output_tokens']} cost=${token_totals['cost']:.6f}")
 
     try:
         podcast_data = db.get_podcast_by_slug(slug)

@@ -269,9 +269,9 @@ function EpisodeDetail() {
                   Chapters
                 </span>
               )}
-              {episode.inputTokens != null && episode.inputTokens > 0 && (
+              {episode.llmCost != null && (
                 <span className="text-xs text-muted-foreground">
-                  LLM: {episode.llmCost != null && episode.llmCost > 0 ? `$${episode.llmCost.toFixed(4)}` : ''} ({episode.inputTokens >= 1000 ? `${(episode.inputTokens / 1000).toFixed(1)}K` : episode.inputTokens} in / {episode.outputTokens != null && episode.outputTokens >= 1000 ? `${(episode.outputTokens / 1000).toFixed(1)}K` : episode.outputTokens ?? 0} out)
+                  LLM: ${episode.llmCost.toFixed(2)} ({episode.inputTokens != null && episode.inputTokens >= 1000 ? `${(episode.inputTokens / 1000).toFixed(1)}K` : episode.inputTokens ?? 0} in / {episode.outputTokens != null && episode.outputTokens >= 1000 ? `${(episode.outputTokens / 1000).toFixed(1)}K` : episode.outputTokens ?? 0} out)
                 </span>
               )}
               <div className="relative">

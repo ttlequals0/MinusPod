@@ -760,7 +760,7 @@ def list_episodes(slug):
 def _get_episode_token_fields(db, episode_id: str) -> dict:
     """Look up per-episode token usage and return API fields (or empty dict)."""
     usage = db.get_episode_token_usage(episode_id)
-    if not usage or (usage['input_tokens'] == 0 and usage['output_tokens'] == 0):
+    if not usage:
         return {}
     return {
         'inputTokens': usage['input_tokens'],

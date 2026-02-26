@@ -6,6 +6,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.14] - 2026-02-26
+
+### Fixed
+- **Always show LLM cost on episode detail page**: Previously hidden when tokens were zero (all pre-feature episodes). Now displays `LLM: $0.00 (0 in / 0 out)` for any completed episode with a processing_history entry.
+- **2-digit cost precision in UI**: Changed LLM cost display from 4 decimal places to 2 in both episode detail and history pages for cleaner presentation.
+
+### Added
+- **Diagnostic logging for token accumulator lifecycle**: Added logging at accumulator activation, each token callback, and totals retrieval in `llm_client.py`. Added token totals logging before DB write in `main.py` for both success and failure paths. Enables verification via Loki after next processing run.
+
 ## [1.0.13] - 2026-02-26
 
 ### Fixed
