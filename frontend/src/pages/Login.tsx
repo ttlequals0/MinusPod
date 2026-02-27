@@ -1,10 +1,12 @@
 import { useState, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 
 function Login() {
   const navigate = useNavigate();
   const { login, isAuthenticated, isPasswordSet } = useAuth();
+  const { theme } = useTheme();
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -44,7 +46,11 @@ function Login() {
       <div className="w-full max-w-sm">
         <div className="bg-card border border-border rounded-lg shadow-lg p-8">
           <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold text-foreground">MinusPod</h1>
+            <img
+              src={theme === 'dark' ? '/ui/logo-dark.svg' : '/ui/logo.svg'}
+              alt="MinusPod"
+              className="h-10 mx-auto"
+            />
             <p className="text-sm text-muted-foreground mt-2">Enter password to continue</p>
           </div>
 

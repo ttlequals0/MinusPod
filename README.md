@@ -1,4 +1,6 @@
-# MinusPod
+<p align="center">
+  <img src="tmp/minuspod_logo_v2.png" alt="MinusPod" width="400" />
+</p>
 
 Removes ads from podcasts using Whisper transcription. Serves modified RSS feeds that work with any podcast app.
 

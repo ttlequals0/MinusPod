@@ -1,5 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 160" width="200" height="160">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 160" width="520" height="160">
   <defs>
+    <linearGradient id="waveGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6C63FF"/>
+      <stop offset="50%" stop-color="#00C9A7"/>
+      <stop offset="100%" stop-color="#FF6B6B"/>
+    </linearGradient>
     <linearGradient id="barGrad1" x1="0%" y1="0%" x2="0%" y2="100%">
       <stop offset="0%" stop-color="#6C63FF"/>
       <stop offset="100%" stop-color="#9B8FFF"/>
@@ -57,5 +62,22 @@
   <rect x="182" y="65" width="7" height="30" rx="3.5" fill="url(#barGrad3)" opacity="0.55"/>
 
   <!-- Minus strike: bold diagonal slash through bars -->
+  <!-- Dark background gap to simulate cut -->
+  <rect x="0" y="73" width="200" height="14" fill="#3a3f44" opacity="0.88"/>
+  <!-- The minus line itself -->
   <rect x="4" y="77" width="192" height="6" rx="3" fill="url(#strikeGrad)" filter="url(#softglow)"/>
+
+  <!-- Wordmark -->
+  <text x="218" y="105"
+    font-family="-apple-system, 'Helvetica Neue', Arial, sans-serif"
+    font-size="52"
+    font-weight="700"
+    letter-spacing="-2"
+    fill="#AAAAAA">Minus</text>
+  <text x="372" y="105"
+    font-family="-apple-system, 'Helvetica Neue', Arial, sans-serif"
+    font-size="52"
+    font-weight="300"
+    letter-spacing="-1"
+    fill="#00C9A7">Pod</text>
 </svg>
