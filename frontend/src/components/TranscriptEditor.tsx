@@ -3,15 +3,6 @@ import { useTranscriptKeyboard } from '../hooks/useTranscriptKeyboard';
 import { X, Check, RotateCcw, Save, Play, Pause, ChevronLeft, ChevronRight, ChevronUp, ChevronDown, Minus, Plus } from 'lucide-react';
 import PatternLink from './PatternLink';
 
-interface TranscriptSegment {
-  start: number;
-  end: number;
-  text: string;
-}
-
-// Touch interaction mode for mobile
-type TouchMode = 'seek' | 'setStart' | 'setEnd';
-
 // Save status for visual feedback
 type SaveStatus = 'idle' | 'saving' | 'success' | 'error';
 
@@ -28,8 +19,8 @@ interface DetectedAd {
 }
 
 interface TranscriptEditorProps {
-  segments: TranscriptSegment[];
   detectedAds: DetectedAd[];
+  audioDuration: number;
   audioUrl?: string;
   onCorrection: (correction: AdCorrection) => void;
   onClose?: () => void;
@@ -55,8 +46,8 @@ function formatTime(seconds: number): string {
 
 
 export function TranscriptEditor({
-  segments,
   detectedAds,
+  audioDuration,
   audioUrl,
   onCorrection,
   onClose,
@@ -87,17 +78,11 @@ export function TranscriptEditor({
   const [endAdjustment, setEndAdjustment] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
-  const [touchMode, setTouchMode] = useState<TouchMode>('seek');
-  const [lastTapTime, setLastTapTime] = useState(0);
-  const [longPressTimer, setLongPressTimer] = useState<ReturnType<typeof setTimeout> | null>(null);
   const [mobileControlsExpanded, setMobileControlsExpanded] = useState(false);
   const [audioSheetExpanded, setAudioSheetExpanded] = useState(false);
-  const [swipeStartX, setSwipeStartX] = useState<number | null>(null);
   const [isDraggingProgress, setIsDraggingProgress] = useState(false);
   const [preserveSeekPosition, setPreserveSeekPosition] = useState(false);
-  const [showReason, setShowReason] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
-  const transcriptRef = useRef<HTMLDivElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const progressBarRef = useRef<HTMLDivElement>(null);
 
@@ -109,8 +94,6 @@ export function TranscriptEditor({
   }, []);
 
   const NUDGE_AMOUNT = 0.5; // seconds
-  const DOUBLE_TAP_DELAY = 300; // ms
-  const LONG_PRESS_DELAY = 500; // ms
 
   const selectedAd = detectedAds[selectedAdIndex];
 
@@ -145,44 +128,6 @@ export function TranscriptEditor({
     };
   }, []);
 
-  // Auto-scroll transcript to current time during playback
-  useEffect(() => {
-    if (!transcriptRef.current || !isPlaying) return;
-
-    const activeSegment = transcriptRef.current.querySelector('[data-active="true"]');
-    if (activeSegment) {
-      activeSegment.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }
-  }, [currentTime, isPlaying]);
-
-  // Scroll transcript to show selected ad
-  const scrollToAd = useCallback((ad: DetectedAd) => {
-    if (!transcriptRef.current) return;
-
-    const segmentElements = transcriptRef.current.querySelectorAll('[data-segment-start]');
-    for (const seg of segmentElements) {
-      const start = parseFloat(seg.getAttribute('data-segment-start') || '0');
-      if (start >= ad.start) {
-        seg.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        break;
-      }
-    }
-  }, []);
-
-  // Scroll transcript to a specific time (for jump functionality)
-  const scrollToTime = useCallback((time: number) => {
-    if (!transcriptRef.current) return;
-
-    const segmentElements = transcriptRef.current.querySelectorAll('[data-segment-start]');
-    for (const seg of segmentElements) {
-      const start = parseFloat(seg.getAttribute('data-segment-start') || '0');
-      if (start >= time) {
-        seg.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        break;
-      }
-    }
-  }, []);
-
   // Handle initial seek time (from Jump button)
   useEffect(() => {
     if (initialSeekTime !== undefined && audioRef.current) {
@@ -198,10 +143,8 @@ export function TranscriptEditor({
       audioRef.current.currentTime = initialSeekTime;
       // Preserve this seek position so play doesn't reset it
       setPreserveSeekPosition(true);
-      // Scroll transcript to show the jumped-to time
-      scrollToTime(initialSeekTime);
     }
-  }, [initialSeekTime, detectedAds, scrollToTime]);
+  }, [initialSeekTime, detectedAds]);
 
   // Auto-focus container when editor opens for keyboard shortcuts
   useEffect(() => {
@@ -210,16 +153,11 @@ export function TranscriptEditor({
     }
   }, []);
 
-  // Handle ad selection with auto-scroll and haptic feedback
+  // Handle ad selection with haptic feedback
   const handleAdSelect = useCallback((index: number) => {
     setSelectedAdIndex(index);
     triggerHaptic('light');
-    const ad = detectedAds[index];
-    if (ad) {
-      // Small delay to allow state update before scroll
-      setTimeout(() => scrollToAd(ad), 50);
-    }
-  }, [detectedAds, scrollToAd, triggerHaptic]);
+  }, [triggerHaptic]);
 
   // Navigate to previous/next ad (for swipe gestures)
   // Uses ref to avoid stale closure with controlled state
@@ -236,25 +174,6 @@ export function TranscriptEditor({
       handleAdSelect(currentIndex + 1);
     }
   }, [detectedAds.length, handleAdSelect]);
-
-  // Swipe gesture handlers for ad navigation
-  const handleSwipeStart = useCallback((e: React.TouchEvent) => {
-    setSwipeStartX(e.touches[0].clientX);
-  }, []);
-
-  const handleSwipeEnd = useCallback((e: React.TouchEvent) => {
-    if (swipeStartX === null) return;
-    const deltaX = e.changedTouches[0].clientX - swipeStartX;
-    const SWIPE_THRESHOLD = 50;
-    if (Math.abs(deltaX) > SWIPE_THRESHOLD) {
-      if (deltaX > 0) {
-        goToPreviousAd();
-      } else {
-        goToNextAd();
-      }
-    }
-    setSwipeStartX(null);
-  }, [swipeStartX, goToPreviousAd, goToNextAd]);
 
   const handlePlayPause = useCallback(() => {
     const audio = audioRef.current;
@@ -274,9 +193,9 @@ export function TranscriptEditor({
   }, [isPlaying, currentTime, adjustedStart, adjustedEnd, preserveSeekPosition]);
 
   const handleNudgeEndForward = useCallback(() => {
-    setAdjustedEnd((prev) => Math.min(prev + NUDGE_AMOUNT, segments[segments.length - 1]?.end || prev));
+    setAdjustedEnd((prev) => Math.min(prev + NUDGE_AMOUNT, audioDuration || prev));
     triggerHaptic('light');
-  }, [segments, triggerHaptic]);
+  }, [audioDuration, triggerHaptic]);
 
   const handleNudgeEndBackward = useCallback(() => {
     setAdjustedEnd((prev) => Math.max(prev - NUDGE_AMOUNT, adjustedStart + 1));
@@ -363,83 +282,12 @@ export function TranscriptEditor({
     }
   };
 
-  // Handle segment click with modifier key support
-  const handleSegmentClick = useCallback((segment: TranscriptSegment, e: React.MouseEvent) => {
-    // Shift+click sets END boundary
-    if (e.shiftKey) {
-      setAdjustedEnd(segment.end);
-      return;
-    }
-    // Alt/Option+click or Cmd/Ctrl+click sets START boundary
-    if (e.altKey || e.metaKey || e.ctrlKey) {
-      setAdjustedStart(segment.start);
-      return;
-    }
-    // Normal click seeks audio
-    seekTo(segment.start);
-  }, []);
-
-  // Handle touch start for long-press detection
-  const handleTouchStart = useCallback((segment: TranscriptSegment) => {
-    const timer = setTimeout(() => {
-      // Long press - set END boundary
-      setAdjustedEnd(segment.end);
-      setLongPressTimer(null);
-    }, LONG_PRESS_DELAY);
-    setLongPressTimer(timer);
-  }, []);
-
-  // Handle touch end for tap/double-tap detection
-  const handleTouchEnd = useCallback((segment: TranscriptSegment, e: React.TouchEvent) => {
-    // Cancel long press if it was a short touch
-    if (longPressTimer) {
-      clearTimeout(longPressTimer);
-      setLongPressTimer(null);
-    } else {
-      // Long press already fired, don't process tap
-      return;
-    }
-
-    const now = Date.now();
-    const timeSinceLastTap = now - lastTapTime;
-
-    if (timeSinceLastTap < DOUBLE_TAP_DELAY) {
-      // Double tap - set START boundary
-      e.preventDefault();
-      setAdjustedStart(segment.start);
-      setLastTapTime(0);
-    } else {
-      // Single tap - handle based on touch mode
-      setLastTapTime(now);
-      switch (touchMode) {
-        case 'setStart':
-          setAdjustedStart(segment.start);
-          break;
-        case 'setEnd':
-          setAdjustedEnd(segment.end);
-          break;
-        case 'seek':
-        default:
-          seekTo(segment.start);
-          break;
-      }
-    }
-  }, [touchMode, lastTapTime, longPressTimer]);
-
-  // Clean up long press timer on touch cancel/move
-  const handleTouchCancel = useCallback(() => {
-    if (longPressTimer) {
-      clearTimeout(longPressTimer);
-      setLongPressTimer(null);
-    }
-  }, [longPressTimer]);
-
   // Handle click on progress bar to seek
   const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const clickX = e.clientX - rect.left;
     const percentage = clickX / rect.width;
-    const duration = segments[segments.length - 1]?.end || 1;
+    const duration = audioDuration || 1;
     seekTo(percentage * duration);
   };
 
@@ -450,30 +298,22 @@ export function TranscriptEditor({
     const rect = e.currentTarget.getBoundingClientRect();
     const touchX = e.touches[0].clientX - rect.left;
     const percentage = Math.max(0, Math.min(1, touchX / rect.width));
-    const duration = segments[segments.length - 1]?.end || 1;
+    const duration = audioDuration || 1;
     seekTo(percentage * duration);
-  }, [segments, triggerHaptic]);
+  }, [audioDuration, triggerHaptic]);
 
   const handleProgressDrag = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
     if (!isDraggingProgress) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const touchX = e.touches[0].clientX - rect.left;
     const percentage = Math.max(0, Math.min(1, touchX / rect.width));
-    const duration = segments[segments.length - 1]?.end || 1;
+    const duration = audioDuration || 1;
     seekTo(percentage * duration);
-  }, [isDraggingProgress, segments]);
+  }, [isDraggingProgress, audioDuration]);
 
   const handleProgressDragEnd = useCallback(() => {
     setIsDraggingProgress(false);
   }, []);
-
-  const isInAdRegion = (segStart: number, segEnd: number) => {
-    return segStart < adjustedEnd && segEnd > adjustedStart;
-  };
-
-  const isCurrentSegment = (segStart: number, segEnd: number) => {
-    return currentTime >= segStart && currentTime < segEnd;
-  };
 
   // Get button text based on save status
   const getSaveButtonText = () => {
@@ -557,14 +397,6 @@ export function TranscriptEditor({
                 })()}
               </span>
             )}
-            {selectedAd.reason && (
-              <button
-                onClick={() => setShowReason(!showReason)}
-                className="px-2 py-0.5 text-xs text-muted-foreground hover:text-foreground hover:bg-accent rounded transition-colors"
-              >
-                {showReason ? 'Hide reason' : 'Show reason'}
-              </button>
-            )}
           </div>
           {onClose && (
             <button
@@ -578,15 +410,6 @@ export function TranscriptEditor({
             </button>
           )}
         </div>
-        {/* Collapsible reason section */}
-        {showReason && selectedAd.reason && (
-          <div className="px-4 py-2 border-b border-border bg-muted/30 text-sm text-muted-foreground">
-            <p className="break-words">
-              <PatternLink reason={selectedAd.reason} />
-            </p>
-          </div>
-        )}
-
         {/* Ad selector - with momentum scrolling for mobile */}
         <div className="flex gap-2 px-4 py-2 border-b border-border overflow-x-auto scroll-smooth touch-pan-x landscape:hidden">
           {detectedAds.map((ad, index) => (
@@ -702,7 +525,7 @@ export function TranscriptEditor({
                     onClick={() => {
                       const newAdj = endAdjustment - 1;
                       setEndAdjustment(newAdj);
-                      const maxEnd = segments[segments.length - 1]?.end || 9999;
+                      const maxEnd = audioDuration || 9999;
                       const newEnd = Math.min(maxEnd, (selectedAd?.end || 0) + newAdj);
                       setAdjustedEnd(newEnd);
                       triggerHaptic();
@@ -719,7 +542,7 @@ export function TranscriptEditor({
                       onChange={(e) => {
                         const val = parseFloat(e.target.value) || 0;
                         setEndAdjustment(val);
-                        const maxEnd = segments[segments.length - 1]?.end || 9999;
+                        const maxEnd = audioDuration || 9999;
                         const newEnd = Math.min(maxEnd, (selectedAd?.end || 0) + val);
                         setAdjustedEnd(newEnd);
                       }}
@@ -732,7 +555,7 @@ export function TranscriptEditor({
                     onClick={() => {
                       const newAdj = endAdjustment + 1;
                       setEndAdjustment(newAdj);
-                      const maxEnd = segments[segments.length - 1]?.end || 9999;
+                      const maxEnd = audioDuration || 9999;
                       const newEnd = Math.min(maxEnd, (selectedAd?.end || 0) + newAdj);
                       setAdjustedEnd(newEnd);
                       triggerHaptic();
@@ -776,94 +599,43 @@ export function TranscriptEditor({
               <span className="font-mono">C</span> confirm{' '}
               <span className="font-mono">X</span> reject{' '}
               <span className="font-mono">Esc</span> reset
-              <br />
-              <span className="font-mono">Click</span> seek{' '}
-              <span className="font-mono">Shift+Click</span> set end{' '}
-              <span className="font-mono">Alt+Click</span> set start
-            </div>
-
-            {/* Mobile mode toggle and instructions */}
-            <div className="sm:hidden mt-3">
-              <div className="flex gap-2 mb-2">
-                <button
-                  onClick={() => setTouchMode('seek')}
-                  className={`flex-1 px-4 py-3 text-xs rounded-lg transition-all touch-manipulation min-h-[48px] active:scale-95 ${
-                    touchMode === 'seek'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted text-muted-foreground hover:bg-accent active:bg-accent/80'
-                  }`}
-                >
-                  Seek
-                </button>
-                <button
-                  onClick={() => setTouchMode('setStart')}
-                  className={`flex-1 px-4 py-3 text-xs rounded-lg transition-all touch-manipulation min-h-[48px] active:scale-95 ${
-                    touchMode === 'setStart'
-                      ? 'bg-green-600 text-white'
-                      : 'bg-muted text-muted-foreground hover:bg-accent active:bg-accent/80'
-                  }`}
-                >
-                  Set Start
-                </button>
-                <button
-                  onClick={() => setTouchMode('setEnd')}
-                  className={`flex-1 px-4 py-3 text-xs rounded-lg transition-all touch-manipulation min-h-[48px] active:scale-95 ${
-                    touchMode === 'setEnd'
-                      ? 'bg-orange-600 text-white'
-                      : 'bg-muted text-muted-foreground hover:bg-accent active:bg-accent/80'
-                  }`}
-                >
-                  Set End
-                </button>
-              </div>
-              <p className="text-xs text-muted-foreground text-center">
-                {touchMode === 'seek' && 'Tap to seek. Double-tap = start. Long-press = end.'}
-                {touchMode === 'setStart' && 'Tap segment to set START boundary'}
-                {touchMode === 'setEnd' && 'Tap segment to set END boundary'}
-              </p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* SCROLLABLE: Transcript only - with swipe gestures for ad navigation */}
-      <div
-        ref={transcriptRef}
-        className="flex-1 overflow-y-auto p-4 space-y-2 min-h-0"
-        onTouchStart={handleSwipeStart}
-        onTouchEnd={handleSwipeEnd}
-      >
-        {segments.map((segment, index) => {
-          const inAd = isInAdRegion(segment.start, segment.end);
-          const isCurrent = isCurrentSegment(segment.start, segment.end);
-          const isStartBoundary = Math.abs(segment.start - adjustedStart) < 1;
-          const isEndBoundary = Math.abs(segment.end - adjustedEnd) < 1;
-
-          return (
-            <div
-              key={index}
-              data-active={isCurrent}
-              data-segment-start={segment.start}
-              onClick={(e) => handleSegmentClick(segment, e)}
-              onTouchStart={() => handleTouchStart(segment)}
-              onTouchEnd={(e) => handleTouchEnd(segment, e)}
-              onTouchCancel={handleTouchCancel}
-              onTouchMove={handleTouchCancel}
-              className={`p-2 rounded-lg cursor-pointer transition-all select-none min-h-[40px] sm:min-h-0 flex items-start active:bg-accent/30 ${
-                inAd
-                  ? 'bg-red-500/20 hover:bg-red-500/30 active:bg-red-500/40'
-                  : 'hover:bg-accent active:bg-accent/50'
-              } ${isCurrent ? 'ring-2 ring-primary' : ''} ${
-                isStartBoundary ? 'border-l-4 border-l-green-500' : ''
-              } ${isEndBoundary ? 'border-r-4 border-r-orange-500' : ''}`}
-            >
-              <span className="text-[10px] sm:text-xs text-muted-foreground font-mono mr-2 flex-shrink-0 pt-0.5">
-                {formatTime(segment.start)}
-              </span>
-              <span className={`text-xs sm:text-sm ${inAd ? 'text-red-400' : ''}`}>{segment.text}</span>
+      {/* Reason panel - always visible, replaces transcript */}
+      <div className="flex-1 overflow-y-auto p-4 min-h-0">
+        <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">Why this was flagged</h4>
+        {selectedAd.reason ? (
+          <p className="text-sm text-foreground break-words mb-4">
+            <PatternLink reason={selectedAd.reason} />
+          </p>
+        ) : (
+          <p className="text-sm text-muted-foreground italic mb-4">No reason provided</p>
+        )}
+        <div className="flex flex-wrap gap-4 text-sm">
+          <div>
+            <span className="text-xs text-muted-foreground">Confidence</span>
+            <p className="font-medium">{Math.round(selectedAd.confidence * 100)}%</p>
+          </div>
+          {selectedAd.detection_stage && (
+            <div>
+              <span className="text-xs text-muted-foreground">Detection stage</span>
+              <p className="font-medium">
+                {(() => {
+                  switch (selectedAd.detection_stage) {
+                    case 'fingerprint': return 'Fingerprint';
+                    case 'text_pattern': return 'Pattern';
+                    case 'verification': return 'Pass 2';
+                    case 'language': return 'Language';
+                    default: return 'Pass 1';
+                  }
+                })()}
+              </p>
             </div>
-          );
-        })}
+          )}
+        </div>
       </div>
 
       {/* STICKY BOTTOM: Audio + Actions */}
@@ -887,7 +659,7 @@ export function TranscriptEditor({
               >
                 <div
                   className="h-full bg-primary pointer-events-none"
-                  style={{ width: `${(currentTime / (segments[segments.length - 1]?.end || 1)) * 100}%` }}
+                  style={{ width: `${(currentTime / (audioDuration || 1)) * 100}%` }}
                 />
               </div>
             </div>
@@ -976,12 +748,12 @@ export function TranscriptEditor({
               >
                 <div
                   className="absolute top-0 left-0 h-full bg-primary rounded-full pointer-events-none"
-                  style={{ width: `${(currentTime / (segments[segments.length - 1]?.end || 1)) * 100}%` }}
+                  style={{ width: `${(currentTime / (audioDuration || 1)) * 100}%` }}
                 />
                 {/* Thumb indicator */}
                 <div
                   className={`absolute top-1/2 -translate-y-1/2 bg-primary rounded-full shadow-md transition-all pointer-events-none ${isDraggingProgress ? 'w-6 h-6' : 'w-4 h-4'}`}
-                  style={{ left: `calc(${(currentTime / (segments[segments.length - 1]?.end || 1)) * 100}% - ${isDraggingProgress ? '12px' : '8px'})` }}
+                  style={{ left: `calc(${(currentTime / (audioDuration || 1)) * 100}% - ${isDraggingProgress ? '12px' : '8px'})` }}
                 />
               </div>
             </div>
@@ -1047,18 +819,18 @@ export function TranscriptEditor({
             >
               <div
                 className="absolute top-0 left-0 h-full bg-primary rounded-full pointer-events-none"
-                style={{ width: `${(currentTime / (segments[segments.length - 1]?.end || 1)) * 100}%` }}
+                style={{ width: `${(currentTime / (audioDuration || 1)) * 100}%` }}
               />
               <div
                 className={`absolute top-1/2 -translate-y-1/2 bg-primary rounded-full shadow-md transition-all pointer-events-none ${isDraggingProgress ? 'w-7 h-7' : 'w-5 h-5'}`}
-                style={{ left: `calc(${(currentTime / (segments[segments.length - 1]?.end || 1)) * 100}% - ${isDraggingProgress ? '14px' : '10px'})` }}
+                style={{ left: `calc(${(currentTime / (audioDuration || 1)) * 100}% - ${isDraggingProgress ? '14px' : '10px'})` }}
               />
             </div>
 
             {/* Time display */}
             <div className="flex justify-between text-sm text-muted-foreground font-mono">
               <span>{formatTime(currentTime)}</span>
-              <span>{formatTime(segments[segments.length - 1]?.end || 0)}</span>
+              <span>{formatTime(audioDuration || 0)}</span>
             </div>
 
             {/* Large play controls */}

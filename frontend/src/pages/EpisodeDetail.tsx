@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useEffect } from 'react';
+import { useState, useRef, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getEpisode, reprocessEpisode, regenerateChapters } from '../api/feeds';
@@ -104,70 +104,6 @@ function EpisodeDetail() {
       detection_stage: marker.detection_stage || 'first_pass',
     }));
   }, [episode?.adMarkers]);
-
-  // Parse VTT content into transcript segments
-  const [vttSegments, setVttSegments] = useState<{ start: number; end: number; text: string }[]>([]);
-
-  useEffect(() => {
-    if (!episode?.transcriptVttAvailable || !episode?.transcriptVttUrl) {
-      setVttSegments([]);
-      return;
-    }
-
-    const parseVttTimestamp = (ts: string): number => {
-      const parts = ts.trim().split(':');
-      if (parts.length === 3) {
-        return parseFloat(parts[0]) * 3600 + parseFloat(parts[1]) * 60 + parseFloat(parts[2]);
-      } else if (parts.length === 2) {
-        return parseFloat(parts[0]) * 60 + parseFloat(parts[1]);
-      }
-      return 0;
-    };
-
-    fetch(episode.transcriptVttUrl)
-      .then((res) => {
-        if (!res.ok) throw new Error(`VTT fetch failed: ${res.status}`);
-        return res.text();
-      })
-      .then((vttText) => {
-        const cues = vttText.split(/\n\n+/).filter((block) => block.includes('-->'));
-        const parsed = cues.map((cue) => {
-          const lines = cue.trim().split('\n');
-          const timeLine = lines.find((l) => l.includes('-->'));
-          if (!timeLine) return null;
-          const [startStr, endStr] = timeLine.split('-->');
-          const textLines = lines.slice(lines.indexOf(timeLine) + 1);
-          return {
-            start: parseVttTimestamp(startStr),
-            end: parseVttTimestamp(endStr),
-            text: textLines.join(' ').trim(),
-          };
-        }).filter((s): s is { start: number; end: number; text: string } => s !== null && s.text.length > 0);
-        setVttSegments(parsed);
-      })
-      .catch(() => setVttSegments([]));
-  }, [episode?.transcriptVttAvailable, episode?.transcriptVttUrl]);
-
-  // Use VTT segments if available, otherwise fall back to approximate timestamps
-  const transcriptSegments = useMemo(() => {
-    if (vttSegments.length > 0) return vttSegments;
-
-    if (!episode?.transcript || !episode.originalDuration) return [];
-
-    // Fallback: distribute timestamps evenly across sentences (approximation)
-    const text = episode.transcript;
-    const sentences = text.split(/(?<=[.!?])\s+/).filter((s) => s.trim());
-    if (sentences.length === 0) return [];
-
-    const duration = episode.originalDuration;
-    const segmentDuration = duration / sentences.length;
-
-    return sentences.map((sentence, index) => ({
-      start: index * segmentDuration,
-      end: (index + 1) * segmentDuration,
-      text: sentence.trim(),
-    }));
-  }, [vttSegments, episode?.transcript, episode?.originalDuration]);
 
   const formatDuration = (seconds?: number) => {
     if (!seconds) return '';
@@ -413,8 +349,8 @@ function EpisodeDetail() {
           {showEditor && episode.status === 'completed' && (
             <div className="mb-4" ref={editorRef}>
               <TranscriptEditor
-                segments={transcriptSegments}
                 detectedAds={detectedAds}
+                audioDuration={episode.originalDuration ?? 0}
                 audioUrl={`/episodes/${slug}/${episode.id}.mp3`}
                 onCorrection={handleCorrection}
                 onClose={() => {
