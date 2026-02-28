@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.19] - 2026-02-28
 
 ### Changed
-- **Redesigned ad editor time adjustment controls**: Grouped +/- buttons and input into unified bordered containers with Minus/Plus icons and inline "s" suffix. Removed browser number spinners.
+- **Redesigned ad editor time adjustment controls**: +/- buttons use bg-muted filled style matching the rest of the UI instead of hard-bordered containers. Always visible on all viewports (removed collapsible mobile toggle). Minus/Plus icons, inline "s" suffix, no browser number spinners.
 - **Replaced transcript panel with reason panel**: The scrollable transcript view in the ad editor is replaced by an always-visible panel showing why an ad was flagged, its confidence percentage, and detection stage. Removed VTT fetch/parse, touch mode toggles, swipe gestures, and segment click handlers.
 - **Renamed TranscriptEditor to AdEditor**: Component, file, props interface, and all references updated to reflect its actual purpose as an ad review/correction editor.
 
