@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getEpisode, reprocessEpisode, regenerateChapters } from '../api/feeds';
 import { submitCorrection } from '../api/patterns';
 import LoadingSpinner from '../components/LoadingSpinner';
-import TranscriptEditor, { AdCorrection } from '../components/TranscriptEditor';
+import AdEditor, { AdCorrection } from '../components/AdEditor';
 import PatternLink from '../components/PatternLink';
 
 // Save status type for visual feedback
@@ -74,7 +74,7 @@ function EpisodeDetail() {
     },
   });
 
-  // Handle ad corrections from TranscriptEditor
+  // Handle ad corrections from AdEditor
   const handleCorrection = (correction: AdCorrection) => {
     correctionMutation.mutate(correction);
   };
@@ -91,7 +91,7 @@ function EpisodeDetail() {
     }, 100);
   };
 
-  // Convert ad markers to TranscriptEditor format - memoized to prevent stale closures in editor
+  // Convert ad markers to AdEditor format - memoized to prevent stale closures in editor
   const detectedAds = useMemo(() => {
     if (!episode?.adMarkers) return [];
     return episode.adMarkers.map((marker) => ({
@@ -345,10 +345,10 @@ function EpisodeDetail() {
             )}
           </div>
 
-          {/* TranscriptEditor for reviewing/editing ad detections */}
+          {/* AdEditor for reviewing/editing ad detections */}
           {showEditor && episode.status === 'completed' && (
             <div className="mb-4" ref={editorRef}>
-              <TranscriptEditor
+              <AdEditor
                 detectedAds={detectedAds}
                 audioDuration={episode.originalDuration ?? 0}
                 audioUrl={`/episodes/${slug}/${episode.id}.mp3`}

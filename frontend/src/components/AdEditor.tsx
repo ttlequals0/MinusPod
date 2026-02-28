@@ -18,7 +18,7 @@ interface DetectedAd {
   network_id?: string;
 }
 
-interface TranscriptEditorProps {
+interface AdEditorProps {
   detectedAds: DetectedAd[];
   audioDuration: number;
   audioUrl?: string;
@@ -45,7 +45,7 @@ function formatTime(seconds: number): string {
 }
 
 
-export function TranscriptEditor({
+export function AdEditor({
   detectedAds,
   audioDuration,
   audioUrl,
@@ -55,7 +55,7 @@ export function TranscriptEditor({
   saveStatus = 'idle',
   selectedAdIndex: externalSelectedAdIndex,
   onSelectedAdIndexChange,
-}: TranscriptEditorProps) {
+}: AdEditorProps) {
   // Use controlled state if external index is provided, otherwise use internal state
   const [internalSelectedAdIndex, setInternalSelectedAdIndex] = useState(0);
   const selectedAdIndex = externalSelectedAdIndex ?? internalSelectedAdIndex;
@@ -863,4 +863,4 @@ export function TranscriptEditor({
   );
 }
 
-export default TranscriptEditor;
+export default AdEditor;
