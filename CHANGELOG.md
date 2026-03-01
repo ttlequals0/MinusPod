@@ -6,6 +6,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.26] - 2026-03-01
+
+### Fixed
+- **Ollama model filter**: Removed name-based filter in `OpenAICompatibleClient.list_models()` that only showed models containing "claude", "gpt", or "llama". All models reported by the endpoint are now listed, so Ollama models like qwen3, mistral, and phi4-mini appear correctly.
+- **Ollama fallback models**: `OpenAICompatibleClient._get_fallback_models()` now returns the configured `OPENAI_MODEL` value instead of hardcoded Claude models.
+- **Ollama startup blocked by API key check**: `get_api_key()` now defaults to `"not-needed"` for non-anthropic providers. `verify_llm_connection()` restructured so Ollama/openai-compatible providers skip the API key gate and go straight to the endpoint connection test.
+- **README env var table**: Added `ollama` as a valid `LLM_PROVIDER` value. Added missing `OPENAI_MODEL` row.
+
+### Added
+- **README Ollama section**: Dedicated documentation covering Ollama setup, recommended models by VRAM tier, accuracy comparison vs Claude, and JSON reliability risks.
+
 ## [1.0.25] - 2026-03-01
 
 ### Fixed

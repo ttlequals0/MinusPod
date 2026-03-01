@@ -301,29 +301,32 @@ class OpenAICompatibleClient(LLMClient):
         return llm_response
 
     def list_models(self) -> List[LLMModel]:
-        """List models from the OpenAI-compatible API."""
+        """List models from the OpenAI-compatible API.
+
+        Returns all models reported by the endpoint without filtering.
+        This ensures Ollama models (qwen3, mistral, phi4-mini, etc.) are
+        visible alongside Claude/GPT models from other providers.
+        """
         self._ensure_client()
 
         try:
             response = self._client.models.list()
             models = []
             for model in response.data:
-                # Filter to Claude models if using Claude Code wrapper
                 model_id = model.id if hasattr(model, 'id') else str(model)
-                if 'claude' in model_id.lower() or 'gpt' in model_id.lower() or 'llama' in model_id.lower():
-                    models.append(LLMModel(
-                        id=model_id,
-                        name=model_id,
-                        created=str(model.created) if hasattr(model, 'created') else None
-                    ))
+                models.append(LLMModel(
+                    id=model_id,
+                    name=model_id,
+                    created=str(model.created) if hasattr(model, 'created') else None
+                ))
             return models if models else self._get_fallback_models()
         except Exception as e:
             logger.warning(f"Could not fetch models from OpenAI-compatible API: {e}")
             return self._get_fallback_models()
 
     def _get_fallback_models(self) -> List[LLMModel]:
-        """Return fallback models."""
-        return list(FALLBACK_MODELS)
+        """Return the configured default model as fallback."""
+        return [LLMModel(id=self.default_model, name=self.default_model)]
 
     def get_provider_name(self) -> str:
         return f"openai-compatible ({self.base_url})"
@@ -470,32 +473,29 @@ def get_api_key() -> Optional[str]:
     """Get the API key for the current provider.
 
     Returns:
-        API key string or None if not set
+        API key string or None if not set.
+        Non-anthropic providers default to "not-needed" since local
+        endpoints like Ollama don't require authentication.
     """
     provider = os.environ.get('LLM_PROVIDER', 'anthropic').lower()
 
     if provider == 'anthropic':
         return os.environ.get('ANTHROPIC_API_KEY')
     else:
-        return os.environ.get('OPENAI_API_KEY', os.environ.get('ANTHROPIC_API_KEY'))
+        return os.environ.get('OPENAI_API_KEY', os.environ.get('ANTHROPIC_API_KEY', 'not-needed'))
 
 
 def verify_llm_connection() -> bool:
     """Verify the LLM endpoint is reachable at startup.
 
-    For openai-compatible providers, this makes a test request to verify
-    the endpoint is accessible. For Anthropic, this just verifies the
-    API key is set.
+    For openai-compatible providers (including Ollama), this makes a test
+    request to verify the endpoint is accessible -- no API key is required.
+    For Anthropic, this just verifies the API key is set.
 
     Returns:
         True if verification passed, False otherwise
     """
     provider = os.environ.get('LLM_PROVIDER', 'anthropic').lower()
-    api_key = get_api_key()
-
-    if not api_key:
-        logger.warning("No LLM API key configured - ad detection and chapter generation will be disabled")
-        return False
 
     if provider in ('openai-compatible', 'openai', 'wrapper', 'ollama'):
         base_url = os.environ.get('OPENAI_BASE_URL', 'http://localhost:8000/v1')
@@ -513,7 +513,11 @@ def verify_llm_connection() -> bool:
             logger.error(f"LLM endpoint verification failed: {e}")
             return False
     else:
-        # For Anthropic, just verify API key is present
+        # For Anthropic, verify API key is present
+        api_key = get_api_key()
+        if not api_key:
+            logger.warning("No LLM API key configured - ad detection and chapter generation will be disabled")
+            return False
         logger.info(f"LLM provider: {provider} (API key configured)")
         return True
 
