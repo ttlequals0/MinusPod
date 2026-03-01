@@ -26,26 +26,22 @@ CHAPTERS_MODEL = "claude-haiku-4-5-20251001"
 def get_chapters_model() -> str:
     """Get configured chapters model from database or fall back to default."""
     try:
-        from database import PodcastDatabase
-        db = PodcastDatabase()
+        from database import Database
+        db = Database()
+
         model = db.get_setting('chapters_model')
         if model:
             return model
-    except Exception as e:
-        logger.warning(f"Could not load chapters model from DB: {e}")
 
-    # Provider-aware fallback: use the primary detection model for non-Anthropic providers
-    # (Ollama doesn't have Anthropic model names like claude-haiku-4-5-20251001)
-    provider = os.environ.get('LLM_PROVIDER', 'anthropic').lower()
-    if provider != 'anthropic':
-        try:
-            from database import PodcastDatabase
-            db = PodcastDatabase()
+        # Provider-aware fallback: use the primary detection model for non-Anthropic providers
+        # (Ollama doesn't have Anthropic model names like claude-haiku-4-5-20251001)
+        provider = os.environ.get('LLM_PROVIDER', 'anthropic').lower()
+        if provider != 'anthropic':
             primary_model = db.get_setting('claude_model')
             if primary_model:
                 return primary_model
-        except Exception:
-            pass
+    except Exception as e:
+        logger.warning(f"Could not load chapters model from DB: {e}")
 
     return CHAPTERS_MODEL
 

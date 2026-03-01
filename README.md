@@ -296,7 +296,7 @@ All configuration is managed through the web UI or REST API. No config files nee
 ### Ad Detection Settings
 
 Customize ad detection in Settings:
-- **Claude Model** - Model for first pass ad detection
+- **AI Model** - Model for first pass ad detection
 - **Verification Model** - Separate model for the post-cut verification pass
 - **Chapters Model** - Model for chapter generation (defaults to Haiku for cost efficiency)
 - **System Prompts** - Customizable prompts for first pass and verification detection
@@ -330,7 +330,7 @@ The feed URL is shown in the web UI and can be copied to clipboard.
 | `LLM_PROVIDER` | `anthropic` | LLM backend: `anthropic` (direct API), `openai-compatible` (wrapper), or `ollama` |
 | `OPENAI_BASE_URL` | `http://localhost:8000/v1` | Base URL for OpenAI-compatible API (only used with non-anthropic providers) |
 | `OPENAI_API_KEY` | `not-needed` | API key for OpenAI-compatible endpoint (not required for Ollama or local wrappers) |
-| `OPENAI_MODEL` | `claude-sonnet-4-5-20250929` | Default model for OpenAI-compatible/Ollama providers (also selectable in Settings UI) |
+| `OPENAI_MODEL` | _(none)_ | Model for OpenAI-compatible/Ollama providers. **Required for Ollama** (e.g. `qwen3:14b`). Defaults to `claude-sonnet-4-5-20250929` for wrapper mode if unset. |
 | `BASE_URL` | `http://localhost:8000` | Public URL for generated feed links |
 | `WHISPER_MODEL` | `small` | Whisper model size (tiny/base/small/medium/large) |
 | `WHISPER_DEVICE` | `cuda` | Device for Whisper (cuda/cpu) |
@@ -383,7 +383,7 @@ OPENAI_API_KEY=not-needed
 BASE_URL=http://localhost:8000
 ```
 
-Note: The Claude model is configured via the Settings UI, not environment variables.
+Note: The AI model is configured via the Settings UI, not environment variables.
 
 ## Using Ollama (Local LLM)
 

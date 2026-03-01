@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface ProcessingJob {
   slug: string;
@@ -97,6 +98,8 @@ function GlobalStatusBar() {
   const [, setReconnectAttempt] = useState(0);
   const eventSourceRef = useRef<EventSource | null>(null);
   const reconnectTimeoutRef = useRef<number | null>(null);
+  const prevStatusRef = useRef<StatusData | null>(null);
+  const queryClient = useQueryClient();
 
   // Update elapsed time every second when there's a current job
   useEffect(() => {
@@ -135,6 +138,25 @@ function GlobalStatusBar() {
           if (data.currentJob) {
             setElapsed(data.currentJob.elapsed);
           }
+
+          // Invalidate React Query caches on status transitions so
+          // pages (FeedDetail, EpisodeDetail, Dashboard) pick up
+          // changes without manual refresh.
+          const prev = prevStatusRef.current;
+          if (prev?.currentJob && !data.currentJob) {
+            // Job just completed
+            queryClient.invalidateQueries({ queryKey: ['episode'] });
+            queryClient.invalidateQueries({ queryKey: ['episodes'] });
+            queryClient.invalidateQueries({ queryKey: ['feed'] });
+            queryClient.invalidateQueries({ queryKey: ['feeds'] });
+          }
+          if (prev?.feedRefreshes?.length &&
+              data.feedRefreshes.length < prev.feedRefreshes.length) {
+            // Feed refresh completed
+            queryClient.invalidateQueries({ queryKey: ['feeds'] });
+            queryClient.invalidateQueries({ queryKey: ['episodes'] });
+          }
+          prevStatusRef.current = data;
         } catch (e) {
           console.error('Failed to parse status data:', e);
         }

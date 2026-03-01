@@ -6,6 +6,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.33] - 2026-03-01
+
+### Fixed
+- **Provider-aware model seeds**: `_seed_default_settings()` now uses `LLM_PROVIDER` and `OPENAI_MODEL` env vars when seeding `verification_model` and `chapters_model`. Fresh Ollama installs no longer get hardcoded Anthropic model names that would 404.
+- **Provider-aware `reset_setting()`**: Resetting `claude_model`, `verification_model`, or `chapters_model` now respects `LLM_PROVIDER`/`OPENAI_MODEL` instead of always resetting to Anthropic constants.
+- **Non-Anthropic provider timeouts**: `get_llm_timeout()` and `get_llm_max_retries()` now apply extended timeouts/reduced retries for all non-Anthropic providers (`openai-compatible`, `wrapper`, `ollama`), not just `ollama`.
+- **UI staleness after processing**: `GlobalStatusBar` SSE handler now invalidates React Query caches when a job completes or a feed refresh finishes, so `FeedDetail`, `EpisodeDetail`, and `Dashboard` auto-update without manual refresh.
+
+### Changed
+- **README**: Renamed "Claude Model" to "AI Model" in settings docs to match UI. Fixed `OPENAI_MODEL` env var table to show no default (was misleadingly showing the Anthropic model name).
+
+## [1.0.32] - 2026-03-01
+
+### Fixed
+- **Chapters model DB lookup broken**: `get_chapters_model()` used `from database import PodcastDatabase` but the class is actually `Database`. Both the `chapters_model` and `claude_model` DB lookups silently failed via the caught exception, causing the function to always fall through to the hardcoded Anthropic model name -- breaking Ollama setups even after the 1.0.31 provider-aware fallback was added.
+
 ## [1.0.31] - 2026-03-01
 
 ### Fixed

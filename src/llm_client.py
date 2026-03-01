@@ -407,12 +407,13 @@ class OpenAICompatibleClient(LLMClient):
 def get_llm_timeout() -> float:
     """Return the LLM request timeout based on the configured provider.
 
-    Local providers (ollama) get a longer timeout since inference is
-    on-device and significantly slower than cloud APIs.
+    Non-Anthropic providers get a longer timeout since inference may be
+    on-device or routed through a wrapper and significantly slower than
+    the direct Anthropic API.
     """
     from config import LLM_TIMEOUT_DEFAULT, LLM_TIMEOUT_LOCAL
     provider = os.environ.get('LLM_PROVIDER', 'anthropic').lower()
-    if provider == 'ollama':
+    if provider != 'anthropic':
         return LLM_TIMEOUT_LOCAL
     return LLM_TIMEOUT_DEFAULT
 
@@ -420,11 +421,12 @@ def get_llm_timeout() -> float:
 def get_llm_max_retries() -> int:
     """Return the max retry count based on the configured provider.
 
-    Local providers use fewer retries since each attempt is slow.
+    Non-Anthropic providers use fewer retries since each attempt may be
+    slower than the direct Anthropic API.
     """
     from config import LLM_RETRY_MAX_RETRIES, LLM_RETRY_MAX_RETRIES_LOCAL
     provider = os.environ.get('LLM_PROVIDER', 'anthropic').lower()
-    if provider == 'ollama':
+    if provider != 'anthropic':
         return LLM_RETRY_MAX_RETRIES_LOCAL
     return LLM_RETRY_MAX_RETRIES
 
