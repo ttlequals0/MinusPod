@@ -101,7 +101,7 @@ When processing new episodes, the system first checks for known patterns before 
 - **Claude Analysis** - Falls back to AI analysis for uncovered segments
 
 **User Corrections:**
-In the transcript editor, you can confirm, reject, or adjust detected ads:
+In the ad editor, you can confirm, reject, or adjust detected ads:
 - **Confirm** - Creates/updates patterns in the database, incrementing confirmation count
 - **Adjust Boundaries** - Corrects start/end times for an ad; also creates patterns from adjusted boundaries (like confirm), ensuring accurate pattern text is learned
 - **Mark as Not Ad** - Flags as false positive and stores the transcript text. Similar text is automatically excluded in future episodes of the same podcast using TF-IDF similarity matching (cross-episode false positive learning)
@@ -193,33 +193,30 @@ The server includes a web-based management UI at `/ui/`:
 - **Feed Management** - Refresh, delete, copy feed URLs, set network override
 - **Patterns** - View and manage cross-episode ad patterns with sponsor names
 - **History** - View processing history with stats, filtering, and export
-- **Settings** - Configure ad detection prompts and Claude model
-- **System Status** - View statistics, LLM token usage and cost, and run cleanup
+- **Settings** - Configure ad detection prompts, Claude model, view system statistics, LLM token usage and cost, and run cleanup
 - **Real-Time Status Bar** - Shows current processing progress across all pages
 
-### Transcript Editor (Mobile-First)
+### Ad Editor (Mobile-First)
 
-The transcript editor allows you to review and adjust ad detections directly in the browser. It's optimized for mobile as the primary interface:
+The ad editor allows you to review and adjust ad detections directly in the browser. Designed mobile-first since that's where most reviewing happens:
 
-**Mobile Features:**
-- **Touch-Optimized** - All buttons meet 44-48px accessibility standards for easy tapping
-- **Swipe Navigation** - Swipe left/right on transcript to navigate between ads
-- **Haptic Feedback** - Vibration feedback on boundary adjustments and actions
-- **Bottom Sheet Player** - Apple Podcasts-style collapsible audio controls
-- **Draggable Progress** - Touch-drag seeking with visual thumb indicator
-- **Icon Buttons** - Compact action buttons (X, reset, check, save) with full labels in expanded mode
-- **Landscape Mode** - Optimized layout for horizontal orientation
+**Core Features:**
+- **Reason Panel** - Shows why each ad was flagged, confidence percentage, and detection stage
+- **Time Adjustment Controls** - Per-second +/- steppers for start and end boundaries with direct input
+- **Pill Selector** - Quick navigation between ads by timestamp, visible on all viewports
+- **Audio Playback** - Inline player with progress bar; auto-seeks to ad start when switching between ads
+- **Haptic Feedback** - Vibration on boundary adjustments and actions
 
-**Touch Gestures:**
-- Single tap: Seek to segment (or set boundary in Set Start/End mode)
-- Double tap: Set start boundary
-- Long press: Set end boundary
-- Horizontal swipe: Navigate to previous/next ad
+**Mobile Layout:**
+- Stacked Start/End time controls (full-width rows for clear readability)
+- Full-width progress bar at top of bottom sheet
+- Compact action row: Not Ad, Reset, Confirm, Save
+- Expandable bottom sheet with large play controls and prev/next navigation
 
-**Desktop Features:**
-- Keyboard shortcuts for quick editing (Space, J/K, Shift+J/K, C, X, Esc)
-- Click to seek, Shift+Click to set end, Alt+Click to set start
+**Desktop Layout:**
+- Keyboard shortcuts: `Space` play/pause, `J/K` nudge end, `Shift+J/K` nudge start, `C` confirm, `X` reject, `Esc` reset
 - Inline audio player with hover-expandable progress bar
+- Start/End controls inline with time display and keyboard hints
 
 ### Screenshots
 
@@ -252,6 +249,11 @@ The transcript editor allows you to review and adjust ad detections directly in 
 | Desktop | Mobile |
 |---------|--------|
 | <img src="docs/screenshots/patterns-desktop.png" width="500"> | <img src="docs/screenshots/patterns-mobile.png" width="200"> |
+
+#### History
+| Desktop | Mobile |
+|---------|--------|
+| <img src="docs/screenshots/history-desktop.png" width="500"> | <img src="docs/screenshots/history-mobile.png" width="200"> |
 
 #### Settings
 | Desktop | Mobile |

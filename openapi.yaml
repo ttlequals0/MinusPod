@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 1.0.0
+  version: 1.0.25
   contact:
     name: MinusPod
   license:
@@ -588,7 +588,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /feeds/{slug}/episodes/{episodeId}/reprocess:
+  /episodes/{slug}/{episodeId}/reprocess:
     post:
       tags:
         - Episodes
@@ -831,7 +831,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /feeds/{slug}/episodes/{episodeId}/corrections:
+  /episodes/{slug}/{episodeId}/corrections:
     post:
       tags:
         - Episodes

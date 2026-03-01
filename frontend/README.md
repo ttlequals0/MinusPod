@@ -49,7 +49,7 @@ src/
 │   ├── Layout.tsx
 │   ├── LoadingSpinner.tsx
 │   ├── PatternDetailModal.tsx
-│   └── TranscriptEditor.tsx
+│   └── AdEditor.tsx
 ├── context/          # React contexts
 │   ├── AuthContext.tsx
 │   └── ThemeContext.tsx

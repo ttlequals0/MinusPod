@@ -6,6 +6,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.25] - 2026-03-01
+
+### Fixed
+- **README accuracy**: Merged "System Status" bullet into "Settings" (it is a section within Settings, not a standalone page)
+- **Frontend README**: Updated outdated component reference from `TranscriptEditor.tsx` to `AdEditor.tsx`
+- **OpenAPI spec version**: Updated from 1.0.0 to match actual app version
+- **OpenAPI corrections endpoint**: Fixed path from `/feeds/{slug}/episodes/{episodeId}/corrections` to `/episodes/{slug}/{episodeId}/corrections` to match api.py
+- **OpenAPI reprocess endpoint**: Fixed path from `/feeds/{slug}/episodes/{episodeId}/reprocess` to `/episodes/{slug}/{episodeId}/reprocess` to match preferred endpoint with mode support
+
+## [1.0.24] - 2026-03-01
+
+### Changed
+- **Updated README**: Renamed "Transcript Editor" section to "Ad Editor" with updated feature descriptions covering time adjustment controls, reason panel, pill selector, and audio auto-seek. Removed outdated transcript-specific features (swipe gestures, double-tap/long-press boundary setting).
+- **Refreshed all screenshots**: Recaptured all 15 desktop and mobile screenshots from the live server reflecting the current UI with MinusPod logo, updated ad editor layout, and new time controls.
+
+## [1.0.23] - 2026-03-01
+
+### Fixed
+- **Audio seek on ad switch**: Clicking ad pills, navigating with next/prev, or auto-advancing after confirm/save now seeks the audio to the new ad's start time. Previously the progress bar stayed at its old position.
+
+### Changed
+- **Mobile bottom sheet redesign**: Start/End time controls now stack vertically (one per row) instead of side-by-side, fixing cut-off inputs on narrow screens. Progress bar moved to top of bottom sheet for full width. Action buttons use full-width flex row with inline icon+text. Input font bumped to 16px (text-base) for readability. Reduced internal padding (px-3) to reclaim screen space on mobile.
+- **Desktop time controls visibility**: Stepper buttons use filled bg-muted background instead of ghost border for clearer interactivity. Labels uppercase with tracking. Icons and text use text-foreground instead of text-muted-foreground.
+- **Tighter mobile spacing**: Header, pill selector, reason panel, and grab handle all use reduced padding on mobile (px-3/py-2.5) while preserving desktop padding (px-4/py-3).
+
+## [1.0.20] - 2026-03-01
+
+### Changed
+- **AdEditor layout cleanup**: Replaced fixed height container (h-[85dvh]/h-[70vh]) with content-driven max-h sizing so the popup shrinks to fit content. Unified pill selector across all viewports (removed desktop-only chevron navigation). Moved time adjustment controls from sticky top header into desktop bottom bar and mobile bottom sheet. Reason panel no longer stretches with flex-1. Removed sticky positioning since the container no longer needs scroll context. Time controls styled with rounded-md border border-border to match action buttons.
+
+## [1.0.19] - 2026-02-28
+
+### Changed
+- **Redesigned ad editor time adjustment controls**: +/- buttons use bg-muted filled style matching the rest of the UI instead of hard-bordered containers. Always visible on all viewports (removed collapsible mobile toggle). Minus/Plus icons, inline "s" suffix, no browser number spinners.
+- **Replaced transcript panel with reason panel**: The scrollable transcript view in the ad editor is replaced by an always-visible panel showing why an ad was flagged, its confidence percentage, and detection stage. Removed VTT fetch/parse, touch mode toggles, swipe gestures, and segment click handlers.
+- **Renamed TranscriptEditor to AdEditor**: Component, file, props interface, and all references updated to reflect its actual purpose as an ad review/correction editor.
+
 ## [1.0.18] - 2026-02-27
 
 ### Added
