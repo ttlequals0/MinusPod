@@ -7,7 +7,8 @@ import random
 from typing import List, Dict, Optional
 from llm_client import (
     get_llm_client, get_api_key, LLMClient, FALLBACK_MODELS,
-    is_retryable_error, is_rate_limit_error
+    is_retryable_error, is_rate_limit_error,
+    get_llm_timeout, get_llm_max_retries
 )
 from utils.time import parse_timestamp, first_not_none
 
@@ -1628,7 +1629,8 @@ class AdDetector:
 
             all_window_ads = []
             all_raw_responses = []
-            max_retries = RETRY_CONFIG['max_retries']
+            llm_timeout = get_llm_timeout()
+            max_retries = get_llm_max_retries()
 
             # Instantiate audio signal formatter if audio analysis available
             audio_enforcer = None
@@ -1692,7 +1694,7 @@ class AdDetector:
                             temperature=0.0,
                             system=system_prompt,
                             messages=[{"role": "user", "content": prompt}],
-                            timeout=120.0,
+                            timeout=llm_timeout,
                             response_format={"type": "json_object"}
                         )
                         break
@@ -2376,7 +2378,8 @@ class AdDetector:
 
             all_window_ads = []
             all_raw_responses = []
-            max_retries = RETRY_CONFIG['max_retries']
+            llm_timeout = get_llm_timeout()
+            max_retries = get_llm_max_retries()
 
             # Instantiate audio signal formatter if audio analysis available
             audio_enforcer = None
@@ -2432,7 +2435,7 @@ class AdDetector:
                             temperature=0.0,
                             system=system_prompt,
                             messages=[{"role": "user", "content": prompt}],
-                            timeout=120.0,
+                            timeout=llm_timeout,
                             response_format={"type": "json_object"}
                         )
                         break

@@ -137,6 +137,14 @@ FFMPEG_LONG_TIMEOUT = 300            # Long ffmpeg operations (processing)
 FPCALC_TIMEOUT = 60                  # Audio fingerprint generation
 
 # ============================================================
+# LLM Timeouts (seconds)
+# ============================================================
+LLM_TIMEOUT_DEFAULT = 120.0          # Anthropic / fast cloud APIs
+LLM_TIMEOUT_LOCAL = 600.0            # Ollama / local models (10 min)
+LLM_RETRY_MAX_RETRIES = 3            # Default retries for cloud APIs
+LLM_RETRY_MAX_RETRIES_LOCAL = 2      # Fewer retries for local (each is slow)
+
+# ============================================================
 # Chunked Transcription (OOM prevention for long episodes)
 # ============================================================
 CHUNK_OVERLAP_SECONDS = 30           # Overlap between chunks for boundary alignment

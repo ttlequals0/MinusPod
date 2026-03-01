@@ -394,6 +394,35 @@ class OpenAICompatibleClient(LLMClient):
 
 
 # =============================================================================
+# Provider-aware timeout / retry helpers
+# =============================================================================
+
+def get_llm_timeout() -> float:
+    """Return the LLM request timeout based on the configured provider.
+
+    Local providers (ollama) get a longer timeout since inference is
+    on-device and significantly slower than cloud APIs.
+    """
+    from config import LLM_TIMEOUT_DEFAULT, LLM_TIMEOUT_LOCAL
+    provider = os.environ.get('LLM_PROVIDER', 'anthropic').lower()
+    if provider == 'ollama':
+        return LLM_TIMEOUT_LOCAL
+    return LLM_TIMEOUT_DEFAULT
+
+
+def get_llm_max_retries() -> int:
+    """Return the max retry count based on the configured provider.
+
+    Local providers use fewer retries since each attempt is slow.
+    """
+    from config import LLM_RETRY_MAX_RETRIES, LLM_RETRY_MAX_RETRIES_LOCAL
+    provider = os.environ.get('LLM_PROVIDER', 'anthropic').lower()
+    if provider == 'ollama':
+        return LLM_RETRY_MAX_RETRIES_LOCAL
+    return LLM_RETRY_MAX_RETRIES
+
+
+# =============================================================================
 # Factory function - this is the main entry point
 # =============================================================================
 

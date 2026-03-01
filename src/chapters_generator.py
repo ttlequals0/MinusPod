@@ -8,7 +8,8 @@ from utils.time import parse_timestamp, adjust_timestamp
 from utils.text import extract_text_from_segments
 from llm_client import (
     get_llm_client, get_api_key, LLMClient,
-    APIError, RateLimitError, is_rate_limit_error
+    APIError, RateLimitError, is_rate_limit_error,
+    get_llm_timeout
 )
 
 logger = logging.getLogger(__name__)
@@ -573,7 +574,8 @@ Transcript:
                 max_tokens=400,
                 system="",
                 temperature=0.3,
-                messages=[{"role": "user", "content": prompt}]
+                messages=[{"role": "user", "content": prompt}],
+                timeout=get_llm_timeout()
             )
 
             result_text = response.content.strip()
@@ -643,7 +645,8 @@ Transcript:
                 max_tokens=300,
                 system="",
                 temperature=0.3,
-                messages=[{"role": "user", "content": prompt}]
+                messages=[{"role": "user", "content": prompt}],
+                timeout=get_llm_timeout()
             )
 
             result_text = response.content.strip()
@@ -886,7 +889,8 @@ Transcript:
                 max_tokens=500,
                 system="",
                 temperature=0.3,
-                messages=[{"role": "user", "content": prompt}]
+                messages=[{"role": "user", "content": prompt}],
+                timeout=get_llm_timeout()
             )
 
             # Parse response (LLMResponse.content is already extracted text)
