@@ -6,6 +6,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.35] - 2026-03-02
+
+### Fixed
+- **Provider-aware API key badge**: Settings UI now shows muted "Not required" badge for Ollama and OpenAI-compatible providers instead of a misleading yellow "Not configured" warning.
+- **Provider-aware model injection**: `_ensure_configured_models_present()` no longer injects stale model IDs from a previous provider (e.g. claude-* models no longer appear in Ollama model dropdowns after switching providers).
+
+### Changed
+- **Refresh button label**: Model refresh button now shows "Refresh" text alongside the icon (and "Refreshing..." with spinner when loading) instead of being icon-only.
+
 ## [1.0.34] - 2026-03-02
 
 ### Added
