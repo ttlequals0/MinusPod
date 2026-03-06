@@ -86,6 +86,8 @@ When you request an episode that needs processing:
 2. If another episode is processing, it returns HTTP 503 (your podcast app will retry)
 3. Once processed, subsequent requests serve the cached file instantly
 
+HEAD requests (sent by podcast apps like Pocket Casts during feed refresh) proxy headers from the upstream audio source without triggering processing. This prevents feed refreshes from flooding the processing queue.
+
 ### Post-Detection Validation
 
 After ad detection, a validation layer reviews each detection before audio processing:
