@@ -521,6 +521,9 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
                 artwork_url = parsed_feed.feed.image.href
             elif 'image' in parsed_feed.feed and 'href' in parsed_feed.feed.image:
                 artwork_url = parsed_feed.feed.image.href
+            # Fallback to itunes:image (many podcasts use this instead of <image>)
+            if not artwork_url and 'itunes_image' in parsed_feed.feed:
+                artwork_url = parsed_feed.feed.itunes_image.get('href')
 
             # Update podcast metadata in database
             db.update_podcast(

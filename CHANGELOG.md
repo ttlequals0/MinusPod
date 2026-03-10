@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - **Artwork missing after DB restore**: Feed refresh returning 304 (unchanged) now checks if artwork is cached. If artwork is missing (e.g., after a DB restore), forces a full fetch to re-extract and download artwork instead of returning early.
+- **Artwork extraction missing itunes:image fallback**: Podcast-level artwork extraction now falls back to `itunes:image` when the standard RSS `<image>` tag is absent, matching the pattern already used for episode-level artwork in `rss_parser.py`.
 
 ## [1.0.42] - 2026-03-10
 
