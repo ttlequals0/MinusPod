@@ -47,12 +47,14 @@ export interface EpisodesResponse {
 
 export async function getEpisodes(
   slug: string,
-  params?: { limit?: number; offset?: number; status?: string }
+  params?: { limit?: number; offset?: number; status?: string; sortBy?: string; sortDir?: string }
 ): Promise<EpisodesResponse> {
   const searchParams = new URLSearchParams();
   if (params?.limit) searchParams.set('limit', String(params.limit));
   if (params?.offset) searchParams.set('offset', String(params.offset));
   if (params?.status) searchParams.set('status', params.status);
+  if (params?.sortBy) searchParams.set('sort_by', params.sortBy);
+  if (params?.sortDir) searchParams.set('sort_dir', params.sortDir);
   return apiRequest<EpisodesResponse>(`/feeds/${slug}/episodes?${searchParams}`);
 }
 

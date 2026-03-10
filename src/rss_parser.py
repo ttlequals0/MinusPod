@@ -222,6 +222,12 @@ class RSSParser:
                 if explicit and str(explicit).lower() in ('true', 'false', 'yes', 'no'):
                     lines.append(f'  <itunes:explicit>{explicit}</itunes:explicit>')
 
+            # Episode number (itunes:episode)
+            if hasattr(entry, 'itunes_episode'):
+                ep_num = entry.itunes_episode
+                if ep_num and str(ep_num).strip():
+                    lines.append(f'  <itunes:episode>{ep_num}</itunes:episode>')
+
             # Episode artwork (itunes:image)
             artwork_url = None
             if hasattr(entry, 'image') and hasattr(entry.image, 'href'):
@@ -358,6 +364,14 @@ class RSSParser:
                 elif 'itunes_image' in entry:
                     artwork_url = entry.itunes_image.get('href')
 
+                # Extract episode number (itunes:episode)
+                episode_number = None
+                if hasattr(entry, 'itunes_episode'):
+                    try:
+                        episode_number = int(entry.itunes_episode)
+                    except (ValueError, TypeError):
+                        pass
+
                 episodes.append({
                     'id': self.generate_episode_id(episode_url, entry.get('id', '')),
                     'url': episode_url,
@@ -365,6 +379,7 @@ class RSSParser:
                     'published': entry.get('published', ''),
                     'description': entry.get('description', ''),
                     'artwork_url': artwork_url,
+                    'episode_number': episode_number,
                 })
 
         # De-duplicate episodes (keep latest when multiple versions exist)

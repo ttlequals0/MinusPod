@@ -484,9 +484,17 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
             # If no episodes exist yet (pre-v1.0.41 feed), force full fetch for initial discovery
             _, discovered_count = db.get_episodes(slug, status='discovered', limit=1)
             if discovered_count > 0:
-                refresh_logger.info(f"[{slug}] Feed unchanged (304), skipping refresh")
-                status_service.complete_feed_refresh(slug, 0)
-                return True
+                # Even on 304, ensure artwork is cached (may be missing after DB restore)
+                podcast = db.get_podcast_by_slug(slug)
+                if podcast and not podcast.get('artwork_cached'):
+                    refresh_logger.info(f"[{slug}] Feed unchanged (304) but artwork missing, forcing full fetch")
+                    feed_content, new_etag, new_last_modified = rss_parser.fetch_feed_conditional(
+                        feed_url, etag=None, last_modified=None
+                    )
+                else:
+                    refresh_logger.info(f"[{slug}] Feed unchanged (304), skipping refresh")
+                    status_service.complete_feed_refresh(slug, 0)
+                    return True
             else:
                 refresh_logger.info(
                     f"[{slug}] Feed unchanged (304) but no episodes discovered yet, "

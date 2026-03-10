@@ -23,6 +23,8 @@ function FeedDetail() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [statusFilter, setStatusFilter] = useState('all');
+  const [sortBy, setSortBy] = useState('published_at');
+  const [sortDir, setSortDir] = useState('desc');
 
   // Selection state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -36,11 +38,13 @@ function FeedDetail() {
   });
 
   const { data: episodesData, isLoading: episodesLoading } = useQuery({
-    queryKey: ['episodes', slug, page, pageSize, statusFilter],
+    queryKey: ['episodes', slug, page, pageSize, statusFilter, sortBy, sortDir],
     queryFn: () => getEpisodes(slug!, {
       limit: pageSize,
       offset: (page - 1) * pageSize,
       status: statusFilter,
+      sortBy,
+      sortDir,
     }),
     enabled: !!slug,
   });
@@ -430,19 +434,37 @@ function FeedDetail() {
         <h2 className="text-xl font-semibold text-foreground">
           Episodes {totalEpisodes > 0 && <span className="text-muted-foreground font-normal text-base">({totalEpisodes})</span>}
         </h2>
-        <select
-          value={statusFilter}
-          onChange={(e) => { setStatusFilter(e.target.value); setPage(1); setSelectedIds(new Set()); }}
-          className="px-2 py-1.5 text-sm bg-secondary border border-border rounded"
-        >
-          <option value="all">All statuses</option>
-          <option value="discovered">Discovered</option>
-          <option value="pending">Pending</option>
-          <option value="processing">Processing</option>
-          <option value="processed">Completed</option>
-          <option value="failed">Failed</option>
-          <option value="permanently_failed">Permanently Failed</option>
-        </select>
+        <div className="flex items-center gap-2">
+          <select
+            value={statusFilter}
+            onChange={(e) => { setStatusFilter(e.target.value); setPage(1); setSelectedIds(new Set()); }}
+            className="px-2 py-1.5 text-sm bg-secondary border border-border rounded"
+          >
+            <option value="all">All statuses</option>
+            <option value="discovered">Discovered</option>
+            <option value="pending">Pending</option>
+            <option value="processing">Processing</option>
+            <option value="processed">Completed</option>
+            <option value="failed">Failed</option>
+            <option value="permanently_failed">Permanently Failed</option>
+          </select>
+          <select
+            value={`${sortBy}:${sortDir}`}
+            onChange={(e) => {
+              const [newSort, newDir] = e.target.value.split(':');
+              setSortBy(newSort);
+              setSortDir(newDir);
+              setPage(1);
+              setSelectedIds(new Set());
+            }}
+            className="px-2 py-1.5 text-sm bg-secondary border border-border rounded"
+          >
+            <option value="published_at:desc">Newest First</option>
+            <option value="published_at:asc">Oldest First</option>
+            <option value="episode_number:desc">Episode # (High-Low)</option>
+            <option value="episode_number:asc">Episode # (Low-High)</option>
+          </select>
+        </div>
       </div>
 
       {/* Bulk action toolbar */}

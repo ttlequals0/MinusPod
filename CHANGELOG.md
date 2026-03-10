@@ -6,6 +6,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.43] - 2026-03-10
+
+### Added
+- **Episode sort by episode number**: Episodes can now be sorted by episode number (from `itunes:episode` tag), publish date, or creation date. Sort dropdown on feed detail page with options: Newest First, Oldest First, Episode # High-Low, Episode # Low-High.
+- **`episode_number` field**: Parsed from RSS `itunes:episode` tag end-to-end -- RSS parsing, DB storage, API response (`episodeNumber`), and RSS feed output.
+- **`sort_by` / `sort_dir` API params**: `GET /api/v1/feeds/{slug}/episodes` now accepts `sort_by` (published_at, created_at, episode_number, title, status) and `sort_dir` (asc, desc).
+
+### Fixed
+- **Artwork missing after DB restore**: Feed refresh returning 304 (unchanged) now checks if artwork is cached. If artwork is missing (e.g., after a DB restore), forces a full fetch to re-extract and download artwork instead of returning early.
+
 ## [1.0.42] - 2026-03-10
 
 ### Fixed

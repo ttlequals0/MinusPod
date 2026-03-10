@@ -273,6 +273,7 @@ CREATE TABLE IF NOT EXISTS episodes (
     error_message TEXT,
     ad_detection_status TEXT DEFAULT NULL CHECK(ad_detection_status IN (NULL, 'success', 'failed')),
     artwork_url TEXT,
+    episode_number INTEGER,
     created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE,
@@ -782,6 +783,7 @@ class Database:
             ('reprocess_requested_at', 'TEXT'),
             ('published_at', 'TEXT'),
             ('retry_count', 'INTEGER DEFAULT 0'),
+            ('episode_number', 'INTEGER'),
         ]
         for col, definition in episodes_migrations:
             self._add_column_if_missing(conn, 'episodes', col, definition, ep_cols)
@@ -1642,9 +1644,12 @@ class Database:
 
     # ========== Episode Methods ==========
 
+    VALID_SORT_COLUMNS = {'published_at', 'created_at', 'episode_number', 'title', 'status'}
+
     def get_episodes(self, slug: str, status: str = None,
-                     limit: int = 50, offset: int = 0) -> Tuple[List[Dict], int]:
-        """Get episodes for a podcast with pagination."""
+                     limit: int = 50, offset: int = 0,
+                     sort_by: str = 'created_at', sort_dir: str = 'desc') -> Tuple[List[Dict], int]:
+        """Get episodes for a podcast with pagination and sorting."""
         conn = self.get_connection()
 
         # Get podcast ID
@@ -1669,12 +1674,21 @@ class Database:
         )
         total = cursor.fetchone()[0]
 
+        # Build ORDER BY clause with whitelist validation
+        sort_col = sort_by if sort_by in self.VALID_SORT_COLUMNS else 'created_at'
+        sort_direction = 'ASC' if sort_dir == 'asc' else 'DESC'
+
+        if sort_col == 'episode_number':
+            order_clause = f"ORDER BY e.episode_number IS NULL, e.episode_number {sort_direction}"
+        else:
+            order_clause = f"ORDER BY e.{sort_col} {sort_direction}"
+
         # Get episodes
         params.extend([limit, offset])
         cursor = conn.execute(
             f"""SELECT e.* FROM episodes e
                 {where_clause}
-                ORDER BY e.created_at DESC
+                {order_clause}
                 LIMIT ? OFFSET ?""",
             params
         )
@@ -1771,7 +1785,8 @@ class Database:
                                'processed_at', 'original_duration', 'new_duration',
                                'ads_removed', 'ads_removed_firstpass', 'ads_removed_secondpass',
                                'error_message', 'ad_detection_status', 'artwork_url',
-                               'reprocess_mode', 'reprocess_requested_at', 'retry_count', 'published_at'):
+                               'reprocess_mode', 'reprocess_requested_at', 'retry_count',
+                               'published_at', 'episode_number'):
                         fields.append(f"{key} = ?")
                         values.append(value)
 
@@ -1790,8 +1805,9 @@ class Database:
                    (podcast_id, episode_id, original_url, title, description, status,
                     processed_file, processed_at, original_duration,
                     new_duration, ads_removed, ads_removed_firstpass, ads_removed_secondpass,
-                    error_message, ad_detection_status, artwork_url, retry_count, published_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    error_message, ad_detection_status, artwork_url, episode_number,
+                    retry_count, published_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     podcast_id,
                     episode_id,
@@ -1809,6 +1825,7 @@ class Database:
                     kwargs.get('error_message'),
                     kwargs.get('ad_detection_status'),
                     kwargs.get('artwork_url'),
+                    kwargs.get('episode_number'),
                     kwargs.get('retry_count', 0),
                     kwargs.get('published_at')
                 )
@@ -2081,9 +2098,10 @@ class Database:
                 cursor = conn.execute(
                     """INSERT INTO episodes
                        (podcast_id, episode_id, original_url, title, description,
-                        artwork_url, published_at, status)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, 'discovered')
-                       ON CONFLICT(podcast_id, episode_id) DO NOTHING""",
+                        artwork_url, episode_number, published_at, status)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'discovered')
+                       ON CONFLICT(podcast_id, episode_id) DO UPDATE SET
+                        episode_number = COALESCE(excluded.episode_number, episodes.episode_number)""",
                     (
                         podcast_id,
                         ep['id'],
@@ -2091,6 +2109,7 @@ class Database:
                         ep.get('title'),
                         ep.get('description'),
                         ep.get('artwork_url'),
+                        ep.get('episode_number'),
                         iso_published,
                     )
                 )

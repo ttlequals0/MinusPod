@@ -754,8 +754,11 @@ def list_episodes(slug):
     status = request.args.get('status', 'all')
     limit = min(int(request.args.get('limit', 25)), 500)
     offset = int(request.args.get('offset', 0))
+    sort_by = request.args.get('sort_by', 'published_at')
+    sort_dir = request.args.get('sort_dir', 'desc')
 
-    episodes, total = db.get_episodes(slug, status=status, limit=limit, offset=offset)
+    episodes, total = db.get_episodes(slug, status=status, limit=limit, offset=offset,
+                                      sort_by=sort_by, sort_dir=sort_dir)
 
     episode_list = []
     for ep in episodes:
@@ -787,7 +790,8 @@ def list_episodes(slug):
             'adsRemoved': ep['ads_removed'],
             'timeSaved': time_saved,
             'error': ep.get('error_message'),
-            'artworkUrl': ep.get('artwork_url')
+            'artworkUrl': ep.get('artwork_url'),
+            'episodeNumber': ep.get('episode_number')
         })
 
     return json_response({
