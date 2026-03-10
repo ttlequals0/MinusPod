@@ -141,13 +141,14 @@ class RSSParser:
         # Fallback to URL hash for feeds without GUIDs
         return hashlib.md5(episode_url.encode()).hexdigest()[:12]
 
-    def modify_feed(self, feed_content: str, slug: str, storage=None) -> str:
+    def modify_feed(self, feed_content: str, slug: str, storage=None, max_episodes: int = 300) -> str:
         """Modify RSS feed to use our server URLs.
 
         Args:
             feed_content: Original RSS feed XML
             slug: Podcast slug
             storage: Optional Storage instance for checking Podcasting 2.0 assets
+            max_episodes: Max episodes to include in feed (1-500, default 300)
         """
         feed = self.parse_feed(feed_content)
         if not feed:
@@ -177,7 +178,7 @@ class RSSParser:
 
         # Limit to most recent episodes to keep feed size manageable
         # Pocket Casts and other apps may reject very large feeds (>1MB)
-        max_episodes = 100
+        max_episodes = max(1, min(max_episodes, 500))
         entries = feed.entries[:max_episodes]
 
         if len(feed.entries) > max_episodes:

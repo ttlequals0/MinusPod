@@ -1,5 +1,5 @@
 import { apiRequest } from './client';
-import { Feed, Episode, EpisodeDetail } from './types';
+import { Feed, Episode, EpisodeDetail, BulkActionResult } from './types';
 
 export async function getFeeds(): Promise<Feed[]> {
   const response = await apiRequest<{ feeds: Feed[] }>('/feeds');
@@ -10,10 +10,15 @@ export async function getFeed(slug: string): Promise<Feed> {
   return apiRequest<Feed>(`/feeds/${slug}`);
 }
 
-export async function addFeed(sourceUrl: string, slug?: string, autoProcessOverride?: boolean | null): Promise<Feed> {
+export async function addFeed(sourceUrl: string, slug?: string, autoProcessOverride?: boolean | null, maxEpisodes?: number): Promise<Feed> {
   return apiRequest<Feed>('/feeds', {
     method: 'POST',
-    body: { sourceUrl, slug, ...(autoProcessOverride != null && { autoProcessOverride }) },
+    body: {
+      sourceUrl,
+      slug,
+      ...(autoProcessOverride != null && { autoProcessOverride }),
+      ...(maxEpisodes != null && { maxEpisodes }),
+    },
   });
 }
 
@@ -33,9 +38,22 @@ export async function refreshAllFeeds(): Promise<{ message: string }> {
   });
 }
 
-export async function getEpisodes(slug: string): Promise<Episode[]> {
-  const response = await apiRequest<{ episodes: Episode[] }>(`/feeds/${slug}/episodes`);
-  return response.episodes;
+export interface EpisodesResponse {
+  episodes: Episode[];
+  total: number;
+  limit: number;
+  offset: number;
+}
+
+export async function getEpisodes(
+  slug: string,
+  params?: { limit?: number; offset?: number; status?: string }
+): Promise<EpisodesResponse> {
+  const searchParams = new URLSearchParams();
+  if (params?.limit) searchParams.set('limit', String(params.limit));
+  if (params?.offset) searchParams.set('offset', String(params.offset));
+  if (params?.status) searchParams.set('status', params.status);
+  return apiRequest<EpisodesResponse>(`/feeds/${slug}/episodes?${searchParams}`);
 }
 
 export async function getEpisode(slug: string, episodeId: string): Promise<EpisodeDetail> {
@@ -60,8 +78,9 @@ export async function reprocessEpisode(
 export interface UpdateFeedPayload {
   networkId?: string;
   daiPlatform?: string;
-  networkIdOverride?: string | null;  // Network ID override, or null to clear
-  autoProcessOverride?: boolean | null;  // Auto-process override: true=enable, false=disable, null=use global
+  networkIdOverride?: string | null;
+  autoProcessOverride?: boolean | null;
+  maxEpisodes?: number | null;
 }
 
 export interface Network {
@@ -148,4 +167,17 @@ export async function regenerateChapters(
     `/feeds/${slug}/episodes/${episodeId}/regenerate-chapters`,
     { method: 'POST' }
   );
+}
+
+export type BulkAction = 'process' | 'reprocess' | 'reprocess_full' | 'delete';
+
+export async function bulkEpisodeAction(
+  slug: string,
+  episodeIds: string[],
+  action: BulkAction
+): Promise<BulkActionResult> {
+  return apiRequest<BulkActionResult>(`/feeds/${slug}/episodes/bulk`, {
+    method: 'POST',
+    body: { episodeIds, action },
+  });
 }

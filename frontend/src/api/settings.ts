@@ -1,5 +1,5 @@
 import { apiRequest } from './client';
-import { Settings, ClaudeModel, WhisperModel, SystemStatus, UpdateSettingsPayload, TokenUsageSummary } from './types';
+import { Settings, ClaudeModel, WhisperModel, SystemStatus, UpdateSettingsPayload, TokenUsageSummary, RetentionSettings } from './types';
 
 export async function getSettings(): Promise<Settings> {
   return apiRequest<Settings>('/settings');
@@ -71,5 +71,16 @@ export async function getProcessingEpisodes(): Promise<ProcessingEpisode[]> {
 export async function cancelProcessing(slug: string, episodeId: string): Promise<{ message: string }> {
   return apiRequest<{ message: string }>(`/feeds/${slug}/episodes/${episodeId}/cancel`, {
     method: 'POST',
+  });
+}
+
+export async function getRetention(): Promise<RetentionSettings> {
+  return apiRequest<RetentionSettings>('/settings/retention');
+}
+
+export async function updateRetention(days: number): Promise<RetentionSettings> {
+  return apiRequest<RetentionSettings>('/settings/retention', {
+    method: 'PUT',
+    body: { retentionDays: days },
   });
 }

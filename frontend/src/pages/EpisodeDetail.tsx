@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getEpisode, reprocessEpisode, regenerateChapters } from '../api/feeds';
 import { submitCorrection } from '../api/patterns';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { EPISODE_STATUS_COLORS } from '../utils/episodeStatus';
 import AdEditor, { AdCorrection } from '../components/AdEditor';
 import PatternLink from '../components/PatternLink';
 
@@ -155,13 +156,6 @@ function EpisodeDetail() {
     );
   }
 
-  const statusColors = {
-    pending: 'bg-muted text-muted-foreground',
-    processing: 'bg-yellow-500/20 text-yellow-600 dark:text-yellow-400',
-    completed: 'bg-green-500/20 text-green-600 dark:text-green-400',
-    failed: 'bg-destructive/20 text-destructive',
-  };
-
   return (
     <div>
       <Link to={`/feeds/${slug}`} className="text-primary hover:underline mb-4 inline-block">
@@ -192,7 +186,7 @@ function EpisodeDetail() {
               {episode.fileSize && (
                 <span>{formatFileSize(episode.fileSize)}</span>
               )}
-              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[episode.status]}`}>
+              <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${EPISODE_STATUS_COLORS[episode.status]}`}>
                 {episode.status}
               </span>
               {episode.transcriptVttAvailable && (

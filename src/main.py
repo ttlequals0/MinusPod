@@ -536,17 +536,22 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
             if artwork_url:
                 storage.download_artwork(slug, artwork_url)
 
+        # Discover all episodes from the feed (upsert as 'discovered')
+        all_episodes = rss_parser.extract_episodes(feed_content)
+        inserted = db.bulk_upsert_discovered_episodes(slug, all_episodes)
+        if inserted > 0:
+            refresh_logger.info(f"[{slug}] Discovered {inserted} new episode(s)")
+
         # Queue new episodes for auto-processing if enabled
         # Only queue episodes published within the last 48 hours to avoid processing entire backlog
         if db.is_auto_process_enabled_for_podcast(slug):
-            episodes = rss_parser.extract_episodes(feed_content)
             queued_count = 0
             cutoff_time = datetime.now(timezone.utc) - timedelta(hours=48)
 
-            for ep in episodes:
-                # Check if episode already exists in database
+            for ep in all_episodes:
+                # Check if episode already exists in database with a non-discovered status
                 existing = db.get_episode(slug, ep['id'])
-                if existing is None:
+                if existing is None or existing.get('status') == 'discovered':
                     # Also check by title+pubDate to catch ID changes (Megaphone feeds, etc.)
                     # This prevents duplicate processing when RSS GUID changes
                     published_str = ep.get('published', '')
@@ -599,7 +604,8 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
                 refresh_logger.info(f"[{slug}] Queued {queued_count} new episode(s) for auto-processing")
 
         # Modify feed URLs (pass storage to include Podcasting 2.0 tags)
-        modified_rss = rss_parser.modify_feed(feed_content, slug, storage=storage)
+        feed_cap = podcast.get('max_episodes') or 300
+        modified_rss = rss_parser.modify_feed(feed_content, slug, storage=storage, max_episodes=feed_cap)
 
         # Save modified RSS
         storage.save_rss(slug, modified_rss)
@@ -646,9 +652,9 @@ def refresh_all_feeds():
 def run_cleanup():
     """Run episode cleanup based on retention period."""
     try:
-        deleted, freed_mb = db.cleanup_old_episodes()
-        if deleted > 0:
-            refresh_logger.info(f"Cleanup: removed {deleted} episodes, freed {freed_mb:.1f} MB")
+        reset_count, freed_mb = db.cleanup_old_episodes(storage=storage)
+        if reset_count > 0:
+            refresh_logger.info(f"Cleanup: reset {reset_count} episodes to discovered, freed {freed_mb:.1f} MB")
     except Exception as e:
         refresh_logger.error(f"Cleanup failed: {e}")
 

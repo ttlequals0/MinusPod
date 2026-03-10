@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getFeed, getEpisodes, refreshFeed, updateFeed, getNetworks, reprocessAllEpisodes, ReprocessAllResult } from '../api/feeds';
+import { getFeed, getEpisodes, refreshFeed, updateFeed, getNetworks, reprocessAllEpisodes, ReprocessAllResult, bulkEpisodeAction, BulkAction } from '../api/feeds';
+import type { BulkActionResult } from '../api/types';
 import EpisodeList from '../components/EpisodeList';
 import LoadingSpinner from '../components/LoadingSpinner';
 
@@ -16,6 +17,17 @@ function FeedDetail() {
   const [editNetworkOverride, setEditNetworkOverride] = useState<string>('');
   const [editDaiPlatform, setEditDaiPlatform] = useState('');
   const [editAutoProcessOverride, setEditAutoProcessOverride] = useState<string>('global');
+  const [editMaxEpisodes, setEditMaxEpisodes] = useState<string>('');
+
+  // Pagination state
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [statusFilter, setStatusFilter] = useState('all');
+
+  // Selection state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showBulkDeleteConfirm, setShowBulkDeleteConfirm] = useState(false);
+  const [bulkResult, setBulkResult] = useState<BulkActionResult | null>(null);
 
   const { data: feed, isLoading: feedLoading, error: feedError } = useQuery({
     queryKey: ['feed', slug],
@@ -23,11 +35,19 @@ function FeedDetail() {
     enabled: !!slug,
   });
 
-  const { data: episodes, isLoading: episodesLoading } = useQuery({
-    queryKey: ['episodes', slug],
-    queryFn: () => getEpisodes(slug!),
+  const { data: episodesData, isLoading: episodesLoading } = useQuery({
+    queryKey: ['episodes', slug, page, pageSize, statusFilter],
+    queryFn: () => getEpisodes(slug!, {
+      limit: pageSize,
+      offset: (page - 1) * pageSize,
+      status: statusFilter,
+    }),
     enabled: !!slug,
   });
+
+  const episodes = episodesData?.episodes ?? [];
+  const totalEpisodes = episodesData?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(totalEpisodes / pageSize));
 
   const { data: networks } = useQuery({
     queryKey: ['networks'],
@@ -43,7 +63,7 @@ function FeedDetail() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: { networkIdOverride?: string | null; daiPlatform?: string; autoProcessOverride?: boolean | null; skipVerification?: boolean }) => updateFeed(slug!, data),
+    mutationFn: (data: { networkIdOverride?: string | null; daiPlatform?: string; autoProcessOverride?: boolean | null; maxEpisodes?: number | null }) => updateFeed(slug!, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['feed', slug] });
       setIsEditingNetwork(false);
@@ -59,6 +79,18 @@ function FeedDetail() {
     },
   });
 
+  const bulkMutation = useMutation({
+    mutationFn: ({ action }: { action: BulkAction }) =>
+      bulkEpisodeAction(slug!, Array.from(selectedIds), action),
+    onSuccess: (result) => {
+      setBulkResult(result);
+      setSelectedIds(new Set());
+      setShowBulkDeleteConfirm(false);
+      queryClient.invalidateQueries({ queryKey: ['episodes', slug] });
+      queryClient.invalidateQueries({ queryKey: ['feed', slug] });
+    },
+  });
+
   const closeReprocessModal = () => {
     setShowReprocessConfirm(false);
     setReprocessResult(null);
@@ -66,10 +98,8 @@ function FeedDetail() {
   };
 
   const startEditingNetwork = () => {
-    // Use networkIdOverride if set, otherwise empty for auto-detect
     setEditNetworkOverride(feed?.networkIdOverride || '');
     setEditDaiPlatform(feed?.daiPlatform || '');
-    // Initialize auto-process override
     if (feed?.autoProcessOverride === true) {
       setEditAutoProcessOverride('enable');
     } else if (feed?.autoProcessOverride === false) {
@@ -77,11 +107,11 @@ function FeedDetail() {
     } else {
       setEditAutoProcessOverride('global');
     }
+    setEditMaxEpisodes(feed?.maxEpisodes ? String(feed.maxEpisodes) : '');
     setIsEditingNetwork(true);
   };
 
   const saveNetworkEdit = () => {
-    // Convert auto-process override value
     let autoProcessOverride: boolean | null = null;
     if (editAutoProcessOverride === 'enable') {
       autoProcessOverride = true;
@@ -89,11 +119,13 @@ function FeedDetail() {
       autoProcessOverride = false;
     }
 
+    const maxEp = editMaxEpisodes ? parseInt(editMaxEpisodes, 10) : null;
+
     updateMutation.mutate({
-      // Send null to clear override, or the selected value
       networkIdOverride: editNetworkOverride || null,
       daiPlatform: editDaiPlatform || undefined,
       autoProcessOverride: autoProcessOverride,
+      maxEpisodes: maxEp !== null && !isNaN(maxEp) ? Math.max(10, Math.min(maxEp, 500)) : null,
     });
   };
 
@@ -111,6 +143,43 @@ function FeedDetail() {
       }
     }
   };
+
+  const handleToggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      const selectable = episodes.filter(ep => ep.status !== 'processing').map(ep => ep.id);
+      setSelectedIds(new Set(selectable));
+    } else {
+      setSelectedIds(new Set());
+    }
+  };
+
+  const handlePageSizeChange = (newSize: number) => {
+    setPageSize(newSize);
+    setPage(1);
+    setSelectedIds(new Set());
+  };
+
+  const handlePageChange = (newPage: number) => {
+    setPage(newPage);
+    setSelectedIds(new Set());
+  };
+
+  // Determine which bulk actions are valid for current selection
+  const selectedEpisodes = episodes.filter(ep => selectedIds.has(ep.id));
+  const allDiscovered = selectedEpisodes.length > 0 && selectedEpisodes.every(ep => ep.status === 'discovered');
+  const allProcessed = selectedEpisodes.length > 0 && selectedEpisodes.every(ep =>
+    ['completed', 'failed', 'permanently_failed'].includes(ep.status)
+  );
+  const hasSelection = selectedIds.size > 0;
 
   if (feedLoading) {
     return <LoadingSpinner className="py-12" />;
@@ -155,6 +224,7 @@ function FeedDetail() {
               {feed.lastRefreshed && (
                 <span>Updated {new Date(feed.lastRefreshed).toLocaleDateString()}</span>
               )}
+              <span>Feed cap: {feed.maxEpisodes || 300}</span>
             </div>
 
             {/* Network / DAI Platform info */}
@@ -184,6 +254,18 @@ function FeedDetail() {
                       onChange={(e) => setEditDaiPlatform(e.target.value)}
                       placeholder="e.g., megaphone, acast"
                       className="px-2 py-1 text-sm bg-secondary border border-border rounded w-32"
+                    />
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <label className="text-muted-foreground">Feed cap:</label>
+                    <input
+                      type="number"
+                      value={editMaxEpisodes}
+                      onChange={(e) => setEditMaxEpisodes(e.target.value)}
+                      placeholder="300"
+                      min={10}
+                      max={500}
+                      className="px-2 py-1 text-sm bg-secondary border border-border rounded w-20"
                     />
                   </div>
                   <button
@@ -341,11 +423,129 @@ function FeedDetail() {
         </div>
       </div>
 
-      <h2 className="text-xl font-semibold text-foreground mb-4">Episodes</h2>
+      {/* Episodes header with status filter */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+        <h2 className="text-xl font-semibold text-foreground">
+          Episodes {totalEpisodes > 0 && <span className="text-muted-foreground font-normal text-base">({totalEpisodes})</span>}
+        </h2>
+        <select
+          value={statusFilter}
+          onChange={(e) => { setStatusFilter(e.target.value); setPage(1); setSelectedIds(new Set()); }}
+          className="px-2 py-1.5 text-sm bg-secondary border border-border rounded"
+        >
+          <option value="all">All statuses</option>
+          <option value="discovered">Discovered</option>
+          <option value="pending">Pending</option>
+          <option value="processing">Processing</option>
+          <option value="processed">Completed</option>
+          <option value="failed">Failed</option>
+          <option value="permanently_failed">Permanently Failed</option>
+        </select>
+      </div>
+
+      {/* Bulk action toolbar */}
+      {hasSelection && (
+        <div className="mb-4 p-3 bg-secondary/50 rounded-lg border border-border flex flex-wrap items-center gap-2">
+          <span className="text-sm font-medium text-foreground">{selectedIds.size} selected</span>
+          <div className="flex items-center gap-2 ml-auto">
+            {allDiscovered && (
+              <button
+                onClick={() => bulkMutation.mutate({ action: 'process' })}
+                disabled={bulkMutation.isPending}
+                className="px-3 py-1.5 text-sm rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
+              >
+                {bulkMutation.isPending ? 'Processing...' : 'Process'}
+              </button>
+            )}
+            {allProcessed && (
+              <>
+                <button
+                  onClick={() => bulkMutation.mutate({ action: 'reprocess' })}
+                  disabled={bulkMutation.isPending}
+                  className="px-3 py-1.5 text-sm rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50"
+                >
+                  Reprocess
+                </button>
+                <button
+                  onClick={() => bulkMutation.mutate({ action: 'reprocess_full' })}
+                  disabled={bulkMutation.isPending}
+                  className="px-3 py-1.5 text-sm rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50"
+                >
+                  Full Reprocess
+                </button>
+                <button
+                  onClick={() => setShowBulkDeleteConfirm(true)}
+                  disabled={bulkMutation.isPending}
+                  className="px-3 py-1.5 text-sm rounded bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
+                >
+                  Delete
+                </button>
+              </>
+            )}
+            {!allDiscovered && !allProcessed && hasSelection && (
+              <span className="text-xs text-muted-foreground">Mixed statuses - select episodes with the same status for bulk actions</span>
+            )}
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="px-2 py-1 text-xs text-muted-foreground hover:text-foreground"
+            >
+              Clear
+            </button>
+          </div>
+        </div>
+      )}
+
       {episodesLoading ? (
         <LoadingSpinner />
       ) : (
-        <EpisodeList episodes={episodes || []} feedSlug={slug!} />
+        <EpisodeList
+          episodes={episodes}
+          feedSlug={slug!}
+          selectedIds={selectedIds}
+          onToggle={handleToggleSelect}
+          onSelectAll={handleSelectAll}
+        />
+      )}
+
+      {/* Pagination controls */}
+      {totalPages > 1 && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => handlePageChange(page - 1)}
+              disabled={page <= 1}
+              className="px-3 py-1.5 text-sm rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50"
+            >
+              Prev
+            </button>
+            <span className="text-sm text-muted-foreground">
+              Page {page} of {totalPages}
+            </span>
+            <button
+              onClick={() => handlePageChange(page + 1)}
+              disabled={page >= totalPages}
+              className="px-3 py-1.5 text-sm rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50"
+            >
+              Next
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-muted-foreground">Per page:</span>
+            {[25, 50, 100, 500].map(size => (
+              <button
+                key={size}
+                onClick={() => handlePageSizeChange(size)}
+                className={`px-2 py-1 text-xs rounded ${
+                  pageSize === size
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                }`}
+              >
+                {size}
+              </button>
+            ))}
+          </div>
+        </div>
       )}
 
       {/* Reprocess All Confirmation Modal */}
@@ -441,6 +641,74 @@ function FeedDetail() {
                 className="w-full px-4 py-2 rounded bg-primary text-primary-foreground hover:bg-primary/90"
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Delete Confirmation Modal */}
+      {showBulkDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-card border border-border rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-6">
+              <h2 className="text-xl font-semibold text-foreground mb-4">
+                Delete {selectedIds.size} Episode{selectedIds.size > 1 ? 's' : ''}
+              </h2>
+              <p className="text-sm text-muted-foreground mb-4">
+                This will delete processed audio files and reset selected episodes to discovered status. Episode records and processing history are preserved.
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => setShowBulkDeleteConfirm(false)}
+                  className="px-4 py-2 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => bulkMutation.mutate({ action: 'delete' })}
+                  disabled={bulkMutation.isPending}
+                  className="px-4 py-2 rounded bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50"
+                >
+                  {bulkMutation.isPending ? 'Deleting...' : 'Delete'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Action Result Modal */}
+      {bulkResult && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-card border border-border rounded-lg shadow-xl max-w-md w-full">
+            <div className="p-6">
+              <h2 className="text-xl font-semibold text-foreground mb-4">Bulk Action Complete</h2>
+              <div className="grid grid-cols-2 gap-4 text-center mb-4">
+                <div className="p-3 rounded-lg bg-green-500/10">
+                  <p className="text-2xl font-bold text-green-600 dark:text-green-400">{bulkResult.queued}</p>
+                  <p className="text-xs text-muted-foreground">Actioned</p>
+                </div>
+                <div className="p-3 rounded-lg bg-yellow-500/10">
+                  <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">{bulkResult.skipped}</p>
+                  <p className="text-xs text-muted-foreground">Skipped</p>
+                </div>
+              </div>
+              {bulkResult.freedMb > 0 && (
+                <p className="text-sm text-muted-foreground mb-4">
+                  Freed {bulkResult.freedMb.toFixed(1)} MB of disk space.
+                </p>
+              )}
+              {bulkResult.errors.length > 0 && (
+                <div className="mb-4 p-3 rounded-lg bg-destructive/10">
+                  <p className="text-sm text-destructive">{bulkResult.errors.length} error(s)</p>
+                </div>
+              )}
+              <button
+                onClick={() => setBulkResult(null)}
+                className="w-full px-4 py-2 rounded bg-primary text-primary-foreground hover:bg-primary/90"
+              >
+                Done
               </button>
             </div>
           </div>

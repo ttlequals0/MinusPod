@@ -232,7 +232,8 @@ def list_feeds():
             'createdAt': podcast.get('created_at'),
             'lastEpisodeDate': podcast.get('last_episode_date'),
             'networkId': podcast.get('network_id'),
-            'daiPlatform': podcast.get('dai_platform')
+            'daiPlatform': podcast.get('dai_platform'),
+            'maxEpisodes': podcast.get('max_episodes') or 300,
         })
 
     return json_response({'feeds': feeds})
@@ -311,6 +312,12 @@ def add_feed():
         db_value = _serialize_auto_process(auto_process_override)
         if db_value is not None:
             db.update_podcast(slug, auto_process_override=db_value)
+
+        # Apply max_episodes if provided
+        max_ep = data.get('maxEpisodes')
+        if max_ep is not None:
+            max_ep = max(10, min(int(max_ep), 500))
+            db.update_podcast(slug, max_episodes=max_ep)
 
         # Invalidate feed cache since we added a new feed
         from main import invalidate_feed_cache
@@ -508,6 +515,7 @@ def get_feed(slug):
         'daiPlatform': podcast.get('dai_platform'),
         'networkIdOverride': podcast.get('network_id_override'),
         'autoProcessOverride': auto_process_override_result,
+        'maxEpisodes': podcast.get('max_episodes') or 300,
     })
 
 
@@ -545,6 +553,13 @@ def update_feed(slug):
     if 'autoProcessOverride' in data:
         updates['auto_process_override'] = _serialize_auto_process(data['autoProcessOverride'])
 
+    # Handle maxEpisodes
+    if 'maxEpisodes' in data:
+        max_ep = data['maxEpisodes']
+        if max_ep is not None:
+            max_ep = max(10, min(int(max_ep), 500))
+        updates['max_episodes'] = max_ep
+
     if not updates:
         return error_response('No valid fields to update', 400)
 
@@ -560,12 +575,21 @@ def update_feed(slug):
         podcast = db.get_podcast_by_slug(slug)
         base_url = os.environ.get('BASE_URL', 'http://localhost:8000')
 
+        # Trigger refresh if maxEpisodes changed (to regenerate modified RSS)
+        if 'max_episodes' in updates:
+            try:
+                from main import refresh_rss_feed
+                refresh_rss_feed(slug, podcast['source_url'])
+            except Exception as e:
+                logger.warning(f"Feed refresh after maxEpisodes change failed for {slug}: {e}")
+
         return json_response({
             'slug': podcast['slug'],
             'title': podcast['title'] or podcast['slug'],
             'networkId': podcast.get('network_id'),
             'daiPlatform': podcast.get('dai_platform'),
             'networkIdOverride': podcast.get('network_id_override'),
+            'maxEpisodes': podcast.get('max_episodes') or 300,
             'feedUrl': f"{base_url}/{slug}"
         })
     except Exception as e:
@@ -728,7 +752,7 @@ def list_episodes(slug):
 
     # Get query params
     status = request.args.get('status', 'all')
-    limit = min(int(request.args.get('limit', 50)), 200)
+    limit = min(int(request.args.get('limit', 25)), 500)
     offset = int(request.args.get('offset', 0))
 
     episodes, total = db.get_episodes(slug, status=status, limit=limit, offset=offset)
@@ -740,6 +764,7 @@ def list_episodes(slug):
             time_saved = ep['original_duration'] - ep['new_duration']
 
         # Map status for frontend compatibility
+        # 'processed' -> 'completed'; discovered/permanently_failed pass through
         status = ep['status']
         if status == 'processed':
             status = 'completed'
@@ -1158,6 +1183,109 @@ def reprocess_all_episodes(slug):
     })
 
 
+@api.route('/feeds/<slug>/episodes/bulk', methods=['POST'])
+@limiter.limit("5 per minute")
+@log_request
+def bulk_episode_action(slug):
+    """Bulk actions on episodes: process, reprocess, reprocess_full, delete."""
+    db = get_database()
+    storage = get_storage()
+
+    podcast = db.get_podcast_by_slug(slug)
+    if not podcast:
+        return error_response('Feed not found', 404)
+
+    data = request.get_json()
+    if not data:
+        return error_response('Request body required', 400)
+
+    episode_ids = data.get('episodeIds', [])
+    action = data.get('action', '')
+
+    if not episode_ids:
+        return error_response('episodeIds is required and must be non-empty', 400)
+    if len(episode_ids) > 500:
+        return error_response('Maximum 500 episodes per bulk action', 400)
+    if action not in ('process', 'reprocess', 'reprocess_full', 'delete'):
+        return error_response('Invalid action. Use: process, reprocess, reprocess_full, delete', 400)
+
+    queued = 0
+    skipped = 0
+    freed_mb = 0.0
+    errors = []
+
+    # Batch-fetch all episodes upfront to avoid N+1 queries
+    all_episodes = db.get_episodes_by_ids(slug, episode_ids)
+    episodes_by_id = {ep['episode_id']: ep for ep in all_episodes}
+
+    for episode_id in episode_ids:
+        try:
+            episode = episodes_by_id.get(episode_id)
+            if not episode:
+                skipped += 1
+                continue
+
+            ep_status = episode.get('status')
+
+            if action == 'process':
+                if ep_status != 'discovered':
+                    skipped += 1
+                    continue
+                db.upsert_episode(
+                    slug, episode_id,
+                    status='pending',
+                    retry_count=0,
+                    error_message=None
+                )
+                queued += 1
+
+            elif action in ('reprocess', 'reprocess_full'):
+                if ep_status not in ('processed', 'failed', 'permanently_failed'):
+                    skipped += 1
+                    continue
+                mode = 'full' if action == 'reprocess_full' else 'reprocess'
+                storage.delete_processed_file(slug, episode_id)
+                db.clear_episode_details(slug, episode_id)
+                db.upsert_episode(
+                    slug, episode_id,
+                    status='pending',
+                    reprocess_mode=mode,
+                    reprocess_requested_at=datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+                    retry_count=0,
+                    error_message=None
+                )
+                queued += 1
+
+            elif action == 'delete':
+                if ep_status not in ('processed', 'failed', 'permanently_failed'):
+                    skipped += 1
+                    continue
+                reset, freed = db.delete_episodes(slug, [episode_id], storage)
+                queued += reset
+                freed_mb += freed
+
+        except Exception as e:
+            logger.error(f"Bulk action error for {slug}:{episode_id}: {e}")
+            errors.append(f"{episode_id}: {str(e)}")
+
+    # Trigger background processing for process/reprocess actions
+    if action in ('process', 'reprocess', 'reprocess_full') and queued > 0:
+        try:
+            from main import start_background_processing
+            start_background_processing()
+        except Exception:
+            pass
+
+    logger.info(f"Bulk {action} on {slug}: {queued} queued, {skipped} skipped, {freed_mb:.1f} MB freed")
+
+    return json_response({
+        'queued': queued,
+        'skipped': skipped,
+        'freedMb': round(freed_mb, 2),
+        'errors': errors,
+    })
+
+
 @api.route('/feeds/<slug>/episodes/<episode_id>/retry-ad-detection', methods=['POST'])
 @limiter.limit("5 per minute")
 @log_request
@@ -1569,7 +1697,7 @@ def get_settings():
             'isDefault': settings.get('openai_base_url', {}).get('is_default', True)
         },
         'apiKeyConfigured': api_key_configured,
-        'retentionPeriodMinutes': int(os.environ.get('RETENTION_PERIOD') or settings.get('retention_period_minutes', {}).get('value', '1440')),
+        'retentionDays': int(db.get_setting('retention_days') or '30'),
         'defaults': {
             'systemPrompt': DEFAULT_SYSTEM_PROMPT,
             'verificationPrompt': DEFAULT_VERIFICATION_PROMPT,
@@ -1883,9 +2011,7 @@ def get_system_status():
     stats = db.get_stats()
     storage_stats = storage.get_storage_stats()
 
-    # Get retention setting - env var takes precedence
-    retention = int(os.environ.get('RETENTION_PERIOD') or
-                    db.get_setting('retention_period_minutes') or '1440')
+    retention_days = int(db.get_setting('retention_days') or '30')
 
     return json_response({
         'status': 'running',
@@ -1903,7 +2029,7 @@ def get_system_status():
             'fileCount': storage_stats['file_count']
         },
         'settings': {
-            'retentionPeriodMinutes': retention,
+            'retentionDays': retention_days,
             'whisperModel': os.environ.get('WHISPER_MODEL', 'small'),
             'whisperDevice': os.environ.get('WHISPER_DEVICE', 'cuda'),
             'baseUrl': os.environ.get('BASE_URL', 'http://localhost:8000')
@@ -1936,16 +2062,67 @@ def get_model_pricing():
 @api.route('/system/cleanup', methods=['POST'])
 @log_request
 def trigger_cleanup():
-    """Delete ALL processed episodes immediately (ignores retention period)."""
+    """Reset ALL processed episodes to discovered (ignores retention period)."""
     db = get_database()
+    storage = get_storage()
 
-    deleted_count, freed_mb = db.cleanup_old_episodes(force_all=True)
+    reset_count, freed_mb = db.cleanup_old_episodes(force_all=True, storage=storage)
 
-    logger.info(f"Manual cleanup: {deleted_count} episodes deleted, {freed_mb:.1f} MB freed")
+    logger.info(f"Manual cleanup: {reset_count} episodes reset, {freed_mb:.1f} MB freed")
     return json_response({
-        'message': 'All episodes deleted',
-        'episodesRemoved': deleted_count,
+        'message': 'All episodes reset to discovered',
+        'episodesRemoved': reset_count,
         'spaceFreedMb': round(freed_mb, 2)
+    })
+
+
+@api.route('/settings/retention', methods=['GET'])
+@log_request
+def get_retention_settings():
+    """Get retention configuration."""
+    db = get_database()
+    retention_days = int(db.get_setting('retention_days') or '30')
+    return json_response({
+        'retentionDays': retention_days,
+        'enabled': retention_days > 0,
+    })
+
+
+@api.route('/settings/retention', methods=['PUT'])
+@log_request
+def update_retention_settings():
+    """Update retention configuration."""
+    data = request.get_json()
+    if not data or 'retentionDays' not in data:
+        return error_response('retentionDays is required', 400)
+
+    days = data['retentionDays']
+    if not isinstance(days, int) or days < 0 or days > 3650:
+        return error_response('retentionDays must be an integer between 0 and 3650', 400)
+
+    db = get_database()
+    db.set_setting('retention_days', str(days), is_default=False)
+    logger.info(f"Updated retention_days to {days}")
+
+    return json_response({
+        'retentionDays': days,
+        'enabled': days > 0,
+    })
+
+
+@api.route('/system/vacuum', methods=['POST'])
+@limiter.limit("1 per hour")
+@log_request
+def trigger_vacuum():
+    """Trigger SQLite VACUUM to reclaim disk space."""
+    db = get_database()
+    logger.info("Starting VACUUM...")
+    duration_ms = db.vacuum()
+
+    return json_response({
+        'status': 'ok',
+        'message': 'VACUUM complete',
+        'durationMs': duration_ms,
     })
 
 

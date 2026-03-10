@@ -14,6 +14,7 @@ export interface Feed {
   daiPlatform?: string;
   networkIdOverride?: string | null;
   autoProcessOverride?: boolean | null;
+  maxEpisodes?: number;
 }
 
 export interface Episode {
@@ -22,7 +23,7 @@ export interface Episode {
   description?: string;
   published: string;
   duration?: number;
-  status: 'pending' | 'processing' | 'completed' | 'failed';
+  status: 'discovered' | 'pending' | 'processing' | 'completed' | 'failed' | 'permanently_failed';
   ad_count?: number;
 }
 
@@ -117,7 +118,7 @@ export interface Settings {
   llmProvider: SettingValue;
   openaiBaseUrl: SettingValue;
   apiKeyConfigured: boolean;
-  retentionPeriodMinutes: number;
+  retentionDays: number;
   defaults: {
     systemPrompt: string;
     verificationPrompt: string;
@@ -181,7 +182,7 @@ export interface SystemStatus {
     fileCount: number;
   };
   settings: {
-    retentionPeriodMinutes: number;
+    retentionDays: number;
     whisperModel: string;
     whisperDevice: string;
     baseUrl: string;
@@ -255,6 +256,18 @@ export interface ProcessingHistoryResponse {
   page: number;
   limit: number;
   totalPages: number;
+}
+
+export interface BulkActionResult {
+  queued: number;
+  skipped: number;
+  freedMb: number;
+  errors: string[];
+}
+
+export interface RetentionSettings {
+  retentionDays: number;
+  enabled: boolean;
 }
 
 export interface ProcessingHistoryStats {

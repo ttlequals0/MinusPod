@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 1.0.40
+  version: 1.0.41
   contact:
     name: MinusPod
   license:
@@ -505,7 +505,7 @@ paths:
           description: Filter by episode status
           schema:
             type: string
-            enum: [all, pending, processing, processed, failed, permanently_failed]
+            enum: [all, discovered, pending, processing, processed, failed, permanently_failed]
             default: all
         - name: limit
           in: query
@@ -513,8 +513,8 @@ paths:
           schema:
             type: integer
             minimum: 1
-            maximum: 200
-            default: 50
+            maximum: 500
+            default: 25
         - name: offset
           in: query
           description: Number of episodes to skip
@@ -2369,6 +2369,126 @@ paths:
                   spaceFreedMb:
                     type: number
 
+  /system/vacuum:
+    post:
+      tags:
+        - System
+      summary: Trigger SQLite VACUUM
+      description: Reclaim disk space by compacting the database. Rate limited to 1/hour.
+      operationId: triggerVacuum
+      responses:
+        '200':
+          description: VACUUM completed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  message:
+                    type: string
+                  durationMs:
+                    type: integer
+
+  /settings/retention:
+    get:
+      tags:
+        - Settings
+      summary: Get retention configuration
+      operationId: getRetention
+      responses:
+        '200':
+          description: Retention settings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  retentionDays:
+                    type: integer
+                    minimum: 0
+                    maximum: 3650
+                  enabled:
+                    type: boolean
+    put:
+      tags:
+        - Settings
+      summary: Update retention configuration
+      operationId: updateRetention
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [retentionDays]
+              properties:
+                retentionDays:
+                  type: integer
+                  minimum: 0
+                  maximum: 3650
+                  description: Days to retain processed audio. 0 disables retention.
+      responses:
+        '200':
+          description: Retention updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  retentionDays:
+                    type: integer
+                  enabled:
+                    type: boolean
+
+  /feeds/{slug}/episodes/bulk:
+    post:
+      tags:
+        - Episodes
+      summary: Bulk episode actions
+      description: Apply an action to multiple episodes at once. Rate limited to 5/min.
+      operationId: bulkEpisodeAction
+      parameters:
+        - $ref: '#/components/parameters/slug'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [episodeIds, action]
+              properties:
+                episodeIds:
+                  type: array
+                  items:
+                    type: string
+                  minItems: 1
+                  maxItems: 500
+                action:
+                  type: string
+                  enum: [process, reprocess, reprocess_full, delete]
+      responses:
+        '200':
+          description: Bulk action result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  queued:
+                    type: integer
+                  skipped:
+                    type: integer
+                  freedMb:
+                    type: number
+                  errors:
+                    type: array
+                    items:
+                      type: string
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /system/queue:
     get:
       tags:
@@ -2509,6 +2629,13 @@ components:
             - boolean
             - 'null'
           description: Override auto-process setting for this feed (null uses global setting)
+        maxEpisodes:
+          type:
+            - integer
+            - 'null'
+          minimum: 10
+          maximum: 500
+          description: Max episodes served to podcast clients via modified RSS. Null uses default (300).
 
     EpisodeSummary:
       type: object
@@ -2519,7 +2646,7 @@ components:
           type: string
         status:
           type: string
-          enum: [pending, processing, processed, failed, permanently_failed]
+          enum: [discovered, pending, processing, completed, failed, permanently_failed]
         createdAt:
           type: string
           format: date-time
@@ -2766,8 +2893,9 @@ components:
         apiKeyConfigured:
           type: boolean
           description: Whether an API key is configured for the current provider (read-only)
-        retentionPeriodMinutes:
+        retentionDays:
           type: integer
+          description: Days to retain processed audio files. 0 = disabled.
         defaults:
           type: object
           properties:

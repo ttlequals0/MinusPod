@@ -61,6 +61,7 @@ function AddFeed() {
   const [sourceUrl, setSourceUrl] = useState('');
   const [customSlug, setCustomSlug] = useState('');
   const [autoProcessOverride, setAutoProcessOverride] = useState<boolean | null>(null);
+  const [maxEpisodes, setMaxEpisodes] = useState<string>('');
   const [showSlug, setShowSlug] = useState(false);
   const [touched, setTouched] = useState(false);
 
@@ -73,7 +74,7 @@ function AddFeed() {
   const urlValidation = useMemo(() => validateUrl(sourceUrl), [sourceUrl]);
 
   const mutation = useMutation({
-    mutationFn: () => addFeed(sourceUrl, customSlug || undefined, autoProcessOverride),
+    mutationFn: () => addFeed(sourceUrl, customSlug || undefined, autoProcessOverride, maxEpisodes ? parseInt(maxEpisodes, 10) : undefined),
     onSuccess: (feed) => {
       queryClient.invalidateQueries({ queryKey: ['feeds'] });
       navigate(`/feeds/${feed.slug}`);
@@ -220,6 +221,25 @@ function AddFeed() {
                 </select>
                 <p className="mt-1 text-sm text-muted-foreground">
                   Controls whether new episodes are automatically processed. Set before adding to prevent unwanted processing during initial refresh.
+                </p>
+              </div>
+
+              <div>
+                <label htmlFor="maxEpisodes" className="block text-sm font-medium text-foreground mb-2">
+                  Max Episodes in Feed
+                </label>
+                <input
+                  type="number"
+                  id="maxEpisodes"
+                  value={maxEpisodes}
+                  onChange={(e) => setMaxEpisodes(e.target.value)}
+                  placeholder="300 (default)"
+                  min={10}
+                  max={500}
+                  className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                />
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Limits how many episodes are served to podcast clients. Does not affect how many episodes are visible in MinusPod. Max: 500.
                 </p>
               </div>
             </div>

@@ -6,6 +6,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.41] - 2026-03-10
+
+### Added
+- **Episode discovery**: All episodes from a feed are now surfaced in the MinusPod UI as `discovered` on every feed refresh. Users can process any episode at any time. Episode records persist indefinitely regardless of retention settings.
+- **Bulk episode actions**: Select multiple episodes on the feed detail page and apply Process, Reprocess (Patterns + AI), Reprocess (Full), or Delete in one action. Bulk actions are page-scoped with per-action eligibility enforcement.
+- **Episode pagination**: Feed detail episode list is paginated (default 25 per page, options: 25 / 50 / 100 / 500).
+- **Per-feed RSS episode cap**: New `maxEpisodes` setting controls how many episodes are served to podcast clients (default 300, max 500). Configurable on add or via feed settings. Changing the cap triggers a full feed refresh.
+- **Retention UI**: Retention period now configurable in Settings (days, or disabled).
+- **`POST /api/v1/system/vacuum`**: Trigger SQLite VACUUM for manual disk space reclamation. API-only.
+- **`POST /api/v1/feeds/{slug}/episodes/bulk`**: Bulk episode actions API.
+- **`GET/PUT /api/v1/settings/retention`**: Retention configuration API.
+
+### Changed
+- **Retention behaviour**: Retention now deletes audio files and resets episodes to `discovered` instead of hard-deleting episode rows. Episode records, processing history, ad markers, and corrections are preserved. Measured in days (default 30) instead of minutes (default 1440). `RETENTION_PERIOD` env var is deprecated but still supported (converted from minutes on first startup).
+- **RSS episode cap default raised**: From 100 to 300.
+- **Episodes list default page size**: From 50 to 25. Max increased from 200 to 500.
+- **Code quality**: Extracted `_reset_episode_to_discovered()` helper to eliminate 3x duplicated 10-field upsert calls. Extracted shared `EPISODE_STATUS_COLORS`/`EPISODE_STATUS_LABELS` constants from duplicated frontend dicts. Replaced N+1 `get_episode()` calls in bulk actions and `delete_episodes()` with batch `get_episodes_by_ids()` query. Removed dead fallback path in `cleanup_old_episodes()`. Simplified URLSearchParams construction in `getEpisodes()`.
+
+### Fixed
+- **0 episodes shown in UI for new feeds**: Episode records are now created on feed refresh rather than only on processing.
+- **Feed history truncated to ~3-4 years**: Hardcoded 100-episode RSS cap raised and made configurable.
+- **Retention deleting discovered episodes**: Retention now skips episodes with no files on disk, eliminating pointless DB churn.
+- **processing_history orphaned by retention**: Episode rows are no longer hard-deleted, so processing_history rows always have a corresponding episode record.
+
 ## [1.0.40] - 2026-03-06
 
 ### Fixed

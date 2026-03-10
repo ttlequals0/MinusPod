@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getSettings, updateSettings, resetSettings, resetPrompts, getModels, getWhisperModels, getSystemStatus, runCleanup, getProcessingEpisodes, cancelProcessing, refreshModels } from '../api/settings';
+import { getSettings, updateSettings, resetSettings, resetPrompts, getModels, getWhisperModels, getSystemStatus, runCleanup, getProcessingEpisodes, cancelProcessing, refreshModels, getRetention, updateRetention } from '../api/settings';
 import { setPassword, removePassword } from '../api/auth';
 import { useAuth } from '../context/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -46,6 +46,8 @@ function Settings() {
   const [openaiBaseUrl, setOpenaiBaseUrl] = useState('http://localhost:8000/v1');
   // hasChanges is derived via useMemo below
   const [cleanupConfirm, setCleanupConfirm] = useState(false);
+  const [retentionDays, setRetentionDays] = useState(30);
+  const [retentionEnabled, setRetentionEnabled] = useState(true);
 
   const { data: settings, isLoading: settingsLoading } = useQuery({
     queryKey: ['settings'],
@@ -73,12 +75,32 @@ function Settings() {
     refetchInterval: 5000,
   });
 
+  const { data: retention } = useQuery({
+    queryKey: ['retention'],
+    queryFn: getRetention,
+  });
+
+  useEffect(() => {
+    if (retention) {
+      setRetentionDays(retention.retentionDays || 30);
+      setRetentionEnabled(retention.enabled);
+    }
+  }, [retention]);
+
   const cancelMutation = useMutation({
     mutationFn: (params: { slug: string; episodeId: string }) =>
       cancelProcessing(params.slug, params.episodeId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['processing-episodes'] });
       queryClient.invalidateQueries({ queryKey: ['status'] });
+    },
+  });
+
+  const retentionMutation = useMutation({
+    mutationFn: (days: number) => updateRetention(days),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['retention'] });
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
     },
   });
 
@@ -338,15 +360,72 @@ function Settings() {
             }`}
           >
             {cleanupMutation.isPending
-              ? 'Deleting...'
+              ? 'Resetting...'
               : cleanupConfirm
               ? 'Click again to confirm'
-              : 'Delete All Episodes'}
+              : 'Reset All Episodes'}
           </button>
           {cleanupMutation.data && (
             <span className="ml-3 text-sm text-muted-foreground">
-              Deleted {cleanupMutation.data.episodesRemoved} episodes
+              Reset {cleanupMutation.data.episodesRemoved} episodes, freed {cleanupMutation.data.spaceFreedMb?.toFixed(1)} MB
             </span>
+          )}
+        </div>
+      </CollapsibleSection>
+
+      {/* Storage & Retention */}
+      <CollapsibleSection title="Storage & Retention">
+        <div className="space-y-4">
+          <div>
+            <div className="flex items-center gap-3 mb-3">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <div
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                    retentionEnabled ? 'bg-primary' : 'bg-secondary'
+                  }`}
+                  onClick={() => setRetentionEnabled(!retentionEnabled)}
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      retentionEnabled ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </div>
+                <span className="text-sm font-medium text-foreground">
+                  {retentionEnabled ? 'Retention enabled' : 'Retention disabled'}
+                </span>
+              </label>
+            </div>
+            <div className="flex items-center gap-3">
+              <label htmlFor="retentionDays" className="text-sm text-muted-foreground whitespace-nowrap">
+                Retain processed files for:
+              </label>
+              <input
+                type="number"
+                id="retentionDays"
+                value={retentionEnabled ? retentionDays : ''}
+                onChange={(e) => setRetentionDays(parseInt(e.target.value, 10) || 0)}
+                disabled={!retentionEnabled}
+                min={1}
+                max={3650}
+                placeholder="30"
+                className="w-24 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+              />
+              <span className="text-sm text-muted-foreground">days</span>
+            </div>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Processed audio files older than this will be deleted and episodes reset to Discovered. Episode records and processing history are always kept.
+            </p>
+          </div>
+          <button
+            onClick={() => retentionMutation.mutate(retentionEnabled ? retentionDays : 0)}
+            disabled={retentionMutation.isPending}
+            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors text-sm"
+          >
+            {retentionMutation.isPending ? 'Saving...' : 'Save Retention Settings'}
+          </button>
+          {retentionMutation.isSuccess && (
+            <span className="ml-3 text-sm text-green-600 dark:text-green-400">Saved</span>
           )}
         </div>
       </CollapsibleSection>
