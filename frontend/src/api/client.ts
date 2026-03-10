@@ -37,5 +37,9 @@ export async function apiRequest<T>(endpoint: string, options: RequestOptions = 
     throw new Error(error.error || `HTTP ${response.status}`);
   }
 
+  const contentType = response.headers.get('content-type');
+  if (response.status === 204 || response.headers.get('content-length') === '0' || !contentType?.includes('application/json')) {
+    return undefined as T;
+  }
   return response.json();
 }

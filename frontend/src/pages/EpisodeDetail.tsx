@@ -426,6 +426,20 @@ function EpisodeDetail() {
         </div>
       )}
 
+      {episode.status === 'completed' && (!episode.adMarkers || episode.adMarkers.length === 0) && (
+        <div className="bg-card rounded-lg border border-border p-6 mb-6">
+          <h2 className="text-xl font-semibold text-foreground mb-2">Detected Ads</h2>
+          {episode.timeSaved && episode.timeSaved > 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Ad(s) were removed ({formatDuration(episode.timeSaved)} saved),
+              but detail data is unavailable. Reprocess this episode to regenerate ad markers.
+            </p>
+          ) : (
+            <p className="text-sm text-muted-foreground">No ads were detected in this episode.</p>
+          )}
+        </div>
+      )}
+
       {episode.rejectedAdMarkers && episode.rejectedAdMarkers.length > 0 && (
         <div className="bg-card rounded-lg border border-border p-6 mb-6">
           <h2 className="text-xl font-semibold text-foreground mb-4">
@@ -542,6 +556,15 @@ function EpisodeDetail() {
               {episode.transcript}
             </pre>
           </div>
+        </div>
+      )}
+
+      {episode.status === 'completed' && !episode.transcript && (
+        <div className="bg-card rounded-lg border border-border p-6">
+          <h2 className="text-xl font-semibold text-foreground mb-2">Transcript</h2>
+          <p className="text-sm text-muted-foreground">
+            Transcript data is unavailable for this episode. Reprocess to regenerate.
+          </p>
         </div>
       )}
     </div>

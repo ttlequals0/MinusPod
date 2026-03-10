@@ -6,6 +6,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.42] - 2026-03-10
+
+### Fixed
+- **304 bypass prevents episode discovery**: Feeds returning HTTP 304 (unchanged) now check if episodes have been discovered. Pre-v1.0.41 feeds with zero discovered episodes force a full fetch so `bulk_upsert_discovered_episodes` runs.
+- **Completed episodes missing transcript/ad markers display**: Added fallback UI sections for completed episodes where `episode_details` data is missing, showing informational messages with reprocess guidance.
+- **Console error "Cannot read properties of undefined (reading 'payload')"**: `apiRequest` now guards against empty/non-JSON responses (204 No Content, missing content-type) instead of unconditionally calling `response.json()`.
+
 ## [1.0.41] - 2026-03-10
 
 ### Added
