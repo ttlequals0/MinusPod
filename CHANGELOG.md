@@ -20,6 +20,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Shared `_get_episode_db_id` helper**: Lightweight ID lookup extracted for `save_episode_details`, `save_original_transcript`, `save_episode_audio_analysis`, `clear_episode_details`
 - **Original transcript routed through Storage layer**: `storage.save_original_transcript()` for consistency with other transcript operations
 
+### Fixed
+- **`_get_episode_db_id` return type**: Annotation now `-> Optional[int]` matching actual behavior (returns `None` when not found)
+- **`get_original_transcript` two-query overhead**: Collapsed `_get_episode_db_id` + SELECT into a single JOIN query
+- **Original transcript spinner on error**: Destructure `isError` from query; show error message instead of infinite `LoadingSpinner`
+- **Original transcript section empty on revisit**: Initialize `originalTranscriptRequested` from localStorage so query fires when section was previously opened
+- **Original transcript query fires without availability check**: Added `originalTranscriptAvailable` guard to query `enabled` condition to prevent spurious API calls
+- **README ToC**: Trimmed deeply nested sub-items to top-level sections with select sub-items
+
 ### Note
 - Episodes processed before v1.0.51 will not have an original transcript. To populate it, reprocess the episode -- the next transcription will be captured as the original.
 

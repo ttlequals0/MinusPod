@@ -206,7 +206,7 @@ class EpisodeMixin:
 
         return db_id
 
-    def _get_episode_db_id(self, slug: str, episode_id: str) -> int:
+    def _get_episode_db_id(self, slug: str, episode_id: str) -> Optional[int]:
         """Lightweight lookup: resolve (slug, episode_id) to the episodes.id PK.
 
         Only joins episodes + podcasts (skips episode_details).
@@ -323,13 +323,13 @@ class EpisodeMixin:
 
     def get_original_transcript(self, slug: str, episode_id: str) -> str:
         """Get original (pre-cut) transcript text, or None."""
-        db_episode_id = self._get_episode_db_id(slug, episode_id)
-        if not db_episode_id:
-            return None
         conn = self.get_connection()
         cursor = conn.execute(
-            "SELECT original_transcript_text FROM episode_details WHERE episode_id = ?",
-            (db_episode_id,)
+            """SELECT ed.original_transcript_text FROM episode_details ed
+               JOIN episodes e ON ed.episode_id = e.id
+               JOIN podcasts p ON e.podcast_id = p.id
+               WHERE p.slug = ? AND e.episode_id = ?""",
+            (slug, episode_id)
         )
         row = cursor.fetchone()
         return row['original_transcript_text'] if row else None

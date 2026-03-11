@@ -30,7 +30,9 @@ function EpisodeDetail() {
   const [showReprocessMenu, setShowReprocessMenu] = useState(false);
   const [editorSelectedAdIndex, setEditorSelectedAdIndex] = useState(0);
   const [savedScrollY, setSavedScrollY] = useState<number | null>(null);
-  const [originalTranscriptRequested, setOriginalTranscriptRequested] = useState(false);
+  const [originalTranscriptRequested, setOriginalTranscriptRequested] = useState(
+    () => localStorage.getItem('episode-original-transcript') === 'true'
+  );
   const editorRef = useRef<HTMLDivElement>(null);
 
   const queryClient = useQueryClient();
@@ -41,10 +43,10 @@ function EpisodeDetail() {
     enabled: !!slug && !!episodeId,
   });
 
-  const { data: originalTranscript } = useQuery({
+  const { data: originalTranscript, isError: originalTranscriptError } = useQuery({
     queryKey: ['originalTranscript', slug, episodeId],
     queryFn: () => getOriginalTranscript(slug!, episodeId!),
-    enabled: originalTranscriptRequested && !!slug && !!episodeId,
+    enabled: originalTranscriptRequested && !!slug && !!episodeId && !!episode?.originalTranscriptAvailable,
   });
 
   const reprocessMutation = useMutation({
@@ -568,7 +570,9 @@ function EpisodeDetail() {
         >
           {originalTranscript
             ? <TranscriptBlock text={originalTranscript} />
-            : <LoadingSpinner className="py-4" />
+            : originalTranscriptError
+              ? <p className="text-destructive">Failed to load original transcript</p>
+              : <LoadingSpinner className="py-4" />
           }
         </CollapsibleSection>
       )}
