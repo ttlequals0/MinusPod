@@ -69,6 +69,7 @@ MAX_FALSE_POSITIVE_TEXTS = 100              # Max false positives to load per po
 # Processing Limits
 # ============================================================
 MAX_EPISODE_RETRIES = 3         # Retries before permanent failure
+JIT_RETRY_COOLDOWN_SECONDS = 60 # Base cooldown between JIT retries (doubles per attempt)
 WINDOW_SIZE_SECONDS = 600       # Claude processing window (10 min)
 WINDOW_OVERLAP_SECONDS = 180    # Overlap between windows (3 min)
 MAX_FILE_SIZE_MB = 500          # Maximum audio file size

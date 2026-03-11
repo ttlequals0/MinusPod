@@ -10,7 +10,7 @@ import requests
 import requests.exceptions
 from flask import Response, send_file, abort, send_from_directory, request
 
-from config import APP_USER_AGENT, MAX_EPISODE_RETRIES
+from config import APP_USER_AGENT, JIT_RETRY_COOLDOWN_SECONDS, MAX_EPISODE_RETRIES
 
 feed_logger = logging.getLogger('podcast.feed')
 refresh_logger = logging.getLogger('podcast.refresh')
@@ -297,6 +297,22 @@ def register_routes(app):
                     "Episode processing has permanently failed after multiple attempts",
                     status=410
                 )
+            # Cooldown check - don't retry if failed recently (gives CDN time to propagate)
+            updated_at = episode.get('updated_at')
+            if updated_at and retry_count > 0:
+                last_update = datetime.fromisoformat(updated_at.replace('Z', '+00:00'))
+                now = datetime.now(timezone.utc)
+                cooldown_seconds = JIT_RETRY_COOLDOWN_SECONDS * (2 ** (retry_count - 1))
+                elapsed = (now - last_update).total_seconds()
+                if elapsed < cooldown_seconds:
+                    wait_remaining = int(cooldown_seconds - elapsed)
+                    feed_logger.debug(f"[{slug}:{episode_id}] Failed {elapsed:.0f}s ago, cooldown {cooldown_seconds}s (retry {retry_count})")
+                    return Response(
+                        "Episode processing failed recently, retrying soon",
+                        status=503,
+                        headers={'Retry-After': str(max(wait_remaining, 30))}
+                    )
+
             feed_logger.info(f"[{slug}:{episode_id}] Retrying failed episode (attempt {retry_count + 1}/{MAX_EPISODE_RETRIES})")
             status = None
 

@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.50] - 2026-03-11
+
+### Fixed
+- **CDN-not-ready episodes permanently failing too fast**: JIT route retries bypassed queue backoff, burning all 3 retries in ~34 seconds. Added exponential cooldown (60s/120s/240s) between JIT retries so CDN propagation has time to complete. Returns 503 with Retry-After header during cooldown.
+
 ## [1.0.49] - 2026-03-11
 
 ### Fixed

@@ -7,9 +7,11 @@ import os
 import sys
 import tempfile
 import shutil
+from datetime import datetime, timedelta, timezone
+from unittest.mock import patch, MagicMock
+
 import pytest
 import requests.exceptions
-from unittest.mock import patch, MagicMock
 
 # Create temp data dir and set env before any imports that touch /app/data
 _test_data_dir = tempfile.mkdtemp(prefix='head_test_')
@@ -236,6 +238,93 @@ class TestLookupEpisode:
 
         assert ep_data is None
         assert podcast_name is None
+
+
+class TestJITRetryCooldown:
+    """JIT route should respect cooldown between retries for failed episodes."""
+
+    def _make_failed_episode(self, seconds_ago, retry_count):
+        """Build a failed episode dict with updated_at N seconds in the past."""
+        ts = (datetime.now(timezone.utc) - timedelta(seconds=seconds_ago)).isoformat()
+        return {'status': 'failed', 'retry_count': retry_count, 'updated_at': ts}
+
+    @patch('main_app.processing.start_background_processing', return_value=(True, None))
+    @patch('main_app.routes._lookup_episode', return_value=({'id': 'abc123', 'url': 'https://example.com/ep.mp3', 'title': 'Ep 1', 'description': 'desc', 'artwork_url': None}, 'Test Podcast'))
+    @patch('main_app.status_service')
+    @patch('main_app.db')
+    @patch('main_app.routes.get_feed_map')
+    def test_failed_episode_within_cooldown_returns_503(
+        self, mock_feed_map, mock_db, mock_status, mock_lookup, mock_start,
+        client, feed_map,
+    ):
+        """Episode that failed <60s ago should return 503 with Retry-After."""
+        mock_feed_map.return_value = feed_map
+        mock_db.get_episode.return_value = self._make_failed_episode(10, retry_count=1)
+
+        resp = client.get('/episodes/test-pod/abc123.mp3')
+
+        assert resp.status_code == 503
+        assert 'Retry-After' in resp.headers
+        assert int(resp.headers['Retry-After']) >= 30
+        mock_start.assert_not_called()
+
+    @patch('main_app.processing.start_background_processing', return_value=(True, None))
+    @patch('main_app.routes._lookup_episode', return_value=({'id': 'abc123', 'url': 'https://example.com/ep.mp3', 'title': 'Ep 1', 'description': 'desc', 'artwork_url': None}, 'Test Podcast'))
+    @patch('main_app.status_service')
+    @patch('main_app.db')
+    @patch('main_app.routes.get_feed_map')
+    def test_failed_episode_past_cooldown_retries(
+        self, mock_feed_map, mock_db, mock_status, mock_lookup, mock_start,
+        client, feed_map,
+    ):
+        """Episode that failed >60s ago should proceed to retry."""
+        mock_feed_map.return_value = feed_map
+        mock_db.get_episode.return_value = self._make_failed_episode(120, retry_count=1)
+
+        resp = client.get('/episodes/test-pod/abc123.mp3')
+
+        # Should proceed to processing (503 from start_background_processing)
+        assert resp.status_code == 503
+        mock_start.assert_called_once()
+
+    @patch('main_app.processing.start_background_processing', return_value=(True, None))
+    @patch('main_app.routes._lookup_episode', return_value=({'id': 'abc123', 'url': 'https://example.com/ep.mp3', 'title': 'Ep 1', 'description': 'desc', 'artwork_url': None}, 'Test Podcast'))
+    @patch('main_app.status_service')
+    @patch('main_app.db')
+    @patch('main_app.routes.get_feed_map')
+    def test_cooldown_doubles_per_retry(
+        self, mock_feed_map, mock_db, mock_status, mock_lookup, mock_start,
+        client, feed_map,
+    ):
+        """Retry 2 should require 120s cooldown (60 * 2^1)."""
+        mock_feed_map.return_value = feed_map
+        # 90s ago - past 60s cooldown but within 120s cooldown for retry 2
+        mock_db.get_episode.return_value = self._make_failed_episode(90, retry_count=2)
+
+        resp = client.get('/episodes/test-pod/abc123.mp3')
+
+        assert resp.status_code == 503
+        assert 'Retry-After' in resp.headers
+        mock_start.assert_not_called()
+
+    @patch('main_app.processing.start_background_processing', return_value=(True, None))
+    @patch('main_app.routes._lookup_episode', return_value=({'id': 'abc123', 'url': 'https://example.com/ep.mp3', 'title': 'Ep 1', 'description': 'desc', 'artwork_url': None}, 'Test Podcast'))
+    @patch('main_app.status_service')
+    @patch('main_app.db')
+    @patch('main_app.routes.get_feed_map')
+    def test_first_failure_no_cooldown(
+        self, mock_feed_map, mock_db, mock_status, mock_lookup, mock_start,
+        client, feed_map,
+    ):
+        """retry_count=0 should skip cooldown (first attempt just failed)."""
+        mock_feed_map.return_value = feed_map
+        mock_db.get_episode.return_value = self._make_failed_episode(5, retry_count=0)
+
+        resp = client.get('/episodes/test-pod/abc123.mp3')
+
+        # retry_count=0 skips cooldown, proceeds to processing
+        assert resp.status_code == 503
+        mock_start.assert_called_once()
 
 
 def teardown_module():
