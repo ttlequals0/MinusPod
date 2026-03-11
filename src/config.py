@@ -57,6 +57,7 @@ PODCAST_TO_NETWORK_THRESHOLD = 3   # Patterns needed for network promotion
 NETWORK_TO_GLOBAL_THRESHOLD = 2    # Networks needed for global promotion
 PROMOTION_SIMILARITY_THRESHOLD = 0.75  # TF-IDF similarity for pattern merging
 SPONSOR_GLOBAL_THRESHOLD = 3       # Podcasts with same sponsor for global promotion
+PATTERN_CORRECTION_OVERLAP_THRESHOLD = 0.5  # 50% overlap triggers duration correction
 
 # ============================================================
 # False Positive Cross-Episode Matching
@@ -112,7 +113,7 @@ AD_CONTENT_PROMO_PHRASES = [
 # ============================================================
 # Ad Duration Estimation
 # ============================================================
-DEFAULT_AD_DURATION_ESTIMATE = 60.0  # Assumed ad length when only intro/outro found
+DEFAULT_AD_DURATION_ESTIMATE = 90.0  # Assumed ad length when only intro/outro found
 SPONSOR_MISMATCH_MAX_GAP = 60.0      # Max gap for sponsor mismatch extension
 
 # ============================================================

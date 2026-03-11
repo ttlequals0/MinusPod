@@ -6,6 +6,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.46] - 2026-03-11
+
+### Improved
+- **Pattern matching accuracy**: Paired boundary scanning -- when an intro phrase is matched, scan forward for the outro (and vice versa) before falling back to duration estimation
+- **Duration tracking**: Patterns now store avg_duration and duration_samples; used for boundary estimation when paired phrase not found
+- **Duration feedback from Claude**: When Claude detections overlap pattern regions >= 50%, pattern avg_duration is updated toward Claude's more accurate boundaries
+- **Sentence-boundary extraction**: Intro/outro phrases extracted at sentence boundaries instead of naive word counts, improving fuzzy match quality
+- **Proportional TF-IDF windows**: Short ad patterns scored against smaller windows (500-char buckets) instead of fixed 1500-char, reducing score dilution
+- **Merge canonical selection**: merge_similar_patterns() now picks the highest confirmation_count pattern as canonical (length as tiebreaker)
+- **Atomic confirmation counting**: record_pattern_match() uses increment_pattern_match() instead of race-prone read-then-write
+- **Default ad duration estimate**: Increased from 60s to 90s to better match typical sponsor reads
+
 ## [1.0.45] - 2026-03-11
 
 ### Fixed

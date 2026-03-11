@@ -6,10 +6,12 @@ RapidFuzz for fuzzy intro/outro phrase detection. This is effective
 for host-read ads that follow similar scripts but aren't identical.
 """
 import logging
+import re
 from dataclasses import dataclass
 from typing import List, Optional, Dict, Tuple
 import json
 
+from config import DEFAULT_AD_DURATION_ESTIMATE
 from utils.text import extract_text_from_segments
 from utils.constants import INVALID_SPONSOR_VALUES
 
@@ -59,6 +61,51 @@ BASE_AD_VOCABULARY = [
     "service", "product", "app", "subscription", "trial",
 ]
 
+# Paired boundary scanning
+MAX_SCAN_CHARS = 4000                 # ~4 minutes of speech, cap for paired boundary scan
+
+# Proportional TF-IDF window sizing
+WINDOW_SIZES = [500, 1000, 1500, 2500]
+WINDOW_SIZE_TOLERANCE = 0.6
+
+
+def _split_sentences(text: str) -> list:
+    """Split text into sentences at sentence-ending punctuation."""
+    return [s.strip() for s in re.split(r'(?<=[.!?])\s+', text) if s.strip()]
+
+
+def _extract_intro_phrase(text: str, min_words: int = 20, max_words: int = 60) -> str:
+    """Extract intro phrase ending at a sentence boundary."""
+    sentences = _split_sentences(text)
+    result_words = 0
+    result_sentences = []
+    for sentence in sentences:
+        words = sentence.split()
+        if result_words + len(words) > max_words and result_sentences:
+            break
+        result_sentences.append(sentence)
+        result_words += len(words)
+        if result_words >= min_words:
+            break
+    return " ".join(result_sentences).strip()
+
+
+def _extract_outro_phrase(text: str, min_words: int = 15, max_words: int = 40) -> str:
+    """Extract outro phrase starting at a sentence boundary."""
+    sentences = _split_sentences(text)
+    result_words = 0
+    result_sentences = []
+    for sentence in reversed(sentences):
+        words = sentence.split()
+        if result_words + len(words) > max_words and result_sentences:
+            break
+        result_sentences.append(sentence)
+        result_words += len(words)
+        if result_words >= min_words:
+            break
+    result_sentences.reverse()
+    return " ".join(result_sentences).strip()
+
 
 @dataclass
 class TextMatch:
@@ -82,6 +129,7 @@ class AdPattern:
     scope: str  # "global", "network", "podcast"
     podcast_id: Optional[str] = None
     network_id: Optional[str] = None
+    avg_duration: Optional[float] = None
 
 
 class TextPatternMatcher:
@@ -107,6 +155,7 @@ class TextPatternMatcher:
         self._vectorizer = None
         self._pattern_vectors = None
         self._patterns: List[AdPattern] = []
+        self._pattern_buckets = {}
         self._initialized = False
 
     def _ensure_initialized(self):
@@ -166,7 +215,8 @@ class TextPatternMatcher:
                     sponsor=p.get('sponsor'),
                     scope=p.get('scope', 'podcast'),
                     podcast_id=p.get('podcast_id'),
-                    network_id=p.get('network_id')
+                    network_id=p.get('network_id'),
+                    avg_duration=p.get('avg_duration')
                 ))
 
             # Build TF-IDF vectors for pattern templates
@@ -184,6 +234,23 @@ class TextPatternMatcher:
                         # Now transform only the patterns (not the base vocabulary)
                         self._pattern_vectors = self._vectorizer.transform(templates)
                         logger.info(f"Loaded {len(self._patterns)} text patterns")
+
+                        # Build per-bucket TF-IDF vectors for proportional window matching
+                        self._pattern_buckets = {}
+                        for window_size in WINDOW_SIZES:
+                            lo = window_size * (1 - WINDOW_SIZE_TOLERANCE)
+                            hi = window_size * (1 + WINDOW_SIZE_TOLERANCE)
+                            bucket_patterns = [
+                                p for p in self._patterns
+                                if p.text_template and lo <= len(p.text_template) <= hi
+                            ]
+                            if bucket_patterns:
+                                bucket_templates = [p.text_template for p in bucket_patterns]
+                                vectors = self._vectorizer.transform(bucket_templates)
+                                self._pattern_buckets[window_size] = {
+                                    'patterns': bucket_patterns,
+                                    'vectors': vectors
+                                }
                     else:
                         logger.warning("Vectorizer unavailable, patterns loaded without TF-IDF indexing")
 
@@ -303,65 +370,21 @@ class TextPatternMatcher:
             from sklearn.metrics.pairwise import cosine_similarity
             import numpy as np
 
-            # Slide through transcript in windows
-            # ~1500 chars = ~60 seconds of speech at typical podcast pace
-            # This captures full-length ads (typically 60-120s)
-            window_size = 1500  # characters
-            step_size = 500    # ~33% overlap
-
-            for start_pos in range(0, len(full_text) - MIN_TEXT_LENGTH, step_size):
-                end_pos = min(start_pos + window_size, len(full_text))
-                window_text = full_text[start_pos:end_pos]
-
-                if len(window_text.strip()) < MIN_TEXT_LENGTH:
-                    continue
-
-                # Vectorize window
-                try:
-                    window_vec = self._vectorizer.transform([window_text])
-                except Exception:
-                    continue
-
-                # Compare against pattern vectors
-                similarities = cosine_similarity(window_vec, self._pattern_vectors)[0]
-
-                # Find best match above threshold
-                best_idx = np.argmax(similarities)
-                best_score = similarities[best_idx]
-
-                # Log potential matches for debugging - helps diagnose why patterns fail
-                if best_score >= 0.4:  # Lower threshold to catch near-misses
-                    pattern_preview = patterns[best_idx] if best_idx < len(patterns) else None
-                    if pattern_preview:
-                        pattern_len = len(pattern_preview.text_template) if pattern_preview.text_template else 0
-                        logger.debug(
-                            f"Pattern match attempt: score={best_score:.3f} "
-                            f"threshold={TFIDF_THRESHOLD} pattern_id={pattern_preview.id} "
-                            f"sponsor={pattern_preview.sponsor} "
-                            f"pattern_len={pattern_len} window_len={len(window_text)}"
-                        )
-
-                if best_score >= TFIDF_THRESHOLD:
-                    pattern = patterns[best_idx] if best_idx < len(patterns) else None
-                    if pattern:
-                        logger.info(
-                            f"Pattern match found: score={best_score:.2f} "
-                            f"pattern_id={pattern.id} sponsor={pattern.sponsor} "
-                            f"scope={pattern.scope}"
-                        )
-                        # Map character positions to timestamps
-                        start_time, end_time = self._char_pos_to_time(
-                            start_pos, end_pos, segment_map, segments
-                        )
-
-                        matches.append(TextMatch(
-                            pattern_id=pattern.id,
-                            start=start_time,
-                            end=end_time,
-                            confidence=float(best_score),
-                            sponsor=pattern.sponsor,
-                            match_type="content"
-                        ))
+            if self._pattern_buckets:
+                for window_size, bucket in self._pattern_buckets.items():
+                    step_size = window_size // 3
+                    self._score_windows(
+                        full_text, segment_map, segments, matches,
+                        bucket['patterns'], bucket['vectors'],
+                        window_size, step_size, cosine_similarity, np
+                    )
+            else:
+                # Fallback: original fixed-window behavior
+                self._score_windows(
+                    full_text, segment_map, segments, matches,
+                    patterns, self._pattern_vectors,
+                    1500, 500, cosine_similarity, np
+                )
 
         except ImportError:
             logger.warning("sklearn not available for content matching")
@@ -369,6 +392,58 @@ class TextPatternMatcher:
             logger.error(f"Content matching failed: {e}")
 
         return matches
+
+    def _score_windows(self, full_text, segment_map, segments, matches,
+                       target_patterns, target_vectors, window_size, step_size,
+                       cosine_similarity, np):
+        """Score sliding windows against a set of pattern vectors."""
+        for start_pos in range(0, len(full_text) - MIN_TEXT_LENGTH, step_size):
+            end_pos = min(start_pos + window_size, len(full_text))
+            window_text = full_text[start_pos:end_pos]
+
+            if len(window_text.strip()) < MIN_TEXT_LENGTH:
+                continue
+
+            try:
+                window_vec = self._vectorizer.transform([window_text])
+            except Exception:
+                continue
+
+            similarities = cosine_similarity(window_vec, target_vectors)[0]
+            best_idx = np.argmax(similarities)
+            best_score = similarities[best_idx]
+
+            if best_score >= 0.4:
+                pattern_preview = target_patterns[best_idx] if best_idx < len(target_patterns) else None
+                if pattern_preview:
+                    pattern_len = len(pattern_preview.text_template) if pattern_preview.text_template else 0
+                    logger.debug(
+                        f"Pattern match attempt: score={best_score:.3f} "
+                        f"threshold={TFIDF_THRESHOLD} pattern_id={pattern_preview.id} "
+                        f"sponsor={pattern_preview.sponsor} "
+                        f"pattern_len={pattern_len} window_len={len(window_text)}"
+                    )
+
+            if best_score >= TFIDF_THRESHOLD:
+                pattern = target_patterns[best_idx] if best_idx < len(target_patterns) else None
+                if pattern:
+                    logger.info(
+                        f"Pattern match found: score={best_score:.2f} "
+                        f"pattern_id={pattern.id} sponsor={pattern.sponsor} "
+                        f"scope={pattern.scope}"
+                    )
+                    start_time, end_time = self._char_pos_to_time(
+                        start_pos, end_pos, segment_map, segments
+                    )
+
+                    matches.append(TextMatch(
+                        pattern_id=pattern.id,
+                        start=start_time,
+                        end=end_time,
+                        confidence=float(best_score),
+                        sponsor=pattern.sponsor,
+                        match_type="content"
+                    ))
 
     def _find_phrase_matches(
         self,
@@ -399,13 +474,15 @@ class TextPatternMatcher:
                     )
 
                     if best_score >= FUZZY_THRESHOLD * 100:
-                        # Found intro - estimate ad end based on typical length
+                        # Found intro - scan for paired outro or estimate from duration
                         start_time, _ = self._char_pos_to_time(
                             best_pos, best_pos + len(intro),
                             segment_map, segments
                         )
-                        # Estimate 60 second ad length by default
-                        end_time = start_time + 60
+                        intro_end_pos = best_pos + len(intro_lower)
+                        end_time = self._scan_for_outro(
+                            full_text_lower, segment_map, segments, pattern, intro_end_pos
+                        ) or self._estimate_end_from_duration(pattern, start_time)
 
                         matches.append(TextMatch(
                             pattern_id=pattern.id,
@@ -432,8 +509,10 @@ class TextPatternMatcher:
                             best_pos, best_pos + len(outro),
                             segment_map, segments
                         )
-                        # Estimate ad started 60 seconds before outro
-                        start_time = max(0, end_time - 60)
+                        outro_start_pos = best_pos
+                        start_time = self._scan_for_intro(
+                            full_text_lower, segment_map, segments, pattern, outro_start_pos
+                        ) or self._estimate_start_from_duration(pattern, end_time)
 
                         matches.append(TextMatch(
                             pattern_id=pattern.id,
@@ -477,6 +556,68 @@ class TextPatternMatcher:
 
         except Exception:
             return 0, 0
+
+    def _scan_for_outro(self, full_text, segment_map, segments, pattern, search_from_pos):
+        """Scan forward from intro match for a known outro variant."""
+        if not pattern.outro_variants:
+            return None
+
+        best_end_time = None
+        best_score = 0
+        search_end = min(search_from_pos + MAX_SCAN_CHARS, len(full_text))
+        search_region = full_text[search_from_pos:search_end]
+
+        for outro in pattern.outro_variants:
+            if len(outro) < 10:
+                continue
+            outro_lower = outro.lower()
+            pos, score = self._fuzzy_find(search_region, outro_lower)
+            if score >= FUZZY_THRESHOLD * 100 and score > best_score:
+                # Offset correction: pos is relative to search_region
+                abs_pos = search_from_pos + pos + len(outro_lower)
+                _, end_time = self._char_pos_to_time(
+                    search_from_pos + pos, abs_pos, segment_map, segments
+                )
+                best_end_time = end_time
+                best_score = score
+
+        return best_end_time
+
+    def _scan_for_intro(self, full_text, segment_map, segments, pattern, search_to_pos):
+        """Scan backward from outro match for a known intro variant."""
+        if not pattern.intro_variants:
+            return None
+
+        best_start_time = None
+        best_score = 0
+        search_start = max(0, search_to_pos - MAX_SCAN_CHARS)
+        search_region = full_text[search_start:search_to_pos]
+
+        for intro in pattern.intro_variants:
+            if len(intro) < 10:
+                continue
+            intro_lower = intro.lower()
+            pos, score = self._fuzzy_find(search_region, intro_lower)
+            if score >= FUZZY_THRESHOLD * 100 and score > best_score:
+                # Offset correction: pos is relative to search_region
+                abs_pos = search_start + pos
+                start_time, _ = self._char_pos_to_time(
+                    abs_pos, abs_pos + len(intro_lower), segment_map, segments
+                )
+                best_start_time = start_time
+                best_score = score
+
+        return best_start_time
+
+    def _estimate_end_from_duration(self, pattern, start_time):
+        """Estimate ad end time from pattern's average duration."""
+        duration = pattern.avg_duration or DEFAULT_AD_DURATION_ESTIMATE
+        return start_time + duration
+
+    def _estimate_start_from_duration(self, pattern, end_time):
+        """Estimate ad start time from pattern's average duration."""
+        duration = pattern.avg_duration or DEFAULT_AD_DURATION_ESTIMATE
+        return max(0, end_time - duration)
 
     def _char_pos_to_time(
         self,
@@ -702,12 +843,9 @@ class TextPatternMatcher:
             )
             return None
 
-        # Extract intro (first ~50 words)
-        words = ad_text.split()
-        intro = " ".join(words[:50]) if len(words) > 50 else ""
-
-        # Extract outro (last ~30 words)
-        outro = " ".join(words[-30:]) if len(words) > 30 else ""
+        # Extract intro and outro at sentence boundaries
+        intro = _extract_intro_phrase(ad_text)
+        outro = _extract_outro_phrase(ad_text)
 
         # Check for multiple ad transitions (contamination indicator)
         ad_text_lower = ad_text.lower()
@@ -738,7 +876,8 @@ class TextPatternMatcher:
                 sponsor=sponsor,
                 podcast_id=podcast_id,
                 network_id=network_id,
-                created_from_episode_id=episode_id
+                created_from_episode_id=episode_id,
+                duration=duration
             )
 
             logger.info(f"Created text pattern {pattern_id} for sponsor: {sponsor}")
@@ -865,9 +1004,8 @@ class TextPatternMatcher:
                             break
 
             # Create intro/outro for new pattern
-            words = segment.split()
-            intro = " ".join(words[:50]) if len(words) > 50 else ""
-            outro = " ".join(words[-30:]) if len(words) > 30 else ""
+            intro = _extract_intro_phrase(segment)
+            outro = _extract_outro_phrase(segment)
 
             try:
                 new_id = self.db.create_ad_pattern(

@@ -337,7 +337,9 @@ CREATE TABLE IF NOT EXISTS ad_patterns (
     created_from_episode_id TEXT,
     is_active INTEGER DEFAULT 1,
     disabled_at TEXT,
-    disabled_reason TEXT
+    disabled_reason TEXT,
+    avg_duration REAL,
+    duration_samples INTEGER DEFAULT 0
 );
 
 -- pattern_corrections table (user corrections; conflicting entries cleaned up on reversal)
@@ -823,6 +825,11 @@ class Database:
         ]
         for col, definition in podcasts_migrations:
             self._add_column_if_missing(conn, 'podcasts', col, definition, pod_cols)
+
+        # -- Ad patterns table columns --
+        ap_cols = self._get_table_columns(conn, 'ad_patterns')
+        self._add_column_if_missing(conn, 'ad_patterns', 'avg_duration', 'REAL', ap_cols)
+        self._add_column_if_missing(conn, 'ad_patterns', 'duration_samples', 'INTEGER DEFAULT 0', ap_cols)
 
         # Migration: Update episodes status CHECK constraint to include 'permanently_failed'
         # SQLite doesn't support ALTER TABLE to modify constraints, so we recreate the table
@@ -2691,17 +2698,20 @@ class Database:
                           network_id: str = None, dai_platform: str = None,
                           intro_variants: List[str] = None,
                           outro_variants: List[str] = None,
-                          created_from_episode_id: str = None) -> int:
+                          created_from_episode_id: str = None,
+                          duration: float = None) -> int:
         """Create a new ad pattern. Returns pattern ID."""
         conn = self.get_connection()
         cursor = conn.execute(
             """INSERT INTO ad_patterns
                (scope, text_template, sponsor, podcast_id, network_id, dai_platform,
-                intro_variants, outro_variants, created_from_episode_id)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                intro_variants, outro_variants, created_from_episode_id,
+                avg_duration, duration_samples)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (scope, text_template, sponsor, podcast_id, network_id, dai_platform,
              json.dumps(intro_variants or []), json.dumps(outro_variants or []),
-             created_from_episode_id)
+             created_from_episode_id,
+             duration, 1 if duration is not None else 0)
         )
         conn.commit()
         return cursor.lastrowid
@@ -2715,7 +2725,8 @@ class Database:
         for key, value in kwargs.items():
             if key in ('scope', 'text_template', 'sponsor', 'podcast_id', 'network_id',
                        'dai_platform', 'confirmation_count', 'false_positive_count',
-                       'last_matched_at', 'is_active', 'disabled_at', 'disabled_reason'):
+                       'last_matched_at', 'is_active', 'disabled_at', 'disabled_reason',
+                       'avg_duration', 'duration_samples'):
                 fields.append(f"{key} = ?")
                 values.append(value)
             elif key in ('intro_variants', 'outro_variants'):
@@ -2744,6 +2755,22 @@ class Database:
             (pattern_id,)
         )
         conn.commit()
+
+    def update_pattern_duration(self, pattern_id: int, observed_duration: float) -> bool:
+        """Update pattern avg_duration as a running average."""
+        conn = self.get_connection()
+        conn.execute(
+            """UPDATE ad_patterns SET
+               avg_duration = CASE
+                   WHEN duration_samples = 0 OR avg_duration IS NULL THEN ?
+                   ELSE ((avg_duration * duration_samples) + ?) / (duration_samples + 1)
+               END,
+               duration_samples = duration_samples + 1
+               WHERE id = ?""",
+            (observed_duration, observed_duration, pattern_id)
+        )
+        conn.commit()
+        return True
 
     def increment_pattern_false_positive(self, pattern_id: int):
         """Increment pattern false positive count."""

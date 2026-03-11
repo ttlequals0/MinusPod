@@ -362,9 +362,9 @@ class PatternService:
             all_intros = set()
             all_outros = set()
             sponsors = set()
-            max_confirmations = 0
             best_template = None
             best_template_len = 0
+            best_confirmation = 0
 
             for pattern in patterns:
                 # Collect intro variants
@@ -383,16 +383,16 @@ class PatternService:
                 if pattern.get('sponsor'):
                     sponsors.add(pattern['sponsor'])
 
-                # Track highest confirmation count
+                # Use highest confirmation_count as canonical (length as tiebreaker)
                 conf = pattern.get('confirmation_count', 0)
-                if conf > max_confirmations:
-                    max_confirmations = conf
-
-                # Use longest template as the canonical one
                 template = pattern.get('text_template', '')
-                if template and len(template) > best_template_len:
+                template_len = len(template) if template else 0
+
+                if (conf > best_confirmation or
+                        (conf == best_confirmation and template_len > best_template_len)):
                     best_template = template
-                    best_template_len = len(template)
+                    best_template_len = template_len
+                    best_confirmation = conf
 
             # Create merged pattern
             merged_id = self.db.create_ad_pattern(
@@ -404,7 +404,7 @@ class PatternService:
             )
 
             # Update confirmation count
-            self.db.update_ad_pattern(merged_id, confirmation_count=max_confirmations)
+            self.db.update_ad_pattern(merged_id, confirmation_count=best_confirmation)
 
             # Disable original patterns
             for pid in pattern_ids:
@@ -488,7 +488,8 @@ class PatternService:
     def record_pattern_match(
         self,
         pattern_id: int,
-        episode_id: str = None
+        episode_id: str = None,
+        observed_duration: float = None
     ) -> None:
         """
         Record that a pattern was matched, updating last_matched_at.
@@ -498,24 +499,22 @@ class PatternService:
         Args:
             pattern_id: The matched pattern ID
             episode_id: Optional episode ID for logging
+            observed_duration: Optional observed ad duration in seconds
         """
         if not self.db:
             return
 
         try:
-            # Update last_matched_at
-            self.db.update_ad_pattern(
-                pattern_id,
-                last_matched_at=datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
-            )
+            # Atomic increment -- replaces manual read-then-write
+            self.db.increment_pattern_match(pattern_id)
 
-            # Increment confirmation count
+            # Update duration running average if provided
+            if observed_duration and observed_duration > 0:
+                self.db.update_pattern_duration(pattern_id, observed_duration)
+
+            # Check if this sponsor qualifies for global promotion
             pattern = self.db.get_ad_pattern_by_id(pattern_id)
             if pattern:
-                new_count = pattern.get('confirmation_count', 0) + 1
-                self.db.update_ad_pattern(pattern_id, confirmation_count=new_count)
-
-                # Check if this sponsor qualifies for global promotion
                 sponsor = pattern.get('sponsor')
                 if sponsor and self.check_sponsor_global_promotion(sponsor):
                     self.auto_promote_sponsor_patterns(sponsor)
