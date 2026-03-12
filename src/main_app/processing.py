@@ -13,6 +13,7 @@ from cancel import ProcessingCancelled, _check_cancel, _cancel_events, _cancel_e
 from config import MIN_CUT_CONFIDENCE, MAX_EPISODE_RETRIES
 from llm_client import is_retryable_error, is_llm_api_error, start_episode_token_tracking, get_episode_token_totals
 from utils.time import parse_timestamp
+from webhook_service import fire_event, EVENT_EPISODE_PROCESSED, EVENT_EPISODE_FAILED
 
 audio_logger = logging.getLogger('podcast.audio')
 
@@ -648,6 +649,17 @@ def _finalize_episode(slug, episode_id, episode_title, podcast_name,
     except Exception as hist_err:
         audio_logger.warning(f"[{slug}:{episode_id}] Failed to record history: {hist_err}")
 
+    try:
+        fire_event(
+            event=EVENT_EPISODE_PROCESSED,
+            episode_id=episode_id, slug=slug, episode_title=episode_title,
+            processing_time=processing_time, llm_cost=token_totals['cost'],
+            ads_removed=len(ads_to_remove) + verification_count,
+            original_duration=original_duration, new_duration=new_duration,
+        )
+    except Exception as wh_err:
+        audio_logger.warning(f"[{slug}:{episode_id}] Webhook fire failed: {wh_err}")
+
 
 def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
                                 episode_data, error, start_time):
@@ -704,6 +716,17 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
             )
     except Exception as hist_err:
         audio_logger.warning(f"[{slug}:{episode_id}] Failed to record history: {hist_err}")
+
+    if new_status == 'permanently_failed':
+        try:
+            fire_event(
+                event=EVENT_EPISODE_FAILED,
+                episode_id=episode_id, slug=slug, episode_title=episode_title,
+                processing_time=processing_time, llm_cost=token_totals['cost'],
+                error_message=str(error),
+            )
+        except Exception as wh_err:
+            audio_logger.warning(f"[{slug}:{episode_id}] Webhook fire failed: {wh_err}")
 
 
 def process_episode(slug: str, episode_id: str, episode_url: str,

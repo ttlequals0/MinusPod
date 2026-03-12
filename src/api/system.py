@@ -1,9 +1,13 @@
 """System routes: /health, /system/* endpoints."""
+import datetime
 import logging
 import os
+import io
+import sqlite3
+import tempfile
 import time
 
-from flask import jsonify, request
+from flask import jsonify, request, send_file
 
 from api import (
     api, limiter, log_request, json_response, error_response,
@@ -181,3 +185,63 @@ def clear_queue():
         'message': f'Cleared {deleted} pending items from queue',
         'deleted': deleted
     })
+
+
+@api.route('/system/backup', methods=['GET'])
+@limiter.limit("6 per hour")
+@log_request
+def backup_database():
+    """Create and download a backup of the SQLite database."""
+    db = get_database()
+    tmp_path = None
+    try:
+        # Get the live database file path
+        conn = db.get_connection()
+        cursor = conn.execute("PRAGMA database_list")
+        rows = cursor.fetchall()
+        src_path = None
+        for row in rows:
+            if row[1] == 'main':
+                src_path = row[2]
+                break
+
+        if not src_path:
+            return error_response("Could not determine database path", 500)
+
+        # Create a temp file for the backup
+        tmp_file = tempfile.NamedTemporaryFile(suffix='.db', delete=False)
+        tmp_path = tmp_file.name
+        tmp_file.close()
+
+        # Use SQLite backup API for a consistent snapshot
+        src_conn = sqlite3.connect(src_path)
+        dst_conn = sqlite3.connect(tmp_path)
+        src_conn.backup(dst_conn)
+        dst_conn.close()
+        src_conn.close()
+
+        backup_size = os.path.getsize(tmp_path)
+        logger.info(f"Database backup created: {backup_size} bytes")
+
+        timestamp = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
+        filename = f"minuspod-backup-{timestamp}.db"
+
+        # Read into memory so we can delete the temp file before responding
+        with open(tmp_path, 'rb') as f:
+            data = io.BytesIO(f.read())
+
+        return send_file(
+            data,
+            mimetype='application/octet-stream',
+            as_attachment=True,
+            download_name=filename,
+        )
+    except Exception as e:
+        logger.error(f"Database backup failed: {e}")
+        return error_response(f"Backup failed: {e}", 500)
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass

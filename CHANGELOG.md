@@ -6,6 +6,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.52] - 2026-03-12
+
+### Added
+- **OPML export**: `GET /api/v1/feeds/export-opml` exports all feed subscriptions as OPML 2.0 file
+- **Database backup**: `GET /api/v1/system/backup` downloads a consistent SQLite backup (rate limited 6/hour)
+- **Outbound webhooks**: Configurable HTTP POST webhooks fired on `episode.processed` and `episode.failed` events
+  - Custom Jinja2 payload templates for integration with any HTTP endpoint (Pushover, ntfy, n8n, etc.)
+  - Optional HMAC-SHA256 request signing via `X-MinusPod-Signature` header
+  - Template validation and live preview via API and Settings UI
+  - Fire-and-forget delivery with 2 retry attempts per webhook
+- **Webhook management UI**: Full CRUD in Settings > Webhooks section with template editor and test firing
+- **Data Management section**: New Settings section with OPML export and database backup download buttons
+- **Webhook examples in README**: Pushover and ntfy integration walkthroughs with template examples
+
+### Changed
+- **Storage formatting**: Values now auto-format to GB when >= 1024 MB (SystemStatus, EpisodeDetail, FeedDetail, cleanup results)
+- **System Status section**: Always expanded on Settings page load (localStorage reset on mount)
+- **`formatStorage` utility**: New shared formatter in `settingsUtils.ts` for consistent MB/GB display
+
+### Fixed
+- **Storage display consistency**: All storage displays now use the same `formatStorage` formatter instead of inline `.toFixed(1) MB`
+
 ## [1.0.51] - 2026-03-11
 
 ### Added

@@ -1,7 +1,7 @@
 import type { SystemStatus } from '../../api/types';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import { formatUptime, formatDuration, formatTokenCount, formatCost } from './settingsUtils';
+import { formatUptime, formatDuration, formatTokenCount, formatCost, formatStorage } from './settingsUtils';
 
 interface SystemStatusSectionProps {
   status: SystemStatus | undefined;
@@ -21,7 +21,7 @@ function SystemStatusSection({
   onCleanup,
 }: SystemStatusSectionProps) {
   return (
-    <CollapsibleSection title="System Status" defaultOpen>
+    <CollapsibleSection title="System Status" defaultOpen storageKey="settings-section-system-status">
       {statusLoading ? (
         <LoadingSpinner size="sm" />
       ) : status ? (
@@ -47,7 +47,7 @@ function SystemStatusSection({
           </div>
           <div>
             <p className="text-sm text-muted-foreground">Storage</p>
-            <p className="font-medium text-foreground">{status.storage?.usedMb?.toFixed(1) ?? 0} MB</p>
+            <p className="font-medium text-foreground">{formatStorage(status.storage?.usedMb ?? 0)}</p>
           </div>
           <div>
             <p className="text-sm text-muted-foreground">Uptime</p>
@@ -87,7 +87,7 @@ function SystemStatusSection({
         </button>
         {cleanupData && (
           <span className="ml-3 text-sm text-muted-foreground">
-            Reset {cleanupData.episodesRemoved} episodes, freed {cleanupData.spaceFreedMb?.toFixed(1)} MB
+            Reset {cleanupData.episodesRemoved} episodes, freed {formatStorage(cleanupData.spaceFreedMb ?? 0)}
           </span>
         )}
       </div>

@@ -5,6 +5,7 @@ import { getFeed, getEpisodes, refreshFeed, updateFeed, getNetworks, reprocessAl
 import type { BulkActionResult } from '../api/types';
 import EpisodeList from '../components/EpisodeList';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { formatStorage } from './settings/settingsUtils';
 
 function FeedDetail() {
   const { slug } = useParams<{ slug: string }>();
@@ -720,7 +721,7 @@ function FeedDetail() {
               </div>
               {bulkResult.freedMb > 0 && (
                 <p className="text-sm text-muted-foreground mb-4">
-                  Freed {bulkResult.freedMb.toFixed(1)} MB of disk space.
+                  Freed {formatStorage(bulkResult.freedMb)} of disk space.
                 </p>
               )}
               {bulkResult.errors.length > 0 && (

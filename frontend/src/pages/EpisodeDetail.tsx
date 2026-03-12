@@ -8,6 +8,7 @@ import { EPISODE_STATUS_COLORS } from '../utils/episodeStatus';
 import AdEditor, { AdCorrection } from '../components/AdEditor';
 import PatternLink from '../components/PatternLink';
 import CollapsibleSection from '../components/CollapsibleSection';
+import { formatStorage } from './settings/settingsUtils';
 
 function TranscriptBlock({ text }: { text: string }) {
   return (
@@ -151,7 +152,7 @@ function EpisodeDetail() {
   const formatFileSize = (bytes?: number) => {
     if (!bytes) return '';
     const mb = bytes / (1024 * 1024);
-    return `${mb.toFixed(1)} MB`;
+    return formatStorage(mb);
   };
 
   // Helper to find correction for an ad marker

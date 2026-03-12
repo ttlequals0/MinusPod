@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 1.0.51
+  version: 1.0.52
   contact:
     name: MinusPod
   license:
@@ -342,6 +342,28 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+
+  /feeds/export-opml:
+    get:
+      tags:
+        - Feeds
+      summary: Export feeds as OPML file
+      description: |
+        Export all subscribed podcast feeds as an OPML XML file for backup or import into other podcast apps.
+      operationId: exportOpml
+      responses:
+        '200':
+          description: OPML file download
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+              description: 'Attachment filename, e.g. attachment; filename="minuspod-feeds.opml"'
+          content:
+            application/xml:
+              schema:
+                type: string
+                format: binary
 
   /feeds/{slug}:
     get:
@@ -2440,6 +2462,34 @@ paths:
                   durationMs:
                     type: integer
 
+  /system/backup:
+    get:
+      tags:
+        - System
+      summary: Download database backup
+      description: |
+        Returns a copy of the SQLite database file for backup purposes. Rate limited to 6/hour.
+      operationId: downloadBackup
+      responses:
+        '200':
+          description: Database backup file download
+          headers:
+            Content-Disposition:
+              schema:
+                type: string
+              description: 'Attachment filename, e.g. attachment; filename="minuspod-backup-2026-03-12.db"'
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   /settings/retention:
     get:
       tags:
@@ -2490,6 +2540,205 @@ paths:
                     type: integer
                   enabled:
                     type: boolean
+
+  /settings/webhooks:
+    get:
+      tags:
+        - Settings
+      summary: List webhooks
+      description: Returns all configured webhooks
+      operationId: listWebhooks
+      responses:
+        '200':
+          description: Webhook list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  webhooks:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Webhook'
+    post:
+      tags:
+        - Settings
+      summary: Create a webhook
+      description: Create a new webhook subscription for event notifications
+      operationId: createWebhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [url, events, enabled]
+              properties:
+                url:
+                  type: string
+                  format: uri
+                  description: URL to receive webhook POST requests
+                events:
+                  type: array
+                  items:
+                    type: string
+                  description: List of event types to subscribe to
+                enabled:
+                  type: boolean
+                  description: Whether the webhook is active
+                secret:
+                  type: string
+                  description: Optional shared secret for HMAC signature verification
+                payloadTemplate:
+                  type: string
+                  nullable: true
+                  description: Optional custom payload template
+                contentType:
+                  type: string
+                  description: Content type for webhook delivery (e.g. application/json)
+      responses:
+        '201':
+          description: Webhook created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Webhook'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /settings/webhooks/{webhookId}:
+    put:
+      tags:
+        - Settings
+      summary: Update a webhook
+      description: Update an existing webhook configuration
+      operationId: updateWebhook
+      parameters:
+        - $ref: '#/components/parameters/webhookId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                url:
+                  type: string
+                  format: uri
+                events:
+                  type: array
+                  items:
+                    type: string
+                enabled:
+                  type: boolean
+                secret:
+                  type: string
+                payloadTemplate:
+                  type: string
+                  nullable: true
+                contentType:
+                  type: string
+      responses:
+        '200':
+          description: Webhook updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Webhook'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags:
+        - Settings
+      summary: Delete a webhook
+      description: Remove a webhook subscription
+      operationId: deleteWebhook
+      parameters:
+        - $ref: '#/components/parameters/webhookId'
+      responses:
+        '200':
+          description: Webhook deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+  /settings/webhooks/{webhookId}/test:
+    post:
+      tags:
+        - Settings
+      summary: Test a webhook
+      description: |
+        Send a test event to a webhook endpoint to verify it is reachable and correctly configured. Rate limited to 10/min.
+      operationId: testWebhook
+      parameters:
+        - $ref: '#/components/parameters/webhookId'
+      responses:
+        '200':
+          description: Test result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /settings/webhooks/validate-template:
+    post:
+      tags:
+        - Settings
+      summary: Validate a webhook payload template
+      description: |
+        Validate a custom payload template and return a preview of the rendered output. Rate limited to 30/min.
+      operationId: validateWebhookTemplate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [template]
+              properties:
+                template:
+                  type: string
+                  description: The payload template string to validate
+      responses:
+        '200':
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:
+                    type: boolean
+                  preview:
+                    type: string
+                    description: Rendered template preview (when valid)
+                  error:
+                    type: string
+                    nullable: true
+                    description: Error message (when invalid)
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /feeds/{slug}/episodes/bulk:
     post:
@@ -2634,6 +2883,15 @@ components:
       schema:
         type: integer
         example: 1
+
+    webhookId:
+      name: webhookId
+      in: path
+      required: true
+      description: Webhook identifier
+      schema:
+        type: string
+        example: wh_abc123
 
   schemas:
     Feed:
@@ -3320,6 +3578,34 @@ components:
         score:
           type: number
           description: Relevance score
+
+    Webhook:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique webhook identifier
+        url:
+          type: string
+          format: uri
+          description: URL that receives webhook POST requests
+        events:
+          type: array
+          items:
+            type: string
+          description: Event types this webhook is subscribed to
+        enabled:
+          type: boolean
+          description: Whether the webhook is active
+        payloadTemplate:
+          type:
+            - string
+            - 'null'
+          description: Custom payload template, or null for default format
+        contentType:
+          type: string
+          description: Content type for webhook delivery
+      description: Webhook configuration. Note -- the secret field is never returned in responses.
 
     Error:
       type: object

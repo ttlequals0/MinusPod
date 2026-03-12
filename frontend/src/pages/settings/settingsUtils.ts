@@ -31,6 +31,11 @@ export function formatCost(cost: number): string {
   return `$${cost.toFixed(2)}`;
 }
 
+export function formatStorage(mb: number): string {
+  if (mb >= 1024) return `${(mb / 1024).toFixed(2)} GB`;
+  return `${mb.toFixed(2)} MB`;
+}
+
 export function formatModelLabel(model: ClaudeModel): string {
   if (model.inputCostPerMtok != null && model.outputCostPerMtok != null) {
     const fmtIn = model.inputCostPerMtok % 1 === 0

@@ -1,6 +1,7 @@
 """Feed routes: /feeds/* endpoints."""
 import logging
 import os
+import xml.etree.ElementTree as ET
 from typing import Optional
 
 from flask import request, Response
@@ -294,6 +295,40 @@ def import_opml():
             'failed': failed
         }
     }, 201 if imported else 200)
+
+
+@api.route('/feeds/export-opml', methods=['GET'])
+@log_request
+def export_opml():
+    """Export all podcast feeds as an OPML 2.0 file."""
+    db = get_database()
+    podcasts = db.get_all_podcasts()
+
+    opml = ET.Element('opml', version='2.0')
+    head = ET.SubElement(opml, 'head')
+    ET.SubElement(head, 'title').text = 'MinusPod Feeds'
+    body = ET.SubElement(opml, 'body')
+
+    for podcast in podcasts:
+        title = podcast.get('title') or podcast.get('slug', '')
+        ET.SubElement(body, 'outline',
+                      type='rss',
+                      text=title,
+                      title=title,
+                      xmlUrl=podcast.get('source_url', ''))
+
+    xml_bytes = ET.tostring(opml, encoding='unicode', xml_declaration=False)
+    xml_output = '<?xml version="1.0" encoding="UTF-8"?>\n' + xml_bytes
+
+    logger.info(f"Exported {len(podcasts)} feeds as OPML")
+
+    return Response(
+        xml_output,
+        mimetype='application/xml',
+        headers={
+            'Content-Disposition': 'attachment; filename=minuspod-feeds.opml'
+        }
+    )
 
 
 @api.route('/feeds/<slug>', methods=['GET'])

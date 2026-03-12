@@ -8,6 +8,8 @@ import { LLM_PROVIDERS } from '../api/types';
 
 import SystemStatusSection from './settings/SystemStatusSection';
 import StorageRetentionSection from './settings/StorageRetentionSection';
+import DataManagementSection from './settings/DataManagementSection';
+import WebhooksSection from './settings/WebhooksSection';
 import SecuritySection from './settings/SecuritySection';
 import ProcessingQueueSection from './settings/ProcessingQueueSection';
 import LLMProviderSection from './settings/LLMProviderSection';
@@ -69,6 +71,11 @@ function Settings() {
     queryKey: ['retention'],
     queryFn: getRetention,
   });
+
+  // Ensure System Status section is always expanded on page load
+  useEffect(() => {
+    localStorage.setItem('settings-section-system-status', 'true');
+  }, []);
 
   useEffect(() => {
     if (retention) {
@@ -237,6 +244,10 @@ function Settings() {
         saveIsPending={retentionMutation.isPending}
         saveIsSuccess={retentionMutation.isSuccess}
       />
+
+      <DataManagementSection />
+
+      <WebhooksSection />
 
       <SecuritySection
         isPasswordSet={isPasswordSet}

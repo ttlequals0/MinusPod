@@ -23,6 +23,7 @@ Removes ads from podcasts using Whisper transcription. Serves modified RSS feeds
   - [Using Claude Code Wrapper (Max Subscription)](#using-claude-code-wrapper-max-subscription)
 - [Using Ollama (Local LLM)](#using-ollama-local-llm)
 - [API](#api)
+- [Webhooks](#webhooks)
 - [Remote Access](#remote-access)
 - [Data Storage](#data-storage)
 - [Custom Assets (Optional)](#custom-assets-optional)
@@ -531,6 +532,7 @@ Key endpoints:
 - `GET /api/v1/feeds` - List all feeds
 - `POST /api/v1/feeds` - Add a new feed (supports `maxEpisodes` for RSS cap)
 - `POST /api/v1/feeds/import-opml` - Import feeds from OPML file
+- `GET /api/v1/feeds/export-opml` - Export all feeds as OPML file
 - `GET /api/v1/feeds/{slug}/episodes` - List episodes (supports `sort_by`, `sort_dir`, `status` filter, pagination)
 - `POST /api/v1/feeds/{slug}/episodes/bulk` - Bulk episode actions (process, reprocess, reprocess_full, delete)
 - `POST /api/v1/feeds/{slug}/episodes/{id}/reprocess` - Force reprocess (supports `mode`: reprocess/full)
@@ -547,11 +549,83 @@ Key endpoints:
 - `GET /api/v1/system/token-usage` - LLM token usage and cost breakdown by model
 - `GET /api/v1/system/model-pricing` - All known LLM model pricing rates
 - `POST /api/v1/system/vacuum` - Trigger SQLite VACUUM to reclaim disk space
+- `GET /api/v1/system/backup` - Download SQLite database backup
 - `GET /api/v1/settings` - Get current settings (includes LLM provider, API key status)
 - `GET/PUT /api/v1/settings/retention` - Get or update retention configuration (days, enabled/disabled)
 - `PUT /api/v1/settings/ad-detection` - Update ad detection config (model, provider, prompts)
 - `GET /api/v1/settings/models` - List available AI models from current provider
 - `POST /api/v1/settings/models/refresh` - Force refresh model list from provider
+- `GET/POST/PUT/DELETE /api/v1/settings/webhooks` - Webhook CRUD
+- `POST /api/v1/settings/webhooks/{id}/test` - Fire test webhook
+- `POST /api/v1/settings/webhooks/validate-template` - Validate and preview a payload template
+
+## Webhooks
+
+MinusPod fires an HTTP POST to configured URLs when episodes complete processing or permanently fail. Works with any HTTP endpoint. Use a custom Jinja2 payload template to match the receiver's expected format.
+
+Configure webhooks in **Settings > Webhooks** in the web UI, or via the REST API.
+
+### Events
+
+| Event | Fires when |
+|---|---|
+| `episode.processed` | Episode completes processing successfully |
+| `episode.failed` | Episode reaches permanently failed status |
+
+### Template Variables
+
+Custom payload templates are Jinja2 strings rendered against these variables:
+
+| Variable | Type | Description |
+|---|---|---|
+| `event` | string | `episode.processed` or `episode.failed` |
+| `timestamp` | string | ISO 8601 UTC timestamp |
+| `episode.id` | string | Episode ID |
+| `episode.title` | string | Episode title |
+| `episode.slug` | string | Feed slug |
+| `episode.url` | string | Full UI URL to episode |
+| `episode.ads_removed` | int | Number of ads removed |
+| `episode.processing_time_secs` | float | Processing duration in seconds |
+| `episode.llm_cost` | float | LLM cost in USD |
+| `episode.time_saved_secs` | float/null | Seconds of audio removed |
+| `episode.error_message` | string/null | Error message (failed events only) |
+
+### Example: Pushover
+
+1. Create an application at pushover.net to get an app token
+2. Find your user key in the Pushover dashboard
+3. Add a webhook in Settings > Webhooks:
+   - **URL:** `https://api.pushover.net/1/messages.json`
+   - **Payload template:**
+     ```json
+     {
+       "token": "YOUR_APP_TOKEN",
+       "user": "YOUR_USER_KEY",
+       "title": "MinusPod: {{ episode.title }}",
+       "message": "Removed {{ episode.ads_removed }} ads in {{ '%02d:%02d' | format(episode.processing_time_secs | int // 60, episode.processing_time_secs | int % 60) }}. Saved {{ episode.time_saved_secs }}s. Cost ${{ '%.2f' % episode.llm_cost }}.\n{{ episode.url }}"
+     }
+     ```
+
+### Example: ntfy
+
+1. Self-hosted or ntfy.sh -- set your topic name
+2. Add a webhook in Settings > Webhooks:
+   - **URL:** `https://ntfy.sh/your-topic` (or your self-hosted instance)
+   - **Payload template:**
+     ```json
+     {
+       "topic": "your-topic",
+       "title": "{{ episode.title }}",
+       "message": "Removed {{ episode.ads_removed }} ads -- {{ episode.time_saved_secs }}s saved",
+       "actions": [{"action": "view", "label": "Open Episode", "url": "{{ episode.url }}"}]
+     }
+     ```
+
+When no custom template is configured, MinusPod sends its default JSON payload which works with custom scripts, n8n, Home Assistant webhooks, and other generic HTTP receivers.
+
+### Request Signing
+
+If a webhook has a secret configured, MinusPod adds an `X-MinusPod-Signature: sha256=<hmac>` header to each POST, computed with HMAC-SHA256 over the request body.
 
 ## Remote Access
 

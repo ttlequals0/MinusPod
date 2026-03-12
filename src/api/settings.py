@@ -1,13 +1,16 @@
 """Settings routes: /settings/* endpoints."""
+import json
 import logging
 import os
+import uuid
 
 from flask import request
 
 from api import (
     api, log_request, json_response, error_response,
-    get_database, _enrich_models_with_pricing,
+    get_database, _enrich_models_with_pricing, limiter,
 )
+from webhook_service import render_template_preview, fire_test_event, VALID_EVENTS
 
 logger = logging.getLogger('podcast.api')
 
@@ -381,3 +384,221 @@ def update_retention_settings():
         'retentionDays': days,
         'enabled': days > 0,
     })
+
+
+# ========== Webhook Helpers ==========
+
+def _load_webhooks(db):
+    """Load webhooks list from DB settings."""
+    raw = db.get_setting('webhooks')
+    if not raw:
+        return []
+    try:
+        webhooks = json.loads(raw)
+        return webhooks if isinstance(webhooks, list) else []
+    except (json.JSONDecodeError, TypeError):
+        return []
+
+
+def _save_webhooks(db, webhooks):
+    """Save webhooks list to DB settings."""
+    db.set_setting('webhooks', json.dumps(webhooks), is_default=False)
+
+
+def _strip_secret(webhook):
+    """Return a copy of the webhook dict without the secret field."""
+    return {k: v for k, v in webhook.items() if k != 'secret'}
+
+
+def _find_webhook(webhooks, webhook_id):
+    """Find a webhook by ID in the list. Returns the dict or None."""
+    for wh in webhooks:
+        if wh.get('id') == webhook_id:
+            return wh
+    return None
+
+
+def _validate_events(events):
+    """Validate events list. Returns error message string or None if valid."""
+    if not events or not isinstance(events, list) or len(events) == 0:
+        return 'events must be a non-empty list'
+    invalid = [e for e in events if e not in VALID_EVENTS]
+    if invalid:
+        return (f'Invalid events: {", ".join(invalid)}. '
+                f'Valid events: {", ".join(sorted(VALID_EVENTS))}')
+    return None
+
+
+# ========== Webhook Endpoints ==========
+
+@api.route('/settings/webhooks', methods=['GET'])
+@log_request
+def list_webhooks():
+    """List all webhooks, stripping secrets."""
+    db = get_database()
+    webhooks = _load_webhooks(db)
+    return json_response({'webhooks': [_strip_secret(wh) for wh in webhooks]})
+
+
+@api.route('/settings/webhooks', methods=['POST'])
+@log_request
+def create_webhook():
+    """Create a new webhook."""
+    data = request.get_json()
+    if not data:
+        return error_response('Request body required', 400)
+
+    url = data.get('url', '').strip()
+    if not url or not (url.startswith('http://') or url.startswith('https://')):
+        return error_response('url must start with http:// or https://', 400)
+
+    events = data.get('events')
+    events_err = _validate_events(events)
+    if events_err:
+        return error_response(events_err, 400)
+
+    # Dry-render template if provided
+    payload_template = data.get('payloadTemplate')
+    if payload_template:
+        try:
+            render_template_preview(payload_template)
+        except Exception as exc:
+            return error_response(f'Invalid payloadTemplate: {exc}', 400)
+
+    db = get_database()
+    webhooks = _load_webhooks(db)
+
+    webhook = {
+        'id': str(uuid.uuid4()),
+        'url': url,
+        'events': events,
+        'secret': data.get('secret') or None,
+        'enabled': data.get('enabled', True),
+        'payloadTemplate': payload_template or None,
+        'contentType': data.get('contentType', 'application/json'),
+    }
+    webhooks.append(webhook)
+    _save_webhooks(db, webhooks)
+
+    logger.info(f"Created webhook {webhook['id']} for {url}")
+    return json_response(_strip_secret(webhook), status=201)
+
+
+@api.route('/settings/webhooks/validate-template', methods=['POST'])
+@log_request
+@limiter.limit("30/minute")
+def validate_webhook_template():
+    """Validate and preview a webhook payload template."""
+    data = request.get_json()
+    if not data or 'template' not in data:
+        return error_response('template is required', 400)
+
+    try:
+        preview = render_template_preview(data['template'])
+        return json_response({
+            'valid': True,
+            'preview': preview,
+            'error': None,
+        })
+    except Exception as exc:
+        return json_response({
+            'valid': False,
+            'preview': '',
+            'error': str(exc),
+        })
+
+
+@api.route('/settings/webhooks/<webhook_id>', methods=['PUT'])
+@log_request
+def update_webhook(webhook_id):
+    """Update an existing webhook."""
+    data = request.get_json()
+    if not data:
+        return error_response('Request body required', 400)
+
+    db = get_database()
+    webhooks = _load_webhooks(db)
+    target = _find_webhook(webhooks, webhook_id)
+    if not target:
+        return error_response('Webhook not found', 404)
+
+    if 'url' in data:
+        url = data['url'].strip()
+        if not url or not (url.startswith('http://') or url.startswith('https://')):
+            return error_response('url must start with http:// or https://', 400)
+        target['url'] = url
+
+    if 'events' in data:
+        events_err = _validate_events(data['events'])
+        if events_err:
+            return error_response(events_err, 400)
+        target['events'] = data['events']
+
+    if 'enabled' in data:
+        target['enabled'] = bool(data['enabled'])
+
+    # Preserve existing secret if absent in body; normalize empty to None
+    if 'secret' in data:
+        target['secret'] = data['secret'] or None
+
+    if 'contentType' in data:
+        target['contentType'] = data['contentType']
+
+    # If payloadTemplate is null or empty string, clear it
+    if 'payloadTemplate' in data:
+        template = data['payloadTemplate']
+        if template is None or template == '':
+            target['payloadTemplate'] = None
+        else:
+            try:
+                render_template_preview(template)
+            except Exception as exc:
+                return error_response(f'Invalid payloadTemplate: {exc}', 400)
+            target['payloadTemplate'] = template
+
+    _save_webhooks(db, webhooks)
+    logger.info(f"Updated webhook {webhook_id}")
+    return json_response(_strip_secret(target))
+
+
+@api.route('/settings/webhooks/<webhook_id>', methods=['DELETE'])
+@log_request
+def delete_webhook(webhook_id):
+    """Delete a webhook."""
+    db = get_database()
+    webhooks = _load_webhooks(db)
+
+    original_len = len(webhooks)
+    webhooks = [wh for wh in webhooks if wh.get('id') != webhook_id]
+
+    if len(webhooks) == original_len:
+        return error_response('Webhook not found', 404)
+
+    _save_webhooks(db, webhooks)
+    logger.info(f"Deleted webhook {webhook_id}")
+    return json_response({'message': 'Webhook deleted'})
+
+
+@api.route('/settings/webhooks/<webhook_id>/test', methods=['POST'])
+@log_request
+@limiter.limit("10/minute")
+def test_webhook(webhook_id):
+    """Send a test event to a webhook."""
+    db = get_database()
+    webhooks = _load_webhooks(db)
+    target = _find_webhook(webhooks, webhook_id)
+    if not target:
+        return error_response('Webhook not found', 404)
+
+    try:
+        success = fire_test_event(target)
+        return json_response({
+            'success': success,
+            'message': 'Test webhook delivered' if success else 'Test webhook failed to deliver',
+        })
+    except Exception as e:
+        logger.error(f"Webhook test failed for {webhook_id}: {e}")
+        return json_response({
+            'success': False,
+            'message': str(e),
+        })
