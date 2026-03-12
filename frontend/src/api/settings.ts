@@ -1,4 +1,5 @@
 import { apiRequest } from './client';
+import { downloadBlob } from './history';
 import { Settings, ClaudeModel, WhisperModel, SystemStatus, UpdateSettingsPayload, TokenUsageSummary, RetentionSettings } from './types';
 
 export async function getSettings(): Promise<Settings> {
@@ -82,5 +83,80 @@ export async function updateRetention(days: number): Promise<RetentionSettings> 
   return apiRequest<RetentionSettings>('/settings/retention', {
     method: 'PUT',
     body: { retentionDays: days },
+  });
+}
+
+// Webhook types
+
+export interface Webhook {
+  id: string;
+  url: string;
+  events: string[];
+  enabled: boolean;
+  payloadTemplate: string | null;
+  contentType: string;
+}
+
+export interface WebhookPayload {
+  url: string;
+  events: string[];
+  enabled: boolean;
+  secret?: string;
+  payloadTemplate?: string | null;
+  contentType?: string;
+}
+
+export interface TemplateValidationResult {
+  valid: boolean;
+  preview: string;
+  error: string | null;
+}
+
+// Data Management
+
+export async function exportOpml(): Promise<void> {
+  const response = await fetch('/api/v1/feeds/export-opml');
+  if (!response.ok) throw new Error('Failed to export OPML');
+  const blob = await response.blob();
+  downloadBlob(blob, 'minuspod-feeds.opml');
+}
+
+export async function downloadBackup(): Promise<void> {
+  const response = await fetch('/api/v1/system/backup');
+  if (!response.ok) throw new Error('Failed to download backup');
+  const blob = await response.blob();
+  const disposition = response.headers.get('Content-Disposition') || '';
+  const match = disposition.match(/filename=([^;]+)/);
+  const filename = match ? match[1] : 'minuspod-backup.db';
+  downloadBlob(blob, filename);
+}
+
+// Webhooks
+
+export async function getWebhooks(): Promise<Webhook[]> {
+  const response = await apiRequest<{ webhooks: Webhook[] }>('/settings/webhooks');
+  return response.webhooks;
+}
+
+export async function createWebhook(payload: WebhookPayload): Promise<Webhook> {
+  return apiRequest<Webhook>('/settings/webhooks', { method: 'POST', body: payload });
+}
+
+export async function updateWebhook(id: string, payload: Partial<WebhookPayload>): Promise<Webhook> {
+  return apiRequest<Webhook>(`/settings/webhooks/${id}`, { method: 'PUT', body: payload });
+}
+
+export async function deleteWebhook(id: string): Promise<{ message: string }> {
+  return apiRequest<{ message: string }>(`/settings/webhooks/${id}`, { method: 'DELETE' });
+}
+
+export async function testWebhook(id: string): Promise<{ success: boolean; message: string }> {
+  return apiRequest<{ success: boolean; message: string }>(`/settings/webhooks/${id}/test`, { method: 'POST' });
+}
+
+export async function validateTemplate(template: string): Promise<TemplateValidationResult> {
+  return apiRequest<TemplateValidationResult>('/settings/webhooks/validate-template', {
+    method: 'POST',
+    body: { template },
   });
 }

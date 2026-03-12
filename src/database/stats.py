@@ -481,3 +481,35 @@ class StatsMixin:
         )
 
         return [dict(row) for row in cursor.fetchall()]
+
+    def get_latest_completed_processing(self) -> Optional[Dict]:
+        """Get the most recent completed processing history entry with episode durations.
+
+        Returns a dict with keys: episode_id, podcast_slug, episode_title,
+        processing_duration_seconds, llm_cost, ads_detected,
+        original_duration, new_duration. Returns None if no completed entries.
+        """
+        conn = self.get_connection()
+        row = conn.execute(
+            """SELECT h.episode_id, h.podcast_slug, h.episode_title,
+                      h.processing_duration_seconds, h.llm_cost, h.ads_detected,
+                      e.original_duration, e.new_duration
+               FROM processing_history h
+               LEFT JOIN episodes e ON e.episode_id = h.episode_id
+                   AND e.podcast_slug = h.podcast_slug
+               WHERE h.status = 'completed'
+               ORDER BY h.processed_at DESC
+               LIMIT 1"""
+        ).fetchone()
+        if row is None:
+            return None
+        return {
+            'episode_id': row[0],
+            'podcast_slug': row[1],
+            'episode_title': row[2],
+            'processing_duration_seconds': row[3],
+            'llm_cost': row[4],
+            'ads_detected': row[5],
+            'original_duration': row[6],
+            'new_duration': row[7],
+        }

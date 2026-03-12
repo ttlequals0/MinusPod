@@ -1,9 +1,12 @@
 """System routes: /health, /system/* endpoints."""
+import datetime
 import logging
 import os
+import sqlite3
+import tempfile
 import time
 
-from flask import jsonify, request
+from flask import jsonify, request, send_file
 
 from api import (
     api, limiter, log_request, json_response, error_response,
@@ -181,3 +184,59 @@ def clear_queue():
         'message': f'Cleared {deleted} pending items from queue',
         'deleted': deleted
     })
+
+
+@api.route('/system/backup', methods=['GET'])
+@limiter.limit("6 per hour")
+@log_request
+def backup_database():
+    """Create and download a backup of the SQLite database."""
+    from flask import after_this_request
+
+    db = get_database()
+    tmp_path = None
+    try:
+        # Create a temp file for the backup
+        tmp_file = tempfile.NamedTemporaryFile(suffix='.db', delete=False)
+        tmp_path = tmp_file.name
+        tmp_file.close()
+
+        # Use SQLite backup API with the app's existing connection for consistency
+        src_conn = db.get_connection()
+        dst_conn = sqlite3.connect(tmp_path)
+        src_conn.backup(dst_conn)
+        dst_conn.close()
+
+        backup_size = os.path.getsize(tmp_path)
+        logger.info(f"Database backup created: {backup_size} bytes")
+
+        timestamp = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
+        filename = f"minuspod-backup-{timestamp}.db"
+
+        # Clean up temp file after response is sent (stream from disk, not memory)
+        cleanup_path = tmp_path
+        tmp_path = None  # prevent finally block from deleting before send
+
+        @after_this_request
+        def _cleanup(response):
+            try:
+                os.unlink(cleanup_path)
+            except OSError:
+                pass
+            return response
+
+        return send_file(
+            cleanup_path,
+            mimetype='application/octet-stream',
+            as_attachment=True,
+            download_name=filename,
+        )
+    except Exception as e:
+        logger.error(f"Database backup failed: {e}")
+        return error_response(f"Backup failed: {e}", 500)
+    finally:
+        if tmp_path:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
