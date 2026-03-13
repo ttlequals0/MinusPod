@@ -31,6 +31,7 @@ function AIModelsSection({
   return (
     <CollapsibleSection
       title="AI Models"
+      defaultOpen
       headerRight={
         <button
           onClick={onRefresh}

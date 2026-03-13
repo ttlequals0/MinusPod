@@ -1,6 +1,8 @@
 import type { ProcessingEpisode } from '../../api/settings';
 import CollapsibleSection from '../../components/CollapsibleSection';
 
+const STORAGE_KEY = 'settings-section-processing-queue';
+
 interface ProcessingQueueSectionProps {
   processingEpisodes: ProcessingEpisode[] | undefined;
   onCancel: (params: { slug: string; episodeId: string }) => void;
@@ -12,9 +14,20 @@ function ProcessingQueueSection({
   onCancel,
   cancelIsPending,
 }: ProcessingQueueSectionProps) {
+  const hasProcessing = !!(processingEpisodes && processingEpisodes.length > 0);
+
+  // Write synchronously so the remounted CollapsibleSection reads the correct value
+  if (hasProcessing) {
+    localStorage.setItem(STORAGE_KEY, 'true');
+  }
+
   return (
-    <CollapsibleSection title="Processing Queue">
-      {processingEpisodes && processingEpisodes.length > 0 ? (
+    <CollapsibleSection
+      title="Processing Queue"
+      storageKey={STORAGE_KEY}
+      key={hasProcessing ? 'processing-active' : 'processing-idle'}
+    >
+      {hasProcessing ? (
         <div className="space-y-2">
           {processingEpisodes.map((episode) => (
             <div
