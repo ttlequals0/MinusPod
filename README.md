@@ -22,6 +22,7 @@ Removes ads from podcasts using Whisper transcription. Serves modified RSS feeds
 - [Environment Variables](#environment-variables)
   - [Using Claude Code Wrapper (Max Subscription)](#using-claude-code-wrapper-max-subscription)
 - [Using Ollama (Local LLM)](#using-ollama-local-llm)
+- [Remote Whisper Transcription](#remote-whisper-transcription)
 - [API](#api)
 - [Webhooks](#webhooks)
 - [Remote Access](#remote-access)
@@ -30,7 +31,7 @@ Removes ads from podcasts using Whisper transcription. Serves modified RSS feeds
 
 ## How It Works
 
-1. **Transcription** - Whisper converts audio to text with timestamps
+1. **Transcription** - Whisper converts audio to text with timestamps (local GPU via faster-whisper, or remote API via OpenAI-compatible endpoint)
 2. **Ad Detection** - Claude API analyzes transcript to identify ad segments (with optional dual-pass detection)
 3. **Audio Processing** - FFmpeg removes detected ads and inserts short audio markers
 4. **Serving** - Flask serves modified RSS feeds and processed audio files
@@ -361,7 +362,11 @@ This is a comma-separated list of domains excluded from Audiobookshelf's SSRF fi
 | `BASE_URL` | `http://localhost:8000` | Public URL for generated feed links |
 | `UI_BASE_URL` | _(falls back to BASE_URL)_ | Public URL for UI links in webhooks (set if UI is on a different domain than feeds) |
 | `WHISPER_MODEL` | `small` | Whisper model size (tiny/base/small/medium/large) |
-| `WHISPER_DEVICE` | `cuda` | Device for Whisper (cuda/cpu) |
+| `WHISPER_DEVICE` | `cuda` | Device for Whisper (cuda/cpu). Set to `cpu` when using API backend to skip GPU init. |
+| `WHISPER_BACKEND` | `local` | Whisper backend: `local` (faster-whisper) or `openai-api` (remote HTTP) |
+| `WHISPER_API_BASE_URL` | _(none)_ | Base URL for OpenAI-compatible whisper API (e.g. `http://host.docker.internal:8765/v1`) |
+| `WHISPER_API_KEY` | _(none)_ | API key for whisper API (optional for local servers) |
+| `WHISPER_API_MODEL` | `whisper-1` | Model name sent to whisper API |
 | `RETENTION_PERIOD` | `1440` | **Deprecated.** Legacy minutes-based retention (auto-converted to days on first startup). Use the Settings UI or `PUT /api/v1/settings/retention` instead. Retention now resets episodes to "discovered" instead of deleting them. |
 | `TUNNEL_TOKEN` | optional | Cloudflare tunnel token for remote access |
 
@@ -524,6 +529,92 @@ MinusPod's ad detection pipeline requires models to return structured JSON. The 
 **How to check for failures:**
 
 Look for `json_parse_failed` or `extraction_method` entries in the application logs. A healthy run will show `json_array_direct` as the extraction method. Fallback methods (`markdown_code_block`, regex variants) indicate the model isn't returning clean JSON and you should consider upgrading to a larger model.
+
+## Remote Whisper Transcription
+
+By default, MinusPod uses faster-whisper with a local NVIDIA GPU for transcription. If you don't have an NVIDIA GPU (e.g. Apple Silicon Mac), you can use any OpenAI-compatible whisper API as the transcription backend.
+
+### whisper.cpp with Docker (NVIDIA GPU)
+
+A ready-to-use compose file is provided at [`docker-compose.whisper.yml`](docker-compose.whisper.yml). It runs [whisper.cpp](https://github.com/ggml-org/whisper.cpp) as a standalone GPU-accelerated transcription server.
+
+**1. Download the model:**
+
+```bash
+git clone --depth 1 https://github.com/ggml-org/whisper.cpp
+bash whisper.cpp/models/download-ggml-model.sh large-v3-turbo
+mkdir -p models && mv whisper.cpp/models/ggml-large-v3-turbo.bin models/
+```
+
+Other models are available -- replace `large-v3-turbo` with `tiny`, `base`, `small`, `medium`, or `large-v3`. See the [whisper.cpp models README](https://github.com/ggml-org/whisper.cpp/tree/master/models) for the full list.
+
+**2. Start the server:**
+
+```bash
+docker compose -f docker-compose.whisper.yml up -d
+```
+
+**3. Configure MinusPod** (`.env` or `docker-compose.yml`):
+
+```bash
+WHISPER_BACKEND=openai-api
+WHISPER_API_BASE_URL=http://whisper-server:8765/v1
+WHISPER_DEVICE=cpu
+```
+
+If MinusPod and whisper-server are on the same Docker network, use the container name (`whisper-server`). If they are on separate hosts, use the host IP and the exposed port (`http://your-server:8765/v1`).
+
+The `--convert` flag in the compose file tells whisper.cpp to accept any audio format. The `--dtw large.v3.turbo` flag enables word-level timestamps for precise ad boundary detection. `WHISPER_DEVICE=cpu` prevents MinusPod from attempting to initialize a local CUDA GPU.
+
+### whisper.cpp on Apple Silicon (native)
+
+whisper.cpp runs natively on Apple Silicon with Metal acceleration. Build from source or use Homebrew:
+
+```bash
+# Download model
+git clone --depth 1 https://github.com/ggml-org/whisper.cpp
+bash whisper.cpp/models/download-ggml-model.sh large-v3-turbo
+
+# Build and run the server
+cd whisper.cpp && make -j
+./build/bin/whisper-server \
+  --host 0.0.0.0 --port 8765 \
+  --model models/ggml-large-v3-turbo.bin \
+  --inference-path /v1/audio/transcriptions \
+  --dtw large.v3.turbo \
+  --convert
+
+# Configure MinusPod
+WHISPER_BACKEND=openai-api
+WHISPER_API_BASE_URL=http://host.docker.internal:8765/v1
+WHISPER_DEVICE=cpu
+```
+
+> **Linux users:** Replace `host.docker.internal` with your host IP, or add `extra_hosts: ["host.docker.internal:host-gateway"]` to your Docker service definition.
+
+### Groq
+
+[Groq](https://groq.com) offers fast cloud-based whisper transcription:
+
+```bash
+WHISPER_BACKEND=openai-api
+WHISPER_API_BASE_URL=https://api.groq.com/openai/v1
+WHISPER_API_KEY=gsk_your_key_here
+WHISPER_API_MODEL=whisper-large-v3-turbo
+WHISPER_DEVICE=cpu
+```
+
+### OpenAI Whisper API
+
+```bash
+WHISPER_BACKEND=openai-api
+WHISPER_API_BASE_URL=https://api.openai.com/v1
+WHISPER_API_KEY=sk-your_key_here
+WHISPER_API_MODEL=whisper-1
+WHISPER_DEVICE=cpu
+```
+
+All settings can also be configured via the Settings UI under the Transcription section.
 
 ## API
 

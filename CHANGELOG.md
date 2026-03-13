@@ -6,6 +6,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.54] - 2026-03-13
+
+### Added
+- **Remote whisper transcription backend**: OpenAI-compatible HTTP API backend for whisper transcription, enabling use of whisper.cpp (Apple Silicon), Groq, or OpenAI as the inference engine
+  - New `whisper_backend` setting: switch between `local` (faster-whisper, default) and `openai-api`
+  - Configurable API base URL, API key (write-only), and model name via Settings UI and env vars
+  - `WHISPER_BACKEND`, `WHISPER_API_BASE_URL`, `WHISPER_API_KEY`, `WHISPER_API_MODEL` environment variables
+  - Fixed 10-minute chunk duration for API backend (fits under 25MB API upload limit)
+  - Retry with exponential backoff on 429/5xx responses
+  - Settings UI: backend selector with conditional fields matching LLM Provider section pattern
+- Unit tests for API transcription response parsing, backend dispatch, and chunk duration
+- Integration tests for whisper backend settings round-trip via API
+
+### Changed
+- Transcription Settings section now shows backend selector; local model picker only visible when backend is "local"
+
 ## [1.0.53] - 2026-03-13
 
 ### Added

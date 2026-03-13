@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getSettings, updateSettings, resetSettings, resetPrompts, getModels, getWhisperModels, getSystemStatus, runCleanup, getProcessingEpisodes, cancelProcessing, refreshModels, getRetention, updateRetention } from '../api/settings';
 import { useAuth } from '../context/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
-import type { LlmProvider } from '../api/types';
+import type { LlmProvider, WhisperBackend, WhisperApiConfig } from '../api/types';
 import { LLM_PROVIDERS } from '../api/types';
 
 import SystemStatusSection from './settings/SystemStatusSection';
@@ -37,6 +37,10 @@ function Settings() {
   const [minCutConfidence, setMinCutConfidence] = useState(0.80);
   const [llmProvider, setLlmProvider] = useState<LlmProvider>(LLM_PROVIDERS.ANTHROPIC);
   const [openaiBaseUrl, setOpenaiBaseUrl] = useState('http://localhost:8000/v1');
+  const [whisperBackend, setWhisperBackend] = useState<WhisperBackend>('local');
+  const [whisperApiConfig, setWhisperApiConfig] = useState<WhisperApiConfig>({
+    baseUrl: '', apiKey: '', apiKeyConfigured: undefined, model: 'whisper-1',
+  });
   const [cleanupConfirm, setCleanupConfirm] = useState(false);
   const [retentionDays, setRetentionDays] = useState(30);
   const [retentionEnabled, setRetentionEnabled] = useState(true);
@@ -116,6 +120,13 @@ function Settings() {
       setMinCutConfidence(settings.minCutConfidence?.value ?? 0.80);
       setLlmProvider((settings.llmProvider?.value || LLM_PROVIDERS.ANTHROPIC) as LlmProvider);
       setOpenaiBaseUrl(settings.openaiBaseUrl?.value || 'http://localhost:8000/v1');
+      setWhisperBackend((settings.whisperBackend?.value || 'local') as WhisperBackend);
+      setWhisperApiConfig({
+        baseUrl: settings.whisperApiBaseUrl?.value || '',
+        apiKey: '',
+        apiKeyConfigured: settings.whisperApiKeyConfigured,
+        model: settings.whisperApiModel?.value || 'whisper-1',
+      });
     }
   }, [settings]);
 
@@ -134,9 +145,13 @@ function Settings() {
       chaptersModel !== (settings.chaptersModel?.value || '') ||
       minCutConfidence !== (settings.minCutConfidence?.value ?? 0.80) ||
       llmProvider !== (settings.llmProvider?.value || LLM_PROVIDERS.ANTHROPIC) ||
-      openaiBaseUrl !== (settings.openaiBaseUrl?.value || 'http://localhost:8000/v1')
+      openaiBaseUrl !== (settings.openaiBaseUrl?.value || 'http://localhost:8000/v1') ||
+      whisperBackend !== (settings.whisperBackend?.value || 'local') ||
+      whisperApiConfig.baseUrl !== (settings.whisperApiBaseUrl?.value || '') ||
+      whisperApiConfig.apiKey !== '' ||
+      whisperApiConfig.model !== (settings.whisperApiModel?.value || 'whisper-1')
     );
-  }, [systemPrompt, verificationPrompt, selectedModel, verificationModel, whisperModel, autoProcessEnabled, audioBitrate, vttTranscriptsEnabled, chaptersEnabled, chaptersModel, minCutConfidence, llmProvider, openaiBaseUrl, settings]);
+  }, [systemPrompt, verificationPrompt, selectedModel, verificationModel, whisperModel, autoProcessEnabled, audioBitrate, vttTranscriptsEnabled, chaptersEnabled, chaptersModel, minCutConfidence, llmProvider, openaiBaseUrl, whisperBackend, whisperApiConfig, settings]);
 
   const updateMutation = useMutation({
     mutationFn: () =>
@@ -154,6 +169,10 @@ function Settings() {
         minCutConfidence,
         llmProvider,
         openaiBaseUrl,
+        whisperBackend,
+        whisperApiBaseUrl: whisperApiConfig.baseUrl,
+        ...(whisperApiConfig.apiKey ? { whisperApiKey: whisperApiConfig.apiKey } : {}),
+        whisperApiModel: whisperApiConfig.model,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
@@ -286,6 +305,12 @@ function Settings() {
         whisperModel={whisperModel}
         whisperModels={whisperModels}
         onWhisperModelChange={setWhisperModel}
+        whisperBackend={whisperBackend}
+        onWhisperBackendChange={setWhisperBackend}
+        apiConfig={whisperApiConfig}
+        onApiConfigChange={(field, value) =>
+          setWhisperApiConfig(prev => ({ ...prev, [field]: value }))
+        }
       />
 
       <AudioSection

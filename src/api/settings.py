@@ -10,10 +10,20 @@ from api import (
     api, log_request, json_response, error_response,
     get_database, _enrich_models_with_pricing, limiter,
 )
-from utils.url import validate_url, SSRFError
+from utils.url import validate_url, validate_base_url, SSRFError
 from webhook_service import render_template_preview, fire_test_event, load_webhooks, VALID_EVENTS
 
 logger = logging.getLogger('podcast.api')
+
+
+def _setting_value(settings, key, default=None):
+    """Extract value from the settings dict returned by get_all_settings()."""
+    return settings.get(key, {}).get('value', default)
+
+
+def _setting_is_default(settings, key):
+    """Check if a setting is still at its default value."""
+    return settings.get(key, {}).get('is_default', True)
 
 
 # ========== Settings Endpoints ==========
@@ -30,29 +40,34 @@ def get_settings():
 
     settings = db.get_all_settings()
 
+    # Shorthand for building {value, isDefault} response dicts
+    def _sv(key, value=None):
+        """Build a setting value response dict."""
+        return {
+            'value': value if value is not None else _setting_value(settings, key),
+            'isDefault': _setting_is_default(settings, key),
+        }
+
     # Get current model settings
-    current_model = settings.get('claude_model', {}).get('value', DEFAULT_MODEL)
-    verification_model = settings.get('verification_model', {}).get('value', DEFAULT_MODEL)
-    chapters_model = settings.get('chapters_model', {}).get('value', CHAPTERS_MODEL)
+    current_model = _setting_value(settings, 'claude_model', DEFAULT_MODEL)
+    verification_model = _setting_value(settings, 'verification_model', DEFAULT_MODEL)
+    chapters_model = _setting_value(settings, 'chapters_model', CHAPTERS_MODEL)
 
     # Get whisper model setting (defaults to env var or 'small')
     default_whisper_model = os.environ.get('WHISPER_MODEL', 'small')
-    whisper_model = settings.get('whisper_model', {}).get('value', default_whisper_model)
+    whisper_model = _setting_value(settings, 'whisper_model', default_whisper_model)
 
-    # Get auto-process setting (defaults to true)
-    auto_process_value = settings.get('auto_process_enabled', {}).get('value', 'true')
+    # Get boolean settings
+    auto_process_value = _setting_value(settings, 'auto_process_enabled', 'true')
     auto_process_enabled = auto_process_value.lower() in ('true', '1', 'yes')
-
-    # Get Podcasting 2.0 settings (defaults to true)
-    vtt_value = settings.get('vtt_transcripts_enabled', {}).get('value', 'true')
+    vtt_value = _setting_value(settings, 'vtt_transcripts_enabled', 'true')
     vtt_enabled = vtt_value.lower() in ('true', '1', 'yes')
-    chapters_value = settings.get('chapters_enabled', {}).get('value', 'true')
+    chapters_value = _setting_value(settings, 'chapters_enabled', 'true')
     chapters_enabled = chapters_value.lower() in ('true', '1', 'yes')
 
     # Get min cut confidence (ad detection aggressiveness)
-    min_cut_confidence_str = settings.get('min_cut_confidence', {}).get('value', '0.80')
     try:
-        min_cut_confidence = float(min_cut_confidence_str)
+        min_cut_confidence = float(_setting_value(settings, 'min_cut_confidence', '0.80'))
     except (ValueError, TypeError):
         min_cut_confidence = 0.80
 
@@ -62,55 +77,32 @@ def get_settings():
     api_key = get_api_key()
     api_key_configured = bool(api_key and api_key != 'not-needed')
 
+    # Whisper backend settings (env var defaults)
+    default_whisper_backend = os.environ.get('WHISPER_BACKEND', 'local')
+    default_whisper_api_base_url = os.environ.get('WHISPER_API_BASE_URL', '')
+    default_whisper_api_model = os.environ.get('WHISPER_API_MODEL', 'whisper-1')
+    whisper_backend = _setting_value(settings, 'whisper_backend', default_whisper_backend)
+    whisper_api_base_url = _setting_value(settings, 'whisper_api_base_url', default_whisper_api_base_url)
+    whisper_api_key = _setting_value(settings, 'whisper_api_key', '')
+    whisper_api_model = _setting_value(settings, 'whisper_api_model', default_whisper_api_model)
+
     return json_response({
-        'systemPrompt': {
-            'value': settings.get('system_prompt', {}).get('value', DEFAULT_SYSTEM_PROMPT),
-            'isDefault': settings.get('system_prompt', {}).get('is_default', True)
-        },
-        'verificationPrompt': {
-            'value': settings.get('verification_prompt', {}).get('value', DEFAULT_VERIFICATION_PROMPT),
-            'isDefault': settings.get('verification_prompt', {}).get('is_default', True)
-        },
-        'claudeModel': {
-            'value': current_model,
-            'isDefault': settings.get('claude_model', {}).get('is_default', True)
-        },
-        'verificationModel': {
-            'value': verification_model,
-            'isDefault': settings.get('verification_model', {}).get('is_default', True)
-        },
-        'whisperModel': {
-            'value': whisper_model,
-            'isDefault': settings.get('whisper_model', {}).get('is_default', True)
-        },
-        'autoProcessEnabled': {
-            'value': auto_process_enabled,
-            'isDefault': settings.get('auto_process_enabled', {}).get('is_default', True)
-        },
-        'vttTranscriptsEnabled': {
-            'value': vtt_enabled,
-            'isDefault': settings.get('vtt_transcripts_enabled', {}).get('is_default', True)
-        },
-        'chaptersEnabled': {
-            'value': chapters_enabled,
-            'isDefault': settings.get('chapters_enabled', {}).get('is_default', True)
-        },
-        'chaptersModel': {
-            'value': chapters_model,
-            'isDefault': settings.get('chapters_model', {}).get('is_default', True)
-        },
-        'minCutConfidence': {
-            'value': min_cut_confidence,
-            'isDefault': settings.get('min_cut_confidence', {}).get('is_default', True)
-        },
-        'llmProvider': {
-            'value': llm_provider,
-            'isDefault': settings.get('llm_provider', {}).get('is_default', True)
-        },
-        'openaiBaseUrl': {
-            'value': openai_base_url,
-            'isDefault': settings.get('openai_base_url', {}).get('is_default', True)
-        },
+        'systemPrompt': _sv('system_prompt', _setting_value(settings, 'system_prompt', DEFAULT_SYSTEM_PROMPT)),
+        'verificationPrompt': _sv('verification_prompt', _setting_value(settings, 'verification_prompt', DEFAULT_VERIFICATION_PROMPT)),
+        'claudeModel': _sv('claude_model', current_model),
+        'verificationModel': _sv('verification_model', verification_model),
+        'whisperModel': _sv('whisper_model', whisper_model),
+        'autoProcessEnabled': _sv('auto_process_enabled', auto_process_enabled),
+        'vttTranscriptsEnabled': _sv('vtt_transcripts_enabled', vtt_enabled),
+        'chaptersEnabled': _sv('chapters_enabled', chapters_enabled),
+        'chaptersModel': _sv('chapters_model', chapters_model),
+        'minCutConfidence': _sv('min_cut_confidence', min_cut_confidence),
+        'llmProvider': _sv('llm_provider', llm_provider),
+        'openaiBaseUrl': _sv('openai_base_url', openai_base_url),
+        'whisperBackend': _sv('whisper_backend', whisper_backend),
+        'whisperApiBaseUrl': _sv('whisper_api_base_url', whisper_api_base_url),
+        'whisperApiKeyConfigured': bool(whisper_api_key),
+        'whisperApiModel': _sv('whisper_api_model', whisper_api_model),
         'apiKeyConfigured': api_key_configured,
         'retentionDays': int(db.get_setting('retention_days') or '30'),
         'defaults': {
@@ -125,7 +117,10 @@ def get_settings():
             'chaptersModel': CHAPTERS_MODEL,
             'minCutConfidence': 0.80,
             'llmProvider': os.environ.get('LLM_PROVIDER', PROVIDER_ANTHROPIC),
-            'openaiBaseUrl': os.environ.get('OPENAI_BASE_URL', 'http://localhost:8000/v1')
+            'openaiBaseUrl': os.environ.get('OPENAI_BASE_URL', 'http://localhost:8000/v1'),
+            'whisperBackend': default_whisper_backend,
+            'whisperApiBaseUrl': default_whisper_api_base_url,
+            'whisperApiModel': default_whisper_api_model,
         }
     })
 
@@ -199,10 +194,10 @@ def update_ad_detection_settings():
         provider_changed = True
 
     if 'openaiBaseUrl' in data:
-        from urllib.parse import urlparse
-        parsed = urlparse(data['openaiBaseUrl'])
-        if not parsed.scheme or parsed.scheme not in ('http', 'https') or not parsed.hostname:
-            return json_response({'error': 'Invalid base URL: must be a valid http:// or https:// URL'}, 400)
+        try:
+            validate_base_url(data['openaiBaseUrl'])
+        except SSRFError as e:
+            return json_response({'error': f'Invalid base URL: {e}'}, 400)
         db.set_setting('openai_base_url', data['openaiBaseUrl'], is_default=False)
         logger.info(f"Updated OpenAI base URL to: {data['openaiBaseUrl']}")
         provider_changed = True
@@ -210,6 +205,30 @@ def update_ad_detection_settings():
     if provider_changed:
         from llm_client import get_llm_client
         get_llm_client(force_new=True)
+
+    if 'whisperBackend' in data:
+        from config import WHISPER_BACKEND_LOCAL, WHISPER_BACKEND_API
+        if data['whisperBackend'] not in (WHISPER_BACKEND_LOCAL, WHISPER_BACKEND_API):
+            return json_response({'error': 'whisperBackend must be "local" or "openai-api"'}, 400)
+        db.set_setting('whisper_backend', data['whisperBackend'], is_default=False)
+        logger.info(f"Updated whisper backend to: {data['whisperBackend']}")
+
+    if 'whisperApiBaseUrl' in data:
+        if data['whisperApiBaseUrl']:
+            try:
+                validate_base_url(data['whisperApiBaseUrl'])
+            except SSRFError as e:
+                return json_response({'error': f'Invalid whisper API base URL: {e}'}, 400)
+        db.set_setting('whisper_api_base_url', data['whisperApiBaseUrl'], is_default=False)
+        logger.info(f"Updated whisper API base URL to: {data['whisperApiBaseUrl']}")
+
+    if 'whisperApiKey' in data:
+        db.set_setting('whisper_api_key', data['whisperApiKey'], is_default=False)
+        logger.info("Updated whisper API key")
+
+    if 'whisperApiModel' in data:
+        db.set_setting('whisper_api_model', data['whisperApiModel'], is_default=False)
+        logger.info(f"Updated whisper API model to: {data['whisperApiModel']}")
 
     return json_response({'message': 'Settings updated'})
 
@@ -236,6 +255,12 @@ def reset_ad_detection_settings():
     from llm_client import get_llm_client
     db.reset_setting('llm_provider')
     db.reset_setting('openai_base_url')
+
+    # Reset whisper backend settings
+    db.reset_setting('whisper_backend')
+    db.reset_setting('whisper_api_base_url')
+    db.reset_setting('whisper_api_key')
+    db.reset_setting('whisper_api_model')
 
     # Recreate LLM client with reset settings
     get_llm_client(force_new=True)

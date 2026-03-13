@@ -12,8 +12,12 @@ from pathlib import Path
 from utils.audio import get_audio_duration
 from utils.time import format_vtt_timestamp
 from utils.gpu import clear_gpu_memory, get_available_memory_gb, get_gpu_memory_info
+from utils.http import post_with_retry
 from utils.url import validate_url, SSRFError
 from config import (
+    API_CHUNK_DURATION_SECONDS,
+    WHISPER_BACKEND_LOCAL,
+    WHISPER_BACKEND_API,
     CHUNK_OVERLAP_SECONDS,
     CHUNK_MIN_DURATION_SECONDS,
     CHUNK_MAX_DURATION_SECONDS,
@@ -257,9 +261,38 @@ def merge_overlapping_segments(
     return result
 
 
+def _get_whisper_settings() -> Dict[str, str]:
+    """Read all whisper backend settings from DB with env var fallbacks.
+
+    Returns a dict with keys: backend, api_base_url, api_key, api_model.
+    """
+    defaults = {
+        'backend': os.environ.get('WHISPER_BACKEND', WHISPER_BACKEND_LOCAL),
+        'api_base_url': os.environ.get('WHISPER_API_BASE_URL', ''),
+        'api_key': os.environ.get('WHISPER_API_KEY', ''),
+        'api_model': os.environ.get('WHISPER_API_MODEL', 'whisper-1'),
+    }
+    try:
+        from database import Database
+        db = Database()
+        for setting_key, default_key in [
+            ('whisper_backend', 'backend'),
+            ('whisper_api_base_url', 'api_base_url'),
+            ('whisper_api_key', 'api_key'),
+            ('whisper_api_model', 'api_model'),
+        ]:
+            val = db.get_setting(setting_key)
+            if val:
+                defaults[default_key] = val
+    except Exception:
+        pass
+    return defaults
+
+
 def calculate_optimal_chunk_duration(
     model_name: str,
-    device: str = "cuda"
+    device: str = "cuda",
+    whisper_backend: str = WHISPER_BACKEND_LOCAL,
 ) -> Tuple[int, str]:
     """Calculate optimal chunk duration based on available memory and model size.
 
@@ -269,10 +302,15 @@ def calculate_optimal_chunk_duration(
     Args:
         model_name: Whisper model name (e.g., "small", "large-v3")
         device: "cuda" or "cpu"
+        whisper_backend: "local" or "openai-api"
 
     Returns:
         Tuple of (chunk_duration_seconds, reasoning_message)
     """
+    # For API backend, memory is irrelevant - use fixed cap
+    if whisper_backend == WHISPER_BACKEND_API:
+        return API_CHUNK_DURATION_SECONDS, "API backend (fixed 10-min chunks for 25MB limit)"
+
     # Get model memory profile
     profile = WHISPER_MEMORY_PROFILES.get(model_name, WHISPER_DEFAULT_PROFILE)
     base_memory_gb, memory_per_minute_gb = profile
@@ -468,6 +506,118 @@ class Transcriber:
     def __init__(self):
         # Model is now managed by singleton
         pass
+
+    def _transcribe_via_api(
+        self,
+        audio_path: str,
+        podcast_name: str = None,
+        whisper_settings: Dict[str, str] = None,
+    ) -> Optional[List[Dict]]:
+        """Transcribe audio using an OpenAI-compatible whisper API.
+
+        Sends the preprocessed audio to a remote API endpoint and maps
+        the verbose_json response to the internal segment format.
+
+        Args:
+            audio_path: Path to the audio file to transcribe.
+            podcast_name: Optional podcast name for context-aware prompting.
+            whisper_settings: Pre-fetched settings dict from _get_whisper_settings().
+
+        Returns:
+            List of transcript segments, or None on failure.
+        """
+        preprocessed_path = None
+        try:
+            if whisper_settings is None:
+                whisper_settings = _get_whisper_settings()
+            base_url = whisper_settings['api_base_url']
+            api_key = whisper_settings['api_key']
+            model = whisper_settings['api_model']
+
+            if not base_url:
+                logger.error("Whisper API base URL not configured")
+                return None
+
+            # Preprocess audio for consistent quality
+            preprocessed_path = self.preprocess_audio(audio_path)
+            transcribe_path = preprocessed_path if preprocessed_path else audio_path
+
+            # Build request
+            url = f"{base_url.rstrip('/')}/audio/transcriptions"
+            initial_prompt = self.get_initial_prompt(podcast_name)
+
+            headers = {}
+            if api_key:
+                headers['Authorization'] = f'Bearer {api_key}'
+
+            form_data = {
+                'model': model,
+                'response_format': 'verbose_json',
+                'timestamp_granularities[]': ['segment', 'word'],
+                'language': 'en',
+            }
+            if initial_prompt:
+                form_data['prompt'] = initial_prompt
+
+            logger.info(f"Sending audio to whisper API: {url} (model={model})")
+
+            with open(transcribe_path, 'rb') as audio_file:
+                response = post_with_retry(
+                    url,
+                    headers=headers,
+                    files={'file': (os.path.basename(transcribe_path), audio_file)},
+                    data=form_data,
+                    log_prefix="Whisper API",
+                )
+
+            if response is None:
+                return None
+
+            # Parse verbose_json response
+            resp_json = response.json()
+            segments = resp_json.get('segments', [])
+            result = []
+
+            for seg in segments:
+                words = []
+                for w in seg.get('words', []):
+                    words.append({
+                        'word': w.get('word', ''),
+                        'start': w.get('start', 0),
+                        'end': w.get('end', 0),
+                    })
+
+                text = seg.get('text', '').strip()
+                if not text:
+                    continue
+
+                result.append({
+                    'start': seg.get('start', 0),
+                    'end': seg.get('end', 0),
+                    'text': text,
+                    'words': words,
+                })
+
+            # Filter hallucinations
+            original_count = len(result)
+            result = self.filter_hallucinations(result)
+            if len(result) < original_count:
+                logger.info(f"Filtered {original_count - len(result)} hallucination segments")
+
+            duration_min = result[-1]['end'] / 60 if result else 0
+            logger.info(f"API transcription completed: {len(result)} segments, {duration_min:.1f} minutes")
+
+            return result
+
+        except Exception as e:
+            logger.error(f"API transcription failed: {e}")
+            return None
+        finally:
+            if preprocessed_path and os.path.exists(preprocessed_path):
+                try:
+                    os.unlink(preprocessed_path)
+                except OSError:
+                    pass
 
     def get_initial_prompt(self, podcast_name: str = None) -> str:
         """Generate a podcast-aware initial prompt for Whisper."""
@@ -787,6 +937,11 @@ class Transcriber:
         Uses adaptive batch sizing based on audio duration to prevent CUDA OOM errors.
         Automatically retries with smaller batch size on OOM.
         """
+        # Check whisper backend setting
+        whisper_settings = _get_whisper_settings()
+        if whisper_settings['backend'] == WHISPER_BACKEND_API:
+            return self._transcribe_via_api(audio_path, podcast_name, whisper_settings)
+
         preprocessed_path = None
         try:
             # Get audio duration for adaptive batch sizing
@@ -982,7 +1137,10 @@ class Transcriber:
         device = os.getenv("WHISPER_DEVICE", "cpu")
 
         # Calculate optimal chunk duration based on available memory
-        chunk_duration, memory_reason = calculate_optimal_chunk_duration(model_name, device)
+        whisper_settings = _get_whisper_settings()
+        chunk_duration, memory_reason = calculate_optimal_chunk_duration(
+            model_name, device, whisper_backend=whisper_settings['backend']
+        )
         overlap = CHUNK_OVERLAP_SECONDS
 
         # If calculated chunk can handle the entire audio, try regular transcription first

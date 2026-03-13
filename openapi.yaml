@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 1.0.53
+  version: 1.0.54
   contact:
     name: MinusPod
   license:
@@ -2133,6 +2133,22 @@ paths:
                   type: string
                   description: Whisper model for transcription (tiny, base, small, medium, large-v3)
                   example: small
+                whisperBackend:
+                  type: string
+                  description: Whisper backend to use (local uses local GPU/CPU, openai-api uses an external API)
+                  enum: [local, openai-api]
+                  example: local
+                whisperApiBaseUrl:
+                  type: string
+                  description: Base URL for OpenAI-compatible Whisper API endpoint (only used when whisperBackend is openai-api)
+                  example: http://localhost:8080/v1
+                whisperApiKey:
+                  type: string
+                  description: API key for the Whisper API endpoint (only used when whisperBackend is openai-api)
+                whisperApiModel:
+                  type: string
+                  description: Model name to use with the Whisper API (only used when whisperBackend is openai-api)
+                  example: whisper-1
                 autoProcessEnabled:
                   type: boolean
                   description: Enable automatic processing of new episodes when feeds refresh
@@ -3167,6 +3183,33 @@ components:
               description: Whisper model for transcription
             isDefault:
               type: boolean
+        whisperBackend:
+          type: object
+          properties:
+            value:
+              type: string
+              description: Whisper backend to use (local, openai-api)
+            isDefault:
+              type: boolean
+        whisperApiBaseUrl:
+          type: object
+          properties:
+            value:
+              type: string
+              description: Base URL for OpenAI-compatible Whisper API endpoint
+            isDefault:
+              type: boolean
+        whisperApiKeyConfigured:
+          type: boolean
+          description: Whether a Whisper API key is configured (read-only)
+        whisperApiModel:
+          type: object
+          properties:
+            value:
+              type: string
+              description: Model name to use with the Whisper API
+            isDefault:
+              type: boolean
         autoProcessEnabled:
           type: object
           properties:
@@ -3220,6 +3263,12 @@ components:
             chaptersModel:
               type: string
             whisperModel:
+              type: string
+            whisperBackend:
+              type: string
+            whisperApiBaseUrl:
+              type: string
+            whisperApiModel:
               type: string
             autoProcessEnabled:
               type: boolean

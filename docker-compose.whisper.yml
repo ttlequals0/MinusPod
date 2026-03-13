@@ -1,0 +1,53 @@
+# Standalone whisper.cpp server for remote transcription.
+#
+# Downloads the model and starts an OpenAI-compatible transcription server
+# that MinusPod can use as a whisper backend.
+#
+# Quick start:
+#   1. Download the model:
+#      git clone --depth 1 https://github.com/ggml-org/whisper.cpp
+#      bash whisper.cpp/models/download-ggml-model.sh large-v3-turbo
+#      mkdir -p models && mv whisper.cpp/models/ggml-large-v3-turbo.bin models/
+#
+#   2. Start the server:
+#      docker compose -f docker-compose.whisper.yml up -d
+#
+#   3. Configure MinusPod (.env or docker-compose.yml):
+#      WHISPER_BACKEND=openai-api
+#      WHISPER_API_BASE_URL=http://whisper-server:8765/v1
+#      WHISPER_DEVICE=cpu
+#
+# The server listens on port 8765 and accepts any audio format (--convert).
+# Word-level timestamps are enabled via --dtw for precise ad boundary detection.
+
+services:
+  whisper-server:
+    image: ghcr.io/ggml-org/whisper.cpp:main-cuda
+    platform: linux/amd64
+    container_name: whisper-server
+    ports:
+      - "8765:8765"
+    volumes:
+      - ./models:/models
+    # NOTE: command must be a single-element list because the image's
+    # ENTRYPOINT is ["bash", "-c"]. A plain string gets wrapped in
+    # /bin/sh -c, breaking argument passing.
+    command:
+      - >-
+        whisper-server
+        --host 0.0.0.0
+        --port 8765
+        --model /models/ggml-large-v3-turbo.bin
+        --inference-path /v1/audio/transcriptions
+        --threads 8
+        --processors 1
+        --dtw large.v3.turbo
+        --convert
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped

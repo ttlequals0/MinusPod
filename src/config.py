@@ -159,6 +159,13 @@ CHUNK_MIN_DURATION_SECONDS = 300     # Minimum chunk size (5 minutes)
 CHUNK_MAX_DURATION_SECONDS = 3600    # Maximum chunk size (60 minutes)
 CHUNK_DEFAULT_DURATION_SECONDS = 1800  # Default if memory detection fails (30 minutes)
 
+# API backend chunk duration (10 min = ~19MB WAV, under 25MB API limit)
+API_CHUNK_DURATION_SECONDS = 600
+
+# Whisper backend identifiers
+WHISPER_BACKEND_LOCAL = 'local'
+WHISPER_BACKEND_API = 'openai-api'
+
 # Memory safety margin - don't use all available memory
 MEMORY_SAFETY_MARGIN = 0.7           # Use only 70% of available memory
 

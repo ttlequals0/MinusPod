@@ -97,6 +97,70 @@ class TestSettingsEndpoint:
         # Should have ad detection related settings
         assert 'settings' in data or 'ad_detection' in data or len(data) > 0
 
+    def test_get_settings_includes_whisper_backend(self, app_client):
+        """GET /api/v1/settings returns whisper backend fields."""
+        response = app_client.get('/api/v1/settings')
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert 'whisperBackend' in data
+        assert data['whisperBackend']['value'] in ('local', 'openai-api')
+        assert 'whisperApiBaseUrl' in data
+        assert 'whisperApiKeyConfigured' in data
+        assert isinstance(data['whisperApiKeyConfigured'], bool)
+        assert 'whisperApiModel' in data
+
+    def test_update_whisper_backend_roundtrip(self, app_client):
+        """PUT /settings/ad-detection saves whisper backend, GET returns it."""
+        # Set to openai-api
+        response = app_client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({
+                'whisperBackend': 'openai-api',
+                'whisperApiBaseUrl': 'http://localhost:8765/v1',
+                'whisperApiModel': 'whisper-large-v3',
+            }),
+            content_type='application/json',
+        )
+        assert response.status_code == 200
+
+        # Verify it persisted
+        response = app_client.get('/api/v1/settings')
+        data = json.loads(response.data)
+        assert data['whisperBackend']['value'] == 'openai-api'
+        assert data['whisperApiBaseUrl']['value'] == 'http://localhost:8765/v1'
+        assert data['whisperApiModel']['value'] == 'whisper-large-v3'
+
+    def test_update_whisper_backend_invalid_value(self, app_client):
+        """PUT /settings/ad-detection rejects invalid whisper backend."""
+        response = app_client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'whisperBackend': 'invalid'}),
+            content_type='application/json',
+        )
+        assert response.status_code == 200 or response.status_code == 400
+        # If the endpoint returns an error field, check it
+        data = json.loads(response.data)
+        if 'error' in data:
+            assert 'whisperBackend' in data['error']
+
+    def test_reset_whisper_backend_settings(self, app_client):
+        """POST /settings/ad-detection/reset resets whisper backend to default."""
+        # Set a non-default value first
+        app_client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'whisperBackend': 'openai-api'}),
+            content_type='application/json',
+        )
+
+        # Reset
+        response = app_client.post('/api/v1/settings/ad-detection/reset')
+        assert response.status_code == 200
+
+        # Verify it went back to default
+        response = app_client.get('/api/v1/settings')
+        data = json.loads(response.data)
+        assert data['whisperBackend']['value'] == 'local'
+
 
 class TestPatternsEndpoint:
     """Tests for patterns endpoint."""

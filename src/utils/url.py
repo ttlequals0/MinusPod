@@ -12,6 +12,38 @@ from utils.constants import ALLOWED_URL_SCHEMES, ALLOWED_URL_PORTS
 
 logger = logging.getLogger(__name__)
 
+
+def validate_base_url(url: str) -> str:
+    """Validate a backend service base URL (scheme + hostname check only).
+
+    Unlike validate_url(), this does NOT block private/loopback IPs because
+    backend URLs (LLM providers, Whisper API) commonly point to localhost or
+    Docker-internal hosts.
+
+    Args:
+        url: The URL to validate.
+
+    Returns:
+        The validated URL string (stripped).
+
+    Raises:
+        SSRFError: If the URL has an invalid scheme or missing hostname.
+    """
+    if not url or not url.strip():
+        raise SSRFError("Empty URL")
+
+    url = url.strip()
+    parsed = urlparse(url)
+
+    scheme = (parsed.scheme or '').lower()
+    if scheme not in ALLOWED_URL_SCHEMES:
+        raise SSRFError(f"Blocked URL scheme: {scheme!r}")
+
+    if not parsed.hostname:
+        raise SSRFError("Missing hostname in URL")
+
+    return url
+
 # Cloud metadata IPs that must always be blocked
 _CLOUD_METADATA_IPS = frozenset({
     '169.254.169.254',  # AWS, GCP metadata

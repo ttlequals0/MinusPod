@@ -97,6 +97,14 @@ export interface SettingValueNumber {
 }
 
 export type LlmProvider = 'anthropic' | 'openai-compatible' | 'ollama';
+export type WhisperBackend = 'local' | 'openai-api';
+
+export interface WhisperApiConfig {
+  baseUrl: string;
+  apiKey: string;
+  apiKeyConfigured: boolean | undefined;
+  model: string;
+}
 
 export const LLM_PROVIDERS = {
   ANTHROPIC: 'anthropic' as const,
@@ -116,6 +124,10 @@ export interface Settings {
   chaptersEnabled: SettingValueBoolean;
   chaptersModel: SettingValue;
   minCutConfidence: SettingValueNumber;
+  whisperBackend: SettingValue;
+  whisperApiBaseUrl: SettingValue;
+  whisperApiKeyConfigured: boolean;
+  whisperApiModel: SettingValue;
   llmProvider: SettingValue;
   openaiBaseUrl: SettingValue;
   apiKeyConfigured: boolean;
@@ -133,6 +145,9 @@ export interface Settings {
     minCutConfidence: number;
     llmProvider: LlmProvider;
     openaiBaseUrl: string;
+    whisperBackend: string;
+    whisperApiBaseUrl: string;
+    whisperApiModel: string;
   };
 }
 
@@ -150,6 +165,10 @@ export interface UpdateSettingsPayload {
   minCutConfidence?: number;
   llmProvider?: LlmProvider;
   openaiBaseUrl?: string;
+  whisperBackend?: WhisperBackend;
+  whisperApiBaseUrl?: string;
+  whisperApiKey?: string;
+  whisperApiModel?: string;
 }
 
 export interface ClaudeModel {
