@@ -37,6 +37,11 @@ class TestRenderTemplatePreview:
         result = render_template_preview("Event: {{ event }}")
         assert result == f"Event: {EVENT_EPISODE_PROCESSED}"
 
+    def test_render_template_preview_podcast_name(self):
+        """Podcast name and slug are available in template context."""
+        result = render_template_preview("{{ podcast.name }} ({{ podcast.slug }})")
+        assert result == "Example Podcast (example-podcast)"
+
     def test_render_template_preview_invalid(self):
         """Raises on bad template syntax."""
         with pytest.raises(TemplateSyntaxError):
@@ -67,8 +72,11 @@ class TestBuildContext:
             error_message=None,
             original_duration=600.0,
             new_duration=500.0,
+            podcast_name='My Podcast',
         )
         assert ctx['event'] == EVENT_EPISODE_PROCESSED
+        assert ctx['podcast']['name'] == 'My Podcast'
+        assert ctx['podcast']['slug'] == 'my-pod'
         assert ctx['episode']['id'] == 'ep1'
         assert ctx['episode']['title'] == 'My Episode'
         assert ctx['episode']['slug'] == 'my-pod'
@@ -81,6 +89,23 @@ class TestBuildContext:
         assert ctx['episode']['time_saved'] == '1:40'
         assert ctx['episode']['error_message'] is None
         assert 'timestamp' in ctx
+
+    def test_build_context_podcast_name_defaults_to_slug(self):
+        """When podcast_name is not provided, podcast.name falls back to slug."""
+        ctx = _build_context(
+            event=EVENT_EPISODE_PROCESSED,
+            episode_id='ep1',
+            slug='my-pod',
+            episode_title='My Episode',
+            processing_time=30.0,
+            llm_cost=0.0,
+            ads_removed=0,
+            error_message=None,
+            original_duration=None,
+            new_duration=None,
+        )
+        assert ctx['podcast']['name'] == 'my-pod'
+        assert ctx['podcast']['slug'] == 'my-pod'
 
     def test_build_context_no_duration(self):
         """When original_duration/new_duration are None, time_saved_secs is None."""
@@ -96,6 +121,8 @@ class TestBuildContext:
             original_duration=None,
             new_duration=None,
         )
+        assert ctx['podcast']['name'] == 'pod'
+        assert ctx['podcast']['slug'] == 'pod'
         assert ctx['episode']['time_saved_secs'] is None
         assert ctx['episode']['time_saved'] is None
         assert ctx['episode']['processing_time'] == '0:10'

@@ -656,6 +656,7 @@ def _finalize_episode(slug, episode_id, episode_title, podcast_name,
             processing_time=processing_time, llm_cost=token_totals['cost'],
             ads_removed=len(ads_to_remove) + verification_count,
             original_duration=original_duration, new_duration=new_duration,
+            podcast_name=podcast_name,
         )
     except Exception as wh_err:
         audio_logger.warning(f"[{slug}:{episode_id}] Webhook fire failed: {wh_err}")
@@ -724,6 +725,7 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
                 episode_id=episode_id, slug=slug, episode_title=episode_title,
                 processing_time=processing_time, llm_cost=token_totals['cost'],
                 error_message=str(error),
+                podcast_name=podcast_name,
             )
         except Exception as wh_err:
             audio_logger.warning(f"[{slug}:{episode_id}] Webhook fire failed: {wh_err}")

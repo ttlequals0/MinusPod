@@ -581,6 +581,8 @@ Custom payload templates are Jinja2 strings rendered against these variables:
 |---|---|---|
 | `event` | string | `Episode Processed` or `Episode Failed` |
 | `timestamp` | string | ISO 8601 UTC timestamp |
+| `podcast.name` | string | Podcast title (falls back to slug if unavailable) |
+| `podcast.slug` | string | Feed slug |
 | `episode.id` | string | Episode ID |
 | `episode.title` | string | Episode title |
 | `episode.slug` | string | Feed slug |
@@ -608,7 +610,7 @@ Pushover supports native webhook ingestion with data extraction selectors. No cu
 
 | Field | Selector |
 |---|---|
-| Title | `{{event}}` |
+| Title | `{{podcast.name}} - {{event}}` |
 | Body | `{{episode.title}}`<br>`{{episode.ads_removed}} ads removed. Saved {{episode.time_saved}}. Cost {{episode.llm_cost_display}}` |
 | URL | `{{episode.url}}` |
 | URL Title | `Open in MinusPod` |
@@ -628,7 +630,7 @@ ntfy requires a custom payload template to match its expected JSON format.
      ```json
      {
        "topic": "your-topic",
-       "title": "{{ episode.title }}",
+       "title": "{{ podcast.name }} - {{ episode.title }}",
        "message": "Removed {{ episode.ads_removed }} ads in {{ episode.processing_time }}. Cost {{ episode.llm_cost_display }}",
        "actions": [{"action": "view", "label": "Open Episode", "url": "{{ episode.url }}"}]
      }

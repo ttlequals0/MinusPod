@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.53] - 2026-03-13
+
+### Added
+- **Podcast name in webhook payloads**: Webhook payloads now include a `podcast` section with `name` and `slug` fields, available as `podcast.name` and `podcast.slug` template variables
+- Test webhook and template preview also include podcast name data
+
 ## [1.0.52] - 2026-03-12
 
 ### Added

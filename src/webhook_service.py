@@ -50,6 +50,10 @@ def _format_cost(cost):
 _DUMMY_CONTEXT = {
     'event': 'Episode Processed',
     'timestamp': '',  # overwritten at render time with current UTC
+    'podcast': {
+        'name': 'Example Podcast',
+        'slug': 'example-podcast',
+    },
     'episode': {
         'id': 'abc123',
         'title': 'Example Episode Title',
@@ -69,7 +73,7 @@ _DUMMY_CONTEXT = {
 
 def _build_context(event, episode_id, slug, episode_title, processing_time,
                    llm_cost, ads_removed, error_message, original_duration,
-                   new_duration):
+                   new_duration, podcast_name=None):
     """Build the template/payload context dict for a webhook event."""
     ui_base_url = os.environ.get('UI_BASE_URL') or os.environ.get('BASE_URL', 'http://localhost:8000')
     episode_url = f"{ui_base_url}/ui/feeds/{slug}/episodes/{episode_id}"
@@ -87,6 +91,10 @@ def _build_context(event, episode_id, slug, episode_title, processing_time,
         'timestamp': datetime.datetime.now(datetime.timezone.utc).strftime(
             '%Y-%m-%dT%H:%M:%SZ'
         ),
+        'podcast': {
+            'name': podcast_name or slug,
+            'slug': slug,
+        },
         'episode': {
             'id': episode_id,
             'title': episode_title,
@@ -203,7 +211,7 @@ def load_webhooks(db=None):
 
 def _fire_event_sync(event, episode_id, slug, episode_title, processing_time,
                      llm_cost, ads_removed, error_message, original_duration,
-                     new_duration):
+                     new_duration, podcast_name=None):
     """Synchronous webhook dispatch -- called in a daemon thread by fire_event."""
     webhooks = load_webhooks()
     if not webhooks:
@@ -212,6 +220,7 @@ def _fire_event_sync(event, episode_id, slug, episode_title, processing_time,
     context = _build_context(
         event, episode_id, slug, episode_title, processing_time,
         llm_cost, ads_removed, error_message, original_duration, new_duration,
+        podcast_name=podcast_name,
     )
 
     for wh in webhooks:
@@ -227,7 +236,8 @@ def _fire_event_sync(event, episode_id, slug, episode_title, processing_time,
 
 def fire_event(event, episode_id, slug, episode_title, processing_time,
                llm_cost, ads_removed=0, error_message=None,
-               original_duration=None, new_duration=None):
+               original_duration=None, new_duration=None,
+               podcast_name=None):
     """Load webhooks from DB and dispatch to all matching subscribers.
 
     Dispatches in a daemon thread so the processing pipeline is never blocked.
@@ -240,7 +250,7 @@ def fire_event(event, episode_id, slug, episode_title, processing_time,
         target=_fire_event_sync,
         args=(event, episode_id, slug, episode_title, processing_time,
               llm_cost, ads_removed, error_message, original_duration,
-              new_duration),
+              new_duration, podcast_name),
         daemon=True,
     )
     thread.start()
@@ -284,6 +294,7 @@ def fire_test_event(webhook_config):
                 error_message=None,
                 original_duration=row['original_duration'],
                 new_duration=row['new_duration'],
+                podcast_name=row.get('podcast_title'),
             )
     except Exception:
         logger.debug("Could not load real data for test webhook, using placeholders")
