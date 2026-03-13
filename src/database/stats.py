@@ -401,15 +401,15 @@ class StatsMixin:
 
         # LLM token/cost totals from completed entries
         cursor = conn.execute(
-            """SELECT COALESCE(SUM(input_tokens), 0),
-                      COALESCE(SUM(output_tokens), 0),
-                      COALESCE(SUM(llm_cost), 0.0)
+            """SELECT COALESCE(SUM(input_tokens), 0) AS total_input_tokens,
+                      COALESCE(SUM(output_tokens), 0) AS total_output_tokens,
+                      COALESCE(SUM(llm_cost), 0.0) AS total_llm_cost
                FROM processing_history WHERE status = 'completed'"""
         )
         row = cursor.fetchone()
-        total_input_tokens = row[0]
-        total_output_tokens = row[1]
-        total_llm_cost = row[2]
+        total_input_tokens = row['total_input_tokens']
+        total_output_tokens = row['total_output_tokens']
+        total_llm_cost = row['total_llm_cost']
 
         return {
             'total_processed': total_processed,
@@ -504,13 +504,13 @@ class StatsMixin:
         if row is None:
             return None
         return {
-            'episode_id': row[0],
-            'podcast_slug': row[1],
-            'episode_title': row[2],
-            'processing_duration_seconds': row[3],
-            'llm_cost': row[4],
-            'ads_detected': row[5],
-            'original_duration': row[6],
-            'new_duration': row[7],
-            'podcast_title': row[8],
+            'episode_id': row['episode_id'],
+            'podcast_slug': row['podcast_slug'],
+            'episode_title': row['episode_title'],
+            'processing_duration_seconds': row['processing_duration_seconds'],
+            'llm_cost': row['llm_cost'],
+            'ads_detected': row['ads_detected'],
+            'original_duration': row['original_duration'],
+            'new_duration': row['new_duration'],
+            'podcast_title': row['podcast_title'],
         }
