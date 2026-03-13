@@ -51,7 +51,6 @@ function Settings() {
   const [whisperApiConfig, setWhisperApiConfig] = useState<WhisperApiConfig>({
     baseUrl: '', apiKey: '', apiKeyConfigured: undefined, model: 'whisper-1',
   });
-  const [cleanupConfirm, setCleanupConfirm] = useState(false);
   const [retentionDays, setRetentionDays] = useState(30);
   const [retentionEnabled, setRetentionEnabled] = useState(true);
 
@@ -216,18 +215,8 @@ function Settings() {
     mutationFn: runCleanup,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['status'] });
-      setCleanupConfirm(false);
     },
   });
-
-  const handleCleanup = () => {
-    if (cleanupConfirm) {
-      cleanupMutation.mutate();
-    } else {
-      setCleanupConfirm(true);
-      setTimeout(() => setCleanupConfirm(false), 3000);
-    }
-  };
 
   if (settingsLoading) {
     return <LoadingSpinner className="py-12" />;
@@ -344,10 +333,9 @@ function Settings() {
       />
 
       <DataManagementSection
-        cleanupConfirm={cleanupConfirm}
-        cleanupIsPending={cleanupMutation.isPending}
-        cleanupData={cleanupMutation.data}
-        onCleanup={handleCleanup}
+        onResetEpisodes={() => cleanupMutation.mutate()}
+        resetIsPending={cleanupMutation.isPending}
+        resetData={cleanupMutation.data}
       />
 
       <WebhooksSection />
