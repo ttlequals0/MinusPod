@@ -3,13 +3,17 @@ LLM Client Abstraction for MinusPod
 
 Supports multiple backends:
 - anthropic: Direct Anthropic API (default, uses API credits)
+- openrouter: OpenRouter API (access 200+ models via one API key)
 - openai-compatible: OpenAI-compatible APIs (Claude Code wrapper, Ollama, etc.)
 
 Configuration via environment variables:
-    LLM_PROVIDER: "anthropic" (default) or "openai-compatible"
+    LLM_PROVIDER: "anthropic" (default), "openrouter", or "openai-compatible"
 
     For anthropic:
         ANTHROPIC_API_KEY: Your API key
+
+    For openrouter:
+        OPENROUTER_API_KEY: Your OpenRouter API key
 
     For openai-compatible:
         OPENAI_BASE_URL: API endpoint (default: http://localhost:8000/v1)
@@ -92,9 +96,10 @@ _PROVIDER_CACHE_TTL = 5.0  # seconds
 # =========================================================================
 
 PROVIDER_ANTHROPIC = 'anthropic'
+PROVIDER_OPENROUTER = 'openrouter'
 PROVIDER_OPENAI_COMPATIBLE = 'openai-compatible'
 PROVIDER_OLLAMA = 'ollama'
-PROVIDERS_NON_ANTHROPIC = ('openai-compatible', 'openai', 'wrapper', 'ollama')
+PROVIDERS_NON_ANTHROPIC = ('openai-compatible', 'openai', 'wrapper', 'ollama', 'openrouter')
 
 
 def _get_cached_setting(key: str) -> Optional[str]:
@@ -142,6 +147,14 @@ def get_effective_base_url() -> str:
     if db_val:
         return db_val
     return os.environ.get('OPENAI_BASE_URL', 'http://localhost:8000/v1')
+
+
+def get_effective_openrouter_api_key() -> Optional[str]:
+    """Return the OpenRouter API key, checking DB first then env var."""
+    db_val = _get_cached_setting('openrouter_api_key')
+    if db_val:
+        return db_val
+    return os.environ.get('OPENROUTER_API_KEY')
 
 
 class LLMClient(ABC):
@@ -334,22 +347,27 @@ class OpenAICompatibleClient(LLMClient):
         self,
         base_url: Optional[str] = None,
         api_key: Optional[str] = None,
-        default_model: Optional[str] = None
+        default_model: Optional[str] = None,
+        extra_headers: Optional[Dict[str, str]] = None
     ):
         super().__init__()
         self.base_url = base_url or os.environ.get('OPENAI_BASE_URL', 'http://localhost:8000/v1')
         self.api_key = api_key or os.environ.get('OPENAI_API_KEY', 'not-needed')
         self.default_model = default_model or os.environ.get('OPENAI_MODEL', 'claude-sonnet-4-5-20250929')
+        self.extra_headers = extra_headers or {}
         self._client = None
 
     def _ensure_client(self):
         """Lazy initialize the OpenAI client."""
         if self._client is None:
             from openai import OpenAI
-            self._client = OpenAI(
-                base_url=self.base_url,
-                api_key=self.api_key
-            )
+            kwargs: Dict[str, Any] = {
+                'base_url': self.base_url,
+                'api_key': self.api_key,
+            }
+            if self.extra_headers:
+                kwargs['default_headers'] = self.extra_headers
+            self._client = OpenAI(**kwargs)
             logger.info(f"OpenAI-compatible client initialized (base_url: {self.base_url})")
 
     def messages_create(
@@ -524,28 +542,28 @@ class OpenAICompatibleClient(LLMClient):
 def get_llm_timeout() -> float:
     """Return the LLM request timeout based on the configured provider.
 
-    Non-Anthropic providers get a longer timeout since inference may be
-    on-device or routed through a wrapper and significantly slower than
-    the direct Anthropic API.
+    Non-Anthropic providers (except OpenRouter, which is a fast cloud API)
+    get a longer timeout since inference may be on-device or routed through
+    a wrapper and significantly slower than the direct Anthropic API.
     """
     from config import LLM_TIMEOUT_DEFAULT, LLM_TIMEOUT_LOCAL
     provider = get_effective_provider()
-    if provider != PROVIDER_ANTHROPIC:
-        return LLM_TIMEOUT_LOCAL
-    return LLM_TIMEOUT_DEFAULT
+    if provider in (PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER):
+        return LLM_TIMEOUT_DEFAULT
+    return LLM_TIMEOUT_LOCAL
 
 
 def get_llm_max_retries() -> int:
     """Return the max retry count based on the configured provider.
 
-    Non-Anthropic providers use fewer retries since each attempt may be
-    slower than the direct Anthropic API.
+    Non-Anthropic providers (except OpenRouter) use fewer retries since
+    each attempt may be slower than the direct Anthropic API.
     """
     from config import LLM_RETRY_MAX_RETRIES, LLM_RETRY_MAX_RETRIES_LOCAL
     provider = get_effective_provider()
-    if provider != PROVIDER_ANTHROPIC:
-        return LLM_RETRY_MAX_RETRIES_LOCAL
-    return LLM_RETRY_MAX_RETRIES
+    if provider in (PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER):
+        return LLM_RETRY_MAX_RETRIES
+    return LLM_RETRY_MAX_RETRIES_LOCAL
 
 
 # =============================================================================
@@ -655,6 +673,17 @@ def get_llm_client(force_new: bool = False) -> LLMClient:
 
     if provider == PROVIDER_ANTHROPIC:
         _cached_client = AnthropicClient()
+    elif provider == PROVIDER_OPENROUTER:
+        from config import OPENROUTER_BASE_URL, OPENROUTER_HTTP_REFERER, OPENROUTER_APP_TITLE
+        api_key = get_effective_openrouter_api_key() or 'not-needed'
+        _cached_client = OpenAICompatibleClient(
+            base_url=OPENROUTER_BASE_URL,
+            api_key=api_key,
+            extra_headers={
+                'HTTP-Referer': OPENROUTER_HTTP_REFERER,
+                'X-Title': OPENROUTER_APP_TITLE,
+            }
+        )
     elif provider in PROVIDERS_NON_ANTHROPIC:
         base_url = get_effective_base_url()
         if provider == PROVIDER_OLLAMA and not base_url.rstrip('/').endswith('/v1'):
@@ -682,6 +711,8 @@ def get_api_key() -> Optional[str]:
 
     if provider == PROVIDER_ANTHROPIC:
         return os.environ.get('ANTHROPIC_API_KEY')
+    elif provider == PROVIDER_OPENROUTER:
+        return get_effective_openrouter_api_key()
     else:
         return os.environ.get('OPENAI_API_KEY', os.environ.get('ANTHROPIC_API_KEY', 'not-needed'))
 
@@ -698,7 +729,15 @@ def verify_llm_connection() -> bool:
     """
     provider = get_effective_provider()
 
-    if provider in PROVIDERS_NON_ANTHROPIC:
+    if provider == PROVIDER_OPENROUTER:
+        from config import OPENROUTER_BASE_URL
+        api_key = get_effective_openrouter_api_key()
+        if not api_key:
+            logger.warning("No OPENROUTER_API_KEY configured - ad detection and chapter generation will be disabled")
+            return False
+        logger.info(f"LLM provider: openrouter (API key configured, endpoint: {OPENROUTER_BASE_URL})")
+        return True
+    elif provider in PROVIDERS_NON_ANTHROPIC:
         base_url = get_effective_base_url()
         if provider == PROVIDER_OLLAMA and not base_url.rstrip('/').endswith('/v1'):
             base_url = base_url.rstrip('/') + '/v1'

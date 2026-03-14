@@ -165,6 +165,12 @@ API_CHUNK_DURATION_SECONDS = 600
 # Whisper backend identifiers
 WHISPER_BACKEND_LOCAL = 'local'
 WHISPER_BACKEND_API = 'openai-api'
+WHISPER_BACKEND_OPENROUTER = 'openrouter-api'
+
+# OpenRouter API
+OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1'
+OPENROUTER_HTTP_REFERER = 'https://github.com/ttlequals0/minuspod'
+OPENROUTER_APP_TITLE = 'MinusPod'
 
 # Memory safety margin - don't use all available memory
 MEMORY_SAFETY_MARGIN = 0.7           # Use only 70% of available memory

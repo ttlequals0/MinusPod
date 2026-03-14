@@ -86,6 +86,7 @@ class SettingsMixin:
             'chapters_model': chapters_default,
             'llm_provider': os.environ.get('LLM_PROVIDER', 'anthropic'),
             'openai_base_url': os.environ.get('OPENAI_BASE_URL', 'http://localhost:8000/v1'),
+            'openrouter_api_key': '',  # Reset clears DB value; env var is read at runtime
             'min_cut_confidence': '0.80',
             'auto_process_enabled': 'true',
             'whisper_backend': os.environ.get('WHISPER_BACKEND', 'local'),
