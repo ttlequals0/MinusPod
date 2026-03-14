@@ -1,118 +1,131 @@
-version: '3.8'
+# docker-compose.yml — Coolify deployment
+#
+# Coolify setup:
+#   1. Create a new "Docker Compose" application in Coolify
+#   2. Point it at this repository
+#   3. Set the service name to "minuspod" and port to 8000
+#   4. Add environment variables in Coolify's UI (see .env.example)
+#   5. Deploy — Coolify builds the image and handles SSL/routing via Traefik
+#
+# GPU (optional): Enable the NVIDIA runtime in Coolify host settings,
+# then uncomment the `deploy.resources.reservations` block below and
+# set WHISPER_BACKEND=local + WHISPER_DEVICE=cuda.
 
 services:
   minuspod:
-    image: ttlequals0/minuspod:latest
-    ports:
-      - "8000:8000"
+    build: .
+    expose:
+      - "8000"
     volumes:
-      - ./data:/app/data
-      # Optional: Custom assets directory for replacement audio
-      # Place your own replace.mp3 file here to customize the sound played where ads were removed
-      # If not mounted, the built-in default audio marker is used
+      - minuspod-data:/app/data
+      # Optional: custom replacement audio (place replace.mp3 here)
       # - ./assets:/app/assets:ro
     environment:
       # =================================================================
-      # LLM Provider Configuration
+      # LLM Provider — pick ONE option, set the rest blank or omit them
       # =================================================================
-      # Option 1: OpenRouter (access 200+ models via one API key)
-      # Set LLM_PROVIDER=openrouter and configure:
-      # - OPENROUTER_API_KEY=sk-or-v1-...
-      # - OPENAI_MODEL=anthropic/claude-sonnet-4-5  (or any OpenRouter model ID)
+
+      # Option 1: OpenRouter  (default — 200+ models, one API key)
       - LLM_PROVIDER=${LLM_PROVIDER:-openrouter}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
 
-      # Option 2: Direct Anthropic API (uses Anthropic API credits)
-      # Set LLM_PROVIDER=anthropic and configure:
-      # - ANTHROPIC_API_KEY=sk-ant-...
+      # Option 2: Anthropic API
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
 
-      # Option 3: OpenAI-compatible API (Claude Code wrapper, Ollama, etc.)
-      # Set LLM_PROVIDER=openai-compatible and configure:
-      # - OPENAI_BASE_URL=http://claude-wrapper:8000/v1
-      # - OPENAI_API_KEY=${OPENAI_API_KEY:-not-needed}
-      # - OPENAI_MODEL=claude-sonnet-4-5-20250929
+      # Option 3: OpenAI-compatible endpoint (Ollama, local wrapper, etc.)
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL}
 
       # =================================================================
-      # Whisper Configuration
+      # Whisper transcription — pick ONE option
       # =================================================================
-      # Option 1: OpenRouter Whisper API (uses OPENROUTER_API_KEY above)
-      # Set WHISPER_BACKEND=openrouter-api to route transcription via OpenRouter
-      # - WHISPER_BACKEND=openrouter-api
-      # - WHISPER_API_MODEL=openai/whisper-large-v3-turbo  (or any supported model)
 
-      # Option 2: Local Whisper (GPU required)
+      # Option 1: OpenRouter Whisper API  (default — no GPU required)
+      - WHISPER_BACKEND=${WHISPER_BACKEND:-openrouter-api}
+      - WHISPER_API_MODEL=${WHISPER_API_MODEL:-openai/whisper-large-v3-turbo}
+
+      # Option 2: External Whisper API (Groq, OpenAI, whisper.cpp)
+      - WHISPER_API_BASE_URL=${WHISPER_API_BASE_URL}
+      - WHISPER_API_KEY=${WHISPER_API_KEY}
+
+      # Option 3: Local Whisper  (requires GPU — see deploy block below)
       - WHISPER_MODEL=${WHISPER_MODEL:-small}
-      - WHISPER_DEVICE=${WHISPER_DEVICE:-cuda}
-
-      # Option 3: External OpenAI-compatible Whisper API (Groq, OpenAI, whisper.cpp)
-      # - WHISPER_BACKEND=openai-api
-      # - WHISPER_API_BASE_URL=https://api.groq.com/openai/v1
-      # - WHISPER_API_KEY=${WHISPER_API_KEY}
-      # - WHISPER_API_MODEL=whisper-large-v3-turbo
+      - WHISPER_DEVICE=${WHISPER_DEVICE:-cpu}
 
       # =================================================================
-      # Server Configuration
+      # Server
       # =================================================================
-      - BASE_URL=${BASE_URL:-http://localhost:8000}
+      # Set BASE_URL to the public domain Coolify assigns (e.g. https://minuspod.example.com)
+      - BASE_URL=${BASE_URL}
       - RETENTION_PERIOD=${RETENTION_PERIOD:-1440}
 
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     restart: unless-stopped
-    expose:
-      - "8000"
-    # Uncomment if using the wrapper service
-    # depends_on:
-    #   - claude-wrapper
+
+    # Uncomment for GPU-accelerated local Whisper.
+    # Requires the NVIDIA Container Toolkit on the Coolify host.
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
 
   # =================================================================
-  # Claude Code OpenAI Wrapper (Optional)
+  # Optional: whisper.cpp  (local GPU transcription server)
   # =================================================================
-  # Uses your Claude Max subscription instead of API credits
-  # Enable with: docker compose --profile wrapper up -d
+  # For Coolify we recommend OpenRouter or Groq instead — they need no
+  # model download and no GPU.  Enable this only if you have a GPU host
+  # and want fully self-hosted transcription.
   #
-  # First time setup:
-  # 1. docker compose --profile wrapper run --rm claude-wrapper claude auth login
-  # 2. Follow the OAuth prompts to authenticate
-  # 3. docker compose --profile wrapper up -d
+  # Pre-requisite (run once on the host before deploying):
+  #   git clone --depth 1 https://github.com/ggml-org/whisper.cpp
+  #   bash whisper.cpp/models/download-ggml-model.sh large-v3-turbo
+  #   mkdir -p models && mv whisper.cpp/models/ggml-large-v3-turbo.bin models/
   #
-  # Or use API key directly by setting ANTHROPIC_API_KEY in the wrapper
-  claude-wrapper:
-    image: ghcr.io/richardatct/claude-code-openai-wrapper:latest
-    ports:
-      - "8001:8000"  # Expose on different port to avoid conflict
-    environment:
-      # Option A: Use API key (simpler, uses API credits)
-      # - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-
-      # Option B: Use OAuth (uses Max subscription)
-      # Leave ANTHROPIC_API_KEY unset and use `claude auth login`
-
-      # Optional: Protect the wrapper endpoint with an API key
-      # - ENABLE_API_KEY_PROTECTION=true
-    volumes:
-      # Persist Claude CLI authentication
-      - claude-auth:/root/.claude
-    restart: unless-stopped
-    profiles:
-      - wrapper
-
-  tunnel:
-    image: cloudflare/cloudflared
-    command: tunnel run
-    environment:
-      - TUNNEL_TOKEN=${TUNNEL_TOKEN}
-    depends_on:
-      - minuspod
-    restart: unless-stopped
-    profiles:
-      - tunnel
+  # Then set these env vars in Coolify:
+  #   WHISPER_BACKEND=openai-api
+  #   WHISPER_API_BASE_URL=http://whisper-server:8765/v1
+  #   WHISPER_DEVICE=cpu   (MinusPod won't load a local model)
+  #
+  # whisper-server:
+  #   image: ghcr.io/ggml-org/whisper.cpp:main-cuda
+  #   platform: linux/amd64
+  #   volumes:
+  #     - ./models:/models
+  #   working_dir: /tmp
+  #   command:
+  #     - >-
+  #       whisper-server
+  #       --host 0.0.0.0
+  #       --port 8765
+  #       --model /models/ggml-large-v3-turbo.bin
+  #       --inference-path /v1/audio/transcriptions
+  #       --threads 8
+  #       --processors 1
+  #       --dtw large.v3.turbo
+  #       --no-flash-attn
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "curl -sf http://localhost:8765/health || exit 1"]
+  #     interval: 30s
+  #     timeout: 5s
+  #     retries: 3
+  #     start_period: 30s
+  #   restart: unless-stopped
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: 1
+  #             capabilities: [gpu]
 
 volumes:
-  claude-auth:
+  minuspod-data:
