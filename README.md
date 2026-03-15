@@ -10,7 +10,6 @@ Removes ads from podcasts using Whisper transcription. Serves modified RSS feeds
 
 - [How It Works](#how-it-works)
 - [Advanced Features (Quick Reference)](#advanced-features-quick-reference)
-- [Using OpenRouter](#using-openrouter)
 - [Requirements](#requirements)
 - [Quick Start](#quick-start)
 - [Web Interface](#web-interface)
@@ -24,6 +23,7 @@ Removes ads from podcasts using Whisper transcription. Serves modified RSS feeds
   - [Using Claude Code Wrapper (Max Subscription)](#using-claude-code-wrapper-max-subscription)
 - [Using Ollama (Local LLM)](#using-ollama-local-llm)
 - [Remote Whisper Transcription](#remote-whisper-transcription)
+- [Using OpenRouter](#using-openrouter)
 - [API](#api)
 - [Webhooks](#webhooks)
 - [Remote Access](#remote-access)
@@ -159,52 +159,6 @@ Audio analysis runs automatically on every episode (lightweight, uses only ffmpe
 - **Volume Analysis** - Detects loudness anomalies using EBU R128 measurement. Identifies sections mastered at different levels than the content baseline.
 - **Transition Detection** - Finds abrupt frame-to-frame loudness jumps that indicate dynamically inserted ad (DAI) boundaries. Pairs up/down transitions into candidate ad regions.
 - **Audio Enforcement** - After Claude detection, uncovered audio signals with ad language in the transcript are promoted to ads. DAI transitions with high confidence (>=0.8) or sponsor matches are also promoted. Existing ad boundaries are extended when signals partially overlap.
-
-## Using OpenRouter
-
-[OpenRouter](https://openrouter.ai) is a unified API that routes to 200+ models (Claude, GPT, Gemini, open-weights) with one API key. It also supports Whisper transcription, so you can run MinusPod without an NVIDIA GPU.
-
-### Setup
-
-1. Get an API key from [openrouter.ai/keys](https://openrouter.ai/keys)
-2. Use the pre-configured compose file:
-
-```bash
-# Create .env
-echo "OPENROUTER_API_KEY=sk-or-v1-your-key-here" > .env
-
-# Start (no GPU required)
-docker compose -f docker-compose.openrouter.yml up -d
-```
-
-Or add OpenRouter to an existing setup:
-
-```bash
-LLM_PROVIDER=openrouter
-OPENROUTER_API_KEY=sk-or-v1-your-key-here
-```
-
-### Whisper via OpenRouter
-
-To skip local GPU transcription entirely, point Whisper at OpenRouter too:
-
-```bash
-WHISPER_BACKEND=openrouter-api
-WHISPER_API_MODEL=openai/whisper-large-v3-turbo
-WHISPER_DEVICE=cpu
-```
-
-### Model Selection
-
-Change the model in the Settings UI or with the `OPENAI_MODEL` env var. Any [OpenRouter model ID](https://openrouter.ai/models) works:
-
-- `anthropic/claude-sonnet-4-5` -- Claude Sonnet via OpenRouter
-- `openai/gpt-4o` -- GPT-4o via OpenRouter
-- `google/gemini-2.5-flash-preview` -- Gemini Flash via OpenRouter
-
-All of these can be changed at runtime from the Settings UI -- no container restart needed.
-
-See [`docker-compose.openrouter.yml`](docker-compose.openrouter.yml) for a full working example.
 
 ## Requirements
 
@@ -643,6 +597,52 @@ WHISPER_DEVICE=cpu
 ```
 
 All settings can also be configured via the Settings UI under the Transcription section.
+
+## Using OpenRouter
+
+[OpenRouter](https://openrouter.ai) is a unified API that routes to 200+ models (Claude, GPT, Gemini, open-weights) with one API key. It also supports Whisper transcription, so you can run MinusPod without an NVIDIA GPU.
+
+### Setup
+
+1. Get an API key from [openrouter.ai/keys](https://openrouter.ai/keys)
+2. Use the pre-configured compose file:
+
+```bash
+# Create .env
+echo "OPENROUTER_API_KEY=sk-or-v1-your-key-here" > .env
+
+# Start (no GPU required)
+docker compose -f docker-compose.openrouter.yml up -d
+```
+
+Or add OpenRouter to an existing setup:
+
+```bash
+LLM_PROVIDER=openrouter
+OPENROUTER_API_KEY=sk-or-v1-your-key-here
+```
+
+### Whisper via OpenRouter
+
+To skip local GPU transcription entirely, point Whisper at OpenRouter too:
+
+```bash
+WHISPER_BACKEND=openrouter-api
+WHISPER_API_MODEL=openai/whisper-large-v3-turbo
+WHISPER_DEVICE=cpu
+```
+
+### Model Selection
+
+Change the model in the Settings UI or with the `OPENAI_MODEL` env var. Any [OpenRouter model ID](https://openrouter.ai/models) works:
+
+- `anthropic/claude-sonnet-4-5` -- Claude Sonnet via OpenRouter
+- `openai/gpt-4o` -- GPT-4o via OpenRouter
+- `google/gemini-2.5-flash-preview` -- Gemini Flash via OpenRouter
+
+All of these can be changed at runtime from the Settings UI -- no container restart needed.
+
+See [`docker-compose.openrouter.yml`](docker-compose.openrouter.yml) for a full working example.
 
 ## API
 
