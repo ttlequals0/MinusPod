@@ -14,6 +14,7 @@ import urllib.error
 from jinja2 import TemplateError
 from jinja2.sandbox import SandboxedEnvironment
 
+from utils.time import utc_now_iso
 from utils.url import validate_url, SSRFError
 
 logger = logging.getLogger('podcast.webhooks')
@@ -263,7 +264,7 @@ def render_template_preview(template_string):
     templates so callers can surface the error to the user.
     """
     context = dict(_DUMMY_CONTEXT)
-    context['timestamp'] = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+    context['timestamp'] = utc_now_iso()
     return _render_template(template_string, context)
 
 
@@ -301,7 +302,7 @@ def fire_test_event(webhook_config):
 
     if context is None:
         context = dict(_DUMMY_CONTEXT)
-        context['timestamp'] = datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+        context['timestamp'] = utc_now_iso()
 
     status = _prepare_and_dispatch(webhook_config, context, add_test_flag=True, max_attempts=1)
     if status is not None and 200 <= status < 300:

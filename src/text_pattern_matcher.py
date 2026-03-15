@@ -1030,11 +1030,11 @@ class TextPatternMatcher:
 
         # Disable original pattern if we created new ones
         if new_ids:
-            from datetime import datetime, timezone
+            from utils.time import utc_now_iso
             self.db.update_ad_pattern(
                 pattern_id,
                 is_active=0,
-                disabled_at=datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+                disabled_at=utc_now_iso(),
                 disabled_reason=f"Split into patterns: {new_ids}"
             )
             logger.info(f"Disabled original pattern {pattern_id}, "

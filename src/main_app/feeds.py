@@ -4,6 +4,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 
+from utils.time import utc_now_iso
+
 from slugify import slugify
 
 from main_app.cache import TTLCache
@@ -105,6 +107,10 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
                     )
                 else:
                     refresh_logger.info(f"[{slug}] Feed unchanged (304), skipping refresh")
+                    db.update_podcast(
+                        slug,
+                        last_checked_at=utc_now_iso()
+                    )
                     status_service.complete_feed_refresh(slug, 0)
                     return True
             else:
@@ -136,7 +142,7 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
                 title=title,
                 description=description,
                 artwork_url=artwork_url,
-                last_checked_at=datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+                last_checked_at=utc_now_iso()
             )
 
             # Update ETag for conditional GET on next refresh
@@ -195,8 +201,8 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
                             slug, ep.get('title'), iso_published
                         )
                         if existing_by_title and existing_by_title['episode_id'] != ep['id']:
-                            refresh_logger.warning(
-                                f"[{slug}] Episode ID changed: {existing_by_title['episode_id']} -> {ep['id']}, "
+                            refresh_logger.debug(
+                                f"[{slug}] Episode ID updated: {existing_by_title['episode_id']} -> {ep['id']}, "
                                 f"title: {ep.get('title')}"
                             )
                             continue  # Skip - episode already exists with different ID
@@ -241,7 +247,7 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
         storage.save_rss(slug, modified_rss)
 
         # Update last_checked timestamp
-        db.update_podcast(slug, last_checked_at=datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'))
+        db.update_podcast(slug, last_checked_at=utc_now_iso())
 
         refresh_logger.info(f"[{slug}] RSS refresh complete")
         status_service.complete_feed_refresh(slug, 0)

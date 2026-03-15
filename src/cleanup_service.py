@@ -14,6 +14,8 @@ import sqlite3
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional
 
+from utils.time import utc_now_iso
+
 logger = logging.getLogger('podcast.cleanup')
 
 # Default settings (can be overridden in database)
@@ -173,7 +175,7 @@ class CleanupService:
             self.db.update_ad_pattern(
                 pattern_id,
                 is_active=False,
-                disabled_at=datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+                disabled_at=utc_now_iso(),
                 disabled_reason=reason
             )
         except Exception as e:

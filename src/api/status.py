@@ -25,7 +25,7 @@ def status_stream():
     """
     def generate():
         status_service = get_status_service()
-        update_queue = queue.Queue()
+        update_queue = queue.Queue(maxsize=50)
 
         # Subscribe to status updates
         def on_update(status):

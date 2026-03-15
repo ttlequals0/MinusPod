@@ -754,6 +754,55 @@ class TestBulkUpsertDiscoveredEpisodes:
         ep = temp_db.get_episode(slug, 'ep-1')
         assert ep['episode_number'] == 42
 
+    def test_bulk_upsert_updates_episode_id_on_guid_change_discovered(self, temp_db):
+        """When RSS GUID changes for a discovered episode, update the stored episode_id."""
+        slug = 'bulk-guid-change'
+        temp_db.create_podcast(slug, 'https://example.com/feed.xml', 'Test')
+        pub_date = 'Mon, 10 Mar 2026 12:00:00 +0000'
+
+        # Insert episode with original GUID
+        temp_db.bulk_upsert_discovered_episodes(slug, [
+            self._make_episode('old-guid', title='My Episode', published=pub_date)
+        ])
+        ep = temp_db.get_episode(slug, 'old-guid')
+        assert ep is not None
+        assert ep['status'] == 'discovered'
+
+        # Re-insert same episode with new GUID (same title+date)
+        temp_db.bulk_upsert_discovered_episodes(slug, [
+            self._make_episode('new-guid', title='My Episode', published=pub_date)
+        ])
+
+        # Old ID should be gone, new ID should exist
+        assert temp_db.get_episode(slug, 'old-guid') is None
+        ep = temp_db.get_episode(slug, 'new-guid')
+        assert ep is not None
+        assert ep['status'] == 'discovered'
+
+    def test_bulk_upsert_preserves_episode_id_on_guid_change_processed(self, temp_db):
+        """When RSS GUID changes for a processed episode, do NOT update the stored episode_id."""
+        slug = 'bulk-guid-processed'
+        temp_db.create_podcast(slug, 'https://example.com/feed.xml', 'Test')
+        pub_date = 'Mon, 10 Mar 2026 12:00:00 +0000'
+
+        # Insert and mark as processed
+        temp_db.bulk_upsert_discovered_episodes(slug, [
+            self._make_episode('original-id', title='Processed Ep', published=pub_date)
+        ])
+        temp_db.upsert_episode(slug, 'original-id', status='processed')
+
+        # Re-insert with new GUID
+        temp_db.bulk_upsert_discovered_episodes(slug, [
+            self._make_episode('changed-id', title='Processed Ep', published=pub_date)
+        ])
+
+        # Original ID should still exist with processed status
+        ep = temp_db.get_episode(slug, 'original-id')
+        assert ep is not None
+        assert ep['status'] == 'processed'
+        # New ID should NOT exist
+        assert temp_db.get_episode(slug, 'changed-id') is None
+
     def test_bulk_upsert_nonexistent_slug(self, temp_db):
         count = temp_db.bulk_upsert_discovered_episodes('no-such-slug', [self._make_episode('ep-1')])
         assert count == 0

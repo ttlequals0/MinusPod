@@ -356,6 +356,9 @@ class OpenAICompatibleClient(LLMClient):
         self.default_model = default_model or os.environ.get('OPENAI_MODEL', 'claude-sonnet-4-5-20250929')
         self.extra_headers = extra_headers or {}
         self._client = None
+        # Cache which token parameter each model accepts: "max_completion_tokens" or "max_tokens"
+        # Per-instance to avoid cross-contamination between clients with different base_urls
+        self._token_param_cache: Dict[str, str] = {}
 
     def _ensure_client(self):
         """Lazy initialize the OpenAI client."""
@@ -369,6 +372,22 @@ class OpenAICompatibleClient(LLMClient):
                 kwargs['default_headers'] = self.extra_headers
             self._client = OpenAI(**kwargs)
             logger.info(f"OpenAI-compatible client initialized (base_url: {self.base_url})")
+
+    def _call_with_token_param_fallback(self, model, kwargs, token_param):
+        """Call the API, falling back to the alternate token parameter on 400 errors."""
+        from openai import BadRequestError
+        try:
+            return self._client.chat.completions.create(**kwargs)
+        except BadRequestError as e:
+            alt_param = "max_tokens" if token_param == "max_completion_tokens" else "max_completion_tokens"
+            error_lower = str(e).lower()
+            if token_param not in error_lower and "max_tokens" not in error_lower:
+                raise
+            logger.info(f"Model {model} rejected '{token_param}', retrying with '{alt_param}'")
+            token_value = kwargs.pop(token_param)
+            kwargs[alt_param] = token_value
+            self._token_param_cache[model] = alt_param
+            return self._client.chat.completions.create(**kwargs)
 
     def messages_create(
         self,
@@ -399,10 +418,15 @@ class OpenAICompatibleClient(LLMClient):
             _log_content(f"OpenAI message[{i}] role={msg.get('role')}", content_str)
         io_logger.debug(f"OpenAI request: model={model} temperature={temperature} max_tokens={max_tokens}")
 
-        # Build request kwargs
+        # Build request kwargs with adaptive token parameter
+        # Newer OpenAI models (gpt-5-mini, etc.) require max_completion_tokens
+        # instead of max_tokens. Try cached param first, fallback on error.
+        cached_param = self._token_param_cache.get(model)
+        token_param = cached_param or "max_completion_tokens"
+
         kwargs = {
             "model": model,
-            "max_tokens": max_tokens,
+            token_param: max_tokens,
             "temperature": temperature,
             "messages": all_messages,
             "timeout": timeout
@@ -412,7 +436,10 @@ class OpenAICompatibleClient(LLMClient):
         if response_format:
             kwargs["response_format"] = response_format
 
-        response = self._client.chat.completions.create(**kwargs)
+        if cached_param is not None:
+            response = self._client.chat.completions.create(**kwargs)
+        else:
+            response = self._call_with_token_param_fallback(model, kwargs, token_param)
 
         # Log reasoning/chain-of-thought if present (e.g. qwen3 think mode)
         if response.choices:

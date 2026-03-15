@@ -74,16 +74,16 @@ For long episodes, transcripts are processed in overlapping 10-minute windows:
 - **Overlap** - 3 minutes between windows ensures ads at boundaries aren't missed
 - **Deduplication** - Ads detected in multiple windows are automatically merged
 
-This approach ensures consistent detection quality regardless of episode length. A 60-minute episode is processed as 9 overlapping windows, with any duplicate detections combined into a single ad marker.
+A 60-minute episode is processed as 9 overlapping windows, with duplicate detections merged.
 
 ### Processing Queue
 
 To prevent memory issues from concurrent processing, episodes are processed one at a time:
 
-- **Single Processing** - Only one episode processes at a time (Whisper + FFMPEG are memory-intensive)
-- **Background Processing** - Processing runs in a background thread, keeping UI responsive
-- **Automatic Recovery** - Episodes stuck in "processing" status are automatically reset on server restart
-- **Queue Management** - View and cancel processing episodes in Settings
+- Only one episode processes at a time (Whisper + FFmpeg are memory-intensive)
+- Processing runs in a background thread, keeping the UI responsive
+- Episodes stuck in "processing" status reset automatically on server restart
+- View and cancel processing episodes in Settings
 
 When you request an episode that needs processing:
 1. If nothing is processing, it starts in the background and returns HTTP 503 with `Retry-After: 30`
@@ -109,9 +109,9 @@ Ads are classified as:
 
 Rejected ads appear in a separate "Rejected Detections" section in the UI, allowing you to verify the validator's decisions.
 
-### Cross-Episode Ad Pattern Learning
+### Pattern Learning
 
-The system learns from ad detections across all episodes to improve accuracy over time. When an ad is detected and validated, text patterns are extracted and stored for future matching.
+When an ad is detected and validated, text patterns are extracted and stored for future matching.
 
 **Pattern Hierarchy:**
 - **Global Patterns** - Match across all podcasts (e.g., common sponsors like Squarespace, BetterHelp)
@@ -140,22 +140,16 @@ Access the Patterns page from the navigation bar to:
 
 ### Real-Time Processing Status
 
-A global status bar shows real-time processing progress via Server-Sent Events:
-
-- **Processing Indicator** - Shows currently processing episode title
-- **Stage Display** - Current stage (Transcribing, Detecting Ads, Processing Audio)
-- **Progress Bar** - Visual progress indicator
-- **Queue Depth** - Number of episodes waiting to be processed
-- **Quick Navigation** - Click to view the processing episode
+A global status bar shows real-time processing progress via Server-Sent Events. It displays the current episode title, processing stage (Transcribing, Detecting Ads, Processing Audio), a progress bar, and queue depth. Click it to navigate to the processing episode.
 
 ### Reprocessing Modes
 
 When reprocessing an episode from the UI, two modes are available:
 
-- **Reprocess** (default) - Uses learned patterns from the pattern database plus Claude analysis
-- **Full Analysis** - Skips the pattern database entirely for a fresh Claude-only analysis
+- Reprocess (default) -- uses learned patterns from the pattern database plus Claude analysis
+- Full Analysis -- skips the pattern database entirely for a fresh Claude-only analysis
 
-Full Analysis is useful when you want to re-evaluate an episode without the influence of learned patterns (e.g., after disabling patterns that caused false positives).
+Full Analysis is useful when you want to re-evaluate an episode without learned patterns (e.g., after disabling patterns that caused false positives).
 
 ### Audio Analysis
 
@@ -213,45 +207,32 @@ Access the web UI at `http://localhost:8000/ui/` to add and manage feeds.
 
 The server includes a web-based management UI at `/ui/`:
 
-- **Dashboard** - View all feeds with artwork and episode counts
-- **Add Feed** - Add new podcasts by RSS URL with optional feed cap (max episodes served to clients)
-- **Feed Management** - Refresh, delete, copy feed URLs, set network override, configure per-feed episode cap
-- **Episode Discovery** - All episodes from a feed are surfaced as "discovered" on every refresh. Process any episode at any time from the feed detail page
-- **Bulk Actions** - Select multiple episodes and apply Process, Reprocess, Reprocess (Full), or Delete in one action
-- **Episode Sorting** - Sort by publish date, episode number, or creation date
-- **Pagination** - Feed detail episode list is paginated (25/50/100/500 per page)
-- **Patterns** - View and manage cross-episode ad patterns with sponsor names
-- **History** - View processing history with stats, filtering, and export
-- **Settings** - Configure LLM provider (Anthropic/Ollama/OpenAI-compatible), AI models, ad detection prompts, retention period, view system statistics, LLM token usage and cost
-- **Real-Time Status Bar** - Shows current processing progress across all pages
+- Dashboard with feed artwork and episode counts
+- Add feeds by RSS URL with optional episode cap
+- Feed management: refresh, delete, copy URLs, set network override, per-feed episode cap
+- Episode discovery: all episodes surface on refresh, process any episode from the feed detail page
+- Bulk actions: select multiple episodes to process, reprocess, reprocess (full), or delete
+- Sort by publish date, episode number, or creation date; paginated (25/50/100/500 per page)
+- Pattern management: view and manage cross-episode ad patterns with sponsor names
+- Processing history with stats, filtering, and export
+- Settings for LLM provider, AI models, ad detection prompts, retention, system stats, token usage and cost
+- Real-time status bar showing processing progress across all pages
 
 ### Ad Editor Workflow
 
-The ad editor follows a **review-and-reprocess** model. When you listen to a detected ad segment, the audio player plays the **processed output** (post-cut audio), not the original. This is intentional: you are verifying what the final listener will hear. If a cut sounds wrong, adjust the boundaries and reprocess -- the system will re-cut from the original source audio.
+The ad editor follows a review-and-reprocess model. When you listen to a detected ad segment, the audio player plays the processed output (post-cut audio), not the original. You're verifying what the final listener will hear. If a cut sounds wrong, adjust the boundaries and reprocess -- the system re-cuts from the original source audio.
 
 The **Original Transcript** panel on the Episode Detail page shows the full pre-cut transcript so you can see exactly what text was identified and removed.
 
-### Ad Editor (Mobile-First)
+### Ad Editor
 
-The ad editor allows you to review and adjust ad detections directly in the browser. Designed mobile-first since that's where most reviewing happens:
+The ad editor lets you review and adjust ad detections in the browser. The layout is mobile-first since that's where most reviewing happens.
 
-**Core Features:**
-- **Reason Panel** - Shows why each ad was flagged, confidence percentage, and detection stage
-- **Time Adjustment Controls** - Per-second +/- steppers for start and end boundaries with direct input
-- **Pill Selector** - Quick navigation between ads by timestamp, visible on all viewports
-- **Audio Playback** - Inline player with progress bar; auto-seeks to ad start when switching between ads
-- **Haptic Feedback** - Vibration on boundary adjustments and actions
+Each ad shows why it was flagged, confidence percentage, and detection stage. You can adjust start/end boundaries with per-second steppers, navigate between ads by timestamp, and play audio inline (auto-seeks to ad start when switching). Boundary adjustments and actions trigger haptic feedback on mobile.
 
-**Mobile Layout:**
-- Stacked Start/End time controls (full-width rows for clear readability)
-- Full-width progress bar at top of bottom sheet
-- Compact action row: Not Ad, Reset, Confirm, Save
-- Expandable bottom sheet with large play controls and prev/next navigation
+On mobile, start/end controls stack full-width with a bottom sheet for playback and prev/next navigation. Action row: Not Ad, Reset, Confirm, Save.
 
-**Desktop Layout:**
-- Keyboard shortcuts: `Space` play/pause, `J/K` nudge end, `Shift+J/K` nudge start, `C` confirm, `X` reject, `Esc` reset
-- Inline audio player with hover-expandable progress bar
-- Start/End controls inline with time display and keyboard hints
+On desktop, keyboard shortcuts are available: `Space` play/pause, `J/K` nudge end, `Shift+J/K` nudge start, `C` confirm, `X` reject, `Esc` reset. Start/end controls sit inline with keyboard hints.
 
 ### Screenshots
 
@@ -397,8 +378,6 @@ Instead of using API credits, you can use the [Claude Code OpenAI Wrapper](https
    ```bash
    docker compose up -d minuspod
    ```
-
-The wrapper exposes an OpenAI-compatible API that routes requests through your Claude Max subscription instead of consuming API credits.
 
 **Other OpenAI-Compatible Endpoints:**
 
@@ -789,7 +768,7 @@ By default, a short audio marker is played where ads were removed. You can custo
    ```
 4. Restart the container
 
-The `replace.mp3` file will be inserted at each ad break. Keep it short (1-3 seconds) to avoid disrupting the listening experience. If no custom asset is provided, the built-in default marker is used.
+The `replace.mp3` file will be inserted at each ad break. Keep it short (1-3 seconds). If no custom asset is provided, the built-in default marker is used.
 
 ## License
 

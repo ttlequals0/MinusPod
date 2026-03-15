@@ -6,6 +6,56 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.62] - 2026-03-15
+
+### Fixed
+- **RSS feed cache permanently stale on HTTP 304**: When upstream RSS returned 304 Not Modified, `last_checked_at` was not updated, causing every subsequent request to trigger a redundant refresh. Feeds polled frequently (e.g. PocketCasts every minute) would show thousands of minutes stale and make unnecessary upstream checks.
+- **OpenAI gpt-5-mini failing with max_tokens** (fixes #81): Newer OpenAI models require `max_completion_tokens` instead of `max_tokens`. The OpenAI-compatible client now tries `max_completion_tokens` first and falls back to `max_tokens` for older APIs, caching the result per model.
+
+## [1.0.61] - 2026-03-15
+
+### Security
+- **Remove system Python cryptography/PyJWT**: Docker Scout flagged CVEs in Ubuntu 24.04 system packages (`python3-cryptography 41.0.7`, `python3-jwt 2.7.0`) at `/usr/lib/python3/dist-packages/`. Our venv already has fixed versions; removed system copies that Scout was scanning. Fixes 6 CVEs.
+- **Upgrade setuptools, remove vendored jaraco/wheel**: setuptools bundles old copies of `jaraco.context` and `wheel` in its `_vendor/` directory. Upgraded setuptools and removed vendored copies. Fixes 2 CVEs.
+- **torch 2.6.0 CVEs (accepted risk)**: CVE-2025-3730 (Medium, fix: 2.8.0) and CVE-2025-2953 (Low, fix: 2.7.1-rc1) are DoS-only in functions (`ctc_loss`, `mkldnn_max_pool2d`) not used by our pipeline. No stable fix available yet.
+
+## [1.0.60] - 2026-03-15
+
+### Security
+- **PyTorch 2.5.0 -> 2.6.0**: Fixes CVE-2025-32434 (CRITICAL, CVSS 9.3) -- RCE via `torch.load` weights_only bypass. CUDA variant moved from cu121 to cu124.
+- **cryptography >= 46.0.5**: Fixes CVE-2026-26007 (HIGH, CVSS 8.2), CVE-2023-50782 (HIGH, CVSS 8.7), CVE-2024-26130 (HIGH, CVSS 7.5), CVE-2024-0727 (MEDIUM), GHSA-h4gh-qq45-vh27
+- **flask-cors 4.0.2 -> >= 6.0.0**: Fixes CVE-2024-6844, CVE-2024-6866, CVE-2024-6839 (CORS bypass)
+- **flask 3.0.3 -> >= 3.1.3**: Fixes CVE-2026-27205 (LOW, CVSS 2.3)
+
+### Fixed
+- **Gunicorn worker crash on startup (code 134/SIGABRT)**: CTranslate2 4.4.0 requires cuDNN 8 (`libcudnn_ops_infer.so.8`) but PyTorch 2.5.0+ only ships cuDNN 9. Added cuDNN 8 runtime libraries to `/opt/cudnn8/lib` via `nvidia-cudnn-cu12==8.9.7.29` and updated `LD_LIBRARY_PATH`. This was causing one worker to abort on every container restart.
+
+## [1.0.59] - 2026-03-14
+
+### Security
+- **PyTorch 2.3.0 -> 2.5.0**: Fixes CVE-2024-48063 (CRITICAL, CVSS 9.8) -- RCE via `torch.distributed.rpc.RemoteModule` deserialization
+- **flask-cors 4.0.0 -> 4.0.2**: Fixes CVE-2024-6221 (HIGH, CVSS 8.7) and 3 additional CORS bypass CVEs
+- **requests >= 2.32.4**: Fixes CVE-2024-47081 (MEDIUM, CVSS 5.3)
+- **Pin cryptography >= 42.0.4**: Fixes 3 HIGH CVEs in transitive dependency
+- **Pin pyjwt >= 2.12.0**: Fixes CVE-2026-32597 (HIGH, CVSS 7.5)
+- **Pin jaraco.context >= 6.1.0**: Fixes CVE-2026-23949 (HIGH, CVSS 8.6)
+- **Pin wheel >= 0.46.2**: Fixes CVE-2026-24049 (HIGH, CVSS 7.1)
+- **apt-get upgrade in Dockerfile**: Picks up security patches for gnupg2 (HIGH), sqlite3 (MEDIUM), gnutls28 (MEDIUM)
+
+## [1.0.58] - 2026-03-14
+
+### Changed
+- **Docker base image upgrade**: Upgraded from `nvidia/cuda:12.1.1-runtime-ubuntu22.04` to `nvidia/cuda:12.6.3-runtime-ubuntu24.04` to resolve Docker Scout CVEs from outdated Ubuntu 22.04 system packages. Python 3.11 now installed from deadsnakes PPA (Ubuntu 24.04 defaults to 3.12). Pip bootstrapped via `ensurepip` instead of `python3-pip` package. PyTorch continues to bundle its own CUDA/cuDNN via pip, so the base image CUDA version change has no runtime impact.
+
+## [1.0.57] - 2026-03-14
+
+### Fixed
+- **Verification pass ignoring whisper backend**: Second pass (verification) was hardcoded to use local GPU whisper via `WhisperModelSingleton`, bypassing `WHISPER_BACKEND` config. Now routes through `Transcriber.transcribe()` when backend is `openai-api`, matching first pass behavior. (GitHub #7)
+- **SSE queue unbounded growth**: `queue.Queue()` had no maxsize, so `put_nowait` could never raise `queue.Full` -- the "drop if full" logic was dead code. Status updates accumulated unboundedly during long processing runs, causing large SSE payloads. Added `maxsize=50` so stale updates are dropped.
+- **Fingerprint comparison TypeError**: `compare_fingerprints()` passed `str` to `chromaprint.decode_fingerprint()` which expects `bytes` (ctypes `c_char` pointer). Now encodes to bytes before calling the C library.
+- **Episode ID churn on every refresh**: Acast/Megaphone feeds change RSS GUIDs between fetches, causing repeated "Episode ID changed" warnings. Now updates the stored `episode_id` for discovered episodes to match the new GUID, and downgrades the log from WARNING to DEBUG.
+- **Duplicate worker processing (broken leader election)**: `open(lock_path, 'w')` truncated the lock file, creating a race where both Gunicorn workers could acquire `flock()`. Changed to `open(lock_path, 'a')` (append mode) which doesn't truncate, so `flock(LOCK_EX|LOCK_NB)` works correctly.
+
 ## [1.0.56] - 2026-03-13
 
 ### Changed

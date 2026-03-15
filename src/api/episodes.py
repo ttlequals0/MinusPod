@@ -11,7 +11,7 @@ from api import (
     api, limiter, log_request, json_response, error_response,
     get_database, get_storage,
 )
-from utils.time import parse_timestamp
+from utils.time import parse_timestamp, utc_now_iso
 
 logger = logging.getLogger('podcast.api')
 
@@ -456,7 +456,7 @@ def reprocess_all_episodes(slug):
                 slug, episode_id,
                 status='pending',
                 reprocess_mode=mode,
-                reprocess_requested_at=datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+                reprocess_requested_at=utc_now_iso(),
                 retry_count=0,
                 error_message=None
             )
@@ -547,7 +547,7 @@ def bulk_episode_action(slug):
                 errors.append(f"{episode_id}: {str(e)}")
         if eligible_ids:
             db.batch_clear_episode_details(slug, eligible_ids)
-            now_str = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+            now_str = utc_now_iso()
             queued = db.batch_set_episodes_pending(slug, eligible_ids,
                                                     reprocess_mode=mode,
                                                     reprocess_requested_at=now_str)
@@ -796,7 +796,7 @@ def reprocess_episode_with_mode(slug, episode_id):
             slug, episode_id,
             status='pending',
             reprocess_mode=mode,
-            reprocess_requested_at=datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+            reprocess_requested_at=utc_now_iso(),
             retry_count=0,
             error_message=None
         )

@@ -505,19 +505,28 @@ class EpisodeMixin:
             # Skip insert to prevent duplicate rows from GUID changes
             if ep.get('title') and iso_published:
                 existing = conn.execute(
-                    """SELECT episode_id, episode_number FROM episodes
+                    """SELECT episode_id, episode_number, status FROM episodes
                        WHERE podcast_id = ? AND title = ? AND published_at = ?
                        AND episode_id != ?""",
                     (podcast_id, ep.get('title'), iso_published, ep['id'])
                 ).fetchone()
                 if existing:
+                    # Update episode_id to match new GUID for discovered episodes
+                    # (no cached files yet, safe to update)
+                    if existing['status'] == 'discovered':
+                        conn.execute(
+                            """UPDATE episodes SET episode_id = ?
+                               WHERE podcast_id = ? AND episode_id = ?""",
+                            (ep['id'], podcast_id, existing['episode_id'])
+                        )
+                    current_id = ep['id'] if existing['status'] == 'discovered' else existing['episode_id']
                     # Backfill episode_number on existing row if missing
                     if ep.get('episode_number') and not existing['episode_number']:
                         conn.execute(
                             """UPDATE episodes SET episode_number = ?
                                WHERE podcast_id = ? AND episode_id = ?
                                AND episode_number IS NULL""",
-                            (ep.get('episode_number'), podcast_id, existing['episode_id'])
+                            (ep.get('episode_number'), podcast_id, current_id)
                         )
                     continue  # Skip - episode already exists with different GUID
 

@@ -53,11 +53,11 @@ class VerificationPass:
             'segments': transcript segments from verification
             'status': 'clean', 'found_ads', 'no_segments', or 'transcription_failed'
         """
-        # Step 1: Re-transcribe processed audio on GPU
+        # Step 1: Re-transcribe processed audio
         if progress_callback:
             progress_callback("transcribing", 85)
-        logger.info(f"[{slug}:{episode_id}] Verification: Re-transcribing processed audio on GPU")
-        verification_segments = self._transcribe_on_gpu(processed_audio_path)
+        logger.info(f"[{slug}:{episode_id}] Verification: Re-transcribing processed audio")
+        verification_segments = self._transcribe_verification(processed_audio_path, podcast_name)
 
         if not verification_segments:
             logger.warning(f"[{slug}:{episode_id}] Verification: No segments from re-transcription")
@@ -123,38 +123,18 @@ class VerificationPass:
             'status': 'found_ads'
         }
 
-    def _transcribe_on_gpu(self, audio_path: str) -> List[Dict]:
-        """Re-transcribe using WhisperModelSingleton (GPU).
+    def _transcribe_verification(self, audio_path: str,
+                                 podcast_name: str = None) -> List[Dict]:
+        """Re-transcribe for verification using the shared Transcriber.
+
+        Delegates to self.transcriber.transcribe() which respects the
+        WHISPER_BACKEND config (local GPU or API) and handles preprocessing,
+        adaptive batch sizing, and OOM retry.
 
         Lets exceptions propagate to caller so status correctly reflects
         'transcription_failed' vs 'no_segments'.
         """
-        from transcriber import WhisperModelSingleton
-
-        model_size = WhisperModelSingleton.get_configured_model()
-        logger.info(f"Verification: Loading {model_size} model on GPU for re-transcription")
-
-        # get_instance() lazy-loads GPU model if unloaded
-        base_model, pipeline = WhisperModelSingleton.get_instance()
-
-        segments_gen, info = pipeline.transcribe(
-            audio_path,
-            batch_size=16,
-            beam_size=5,
-        )
-
-        segments = []
-        for seg in segments_gen:
-            text = seg.text.strip()
-            if text:
-                segments.append({
-                    'start': seg.start,
-                    'end': seg.end,
-                    'text': text
-                })
-
-        logger.info(f"Verification: GPU transcription complete, {len(segments)} segments")
-        return segments
+        return self.transcriber.transcribe(audio_path, podcast_name)
 
 
 def _build_timestamp_map(pass1_cuts: List[Dict]) -> List[Tuple[float, float]]:

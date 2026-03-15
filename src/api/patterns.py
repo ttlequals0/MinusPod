@@ -4,6 +4,8 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 
+from utils.time import utc_now_iso
+
 from flask import request
 
 from api import (
@@ -625,7 +627,7 @@ def export_patterns():
     # Build export data
     export_data = {
         'version': '1.0',
-        'exported_at': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+        'exported_at': utc_now_iso(),
         'pattern_count': len(patterns),
         'patterns': []
     }

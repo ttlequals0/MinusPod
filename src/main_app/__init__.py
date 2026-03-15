@@ -204,7 +204,7 @@ def _try_become_background_leader() -> bool:
     lock_path = Path(os.getenv('DATA_DIR', '/app/data')) / '.background_leader.lock'
     try:
         lock_path.parent.mkdir(parents=True, exist_ok=True)
-        lock_file = open(lock_path, 'w')
+        lock_file = open(lock_path, 'a')
         fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
         # Keep file handle open (lock released when process exits)
         _try_become_background_leader._lock_file = lock_file

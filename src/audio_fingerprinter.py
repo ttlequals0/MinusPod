@@ -207,6 +207,12 @@ class AudioFingerprinter:
         try:
             import acoustid
 
+            # decode_fingerprint expects bytes, not str (ctypes c_char pointer)
+            if isinstance(fp1, str):
+                fp1 = fp1.encode('utf-8')
+            if isinstance(fp2, str):
+                fp2 = fp2.encode('utf-8')
+
             # Decode fingerprints to integer arrays
             fp1_decoded = acoustid.chromaprint.decode_fingerprint(fp1)
             fp2_decoded = acoustid.chromaprint.decode_fingerprint(fp2)

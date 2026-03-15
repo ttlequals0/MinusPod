@@ -4,7 +4,13 @@ Provides shared timestamp parsing, formatting, and adjustment functions
 used across the ad detection, transcription, and chapters pipeline.
 """
 
+from datetime import datetime, timezone
 from typing import List, Dict
+
+
+def utc_now_iso() -> str:
+    """Return current UTC time as ISO 8601 string (e.g. '2026-03-15T12:00:00Z')."""
+    return datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 
 
 def parse_timestamp(ts) -> float:
