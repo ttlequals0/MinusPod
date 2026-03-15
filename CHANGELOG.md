@@ -6,6 +6,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.60] - 2026-03-15
+
+### Security
+- **PyTorch 2.5.0 -> 2.6.0**: Fixes CVE-2025-32434 (CRITICAL, CVSS 9.3) -- RCE via `torch.load` weights_only bypass. CUDA variant moved from cu121 to cu124.
+- **cryptography >= 46.0.5**: Fixes CVE-2026-26007 (HIGH, CVSS 8.2), CVE-2023-50782 (HIGH, CVSS 8.7), CVE-2024-26130 (HIGH, CVSS 7.5), CVE-2024-0727 (MEDIUM), GHSA-h4gh-qq45-vh27
+- **flask-cors 4.0.2 -> >= 6.0.0**: Fixes CVE-2024-6844, CVE-2024-6866, CVE-2024-6839 (CORS bypass)
+- **flask 3.0.3 -> >= 3.1.3**: Fixes CVE-2026-27205 (LOW, CVSS 2.3)
+
+### Fixed
+- **Gunicorn worker crash on startup (code 134/SIGABRT)**: CTranslate2 4.4.0 requires cuDNN 8 (`libcudnn_ops_infer.so.8`) but PyTorch 2.5.0+ only ships cuDNN 9. Added cuDNN 8 runtime libraries to `/opt/cudnn8/lib` via `nvidia-cudnn-cu12==8.9.7.29` and updated `LD_LIBRARY_PATH`. This was causing one worker to abort on every container restart.
+
 ## [1.0.59] - 2026-03-14
 
 ### Security
