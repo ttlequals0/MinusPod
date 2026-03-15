@@ -35,6 +35,7 @@ function TranscriptionSection({
           >
             <option value="local">Local (faster-whisper)</option>
             <option value="openai-api">Remote API (OpenAI-compatible)</option>
+            <option value="openrouter-api">OpenRouter API</option>
           </select>
         </div>
 
@@ -66,7 +67,7 @@ function TranscriptionSection({
           </div>
         )}
 
-        {whisperBackend === 'openai-api' && (
+        {(whisperBackend === 'openai-api' || whisperBackend === 'openrouter-api') && (
           <>
             <div>
               <label htmlFor="whisperApiBaseUrl" className="block text-sm font-medium text-foreground mb-2">

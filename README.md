@@ -10,6 +10,7 @@ Removes ads from podcasts using Whisper transcription. Serves modified RSS feeds
 
 - [How It Works](#how-it-works)
 - [Advanced Features (Quick Reference)](#advanced-features-quick-reference)
+- [Using OpenRouter](#using-openrouter)
 - [Requirements](#requirements)
 - [Quick Start](#quick-start)
 - [Web Interface](#web-interface)
@@ -159,10 +160,56 @@ Audio analysis runs automatically on every episode (lightweight, uses only ffmpe
 - **Transition Detection** - Finds abrupt frame-to-frame loudness jumps that indicate dynamically inserted ad (DAI) boundaries. Pairs up/down transitions into candidate ad regions.
 - **Audio Enforcement** - After Claude detection, uncovered audio signals with ad language in the transcript are promoted to ads. DAI transitions with high confidence (>=0.8) or sponsor matches are also promoted. Existing ad boundaries are extended when signals partially overlap.
 
+## Using OpenRouter
+
+[OpenRouter](https://openrouter.ai) provides access to 200+ LLM models through a single API key. It can also serve as a Whisper transcription backend, eliminating the need for a local NVIDIA GPU entirely.
+
+### Setup
+
+1. Get an API key from [openrouter.ai/keys](https://openrouter.ai/keys)
+2. Use the pre-configured compose file:
+
+```bash
+# Create .env
+echo "OPENROUTER_API_KEY=sk-or-v1-your-key-here" > .env
+
+# Start (no GPU required)
+docker compose -f docker-compose.openrouter.yml up -d
+```
+
+Or add OpenRouter to an existing setup:
+
+```bash
+LLM_PROVIDER=openrouter
+OPENROUTER_API_KEY=sk-or-v1-your-key-here
+```
+
+### Whisper via OpenRouter
+
+OpenRouter can also handle transcription, removing the NVIDIA GPU requirement:
+
+```bash
+WHISPER_BACKEND=openrouter-api
+WHISPER_API_MODEL=openai/whisper-large-v3-turbo
+WHISPER_DEVICE=cpu
+```
+
+### Model Selection
+
+Override the default model via the Settings UI or the `OPENAI_MODEL` environment variable. Use any model ID from the [OpenRouter models page](https://openrouter.ai/models), for example:
+
+- `anthropic/claude-sonnet-4-5` -- Claude Sonnet via OpenRouter
+- `openai/gpt-4o` -- GPT-4o via OpenRouter
+- `google/gemini-2.5-flash-preview` -- Gemini Flash via OpenRouter
+
+All provider settings (LLM provider, API key, model, Whisper backend) can be changed at runtime from the Settings UI without restarting the container.
+
+See [`docker-compose.openrouter.yml`](docker-compose.openrouter.yml) for a complete example.
+
 ## Requirements
 
-- Docker with NVIDIA GPU support (for Whisper)
-- Anthropic API key **or** [Ollama](https://ollama.com) for local inference
+- Docker with NVIDIA GPU support (for local Whisper), **or** an [OpenRouter](https://openrouter.ai) API key (no GPU needed)
+- Anthropic API key, [OpenRouter](https://openrouter.ai) API key, **or** [Ollama](https://ollama.com) for local inference
 
 ### Memory Requirements
 
@@ -336,7 +383,8 @@ This is a comma-separated list of domains excluded from Audiobookshelf's SSRF fi
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `ANTHROPIC_API_KEY` | _(none)_ | Claude API key (required when `LLM_PROVIDER=anthropic`, not needed for Ollama) |
-| `LLM_PROVIDER` | `anthropic` | LLM backend: `anthropic` (direct API), `openai-compatible` (wrapper), or `ollama` |
+| `LLM_PROVIDER` | `anthropic` | LLM backend: `anthropic`, `openrouter`, `openai-compatible`, or `ollama` |
+| `OPENROUTER_API_KEY` | _(none)_ | OpenRouter API key (required when `LLM_PROVIDER=openrouter`) |
 | `OPENAI_BASE_URL` | `http://localhost:8000/v1` | Base URL for OpenAI-compatible API (only used with non-anthropic providers) |
 | `OPENAI_API_KEY` | `not-needed` | API key for OpenAI-compatible endpoint (not required for Ollama or local wrappers) |
 | `OPENAI_MODEL` | _(none)_ | Model for OpenAI-compatible/Ollama providers. **Required for Ollama** (e.g. `qwen3:14b`). Defaults to `claude-sonnet-4-5-20250929` for wrapper mode if unset. |
@@ -344,7 +392,7 @@ This is a comma-separated list of domains excluded from Audiobookshelf's SSRF fi
 | `UI_BASE_URL` | _(falls back to BASE_URL)_ | Public URL for UI links in webhooks (set if UI is on a different domain than feeds) |
 | `WHISPER_MODEL` | `small` | Whisper model size (tiny/base/small/medium/large) |
 | `WHISPER_DEVICE` | `cuda` | Device for Whisper (cuda/cpu). Set to `cpu` when using API backend to skip GPU init. |
-| `WHISPER_BACKEND` | `local` | Whisper backend: `local` (faster-whisper) or `openai-api` (remote HTTP) |
+| `WHISPER_BACKEND` | `local` | Whisper backend: `local` (faster-whisper), `openai-api` (remote HTTP), or `openrouter-api` |
 | `WHISPER_API_BASE_URL` | _(none)_ | Base URL for OpenAI-compatible whisper API (e.g. `http://host.docker.internal:8765/v1`) |
 | `WHISPER_API_KEY` | _(none)_ | API key for whisper API (optional for local servers) |
 | `WHISPER_API_MODEL` | `whisper-1` | Model name sent to whisper API |

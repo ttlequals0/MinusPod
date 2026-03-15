@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 1.0.62
+  version: 1.0.63
   contact:
     name: MinusPod
   license:
@@ -2135,8 +2135,8 @@ paths:
                   example: small
                 whisperBackend:
                   type: string
-                  description: Whisper backend to use (local uses local GPU/CPU, openai-api uses an external API)
-                  enum: [local, openai-api]
+                  description: Whisper backend to use (local uses local GPU/CPU, openai-api uses an external API, openrouter-api uses OpenRouter)
+                  enum: [local, openai-api, openrouter-api]
                   example: local
                 whisperApiBaseUrl:
                   type: string
@@ -2161,13 +2161,16 @@ paths:
                   example: 0.80
                 llmProvider:
                   type: string
-                  description: LLM provider to use (anthropic, openai-compatible, ollama)
-                  enum: [anthropic, openai-compatible, ollama]
+                  description: LLM provider to use (anthropic, openrouter, openai-compatible, ollama)
+                  enum: [anthropic, openai-compatible, ollama, openrouter]
                   example: anthropic
                 openaiBaseUrl:
                   type: string
                   description: Base URL for OpenAI-compatible API endpoint (only used when provider is not anthropic)
                   example: http://localhost:11434/v1
+                openrouterApiKey:
+                  type: string
+                  description: API key for OpenRouter (only used when provider is openrouter)
       responses:
         '200':
           description: Settings updated
@@ -3188,7 +3191,7 @@ components:
           properties:
             value:
               type: string
-              description: Whisper backend to use (local, openai-api)
+              description: Whisper backend to use (local, openai-api, openrouter-api)
             isDefault:
               type: boolean
         whisperApiBaseUrl:
@@ -3232,7 +3235,7 @@ components:
           properties:
             value:
               type: string
-              description: Active LLM provider (anthropic, openai-compatible, ollama)
+              description: Active LLM provider (anthropic, openrouter, openai-compatible, ollama)
             isDefault:
               type: boolean
         openaiBaseUrl:
@@ -3246,6 +3249,12 @@ components:
         apiKeyConfigured:
           type: boolean
           description: Whether an API key is configured for the current provider (read-only)
+        openrouterApiKeyConfigured:
+          type: boolean
+          description: Whether an OpenRouter API key is configured (read-only)
+        openrouterBaseUrl:
+          type: string
+          description: OpenRouter API base URL (read-only)
         retentionDays:
           type: integer
           description: Days to retain processed audio files. 0 = disabled.
@@ -3278,6 +3287,8 @@ components:
             llmProvider:
               type: string
             openaiBaseUrl:
+              type: string
+            openrouterBaseUrl:
               type: string
 
     SystemStatus:

@@ -96,8 +96,8 @@ export interface SettingValueNumber {
   isDefault: boolean;
 }
 
-export type LlmProvider = 'anthropic' | 'openai-compatible' | 'ollama';
-export type WhisperBackend = 'local' | 'openai-api';
+export type LlmProvider = 'anthropic' | 'openai-compatible' | 'ollama' | 'openrouter';
+export type WhisperBackend = 'local' | 'openai-api' | 'openrouter-api';
 
 export interface WhisperApiConfig {
   baseUrl: string;
@@ -110,6 +110,7 @@ export const LLM_PROVIDERS = {
   ANTHROPIC: 'anthropic' as const,
   OPENAI_COMPATIBLE: 'openai-compatible' as const,
   OLLAMA: 'ollama' as const,
+  OPENROUTER: 'openrouter' as const,
 };
 
 export interface Settings {
@@ -131,6 +132,8 @@ export interface Settings {
   llmProvider: SettingValue;
   openaiBaseUrl: SettingValue;
   apiKeyConfigured: boolean;
+  openrouterApiKeyConfigured: boolean;
+  openrouterBaseUrl: string;
   retentionDays: number;
   defaults: {
     systemPrompt: string;
@@ -145,6 +148,7 @@ export interface Settings {
     minCutConfidence: number;
     llmProvider: LlmProvider;
     openaiBaseUrl: string;
+    openrouterBaseUrl: string;
     whisperBackend: WhisperBackend;
     whisperApiBaseUrl: string;
     whisperApiModel: string;
@@ -169,6 +173,7 @@ export interface UpdateSettingsPayload {
   whisperApiBaseUrl?: string;
   whisperApiKey?: string;
   whisperApiModel?: string;
+  openrouterApiKey?: string;
 }
 
 export interface ClaudeModel {

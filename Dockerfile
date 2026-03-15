@@ -30,6 +30,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3.11-dev \
     python3.11-venv \
     ffmpeg \
+    curl \
     libsndfile1 \
     libchromaprint-tools \
     && apt-get upgrade -y \

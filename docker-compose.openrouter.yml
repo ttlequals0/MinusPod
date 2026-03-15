@@ -1,0 +1,39 @@
+# =================================================================
+# MinusPod with OpenRouter -- no GPU required
+# =================================================================
+# Pre-configured for OpenRouter as both LLM and Whisper provider.
+# All inference runs in the cloud via your OpenRouter API key.
+#
+# Usage:
+#   1. Copy to your server directory
+#   2. Set OPENROUTER_API_KEY in your .env file or export it
+#   3. docker compose -f docker-compose.openrouter.yml up -d
+#
+# This configuration does NOT require an NVIDIA GPU.
+# =================================================================
+
+version: '3.8'
+
+services:
+  minuspod:
+    image: ttlequals0/minuspod:latest
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      # LLM via OpenRouter
+      - LLM_PROVIDER=openrouter
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+
+      # Whisper via OpenRouter (no local GPU needed)
+      - WHISPER_BACKEND=openrouter-api
+      - WHISPER_API_MODEL=openai/whisper-large-v3-turbo
+      - WHISPER_DEVICE=cpu
+
+      # Server
+      - BASE_URL=${BASE_URL:-http://localhost:8000}
+      - RETENTION_PERIOD=${RETENTION_PERIOD:-1440}
+    restart: unless-stopped
+    expose:
+      - "8000"

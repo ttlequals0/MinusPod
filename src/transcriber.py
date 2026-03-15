@@ -18,6 +18,7 @@ from config import (
     API_CHUNK_DURATION_SECONDS,
     WHISPER_BACKEND_LOCAL,
     WHISPER_BACKEND_API,
+    WHISPER_BACKEND_OPENROUTER,
     CHUNK_OVERLAP_SECONDS,
     CHUNK_MIN_DURATION_SECONDS,
     CHUNK_MAX_DURATION_SECONDS,
@@ -265,6 +266,8 @@ def _get_whisper_settings() -> Dict[str, str]:
     """Read all whisper backend settings from DB with env var fallbacks.
 
     Returns a dict with keys: backend, api_base_url, api_key, api_model.
+    For the 'openrouter-api' backend, api_base_url and api_key are
+    auto-populated from OpenRouter config if not explicitly set.
     """
     defaults = {
         'backend': os.environ.get('WHISPER_BACKEND', WHISPER_BACKEND_LOCAL),
@@ -288,6 +291,16 @@ def _get_whisper_settings() -> Dict[str, str]:
                 defaults[default_key] = val
     except Exception as e:
         logger.warning(f"Could not read whisper settings from DB, using env defaults: {e}")
+
+    # Auto-populate OpenRouter connection details when using the openrouter-api backend
+    if defaults['backend'] == WHISPER_BACKEND_OPENROUTER:
+        if not defaults['api_base_url']:
+            from config import OPENROUTER_BASE_URL
+            defaults['api_base_url'] = OPENROUTER_BASE_URL
+        if not defaults['api_key']:
+            from llm_client import get_effective_openrouter_api_key
+            defaults['api_key'] = get_effective_openrouter_api_key() or ''
+
     return defaults
 
 
@@ -309,8 +322,8 @@ def calculate_optimal_chunk_duration(
     Returns:
         Tuple of (chunk_duration_seconds, reasoning_message)
     """
-    # For API backend, memory is irrelevant - use fixed cap
-    if whisper_backend == WHISPER_BACKEND_API:
+    # For API/OpenRouter backends, memory is irrelevant - use fixed cap
+    if whisper_backend in (WHISPER_BACKEND_API, WHISPER_BACKEND_OPENROUTER):
         return API_CHUNK_DURATION_SECONDS, "API backend (fixed 10-min chunks for 25MB limit)"
 
     # Get model memory profile
@@ -950,7 +963,7 @@ class Transcriber:
         """
         # Check whisper backend setting
         whisper_settings = _get_whisper_settings()
-        if whisper_settings['backend'] == WHISPER_BACKEND_API:
+        if whisper_settings['backend'] in (WHISPER_BACKEND_API, WHISPER_BACKEND_OPENROUTER):
             return self._transcribe_via_api(audio_path, podcast_name, whisper_settings)
 
         preprocessed_path = None
