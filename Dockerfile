@@ -16,31 +16,38 @@ COPY frontend/ ./
 RUN npm run build
 
 # Stage 2: Python application
-# Use CUDA-only image (no cuDNN) - PyTorch bundles its own cuDNN
-# Avoids version mismatch between system cuDNN and PyTorch's bundled cuDNN
-FROM --platform=linux/amd64 nvidia/cuda:12.1.1-runtime-ubuntu22.04
+# Use CUDA runtime image - PyTorch bundles its own cuDNN/cuBLAS via pip
+# Base image CUDA only needs host driver compatibility (forward compatible)
+FROM --platform=linux/amd64 nvidia/cuda:12.6.3-runtime-ubuntu24.04
 
-# Install Python 3.11 and system dependencies
+# Install Python 3.11 from deadsnakes PPA and system dependencies
+# Ubuntu 24.04 ships Python 3.12; we use deadsnakes to keep Python 3.11
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    software-properties-common \
+    && add-apt-repository ppa:deadsnakes/ppa \
+    && apt-get update && apt-get install -y --no-install-recommends \
     python3.11 \
     python3.11-dev \
-    python3-pip \
+    python3.11-venv \
     ffmpeg \
     libsndfile1 \
     libchromaprint-tools \
+    && apt-get upgrade -y \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
-# Set python3.11 as default python3
+# Set python3.11 as default and bootstrap pip via ensurepip
 RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1 \
-    && update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1
+    && update-alternatives --install /usr/bin/python python /usr/bin/python3.11 1 \
+    && python3.11 -m ensurepip --upgrade \
+    && python3.11 -m pip install --upgrade pip
 
 # Set working directory
 WORKDIR /app
 
-# Pre-install PyTorch 2.3.0 with CUDA 12.1 (includes bundled cuDNN)
+# Pre-install PyTorch 2.5.0 with CUDA 12.1 (includes bundled cuDNN)
 RUN pip install --no-cache-dir \
-    torch==2.3.0+cu121 \
-    torchaudio==2.3.0+cu121 \
+    torch==2.5.0+cu121 \
+    torchaudio==2.5.0+cu121 \
     --extra-index-url https://download.pytorch.org/whl/cu121
 
 # Copy requirements and install remaining Python dependencies

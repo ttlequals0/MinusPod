@@ -7,16 +7,16 @@ anthropic>=0.49.0
 openai>=1.0.0  # For OpenAI-compatible API support (Claude Code wrapper, Ollama)
 flask==3.0.3
 flask-compress>=1.14
-flask-cors==4.0.0
+flask-cors==4.0.2
 flask-limiter>=3.5.0
 gunicorn==23.0.0
-requests==2.32.3
+requests>=2.32.4
 
 # Utilities
 feedparser==6.0.11
 python-slugify==8.0.4
 
-# Audio analysis (torch/torchaudio 2.3.0+cu121 pre-installed in Dockerfile)
+# Audio analysis (torch/torchaudio 2.5.0+cu121 pre-installed in Dockerfile)
 numpy<2.0  # numpy 2.x requires X86_V2 CPU instructions; target server lacks them
 huggingface_hub>=0.20.0
 
@@ -27,6 +27,12 @@ scikit-learn>=1.3.0
 
 # Security
 nh3>=0.2.14
+cryptography>=42.0.4
+pyjwt>=2.12.0
+
+# Transitive dependency pins (CVE fixes)
+jaraco.context>=6.1.0
+wheel>=0.46.2
 
 # Testing
 pytest>=7.4.0

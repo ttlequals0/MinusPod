@@ -6,6 +6,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.59] - 2026-03-14
+
+### Security
+- **PyTorch 2.3.0 -> 2.5.0**: Fixes CVE-2024-48063 (CRITICAL, CVSS 9.8) -- RCE via `torch.distributed.rpc.RemoteModule` deserialization
+- **flask-cors 4.0.0 -> 4.0.2**: Fixes CVE-2024-6221 (HIGH, CVSS 8.7) and 3 additional CORS bypass CVEs
+- **requests >= 2.32.4**: Fixes CVE-2024-47081 (MEDIUM, CVSS 5.3)
+- **Pin cryptography >= 42.0.4**: Fixes 3 HIGH CVEs in transitive dependency
+- **Pin pyjwt >= 2.12.0**: Fixes CVE-2026-32597 (HIGH, CVSS 7.5)
+- **Pin jaraco.context >= 6.1.0**: Fixes CVE-2026-23949 (HIGH, CVSS 8.6)
+- **Pin wheel >= 0.46.2**: Fixes CVE-2026-24049 (HIGH, CVSS 7.1)
+- **apt-get upgrade in Dockerfile**: Picks up security patches for gnupg2 (HIGH), sqlite3 (MEDIUM), gnutls28 (MEDIUM)
+
+## [1.0.58] - 2026-03-14
+
+### Changed
+- **Docker base image upgrade**: Upgraded from `nvidia/cuda:12.1.1-runtime-ubuntu22.04` to `nvidia/cuda:12.6.3-runtime-ubuntu24.04` to resolve Docker Scout CVEs from outdated Ubuntu 22.04 system packages. Python 3.11 now installed from deadsnakes PPA (Ubuntu 24.04 defaults to 3.12). Pip bootstrapped via `ensurepip` instead of `python3-pip` package. PyTorch continues to bundle its own CUDA/cuDNN via pip, so the base image CUDA version change has no runtime impact.
+
 ## [1.0.57] - 2026-03-14
 
 ### Fixed
