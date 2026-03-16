@@ -64,6 +64,10 @@ class TestNormalizeModelKey:
         """Date-like patterns not at end should be kept."""
         assert normalize_model_key('model-20240101-beta') == 'model20240101beta'
 
+    def test_non_date_suffix_not_stripped(self):
+        """Non-date numeric suffixes should not be stripped."""
+        assert normalize_model_key('model-v10000101') == 'modelv10000101'
+
 
 class TestGetPricingSource:
     """Test pricing source detection."""
@@ -121,7 +125,12 @@ class TestGetPricingSource:
 
     def test_no_base_url(self):
         result = get_pricing_source('openai-compatible', '')
-        assert result['type'] in ('free', 'unknown')
+        assert result['type'] == 'unknown'
+        assert result['domain'] == ''
+
+    def test_none_base_url(self):
+        result = get_pricing_source('openai-compatible', None)
+        assert result['type'] == 'unknown'
 
     def test_openrouter_domain_via_openai_compatible(self):
         result = get_pricing_source('openai-compatible', 'https://openrouter.ai/api/v1')
@@ -189,6 +198,28 @@ class TestPricePerTokenScraper:
         with patch('pricing_fetcher.requests.get') as mock_get:
             mock_resp = MagicMock()
             mock_resp.text = '<html><body><p>No data</p></body></html>'
+            mock_resp.raise_for_status = MagicMock()
+            mock_get.return_value = mock_resp
+
+            results = fetch_pricepertoken_pricing('https://pricepertoken.com/pricing-page/provider/test')
+
+        assert results == []
+
+    def test_missing_columns_returns_empty(self):
+        """Table without required model/input/output headers returns empty."""
+        from pricing_fetcher import fetch_pricepertoken_pricing
+
+        html = """
+        <html><body>
+        <table>
+            <tr><th>Name</th><th>Speed</th><th>Context</th></tr>
+            <tr><td>SomeModel</td><td>fast</td><td>128K</td></tr>
+        </table>
+        </body></html>
+        """
+        with patch('pricing_fetcher.requests.get') as mock_get:
+            mock_resp = MagicMock()
+            mock_resp.text = html
             mock_resp.raise_for_status = MagicMock()
             mock_get.return_value = mock_resp
 
@@ -412,3 +443,7 @@ class TestParsePrice:
     def test_whitespace(self):
         from pricing_fetcher import _parse_price
         assert _parse_price('  $1.500  ') == 1.5
+
+    def test_comma_thousands(self):
+        from pricing_fetcher import _parse_price
+        assert _parse_price('$1,000.000') == 1000.0

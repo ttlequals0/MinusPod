@@ -259,8 +259,8 @@ def normalize_model_key(name: str) -> str:
     # Strip provider prefix (anything before /)
     if '/' in name:
         name = name.split('/', 1)[1]
-    # Strip date suffixes: YYYYMMDD or YYYY-MM-DD at end
-    name = re.sub(r'-?\d{4}-?\d{2}-?\d{2}$', '', name)
+    # Strip date suffixes: YYYYMMDD or YYYY-MM-DD at end (2020-2039 range)
+    name = re.sub(r'-?20[2-3]\d-?\d{2}-?\d{2}$', '', name)
     # Lowercase, remove everything non-alphanumeric
     return re.sub(r'[^a-z0-9]', '', name.lower())
 
@@ -288,7 +288,7 @@ def get_pricing_source(provider: str, base_url: str = '') -> dict:
         }
 
     # Parse domain from base_url for openai-compatible providers
-    domain = urlparse(base_url).hostname or ''
+    domain = urlparse(base_url or '').hostname or ''
 
     for known_domain, slug_info in PROVIDER_PRICING_SLUGS.items():
         if domain == known_domain or domain.endswith('.' + known_domain):

@@ -102,34 +102,34 @@ class StatsMixin:
             from config import normalize_model_key
             match_key = normalize_model_key(model_id)
 
-        key = match_key
-        logger.debug(f"Cost lookup: model_id='{model_id}' -> match_key='{key}'")
+        logger.debug(f"Cost lookup: model_id='{model_id}' -> match_key='{match_key}'")
 
         # Exact match on match_key
         cursor = conn.execute(
             "SELECT input_cost_per_mtok, output_cost_per_mtok "
             "FROM model_pricing WHERE match_key = ?",
-            (key,)
+            (match_key,)
         )
         row = cursor.fetchone()
 
-        # Prefix match fallback
+        # Prefix match fallback (e.g. match_key 'gpt4o' matches stored 'gpt4o' but not 'gpt4omini')
         if not row:
             cursor = conn.execute(
                 """SELECT input_cost_per_mtok, output_cost_per_mtok
                    FROM model_pricing
                    WHERE ? LIKE match_key || '%'
                    ORDER BY length(match_key) DESC LIMIT 1""",
-                (key,)
+                (match_key,)
             )
             row = cursor.fetchone()
             if row:
-                logger.debug(f"Cost lookup: prefix match for match_key='{key}'")
+                logger.warning(f"Cost lookup: prefix match for match_key='{match_key}' "
+                               f"-- verify pricing is correct")
 
         if not row:
             logger.warning(
                 f"No pricing found for model '{model_id}' "
-                f"(match_key='{key}'), cost recorded as $0"
+                f"(match_key='{match_key}'), cost recorded as $0"
             )
             return 0.0
 

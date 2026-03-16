@@ -125,6 +125,7 @@ def get_model_pricing():
 
 
 @api.route('/system/model-pricing/refresh', methods=['POST'])
+@limiter.limit("6 per hour")
 @log_request
 def refresh_model_pricing():
     """Force refresh pricing data from provider's pricing source."""
@@ -139,7 +140,7 @@ def refresh_model_pricing():
         })
     except Exception as e:
         logger.error(f"Manual pricing refresh failed: {e}")
-        return json_response({'error': str(e)}, status=502)
+        return error_response(str(e), 502)
 
 
 @api.route('/system/cleanup', methods=['POST'])

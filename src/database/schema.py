@@ -938,14 +938,26 @@ class SchemaMixin:
                         (key, row['model_id'], row['model_id'])
                     )
 
-                # Deduplicate: if multiple model_ids map to the same match_key, keep most recent
-                conn.execute("""
-                    DELETE FROM model_pricing
+                # Deduplicate: if multiple model_ids map to the same match_key,
+                # keep the most recently updated row per match_key
+                dupes = conn.execute("""
+                    SELECT model_id, match_key FROM model_pricing
                     WHERE rowid NOT IN (
                         SELECT MAX(rowid) FROM model_pricing
                         GROUP BY match_key
                     )
-                """)
+                """).fetchall()
+                if dupes:
+                    for dupe in dupes:
+                        logger.info(f"Migration: Removing duplicate model_pricing row: "
+                                    f"model_id={dupe['model_id']} match_key={dupe['match_key']}")
+                    conn.execute("""
+                        DELETE FROM model_pricing
+                        WHERE rowid NOT IN (
+                            SELECT MAX(rowid) FROM model_pricing
+                            GROUP BY match_key
+                        )
+                    """)
                 conn.commit()
                 logger.info(f"Migration: Backfilled match_key for {len(rows)} model_pricing rows")
 

@@ -3,6 +3,8 @@ import os
 import logging
 from typing import Optional, Dict, Any, List
 
+from config import normalize_model_key
+
 logger = logging.getLogger(__name__)
 
 # Default pricing for known Anthropic models (USD per 1M tokens)
@@ -152,8 +154,6 @@ class SettingsMixin:
         Called only when live fetch fails and table is empty.
         Marks rows with source='default' so they get overwritten on next live fetch.
         """
-        from config import normalize_model_key
-
         conn = self.get_connection()
         inserted = 0
         for model_id, info in DEFAULT_MODEL_PRICING.items():
