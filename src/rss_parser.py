@@ -224,7 +224,7 @@ class RSSParser:
 
             lines.append('<item>')
             lines.append(f'  <title>{self._escape_xml(entry.get("title", ""))}</title>')
-            lines.append(f'  <description><![CDATA[{entry.get("description", "")}]]></description>')
+            lines.append(f'  <description><![CDATA[{self._get_episode_description(entry)}]]></description>')
             lines.append(f'  <link>{self._escape_xml(entry.get("link", ""))}</link>')
             lines.append(f'  <guid>{self._escape_xml(entry.get("id", episode_url))}</guid>')
             lines.append(f'  <pubDate>{self._escape_xml(entry.get("published", ""))}</pubDate>')
@@ -320,6 +320,38 @@ class RSSParser:
             return format_datetime(dt)
         except (ValueError, TypeError, AttributeError):
             return iso_date
+
+    @staticmethod
+    def _get_episode_description(entry) -> str:
+        """Extract episode description with fallback to iTunes fields.
+
+        Many feeds (e.g. Relay FM) leave <description> empty and put the
+        actual episode summary in <itunes:summary>, <itunes:subtitle>,
+        or <content:encoded>.  Feedparser exposes these as 'summary',
+        'subtitle', and 'content' respectively.
+        """
+        desc = entry.get('description', '') or ''
+        if desc.strip():
+            return desc
+
+        # feedparser merges <description> into 'summary'; try it next
+        summary = entry.get('summary', '') or ''
+        if summary.strip():
+            return summary
+
+        # <itunes:subtitle> -> 'subtitle'
+        subtitle = entry.get('subtitle', '') or ''
+        if subtitle.strip():
+            return subtitle
+
+        # <content:encoded> -> 'content' list
+        content = entry.get('content', [])
+        if content and isinstance(content, list):
+            value = content[0].get('value', '') or ''
+            if value.strip():
+                return value
+
+        return ''
 
     def _escape_xml(self, text: str) -> str:
         """Escape XML special characters."""
@@ -440,7 +472,7 @@ class RSSParser:
                     'url': episode_url,
                     'title': entry.get('title', 'Unknown'),
                     'published': entry.get('published', ''),
-                    'description': entry.get('description', ''),
+                    'description': self._get_episode_description(entry),
                     'artwork_url': artwork_url,
                     'episode_number': episode_number,
                 })

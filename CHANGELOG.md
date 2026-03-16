@@ -6,6 +6,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.70] - 2026-03-15
+
+### Fixed
+- **Mobile UI: History page filters cut off**: Status and podcast filter dropdowns now stack vertically on mobile instead of being squeezed side-by-side
+- **Mobile UI: Feed detail card overflow**: Podcast artwork and content now stack vertically on mobile; network badges and Edit button wrap instead of overflowing
+- **Auto-Process dropdown labels**: Renamed verbose options from "Use Global Setting / Always Enable / Always Disable" to cleaner "Global Default / Enabled / Disabled" on both FeedDetail and AddFeed pages
+- **Missing episode descriptions (Relay FM and similar feeds)**: RSS parser now falls back to `itunes:summary`, `itunes:subtitle`, and `content:encoded` when `<description>` is empty. DB upsert also backfills empty descriptions and titles on next feed refresh.
+
 ## [1.0.69] - 2026-03-15
 
 ### Fixed

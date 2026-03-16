@@ -540,8 +540,8 @@ class EpisodeMixin:
                         episode_number = COALESCE(excluded.episode_number, episodes.episode_number),
                         published_at = COALESCE(episodes.published_at, excluded.published_at),
                         original_url = COALESCE(episodes.original_url, excluded.original_url),
-                        title = COALESCE(episodes.title, excluded.title),
-                        description = COALESCE(episodes.description, excluded.description),
+                        title = CASE WHEN COALESCE(episodes.title, '') = '' THEN excluded.title ELSE episodes.title END,
+                        description = CASE WHEN COALESCE(episodes.description, '') = '' THEN excluded.description ELSE episodes.description END,
                         artwork_url = COALESCE(episodes.artwork_url, excluded.artwork_url)""",
                     (
                         podcast_id,
