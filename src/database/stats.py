@@ -2,6 +2,8 @@
 import logging
 from typing import Dict, List, Optional, Tuple
 
+from config import normalize_model_key
+
 logger = logging.getLogger(__name__)
 
 
@@ -99,7 +101,6 @@ class StatsMixin:
         Resolution: exact match on match_key -> prefix match on match_key -> $0.
         """
         if not match_key:
-            from config import normalize_model_key
             match_key = normalize_model_key(model_id)
 
         logger.debug(f"Cost lookup: model_id='{model_id}' -> match_key='{match_key}'")
@@ -143,8 +144,6 @@ class StatsMixin:
         if not model_id or (input_tokens <= 0 and output_tokens <= 0):
             return 0.0
 
-        from config import normalize_model_key
-
         conn = self.get_connection()
         match_key = normalize_model_key(model_id)
         cost = self._calculate_token_cost(conn, model_id, input_tokens, output_tokens,
@@ -168,8 +167,8 @@ class StatsMixin:
 
         # Update global stats counters
         for stat_key, value in [('total_input_tokens', float(input_tokens)),
-                           ('total_output_tokens', float(output_tokens)),
-                           ('total_llm_cost', cost)]:
+                                ('total_output_tokens', float(output_tokens)),
+                                ('total_llm_cost', cost)]:
             conn.execute(
                 """INSERT INTO stats (key, value, updated_at)
                    VALUES (?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))

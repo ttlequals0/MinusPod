@@ -11,7 +11,7 @@ from api import (
     get_database, _enrich_models_with_pricing, limiter,
 )
 from config import WHISPER_BACKEND_LOCAL, WHISPER_BACKEND_API, OPENROUTER_BASE_URL
-from pricing_fetcher import invalidate_pricing_cache
+from pricing_fetcher import force_refresh_pricing
 from llm_client import (
     get_effective_provider, get_effective_base_url, get_api_key, get_effective_openrouter_api_key,
     get_llm_client,
@@ -231,7 +231,7 @@ def update_ad_detection_settings():
 
     if provider_changed:
         get_llm_client(force_new=True)
-        invalidate_pricing_cache()
+        force_refresh_pricing()
 
     if 'whisperBackend' in data:
         valid_whisper_backends = (WHISPER_BACKEND_LOCAL, WHISPER_BACKEND_API)

@@ -457,7 +457,7 @@ class SchemaMixin:
             logger.info(f"Migration: Added {column} column to {table} table")
             return True
         except Exception as e:
-            logger.error(f"Migration failed for {table}.{column}: {e}")
+            logger.warning(f"Migration failed for {table}.{column}: {e}")
             return False
 
     def _rename_column_if_needed(self, conn, table: str, old_name: str,
@@ -470,7 +470,7 @@ class SchemaMixin:
                 logger.info(f"Migration: Renamed {table}.{old_name} to {new_name}")
                 return True
             except Exception as e:
-                logger.error(f"Migration failed for {table} rename {old_name}: {e}")
+                logger.warning(f"Migration failed for {table} rename {old_name}: {e}")
         return False
 
     def _get_table_columns(self, conn, table: str) -> set:
@@ -902,16 +902,16 @@ class SchemaMixin:
                 )
             """)
             # Seed default pricing (ON CONFLICT DO NOTHING preserves manual edits)
-            from config import normalize_model_key
+            # Use old column format -- new columns (match_key, raw_model_id, source)
+            # are added by the ALTER TABLE migration block that follows, then backfilled.
             for model_id, info in DEFAULT_MODEL_PRICING.items():
-                key = normalize_model_key(model_id)
                 conn.execute(
                     """INSERT INTO model_pricing
-                           (model_id, match_key, raw_model_id, display_name,
-                            input_cost_per_mtok, output_cost_per_mtok, source)
-                       VALUES (?, ?, ?, ?, ?, ?, 'default')
+                           (model_id, display_name,
+                            input_cost_per_mtok, output_cost_per_mtok)
+                       VALUES (?, ?, ?, ?)
                        ON CONFLICT(model_id) DO NOTHING""",
-                    (model_id, key, model_id, info['name'], info['input'], info['output'])
+                    (model_id, info['name'], info['input'], info['output'])
                 )
             conn.commit()
             logger.info("Migration: Created token usage tables and seeded model pricing")

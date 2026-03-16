@@ -6,6 +6,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.76] - 2026-03-16
+
+### Fixed
+- **Migration failure on existing DB**: Seed INSERT into `model_pricing` no longer references `match_key`, `raw_model_id`, or `source` columns that only exist after the ALTER TABLE migration runs. Existing DBs upgrading from pre-1.0.75 schemas will now migrate cleanly.
+- **Stale pricing after provider change**: Switching LLM provider now calls `force_refresh_pricing()` to immediately fetch pricing for the new provider, instead of just resetting the TTL and waiting up to 15 minutes for the background loop.
+- **Noisy duplicate column log**: Downgraded the "duplicate column name" log in `_add_column_if_missing` from ERROR to DEBUG, since this is expected when multiple gunicorn workers race to run the same ALTER TABLE migration.
+
 ## [1.0.75] - 2026-03-16
 
 ### Added

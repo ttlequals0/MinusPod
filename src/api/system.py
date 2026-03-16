@@ -12,6 +12,7 @@ from api import (
     api, limiter, log_request, json_response, error_response,
     get_database, get_storage, _get_version, _start_time,
 )
+from pricing_fetcher import force_refresh_pricing
 
 logger = logging.getLogger('podcast.api')
 
@@ -129,7 +130,6 @@ def get_model_pricing():
 @log_request
 def refresh_model_pricing():
     """Force refresh pricing data from provider's pricing source."""
-    from pricing_fetcher import force_refresh_pricing
     try:
         force_refresh_pricing()
         db = get_database()

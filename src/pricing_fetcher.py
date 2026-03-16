@@ -258,9 +258,3 @@ def force_refresh_pricing():
     refresh_pricing_if_stale()
 
 
-def invalidate_pricing_cache():
-    """Reset TTL so next stale check triggers a fetch. Called on provider change."""
-    global _last_fetch
-    with _fetch_lock:
-        _last_fetch = 0.0
-    logger.info("Pricing cache invalidated (provider change)")
