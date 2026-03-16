@@ -19,6 +19,11 @@ from typing import Optional, Tuple
 # Must match StatusService.MAX_JOB_DURATION for consistency
 MAX_JOB_DURATION = 3600  # 60 minutes - auto-clear stuck jobs
 
+# Force-clear safety net: if a job exceeds this even when this process holds the lock,
+# force-release it. This handles cases where the processing thread is truly stuck
+# (e.g. infinite loop in subprocess calls) and the lock holder can't self-clear.
+MAX_JOB_FORCE_CLEAR = 7200  # 2 hours
+
 logger = logging.getLogger('podcast.processing_queue')
 
 
@@ -105,8 +110,17 @@ class ProcessingQueue:
         current = state.get('current_episode')
         elapsed = time.time() - (state.get('acquired_at') or time.time())
 
-        # If THIS process holds the lock, the job is still alive
+        # If THIS process holds the lock, the job is still alive -- unless
+        # it has exceeded the force-clear threshold (stuck processing thread).
         if self._lock_fd is not None:
+            if elapsed > MAX_JOB_FORCE_CLEAR:
+                logger.error(
+                    f"Force-clearing stuck job: {current[0]}:{current[1]} "
+                    f"({elapsed/60:.0f} min exceeds {MAX_JOB_FORCE_CLEAR/60:.0f} min limit) "
+                    f"- releasing lock held by this process"
+                )
+                self.release()
+                return True
             if self._is_stale(state):
                 logger.warning(
                     f"Long-running job: {current[0]}:{current[1]} "

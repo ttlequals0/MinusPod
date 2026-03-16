@@ -11,6 +11,8 @@ import logging
 import os
 import subprocess
 import tempfile
+import threading
+import time
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
 import json
@@ -275,7 +277,9 @@ class AudioFingerprinter:
     def find_matches(
         self,
         audio_path: str,
-        known_fingerprints: List[Tuple[int, str, float, str]] = None
+        known_fingerprints: List[Tuple[int, str, float, str]] = None,
+        timeout: int = 600,
+        cancel_event: Optional[threading.Event] = None
     ) -> List[FingerprintMatch]:
         """
         Search for known ad fingerprints in an audio file.
@@ -286,6 +290,9 @@ class AudioFingerprinter:
             audio_path: Path to audio file to search
             known_fingerprints: List of (pattern_id, fingerprint, duration, sponsor)
                                If None, loads from database
+            timeout: Maximum seconds to spend scanning (default 600s / 10 minutes).
+                     Returns partial results if exceeded.
+            cancel_event: Optional threading.Event; if set, scanning stops early.
 
         Returns:
             List of FingerprintMatch objects for found ads
@@ -311,8 +318,34 @@ class AudioFingerprinter:
         logger.info(f"Searching {total_duration:.1f}s audio for {len(known_fingerprints)} known fingerprints")
 
         # Slide through audio looking for matches
+        scan_start_time = time.time()
+        last_log_time = scan_start_time
         position = 0.0
         while position < total_duration - MIN_SEGMENT_DURATION:
+            now = time.time()
+            elapsed = now - scan_start_time
+
+            # Timeout check
+            if elapsed > timeout:
+                logger.warning(
+                    f"Fingerprint scan timed out after {elapsed:.0f}s "
+                    f"at {position:.1f}s/{total_duration:.1f}s with {len(matches)} matches"
+                )
+                break
+
+            # Cancel check
+            if cancel_event and cancel_event.is_set():
+                logger.info(f"Fingerprint scan cancelled at {position:.1f}s/{total_duration:.1f}s")
+                break
+
+            # Progress logging every 60s
+            if now - last_log_time >= 60:
+                pct = (position / total_duration) * 100
+                logger.info(
+                    f"Fingerprint scan progress: {position:.1f}s/{total_duration:.1f}s "
+                    f"({pct:.0f}%), {len(matches)} matches, {elapsed:.0f}s elapsed"
+                )
+                last_log_time = now
             # Bail out if all known fingerprints are broken/corrupt
             if len(broken_patterns) >= len(known_fingerprints):
                 logger.info("All known fingerprints are broken/skipped, ending scan early")

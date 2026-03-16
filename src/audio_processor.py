@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import List, Dict, Optional
 
 from utils.audio import get_audio_duration
+from config import FFMPEG_LONG_TIMEOUT
 
 logger = logging.getLogger(__name__)
 
@@ -242,10 +243,14 @@ class AudioProcessor:
             ]
 
             logger.info(f"Running FFMPEG to remove ads")
+            # Scale timeout: 5 min base + 5 sec per minute of audio
+            # e.g. 30-min episode = 450s, 107-min = 835s, 180-min = 1200s
+            ffmpeg_timeout = FFMPEG_LONG_TIMEOUT + int(total_duration / 12)
+            logger.debug(f"FFMPEG timeout: {ffmpeg_timeout}s for {total_duration:.0f}s audio")
             # Use capture_output without text=True to get raw bytes
             # FFMPEG can output non-UTF-8 characters (progress bars, special chars)
             # which would cause UnicodeDecodeError if we used text=True
-            result = subprocess.run(cmd, capture_output=True, timeout=300)
+            result = subprocess.run(cmd, capture_output=True, timeout=ffmpeg_timeout)
 
             if result.returncode != 0:
                 # Safely decode stderr, replacing any non-UTF-8 characters
@@ -267,7 +272,7 @@ class AudioProcessor:
                 return False
 
         except subprocess.TimeoutExpired:
-            logger.error("FFMPEG processing timed out")
+            logger.error(f"FFMPEG processing timed out after {ffmpeg_timeout}s")
             return False
         except Exception as e:
             logger.error(f"Audio processing failed: {e}")

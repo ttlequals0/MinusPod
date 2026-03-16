@@ -5,6 +5,8 @@ import re
 import time
 import random
 from typing import List, Dict, Optional
+
+from cancel import _check_cancel
 from llm_client import (
     get_llm_client, get_api_key, LLMClient,
     is_retryable_error, is_rate_limit_error,
@@ -1829,7 +1831,8 @@ class AdDetector:
                           skip_patterns: bool = False,
                           podcast_description: str = None,
                           progress_callback=None,
-                          audio_analysis=None) -> Dict:
+                          audio_analysis=None,
+                          cancel_event=None) -> Dict:
         """Process transcript for ad detection using three-stage pipeline.
 
         Pipeline stages:
@@ -1850,6 +1853,7 @@ class AdDetector:
             skip_patterns: If True, skip stages 1 & 2 (pattern DB), go directly to Claude
             podcast_description: Podcast-level description for context
             progress_callback: Optional callback(stage, percent) to report progress
+            cancel_event: Optional threading.Event for cooperative cancellation
 
         Returns:
             Dict with ads, status, and detection metadata
@@ -1890,7 +1894,7 @@ class AdDetector:
         if not skip_patterns and audio_path and self.audio_fingerprinter and self.audio_fingerprinter.is_available():
             try:
                 logger.info(f"[{slug}:{episode_id}] Stage 1: Audio fingerprint matching")
-                fp_matches = self.audio_fingerprinter.find_matches(audio_path)
+                fp_matches = self.audio_fingerprinter.find_matches(audio_path, cancel_event=cancel_event)
 
                 fp_added = 0
                 for match in fp_matches:
@@ -1931,6 +1935,9 @@ class AdDetector:
                     logger.info(f"[{slug}:{episode_id}] Fingerprint stage found {len(fp_matches)} ads")
             except Exception as e:
                 logger.warning(f"[{slug}:{episode_id}] Fingerprint matching failed: {e}")
+
+        # Cancel check between stages
+        _check_cancel(cancel_event, slug, episode_id)
 
         # Stage 2: Text Pattern Matching (skip if skip_patterns=True)
         if not skip_patterns and self.text_pattern_matcher and self.text_pattern_matcher.is_available():
@@ -1985,6 +1992,9 @@ class AdDetector:
                     logger.info(f"[{slug}:{episode_id}] Text pattern stage found {len(text_matches)} ads")
             except Exception as e:
                 logger.warning(f"[{slug}:{episode_id}] Text pattern matching failed: {e}")
+
+        # Cancel check between stages
+        _check_cancel(cancel_event, slug, episode_id)
 
         # Stage 3: Claude API for remaining content
         logger.info(f"[{slug}:{episode_id}] Stage 3: Claude API detection")

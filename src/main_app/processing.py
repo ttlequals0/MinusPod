@@ -294,7 +294,7 @@ def _detect_ads_first_pass(slug, episode_id, segments, audio_path,
                             episode_description, podcast_description,
                             skip_patterns, audio_analysis_result,
                             podcast_name, episode_title,
-                            progress_callback):
+                            progress_callback, cancel_event=None):
     """Pipeline stage: Run first-pass Claude ad detection.
 
     Returns (first_pass_ads, first_pass_count, ad_result).
@@ -308,7 +308,8 @@ def _detect_ads_first_pass(slug, episode_id, segments, audio_path,
         skip_patterns=skip_patterns,
         podcast_description=podcast_description,
         progress_callback=progress_callback,
-        audio_analysis=audio_analysis_result
+        audio_analysis=audio_analysis_result,
+        cancel_event=cancel_event
     )
     storage.save_ads_json(slug, episode_id, ad_result, pass_number=1)
 
@@ -798,7 +799,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 slug, episode_id, segments, audio_path,
                 episode_description, podcast_description,
                 skip_patterns, audio_analysis_result,
-                podcast_name, episode_title, detection_progress_callback
+                podcast_name, episode_title, detection_progress_callback,
+                cancel_event=cancel_event
             )
             _check_cancel(cancel_event, slug, episode_id)
 

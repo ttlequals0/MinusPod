@@ -12,6 +12,7 @@ import DataManagementSection from './settings/DataManagementSection';
 import WebhooksSection from './settings/WebhooksSection';
 import SecuritySection from './settings/SecuritySection';
 import ProcessingQueueSection from './settings/ProcessingQueueSection';
+import AppearanceSection from './settings/AppearanceSection';
 import LLMProviderSection from './settings/LLMProviderSection';
 import AIModelsSection from './settings/AIModelsSection';
 import TranscriptionSection from './settings/TranscriptionSection';
@@ -258,6 +259,10 @@ function Settings() {
         onCancel={(params) => cancelMutation.mutate(params)}
         cancelIsPending={cancelMutation.isPending}
       />
+
+      <SettingsGroupHeader title="Appearance" />
+
+      <AppearanceSection />
 
       <SettingsGroupHeader title="AI & Processing" />
 
