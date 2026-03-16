@@ -208,8 +208,8 @@ function FeedDetail() {
       </Link>
 
       <div className="bg-card rounded-lg border border-border p-6 mb-6">
-        <div className="flex gap-6">
-          <div className="w-32 h-32 flex-shrink-0">
+        <div className="flex flex-col sm:flex-row gap-6">
+          <div className="w-32 h-32 flex-shrink-0 mx-auto sm:mx-0">
             <img
               src={`/api/v1/feeds/${slug}/artwork`}
               alt={feed.title}
@@ -290,7 +290,7 @@ function FeedDetail() {
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 flex-wrap">
                   {feed.networkId && (
                     <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                       feed.networkIdOverride
@@ -337,9 +337,9 @@ function FeedDetail() {
                     disabled={updateMutation.isPending}
                     className="px-2 py-1.5 text-sm bg-secondary border border-border rounded flex-1 sm:flex-none min-w-0"
                   >
-                    <option value="global">Use Global Setting</option>
-                    <option value="enable">Always Enable</option>
-                    <option value="disable">Always Disable</option>
+                    <option value="global">Global Default</option>
+                    <option value="enable">Enabled</option>
+                    <option value="disable">Disabled</option>
                   </select>
                   {feed.autoProcessOverride !== null && feed.autoProcessOverride !== undefined && (
                     <span className={`px-2 py-0.5 rounded text-xs font-medium ${

@@ -224,7 +224,7 @@ class RSSParser:
 
             lines.append('<item>')
             lines.append(f'  <title>{self._escape_xml(entry.get("title", ""))}</title>')
-            lines.append(f'  <description><![CDATA[{entry.get("description", "")}]]></description>')
+            lines.append(f'  <description><![CDATA[{self._get_episode_description(entry)}]]></description>')
             lines.append(f'  <link>{self._escape_xml(entry.get("link", ""))}</link>')
             lines.append(f'  <guid>{self._escape_xml(entry.get("id", episode_url))}</guid>')
             lines.append(f'  <pubDate>{self._escape_xml(entry.get("published", ""))}</pubDate>')
@@ -299,7 +299,7 @@ class RSSParser:
         lines.append('<item>')
         lines.append(f'  <title>{self._escape_xml(ep.get("title") or "Unknown")}</title>')
         if ep.get('description'):
-            lines.append(f'  <description>{self._escape_xml(ep["description"])}</description>')
+            lines.append(f'  <description><![CDATA[{ep["description"]}]]></description>')
         lines.append(f'  <enclosure url="{modified_url}" type="audio/mpeg" />')
         lines.append(f'  <guid isPermaLink="false">{ep_id}</guid>')
         if ep.get('published_at'):
@@ -320,6 +320,38 @@ class RSSParser:
             return format_datetime(dt)
         except (ValueError, TypeError, AttributeError):
             return iso_date
+
+    @staticmethod
+    def _get_episode_description(entry) -> str:
+        """Extract episode description with fallback to iTunes fields.
+
+        Many feeds (e.g. Relay FM) leave <description> empty and put the
+        actual episode summary in <itunes:subtitle> or <content:encoded>.
+        Feedparser exposes these as 'subtitle' and 'content' respectively.
+
+        Note: the returned value may contain raw HTML (especially from
+        content:encoded). Callers should wrap in CDATA rather than
+        XML-escaping.
+        """
+        # feedparser aliases <description> and 'summary' to the same value,
+        # so checking both is redundant -- just check 'description'.
+        desc = entry.get('description', '') or ''
+        if desc.strip():
+            return desc
+
+        # <itunes:subtitle> -> 'subtitle'
+        subtitle = entry.get('subtitle', '') or ''
+        if subtitle.strip():
+            return subtitle
+
+        # <content:encoded> -> 'content' list (may contain HTML)
+        content = entry.get('content', [])
+        if content and isinstance(content, list):
+            value = content[0].get('value', '') or ''
+            if value.strip():
+                return value
+
+        return ''
 
     def _escape_xml(self, text: str) -> str:
         """Escape XML special characters."""
@@ -440,7 +472,7 @@ class RSSParser:
                     'url': episode_url,
                     'title': entry.get('title', 'Unknown'),
                     'published': entry.get('published', ''),
-                    'description': entry.get('description', ''),
+                    'description': self._get_episode_description(entry),
                     'artwork_url': artwork_url,
                     'episode_number': episode_number,
                 })

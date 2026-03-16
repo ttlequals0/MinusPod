@@ -196,14 +196,14 @@ function HistoryPage() {
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4 mb-6">
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2">
           <select
             value={statusFilter}
             onChange={(e) => {
               setStatusFilter(e.target.value as StatusFilter);
               setPage(1);
             }}
-            className="px-3 py-2 rounded bg-secondary text-secondary-foreground border border-border text-sm"
+            className="w-full sm:w-auto px-3 py-2 rounded bg-secondary text-secondary-foreground border border-border text-sm"
           >
             <option value="all">All Status</option>
             <option value="completed">Completed</option>
@@ -215,7 +215,7 @@ function HistoryPage() {
               setPodcastFilter(e.target.value);
               setPage(1);
             }}
-            className="px-3 py-2 rounded bg-secondary text-secondary-foreground border border-border text-sm"
+            className="w-full sm:w-auto px-3 py-2 rounded bg-secondary text-secondary-foreground border border-border text-sm"
           >
             <option value="">All Podcasts</option>
             {feeds?.map((feed) => (

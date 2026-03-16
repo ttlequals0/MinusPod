@@ -215,9 +215,9 @@ function AddFeed() {
                   }}
                   className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
                 >
-                  <option value="global">Use Global Setting</option>
-                  <option value="enable">Always Enable</option>
-                  <option value="disable">Always Disable</option>
+                  <option value="global">Global Default</option>
+                  <option value="enable">Enabled</option>
+                  <option value="disable">Disabled</option>
                 </select>
                 <p className="mt-1 text-sm text-muted-foreground">
                   Controls whether new episodes are automatically processed. Set before adding to prevent unwanted processing during initial refresh.
