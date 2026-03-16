@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.72] - 2026-03-16
+
+### Fixed
+- **Whisper model reload per chunk causing 2-3x transcription slowdown**: `transcribe_chunked()` was unloading and reloading the Whisper model after every chunk (14-18s reload each time, including HuggingFace API round-trip). Model is now kept loaded across chunks and unloaded once after all chunks complete. GPU cache clearing between chunks is preserved.
+
 ## [1.0.71] - 2026-03-16
 
 ### Fixed

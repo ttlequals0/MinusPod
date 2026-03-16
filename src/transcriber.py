@@ -26,6 +26,7 @@ from config import (
     WHISPER_MEMORY_PROFILES,
     WHISPER_DEFAULT_PROFILE,
     BROWSER_USER_AGENT, APP_USER_AGENT,
+    FFMPEG_LONG_TIMEOUT,
 )
 
 # Suppress ONNX Runtime warnings before importing faster_whisper
@@ -811,7 +812,11 @@ class Transcriber:
                 '-af', 'loudnorm=I=-16:LRA=11:TP=-1.5,highpass=f=80,lowpass=f=8000',
                 output_path
             ]
-            result = subprocess.run(cmd, capture_output=True, timeout=300)
+            # Scale timeout by file size: 10s per MB (~1MB/min for podcasts)
+            # e.g. 50MB file = 500s, 100MB = 1000s, floor at FFMPEG_LONG_TIMEOUT (300s)
+            file_size_mb = os.path.getsize(input_path) / (1024 * 1024)
+            preprocess_timeout = max(FFMPEG_LONG_TIMEOUT, int(file_size_mb * 10))
+            result = subprocess.run(cmd, capture_output=True, timeout=preprocess_timeout)
             if result.returncode == 0:
                 logger.info(f"Audio preprocessed: {input_path} -> {output_path}")
                 success = True
@@ -822,7 +827,7 @@ class Transcriber:
             )
             return None
         except subprocess.TimeoutExpired:
-            logger.warning("Audio preprocessing timed out, using original")
+            logger.warning(f"Audio preprocessing timed out after {preprocess_timeout}s, using original")
             return None
         except Exception as e:
             logger.warning(f"Audio preprocessing error: {e}, using original")
@@ -1342,11 +1347,14 @@ class Transcriber:
                     except OSError:
                         pass
 
-                # Unload model and clear GPU memory between chunks
-                # This is critical for keeping peak memory bounded
+                # Clear GPU cache between chunks (no reload cost)
                 clear_gpu_memory()
-                WhisperModelSingleton.unload_model()
                 logger.debug("Cleared GPU memory after chunk processing")
+
+        # Unload model once after all chunks complete to free VRAM
+        # for downstream stages (audio analysis, fingerprinting, etc.)
+        WhisperModelSingleton.unload_model()
+        logger.info("Whisper model unloaded after chunked transcription")
 
         # Final hallucination filtering on merged results
         original_count = len(all_segments)
