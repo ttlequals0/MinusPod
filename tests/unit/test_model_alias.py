@@ -7,7 +7,7 @@ from llm_client import (
     LLMModel,
     _filter_anthropic_aliases,
     _has_date_suffix,
-    _claude_family,
+    _strip_date_suffix,
     _alias_cache,
     resolve_anthropic_alias,
     AnthropicClient,
@@ -41,22 +41,23 @@ def test_has_date_suffix_false():
 
 
 # ---------------------------------------------------------------------------
-# _claude_family
+# _strip_date_suffix
 # ---------------------------------------------------------------------------
 
-def test_claude_family():
-    assert _claude_family('claude-sonnet-4-6') == 'claude-sonnet'
-    assert _claude_family('claude-sonnet-4-5-20250929') == 'claude-sonnet'
-    assert _claude_family('claude-opus-4-6') == 'claude-opus'
-    assert _claude_family('claude-opus-4-5-20251101') == 'claude-opus'
-    assert _claude_family('claude-haiku-4-5-20251001') == 'claude-haiku'
+def test_strip_date_suffix():
+    assert _strip_date_suffix('claude-sonnet-4-5-20250929') == 'claude-sonnet-4-5'
+    assert _strip_date_suffix('claude-opus-4-5-20251101') == 'claude-opus-4-5'
+    assert _strip_date_suffix('claude-haiku-4-5-20251001') == 'claude-haiku-4-5'
+    assert _strip_date_suffix('claude-sonnet-4-6') == 'claude-sonnet-4-6'
+    assert _strip_date_suffix('claude-opus-4-6') == 'claude-opus-4-6'
 
 
 # ---------------------------------------------------------------------------
 # _filter_anthropic_aliases
 # ---------------------------------------------------------------------------
 
-def test_filter_removes_aliases_when_dated_exists():
+def test_filter_keeps_new_models_without_dated_counterpart():
+    """4.6 models should NOT be filtered when only 4.5 dated models exist."""
     models = [
         LLMModel(id='claude-sonnet-4-6', name='Claude Sonnet 4.6'),
         LLMModel(id='claude-sonnet-4-5-20250929', name='Claude Sonnet 4.5'),
@@ -66,11 +67,37 @@ def test_filter_removes_aliases_when_dated_exists():
     ]
     result = _filter_anthropic_aliases(models)
     result_ids = {m.id for m in result}
-    assert 'claude-sonnet-4-6' not in result_ids
-    assert 'claude-opus-4-6' not in result_ids
+    assert 'claude-sonnet-4-6' in result_ids
+    assert 'claude-opus-4-6' in result_ids
     assert 'claude-sonnet-4-5-20250929' in result_ids
     assert 'claude-opus-4-5-20251101' in result_ids
     assert 'claude-haiku-4-5-20251001' in result_ids
+
+
+def test_filter_removes_alias_when_exact_dated_exists():
+    """claude-sonnet-4-5 alias is removed when claude-sonnet-4-5-20250929 exists."""
+    models = [
+        LLMModel(id='claude-sonnet-4-5', name='Claude Sonnet 4.5 alias'),
+        LLMModel(id='claude-sonnet-4-5-20250929', name='Claude Sonnet 4.5'),
+        LLMModel(id='claude-sonnet-4-6', name='Claude Sonnet 4.6'),
+    ]
+    result = _filter_anthropic_aliases(models)
+    result_ids = {m.id for m in result}
+    assert 'claude-sonnet-4-5' not in result_ids
+    assert 'claude-sonnet-4-5-20250929' in result_ids
+    assert 'claude-sonnet-4-6' in result_ids
+
+
+def test_filter_removes_alias_when_future_dated_exists():
+    """claude-sonnet-4-6 alias is removed when a dated 4.6 model exists."""
+    models = [
+        LLMModel(id='claude-sonnet-4-6', name='Claude Sonnet 4.6 alias'),
+        LLMModel(id='claude-sonnet-4-6-20260301', name='Claude Sonnet 4.6'),
+    ]
+    result = _filter_anthropic_aliases(models)
+    result_ids = {m.id for m in result}
+    assert 'claude-sonnet-4-6' not in result_ids
+    assert 'claude-sonnet-4-6-20260301' in result_ids
 
 
 def test_filter_keeps_model_without_dated_counterpart():
@@ -89,14 +116,14 @@ def test_filter_handles_empty_list():
 def test_filter_preserves_non_claude_models():
     models = [
         LLMModel(id='gpt-4o', name='GPT-4o'),
-        LLMModel(id='claude-sonnet-4-6', name='alias'),
+        LLMModel(id='claude-sonnet-4-6', name='Claude Sonnet 4.6'),
         LLMModel(id='claude-sonnet-4-5-20250929', name='dated'),
     ]
     result = _filter_anthropic_aliases(models)
     result_ids = {m.id for m in result}
     assert 'gpt-4o' in result_ids
     assert 'claude-sonnet-4-5-20250929' in result_ids
-    assert 'claude-sonnet-4-6' not in result_ids
+    assert 'claude-sonnet-4-6' in result_ids
 
 
 # ---------------------------------------------------------------------------
@@ -115,6 +142,21 @@ def test_resolve_passes_through_non_claude():
 
 @patch('llm_client.get_llm_client')
 def test_resolve_alias_to_dated(mock_get_client):
+    """claude-sonnet-4-5 resolves to its dated counterpart."""
+    mock_client = MagicMock(spec=AnthropicClient)
+    mock_client.list_models.return_value = [
+        LLMModel(id='claude-sonnet-4-5-20250929', name='Claude Sonnet 4.5'),
+        LLMModel(id='claude-opus-4-5-20251101', name='Claude Opus 4.5'),
+    ]
+    mock_get_client.return_value = mock_client
+
+    result = resolve_anthropic_alias('claude-sonnet-4-5')
+    assert result == 'claude-sonnet-4-5-20250929'
+
+
+@patch('llm_client.get_llm_client')
+def test_resolve_returns_unchanged_when_no_version_match(mock_get_client):
+    """claude-sonnet-4-6 stays unchanged when only 4.5 dated models exist."""
     mock_client = MagicMock(spec=AnthropicClient)
     mock_client.list_models.return_value = [
         LLMModel(id='claude-sonnet-4-5-20250929', name='Claude Sonnet 4.5'),
@@ -123,7 +165,7 @@ def test_resolve_alias_to_dated(mock_get_client):
     mock_get_client.return_value = mock_client
 
     result = resolve_anthropic_alias('claude-sonnet-4-6')
-    assert result == 'claude-sonnet-4-5-20250929'
+    assert result == 'claude-sonnet-4-6'
 
 
 @patch('llm_client.get_llm_client')
@@ -145,12 +187,12 @@ def test_resolve_caches_result(mock_get_client):
     mock_get_client.return_value = mock_client
 
     # First call hits the API
-    result1 = resolve_anthropic_alias('claude-sonnet-4-6')
+    result1 = resolve_anthropic_alias('claude-sonnet-4-5')
     assert result1 == 'claude-sonnet-4-5-20250929'
     assert mock_client.list_models.call_count == 1
 
     # Second call uses cache -- no additional API call
-    result2 = resolve_anthropic_alias('claude-sonnet-4-6')
+    result2 = resolve_anthropic_alias('claude-sonnet-4-5')
     assert result2 == 'claude-sonnet-4-5-20250929'
     assert mock_client.list_models.call_count == 1
 

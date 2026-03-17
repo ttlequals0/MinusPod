@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.79] - 2026-03-17
+
+### Fixed
+- **Alias filter incorrectly removes new models (Sonnet 4.6, Opus 4.6)**: `_filter_anthropic_aliases()` used family-based grouping that treated `claude-sonnet-4-6` and `claude-opus-4-6` as aliases for their 4.5 counterparts. Replaced `_claude_family()` with `_strip_date_suffix()` so a non-dated model is only filtered when a dated model with the exact same version prefix exists. Restored 4.6 pricing entries in `DEFAULT_MODEL_PRICING`.
+
 ## [1.0.78] - 2026-03-17
 
 ### Fixed

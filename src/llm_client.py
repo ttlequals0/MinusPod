@@ -153,28 +153,21 @@ def _has_date_suffix(model_id: str) -> bool:
     return bool(_DATE_SUFFIX_RE.search(model_id))
 
 
-def _claude_family(model_id: str) -> str:
-    """Extract the Claude model family prefix (e.g. 'claude-sonnet', 'claude-opus').
-
-    Strips version numbers and date suffixes to get the base family name.
-    """
-    # Remove date suffix first
-    name = _DATE_SUFFIX_RE.sub('', model_id)
-    # Remove trailing version digits: e.g. 'claude-sonnet-4-5' -> 'claude-sonnet'
-    return re.sub(r'(-\d+)+$', '', name)
+def _strip_date_suffix(model_id: str) -> str:
+    """Strip the YYYYMMDD date suffix from a model ID, if present."""
+    return _DATE_SUFFIX_RE.sub('', model_id)
 
 
 def _filter_anthropic_aliases(models: List['LLMModel']) -> List['LLMModel']:
-    """Remove Anthropic alias models when a dated version in the same family exists.
+    """Remove Anthropic alias models when a dated version with the same prefix exists.
 
-    An alias is a model that:
-    - starts with 'claude-'
-    - does NOT have a date suffix (-YYYYMMDD)
-    - has a counterpart in the list from the same family (e.g. claude-sonnet)
-      that DOES have a date suffix
+    A non-dated model is only treated as an alias if a dated model with the
+    exact same version prefix exists (e.g. 'claude-sonnet-4-5' is an alias
+    when 'claude-sonnet-4-5-20250929' exists, but 'claude-sonnet-4-6' is NOT
+    an alias for 'claude-sonnet-4-5-20250929').
     """
-    dated_families = {
-        _claude_family(m.id)
+    dated_prefixes = {
+        _strip_date_suffix(m.id)
         for m in models
         if m.id.startswith('claude-') and _has_date_suffix(m.id)
     }
@@ -183,7 +176,7 @@ def _filter_anthropic_aliases(models: List['LLMModel']) -> List['LLMModel']:
         if not (
             m.id.startswith('claude-')
             and not _has_date_suffix(m.id)
-            and _claude_family(m.id) in dated_families
+            and m.id in dated_prefixes
         )
     ]
 
@@ -215,11 +208,10 @@ def resolve_anthropic_alias(model_id: str) -> str:
             return model_id
         # list_models() already filters aliases, so all results are dated
         all_models = client.list_models()
-        target_family = _claude_family(model_id)
-        # Find dated models in the same family, pick the one with the latest date
+        # Find dated models whose version prefix matches the alias exactly
         candidates = [
             m for m in all_models
-            if _has_date_suffix(m.id) and _claude_family(m.id) == target_family
+            if _has_date_suffix(m.id) and _strip_date_suffix(m.id) == model_id
         ]
         if candidates:
             best = max(candidates, key=lambda m: m.id)

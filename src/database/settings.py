@@ -9,9 +9,11 @@ logger = logging.getLogger(__name__)
 
 # Default pricing for known Anthropic models (USD per 1M tokens)
 DEFAULT_MODEL_PRICING = {
+    'claude-opus-4-6':            {'name': 'Claude Opus 4.6',   'input': 5.0,  'output': 25.0},
     'claude-opus-4-5-20251101':   {'name': 'Claude Opus 4.5',   'input': 5.0,  'output': 25.0},
     'claude-opus-4-1-20250805':   {'name': 'Claude Opus 4.1',   'input': 15.0, 'output': 75.0},
     'claude-opus-4-20250514':     {'name': 'Claude Opus 4',     'input': 15.0, 'output': 75.0},
+    'claude-sonnet-4-6':          {'name': 'Claude Sonnet 4.6', 'input': 3.0,  'output': 15.0},
     'claude-sonnet-4-5-20250929': {'name': 'Claude Sonnet 4.5', 'input': 3.0,  'output': 15.0},
     'claude-sonnet-4-20250514':   {'name': 'Claude Sonnet 4',   'input': 3.0,  'output': 15.0},
     'claude-haiku-4-5-20251001':  {'name': 'Claude Haiku 4.5',  'input': 1.0,  'output': 5.0},
