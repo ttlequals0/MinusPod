@@ -6,6 +6,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.80] - 2026-03-17
+
+### Fixed
+- **Fingerprint scan 1000x slower than expected**: Sliding window fingerprint search spawned 2 subprocesses (ffmpeg + fpcalc) per 2-second step, resulting in ~2378 subprocess calls for a 40-minute episode. Refactored `find_matches()` to pre-compute one full-file fingerprint via a single fpcalc call, then compare by slicing the raw int array in pure Python. Falls back to per-window scanning if full-file fingerprint fails.
+- **History page pagination broken**: Frontend sends `page` param but backend only read `offset`, so every page returned the same results. Backend now accepts `page`, converts to offset, and includes `page` in the response. The `offset` param still works for backwards compatibility.
+- **API errors abort entire episode processing**: A single LLM window failure (400/500) killed ad detection for the whole episode. Added per-window retry (2 extra attempts with 2s/5s backoff) and skip-on-failure logic so partial results are returned. Only aborts if ALL windows fail. Applied to both detection and verification passes.
+
 ## [1.0.79] - 2026-03-17
 
 ### Fixed

@@ -1669,6 +1669,7 @@ class AdDetector:
 
             all_window_ads = []
             all_raw_responses = []
+            failed_windows = 0
             llm_timeout = get_llm_timeout()
             max_retries = get_llm_max_retries()
 
@@ -1750,18 +1751,41 @@ class AdDetector:
                             time.sleep(delay)
                             continue
                         else:
-                            logger.error(f"[{slug}:{episode_id}] Window {i+1} failed: {e}")
-                            return {
-                                "ads": [],
-                                "status": "failed",
-                                "error": str(e),
-                                "error_type": type(e).__name__,
-                                "retryable": self._is_retryable_error(e),
-                                "prompt": f"Failed at window {i+1}"
-                            }
+                            logger.warning(f"[{slug}:{episode_id}] Window {i+1} failed: {e}")
+                            break
+
+                # Per-window retry for transient failures (intermittent 400s/500s)
+                if response is None and last_error is not None:
+                    for retry_num, delay in enumerate([2, 5], 1):
+                        logger.warning(
+                            f"[{slug}:{episode_id}] Window {i+1} per-window retry "
+                            f"{retry_num}/2 after {delay}s backoff"
+                        )
+                        time.sleep(delay)
+                        try:
+                            response = self._llm_client.messages_create(
+                                model=model,
+                                max_tokens=2000,
+                                temperature=0.0,
+                                system=system_prompt,
+                                messages=[{"role": "user", "content": prompt}],
+                                timeout=llm_timeout,
+                                response_format={"type": "json_object"}
+                            )
+                            logger.info(f"[{slug}:{episode_id}] Window {i+1} succeeded on retry {retry_num}")
+                            break
+                        except Exception as e:
+                            last_error = e
+                            logger.warning(
+                                f"[{slug}:{episode_id}] Window {i+1} retry {retry_num} failed: {e}"
+                            )
 
                 if response is None:
-                    logger.error(f"[{slug}:{episode_id}] Window {i+1} - no response after retries")
+                    failed_windows += 1
+                    logger.error(
+                        f"[{slug}:{episode_id}] Window {i+1}/{len(windows)} failed after all retries, "
+                        f"skipping (error: {last_error})"
+                    )
                     continue
 
                 # Parse response (LLMResponse.content is already extracted text)
@@ -1804,6 +1828,19 @@ class AdDetector:
                 logger.info(f"[{slug}:{episode_id}] Window {i+1} found {len(window_ads)} ads")
 
                 all_window_ads.extend(window_ads)
+
+            if failed_windows > 0:
+                logger.warning(
+                    f"[{slug}:{episode_id}] {failed_windows}/{len(windows)} windows "
+                    f"failed during detection"
+                )
+            if failed_windows >= len(windows):
+                return {
+                    "ads": [],
+                    "status": "failed",
+                    "error": f"All {len(windows)} detection windows failed",
+                    "retryable": True
+                }
 
             # Deduplicate ads across windows
             final_ads = deduplicate_window_ads(all_window_ads)
@@ -2461,6 +2498,7 @@ class AdDetector:
 
             all_window_ads = []
             all_raw_responses = []
+            failed_windows = 0
             llm_timeout = get_llm_timeout()
             max_retries = get_llm_max_retries()
 
@@ -2510,6 +2548,7 @@ class AdDetector:
                            f"{window_start/60:.1f}-{window_end/60:.1f}min")
 
                 response = None
+                last_error = None
                 for attempt in range(max_retries + 1):
                     try:
                         response = self._llm_client.messages_create(
@@ -2523,6 +2562,7 @@ class AdDetector:
                         )
                         break
                     except Exception as e:
+                        last_error = e
                         if self._is_retryable_error(e) and attempt < max_retries:
                             if is_rate_limit_error(e):
                                 delay = 60.0
@@ -2533,16 +2573,45 @@ class AdDetector:
                             time.sleep(delay)
                             continue
                         else:
-                            logger.error(f"[{slug}:{episode_id}] Verification Window {i+1} failed: {e}")
-                            return {
-                                "ads": [],
-                                "status": "failed",
-                                "error": str(e),
-                                "retryable": self._is_retryable_error(e)
-                            }
+                            logger.warning(f"[{slug}:{episode_id}] Verification Window {i+1} failed: {e}")
+                            break
+
+                # Per-window retry for transient failures (intermittent 400s/500s)
+                if response is None and last_error is not None:
+                    for retry_num, delay in enumerate([2, 5], 1):
+                        logger.warning(
+                            f"[{slug}:{episode_id}] Verification Window {i+1} per-window retry "
+                            f"{retry_num}/2 after {delay}s backoff"
+                        )
+                        time.sleep(delay)
+                        try:
+                            response = self._llm_client.messages_create(
+                                model=model,
+                                max_tokens=2000,
+                                temperature=0.0,
+                                system=system_prompt,
+                                messages=[{"role": "user", "content": prompt}],
+                                timeout=llm_timeout,
+                                response_format={"type": "json_object"}
+                            )
+                            logger.info(
+                                f"[{slug}:{episode_id}] Verification Window {i+1} "
+                                f"succeeded on retry {retry_num}"
+                            )
+                            break
+                        except Exception as e:
+                            last_error = e
+                            logger.warning(
+                                f"[{slug}:{episode_id}] Verification Window {i+1} "
+                                f"retry {retry_num} failed: {e}"
+                            )
 
                 if response is None:
-                    logger.error(f"[{slug}:{episode_id}] Verification Window {i+1} - no response after retries")
+                    failed_windows += 1
+                    logger.error(
+                        f"[{slug}:{episode_id}] Verification Window {i+1}/{len(windows)} "
+                        f"failed after all retries, skipping (error: {last_error})"
+                    )
                     continue
 
                 response_text = response.content
@@ -2576,6 +2645,19 @@ class AdDetector:
 
                 logger.info(f"[{slug}:{episode_id}] Verification Window {i+1} found {len(valid_window_ads)} ads")
                 all_window_ads.extend(valid_window_ads)
+
+            if failed_windows > 0:
+                logger.warning(
+                    f"[{slug}:{episode_id}] {failed_windows}/{len(windows)} windows "
+                    f"failed during verification"
+                )
+            if failed_windows >= len(windows):
+                return {
+                    "ads": [],
+                    "status": "failed",
+                    "error": f"All {len(windows)} verification windows failed",
+                    "retryable": True
+                }
 
             final_ads = deduplicate_window_ads(all_window_ads)
 

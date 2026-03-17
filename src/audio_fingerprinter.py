@@ -274,6 +274,155 @@ class AudioFingerprinter:
 
         return matching_bits / total_bits if total_bits > 0 else 0.0
 
+    def _generate_full_fingerprint(self, audio_path: str) -> Optional[Tuple[List[int], float]]:
+        """Generate raw fingerprint for entire audio file in one fpcalc call.
+
+        Returns:
+            Tuple of (raw_int_array, duration) or None on failure
+        """
+        if not self._fpcalc_path:
+            return None
+
+        try:
+            cmd = [self._fpcalc_path, '-raw', '-json', '-length', '0', audio_path]
+            result = subprocess.run(cmd, capture_output=True, timeout=120)
+
+            if result.returncode != 0:
+                logger.warning(f"Full-file fpcalc failed: {result.stderr.decode()}")
+                return None
+
+            data = json.loads(result.stdout.decode())
+            raw_ints = data.get('fingerprint', [])
+            duration = data.get('duration', 0)
+
+            if not raw_ints or not isinstance(raw_ints, list):
+                return None
+
+            logger.debug(f"Full-file fingerprint: {len(raw_ints)} ints for {duration:.1f}s")
+            return (raw_ints, duration)
+
+        except subprocess.TimeoutExpired:
+            logger.error("Full-file fingerprint generation timed out")
+            return None
+        except Exception as e:
+            logger.error(f"Full-file fingerprint generation failed: {e}")
+            return None
+
+    def _decode_known_fingerprints(
+        self,
+        known_fingerprints: List[Tuple[int, str, float, str]]
+    ) -> List[Tuple[int, List[int], float, str]]:
+        """Decode known fingerprint strings to raw int arrays.
+
+        Returns:
+            List of (pattern_id, raw_int_array, duration, sponsor)
+        """
+        try:
+            import acoustid
+        except ImportError:
+            logger.warning("acoustid not available for fingerprint decoding")
+            return []
+
+        decoded = []
+        for pattern_id, fp_str, duration, sponsor in known_fingerprints:
+            try:
+                fp_bytes = fp_str.encode('utf-8') if isinstance(fp_str, str) else fp_str
+                result = acoustid.chromaprint.decode_fingerprint(fp_bytes)
+                if result and result[0]:
+                    decoded.append((pattern_id, result[0], duration, sponsor))
+                else:
+                    logger.warning(f"Could not decode fingerprint for pattern {pattern_id}")
+            except Exception as e:
+                logger.warning(f"Failed to decode fingerprint for pattern {pattern_id}: {e}")
+
+        return decoded
+
+    def _find_matches_fast(
+        self,
+        raw_ints: List[int],
+        fp_duration: float,
+        decoded_known: List[Tuple[int, List[int], float, str]],
+        total_duration: float,
+        timeout: int,
+        cancel_event: Optional[threading.Event]
+    ) -> List[FingerprintMatch]:
+        """Fast fingerprint matching using pre-computed full-file fingerprint.
+
+        Slides through the raw int array comparing slices against decoded
+        known fingerprints. No subprocess calls -- pure Python array operations.
+        """
+        matches = []
+        ints_per_second = len(raw_ints) / fp_duration if fp_duration > 0 else 8.0
+        scan_start_time = time.time()
+        last_log_time = scan_start_time
+        position = 0.0
+
+        while position < total_duration - MIN_SEGMENT_DURATION:
+            now = time.time()
+            elapsed = now - scan_start_time
+
+            if elapsed > timeout:
+                logger.warning(
+                    f"Fingerprint scan timed out after {elapsed:.0f}s "
+                    f"at {position:.1f}s/{total_duration:.1f}s with {len(matches)} matches"
+                )
+                break
+
+            if cancel_event and cancel_event.is_set():
+                logger.info(f"Fingerprint scan cancelled at {position:.1f}s/{total_duration:.1f}s")
+                break
+
+            if now - last_log_time >= 60:
+                pct = (position / total_duration) * 100
+                logger.info(
+                    f"Fingerprint scan progress: {position:.1f}s/{total_duration:.1f}s "
+                    f"({pct:.0f}%), {len(matches)} matches, {elapsed:.0f}s elapsed"
+                )
+                last_log_time = now
+
+            # Slice fingerprint for current window
+            start_idx = int(position * ints_per_second)
+            end_idx = int((position + FINGERPRINT_CHUNK_SIZE) * ints_per_second)
+            window_ints = raw_ints[start_idx:end_idx]
+
+            if len(window_ints) < 4:
+                position += SLIDING_STEP_SIZE
+                continue
+
+            matched = False
+            for pattern_id, known_ints, known_duration, sponsor in decoded_known:
+                similarity = self._calculate_similarity(window_ints, known_ints)
+
+                if similarity >= MATCH_THRESHOLD:
+                    match = FingerprintMatch(
+                        pattern_id=pattern_id,
+                        start=position,
+                        end=position + known_duration,
+                        confidence=similarity,
+                        sponsor=sponsor
+                    )
+                    matches.append(match)
+                    logger.info(
+                        f"Fingerprint match: pattern={pattern_id} "
+                        f"at {position:.1f}s (confidence={similarity:.2f})"
+                    )
+                    position += known_duration
+                    matched = True
+                    break
+
+            if not matched:
+                position += SLIDING_STEP_SIZE
+
+        matches = self._merge_overlapping_matches(matches)
+
+        scan_elapsed = time.time() - scan_start_time
+        logger.info(
+            f"Fast fingerprint scan completed in {scan_elapsed:.1f}s, "
+            f"found {len(matches)} matches"
+        )
+
+        return matches
+
     def find_matches(
         self,
         audio_path: str,
@@ -317,7 +466,26 @@ class AudioFingerprinter:
 
         logger.info(f"Searching {total_duration:.1f}s audio for {len(known_fingerprints)} known fingerprints")
 
-        # Slide through audio looking for matches
+        # Fast path: generate one full-file fingerprint and compare by slicing
+        full_fp = self._generate_full_fingerprint(audio_path)
+        if full_fp is not None:
+            raw_ints, fp_duration = full_fp
+            decoded_known = self._decode_known_fingerprints(known_fingerprints)
+            if decoded_known:
+                logger.info(
+                    f"Using fast fingerprint scan "
+                    f"({len(raw_ints)} ints, {len(decoded_known)} patterns)"
+                )
+                return self._find_matches_fast(
+                    raw_ints, fp_duration, decoded_known, total_duration,
+                    timeout, cancel_event
+                )
+            else:
+                logger.warning("Could not decode known fingerprints, falling back to per-window scan")
+        else:
+            logger.warning("Full-file fingerprint failed, falling back to per-window scan")
+
+        # Slow fallback: per-window subprocess scanning
         scan_start_time = time.time()
         last_log_time = scan_start_time
         position = 0.0
