@@ -68,6 +68,16 @@ class TestNormalizeModelKey:
         """Non-date numeric suffixes should not be stripped."""
         assert normalize_model_key('model-v10000101') == 'modelv10000101'
 
+    def test_openrouter_free_suffix_stripped(self):
+        assert normalize_model_key('z-ai/glm-4.5-air:free') == 'glm45air'
+
+    def test_openrouter_beta_suffix_stripped(self):
+        assert normalize_model_key('anthropic/claude-sonnet-4-5:beta') == 'claudesonnet45'
+
+    def test_colon_suffix_with_digits_not_stripped(self):
+        """Suffix containing digits does not match alpha-only regex, so it is kept."""
+        assert normalize_model_key('model:v2-large') == 'modelv2large'
+
 
 class TestGetPricingSource:
     """Test pricing source detection."""

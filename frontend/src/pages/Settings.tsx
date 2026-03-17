@@ -275,6 +275,9 @@ function Settings() {
         onProviderChange={(p) => {
           setLlmProvider(p);
           if (p !== LLM_PROVIDERS.OPENROUTER) setOpenrouterApiKey('');
+          setSelectedModel('');
+          setVerificationModel('');
+          setChaptersModel('');
         }}
         onBaseUrlChange={setOpenaiBaseUrl}
         onOpenrouterApiKeyChange={setOpenrouterApiKey}

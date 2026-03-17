@@ -259,6 +259,8 @@ def normalize_model_key(name: str) -> str:
     # Strip provider prefix (anything before /)
     if '/' in name:
         name = name.split('/', 1)[1]
+    # Strip OpenRouter variant suffixes (:free, :extended, :beta, :nitro, etc.)
+    name = re.sub(r':[a-z]+$', '', name)
     # Strip date suffixes: YYYYMMDD or YYYY-MM-DD at end (2020-2039 range)
     name = re.sub(r'-?20[2-3]\d-?\d{2}-?\d{2}$', '', name)
     # Lowercase, remove everything non-alphanumeric
