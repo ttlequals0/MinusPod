@@ -266,10 +266,9 @@ class AudioFingerprinter:
         matching_bits = 0
 
         for i in range(min_len):
-            xor = fp1[i] ^ fp2[i]
-            # Count differing bits
-            diff_bits = bin(xor).count('1')
-            matching_bits += 32 - diff_bits  # 32 bits per int
+            xor = (fp1[i] ^ fp2[i]) & 0xFFFFFFFF
+            diff_bits = xor.bit_count()
+            matching_bits += 32 - diff_bits
             total_bits += 32
 
         return matching_bits / total_bits if total_bits > 0 else 0.0
@@ -352,6 +351,7 @@ class AudioFingerprinter:
         known fingerprints. No subprocess calls -- pure Python array operations.
         """
         matches = []
+        # fpcalc default sample rate produces ~8 ints/sec; compute actual from data
         ints_per_second = len(raw_ints) / fp_duration if fp_duration > 0 else 8.0
         scan_start_time = time.time()
         last_log_time = scan_start_time

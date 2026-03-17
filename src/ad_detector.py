@@ -1245,6 +1245,71 @@ class AdDetector:
         """Get user prompt template (hardcoded, not configurable)."""
         return USER_PROMPT_TEMPLATE
 
+    def _call_llm_for_window(self, *, model, system_prompt, prompt, llm_timeout,
+                              max_retries, slug, episode_id, window_label):
+        """Call LLM with primary retry + per-window fallback retry.
+
+        Returns:
+            Tuple of (response, last_error). response is None if all retries failed.
+        """
+        response = None
+        last_error = None
+
+        for attempt in range(max_retries + 1):
+            try:
+                response = self._llm_client.messages_create(
+                    model=model,
+                    max_tokens=2000,
+                    temperature=0.0,
+                    system=system_prompt,
+                    messages=[{"role": "user", "content": prompt}],
+                    timeout=llm_timeout,
+                    response_format={"type": "json_object"}
+                )
+                return response, None
+            except Exception as e:
+                last_error = e
+                if self._is_retryable_error(e) and attempt < max_retries:
+                    if is_rate_limit_error(e):
+                        delay = 60.0
+                        logger.warning(f"[{slug}:{episode_id}] {window_label} rate limit, waiting {delay:.0f}s")
+                    else:
+                        delay = self._calculate_backoff(attempt)
+                        logger.warning(f"[{slug}:{episode_id}] {window_label} API error: {e}. Retrying in {delay:.1f}s")
+                    time.sleep(delay)
+                    continue
+                else:
+                    logger.warning(f"[{slug}:{episode_id}] {window_label} failed: {e}")
+                    break
+
+        # Per-window retry for transient failures (intermittent 400s/500s)
+        if response is None and last_error is not None:
+            for retry_num, delay in enumerate([2, 5], 1):
+                logger.warning(
+                    f"[{slug}:{episode_id}] {window_label} per-window retry "
+                    f"{retry_num}/2 after {delay}s backoff"
+                )
+                time.sleep(delay)
+                try:
+                    response = self._llm_client.messages_create(
+                        model=model,
+                        max_tokens=2000,
+                        temperature=0.0,
+                        system=system_prompt,
+                        messages=[{"role": "user", "content": prompt}],
+                        timeout=llm_timeout,
+                        response_format={"type": "json_object"}
+                    )
+                    logger.info(f"[{slug}:{episode_id}] {window_label} succeeded on retry {retry_num}")
+                    return response, None
+                except Exception as e:
+                    last_error = e
+                    logger.warning(
+                        f"[{slug}:{episode_id}] {window_label} retry {retry_num} failed: {e}"
+                    )
+
+        return None, last_error
+
     def _is_retryable_error(self, error: Exception) -> bool:
         """Check if an error is transient and should be retried."""
         return is_retryable_error(error)
@@ -1723,63 +1788,12 @@ class AdDetector:
                 logger.info(f"[{slug}:{episode_id}] Window {i+1}/{len(windows)}: "
                            f"{window_start/60:.1f}-{window_end/60:.1f}min, {len(window_segments)} segments")
 
-                # Call Claude API with retry logic
-                response = None
-                last_error = None
-
-                for attempt in range(max_retries + 1):
-                    try:
-                        response = self._llm_client.messages_create(
-                            model=model,
-                            max_tokens=2000,
-                            temperature=0.0,
-                            system=system_prompt,
-                            messages=[{"role": "user", "content": prompt}],
-                            timeout=llm_timeout,
-                            response_format={"type": "json_object"}
-                        )
-                        break
-                    except Exception as e:
-                        last_error = e
-                        if self._is_retryable_error(e) and attempt < max_retries:
-                            if is_rate_limit_error(e):
-                                delay = 60.0
-                                logger.warning(f"[{slug}:{episode_id}] Window {i+1} rate limit, waiting {delay:.0f}s")
-                            else:
-                                delay = self._calculate_backoff(attempt)
-                                logger.warning(f"[{slug}:{episode_id}] Window {i+1} API error: {e}. Retrying in {delay:.1f}s")
-                            time.sleep(delay)
-                            continue
-                        else:
-                            logger.warning(f"[{slug}:{episode_id}] Window {i+1} failed: {e}")
-                            break
-
-                # Per-window retry for transient failures (intermittent 400s/500s)
-                if response is None and last_error is not None:
-                    for retry_num, delay in enumerate([2, 5], 1):
-                        logger.warning(
-                            f"[{slug}:{episode_id}] Window {i+1} per-window retry "
-                            f"{retry_num}/2 after {delay}s backoff"
-                        )
-                        time.sleep(delay)
-                        try:
-                            response = self._llm_client.messages_create(
-                                model=model,
-                                max_tokens=2000,
-                                temperature=0.0,
-                                system=system_prompt,
-                                messages=[{"role": "user", "content": prompt}],
-                                timeout=llm_timeout,
-                                response_format={"type": "json_object"}
-                            )
-                            logger.info(f"[{slug}:{episode_id}] Window {i+1} succeeded on retry {retry_num}")
-                            break
-                        except Exception as e:
-                            last_error = e
-                            logger.warning(
-                                f"[{slug}:{episode_id}] Window {i+1} retry {retry_num} failed: {e}"
-                            )
-
+                response, last_error = self._call_llm_for_window(
+                    model=model, system_prompt=system_prompt, prompt=prompt,
+                    llm_timeout=llm_timeout, max_retries=max_retries,
+                    slug=slug, episode_id=episode_id,
+                    window_label=f"Window {i+1}"
+                )
                 if response is None:
                     failed_windows += 1
                     logger.error(
@@ -2547,65 +2561,12 @@ class AdDetector:
                 logger.info(f"[{slug}:{episode_id}] Verification Window {i+1}/{len(windows)}: "
                            f"{window_start/60:.1f}-{window_end/60:.1f}min")
 
-                response = None
-                last_error = None
-                for attempt in range(max_retries + 1):
-                    try:
-                        response = self._llm_client.messages_create(
-                            model=model,
-                            max_tokens=2000,
-                            temperature=0.0,
-                            system=system_prompt,
-                            messages=[{"role": "user", "content": prompt}],
-                            timeout=llm_timeout,
-                            response_format={"type": "json_object"}
-                        )
-                        break
-                    except Exception as e:
-                        last_error = e
-                        if self._is_retryable_error(e) and attempt < max_retries:
-                            if is_rate_limit_error(e):
-                                delay = 60.0
-                            else:
-                                delay = self._calculate_backoff(attempt)
-                            logger.warning(f"[{slug}:{episode_id}] Verification Window {i+1} "
-                                         f"API error: {e}. Retrying in {delay:.1f}s")
-                            time.sleep(delay)
-                            continue
-                        else:
-                            logger.warning(f"[{slug}:{episode_id}] Verification Window {i+1} failed: {e}")
-                            break
-
-                # Per-window retry for transient failures (intermittent 400s/500s)
-                if response is None and last_error is not None:
-                    for retry_num, delay in enumerate([2, 5], 1):
-                        logger.warning(
-                            f"[{slug}:{episode_id}] Verification Window {i+1} per-window retry "
-                            f"{retry_num}/2 after {delay}s backoff"
-                        )
-                        time.sleep(delay)
-                        try:
-                            response = self._llm_client.messages_create(
-                                model=model,
-                                max_tokens=2000,
-                                temperature=0.0,
-                                system=system_prompt,
-                                messages=[{"role": "user", "content": prompt}],
-                                timeout=llm_timeout,
-                                response_format={"type": "json_object"}
-                            )
-                            logger.info(
-                                f"[{slug}:{episode_id}] Verification Window {i+1} "
-                                f"succeeded on retry {retry_num}"
-                            )
-                            break
-                        except Exception as e:
-                            last_error = e
-                            logger.warning(
-                                f"[{slug}:{episode_id}] Verification Window {i+1} "
-                                f"retry {retry_num} failed: {e}"
-                            )
-
+                response, last_error = self._call_llm_for_window(
+                    model=model, system_prompt=system_prompt, prompt=prompt,
+                    llm_timeout=llm_timeout, max_retries=max_retries,
+                    slug=slug, episode_id=episode_id,
+                    window_label=f"Verification Window {i+1}"
+                )
                 if response is None:
                     failed_windows += 1
                     logger.error(
