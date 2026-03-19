@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { getFeeds, refreshFeed, refreshAllFeeds, deleteFeed, importOpml, OpmlImportResult } from '../api/feeds';
@@ -93,6 +93,18 @@ function Dashboard() {
     }
   };
 
+  const sortedFeeds = useMemo(() => {
+    if (!feeds) return [];
+    return [...feeds].sort((a, b) => {
+      if (sortBy === 'recent') {
+        const dateA = a.lastEpisodeDate ? new Date(a.lastEpisodeDate).getTime() : 0;
+        const dateB = b.lastEpisodeDate ? new Date(b.lastEpisodeDate).getTime() : 0;
+        return dateB - dateA;
+      }
+      return a.title.localeCompare(b.title, undefined, { sensitivity: 'base' });
+    });
+  }, [feeds, sortBy]);
+
   if (isLoading) {
     return <LoadingSpinner className="py-12" />;
   }
@@ -108,9 +120,9 @@ function Dashboard() {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold text-foreground">Feeds</h1>
-        <div className="flex gap-2 items-center">
+      <div className="flex flex-wrap justify-between items-center gap-y-2 mb-6">
+        <h1 className="text-2xl font-bold text-foreground w-full sm:w-auto">Feeds</h1>
+        <div className="flex gap-2 items-center overflow-x-auto flex-shrink-0 no-scrollbar">
           <div className="flex border border-border rounded overflow-hidden">
             <button
               onClick={() => setViewMode('grid')}
@@ -237,14 +249,7 @@ function Dashboard() {
         </div>
       ) : viewMode === 'grid' ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {[...feeds].sort((a, b) => {
-            if (sortBy === 'recent') {
-              const dateA = a.lastEpisodeDate ? new Date(a.lastEpisodeDate).getTime() : 0;
-              const dateB = b.lastEpisodeDate ? new Date(b.lastEpisodeDate).getTime() : 0;
-              return dateB - dateA;
-            }
-            return a.title.localeCompare(b.title, undefined, { sensitivity: 'base' });
-          }).map((feed) => (
+          {sortedFeeds.map((feed) => (
             <FeedCard
               key={feed.slug}
               feed={feed}
@@ -256,14 +261,7 @@ function Dashboard() {
         </div>
       ) : (
         <div className="flex flex-col gap-2">
-          {[...feeds].sort((a, b) => {
-            if (sortBy === 'recent') {
-              const dateA = a.lastEpisodeDate ? new Date(a.lastEpisodeDate).getTime() : 0;
-              const dateB = b.lastEpisodeDate ? new Date(b.lastEpisodeDate).getTime() : 0;
-              return dateB - dateA;
-            }
-            return a.title.localeCompare(b.title, undefined, { sensitivity: 'base' });
-          }).map((feed) => (
+          {sortedFeeds.map((feed) => (
             <FeedListItem
               key={feed.slug}
               feed={feed}

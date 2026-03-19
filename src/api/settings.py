@@ -88,6 +88,8 @@ def get_settings():
     openrouter_api_key = get_effective_openrouter_api_key()
     openrouter_api_key_configured = bool(openrouter_api_key)
 
+    podcast_index_api_key = _setting_value(settings, 'podcast_index_api_key', '') or os.environ.get('PODCAST_INDEX_API_KEY', '')
+
     # Whisper backend settings (env var defaults)
     default_whisper_backend = os.environ.get('WHISPER_BACKEND', 'local')
     default_whisper_api_base_url = os.environ.get('WHISPER_API_BASE_URL', '')
@@ -111,6 +113,7 @@ def get_settings():
         'llmProvider': _sv('llm_provider', llm_provider),
         'openaiBaseUrl': _sv('openai_base_url', openai_base_url),
         'openrouterApiKeyConfigured': openrouter_api_key_configured,
+        'podcastIndexApiKeyConfigured': bool(podcast_index_api_key),
         'openrouterBaseUrl': OPENROUTER_BASE_URL,
         'whisperBackend': _sv('whisper_backend', whisper_backend),
         'whisperApiBaseUrl': _sv('whisper_api_base_url', whisper_api_base_url),
@@ -264,6 +267,14 @@ def update_ad_detection_settings():
             return json_response({'error': 'whisperApiModel must be a non-empty string (max 200 chars)'}, 400)
         db.set_setting('whisper_api_model', model_val, is_default=False)
         logger.info(f"Updated whisper API model to: {model_val}")
+
+    if 'podcastIndexApiKey' in data:
+        db.set_setting('podcast_index_api_key', data['podcastIndexApiKey'].strip(), is_default=False)
+        logger.info("Updated Podcast Index API key")
+
+    if 'podcastIndexApiSecret' in data:
+        db.set_setting('podcast_index_api_secret', data['podcastIndexApiSecret'].strip(), is_default=False)
+        logger.info("Updated Podcast Index API secret")
 
     return json_response({'message': 'Settings updated'})
 

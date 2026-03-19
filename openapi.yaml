@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 1.0.83
+  version: 1.0.84
   contact:
     name: MinusPod
   license:
@@ -349,8 +349,18 @@ paths:
         - Feeds
       summary: Export feeds as OPML file
       description: |
-        Export all subscribed podcast feeds as an OPML XML file for backup or import into other podcast apps.
+        Export all subscribed podcast feeds as an OPML XML file.
+        Use mode=original for upstream source URLs (backup/migration).
+        Use mode=modified for MinusPod-served ad-free feed URLs (import into podcast apps).
       operationId: exportOpml
+      parameters:
+        - name: mode
+          in: query
+          description: 'URL mode: "original" for upstream source URLs, "modified" for MinusPod ad-free feed URLs'
+          schema:
+            type: string
+            enum: [original, modified]
+            default: original
       responses:
         '200':
           description: OPML file download
@@ -364,6 +374,12 @@ paths:
               schema:
                 type: string
                 format: binary
+        '400':
+          description: Invalid mode parameter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /feeds/{slug}:
     get:
@@ -1484,6 +1500,56 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/ServerError'
+
+  /podcast-search:
+    get:
+      tags:
+        - Podcast Discovery
+      summary: Search podcasts via PodcastIndex
+      description: |
+        Proxy search to PodcastIndex.org API. Requires API credentials
+        configured in settings or environment variables.
+      operationId: searchPodcasts
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: Search query (podcast name or keywords)
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                        title:
+                          type: string
+                        description:
+                          type: string
+                        artworkUrl:
+                          type: string
+                        feedUrl:
+                          type: string
+                        author:
+                          type: string
+                        link:
+                          type: string
+        '400':
+          description: Missing query parameter
+        '502':
+          description: PodcastIndex API unreachable
+        '503':
+          description: PodcastIndex credentials not configured
 
   /search:
     get:

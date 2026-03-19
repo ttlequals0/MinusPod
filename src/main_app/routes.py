@@ -183,6 +183,23 @@ def register_routes(app):
                 return send_file(openapi_path, mimetype='application/x-yaml')
         abort(404)
 
+    # ========== Browser Icon Routes ==========
+    # Short-circuit favicon/apple-touch-icon requests so they don't fall through
+    # to the /<slug> feed route and trigger expensive DB lookups.
+
+    @app.route('/favicon.ico')
+    def favicon():
+        response = send_from_directory(STATIC_DIR, 'favicon.svg')
+        response.headers['Content-Type'] = 'image/svg+xml'
+        return response
+
+    @app.route('/apple-touch-icon.png')
+    @app.route('/apple-touch-icon-precomposed.png')
+    @app.route('/apple-touch-icon-120x120.png')
+    @app.route('/apple-touch-icon-120x120-precomposed.png')
+    def apple_touch_icon():
+        return send_from_directory(STATIC_DIR, 'apple-touch-icon.png')
+
     # ========== RSS Feed Routes ==========
 
     @app.route('/<slug>')

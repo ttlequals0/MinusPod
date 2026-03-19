@@ -74,7 +74,7 @@ export function MobileAudioSheet({
   getRejectButtonText,
 }: MobileAudioSheetProps) {
   return (
-    <div className="sm:hidden bg-card border-t border-border flex-shrink-0">
+    <div className="sm:hidden bg-card border-t border-border flex-shrink-0 pb-[env(safe-area-inset-bottom)]">
       <audio ref={audioRef} src={audioUrl} className="hidden" />
 
       {/* Grab handle */}

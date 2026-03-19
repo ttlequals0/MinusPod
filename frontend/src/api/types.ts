@@ -138,6 +138,7 @@ export interface Settings {
   openaiBaseUrl: SettingValue;
   apiKeyConfigured: boolean;
   openrouterApiKeyConfigured: boolean;
+  podcastIndexApiKeyConfigured: boolean;
   openrouterBaseUrl: string;
   retentionDays: number;
   defaults: {
@@ -179,6 +180,8 @@ export interface UpdateSettingsPayload {
   whisperApiKey?: string;
   whisperApiModel?: string;
   openrouterApiKey?: string;
+  podcastIndexApiKey?: string;
+  podcastIndexApiSecret?: string;
 }
 
 export interface ClaudeModel {

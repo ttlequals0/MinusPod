@@ -15,10 +15,11 @@ interface RequestOptions {
   method?: string;
   body?: unknown;
   skipAuthRedirect?: boolean;
+  signal?: AbortSignal;
 }
 
 export async function apiRequest<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
-  const { method = 'GET', body, skipAuthRedirect = false } = options;
+  const { method = 'GET', body, skipAuthRedirect = false, signal } = options;
 
   const headers: HeadersInit = {};
   if (body) {
@@ -29,6 +30,7 @@ export async function apiRequest<T>(endpoint: string, options: RequestOptions = 
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,
+    signal,
   });
 
   // Handle 401 Unauthorized - redirect to login
