@@ -218,6 +218,9 @@ The server includes a web-based management UI at `/ui/`:
 - Processing history with stats, filtering, and export
 - Settings for LLM provider, AI models, ad detection prompts, retention, system stats, token usage and cost
 - Real-time status bar showing processing progress across all pages
+- OPML export with original or ad-free (modified) feed URLs
+- Podcast search via PodcastIndex.org
+- Installable as Progressive Web App (PWA)
 
 ### Ad Editor Workflow
 
@@ -677,7 +680,8 @@ Key endpoints:
 - `GET /api/v1/feeds` - List all feeds
 - `POST /api/v1/feeds` - Add a new feed (supports `maxEpisodes` for RSS cap)
 - `POST /api/v1/feeds/import-opml` - Import feeds from OPML file
-- `GET /api/v1/feeds/export-opml` - Export all feeds as OPML file
+- `GET /api/v1/feeds/export-opml?mode=original|modified` - Export feeds as OPML (original or ad-free URLs)
+- `GET /api/v1/podcast-search?q=query` - Search podcasts via PodcastIndex.org
 - `GET /api/v1/feeds/{slug}/episodes` - List episodes (supports `sort_by`, `sort_dir`, `status` filter, pagination)
 - `POST /api/v1/feeds/{slug}/episodes/bulk` - Bulk episode actions (process, reprocess, reprocess_full, delete)
 - `POST /api/v1/feeds/{slug}/episodes/{id}/reprocess` - Force reprocess (supports `mode`: reprocess/full)

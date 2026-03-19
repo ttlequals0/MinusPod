@@ -287,7 +287,7 @@ function GlobalStatusBar() {
 
       {/* Expanded View */}
       {isExpanded && (
-        <div className="px-4 pb-3 border-t border-border/50 bg-accent/20">
+        <div className="px-4 pb-3 border-t border-border/50 bg-accent/20 max-h-48 overflow-y-auto">
           {/* Current job details */}
           {currentJob && (
             <div className="py-2 border-b border-border/30">

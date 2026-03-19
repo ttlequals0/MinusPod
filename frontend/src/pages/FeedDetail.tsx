@@ -358,8 +358,8 @@ function FeedDetail() {
 
         <div className="mt-6 pt-4 border-t border-border flex flex-wrap gap-4 items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground hidden sm:inline">Feed URL:</span>
-            <code className="text-sm bg-secondary px-2 py-1 rounded truncate max-w-md hidden sm:block">
+            <span className="text-sm text-muted-foreground">Feed URL:</span>
+            <code className="text-sm bg-secondary px-2 py-1 rounded truncate max-w-[180px] sm:max-w-md block">
               {feed.feedUrl}
             </code>
             <button

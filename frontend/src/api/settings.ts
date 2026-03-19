@@ -115,11 +115,12 @@ export interface TemplateValidationResult {
 
 // Data Management
 
-export async function exportOpml(): Promise<void> {
-  const response = await fetch('/api/v1/feeds/export-opml');
+export async function exportOpml(mode: 'original' | 'modified' = 'original'): Promise<void> {
+  const response = await fetch(`/api/v1/feeds/export-opml?mode=${mode}`);
   if (!response.ok) throw new Error('Failed to export OPML');
   const blob = await response.blob();
-  downloadBlob(blob, 'minuspod-feeds.opml');
+  const filename = mode === 'modified' ? 'minuspod-feeds-modified.opml' : 'minuspod-feeds.opml';
+  downloadBlob(blob, filename);
 }
 
 export async function downloadBackup(): Promise<void> {

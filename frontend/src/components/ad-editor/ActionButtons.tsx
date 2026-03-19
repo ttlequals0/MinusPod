@@ -63,7 +63,7 @@ export function ActionButtons({
         <button
           onClick={onReject}
           disabled={saveStatus === 'saving'}
-          className={`px-6 py-2.5 text-sm font-semibold rounded-lg transition-colors ${
+          className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
             saveStatus === 'saving' ? 'bg-destructive/50 cursor-wait' : 'bg-destructive hover:bg-destructive/90 shadow-sm'
           } text-destructive-foreground`}
         >
@@ -79,7 +79,7 @@ export function ActionButtons({
         <button
           onClick={onReject}
           disabled={saveStatus === 'saving'}
-          className={`flex-1 py-2.5 rounded-lg touch-manipulation active:scale-95 transition-all flex items-center justify-center gap-1 text-xs font-medium ${
+          className={`flex-1 py-2.5 rounded-lg touch-manipulation active:scale-95 transition-all flex items-center justify-center gap-1 text-xs font-medium disabled:opacity-50 ${
             saveStatus === 'saving' ? 'bg-destructive/50 cursor-wait' : saveStatus === 'success' ? 'bg-green-600 text-white' : saveStatus === 'error' ? 'bg-red-600 text-white' : 'bg-destructive/10 text-destructive active:bg-destructive/20'
           }`}
           title="Not an Ad"
@@ -99,7 +99,7 @@ export function ActionButtons({
         <button
           onClick={onConfirm}
           disabled={saveStatus === 'saving'}
-          className={`flex-1 py-2.5 rounded-lg touch-manipulation active:scale-95 transition-all flex items-center justify-center gap-1 text-xs font-medium ${
+          className={`flex-1 py-2.5 rounded-lg touch-manipulation active:scale-95 transition-all flex items-center justify-center gap-1 text-xs font-medium disabled:opacity-50 ${
             saveStatus === 'saving' ? 'bg-green-600/50 cursor-wait' : saveStatus === 'success' ? 'bg-green-600' : saveStatus === 'error' ? 'bg-red-600' : 'bg-green-600 text-white active:bg-green-700'
           }`}
           title="Confirm"
@@ -110,7 +110,7 @@ export function ActionButtons({
         <button
           onClick={onSave}
           disabled={saveStatus === 'saving'}
-          className={`flex-1 py-2.5 rounded-lg touch-manipulation active:scale-95 transition-all flex items-center justify-center gap-1 text-xs font-medium ${
+          className={`flex-1 py-2.5 rounded-lg touch-manipulation active:scale-95 transition-all flex items-center justify-center gap-1 text-xs font-medium disabled:opacity-50 ${
             saveStatus === 'saving' ? 'bg-primary/50 cursor-wait' : saveStatus === 'success' ? 'bg-green-600 text-white' : saveStatus === 'error' ? 'bg-red-600 text-white' : 'bg-primary text-primary-foreground active:bg-primary/90'
           }`}
           title="Save Adjusted"
@@ -125,10 +125,10 @@ export function ActionButtons({
   // mobile-expanded
   return (
     <div className="flex items-center justify-center gap-2">
-      <button onClick={onReject} disabled={saveStatus === 'saving'} className="flex-1 py-3 rounded-lg bg-destructive/10 text-destructive text-sm font-medium touch-manipulation active:scale-95 transition-all">Not Ad</button>
-      <button onClick={onReset} disabled={saveStatus === 'saving'} className="flex-1 py-3 rounded-lg bg-muted text-sm font-medium touch-manipulation active:scale-95 transition-all">Reset</button>
-      <button onClick={onConfirm} disabled={saveStatus === 'saving'} className="flex-1 py-3 rounded-lg bg-green-600 text-white text-sm font-medium touch-manipulation active:scale-95 transition-all">Confirm</button>
-      <button onClick={onSave} disabled={saveStatus === 'saving'} className="flex-1 py-3 rounded-lg bg-primary text-primary-foreground text-sm font-medium touch-manipulation active:scale-95 transition-all">Save</button>
+      <button onClick={onReject} disabled={saveStatus === 'saving'} className="flex-1 py-3 rounded-lg bg-destructive/10 text-destructive text-sm font-medium touch-manipulation active:scale-95 transition-all disabled:opacity-50">Not Ad</button>
+      <button onClick={onReset} disabled={saveStatus === 'saving'} className="flex-1 py-3 rounded-lg bg-muted text-sm font-medium touch-manipulation active:scale-95 transition-all disabled:opacity-50">Reset</button>
+      <button onClick={onConfirm} disabled={saveStatus === 'saving'} className="flex-1 py-3 rounded-lg bg-green-600 text-white text-sm font-medium touch-manipulation active:scale-95 transition-all disabled:opacity-50">Confirm</button>
+      <button onClick={onSave} disabled={saveStatus === 'saving'} className="flex-1 py-3 rounded-lg bg-primary text-primary-foreground text-sm font-medium touch-manipulation active:scale-95 transition-all disabled:opacity-50">Save</button>
     </div>
   );
 }

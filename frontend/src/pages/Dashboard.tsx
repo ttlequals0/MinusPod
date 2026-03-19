@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { getFeeds, refreshFeed, refreshAllFeeds, deleteFeed, importOpml, OpmlImportResult } from '../api/feeds';
+import { exportOpml } from '../api/settings';
 import FeedCard from '../components/FeedCard';
 import FeedListItem from '../components/FeedListItem';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -13,6 +14,8 @@ function Dashboard() {
   const [showOpmlModal, setShowOpmlModal] = useState(false);
   const [opmlResult, setOpmlResult] = useState<OpmlImportResult | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+  const [showExportMenu, setShowExportMenu] = useState(false);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
     const stored = localStorage.getItem('dashboardViewMode');
     return stored === 'list' ? 'list' : 'grid';
@@ -29,6 +32,17 @@ function Dashboard() {
   useEffect(() => {
     localStorage.setItem('dashboardSortBy', sortBy);
   }, [sortBy]);
+
+  useEffect(() => {
+    if (!showExportMenu) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+        setShowExportMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showExportMenu]);
 
   const { data: feeds, isLoading, error } = useQuery({
     queryKey: ['feeds'],
@@ -110,7 +124,7 @@ function Dashboard() {
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-foreground">Feeds</h1>
-        <div className="flex gap-2 items-center">
+        <div className="flex gap-2 items-center overflow-x-auto flex-shrink-0 no-scrollbar">
           <div className="flex border border-border rounded overflow-hidden">
             <button
               onClick={() => setViewMode('grid')}
@@ -192,6 +206,34 @@ function Dashboard() {
             </svg>
             <span className="hidden sm:inline">Import OPML</span>
           </button>
+          <div className="relative" ref={exportMenuRef}>
+            <button
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              className="p-2 sm:px-4 sm:py-2 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
+              title="Export OPML"
+            >
+              <svg className="w-5 h-5 sm:hidden" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              <span className="hidden sm:inline">Export OPML</span>
+            </button>
+            {showExportMenu && (
+              <div className="absolute right-0 top-full mt-1 z-50 bg-card border border-border rounded-lg shadow-lg py-1 min-w-[200px]">
+                <button
+                  onClick={async () => { setShowExportMenu(false); await exportOpml('modified'); }}
+                  className="w-full text-left px-4 py-2 text-sm hover:bg-accent transition-colors"
+                >
+                  Modified feeds (ad-free)
+                </button>
+                <button
+                  onClick={async () => { setShowExportMenu(false); await exportOpml('original'); }}
+                  className="w-full text-left px-4 py-2 text-sm hover:bg-accent transition-colors"
+                >
+                  Original feeds
+                </button>
+              </div>
+            )}
+          </div>
           <Link
             to="/add"
             className="p-2 sm:px-4 sm:py-2 rounded bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"

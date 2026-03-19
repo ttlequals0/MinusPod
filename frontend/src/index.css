@@ -57,3 +57,11 @@
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 }
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+}
+
+/* Hide default disclosure triangle on <summary> across browsers */
+summary.list-none::-webkit-details-marker { display: none; }

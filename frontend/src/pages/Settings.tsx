@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getSettings, updateSettings, resetSettings, resetPrompts, getModels, getWhisperModels, getSystemStatus, runCleanup, getProcessingEpisodes, cancelProcessing, refreshModels, getRetention, updateRetention } from '../api/settings';
 import { useAuth } from '../context/AuthContext';
@@ -13,6 +14,7 @@ import WebhooksSection from './settings/WebhooksSection';
 import SecuritySection from './settings/SecuritySection';
 import ProcessingQueueSection from './settings/ProcessingQueueSection';
 import AppearanceSection from './settings/AppearanceSection';
+import PodcastIndexSection from './settings/PodcastIndexSection';
 import LLMProviderSection from './settings/LLMProviderSection';
 import AIModelsSection from './settings/AIModelsSection';
 import TranscriptionSection from './settings/TranscriptionSection';
@@ -33,6 +35,7 @@ function SettingsGroupHeader({ title }: { title: string }) {
 
 function Settings() {
   const queryClient = useQueryClient();
+  const location = useLocation();
   const { isPasswordSet, logout, refreshStatus } = useAuth();
 
   const [systemPrompt, setSystemPrompt] = useState('');
@@ -53,6 +56,8 @@ function Settings() {
     baseUrl: '', apiKey: '', apiKeyConfigured: undefined, model: 'whisper-1',
   });
   const [openrouterApiKey, setOpenrouterApiKey] = useState('');
+  const [podcastIndexApiKey, setPodcastIndexApiKey] = useState('');
+  const [podcastIndexApiSecret, setPodcastIndexApiSecret] = useState('');
   const [retentionDays, setRetentionDays] = useState(30);
   const [retentionEnabled, setRetentionEnabled] = useState(true);
 
@@ -91,6 +96,16 @@ function Settings() {
   useEffect(() => {
     localStorage.setItem('settings-section-system-status', 'true');
   }, []);
+
+  // Auto-expand and scroll to section when navigated via hash link
+  useEffect(() => {
+    if (location.hash === '#podcast-index') {
+      localStorage.setItem('settings-section-podcast-index', 'true');
+      setTimeout(() => {
+        document.getElementById('podcast-index')?.scrollIntoView({ behavior: 'smooth' });
+      }, 100);
+    }
+  }, [location.hash]);
 
   useEffect(() => {
     if (retention) {
@@ -161,9 +176,11 @@ function Settings() {
       whisperApiConfig.baseUrl !== (settings.whisperApiBaseUrl?.value || '') ||
       whisperApiConfig.apiKey !== '' ||
       whisperApiConfig.model !== (settings.whisperApiModel?.value || 'whisper-1') ||
-      openrouterApiKey !== ''
+      openrouterApiKey !== '' ||
+      podcastIndexApiKey !== '' ||
+      podcastIndexApiSecret !== ''
     );
-  }, [systemPrompt, verificationPrompt, selectedModel, verificationModel, whisperModel, autoProcessEnabled, audioBitrate, vttTranscriptsEnabled, chaptersEnabled, chaptersModel, minCutConfidence, llmProvider, openaiBaseUrl, whisperBackend, whisperApiConfig.baseUrl, whisperApiConfig.apiKey, whisperApiConfig.model, openrouterApiKey, settings]);
+  }, [systemPrompt, verificationPrompt, selectedModel, verificationModel, whisperModel, autoProcessEnabled, audioBitrate, vttTranscriptsEnabled, chaptersEnabled, chaptersModel, minCutConfidence, llmProvider, openaiBaseUrl, whisperBackend, whisperApiConfig.baseUrl, whisperApiConfig.apiKey, whisperApiConfig.model, openrouterApiKey, podcastIndexApiKey, podcastIndexApiSecret, settings]);
 
   const updateMutation = useMutation({
     mutationFn: () =>
@@ -186,9 +203,13 @@ function Settings() {
         ...(whisperApiConfig.apiKey ? { whisperApiKey: whisperApiConfig.apiKey } : {}),
         whisperApiModel: whisperApiConfig.model,
         ...(openrouterApiKey ? { openrouterApiKey } : {}),
+        ...(podcastIndexApiKey ? { podcastIndexApiKey } : {}),
+        ...(podcastIndexApiSecret ? { podcastIndexApiSecret } : {}),
       }),
     onSuccess: () => {
       setOpenrouterApiKey('');
+      setPodcastIndexApiKey('');
+      setPodcastIndexApiSecret('');
       queryClient.invalidateQueries({ queryKey: ['settings'] });
       queryClient.invalidateQueries({ queryKey: ['models'] });
     },
@@ -263,6 +284,18 @@ function Settings() {
       <SettingsGroupHeader title="Appearance" />
 
       <AppearanceSection />
+
+      <SettingsGroupHeader title="Podcast Discovery" />
+
+      <div id="podcast-index">
+      <PodcastIndexSection
+        podcastIndexApiKeyConfigured={settings?.podcastIndexApiKeyConfigured}
+        podcastIndexApiKey={podcastIndexApiKey}
+        podcastIndexApiSecret={podcastIndexApiSecret}
+        onApiKeyChange={setPodcastIndexApiKey}
+        onApiSecretChange={setPodcastIndexApiSecret}
+      />
+      </div>
 
       <SettingsGroupHeader title="AI & Processing" />
 

@@ -301,8 +301,15 @@ def import_opml():
 @log_request
 def export_opml():
     """Export all podcast feeds as an OPML 2.0 file."""
+    mode = request.args.get('mode', 'original')
+    if mode not in ('original', 'modified'):
+        return error_response('mode must be "original" or "modified"', 400)
+
     db = get_database()
     podcasts = db.get_all_podcasts()
+
+    if mode == 'modified':
+        base_url = os.environ.get('BASE_URL', 'http://localhost:8000')
 
     opml = ET.Element('opml', version='2.0')
     head = ET.SubElement(opml, 'head')
@@ -311,22 +318,27 @@ def export_opml():
 
     for podcast in podcasts:
         title = podcast.get('title') or podcast.get('slug', '')
+        if mode == 'modified':
+            feed_url = f"{base_url}/{podcast['slug']}"
+        else:
+            feed_url = podcast.get('source_url', '')
         ET.SubElement(body, 'outline',
                       type='rss',
                       text=title,
                       title=title,
-                      xmlUrl=podcast.get('source_url', ''))
+                      xmlUrl=feed_url)
 
     xml_bytes = ET.tostring(opml, encoding='unicode', xml_declaration=False)
     xml_output = '<?xml version="1.0" encoding="UTF-8"?>\n' + xml_bytes
 
-    logger.info(f"Exported {len(podcasts)} feeds as OPML")
+    filename = 'minuspod-feeds.opml' if mode == 'original' else 'minuspod-feeds-modified.opml'
+    logger.info(f"Exported {len(podcasts)} feeds as OPML (mode={mode})")
 
     return Response(
         xml_output,
         mimetype='application/xml',
         headers={
-            'Content-Disposition': 'attachment; filename="minuspod-feeds.opml"'
+            'Content-Disposition': f'attachment; filename="{filename}"'
         }
     )
 

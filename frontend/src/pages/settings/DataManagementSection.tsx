@@ -22,11 +22,11 @@ function DataManagementSection({
   const [backupError, setBackupError] = useState('');
   const [resetConfirm, setResetConfirm] = useState(false);
 
-  const handleExportOpml = async () => {
+  const handleExportOpml = async (mode: 'original' | 'modified' = 'original') => {
     setOpmlStatus('loading');
     setOpmlError('');
     try {
-      await exportOpml();
+      await exportOpml(mode);
       setOpmlStatus('success');
       setTimeout(() => setOpmlStatus('idle'), 3000);
     } catch (err) {
@@ -101,17 +101,26 @@ function DataManagementSection({
             <div className="flex-1 min-w-0">
               <h4 className="text-sm font-semibold text-foreground">OPML Export</h4>
               <p className="text-xs text-muted-foreground mt-1">
-                Export all feed subscriptions as an OPML file for backup or import into other apps.
+                Export feed subscriptions as OPML. Modified feeds use MinusPod ad-free URLs; original feeds use upstream source URLs.
               </p>
             </div>
           </div>
-          <button
-            onClick={handleExportOpml}
-            disabled={opmlStatus === 'loading'}
-            className="w-full px-4 py-2 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors text-sm font-medium"
-          >
-            {opmlStatus === 'loading' ? 'Exporting...' : 'Export OPML'}
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => handleExportOpml('modified')}
+              disabled={opmlStatus === 'loading'}
+              className="flex-1 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors text-sm font-medium"
+            >
+              {opmlStatus === 'loading' ? 'Exporting...' : 'Modified Feeds'}
+            </button>
+            <button
+              onClick={() => handleExportOpml('original')}
+              disabled={opmlStatus === 'loading'}
+              className="flex-1 px-3 py-2 rounded-lg bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors text-sm font-medium"
+            >
+              {opmlStatus === 'loading' ? 'Exporting...' : 'Original Feeds'}
+            </button>
+          </div>
           {renderStatusIndicator(opmlStatus, opmlError)}
         </div>
 

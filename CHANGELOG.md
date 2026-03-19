@@ -6,6 +6,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.84] - 2026-03-19
+
+### Added
+- **Podcast search via PodcastIndex.org**: Search for podcasts by name directly from the Add Feed page. Requires free API credentials from api.podcastindex.org, configurable via Settings or environment variables.
+- **PodcastIndex settings section**: New "Podcast Discovery" section in Settings for managing API key and secret, with status badge.
+- **PWA support**: MinusPod is now installable as a Progressive Web App on mobile and desktop. Includes service worker with offline caching, app manifest, and home screen icons.
+- **OPML export with modified feed URLs**: Export feeds with MinusPod-served ad-free URLs for importing into podcast apps. Original URL export preserved as default.
+
+### Changed
+- **Add Feed page redesigned**: Unified input field detects URLs vs. search queries automatically. Search results show artwork, author, and one-click add. Advanced options (slug, auto-process, max episodes) collapsed by default.
+
+### Fixed
+- **iPhone safe area padding**: MobileAudioSheet now respects bottom safe area inset on notched devices.
+- **Mobile menu not closing on navigation**: Menu now auto-closes when navigating to a new page.
+- **GlobalStatusBar expanded view overflow**: Expanded status detail capped at max-h-48 with scrolling.
+- **Dashboard toolbar overflow on mobile**: Button row now scrolls horizontally instead of wrapping.
+- **Feed URL hidden on mobile**: Feed URL in FeedDetail now visible on all screen sizes.
+- **ActionButtons inconsistent disabled states**: Standardized button padding and added disabled:opacity-50 across all variants.
+
 ## [1.0.83] - 2026-03-17
 
 ### Changed
