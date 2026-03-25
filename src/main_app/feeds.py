@@ -4,6 +4,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from email.utils import parsedate_to_datetime
 
+from database.episodes import normalize_published_at
 from utils.time import utc_now_iso
 
 from slugify import slugify
@@ -187,14 +188,7 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
                 if existing is None or existing.get('status') == 'discovered':
                     # Also check by title+pubDate to catch ID changes (Megaphone feeds, etc.)
                     # This prevents duplicate processing when RSS GUID changes
-                    published_str = ep.get('published', '')
-                    iso_published = None
-                    if published_str:
-                        try:
-                            parsed_pub = parsedate_to_datetime(published_str)
-                            iso_published = parsed_pub.strftime('%Y-%m-%dT%H:%M:%SZ')
-                        except (ValueError, TypeError):
-                            pass
+                    iso_published = normalize_published_at(ep.get('published', '')) or None
 
                     if iso_published and ep.get('title'):
                         existing_by_title = db.get_episode_by_title_and_date(

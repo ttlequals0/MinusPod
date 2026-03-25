@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.86] - 2026-03-25
+
+### Fixed
+- **Episode sorting wrong for pre-v1.0.41 episodes**: Episodes with RFC 2822 `published_at` dates (inserted before v1.0.41 added date normalization) sorted incorrectly because SQLite compares strings lexicographically. Added `_normalize_published_at()` helper to `upsert_episode` so all write paths produce ISO 8601. One-time migration converts existing RFC 2822 values. Also fixed `bulk_upsert_discovered_episodes` ON CONFLICT to prefer the incoming normalized date over stale stored values.
+
 ## [1.0.85] - 2026-03-23
 
 ### Fixed

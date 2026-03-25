@@ -544,6 +544,30 @@ class SchemaMixin:
         for col, definition in podcasts_migrations:
             self._add_column_if_missing(conn, 'podcasts', col, definition, pod_cols)
 
+        # Backfill: pre-v1.0.41 rows may store RFC 2822 dates which break
+        # SQLite lexicographic sorting.  After first run this is a no-op.
+        try:
+            from database.episodes import normalize_published_at
+            cursor = conn.execute(
+                "SELECT id, published_at FROM episodes "
+                "WHERE published_at IS NOT NULL "
+                "AND SUBSTR(published_at, 1, 1) NOT BETWEEN '0' AND '9'"
+            )
+            fixed = 0
+            for row in cursor:
+                normalized = normalize_published_at(row['published_at'])
+                if normalized != row['published_at']:
+                    conn.execute(
+                        "UPDATE episodes SET published_at = ? WHERE id = ?",
+                        (normalized, row['id'])
+                    )
+                    fixed += 1
+            if fixed:
+                conn.commit()
+                logger.info(f"Migration: Normalized {fixed} RFC 2822 published_at dates to ISO 8601")
+        except Exception as e:
+            logger.warning(f"published_at normalization migration: {e}")
+
         # -- Ad patterns table columns --
         ap_cols = self._get_table_columns(conn, 'ad_patterns')
         self._add_column_if_missing(conn, 'ad_patterns', 'avg_duration', 'REAL', ap_cols)

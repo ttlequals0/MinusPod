@@ -7,6 +7,23 @@ from typing import Optional, Dict, List, Tuple
 logger = logging.getLogger(__name__)
 
 
+def normalize_published_at(value: Optional[str]) -> Optional[str]:
+    """Normalize a published_at value to ISO 8601 format.
+
+    Handles RFC 2822 (e.g. 'Tue, 10 Mar 2026 19:10:06 PDT') and passes
+    through values that already look like ISO 8601.
+    """
+    if not value:
+        return value
+    if value[0].isdigit():
+        return value
+    try:
+        parsed = parsedate_to_datetime(value)
+        return parsed.strftime('%Y-%m-%dT%H:%M:%SZ')
+    except (ValueError, TypeError):
+        return value
+
+
 class EpisodeMixin:
     """Episode management methods."""
 
@@ -130,6 +147,9 @@ class EpisodeMixin:
     def upsert_episode(self, slug: str, episode_id: str, **kwargs) -> int:
         """Insert or update an episode. Returns episode database ID."""
         conn = self.get_connection()
+
+        if 'published_at' in kwargs and kwargs['published_at']:
+            kwargs['published_at'] = normalize_published_at(kwargs['published_at'])
 
         # Get podcast ID
         podcast = self.get_podcast_by_slug(slug)
@@ -492,15 +512,7 @@ class EpisodeMixin:
         inserted = 0
 
         for ep in episodes:
-            # Parse RFC2822 published date to ISO format
-            iso_published = None
-            published_str = ep.get('published', '')
-            if published_str:
-                try:
-                    parsed_pub = parsedate_to_datetime(published_str)
-                    iso_published = parsed_pub.strftime('%Y-%m-%dT%H:%M:%SZ')
-                except (ValueError, TypeError):
-                    pass
+            iso_published = normalize_published_at(ep.get('published', '')) or None
 
             # Check for existing episode with same title+date but different ID
             # Skip insert to prevent duplicate rows from GUID changes
@@ -539,7 +551,7 @@ class EpisodeMixin:
                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'discovered')
                        ON CONFLICT(podcast_id, episode_id) DO UPDATE SET
                         episode_number = COALESCE(excluded.episode_number, episodes.episode_number),
-                        published_at = COALESCE(episodes.published_at, excluded.published_at),
+                        published_at = COALESCE(excluded.published_at, episodes.published_at),
                         original_url = COALESCE(episodes.original_url, excluded.original_url),
                         title = CASE WHEN COALESCE(episodes.title, '') = '' THEN excluded.title ELSE episodes.title END,
                         description = CASE WHEN COALESCE(episodes.description, '') = '' THEN excluded.description ELSE episodes.description END,
