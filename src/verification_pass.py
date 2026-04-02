@@ -116,6 +116,23 @@ class VerificationPass:
                        f"timestamps are already original")
 
         logger.info(f"[{slug}:{episode_id}] Verification found {len(processed_ads)} missed ads")
+        for ad in original_ads:
+            logger.info(
+                f"[{slug}:{episode_id}] Verification false negative: "
+                f"{ad.get('sponsor', 'unknown')} "
+                f"{ad['start']:.1f}-{ad['end']:.1f}s "
+                f"confidence={ad.get('confidence', 'N/A')}"
+            )
+
+        # Feed missed ads back to pattern service for learning
+        if self.sponsor_service and original_ads:
+            try:
+                self.sponsor_service.record_verification_misses(
+                    slug, episode_id, original_ads
+                )
+            except Exception as e:
+                logger.warning(f"[{slug}:{episode_id}] Failed to record verification misses: {e}")
+
         return {
             'ads': original_ads,
             'ads_processed': processed_ads,

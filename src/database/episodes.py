@@ -113,6 +113,31 @@ class EpisodeMixin:
         row = cursor.fetchone()
         return dict(row) if row else None
 
+    def get_episode_statuses_for_podcast(self, slug: str) -> Tuple[Dict[str, str], Dict[Tuple[str, str], str]]:
+        """Bulk-load episode statuses for a podcast (lightweight, no JOINs to details).
+
+        Returns:
+            Tuple of:
+                - {episode_id: status} dict
+                - {(title, published_at): episode_id} dict for dedup lookups
+        """
+        conn = self.get_connection()
+        podcast = self.get_podcast_by_slug(slug)
+        if not podcast:
+            return {}, {}
+
+        cursor = conn.execute(
+            "SELECT episode_id, status, title, published_at FROM episodes WHERE podcast_id = ?",
+            (podcast['id'],)
+        )
+        id_to_status = {}
+        title_date_to_id = {}
+        for row in cursor.fetchall():
+            id_to_status[row['episode_id']] = row['status']
+            if row['title'] and row['published_at']:
+                title_date_to_id[(row['title'], row['published_at'])] = row['episode_id']
+        return id_to_status, title_date_to_id
+
     def get_episode_by_title_and_date(self, slug: str, title: str, published_at: str) -> Optional[Dict]:
         """Get episode by title and publish date (for deduplication).
 

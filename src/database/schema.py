@@ -212,10 +212,12 @@ CREATE TABLE IF NOT EXISTS auto_process_queue (
 
 CREATE INDEX IF NOT EXISTS idx_queue_status ON auto_process_queue(status);
 CREATE INDEX IF NOT EXISTS idx_queue_created ON auto_process_queue(created_at);
+CREATE INDEX IF NOT EXISTS idx_queue_status_created ON auto_process_queue(status, created_at);
 
 CREATE INDEX IF NOT EXISTS idx_podcasts_slug ON podcasts(slug);
 CREATE INDEX IF NOT EXISTS idx_episodes_podcast_id ON episodes(podcast_id);
 CREATE INDEX IF NOT EXISTS idx_episodes_episode_id ON episodes(episode_id);
+CREATE INDEX IF NOT EXISTS idx_episodes_podcast_episode ON episodes(podcast_id, episode_id);
 CREATE INDEX IF NOT EXISTS idx_episodes_status ON episodes(status);
 CREATE INDEX IF NOT EXISTS idx_episodes_created_at ON episodes(created_at);
 CREATE INDEX IF NOT EXISTS idx_episode_details_episode_id ON episode_details(episode_id);

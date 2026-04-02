@@ -8,11 +8,30 @@ from email.utils import format_datetime, parsedate_to_datetime
 from typing import Dict, List, Optional
 import requests
 
+from urllib.parse import urlparse
+
 from config import APP_USER_AGENT
+from utils.circuit_breaker import CircuitBreaker, CircuitBreakerOpen
 from utils.time import parse_iso_datetime
 from utils.url import validate_url, SSRFError
 
 logger = logging.getLogger(__name__)
+
+# Per-host circuit breakers for upstream RSS feed fetching.
+# Keyed by hostname so one failing server doesn't block unrelated feeds.
+# Grows one entry per unique host; acceptable since podcast count is bounded.
+_rss_circuit_breakers: Dict[str, CircuitBreaker] = {}
+
+
+def _get_rss_circuit_breaker(url: str) -> CircuitBreaker:
+    """Get or create a circuit breaker for the given URL's host."""
+    host = urlparse(url).hostname or url
+    if host not in _rss_circuit_breakers:
+        _rss_circuit_breakers[host] = CircuitBreaker(
+            f"rss-{host}", failure_threshold=5, recovery_timeout=60
+        )
+    return _rss_circuit_breakers[host]
+
 
 class RSSParser:
     def __init__(self, base_url: str = None):
@@ -27,10 +46,17 @@ class RSSParser:
             return None
 
         try:
+            _get_rss_circuit_breaker(url).check()
+        except CircuitBreakerOpen as e:
+            logger.debug(f"RSS fetch skipped: {e}")
+            return None
+
+        try:
             logger.info(f"Fetching RSS feed from: {url}")
             response = requests.get(url, timeout=timeout)
             response.raise_for_status()
             logger.info(f"Successfully fetched RSS feed, size: {len(response.content)} bytes")
+            _get_rss_circuit_breaker(url).record_success()
             return response.text
         except requests.exceptions.ContentDecodingError as e:
             # Some servers claim gzip encoding but send malformed data
@@ -41,12 +67,15 @@ class RSSParser:
                 response = requests.get(url, timeout=timeout, headers=headers)
                 response.raise_for_status()
                 logger.info(f"Successfully fetched RSS feed (uncompressed), size: {len(response.content)} bytes")
+                _get_rss_circuit_breaker(url).record_success()
                 return response.text
             except requests.RequestException as retry_e:
                 logger.error(f"Failed to fetch RSS feed (retry): {retry_e}")
+                _get_rss_circuit_breaker(url).record_failure()
                 return None
         except requests.RequestException as e:
             logger.error(f"Failed to fetch RSS feed: {e}")
+            _get_rss_circuit_breaker(url).record_failure()
             return None
 
     def fetch_feed_conditional(self, url: str, etag: str = None,
@@ -81,10 +110,17 @@ class RSSParser:
             headers['If-Modified-Since'] = last_modified
 
         try:
+            _get_rss_circuit_breaker(url).check()
+        except CircuitBreakerOpen as e:
+            logger.debug(f"RSS conditional fetch skipped: {e}")
+            return None, None, None
+
+        try:
             response = requests.get(url, headers=headers, timeout=timeout)
 
             if response.status_code == 304:
                 logger.info(f"Feed not modified (304): {url}")
+                _get_rss_circuit_breaker(url).record_success()
                 return None, etag, last_modified
 
             response.raise_for_status()
@@ -93,6 +129,7 @@ class RSSParser:
             new_last_modified = response.headers.get('Last-Modified')
 
             logger.info(f"Fetched RSS feed, size: {len(response.content)} bytes")
+            _get_rss_circuit_breaker(url).record_success()
             return response.text, new_etag, new_last_modified
 
         except requests.exceptions.ContentDecodingError as e:
@@ -102,18 +139,22 @@ class RSSParser:
                 headers['Accept-Encoding'] = 'identity'
                 response = requests.get(url, headers=headers, timeout=timeout)
                 if response.status_code == 304:
+                    _get_rss_circuit_breaker(url).record_success()
                     return None, etag, last_modified
                 response.raise_for_status()
+                _get_rss_circuit_breaker(url).record_success()
                 return (
                     response.text,
                     response.headers.get('ETag'),
                     response.headers.get('Last-Modified')
                 )
             except requests.RequestException:
+                _get_rss_circuit_breaker(url).record_failure()
                 return None, None, None
 
         except requests.RequestException as e:
             logger.error(f"Conditional fetch failed: {e}")
+            _get_rss_circuit_breaker(url).record_failure()
             return None, None, None
 
     def parse_feed(self, feed_content: str) -> Dict:

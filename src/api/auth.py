@@ -39,7 +39,8 @@ def auth_status():
 
 
 @api.route('/auth/login', methods=['POST'])
-@limiter.limit("5 per minute")
+@limiter.limit("3 per minute")
+@limiter.limit("10 per hour")
 @log_request
 def auth_login():
     """Login with password.

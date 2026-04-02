@@ -6,6 +6,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.89] - 2026-04-02
+
+### Added
+- **Circuit breaker for external services**: LLM API and RSS feed fetching now use a circuit breaker that short-circuits after 5 consecutive failures for 60 seconds, preventing cascading failures when external services are down.
+- **Docker health check**: Added HEALTHCHECK to Dockerfile and docker-compose.yml so Docker can detect and auto-restart unhealthy containers.
+- **Docker log rotation**: All docker-compose services now use json-file logging with 50MB max size and 3 file rotation to prevent unbounded log growth.
+- **Frontend API retry logic**: API client retries 5xx and network errors with exponential backoff (1s, 3s). 4xx errors are not retried.
+- **LLM response truncation warning**: Logs a warning when LLM response is truncated due to hitting max_tokens, making it easier to diagnose detection issues.
+- **Verification false negative logging**: When the verification pass finds missed ads, each missed ad is now logged with sponsor, timestamps, and confidence. Missed ads are fed back to the pattern service to boost matching patterns.
+- **Configurable LLM max_tokens**: Ad detection max_tokens is now configurable via `AD_DETECTION_MAX_TOKENS` env var (default 2000).
+- **New tests**: Added circuit breaker, feed refresh, verification miss, LLM truncation, and transcript fixture validation tests with real data from live instance (47 new tests, 512 total).
+
+### Fixed
+- **N+1 query in feed refresh**: Auto-process loop was making 2 DB queries per episode (up to 600 for a 300-episode feed). Now bulk-loads episode statuses in a single query and checks in-memory.
+- **Missing composite database indexes**: Added composite indexes for queue polling (status, created_at) and episode lookup (podcast_id, episode_id) to improve query performance.
+- **Temp file leak in transcriber**: Replaced deprecated `tempfile.mktemp()` with `NamedTemporaryFile` and ensured cleanup on all failure paths, including FLAC compression failures.
+- **Empty transcript crash in ad detector**: Added early return guard before `create_windows()` to prevent IndexError on empty segment lists.
+- **Non-atomic podcast metadata updates**: Consolidated three sequential `update_podcast()` calls into a single call to prevent inconsistent state on partial failure.
+- **FFMPEG error context missing**: Improved exception message when FFMPEG fails to include ad count and episode duration for easier debugging.
+- **Unhandled os.unlink in processing**: Wrapped bare `os.unlink()` in try-except during verification re-cut to prevent processing failures from file cleanup errors.
+
+### Security
+- **Login rate limiting tightened**: Reduced from 5/minute to 3/minute with an additional 10/hour cap to slow brute-force attacks.
+
 ## [1.0.88] - 2026-03-25
 
 ### Fixed

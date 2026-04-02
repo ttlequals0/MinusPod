@@ -28,6 +28,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import List, Dict, Optional, Any
 
+from utils.circuit_breaker import CircuitBreaker, CircuitBreakerOpen
+
 from config import (
     LLM_TIMEOUT_DEFAULT,
     LLM_TIMEOUT_LOCAL,
@@ -200,10 +202,33 @@ class LLMClient(ABC):
 
     def __init__(self):
         self._usage_callback = None
+        self._circuit_breaker: Optional[CircuitBreaker] = None
+
+    def set_circuit_breaker(self, cb: CircuitBreaker):
+        """Attach a circuit breaker for API call protection."""
+        self._circuit_breaker = cb
 
     def set_usage_callback(self, callback):
         """Set a callback to be invoked with (model, usage_dict) after each LLM call."""
         self._usage_callback = callback
+
+    def _check_circuit_breaker(self):
+        """Check circuit breaker before API call. Raises CircuitBreakerOpen if open."""
+        if self._circuit_breaker:
+            self._circuit_breaker.check()
+
+    def _record_circuit_breaker(self, success: bool):
+        """Record success/failure on the circuit breaker after API call."""
+        if self._circuit_breaker:
+            if success:
+                self._circuit_breaker.record_success()
+            else:
+                self._circuit_breaker.record_failure()
+
+    def _warn_if_truncated(self, stop_indicator: str, max_tokens: int, model: str):
+        """Log a warning if the LLM response was truncated due to max_tokens."""
+        if stop_indicator in ('max_tokens', 'length'):
+            logger.warning(f"LLM response truncated (hit max_tokens={max_tokens}, model={model})")
 
     def _notify_usage(self, response: 'LLMResponse'):
         """Notify the usage callback if set. Errors are logged but never propagated."""
@@ -302,10 +327,11 @@ class AnthropicClient(LLMClient):
         timeout: float = 120.0,
         response_format: Optional[Dict[str, str]] = None
     ) -> LLMResponse:
+        self._check_circuit_breaker()
         self._ensure_client()
 
-        # Anthropic API doesn't support response_format parameter natively,
-        # so we add explicit JSON instructions to the system prompt when requested
+        # Anthropic doesn't support response_format natively;
+        # inject JSON instructions into the system prompt when requested
         effective_system = system
         if response_format and response_format.get('type') == 'json_object':
             json_instruction = (
@@ -316,23 +342,32 @@ class AnthropicClient(LLMClient):
                 "4. Use null for missing values (not None)\n"
                 "Malformed JSON causes parsing failures.</output_format>"
             )
-            # Only add if not already present
             if '<output_format>' not in system:
                 effective_system = system + json_instruction
                 logger.debug("Added JSON format instructions to system prompt")
 
         self._log_messages("Anthropic", effective_system, messages, model, temperature, max_tokens)
 
-        response = self._client.messages.create(
-            model=model,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            system=effective_system,
-            messages=messages,
-            timeout=timeout
-        )
+        try:
+            response = self._client.messages.create(
+                model=model,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                system=effective_system,
+                messages=messages,
+                timeout=timeout
+            )
+        except Exception:
+            self._record_circuit_breaker(success=False)
+            raise
+
+        self._record_circuit_breaker(success=True)
 
         content = (response.content[0].text or "") if response.content else ""
+
+        self._warn_if_truncated(
+            getattr(response, 'stop_reason', None), max_tokens, model
+        )
 
         llm_response = LLMResponse(
             content=content,
@@ -449,16 +484,15 @@ class OpenAICompatibleClient(LLMClient):
         timeout: float = 120.0,
         response_format: Optional[Dict[str, str]] = None
     ) -> LLMResponse:
+        self._check_circuit_breaker()
         self._ensure_client()
 
-        # OpenAI format uses system message in messages array
         all_messages = [{"role": "system", "content": system}] + messages
 
         self._log_messages("OpenAI", system, messages, model, temperature, max_tokens)
 
-        # Build request kwargs with adaptive token parameter
-        # Newer OpenAI models (gpt-5-mini, etc.) require max_completion_tokens
-        # instead of max_tokens. Try cached param first, fallback on error.
+        # Newer OpenAI models require max_completion_tokens instead of max_tokens.
+        # Try cached param first, fallback on error.
         cached_param = self._token_param_cache.get(model)
         token_param = cached_param or "max_completion_tokens"
 
@@ -470,14 +504,19 @@ class OpenAICompatibleClient(LLMClient):
             "timeout": timeout
         }
 
-        # Pass response_format if provided (triggers JSON mode in wrapper)
         if response_format:
             kwargs["response_format"] = response_format
 
-        if cached_param is not None:
-            response = self._client.chat.completions.create(**kwargs)
-        else:
-            response = self._call_with_token_param_fallback(model, kwargs, token_param)
+        try:
+            if cached_param is not None:
+                response = self._client.chat.completions.create(**kwargs)
+            else:
+                response = self._call_with_token_param_fallback(model, kwargs, token_param)
+        except Exception:
+            self._record_circuit_breaker(success=False)
+            raise
+
+        self._record_circuit_breaker(success=True)
 
         # Log reasoning/chain-of-thought if present (e.g. qwen3 think mode)
         if response.choices:
@@ -487,6 +526,9 @@ class OpenAICompatibleClient(LLMClient):
                 logger.debug(f"LLM reasoning field present ({len(str(reasoning))} chars)")
 
         content = (response.choices[0].message.content or "") if response.choices else ""
+
+        finish_reason = getattr(response.choices[0], 'finish_reason', None) if response.choices else None
+        self._warn_if_truncated(finish_reason, max_tokens, model)
 
         llm_response = LLMResponse(
             content=content,
@@ -643,6 +685,9 @@ def get_llm_max_retries() -> int:
 _cached_client: Optional[LLMClient] = None
 _client_lock = threading.Lock()
 
+# Circuit breaker for LLM API calls (one per process, shared across threads)
+_llm_circuit_breaker = CircuitBreaker("llm-api", failure_threshold=5, recovery_timeout=60)
+
 # Per-episode token accumulator using thread-local storage.
 # Each thread (background processor, HTTP handler) gets its own
 # independent accumulator so concurrent callers cannot corrupt each other.
@@ -750,6 +795,7 @@ def get_llm_client(force_new: bool = False) -> LLMClient:
             _cached_client = AnthropicClient()
 
         _cached_client.set_usage_callback(_record_token_usage)
+        _cached_client.set_circuit_breaker(_llm_circuit_breaker)
         logger.info(f"LLM client initialized: {_cached_client.get_provider_name()}")
         return _cached_client
 

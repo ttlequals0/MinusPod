@@ -1,0 +1,2134 @@
+{
+  "episode_id": "fcf5cb5ce64b",
+  "slug": "security-now-audio",
+  "title": "SN 1071: Bucketsquatting - Meta and TikTok's Tracking Pixels",
+  "duration": 10139.532756,
+  "ads_removed": 8,
+  "segments": [
+    {
+      "start": 0.0,
+      "end": 28.6,
+      "text": "Coming up on Security Now, Steve Gibson is here, and I am filling in for Leo Laporte. Kick off the show with H&R Block's tax software. Well, it's doing something pretty wild, and Steve has a suggested fix for it. We also talk about what happens when breathalyzer firmware needs to be calibrated. Plus, Russians want Telegram and WhatsApp to return to Russia, and very important,"
+    },
+    {
+      "start": 28.91,
+      "end": 46.16,
+      "text": "We finally learned what bucket squatting means and what can be done to fix it. All of that plus so much more coming up in Security Now. Podcasts you love. From people you trust. This is Twit."
+    },
+    {
+      "start": 49.96,
+      "end": 61.84,
+      "text": "This is Security Now Episode 1071 with Steve Gibson and me, Micah Sargent. Recorded Tuesday, March 24th, 2026. Bucket squatting."
+    },
+    {
+      "start": 62.72,
+      "end": 85.02,
+      "text": "It's time for Security Now, and if you're hearing this voice and going, that's not Leo Laporte, well, good for you. You've got a good ear for voices. I am Micah Sargent. Leo Laporte is not here with us this week. He'll be back, don't you worry. But until then, I am excited to be joined by the ever knowledgeable Steve Gibson. Hello, Steve."
+    },
+    {
+      "start": 85.58,
+      "end": 110.62,
+      "text": "Micah, great to be with you again. Leo told us last week that the RSA conference is going on in San Francisco. And so he and Lisa are there shaking hands with past and present and maybe even future advertisers for security related things. So glad to have you filling in for him. It's always a pleasure to get to join you."
+    },
+    {
+      "start": 111.12,
+      "end": 137.24,
+      "text": "Well, yeah, and, you know, once upon a time when we had Father Robert, he was our backstop for Leo, and now we got you, so that's great. Yeah, good to be here. Go ahead, go. I was just going to say, this is Security Now Episode 1071 for March 24th, 2026, two days, as it happens, before my 71st birthday."
+    },
+    {
+      "start": 137.76,
+      "end": 165.98,
+      "text": "So, I will be, yeah, I feel great. So, good. Happy early birthday. And I'm glad you feel good. Security Now, episode 2000 before very much longer. Today's episode is titled Bucket Squatting for, and this has nothing to do with like something you have to do when you're camping. This is about an interesting problem that"
+    },
+    {
+      "start": 166.87,
+      "end": 190.11,
+      "text": "Amazon has had for years, which it turns out represents a surprisingly serious security vulnerability, which we're going to cover in detail. But wow, there's a bunch of other really cool things that have happened in the last week. It turns out that H&R blocks tax software."
+    },
+    {
+      "start": 191.6,
+      "end": 217.22,
+      "text": "I think it's that, I think they call it the Enterprise 2025 tax stuff, is doing something that is so very wrong. Also, a cyber attack has hit a company called IntoxiBlock, which provide breathalyzers to enable the ignition systems on automobiles whose drivers"
+    },
+    {
+      "start": 217.79,
+      "end": 240.79,
+      "text": "Need to prove their sobriety before driving. That's an interesting story. We've also got Firefox. Now, as of today, we should be at Firefox 149. As of today, offering a free built-in VPN. Also, TikTok and Meta's tracking pixels turn out to be doing much more than we believed."
+    },
+    {
+      "start": 253.69,
+      "end": 265.65,
+      "text": "We've also got the lack of wisdom of connecting your crypto wallet to an unknown service. Yet another, and what would a Security Now podcast be if we didn't have a Cisco?"
+    },
+    {
+      "start": 266.95,
+      "end": 291.71,
+      "text": "CVSS of 10.0. Yes, you're just getting them confused at this point because there's so many of them. But Cisco's not alone. Ubiquiti also had a 10.0 CVSS critical flaw that needs to get patched. We've got some interesting listener feedback. And then what is exactly bucket squatting and what can be done to prevent it?"
+    },
+    {
+      "start": 292.86,
+      "end": 318.78,
+      "text": "You know, maybe we have some things to talk about this week. I don't know. Sounds like it. Sounds like there might be a few things to talk about. I'm looking forward to learning about bucket squatting, I'll tell you that. You know, it's a good exercise move, surely. Works on the thighs. That's true. Strengthen those whatevers. Yeah, exactly. The whatevers. But as you all know, this is the time."
+    },
+    {
+      "start": 319.52,
+      "end": 346.9,
+      "text": "where after our wonderful summary of what's to come, we take a moment to cut to an ad break, and Leo will be here for you for that. Hi, Leo. Hi, Micah. Hi, Steve. Sorry I couldn't be here. I'm at RSA right now having a great time, I'm sure. But I did want to come back and tell you about our sponsor for this episode of Security Now, Hoxhunt. Actually, I'm meeting with them at RSA in just a little bit as a security leader."
+    },
+    {
+      "start": 347.49,
+      "end": 373.89,
+      "text": "You've been there. The eye rolls during training. You're making us do this. The one-size-fits-all phishing simulations that your employees spot a mile away. They don't learn anything from that. And that report button that gets ignored more often than not. Your programs are running, but it's not changing employee behavior. And isn't that what it's all about? Meanwhile, AI is making real attacks more convincing by the day."
+    },
+    {
+      "start": 374.71,
+      "end": 402.83,
+      "text": "Leadership is starting to ask the question you don't have a clear answer to. Is this actually working? Well, Hoxhunt is built to answer that. Hoxhunt empowers your employees to spot and stop phishing attacks. It drives measurable behavior change, and it does it in a fun way through personalized, gamified, micro-training. No more eye rolls. It's just engaging and fun, and it's how people learn. It's powered by AI."
+    },
+    {
+      "start": 403.53,
+      "end": 429.43,
+      "text": "Behavioral Science. And you'll love it as an admin because Hoxhunt does all the heavy lifting. The simulations run automatically and not just email. These days, gotta be everywhere. They run an email and Slack and Teams. It's like real phishing attacks personalized to each employee based on role, location, and behavior. Every simulation uses AI to mirror those real world attacks, meaning employees are tested on what's actually getting through."
+    },
+    {
+      "start": 430.14,
+      "end": 455.8,
+      "text": "Not outdated templates they recognize immediately. No messages from Nigerian princes. They know better than that now. Gamified training keeps engagement high without feeling punitive. Your employees will love it. And you'll love it too. And because every interaction generates a coaching moment, you're not just tracking completion, you're building behavioral indicators that tell a real story."
+    },
+    {
+      "start": 456.45,
+      "end": 467.23,
+      "text": "You get reporting rates, repeat clicker reduction, and time to report. The kind of metrics that hold up when the leadership asks the hard questions. You could say, yeah, got it right here."
+    },
+    {
+      "start": 468.11,
+      "end": 491.93,
+      "text": "You don't have to take my word for it. With over 3,500 verified reviews on G2, Hoxhunt is the top-rated security training platform, recognized for best results and easiest to use. It's also recognized as a customer's choice by Gartner. And thousands of companies use Hoxhunt, Qualcomm, DocuSign, Nokia. They trust Hoxhunt to train millions of employees worldwide."
+    },
+    {
+      "start": 492.53,
+      "end": 505.17,
+      "text": "Visit hawkshunt.com security now today to learn why modern secure companies are making the switch to Hawkshunt. That's hawkshunt.com security now. Now back to the show."
+    },
+    {
+      "start": 506.0,
+      "end": 527.62,
+      "text": "All right, thank you, Leo, for that. Let us get into the show, the good stuff. So, last week, I showed this picture, same picture that we have here, but with a different caption. I thought this picture was so bizarre that I would just put it out to our listeners."
+    },
+    {
+      "start": 528.14,
+      "end": 541.92,
+      "text": "Thank you for watching. See you next time."
+    },
+    {
+      "start": 557.38,
+      "end": 581.28,
+      "text": "Communications, telephone pole, a power pole, whatever the hell it is. It's beautiful. This demonstrates like, what, 50 years of accumulation. Clearly, this did not happen in a day, right? It used to be, initially, when that pole was erected and the first lines were run to it, I'm sure down there in the core."
+    },
+    {
+      "start": 582.16,
+      "end": 585.28,
+      "text": "Thank you for watching."
+    },
+    {
+      "start": 609.9,
+      "end": 637.0,
+      "text": "Affectionately be called a rat's nest of wires. So I gave this picture. It's a rat king's nest. Do you know what a rat king is? Yeah. Yeah. And there's some poor worker guy up there on the top, like, trying to add just one more wire. I just need one more wire. Anyway, so I gave this thing the caption, A Contemporary Visualization of the Microsoft Windows Codebase."
+    },
+    {
+      "start": 637.74,
+      "end": 666.08,
+      "text": "This is the caption you added? Yes, that's my caption. It's beautiful, Steve. I read that and I thought, yes, yes. I think that, and, I mean, that's what we see with Windows, right? I mean, and in all fairness, it's not just Windows. It's any old code base that has been evolving over time where you can't really throw away the old code because it's working."
+    },
+    {
+      "start": 666.57,
+      "end": 686.63,
+      "text": "And things depend upon it being the way it is. So we're just going to add to it. We're going to, you know, you know, and we've got, you know, Windows now has multiple APIs. I hear Paul Theriot talking about how, you know, oh, nobody codes to that API anymore. Well, of course I do, but not, you know, other normal."
+    },
+    {
+      "start": 687.58,
+      "end": 701.52,
+      "text": "Coders. So anyway, I thought this was a great caption. It's a variation on an idea that I got from one of our listeners. So thank you for that. And thank you everyone for sharing your ideas. Okay, so"
+    },
+    {
+      "start": 702.94,
+      "end": 719.68,
+      "text": "This first goodie is where we're going to spend some time this morning because, or this podcast, because there's a lot here to unpack and I really think our listeners are going to find this interesting. The first mention of this"
+    },
+    {
+      "start": 720.04,
+      "end": 746.82,
+      "text": "goes to a listener, a credit for the first mention, Jack Christensen, who first pointed me at this. Since then, the Hacker News and other security outlets have picked up on this and shared it. Jack provided a note with, included a link to the original Y Combinator posting, whose Chinese author,"
+    },
+    {
+      "start": 747.28,
+      "end": 774.98,
+      "text": "A guy named Yifan Lu, Y-A-F-A-N, last name Lu, L-U, Yifan Lu. He appears to know his way around TLS and web servers, as we will see. So here's what Yifan posted to Y Combinator last week. He said just a, he said PSA, but we know that stands for public service announcement. For folks here,"
+    },
+    {
+      "start": 775.37,
+      "end": 798.75,
+      "text": "In the U.S., because tax season is coming up, and some of you may be using, it's business, not enterprise, HR Block Business 2025. He said, I discovered that the software, get a load of this, folks. I discovered, he wrote, that the software installs a root CA."
+    },
+    {
+      "start": 799.69,
+      "end": 823.51,
+      "text": "named WKATX Server Host 2024. So a root certificate authority, WK space ATX space Server Host space 2024 with an expiration in 2049. Yes, 23 years from now."
+    },
+    {
+      "start": 824.57,
+      "end": 852.01,
+      "text": "He said, into your local machine's trusted root certificate store. They also helpfully include the private key to this certificate in a DLL file. He says this certificate does not identify itself as H&R Block anywhere and does not get uninstalled when you uninstall the software."
+    },
+    {
+      "start": 853.29,
+      "end": 882.07,
+      "text": "He said, I've been able to successfully use this root CA plus MITM proxy, which is a software package, man in the middle proxy, to manipulate TLS traffic on a brand new virtual machine on the same network with a DNS spoofing attack. And he gives us then a link in his posting to a YouTube video. And I've got the link in the show notes for anyone who's interested."
+    },
+    {
+      "start": 882.47,
+      "end": 909.83,
+      "text": "He said, to test if your machine is vulnerable, visit this page. And now we have a URL to a host on his domain. It's https://hrbackdoor.yafanlu.com."
+    },
+    {
+      "start": 910.49,
+      "end": 921.99,
+      "text": "So this is a TLS, a secure, HTTPS secure connection to a web server on his domain."
+    },
+    {
+      "start": 924.04,
+      "end": 952.58,
+      "text": "That is carrying a certificate he made using this root CA that was installed in everyone's machine who has H&R Block Business 2025, thanks to the fact that they also provided the private key for this root certificate, which should never be there. Anyway, he says, go to this URL, and if you do not get"
+    },
+    {
+      "start": 960.11,
+      "end": 972.89,
+      "text": "Okay, now, it's not really a backdoor. I think that's a popular term. It's frightening and scary. As we'll see, I don't get how this is a backdoor, but..."
+    },
+    {
+      "start": 973.58,
+      "end": 997.58,
+      "text": "It's not a good door. You know, maybe a side door. He said, if your browser does complain, you can choose to visit the page anyway for more details on the vulnerability. And I did, and I'll tell you about what I found in a second. So he says, is it negligence or a real backdoor?"
+    },
+    {
+      "start": 998.19,
+      "end": 1022.51,
+      "text": "It's impossible to tell, and since the private key is out there, anyone can use it, so the point is moot. There's no legitimate reason, and boy do I agree, and as we'll see, I'm going to demonstrate how we don't need this, why they need to install a wildcard root CA under a different name."
+    },
+    {
+      "start": 1023.01,
+      "end": 1051.03,
+      "text": "When I contacted them, and I'll be sharing the timeline of that later, when I contacted them about it, their statement includes, quote, Similar findings have been identified through internal security assessments, unquote. He said, meaning, they know about this issue, but have not fixed it. He said, I would not trust H&R Block software at this point. If you did not get..."
+    },
+    {
+      "start": 1051.26,
+      "end": 1079.72,
+      "text": "If you did not get bit by this, congratulations. He said, see this post as a reminder to audit your trusted Root CA store. That is, in other words, take this post as a reminder to go take a look and see what cruft things may have installed behind your back for their own purposes. Because unfortunately, as this demonstrates, that can happen. And it's not good."
+    },
+    {
+      "start": 1080.24,
+      "end": 1108.22,
+      "text": "Okay, so let's reverse engineer this to figure out what's going on here. First, again, I want to be very clear that having H&R Block install its own root certificate into the Certificate Authority root store of every single person who installs their tax preparation software, and then, I mean, that's bad enough, but then..."
+    },
+    {
+      "start": 1108.62,
+      "end": 1136.52,
+      "text": "Even worse, to leave it there forever with an expiration date in the year 2049. And, you know, Micah, I do think the podcast will probably not last that long. So we're not going to be here to celebrate the expiration of the H&R Block Root Certificate. So this will remain valid for the next 23 years."
+    },
+    {
+      "start": 1137.14,
+      "end": 1153.34,
+      "text": "Doing that on H&R Block's part is the height of hubris and irresponsibility. Now, I don't want to spoiler, so if you are going to talk about this, then you can just say that it'll be a spoiler, but..."
+    },
+    {
+      "start": 1153.92,
+      "end": 1181.64,
+      "text": "I know that when it comes to the practically minded, particularly those in the security world, perhaps the motivation is not as important as the impact, but I would love to know, do you have any thoughts about why, what's the, why make this choice of a certificate that doesn't, is it just pure laziness? You talk about hubris and irresponsibility here. That just seems like, well, one would say,"
+    },
+    {
+      "start": 1181.97,
+      "end": 1194.81,
+      "text": "Thank you for watching!"
+    },
+    {
+      "start": 1207.84,
+      "end": 1213.44,
+      "text": "Thank you for watching."
+    },
+    {
+      "start": 1223.47,
+      "end": 1248.97,
+      "text": "and has declared itself to be a certificate authority certificate. Certificates have a whole bunch of things they can be labeled and they can also contain constraints on their own behavior. That is constraints that they broadcast on what things they can be used for. So this is an unconstrained"
+    },
+    {
+      "start": 1249.39,
+      "end": 1274.93,
+      "text": "Certificate Authority Certificate, which is the most potent form of certificate you could have. So just as with any root certificate authority certificate, the purpose of that certificate, that self-signed certificate, is to verify the signature of any other certificate that it might have signed."
+    },
+    {
+      "start": 1275.44,
+      "end": 1301.86,
+      "text": "using its matching private key. It contains the public key, so its private key signs something which the root certificate's public key can be used to verify. So it can verify, but it can't itself sign. That's the beauty of this public key, you know, division of labor between private and public keys. So the CA's private key, consequently,"
+    },
+    {
+      "start": 1302.85,
+      "end": 1330.23,
+      "text": "Like for DigiCert, right? They're a CA. Their private key is the most prized, protected, and safeguarded piece of information anywhere. Since any certificate which that super secret protected private key signs will be trusted anywhere that it's matching CA certificate."
+    },
+    {
+      "start": 1331.06,
+      "end": 1347.68,
+      "text": "Containing its matching public key is installed. Okay, so keeping the private key secret is like so important. Did H&R Block at least keep its installed CA certificate?"
+    },
+    {
+      "start": 1337.64,
+      "end": 1366.52,
+      "text": "Keeping the private key secret is like so important. Did H&R Block at least keep its installed CA certificate private key secret? Well, no. Refon told us no. Not even a little bit. This intrepid researcher discovered the CA certificates never to be disclosed matching private key sitting comfortably in a DLL."
+    },
+    {
+      "start": 1367.07,
+      "end": 1370.33,
+      "text": "That was included as part of this software's installation."
+    },
+    {
+      "start": 1395.56,
+      "end": 1420.32,
+      "text": "Got its most recent certificate. That's what it does. So he created a TLS web certificate using the private key that he found in the DLL in order to create that backdoor.yifunlu.com website, which anybody who installed the H&R Block software can now go to."
+    },
+    {
+      "start": 1420.73,
+      "end": 1445.71,
+      "text": "Because their machine, their browsers will all trust this certificate that he made for himself. When I went there, since I didn't install this H&R Block software, Firefox freaked out, as it should, warned me that the site was attempting to use an untrusted certificate signed by an unknown issuer and that I should proceed no further."
+    },
+    {
+      "start": 1446.46,
+      "end": 1471.82,
+      "text": "I put the dialogue box in the show notes. It says, this is from Firefox, someone could be trying to impersonate the site and you should not continue. Websites prove their identity via certificates, writes Firefox. Firefox does not trust hrbackdoor.yefenloo.com because its certificate issuer is unknown, meaning to my computer."
+    },
+    {
+      "start": 1472.84,
+      "end": 1499.12,
+      "text": "Firefox said the certificate is self-signed or the server is not sending the correct intermediate certificates. And so then we get the error code, SEC error, security error, unknown issuer. And you have a link then, you can click on view certificate and see the certificate where we see that everything that Yifan Liu has told us is true."
+    },
+    {
+      "start": 1500.83,
+      "end": 1528.23,
+      "text": "This is all exactly what we would want and expect from any browser. And it's what we should receive because, as I said, I never made the mistake of installing H&R Block's 2025 tax prep software. But what's significant is that anyone who has ever previously installed H&R Block's business 2025 tax prep software"
+    },
+    {
+      "start": 1529.37,
+      "end": 1555.75,
+      "text": "From now and for the next 23 years, while their purposefully installed CA root certificate remains valid, would not and does not receive any warning or notification at all. Their web browser simply opens that page without complaining. Yiffa News, you know, self-cert created page."
+    },
+    {
+      "start": 1556.39,
+      "end": 1575.71,
+      "text": "Because the signer of Yifan's demo test site certificate will now be known and trusted by their PC. Because once upon a time, maybe recently, maybe up to 23 years in the future, they had installed HR Blocks software."
+    },
+    {
+      "start": 1578.54,
+      "end": 1603.78,
+      "text": "So far, this is all just happy demonstration test land, right? The reason Yifan has raised the alarm is that the inherent dangers extend far beyond testing. Since in addition to installing an untrustworthy certificate authority cert into every PC root store, as I said,"
+    },
+    {
+      "start": 1604.15,
+      "end": 1627.87,
+      "text": "And he's proven H&R Block thoughtfully provided their CRs matching private key. Consequently, anyone, anywhere in the world can generate their own TLS web certificates or code signing certificates, any kind of certificate, because there's no constraint on the use of this, that will be trusted without question."
+    },
+    {
+      "start": 1628.47,
+      "end": 1655.55,
+      "text": "by any previous user of H&R Block's tax preparation software and for the next 23 years. For example, nothing prevents someone from signing a TLS certificate for www.google.com or update.microsoft.com or any other web domain they might choose. If traffic can then be rerouted"
+    },
+    {
+      "start": 1655.91,
+      "end": 1680.09,
+      "text": "To that maliciously named and now fully trusted server, anyone who had previously installed the H&R Block tax preparation software could be fully spoofed. Their browser would go to webpages at those URLs. They would see matching trusted certificates and be fully spoofed."
+    },
+    {
+      "start": 1681.01,
+      "end": 1709.85,
+      "text": "Now, presumably, H&R Block has digitally signed their software, but any of their users who had previously installed their tax preparation software would also now be completely spoofable. Their customers' PCs would download and blindly trust any subsequent software from any source that was signed with a certificate that had been issued with their private key."
+    },
+    {
+      "start": 1710.57,
+      "end": 1720.73,
+      "text": "The code signing certificate could say H&R Block, or it could say Microsoft Corporation, or anything else that fit the malicious need of the moment."
+    },
+    {
+      "start": 1722.59,
+      "end": 1748.51,
+      "text": "Yifan also said in his original Y Combinator posting, he said, quote, I've been able to successfully use this root CA and MITM proxy to manipulate TLS traffic on a brand new virtual machine on the same network with a DNS spoofing attack. So let's look at that. We've talked a lot about so-called middle boxes through the years."
+    },
+    {
+      "start": 1749.0,
+      "end": 1774.64,
+      "text": "Many corporations use them to allow deliberate MITM, you know, man in the middle, interception in order to examine 100% of the traffic that's passing into and out of their networks. They want to protect their employees inside their protected perimeter."
+    },
+    {
+      "start": 1775.2,
+      "end": 1788.76,
+      "text": "Thank you for watching. I'll see you next time."
+    },
+    {
+      "start": 1800.68,
+      "end": 1827.0,
+      "text": "Operating inside their corporate network environment must contain the root certificate for that middle box. In other words, a CA root certificate for that middle box. And we hope that it's matching, well-protected inside. The matching private key is not extractable."
+    },
+    {
+      "start": 1829.2,
+      "end": 1852.86,
+      "text": "Having all PCs in the enterprise containing that middle box's root certificate, and with it having the matching private key, which it's careful never to let anybody else get, that allows the middle box to synthesize fake, trusted, remote website certificates on the fly. So here's how that works."
+    },
+    {
+      "start": 1854.67,
+      "end": 1878.81,
+      "text": "Say that someone inside the enterprise attempts to go to ChatGPT.com. The middle box will intercept that connection attempt and it itself will go to ChatGPT.com on behalf of the user to obtain ChatGPT's TLS certificate as if it were a user connecting."
+    },
+    {
+      "start": 1879.69,
+      "end": 1892.71,
+      "text": "Thank you for watching."
+    },
+    {
+      "start": 1894.2,
+      "end": 1921.92,
+      "text": "And it will then return that cloned certificate to the enterprise user who will believe they've connected directly and privately to ChatGPT. Their browser will show www.openai or chatgpt.com or whatever the URL is. However, they've actually connected to their enterprise's middle box, which is masquerading."
+    },
+    {
+      "start": 1939.04,
+      "end": 1939.74,
+      "text": "ChatGPT"
+    },
+    {
+      "start": 1939.73,
+      "end": 1965.53,
+      "text": "Now, all of this may seem like a lot to go through, but it's the only thing that allows the enterprise to monitor the TLS encrypted communications of its employees to prevent them from, for example, uploading the company's 10-year product planning in order to ask ChatGPT what it thinks about those plans. Those should not leave the enterprise, so somebody needs to guard those communications."
+    },
+    {
+      "start": 1968.61,
+      "end": 1994.09,
+      "text": "Yifan's point about the installation of a root certificate and man in the middle proxy is that for reasons that are not at all clear, H&R Block has thereby, by doing what they've done, they've given themselves all of the same privileges and capabilities as any"
+    },
+    {
+      "start": 1995.11,
+      "end": 2025.0,
+      "text": "Enterprise Middlebox on their customers' computers. The question is why? That's too much power. Yes. They could intercept all of their customers' communications to any other website. Oh, my God. Why would you want that level? Yes. Why would you want the responsibility of having that? Yeah, that's too much responsibility. Yeah. Thank you. The only reason..."
+    },
+    {
+      "start": 2025.33,
+      "end": 2046.67,
+      "text": "Thank you for watching. See you next time."
+    },
+    {
+      "start": 2047.42,
+      "end": 2076.12,
+      "text": "I don't see any other possible need for the private key being locally present as it is. So again, why? Why is it? H&R Block have given themselves the capability for wholesale local machine invasive traffic interception and decryption. And there doesn't appear to be any reason."
+    },
+    {
+      "start": 2076.64,
+      "end": 2080.18,
+      "text": "Why tax preparation software would need anything like this."
+    },
+    {
+      "start": 2105.28,
+      "end": 2122.8,
+      "text": "Like him, this researcher, who is aware of this, the same privileges, since the CA root cert is installed and its matching private key is sitting in a DLL for anyone to extract and use."
+    },
+    {
+      "start": 2124.13,
+      "end": 2148.25,
+      "text": "I mentioned at the top that we were going to reverse engineer this in an attempt to understand what's going on. I haven't seen this H&R Block software, and I don't want to let it anywhere near any of my machines. So I have not watched it work. But the only reason I can see that they would do this..."
+    },
+    {
+      "start": 2167.73,
+      "end": 2177.09,
+      "text": "All of their tax preparation logic. In other words,"
+    },
+    {
+      "start": 2177.58,
+      "end": 2204.66,
+      "text": "We go to Google Docs in order to use Google's document application. It would be possible to instead go to H&R Block software server with our browser running on our machine to use their tax prep application delivered to us by a server running locally."
+    },
+    {
+      "start": 2205.17,
+      "end": 2231.93,
+      "text": "So, clicking, for example, some sort of little startup app would invoke the Windows shell to launch the user's default web browser with a URL like https://127001, and then like some port number, 1234, or some custom port number, whatever they wanted to use."
+    },
+    {
+      "start": 2233.9,
+      "end": 2259.02,
+      "text": "They might have also tweaked the user's hosts file to map a more friendly-looking domain name like hrblock-tax-prep.com, mapping that to 127.0.0.1 IP. That way, users would see something comforting in their web browser's URL address bar."
+    },
+    {
+      "start": 2260.81,
+      "end": 2287.75,
+      "text": "None of that actually explains why they couldn't then just install a root CA and a certificate for that. There's no need to make it up on the fly. I mean, I'm giving them the benefit of every possible excuse here. Okay, so now the user clicks on the startup app, which launches their web browser, which accesses their locally running web server."
+    },
+    {
+      "start": 2288.38,
+      "end": 2302.64,
+      "text": "That built-in local web server needs to present their browser with a TLS certificate that matches the address they've accessed. Again, 127-001 or hrblocktaxprep.com or whatever."
+    },
+    {
+      "start": 2303.57,
+      "end": 2318.57,
+      "text": "Whatever the case, that certificate needs to be trusted by the browser. This means that it must have been signed by the private key that matches the root CA certificate that HR Block planted into every user's PC."
+    },
+    {
+      "start": 2319.67,
+      "end": 2345.51,
+      "text": "Since the root's subject name, that root certificate's subject name, as Yifan told us, is WK ATX Server Host 2024, it seems unlikely that it would be used directly as the server's end certificate. That would be a weird string."
+    },
+    {
+      "start": 2346.15,
+      "end": 2349.25,
+      "text": "for users to see in their browser's URL bar."
+    },
+    {
+      "start": 2373.85,
+      "end": 2374.65,
+      "text": "Thank you for watching."
+    },
+    {
+      "start": 2402.23,
+      "end": 2418.83,
+      "text": "Thank you for watching. I'll see you next time."
+    },
+    {
+      "start": 2427.2,
+      "end": 2454.5,
+      "text": "The only thing the root signs is another certificate, which is then presented to the web browser. It itself is never used, thus you never need its private key to be around. Okay, so when all this was revealed, when Yifan found all this, he did the right thing and reported his astonishment."
+    },
+    {
+      "start": 2454.94,
+      "end": 2480.78,
+      "text": "and Concerns to H&R Block. The timeline of his interactions with them was on March 10th, so today's what, the 24th? So two weeks ago today, on the 10th. He disclosed to H&R Block through their responsible disclosure policy. Two days later, on March 12th, he was asked to, quote,"
+    },
+    {
+      "start": 2481.27,
+      "end": 2495.69,
+      "text": "Please provide more details about how an attacker would realistically exploit this in practice.\" And, quote, share the video proof of concept from start to end, unquote."
+    },
+    {
+      "start": 2496.79,
+      "end": 2513.63,
+      "text": "Three days later, on the 15th, he did that. He wrote, provided H&R Block with details and a proof of concept video and told them the deadline for their response is March 20th due to U.S. tax season coming up."
+    },
+    {
+      "start": 2514.38,
+      "end": 2542.6,
+      "text": "On the 20th, he received the following statement back from a H&R Block. After review with the program team, we're closing this report as out of scope. The reported issue involves an executable application that falls outside our defined program scope, and similar findings have been identified through internal security assessments."
+    },
+    {
+      "start": 2545.02,
+      "end": 2558.06,
+      "text": "Okay, what? So like, yeah, we know. Like, uh, really? Somebody actually explained this to you and you're like, eh?"
+    },
+    {
+      "start": 2559.45,
+      "end": 2585.25,
+      "text": "That's how it's supposed to work. Okay. Okay, so this is obviously pretty much a head buried in the sand response. They deserve to receive full scrutiny over this very wrongheaded design of their system, and I hope they receive that. There can be no doubt that the use of their tax preparation software leaves an uninvited"
+    },
+    {
+      "start": 2585.66,
+      "end": 2611.24,
+      "text": "unwanted and unconstrained root certificate with a 23-year lifetime remaining and its known private key sitting in the root store of every customer of their tax preparation software and it persists even after their software has been uninstalled."
+    },
+    {
+      "start": 2612.34,
+      "end": 2640.56,
+      "text": "Okay, now the one thing we've not examined is what I would do. I, Steve Gibson, if I were told, you know, or if I were contracted with to do this in a secure fashion. So, Micah, let's take a break and then we're going to look at that. How to do this right. All right. I am looking forward to hearing how we can do it right after seeing how you can do it so, so wrong. But let's take a break. Leo Laporte."
+    },
+    {
+      "start": 2641.05,
+      "end": 2643.07,
+      "text": "Joining us for the next sponsor."
+    },
+    {
+      "start": 2636.0,
+      "end": 2662.72,
+      "text": "Oh, you can do it so, so wrong. But let's take a break. Leo Laporte joining us for the next sponsor. Hi guys, real quick, this episode of Security Now brought to you by GuardSquare. Mobile apps today, well, you just listened to the show, you know they've become an inescapable part of life. We use them all the time, ranging from financial services to healthcare, retail, entertainment, and of course,"
+    },
+    {
+      "start": 2663.24,
+      "end": 2681.6,
+      "text": "Users trust mobile apps with their sensitive personal data. But a recent survey showed that 72% of organizations experienced a mobile application security incident last year, and 92% of respondents reported rising threat levels over the last two years. Doesn't take a survey to know that, right?"
+    },
+    {
+      "start": 2682.62,
+      "end": 2710.3,
+      "text": "Now, if you're an app developer, you got to remember your users are trusting you and attackers want your users' personal data. So they're constantly finding new ways to attack your mobile app. This is one really awful thing they do. They reverse engineer it, easy now, using AI. They'll repackage it. They'll distribute your app modified via phishing campaigns, via sideloading, by third-party app stores, any means necessary."
+    },
+    {
+      "start": 2711.08,
+      "end": 2736.46,
+      "text": "And then your users get compromised and who they blame, they blame you. But by taking a proactive approach to mobile app security, you can stay one step ahead of these attacks and maintain the trust of your users. That's where GuardSquare comes in. GuardSquare delivers mobile app security without compromise, providing advanced protections for both Android and iOS apps, combined with automated mobile application security testing."
+    },
+    {
+      "start": 2737.0,
+      "end": 2741.78,
+      "text": "to find vulnerabilities and real-time threat monitoring to gain insight into attacks."
+    },
+    {
+      "start": 2743.0,
+      "end": 2771.42,
+      "text": "You're not helpless anymore. Discover more about how GuardSquare provides industry-leading security for your mobile apps at GuardSquare.com. That's GuardSquare.com. We thank them so much for supporting security now. And now back to Micah and Steve, guys. Thank you very much, Leo, for that. We are joined once again by Steve Gibson as we continue on with understanding what we would do if tasked"
+    },
+    {
+      "start": 2771.83,
+      "end": 2788.24,
+      "text": "with fixing things for H&R Block. Okay. So, first of all, let me reiterate that I'm trying to give these guys every benefit of the doubt. I don't understand why they've done this."
+    },
+    {
+      "start": 2790.37,
+      "end": 2815.69,
+      "text": "The only real reason that I can imagine is actually traffic interception. They would need this to act like, in order to act like a middle box, to intercept encrypted communications. Maybe, and again, I've not seen the software, maybe they set themselves up"
+    },
+    {
+      "start": 2816.11,
+      "end": 2833.25,
+      "text": "And then their app says, okay, now go to IRS.com. Go to your bank's website. I mean, like, maybe there are remote cloud-based sources of information, which it asks you to look at."
+    },
+    {
+      "start": 2833.9,
+      "end": 2861.88,
+      "text": "And while intercepting your communication so that it can suck that stuff in and incorporate it into your tax preparation. I don't know. I mean, it's like the only thing I can imagine now, still horrible. I mean, you don't want a proxy that's able to intercept all of your TLS connections installed on your machine, let alone left behind after you've uninstalled it."
+    },
+    {
+      "start": 2862.8,
+      "end": 2888.5,
+      "text": "That's the only thing I can imagine. And also, if all they wanted was to be able to run a local web server that your browser trusts, then they would need to install their own root cert, and the web browser would then have a certificate that that root cert has signed."
+    },
+    {
+      "start": 2889.07,
+      "end": 2912.11,
+      "text": "But there would never be the root search private key because it wouldn't be necessary. And the only thing that certificate would do would be to run a local web browser. You know, web app developers do this all the time. They run a local web server on their machine. It's not a big deal. So H&R Block could have done that if that's"
+    },
+    {
+      "start": 2912.64,
+      "end": 2924.26,
+      "text": "That's all they would have needed to do, and it could have been safe. But say that for some reason, they did need to deploy this on the fly. Even that could be done securely. And here's how."
+    },
+    {
+      "start": 2926.64,
+      "end": 2952.38,
+      "text": "If I wish to deploy a product that included a built-in web server that a user's modern, fully secured web browser could interact with without raising any warnings about insecure connections, lack of trust, self-signed certificates, and so on, it's possible. So, H&R Block, are you listening? Upon installation, the"
+    },
+    {
+      "start": 2952.94,
+      "end": 2963.18,
+      "text": "Installing software would first generate a state-of-the-art standard 4096-bit public-private key pair."
+    },
+    {
+      "start": 2966.44,
+      "end": 2995.22,
+      "text": "They would not ship that with the product. In other words, this thing, the H&R Block did, was they provided a public key in a root CA and the private key bundled into, bound into the DLL. So they shipped those statically, which means anyone who gets a copy of one has what they need for all H&R Block users, which is where the problem is. No."
+    },
+    {
+      "start": 2995.6,
+      "end": 3019.62,
+      "text": "Instead, generate it on the fly. Generate your own 4096-bit public key pair on the fly so that no two installations ever share the same keys. The public key half would be contained within, to your point, a short-lived root certificate."
+    },
+    {
+      "start": 3020.96,
+      "end": 3048.92,
+      "text": "Having a lifetime of the expected duration of the product's use, maybe 90 or 120 days for tax preparation software. Micah, as you pointed out, there's no reason for it to live any longer. Especially because people are going to reinstall it again the next, if they uninstall or something. The theory is they're going to install it again and use it again next year. And since it's able to make a certificate, if it did expire, it could just make a new one."
+    },
+    {
+      "start": 3049.25,
+      "end": 3075.27,
+      "text": "Even it itself could just bump this along forward, you know, always installing a few months worth of root CA that will gracefully, properly expire after a few months. You'd like to have the uninstaller remove it because you don't want to just have all this crap accumulating in your user's root stores, but okay. In addition,"
+    },
+    {
+      "start": 3075.87,
+      "end": 3101.63,
+      "text": "It should tightly constrain the use of the certificate so that it can only ever be used to sign a TLS end certificate. Those are constraints that could be added to the CA. They didn't do that either. Okay, next, it generates a second 4K bit public-private key pair. It uses this second key pair"
+    },
+    {
+      "start": 3102.08,
+      "end": 3110.34,
+      "text": "and many more. Thank you."
+    },
+    {
+      "start": 3124.24,
+      "end": 3139.52,
+      "text": "for the local host as a sort of a local host pseudo domain. So hrblock.localhost, which would mean that certificate could never be misused in any useful fashion."
+    },
+    {
+      "start": 3140.43,
+      "end": 3168.39,
+      "text": "It would only ever be able to serve and encrypt and authenticate TLS connections. In order for this local site certificate to be trusted on that local machine, it needs to be signed by the root certificate's private key, that first one that was made, the one belonging to the just-created local root CA. And then here's what's crucial and cool."
+    },
+    {
+      "start": 3169.29,
+      "end": 3190.21,
+      "text": "Immediately after that root CA's private key was used to sign the local site certificate, that private key is securely overwritten and deleted. The point is that private key is never written to non-volatile storage."
+    },
+    {
+      "start": 3191.36,
+      "end": 3218.68,
+      "text": "So it is now permanently gone, and the locally installed root certificate can never be abused because its matching private key, which is required for its abuse, no longer exists. It was just, it was ephemeral, it was transient, it's gone. Since its private key was only ever needed once to sign the local certificate to prove that certificate's validity."
+    },
+    {
+      "start": 3219.7,
+      "end": 3244.9,
+      "text": "It should never be retained. So the installation then in my system would, in my solution, would add an entry to the system's hosts file, which maps hrblock.localhost to 127.0.0.1. So now we have a certificate named hrblock.localhost with a unique"
+    },
+    {
+      "start": 3245.34,
+      "end": 3268.72,
+      "text": "Public and private key pair that will only ever be trusted by a similarly unique root CA, which will itself expire a few months after it was created. Any local browser can now be directed to some unique port, I guess 80 if it's free, but you might want to do, you know, 8888 just to..."
+    },
+    {
+      "start": 3269.0,
+      "end": 3294.92,
+      "text": "For the sake of being out there somewhere. So, you know, hrblock.localhost colon 8888. And now you're able to access the built-in web server in order to view the HR Block UI in a server client relationship. And lastly, on its way out, the software's uninstaller should remove"
+    },
+    {
+      "start": 3295.56,
+      "end": 3322.9,
+      "text": "The short-lived root CA certificate after it shuts down the local web server and deletes all of the product's files. So, as we've just seen in this example, it is, if you really needed to do this for some reason, I don't see even why you have to, because you could just, you know, give somebody a set of static certs that would only be useful for local, for hrblock.localhost."
+    },
+    {
+      "start": 3323.44,
+      "end": 3342.38,
+      "text": "But if you, even if you needed, if you wanted every instance to be unique, and I can see a benefit there, it can be done in a way that does not open any security holes. But that's not what H&R Block has done. Through very poor security design."
+    },
+    {
+      "start": 3343.8,
+      "end": 3371.96,
+      "text": "Sloppiness, and as you said, apparently not caring. They've left behind a 23-year lifetime, completely unconstrained CA root certificate, meaning it can sign TLS web certificates, it can sign code, it could be used for any malicious purpose you can imagine, left behind in the root store of every one of their users with..."
+    },
+    {
+      "start": 3372.36,
+      "end": 3398.7,
+      "text": "It's matching key, statically embedded in a shipping DLL so that it's known to the world. This makes you wish that our industry's software liability protections were not as virtually non-existent as they currently are. I mean, I'm sure somewhere in the license agreement that all users click on, not reading because you can't, you know, it's 25 pages of legalese."
+    },
+    {
+      "start": 3399.31,
+      "end": 3409.93,
+      "text": "Thank you for watching."
+    },
+    {
+      "start": 3418.31,
+      "end": 3446.17,
+      "text": "That's so frustrating to me, and that, because I was going to say, you know, I'm always, I'm always curious. He reached, or this person reached out to H&R Block, H&R Block had to know that if this was coming from truly a security researcher, that this was going to be made public, as opposed to it just being some, you know, I would imagine that if you just heard from some random person, uh, that did not"
+    },
+    {
+      "start": 3446.59,
+      "end": 3460.23,
+      "text": "You know, but put themselves forth as a security researcher at all. They might go, oh, we can bury this or this won't matter. But to say, basically, we don't care to someone who is going to disclose that."
+    },
+    {
+      "start": 3460.72,
+      "end": 3487.06,
+      "text": "That's the stuff where I'm like, I want to meet every person involved in every part of these decisions and just hear what their thinking is. Because what is their thinking and why would they feel that this is not a big deal when you're showing us how it can quickly become a big deal and that the responsibility there is vast. But as you pointed out, with the right agreements in place, they don't need to care, do they? No."
+    },
+    {
+      "start": 3488.13,
+      "end": 3490.23,
+      "text": "It's frustrating. No."
+    },
+    {
+      "start": 3492.68,
+      "end": 3518.84,
+      "text": "Speaking of frustrating, the company known as Intoxalock, gotta love the name, provides court-mandated automotive breathalyzer facilities that are installed into the automobiles of people who a court has come to the determination should be required to provide"
+    },
+    {
+      "start": 3519.58,
+      "end": 3532.96,
+      "text": "Proof of their alcoholic sobriety through a quick built-in breathalyzer breath sample every single time they get behind the wheel and wish to drive their car."
+    },
+    {
+      "start": 3533.93,
+      "end": 3560.69,
+      "text": "Now, since alcoholic breathalyzer technology is tricky and can be a bit flaky, it requires periodic calibration for reliable operation by an authorized calibration facility. And the calibration facilities, it turns out, are all tied back to the mothership in the cloud that tracks and reports on all of this."
+    },
+    {
+      "start": 3561.73,
+      "end": 3590.69,
+      "text": "Now, that whole system generally works pretty well, but it turns out only so long as a cyber attack does not render Intoxalock's entire periodic calibration and reporting infrastructure inoperative. This is exactly what befell Intoxalock Saturday before last on March 14th, so today is the 24th."
+    },
+    {
+      "start": 3591.0,
+      "end": 3597.2,
+      "text": "A full 10 days later, their calibration system remains offline. It's down."
+    },
+    {
+      "start": 3598.53,
+      "end": 3615.89,
+      "text": "The trouble that's now facing a gradually growing number of drivers who need to prove their sobriety to their cars is that the system's firmware has been designed to enforce a zero-tolerance policy."
+    },
+    {
+      "start": 3627.92,
+      "end": 3644.5,
+      "text": "And you cannot now recalibrate. As a result, as the recalibration system outage stretches on day after day, an increasing number of drivers are unable to use their automobiles."
+    },
+    {
+      "start": 3645.04,
+      "end": 3667.06,
+      "text": "In some cases, Intoxalock is apparently, and this is on a state-by-state basis, apparently able to offer a 10-day calibration extension, but that appears, as I said, to be limited by state. A posting on their service status page explains, it writes, effective immediately,"
+    },
+    {
+      "start": 3667.95,
+      "end": 3691.89,
+      "text": "Service centers will be able to give your device a 10-day extension while our systems are being restored. Tennessee customers have a service date extension through Tuesday, March 24th. That's today. At this time, this extension is not available in Michigan or Washington."
+    },
+    {
+      "start": 3692.51,
+      "end": 3719.33,
+      "text": "Wow. We're actively working toward a resolution and will notify you as soon as anything changes. So, here we have an interesting case of people's physical lives being meaningfully impacted by a cyber event. Since the calibration and reporting system sounds like it's very data-based,"
+    },
+    {
+      "start": 3719.84,
+      "end": 3745.0,
+      "text": "Database-based. I would not be surprised to learn that Intoxalock, although this hasn't been publicly disclosed, had fallen victim to a generic ransomware attack which encrypted all of their systems. And in this case, consider the fact that the data that may also have been exfiltrated"
+    },
+    {
+      "start": 3746.27,
+      "end": 3774.67,
+      "text": "A list of all the people, oh my goodness. Yes, all of the people, extra personal, extra private, and extra sensitive, involving the identities and the habits, the drinking habits and the drinking and driving habits of U.S. drivers who have been under court-mandated driving restrictions. That's not the sort of data."
+    },
+    {
+      "start": 3775.33,
+      "end": 3802.29,
+      "text": "Anyone wish to have floating around the internet? I would argue, you know, it makes a social security number look tame by comparison. Yeah, this is a huge blackmail target. Honestly, I was going to make some silly joke about, I wonder how many executives didn't get to work on time that day, and then you said what you said, and I thought, actually, it gave me goosebumps. This is horrible. This is awful. This is terrible."
+    },
+    {
+      "start": 3803.1,
+      "end": 3829.72,
+      "text": "Yeah, it's not good. And they apparently are the go-to company for this service. I was looking to see what their status page says today, because this was support... It also made me wonder while you're looking for that, it also made me wonder if the calibration narrative..."
+    },
+    {
+      "start": 3830.24,
+      "end": 3856.82,
+      "text": "is pushed by that company so that they can continue to make money even after those breathalyzers are installed. And of course that's just, you know, supposition, but it is a very interesting thing to be one of the main companies providing what ends up being sort of a government-mandated device needing to have these regular check-ins. Yeah, and the good news is"
+    },
+    {
+      "start": 3857.44,
+      "end": 3875.06,
+      "text": "They have got their systems back up. I went to Intoxalock.com slash status, and I'm getting a green bar, systems restored, services and installations resuming. And it's got lots of instructions for people who are inconvenienced."
+    },
+    {
+      "start": 3877.51,
+      "end": 3905.15,
+      "text": "There's a mobile app and so forth. So, note if you received a service date extension in Tennessee during the temporary pause, please return to the service center today on March 24th. Failure to do so may result in an extension or full restart of the interlock program, whatever that means. So, anyway, the good news is, looks like they paid ransom or they restored from backups. We don't really know, but..."
+    },
+    {
+      "start": 3905.71,
+      "end": 3926.63,
+      "text": "They are back up. But if nothing else, this demonstrates that our cyber world is increasingly interacting with the physical world. And, you know, here it caused people a lot of inconvenience."
+    },
+    {
+      "start": 3927.18,
+      "end": 3952.78,
+      "text": "Especially when you've got all of your eggs in one basket. And as you said, even with the system restored, if they did, if this was a cyber attack and they exfiltrated all their database data, as you said, now there's serious extortion opportunities for anybody important who cares about keeping their past problems with drinking and driving private. Yeah, that's mortifying."
+    },
+    {
+      "start": 3955.22,
+      "end": 3983.94,
+      "text": "Okay, so exactly one week ago, last Tuesday the 17th, Mozilla posted some welcome news under their heading, More Reasons to Love Firefox. I don't need any more reasons. I love Firefox, but okay. They wrote, What's new now and what's coming soon? They start their post off rather generically by writing, Firefox is for people who make their own choices online. Apparently they're saying,"
+    },
+    {
+      "start": 3983.1,
+      "end": 4009.86,
+      "text": "Apparently, they're saying, you know, Chrome people are sheep. I don't know. From what stays private, they wrote, to the tools that help get things done. That commitment to choice shows up throughout the Firefox experience. The AI controls is just the latest example, meaning you can turn them off, making it possible to turn generative AI features off, on, or customize them feature by feature."
+    },
+    {
+      "start": 4010.51,
+      "end": 4037.85,
+      "text": "Over the coming weeks, we'll be rolling out a series of updates that build on that. Expect more control where it matters, better protections in the background, and a few new tools that make everyday browsing better. You may even spot a fresh face of Firefox along the way. Okay, then they talk about the ability to turn off any generative AI, a new feature coming in the next Firefox 149, which will allow side-by-side"
+    },
+    {
+      "start": 4038.35,
+      "end": 4051.15,
+      "text": "Page Display, and the ability to write and attach notes to tabs. Okay. I'm not sure about the whole AI thing."
+    },
+    {
+      "start": 4051.9,
+      "end": 4067.88,
+      "text": "The side-by-side web page thing sounds as though it might come in handy for me for podcast production since I'm often flipping back and forth between Google Docs where I author the page and the source information. So that would be cool."
+    },
+    {
+      "start": 4069.16,
+      "end": 4086.86,
+      "text": "But the forthcoming new feature that caught my eye and which I felt sure would interest our listeners was Firefox 149, which drops today on March 24th, its new free built-in VPN."
+    },
+    {
+      "start": 4088.08,
+      "end": 4112.04,
+      "text": "They wrote, a free built-in VPN is coming to Firefox. Free VPNs can sometimes mean sketchy arrangements that end up compromising your privacy. And I've often said, you know, don't trust a free VPN from some sketchy provider. Certainly, Mozilla is not that. They said, but ours is built..."
+    },
+    {
+      "start": 4137.73,
+      "end": 4140.61,
+      "text": "Data Principles and Commitment"
+    },
+    {
+      "start": 4140.28,
+      "end": 4150.2,
+      "text": "France, Germany, and UK to start. Available in Firefox 149 starting March 24th. In other words, as I said, today."
+    },
+    {
+      "start": 4151.24,
+      "end": 4178.24,
+      "text": "Now, we know that there's been something of a gold rush to VPN services driven by the increasing use of IP-based geolocation to limit underage access to age-restricted internet content and services. Since Firefox's desktop, unfortunately, its desktop presence continues to slip in terms of market share, it's down"
+    },
+    {
+      "start": 4178.79,
+      "end": 4204.37,
+      "text": "from 6.3 last year down now just down to 4.2% desktop share this year. So Mozilla may be hoping that the presence of a built-in free VPN service will help. It is worth noting also that it has not escaped unfortunately the awareness of legislators"
+    },
+    {
+      "start": 4205.42,
+      "end": 4232.14,
+      "text": "That people are rushing to use VPNs in order to get around state-based location age restriction, and there actually has been some conversation about legislation to prohibit VPN use, which, you know, good luck with that. I mean, it's like, hey, you know, those TCP connections, they're pesky. I think we better outlaw TCP."
+    },
+    {
+      "start": 4260.59,
+      "end": 4288.35,
+      "text": "The number one AI development platform, OutSystems, helps businesses bridge the enterprise gap to their agentic future, where the constraints of the past give way to unlimited capacity and scale. OutSystem enables businesses of all sizes to build agents that actually do work. Things like take actions, make decisions, and integrate with data, more than just answering questions."
+    },
+    {
+      "start": 4289.05,
+      "end": 4316.73,
+      "text": "OutSystems provides the only AI development platform that's unified, agile, and enterprise proven. Let me explain. Unified because you build, run, and govern apps and agents all in one platform, OutSystems. Agile because you now can innovate at the speed of AI, and importantly, without compromising quality or control. It's enterprise proven because it's trusted by enterprises for some of the most important mission-critical AI applications."
+    },
+    {
+      "start": 4317.44,
+      "end": 4339.96,
+      "text": "and durable innovation, OutSystems. It's the secret weapon behind the world's most successful companies. And this isn't just for small apps. These are for massive, in many cases, massive complex systems that are running banks, insurance companies, government services. OutSystems even helps companies with aging IT environments bridge the gap to the AI future without a rip and replace nightmare."
+    },
+    {
+      "start": 4340.56,
+      "end": 4361.46,
+      "text": "It almost feels like you could do anything. OutSystems provides the safest and fastest way for an enterprise to go from, we need an AI strategy to, yeah, we have a functioning AI application. Stop wondering how AI will change your business and start building the agents that will lead it. Visit OutSystems.com slash twit."
+    },
+    {
+      "start": 4361.82,
+      "end": 4390.16,
+      "text": "to see how the world's most innovative enterprises use OutSystems to build, deploy, and manage AI apps and agents quickly and cost-effectively without compromising reliability and security. That's O-U-T-S-Y-S-T-E-M-S dot com slash T-W-I-T to book a demo. OutSystems dot com slash twit. Thank you so much for supporting the good work Steve does here at Security Now. Now back to the show."
+    },
+    {
+      "start": 4390.56,
+      "end": 4418.5,
+      "text": "Indeed, we are back to the show. Take it away, Steve. Okay, so I just learned how far tracking pixels, and we now need to put that in air quotes because they are so much more. They're easy to miss because much like cookies, the code which their presence on any web page allows to run"
+    },
+    {
+      "start": 4419.32,
+      "end": 4426.14,
+      "text": "is completely hidden from us. I mean, it's not that you can't get it, but it's not easy to see."
+    },
+    {
+      "start": 4426.93,
+      "end": 4450.79,
+      "text": "Last Wednesday, the 18th, the security researchers at J Scrambler shared what they had recently learned about what TikTok and Meta are both now doing. Their headline was Beyond Analytics, The Silent Collection of Commercial Intelligence by TikTok and Meta AdPixels."
+    },
+    {
+      "start": 4451.79,
+      "end": 4470.09,
+      "text": "Okay, and as we're going to see, this writing, Jay Scrambler's writing, is targeted at web merchants who are voluntarily putting these insidious tracking pixels onto their sites. Because, you know, this is not something that..."
+    },
+    {
+      "start": 4470.75,
+      "end": 4496.81,
+      "text": "We want the analytics or we want the whatever we're getting in return. So every page that we serve will have a reference to some JavaScript back at Meta or at TikTok or wherever, basically causing the user's web browser to"
+    },
+    {
+      "start": 4497.95,
+      "end": 4526.63,
+      "text": "To pull in that resource and invoke whatever that script is. So, here's what they explain. They wrote, TikTok and Meta's tracking pixels are quietly harvesting personal data, granular checkout interactions, and detailed commerce intelligence from the users of the websites that implement them."
+    },
+    {
+      "start": 4527.0,
+      "end": 4541.38,
+      "text": "The collection is going far beyond what ad attribution requires creating serious privacy compliance risks and competitive disadvantages for the businesses involved."
+    },
+    {
+      "start": 4542.16,
+      "end": 4559.3,
+      "text": "Jay Scrambler conducted a runtime analysis of the ad pixels used by TikTok and Meta on actual websites, revealing that their default behavior requires immediate attention from every organization that employs them."
+    },
+    {
+      "start": 4559.64,
+      "end": 4585.86,
+      "text": "The analysis focused on large companies in the retail, hospitality, and healthcare sectors. However, it's worth noting that most businesses with an online presence use these tracking pixels on their websites as well. Okay, now I'm sure I don't need to tell our listeners that this is not something I, with GRC, would ever consider doing. I'm annoyed that I've given Google"
+    },
+    {
+      "start": 4586.49,
+      "end": 4589.11,
+      "text": "Thank you for watching."
+    },
+    {
+      "start": 4614.11,
+      "end": 4640.47,
+      "text": "A company says, okay, yes, we'll make a query to your ad server to pull in your ad pixel. They have no control over what it does once it gets there. That's the key point. It's very much like software that goes out and downloads some other software to enhance itself."
+    },
+    {
+      "start": 4641.23,
+      "end": 4667.39,
+      "text": "If the behavior of that augmented software changes, then the overall product changes after the fact. Anyway, Jay Scrambler continues, writing, Tracking pixels were once just a small snippet of code on a webpage to confirm an ad impression or log a visit. Almost all..."
+    },
+    {
+      "start": 4667.55,
+      "end": 4695.67,
+      "text": "Websites use them to track user behavior, measure ad performance, and optimize marketing efforts. These pixels let businesses see which ads drive traffic, conversations, or sales, and provide data to retarget users who showed interest but might not have completed a purchase. What many website owners likely don't realize is that TikTok and Meta's pixels"
+    },
+    {
+      "start": 4696.44,
+      "end": 4724.28,
+      "text": "Now go far beyond those traditional tracking tags. They collect user emails, phone numbers, and addresses, turning seemingly anonymous browsing data into persistent identifiable user profiles. TikTok's pixel, they write, creates three different data records for each user interaction."
+    },
+    {
+      "start": 4725.31,
+      "end": 4739.39,
+      "text": "A primary event record of what the user did, such as viewing a product or adding to a cart. A metadata record and a performance record all connected using the same session ID."
+    },
+    {
+      "start": 4740.43,
+      "end": 4768.15,
+      "text": "When personal information, like an email or phone number, appears on a page, TikTok's identity module processes it, normalizes it, and converts it into an SHA-256 style hashed identifier before sending it out. Meta takes a similar approach, hashing a wide range of fields, including first and last names, locations,"
+    },
+    {
+      "start": 4769.02,
+      "end": 4795.16,
+      "text": "and external identifiers. The hashes are deterministic, meaning they produce the same output for the same input each time. And because the hash is built from predictable data, like emails and phone numbers, it's easy to re-identify them by matching those hashes against existing hash data, meaning that if metadata, I mean,"
+    },
+    {
+      "start": 4795.5,
+      "end": 4818.2,
+      "text": "If Meta has your email address and hashes it, they get the same hash. If they have your phone number and hash it, they get the same hash. So when those hashes later pop up out on the web, they know it's you. There's no mystery there. You are not anonymized. And they write, it effectively eliminates anonymization."
+    },
+    {
+      "start": 4818.7,
+      "end": 4847.04,
+      "text": "Allowing platforms to recover original user data and build long-term behavioral profiles without the user's knowledge. In practice, this is like a candidate input matching process where emails or phone numbers are compiled or generated, hashed, and then compared against the target hashes to find matches. Identity resolution is only part of the problem."
+    },
+    {
+      "start": 4847.42,
+      "end": 4872.82,
+      "text": "Jay Scrambler's research, they wrote, found that TikTok and Meta's ad pixels methodically harvest detailed product-level intelligence and entire customer journeys from merchant websites. Meta and TikTok's requests routinely include product names, unit prices, quantities,"
+    },
+    {
+      "start": 4873.6,
+      "end": 4900.68,
+      "text": "Currency, and Total Cart Values. They also logged specific checkout actions, such as add to cart or add payment info. In other words, stuff that is none of their business. Meta's telemetry even records the structure of checkout forms and buttons, providing insight into how a merchant's site is built."
+    },
+    {
+      "start": 4902.5,
+      "end": 4930.9,
+      "text": "Wow. Are they making this data available to the people whose sites they're on? That's wild. This is not a trade. It's total intrusive for Meta's benefit, and maybe they're selling it. I mean, it's data that they are aggregating. So I'll just interrupt to note that you might be thinking, if you might be thinking that none of this is any of Meta's"
+    },
+    {
+      "start": 4931.28,
+      "end": 4954.78,
+      "text": "and because there's no one looking there's no one to stop them"
+    },
+    {
+      "start": 4955.48,
+      "end": 4957.08,
+      "text": "Jay Scrambler continues."
+    },
+    {
+      "start": 4984.65,
+      "end": 5012.55,
+      "text": "Share data with these tracking pixels. While they might know that pixels collect basic conversion information, much of the detailed product level checkout stage and structural form data is automatically captured or passed through integrations like Shopify with little visibility. While businesses might think they're enabling only standard tracking,"
+    },
+    {
+      "start": 5013.15,
+      "end": 5039.63,
+      "text": "In reality, they are feeding third-party platforms with a deep, continuous view of their product catalog, pricing, and customer behavior that could potentially benefit larger rivals. The implications from a privacy compliance and sensitive data exposure standpoint should be very concerning for any organization using these pixels."
+    },
+    {
+      "start": 5040.22,
+      "end": 5057.62,
+      "text": "Jay Scrambler found TikTok pixels capturing sensitive data even before a user had the opportunity to make a consent choice. And in some cases, even after a user had clicked reject all."
+    },
+    {
+      "start": 5059.12,
+      "end": 5084.38,
+      "text": "We observed TikTok capturing physical addresses entered into store locator fields at major French and German retailers and transmitting the data back to their servers. Meta's pixel includes a feature called Automatic Events, which is enabled by default. The feature automatically scans"
+    },
+    {
+      "start": 5085.16,
+      "end": 5106.7,
+      "text": "Page Elements, and captures information such as checkout interactions and visible payment card details, including the last digits, expiration date, and cardholder name. Why? I mean, I know why, but I just... Full, full spying."
+    },
+    {
+      "start": 5107.18,
+      "end": 5118.54,
+      "text": "Yeah, it's absolutely full spying and to do it without any regard of just like, they're not even having to explain themselves because as you've pointed out, no one's paying attention to this. Yep."
+    },
+    {
+      "start": 5120.09,
+      "end": 5147.75,
+      "text": "Since this is the default behavior and not opt-in, merchants may not be aware that the pixel is collecting this information. On separate sites, Meta captured recipients' full names and delivery addresses when users selected address options during checkout."
+    },
+    {
+      "start": 5148.91,
+      "end": 5176.57,
+      "text": "TikTok's pixel was observed exhibiting similar behavior, harvesting sensitive user data during the checkout process. This included partial payment card details and other personal data provided by the customer. Both TikTok and Meta's pixel code can load and begin transmitting data. Hear it again. Both TikTok and Meta's pixel code"
+    },
+    {
+      "start": 5178.24,
+      "end": 5205.28,
+      "text": "can begin, I'm sorry, can load and begin transmitting data before the website's consent management system has time to block it. Meaning information can leave the browser before the user's choice is applied. And then they're covered. That's right. We asked the user, they said no, but oops, it was too late. Yeah."
+    },
+    {
+      "start": 5206.23,
+      "end": 5227.07,
+      "text": "Even more concerning is that data may be transmitted in clear text, occasionally within the request URL itself, exposing sensitive information to browser histories, server logs, intermediaries, and debugging tools. So it wasn't even well done with like a privacy first approach."
+    },
+    {
+      "start": 5228.14,
+      "end": 5256.38,
+      "text": "They said this vulnerability stems not only from the pixel's data collection methods, but also from misconfigurations during its implementation or from issues with the website's underlying architecture. Consequently, the attack surface is significantly broader than a surface-level analysis would suggest. The behaviors Jay Scrambler documented put websites in direct conflict with GDPR, CCPA."
+    },
+    {
+      "start": 5256.97,
+      "end": 5276.79,
+      "text": "and other major privacy regulations. The potential violation triggers include consent failures, inadvertent personal data transmission and financial or address data exposed in logs that outlast the original request. In addition,"
+    },
+    {
+      "start": 5277.58,
+      "end": 5301.72,
+      "text": "The exposure of partial cardholder data and address information increases the risk for identity theft and secondary data breaches. From a competitive standpoint, merchants need to understand that the pixels they implement, pixels, I mean, calling it a pixel is so wrong. The pixels they implement"
+    },
+    {
+      "start": 5299.79,
+      "end": 5327.37,
+      "text": "The pixels they implement are not passive measurement tools. They are instead active data collection systems that feed proprietary commercial intelligence such as pricing, product mix, conversions, and customer behavior directly into the same global advertising platforms that every other merchant on those platforms"
+    },
+    {
+      "start": 5327.95,
+      "end": 5354.61,
+      "text": "Including Rivals relies on. Larger rivals with bigger ad budgets could benefit because the more data the platform collects from all merchants, the better its targeting becomes. Often, better targeting favors those with the most budget to spend on ads because there's more ads available for choosing. To manage these risks, they write,"
+    },
+    {
+      "start": 5354.89,
+      "end": 5375.43,
+      "text": "Organizations need to do considerably more than just review a pixel's documentation. This involves auditing actual pixel configurations, meaning work, and implementing continuous monitoring to catch scope creep,"
+    },
+    {
+      "start": 5376.75,
+      "end": 5398.01,
+      "text": "The Pixel used to be a cute little thing that only targeted ads, but that was 10 years ago. Now, you're downloading a whole suite of spying intelligence ware in that cute little Pixel's JavaScript. They finish ware. A third-party script begins collecting more data than originally intended."
+    },
+    {
+      "start": 5399.07,
+      "end": 5407.43,
+      "text": "Thank you for watching."
+    },
+    {
+      "start": 5428.34,
+      "end": 5456.54,
+      "text": "As we know, no one is an island. Unfortunately, that's a problem if you don't get any messages. I suppose we should not be surprised that Russia's increasingly stringent and pervasive internet stranglehold is choking their own local companies. Russia's private sector is desperately asking"
+    },
+    {
+      "start": 5457.36,
+      "end": 5484.64,
+      "text": "Their government to lift the recently imposed total bans on Telegram, WhatsApp, and other foreign messaging platforms. It seems that not everything needed to conduct business in Russia can be found within Mother Russia and that Russian entities need to conduct and work with foreign partners and unfortunately"
+    },
+    {
+      "start": 5485.52,
+      "end": 5512.78,
+      "text": "Russia is saying, uh, no, we don't want you to be using, you know, they've got their own, uh, uh, I can't remember now what it's called. They did a native Russian messaging app, which of course no one wants to use because we know that Russia is spying on it. So nobody outside Russia wants to have anything to do with some Russia spyware. Who knows what it does once it gets into their machines."
+    },
+    {
+      "start": 5515.86,
+      "end": 5534.34,
+      "text": "Another bit of news, I saw this blurb in a security news summary and I thought, okay, well, that's interesting. Let me share it first, then I'll tell everyone what I thought. The security news blurb was titled, Open Claw Phishing Campaign. And it just said,"
+    },
+    {
+      "start": 5535.18,
+      "end": 5559.7,
+      "text": "Threat actors are spamming GitHub issues and tagging other developers with fake promises of OpenClaw tokens. The plan is to lure the devs to phishing sites where they're asked to connect their crypto wallets, but are getting their accounts emptied."
+    },
+    {
+      "start": 5560.75,
+      "end": 5587.69,
+      "text": "Okay, so that's all we know. I don't ever want to see anyone hurt, of course, really. I don't ever. But anyone who would naively connect their crypto wallet containing any amount of crypto, which they're not entirely prepared to be separated from in the next moment."
+    },
+    {
+      "start": 5588.44,
+      "end": 5614.82,
+      "text": "Thank you for watching."
+    },
+    {
+      "start": 5615.84,
+      "end": 5638.16,
+      "text": "If anyone were scammed, but I would not be very surprised. So our takeaway here is please, please, always be careful. You know, especially anytime you're connecting any wallet to any sort of automated system, which you cannot be 100% certain of."
+    },
+    {
+      "start": 5639.87,
+      "end": 5654.19,
+      "text": "Really, like set up a secondary wallet, transfer a little bit of working money there, and then, you know, use that if you must connect it to something, but, you know, not your wallet where you actually store any useful amount of money."
+    },
+    {
+      "start": 5656.29,
+      "end": 5683.19,
+      "text": "Since we've previously touched upon Cisco's very bad 10.0 CVE-2026-20127, which was that widely exploited authentication zero-day discovered while being exploited in Cisco's Catalyst SD-WAN enterprise product line,"
+    },
+    {
+      "start": 5684.07,
+      "end": 5710.09,
+      "text": "Really, anyone could be forgiven for confusing that one with Cisco's CVE-2026-201-31. So not 27, no, 31, which is another, wait for it, CVSS 10.0, critical vulnerability in Cisco's systems."
+    },
+    {
+      "start": 5710.85,
+      "end": 5737.65,
+      "text": "As I said at the top of the show, what would the Security Now podcast be without a brand new, shiny Cisco CVSS Critical 10.0? The NIST NVD, the National Vulnerability Database, says of the new one, 31, they write, a vulnerability in the web-based management interface."
+    },
+    {
+      "start": 5738.58,
+      "end": 5764.02,
+      "text": "Who would have guessed? Of Cisco Secure Firewall Management Center, apparently not that secure, software, could allow an unauthenticated remote attacker to execute arbitrary Java code as root on an affected device. In other words, there you go, Cisco 10.0."
+    },
+    {
+      "start": 5765.57,
+      "end": 5794.43,
+      "text": "They wrote, this vulnerability is due to insecure deserialization of a user-supplied Java byte stream. An attacker could exploit this vulnerability by sending a crafted serialized Java object to the web-based management interface of an affected device. A successful exploit could allow the attacker to execute arbitrary code on the device and elevate privileges to root."
+    },
+    {
+      "start": 5795.65,
+      "end": 5815.89,
+      "text": "that's right unfortunately most of the world that's not listening to this podcast has not caught up to the many continuing demonstrations that authentication does not work if authentication did work then unauthenticated hackers and attackers"
+    },
+    {
+      "start": 5816.7,
+      "end": 5842.12,
+      "text": "Would not and could not be continuously breaking into supposedly protected systems in ways that bypass their authentication controls. Right? I mean, one plus one equals two. Not to mention, oh, I don't know, allowing them to execute their arbitrary Java code as root on breached devices."
+    },
+    {
+      "start": 5843.94,
+      "end": 5871.66,
+      "text": "And so what happens to enterprises who solely rely upon Cisco's broken authentication promises to protect their perimeters? Last Wednesday the 18th, Amazon's Threat Intelligence posted their observation under the headline, Amazon Threat Intelligence Teams Identify Interlock Ransomware Campaign Targeting Enterprise Firewalls."
+    },
+    {
+      "start": 5872.36,
+      "end": 5900.66,
+      "text": "Gee, which enterprise firewall do you think that could be? Amazon's threat hunters wrote, quote, Amazon Threat Intelligence has identified an active interlock ransomware campaign exploiting CVE-2026-20131, a critical vulnerability in Cisco secure firewall management center software that could allow"
+    },
+    {
+      "start": 5901.33,
+      "end": 5923.05,
+      "text": "An unauthenticated remote attacker to execute arbitrary Java code as root on an affected device, which was disclosed by Cisco on March 4th, 2026. Now that's an important date, March 4th, 2026. Disclosure means patch available on March 4th, 2026."
+    },
+    {
+      "start": 5924.62,
+      "end": 5947.48,
+      "text": "They wrote, they, Amazon. After Cisco's disclosure, Amazon Threat Intelligence began research into this vulnerability using Amazon's MadPots global sensor network, a system of honeypot servers that attract and monitor criminal cyber activity."
+    },
+    {
+      "start": 5948.38,
+      "end": 5971.5,
+      "text": "While looking for any current or past exploits of this vulnerability, our research found that Interlock was exploiting this vulnerability 36 days before its public disclosure, beginning January 26, 2026."
+    },
+    {
+      "start": 5972.15,
+      "end": 5998.93,
+      "text": "This wasn't, they write, this wasn't just another vulnerability exploit. Interlock had a zero day in their hands, giving them a five week head start to compromise organizations before defenders even knew to look. Upon making this discovery, we shared our findings with Cisco to help support their investigation."
+    },
+    {
+      "start": 5999.78,
+      "end": 6026.36,
+      "text": "and Protect Customers. Okay, so just so that everyone is clear about the timing of this again, Amazon discovered exploitation of this zero day dating back as far as January 26th and Cisco's announcement and patch wasn't made available until March 4th. So for at least 36 days or a little more than five weeks, only the bad guys knew of this."
+    },
+    {
+      "start": 6027.08,
+      "end": 6055.24,
+      "text": "and even fully patched and up-to-date Cisco secure firewalls and the enterprises behind them were being compromised and falling victim to this interlocked ransomware and campaign through no fault of theirs. They were fully patched and updated. Amazon explained what they found writing a misconfigured infrastructure server"
+    },
+    {
+      "start": 6055.75,
+      "end": 6081.29,
+      "text": "Essentially, a poorly secured staging area used by the attackers. They actually found a misconfigured infrastructure server of the attackers. Exposed, they wrote, Interlock's complete operational toolkit. This rare mistake provided Amazon's security teams with visibility"
+    },
+    {
+      "start": 6082.15,
+      "end": 6110.13,
+      "text": "into the ransomware group's multi-staged attack chain, custom remote access Trojans, backdoor programs that give attackers control of compromised systems, reconnaissance scripts, meaning automated tools for mapping victim networks, and evasion techniques. In other words, Amazon has honeypots. The bad guys infected a honeypot. Amazon was able to use the infection to track backwards."
+    },
+    {
+      "start": 6110.9,
+      "end": 6130.24,
+      "text": "Up into the attacker's infrastructure, which they found improperly set up so they were able to get in. Now, what if, maybe I'm writing a movie now, but what if that was just a reverse honeypot and it points Amazon down the wrong route when they found all this data?"
+    },
+    {
+      "start": 6131.72,
+      "end": 6159.54,
+      "text": "could be possible, although what they worked from was Cisco's fresh disclosure. So they had evidence that that system was attacking their honeypot back as many as 36 days earlier using information that was not public. So nobody knew how it could be used to get into their..."
+    },
+    {
+      "start": 6160.26,
+      "end": 6161.04,
+      "text": "customers machines."
+    },
+    {
+      "start": 6163.54,
+      "end": 6189.86,
+      "text": "We're at an hour and a half in. Let's take a break and then I'm going to finish up with what Amazon tells us about this interesting and unfortunately all too common Cisco vulnerability. I will say the magic words to summon Leo Laporte. Bippity boppity Laporte. This episode of Security Now brought to you by Zscaler, the world's largest cloud security."
+    },
+    {
+      "start": 6190.66,
+      "end": 6213.38,
+      "text": "Platform. You know, we talk about this all the time. The potential rewards of AI are far too great for any company to ignore, but so are the risks, right? Loss of sensitive data, attacks against enterprise managed AI, generative AI increases opportunities for threat actors, helping them to rapidly create phishing laws, write malicious code, and automate data extraction."
+    },
+    {
+      "start": 6214.01,
+      "end": 6241.25,
+      "text": "Did you know there were 1.3 million instances of social security numbers leaked to AI applications last year? ChatGPT and Microsoft Copilot saw nearly 3.2 million data violations. Yikes! It's time to rethink your organization's safe use of public and private AI. And if you want to know more, just check out what Siva, the Director of Security and Infrastructure at Zuora, says about using Zscaler."
+    },
+    {
+      "start": 6241.64,
+      "end": 6259.48,
+      "text": "To prevent AI attacks, watch. With Zscaler being in line in a security protection strategy, it helps us monitor all the traffic. So even if a bad actor were to use AI, because we have a tight security framework around our endpoint, helps us proactively prevent that activity from happening."
+    },
+    {
+      "start": 6259.98,
+      "end": 6270.96,
+      "text": "AI is tremendous in terms of its opportunities, but it also brings in challenges. We're confident that Z-scale is going to help us ensure that we're not slowed down by security challenges, but continue to take advantage of all the advancements."
+    },
+    {
+      "start": 6273.51,
+      "end": 6300.99,
+      "text": "Thank you, Siva. With Zscaler Zero Trust Plus AI, you can safely adopt generative AI and private AI to boost productivity across the business. Their Zero Trust Architecture Plus AI helps you reduce the risks of AI-related data loss and protects against AI attacks to guarantee greater productivity and compliance. Learn more at zscaler.com security. That's zscaler.com."
+    },
+    {
+      "start": 6302.12,
+      "end": 6330.0,
+      "text": "Security. We thank him so much for supporting security now. Now I see Steve's all caffeinated. So let's get back to the show. Let's do it. How did he know? That's a big cup. Okay, so just to finish on Amazon's threat intelligence, they wrote AWS infrastructure and customer workloads on AWS were not observed to be involved in this campaign, meaning"
+    },
+    {
+      "start": 6330.36,
+      "end": 6356.76,
+      "text": "Cisco customers, not Amazon customers. They said this advisory shares comprehensive technical analysis and indicators of compromise to help organizations identify potential compromise and defend against interlocks operations, right? I mean, this was going on for 36 days. Anybody who the bad guys could find who had this firewall may well have been compromised. So, you know,"
+    },
+    {
+      "start": 6357.44,
+      "end": 6381.7,
+      "text": "A true problem. They said, Amazon Threat Intelligence identified threat activity potentially related to this CVE-20131 beginning January 26th. Observed activity involved HTTP requests to a specific path in the affected software. Request bodies contained Java code execution attempts"
+    },
+    {
+      "start": 6382.25,
+      "end": 6410.57,
+      "text": "and two embedded URLs. One used to deliver configuration data supporting the exploit and another designed to confirm successful exploitation by causing a vulnerable target to perform an HTTP put request and upload a generated file. So that was the compromised system sending stuff back up to the bad guy's infrastructure. They said multiple variations of these URLs were observed across different"
+    },
+    {
+      "start": 6411.15,
+      "end": 6434.23,
+      "text": "To advance the investigation and obtain additional threat intelligence, we performed the expected, so they were pretending to be infected, we performed, we Amazon, the expected HTTP put request with the anticipated file content. Essentially, we pretended to be a successfully compromised system."
+    },
+    {
+      "start": 6434.56,
+      "end": 6462.08,
+      "text": "This successfully prompted Interlock to proceed to the next stage, issuing commands to fetch and execute a malicious ELF binary, a Linux executable file from a remote server. So that suggests that the Cisco firewall is Linux based. And so this was downloading Linux malware into and to be run by the Cisco firewall."
+    },
+    {
+      "start": 6462.63,
+      "end": 6490.97,
+      "text": "They said when analysts retrieved the binary, they discovered the same host, that is the hacker-controlled server, is used for distributing Interlock's entire operational toolkit. The exposed infrastructure organized artifacts into separate paths corresponding to individual targets, with the same paths used for both downloading tools to compromise hosts and uploading operational artifacts back to the staging server."
+    },
+    {
+      "start": 6491.97,
+      "end": 6517.89,
+      "text": "And if they were able to look around in there, they may have seen all the uploads from all the infected systems. No one's talking about how many systems were infected, but my guess is Amazon knows and Cisco probably knows and hopefully is not happy about it. They said the ELF binary and associated artifacts are attributable to the Interlock ransomware family based on convergent technical and operational indicators. The embedded ransom note"
+    },
+    {
+      "start": 6518.38,
+      "end": 6546.1,
+      "text": "The Ransom Note and the Tor Negotiation Portal are consistent with Interlock's established branding and infrastructure. The Ransom Note's invocation of multiple data protection regulations. Oh, you gotta love that. You are in, you, we just attacked you and infected you, and now we've exfiltrated your data, which puts you in violation of various data protection regulations."
+    },
+    {
+      "start": 6547.0,
+      "end": 6572.2,
+      "text": "Congratulations. Oh, by the way, yes, congratulations. So they said, the ransom note's invocation of multiple data protection regulations reflects interlocked documented practice of citing regulatory exposure to pressure victims, essentially threatening organizations, not just with data encryption."
+    },
+    {
+      "start": 6573.13,
+      "end": 6600.71,
+      "text": "and exfiltration, but with regulatory fines and compliance violations. Wow. It's clever. It's clever. They're bold. The campaign specific organization identifier embedded in the note aligns with Interlock's per victim tracking model. Interlock has historically targeted specific sectors where operational disruption creates maximum pressure for payment. Education"
+    },
+    {
+      "start": 6616.75,
+      "end": 6619.43,
+      "text": "Amazon's posting then goes,"
+    },
+    {
+      "start": 6618.62,
+      "end": 6645.4,
+      "text": "Then goes into very interesting and rich detail. It's certainly relevant to anyone who may have fallen victim to this or anyone who might worry that they may have, but what matters most is the way Amazon's threat intelligence group concludes. They write, the real story here isn't just about one vulnerability or one ransomware group. It's about the fundamental challenge"
+    },
+    {
+      "start": 6646.03,
+      "end": 6673.93,
+      "text": "Zero-day exploits pose to every security model. When attackers exploit vulnerabilities before patches exist, even the most diligent patching programs cannot protect you during that critical window. This is precisely why defense in depth is essential. Layered security controls"
+    },
+    {
+      "start": 6674.65,
+      "end": 6699.11,
+      "text": "provide protection when any single control fails or hasn't yet been deployed. Rapid patching remains foundational in vulnerability management, but defense in depth requires organizations, I'm sorry, helps organizations not to be defenseless during the window between exploit and patch."
+    },
+    {
+      "start": 6700.16,
+      "end": 6727.36,
+      "text": "Right? So there you have it. The point Amazon is making is that if there is no defense in depth, if everything relies upon that single point which could fail, and we see keeps failing, an organization's security perimeter could be breached, even if they did absolutely nothing wrong."
+    },
+    {
+      "start": 6728.52,
+      "end": 6743.58,
+      "text": "During that at least five-week interval, any fully patched and fully up-to-date Cisco firewall could have been successfully breached through no fault of their IT managing staff."
+    },
+    {
+      "start": 6747.4,
+      "end": 6769.66,
+      "text": "Unfortunately, this is not what we normally see. We are usually noting that lax and lazy and inattentive IT was at fault, at least at fault, for not keeping their equipment up to date, right? Like if patch was available months ago and they still hadn't got around to updating."
+    },
+    {
+      "start": 6770.83,
+      "end": 6797.83,
+      "text": "But not so this time. As Amazon reminds us, defense in depth is needed because it's never safe to depend entirely upon any single security control. Anytime any management portal is exposed to the entire global internet, where access is controlled by some form of authentication, the security of the entire organization"
+    },
+    {
+      "start": 6798.92,
+      "end": 6824.32,
+      "text": "Now rests upon that single point which could fail. And that state of affairs would be acceptable if nothing more could be done, right? If we've done everything and we still have a single point of failure. If nothing more could be done, then okay. I guess that's the best we can do. But it is almost always the case."
+    },
+    {
+      "start": 6824.98,
+      "end": 6850.06,
+      "text": "That additional parallel protections could be erected so that, for example, almost no one is even able to see that possibly vulnerable authentication interface. No one in China, no one in North Korea, no one in Iran, no one in Russia can even get to because there's"
+    },
+    {
+      "start": 6850.33,
+      "end": 6877.61,
+      "text": "Port filtering that blocks their access to that authentication interface. Unless you really need everybody in the world to be able to guess your password, don't give them the opportunity. So then arguably, you said, in this case, the IT did everything right. But it seems like you are also arguing that they didn't because doing everything right would also mean that you have security in depth."
+    },
+    {
+      "start": 6878.12,
+      "end": 6894.8,
+      "text": "Right, yeah, so that's a very good point. What I meant was IT was at least keeping everything patched. Got it. But this demonstrates that even keeping everything patched is really no longer enough. You need other layers."
+    },
+    {
+      "start": 6895.43,
+      "end": 6918.89,
+      "text": "And if somebody had other layers, although you wouldn't want to be lax on patching, at least being lax on patching, like being a few weeks or months late, well, you wouldn't get infected because bad guys couldn't even attempt to infect your system. So really, you know, we would, you know, the..."
+    },
+    {
+      "start": 6920.54,
+      "end": 6928.96,
+      "text": "Thank you for watching."
+    },
+    {
+      "start": 6969.24,
+      "end": 6995.58,
+      "text": "No, you need, your security needs security. I like that. That's a shirt for security now. Your security needs security. Your security needs security. Okay, so, finally, before we talk about listener feedback, I just did want to mention that Cisco's Not Alone, last Wednesday, and then updated on Saturday, Ubiquity, released a security update to Patrick Critical, also..."
+    },
+    {
+      "start": 6996.42,
+      "end": 7017.5,
+      "text": "One of the rare, you know, it used to be the CVSS 10.0 were rare, right? Nobody had them. Like the worst you would see was a 9.8. And we would joke about, oh, you got to try real hard to get up to a 10.0. Well, unfortunately, Cisco has put the lie to that because they're getting them all the time now. In this case."
+    },
+    {
+      "start": 7017.91,
+      "end": 7043.25,
+      "text": "So did Ubiquiti. CVSS 10.0 was discovered in its UniFi internet gateway and Wi-Fi management application. The flaw enabled a path traversal exploit that could allow threat actors to access the device's configuration files, as never good, and take over UniFi gateways that way. So Ubiquiti UniFi users are advised to update"
+    },
+    {
+      "start": 7043.78,
+      "end": 7068.76,
+      "text": "I know we've got a bunch of Ubiquiti users and UniFi users. Leo is a big proponent, so everybody should update. Okay, some listener feedback. Vern Mastel, he said, his email had the subject, clocks, cursive, and coding with AI. And he wrote, Steve,"
+    },
+    {
+      "start": 7069.29,
+      "end": 7095.87,
+      "text": "Thank you for watching."
+    },
+    {
+      "start": 7096.57,
+      "end": 7123.87,
+      "text": "We've been teaching students how to code. With advances in AI, it seems clear that this too will cease. Why bother when you can have an AI bang out apps in minutes? It seems likely that in the near future, old school style programming will also become an arcane skill known and understood by only a few. I have to agree."
+    },
+    {
+      "start": 7124.46,
+      "end": 7147.76,
+      "text": "I think we're very clearly seeing that actually writing code will change into managing its authorship by AI devices. That clearly seems to be where we're headed. And I remind everyone, what we have today is not what we're gonna have tomorrow. It's gonna be getting way, way better."
+    },
+    {
+      "start": 7149.84,
+      "end": 7175.94,
+      "text": "Jeffrey Koh wrote, Hey Steve, since it's getting close to tax time, I thought you might enjoy seeing the IRS version of the ClickFix exploit. And he said, I blurred out the script. He said, I'm a longtime listener, every episode, Spinrite owner, regards, Jeffrey D. Koh. So, and he attached in his email a picture of an"
+    },
+    {
+      "start": 7176.38,
+      "end": 7201.58,
+      "text": "Internal Revenue Service, Department of the Treasury, sent from Austin, Texas, with their zip code, it's letter number 1058, and it says, final notice, notice of intent to levy, and notice of your right to a hearing. Address E, Jeffrey, and then there's, we have a case ID, and it says, you must respond within seven."
+    },
+    {
+      "start": 7203.6,
+      "end": 7218.68,
+      "text": "Your account has been selected for an office examination. Internal Revenue Code Section 7602 authorizes the IRS to require you to appear and provide records."
+    },
+    {
+      "start": 7219.25,
+      "end": 7244.93,
+      "text": "We've identified a mismatch between the income on your tax return and data received from payers. Ooh, 1099s that you didn't report. That's never good. To resolve this matter, you must appear at an IRS location. Receipt of this notice must be acknowledged using the secure method below so we can schedule your appointment."
+    },
+    {
+      "start": 7245.52,
+      "end": 7273.22,
+      "text": "Non-acknowledgement will be deemed a failure to respond. This notice does not contain clickable links. Acknowledgement may only be made via the secure method indicated. And now we have the increasingly familiar and unfortunately, increasingly successful click fix variant. It says in a separate box call out, it says acknowledgement required. Step one."
+    },
+    {
+      "start": 7273.82,
+      "end": 7279.18,
+      "text": "Hold the Windows and R keys together to open RUN."
+    },
+    {
+      "start": 7279.92,
+      "end": 7308.74,
+      "text": "Step two, type or paste the acknowledgement code from the box below into the open field. Step three, press enter. We will then assign your appointment. And then it provides in the down below, acknowledgement code, which starts out reading PowerShell, space, quote, and then we have something that Jeffrey blurred out."
+    },
+    {
+      "start": 7309.01,
+      "end": 7337.11,
+      "text": "Then we have forward slash IRS and then a space vertical bar space IEX and then a close quote. So again, as we know, this succeeds because so few people actually understand how Windows works. There are users who basically follow scripts of various forms. And this latest trend of ClickFix"
+    },
+    {
+      "start": 7337.93,
+      "end": 7365.27,
+      "text": "To me, it's truly frightening. We've learned, and previously reported, that more than half, I think it was 52%, of all exploits combined are now attributable to this single category of ClixFix-related social engineering attacks. More than half of all successful attacks. And even before we had this number, it was clear."
+    },
+    {
+      "start": 7366.0,
+      "end": 7394.14,
+      "text": "Just looking at them, that these attacks, which leverage the user's lack of true understanding of how their PCs operate, would turn out to be devastating. So, Jeffrey, thanks for sharing that. Jim Housley wrote, Listening to SN 1070 from March 17th, so that's last week, you were talking about properly signed malware, and you commented about how the certificate had to be in an HSM."
+    },
+    {
+      "start": 7394.74,
+      "end": 7420.8,
+      "text": "You know, hardware security module. He said, however, in the previous two or three weeks, when you were talking about the current options for you to get a new certificate, you mentioned that signing in the cloud was becoming an option and seemed to be preferred by the CAs. With cloud-based signing, isn't it possible to share or steal access to the cloud account to use someone else's certificate?"
+    },
+    {
+      "start": 7421.76,
+      "end": 7449.84,
+      "text": "Long time listener since episode one, Spinrite owner, thanks Jim. In a word, yes, you are 100% correct, Jim. Once code signing is moved into the cloud, then we introduce the whole new specter of remote network authentication into the code signing domain. And, huh, has there ever been any trouble?"
+    },
+    {
+      "start": 7450.42,
+      "end": 7454.36,
+      "text": "With authenticating who people are over a network?"
+    },
+    {
+      "start": 7456.1,
+      "end": 7483.82,
+      "text": "Yeah, I believe I'd prefer to take responsibility for my own code signing certificate that's password protected in a hardware module which resides inside a closed server, inside a locked rack, inside a locked cage that's under 24-7 surveillance using a triple-locked building with biometric pin and badge reader and ever-prowling security."
+    },
+    {
+      "start": 7484.8,
+      "end": 7513.1,
+      "text": "That's where mine is, and it has never suffered a break-in. So, I think old-school physical security is a little better than allowing, you know, foreigner, foreign attackers from states we don't trust free roam and access, trying to impersonate us and get our code signed. I think Jim is exactly right. And finally, Michael wrote,"
+    },
+    {
+      "start": 7513.41,
+      "end": 7541.29,
+      "text": "Hey, Steve, you're not alone in your love of coding. Like you, I absolutely love writing my own code and solving problems myself. I don't care if I'm not as fast as AI, as long as I am fast enough to achieve my own goals. And like you, I'm writing professional software. It's not just a hobby. And like you, I'm a one-man team and my own boss. Consider this analogy. Many fishermen"
+    },
+    {
+      "start": 7541.97,
+      "end": 7546.51,
+      "text": "Buy their poles and lures at Walmart, which is fine."
+    },
+    {
+      "start": 7547.38,
+      "end": 7574.96,
+      "text": "But there exists a small subset of fishermen who make their own lures, and I'll bet you would, Micah, because you're a craftsperson. I was going to say, ooh, this sounds fun. Who make their own lures because they're craftsmen who love the craft. And the experienced ones produce much better lures than the machine-assembled ones available at Walmart."
+    },
+    {
+      "start": 7575.77,
+      "end": 7602.57,
+      "text": "I suspect your code is the same, and I'd much rather buy software like Spinrite from you, which I know has had your full attention and 30 years of maturation, than ask Claude to write a cheap knockoff. Just like I'd much rather write my own software. You know, make my own lures, essentially."
+    },
+    {
+      "start": 7606.36,
+      "end": 7628.18,
+      "text": "That said, I do use Gemini to do the things I do not enjoy, like writing regular expressions. But even then, it makes mistakes that I often need to correct. Anyway, you keep on coding and know that you're not alone. Longtime Lister and huge fan, Michael."
+    },
+    {
+      "start": 7628.62,
+      "end": 7655.7,
+      "text": "And I like Michael's fishing lure analogy a lot. I think it clearly articulates the craftsmanship aspect of coding, which anyone who codes, you know, because they love it just for its own sake would understand. So for me, AI producing code does not represent a worry or competition."
+    },
+    {
+      "start": 7656.65,
+      "end": 7683.95,
+      "text": "I've never been interested in coding in a production environment. I love that many more people than ever before are now finding themselves able to get their PCs to do things they never could before because AI is able to create code for them, which does what they want. To me, that's the greatest innovation so far on the AI coding front. And I'm sure..."
+    },
+    {
+      "start": 7684.12,
+      "end": 7691.38,
+      "text": "As I've said, we've only seen the tip of the iceberg. We've got lots more to come in upcoming years."
+    },
+    {
+      "start": 7693.22,
+      "end": 7714.14,
+      "text": "Okay, and Micah, that brings us to our final break before we talk about bucket squatting, what it is, what it means, and I don't know, I don't think you want to squat over a bucket. No, no, in fact, ever since the introduction of plumbing and the toilet, I don't need a bucket anymore."
+    },
+    {
+      "start": 7714.88,
+      "end": 7730.0,
+      "text": "um anyway well let me take a moment here before we continue on with the show to tell you about club twit at twit.tv slash club twit that is where you can go to sign up ten dollars a month 120 a year gets you access to the club you can also uh"
+    },
+    {
+      "start": 7730.59,
+      "end": 7751.17,
+      "text": "Use that QR code up in the top corner there. When you join the club, you gain access to some pretty awesome benefits. You get every single one of our shows ad-free, just the content. You also gain access to our special feeds. We have feeds that you will enjoy, including our feed that has our kind of behind the scenes before the show, after the show."
+    },
+    {
+      "start": 7751.77,
+      "end": 7780.75,
+      "text": "We have a feed that has our live coverage of tech news events. We also have a feed that has our special ClubTwitch shows, like what was alluded to a couple of times here, my crafting corner. We have Stacy's Book Club. We have so many good things there in the club. And if that's not enough, well, can I also invite you to join our Discord, a fun place to go to chat with your fellow ClubTwitch members and those of us here at Discord. Excuse me, those of us here at Twit. We would love to have you. So head to twit.tv slash ClubTwit to check it out."
+    },
+    {
+      "start": 7780.82,
+      "end": 7804.0,
+      "text": "Out! Can't wait to welcome you in to the fold. All right, back from the break. I've got my bucket, my legs are ready. Tell us all about it. Okay, a little over a year ago, back in February 2025, so 13 months ago, Watchtower Labs"
+    },
+    {
+      "start": 7804.97,
+      "end": 7831.49,
+      "text": "Posted a troubling narrative that documented the degree to which the security of significant parts of the internet have not been thoroughly thought through before being implemented. And it's not only new tech like, you know, the open source repositories that bad guys are constantly attacking and poisoning or some AI that can be subverted. The greater lesson"
+    },
+    {
+      "start": 7832.15,
+      "end": 7848.61,
+      "text": "The past 21 years of this podcast has taught over and over is that not only is security difficult, but we keep discovering that it's even more difficult than we thought. Or as we just recently noted, security needs to be more secure."
+    },
+    {
+      "start": 7849.72,
+      "end": 7876.74,
+      "text": "One thing to fully appreciate is that only a portion of security failures result from bugs. Just as many failures are the result of inattention, oversight, and poor design, or what I often lump into the label of policy as opposed to mistakes. So this suggests that even after AI being used to improve our security has matured, as I'm sure it will,"
+    },
+    {
+      "start": 7877.34,
+      "end": 7900.28,
+      "text": "And it's able to help us far more strongly eliminate traditional exploitable bugs. That will not be the end of our security woes, since even the misapplication of flawless technology can still result in serious consequences. So I don't see security as an issue being resolved by AI."
+    },
+    {
+      "start": 7901.36,
+      "end": 7915.78,
+      "text": "So this brings us back to Watchtower Labs' exploration from February 2025. It's a perfect teaching example of a system's poor design's unintended consequences."
+    },
+    {
+      "start": 7917.67,
+      "end": 7936.93,
+      "text": "Watchtower's posting February before last was given the headline, 8 million requests later, we made the SolarWinds supply chain attack look amateur. So here's what they wrote back then. They said, surprise, surprise, we've done it again."
+    },
+    {
+      "start": 7917.56,
+      "end": 7945.66,
+      "text": "Watchtower's posting February before last was given the headline, 8 million requests later, we made the SolarWinds supply chain attack look amateur. So here's what they wrote back then. They said, surprise, surprise, we've done it again. We've demonstrated an ability to compromise significantly sensitive networks, including governments,"
+    },
+    {
+      "start": 7946.45,
+      "end": 7971.75,
+      "text": "Militaries, Space Agencies, Cybersecurity Companies, Supply Chains, Software Development Systems, and Environments, and more. In November 2024, we decided, they wrote, to demonstrate the scenario of a significant internet-wide supply chain attack caused by abandoned infrastructure."
+    },
+    {
+      "start": 7972.66,
+      "end": 7982.38,
+      "text": "I'll just pause to note that we've looked at problems with abandoned infrastructure before, where something has all been set up and is going."
+    },
+    {
+      "start": 7984.11,
+      "end": 8011.99,
+      "text": "It's, it's, for whatever reason, you know, been left behind, pieces of it maybe have been taken away, but some pieces remain, and those end up being targets of abuse. So they said, this time, however, we dropped our obsession with expired domains, which of course is an example we've looked at before, and instead shifted our focus to Amazon's S3."
+    },
+    {
+      "start": 8012.54,
+      "end": 8036.08,
+      "text": "Buckets. Thus, bucket squatting. They said it's important to note that although we focused on Amazon S3 for this endeavor, this research challenge approach and theme is cloud provider agnostic and applicable to any managed storage solution. Amazon's S3 just happened to be the first storage solution we examined."
+    },
+    {
+      "start": 8036.61,
+      "end": 8046.39,
+      "text": "And we're certain this same challenge would apply to any customer organization usage in any storage solution provided by a cloud provider."
+    },
+    {
+      "start": 8047.23,
+      "end": 8074.75,
+      "text": "The TLDR is that we ended up discovering around 150 Amazon S3 buckets that had been used across commercial and open source software products, governments, and infrastructure deployment and update pipelines before they were abandoned."
+    },
+    {
+      "start": 8076.62,
+      "end": 8098.62,
+      "text": "153 Amazon S3 buckets that were used before being abandoned. They said, so we registered those abandoned buckets to see what would happen. The question was, how many people might be attempting to request software updates"
+    },
+    {
+      "start": 8099.46,
+      "end": 8112.82,
+      "text": "from S3 buckets that appear to have been abandoned months or even years before. At the start of this, we have no idea how this would turn out."
+    },
+    {
+      "start": 8113.64,
+      "end": 8141.98,
+      "text": "The research panned out progressively with S3 buckets registered as they were discovered. It went rather quickly from, aha, we could put our logo on this website to, uh, .mil? We should probably speak to someone about that. Oh my god. They said after spending around $400, as in only $400, on S3,"
+    },
+    {
+      "start": 8142.96,
+      "end": 8167.12,
+      "text": "CloudTrail and CloudWatchLogs querying, we had some results worth talking about. When creating these S3 buckets, we enabled logging, allowing us to track who requested files from each S3 bucket via the source IP address and what they requested, the file name, the path, and the name of the S3 bucket itself."
+    },
+    {
+      "start": 8168.59,
+      "end": 8195.41,
+      "text": "Collectively, these S3 buckets received more than 8 million HTTP requests over a two-month period for all sorts of things. Those making the queries for whatever it was that used to be there were requesting all sorts of things."
+    },
+    {
+      "start": 8195.91,
+      "end": 8214.75,
+      "text": "Software Updates, Pre-Compiled Unsigned Windows, Linux, Mac OS Binaries, Virtual Machine Images, JavaScript Files, Cloud Formation Templates, SSL VPN Server Configurations and Credentials, and more."
+    },
+    {
+      "start": 8216.04,
+      "end": 8240.8,
+      "text": "Had we been maliciously inclined, we could have responded to each of these 8 million requests with something malicious, like a nefarious software update, a cloud formation template that gave us access to an AWS environment, virtual machine images backdoored with remote access tooling."
+    },
+    {
+      "start": 8241.66,
+      "end": 8257.04,
+      "text": "Binaries that deployed remote access tooling, scary ransomware, or such, and so forth, to give us access to the requesting system or network that the requesting system was within, and in some cases, .mil."
+    },
+    {
+      "start": 8258.69,
+      "end": 8286.27,
+      "text": "They wrote, these many millions of incoming give me this file requests came from the networks of organizations based on DNS who is lookups that included government networks in the USA, including NASA, numerous laboratories, state governments, etc. The UK, Poland, Australia, South Korea, Turkey, Taiwan, Chile, and more."
+    },
+    {
+      "start": 8287.21,
+      "end": 8312.35,
+      "text": "Then there were military networks and the networks of Fortune 500s, Fortune 100s, a payment card network, a major industrial product company, global and regional banks and financial services organizations, universities around the world, instant messenger software companies, cybersecurity technology companies, casinos, and more."
+    },
+    {
+      "start": 8313.28,
+      "end": 8341.66,
+      "text": "We want to take this opportunity to give our sincere thanks, they wrote, to the entities who engaged with us when we realized what we'd stumbled into, including the UK's NCSC, who helped with introductions to the correct teams for us to speak to, AWS, who took those around 150 S3 buckets off our hands to sinkhole."
+    },
+    {
+      "start": 8342.31,
+      "end": 8363.07,
+      "text": "A major unnamed SSL VPN appliance vendor who worked with us very quickly and directly to take relevant S3 buckets off our hands. And CISA, who very quickly remediated an example that affected CISA.gov. Wow. Yeah."
+    },
+    {
+      "start": 8364.62,
+      "end": 8391.04,
+      "text": "AWS's agreement to sinkhole the identified S3 buckets means that the release of this research does not increase the risk exposed to any party. The same issues discussed in this research could not be recreated against the same specific S3 buckets, thanks to the sinkholing performed by the AWS team. We believe that in the wrong hands, the research we performed"
+    },
+    {
+      "start": 8391.75,
+      "end": 8419.15,
+      "text": "could have led to supply chain attacks that outscaled and out-impacted anything we as an industry have seen so far. As an industry, we spend a lot of time trying to solve issues like securing the supply chain in as many complex ways as possible while still completely failing to cover something as simple as make sure you don't take candy from strangers.\""
+    },
+    {
+      "start": 8420.11,
+      "end": 8447.83,
+      "text": "Okay, so their posting then delves into the specific details about each of these many extremely embarrassing and potentially explosive exposures. To best understand how the industry got into this mess, we need to talk a bit about Amazon's somewhat astonishing AWS S3 bucket naming. First of all,"
+    },
+    {
+      "start": 8448.18,
+      "end": 8476.22,
+      "text": "A so-called bucket is nothing special. It's just Amazon's name for a cloud-based directory that can hold files. The name S3 itself, you know, stands, you know, that's three S's, right? Stands for Simple Storage Service. That's what S3 stands for, Simple Storage Service. And simple..."
+    },
+    {
+      "start": 8476.62,
+      "end": 8502.76,
+      "text": "is exactly what it is. The simplicity of Amazon's simple storage service likely accounts for much of its early success and popularity. But it may also have contributed to the service's very spotty security record. I mean, there have been lots of problems with exposed AWS S3 buckets in the past. What's perhaps most shocking"
+    },
+    {
+      "start": 8503.35,
+      "end": 8508.23,
+      "text": "Thank you for watching."
+    },
+    {
+      "start": 8532.26,
+      "end": 8544.36,
+      "text": "That looks like a valid World Wide Web domain name having between 3 and 63 characters. Because that's exactly what it is. For example..."
+    },
+    {
+      "start": 8544.97,
+      "end": 8572.59,
+      "text": "I have an Amazon bucket named GRC. That's right. The bucket's name is GRC, which means that the bucket's full name is GRC.S3.AmazonAWS.com. And that bucket can be accessed by anyone, anywhere in the world at any time. And if that seems like a terrifying thing, you'd be correct to think that."
+    },
+    {
+      "start": 8572.97,
+      "end": 8594.77,
+      "text": "Thank you for watching. See you next time."
+    },
+    {
+      "start": 8601.44,
+      "end": 8629.06,
+      "text": "allowed global read or read-write access to one of their S3 buckets, and disaster soon followed. That shouldn't even be an option, right? Like, why would anyone ever want... Well, read-write, I would agree, although you might want people to be able to put information up, like, to submit things to you, and certainly, if you were, for example, a certain SSL VPN..."
+    },
+    {
+      "start": 8629.96,
+      "end": 8657.38,
+      "text": "Appliance vendor, you might want to have your appliance querying that S3 bucket by name, whatever name you've given it, to pull down updates or security configuration improvements or something. So you're basically using it like a globally accessible CDN, a content delivery network. So actually, that's how many people use it. So okay, as a consequence,"
+    },
+    {
+      "start": 8657.99,
+      "end": 8684.79,
+      "text": "I have a bunch of S3 buckets with many wonderful, simple, and fun names since I got there early and I grabbed them. Assignment of S3 bucket names could not be any simpler. It's as simple as first come, first serve, like Twitter handles were back in the day. If you attempted to create a bucket which is always by name,"
+    },
+    {
+      "start": 8685.27,
+      "end": 8706.97,
+      "text": "That effort will succeed if that name is not currently assigned to anyone else's bucket. So, I have GRC and that name is exclusively mine until I delete it. And as long as I have it, no one else can have it."
+    },
+    {
+      "start": 8708.07,
+      "end": 8728.89,
+      "text": "In computing, we call this, this is known as a global namespace, a single shared naming space where every name must be unique. So this means that everyone in the world shares the same naming space."
+    },
+    {
+      "start": 8729.53,
+      "end": 8757.49,
+      "text": "There's only one Amazon S3 namespace that everyone shares to name any and all of the S3 buckets they may have created. And governed by whatever access controls its owner may have configured, any S3 bucket is accessible by its name simply by appending .S3.AmazonAWS.com to the end of it."
+    },
+    {
+      "start": 8758.25,
+      "end": 8786.73,
+      "text": "For the sake of thoroughness, I'll add that S3 bucket names must be between 3 and 63 characters total. They must always be lowercase alpha from A through Z or a numeric digit, digits 0 through 9. You can also have dots and hyphens, so just like domain names. They also must begin and end with a letter or a number."
+    },
+    {
+      "start": 8787.2,
+      "end": 8797.5,
+      "text": "Meaning they cannot begin and end with dashes, and they cannot contain a pair of adjacent dots. There must also be..."
+    },
+    {
+      "start": 8799.49,
+      "end": 8821.97,
+      "text": "I mean, there are also a bunch of specially reserved prefixes and suffixes that Amazon has, but for things like puny code and things, so in order to use a larger spelling alphabet. But overall, anything that anyone wishes to use will be valid within those guidelines."
+    },
+    {
+      "start": 8823.06,
+      "end": 8839.54,
+      "text": "And notice that I keep saying that any bucket that isn't currently in use by someone, the point here, and this is where things get somewhat sticky, is that buckets that are no longer needed by their owner can be deleted."
+    },
+    {
+      "start": 8840.5,
+      "end": 8866.0,
+      "text": "Two things occur when that happens. Whatever content they may have contained will be deleted and the bucket's name, which will then no longer be in use by its original owner, will be released and returned to the available bucket pool and become available for use by anyone who wishes to have it by name."
+    },
+    {
+      "start": 8866.79,
+      "end": 8892.85,
+      "text": "So now we see what these Watchtower guys did. They created some form of directed brute force Amazon S3 bucket scanner, which they used to search for named buckets that once existed, but which were then deleted by their original creators."
+    },
+    {
+      "start": 8893.83,
+      "end": 8921.43,
+      "text": "The problem was that many widespread automated tools, software update systems, antiviral templates, virtual machine images, even executable program downloaders, continued in their attempts to access the content within those previously deleted buckets. So when these researchers discovered and recreated"
+    },
+    {
+      "start": 8922.03,
+      "end": 8937.83,
+      "text": "and began logging the failed file access attempts, they were able to quickly learn what resource something somewhere was attempting to obtain from that bucket."
+    },
+    {
+      "start": 8939.9,
+      "end": 8945.9,
+      "text": "Transcription by CastingWords"
+    },
+    {
+      "start": 8957.05,
+      "end": 8982.57,
+      "text": "Since these requests would be made over TCP connections, the true IP address of the entities making the requests could be determined. They wrote, remember, they wrote, these many millions of incoming give me this file requests came from the networks of organizations that included, you know, government networks in the USA, NASA, laboratories, state governments, etc."
+    },
+    {
+      "start": 8983.35,
+      "end": 9006.83,
+      "text": "The UK, Poland, Australia, South Korea, Turkey, Taiwan, Chile, and more. You know, on and on. Universities, instant messaging software companies, cybersecurity technology companies, casinos, and more. Credit card processing companies, you know, you name it. So this is not the result, and this is the key. This is not the result of a bug."
+    },
+    {
+      "start": 9007.74,
+      "end": 9012.54,
+      "text": "This was the result of a fundamentally poor system design."
+    },
+    {
+      "start": 9033.42,
+      "end": 9060.84,
+      "text": "And really, when you think about it, bucket names are really just vanity, right? They're like license plates. Yeah, that's what I was thinking. It doesn't matter. They're like license plates. All you really need is something random and unique that's yours. It doesn't need to be your name, your initials, or some cutesy expression. But when users are given a choice, they'll tend to create bucket names that are meaningful to them."
+    },
+    {
+      "start": 9061.42,
+      "end": 9086.48,
+      "text": "And that likely means they could be guessed by someone else. You know, anybody could guess I might have GRC. Well, I do. So, yeah, and I'll admit it. I'd rather have GRC than 092D7630B5F. You know, much sexier. But since S3 buckets are almost always accessed by automation,"
+    },
+    {
+      "start": 9087.92,
+      "end": 9115.18,
+      "text": "Names were really never even necessary. They were just for fun. But that fun comes at a cost. Since Amazon chose to give us control over our bucket names, they should have appreciated the inherent problem with reuse and made them single use from the start. Once taken, can never be used again. Okay, I have GRC, and that should be it forever."
+    },
+    {
+      "start": 9115.79,
+      "end": 9138.35,
+      "text": "But it probably won't be, unless they change their policy, which after all, they could at any time. My use of GRC, those three initials, will eventually end, because I will eventually end. You know, whether I do it deliberately or not, I'll cancel my longstanding AWS account, or it'll be canceled posthumously."
+    },
+    {
+      "start": 9139.38,
+      "end": 9165.56,
+      "text": "At that time, the account's data will be deleted, and the GRC bucket, the bucket named GRC, you know, will be recycled back into the available pool, ready to be used again by someone. I have only ever used S3 as an off-premises encrypted storage archive. The danger for me has never been present, you know."
+    },
+    {
+      "start": 9166.38,
+      "end": 9184.78,
+      "text": "There's nothing for anybody to ask for. But the guys at Watchtower discovered that many S3 users are using, once used, in other words, or I meant, once used their S3 buckets as a form of CDN to deliver quite sensitive files."
+    },
+    {
+      "start": 9185.72,
+      "end": 9200.3,
+      "text": "Both Microsoft Azure and Google Cloud have long provided protections against the inherently dangerous practice of recycling bucket names within a single global namespace, which enables this form of bucket squatting."
+    },
+    {
+      "start": 9201.13,
+      "end": 9229.61,
+      "text": "As it's appropriately been called, but Amazon has been slow to come around. You know, change is always difficult, but the good news is, and the reason we're talking about this today, is that last Thursday, at long last, that finally changed. Amazon's announcement carried the headline, Introducing Account Regional Namespaces for Amazon S3 General Purpose Buckets."
+    },
+    {
+      "start": 9230.27,
+      "end": 9255.87,
+      "text": "And they wrote the following, short, it's just quick. They said, today, we're announcing a new feature of Amazon Simple Storage Service, Amazon S3, you can use to create general purpose buckets in your own account regional namespace, simplifying bucket creation and management as your"
+    },
+    {
+      "start": 9250.48,
+      "end": 9276.34,
+      "text": "NameSpace, simplifying bucket creation and management as your data storage needs grow in size and scope. You can create general purpose bucket names across multiple AWS regions with assurance that your desired bucket names will always be available for you to use. And that last phrase, with assurance,"
+    },
+    {
+      "start": 9277.07,
+      "end": 9293.07,
+      "text": "Thank you for watching. I'll see you next time."
+    },
+    {
+      "start": 9304.89,
+      "end": 9331.89,
+      "text": "Then I also automatically own all subdomains and hostnames of GRC.com. www.grc.com and forums.grc.com and noodles.grc.com They're all automatically mine. We would say that everything under GRC.com is mine. But, you know, under..."
+    },
+    {
+      "start": 9332.24,
+      "end": 9360.66,
+      "text": "Only applies because the domain name system is an inherently hierarchical namespace. There's no under in any flat namespace such as S3 has always used. So, for example, say that an organization had the practice of saving their annual archives into a series of buckets named Acme Enterprises Archive."
+    },
+    {
+      "start": 9361.15,
+      "end": 9387.25,
+      "text": "2024, then the next year, Acme Enterprises, Archive 2025, and so on, where the year, obviously, is incremented successively. If some begrudging ex-IT employee, you know where we're going, wished to cause their ex-employer, Acme Enterprises, some grief, nothing prevents them."
+    },
+    {
+      "start": 9387.61,
+      "end": 9411.61,
+      "text": "The ex-employee from opening an Amazon S3 account, which costs nothing, and creating the bucket Acme Enterprises Archive 2026. Now, at the end of this year, when Acme Enterprises went to create their succeeding year's archive bucket, that attempt would fail because someone else had beaten them to it."
+    },
+    {
+      "start": 9411.9,
+      "end": 9431.28,
+      "text": "Having a single global namespace shared by every S3 user may have once seemed simple and maybe even fun. But there's a better way. So Amazon's addition of what they're now calling account regional namespaces is a long-needed addition. Their announcement"
+    },
+    {
+      "start": 9431.84,
+      "end": 9458.72,
+      "text": "continues to explain this, writing, With this feature, you can predictably name and create general-purpose buckets in your own account regional namespace by appending your account's unique suffix in your registered bucket name. For example, the bucket named OurBucket-123456789012"
+    },
+    {
+      "start": 9459.39,
+      "end": 9466.13,
+      "text": ". Okay, not particularly sexy, but okay."
+    },
+    {
+      "start": 9485.37,
+      "end": 9512.07,
+      "text": "123456789012-US-EAST-1-AN. If another account tries to create buckets using this account suffix, and Lord, why would they, their requests will be automatically rejected. So that's the good news. You get protection against somebody trying to create a bucket with your specific account number."
+    },
+    {
+      "start": 9512.65,
+      "end": 9541.79,
+      "text": "Suffix. They finished saying your security teams can use AWS identity and access management policies and AWS organization service control policies to enforce that your employees are only able to create buckets in their account regional namespace. This will help teams adopt the account regional namespace across your organization. Okay, so I would argue"
+    },
+    {
+      "start": 9542.59,
+      "end": 9571.03,
+      "text": "That the implementation of this is something of a kludge. The total length of the bucket name prefix plus the regional account suffix is 63 characters. So they've really only done two things. First, any bucket created while this new policy is enabled must end in the proper account."
+    },
+    {
+      "start": 9571.48,
+      "end": 9587.62,
+      "text": "Number Regional Suffix. Second, that account number regional suffix is now reserved for employees using that account number. So no one else can create a bucket which uses that suffix."
+    },
+    {
+      "start": 9588.25,
+      "end": 9615.51,
+      "text": "And I guess a third thing they've done is they've allowed you to set policies. Upper management, the IT overlords, can set policies that require all new buckets created to use this account regional namespace suffix. So they finally addressed this problem. Notice that"
+    },
+    {
+      "start": 9615.98,
+      "end": 9641.88,
+      "text": "It is incumbent on the organization to turn this on. This doesn't do anything retrospectively, retroactively. All of that is still a problem. That is, non-regional suffix buckets presumably still exist and work, but only newly ones created. So this is just enforcing a new bucket creation policy, bucket creation naming policy on future bucket creation."
+    },
+    {
+      "start": 9642.6,
+      "end": 9670.4,
+      "text": "So, unless Amazon also decides to prohibit the recycling of previous bucket names, and they ought to just take, they ought to immediately blacklist any that have been abandoned right now, they're still doing nothing to prevent bucket squatting on earlier buckets, which these guys may not have found. They had to do some sort of brute force."
+    },
+    {
+      "start": 9670.97,
+      "end": 9695.55,
+      "text": "Scanning to find all of these buckets, there are probably other buckets that still exist that have not been found. So the good news is if organizations adopt and enable this enforcement account number regional suffix bucket naming, then at least going forward, the problem will have been prevented. And that is bucket squatting."
+    },
+    {
+      "start": 9697.09,
+      "end": 9715.97,
+      "text": "That is far more terrifying than I thought it was going to be based on the name, I will say that. That's pretty prevalent across the web. It's frightening how widespread this is. There's a level of creativity"
+    },
+    {
+      "start": 9716.93,
+      "end": 9730.99,
+      "text": "Thank you for watching!"
+    },
+    {
+      "start": 9745.71,
+      "end": 9773.07,
+      "text": "There's a lot of creativity that's involved in the work that that you all do and I think that that's something that really stands out to me at these times because I just yeah to you have to think about the different tools that we use that are out there and then go as you like to say what could possibly go wrong and that list can be hundreds of thousands of things and you just highlight the one oh yeah let's check this let's see if that works this is just a cool thing to think of."
+    },
+    {
+      "start": 9773.69,
+      "end": 9784.27,
+      "text": "Thank you for watching."
+    },
+    {
+      "start": 9792.03,
+      "end": 9819.67,
+      "text": "It's also the case that, I mean, because AWS was created once after the internet was mature. We already, I mean, you know, as a cloud-based service, yet these guys didn't stop to think, well, what if somebody uses automated agents to pull code from buckets and like firewalls or SSL VPN appliances that are checking for new firmware?"
+    },
+    {
+      "start": 9820.64,
+      "end": 9847.62,
+      "text": "and then they go out of business or they decide we don't like this bucket we're going to move that in-house but there's all this equipment out there that is still pulling from a bucket which has been abandoned but some bad guy could then register and have and provide their own download for all this equipment to download i mean this is this is a real problem yeah they actually proved it to be a real problem yes yeah that's"
+    },
+    {
+      "start": 9848.17,
+      "end": 9864.65,
+      "text": "that's terrifying i'm glad that it's you know again we're shining a light on it that's the first step and it's the good guys who are finding it and not the bad guys because it could be exploited unfortunately there appear to be no no lack of problems that the bad guys are finding and exploiting too"
+    },
+    {
+      "start": 9865.41,
+      "end": 9878.93,
+      "text": "There are always so many things on that list that we talked about earlier. So, Steve, I'm glad that you have your eye on the prize and that others out there are paying attention as well."
+    },
+    {
+      "start": 9880.49,
+      "end": 9895.15,
+      "text": "has been Security Now. The show publishes every Tuesday. twit.tv slash sn is where you go to find the show. Heading there gives you access to the audio and video versions of the show."
+    },
+    {
+      "start": 9895.93,
+      "end": 9916.03,
+      "text": "You can, of course, check out GRC.com where you will find all sorts of good things. It's also where you can go to make sure that you are part of the email subscriptions and to send Steve email as well. And of course,"
+    },
+    {
+      "start": 9917.34,
+      "end": 9945.66,
+      "text": "It's the place where you can go to get Spinrite, Steve's bread and butter, plus the DNS Benchmark. That's available now, right? Yeah. Yeah, it has been for months. Yep. The DNS Benchmark is now available. Wonderful, wonderful. Steve, thank you so much for another great episode. If I'm forgetting anything, now's your time to tell us. You got it. You got it. Wonderful, wonderful. Thanks for doing a great job at your end."
+    },
+    {
+      "start": 9946.39,
+      "end": 9970.85,
+      "text": "Thank you. Yeah, it's always a pleasure to get to join you on the show. Leo will be back next week, everyone. Don't worry. But thank you for having me. He does have some travel planned for later this year. So we're going to be seeing more of you. Yes, indeed. And I'll be right here ready for it. All right. I think that does it for this week. So goodbye, Steve. And goodbye, listeners. Thanks, buddy. Bye. Thank you very much."
+    },
+    {
+      "start": 9971.8,
+      "end": 9989.98,
+      "text": "Hey, I'm Micah Sargent, host of Tech News Weekly and several other shows on the network. If you're looking for a smarter way to advertise in 2026, look no further because Twit is where tech decision makers listen and ROI never ends. Our audience isn't just passionate about technology either."
+    },
+    {
+      "start": 9990.48,
+      "end": 10019.2,
+      "text": "They actually work in it. Over 90% of our listeners are IT professionals, developers, engineers, and business leaders who shape the products and the decisions that move tech forward at their companies. Here at TWiT, we produce an array of trusted tech shows. These include the latest news and hands-on advice featuring authentic, embedded, host-read ads delivered by Leo Laporte and yours truly. Now our partners see real results because our listeners actually"
+    },
+    {
+      "start": 10019.39,
+      "end": 10044.91,
+      "text": "Trust us and then take action. And that's because of authenticity. When I'm talking about how I like a product or a service, it's because I actually do. And our listeners know that. And here's something we're super proud of. 88% of our listeners say they've made a purchase because of a Twit ad. So if you're ready to reach the most intelligent audience in tech with that purchasing power to back it up,"
+    },
+    {
+      "start": 10045.31,
+      "end": 10053.05,
+      "text": "Let's talk. We'd love to help your brand grow. Email partner at twit.tv or visit twit.tv slash advertise."
+    },
+    {
+      "start": 10063.92,
+      "end": 10088.02,
+      "text": "Early birds always rise to the occasion for summer vacation planning because early gets you closer to the action. So don't be late. Book your next vacation early on Vrbo and save over $120. Rise and shine. Average savings $141, select homes only. Well, good morning, kiddo. I love that you're home from college. I've missed you. Still taking your nature-made vitamins? Every day."
+    },
+    {
+      "start": 10088.59,
+      "end": 10108.53,
+      "text": "A multivitamin and a probiotic. You better be taking yours. Still looking out for me, Mom. I'll never stop. Made to care for you every day. NatureMade, the number one pharmacist-recommended vitamin and supplement brand. Find us in the vitamin aisle. Based on a survey of pharmacists who recommend branded vitamins and supplements."
+    },
+    {
+      "start": 10109.39,
+      "end": 10137.63,
+      "text": "We're back in the Miller's yard, early spring, and their TruGreen lawn is already in good shape. They got a lawn like a golf course here in New York without wasting a weekend. And PGA Tour golfers started showing up. Like this pro, swinging on grass done right from the start. Has to dodge the bikes and the recycling bins. Ah, perfectly struck. TruGreen, the easiest way to get a golf course quality lawn. Don't wait. Click the screen now to sign up at TruGreen.com. Exclusions apply. See TruGreen.com for details."
+    }
+  ],
+  "expected_ads": [
+    {
+      "sponsor": "Hoxhunt",
+      "start": 319.5,
+      "end": 506.82,
+      "confidence": 0.98
+    },
+    {
+      "sponsor": "unknown",
+      "start": 1628.47,
+      "end": 1680.09,
+      "confidence": 0.95
+    },
+    {
+      "sponsor": "GuardSquare",
+      "start": 2626.6400000000003,
+      "end": 2771.4,
+      "confidence": 0.98
+    },
+    {
+      "sponsor": "OutSystems",
+      "start": 4260.6,
+      "end": 4390.2,
+      "confidence": 0.99
+    },
+    {
+      "sponsor": "Zscaler",
+      "start": 6163.5,
+      "end": 6330.0,
+      "confidence": 0.97
+    },
+    {
+      "sponsor": "unknown",
+      "start": 7714.9,
+      "end": 7786.28,
+      "confidence": 0.95
+    },
+    {
+      "sponsor": "promotional",
+      "start": 9971.8,
+      "end": 10053.0,
+      "confidence": 0.95
+    },
+    {
+      "sponsor": "inserted",
+      "start": 10063.9,
+      "end": 10139.532756,
+      "confidence": 0.95
+    }
+  ]
+}

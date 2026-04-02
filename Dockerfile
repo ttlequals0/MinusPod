@@ -112,5 +112,9 @@ RUN find ./src -type f -name '*.py' -exec chmod 644 {} \; && \
 # Expose port
 EXPOSE 8000
 
+# Health check - verify the app is responding
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=30s \
+  CMD curl -f http://localhost:8000/api/v1/health || exit 1
+
 # Run the application via entrypoint
 ENTRYPOINT ["/app/entrypoint.sh"]

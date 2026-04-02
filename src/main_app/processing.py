@@ -529,7 +529,10 @@ def _run_verification_pass(slug, episode_id, processed_path, ads_to_remove,
                     recut_path = local_audio_processor.process_episode(processed_path, v_ads_to_cut)
                     if recut_path:
                         if os.path.exists(processed_path):
-                            os.unlink(processed_path)
+                            try:
+                                os.unlink(processed_path)
+                            except OSError as e:
+                                audio_logger.warning(f"[{slug}:{episode_id}] Failed to remove old processed file: {e}")
                         processed_path = recut_path
                         verification_count = len(v_ads_to_cut)
                         audio_logger.info(f"[{slug}:{episode_id}] Re-cut pass 1 output, removed {len(v_ads_to_cut)} additional ads")
@@ -818,7 +821,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
             processed_path = local_audio_processor.process_episode(audio_path, ads_to_remove)
             if not processed_path:
-                raise Exception("Failed to process audio with FFMPEG")
+                raise Exception(
+                    f"FFMPEG processing failed for {len(ads_to_remove)} ad segments "
+                    f"({episode_duration / 60:.1f}min episode) - see audio processor logs above"
+                )
 
             original_duration = episode_duration
             _check_cancel(cancel_event, slug, episode_id)

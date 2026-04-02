@@ -25,7 +25,8 @@ from config import (
     LOW_CONFIDENCE, CONTENT_DURATION_THRESHOLD, LOW_EVIDENCE_WARN_THRESHOLD,
     MIN_KEYWORD_LENGTH, MIN_UNCOVERED_TAIL_DURATION,
     PATTERN_CORRECTION_OVERLAP_THRESHOLD,
-    DEFAULT_AD_DETECTION_MODEL
+    DEFAULT_AD_DETECTION_MODEL,
+    AD_DETECTION_MAX_TOKENS
 )
 from utils.constants import (
     INVALID_SPONSOR_VALUES, STRUCTURAL_FIELDS,
@@ -1218,7 +1219,7 @@ class AdDetector:
         """
         llm_kwargs = dict(
             model=model,
-            max_tokens=2000,
+            max_tokens=AD_DETECTION_MAX_TOKENS,
             temperature=0.0,
             system=system_prompt,
             messages=[{"role": "user", "content": prompt}],
@@ -1635,6 +1636,10 @@ class AdDetector:
         if not self.api_key:
             logger.warning("Skipping ad detection - no API key")
             return {"ads": [], "status": "failed", "error": "No API key", "retryable": False}
+
+        if not segments:
+            logger.warning(f"[{slug}:{episode_id}] No transcript segments, skipping ad detection")
+            return {"ads": [], "status": "no_segments", "error": "Empty transcript"}
 
         try:
             self.initialize_client()

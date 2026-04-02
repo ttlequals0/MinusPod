@@ -147,18 +147,17 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
             # Extract artwork URL
             artwork_url = rss_parser.extract_podcast_artwork_url(parsed_feed)
 
-            # Update podcast metadata in database
-            db.update_podcast(
-                slug,
+            # Update podcast metadata (and ETag if available) in a single DB call
+            update_kwargs = dict(
                 title=title,
                 description=description,
                 artwork_url=artwork_url,
                 last_checked_at=utc_now_iso()
             )
-
-            # Update ETag for conditional GET on next refresh
             if new_etag or new_last_modified:
-                db.update_podcast_etag(slug, new_etag, new_last_modified)
+                update_kwargs['etag'] = new_etag
+                update_kwargs['last_modified_header'] = new_last_modified
+            db.update_podcast(slug, **update_kwargs)
 
             # Detect DAI platform and network from feed metadata
             feed_author = parsed_feed.feed.get('author', '')
@@ -192,21 +191,22 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
             queued_count = 0
             cutoff_time = datetime.now(timezone.utc) - timedelta(hours=48)
 
+            # Bulk-load episode statuses to avoid N+1 queries
+            ep_statuses, title_date_map = db.get_episode_statuses_for_podcast(slug)
+
             for ep in all_episodes:
                 # Check if episode already exists in database with a non-discovered status
-                existing = db.get_episode(slug, ep['id'])
-                if existing is None or existing.get('status') == 'discovered':
+                existing_status = ep_statuses.get(ep['id'])
+                if existing_status is None or existing_status == 'discovered':
                     # Also check by title+pubDate to catch ID changes (Megaphone feeds, etc.)
                     # This prevents duplicate processing when RSS GUID changes
                     iso_published = normalize_published_at(ep.get('published', '')) or None
 
                     if iso_published and ep.get('title'):
-                        existing_by_title = db.get_episode_by_title_and_date(
-                            slug, ep.get('title'), iso_published
-                        )
-                        if existing_by_title and existing_by_title['episode_id'] != ep['id']:
+                        existing_id = title_date_map.get((ep.get('title'), iso_published))
+                        if existing_id and existing_id != ep['id']:
                             refresh_logger.debug(
-                                f"[{slug}] Episode ID updated: {existing_by_title['episode_id']} -> {ep['id']}, "
+                                f"[{slug}] Episode ID updated: {existing_id} -> {ep['id']}, "
                                 f"title: {ep.get('title')}"
                             )
                             continue  # Skip - episode already exists with different ID

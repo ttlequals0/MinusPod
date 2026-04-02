@@ -1,0 +1,531 @@
+{
+  "episode_id": "1b72bf747141",
+  "slug": "daily-tech-news-show",
+  "title": "Humans Head Back to the Moon - DTNS 5239",
+  "duration": 2262.844313,
+  "ads_removed": 5,
+  "segments": [
+    {
+      "start": 0.0,
+      "end": 27.98,
+      "text": "Are you noticing your car insurance rate creep up even without tickets or claims? You're not alone. That's why there's Jerry, your proactive insurance assistant. Jerry handles the legwork by comparing quotes side-by-side from over 50 top insurers so you can confidently hit buy. No spam calls, no hidden fees. Jerry even tracks rates and alerts you when it's best to shop. Drivers who save with Jerry could save over $1,300 a year. Don't settle for higher rates."
+    },
+    {
+      "start": 28.44,
+      "end": 40.82,
+      "text": "Download the Jerry app or visit jerry.ai slash ACAST today. ACAST powers the world's best podcasts. Here's a show that we recommend."
+    },
+    {
+      "start": 44.07,
+      "end": 71.63,
+      "text": "Chicago, 2011. A cop is murdered. Police and prosecutors swear they have the trigger man. He swears he didn't do it. How far will each side go to prove their right? Like it's just one bombshell after another, you know, where you're like, what, what? The story of a PlayStation, a brain-eating amoeba, and the relentless pursuit of justice. Off Duty, out now. Listen wherever you get your podcasts."
+    },
+    {
+      "start": 75.23,
+      "end": 82.33,
+      "text": "Acast helps creators launch, grow, and monetize their podcasts everywhere. Acast.com."
+    },
+    {
+      "start": 93.45,
+      "end": 117.83,
+      "text": "This is the Daily Tech News for Thursday, April 2nd, 2026. We tell you what you need to know, give you some important context, and help each other understand. Today, A.D. Beach explains ByteDance's very regional approach to replacing Sora, and humans are headed back to the moon. Yeah! The moon! Very excited about this, personally. I'm Tom Merritt. I'm Jen Cutter. Let's start with what you need to know with the moon!"
+    },
+    {
+      "start": 121.03,
+      "end": 150.37,
+      "text": "uh yeah for the first time since december 7th 1972 the u.s national aeronautics and space administration aka nasa has launched humans on a rocket trip bound to orbit the moon the crew includes commander reed wiseman who is the oldest person to go to the moon pilot victor glover the first african-american to go to the moon mission specialist christina coke the first woman to go to the moon and canadian mission specialist jeremy hansen the first canadian to go"
+    },
+    {
+      "start": 150.44,
+      "end": 155.56,
+      "text": "They launched on Tuesday evening at 6.35 p.m. ET from the Kennedy Space Center in Florida."
+    },
+    {
+      "start": 156.3,
+      "end": 185.3,
+      "text": "Thursday morning, the crew conducted a Perigree Rays burn that puts it in a stable high-Earth orbit. You hear us talk about low-Earth orbit, or LEO, a lot. They are in high-Earth orbit, about 40,000 miles off the surface. They are the farthest from Earth that any human has been since 1972, right now, as we speak. The translunar injection burn is scheduled for 7.49 p.m. Eastern time on Thursday evening, so if you're listening to this, that"
+    },
+    {
+      "start": 185.42,
+      "end": 196.96,
+      "text": "and the total trip is scheduled to take 10 days they'll pass behind the moon on the dark side of the moon and then return to earth they will not be touching down this time"
+    },
+    {
+      "start": 197.55,
+      "end": 218.37,
+      "text": "They will come within 6,513 kilometers of the lunar surface, closest anybody's been since 1972. But the mission is meant to test the Orion model spacecraft, Integrity. That's the name that they gave their Orion spacecraft. They're testing the life support system, getting some data, you know, and kind of..."
+    },
+    {
+      "start": 218.67000000000002,
+      "end": 236.93,
+      "text": "preparing for future missions. Because this mission will use a free return trajectory, which means they're going to swing wide around the dark side of the moon and use gravity assist to pull it back toward Earth, they will become the farthest from Earth that any human has ever gone."
+    },
+    {
+      "start": 237.82999999999998,
+      "end": 256.33,
+      "text": "Depending on where the moon is at the point that they do this, that will be anywhere from 402,000 to 406,000 kilometers. But either way, it's farther than Apollo 13 at 400,171 kilometers, which was the farthest anybody had ever gone back in 1970."
+    },
+    {
+      "start": 257.24,
+      "end": 285.62,
+      "text": "The mission will conduct tests and measurements, as I said, to prepare for a landing on the moon in 2028. And the U.S. is not the only one conducting these kinds of missions. China also planning to send people to the moon by 2030. They have not done any crewed missions yet. Crewed meaning having a crew, not crude as in CRU. Both China and the U.S. have plans to build occupied scientific stations on the moon. So that's kind of the ultimate point of this is to land on the moon and start setting up some labs."
+    },
+    {
+      "start": 287.15999999999997,
+      "end": 314.2,
+      "text": "It's pretty exciting. It's nice to report on, hey, here's some good news from NASA. It's been a little rough with all of the budget cuts and slashing. It's great to see like, hey, when you give these guys money, cool things can happen. Yeah, I mean, sure. We can talk about perceptions. We can talk about reality. This is reality. The reality is humans are in a little tin can on their way to the moon."
+    },
+    {
+      "start": 316.24,
+      "end": 336.12,
+      "text": "There have been some interesting situations. They lost communications for, I don't know how long it was. My mind is telling me 15 minutes, but I'm not sure if it was even that long. But that was a little disconcerting. So they were talking to Artemis. Artemis could hear them, but Artemis couldn't answer back. Thankfully, they figured that out."
+    },
+    {
+      "start": 337.51,
+      "end": 366.23,
+      "text": "at one time uh i think it was the mission commander uh said i had that he had two versions of microsoft outlook and neither one was working and of course every tech outlet has picked that up and put it out there so there are some quirks out there yeah i told my friend hey i'm going to talk about the moon this morning he's like oh you got to talk about outlook and i'm like really that's your takeaway it's kind of funny it's not the most important part of the story but yeah it's it's amusing people people"
+    },
+    {
+      "start": 366.44,
+      "end": 386.76,
+      "text": "And grabbing onto that the way that, again, on a very non-scientific, non-tech thing, social media yesterday, last night, was amazing. People discovering the Canadian astronaut. That that existed? That he was there? I think my favorite comment, and I apologize for not being able to distribute it, is..."
+    },
+    {
+      "start": 386.98,
+      "end": 401.9,
+      "text": "When did they grow Buzz Lightyear in a lab up there? Like, yeah, no, he's a buff guy with a strong chin. People are joking that like, oh, the Canadian government is making files on all you people. You need to leave that man alone."
+    },
+    {
+      "start": 402.36,
+      "end": 430.96,
+      "text": "The whole new heated rivalry when you got a rocket. That came up so much. I guess I'm not surprised that became like entwined in other countries' perception of Canadian culture and flying with it. I know that's a positive, not a negative. Definitely, definitely. But it was again like tin can into space and this is what you're focusing on. Yeah, no, no, it's true. But this is going to, I was surprised at, it wasn't."
+    },
+    {
+      "start": 431.74,
+      "end": 458.46,
+      "text": "There wasn't more attention on it. And there certainly was attention in my circles, don't get me wrong. There's people in our Discord chatting about it. Somebody was sharing the NOAA weather satellite view over Florida at the time of the launch. And you see this little black dot just go boop. So yeah, lots of fun stuff here. And I know there are skeptics, and there certainly are skeptics in our audience who are like, I don't know, this may be a waste of money. Why are you doing this?"
+    },
+    {
+      "start": 459.54,
+      "end": 481.82,
+      "text": "And those are fair questions to ask, but for me, it's because of the science involved, because of the discovery involved, and I don't know about you, Jen, but frankly, the fact that we can do it at all is incredibly impressive. I did see Apollo 13 eventually after that came out, and that was just blowing my mind. It's like, with the tech that we had,"
+    },
+    {
+      "start": 482.34,
+      "end": 505.64,
+      "text": "Like, now, I'm still impressed that this is a thing that we can do and send humans out there. So my mind kind of breaks thinking like, 1970, 1970, what? Like, how? How did any of this work? How did this happen? Yeah, it's, it's, it's really, really impressive to me. And then, of course, today thinking like, oh, yeah, Outlook doesn't work."
+    },
+    {
+      "start": 507.64,
+      "end": 520.86,
+      "text": "yeah there's still bugs yeah because like tech news you know it's like we there are so many cool things that exist and are out there and are in our hands that we don't even think of anymore like iPhones but then for some reason you put that stuff in space and everything just feels"
+    },
+    {
+      "start": 521.48,
+      "end": 549.82,
+      "text": "A little more impressive and far away and just like trying to put these distances into context and I can't in my brain. It is just overwhelming to me and I love all the pictures and I can't wait to see more reports from it. Yeah, there was one moment I've been listening to the feed. They have a live feed on YouTube of just what's happening on the capsule, which right now they're asleep, so not much. But at one point they were talking about the fact that they were on the Deep Space Network and it's the first time that human"
+    },
+    {
+      "start": 550.69,
+      "end": 571.75,
+      "text": "conversation has been carried by the Deep Space Network since 1972. The Deep Space Network is usually used for probes and telemetry for Martian missions and stuff like that. It's just all those kinds of reviving these old things. I think my favorite moment during the launch was"
+    },
+    {
+      "start": 572.41,
+      "end": 596.81,
+      "text": "So, Eileen looked at our dog and said, no one's ever gone to the moon in your lifetime. And I looked at Eileen and I said, or yours. And she's like, wait, when was the last time? I'm like, 1972. And Eileen was born in 1973. So, I was like, yeah, it's been a minute. I see a moon. It's been an experience learning about other generations too, revealing my age a little bit."
+    },
+    {
+      "start": 598.02,
+      "end": 623.1,
+      "text": "A lot of discussion about the Challenger disaster, which I had forgotten that a ton of people just kind of witnessed live in schools as children. So I kind of get why they were super scared about this launch. Yeah, I was in high school when that happened. And it was not where my brain went. But I understand why so many people did. Because even though we do"
+    },
+    {
+      "start": 623.43,
+      "end": 643.79,
+      "text": "Crude launches all the time. This is one that's got a bigger deal, you know, and it's a first time we've done this in a while kind of situation versus going to the International Space Station, which we do multiple times a year, right? And so the worry that something could go wrong because this is a much bigger rocket going much faster, going much farther, I think still."
+    },
+    {
+      "start": 644.9,
+      "end": 666.04,
+      "text": "is a concern, you know, until they're back safe and Godspeed to them. But thankfully, that launch went up, I think, five minutes off the projected time, which almost never happens. They usually have some kind of other delay and without a hitch into higher Earth orbit. So, you know, knock on wood, it keeps going that way and Outlook is the worst of their problems."
+    },
+    {
+      "start": 668.1,
+      "end": 675.64,
+      "text": "DTNS is made possible by you, the listener. Thanks to Philip Less, Howard Yermish, and John Atwood. Thank you all."
+    },
+    {
+      "start": 681.27,
+      "end": 708.15,
+      "text": "You know what's wild? Most people are still overpaying for car insurance just because it's a pain to switch. That's why there's Jerry. Jerry's the only app that compares rates from over 50 insurance in minutes and helps you switch fast with no spam calls or hidden fees. Drivers who save with Jerry could save over $1,300 a year. Before you renew your car insurance policy, do yourself a favor. Download the Jerry app or head to jerry.ai.acast."
+    },
+    {
+      "start": 711.48,
+      "end": 727.28,
+      "text": "There's more we need to know today. Let's get to the briefs. The Financial Times reports that Amazon is in serious talks to acquire satellite telecommunications company GlobalStar. Apple has a 20% stake in GlobalStar and is also involved in the discussions."
+    },
+    {
+      "start": 728.16,
+      "end": 755.08,
+      "text": "Apple currently reserves 85% of Global Star's capacity for iPhone satellite-based texting. Global Star was founded in 1991, so has an existing network of satellites, but also satellite expertise, which could help Amazon compete with Starlink in the satellite internet space. Amazon Leo, formerly Project Kuiper, plans to have 700 satellites launched by mid this year, but has had to extend its deadline for launching 1,600 satellites."
+    },
+    {
+      "start": 755.82,
+      "end": 773.34,
+      "text": "It has contracts to provide internet service to JetBlue in 2027 and Delta Airlines in 2028. GlobalStar has also had discussions with SpaceX. Yeah, so, I mean, SpaceX runs Starlink. They don't need GlobalStar, but, you know, they could put it to some good use."
+    },
+    {
+      "start": 775.62,
+      "end": 795.0,
+      "text": "has been doing this for a long time. So I think the expertise is as good of a reason for Amazon to want to acquire it as any of the satellites it already has up because there are different kinds of satellites. The Apple thing in there is very interesting as well. And there we are again with low Earth orbit in the news. And that's the name. That's why Amazon picked Leo because it's low Earth orbit."
+    },
+    {
+      "start": 796.62,
+      "end": 810.76,
+      "text": "Yeah, and again, I'm looking at that going like, 1991, wow. And it's like, yeah, Jen, satellites have existed for way more than your life. Since the 60s, yeah. Space isn't new. They've been working on this forever. But yeah, it's not always forefront in my mind. Yeah, yeah, yeah."
+    },
+    {
+      "start": 811.53,
+      "end": 840.43,
+      "text": "Well, Microsoft is rolling out three new versions of its in-house generative models, a new speech transcription model called MAI Transcribe 1. That one benchmarks better than rivals on 11 of the 25 most widely spoken languages. It's good at video captioning, could be used for meeting transcription, and also as a voice agent. Microsoft plans to incorporate that one into Teams in the coming months, so it'll be good for your subtitles on your meetings. A new voice model called MAI Voice 1 can create audio."
+    },
+    {
+      "start": 840.56,
+      "end": 868.56,
+      "text": "up to 60 seconds long from a text prompt. And MAI Image 2 is the second generation of Microsoft's image model, which they say is faster and produces more lifelike images. CEO of Microsoft AI Mustafa Suleiman says the company plans to have its own large in-house alternatives to the likes of Anthropic, OpenAI, Google's Gemini by 2027. So they want to get into this LLM space and they want to do it by the end of next year."
+    },
+    {
+      "start": 869.18,
+      "end": 896.98,
+      "text": "Microsoft will need a lot of compute to do that. Now, they're one of the largest cloud providers in the world, and they say they have started using a cluster of NVIDIA GB200 chips to expand computing resources and get to that frontier scale of computing they would need. But Bloomberg had a really interesting profile on Microsoft CFO Amy Hood. If you recall, I was a little puzzled, as were many, when Microsoft pulled the plug on some data center projects. It had been out in front."
+    },
+    {
+      "start": 897.42,
+      "end": 913.44,
+      "text": "in creating new data centers and then sort of scaled back. And a lot of people thought, oh, what does Microsoft know that others don't? Maybe they don't need as much compute. Turns out that Hood was just worried that they were spending more than they needed to spend."
+    },
+    {
+      "start": 914.26,
+      "end": 936.72,
+      "text": "But demand for Microsoft's services has since gone beyond the company's ability to provide it. So they would have used the capacity had they continued to spend on it. As Hood said on an earnings call back in October, I thought we were going to catch up. We are not. So now some of the projects Microsoft backed out of have been taken over by other companies and Hood's trying to balance."
+    },
+    {
+      "start": 949.36,
+      "end": 975.16,
+      "text": "Yeah, 2027 is both far away and real close. It'll come before they know it, yeah. Yeah, with how fast this area of tech is moving, who knows where they're going to be, where anyone's going to be at that point. But Microsoft stating like, no, we are in it, we are going to be there, is probably going to push some people to also make some big decisions. Yeah, and there's all this conversation, rightly so, about..."
+    },
+    {
+      "start": 975.85,
+      "end": 1001.95,
+      "text": "whether the optimistic projections of OpenAI and Anthropic and others are going to hold out. Are they going to end up overspending on capacity for data centers? They don't think so. We had this whole thing about OpenAI's valuation earlier in the week that we talked about. And here's some evidence of at least up till now. Now, past performance does not necessarily predict future performance, right? But Microsoft did pull back and regrets it."
+    },
+    {
+      "start": 1002.33,
+      "end": 1026.97,
+      "text": "They, you know, hindsight is always 20-20, but they would have been able to make use of more capacity had they continued to spend on it. Valve's latest monthly Steam survey shows Steam on Linux jumped from 2.23% in February to 5.33% in March. This is the first time that Linux has made up more than 5% of Steam's usage."
+    },
+    {
+      "start": 1027.73,
+      "end": 1049.87,
+      "text": "macOS also rose from 1.16% to 2.35%. Windows dropped 4.28 points to, you know, only having 92.33%. Among those Linux users, 25% are running SteamOS, as one would assume, and 67.48% use an AMD CPU."
+    },
+    {
+      "start": 1050.81,
+      "end": 1064.67,
+      "text": "Yeah, I wouldn't have been surprised if that SteamOS number was even higher. Obviously, that's a big boost to that. But it does imply that, you know, there's a lot of people using Steam on Linux that aren't just using a Steam Deck or something like it. They're running it on a desktop."
+    },
+    {
+      "start": 1066.27,
+      "end": 1083.17,
+      "text": "It was surprising to see the March numbers come in after, you know, they'd had some rises and then some falls and, you know, it looked like, well, they're sort of ratcheting up. But a big boost in March. Do you have any guess on to why that would be? There are a lot of people."
+    },
+    {
+      "start": 1084.3,
+      "end": 1107.12,
+      "text": "In like my literal exact boat, Windows 10 people who just really hate Windows 11 and are testing out various distros of Linux. I'm one of them. I like Pop OS. I'm going to try running Bazite Next to actually play games on. But I also kind of regret not getting a Steam Deck when they were slightly more affordable. But yeah, my friends who had Steam Decks and like..."
+    },
+    {
+      "start": 1107.31,
+      "end": 1128.15,
+      "text": "didn't use them a lot, have dusted them off, and that's their primary gaming machine now, and they love it, and they are new evangelists for the product. So yeah, I think it's going to keep growing, and I'm definitely going to keep an eye on that percentage. Also, the Mac OS, that's a surprising bump to me. Where did that come from? Yeah, I wonder if it's the same thing, or the same root cause of like, well, I don't..."
+    },
+    {
+      "start": 1128.3,
+      "end": 1157.18,
+      "text": "Really want to get Windows 11, maybe I'll just get a Mac, right? Fewer people made that decision, but maybe that's part of it. Yeah, people switching, they're like, you know what, fine, I will use my editing machine for gaming. Yeah, right, exactly. I think you're onto something. Now, granted, Windows isn't in trouble at 92%. Real struggle over there. Yeah, they've got a lot of padding on that lead, but it certainly is interesting to see. And yeah, I think you're the canary in that Linux coal mine there."
+    },
+    {
+      "start": 1158.85,
+      "end": 1172.63,
+      "text": "Well, thanks to RW Nash for posting this next one on our subreddit at subreddit. I don't know. It's Daily Tech News Show on subreddit. Thanks to RW Nash. Apple has taken the rare step of patching."
+    },
+    {
+      "start": 1172.91,
+      "end": 1201.21,
+      "text": "Older operating systems for phone models that could upgrade to the current OS. There's a little bit of a nuanced thing here. Apple often updates older operating systems for older models that can't run the current system. So if there's a security issue and your phone just can't do iOS 26, they'll put a patch out for you. But it usually asks users to upgrade the OS to the most current version if your device is capable. Like, look, you wanna be secure?"
+    },
+    {
+      "start": 1201.81,
+      "end": 1225.39,
+      "text": "to the most current version of the OS. To give an example, last month, Apple patched the Dark Sword vulnerability for iOS 26 as well as iOS 15.8.7, iPadOS 15.8.7, iOS 16.7.15, and iPadOS 16.7.15. This week, Apple also issued a patch for iOS 18."
+    },
+    {
+      "start": 1226.31,
+      "end": 1245.39,
+      "text": ".7.7. That covers devices that can run iOS 26, but Apple feels that Dark Sword is enough of a problem that if you haven't upgraded to iOS 26, but you still have auto updates on, they want to push a security patch to you so that you get an alert and you realize like, oh, I need to upgrade this."
+    },
+    {
+      "start": 1246.08,
+      "end": 1275.12,
+      "text": "My brother is so annoyed. He hates liquid glass and he had put off updating forever, forever, forever. And finally, a couple months ago, he had to update because he's like, I need these security updates. I'm going to do it. And now this came out and I sent it to him. He's like, but now, now all I had to do was wait. It's bad security advice to wait. Like he did the right thing, but I know how he feels. I know that was just me poking at him. And if you want to poke at us, we have, we have many ways for you."
+    },
+    {
+      "start": 1275.22,
+      "end": 1292.06,
+      "text": "Give us feedback about anything that gets brought up on the show. You can get in touch with us on the socials at DTNSshow on X, Instagram and Threads, Blue Sky and Mastodon, tons of options. And we've got TikTok and YouTube where you can find us at Daily Tech News Show."
+    },
+    {
+      "start": 1297.34,
+      "end": 1324.2,
+      "text": "You know what's wild? Most people are still overpaying for car insurance just because it's a pain to switch. That's why there's Jerry. Jerry's the only app that compares rates from over 50 insurers in minutes and helps you switch fast with no spam calls or hidden fees. Drivers who save with Jerry could save over $1,300 a year. Before you renew your car insurance policy, do yourself a favor. Download the Jerry app or head to jerry.ai.acast."
+    },
+    {
+      "start": 1324.96,
+      "end": 1346.9,
+      "text": "Capital One's tech team isn't just talking about multi-agentic AI. They already deployed one. It's called Chat Concierge, and it's simplifying car shopping. Using self-reflection and layered reasoning with live API checks, it doesn't just help buyers find a car they love. It helps schedule a test drive, get pre-approved for financing, and estimate trading value."
+    },
+    {
+      "start": 1324.94,
+      "end": 1353.32,
+      "text": "Capital One's tech team isn't just talking about multi-agentic AI. They already deployed one. It's called Chat Concierge, and it's simplifying car shopping using self-reflection and layered reasoning with live API checks. It doesn't just help buyers find a car they love. It helps schedule a test drive, get pre-approved for financing, and estimate trading value. Advanced, intuitive, and deployed. That's how they stack. That's technology at Capital One."
+    },
+    {
+      "start": 1357.58,
+      "end": 1384.82,
+      "text": "Now some quick headlines that are just good things to know. Cloudflare has released M-Version 0.1, an open source rebuild of WordPress in TypeScript rather than PHP and based on the open source JavaScript framework. Astro, acquired by Cloudflare in January, it's serverless, sandbox, and passwordless using Passkey and Magic Links for authentication."
+    },
+    {
+      "start": 1385.51,
+      "end": 1400.49,
+      "text": "That's pretty attractive. I know they're trying to get people over from WordPress and they might work. Sources tell India's Economic Times that Oracle has begun laying off about 10,000 people as part of a restructure that has been expected to affect 30,000 worldwide."
+    },
+    {
+      "start": 1402.65,
+      "end": 1428.89,
+      "text": "Outplacement firm Challenger Grey and Christmas estimates U.S. tech companies cut 18,720 jobs in March, up 24% over last year. However, layoff announcements in the entire job market were down 78% over last year. Yeah, so it's tech. It's not the entire job market. Finland's Kuanchant, which is spelled Q-U-A-N"
+    },
+    {
+      "start": 1429.61,
+      "end": 1451.85,
+      "text": "S-C-I-E-N-T, like quantum and prescient, demonstrated what they call the most physically complex quantum computational fluid dynamics simulation run to date. This is not a practical thing. It is a benchmark, though, that is important in research on quantum computers, and they ran it on IBM's Heron R3 quantum computer."
+    },
+    {
+      "start": 1453.92,
+      "end": 1478.8,
+      "text": "9to5Google notes that Google has provided a way for non-Pixel users to update their cheap wireless firmware in the Pixel Snap charger by connecting the charger to your phone and visiting a link in the Chrome mobile browser. I like this next one a lot. France's Backmarket, which is a refurbished electronics marketplace, is collaborating with Google to sell $3 Chrome OS Flex keys."
+    },
+    {
+      "start": 1479.56,
+      "end": 1497.08,
+      "text": "that make it easy to install Chrome OS on older Windows or Mac laptops. Yeah, you can do it yourself, but if you're buying an old laptop on back market, you could just throw in three extra dollars, get this, and then you got a USB key you can use for whatever you want afterwards. Ready to go to give that old tech to grandma to stay in touch. Yeah, there you go."
+    },
+    {
+      "start": 1497.96,
+      "end": 1514.82,
+      "text": "The UK's Ofcom says 49% of adult social media users post or comment, down from 61% in 2024. The decline is attributed to the rising popularity of video posts, combined with concerns that what you post could come back to haunt you later."
+    },
+    {
+      "start": 1515.27,
+      "end": 1534.41,
+      "text": "Ooh, a little chilling effect on posting on social media. YouTube's going to test something during Coachella called Stations. In this case, it'll let musicians select videos to run as a live stream without having to stream them off a PC, but they say they will try to roll this out to other creators and maybe everybody eventually."
+    },
+    {
+      "start": 1535.99,
+      "end": 1562.43,
+      "text": "Google announced that AI pro subscribers, that's the $20 a month plan, will now get five terabytes of storage up from two at no additional charge. It's just going to happen. There it is. Yeah, look at that. And people say that never happens. OpenClaw launched an official China mirror of the skills search side ClawHub. That's where you go find stuff to add to your OpenClaw install. This is in collaboration with ByteDance, which provides localized access."
+    },
+    {
+      "start": 1563.45,
+      "end": 1590.17,
+      "text": "Mo Tang noted on our subreddit that the U.S. Patent Office has revoked patent protection for Nintendo's method of summoning a player to fight beside you, citing previous similar patents granted to Konami in 2002, Bandai Namco in 2020, and two granted to Nintendo in 2020 and 2022. And you may have first heard about this as part of like a Pokemon Pal World kind of dispute going on. Yeah."
+    },
+    {
+      "start": 1590.74,
+      "end": 1594.18,
+      "text": "Not that Nintendo won't be able to still do things."
+    },
+    {
+      "start": 1594.95,
+      "end": 1621.23,
+      "text": "And this isn't a final decision either, so they'll probably appeal it. Also, a couple of follow-ups. Medical equipment manufacturer Stryker says it is now fully operational again. It took about three weeks after that malicious attack had wiped out some of its systems. And the U.S. Department of Justice has filed a notice that it will appeal the decision to grant a temporary injunction against Designated Anthropic as a supply chain risk. All right, those are the essentials for today. Let's dive a little deeper."
+    },
+    {
+      "start": 1621.9,
+      "end": 1644.82,
+      "text": "The same week that OpenAI said it was shutting down its Zora video app, ByteDance launched its AI video generator inside CapCut, a very popular mobile and desktop video editor. But there is a catch, and Andy Beach explains why you can use it in Thailand, but not the United States. Andy Beach, welcome back. Tom, so good to see you again. Are you in Thailand?"
+    },
+    {
+      "start": 1646.12,
+      "end": 1669.16,
+      "text": "Right now, at this very moment, I am not. Well, then you can't use C-Dance 2.0 in CapCut. Correct. What is going on with this? I think it is interesting to see C-Dance move forward while OpenAI has moved out of video generation, but it's very limited, not even just the fact that it's not in the US. I think that is less surprising, but it's limited to very particular regions."
+    },
+    {
+      "start": 1669.81,
+      "end": 1695.77,
+      "text": "Yeah, so I mean, I think everybody has heard a little bit about Seed Dance at this point. They made a lot of noise about a month ago, approximately, when their model came out. Obviously, there was a big pushback from Hollywood around that. And so they've been cautious about how they roll it out, and they've been restricting the ability to use it in certain markets, the US being one of those. Europe, you also currently don't have any ability to use it."
+    },
+    {
+      "start": 1696.35,
+      "end": 1720.11,
+      "text": "But this is the first big announcement that they've had around where you can use it. And there are seven countries out there around the world where you currently can use it. Brazil, Indonesia, Malaysia, Mexico, Philippines, Thailand, and Vietnam, specifically. And they've done a partnership with CapCut. CapCut is a fairly well-known editing tool, has both a mobile and web interface."
+    },
+    {
+      "start": 1720.9,
+      "end": 1747.14,
+      "text": "and is sort of focused on the creator space for how you use it. It now has a direct seed dance integration so that you can use the model from within inside that editing tool. And that's a first announcement on top of the sort of the geography restrictions. Not a particularly surprising partner since CapCut is also owned by ByteDance. Exactly right. And very popular amongst people that make things for"
+    },
+    {
+      "start": 1747.78,
+      "end": 1756.56,
+      "text": "ByteDance's TikTok. So it's all part of the ecosystem. Anything in particular about those countries that stands out to you about why they may have picked those?"
+    },
+    {
+      "start": 1757.73,
+      "end": 1786.73,
+      "text": "Well, I have to imagine it has to do with what regulations look like in those areas. I think, obviously, they got pushed back in Hollywood, which sort of made US hard. And I know that it's part of a later third wave plan that they have. This is sort of wave one we're seeing now. So we're not even in a wave two. Equally, Europe has a lot of AI regulations they've been heavily pushing. And so I think that's got them somewhat more restricted. So I think they're looking for"
+    },
+    {
+      "start": 1809.25,
+      "end": 1832.29,
+      "text": "What exactly you have to do in order to create a synthetic human or recreate a digital face that might be based off of a real person. So they are actively working on some pieces that will help them likely get unblocked in those other regions. And they need a place to go test it at scale. And that's what these wave one places look like. Yeah. And I don't know."
+    },
+    {
+      "start": 1832.9,
+      "end": 1859.6,
+      "text": "If the version of CapCut they have in China, which operates under a different name, already has this or not, so let's set aside China. They're definitely staying away from the larger markets where there would be more of a spotlight on what they're doing. And I think that allows them to test the waters, see what trouble they might run into before they get somewhere else. That makes sense to me. I also think it makes sense to want to try this."
+    },
+    {
+      "start": 1860.05,
+      "end": 1880.83,
+      "text": "Yeah, but I will caveat that with Brazil is a fairly big market. Like LATAM has come on in a pretty major way. So the fact that that was included amongst some of the others is telling that they are at least being aggressive. It's not small markets necessarily that they're just pushing into with it."
+    },
+    {
+      "start": 1881.71,
+      "end": 1896.65,
+      "text": "Yeah, no, it's a good point. I guess I shouldn't have said small and more like... Smaller than the U.S. and Europe, for sure. Well, yeah, smaller than U.S., Europe, and China, but also markets with less intellectual property focus on that, right?"
+    },
+    {
+      "start": 1897.18,
+      "end": 1924.5,
+      "text": "When you look at Japan and Korea specifically as the ones that popped out, when I see Malaysia, Philippines, Thailand, Vietnam, I'm like, well, if you just keep going north, you've got a couple of bigger markets up there. So yeah, that is interesting. Do you think this is ByteDance just trying to figure out how to use Seedance? Or is it more of a justification of like, no, video generation can still work. It just has to be a company that's willing to bet on it."
+    },
+    {
+      "start": 1925.33,
+      "end": 1948.89,
+      "text": "I think they were, I don't know if they were caught off guard by the reaction that they had from Hollywood a month ago, but I do know that it caused them to have to scramble. I think they did not have a notion of this sort of geographic rollout before that. So that I think is a clear direct line that can be drawn to say they had to go back and think about how they were doing this. And they've been having a lot more"
+    },
+    {
+      "start": 1949.59,
+      "end": 1975.63,
+      "text": "conversations with their customers directly around what kind of security they expect to be in place for them to generate a human-like synthetic piece of video. And so I think this is them believing that this is a way forward and that this is a viable business, but them also catching up on the sort of the governance and regulations side that they didn't realize was necessarily going to be as big of an issue."
+    },
+    {
+      "start": 1976.44,
+      "end": 2003.34,
+      "text": "Well, Andy, thanks for helping us dig into this a little more and understand some of the implications around it. You're really good at that. I'm a fan and others should become a fan too. Where can they go to do that? My substack is called Engines of Change. That's enginesofchange.ai and I talk about technology and media infrastructure all the time over there. Excellent. Thanks, Andy. Thanks, Tom. I am a little jealous of Malaysia getting to..."
+    },
+    {
+      "start": 2004.04,
+      "end": 2015.54,
+      "text": "Use that in CapCut. I would like to play around with it. You're the one who, more than the rest of us, have played with this thing. So when you get your hands on it, you can tell us how Seedance 2.0 compares to your playing around with others. Maybe I'll go traveling."
+    },
+    {
+      "start": 2017.99,
+      "end": 2046.41,
+      "text": "Yeah, we'll find out. We end every episode of DTNS with some shared perspective. Today, John and Samuel have thoughts on a Mac Mini version of the Mac Neo. Yeah, this is something I think Rob and I were talking about on Monday. Like, what if they made a phone size version of the Mac Mini? You don't have to have a display. Keep it down. John wrote, what struck me is that on the Windows side, this kind of thing exists now, though not at a cheap price. There's a company called"
+    },
+    {
+      "start": 2046.43,
+      "end": 2047.07,
+      "text": "called Kadas."
+    },
+    {
+      "start": 2047.71,
+      "end": 2076.39,
+      "text": "k-h-a-d-a-s that's been making this style of computer for a couple of years now their mind series is built around the idea that you can carry the computer itself with you then dock it at home or at work or dock it to more advanced hardware capabilities i have no idea how successful the mind line has been but they've been selling them for a while both directly and on amazon so it seems like there's at least some real world interest in that portable brain doc everywhere model uh and yeah"
+    },
+    {
+      "start": 2076.67,
+      "end": 2094.03,
+      "text": "Let me see. The current pre-order is $2,299. So that is not a cheap option. John is correct. But then Samuel in Gatineau, Quebec wrote, my grandfather asked me the other day if I thought it would be time to replace his 2010 Mac Mini."
+    },
+    {
+      "start": 2094.67,
+      "end": 2121.67,
+      "text": "I told them that it is a good idea, especially for security reasons, and that it's a perfect time since the MacBook Neo just came out. He's not sure about the Neo, though, because he's never had a laptop before, and he doesn't think he'll want to bring it anywhere with him. So even though he doesn't need an M4 for email and Facebook, it might be a good option just to get him a new Mac Mini. If there was a cheaper Mini with the internals of a Neo, though, that would be perfect for him. Love the show. Keep up the great work."
+    },
+    {
+      "start": 2122.29,
+      "end": 2128.37,
+      "text": "Well, John, thank you for telling me about that Kados thing. Well, the last business that my dad worked for..."
+    },
+    {
+      "start": 2129.41,
+      "end": 2151.77,
+      "text": "did that kind of thing where everybody got a laptop and had docs and were given docs for home and he just carried that back and forth and that was just how they did business. And, you know, it's great except for the times when Dav would call and be like, hey, I left it at home again. Can you like run that down for me? But it's cool to know that that model is still going."
+    },
+    {
+      "start": 2152.86,
+      "end": 2174.26,
+      "text": "Yeah, no, I appreciate that, John. I'm sure there's other examples of Windows machines that do this as well. And thank you for the use case from Samuel as well. Yeah, see, there's that security thing coming up again with Max. Yeah, absolutely. So what are you thinking about? Do you have some insight into a story? Share it with us over at feedback at DailyTechNewsShow.com."
+    },
+    {
+      "start": 2174.88,
+      "end": 2208.34,
+      "text": "Thanks to Andy Beach, thanks to John and Samuel for contributing to today's show, and thank you for being along for Daily Tech News Show. You're the folks that keep us in business. We could not do it without you. If you want to support the show directly, go ad-free. You can do so, patreon.com slash DTNS. Talk to you soon. The DTNS family of podcasts. Helping each other understand. Diamond Club hopes you have enjoyed this program."
+    },
+    {
+      "start": 2215.35,
+      "end": 2242.53,
+      "text": "Acast powers the world's best podcasts. Here's a show that we recommend. Hey guys, welcome to Giggly Squad. A place where we make fun of everything, but most importantly, ourselves. I'm Paige DeSorbo. I'm Hannah Berner. Welcome to the squad. Giggly Squad started on Summer House when we were giggling during an inappropriate time. But of course, we can't be managed. So we decided to start this podcast to continue giggling. We will make fun of pop culture news."
+    },
+    {
+      "start": 2243.14,
+      "end": 2261.24,
+      "text": "We're watching fashion trends, pep talks where we give advice, mental health moments, and games and guests. Listen to Giggly Squad on Acast or wherever you get your podcasts. Acast helps creators launch, grow, and monetize their podcasts everywhere. Acast.com."
+    }
+  ],
+  "expected_ads": [
+    {
+      "sponsor": "Quo",
+      "start": 0,
+      "end": 150.37,
+      "confidence": 0.9066666666666666
+    },
+    {
+      "sponsor": "DTNS Listener Support",
+      "start": 672.17,
+      "end": 729.47,
+      "confidence": 0.95
+    },
+    {
+      "sponsor": "Jerry",
+      "start": 681.3,
+      "end": 708.1,
+      "confidence": 0.8
+    },
+    {
+      "sponsor": "Jerry",
+      "start": 1297.3,
+      "end": 1353.3,
+      "confidence": 0.8
+    },
+    {
+      "sponsor": "Babbel",
+      "start": 2094.7,
+      "end": 2262.844313,
+      "confidence": 0.8
+    }
+  ]
+}

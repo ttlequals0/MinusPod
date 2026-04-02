@@ -356,6 +356,7 @@ This is a comma-separated list of domains excluded from Audiobookshelf's SSRF fi
 | `WHISPER_API_KEY` | _(none)_ | API key for whisper API (optional for local servers) |
 | `WHISPER_API_MODEL` | `whisper-1` | Model name sent to whisper API |
 | `RETENTION_PERIOD` | `1440` | **Deprecated.** Legacy minutes-based retention (auto-converted to days on first startup). Use the Settings UI or `PUT /api/v1/settings/retention` instead. Retention now resets episodes to "discovered" instead of deleting them. |
+| `AD_DETECTION_MAX_TOKENS` | `2000` | Maximum tokens for LLM ad detection responses (increase if responses are being truncated) |
 | `TUNNEL_TOKEN` | optional | Cloudflare tunnel token for remote access |
 
 ### Using Claude Code Wrapper (Max Subscription)

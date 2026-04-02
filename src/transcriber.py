@@ -150,8 +150,11 @@ def extract_audio_chunk(audio_path: str, start_time: float, end_time: float) -> 
         Path to temporary chunk file, or None on failure.
         Caller is responsible for cleaning up the temp file.
     """
-    output_path = tempfile.mktemp(suffix='.wav')
+    tmp = tempfile.NamedTemporaryFile(suffix='.wav', delete=False)
+    output_path = tmp.name
+    tmp.close()
 
+    success = False
     try:
         duration = end_time - start_time
         cmd = [
@@ -173,6 +176,7 @@ def extract_audio_chunk(audio_path: str, start_time: float, end_time: float) -> 
 
         if result.returncode == 0 and os.path.exists(output_path):
             logger.debug(f"Extracted chunk {start_time:.1f}s-{end_time:.1f}s to {output_path}")
+            success = True
             return output_path
 
         logger.warning(
@@ -188,8 +192,8 @@ def extract_audio_chunk(audio_path: str, start_time: float, end_time: float) -> 
         logger.warning(f"Chunk extraction error: {e}")
         return None
     finally:
-        # Clean up on failure
-        if os.path.exists(output_path) and os.path.getsize(output_path) == 0:
+        # Clean up temp file on failure (caller cleans up on success)
+        if not success and os.path.exists(output_path):
             try:
                 os.unlink(output_path)
             except OSError:
@@ -566,9 +570,20 @@ class Transcriber:
                         transcribe_path = flac_path
                         logger.info(f"Compressed for upload: {os.path.getsize(flac_path) / 1024 / 1024:.1f}MB FLAC")
                     else:
+                        # Compression failed -- remove orphaned temp file
+                        if os.path.exists(flac_path):
+                            try:
+                                os.unlink(flac_path)
+                            except OSError:
+                                pass
                         flac_path = None
                 except Exception as e:
                     logger.warning(f"FLAC compression failed, sending WAV: {e}")
+                    if flac_path and os.path.exists(flac_path):
+                        try:
+                            os.unlink(flac_path)
+                        except OSError:
+                            pass
                     flac_path = None
 
             # Build request

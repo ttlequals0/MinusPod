@@ -43,6 +43,12 @@ services:
       - BASE_URL=${BASE_URL:-http://localhost:8000}
       - RETENTION_PERIOD=${RETENTION_PERIOD:-1440}
 
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     deploy:
       resources:
         reservations:
@@ -50,6 +56,11 @@ services:
             - driver: nvidia
               count: 1
               capabilities: [gpu]
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
     restart: unless-stopped
     expose:
       - "8000"
@@ -85,6 +96,11 @@ services:
     volumes:
       # Persist Claude CLI authentication
       - claude-auth:/root/.claude
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
     restart: unless-stopped
     profiles:
       - wrapper
@@ -96,6 +112,11 @@ services:
       - TUNNEL_TOKEN=${TUNNEL_TOKEN}
     depends_on:
       - minuspod
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
     restart: unless-stopped
     profiles:
       - tunnel

@@ -715,3 +715,54 @@ class PatternService:
         except Exception as e:
             logger.error(f"Error promoting sponsor patterns: {e}")
             return 0
+
+    def record_verification_misses(self, slug: str, episode_id: str,
+                                   missed_ads: List[Dict]) -> None:
+        """Record ads found by verification that were missed by the first pass.
+
+        Logs missed ads and boosts matching patterns so they're more likely
+        to be detected in future episodes.
+
+        Args:
+            slug: Podcast slug
+            episode_id: Episode ID
+            missed_ads: List of ad dicts with sponsor, start, end, confidence
+        """
+        if not self.db:
+            return
+
+        # Load patterns once for all missed ads (avoid N+1 queries)
+        patterns = self.get_patterns_for_podcast(slug)
+
+        for ad in missed_ads:
+            sponsor = ad.get('sponsor')
+            if not sponsor or sponsor.lower() in ('unknown', 'n/a', ''):
+                continue
+
+            try:
+                matched = False
+                for pattern in patterns:
+                    if pattern.get('sponsor', '').lower() == sponsor.lower():
+                        # Boost the pattern's confirmation count
+                        self.record_pattern_match(
+                            pattern['id'],
+                            episode_id=episode_id,
+                            observed_duration=ad.get('end', 0) - ad.get('start', 0)
+                        )
+                        logger.info(
+                            f"[{slug}:{episode_id}] Boosted pattern {pattern['id']} "
+                            f"for missed sponsor '{sponsor}'"
+                        )
+                        matched = True
+                        break
+
+                if not matched:
+                    logger.info(
+                        f"[{slug}:{episode_id}] No existing pattern for missed sponsor "
+                        f"'{sponsor}' -- manual pattern creation may be needed"
+                    )
+            except Exception as e:
+                logger.warning(
+                    f"[{slug}:{episode_id}] Failed to process verification miss "
+                    f"for '{sponsor}': {e}"
+                )
