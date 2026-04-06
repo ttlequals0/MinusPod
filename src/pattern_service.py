@@ -742,7 +742,7 @@ class PatternService:
             try:
                 matched = False
                 for pattern in patterns:
-                    if pattern.get('sponsor', '').lower() == sponsor.lower():
+                    if (pattern.get('sponsor') or '').lower() == sponsor.lower():
                         # Boost the pattern's confirmation count
                         self.record_pattern_match(
                             pattern['id'],
