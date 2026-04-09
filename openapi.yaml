@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 1.0.94
+  version: 1.0.95
   contact:
     name: MinusPod
   license:
@@ -2001,11 +2001,11 @@ paths:
             type: string
             enum: [all, completed, failed]
             default: all
-        - name: podcast_id
+        - name: podcast_slug
           in: query
-          description: Filter by podcast ID
+          description: Filter by podcast slug
           schema:
-            type: integer
+            type: string
         - name: limit
           in: query
           description: Maximum number of entries to return
@@ -2136,11 +2136,11 @@ paths:
             type: string
             enum: [all, completed, failed]
             default: all
-        - name: podcast_id
+        - name: podcast_slug
           in: query
-          description: Filter by podcast ID
+          description: Filter by podcast slug
           schema:
-            type: integer
+            type: string
       responses:
         '200':
           description: Exported history file

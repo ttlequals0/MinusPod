@@ -1,4 +1,5 @@
 """Processing pipeline: _process_episode_background, all pipeline stages."""
+import gc
 import json
 import logging
 import os
@@ -12,6 +13,7 @@ import requests.exceptions
 from cancel import ProcessingCancelled, _check_cancel, _cancel_events, _cancel_events_lock
 from config import MIN_CUT_CONFIDENCE, MAX_EPISODE_RETRIES
 from llm_client import is_retryable_error, is_llm_api_error, start_episode_token_tracking, get_episode_token_totals
+from utils.gpu import get_available_memory_gb, clear_gpu_memory
 from utils.text import parse_transcript_segments
 from utils.time import parse_timestamp
 from webhook_service import fire_event, EVENT_EPISODE_PROCESSED, EVENT_EPISODE_FAILED
@@ -628,6 +630,12 @@ def _finalize_episode(slug, episode_id, episode_title, podcast_name,
     token_totals = get_episode_token_totals()
     audio_logger.info(f"[{slug}:{episode_id}] Token totals: in={token_totals['input_tokens']} out={token_totals['output_tokens']} cost=${token_totals['cost']:.6f}")
 
+    # Periodic memory cleanup to prevent fragmentation over many processing cycles
+    clear_gpu_memory()
+    mem_gb = get_available_memory_gb()
+    if mem_gb is not None:
+        audio_logger.info(f"[{slug}:{episode_id}] Post-cleanup memory: {mem_gb:.1f} GB")
+
     try:
         podcast_data = db.get_podcast_by_slug(slug)
         if podcast_data:
@@ -759,6 +767,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
     try:
         audio_logger.info(f"[{slug}:{episode_id}] Starting: \"{episode_title}\"")
+        mem_gb = get_available_memory_gb()
+        if mem_gb is not None:
+            audio_logger.info(f"[{slug}:{episode_id}] Available memory: {mem_gb:.1f} GB")
         min_cut_confidence = get_min_cut_confidence()
         audio_logger.info(f"[{slug}:{episode_id}] Confidence threshold: {min_cut_confidence:.0%}")
 

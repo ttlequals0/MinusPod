@@ -315,3 +315,42 @@ export interface ProcessingHistoryStats {
   totalOutputTokens?: number;
   totalLlmCost?: number;
 }
+
+export interface DashboardStats {
+  totalEpisodesProcessed: number;
+  avgTimeSavedSeconds: number;
+  minTimeSavedSeconds: number;
+  maxTimeSavedSeconds: number;
+  totalTimeSavedSeconds: number;
+  avgAdsRemoved: number;
+  minAdsRemoved: number;
+  maxAdsRemoved: number;
+  totalAdsRemoved: number;
+  avgCostPerEpisode: number;
+  minCostPerEpisode: number;
+  maxCostPerEpisode: number;
+  avgProcessingTimeSeconds: number;
+  minProcessingTimeSeconds: number;
+  maxProcessingTimeSeconds: number;
+  avgEpisodeLengthSeconds: number;
+  minEpisodeLengthSeconds: number;
+  maxEpisodeLengthSeconds: number;
+}
+
+export interface DayStats {
+  day: string;
+  dayIndex: number;
+  count: number;
+  avgAds: number;
+}
+
+export interface PodcastStats {
+  podcastSlug: string;
+  podcastTitle: string;
+  episodeCount: number;
+  totalAds: number;
+  avgAds: number;
+  avgEpisodeLengthSeconds: number;
+  avgTimeSavedSeconds: number;
+  totalCost: number;
+}

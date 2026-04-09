@@ -14,8 +14,8 @@ from urllib.parse import urlparse
 CONFIDENCE_STRING_MAP = {
     'high': 0.95,
     'very high': 0.98,
-    'medium': 0.80,
-    'moderate': 0.80,
+    'medium': 0.75,
+    'moderate': 0.75,
     'low': 0.50,
     'very low': 0.30,
 }

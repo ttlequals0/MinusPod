@@ -62,6 +62,7 @@ export function AdEditor({
   const [audioSheetExpanded, setAudioSheetExpanded] = useState(false);
   const [isDraggingProgress, setIsDraggingProgress] = useState(false);
   const [preserveSeekPosition, setPreserveSeekPosition] = useState(false);
+  const seekingFromJumpRef = useRef(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const progressBarRef = useRef<HTMLDivElement>(null);
@@ -83,9 +84,10 @@ export function AdEditor({
       setAdjustedEnd(selectedAd.end);
       setStartAdjustment(0);
       setEndAdjustment(0);
-      if (audioRef.current) {
+      if (audioRef.current && !seekingFromJumpRef.current) {
         audioRef.current.currentTime = selectedAd.start;
       }
+      seekingFromJumpRef.current = false;
     }
   }, [selectedAd]);
 
@@ -117,6 +119,7 @@ export function AdEditor({
                 (initialSeekTime > ad.start && initialSeekTime <= ad.end)
       );
       if (adIndex !== -1) {
+        seekingFromJumpRef.current = true;
         setSelectedAdIndex(adIndex);
       }
       audioRef.current.currentTime = initialSeekTime;

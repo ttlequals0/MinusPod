@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import threading
+import time
 from dataclasses import dataclass
 from typing import Optional
 
@@ -20,7 +21,8 @@ logger = logging.getLogger('podcast.webhooks')
 
 EVENT_EPISODE_PROCESSED = 'Episode Processed'
 EVENT_EPISODE_FAILED = 'Episode Failed'
-VALID_EVENTS = {EVENT_EPISODE_PROCESSED, EVENT_EPISODE_FAILED}
+EVENT_AUTH_FAILURE = 'Auth Failure'
+VALID_EVENTS = {EVENT_EPISODE_PROCESSED, EVENT_EPISODE_FAILED, EVENT_AUTH_FAILURE}
 
 _REQUEST_TIMEOUT_SECS = 5
 
@@ -251,6 +253,54 @@ def fire_event(event, episode_id, slug, episode_title, processing_time,
         args=(payload,),
         daemon=True,
     )
+    thread.start()
+
+
+_auth_failure_lock = threading.Lock()
+_last_auth_failure_time = 0.0
+_AUTH_FAILURE_DEDUP_SECS = 300  # 5 minutes
+
+
+def fire_auth_failure_event(provider, model, error_message, status_code):
+    """Fire an auth failure webhook with 5-minute dedup to avoid spamming."""
+    global _last_auth_failure_time
+
+    now = time.time()
+    with _auth_failure_lock:
+        if now - _last_auth_failure_time < _AUTH_FAILURE_DEDUP_SECS:
+            logger.debug("Auth failure webhook suppressed (dedup window)")
+            return
+        _last_auth_failure_time = now
+
+    webhooks = load_webhooks()
+    if not webhooks:
+        return
+
+    matching = [w for w in webhooks
+                if w.get('enabled', False) and EVENT_AUTH_FAILURE in w.get('events', [])]
+    if not matching:
+        return
+
+    context = {
+        'event': EVENT_AUTH_FAILURE,
+        'provider': provider,
+        'model': model,
+        'error_message': str(error_message),
+        'status_code': status_code,
+        'timestamp': utc_now_iso(),
+    }
+
+    def _dispatch():
+        for wh in matching:
+            try:
+                _prepare_and_dispatch(wh, context)
+                logger.info("Auth failure webhook sent (provider=%s, status=%s)",
+                            provider, status_code)
+            except Exception:
+                logger.exception("Failed to send auth failure webhook to %s",
+                                 wh.get('url'))
+
+    thread = threading.Thread(target=_dispatch, daemon=True)
     thread.start()
 
 

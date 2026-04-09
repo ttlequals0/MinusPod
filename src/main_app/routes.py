@@ -9,6 +9,7 @@ from pathlib import Path
 import requests
 import requests.exceptions
 from flask import Response, send_file, abort, send_from_directory, request
+from werkzeug.exceptions import NotFound
 
 from config import APP_USER_AGENT, JIT_RETRY_COOLDOWN_SECONDS, MAX_EPISODE_RETRIES
 from utils.time import parse_iso_datetime
@@ -40,7 +41,10 @@ def log_request_detailed(f):
             return result
         except Exception as e:
             elapsed = (time.time() - start_time) * 1000
-            feed_logger.error(f"{request.method} {request.path} ERROR {elapsed:.0f}ms [{client_ip}] - {e}")
+            if isinstance(e, NotFound):
+                feed_logger.warning(f"{request.method} {request.path} 404 {elapsed:.0f}ms [{client_ip}] - {e}")
+            else:
+                feed_logger.error(f"{request.method} {request.path} ERROR {elapsed:.0f}ms [{client_ip}] - {e}")
             raise
     return decorated
 

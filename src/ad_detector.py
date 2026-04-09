@@ -8,7 +8,7 @@ from typing import List, Dict, Optional
 from cancel import _check_cancel
 from llm_client import (
     get_llm_client, get_api_key, LLMClient,
-    is_retryable_error, is_rate_limit_error,
+    is_retryable_error, is_rate_limit_error, is_auth_error,
     get_llm_timeout, get_llm_max_retries,
     get_effective_provider, model_matches_provider,
 )
@@ -1247,6 +1247,11 @@ class AdDetector:
                     continue
                 else:
                     logger.warning(f"[{slug}:{episode_id}] {window_label} failed: {e}")
+                    if is_auth_error(e):
+                        from webhook_service import fire_auth_failure_event
+                        provider = get_effective_provider()
+                        fire_auth_failure_event(provider, model, str(e),
+                                                getattr(e, 'status_code', None))
                     break
 
         # Per-window retry for transient failures (intermittent 400s/500s)
@@ -1489,136 +1494,149 @@ class AdDetector:
                         ad.get('ad_end_timestamp'), ad.get('end_time_seconds')
                     )
 
-                    if start_val is not None and end_val is not None:
-                        try:
-                            start = parse_timestamp(start_val)
-                            end = parse_timestamp(end_val)
-                            if end > start:  # Skip invalid segments
-                                # Filter out explicitly marked non-ads
-                                is_ad_val = ad.get('is_ad')
-                                if is_ad_val is not None:
-                                    if str(is_ad_val).lower() in ('false', 'no', '0', 'none'):
-                                        logger.info(f"[{slug}:{episode_id}] Skipping non-ad: "
-                                                    f"{start:.1f}s-{end:.1f}s (is_ad={is_ad_val})")
-                                        continue
+                    if start_val is None or end_val is None:
+                        logger.warning(
+                            f"[{slug}:{episode_id}] Discarding ad candidate: "
+                            f"missing timestamps (start={start_val}, end={end_val}) - "
+                            f"fields={list(ad.keys())}, reason={str(ad.get('reason', ad.get('sponsor', '')))[:80]}"
+                        )
+                        continue
 
-                                # Filter by classification/type field
-                                classification = str(ad.get('classification') or ad.get('type') or '').lower()
-                                if classification in NOT_AD_CLASSIFICATIONS:
-                                    logger.info(f"[{slug}:{episode_id}] Skipping non-ad: "
-                                                f"{start:.1f}s-{end:.1f}s (classification={classification})")
-                                    continue
-
-                                # Extract sponsor/advertiser name using priority fields + pattern matching
-                                # Try extract_sponsor_name first for a real sponsor name.
-                                # If it returns the default, fall back to Claude's raw reason.
-                                reason = extract_sponsor_name(ad)
-                                existing_reason = ad.get('reason')
-                                if reason == 'Advertisement detected':
-                                    if existing_reason and isinstance(existing_reason, str) and len(existing_reason) > 3:
-                                        reason = existing_reason
-                                elif existing_reason and isinstance(existing_reason, str) and len(existing_reason) > len(reason) + 5:
-                                    # Claude's reason is substantially more descriptive than the bare sponsor name
-                                    reason = existing_reason
-
-                                # Extract description from Claude's response to enrich the reason
-                                # Dynamic scan: check ALL non-structural string fields > 10 chars
-                                # Skip 'reason' (already used above); duplication with sponsor handled at combine time
-                                description = None
-                                for key, val in ad.items():
-                                    if key.lower() in STRUCTURAL_FIELDS:
-                                        continue
-                                    if key == 'reason':
-                                        continue  # Already handled as primary reason
-                                    if isinstance(val, str) and len(val) > 10:
-                                        # Prefer longer descriptive text over short values
-                                        if description is None or len(val) > len(description):
-                                            description = val
-                                # Truncate if very long (will be further truncated below)
-                                if description and len(description) > 300:
-                                    description = description[:297] + "..."
-
-                                # Combine sponsor + description in reason field
-                                if description:
-                                    if reason and reason != 'Advertisement detected':
-                                        # Avoid duplication: check if description is essentially the same text
-                                        if not _text_is_duplicate(reason, description):
-                                            if len(description) > 150:
-                                                description = description[:147] + "..."
-                                            reason = f"{reason}: {description}"
-                                    elif not reason or reason == 'Advertisement detected':
-                                        reason = description
-
-                                # Normalize confidence to 0-1 range
-                                raw_conf = ad.get('confidence', 0.8)
-                                if isinstance(raw_conf, str):
-                                    mapped = CONFIDENCE_STRING_MAP.get(raw_conf.lower().strip())
-                                    if mapped is not None:
-                                        logger.debug(f"[{slug}:{episode_id}] Mapped string confidence '{raw_conf}' -> {mapped}")
-                                        raw_conf = mapped
-                                    else:
-                                        raw_conf = raw_conf.rstrip('%')
-                                raw_conf = float(raw_conf)
-                                norm_conf = raw_conf / 100.0 if raw_conf > 1.0 else raw_conf
-                                norm_conf = min(1.0, max(0.0, norm_conf))
-
-                                # Dynamic validation: require positive evidence this is an ad
-                                # instead of blocklisting content indicators (which keeps growing)
-                                duration = end - start
-                                has_sponsor_field = any(
-                                    get_valid_value(ad.get(f))
-                                    for f in SPONSOR_PRIORITY_FIELDS
-                                )
-                                has_known_sponsor = (
-                                    self.sponsor_service and
-                                    self.sponsor_service.find_sponsor_in_text(reason)
-                                ) if reason else False
-                                has_ad_language = bool(extract_sponsor_from_text(reason)) if reason else False
-
-                                if not has_sponsor_field and not has_known_sponsor and not has_ad_language:
-                                    # Low confidence + no evidence = reject regardless of duration
-                                    if norm_conf < LOW_CONFIDENCE:
-                                        logger.info(
-                                            f"[{slug}:{episode_id}] Rejecting low-confidence non-sponsor: "
-                                            f"{start:.1f}s-{end:.1f}s ({duration:.0f}s, conf={norm_conf:.0%}) - "
-                                            f"reason: {reason[:100] if reason else 'None'}"
-                                        )
-                                        continue
-                                    # No positive ad evidence -- apply duration gate
-                                    # Short segments (<CONTENT_DURATION_THRESHOLD) get benefit of doubt
-                                    # Long segments are almost certainly content descriptions
-                                    if duration >= CONTENT_DURATION_THRESHOLD:
-                                        logger.info(
-                                            f"[{slug}:{episode_id}] Rejecting suspected content: "
-                                            f"{start:.1f}s-{end:.1f}s ({duration:.0f}s) - "
-                                            f"no sponsor identified in reason: {reason[:100] if reason else 'None'}"
-                                        )
-                                        continue
-                                    # For shorter segments without evidence, log warning but allow through
-                                    elif duration >= LOW_EVIDENCE_WARN_THRESHOLD:
-                                        logger.warning(
-                                            f"[{slug}:{episode_id}] Low-confidence ad (no sponsor found): "
-                                            f"{start:.1f}s-{end:.1f}s ({duration:.0f}s) - "
-                                            f"reason: {reason[:100] if reason else 'None'}"
-                                        )
-
-                                # Log extracted ad details for production visibility
-                                logger.info(f"[{slug}:{episode_id}] Extracted ad: {start:.1f}s-{end:.1f}s, reason='{reason}', fields={list(ad.keys())}")
-                                ad_entry = {
-                                    'start': start,
-                                    'end': end,
-                                    'confidence': norm_conf,
-                                    'reason': reason,
-                                    'end_text': ad.get('end_text') or ''
-                                }
-                                # Store sponsor name separately for UI display
-                                sponsor_name = extract_sponsor_name(ad)
-                                if sponsor_name and sponsor_name != 'Advertisement detected':
-                                    ad_entry['sponsor'] = sponsor_name
-                                valid_ads.append(ad_entry)
-                        except ValueError as e:
-                            logger.warning(f"[{slug}:{episode_id}] Skipping ad with invalid timestamp: {e}")
+                    try:
+                        start = parse_timestamp(start_val)
+                        end = parse_timestamp(end_val)
+                        if end <= start:
+                            logger.warning(
+                                f"[{slug}:{episode_id}] Discarding ad candidate: "
+                                f"invalid range (start={start:.1f}s >= end={end:.1f}s) - "
+                                f"reason={str(ad.get('reason', ad.get('sponsor', '')))[:80]}"
+                            )
                             continue
+                        # Filter out explicitly marked non-ads
+                        is_ad_val = ad.get('is_ad')
+                        if is_ad_val is not None:
+                            if str(is_ad_val).lower() in ('false', 'no', '0', 'none'):
+                                logger.info(f"[{slug}:{episode_id}] Skipping non-ad: "
+                                            f"{start:.1f}s-{end:.1f}s (is_ad={is_ad_val})")
+                                continue
+
+                        # Filter by classification/type field
+                        classification = str(ad.get('classification') or ad.get('type') or '').lower()
+                        if classification in NOT_AD_CLASSIFICATIONS:
+                            logger.info(f"[{slug}:{episode_id}] Skipping non-ad: "
+                                        f"{start:.1f}s-{end:.1f}s (classification={classification})")
+                            continue
+
+                        # Extract sponsor/advertiser name using priority fields + pattern matching
+                        # Try extract_sponsor_name first for a real sponsor name.
+                        # If it returns the default, fall back to Claude's raw reason.
+                        reason = extract_sponsor_name(ad)
+                        existing_reason = ad.get('reason')
+                        if reason == 'Advertisement detected':
+                            if existing_reason and isinstance(existing_reason, str) and len(existing_reason) > 3:
+                                reason = existing_reason
+                        elif existing_reason and isinstance(existing_reason, str) and len(existing_reason) > len(reason) + 5:
+                            # Claude's reason is substantially more descriptive than the bare sponsor name
+                            reason = existing_reason
+
+                        # Extract description from Claude's response to enrich the reason
+                        # Dynamic scan: check ALL non-structural string fields > 10 chars
+                        # Skip 'reason' (already used above); duplication with sponsor handled at combine time
+                        description = None
+                        for key, val in ad.items():
+                            if key.lower() in STRUCTURAL_FIELDS:
+                                continue
+                            if key == 'reason':
+                                continue  # Already handled as primary reason
+                            if isinstance(val, str) and len(val) > 10:
+                                # Prefer longer descriptive text over short values
+                                if description is None or len(val) > len(description):
+                                    description = val
+                        # Truncate if very long (will be further truncated below)
+                        if description and len(description) > 300:
+                            description = description[:297] + "..."
+
+                        # Combine sponsor + description in reason field
+                        if description:
+                            if reason and reason != 'Advertisement detected':
+                                # Avoid duplication: check if description is essentially the same text
+                                if not _text_is_duplicate(reason, description):
+                                    if len(description) > 150:
+                                        description = description[:147] + "..."
+                                    reason = f"{reason}: {description}"
+                            elif not reason or reason == 'Advertisement detected':
+                                reason = description
+
+                        # Normalize confidence to 0-1 range
+                        raw_conf = ad.get('confidence', 0.8)
+                        if isinstance(raw_conf, str):
+                            mapped = CONFIDENCE_STRING_MAP.get(raw_conf.lower().strip())
+                            if mapped is not None:
+                                logger.debug(f"[{slug}:{episode_id}] Mapped string confidence '{raw_conf}' -> {mapped}")
+                                raw_conf = mapped
+                            else:
+                                raw_conf = raw_conf.rstrip('%')
+                        raw_conf = float(raw_conf)
+                        norm_conf = raw_conf / 100.0 if raw_conf > 1.0 else raw_conf
+                        norm_conf = min(1.0, max(0.0, norm_conf))
+
+                        # Dynamic validation: require positive evidence this is an ad
+                        # instead of blocklisting content indicators (which keeps growing)
+                        duration = end - start
+                        has_sponsor_field = any(
+                            get_valid_value(ad.get(f))
+                            for f in SPONSOR_PRIORITY_FIELDS
+                        )
+                        has_known_sponsor = (
+                            self.sponsor_service and
+                            self.sponsor_service.find_sponsor_in_text(reason)
+                        ) if reason else False
+                        has_ad_language = bool(extract_sponsor_from_text(reason)) if reason else False
+
+                        if not has_sponsor_field and not has_known_sponsor and not has_ad_language:
+                            # Low confidence + no evidence = reject regardless of duration
+                            if norm_conf < LOW_CONFIDENCE:
+                                logger.info(
+                                    f"[{slug}:{episode_id}] Rejecting low-confidence non-sponsor: "
+                                    f"{start:.1f}s-{end:.1f}s ({duration:.0f}s, conf={norm_conf:.0%}) - "
+                                    f"reason: {reason[:100] if reason else 'None'}"
+                                )
+                                continue
+                            # No positive ad evidence -- apply duration gate
+                            # Short segments (<CONTENT_DURATION_THRESHOLD) get benefit of doubt
+                            # Long segments are almost certainly content descriptions
+                            if duration >= CONTENT_DURATION_THRESHOLD:
+                                logger.info(
+                                    f"[{slug}:{episode_id}] Rejecting suspected content: "
+                                    f"{start:.1f}s-{end:.1f}s ({duration:.0f}s) - "
+                                    f"no sponsor identified in reason: {reason[:100] if reason else 'None'}"
+                                )
+                                continue
+                            # For shorter segments without evidence, log warning but allow through
+                            elif duration >= LOW_EVIDENCE_WARN_THRESHOLD:
+                                logger.warning(
+                                    f"[{slug}:{episode_id}] Low-confidence ad (no sponsor found): "
+                                    f"{start:.1f}s-{end:.1f}s ({duration:.0f}s) - "
+                                    f"reason: {reason[:100] if reason else 'None'}"
+                                )
+
+                        # Log extracted ad details for production visibility
+                        logger.info(f"[{slug}:{episode_id}] Extracted ad: {start:.1f}s-{end:.1f}s, reason='{reason}', fields={list(ad.keys())}")
+                        ad_entry = {
+                            'start': start,
+                            'end': end,
+                            'confidence': norm_conf,
+                            'reason': reason,
+                            'end_text': ad.get('end_text') or ''
+                        }
+                        # Store sponsor name separately for UI display
+                        sponsor_name = extract_sponsor_name(ad)
+                        if sponsor_name and sponsor_name != 'Advertisement detected':
+                            ad_entry['sponsor'] = sponsor_name
+                        valid_ads.append(ad_entry)
+                    except ValueError as e:
+                        logger.warning(f"[{slug}:{episode_id}] Skipping ad with invalid timestamp: {e}")
+                        continue
 
             return valid_ads
 

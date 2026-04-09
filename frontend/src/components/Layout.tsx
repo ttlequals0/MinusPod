@@ -74,6 +74,16 @@ function Layout() {
                   History
                 </Link>
                 <Link
+                  to="/stats"
+                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    isActive('/stats')
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                  }`}
+                >
+                  Stats
+                </Link>
+                <Link
                   to="/settings"
                   className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                     isActive('/settings')
@@ -185,6 +195,17 @@ function Layout() {
                 }`}
               >
                 History
+              </Link>
+              <Link
+                to="/stats"
+                onClick={() => setMobileMenuOpen(false)}
+                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  isActive('/stats')
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                }`}
+              >
+                Stats
               </Link>
               <Link
                 to="/settings"

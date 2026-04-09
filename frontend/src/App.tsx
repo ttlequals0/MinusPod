@@ -10,6 +10,7 @@ import AddFeed from './pages/AddFeed';
 import Settings from './pages/Settings';
 import PatternsPage from './pages/PatternsPage';
 import HistoryPage from './pages/HistoryPage';
+import StatsPage from './pages/StatsPage';
 import Login from './pages/Login';
 import Search from './pages/Search';
 
@@ -29,6 +30,7 @@ function App() {
               <Route path="search" element={<Search />} />
               <Route path="patterns" element={<PatternsPage />} />
               <Route path="history" element={<HistoryPage />} />
+              <Route path="stats" element={<StatsPage />} />
               <Route path="settings" element={<Settings />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>

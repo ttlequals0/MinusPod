@@ -6,6 +6,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.95] - 2026-04-09
+
+### Fixed
+- **History page filter broken**: Podcast name filter did nothing due to parameter mismatch -- frontend sent `podcast_slug`, backend read `podcast`. Fixed in both history list and export endpoints.
+- **Ad detection confidence threshold**: Lowered `medium`/`moderate` confidence mapping from 0.80 to 0.75. The previous value exactly equaled `MIN_CUT_CONFIDENCE`, causing borderline ads to be silently dropped. Added warning logs for discarded ad candidates (missing timestamps, invalid ranges) to aid debugging.
+- **Ad editor seek-to-marker plays from start**: Jumping to an ad marker from the episode detail page reset audio to the ad start instead of the clicked timestamp. Fixed competing useEffect race condition with a ref-based guard.
+- **Feed 404s logged as ERROR**: Bot/crawler requests for non-existent feeds (e.g. security-weekly, lex-fridman) logged as ERROR. Now logged as WARNING since these are expected for unknown feeds.
+
+### Added
+- **LLM auth failure webhook**: New `Auth Failure` webhook event fires when LLM provider returns 401/403, with 5-minute dedup to prevent spam. Integrates with existing webhook infrastructure (HMAC signatures, enabled/events filtering).
+- **Memory monitoring**: Logs available GPU/system memory at episode processing start and end. Runs `gc.collect()` + `clear_gpu_memory()` after each episode to prevent fragmentation.
+- **Stats page**: New `/stats` page with dashboard metrics (avg/min/max time saved, ads removed, cost, processing time, episode length), charts for top podcasts by ads and episodes processed by day of week, and a full podcast stats table. Filter by podcast. Three new API endpoints: `GET /stats/dashboard`, `GET /stats/by-day`, `GET /stats/by-podcast`.
+
 ## [1.0.94] - 2026-04-07
 
 ### Fixed

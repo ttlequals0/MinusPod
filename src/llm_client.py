@@ -964,6 +964,30 @@ def is_llm_api_error(error: Exception) -> bool:
     return False
 
 
+def is_auth_error(error: Exception) -> bool:
+    """Check if error is an LLM authentication/authorization failure (401/403)."""
+    if ANTHROPIC_ERRORS_AVAILABLE:
+        from anthropic import APIError, AuthenticationError, PermissionDeniedError
+        if isinstance(error, (AuthenticationError, PermissionDeniedError)):
+            return True
+        if isinstance(error, APIError):
+            status = getattr(error, 'status_code', None)
+            if status in (401, 403):
+                return True
+    try:
+        from openai import AuthenticationError as OpenAIAuthError
+        if isinstance(error, OpenAIAuthError):
+            return True
+        from openai import APIError as OpenAIAPIError
+        if isinstance(error, OpenAIAPIError):
+            status = getattr(error, 'status_code', None)
+            if status in (401, 403):
+                return True
+    except ImportError:
+        pass
+    return False
+
+
 def is_rate_limit_error(error: Exception) -> bool:
     """Check if an error is specifically a rate limit error.
 

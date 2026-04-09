@@ -510,3 +510,144 @@ class StatsMixin:
             'new_duration': row['new_duration'],
             'podcast_title': row['podcast_title'],
         }
+
+    def get_dashboard_stats(self, podcast_slug: str = None) -> Dict:
+        """Get aggregate dashboard stats with avg/min/max, optionally filtered by podcast."""
+        conn = self.get_connection()
+        where_clauses = ["h.status = 'completed'"]
+        params = []
+        if podcast_slug:
+            where_clauses.append("h.podcast_slug = ?")
+            params.append(podcast_slug)
+        where_sql = " AND ".join(where_clauses)
+
+        row = conn.execute(
+            f"""SELECT
+                COUNT(*) AS total_episodes,
+                COALESCE(AVG(h.ads_detected), 0) AS avg_ads_removed,
+                COALESCE(MIN(h.ads_detected), 0) AS min_ads_removed,
+                COALESCE(MAX(h.ads_detected), 0) AS max_ads_removed,
+                COALESCE(SUM(h.ads_detected), 0) AS total_ads_removed,
+                COALESCE(AVG(h.llm_cost), 0) AS avg_cost,
+                COALESCE(MIN(h.llm_cost), 0) AS min_cost,
+                COALESCE(MAX(h.llm_cost), 0) AS max_cost,
+                COALESCE(AVG(h.processing_duration_seconds), 0) AS avg_processing_time,
+                COALESCE(MIN(h.processing_duration_seconds), 0) AS min_processing_time,
+                COALESCE(MAX(h.processing_duration_seconds), 0) AS max_processing_time,
+                COALESCE(AVG(e.original_duration), 0) AS avg_episode_length,
+                COALESCE(MIN(e.original_duration), 0) AS min_episode_length,
+                COALESCE(MAX(e.original_duration), 0) AS max_episode_length,
+                COALESCE(AVG(CASE WHEN e.original_duration > 0 AND e.new_duration > 0
+                    THEN e.original_duration - e.new_duration END), 0) AS avg_time_saved,
+                COALESCE(MIN(CASE WHEN e.original_duration > 0 AND e.new_duration > 0
+                    THEN e.original_duration - e.new_duration END), 0) AS min_time_saved,
+                COALESCE(MAX(CASE WHEN e.original_duration > 0 AND e.new_duration > 0
+                    THEN e.original_duration - e.new_duration END), 0) AS max_time_saved,
+                COALESCE(SUM(CASE WHEN e.original_duration > 0 AND e.new_duration > 0
+                    THEN e.original_duration - e.new_duration END), 0) AS total_time_saved
+            FROM processing_history h
+            LEFT JOIN episodes e ON e.episode_id = h.episode_id
+                AND e.podcast_slug = h.podcast_slug
+            WHERE {where_sql}""",
+            params
+        ).fetchone()
+
+        if not row or row['total_episodes'] == 0:
+            return {k: 0 for k in [
+                'totalEpisodesProcessed', 'avgTimeSavedSeconds', 'minTimeSavedSeconds',
+                'maxTimeSavedSeconds', 'totalTimeSavedSeconds', 'avgAdsRemoved',
+                'minAdsRemoved', 'maxAdsRemoved', 'totalAdsRemoved',
+                'avgCostPerEpisode', 'minCostPerEpisode', 'maxCostPerEpisode',
+                'avgProcessingTimeSeconds', 'minProcessingTimeSeconds',
+                'maxProcessingTimeSeconds', 'avgEpisodeLengthSeconds',
+                'minEpisodeLengthSeconds', 'maxEpisodeLengthSeconds',
+            ]}
+
+        return {
+            'totalEpisodesProcessed': row['total_episodes'],
+            'avgTimeSavedSeconds': round(row['avg_time_saved'], 1),
+            'minTimeSavedSeconds': round(row['min_time_saved'], 1),
+            'maxTimeSavedSeconds': round(row['max_time_saved'], 1),
+            'totalTimeSavedSeconds': round(row['total_time_saved'], 1),
+            'avgAdsRemoved': round(row['avg_ads_removed'], 1),
+            'minAdsRemoved': row['min_ads_removed'],
+            'maxAdsRemoved': row['max_ads_removed'],
+            'totalAdsRemoved': row['total_ads_removed'],
+            'avgCostPerEpisode': round(row['avg_cost'], 6),
+            'minCostPerEpisode': round(row['min_cost'], 6),
+            'maxCostPerEpisode': round(row['max_cost'], 6),
+            'avgProcessingTimeSeconds': round(row['avg_processing_time'], 1),
+            'minProcessingTimeSeconds': round(row['min_processing_time'], 1),
+            'maxProcessingTimeSeconds': round(row['max_processing_time'], 1),
+            'avgEpisodeLengthSeconds': round(row['avg_episode_length'], 1),
+            'minEpisodeLengthSeconds': round(row['min_episode_length'], 1),
+            'maxEpisodeLengthSeconds': round(row['max_episode_length'], 1),
+        }
+
+    def get_stats_by_day(self, podcast_slug: str = None) -> List[Dict]:
+        """Get episode processing counts by day of week."""
+        conn = self.get_connection()
+        where_clauses = ["status = 'completed'"]
+        params = []
+        if podcast_slug:
+            where_clauses.append("podcast_slug = ?")
+            params.append(podcast_slug)
+        where_sql = " AND ".join(where_clauses)
+
+        rows = conn.execute(
+            f"""SELECT
+                CAST(strftime('%w', processed_at) AS INTEGER) AS day_of_week,
+                COUNT(*) AS count,
+                COALESCE(AVG(ads_detected), 0) AS avg_ads
+            FROM processing_history
+            WHERE {where_sql} AND processed_at IS NOT NULL
+            GROUP BY day_of_week
+            ORDER BY day_of_week""",
+            params
+        ).fetchall()
+
+        day_names = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+        result = []
+        day_map = {r['day_of_week']: r for r in rows}
+        for i in range(7):
+            r = day_map.get(i)
+            result.append({
+                'day': day_names[i],
+                'dayIndex': i,
+                'count': r['count'] if r else 0,
+                'avgAds': round(r['avg_ads'], 1) if r else 0,
+            })
+        return result
+
+    def get_stats_by_podcast(self) -> List[Dict]:
+        """Get per-podcast aggregate stats, ordered by total ads removed."""
+        conn = self.get_connection()
+        rows = conn.execute(
+            """SELECT
+                h.podcast_slug,
+                h.podcast_title,
+                COUNT(*) AS episode_count,
+                COALESCE(SUM(h.ads_detected), 0) AS total_ads,
+                COALESCE(AVG(h.ads_detected), 0) AS avg_ads,
+                COALESCE(AVG(e.original_duration), 0) AS avg_episode_length,
+                COALESCE(AVG(CASE WHEN e.original_duration > 0 AND e.new_duration > 0
+                    THEN e.original_duration - e.new_duration END), 0) AS avg_time_saved,
+                COALESCE(SUM(h.llm_cost), 0) AS total_cost
+            FROM processing_history h
+            LEFT JOIN episodes e ON e.episode_id = h.episode_id
+                AND e.podcast_slug = h.podcast_slug
+            WHERE h.status = 'completed'
+            GROUP BY h.podcast_slug
+            ORDER BY total_ads DESC"""
+        ).fetchall()
+
+        return [{
+            'podcastSlug': r['podcast_slug'],
+            'podcastTitle': r['podcast_title'],
+            'episodeCount': r['episode_count'],
+            'totalAds': r['total_ads'],
+            'avgAds': round(r['avg_ads'], 1),
+            'avgEpisodeLengthSeconds': round(r['avg_episode_length'], 1),
+            'avgTimeSavedSeconds': round(r['avg_time_saved'], 1),
+            'totalCost': round(r['total_cost'], 6),
+        } for r in rows]

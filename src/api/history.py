@@ -33,7 +33,7 @@ def get_processing_history():
         offset = max(0, request.args.get('offset', 0, type=int))
         page = (offset // limit) + 1
     status_filter = request.args.get('status')  # 'completed' or 'failed'
-    podcast_slug = request.args.get('podcast')
+    podcast_slug = request.args.get('podcast_slug')
     sort_by = request.args.get('sort_by', 'processed_at')
     sort_dir = request.args.get('sort_dir', 'desc')
 
@@ -106,7 +106,7 @@ def export_processing_history():
     # Parse query params
     export_format = request.args.get('format', 'json').lower()
     status_filter = request.args.get('status')
-    podcast_slug = request.args.get('podcast')
+    podcast_slug = request.args.get('podcast_slug')
 
     entries = db.export_processing_history(
         status_filter=status_filter,
