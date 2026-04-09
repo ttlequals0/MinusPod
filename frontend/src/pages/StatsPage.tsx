@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -7,6 +7,30 @@ import {
 import { getDashboardStats, getStatsByDay, getStatsByPodcast } from '../api/stats';
 import { getFeeds } from '../api/feeds';
 import LoadingSpinner from '../components/LoadingSpinner';
+
+function useThemeColors() {
+  const [colors, setColors] = useState({ primary: '', card: '', border: '', foreground: '', muted: '' });
+  useEffect(() => {
+    function resolve(name: string) {
+      const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+      return raw ? `hsl(${raw})` : '';
+    }
+    function update() {
+      setColors({
+        primary: resolve('--primary'),
+        card: resolve('--card'),
+        border: resolve('--border'),
+        foreground: resolve('--foreground'),
+        muted: resolve('--muted-foreground'),
+      });
+    }
+    update();
+    const obs = new MutationObserver(update);
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'data-theme'] });
+    return () => obs.disconnect();
+  }, []);
+  return colors;
+}
 
 function formatDuration(seconds: number): string {
   if (seconds < 60) return `${Math.round(seconds)}s`;
@@ -18,18 +42,26 @@ function formatCost(cost: number): string {
   return `$${cost.toFixed(4)}`;
 }
 
-const TOOLTIP_STYLE = {
-  contentStyle: { backgroundColor: 'var(--card, #1a1a2e)', border: '1px solid var(--border, #333)', color: 'var(--foreground, #fff)' },
-  labelStyle: { color: 'var(--foreground, #fff)' },
-};
-
-const CHART_COLORS = [
-  '#6366f1', '#8b5cf6', '#a78bfa', '#c4b5fd', '#7c3aed',
-  '#4f46e5', '#818cf8', '#a5b4fc', '#6d28d9', '#5b21b6',
-];
+function generateChartColors(primary: string, count: number): string[] {
+  if (!primary) return Array(count).fill('#6366f1');
+  const match = primary.match(/hsl\((\d+)/);
+  if (!match) return Array(count).fill(primary);
+  const hue = parseInt(match[1], 10);
+  return Array.from({ length: count }, (_, i) => {
+    const h = (hue + i * 25) % 360;
+    const l = 45 + (i % 3) * 10;
+    return `hsl(${h}, 60%, ${l}%)`;
+  });
+}
 
 export default function StatsPage() {
+  const theme = useThemeColors();
   const [podcastFilter, setPodcastFilter] = useState('');
+
+  const tooltipStyle = useMemo(() => ({
+    contentStyle: { backgroundColor: theme.card || '#1a1a2e', border: `1px solid ${theme.border || '#333'}`, color: theme.foreground || '#fff' },
+    labelStyle: { color: theme.foreground || '#fff' },
+  }), [theme.card, theme.border, theme.foreground]);
 
   const { data: feeds } = useQuery({
     queryKey: ['feeds'],
@@ -55,6 +87,11 @@ export default function StatsPage() {
     if (!byPodcast?.podcasts) return [];
     return byPodcast.podcasts.slice(0, 10);
   }, [byPodcast]);
+
+  const chartColors = useMemo(
+    () => generateChartColors(theme.primary, topPodcasts.length),
+    [theme.primary, topPodcasts.length]
+  );
 
   if (dashLoading && dayLoading && podLoading) {
     return <LoadingSpinner className="py-12" />;
@@ -140,19 +177,19 @@ export default function StatsPage() {
             <h2 className="text-lg font-semibold text-foreground mb-4">Top Podcasts by Ads Removed</h2>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={topPodcasts} layout="vertical" margin={{ left: 20, right: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border, #333)" />
-                <XAxis type="number" tick={{ fill: 'var(--muted-foreground, #888)', fontSize: 12 }} />
+                <CartesianGrid strokeDasharray="3 3" stroke={theme.border || '#333'} />
+                <XAxis type="number" tick={{ fill: theme.muted || '#888', fontSize: 12 }} />
                 <YAxis
                   dataKey="podcastTitle"
                   type="category"
                   width={120}
-                  tick={{ fill: 'var(--muted-foreground, #888)', fontSize: 11 }}
+                  tick={{ fill: theme.muted || '#888', fontSize: 11 }}
                   tickFormatter={(v: string) => v.length > 18 ? v.slice(0, 16) + '..' : v}
                 />
-                <Tooltip {...TOOLTIP_STYLE} />
+                <Tooltip {...tooltipStyle} />
                 <Bar dataKey="totalAds" name="Total Ads" radius={[0, 4, 4, 0]}>
                   {topPodcasts.map((_, i) => (
-                    <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                    <Cell key={i} fill={chartColors[i]} />
                   ))}
                 </Bar>
               </BarChart>
@@ -166,15 +203,15 @@ export default function StatsPage() {
             <h2 className="text-lg font-semibold text-foreground mb-4">Episodes Processed by Day</h2>
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={byDay.days} margin={{ left: 0, right: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="var(--border, #333)" />
+                <CartesianGrid strokeDasharray="3 3" stroke={theme.border || '#333'} />
                 <XAxis
                   dataKey="day"
-                  tick={{ fill: 'var(--muted-foreground, #888)', fontSize: 12 }}
+                  tick={{ fill: theme.muted || '#888', fontSize: 12 }}
                   tickFormatter={(v: string) => v.slice(0, 3)}
                 />
-                <YAxis tick={{ fill: 'var(--muted-foreground, #888)', fontSize: 12 }} />
-                <Tooltip {...TOOLTIP_STYLE} />
-                <Bar dataKey="count" name="Episodes" fill="#6366f1" radius={[4, 4, 0, 0]} />
+                <YAxis tick={{ fill: theme.muted || '#888', fontSize: 12 }} />
+                <Tooltip {...tooltipStyle} />
+                <Bar dataKey="count" name="Episodes" fill={theme.primary || '#6366f1'} radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

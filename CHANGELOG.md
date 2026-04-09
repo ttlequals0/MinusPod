@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.96] - 2026-04-09
+
+### Fixed
+- **Stats page 500 error**: SQL JOINs used `e.podcast_slug` which doesn't exist on the `episodes` table. Fixed to `e.podcast_id`. Also fixed pre-existing same bug in `get_latest_completed_processing` (webhook duration data).
+- **Stats page chart theming**: Charts now use CSS custom properties from the active theme instead of hardcoded hex colors. Theme changes apply automatically via MutationObserver.
+
 ## [1.0.95] - 2026-04-09
 
 ### Fixed

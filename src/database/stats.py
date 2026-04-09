@@ -492,7 +492,7 @@ class StatsMixin:
                       e.original_duration, e.new_duration, h.podcast_title
                FROM processing_history h
                LEFT JOIN episodes e ON e.episode_id = h.episode_id
-                   AND e.podcast_slug = h.podcast_slug
+                   AND e.podcast_id = h.podcast_id
                WHERE h.status = 'completed'
                ORDER BY h.processed_at DESC
                LIMIT 1"""
@@ -547,7 +547,7 @@ class StatsMixin:
                     THEN e.original_duration - e.new_duration END), 0) AS total_time_saved
             FROM processing_history h
             LEFT JOIN episodes e ON e.episode_id = h.episode_id
-                AND e.podcast_slug = h.podcast_slug
+                AND e.podcast_id = h.podcast_id
             WHERE {where_sql}""",
             params
         ).fetchone()
@@ -635,7 +635,7 @@ class StatsMixin:
                 COALESCE(SUM(h.llm_cost), 0) AS total_cost
             FROM processing_history h
             LEFT JOIN episodes e ON e.episode_id = h.episode_id
-                AND e.podcast_slug = h.podcast_slug
+                AND e.podcast_id = h.podcast_id
             WHERE h.status = 'completed'
             GROUP BY h.podcast_slug
             ORDER BY total_ads DESC"""
