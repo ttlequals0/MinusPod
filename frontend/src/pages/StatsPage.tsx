@@ -20,7 +20,7 @@ function useThemeColors() {
         primary: resolve('--primary'),
         card: resolve('--card'),
         border: resolve('--border'),
-        foreground: resolve('--foreground'),
+        foreground: resolve('--card-foreground'),
         muted: resolve('--muted-foreground'),
       });
     }
@@ -44,13 +44,14 @@ function formatCost(cost: number): string {
 
 function generateChartColors(primary: string, count: number): string[] {
   if (!primary) return Array(count).fill('#6366f1');
-  const match = primary.match(/hsl\((\d+)/);
+  const match = primary.match(/hsl\((\d[\d.]*)\s*[ ,]\s*(\d[\d.]*)%?\s*[ ,]\s*(\d[\d.]*)%?\)/);
   if (!match) return Array(count).fill(primary);
-  const hue = parseInt(match[1], 10);
+  const hue = parseFloat(match[1]);
+  const sat = parseFloat(match[2]);
   return Array.from({ length: count }, (_, i) => {
-    const h = (hue + i * 25) % 360;
-    const l = 45 + (i % 3) * 10;
-    return `hsl(${h}, 60%, ${l}%)`;
+    const h = (hue + i * 20) % 360;
+    const l = 50 + (i % 4) * 8;
+    return `hsl(${h}, ${Math.max(sat, 55)}%, ${l}%)`;
   });
 }
 
@@ -178,12 +179,12 @@ export default function StatsPage() {
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={topPodcasts} layout="vertical" margin={{ left: 20, right: 20 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={theme.border || '#333'} />
-                <XAxis type="number" tick={{ fill: theme.muted || '#888', fontSize: 12 }} />
+                <XAxis type="number" tick={{ fill: theme.foreground || '#fff', fontSize: 12 }} />
                 <YAxis
                   dataKey="podcastTitle"
                   type="category"
-                  width={120}
-                  tick={{ fill: theme.muted || '#888', fontSize: 11 }}
+                  width={130}
+                  tick={{ fill: theme.foreground || '#fff', fontSize: 12 }}
                   tickFormatter={(v: string) => v.length > 18 ? v.slice(0, 16) + '..' : v}
                 />
                 <Tooltip {...tooltipStyle} />
@@ -206,12 +207,12 @@ export default function StatsPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke={theme.border || '#333'} />
                 <XAxis
                   dataKey="day"
-                  tick={{ fill: theme.muted || '#888', fontSize: 12 }}
+                  tick={{ fill: theme.foreground || '#fff', fontSize: 12 }}
                   tickFormatter={(v: string) => v.slice(0, 3)}
                 />
-                <YAxis tick={{ fill: theme.muted || '#888', fontSize: 12 }} />
+                <YAxis tick={{ fill: theme.foreground || '#fff', fontSize: 12 }} />
                 <Tooltip {...tooltipStyle} />
-                <Bar dataKey="count" name="Episodes" fill={theme.primary || '#6366f1'} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="count" name="Episodes" fill={theme.primary || '#6366f1'} fillOpacity={0.85} radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -223,7 +224,7 @@ export default function StatsPage() {
         <div className="bg-card rounded-lg border border-border overflow-hidden">
           <h2 className="text-lg font-semibold text-foreground p-4 pb-2">All Podcasts</h2>
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[600px]">
               <thead className="bg-muted/50">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Podcast</th>
