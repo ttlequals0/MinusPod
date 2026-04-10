@@ -547,7 +547,9 @@ class StatsMixin:
                     THEN e.original_duration - e.new_duration END), 0) AS total_time_saved,
                 COALESCE(SUM(h.input_tokens), 0) AS total_input_tokens,
                 COALESCE(SUM(h.output_tokens), 0) AS total_output_tokens,
-                COALESCE(SUM(h.llm_cost), 0) AS total_llm_cost
+                COALESCE(SUM(h.llm_cost), 0) AS total_llm_cost,
+                COALESCE(AVG(h.input_tokens), 0) AS avg_input_tokens,
+                COALESCE(AVG(h.output_tokens), 0) AS avg_output_tokens
             FROM processing_history h
             LEFT JOIN episodes e ON e.episode_id = h.episode_id
                 AND e.podcast_id = h.podcast_id
@@ -565,6 +567,7 @@ class StatsMixin:
                 'maxProcessingTimeSeconds', 'avgEpisodeLengthSeconds',
                 'minEpisodeLengthSeconds', 'maxEpisodeLengthSeconds',
                 'totalInputTokens', 'totalOutputTokens', 'totalLlmCost',
+                'avgInputTokens', 'avgOutputTokens',
             ]}
 
         return {
@@ -589,6 +592,8 @@ class StatsMixin:
             'totalInputTokens': row['total_input_tokens'],
             'totalOutputTokens': row['total_output_tokens'],
             'totalLlmCost': round(row['total_llm_cost'], 6),
+            'avgInputTokens': round(row['avg_input_tokens']),
+            'avgOutputTokens': round(row['avg_output_tokens']),
         }
 
     def get_stats_by_day(self, podcast_slug: str = None) -> List[Dict]:

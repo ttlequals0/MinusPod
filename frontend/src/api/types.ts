@@ -338,6 +338,8 @@ export interface DashboardStats {
   totalInputTokens: number;
   totalOutputTokens: number;
   totalLlmCost: number;
+  avgInputTokens: number;
+  avgOutputTokens: number;
 }
 
 export interface DayStats {

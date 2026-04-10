@@ -119,7 +119,7 @@ export default function StatsPage() {
 
       {/* Summary Cards */}
       {dashboard && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
           <StatCard
             label="Avg Time Saved"
             value={formatDuration(dashboard.avgTimeSavedSeconds)}
@@ -149,6 +149,12 @@ export default function StatsPage() {
             value={formatDuration(dashboard.avgEpisodeLengthSeconds)}
             min={formatDuration(dashboard.minEpisodeLengthSeconds)}
             max={formatDuration(dashboard.maxEpisodeLengthSeconds)}
+          />
+          <StatCard
+            label="Avg Tokens/Episode"
+            value={formatTokenCount(dashboard.avgInputTokens + dashboard.avgOutputTokens)}
+            min={`In: ${formatTokenCount(dashboard.avgInputTokens)}`}
+            max={`Out: ${formatTokenCount(dashboard.avgOutputTokens)}`}
           />
         </div>
       )}
