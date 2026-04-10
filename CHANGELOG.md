@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.98] - 2026-04-10
+
+### Changed
+- **Fuzzy timestamp field matching**: Replaced hardcoded field name list with pattern-based matching for LLM response timestamps. Any key containing "start"/"end" that isn't a known text field (e.g. start_note, endorser) is now accepted as a timestamp. Eliminates the need to add new field names every time the LLM invents a variant.
+
 ## [1.0.97] - 2026-04-10
 
 ### Fixed

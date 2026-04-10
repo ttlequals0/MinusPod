@@ -1328,9 +1328,9 @@ class AdDetector:
                            if isinstance(s, dict) and s.get('type') == 'advertisement']
                     return ads, "json_object_segments_key"
                 # Single ad object (e.g. Ollama/qwen3 returns bare dict instead of array)
-                _start_keys = ('start', 'start_time', 'start_timestamp', 'ad_start_timestamp', 'start_time_seconds')
-                _end_keys = ('end', 'end_time', 'end_timestamp', 'ad_end_timestamp', 'end_time_seconds')
-                if any(k in parsed for k in _start_keys) and any(k in parsed for k in _end_keys):
+                _has_start = any('start' in k.lower() for k in parsed)
+                _has_end = any('end' in k.lower() and k.lower() != 'endorser' for k in parsed)
+                if _has_start and _has_end:
                     logger.info(f"[{slug}:{episode_id}] Single ad object detected, wrapping in array")
                     return [parsed], "json_object_single_ad"
                 return [], "json_object_no_ads"
@@ -1483,18 +1483,25 @@ class AdDetector:
                 if isinstance(ad, dict):
                     # Log raw ad object for debugging
                     logger.debug(f"[{slug}:{episode_id}] Raw ad from LLM: {json.dumps(ad, default=str)[:500]}")
-                    # Try various field name patterns for start/end times
-                    # Use first_not_none instead of `or` to avoid dropping 0.0 (pre-roll ads)
-                    start_val = first_not_none(
-                        ad.get('start'), ad.get('start_time'), ad.get('start_timestamp'),
-                        ad.get('ad_start'), ad.get('ad_start_timestamp'),
-                        ad.get('timestamp_start'), ad.get('start_time_seconds')
-                    )
-                    end_val = first_not_none(
-                        ad.get('end'), ad.get('end_time'), ad.get('end_timestamp'),
-                        ad.get('ad_end'), ad.get('ad_end_timestamp'),
-                        ad.get('timestamp_end'), ad.get('end_time_seconds')
-                    )
+                    # Fuzzy-match start/end timestamp fields from LLM response.
+                    # The LLM uses inconsistent field names across runs (start_time,
+                    # ad_start, timestamp_start, start_time_seconds, etc). Instead of
+                    # maintaining an ever-growing allowlist, match any key containing
+                    # 'start'/'end' that isn't a known text field.
+                    _SKIP_SUFFIXES = ('_note', '_text', '_snip', '_quote', '_description')
+                    _SKIP_KEYS = {'endorser', 'endorsed', 'price_starting', 'starting_point'}
+                    start_val = None
+                    end_val = None
+                    for k, v in ad.items():
+                        kl = k.lower()
+                        if kl in _SKIP_KEYS or any(kl.endswith(s) for s in _SKIP_SUFFIXES):
+                            continue
+                        if v is None:
+                            continue
+                        if start_val is None and 'start' in kl:
+                            start_val = v
+                        elif end_val is None and 'end' in kl and kl != 'endorser':
+                            end_val = v
 
                     if start_val is None or end_val is None:
                         logger.warning(
