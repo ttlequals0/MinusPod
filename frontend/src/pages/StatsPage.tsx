@@ -85,6 +85,45 @@ export default function StatsPage() {
     queryFn: getStatsByPodcast,
   });
 
+  type PodcastSortField = 'podcastTitle' | 'episodeCount' | 'totalAds' | 'avgAds' | 'avgTimeSavedSeconds' | 'avgEpisodeLengthSeconds' | 'totalCost' | 'avgTokensPerEpisode';
+  const [sortField, setSortField] = useState<PodcastSortField>('totalAds');
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+  const handleSort = (field: PodcastSortField) => {
+    if (sortField === field) {
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDir('desc');
+    }
+  };
+
+  const SortTh = ({ field, label, align = 'right', className = '' }: {
+    field: PodcastSortField; label: string; align?: 'left' | 'right'; className?: string;
+  }) => (
+    <th
+      className={`px-4 py-3 text-${align} text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer hover:bg-accent/50 ${className}`}
+      onClick={() => handleSort(field)}
+    >
+      <div className={`flex items-center gap-1 ${align === 'right' ? 'justify-end' : ''}`}>
+        {label}
+        {sortField === field && (
+          <span className="text-foreground">{sortDir === 'asc' ? '\u25B2' : '\u25BC'}</span>
+        )}
+      </div>
+    </th>
+  );
+
+  const sortedPodcasts = useMemo(() => {
+    if (!byPodcast?.podcasts) return [];
+    return [...byPodcast.podcasts].sort((a, b) => {
+      const aVal = a[sortField];
+      const bVal = b[sortField];
+      if (typeof aVal === 'string') return sortDir === 'asc' ? aVal.localeCompare(bVal as string) : (bVal as string).localeCompare(aVal);
+      return sortDir === 'asc' ? (aVal as number) - (bVal as number) : (bVal as number) - (aVal as number);
+    });
+  }, [byPodcast, sortField, sortDir]);
+
   const topPodcasts = useMemo(() => {
     if (!byPodcast?.podcasts) return [];
     return byPodcast.podcasts.slice(0, 10);
@@ -237,10 +276,10 @@ export default function StatsPage() {
 
       {/* Podcast Stats Table */}
       {/* Mobile Card Layout */}
-      {byPodcast?.podcasts && byPodcast.podcasts.length > 0 && (
+      {sortedPodcasts.length > 0 && (
         <div className="sm:hidden space-y-3">
           <h2 className="text-lg font-semibold text-foreground">All Podcasts</h2>
-          {byPodcast.podcasts.map((p) => (
+          {sortedPodcasts.map((p) => (
             <div key={p.podcastSlug} className="bg-card rounded-lg border border-border p-4">
               <p className="text-sm font-medium text-foreground mb-2">{p.podcastTitle}</p>
               <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
@@ -256,8 +295,8 @@ export default function StatsPage() {
                 <span className="text-foreground text-right">{formatDuration(p.avgEpisodeLengthSeconds)}</span>
                 <span className="text-muted-foreground">Total Cost</span>
                 <span className="text-foreground text-right">{formatCost(p.totalCost)}</span>
-                <span className="text-muted-foreground">Avg Tokens</span>
-                <span className="text-foreground text-right">{formatTokenCount(p.avgTokensPerEpisode)}</span>
+                <span className="text-muted-foreground">Tokens (In/Out)</span>
+                <span className="text-foreground text-right">{formatTokenCount(p.totalInputTokens)} / {formatTokenCount(p.totalOutputTokens)}</span>
               </div>
             </div>
           ))}
@@ -265,25 +304,25 @@ export default function StatsPage() {
       )}
 
       {/* Desktop Table Layout */}
-      {byPodcast?.podcasts && byPodcast.podcasts.length > 0 && (
+      {sortedPodcasts.length > 0 && (
         <div className="hidden sm:block bg-card rounded-lg border border-border overflow-hidden">
           <h2 className="text-lg font-semibold text-foreground p-4 pb-2">All Podcasts</h2>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-muted/50">
                 <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Podcast</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Episodes</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Total Ads</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Avg Ads</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Avg Time Saved</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider hidden lg:table-cell">Avg Length</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider hidden lg:table-cell">Total Cost</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider hidden lg:table-cell">Avg Tokens</th>
+                  <SortTh field="podcastTitle" label="Podcast" align="left" />
+                  <SortTh field="episodeCount" label="Episodes" />
+                  <SortTh field="totalAds" label="Total Ads" />
+                  <SortTh field="avgAds" label="Avg Ads" />
+                  <SortTh field="avgTimeSavedSeconds" label="Avg Time Saved" />
+                  <SortTh field="avgEpisodeLengthSeconds" label="Avg Length" className="hidden lg:table-cell" />
+                  <SortTh field="totalCost" label="Total Cost" className="hidden lg:table-cell" />
+                  <SortTh field="avgTokensPerEpisode" label="Avg Tokens" className="hidden lg:table-cell" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {byPodcast.podcasts.map((p) => (
+                {sortedPodcasts.map((p) => (
                   <tr key={p.podcastSlug} className="hover:bg-muted/50">
                     <td className="px-4 py-3 text-sm text-foreground font-medium truncate max-w-[200px]">{p.podcastTitle}</td>
                     <td className="px-4 py-3 text-sm text-muted-foreground text-right">{p.episodeCount}</td>
@@ -292,7 +331,10 @@ export default function StatsPage() {
                     <td className="px-4 py-3 text-sm text-muted-foreground text-right">{formatDuration(p.avgTimeSavedSeconds)}</td>
                     <td className="px-4 py-3 text-sm text-muted-foreground text-right hidden lg:table-cell">{formatDuration(p.avgEpisodeLengthSeconds)}</td>
                     <td className="px-4 py-3 text-sm text-muted-foreground text-right hidden lg:table-cell">{formatCost(p.totalCost)}</td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground text-right hidden lg:table-cell">{formatTokenCount(p.avgTokensPerEpisode)}</td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground text-right hidden lg:table-cell">
+                      <span>{formatTokenCount(p.avgTokensPerEpisode)}</span>
+                      <span className="text-xs text-muted-foreground ml-1">({formatTokenCount(p.totalInputTokens)}/{formatTokenCount(p.totalOutputTokens)})</span>
+                    </td>
                   </tr>
                 ))}
               </tbody>

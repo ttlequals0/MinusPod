@@ -665,6 +665,7 @@ class StatsMixin:
             'avgEpisodeLengthSeconds': round(r['avg_episode_length'], 1),
             'avgTimeSavedSeconds': round(r['avg_time_saved'], 1),
             'totalCost': round(r['total_cost'], 6),
-            'totalTokens': r['total_input_tokens'] + r['total_output_tokens'],
+            'totalInputTokens': r['total_input_tokens'],
+            'totalOutputTokens': r['total_output_tokens'],
             'avgTokensPerEpisode': round(r['avg_tokens_per_episode']),
         } for r in rows]

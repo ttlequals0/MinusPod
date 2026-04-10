@@ -358,6 +358,7 @@ export interface PodcastStats {
   avgEpisodeLengthSeconds: number;
   avgTimeSavedSeconds: number;
   totalCost: number;
-  totalTokens: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
   avgTokensPerEpisode: number;
 }
