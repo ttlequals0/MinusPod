@@ -992,6 +992,121 @@ paths:
                 items:
                   $ref: '#/components/schemas/ProcessingEpisode'
 
+  /stats/dashboard:
+    get:
+      tags:
+        - Stats
+      summary: Get dashboard statistics
+      description: Returns aggregate stats with avg/min/max for time saved, ads removed, cost, processing time, episode length, and token usage. Optionally filtered by podcast.
+      parameters:
+        - name: podcast_slug
+          in: query
+          description: Filter by podcast slug
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Dashboard statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totalEpisodesProcessed:
+                    type: integer
+                  avgTimeSavedSeconds:
+                    type: number
+                  avgAdsRemoved:
+                    type: number
+                  avgCostPerEpisode:
+                    type: number
+                  avgProcessingTimeSeconds:
+                    type: number
+                  avgEpisodeLengthSeconds:
+                    type: number
+                  totalInputTokens:
+                    type: integer
+                  totalOutputTokens:
+                    type: integer
+                  totalLlmCost:
+                    type: number
+                  avgInputTokens:
+                    type: integer
+                  avgOutputTokens:
+                    type: integer
+
+  /stats/by-day:
+    get:
+      tags:
+        - Stats
+      summary: Get processing counts by day of week
+      parameters:
+        - name: podcast_slug
+          in: query
+          description: Filter by podcast slug
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Per-day stats
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  days:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        day:
+                          type: string
+                        dayIndex:
+                          type: integer
+                        count:
+                          type: integer
+                        avgAds:
+                          type: number
+
+  /stats/by-podcast:
+    get:
+      tags:
+        - Stats
+      summary: Get per-podcast aggregate stats
+      responses:
+        '200':
+          description: Per-podcast stats ordered by total ads
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  podcasts:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        podcastSlug:
+                          type: string
+                        podcastTitle:
+                          type: string
+                        episodeCount:
+                          type: integer
+                        totalAds:
+                          type: integer
+                        avgAds:
+                          type: number
+                        avgEpisodeLengthSeconds:
+                          type: number
+                        avgTimeSavedSeconds:
+                          type: number
+                        totalCost:
+                          type: number
+                        totalTokens:
+                          type: integer
+                        avgTokensPerEpisode:
+                          type: integer
+
   /patterns:
     get:
       tags:

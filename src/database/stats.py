@@ -644,7 +644,10 @@ class StatsMixin:
                 COALESCE(AVG(e.original_duration), 0) AS avg_episode_length,
                 COALESCE(AVG(CASE WHEN e.original_duration > 0 AND e.new_duration > 0
                     THEN e.original_duration - e.new_duration END), 0) AS avg_time_saved,
-                COALESCE(SUM(h.llm_cost), 0) AS total_cost
+                COALESCE(SUM(h.llm_cost), 0) AS total_cost,
+                COALESCE(SUM(h.input_tokens), 0) AS total_input_tokens,
+                COALESCE(SUM(h.output_tokens), 0) AS total_output_tokens,
+                COALESCE(AVG(h.input_tokens + h.output_tokens), 0) AS avg_tokens_per_episode
             FROM processing_history h
             LEFT JOIN episodes e ON e.episode_id = h.episode_id
                 AND e.podcast_id = h.podcast_id
@@ -662,4 +665,6 @@ class StatsMixin:
             'avgEpisodeLengthSeconds': round(r['avg_episode_length'], 1),
             'avgTimeSavedSeconds': round(r['avg_time_saved'], 1),
             'totalCost': round(r['total_cost'], 6),
+            'totalTokens': r['total_input_tokens'] + r['total_output_tokens'],
+            'avgTokensPerEpisode': round(r['avg_tokens_per_episode']),
         } for r in rows]

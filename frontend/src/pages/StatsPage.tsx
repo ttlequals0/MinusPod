@@ -256,6 +256,8 @@ export default function StatsPage() {
                 <span className="text-foreground text-right">{formatDuration(p.avgEpisodeLengthSeconds)}</span>
                 <span className="text-muted-foreground">Total Cost</span>
                 <span className="text-foreground text-right">{formatCost(p.totalCost)}</span>
+                <span className="text-muted-foreground">Avg Tokens</span>
+                <span className="text-foreground text-right">{formatTokenCount(p.avgTokensPerEpisode)}</span>
               </div>
             </div>
           ))}
@@ -277,6 +279,7 @@ export default function StatsPage() {
                   <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Avg Time Saved</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider hidden lg:table-cell">Avg Length</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider hidden lg:table-cell">Total Cost</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider hidden lg:table-cell">Avg Tokens</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -289,6 +292,7 @@ export default function StatsPage() {
                     <td className="px-4 py-3 text-sm text-muted-foreground text-right">{formatDuration(p.avgTimeSavedSeconds)}</td>
                     <td className="px-4 py-3 text-sm text-muted-foreground text-right hidden lg:table-cell">{formatDuration(p.avgEpisodeLengthSeconds)}</td>
                     <td className="px-4 py-3 text-sm text-muted-foreground text-right hidden lg:table-cell">{formatCost(p.totalCost)}</td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground text-right hidden lg:table-cell">{formatTokenCount(p.avgTokensPerEpisode)}</td>
                   </tr>
                 ))}
               </tbody>
