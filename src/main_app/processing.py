@@ -632,9 +632,10 @@ def _finalize_episode(slug, episode_id, episode_title, podcast_name,
 
     # Periodic memory cleanup to prevent fragmentation over many processing cycles
     clear_gpu_memory()
-    mem_gb = get_available_memory_gb()
-    if mem_gb is not None:
-        audio_logger.info(f"[{slug}:{episode_id}] Post-cleanup memory: {mem_gb:.1f} GB")
+    mem_info = get_available_memory_gb()
+    if mem_info is not None:
+        mem_val, mem_desc = mem_info
+        audio_logger.info(f"[{slug}:{episode_id}] Post-cleanup memory: {mem_val:.1f} GB ({mem_desc})")
 
     try:
         podcast_data = db.get_podcast_by_slug(slug)
@@ -767,9 +768,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
     try:
         audio_logger.info(f"[{slug}:{episode_id}] Starting: \"{episode_title}\"")
-        mem_gb = get_available_memory_gb()
-        if mem_gb is not None:
-            audio_logger.info(f"[{slug}:{episode_id}] Available memory: {mem_gb:.1f} GB")
+        mem_info = get_available_memory_gb()
+        if mem_info is not None:
+            mem_val, mem_desc = mem_info
+            audio_logger.info(f"[{slug}:{episode_id}] Available memory: {mem_val:.1f} GB ({mem_desc})")
         min_cut_confidence = get_min_cut_confidence()
         audio_logger.info(f"[{slug}:{episode_id}] Confidence threshold: {min_cut_confidence:.0%}")
 
