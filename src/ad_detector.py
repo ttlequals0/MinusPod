@@ -1487,11 +1487,13 @@ class AdDetector:
                     # Use first_not_none instead of `or` to avoid dropping 0.0 (pre-roll ads)
                     start_val = first_not_none(
                         ad.get('start'), ad.get('start_time'), ad.get('start_timestamp'),
-                        ad.get('ad_start_timestamp'), ad.get('start_time_seconds')
+                        ad.get('ad_start'), ad.get('ad_start_timestamp'),
+                        ad.get('timestamp_start'), ad.get('start_time_seconds')
                     )
                     end_val = first_not_none(
                         ad.get('end'), ad.get('end_time'), ad.get('end_timestamp'),
-                        ad.get('ad_end_timestamp'), ad.get('end_time_seconds')
+                        ad.get('ad_end'), ad.get('ad_end_timestamp'),
+                        ad.get('timestamp_end'), ad.get('end_time_seconds')
                     )
 
                     if start_val is None or end_val is None:

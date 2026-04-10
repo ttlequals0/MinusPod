@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.97] - 2026-04-10
+
+### Fixed
+- **LLM timestamp field name parsing**: Added `ad_start`/`ad_end` and `timestamp_start`/`timestamp_end` to accepted field name list. LLM sometimes returns these variants instead of `start_time`/`end_time`, causing ads to be silently discarded. Discovered via rejection logging added in v1.0.95.
+- **Memory logging TypeError**: `get_available_memory_gb()` returns a tuple `(value, description)`, not a plain float. Fixed tuple unpacking that crashed all episode processing in v1.0.96.
+
 ## [1.0.96] - 2026-04-09
 
 ### Fixed
