@@ -46,7 +46,7 @@ Processing happens on-demand when you play an episode. First play takes a few mi
 | **Verification Pass** | Post-cut re-detection catches missed ads by re-transcribing processed audio | Automatic |
 | **Audio Enforcement** | Volume and transition signals programmatically validate and extend ad detections | Automatic |
 | **Pattern Learning** | System learns from corrections, patterns promote from podcast to network to global scope | Automatic |
-| **Confidence Thresholds** | >=80% confidence: cut; 50-79%: kept for review; <50%: rejected | Automatic |
+| **Confidence Thresholds** | >=80% confidence: cut (configurable); 50-79%: kept for review; <50%: rejected | Automatic |
 
 See detailed sections below for configuration and usage.
 
@@ -215,11 +215,13 @@ The server includes a web-based management UI at `/ui/`:
 - Bulk actions: select multiple episodes to process, reprocess, reprocess (full), or delete
 - Sort by publish date, episode number, or creation date; paginated (25/50/100/500 per page)
 - Pattern management: view and manage cross-episode ad patterns with sponsor names
-- Processing history with stats, filtering, and export
+- Processing history with stats, filtering by podcast, and CSV/JSON export
+- Stats dashboard with charts: avg/min/max metrics, top podcasts by ads, episodes by day, token usage, sortable podcast table
 - Settings for LLM provider, AI models, ad detection prompts, retention, system stats, token usage and cost
 - Real-time status bar showing processing progress across all pages
 - OPML export with original or ad-free (modified) feed URLs
 - Podcast search via PodcastIndex.org
+- Multiple dark themes (Tokyo Night, Dracula, Catppuccin, Nord, Gruvbox, Solarized, and more) with light/dark toggle
 - Installable as Progressive Web App (PWA)
 
 ### Ad Editor Workflow
@@ -274,6 +276,11 @@ On desktop, keyboard shortcuts are available: `Space` play/pause, `J/K` nudge en
 | Desktop | Mobile |
 |---------|--------|
 | <img src="docs/screenshots/history-desktop.png" width="500"> | <img src="docs/screenshots/history-mobile.png" width="200"> |
+
+#### Stats
+| Desktop | Mobile |
+|---------|--------|
+| <img src="docs/screenshots/stats-desktop.png" width="500"> | <img src="docs/screenshots/stats-mobile.png" width="200"> |
 
 #### Settings
 | Desktop | Mobile |
@@ -696,6 +703,9 @@ Key endpoints:
 - `GET /api/v1/sponsors` - List/create/update/delete sponsors (full CRUD)
 - `GET /api/v1/search?q=query` - Full-text search across all content
 - `GET /api/v1/history` - Processing history with pagination and export
+- `GET /api/v1/stats/dashboard` - Aggregate stats (avg/min/max time saved, ads, cost, tokens) with optional podcast filter
+- `GET /api/v1/stats/by-day` - Episodes processed by day of week
+- `GET /api/v1/stats/by-podcast` - Per-podcast stats (ads, time saved, tokens, cost)
 - `GET /api/v1/status` - Current processing status
 - `GET /api/v1/status/stream` - SSE endpoint for real-time status updates
 - `GET /api/v1/system/token-usage` - LLM token usage and cost breakdown by model
@@ -724,6 +734,7 @@ Configure webhooks in **Settings > Webhooks** in the web UI, or via the REST API
 |---|---|
 | `Episode Processed` | Episode completes processing successfully |
 | `Episode Failed` | Episode reaches permanently failed status |
+| `Auth Failure` | LLM provider returns 401/403 (rate-limited to one per 5 minutes) |
 
 ### Template Variables
 
@@ -731,7 +742,7 @@ Custom payload templates are Jinja2 strings rendered against these variables:
 
 | Variable | Type | Description |
 |---|---|---|
-| `event` | string | `Episode Processed` or `Episode Failed` |
+| `event` | string | `Episode Processed`, `Episode Failed`, or `Auth Failure` |
 | `timestamp` | string | ISO 8601 UTC timestamp |
 | `podcast.name` | string | Podcast title (falls back to slug if unavailable) |
 | `podcast.slug` | string | Feed slug |
