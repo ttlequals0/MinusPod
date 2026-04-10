@@ -6,6 +6,7 @@ import {
 } from 'recharts';
 import { getDashboardStats, getStatsByDay, getStatsByPodcast } from '../api/stats';
 import { getFeeds } from '../api/feeds';
+import { formatTokenCount } from './settings/settingsUtils';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 function useThemeColors() {
@@ -154,7 +155,7 @@ export default function StatsPage() {
 
       {/* Totals Row */}
       {dashboard && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+        <div className="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-5 gap-4 mb-8">
           <div className="bg-card rounded-lg border border-border p-4">
             <p className="text-sm text-muted-foreground">Total Episodes</p>
             <p className="text-xl font-bold text-foreground">{dashboard.totalEpisodesProcessed}</p>
@@ -166,6 +167,15 @@ export default function StatsPage() {
           <div className="bg-card rounded-lg border border-border p-4">
             <p className="text-sm text-muted-foreground">Total Time Saved</p>
             <p className="text-xl font-bold text-foreground">{formatDuration(dashboard.totalTimeSavedSeconds)}</p>
+          </div>
+          <div className="bg-card rounded-lg border border-border p-4">
+            <p className="text-sm text-muted-foreground">Total LLM Cost</p>
+            <p className="text-xl font-bold text-foreground">{formatCost(dashboard.totalLlmCost)}</p>
+          </div>
+          <div className="bg-card rounded-lg border border-border p-4">
+            <p className="text-sm text-muted-foreground">Total Tokens</p>
+            <p className="text-xl font-bold text-foreground">{formatTokenCount(dashboard.totalInputTokens + dashboard.totalOutputTokens)}</p>
+            <p className="text-xs text-muted-foreground mt-1">In: {formatTokenCount(dashboard.totalInputTokens)} / Out: {formatTokenCount(dashboard.totalOutputTokens)}</p>
           </div>
         </div>
       )}

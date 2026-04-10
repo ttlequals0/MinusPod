@@ -335,6 +335,9 @@ export interface DashboardStats {
   avgEpisodeLengthSeconds: number;
   minEpisodeLengthSeconds: number;
   maxEpisodeLengthSeconds: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalLlmCost: number;
 }
 
 export interface DayStats {
