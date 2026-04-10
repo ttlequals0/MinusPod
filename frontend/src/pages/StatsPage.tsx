@@ -220,18 +220,45 @@ export default function StatsPage() {
       </div>
 
       {/* Podcast Stats Table */}
+      {/* Mobile Card Layout */}
       {byPodcast?.podcasts && byPodcast.podcasts.length > 0 && (
-        <div className="bg-card rounded-lg border border-border overflow-hidden">
+        <div className="sm:hidden space-y-3">
+          <h2 className="text-lg font-semibold text-foreground">All Podcasts</h2>
+          {byPodcast.podcasts.map((p) => (
+            <div key={p.podcastSlug} className="bg-card rounded-lg border border-border p-4">
+              <p className="text-sm font-medium text-foreground mb-2">{p.podcastTitle}</p>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                <span className="text-muted-foreground">Episodes</span>
+                <span className="text-foreground text-right">{p.episodeCount}</span>
+                <span className="text-muted-foreground">Total Ads</span>
+                <span className="text-foreground text-right">{p.totalAds}</span>
+                <span className="text-muted-foreground">Avg Ads</span>
+                <span className="text-foreground text-right">{p.avgAds}</span>
+                <span className="text-muted-foreground">Avg Time Saved</span>
+                <span className="text-foreground text-right">{formatDuration(p.avgTimeSavedSeconds)}</span>
+                <span className="text-muted-foreground">Avg Length</span>
+                <span className="text-foreground text-right">{formatDuration(p.avgEpisodeLengthSeconds)}</span>
+                <span className="text-muted-foreground">Total Cost</span>
+                <span className="text-foreground text-right">{formatCost(p.totalCost)}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Desktop Table Layout */}
+      {byPodcast?.podcasts && byPodcast.podcasts.length > 0 && (
+        <div className="hidden sm:block bg-card rounded-lg border border-border overflow-hidden">
           <h2 className="text-lg font-semibold text-foreground p-4 pb-2">All Podcasts</h2>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[600px]">
+            <table className="w-full">
               <thead className="bg-muted/50">
                 <tr>
                   <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">Podcast</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Episodes</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Total Ads</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider hidden md:table-cell">Avg Ads</th>
-                  <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider hidden md:table-cell">Avg Time Saved</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Avg Ads</th>
+                  <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider">Avg Time Saved</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider hidden lg:table-cell">Avg Length</th>
                   <th className="px-4 py-3 text-right text-xs font-medium text-muted-foreground uppercase tracking-wider hidden lg:table-cell">Total Cost</th>
                 </tr>
@@ -242,8 +269,8 @@ export default function StatsPage() {
                     <td className="px-4 py-3 text-sm text-foreground font-medium truncate max-w-[200px]">{p.podcastTitle}</td>
                     <td className="px-4 py-3 text-sm text-muted-foreground text-right">{p.episodeCount}</td>
                     <td className="px-4 py-3 text-sm text-muted-foreground text-right">{p.totalAds}</td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground text-right hidden md:table-cell">{p.avgAds}</td>
-                    <td className="px-4 py-3 text-sm text-muted-foreground text-right hidden md:table-cell">{formatDuration(p.avgTimeSavedSeconds)}</td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground text-right">{p.avgAds}</td>
+                    <td className="px-4 py-3 text-sm text-muted-foreground text-right">{formatDuration(p.avgTimeSavedSeconds)}</td>
                     <td className="px-4 py-3 text-sm text-muted-foreground text-right hidden lg:table-cell">{formatDuration(p.avgEpisodeLengthSeconds)}</td>
                     <td className="px-4 py-3 text-sm text-muted-foreground text-right hidden lg:table-cell">{formatCost(p.totalCost)}</td>
                   </tr>
