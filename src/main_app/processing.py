@@ -1,5 +1,4 @@
 """Processing pipeline: _process_episode_background, all pipeline stages."""
-import gc
 import json
 import logging
 import os

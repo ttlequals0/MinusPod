@@ -1102,7 +1102,9 @@ paths:
                           type: number
                         totalCost:
                           type: number
-                        totalTokens:
+                        totalInputTokens:
+                          type: integer
+                        totalOutputTokens:
                           type: integer
                         avgTokensPerEpisode:
                           type: integer

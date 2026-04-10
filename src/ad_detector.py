@@ -12,6 +12,7 @@ from llm_client import (
     get_llm_timeout, get_llm_max_retries,
     get_effective_provider, model_matches_provider,
 )
+from webhook_service import fire_auth_failure_event
 from utils.retry import calculate_backoff
 from utils.text import get_transcript_text_for_range
 from utils.time import parse_timestamp, first_not_none
@@ -1248,7 +1249,6 @@ class AdDetector:
                 else:
                     logger.warning(f"[{slug}:{episode_id}] {window_label} failed: {e}")
                     if is_auth_error(e):
-                        from webhook_service import fire_auth_failure_event
                         provider = get_effective_provider()
                         fire_auth_failure_event(provider, model, str(e),
                                                 getattr(e, 'status_code', None))
@@ -1547,12 +1547,11 @@ class AdDetector:
                             if key.lower() in STRUCTURAL_FIELDS:
                                 continue
                             if key == 'reason':
-                                continue  # Already handled as primary reason
+                                continue
                             if isinstance(val, str) and len(val) > 10:
                                 # Prefer longer descriptive text over short values
                                 if description is None or len(val) > len(description):
                                     description = val
-                        # Truncate if very long (will be further truncated below)
                         if description and len(description) > 300:
                             description = description[:297] + "..."
 
@@ -1620,7 +1619,6 @@ class AdDetector:
                                     f"reason: {reason[:100] if reason else 'None'}"
                                 )
 
-                        # Log extracted ad details for production visibility
                         logger.info(f"[{slug}:{episode_id}] Extracted ad: {start:.1f}s-{end:.1f}s, reason='{reason}', fields={list(ad.keys())}")
                         ad_entry = {
                             'start': start,
