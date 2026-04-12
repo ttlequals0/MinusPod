@@ -2,16 +2,19 @@
 import logging
 import time
 from typing import Optional
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import urlsplit
 
 import requests
 
 
 def safe_url_for_log(url: str) -> str:
-    """Strip query string and fragment so tokens embedded in URLs don't hit logs."""
+    """Return only scheme+host for logging; drops path, query, fragment so tokens
+    embedded anywhere in the URL never reach logs."""
     try:
         parts = urlsplit(url)
-        return urlunsplit((parts.scheme, parts.netloc, parts.path, '', ''))
+        host = parts.hostname or ''
+        scheme = parts.scheme or 'http'
+        return f"{scheme}://{host}" if host else '<url>'
     except Exception:
         return '<url>'
 

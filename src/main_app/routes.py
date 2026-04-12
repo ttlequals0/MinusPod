@@ -1,6 +1,7 @@
 """Flask routes: serve_ui, serve_rss, serve_episode, serve_transcript_vtt, serve_chapters_json, health_check."""
 import json
 import logging
+import os
 import time
 from datetime import datetime, timezone
 from functools import wraps
@@ -9,8 +10,8 @@ from pathlib import Path
 import requests
 import requests.exceptions
 from flask import Response, send_file, abort, send_from_directory, request
-from markupsafe import escape
 from werkzeug.exceptions import NotFound
+from werkzeug.utils import safe_join
 
 from config import APP_USER_AGENT, JIT_RETRY_COOLDOWN_SECONDS, MAX_EPISODE_RETRIES
 from utils.time import parse_iso_datetime
@@ -135,21 +136,17 @@ def register_routes(app):
         if not STATIC_DIR.exists():
             return "UI not built. Run 'npm run build' in frontend directory.", 404
 
-        # Reject traversal: resolve candidate and require it stays under STATIC_DIR
-        safe_root = STATIC_DIR.resolve()
-        try:
-            candidate = (STATIC_DIR / path).resolve() if path else safe_root
-        except (OSError, RuntimeError):
-            return "Not found", 404
-        within_root = candidate == safe_root or safe_root in candidate.parents
+        # safe_join returns None on traversal attempts (e.g. '../secret').
+        safe_path = safe_join(str(STATIC_DIR), path) if path else None
 
-        # For assets directory, return 404 if file doesn't exist (don't serve index.html)
-        # This prevents MIME type errors when JS/CSS files are not found
-        if path and path.startswith('assets/') and (not within_root or not candidate.exists()):
-            return f"Asset not found: {escape(path)}", 404
+        # For assets directory, return 404 if file doesn't exist (don't serve
+        # index.html) - prevents MIME type errors when JS/CSS are not found.
+        if path and path.startswith('assets/'):
+            if not safe_path or not os.path.isfile(safe_path):
+                return "Asset not found", 404
 
         # Serve index.html for SPA routes (non-asset paths)
-        if not path or not within_root or not candidate.exists():
+        if not path or not safe_path or not os.path.isfile(safe_path):
             return send_from_directory(STATIC_DIR, 'index.html')
 
         return send_from_directory(STATIC_DIR, path)
