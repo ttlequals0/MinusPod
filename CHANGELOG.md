@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.100] - 2026-04-12
+
+### Fixed
+- **Verification pass 413 on long episodes (>~30min)**: Verification re-transcription now uses `transcribe_chunked()` instead of single-shot `transcribe()`, matching the first pass. Episodes over the Whisper API's 25MB limit no longer silently report "clean" after a 413 -- they're chunked into ~10min segments and transcribed normally. Fixes #114.
+
 ## [1.0.99] - 2026-04-12
 
 ### Fixed

@@ -144,14 +144,15 @@ class VerificationPass:
                                  podcast_name: str = None) -> List[Dict]:
         """Re-transcribe for verification using the shared Transcriber.
 
-        Delegates to self.transcriber.transcribe() which respects the
-        WHISPER_BACKEND config (local GPU or API) and handles preprocessing,
-        adaptive batch sizing, and OOM retry.
+        Delegates to self.transcriber.transcribe_chunked() so episodes longer
+        than the backend's single-request limit (e.g. OpenAI whisper's 25MB)
+        are split into chunks instead of failing with 413. Short-circuits to
+        single-shot transcribe() internally when the audio fits in one chunk.
 
         Lets exceptions propagate to caller so status correctly reflects
         'transcription_failed' vs 'no_segments'.
         """
-        return self.transcriber.transcribe(audio_path, podcast_name)
+        return self.transcriber.transcribe_chunked(audio_path, podcast_name)
 
 
 def _build_timestamp_map(pass1_cuts: List[Dict]) -> List[Tuple[float, float]]:
