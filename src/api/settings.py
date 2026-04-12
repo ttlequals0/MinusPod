@@ -21,6 +21,7 @@ from llm_client import (
     get_llm_client, create_client_for_provider, _JSON_FORMAT_SETTING_KEY,
 )
 from utils.url import validate_url, validate_base_url, SSRFError
+from utils.http import safe_url_for_log
 from webhook_service import render_template_preview, fire_test_event, load_webhooks, VALID_EVENTS
 
 logger = logging.getLogger('podcast.api')
@@ -592,7 +593,7 @@ def create_webhook():
     webhooks.append(webhook)
     _save_webhooks(db, webhooks)
 
-    logger.info(f"Created webhook {webhook['id']} for {url}")
+    logger.info(f"Created webhook {webhook['id']} for {safe_url_for_log(url)}")
     return json_response(_strip_secret(webhook), status=201)
 
 

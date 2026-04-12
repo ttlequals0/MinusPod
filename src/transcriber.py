@@ -12,7 +12,7 @@ from pathlib import Path
 from utils.audio import get_audio_duration
 from utils.time import format_vtt_timestamp
 from utils.gpu import clear_gpu_memory, get_available_memory_gb, get_gpu_memory_info
-from utils.http import post_with_retry
+from utils.http import post_with_retry, safe_url_for_log
 from utils.url import validate_url, SSRFError
 from config import (
     API_CHUNK_DURATION_SECONDS,
@@ -251,7 +251,7 @@ def merge_overlapping_segments(
                 for existing_seg in existing_segments
             )
             if overlap_covered:
-                logger.debug(f"Skipping duplicate segment in overlap zone: {seg['start']:.1f}-{seg['end']:.1f}")
+                logger.debug("Skipping duplicate segment in overlap zone: %.1f-%.1f", seg['start'], seg['end'])
                 continue
 
         # Skip segments that end before our last known position
@@ -603,7 +603,7 @@ class Transcriber:
             if initial_prompt:
                 form_data['prompt'] = initial_prompt
 
-            logger.info(f"Sending audio to whisper API: {url} (model={model})")
+            logger.info(f"Sending audio to whisper API: {safe_url_for_log(url)} (model={model})")
 
             with open(transcribe_path, 'rb') as audio_file:
                 response = post_with_retry(
@@ -643,12 +643,12 @@ class Transcriber:
                 })
 
             if not result and response is not None and response.status_code == 200:
-                raw_preview = response.text[:500] if response.text else "(empty body)"
+                body_len = len(response.text) if response.text else 0
                 logger.warning(
-                    "Whisper API returned 200 but 0 usable segments. "
+                    "Whisper API returned 200 but 0 usable segments (body %d chars). "
                     "This often means the server failed to decode the audio "
-                    "(e.g. --convert writing to a non-writable directory). "
-                    "Raw response: %s", raw_preview,
+                    "(e.g. --convert writing to a non-writable directory).",
+                    body_len,
                 )
 
             # Filter hallucinations
@@ -691,7 +691,7 @@ class Transcriber:
             if not text:
                 continue
             if HALLUCINATION_PATTERNS.match(text):
-                logger.debug(f"Filtered hallucination: {text}")
+                logger.debug("Filtered hallucination segment (%d chars)", len(text))
                 continue
             # Filter vocabulary hallucinations (Whisper outputs the initial prompt)
             # Only filter short segments that are primarily vocabulary words
@@ -700,11 +700,11 @@ class Transcriber:
                 # Real ad reads are typically longer and have more context
                 word_count = len(text.split())
                 if word_count < 15:
-                    logger.debug(f"Filtered vocabulary hallucination: {text}")
+                    logger.debug("Filtered vocabulary hallucination (%d chars)", len(text))
                     continue
             # Skip repeated segments (Whisper loop artifacts)
             if filtered and text == filtered[-1].get('text', '').strip():
-                logger.debug(f"Filtered repeated segment: {text}")
+                logger.debug("Filtered repeated segment (%d chars)", len(text))
                 continue
             filtered.append(seg)
         return filtered
@@ -796,7 +796,8 @@ class Transcriber:
         Returns path to preprocessed file, or None if preprocessing fails.
         Caller is responsible for cleaning up the returned temp file.
         """
-        output_path = tempfile.mktemp(suffix='.wav')
+        fd, output_path = tempfile.mkstemp(suffix='.wav')
+        os.close(fd)
         success = False
 
         try:

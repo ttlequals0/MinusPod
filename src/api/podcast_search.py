@@ -40,7 +40,9 @@ def search_podcasts():
     # PodcastIndex auth header generation
     epoch_time = int(time.time())
     data_to_hash = api_key + api_secret + str(epoch_time)
-    sha1_hash = hashlib.sha1(data_to_hash.encode('utf-8')).hexdigest()
+    # PodcastIndex API requires SHA-1 for its X-Auth signature (upstream contract),
+    # not a security-sensitive hash of secret material on our side. False positive.
+    sha1_hash = hashlib.sha1(data_to_hash.encode('utf-8')).hexdigest()  # nosec B324 - required by PodcastIndex API
 
     headers = {
         'X-Auth-Key': api_key,

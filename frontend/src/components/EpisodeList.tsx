@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Episode } from '../api/types';
 import { EPISODE_STATUS_COLORS, EPISODE_STATUS_LABELS } from '../utils/episodeStatus';
+import { stripHtml } from '../utils/stripHtml';
 import Checkbox from './Checkbox';
 
 interface EpisodeListProps {
@@ -91,7 +92,7 @@ function EpisodeRow({
         <h3 className="font-medium text-foreground truncate">{episode.title}</h3>
         {episode.description && (
           <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-            {episode.description.replace(/<[^>]*>/g, '')}
+            {stripHtml(episode.description)}
           </p>
         )}
         <div className="flex items-center gap-3 mt-2 text-sm text-muted-foreground">

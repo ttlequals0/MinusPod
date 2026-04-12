@@ -1,7 +1,7 @@
 """Feed routes: /feeds/* endpoints."""
 import logging
 import os
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as ET  # build-only (ElementTree/SubElement/tostring); parsing uses defusedxml
 from typing import Optional
 
 from flask import request, Response
@@ -166,7 +166,7 @@ def import_opml():
     Accepts a multipart form upload with an 'opml' file field.
     Returns counts of successfully imported and failed feeds.
     """
-    import xml.etree.ElementTree as ET
+    import defusedxml.ElementTree as ET
 
     if 'opml' not in request.files:
         return error_response('No OPML file provided', 400)

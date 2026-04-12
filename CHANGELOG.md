@@ -6,6 +6,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-04-12
+
+### Security
+- Harden SSRF protection on upstream audio HEAD proxy (`_head_upstream` in `src/main_app/routes.py`); validate URLs via existing `utils.url.validate_url`
+- Block XML external entity expansion on OPML import by switching to `defusedxml.ElementTree` (`src/api/feeds.py`)
+- Fix path traversal and reflected XSS in `serve_ui` static file route (resolve + containment check, escape path in 404 body)
+- Replace `tempfile.mktemp` with `tempfile.mkstemp` in `transcriber.preprocess_audio` (insecure temp file)
+- Cap input length and bound regex quantifiers in `ad_detector` JSON array scan and `sponsor_service` domain extractor to prevent ReDoS
+- Stop logging HTTP response bodies and tokens in URL query strings (`utils.http`, `transcriber`, `api.settings` webhook log) via new `safe_url_for_log` helper
+- Strip `details` from 5xx JSON responses so exception text and stack traces no longer reach clients (`api.error_response`)
+- Annotate PodcastIndex SHA-1 signature site with `# nosec` (upstream API contract; not a security-sensitive hash)
+- Frontend: replace incomplete single-pass HTML stripping with `DOMParser`-based `stripHtml` helper in `EpisodeList` and `EpisodeDetail`
+
+### Dependencies
+- Roll up Dependabot PRs #116 picomatch, #117 minimatch, #118 flatted, #119 lodash, #120 vite (superseded by direct `npm audit fix` on this branch)
+- Close Dependabot alerts #1 esbuild, #2 @remix-run/router, #6 rollup, #9 #10 minimatch, #11 #21 serialize-javascript, #13 flatted, #16 #17 picomatch, #22 #23 lodash, #24 vite
+- Add `defusedxml>=0.7.1` to `requirements.txt`
+
 ## [1.0.100] - 2026-04-12
 
 ### Fixed

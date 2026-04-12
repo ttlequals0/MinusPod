@@ -2,8 +2,18 @@
 import logging
 import time
 from typing import Optional
+from urllib.parse import urlsplit, urlunsplit
 
 import requests
+
+
+def safe_url_for_log(url: str) -> str:
+    """Strip query string and fragment so tokens embedded in URLs don't hit logs."""
+    try:
+        parts = urlsplit(url)
+        return urlunsplit((parts.scheme, parts.netloc, parts.path, '', ''))
+    except Exception:
+        return '<url>'
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +65,8 @@ def _request_with_retry(
                 continue
 
             # Non-retryable error or last attempt
-            logger.error(f"{log_prefix} error {response.status_code}: {response.text[:500]}")
+            body_len = len(response.text) if response.text else 0
+            logger.error(f"{log_prefix} error {response.status_code} (body {body_len} chars)")
             return None
 
         except requests.exceptions.Timeout:

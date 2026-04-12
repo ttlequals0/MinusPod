@@ -161,7 +161,17 @@ def json_response(data, status=200):
 
 
 def error_response(message, status=400, details=None):
-    """Create error response."""
+    """Create error response.
+
+    For 5xx responses the `details` field is logged server-side and stripped
+    from the client payload, so internal exception text / stack traces
+    attached as structured details never leak externally. Callers must keep
+    user-facing `message` values free of raw exception content.
+    """
+    if status >= 500 and details:
+        logger.error(f"Internal error ({status}) details: {details}")
+        data = {'error': message, 'status': status}
+        return json_response(data, status)
     data = {'error': message, 'status': status}
     if details:
         data['details'] = details

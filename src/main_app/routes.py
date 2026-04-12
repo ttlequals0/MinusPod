@@ -9,10 +9,12 @@ from pathlib import Path
 import requests
 import requests.exceptions
 from flask import Response, send_file, abort, send_from_directory, request
+from markupsafe import escape
 from werkzeug.exceptions import NotFound
 
 from config import APP_USER_AGENT, JIT_RETRY_COOLDOWN_SECONDS, MAX_EPISODE_RETRIES
 from utils.time import parse_iso_datetime
+from utils.url import validate_url, SSRFError
 
 feed_logger = logging.getLogger('podcast.feed')
 refresh_logger = logging.getLogger('podcast.refresh')
@@ -97,6 +99,11 @@ def _lookup_episode(slug, episode_id, feed_map, episode_row=None):
 def _head_upstream(slug, episode_id, original_url):
     """Proxy a HEAD request to the upstream audio URL."""
     try:
+        validate_url(original_url)
+    except SSRFError as e:
+        feed_logger.warning(f"[{slug}:{episode_id}] SSRF blocked in HEAD upstream: {e}")
+        abort(502)
+    try:
         resp = requests.head(original_url, timeout=10, allow_redirects=True,
                              headers={'User-Agent': APP_USER_AGENT})
         if resp.status_code == 200:
@@ -128,13 +135,21 @@ def register_routes(app):
         if not STATIC_DIR.exists():
             return "UI not built. Run 'npm run build' in frontend directory.", 404
 
+        # Reject traversal: resolve candidate and require it stays under STATIC_DIR
+        safe_root = STATIC_DIR.resolve()
+        try:
+            candidate = (STATIC_DIR / path).resolve() if path else safe_root
+        except (OSError, RuntimeError):
+            return "Not found", 404
+        within_root = candidate == safe_root or safe_root in candidate.parents
+
         # For assets directory, return 404 if file doesn't exist (don't serve index.html)
         # This prevents MIME type errors when JS/CSS files are not found
-        if path and path.startswith('assets/') and not (STATIC_DIR / path).exists():
-            return f"Asset not found: {path}", 404
+        if path and path.startswith('assets/') and (not within_root or not candidate.exists()):
+            return f"Asset not found: {escape(path)}", 404
 
         # Serve index.html for SPA routes (non-asset paths)
-        if not path or not (STATIC_DIR / path).exists():
+        if not path or not within_root or not candidate.exists():
             return send_from_directory(STATIC_DIR, 'index.html')
 
         return send_from_directory(STATIC_DIR, path)
