@@ -6,6 +6,7 @@ import { submitCorrection } from '../api/patterns';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { EPISODE_STATUS_COLORS } from '../utils/episodeStatus';
 import { stripHtml } from '../utils/stripHtml';
+import { formatConfidence } from '../utils/confidence';
 import AdEditor, { AdCorrection } from '../components/AdEditor';
 import PatternLink from '../components/PatternLink';
 import CollapsibleSection from '../components/CollapsibleSection';
@@ -434,7 +435,7 @@ function EpisodeDetail() {
                     return null;
                   })()}
                   <span className="ml-auto text-sm text-muted-foreground whitespace-nowrap">
-                    {Math.round(segment.confidence * 100)}% confidence
+                    {formatConfidence(segment)}
                   </span>
                 </div>
                 {/* Row 2: Description - full width below badges for better mobile display */}
@@ -489,7 +490,7 @@ function EpisodeDetail() {
                           )}
                         </div>
                         <span className="text-sm text-muted-foreground">
-                          {Math.round(segment.confidence * 100)}% confidence
+                          {formatConfidence(segment)}
                         </span>
                       </div>
                       {segment.validation?.flags && segment.validation.flags.length > 0 && (
