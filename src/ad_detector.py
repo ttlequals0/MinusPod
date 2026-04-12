@@ -1346,8 +1346,8 @@ class AdDetector:
                 pass
 
         # Strategy 2: Regex scan for JSON arrays (use last valid match).
-        # Cap input length: the nested alternation would otherwise backtrack
-        # catastrophically on very long adversarial payloads (ReDoS).
+        # Bounded quantifiers + length cap avoid catastrophic backtracking on
+        # adversarial payloads (ReDoS).
         scan_text = response_text[:200_000]
         last_valid_ads = None
         for match in re.finditer(r'\[(?:[^\[\]]{0,10000}|\[(?:[^\[\]]{0,5000}|\[[^\[\]]{0,2000}\]){0,200}\]){0,200}\]', scan_text):

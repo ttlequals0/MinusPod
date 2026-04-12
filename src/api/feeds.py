@@ -1,7 +1,7 @@
 """Feed routes: /feeds/* endpoints."""
 import logging
 import os
-import xml.etree.ElementTree as ET  # build-only (ElementTree/SubElement/tostring); parsing uses defusedxml
+import xml.etree.ElementTree as ET  # defusedxml has no SubElement/tostring, so keep ET for OPML export only
 from typing import Optional
 
 from flask import request, Response

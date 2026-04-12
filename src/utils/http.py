@@ -10,13 +10,10 @@ import requests
 def safe_url_for_log(url: str) -> str:
     """Return only scheme+host for logging; drops path, query, fragment so tokens
     embedded anywhere in the URL never reach logs."""
-    try:
-        parts = urlsplit(url)
-        host = parts.hostname or ''
-        scheme = parts.scheme or 'http'
-        return f"{scheme}://{host}" if host else '<url>'
-    except Exception:
-        return '<url>'
+    parts = urlsplit(url)
+    host = parts.hostname or ''
+    scheme = parts.scheme or 'http'
+    return f"{scheme}://{host}" if host else '<url>'
 
 logger = logging.getLogger(__name__)
 
