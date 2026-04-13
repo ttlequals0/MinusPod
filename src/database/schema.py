@@ -1254,6 +1254,21 @@ class SchemaMixin:
             ('retention_period_minutes', retention_minutes)
         )
 
+        # Processing timeouts (soft = auto-clear stuck jobs; hard = force-release).
+        # Env var overrides are only used here for seeding; runtime changes live in DB.
+        soft_default = os.environ.get('PROCESSING_SOFT_TIMEOUT', '3600')
+        hard_default = os.environ.get('PROCESSING_HARD_TIMEOUT', '7200')
+        conn.execute(
+            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
+               ON CONFLICT(key) DO NOTHING""",
+            ('processing_soft_timeout_seconds', soft_default)
+        )
+        conn.execute(
+            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
+               ON CONFLICT(key) DO NOTHING""",
+            ('processing_hard_timeout_seconds', hard_default)
+        )
+
         # Verification pass prompt
         conn.execute(
             """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)

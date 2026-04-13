@@ -299,6 +299,19 @@ export interface RetentionSettings {
   enabled: boolean;
 }
 
+export interface ProcessingTimeouts {
+  softTimeoutSeconds: number;
+  hardTimeoutSeconds: number;
+  defaults: {
+    softTimeoutSeconds: number;
+    hardTimeoutSeconds: number;
+  };
+  limits: {
+    softMin: number;
+    hardMax: number;
+  };
+}
+
 export interface ProcessingHistoryStats {
   totalProcessed: number;
   completedCount: number;

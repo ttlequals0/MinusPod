@@ -10,6 +10,7 @@ Uses file-based storage for multi-worker consistency.
 """
 import fcntl
 import json
+import logging
 import os
 import threading
 import time
@@ -22,9 +23,10 @@ STATUS_FILE = os.path.join(
     'processing_status.json'
 )
 
-# Staleness thresholds (seconds)
-MAX_JOB_DURATION = 3600      # 60 minutes - auto-clear stuck jobs (must match processing_queue.py)
-MAX_QUEUE_ENTRY_AGE = 3600   # 1 hour - remove stale queue entries
+# Staleness thresholds resolved from settings at read time.
+from processing_timeouts import get_soft_timeout as _get_soft_timeout
+
+logger = logging.getLogger('podcast.status')
 
 
 @dataclass
@@ -108,33 +110,32 @@ class StatusService:
             needs_write = False
             now = time.time()
 
+            soft_limit = _get_soft_timeout()
+
             # Auto-clear stuck current_job
             job = status.get('current_job')
             if job and job.get('started_at'):
                 elapsed = now - job['started_at']
-                if elapsed > MAX_JOB_DURATION:
-                    import logging
-                    logger = logging.getLogger('podcast.status')
+                if elapsed > soft_limit:
                     logger.warning(
                         f"Auto-clearing stale job: {job.get('title', 'unknown')} "
-                        f"(running {elapsed/60:.0f} min, max {MAX_JOB_DURATION/60:.0f} min)"
+                        f"(running {elapsed/60:.0f} min, soft timeout {soft_limit/60:.0f} min). "
+                        f"Raise 'processing_soft_timeout_seconds' in settings if this was premature."
                     )
                     status['current_job'] = None
                     needs_write = True
 
-            # Remove stale queue entries
+            # Remove stale queue entries (same threshold as soft timeout)
             queued = status.get('queued_episodes', [])
             if queued:
                 fresh = [
                     e for e in queued
-                    if now - e.get('queued_at', now) <= MAX_QUEUE_ENTRY_AGE
+                    if now - e.get('queued_at', now) <= soft_limit
                 ]
                 if len(fresh) < len(queued):
-                    import logging
-                    logger = logging.getLogger('podcast.status')
                     logger.warning(
                         f"Removed {len(queued) - len(fresh)} stale queue entries "
-                        f"(older than {MAX_QUEUE_ENTRY_AGE/60:.0f} min)"
+                        f"(older than {soft_limit/60:.0f} min)"
                     )
                     status['queued_episodes'] = fresh
                     needs_write = True
@@ -234,6 +235,23 @@ class StatusService:
     def fail_job(self):
         """Mark the current job as failed."""
         self._clear_current_job()
+
+    def clear_if_matches(self, slug: str, episode_id: str) -> bool:
+        """Clear current_job only if it matches (slug, episode_id).
+
+        Used by ProcessingQueue orphan recovery so the UI does not show a
+        killed job as still transcribing for up to MAX_JOB_DURATION.
+        """
+        with self._status_lock:
+            status = self._read_status_file()
+            job = status.get('current_job')
+            if not job or job.get('slug') != slug or job.get('episode_id') != episode_id:
+                return False
+            status['current_job'] = None
+            status['last_updated'] = time.time()
+            self._write_status_file(status)
+        self._notify_subscribers()
+        return True
 
     def queue_episode(self, slug: str, episode_id: str, title: str, podcast_name: str):
         """Add an episode to the queue."""

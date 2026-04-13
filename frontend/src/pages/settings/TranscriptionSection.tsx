@@ -15,6 +15,16 @@ interface TranscriptionSectionProps {
   onProviderKeySave: (provider: ProviderName, apiKey: string) => Promise<void>;
   onProviderKeyClear: (provider: ProviderName) => Promise<void>;
   onProviderKeyTest: (provider: ProviderName) => Promise<ProviderTestResult>;
+  softTimeoutMinutes: number;
+  hardTimeoutMinutes: number;
+  softMinMinutes: number;
+  hardMaxMinutes: number;
+  onSoftTimeoutChange: (minutes: number) => void;
+  onHardTimeoutChange: (minutes: number) => void;
+  onTimeoutsSave: () => void;
+  timeoutsSaveIsPending: boolean;
+  timeoutsSaveIsSuccess: boolean;
+  timeoutsError: string | null;
 }
 
 const NONE_STATUS: ProviderStatus = { configured: false, source: 'none' };
@@ -31,6 +41,16 @@ function TranscriptionSection({
   onProviderKeySave,
   onProviderKeyClear,
   onProviderKeyTest,
+  softTimeoutMinutes,
+  hardTimeoutMinutes,
+  softMinMinutes,
+  hardMaxMinutes,
+  onSoftTimeoutChange,
+  onHardTimeoutChange,
+  onTimeoutsSave,
+  timeoutsSaveIsPending,
+  timeoutsSaveIsSuccess,
+  timeoutsError,
 }: TranscriptionSectionProps) {
   const whisperStatus = providersState?.whisper ?? NONE_STATUS;
   const cryptoReady = providersState?.cryptoReady ?? false;
@@ -128,6 +148,54 @@ function TranscriptionSection({
             </div>
           </>
         )}
+
+        <div className="pt-2 border-t border-border space-y-3">
+          <div className="flex items-center gap-3">
+            <label htmlFor="softTimeoutMinutes" className="text-sm text-muted-foreground w-36">
+              Soft timeout:
+            </label>
+            <input
+              type="number"
+              id="softTimeoutMinutes"
+              value={softTimeoutMinutes}
+              onChange={(e) => onSoftTimeoutChange(parseInt(e.target.value, 10) || 0)}
+              min={softMinMinutes}
+              max={hardMaxMinutes}
+              className="w-24 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            <span className="text-sm text-muted-foreground">minutes (default 60)</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <label htmlFor="hardTimeoutMinutes" className="text-sm text-muted-foreground w-36">
+              Hard timeout:
+            </label>
+            <input
+              type="number"
+              id="hardTimeoutMinutes"
+              value={hardTimeoutMinutes}
+              onChange={(e) => onHardTimeoutChange(parseInt(e.target.value, 10) || 0)}
+              min={softMinMinutes + 1}
+              max={hardMaxMinutes}
+              className="w-24 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            />
+            <span className="text-sm text-muted-foreground">minutes (default 120)</span>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={onTimeoutsSave}
+              disabled={timeoutsSaveIsPending}
+              className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors text-sm"
+            >
+              {timeoutsSaveIsPending ? 'Saving...' : 'Save Timeouts'}
+            </button>
+            {timeoutsSaveIsSuccess && !timeoutsError && (
+              <span className="text-sm text-green-600 dark:text-green-400">Saved</span>
+            )}
+            {timeoutsError && (
+              <span className="text-sm text-red-600 dark:text-red-400">{timeoutsError}</span>
+            )}
+          </div>
+        </div>
       </div>
     </CollapsibleSection>
   );

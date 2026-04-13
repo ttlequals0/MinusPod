@@ -387,6 +387,11 @@ def get_available_models():
                     {'id': m.id, 'name': m.name, 'created': m.created}
                     for m in raw_models
                 ]
+            except ValueError as e:
+                # Expected when a provider has no key configured yet (e.g. UI
+                # previewing providers before the user saves a key).
+                logger.info(f"Provider '{provider_override}' preview unavailable: {e}")
+                models = []
             except Exception as e:
                 logger.error(f"Failed to list models for provider '{provider_override}': {e}")
                 models = []
@@ -507,6 +512,55 @@ def update_retention_settings():
     return json_response({
         'retentionDays': days,
         'enabled': days > 0,
+    })
+
+
+@api.route('/settings/processing-timeouts', methods=['GET'])
+@log_request
+def get_processing_timeouts():
+    """Get processing timeout configuration."""
+    from processing_timeouts import (
+        get_soft_timeout, get_hard_timeout,
+        DEFAULT_SOFT_SECONDS, DEFAULT_HARD_SECONDS,
+        SOFT_MIN, HARD_MAX,
+    )
+    return json_response({
+        'softTimeoutSeconds': get_soft_timeout(),
+        'hardTimeoutSeconds': get_hard_timeout(),
+        'defaults': {
+            'softTimeoutSeconds': DEFAULT_SOFT_SECONDS,
+            'hardTimeoutSeconds': DEFAULT_HARD_SECONDS,
+        },
+        'limits': {
+            'softMin': SOFT_MIN,
+            'hardMax': HARD_MAX,
+        },
+    })
+
+
+@api.route('/settings/processing-timeouts', methods=['PUT'])
+@log_request
+def update_processing_timeouts():
+    """Update processing timeout configuration."""
+    from processing_timeouts import validate, invalidate_cache
+    data = request.get_json() or {}
+    if 'softTimeoutSeconds' not in data or 'hardTimeoutSeconds' not in data:
+        return error_response('softTimeoutSeconds and hardTimeoutSeconds are required', 400)
+
+    soft = data['softTimeoutSeconds']
+    hard = data['hardTimeoutSeconds']
+    err = validate(soft, hard)
+    if err:
+        return error_response(err, 400)
+
+    db = get_database()
+    db.set_setting('processing_soft_timeout_seconds', str(soft), is_default=False)
+    db.set_setting('processing_hard_timeout_seconds', str(hard), is_default=False)
+    invalidate_cache()
+    logger.info(f"Updated processing timeouts: soft={soft}s hard={hard}s")
+    return json_response({
+        'softTimeoutSeconds': soft,
+        'hardTimeoutSeconds': hard,
     })
 
 

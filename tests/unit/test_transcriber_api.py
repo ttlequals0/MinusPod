@@ -115,7 +115,7 @@ class TestTranscribeViaApi:
 
     def test_parses_verbose_json_segments(self):
         with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as f:
-            f.write(b'fake audio data')
+            f.write(b'fake audio data' * 200)
             temp_path = f.name
 
         try:
@@ -168,7 +168,7 @@ class TestTranscribeViaApi:
     def test_returns_none_on_failed_request(self):
         """post_with_retry returns None on non-200 errors."""
         with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as f:
-            f.write(b'fake')
+            f.write(b'fake' * 512)
             temp_path = f.name
 
         try:
@@ -184,7 +184,7 @@ class TestTranscribeViaApi:
 
     def test_sends_auth_header_when_key_set(self):
         with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as f:
-            f.write(b'fake')
+            f.write(b'fake' * 512)
             temp_path = f.name
 
         try:
@@ -205,7 +205,7 @@ class TestTranscribeViaApi:
 
     def test_no_auth_header_when_key_empty(self):
         with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as f:
-            f.write(b'fake')
+            f.write(b'fake' * 512)
             temp_path = f.name
 
         try:
@@ -226,7 +226,7 @@ class TestTranscribeViaApi:
 
     def test_filters_empty_segments(self):
         with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as f:
-            f.write(b'fake')
+            f.write(b'fake' * 512)
             temp_path = f.name
 
         try:

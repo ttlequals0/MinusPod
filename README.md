@@ -20,7 +20,7 @@ MinusPod is a self-hosted server that removes ads before you ever hit play. It t
   - [Audiobookshelf](#audiobookshelf)
 - [Environment Variables](#environment-variables)
   - [Using Claude Code Wrapper (Max Subscription)](#using-claude-code-wrapper-max-subscription)
-- [Using Ollama (Local LLM)](#using-ollama-local-llm)
+- [Using Ollama (Local or Cloud)](#using-ollama-local-or-cloud)
 - [Remote Whisper Transcription](#remote-whisper-transcription)
 - [Using OpenRouter](#using-openrouter)
 - [LLM Pricing](#llm-pricing)
@@ -381,6 +381,8 @@ This is a comma-separated list of domains excluded from Audiobookshelf's SSRF fi
 | `WHISPER_API_BASE_URL` | _(none)_ | Base URL for OpenAI-compatible whisper API (e.g. `http://host.docker.internal:8765/v1`) |
 | `WHISPER_API_KEY` | _(none)_ | API key for whisper API (optional for local servers) |
 | `WHISPER_API_MODEL` | `whisper-1` | Model name sent to whisper API |
+| `PROCESSING_SOFT_TIMEOUT` | `3600` | Seconds before a stuck job is auto-cleared from the queue. Seeds fresh installs only -- runtime value lives in the settings table, editable under Settings > Transcription or via `PUT /api/v1/settings/processing-timeouts`. Raise this for long episodes on CPU or the largest Whisper model. |
+| `PROCESSING_HARD_TIMEOUT` | `7200` | Seconds before the processing lock is force-released even when a worker is still holding it (stuck subprocess safety net). Same DB-backed override path as the soft timeout. Must exceed it. |
 | `RETENTION_PERIOD` | `1440` | **Deprecated.** Legacy minutes-based retention (auto-converted to days on first startup). Use the Settings UI or `PUT /api/v1/settings/retention` instead. Retention now resets episodes to "discovered" instead of deleting them. |
 | `AD_DETECTION_MAX_TOKENS` | `2000` | Maximum tokens for LLM ad detection responses (increase if responses are being truncated) |
 | `APP_PASSWORD` | _(none)_ | Initial password for web UI (can also be set in Settings > Security) |
@@ -643,6 +645,15 @@ WHISPER_DEVICE=cpu
 ```
 
 All settings can also be configured via the Settings UI under the Transcription section.
+
+### Processing timeouts
+
+Two knobs for long-running jobs, both in the same panel:
+
+- Soft timeout (default 60 min): how long a job can sit in the queue before it's treated as stuck and cleared. Jobs killed by a worker restart are cleared in seconds regardless, via the queue's flock probe.
+- Hard timeout (default 120 min): how long before the processing lock is force-released even when a worker still holds it. Backstop for a hung ffmpeg or runaway Whisper call. Must be greater than the soft timeout.
+
+Three-hour CPU runs with the largest Whisper model hit these. When they fire, the log line names the setting to raise. Values live in the DB and take effect immediately; `PROCESSING_SOFT_TIMEOUT` and `PROCESSING_HARD_TIMEOUT` only seed fresh installs.
 
 ## Using OpenRouter
 

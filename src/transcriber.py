@@ -606,7 +606,21 @@ class Transcriber:
             if initial_prompt:
                 form_data['prompt'] = initial_prompt
 
-            logger.info(f"Sending audio to whisper API: {safe_url_for_log(url)} (model={model})")
+            # Defensive: refuse to upload tiny or missing files. Avoids
+            # remote "empty audio" / decode failures when preprocessing
+            # silently produced an unusable chunk.
+            try:
+                upload_size = os.path.getsize(transcribe_path)
+            except OSError:
+                upload_size = 0
+            if upload_size < 1024:
+                logger.error(
+                    f"Refusing to upload suspiciously small audio to Whisper API: "
+                    f"{upload_size} bytes at {transcribe_path}"
+                )
+                return None
+
+            logger.info("Sending audio to whisper API (size=%.1fMB)", upload_size / 1024 / 1024)
 
             with open(transcribe_path, 'rb') as audio_file:
                 response = post_with_retry(
@@ -615,6 +629,7 @@ class Transcriber:
                     files={'file': (os.path.basename(transcribe_path), audio_file)},
                     data=form_data,
                     log_prefix="Whisper API",
+                    max_retries=2,
                 )
 
             if response is None:
@@ -1247,6 +1262,10 @@ class Transcriber:
         chunk_num = 0
         oom_retry_count = 0
         max_oom_retries = 3
+        failed_chunks: list[tuple[float, float]] = []
+        # Tolerate a minority of failed chunks (e.g. flaky remote Whisper API)
+        # rather than aborting the whole episode. Cap at ~20% of expected chunks.
+        max_failed_chunks = max(1, num_chunks // 5)
 
         while chunk_start < duration:
             # Calculate chunk end with overlap for next chunk
@@ -1279,8 +1298,21 @@ class Transcriber:
                 chunk_segments = self.transcribe(chunk_path, podcast_name)
 
                 if chunk_segments is None:
-                    logger.error(f"Chunk {chunk_num + 1} transcription failed")
-                    return None
+                    failed_chunks.append((chunk_start, chunk_end_with_overlap))
+                    logger.error(
+                        f"Chunk {chunk_num + 1} transcription failed "
+                        f"({chunk_start/60:.1f}-{chunk_end_with_overlap/60:.1f} min); "
+                        f"leaving transcript gap and continuing"
+                    )
+                    if len(failed_chunks) > max_failed_chunks:
+                        logger.error(
+                            f"Too many failed chunks ({len(failed_chunks)} > {max_failed_chunks}); "
+                            f"aborting transcription"
+                        )
+                        return None
+                    chunk_num += 1
+                    chunk_start = chunk_end
+                    continue
 
                 # Reset OOM retry count on success
                 oom_retry_count = 0
@@ -1362,6 +1394,14 @@ class Transcriber:
             logger.info(f"Filtered {original_count - len(all_segments)} hallucination segments after merge")
 
         duration_min = all_segments[-1]['end'] / 60 if all_segments else 0
+        if failed_chunks:
+            gap_summary = ", ".join(
+                f"{s/60:.1f}-{e/60:.1f}min" for s, e in failed_chunks
+            )
+            logger.warning(
+                f"Chunked transcription complete with {len(failed_chunks)} gap(s): "
+                f"{gap_summary}. Partial transcript returned."
+            )
         logger.info(
             f"Chunked transcription complete: {len(all_segments)} segments, "
             f"{duration_min:.1f} minutes from {chunk_num} chunks"

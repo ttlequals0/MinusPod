@@ -124,8 +124,11 @@ def background_queue_processor():
                         db.update_queue_status(queue_id, 'processing')
                         # Reset backoff on successful start
                         backoff_seconds = 30
-                        # Wait for processing to complete (poll status)
-                        max_wait = 3600  # 60 minutes max (match MAX_JOB_DURATION)
+                        # Wait for processing to complete (poll status).
+                        # Cap at the hard timeout so this waiter outlives a slow
+                        # but successful job when the user has raised the limit.
+                        from processing_timeouts import get_hard_timeout
+                        max_wait = get_hard_timeout()
                         waited = 0
                         while waited < max_wait and not shutdown_event.is_set():
                             shutdown_event.wait(timeout=10)

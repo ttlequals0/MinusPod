@@ -16,15 +16,23 @@ import time
 from pathlib import Path
 from typing import Optional, Tuple
 
-# Must match StatusService.MAX_JOB_DURATION for consistency
-MAX_JOB_DURATION = 3600  # 60 minutes - auto-clear stuck jobs
-
-# Force-clear safety net: if a job exceeds this even when this process holds the lock,
-# force-release it. This handles cases where the processing thread is truly stuck
-# (e.g. infinite loop in subprocess calls) and the lock holder can't self-clear.
-MAX_JOB_FORCE_CLEAR = 7200  # 2 hours
+# Timeouts are resolved at read time from settings via processing_timeouts.
+from processing_timeouts import get_soft_timeout, get_hard_timeout
 
 logger = logging.getLogger('podcast.processing_queue')
+
+
+def _sync_status_clear(slug: str, episode_id: str) -> None:
+    """Tell StatusService to drop its current_job if it matches.
+
+    Lazy import avoids a circular dependency and keeps ProcessingQueue
+    usable in contexts (tests, tooling) where StatusService is absent.
+    """
+    try:
+        from status_service import StatusService
+        StatusService().clear_if_matches(slug, episode_id)
+    except Exception as e:
+        logger.debug(f"Could not sync status_service clear: {e}")
 
 
 class ProcessingQueue:
@@ -91,7 +99,7 @@ class ProcessingQueue:
         """Check if current job has exceeded max duration."""
         if state.get('current_episode') is None or state.get('acquired_at') is None:
             return False
-        return (time.time() - state['acquired_at']) > MAX_JOB_DURATION
+        return (time.time() - state['acquired_at']) > get_soft_timeout()
 
     def _clear_stale_state(self) -> bool:
         """Clear stale or orphaned state. Returns True if cleared.
@@ -113,13 +121,15 @@ class ProcessingQueue:
         # If THIS process holds the lock, the job is still alive -- unless
         # it has exceeded the force-clear threshold (stuck processing thread).
         if self._lock_fd is not None:
-            if elapsed > MAX_JOB_FORCE_CLEAR:
+            hard_limit = get_hard_timeout()
+            if elapsed > hard_limit:
                 logger.error(
                     f"Force-clearing stuck job: {current[0]}:{current[1]} "
-                    f"({elapsed/60:.0f} min exceeds {MAX_JOB_FORCE_CLEAR/60:.0f} min limit) "
-                    f"- releasing lock held by this process"
+                    f"({elapsed/60:.0f} min exceeds hard timeout {hard_limit/60:.0f} min) "
+                    f"- releasing lock. Raise 'processing_hard_timeout_seconds' if this was premature."
                 )
                 self.release()
+                _sync_status_clear(current[0], current[1])
                 return True
             if self._is_stale(state):
                 logger.warning(
@@ -142,6 +152,7 @@ class ProcessingQueue:
                     f"({elapsed/60:.0f} min, no process holds lock)"
                 )
                 self._write_state(None, None, None)
+                _sync_status_clear(current[0], current[1])
                 return True
             except BlockingIOError:
                 # Another process holds the lock -> job is running in another worker
@@ -161,6 +172,7 @@ class ProcessingQueue:
                     f"({elapsed/60:.0f} min)"
                 )
                 self._write_state(None, None, None)
+                _sync_status_clear(current[0], current[1])
                 return True
             return False
 
