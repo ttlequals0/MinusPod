@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.2] - 2026-04-13
+
+### Changed
+- Rework provider key UI. The separate "Providers & API Keys" card introduced in 1.2.0 duplicated the existing LLM and Transcription sections. Key inputs now live inline inside `LLMProviderSection` (contextual to the selected provider) and `TranscriptionSection` (for the Whisper remote backend), with a three-state status chip (Stored encrypted / Using env fallback / Not set) and Save / Test / Clear affordances that only appear when relevant. When `MINUSPOD_MASTER_PASSPHRASE` is unset the input collapses to a one-line "Setup required" note in place — no separate banner.
+- Remove dead plaintext-save state (`openrouterApiKey`, `whisperApiConfig.apiKey`, `apiKeyConfigured`) from the Settings page and its types; saves now always route through `/api/v1/settings/providers/<name>`.
+
 ## [1.2.1] - 2026-04-13
 
 ### Security

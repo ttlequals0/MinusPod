@@ -101,8 +101,6 @@ export type WhisperBackend = 'local' | 'openai-api';
 
 export interface WhisperApiConfig {
   baseUrl: string;
-  apiKey: string;
-  apiKeyConfigured?: boolean;
   model: string;
 }
 
@@ -132,12 +130,10 @@ export interface Settings {
   minCutConfidence: SettingValueNumber;
   whisperBackend: SettingValue;
   whisperApiBaseUrl: SettingValue;
-  whisperApiKeyConfigured: boolean;
   whisperApiModel: SettingValue;
   llmProvider: SettingValue;
   openaiBaseUrl: SettingValue;
   apiKeyConfigured: boolean;
-  openrouterApiKeyConfigured: boolean;
   podcastIndexApiKeyConfigured: boolean;
   openrouterBaseUrl: string;
   retentionDays: number;
@@ -179,7 +175,6 @@ export interface UpdateSettingsPayload {
   whisperApiBaseUrl?: string;
   whisperApiKey?: string;
   whisperApiModel?: string;
-  openrouterApiKey?: string;
   podcastIndexApiKey?: string;
   podcastIndexApiSecret?: string;
 }

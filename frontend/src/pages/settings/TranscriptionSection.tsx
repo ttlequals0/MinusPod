@@ -1,5 +1,7 @@
 import { WHISPER_BACKENDS, type WhisperModel, type WhisperBackend, type WhisperApiConfig } from '../../api/types';
 import CollapsibleSection from '../../components/CollapsibleSection';
+import ProviderKeyField from './ProviderKeyField';
+import type { ProviderName, ProviderStatus, ProviderTestResult, ProvidersResponse } from '../../api/providers';
 
 interface TranscriptionSectionProps {
   whisperModel: string;
@@ -9,7 +11,13 @@ interface TranscriptionSectionProps {
   onWhisperBackendChange: (backend: WhisperBackend) => void;
   apiConfig: WhisperApiConfig;
   onApiConfigChange: (field: keyof WhisperApiConfig, value: string) => void;
+  providersState: ProvidersResponse | null;
+  onProviderKeySave: (provider: ProviderName, apiKey: string) => Promise<void>;
+  onProviderKeyClear: (provider: ProviderName) => Promise<void>;
+  onProviderKeyTest: (provider: ProviderName) => Promise<ProviderTestResult>;
 }
+
+const NONE_STATUS: ProviderStatus = { configured: false, source: 'none' };
 
 function TranscriptionSection({
   whisperModel,
@@ -19,7 +27,13 @@ function TranscriptionSection({
   onWhisperBackendChange,
   apiConfig,
   onApiConfigChange,
+  providersState,
+  onProviderKeySave,
+  onProviderKeyClear,
+  onProviderKeyTest,
 }: TranscriptionSectionProps) {
+  const whisperStatus = providersState?.whisper ?? NONE_STATUS;
+  const cryptoReady = providersState?.cryptoReady ?? false;
   return (
     <CollapsibleSection title="Transcription">
       <div className="space-y-4">
@@ -85,32 +99,16 @@ function TranscriptionSection({
               </p>
             </div>
 
-            <div>
-              <label htmlFor="whisperApiKey" className="block text-sm font-medium text-foreground mb-2">
-                API Key
-              </label>
-              <input
-                type="password"
-                id="whisperApiKey"
-                value={apiConfig.apiKey}
-                onChange={(e) => onApiConfigChange('apiKey', e.target.value)}
-                placeholder={apiConfig.apiKeyConfigured ? '(configured - enter new value to change)' : '(optional - leave blank if not required)'}
-                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring font-mono text-sm"
-              />
-              <div className="mt-1">
-                {apiConfig.apiKeyConfigured ? (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-green-500/10 text-green-600 dark:text-green-400">
-                    <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                    Configured
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-muted text-muted-foreground">
-                    <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/50" />
-                    Not configured (optional for local servers)
-                  </span>
-                )}
-              </div>
-            </div>
+            <ProviderKeyField
+              provider="whisper"
+              status={whisperStatus}
+              cryptoReady={cryptoReady}
+              placeholder="(optional - leave blank if not required)"
+              label="API Key"
+              onSave={onProviderKeySave}
+              onClear={onProviderKeyClear}
+              onTest={onProviderKeyTest}
+            />
 
             <div>
               <label htmlFor="whisperApiModel" className="block text-sm font-medium text-foreground mb-2">
