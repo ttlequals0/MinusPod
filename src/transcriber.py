@@ -622,7 +622,7 @@ class Transcriber:
 
             logger.info(
                 f"Sending audio to whisper API: {safe_url_for_log(url)} "
-                f"(model={model}, size={upload_size/1024/1024:.1f}MB)"
+                f"(size={upload_size/1024/1024:.1f}MB)"
             )
 
             with open(transcribe_path, 'rb') as audio_file:
