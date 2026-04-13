@@ -16,6 +16,14 @@ import ProcessingQueueSection from './settings/ProcessingQueueSection';
 import AppearanceSection from './settings/AppearanceSection';
 import PodcastIndexSection from './settings/PodcastIndexSection';
 import LLMProviderSection from './settings/LLMProviderSection';
+import {
+  listProviders,
+  updateProvider,
+  clearProvider,
+  testProvider,
+  type ProviderName,
+  type ProvidersResponse,
+} from '../api/providers';
 import AIModelsSection from './settings/AIModelsSection';
 import TranscriptionSection from './settings/TranscriptionSection';
 import AudioSection from './settings/AudioSection';
@@ -53,9 +61,27 @@ function Settings() {
   const [openaiBaseUrl, setOpenaiBaseUrl] = useState('http://localhost:8000/v1');
   const [whisperBackend, setWhisperBackend] = useState<WhisperBackend>('local');
   const [whisperApiConfig, setWhisperApiConfig] = useState<WhisperApiConfig>({
-    baseUrl: '', apiKey: '', apiKeyConfigured: undefined, model: 'whisper-1',
+    baseUrl: '', model: 'whisper-1',
   });
-  const [openrouterApiKey, setOpenrouterApiKey] = useState('');
+  const [providersState, setProvidersState] = useState<ProvidersResponse | null>(null);
+  const [providersError, setProvidersError] = useState<string | null>(null);
+
+  const reloadProviders = () =>
+    listProviders()
+      .then((r) => { setProvidersState(r); setProvidersError(null); })
+      .catch((e) => setProvidersError(e instanceof Error ? e.message : 'Failed to load providers'));
+
+  useEffect(() => { reloadProviders(); }, []);
+
+  const handleProviderKeySave = async (provider: ProviderName, apiKey: string) => {
+    await updateProvider(provider, { apiKey });
+    await reloadProviders();
+  };
+  const handleProviderKeyClear = async (provider: ProviderName) => {
+    await clearProvider(provider);
+    await reloadProviders();
+  };
+  const handleProviderKeyTest = (provider: ProviderName) => testProvider(provider);
   const [podcastIndexApiKey, setPodcastIndexApiKey] = useState('');
   const [podcastIndexApiSecret, setPodcastIndexApiSecret] = useState('');
   const [retentionDays, setRetentionDays] = useState(30);
@@ -149,8 +175,6 @@ function Settings() {
       setWhisperBackend((settings.whisperBackend?.value || 'local') as WhisperBackend);
       setWhisperApiConfig({
         baseUrl: settings.whisperApiBaseUrl?.value || '',
-        apiKey: '',
-        apiKeyConfigured: settings.whisperApiKeyConfigured,
         model: settings.whisperApiModel?.value || 'whisper-1',
       });
     }
@@ -174,12 +198,10 @@ function Settings() {
       openaiBaseUrl !== (settings.openaiBaseUrl?.value || 'http://localhost:8000/v1') ||
       whisperBackend !== (settings.whisperBackend?.value || 'local') ||
       whisperApiConfig.baseUrl !== (settings.whisperApiBaseUrl?.value || '') ||
-      whisperApiConfig.apiKey !== '' ||
       whisperApiConfig.model !== (settings.whisperApiModel?.value || 'whisper-1') ||
-      openrouterApiKey !== '' ||
       (podcastIndexApiKey !== '' && podcastIndexApiSecret !== '')
     );
-  }, [systemPrompt, verificationPrompt, selectedModel, verificationModel, whisperModel, autoProcessEnabled, audioBitrate, vttTranscriptsEnabled, chaptersEnabled, chaptersModel, minCutConfidence, llmProvider, openaiBaseUrl, whisperBackend, whisperApiConfig.baseUrl, whisperApiConfig.apiKey, whisperApiConfig.model, openrouterApiKey, podcastIndexApiKey, podcastIndexApiSecret, settings]);
+  }, [systemPrompt, verificationPrompt, selectedModel, verificationModel, whisperModel, autoProcessEnabled, audioBitrate, vttTranscriptsEnabled, chaptersEnabled, chaptersModel, minCutConfidence, llmProvider, openaiBaseUrl, whisperBackend, whisperApiConfig.baseUrl, whisperApiConfig.model, podcastIndexApiKey, podcastIndexApiSecret, settings]);
 
   const updateMutation = useMutation({
     mutationFn: () =>
@@ -199,14 +221,11 @@ function Settings() {
         openaiBaseUrl,
         whisperBackend,
         whisperApiBaseUrl: whisperApiConfig.baseUrl,
-        ...(whisperApiConfig.apiKey ? { whisperApiKey: whisperApiConfig.apiKey } : {}),
         whisperApiModel: whisperApiConfig.model,
-        ...(openrouterApiKey ? { openrouterApiKey } : {}),
         ...(podcastIndexApiKey ? { podcastIndexApiKey } : {}),
         ...(podcastIndexApiSecret ? { podcastIndexApiSecret } : {}),
       }),
     onSuccess: () => {
-      setOpenrouterApiKey('');
       setPodcastIndexApiKey('');
       setPodcastIndexApiSecret('');
       queryClient.invalidateQueries({ queryKey: ['settings'] });
@@ -298,21 +317,24 @@ function Settings() {
 
       <SettingsGroupHeader title="AI & Processing" />
 
+      {providersError && (
+        <p className="text-sm text-destructive mb-2">Could not load provider status: {providersError}</p>
+      )}
+
       <LLMProviderSection
         llmProvider={llmProvider}
         openaiBaseUrl={openaiBaseUrl}
-        apiKeyConfigured={settings?.apiKeyConfigured}
-        openrouterApiKey={openrouterApiKey}
-        openrouterApiKeyConfigured={settings?.openrouterApiKeyConfigured}
         onProviderChange={(p) => {
           setLlmProvider(p);
-          if (p !== LLM_PROVIDERS.OPENROUTER) setOpenrouterApiKey('');
           setSelectedModel('');
           setVerificationModel('');
           setChaptersModel('');
         }}
         onBaseUrlChange={setOpenaiBaseUrl}
-        onOpenrouterApiKeyChange={setOpenrouterApiKey}
+        providersState={providersState}
+        onProviderKeySave={handleProviderKeySave}
+        onProviderKeyClear={handleProviderKeyClear}
+        onProviderKeyTest={handleProviderKeyTest}
       />
 
       <AIModelsSection
@@ -338,6 +360,10 @@ function Settings() {
         onApiConfigChange={(field, value) =>
           setWhisperApiConfig(prev => ({ ...prev, [field]: value }))
         }
+        providersState={providersState}
+        onProviderKeySave={handleProviderKeySave}
+        onProviderKeyClear={handleProviderKeyClear}
+        onProviderKeyTest={handleProviderKeyTest}
       />
 
       <AdDetectionSection
@@ -394,6 +420,7 @@ function Settings() {
         isPasswordSet={isPasswordSet}
         logout={logout}
         refreshStatus={refreshStatus}
+        cryptoReady={providersState?.cryptoReady ?? false}
       />
 
       {/* Error display */}

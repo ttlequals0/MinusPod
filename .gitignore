@@ -156,6 +156,8 @@ static/
 *.p12
 *.pfx
 *secret*
+!src/secrets_crypto.py
+!tests/unit/test_secrets_crypto.py
 *password*
 cookies.txt
 

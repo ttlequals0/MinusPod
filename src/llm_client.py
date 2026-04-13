@@ -145,6 +145,23 @@ def _get_cached_setting(key: str) -> Optional[str]:
         return None
 
 
+def _get_cached_secret(key: str) -> Optional[str]:
+    """Decrypting variant of _get_cached_setting; shares the same TTL cache."""
+    with _provider_cache_lock:
+        entry = _provider_cache.get(key)
+        if entry and (time.monotonic() - entry['ts']) < _PROVIDER_CACHE_TTL:
+            return entry['val']
+    try:
+        from database import Database
+        val = Database().get_secret(key)
+    except Exception:
+        logger.exception("secrets_crypto read failed")
+        val = None
+    with _provider_cache_lock:
+        _provider_cache[key] = {'val': val, 'ts': time.monotonic()}
+    return val
+
+
 def _clear_provider_cache():
     """Flush the provider settings cache (called on force_new)."""
     with _provider_cache_lock:
@@ -204,10 +221,35 @@ def get_effective_openrouter_api_key() -> Optional[str]:
     Note: DB reset stores '' (empty string) which is intentionally falsy
     so we fall through to the env var.  Do not change to ``is not None``.
     """
-    db_val = _get_cached_setting('openrouter_api_key')
+    db_val = _get_cached_secret('openrouter_api_key')
     if db_val:
         return db_val
     return os.environ.get('OPENROUTER_API_KEY')
+
+
+def get_effective_anthropic_api_key() -> Optional[str]:
+    """Return the Anthropic API key, DB first then env var."""
+    db_val = _get_cached_secret('anthropic_api_key')
+    if db_val:
+        return db_val
+    return os.environ.get('ANTHROPIC_API_KEY')
+
+
+def get_effective_openai_api_key() -> Optional[str]:
+    """Return the OpenAI-compatible API key, DB first then env vars."""
+    db_val = _get_cached_secret('openai_api_key')
+    if db_val:
+        return db_val
+    return os.environ.get('OPENAI_API_KEY', os.environ.get('ANTHROPIC_API_KEY', 'not-needed'))
+
+
+def get_effective_ollama_api_key() -> Optional[str]:
+    """Return the Ollama API key, DB first then env var. Empty when neither is set
+    (local Ollama doesn't require auth; Cloud does)."""
+    db_val = _get_cached_secret('ollama_api_key')
+    if db_val:
+        return db_val
+    return os.environ.get('OLLAMA_API_KEY')
 
 
 class LLMClient(ABC):
@@ -318,7 +360,7 @@ class AnthropicClient(LLMClient):
 
     def __init__(self, api_key: Optional[str] = None):
         super().__init__()
-        self.api_key = api_key or os.environ.get('ANTHROPIC_API_KEY')
+        self.api_key = api_key or get_effective_anthropic_api_key()
         self._client = None
 
     def _ensure_client(self):
@@ -442,7 +484,7 @@ class OpenAICompatibleClient(LLMClient):
     ):
         super().__init__()
         self.base_url = base_url or os.environ.get('OPENAI_BASE_URL', 'http://localhost:8000/v1')
-        self.api_key = api_key or os.environ.get('OPENAI_API_KEY', 'not-needed')
+        self.api_key = api_key or get_effective_openai_api_key()
         self.default_model = default_model or os.environ.get('OPENAI_MODEL', 'claude-sonnet-4-5-20250929')
         self.extra_headers = extra_headers or {}
         self._client = None
@@ -912,10 +954,14 @@ def _build_client(provider: str) -> Optional[LLMClient]:
         )
     elif provider in PROVIDERS_NON_ANTHROPIC:
         base_url = get_effective_base_url()
-        if provider == PROVIDER_OLLAMA and not base_url.rstrip('/').endswith('/v1'):
-            base_url = base_url.rstrip('/') + '/v1'
-            logger.info(f"Ollama provider: normalized base_url to {base_url}")
-        return OpenAICompatibleClient(base_url=base_url)
+        if provider == PROVIDER_OLLAMA:
+            if not base_url.rstrip('/').endswith('/v1'):
+                base_url = base_url.rstrip('/') + '/v1'
+                logger.info(f"Ollama provider: normalized base_url to {base_url}")
+            api_key = get_effective_ollama_api_key() or 'not-needed'
+        else:
+            api_key = get_effective_openai_api_key()
+        return OpenAICompatibleClient(base_url=base_url, api_key=api_key)
     return None
 
 
@@ -947,11 +993,13 @@ def get_api_key() -> Optional[str]:
     provider = get_effective_provider()
 
     if provider == PROVIDER_ANTHROPIC:
-        return os.environ.get('ANTHROPIC_API_KEY')
+        return get_effective_anthropic_api_key()
     elif provider == PROVIDER_OPENROUTER:
         return get_effective_openrouter_api_key()
+    elif provider == PROVIDER_OLLAMA:
+        return get_effective_ollama_api_key() or 'not-needed'
     else:
-        return os.environ.get('OPENAI_API_KEY', os.environ.get('ANTHROPIC_API_KEY', 'not-needed'))
+        return get_effective_openai_api_key()
 
 
 def _verify_endpoint(label: str) -> bool:

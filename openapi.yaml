@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 1.1.3
+  version: 1.4.1
   contact:
     name: MinusPod
   license:
@@ -2274,6 +2274,128 @@ paths:
                     items:
                       $ref: '#/components/schemas/ProcessingHistoryEntry'
 
+  /settings/providers:
+    get:
+      tags:
+        - Settings
+      summary: List provider configuration status
+      description: |
+        Returns encryption readiness and per-provider status (configured,
+        source, and optional baseUrl/model). Never returns key values.
+      operationId: listProviders
+      responses:
+        '200':
+          description: Provider status summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  cryptoReady: { type: boolean }
+                  anthropic:  { $ref: '#/components/schemas/ProviderStatus' }
+                  openai:     { $ref: '#/components/schemas/ProviderStatus' }
+                  openrouter: { $ref: '#/components/schemas/ProviderStatus' }
+                  whisper:    { $ref: '#/components/schemas/ProviderStatus' }
+  /settings/providers/{provider}:
+    put:
+      tags:
+        - Settings
+      summary: Update provider configuration
+      operationId: updateProvider
+      parameters:
+        - in: path
+          name: provider
+          required: true
+          schema:
+            type: string
+            enum: [anthropic, openai, openrouter, whisper, ollama]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                apiKey:  { type: string, nullable: true, description: 'Omit to leave unchanged; null or empty to clear' }
+                baseUrl: { type: string }
+                model:   { type: string }
+      responses:
+        '200': { description: Updated status, content: { application/json: { schema: { $ref: '#/components/schemas/ProviderStatus' } } } }
+        '400': { description: Invalid input (e.g., baseUrl failed SSRF validation) }
+        '404': { description: Unknown provider }
+        '409': { description: provider_crypto_unavailable (MINUSPOD_MASTER_PASSPHRASE unset) }
+    delete:
+      tags:
+        - Settings
+      summary: Clear stored provider key
+      description: Removes the DB-stored key so env-var fallback (if any) takes over.
+      operationId: clearProvider
+      parameters:
+        - in: path
+          name: provider
+          required: true
+          schema:
+            type: string
+            enum: [anthropic, openai, openrouter, whisper, ollama]
+      responses:
+        '200': { description: Cleared }
+        '404': { description: Unknown provider }
+  /settings/providers/rotate-passphrase:
+    post:
+      tags:
+        - Settings
+      summary: Rotate the master passphrase used to encrypt provider keys
+      description: |
+        Re-encrypts every stored provider key under a new passphrase + new
+        salt in a single SQLite transaction. The caller MUST update
+        `MINUSPOD_MASTER_PASSPHRASE` in the container environment to the new
+        value before the next restart, otherwise stored keys will not decrypt.
+      operationId: rotateMasterPassphrase
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [oldPassphrase, newPassphrase]
+              properties:
+                oldPassphrase: { type: string, description: 'Current MINUSPOD_MASTER_PASSPHRASE value' }
+                newPassphrase: { type: string }
+      responses:
+        '200':
+          description: Rotation complete
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  rotated: { type: integer, description: 'Number of secret rows re-encrypted' }
+        '400': { description: 'Missing or invalid input (e.g., current passphrase mismatch, new equals old)' }
+        '409': { description: 'provider_crypto_unavailable (MINUSPOD_MASTER_PASSPHRASE unset)' }
+        '500': { description: 'Rotation failed (rolled back)' }
+  /settings/providers/{provider}/test:
+    post:
+      tags:
+        - Settings
+      summary: Test a provider connection
+      operationId: testProvider
+      parameters:
+        - in: path
+          name: provider
+          required: true
+          schema:
+            type: string
+            enum: [anthropic, openai, openrouter, whisper, ollama]
+      responses:
+        '200':
+          description: Test result (always 200; see `ok` field)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok:    { type: boolean }
+                  error: { type: string }
   /settings:
     get:
       tags:
@@ -3392,6 +3514,15 @@ components:
           description: Relative quality compared to other models
           example: Better
 
+    ProviderStatus:
+      type: object
+      properties:
+        configured: { type: boolean }
+        source:
+          type: string
+          enum: [db, env, none]
+        baseUrl: { type: string }
+        model:   { type: string }
     Settings:
       type: object
       properties:

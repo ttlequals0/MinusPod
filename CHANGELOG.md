@@ -6,6 +6,59 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.1] - 2026-04-13
+
+### Fixed
+- After an LLM provider change, prune saved ad-detection / verification / chapters model IDs that the new provider's live `/v1/models` does not advertise. Previously an OpenRouter-style tag (e.g. `minimax-m2`, `kimi-k2:1t`) configured against one provider survived a switch to Ollama Cloud and every window silently failed with `not_found_error` — the server returned HTTP 200 with an error envelope, the parser treated the window as "no ads found," and an entire episode processed with zero detections. The prune uses the raw `client.list_models()` list (bypassing `_ensure_configured_models_present`, which would re-inject the stale IDs), and falls back to `reset_setting` so the new provider's default model takes over.
+
+## [1.4.0] - 2026-04-13
+
+### Added
+- Ollama Cloud support. The Settings > LLM Provider section now exposes a key input when Ollama is selected, backed by the same encrypted store as the other providers (DB slot `ollama_api_key`, env fallback `OLLAMA_API_KEY`). Local Ollama still works with the field left blank. API: `/api/v1/settings/providers/ollama` joins the existing provider surface; the path-param enum now includes `ollama`.
+
+### Changed
+- `src/llm_client.py::_build_client` now threads the Ollama key (or `not-needed` fallback) into `OpenAICompatibleClient` for the Ollama branch. `get_api_key()` returns the Ollama key when the active provider is Ollama.
+
+## [1.3.2] - 2026-04-13
+
+### Security
+- Close CodeQL #33 (py/clear-text-logging-sensitive-data). The helper log introduced in 1.3.1 took `rows: int` — a count — but CodeQL's inter-procedural taint tracking follows the return value of `secrets_crypto.rotate(db, old, new)` because the function is called with password-named arguments, so the `rotated` count inherits taint and any log sink reachable from it is flagged. Remove the success log entirely; the 200 response body already includes `{rotated: N}` for audit, and failure paths still log via `logger.exception`.
+
+## [1.3.1] - 2026-04-13
+
+### Security
+- Close CodeQL #32 (py/clear-text-logging-sensitive-data) in `src/api/providers.py`. The success log on the rotate-passphrase endpoint only emitted an integer row count, but CodeQL's taint analysis follows the `oldPassphrase` / `newPassphrase` body parameters through the enclosing function scope and flags any log sink it can reach. Moved the log call into a helper function with no password-named locals so the scanner has no taint path to follow.
+
+## [1.3.0] - 2026-04-13
+
+### Added
+- Master passphrase rotation. New endpoint `POST /api/v1/settings/providers/rotate-passphrase` body `{oldPassphrase, newPassphrase}` decrypts every stored provider key under the current DEK, mints a fresh 16-byte salt, derives a new DEK from the new passphrase, and writes all new ciphertexts plus the new salt inside a single SQLite transaction. UI control lives under Settings > Security > Provider Key Encryption with confirm dialog and an explicit warning that `MINUSPOD_MASTER_PASSPHRASE` must be updated in the container environment to the new value before the next restart.
+
+## [1.2.2] - 2026-04-13
+
+### Changed
+- Rework provider key UI. The separate "Providers & API Keys" card introduced in 1.2.0 duplicated the existing LLM and Transcription sections. Key inputs now live inline inside `LLMProviderSection` (contextual to the selected provider) and `TranscriptionSection` (for the Whisper remote backend), with a three-state status chip (Stored encrypted / Using env fallback / Not set) and Save / Test / Clear affordances that only appear when relevant. When `MINUSPOD_MASTER_PASSPHRASE` is unset the input collapses to a one-line "Setup required" note in place — no separate banner.
+- Remove dead plaintext-save state (`openrouterApiKey`, `whisperApiConfig.apiKey`, `apiKeyConfigured`) from the Settings page and its types; saves now always route through `/api/v1/settings/providers/<name>`.
+
+## [1.2.1] - 2026-04-13
+
+### Security
+- Close CodeQL #30 and #31 (py/clear-text-logging-sensitive-data) in `src/database/settings.py` and `src/llm_client.py`. The `key` parameter passed to the log calls was the setting name (e.g. `anthropic_api_key`), not the secret value, but CodeQL's taint analysis followed a parameter flowing out of a `get_secret`-shaped function into a log sink and flagged it. Drop the parameter from the format string; the stack trace on exceptions is enough to diagnose which setting failed.
+
+## [1.2.0] - 2026-04-13
+
+### Added
+- Provider & API key configuration via UI and API. New section under Settings lets an authenticated admin set Anthropic, OpenAI-compatible, OpenRouter, and remote Whisper API keys (plus base URL and model where applicable), test the connection, and clear the stored value to fall back to the environment variable.
+- New endpoints: `GET /api/v1/settings/providers`, `PUT /api/v1/settings/providers/<name>`, `DELETE /api/v1/settings/providers/<name>`, `POST /api/v1/settings/providers/<name>/test`. `GET` returns only configured/source booleans and never echoes key values.
+
+### Security
+- Provider API keys stored in the `settings` table are now encrypted with AES-256-GCM. The data-encryption key is derived via PBKDF2-HMAC-SHA256 (600k iterations) from `MINUSPOD_MASTER_PASSPHRASE` and a random 16-byte salt persisted as `provider_crypto_salt`. Ciphertext envelope `enc:v1:<b64 nonce>:<b64 ct+tag>` supports future rotation. Encryption is decoupled from admin auth, so password changes do not touch stored keys.
+- Feature is locked when `MINUSPOD_MASTER_PASSPHRASE` is unset; the API returns `409 provider_crypto_unavailable` and the UI shows a "Setup required" banner. Env-var credentials continue to work in locked mode.
+- Legacy plaintext rows for `openrouter_api_key` and `whisper_api_key` are read transparently and upgraded to ciphertext on the next save via the UI.
+
+### Changed
+- `get_effective_anthropic_api_key()` and `get_effective_openai_api_key()` added alongside the existing OpenRouter helper, giving all four providers the same DB-then-env resolution path.
+
 ## [1.1.3] - 2026-04-12
 
 ### Security

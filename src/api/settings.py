@@ -244,6 +244,23 @@ def update_ad_detection_settings():
             client.probe_json_format_support()
         threading.Thread(target=force_refresh_pricing, daemon=True).start()
 
+        # Prune saved model IDs that the new provider does not advertise.
+        # Otherwise selections from a prior catalog (e.g. OpenRouter-style
+        # tags carrying into Ollama Cloud) survive the switch and fail at
+        # request time with not_found_error. Reset to provider-aware defaults.
+        try:
+            advertised = {m.id for m in client.list_models()}
+            for setting_key in ('claude_model', 'verification_model', 'chapters_model'):
+                current = db.get_setting(setting_key)
+                if current and current not in advertised:
+                    logger.info(
+                        "Resetting %s='%s' on provider change: not advertised by new provider",
+                        setting_key, current,
+                    )
+                    db.reset_setting(setting_key)
+        except Exception:
+            logger.exception("Failed to prune stale model selections after provider change")
+
     if 'whisperBackend' in data:
         valid_whisper_backends = (WHISPER_BACKEND_LOCAL, WHISPER_BACKEND_API)
         if data['whisperBackend'] not in valid_whisper_backends:

@@ -317,9 +317,22 @@ Customize ad detection in Settings:
 - **Audio Bitrate** - Output bitrate for processed audio (default 128k)
 - **System Prompts** - Customizable prompts for first pass and verification detection
 
+### Provider API Keys
+
+You can set the Anthropic, OpenAI-compatible, OpenRouter, Ollama, and remote Whisper keys from the UI (Settings > LLM Provider and Settings > Transcription) or via `PUT /api/v1/settings/providers/<name>`. No container restart needed. Keys are encrypted with AES-256-GCM.
+
+Two things have to be in place first:
+
+1. `MINUSPOD_MASTER_PASSPHRASE` set in the container environment. PBKDF2 derives the encryption key from it, so treat it like any other production secret: back it up, keep it stable, don't commit it. To rotate, use Settings > Security > Provider Key Encryption (or `POST /api/v1/settings/providers/rotate-passphrase`). The call re-encrypts every stored key in one transaction, then you must update the env var to the new value before the next restart — otherwise the next boot won't decrypt anything.
+2. An admin password set in the UI, so Settings is reachable. The password gates the surface only; it isn't part of the crypto. Changing it leaves stored keys untouched.
+
+If the passphrase is missing, the key inputs collapse to a "Setup required" note, the API returns `409 provider_crypto_unavailable`, and env-var credentials keep working. GET responses never include key values, only booleans plus a `db`/`env`/`none` source marker.
+
 ## Finding Podcast RSS Feeds
 
 MinusPod includes a built-in podcast search powered by [PodcastIndex.org](https://podcastindex.org). Search by name directly from the Add Feed page. To enable search, get free API credentials at [api.podcastindex.org/signup](https://api.podcastindex.org/signup) and add them in Settings > Podcast Search.
+
+![Podcast search on the Add Feed page, Dracula dark theme](docs/images/podcast-search-dark.png)
 
 You can also find RSS feeds manually:
 
@@ -371,6 +384,8 @@ This is a comma-separated list of domains excluded from Audiobookshelf's SSRF fi
 | `RETENTION_PERIOD` | `1440` | **Deprecated.** Legacy minutes-based retention (auto-converted to days on first startup). Use the Settings UI or `PUT /api/v1/settings/retention` instead. Retention now resets episodes to "discovered" instead of deleting them. |
 | `AD_DETECTION_MAX_TOKENS` | `2000` | Maximum tokens for LLM ad detection responses (increase if responses are being truncated) |
 | `APP_PASSWORD` | _(none)_ | Initial password for web UI (can also be set in Settings > Security) |
+| `OLLAMA_API_KEY` | _(none)_ | Ollama Cloud key. Leave unset for local. Can also be set in Settings > LLM Provider (encrypted). |
+| `MINUSPOD_MASTER_PASSPHRASE` | _(none)_ | Unlocks the encrypted provider-key store. Without it, the UI shows "Setup required" and only env-var keys are used. Keep it stable — lose it and stored keys become unreadable (env fallback still works). |
 | `LOG_LEVEL` | `INFO` | Logging level (DEBUG, INFO, WARNING, ERROR) |
 | `DATA_DIR` | `/app/data` | Data storage directory |
 | `PODCAST_INDEX_API_KEY` | _(none)_ | PodcastIndex.org API key for podcast search (or configure in Settings) |
@@ -423,9 +438,20 @@ BASE_URL=http://localhost:8000
 
 Note: The AI model is configured via the Settings UI, not environment variables.
 
-## Using Ollama (Local LLM)
+## Using Ollama (Local or Cloud)
 
-MinusPod supports [Ollama](https://ollama.com) as an alternative to the Anthropic API. This lets you run ad detection entirely locally with no API costs or data leaving your machine.
+[Ollama](https://ollama.com) is an alternative to the Anthropic API. MinusPod supports both flavors:
+
+- **Local** (`http://host:11434`) — no auth, no API costs, nothing leaves the machine.
+- **Cloud** (`https://ollama.com/api`) — same OpenAI-compatible endpoints, just with `Authorization: Bearer <key>` on every request. Free tier works for this pipeline. Grab a key at [ollama.com/settings/keys](https://ollama.com/settings/keys).
+
+Configuration is identical either way: pick `Ollama` in Settings > LLM Provider, set the Base URL, and (for Cloud) paste the key. The key is stored encrypted. Leave it blank for local.
+
+### Heads up about Ollama Cloud model selection
+
+Ollama Cloud's `/v1/models` advertises the full Ollama library, including previews and local-only tags that Cloud won't actually route. The dropdown shows whatever the endpoint returns, so entries like `gemma4:31b`, `kimi-k2:1t`, and `gpt-oss:120b` can appear but 404 when called.
+
+If an episode processes with zero ads and the logs show `{"type":"error","error":{"type":"not_found_error"}}`, the model isn't really on Cloud. The reliable list is at [ollama.com/search?c=cloud](https://ollama.com/search?c=cloud). Cross-check the base name (before the `:`) before saving.
 
 ### Setup
 

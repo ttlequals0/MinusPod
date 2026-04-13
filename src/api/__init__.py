@@ -277,4 +277,4 @@ def _find_similar_pattern(db, pattern_data: dict) -> Optional[dict]:
 
 
 # Import all sub-modules to trigger route registration
-from api import feeds, episodes, history, settings, system, patterns, sponsors, status, auth, search, podcast_search, stats
+from api import feeds, episodes, history, settings, system, patterns, sponsors, status, auth, search, podcast_search, stats, providers

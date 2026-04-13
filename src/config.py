@@ -185,6 +185,12 @@ OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1'
 OPENROUTER_HTTP_REFERER = 'https://github.com/ttlequals0/minuspod'
 OPENROUTER_APP_TITLE = 'MinusPod'
 
+MASTER_PASSPHRASE = os.environ.get('MINUSPOD_MASTER_PASSPHRASE')
+
+
+def provider_crypto_ready() -> bool:
+    return bool(MASTER_PASSPHRASE)
+
 # ============================================================
 # LLM Pricing Configuration
 # ============================================================

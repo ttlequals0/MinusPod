@@ -288,7 +288,10 @@ def _get_whisper_settings() -> Dict[str, str]:
             ('whisper_api_key', 'api_key'),
             ('whisper_api_model', 'api_model'),
         ]:
-            val = db.get_setting(setting_key)
+            if setting_key == 'whisper_api_key':
+                val = db.get_secret(setting_key)
+            else:
+                val = db.get_setting(setting_key)
             if val:
                 defaults[default_key] = val
     except Exception as e:

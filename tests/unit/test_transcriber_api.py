@@ -15,6 +15,7 @@ def _mock_db_with_settings(settings_dict):
     """Create a mock Database that returns values from settings_dict."""
     mock_db = MagicMock()
     mock_db.get_setting.side_effect = lambda key: settings_dict.get(key)
+    mock_db.get_secret.side_effect = lambda key: settings_dict.get(key)
     return mock_db
 
 

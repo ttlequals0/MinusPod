@@ -6,28 +6,49 @@ from unittest.mock import patch, MagicMock
 class TestGetEffectiveOpenrouterApiKey(unittest.TestCase):
     """Verify DB-first, env-fallback logic for OpenRouter API key."""
 
-    @patch('llm_client._get_cached_setting', return_value='sk-or-db-key')
+    @patch('llm_client._get_cached_secret', return_value='sk-or-db-key')
     def test_returns_db_value_when_set(self, _mock):
         from llm_client import get_effective_openrouter_api_key
         self.assertEqual(get_effective_openrouter_api_key(), 'sk-or-db-key')
 
-    @patch('llm_client._get_cached_setting', return_value=None)
+    @patch('llm_client._get_cached_secret', return_value=None)
     @patch.dict('os.environ', {'OPENROUTER_API_KEY': 'sk-or-env-key'})
     def test_falls_back_to_env_var(self, _mock):
         from llm_client import get_effective_openrouter_api_key
         self.assertEqual(get_effective_openrouter_api_key(), 'sk-or-env-key')
 
-    @patch('llm_client._get_cached_setting', return_value=None)
+    @patch('llm_client._get_cached_secret', return_value=None)
     @patch.dict('os.environ', {}, clear=True)
     def test_returns_none_when_unset(self, _mock):
         from llm_client import get_effective_openrouter_api_key
         self.assertIsNone(get_effective_openrouter_api_key())
 
-    @patch('llm_client._get_cached_setting', return_value='sk-or-db-key')
+    @patch('llm_client._get_cached_secret', return_value='sk-or-db-key')
     @patch.dict('os.environ', {'OPENROUTER_API_KEY': 'sk-or-env-key'})
     def test_db_takes_precedence_over_env(self, _mock):
         from llm_client import get_effective_openrouter_api_key
         self.assertEqual(get_effective_openrouter_api_key(), 'sk-or-db-key')
+
+
+class TestGetEffectiveOllamaApiKey(unittest.TestCase):
+    """Verify DB-first, env-fallback logic for Ollama API key."""
+
+    @patch('llm_client._get_cached_secret', return_value='ollama-db-key')
+    def test_returns_db_value_when_set(self, _mock):
+        from llm_client import get_effective_ollama_api_key
+        self.assertEqual(get_effective_ollama_api_key(), 'ollama-db-key')
+
+    @patch('llm_client._get_cached_secret', return_value=None)
+    @patch.dict('os.environ', {'OLLAMA_API_KEY': 'ollama-env-key'})
+    def test_falls_back_to_env_var(self, _mock):
+        from llm_client import get_effective_ollama_api_key
+        self.assertEqual(get_effective_ollama_api_key(), 'ollama-env-key')
+
+    @patch('llm_client._get_cached_secret', return_value=None)
+    @patch.dict('os.environ', {}, clear=True)
+    def test_returns_none_when_unset(self, _mock):
+        from llm_client import get_effective_ollama_api_key
+        self.assertIsNone(get_effective_ollama_api_key())
 
 
 class TestGetLlmTimeoutOpenRouter(unittest.TestCase):

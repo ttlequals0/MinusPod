@@ -1,75 +1,51 @@
 import type { LlmProvider } from '../../api/types';
 import { LLM_PROVIDERS } from '../../api/types';
 import CollapsibleSection from '../../components/CollapsibleSection';
+import ProviderKeyField from './ProviderKeyField';
+import type { ProviderName, ProviderStatus, ProviderTestResult, ProvidersResponse } from '../../api/providers';
 
 interface LLMProviderSectionProps {
   llmProvider: LlmProvider;
   openaiBaseUrl: string;
-  apiKeyConfigured: boolean | undefined;
-  openrouterApiKey: string;
-  openrouterApiKeyConfigured: boolean | undefined;
   onProviderChange: (provider: LlmProvider) => void;
   onBaseUrlChange: (url: string) => void;
-  onOpenrouterApiKeyChange: (key: string) => void;
+  providersState: ProvidersResponse | null;
+  onProviderKeySave: (provider: ProviderName, apiKey: string) => Promise<void>;
+  onProviderKeyClear: (provider: ProviderName) => Promise<void>;
+  onProviderKeyTest: (provider: ProviderName) => Promise<ProviderTestResult>;
 }
+
+const NONE_STATUS: ProviderStatus = { configured: false, source: 'none' };
+
+function keyProviderFor(p: LlmProvider): ProviderName | null {
+  if (p === LLM_PROVIDERS.ANTHROPIC) return 'anthropic';
+  if (p === LLM_PROVIDERS.OPENROUTER) return 'openrouter';
+  if (p === LLM_PROVIDERS.OPENAI_COMPATIBLE) return 'openai';
+  if (p === LLM_PROVIDERS.OLLAMA) return 'ollama';
+  return null;
+}
+
+const KEY_META: Record<ProviderName, { placeholder: string; label: string; helper?: string }> = {
+  anthropic:  { placeholder: 'sk-ant-...', label: 'Anthropic API key' },
+  openrouter: { placeholder: 'sk-or-v1-...', label: 'OpenRouter API key', helper: 'Get your API key from openrouter.ai/keys' },
+  openai:     { placeholder: 'sk-...', label: 'API key' },
+  whisper:    { placeholder: 'sk-...', label: 'API key' },
+  ollama:     { placeholder: 'Leave blank for local Ollama; paste an ollama.com key for Cloud', label: 'Ollama API key', helper: 'Local Ollama does not require a key. Ollama Cloud keys come from ollama.com/settings/keys.' },
+};
 
 function LLMProviderSection({
   llmProvider,
   openaiBaseUrl,
-  apiKeyConfigured,
-  openrouterApiKey,
-  openrouterApiKeyConfigured,
   onProviderChange,
   onBaseUrlChange,
-  onOpenrouterApiKeyChange,
+  providersState,
+  onProviderKeySave,
+  onProviderKeyClear,
+  onProviderKeyTest,
 }: LLMProviderSectionProps) {
-  function StatusBadge({ variant, label }: { variant: 'green' | 'yellow' | 'muted'; label: string }) {
-    const styles = {
-      green: { bg: 'bg-green-500/10 text-green-600 dark:text-green-400', dot: 'bg-green-500' },
-      yellow: { bg: 'bg-yellow-500/10 text-yellow-600 dark:text-yellow-400', dot: 'bg-yellow-500' },
-      muted: { bg: 'bg-muted text-muted-foreground', dot: 'bg-muted-foreground/50' },
-    };
-    const s = styles[variant];
-    return (
-      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${s.bg}`}>
-        <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
-        {label}
-      </span>
-    );
-  }
-
-  function renderApiKeyStatus() {
-    if (llmProvider === LLM_PROVIDERS.OPENROUTER) {
-      if (openrouterApiKeyConfigured) {
-        return <StatusBadge variant="green" label="Configured" />;
-      }
-      return (
-        <>
-          <StatusBadge variant="yellow" label="Not configured" />
-          <p className="mt-2 text-sm text-muted-foreground">
-            Set OPENROUTER_API_KEY environment variable or enter it above
-          </p>
-        </>
-      );
-    }
-
-    if (apiKeyConfigured) {
-      return <StatusBadge variant="green" label="Configured (env)" />;
-    }
-
-    if (llmProvider === LLM_PROVIDERS.ANTHROPIC) {
-      return (
-        <>
-          <StatusBadge variant="yellow" label="Not configured" />
-          <p className="mt-2 text-sm text-muted-foreground">
-            Set ANTHROPIC_API_KEY environment variable to enable Anthropic API access
-          </p>
-        </>
-      );
-    }
-
-    return <StatusBadge variant="muted" label="Not required" />;
-  }
+  const keyProvider = keyProviderFor(llmProvider);
+  const status = keyProvider && providersState ? providersState[keyProvider] : NONE_STATUS;
+  const cryptoReady = providersState?.cryptoReady ?? false;
 
   return (
     <CollapsibleSection title="LLM Provider" defaultOpen>
@@ -112,29 +88,19 @@ function LLMProviderSection({
           </div>
         )}
 
-        {llmProvider === LLM_PROVIDERS.OPENROUTER && (
-          <div>
-            <label htmlFor="openrouterApiKey" className="block text-sm font-medium text-foreground mb-2">
-              OpenRouter API Key
-            </label>
-            <input
-              type="password"
-              id="openrouterApiKey"
-              value={openrouterApiKey}
-              onChange={(e) => onOpenrouterApiKeyChange(e.target.value)}
-              placeholder={openrouterApiKeyConfigured ? '(configured - enter new value to change)' : 'sk-or-v1-...'}
-              className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring font-mono text-sm"
-            />
-            <p className="mt-1 text-sm text-muted-foreground">
-              Get your API key from openrouter.ai/keys
-            </p>
-          </div>
+        {keyProvider && (
+          <ProviderKeyField
+            provider={keyProvider}
+            status={status}
+            cryptoReady={cryptoReady}
+            placeholder={KEY_META[keyProvider].placeholder}
+            label={KEY_META[keyProvider].label}
+            helper={KEY_META[keyProvider].helper}
+            onSave={onProviderKeySave}
+            onClear={onProviderKeyClear}
+            onTest={onProviderKeyTest}
+          />
         )}
-
-        <div>
-          <p className="text-sm font-medium text-foreground mb-1">API Key Status</p>
-          {renderApiKeyStatus()}
-        </div>
       </div>
     </CollapsibleSection>
   );

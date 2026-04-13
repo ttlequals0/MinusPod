@@ -4,6 +4,7 @@ import logging
 from typing import Optional, Dict, Any, List
 
 from config import normalize_model_key
+from secrets_crypto import CryptoUnavailableError, decrypt, encrypt, is_ciphertext
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +103,34 @@ class SettingsMixin:
             self.set_setting(key, defaults[key], is_default=True)
             return True
         return False
+
+    def get_secret(self, key: str) -> Optional[str]:
+        """Return a decrypted secret, or None if unset.
+
+        Transparently handles legacy plaintext rows (no envelope prefix) so
+        pre-v1.2.0 stored keys keep working until re-saved.
+        """
+        raw = self.get_setting(key)
+        if not raw:
+            return None
+        if not is_ciphertext(raw):
+            return raw
+        try:
+            return decrypt(self, raw)
+        except CryptoUnavailableError:
+            logger.warning("secrets_crypto unavailable; skipping decrypt")
+            return None
+        except Exception:
+            logger.exception("secrets_crypto decrypt failed")
+            return None
+
+    def set_secret(self, key: str, plaintext: str):
+        """Encrypt and store a secret. Requires provider crypto to be available."""
+        self.set_setting(key, encrypt(self, plaintext))
+
+    def clear_secret(self, key: str):
+        """Remove a stored secret so env-var fallback takes over."""
+        self.set_setting(key, '')
 
     # ========== System Settings Methods (for schema versioning) ==========
 
