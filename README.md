@@ -443,7 +443,7 @@ Note: The AI model is configured via the Settings UI, not environment variables.
 MinusPod supports [Ollama](https://ollama.com) as an alternative to the Anthropic API, in both flavors:
 
 - **Local Ollama** (`http://host:11434`) runs models on your own hardware with no auth, no API costs, and no data leaving your machine.
-- **Ollama Cloud** (`https://ollama.com/api`) runs hosted models from ollama.com; you still use the same OpenAI-compatible endpoints but every request carries `Authorization: Bearer <key>`.
+- **Ollama Cloud** (`https://ollama.com/api`) runs hosted models from ollama.com; you still use the same OpenAI-compatible endpoints but every request carries `Authorization: Bearer <key>`. A free tier is available and tested against this pipeline; generate a key at `ollama.com/settings/keys`.
 
 Both are configured the same way in MinusPod: pick `Ollama` in Settings > LLM Provider, set the Base URL to point at your server, and (for Cloud) paste your ollama.com key into the API key field. The key is encrypted at rest. Leave the field blank for local.
 
