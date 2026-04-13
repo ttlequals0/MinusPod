@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2026-04-13
+
+### Security
+- Close CodeQL #30 and #31 (py/clear-text-logging-sensitive-data) in `src/database/settings.py` and `src/llm_client.py`. The `key` parameter passed to the log calls was the setting name (e.g. `anthropic_api_key`), not the secret value, but CodeQL's taint analysis followed a parameter flowing out of a `get_secret`-shaped function into a log sink and flagged it. Drop the parameter from the format string; the stack trace on exceptions is enough to diagnose which setting failed.
+
 ## [1.2.0] - 2026-04-13
 
 ### Added
