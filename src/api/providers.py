@@ -11,7 +11,7 @@ from flask import request
 
 from api import api, error_response, json_response
 from database import Database
-from secrets_crypto import is_available as crypto_available
+from secrets_crypto import CryptoUnavailableError, is_available as crypto_available, rotate as rotate_passphrase
 from utils.url import validate_base_url, SSRFError
 
 logger = logging.getLogger(__name__)
@@ -113,6 +113,32 @@ def _resolve_key(db, cfg):
         if val:
             return val
     return os.environ.get(cfg['env'])
+
+
+@api.route('/settings/providers/rotate-passphrase', methods=['POST'])
+def rotate_master_passphrase():
+    if not crypto_available():
+        return error_response('provider_crypto_unavailable', 409)
+    body = request.get_json(silent=True) or {}
+    old = body.get('oldPassphrase')
+    new = body.get('newPassphrase')
+    if not isinstance(old, str) or not isinstance(new, str) or not old or not new:
+        return error_response('oldPassphrase and newPassphrase required', 400)
+    db = Database()
+    try:
+        rotated = rotate_passphrase(db, old, new)
+    except CryptoUnavailableError:
+        return error_response('provider_crypto_unavailable', 409)
+    except ValueError as e:
+        # secrets_crypto.rotate raises ValueError only with static, non-sensitive
+        # messages ("current passphrase mismatch", "new passphrase required",
+        # "must differ from current"). Do not relax this contract.
+        return error_response(str(e), 400)
+    except Exception:
+        logger.exception("provider passphrase rotation failed")
+        return error_response('rotation failed', 500)
+    logger.info("provider passphrase rotated rows=%s", rotated)
+    return json_response({'rotated': rotated}, 200)
 
 
 @api.route('/settings/providers/<provider>/test', methods=['POST'])

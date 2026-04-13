@@ -71,6 +71,38 @@ def test_legacy_plaintext_transparent_read(temp_db):
     assert temp_db.get_secret('openrouter_api_key') == 'legacy-plain'
 
 
+def test_rotate_reencrypts_under_new_passphrase(temp_db, monkeypatch):
+    temp_db.set_secret('anthropic_api_key', 'sk-ant-1')
+    temp_db.set_secret('whisper_api_key', 'sk-w-2')
+    old_salt = temp_db.get_setting('provider_crypto_salt')
+
+    n = secrets_crypto.rotate(temp_db, 'test-passphrase', 'next-passphrase')
+    assert n == 2
+    assert temp_db.get_setting('provider_crypto_salt') != old_salt
+
+    # New passphrase must be the active env value before the next derive.
+    monkeypatch.setenv('MINUSPOD_MASTER_PASSPHRASE', 'next-passphrase')
+    secrets_crypto.reset_cache()
+    assert temp_db.get_secret('anthropic_api_key') == 'sk-ant-1'
+    assert temp_db.get_secret('whisper_api_key') == 'sk-w-2'
+
+    # Old passphrase no longer decrypts.
+    monkeypatch.setenv('MINUSPOD_MASTER_PASSPHRASE', 'test-passphrase')
+    secrets_crypto.reset_cache()
+    assert temp_db.get_secret('anthropic_api_key') is None
+
+
+def test_rotate_rejects_wrong_current_passphrase(temp_db):
+    temp_db.set_secret('anthropic_api_key', 'sk-ant-1')
+    with pytest.raises(ValueError, match='current passphrase mismatch'):
+        secrets_crypto.rotate(temp_db, 'wrong', 'whatever')
+
+
+def test_rotate_rejects_same_passphrase(temp_db):
+    with pytest.raises(ValueError, match='must differ'):
+        secrets_crypto.rotate(temp_db, 'test-passphrase', 'test-passphrase')
+
+
 def test_admin_password_change_independence(temp_db):
     """Provider ciphertext is decoupled from admin auth state."""
     temp_db.set_secret('openrouter_api_key', 'sk-or-xyz')

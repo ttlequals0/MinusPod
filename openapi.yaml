@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 1.2.2
+  version: 1.3.0
   contact:
     name: MinusPod
   license:
@@ -2340,6 +2340,39 @@ paths:
       responses:
         '200': { description: Cleared }
         '404': { description: Unknown provider }
+  /settings/providers/rotate-passphrase:
+    post:
+      tags:
+        - Settings
+      summary: Rotate the master passphrase used to encrypt provider keys
+      description: |
+        Re-encrypts every stored provider key under a new passphrase + new
+        salt in a single SQLite transaction. The caller MUST update
+        `MINUSPOD_MASTER_PASSPHRASE` in the container environment to the new
+        value before the next restart, otherwise stored keys will not decrypt.
+      operationId: rotateMasterPassphrase
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [oldPassphrase, newPassphrase]
+              properties:
+                oldPassphrase: { type: string, description: 'Current MINUSPOD_MASTER_PASSPHRASE value' }
+                newPassphrase: { type: string }
+      responses:
+        '200':
+          description: Rotation complete
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  rotated: { type: integer, description: 'Number of secret rows re-encrypted' }
+        '400': { description: 'Missing or invalid input (e.g., current passphrase mismatch, new equals old)' }
+        '409': { description: 'provider_crypto_unavailable (MINUSPOD_MASTER_PASSPHRASE unset)' }
+        '500': { description: 'Rotation failed (rolled back)' }
   /settings/providers/{provider}/test:
     post:
       tags:

@@ -323,7 +323,7 @@ From **Settings → Providers & API Keys** you can configure Anthropic, OpenAI-c
 
 **Prerequisites (both are required to use the feature):**
 
-1. Set `MINUSPOD_MASTER_PASSPHRASE` in the container environment. This value is the input to the PBKDF2 key derivation that produces the encryption key. Treat it like any other production secret - keep it stable, back it up, and do not commit it. Rotating it is an intentional, explicit operation (future work).
+1. Set `MINUSPOD_MASTER_PASSPHRASE` in the container environment. This value is the input to the PBKDF2 key derivation that produces the encryption key. Treat it like any other production secret - keep it stable, back it up, and do not commit it. To rotate it later, use Settings > Security > Provider Key Encryption (or `POST /api/v1/settings/providers/rotate-passphrase`); the call re-encrypts all stored keys in a single transaction, after which you must update the env var to the new value before the next restart.
 2. Set an admin password in the UI so Settings is reachable. The admin password is an operational gate for the Settings surface; it is not used as encryption material and changing it does not touch stored keys.
 
 If `MINUSPOD_MASTER_PASSPHRASE` is missing, the key inputs inside the LLM Provider and Transcription sections collapse to a one-line "Setup required" note, the API returns `409 provider_crypto_unavailable` on write, and existing env-var credentials continue to work. No key material is ever returned in GET responses; the API only reports whether each provider is configured and whether the active value comes from the database or the environment.

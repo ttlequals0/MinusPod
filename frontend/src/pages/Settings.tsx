@@ -420,6 +420,7 @@ function Settings() {
         isPasswordSet={isPasswordSet}
         logout={logout}
         refreshStatus={refreshStatus}
+        cryptoReady={providersState?.cryptoReady ?? false}
       />
 
       {/* Error display */}

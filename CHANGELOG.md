@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-04-13
+
+### Added
+- Master passphrase rotation. New endpoint `POST /api/v1/settings/providers/rotate-passphrase` body `{oldPassphrase, newPassphrase}` decrypts every stored provider key under the current DEK, mints a fresh 16-byte salt, derives a new DEK from the new passphrase, and writes all new ciphertexts plus the new salt inside a single SQLite transaction. UI control lives under Settings > Security > Provider Key Encryption with confirm dialog and an explicit warning that `MINUSPOD_MASTER_PASSPHRASE` must be updated in the container environment to the new value before the next restart.
+
 ## [1.2.2] - 2026-04-13
 
 ### Changed

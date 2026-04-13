@@ -1,14 +1,55 @@
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
+import { rotateMasterPassphrase } from '../../api/providers';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import { setPassword, removePassword } from '../../api/auth';
 
 interface SecuritySectionProps {
+  cryptoReady?: boolean;
   isPasswordSet: boolean;
   logout: () => Promise<void>;
   refreshStatus: () => Promise<void>;
 }
 
-function SecuritySection({ isPasswordSet, logout, refreshStatus }: SecuritySectionProps) {
+function SecuritySection({ isPasswordSet, logout, refreshStatus, cryptoReady = false }: SecuritySectionProps) {
+  const [oldPassphrase, setOldPassphrase] = useState('');
+  const [newPassphrase, setNewPassphrase] = useState('');
+  const [confirmPassphrase, setConfirmPassphrase] = useState('');
+  const [rotateError, setRotateError] = useState<string | null>(null);
+  const [rotateSuccess, setRotateSuccess] = useState<string | null>(null);
+  const [isRotating, setIsRotating] = useState(false);
+
+  async function handleRotatePassphrase(e: FormEvent) {
+    e.preventDefault();
+    setRotateError(null); setRotateSuccess(null);
+    if (!oldPassphrase || !newPassphrase) {
+      setRotateError('Both current and new passphrase are required.');
+      return;
+    }
+    if (newPassphrase.length < 12) {
+      setRotateError('New passphrase must be at least 12 characters.');
+      return;
+    }
+    if (newPassphrase !== confirmPassphrase) {
+      setRotateError('New passphrase confirmation does not match.');
+      return;
+    }
+    if (!window.confirm(
+      'After rotation you MUST update MINUSPOD_MASTER_PASSPHRASE in the container environment and restart the container. ' +
+      'If you forget, stored keys will be unreadable on next restart. ' +
+      'If you lose the new passphrase, the stored keys are unrecoverable. Continue?',
+    )) return;
+    setIsRotating(true);
+    try {
+      const r = await rotateMasterPassphrase(oldPassphrase, newPassphrase);
+      setRotateSuccess(`Re-encrypted ${r.rotated} stored key${r.rotated === 1 ? '' : 's'}. Update the env var now.`);
+      setOldPassphrase(''); setNewPassphrase(''); setConfirmPassphrase('');
+    } catch (err) {
+      setRotateError(err instanceof Error ? err.message : 'Rotation failed');
+    } finally {
+      setIsRotating(false);
+    }
+  }
+
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -153,6 +194,82 @@ function SecuritySection({ isPasswordSet, logout, refreshStatus }: SecuritySecti
             : 'Set Password'}
         </button>
       </form>
+
+      <div className="mt-6 pt-6 border-t border-border">
+        <h3 className="text-base font-semibold text-foreground mb-1">Provider Key Encryption</h3>
+        <p className="text-sm text-muted-foreground mb-4">
+          Rotate the <code className="font-mono">MINUSPOD_MASTER_PASSPHRASE</code> used to encrypt provider API keys.
+          Re-encrypts every stored key under a new passphrase + new salt in a single transaction.
+        </p>
+
+        {!cryptoReady ? (
+          <p className="text-sm text-muted-foreground">
+            Set <code className="font-mono">MINUSPOD_MASTER_PASSPHRASE</code> in the container environment first.
+            Rotation is only available once the encrypted store is initialized.
+          </p>
+        ) : (
+          <form onSubmit={handleRotatePassphrase} className="space-y-3">
+            <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300 space-y-1">
+              <p>After clicking Rotate, update <code className="font-mono">MINUSPOD_MASTER_PASSPHRASE</code> in your container environment to the new value and restart the container.</p>
+              <p>Other Gunicorn workers keep the old key cached until restart, so stored keys may fail to decrypt in the meantime.</p>
+              <p>Lose the new passphrase and the stored keys are unrecoverable. Back it up first.</p>
+            </div>
+
+            <div>
+              <label htmlFor="oldPassphrase" className="block text-sm font-medium text-foreground mb-1">
+                Current passphrase
+              </label>
+              <input
+                id="oldPassphrase"
+                type="password"
+                autoComplete="off"
+                value={oldPassphrase}
+                onChange={(e) => setOldPassphrase(e.target.value)}
+                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring font-mono text-sm"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="newPassphrase" className="block text-sm font-medium text-foreground mb-1">
+                New passphrase
+              </label>
+              <input
+                id="newPassphrase"
+                type="password"
+                autoComplete="off"
+                value={newPassphrase}
+                onChange={(e) => setNewPassphrase(e.target.value)}
+                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring font-mono text-sm"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="confirmPassphrase" className="block text-sm font-medium text-foreground mb-1">
+                Confirm new passphrase
+              </label>
+              <input
+                id="confirmPassphrase"
+                type="password"
+                autoComplete="off"
+                value={confirmPassphrase}
+                onChange={(e) => setConfirmPassphrase(e.target.value)}
+                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring font-mono text-sm"
+              />
+            </div>
+
+            {rotateError && <p className="text-sm text-destructive">{rotateError}</p>}
+            {rotateSuccess && <p className="text-sm text-green-600 dark:text-green-400">{rotateSuccess}</p>}
+
+            <button
+              type="submit"
+              disabled={isRotating}
+              className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 disabled:opacity-50"
+            >
+              {isRotating ? 'Rotating...' : 'Rotate Master Passphrase'}
+            </button>
+          </form>
+        )}
+      </div>
     </CollapsibleSection>
   );
 }

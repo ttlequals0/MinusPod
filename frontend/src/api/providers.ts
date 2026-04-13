@@ -50,3 +50,10 @@ export function testProvider(name: ProviderName) {
     method: 'POST',
   });
 }
+
+export function rotateMasterPassphrase(oldPassphrase: string, newPassphrase: string) {
+  return apiRequest<{ rotated: number }>('/settings/providers/rotate-passphrase', {
+    method: 'POST',
+    body: { oldPassphrase, newPassphrase },
+  });
+}

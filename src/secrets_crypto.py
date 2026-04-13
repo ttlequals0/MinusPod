@@ -85,6 +85,90 @@ def reset_cache() -> None:
         _dek_cache = None
 
 
+def rotate(db, old_passphrase: str, new_passphrase: str) -> int:
+    """Re-encrypt every ``enc:v1:`` row under a new passphrase + new salt.
+
+    Order matters: decrypt all rows up-front using the current DEK, mint a new
+    DEK in memory, then write all new ciphertexts and the new salt inside a
+    single SQLite transaction so a mid-rotation crash leaves the database
+    consistent.
+
+    The caller MUST update ``MINUSPOD_MASTER_PASSPHRASE`` in the container
+    environment to ``new_passphrase`` before the next restart, otherwise the
+    boot-time DEK derivation will not match the rotated ciphertext.
+
+    Multi-worker note: the new DEK is cached in the calling worker's memory
+    only.  Other Gunicorn workers retain the old cached DEK and will fail to
+    decrypt the rotated rows until the container is restarted.  Restart
+    immediately after rotating the env var.
+    """
+    current = os.environ.get("MINUSPOD_MASTER_PASSPHRASE")
+    if not current:
+        raise CryptoUnavailableError("MINUSPOD_MASTER_PASSPHRASE is not set")
+    if old_passphrase != current:
+        raise ValueError("current passphrase mismatch")
+    if not new_passphrase:
+        raise ValueError("new passphrase required")
+    if new_passphrase == old_passphrase:
+        raise ValueError("new passphrase must differ from current")
+
+    # Decrypt under the current DEK while it is still authoritative.
+    plaintexts: dict[str, str] = {}
+    for key, info in db.get_all_settings().items():
+        val = info.get("value") if isinstance(info, dict) else None
+        if key == _SALT_KEY or not is_ciphertext(val):
+            continue
+        plaintexts[key] = decrypt(db, val)
+
+    new_salt = secrets.token_bytes(_SALT_LEN)
+    new_dek = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=_KEY_LEN,
+        salt=new_salt,
+        iterations=_PBKDF2_ITERATIONS,
+    ).derive(new_passphrase.encode("utf-8"))
+
+    aead = AESGCM(new_dek)
+    fresh_envelopes = {}
+    for key, plaintext in plaintexts.items():
+        nonce = secrets.token_bytes(_NONCE_LEN)
+        ct = aead.encrypt(nonce, plaintext.encode("utf-8"), None)
+        fresh_envelopes[key] = (
+            ENVELOPE_PREFIX
+            + base64.b64encode(nonce).decode("ascii")
+            + ":"
+            + base64.b64encode(ct).decode("ascii")
+        )
+
+    conn = db.get_connection()
+    salt_b64 = base64.b64encode(new_salt).decode("ascii")
+    with conn:
+        for key, envelope in fresh_envelopes.items():
+            conn.execute(
+                """INSERT INTO settings (key, value, is_default, updated_at)
+                   VALUES (?, ?, 0, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+                   ON CONFLICT(key) DO UPDATE SET
+                     value = excluded.value,
+                     is_default = 0,
+                     updated_at = excluded.updated_at""",
+                (key, envelope),
+            )
+        conn.execute(
+            """INSERT INTO settings (key, value, is_default, updated_at)
+               VALUES (?, ?, 0, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+               ON CONFLICT(key) DO UPDATE SET
+                 value = excluded.value,
+                 updated_at = excluded.updated_at""",
+            (_SALT_KEY, salt_b64),
+        )
+
+    global _dek_cache
+    with _lock:
+        _dek_cache = new_dek
+
+    return len(fresh_envelopes)
+
+
 def encrypt(db, plaintext: str) -> str:
     if plaintext is None:
         raise ValueError("plaintext required")
