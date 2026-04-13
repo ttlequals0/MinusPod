@@ -1,7 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getSettings, updateSettings, resetSettings, resetPrompts, getModels, getWhisperModels, getSystemStatus, runCleanup, getProcessingEpisodes, cancelProcessing, refreshModels, getRetention, updateRetention } from '../api/settings';
+import { getSettings, updateSettings, resetSettings, resetPrompts, getModels, getWhisperModels, getSystemStatus, runCleanup, getProcessingEpisodes, cancelProcessing, refreshModels, getRetention, updateRetention, getProcessingTimeouts, updateProcessingTimeouts } from '../api/settings';
 import { useAuth } from '../context/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import type { LlmProvider, WhisperBackend, WhisperApiConfig } from '../api/types';
@@ -9,6 +9,7 @@ import { LLM_PROVIDERS } from '../api/types';
 
 import SystemStatusSection from './settings/SystemStatusSection';
 import StorageRetentionSection from './settings/StorageRetentionSection';
+import ProcessingTimeoutsSection from './settings/ProcessingTimeoutsSection';
 import DataManagementSection from './settings/DataManagementSection';
 import WebhooksSection from './settings/WebhooksSection';
 import SecuritySection from './settings/SecuritySection';
@@ -85,6 +86,9 @@ function Settings() {
   const [podcastIndexApiKey, setPodcastIndexApiKey] = useState('');
   const [podcastIndexApiSecret, setPodcastIndexApiSecret] = useState('');
   const [retentionDays, setRetentionDays] = useState(30);
+  const [softTimeoutMinutes, setSoftTimeoutMinutes] = useState(60);
+  const [hardTimeoutMinutes, setHardTimeoutMinutes] = useState(120);
+  const [timeoutsError, setTimeoutsError] = useState<string | null>(null);
   const [retentionEnabled, setRetentionEnabled] = useState(true);
 
   const { data: settings, isLoading: settingsLoading } = useQuery({
@@ -118,6 +122,11 @@ function Settings() {
     queryFn: getRetention,
   });
 
+  const { data: processingTimeouts } = useQuery({
+    queryKey: ['processing-timeouts'],
+    queryFn: getProcessingTimeouts,
+  });
+
   // Ensure System Status section is always expanded on page load
   useEffect(() => {
     localStorage.setItem('settings-section-system-status', 'true');
@@ -140,6 +149,13 @@ function Settings() {
     }
   }, [retention]);
 
+  useEffect(() => {
+    if (processingTimeouts) {
+      setSoftTimeoutMinutes(Math.round(processingTimeouts.softTimeoutSeconds / 60));
+      setHardTimeoutMinutes(Math.round(processingTimeouts.hardTimeoutSeconds / 60));
+    }
+  }, [processingTimeouts]);
+
   const cancelMutation = useMutation({
     mutationFn: (params: { slug: string; episodeId: string }) =>
       cancelProcessing(params.slug, params.episodeId),
@@ -155,6 +171,16 @@ function Settings() {
       queryClient.invalidateQueries({ queryKey: ['retention'] });
       queryClient.invalidateQueries({ queryKey: ['settings'] });
     },
+  });
+
+  const processingTimeoutsMutation = useMutation({
+    mutationFn: ({ soft, hard }: { soft: number; hard: number }) =>
+      updateProcessingTimeouts(soft, hard),
+    onMutate: () => setTimeoutsError(null),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['processing-timeouts'] });
+    },
+    onError: (err: Error) => setTimeoutsError(err.message || 'Failed to save'),
   });
 
   useEffect(() => {
@@ -406,6 +432,22 @@ function Settings() {
         onSave={() => retentionMutation.mutate(retentionEnabled ? retentionDays : 0)}
         saveIsPending={retentionMutation.isPending}
         saveIsSuccess={retentionMutation.isSuccess}
+      />
+
+      <ProcessingTimeoutsSection
+        softTimeoutMinutes={softTimeoutMinutes}
+        hardTimeoutMinutes={hardTimeoutMinutes}
+        softMinMinutes={processingTimeouts ? Math.max(1, Math.ceil(processingTimeouts.limits.softMin / 60)) : 5}
+        hardMaxMinutes={processingTimeouts ? Math.floor(processingTimeouts.limits.hardMax / 60) : 1440}
+        onSoftChange={setSoftTimeoutMinutes}
+        onHardChange={setHardTimeoutMinutes}
+        onSave={() => processingTimeoutsMutation.mutate({
+          soft: softTimeoutMinutes * 60,
+          hard: hardTimeoutMinutes * 60,
+        })}
+        saveIsPending={processingTimeoutsMutation.isPending}
+        saveIsSuccess={processingTimeoutsMutation.isSuccess}
+        saveError={timeoutsError}
       />
 
       <DataManagementSection

@@ -1,6 +1,6 @@
 import { apiRequest } from './client';
 import { downloadBlob } from './history';
-import { Settings, ClaudeModel, WhisperModel, SystemStatus, UpdateSettingsPayload, TokenUsageSummary, RetentionSettings } from './types';
+import { Settings, ClaudeModel, WhisperModel, SystemStatus, UpdateSettingsPayload, TokenUsageSummary, RetentionSettings, ProcessingTimeouts } from './types';
 
 export async function getSettings(): Promise<Settings> {
   return apiRequest<Settings>('/settings');
@@ -84,6 +84,20 @@ export async function updateRetention(days: number): Promise<RetentionSettings> 
   return apiRequest<RetentionSettings>('/settings/retention', {
     method: 'PUT',
     body: { retentionDays: days },
+  });
+}
+
+export async function getProcessingTimeouts(): Promise<ProcessingTimeouts> {
+  return apiRequest<ProcessingTimeouts>('/settings/processing-timeouts');
+}
+
+export async function updateProcessingTimeouts(
+  softTimeoutSeconds: number,
+  hardTimeoutSeconds: number,
+): Promise<{ softTimeoutSeconds: number; hardTimeoutSeconds: number }> {
+  return apiRequest('/settings/processing-timeouts', {
+    method: 'PUT',
+    body: { softTimeoutSeconds, hardTimeoutSeconds },
   });
 }
 

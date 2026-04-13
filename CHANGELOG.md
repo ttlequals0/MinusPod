@@ -6,6 +6,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.0] - 2026-04-13
+
+### Added
+- **Configurable processing timeouts** (issue #126). Soft and hard timeouts are now stored in the `settings` table and editable from the API (`GET`/`PUT /api/v1/settings/processing-timeouts`) and the UI (new "Processing Timeouts" section). Defaults match the previous hardcoded values (60 min soft, 120 min hard). Env vars `PROCESSING_SOFT_TIMEOUT` and `PROCESSING_HARD_TIMEOUT` seed the initial values on fresh installs. When either timeout fires, the log line suggests raising the matching setting.
+
+### Fixed
+- **Stale status after worker kill**. When a Gunicorn worker was killed mid-processing (deploy, SIGKILL, OOM), `processing_queue` detected the orphan in seconds via its flock probe but `status_service` kept reporting the dead job's `current_job` until the 60-minute soft timeout. `ProcessingQueue._clear_stale_state()` now also calls `StatusService.clear_if_matches(slug, episode_id)` on each clear path, so the UI updates immediately.
+- **Graceful remote Whisper failures** (issue #125). Chunked transcription against an OpenAI-compatible Whisper API no longer aborts the whole episode when a single chunk fails. Up to ~20% of chunks may fail (minimum 1); the episode finishes with failed ranges logged as gaps. A pre-upload size guard refuses to POST files under 1 KB, cutting off the "empty audio / failed to decode" feedback loop. The remote Whisper retry count drops from 3 to 2 to avoid hammering a transiently broken server.
+
+## [1.4.2] - 2026-04-13
+
+### Documentation
+- README humanization pass; noted Ollama Cloud free-tier caveats and which cloud models are actually routable.
+
 ## [1.4.1] - 2026-04-13
 
 ### Fixed

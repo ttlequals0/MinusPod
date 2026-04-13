@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 1.4.1
+  version: 1.5.0
   contact:
     name: MinusPod
   license:
@@ -2934,6 +2934,72 @@ paths:
                     type: integer
                   enabled:
                     type: boolean
+
+  /settings/processing-timeouts:
+    get:
+      tags:
+        - Settings
+      summary: Get processing timeout configuration
+      operationId: getProcessingTimeouts
+      responses:
+        '200':
+          description: Processing timeouts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  softTimeoutSeconds:
+                    type: integer
+                  hardTimeoutSeconds:
+                    type: integer
+                  defaults:
+                    type: object
+                    properties:
+                      softTimeoutSeconds: { type: integer }
+                      hardTimeoutSeconds: { type: integer }
+                  limits:
+                    type: object
+                    properties:
+                      softMin: { type: integer }
+                      hardMax: { type: integer }
+    put:
+      tags:
+        - Settings
+      summary: Update processing timeout configuration
+      operationId: updateProcessingTimeouts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [softTimeoutSeconds, hardTimeoutSeconds]
+              properties:
+                softTimeoutSeconds:
+                  type: integer
+                  minimum: 300
+                  maximum: 86400
+                hardTimeoutSeconds:
+                  type: integer
+                  minimum: 301
+                  maximum: 86400
+      responses:
+        '200':
+          description: Processing timeouts updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  softTimeoutSeconds: { type: integer }
+                  hardTimeoutSeconds: { type: integer }
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /settings/webhooks:
     get:
