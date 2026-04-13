@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.5.2] - 2026-04-13
+
+### Fixed
+- Stop spurious `Failed to list models for provider 'anthropic': No Anthropic API key provided` ERRORs on Settings page load. The Settings UI no longer fires the models query against the hardcoded default provider before `getSettings` returns — the query is gated on `settingsLoading`. Backend also demotes the "no key" preview failure from ERROR to INFO; other list_models failures still log ERROR.
+
 ## [1.5.1] - 2026-04-13
 
 ### Changed

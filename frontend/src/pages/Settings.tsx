@@ -98,6 +98,7 @@ function Settings() {
   const { data: models, isLoading: modelsLoading } = useQuery({
     queryKey: ['models', llmProvider],
     queryFn: () => getModels(llmProvider),
+    enabled: !settingsLoading,
   });
 
   const { data: whisperModels } = useQuery({

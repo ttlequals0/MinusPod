@@ -387,6 +387,11 @@ def get_available_models():
                     {'id': m.id, 'name': m.name, 'created': m.created}
                     for m in raw_models
                 ]
+            except ValueError as e:
+                # Expected when a provider has no key configured yet (e.g. UI
+                # previewing providers before the user saves a key).
+                logger.info(f"Provider '{provider_override}' preview unavailable: {e}")
+                models = []
             except Exception as e:
                 logger.error(f"Failed to list models for provider '{provider_override}': {e}")
                 models = []
