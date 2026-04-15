@@ -6,6 +6,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.6.2] - 2026-04-15
+
+### Added
+- **Configurable Whisper language** (issue #132). The transcription language was hardcoded to English, which silently dropped non-English ads on multilingual feeds. A new `whisper_language` setting (default `en`) is now plumbed through both the local (faster-whisper) and remote (OpenAI-compatible) backends. `auto` lets Whisper detect per request. Editable in Settings > Transcription via a searchable 97-language combobox (type a name or code; free-text fallback for rare codes) or by setting the `WHISPER_LANGUAGE` env var on a fresh install.
+- `GET /api/v1/settings` now includes `whisperLanguage`; `PUT /api/v1/settings` accepts `whisperLanguage` with validation for ISO-639-1 shape or `auto`.
+
+### Changed
+- README: removed the dead `#stats` table-of-contents anchor. Added a short "Transcription language" subsection under Remote Whisper Transcription that links to the upstream supported-languages reference at https://whisper-api.com/docs/languages/. Added a `WHISPER_LANGUAGE` row to the environment variable table.
+
 ## [1.6.1] - 2026-04-14
 
 ### Fixed

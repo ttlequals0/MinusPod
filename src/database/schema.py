@@ -1329,6 +1329,15 @@ class SchemaMixin:
             ('whisper_model', whisper_model)
         )
 
+        # Whisper language. ISO 639-1 code (e.g. 'en', 'fi', 'es') or 'auto'
+        # to let Whisper detect. Default English preserves prior behavior.
+        whisper_language = os.environ.get('WHISPER_LANGUAGE') or 'en'
+        conn.execute(
+            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
+               ON CONFLICT(key) DO NOTHING""",
+            ('whisper_language', whisper_language)
+        )
+
         # Audio analysis settings
         audio_analysis_settings = [
             ('volume_threshold_db', '3.0'),

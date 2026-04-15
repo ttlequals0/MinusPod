@@ -63,6 +63,7 @@ function Settings() {
   const [whisperApiConfig, setWhisperApiConfig] = useState<WhisperApiConfig>({
     baseUrl: '', model: 'whisper-1',
   });
+  const [whisperLanguage, setWhisperLanguage] = useState('en');
   const [providersState, setProvidersState] = useState<ProvidersResponse | null>(null);
   const [providersError, setProvidersError] = useState<string | null>(null);
 
@@ -220,6 +221,7 @@ function Settings() {
         baseUrl: settings.whisperApiBaseUrl?.value || '',
         model: settings.whisperApiModel?.value || 'whisper-1',
       });
+      setWhisperLanguage(settings.whisperLanguage?.value || 'en');
     }
   }, [settings]);
 
@@ -242,9 +244,10 @@ function Settings() {
       whisperBackend !== (settings.whisperBackend?.value || 'local') ||
       whisperApiConfig.baseUrl !== (settings.whisperApiBaseUrl?.value || '') ||
       whisperApiConfig.model !== (settings.whisperApiModel?.value || 'whisper-1') ||
+      whisperLanguage !== (settings.whisperLanguage?.value || 'en') ||
       (podcastIndexApiKey !== '' && podcastIndexApiSecret !== '')
     );
-  }, [systemPrompt, verificationPrompt, selectedModel, verificationModel, whisperModel, autoProcessEnabled, audioBitrate, vttTranscriptsEnabled, chaptersEnabled, chaptersModel, minCutConfidence, llmProvider, openaiBaseUrl, whisperBackend, whisperApiConfig.baseUrl, whisperApiConfig.model, podcastIndexApiKey, podcastIndexApiSecret, settings]);
+  }, [systemPrompt, verificationPrompt, selectedModel, verificationModel, whisperModel, autoProcessEnabled, audioBitrate, vttTranscriptsEnabled, chaptersEnabled, chaptersModel, minCutConfidence, llmProvider, openaiBaseUrl, whisperBackend, whisperApiConfig.baseUrl, whisperApiConfig.model, whisperLanguage, podcastIndexApiKey, podcastIndexApiSecret, settings]);
 
   const updateMutation = useMutation({
     mutationFn: () =>
@@ -265,6 +268,7 @@ function Settings() {
         whisperBackend,
         whisperApiBaseUrl: whisperApiConfig.baseUrl,
         whisperApiModel: whisperApiConfig.model,
+        whisperLanguage,
         ...(podcastIndexApiKey ? { podcastIndexApiKey } : {}),
         ...(podcastIndexApiSecret ? { podcastIndexApiSecret } : {}),
       }),
@@ -407,6 +411,8 @@ function Settings() {
         onProviderKeySave={handleProviderKeySave}
         onProviderKeyClear={handleProviderKeyClear}
         onProviderKeyTest={handleProviderKeyTest}
+        whisperLanguage={whisperLanguage}
+        onWhisperLanguageChange={setWhisperLanguage}
         softTimeoutMinutes={softTimeoutMinutes}
         hardTimeoutMinutes={hardTimeoutMinutes}
         softMinMinutes={processingTimeouts ? Math.max(1, Math.ceil(processingTimeouts.limits.softMin / 60)) : 5}

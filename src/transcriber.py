@@ -276,6 +276,7 @@ def _get_whisper_settings() -> Dict[str, str]:
         'api_base_url': os.environ.get('WHISPER_API_BASE_URL', ''),
         'api_key': os.environ.get('WHISPER_API_KEY', ''),
         'api_model': os.environ.get('WHISPER_API_MODEL', 'whisper-1'),
+        'language': os.environ.get('WHISPER_LANGUAGE') or 'en',
     }
     try:
         # Inline import: Database depends on modules that import transcriber,
@@ -287,6 +288,7 @@ def _get_whisper_settings() -> Dict[str, str]:
             ('whisper_api_base_url', 'api_base_url'),
             ('whisper_api_key', 'api_key'),
             ('whisper_api_model', 'api_model'),
+            ('whisper_language', 'language'),
         ]:
             if setting_key == 'whisper_api_key':
                 val = db.get_secret(setting_key)
@@ -601,8 +603,10 @@ class Transcriber:
                 'model': model,
                 'response_format': 'verbose_json',
                 'timestamp_granularities[]': ['segment', 'word'],
-                'language': 'en',
             }
+            language = (whisper_settings.get('language') or 'en').strip().lower()
+            if language and language != 'auto':
+                form_data['language'] = language
             if initial_prompt:
                 form_data['prompt'] = initial_prompt
 
@@ -1023,6 +1027,9 @@ class Transcriber:
         if whisper_settings['backend'] == WHISPER_BACKEND_API:
             return self._transcribe_via_api(audio_path, podcast_name, whisper_settings)
 
+        language_setting = (whisper_settings.get('language') or 'en').strip().lower()
+        transcribe_language = None if language_setting == 'auto' else (language_setting or 'en')
+
         preprocessed_path = None
         try:
             # Get audio duration for adaptive batch sizing
@@ -1061,15 +1068,16 @@ class Transcriber:
                     if device == "cuda":
                         self.clear_cuda_cache()
 
-                    # Use the batched pipeline for transcription
-                    # word_timestamps=True enables precise boundary refinement later
-                    # language='en' prevents Whisper from misdetecting language on
-                    # music intros or sound effects (e.g. English podcast detected as
-                    # Spanish at 93% confidence). Non-English DAI ads are still caught
-                    # by _detect_non_english_segment() text heuristics downstream.
+                    # word_timestamps=True enables precise boundary refinement later.
+                    # Pinning a language prevents Whisper from misdetecting on music
+                    # intros or sound effects (e.g. English podcast detected as Spanish
+                    # at 93% confidence). `whisper_language=auto` (or blank env var)
+                    # lets Whisper auto-detect -- useful for multilingual / non-English
+                    # podcasts. Non-English DAI ads are still caught by
+                    # _detect_non_english_segment() downstream.
                     segments_generator, info = model.transcribe(
                         transcribe_path,
-                        language='en',
+                        language=transcribe_language,
                         initial_prompt=initial_prompt,
                         beam_size=5,
                         batch_size=batch_size,

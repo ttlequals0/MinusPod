@@ -2,6 +2,7 @@
 import json
 import logging
 import os
+import re
 import threading
 import uuid
 
@@ -95,10 +96,12 @@ def get_settings():
     default_whisper_backend = os.environ.get('WHISPER_BACKEND', 'local')
     default_whisper_api_base_url = os.environ.get('WHISPER_API_BASE_URL', '')
     default_whisper_api_model = os.environ.get('WHISPER_API_MODEL', 'whisper-1')
+    default_whisper_language = os.environ.get('WHISPER_LANGUAGE') or 'en'
     whisper_backend = _setting_value(settings, 'whisper_backend', default_whisper_backend)
     whisper_api_base_url = _setting_value(settings, 'whisper_api_base_url', default_whisper_api_base_url)
     whisper_api_key = _setting_value(settings, 'whisper_api_key', '')
     whisper_api_model = _setting_value(settings, 'whisper_api_model', default_whisper_api_model)
+    whisper_language = _setting_value(settings, 'whisper_language', default_whisper_language)
 
     return json_response({
         'systemPrompt': _sv('system_prompt', _setting_value(settings, 'system_prompt', DEFAULT_SYSTEM_PROMPT)),
@@ -120,6 +123,7 @@ def get_settings():
         'whisperApiBaseUrl': _sv('whisper_api_base_url', whisper_api_base_url),
         'whisperApiKeyConfigured': bool(whisper_api_key),
         'whisperApiModel': _sv('whisper_api_model', whisper_api_model),
+        'whisperLanguage': _sv('whisper_language', whisper_language),
         'apiKeyConfigured': api_key_configured,
         'retentionDays': int(db.get_setting('retention_days') or '30'),
         'defaults': {
@@ -139,6 +143,7 @@ def get_settings():
             'whisperBackend': default_whisper_backend,
             'whisperApiBaseUrl': default_whisper_api_base_url,
             'whisperApiModel': default_whisper_api_model,
+            'whisperLanguage': default_whisper_language,
         }
     })
 
@@ -289,6 +294,15 @@ def update_ad_detection_settings():
             return json_response({'error': 'whisperApiModel must be a non-empty string (max 200 chars)'}, 400)
         db.set_setting('whisper_api_model', model_val, is_default=False)
         logger.info(f"Updated whisper API model to: {model_val}")
+
+    if 'whisperLanguage' in data:
+        lang_val = str(data['whisperLanguage']).strip().lower()
+        # Empty string collapses to default ('en'); 'auto' is allowed; otherwise
+        # require a plausible ISO-639-1 code shape (2-5 alphanum/hyphen chars).
+        if lang_val and lang_val != 'auto' and not re.match(r'^[a-z]{2,3}(-[a-z0-9]{2,4})?$', lang_val):
+            return json_response({'error': "whisperLanguage must be 'auto' or a valid language code (e.g. 'en', 'fi', 'pt-br')"}, 400)
+        db.set_setting('whisper_language', lang_val or 'en', is_default=False)
+        logger.info(f"Updated whisper language to: {lang_val or 'en'}")
 
     if 'podcastIndexApiKey' in data:
         db.set_setting('podcast_index_api_key', data['podcastIndexApiKey'].strip(), is_default=False)

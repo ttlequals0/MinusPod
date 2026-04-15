@@ -13,7 +13,6 @@ MinusPod is a self-hosted server that removes ads before you ever hit play. It t
 - [Web Interface](#web-interface)
   - [Ad Editor Workflow](#ad-editor-workflow)
   - [Screenshots](#screenshots)
-  - [Stats](#stats)
 - [Configuration](#configuration)
 - [Finding Podcast RSS Feeds](#finding-podcast-rss-feeds)
 - [Usage](#usage)
@@ -21,7 +20,7 @@ MinusPod is a self-hosted server that removes ads before you ever hit play. It t
 - [Environment Variables](#environment-variables)
   - [Using Claude Code Wrapper (Max Subscription)](#using-claude-code-wrapper-max-subscription)
 - [Using Ollama (Local or Cloud)](#using-ollama-local-or-cloud)
-- [Remote Whisper Transcription](#remote-whisper-transcription)
+- [Whisper / Transcription](#whisper--transcription)
 - [Using OpenRouter](#using-openrouter)
 - [LLM Pricing](#llm-pricing)
 - [API](#api)
@@ -164,7 +163,7 @@ Audio analysis runs automatically on every episode (lightweight, uses only ffmpe
 
 ## Requirements
 
-- Docker with NVIDIA GPU support (for local Whisper), **or** a [remote Whisper backend](#remote-whisper-transcription) (no GPU needed)
+- Docker with NVIDIA GPU support (for local Whisper), **or** a [remote Whisper backend](#whisper--transcription) (no GPU needed)
 - Anthropic API key, [OpenRouter](https://openrouter.ai) API key, [Ollama](https://ollama.com) for local inference, **or** any OpenAI-compatible endpoint
 
 ### Memory Requirements
@@ -387,6 +386,7 @@ This is a comma-separated list of domains excluded from Audiobookshelf's SSRF fi
 | `WHISPER_API_BASE_URL` | _(none)_ | Base URL for OpenAI-compatible whisper API (e.g. `http://host.docker.internal:8765/v1`) |
 | `WHISPER_API_KEY` | _(none)_ | API key for whisper API (optional for local servers) |
 | `WHISPER_API_MODEL` | `whisper-1` | Model name sent to whisper API |
+| `WHISPER_LANGUAGE` | `en` | ISO 639-1 language code for transcription (e.g. `en`, `fi`, `es`), or `auto` to let Whisper detect. Seeds fresh installs only -- runtime value lives in the settings table, editable under Settings > Transcription. See [supported languages](https://whisper-api.com/docs/languages/). |
 | `PROCESSING_SOFT_TIMEOUT` | `3600` | Seconds before a stuck job is auto-cleared from the queue. Seeds fresh installs only -- runtime value lives in the settings table, editable under Settings > Transcription or via `PUT /api/v1/settings/processing-timeouts`. Raise this for long episodes on CPU or the largest Whisper model. |
 | `PROCESSING_HARD_TIMEOUT` | `7200` | Seconds before the processing lock is force-released even when a worker is still holding it (stuck subprocess safety net). Same DB-backed override path as the soft timeout. Must exceed it. |
 | `RETENTION_PERIOD` | `1440` | **Deprecated.** Legacy minutes-based retention (auto-converted to days on first startup). Use the Settings UI or `PUT /api/v1/settings/retention` instead. Retention now resets episodes to "discovered" instead of deleting them. |
@@ -567,7 +567,7 @@ MinusPod's ad detection pipeline requires models to return structured JSON. The 
 
 Look for `json_parse_failed` or `extraction_method` entries in the application logs. A healthy run will show `json_array_direct` as the extraction method. Fallback methods (`markdown_code_block`, regex variants) indicate the model isn't returning clean JSON and you should consider upgrading to a larger model.
 
-## Remote Whisper Transcription
+## Whisper / Transcription
 
 By default, MinusPod uses faster-whisper with a local NVIDIA GPU for transcription. If you don't have an NVIDIA GPU (e.g. Apple Silicon Mac), you can use any OpenAI-compatible whisper API as the transcription backend.
 
@@ -654,6 +654,10 @@ WHISPER_DEVICE=cpu
 
 All settings can also be configured via the Settings UI under the Transcription section.
 
+### Transcription language
+
+Whisper is pinned to English by default. That keeps it from misdetecting on music intros or cold opens (a common failure mode on podcasts). If you run a non-English show, pick the language in Settings > Transcription or set `WHISPER_LANGUAGE` on first boot. Use `auto` for multilingual feeds -- Whisper will detect per request. Full list: [supported languages](https://whisper-api.com/docs/languages/).
+
 ### Processing timeouts
 
 Two knobs for long-running jobs, both in the same panel:
@@ -665,7 +669,7 @@ Three-hour CPU runs with the largest Whisper model hit these. When they fire, th
 
 ## Using OpenRouter
 
-[OpenRouter](https://openrouter.ai) is a unified API that routes to 200+ models (Claude, GPT, Gemini, open-weights) with one API key. OpenRouter is supported as an **LLM provider only** -- it does not support the `/v1/audio/transcriptions` endpoint required for Whisper transcription. For transcription without a GPU, use a [remote Whisper backend](#remote-whisper-transcription) such as Groq.
+[OpenRouter](https://openrouter.ai) is a unified API that routes to 200+ models (Claude, GPT, Gemini, open-weights) with one API key. OpenRouter is supported as an **LLM provider only** -- it does not support the `/v1/audio/transcriptions` endpoint required for Whisper transcription. For transcription without a GPU, use a [remote Whisper backend](#whisper--transcription) such as Groq.
 
 ### Setup
 

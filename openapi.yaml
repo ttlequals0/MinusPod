@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 1.6.1
+  version: 1.6.2
   contact:
     name: MinusPod
   license:
@@ -2524,6 +2524,13 @@ paths:
                   type: string
                   description: Model name to use with the Whisper API (only used when whisperBackend is openai-api)
                   example: whisper-1
+                whisperLanguage:
+                  type: string
+                  description: |
+                    ISO 639-1 language code to pin Whisper transcription to (e.g. `en`, `fi`, `es`),
+                    or `auto` to let Whisper detect. Empty value resets to the default (`en`).
+                    Applies to both local (faster-whisper) and remote OpenAI-compatible backends.
+                  example: en
                 autoProcessEnabled:
                   type: boolean
                   description: Enable automatic processing of new episodes when feeds refresh
@@ -3772,6 +3779,14 @@ components:
               description: Model name to use with the Whisper API
             isDefault:
               type: boolean
+        whisperLanguage:
+          type: object
+          properties:
+            value:
+              type: string
+              description: ISO 639-1 code (e.g. `en`, `fi`) or `auto` for Whisper auto-detect
+            isDefault:
+              type: boolean
         autoProcessEnabled:
           type: object
           properties:
@@ -3837,6 +3852,8 @@ components:
             whisperApiBaseUrl:
               type: string
             whisperApiModel:
+              type: string
+            whisperLanguage:
               type: string
             autoProcessEnabled:
               type: boolean

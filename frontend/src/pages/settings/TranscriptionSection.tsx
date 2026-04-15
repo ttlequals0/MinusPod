@@ -1,5 +1,6 @@
 import { WHISPER_BACKENDS, type WhisperModel, type WhisperBackend, type WhisperApiConfig } from '../../api/types';
 import CollapsibleSection from '../../components/CollapsibleSection';
+import LanguageCombobox from '../../components/LanguageCombobox';
 import ProviderKeyField from './ProviderKeyField';
 import type { ProviderName, ProviderStatus, ProviderTestResult, ProvidersResponse } from '../../api/providers';
 
@@ -15,6 +16,8 @@ interface TranscriptionSectionProps {
   onProviderKeySave: (provider: ProviderName, apiKey: string) => Promise<void>;
   onProviderKeyClear: (provider: ProviderName) => Promise<void>;
   onProviderKeyTest: (provider: ProviderName) => Promise<ProviderTestResult>;
+  whisperLanguage: string;
+  onWhisperLanguageChange: (language: string) => void;
   softTimeoutMinutes: number;
   hardTimeoutMinutes: number;
   softMinMinutes: number;
@@ -41,6 +44,8 @@ function TranscriptionSection({
   onProviderKeySave,
   onProviderKeyClear,
   onProviderKeyTest,
+  whisperLanguage,
+  onWhisperLanguageChange,
   softTimeoutMinutes,
   hardTimeoutMinutes,
   softMinMinutes,
@@ -148,6 +153,21 @@ function TranscriptionSection({
             </div>
           </>
         )}
+
+        <div className="pt-2 border-t border-border">
+          <label htmlFor="whisperLanguage" className="block text-sm font-medium text-foreground mb-2">
+            Language
+          </label>
+          <LanguageCombobox
+            id="whisperLanguage"
+            value={whisperLanguage || 'en'}
+            onChange={onWhisperLanguageChange}
+          />
+          <p className="mt-1 text-sm text-muted-foreground">
+            Pinning a language keeps Whisper from misdetecting on music intros. Pick Auto-detect for multilingual podcasts. See
+            {' '}<a href="https://whisper-api.com/docs/languages/" target="_blank" rel="noreferrer" className="underline hover:text-foreground">supported languages</a>.
+          </p>
+        </div>
 
         <div className="pt-2 border-t border-border space-y-3">
           <div className="flex items-center gap-3">
