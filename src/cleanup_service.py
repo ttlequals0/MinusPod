@@ -102,6 +102,7 @@ class CleanupService:
             'patterns_purged': 0,
             'episodes_deleted': 0,
             'patterns_decayed': 0,
+            'auth_failures_pruned': 0,
             'vacuum_run': False,
             'backup_created': False
         }
@@ -111,6 +112,10 @@ class CleanupService:
         results['patterns_purged'] = self.run_purge_disabled()
         results['episodes_deleted'] = self.run_episode_cleanup()
         results['patterns_decayed'] = self.run_confidence_decay()
+        try:
+            results['auth_failures_pruned'] = self.db.cleanup_auth_failures()
+        except Exception:
+            logger.exception("auth_failures cleanup failed")
 
         if self._get_setting('auto_vacuum'):
             self._vacuum()

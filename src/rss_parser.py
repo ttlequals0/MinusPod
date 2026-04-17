@@ -14,6 +14,7 @@ from config import APP_USER_AGENT
 from utils.circuit_breaker import CircuitBreaker, CircuitBreakerOpen
 from utils.time import parse_iso_datetime
 from utils.url import validate_url, SSRFError
+from utils.safe_http import URLTrust, safe_get
 
 logger = logging.getLogger(__name__)
 
@@ -40,12 +41,6 @@ class RSSParser:
     def fetch_feed(self, url: str, timeout: int = 30) -> Optional[str]:
         """Fetch RSS feed from URL."""
         try:
-            validate_url(url)
-        except SSRFError as e:
-            logger.warning(f"SSRF blocked in fetch_feed: {e} (url={url})")
-            return None
-
-        try:
             _get_rss_circuit_breaker(url).check()
         except CircuitBreakerOpen as e:
             logger.debug(f"RSS fetch skipped: {e}")
@@ -53,23 +48,36 @@ class RSSParser:
 
         try:
             logger.info(f"Fetching RSS feed from: {url}")
-            response = requests.get(url, timeout=timeout)
+            response = safe_get(
+                url,
+                trust=URLTrust.OPERATOR_CONFIGURED,
+                timeout=timeout,
+                max_redirects=5,
+            )
             response.raise_for_status()
             logger.info(f"Successfully fetched RSS feed, size: {len(response.content)} bytes")
             _get_rss_circuit_breaker(url).record_success()
             return response.text
+        except SSRFError as e:
+            logger.warning(f"SSRF blocked in fetch_feed: {e} (url={url})")
+            return None
         except requests.exceptions.ContentDecodingError as e:
             # Some servers claim gzip encoding but send malformed data
             # Retry without accepting compressed responses
             logger.warning(f"Gzip decompression failed, retrying without compression: {e}")
             try:
-                headers = {'Accept-Encoding': 'identity'}
-                response = requests.get(url, timeout=timeout, headers=headers)
+                response = safe_get(
+                    url,
+                    trust=URLTrust.OPERATOR_CONFIGURED,
+                    timeout=timeout,
+                    max_redirects=5,
+                    headers={'Accept-Encoding': 'identity'},
+                )
                 response.raise_for_status()
                 logger.info(f"Successfully fetched RSS feed (uncompressed), size: {len(response.content)} bytes")
                 _get_rss_circuit_breaker(url).record_success()
                 return response.text
-            except requests.RequestException as retry_e:
+            except (requests.RequestException, SSRFError) as retry_e:
                 logger.error(f"Failed to fetch RSS feed (retry): {retry_e}")
                 _get_rss_circuit_breaker(url).record_failure()
                 return None
