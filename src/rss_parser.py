@@ -136,14 +136,7 @@ class RSSParser:
             If feed not modified (304), returns (None, etag, last_modified)
             On error, returns (None, None, None)
         """
-        try:
-            validate_url(url)
-        except SSRFError as e:
-            logger.warning(f"SSRF blocked in fetch_feed_conditional: {e} (url={url})")
-            return None, None, None
-
         headers = {'User-Agent': APP_USER_AGENT}
-
         if etag:
             headers['If-None-Match'] = etag
         if last_modified:
@@ -156,7 +149,13 @@ class RSSParser:
             return None, None, None
 
         try:
-            response = requests.get(url, headers=headers, timeout=timeout)
+            response = safe_get(
+                url,
+                trust=URLTrust.OPERATOR_CONFIGURED,
+                timeout=timeout,
+                max_redirects=5,
+                headers=headers,
+            )
 
             if response.status_code == 304:
                 logger.info(f"Feed not modified (304): {url}")
@@ -172,12 +171,22 @@ class RSSParser:
             _get_rss_circuit_breaker(url).record_success()
             return response.text, new_etag, new_last_modified
 
+        except SSRFError as e:
+            logger.warning(f"SSRF blocked in fetch_feed_conditional: {e} (url={url})")
+            return None, None, None
+
         except requests.exceptions.ContentDecodingError as e:
             # Retry without accepting compressed responses
             logger.warning(f"Gzip decompression failed, retrying: {e}")
             try:
                 headers['Accept-Encoding'] = 'identity'
-                response = requests.get(url, headers=headers, timeout=timeout)
+                response = safe_get(
+                    url,
+                    trust=URLTrust.OPERATOR_CONFIGURED,
+                    timeout=timeout,
+                    max_redirects=5,
+                    headers=headers,
+                )
                 if response.status_code == 304:
                     _get_rss_circuit_breaker(url).record_success()
                     return None, etag, last_modified
@@ -188,7 +197,7 @@ class RSSParser:
                     response.headers.get('ETag'),
                     response.headers.get('Last-Modified')
                 )
-            except requests.RequestException:
+            except (SSRFError, requests.RequestException):
                 _get_rss_circuit_breaker(url).record_failure()
                 return None, None, None
 
