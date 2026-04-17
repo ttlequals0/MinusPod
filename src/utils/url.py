@@ -101,11 +101,13 @@ def validate_url(url: str) -> str:
 
 
 def validate_base_url(url: str) -> str:
-    """Validate a backend service base URL (scheme + hostname check only).
+    """Validate a backend service base URL (scheme + hostname + metadata check).
 
     Unlike validate_url(), this does NOT block private/loopback IPs because
     backend URLs (LLM providers, Whisper API) commonly point to localhost or
-    Docker-internal hosts.
+    Docker-internal hosts. Cloud-provider metadata IPs are still blocked so
+    an operator cannot accidentally pivot a provider write into an EC2 IMDS
+    fetch.
 
     Args:
         url: The URL to validate.
@@ -114,7 +116,8 @@ def validate_base_url(url: str) -> str:
         The validated URL string (stripped).
 
     Raises:
-        SSRFError: If the URL has an invalid scheme or missing hostname.
+        SSRFError: If the URL has an invalid scheme, missing hostname, or
+            hostname is a literal cloud metadata IP.
     """
     if not url or not url.strip():
         raise SSRFError("Empty URL")
@@ -128,5 +131,9 @@ def validate_base_url(url: str) -> str:
 
     if not parsed.hostname:
         raise SSRFError("Missing hostname in URL")
+
+    host = parsed.hostname.strip('[]')
+    if host in _CLOUD_METADATA_IPS:
+        raise SSRFError(f"Blocked cloud metadata IP: {host}")
 
     return url

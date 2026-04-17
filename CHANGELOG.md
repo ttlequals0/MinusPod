@@ -26,6 +26,9 @@ This release is a coordinated security hardening pass. It includes breaking chan
 ### Removed
 - **Breaking:** dropped the legacy `OPENAI_API_KEY` -> `ANTHROPIC_API_KEY` fallback in `get_effective_openai_api_key`. Deployments that previously relied on `ANTHROPIC_API_KEY` satisfying OpenAI-compatible provider requests must set `OPENAI_API_KEY` explicitly (or rely on the per-provider configuration in Settings). A startup `WARN` fires when the old env-var shape is detected so the behavior change is discoverable.
 
+### Fixed
+- `validate_base_url` now rejects literal cloud metadata IPs (`169.254.169.254`, `168.63.129.16`). The scheme-plus-hostname check previously admitted them because backend URLs are intentionally allowed to target loopback and private hosts; admin-typed URLs still get that latitude, but the IMDS pivot is now closed regardless. The SSRF fetcher landing in a later commit supersedes this with DNS-rebinding defense and a full trust-tier model.
+
 ## [1.6.2] - 2026-04-15
 
 ### Added

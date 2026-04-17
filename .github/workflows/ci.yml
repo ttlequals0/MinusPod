@@ -47,6 +47,17 @@ jobs:
       - name: Install project requirements
         run: pip install -r requirements.txt
 
+      - name: Set up Node 20 (for frontend build that produces static/ui)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend (favicon and static asset tests require it)
+        working-directory: frontend
+        run: npm ci && npm run build
+
       - name: Run pytest
         env:
           PYTHONPATH: src
@@ -112,7 +123,7 @@ jobs:
         run: pip install pip-audit
 
       - name: Audit requirements
-        run: pip-audit --requirement requirements.txt --strict --disable-pip
+        run: pip-audit --requirement requirements.txt --strict
 
   npm-audit:
     name: npm audit
