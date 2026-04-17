@@ -65,6 +65,7 @@ Coordinated security hardening pass across the auth surface, crypto, SSRF, path 
 - **Breaking:** removed the legacy `OPENAI_API_KEY` -> `ANTHROPIC_API_KEY` fallback in `get_effective_openai_api_key`. Deployments that previously relied on `ANTHROPIC_API_KEY` satisfying OpenAI-compatible provider requests must set `OPENAI_API_KEY` explicitly (or configure per-provider in Settings). A startup `WARN` fires when the old env-var shape is detected.
 - **Breaking:** removed `flask-cors` and the `/api/*` CORS block. The Vite dev server proxies to the backend and production traffic is same-origin; the previous config had `allow_credentials` open to any of the listed origins. Any operator serving the frontend from a distinct origin must put it behind the same reverse proxy.
 - Removed `assets/replace_old.mp3` (no code references it) and an unused `werkzeug.security` import in `api/__init__.py`.
+- Removed the legacy `utils.http.post_with_retry` / `get_with_retry` / `_request_with_retry` / `is_retryable_status` helpers. Every outbound caller now routes through `utils.safe_http`; the log-scrubbing `safe_url_for_log` stays where it is.
 
 ### Security
 - **Breaking:** `SESSION_COOKIE_SECURE` now defaults to `true`. Deployments on plain HTTP must set `SESSION_COOKIE_SECURE=false` explicitly.
