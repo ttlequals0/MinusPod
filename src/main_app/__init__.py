@@ -450,18 +450,18 @@ app = Flask(__name__)
 # remote_addr; without ProxyFix, every failed login looks like it came
 # from 127.0.0.1 and lockout never fires. Configure via
 # MINUSPOD_TRUSTED_PROXY_COUNT=1 (most single-proxy setups) or higher.
-_trusted_proxies = int(os.environ.get('MINUSPOD_TRUSTED_PROXY_COUNT', '0') or 0)
-if _trusted_proxies > 0:
+_trusted_proxy_hops = int(os.environ.get('MINUSPOD_TRUSTED_PROXY_COUNT', '0') or 0)
+if _trusted_proxy_hops > 0:
     from werkzeug.middleware.proxy_fix import ProxyFix
     app.wsgi_app = ProxyFix(
         app.wsgi_app,
-        x_for=_trusted_proxies,
-        x_proto=_trusted_proxies,
-        x_host=_trusted_proxies,
+        x_for=_trusted_proxy_hops,
+        x_proto=_trusted_proxy_hops,
+        x_host=_trusted_proxy_hops,
     )
     audio_logger.info(
         "ProxyFix enabled: trusting %d reverse proxy hops",
-        _trusted_proxies,  # lgtm [py/clear-text-logging-sensitive-data]
+        _trusted_proxy_hops,  # lgtm [py/clear-text-logging-sensitive-data]
     )
 else:
     # Docker deployments behind a proxy typically need this; a loud warn

@@ -322,17 +322,14 @@ def migrate_plaintext_secrets(db) -> dict:
         )
         return result
 
-    for key, plaintext in plaintext_rows:
+    for setting_name, plaintext in plaintext_rows:
         try:
-            db.set_secret(key, plaintext)
+            db.set_secret(setting_name, plaintext)
             result["migrated"] += 1
         except Exception:
-            # `key` is a settings-table column name constrained to
-            # SECRET_SETTING_KEYS; the value (plaintext) is never logged.
-            logger.exception(
-                "failed to encrypt legacy secret %s",
-                key,  # lgtm [py/clear-text-logging-sensitive-data]
-            )
+            # setting_name is a column-name constant from SECRET_SETTING_KEYS;
+            # the row's plaintext value is never passed to the logger.
+            logger.exception("failed to encrypt legacy secret row %s", setting_name)
             result["skipped"] += 1
 
     logger.warning(
