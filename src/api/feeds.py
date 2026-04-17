@@ -622,4 +622,10 @@ def get_artwork(slug):
         return error_response('Artwork not found', 404)
 
     image_data, content_type = artwork
-    return Response(image_data, mimetype=content_type)
+    # content_type was validated by magic-number check on write; tell the
+    # browser not to sniff it and deny any script loading from this
+    # response even if a downstream intermediary rewrites the type.
+    response = Response(image_data, mimetype=content_type)
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['Content-Security-Policy'] = "default-src 'none'"
+    return response

@@ -1,6 +1,7 @@
 """Storage management with SQLite database and file operations."""
 import json
 import logging
+import os
 import requests
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Tuple
@@ -10,6 +11,45 @@ import shutil
 from config import BROWSER_USER_AGENT
 from utils.url import validate_url, SSRFError
 from utils.validation import is_dangerous_slug, is_valid_episode_id
+from utils.safe_http import ResponseTooLargeError, read_response_capped
+
+
+_ALLOWED_IMAGE_TYPES = frozenset({
+    'image/jpeg',
+    'image/jpg',
+    'image/png',
+    'image/gif',
+    'image/webp',
+})
+
+
+def _detect_image_mime(data: bytes) -> Optional[str]:
+    """Return the canonical Content-Type for ``data`` based on file magic,
+    or None if the bytes do not match a supported image format. SVG is not
+    accepted because it admits script execution.
+    """
+    if len(data) < 12:
+        return None
+    if data[:3] == b'\xff\xd8\xff':
+        return 'image/jpeg'
+    if data[:8] == b'\x89PNG\r\n\x1a\n':
+        return 'image/png'
+    if data[:6] in (b'GIF87a', b'GIF89a'):
+        return 'image/gif'
+    if data[:4] == b'RIFF' and data[8:12] == b'WEBP':
+        return 'image/webp'
+    return None
+
+
+def _max_artwork_bytes() -> int:
+    """Artwork size cap, configurable so operators can host very high-res
+    podcast covers without a code change. Default is 5 MB; clamped to a
+    sensible floor/ceiling so a typo cannot turn this into a memory DoS."""
+    try:
+        raw = int(os.environ.get('MINUSPOD_MAX_ARTWORK_BYTES', 5 * 1024 * 1024))
+    except ValueError:
+        raw = 5 * 1024 * 1024
+    return max(64 * 1024, min(raw, 50 * 1024 * 1024))
 
 logger = logging.getLogger(__name__)
 
@@ -325,18 +365,18 @@ class Storage:
         try:
             podcast_dir = self.get_podcast_dir(slug)
 
-            # Determine extension from content type
-            if 'png' in content_type.lower():
-                ext = '.png'
-            elif 'gif' in content_type.lower():
-                ext = '.gif'
-            else:
-                ext = '.jpg'
+            extension_by_type = {
+                'image/png': '.png',
+                'image/gif': '.gif',
+                'image/webp': '.webp',
+                'image/jpeg': '.jpg',
+                'image/jpg': '.jpg',
+            }
+            ext = extension_by_type.get(content_type.lower(), '.jpg')
 
             artwork_path = podcast_dir / f"artwork{ext}"
 
-            # Remove old artwork files with different extensions
-            for old_ext in ['.jpg', '.png', '.gif']:
+            for old_ext in ('.jpg', '.png', '.gif', '.webp'):
                 old_path = podcast_dir / f"artwork{old_ext}"
                 if old_path.exists() and old_path != artwork_path:
                     old_path.unlink()
@@ -363,9 +403,12 @@ class Storage:
         """Get cached artwork. Returns (data, content_type) or None."""
         podcast_dir = self.get_podcast_dir(slug)
 
-        for ext, content_type in [('.jpg', 'image/jpeg'),
-                                   ('.png', 'image/png'),
-                                   ('.gif', 'image/gif')]:
+        for ext, content_type in [
+            ('.jpg', 'image/jpeg'),
+            ('.png', 'image/png'),
+            ('.gif', 'image/gif'),
+            ('.webp', 'image/webp'),
+        ]:
             artwork_path = podcast_dir / f"artwork{ext}"
             if artwork_path.exists():
                 with open(artwork_path, 'rb') as f:
@@ -374,7 +417,13 @@ class Storage:
         return None
 
     def download_artwork(self, slug: str, artwork_url: str) -> bool:
-        """Download and cache podcast artwork."""
+        """Download and cache podcast artwork.
+
+        Content-Type header is advisory only; the saved bytes are validated
+        against a fixed file-magic allowlist (JPEG/PNG/GIF/WebP). SVG is
+        excluded because it admits script execution. Oversize responses are
+        rejected outright with a structured log rather than saved partially.
+        """
         if not artwork_url:
             return False
 
@@ -382,7 +431,6 @@ class Storage:
             # Check if we already have this artwork on disk
             podcast = self.db.get_podcast_by_slug(slug)
             if podcast and podcast.get('artwork_url') == artwork_url and podcast.get('artwork_cached'):
-                # Verify the file actually exists before trusting the DB flag
                 if self.get_artwork(slug) is not None:
                     logger.debug(f"[{slug}] Artwork already cached")
                     return True
@@ -404,18 +452,33 @@ class Storage:
             response = requests.get(artwork_url, headers=headers, timeout=30, stream=True)
             response.raise_for_status()
 
-            content_type = response.headers.get('Content-Type', 'image/jpeg')
+            declared_type = (response.headers.get('Content-Type') or '').split(';', 1)[0].strip().lower()
+            if declared_type and declared_type not in _ALLOWED_IMAGE_TYPES:
+                logger.warning(
+                    "[%s] artwork_rejected_content_type declared=%s url=%s",
+                    slug, declared_type, artwork_url,
+                )
+                return False
 
-            # Limit size to 5MB
-            max_size = 5 * 1024 * 1024
-            image_data = b''
-            for chunk in response.iter_content(chunk_size=8192):
-                image_data += chunk
-                if len(image_data) > max_size:
-                    logger.warning(f"[{slug}] Artwork too large, truncating")
-                    break
+            max_bytes = _max_artwork_bytes()
+            try:
+                image_data = read_response_capped(response, max_bytes, chunk_size=65536)
+            except ResponseTooLargeError:
+                logger.warning(
+                    "[%s] artwork_size_cap_exceeded max=%d url=%s",
+                    slug, max_bytes, artwork_url,
+                )
+                return False
 
-            return self.save_artwork(slug, image_data, content_type, artwork_url)
+            detected = _detect_image_mime(image_data)
+            if not detected:
+                logger.warning(
+                    "[%s] artwork_rejected_magic declared=%s url=%s",
+                    slug, declared_type, artwork_url,
+                )
+                return False
+
+            return self.save_artwork(slug, image_data, detected, artwork_url)
 
         except Exception as e:
             logger.warning(f"[{slug}] Failed to download artwork: {e}")
