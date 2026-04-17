@@ -210,15 +210,15 @@ Access the web UI at `http://localhost:8000/ui/` to add and manage feeds.
 
 ## Upgrading to 2.0
 
-2.0.0 is a coordinated security hardening release. The full details are in `CHANGELOG.md`; the short list of things operators need to know:
+2.0.0 is a security hardening release. Full detail in `CHANGELOG.md`; the bits that actually affect a deploy:
 
-- **Session cookies tighten by default.** `SESSION_COOKIE_SECURE` defaults to `true`. Plain-HTTP deployments must set `SESSION_COOKIE_SECURE=false` explicitly.
-- **SameSite becomes Strict.** The session cookie is now `SameSite=Strict` by default. Operators with an integration that needs `Lax` can set `SESSION_COOKIE_SAMESITE=Lax`.
-- **Frontend and backend must be same-origin.** The `flask-cors` middleware was removed; cross-origin credential-bearing requests will no longer succeed. Serve the UI behind the same reverse proxy as the API.
-- **CSRF token required on every mutating request.** The frontend injects it automatically; third-party API clients must read the `minuspod_csrf` cookie and echo it in an `X-CSRF-Token` header on non-GET requests.
-- **Login lockout.** After 5 failed attempts from the same public IP in 15 minutes, that IP is locked out for 15 minutes. Behind Cloudflare / nginx, set `MINUSPOD_TRUSTED_PROXY_COUNT=1` so the lockout keys on the real client IP instead of the proxy hop.
-- **No more OPENAI_API_KEY -> ANTHROPIC_API_KEY fallback.** Deployments running an OpenAI-compatible provider must set `OPENAI_API_KEY` explicitly; a startup WARN fires when the old env-var shape is detected.
-- **Container runs as UID 1000.** First-boot chown migrates volume ownership. Set `APP_UID` / `APP_GID` if your host volume belongs to a different UID.
+- `SESSION_COOKIE_SECURE` defaults to `true`. Plain-HTTP setups must set `SESSION_COOKIE_SECURE=false`.
+- `SESSION_COOKIE_SAMESITE` defaults to `Strict`. Override to `Lax` only if an integration breaks.
+- `flask-cors` is gone. Frontend and API must share an origin; put them behind the same reverse proxy.
+- Every mutating `/api/v1/*` request needs an `X-CSRF-Token` header matching the `minuspod_csrf` cookie. The frontend does this automatically; custom API clients have to echo the cookie value.
+- Login lockout: 5 fails from the same public IP in 15 min locks that IP for 15 min. Behind a proxy, set `MINUSPOD_TRUSTED_PROXY_COUNT=1` or the lockout keys on the proxy hop.
+- The `OPENAI_API_KEY` -> `ANTHROPIC_API_KEY` fallback is removed. Set `OPENAI_API_KEY` explicitly for OpenAI-compatible providers; a startup WARN fires when the old shape is detected.
+- Container runs as UID 1000. First boot chowns the data volume; `APP_UID`/`APP_GID` override if the host volume needs a different owner.
 
 ## Web Interface
 
@@ -988,26 +988,26 @@ The docker-compose includes an optional Cloudflare tunnel service for secure rem
 
 ### Security Recommendations
 
-When exposing your instance to the internet, the 2.0.0 baseline covers most of the attack surface by default. Two things are still the operator's job:
+The 2.0.0 baseline covers most of the attack surface. What's still on the operator:
 
-**Do:**
-- Keep `SESSION_COOKIE_SECURE=true` (default) behind HTTPS.
-- Set `MINUSPOD_TRUSTED_PROXY_COUNT=1` (or higher) so login lockout and rate limits key on the real client IP instead of the reverse-proxy hop.
+- Serve over HTTPS with `SESSION_COOKIE_SECURE=true` (the default).
+- Set `MINUSPOD_TRUSTED_PROXY_COUNT=1` (or higher) behind a reverse proxy so lockout and rate limits see the real client IP.
 - Set `MINUSPOD_MASTER_PASSPHRASE` so provider API keys are encrypted at rest.
-- Set `MINUSPOD_ENABLE_HSTS=true` once your deployment is HTTPS-only.
-- Keep the default `SESSION_COOKIE_SAMESITE=Strict`; change to `Lax` only if a specific integration breaks without it.
-- Put `/ui`, `/api`, `/docs`, and `/openapi.yaml` behind a WAF rule that blocks them from the public internet. The public feed endpoints (`/<slug>`, `/<slug>/<episode>.mp3`, `/<slug>/<episode>.vtt`, `/<slug>/<episode>/chapters.json`, `/api/v1/feeds/<slug>/artwork`) must stay reachable for podcast apps.
+- Set `MINUSPOD_ENABLE_HSTS=true` once the deployment is HTTPS-only.
+- Leave `SESSION_COOKIE_SAMESITE=Strict`; flip to `Lax` only if an integration needs it.
+- Block `/ui`, `/api`, `/docs`, and `/openapi.yaml` at the WAF. Public feed paths stay reachable: `/<slug>`, `/<slug>/<episode>.mp3`, `/<slug>/<episode>.vtt`, `/<slug>/<episode>/chapters.json`, and `/api/v1/feeds/<slug>/artwork`.
 
-**Baseline shipped in 2.0.0 (no action required):**
+Shipped by default in 2.0.0, no operator action needed:
+
 - Double-submit CSRF on every mutating `/api/v1/*` request.
-- Per-IP login lockout (5 fails in 15 min -> 15 min block, public IPs only).
-- Path-traversal defense on slug / episode-id inputs.
-- SSRF tier-aware fetcher on every outbound call; per-hop redirect revalidation; HTTPS -> HTTP downgrades blocked.
-- Artwork magic-number validation + size cap.
-- Stdlib XML parsers locked down (DTDs, external entities, entity bombs all rejected).
+- Per-IP login lockout: 5 fails in 15 min -> 15 min block, public IPs only.
+- Path-traversal defense on slug and episode-id inputs.
+- Tier-aware SSRF fetcher on every outbound call; per-hop redirect revalidation; HTTPS -> HTTP downgrades refused.
+- Artwork magic-number validation and size cap.
+- Stdlib XML parsers reject DTDs, external entities, and entity bombs.
 - `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy`, and a scoped CSP on every response.
-- Container runs as UID 1000 (not root) after first-boot volume chown.
-- Rate limits on destructive endpoints (`POST /system/cleanup` 1/h, `DELETE /system/queue` 6/h, `GET /history/export` 5/h) with WARN audit logs.
+- Container runs as UID 1000, not root. First boot chowns the data volume.
+- Rate limits on destructive endpoints: `POST /system/cleanup` 1/h, `DELETE /system/queue` 6/h, `GET /history/export` 5/h, each with a WARN audit log.
 
 **Cloudflare WAF Example**
 
