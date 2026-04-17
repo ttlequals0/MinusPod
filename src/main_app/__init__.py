@@ -427,7 +427,8 @@ if _trusted_proxies > 0:
         x_host=_trusted_proxies,
     )
     audio_logger.info(
-        "ProxyFix enabled: trusting %d reverse proxy hops", _trusted_proxies,
+        "ProxyFix enabled: trusting %d reverse proxy hops",
+        _trusted_proxies,  # lgtm [py/clear-text-logging-sensitive-data]
     )
 else:
     # Docker deployments behind a proxy typically need this; a loud warn
