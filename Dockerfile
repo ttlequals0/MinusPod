@@ -105,6 +105,7 @@ COPY version.py ./
 COPY assets/ ./assets/
 COPY assets/ ./assets_builtin/
 COPY openapi.yaml ./
+COPY gunicorn.conf.py ./
 
 # Copy built frontend from builder stage
 COPY --from=frontend-builder /app/static/ui ./static/ui/
