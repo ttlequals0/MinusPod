@@ -157,6 +157,23 @@ def safe_get(
             session.close()
 
 
+def safe_head(
+    url: str,
+    trust: URLTrust,
+    *,
+    max_redirects: int = 5,
+    timeout: float = 10,
+    headers: Optional[dict] = None,
+) -> requests.Response:
+    """HEAD ``url`` via a session that revalidates every redirect hop."""
+    _validate_for_tier(url, trust)
+    session = _RevalidatingSession(trust, max_redirects)
+    try:
+        return session.head(url, timeout=timeout, headers=headers, allow_redirects=True)
+    finally:
+        session.close()
+
+
 def safe_post(
     url: str,
     trust: URLTrust,

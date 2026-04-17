@@ -14,6 +14,7 @@ from werkzeug.exceptions import NotFound
 from werkzeug.utils import safe_join
 
 from config import APP_USER_AGENT, JIT_RETRY_COOLDOWN_SECONDS, MAX_EPISODE_RETRIES
+from utils.safe_http import URLTrust, safe_head
 from utils.time import parse_iso_datetime
 from utils.url import validate_url, SSRFError
 
@@ -98,25 +99,34 @@ def _lookup_episode(slug, episode_id, feed_map, episode_row=None):
 
 
 def _head_upstream(slug, episode_id, original_url):
-    """Proxy a HEAD request to the upstream audio URL."""
+    """Proxy a HEAD request to the upstream audio URL.
+
+    Audio enclosures are FEED_CONTENT: private addresses are refused
+    both on the initial URL and on every redirect hop.
+    """
     try:
-        safe_url = validate_url(original_url)
+        resp = safe_head(
+            original_url,
+            trust=URLTrust.FEED_CONTENT,
+            timeout=10,
+            max_redirects=5,
+            headers={'User-Agent': APP_USER_AGENT},
+        )
     except SSRFError as e:
         feed_logger.warning(f"[{slug}:{episode_id}] SSRF blocked in HEAD upstream: {e}")
         abort(502)
-    try:
-        resp = requests.head(safe_url, timeout=10, allow_redirects=True,
-                             headers={'User-Agent': APP_USER_AGENT})
-        if resp.status_code == 200:
-            proxy_resp = Response('', status=200)
-            for h in ('Content-Type', 'Accept-Ranges'):
-                if h in resp.headers:
-                    proxy_resp.headers[h] = resp.headers[h]
-            if 'Content-Length' in resp.headers:
-                proxy_resp.content_length = int(resp.headers['Content-Length'])
-            return proxy_resp
     except requests.exceptions.RequestException as e:
         feed_logger.warning(f"[{slug}:{episode_id}] HEAD upstream failed: {e}")
+        abort(503)
+
+    if resp.status_code == 200:
+        proxy_resp = Response('', status=200)
+        for h in ('Content-Type', 'Accept-Ranges'):
+            if h in resp.headers:
+                proxy_resp.headers[h] = resp.headers[h]
+        if 'Content-Length' in resp.headers:
+            proxy_resp.content_length = int(resp.headers['Content-Length'])
+        return proxy_resp
     abort(503)
 
 

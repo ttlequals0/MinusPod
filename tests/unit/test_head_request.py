@@ -162,7 +162,7 @@ class TestGetRequestStillProcesses:
 class TestHeadUpstreamHelper:
     """Test _head_upstream helper directly."""
 
-    @patch('main_app.routes.requests.head')
+    @patch('main_app.routes.safe_head')
     def test_proxies_content_headers(self, mock_head):
         mock_resp = MagicMock()
         mock_resp.status_code = 200
@@ -183,7 +183,7 @@ class TestHeadUpstreamHelper:
         assert resp.headers['Accept-Ranges'] == 'bytes'
         assert 'X-Other' not in resp.headers
 
-    @patch('main_app.routes.requests.head', side_effect=requests.exceptions.ConnectionError('timeout'))
+    @patch('main_app.routes.safe_head', side_effect=requests.exceptions.ConnectionError('timeout'))
     def test_returns_503_on_upstream_failure(self, mock_head):
         from werkzeug.exceptions import ServiceUnavailable
 
