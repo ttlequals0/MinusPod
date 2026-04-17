@@ -1120,6 +1120,27 @@ The SQLite backup files produced by `GET /api/v1/system/backup` and by the perio
 
 Treat the file like a credential. When `MINUSPOD_MASTER_PASSPHRASE` is set, both backup paths produce AES-GCM encrypted `.db.enc` files, and restoring requires the same passphrase the source used. Without a passphrase, unencrypted `.db` files are written and a WARN is logged at creation time.
 
+### Decrypting a backup
+
+Encrypted backup files (`*.db.enc`) use AES-GCM with a key derived from `MINUSPOD_MASTER_PASSPHRASE` via PBKDF2 (600k iterations, SHA-256). The per-instance salt is stored in the running DB's `settings` table (`provider_crypto_salt`), not in the backup envelope. Decryption needs three things:
+
+1. The encrypted file.
+2. The same `MINUSPOD_MASTER_PASSPHRASE` that produced it.
+3. The live container's DB (for the salt row).
+
+The ship-in-repo CLI handles this:
+
+```bash
+MINUSPOD_MASTER_PASSPHRASE=your-passphrase \
+    python scripts/decrypt_backup.py /path/to/backup.db.enc /path/to/backup.db
+```
+
+Runs from inside the container or any host with the repo checked out and `cryptography` installed. `DATA_PATH` points at the running instance's data dir (default `/app/data`).
+
+**Important caveat:** the salt is per-DB, not per-passphrase. If you rotate the passphrase (`POST /api/v1/settings/providers/rotate-passphrase`), old backups made under the previous passphrase are still decryptable, because rotation re-encrypts rows under a new salt + new DEK in place. But if you lose the DB entirely (full-volume loss, fresh install) and only have backup files, you cannot decrypt them even with the original passphrase — the salt is gone. Treat the passphrase and the DB together as the recovery bundle.
+
+Unencrypted `.db` files are regular SQLite databases. Restore them with `sqlite3` or by copying into place on a stopped instance.
+
 ### Pattern import / export
 
 Before doing a `replace` import, export first so there's a round-trip backup:
