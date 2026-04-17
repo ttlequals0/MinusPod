@@ -459,10 +459,10 @@ if _trusted_proxy_hops > 0:
         x_proto=_trusted_proxy_hops,
         x_host=_trusted_proxy_hops,
     )
-    audio_logger.info(
-        "ProxyFix enabled: trusting %d reverse proxy hops",
-        _trusted_proxy_hops,  # lgtm [py/clear-text-logging-sensitive-data]
-    )
+    # Log without formatting the raw env-derived value; an operator who
+    # wants the exact hop count can read MINUSPOD_TRUSTED_PROXY_COUNT. This
+    # keeps CodeQL's py/clear-text-logging-sensitive-data heuristic quiet.
+    audio_logger.info("ProxyFix enabled from MINUSPOD_TRUSTED_PROXY_COUNT")
 else:
     # Docker deployments behind a proxy typically need this; a loud warn
     # on startup saves a support round-trip when lockout appears not to

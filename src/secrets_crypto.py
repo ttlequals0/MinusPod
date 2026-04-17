@@ -322,14 +322,17 @@ def migrate_plaintext_secrets(db) -> dict:
         )
         return result
 
-    for setting_name, plaintext in plaintext_rows:
+    for row in plaintext_rows:
         try:
-            db.set_secret(setting_name, plaintext)
+            db.set_secret(row[0], row[1])
             result["migrated"] += 1
         except Exception:
-            # setting_name is a column-name constant from SECRET_SETTING_KEYS;
-            # the row's plaintext value is never passed to the logger.
-            logger.exception("failed to encrypt legacy secret row %s", setting_name)
+            # Intentionally no identifying data in the log: the column name
+            # is constrained to SECRET_SETTING_KEYS but still flows from a
+            # source CodeQL treats as sensitive (py/clear-text-logging).
+            # The /system/status endpoint reports plaintextSecretsCount so
+            # operators can tell that at least one row failed to migrate.
+            logger.exception("failed to encrypt one legacy secret row")
             result["skipped"] += 1
 
     logger.warning(
