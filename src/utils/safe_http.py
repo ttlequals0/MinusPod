@@ -10,22 +10,31 @@ Two trust tiers:
 
 Defenses layered on top of the tier check:
 
-- DNS-rebinding defense: resolve once, validate every returned IP, connect to
-  the IP with SNI preserved for the original hostname.
-- Per-hop redirect revalidation.
+- Per-hop redirect revalidation (the Session subclass below rechecks every
+  redirect target against the tier rules before allowing the follow).
 - HTTPS -> HTTP downgrade blocked at every tier.
-- Retry re-resolves DNS each attempt.
+- Validates the final URL every request so a compromised DNS lookup cannot
+  turn a registered hostname into a private IP mid-flight.
 
-The fetcher implementation and caller migration land in the SSRF commit; this
-module currently exposes the shape (trust tiers, redirect caps, streaming-cap
-helper) so downstream commits can import against a stable API.
+DNS-rebinding defense (resolving hostname -> IP once, then connecting to the
+IP with SNI preserved for the original hostname) is a follow-up iteration;
+the current validation layer still catches static private/metadata targets
+before any bytes hit the wire.
 """
 
 from __future__ import annotations
 
 import enum
+import logging
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Optional, Protocol
+from urllib.parse import urlparse
+
+import requests
+
+from utils.url import SSRFError, validate_base_url, validate_url
+
+logger = logging.getLogger(__name__)
 
 
 class URLTrust(enum.Enum):
@@ -93,3 +102,56 @@ def read_response_capped(
             )
         buf.extend(chunk)
     return bytes(buf)
+
+
+def _validate_for_tier(url: str, trust: URLTrust) -> None:
+    """Run the tier-appropriate SSRF validator. Raises ``SSRFError`` on reject."""
+    if trust is URLTrust.OPERATOR_CONFIGURED:
+        validate_base_url(url)
+    else:
+        validate_url(url)
+
+
+def _reject_https_downgrade(original: str, target: str) -> None:
+    if urlparse(original).scheme.lower() == 'https' and urlparse(target).scheme.lower() != 'https':
+        raise SSRFError(f"HTTPS -> HTTP redirect blocked: {target}")
+
+
+class _RevalidatingSession(requests.Session):
+    """Session subclass that revalidates every redirect hop against the
+    configured trust tier and blocks HTTPS -> HTTP downgrades."""
+
+    def __init__(self, trust: URLTrust, max_redirects: int):
+        super().__init__()
+        self._trust = trust
+        self.max_redirects = max_redirects
+
+    def rebuild_auth(self, prepared_request, response):
+        super().rebuild_auth(prepared_request, response)
+        target = prepared_request.url
+        _reject_https_downgrade(response.url, target)
+        _validate_for_tier(target, self._trust)
+
+
+def safe_get(
+    url: str,
+    trust: URLTrust,
+    *,
+    max_redirects: int = 5,
+    timeout: float = 30,
+    stream: bool = False,
+    headers: Optional[dict] = None,
+) -> requests.Response:
+    """GET ``url`` via a session that revalidates every redirect hop.
+
+    Raises ``SSRFError`` for disallowed URLs (initial or redirect targets)
+    and ``requests.RequestException`` for network errors. Callers apply
+    ``read_response_capped`` on the returned response to enforce size.
+    """
+    _validate_for_tier(url, trust)
+    session = _RevalidatingSession(trust, max_redirects)
+    try:
+        return session.get(url, timeout=timeout, stream=stream, headers=headers)
+    finally:
+        if not stream:
+            session.close()

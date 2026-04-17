@@ -11,7 +11,12 @@ import shutil
 from config import BROWSER_USER_AGENT
 from utils.url import validate_url, SSRFError
 from utils.validation import is_dangerous_slug, is_valid_episode_id
-from utils.safe_http import ResponseTooLargeError, read_response_capped
+from utils.safe_http import (
+    ResponseTooLargeError,
+    URLTrust,
+    read_response_capped,
+    safe_get,
+)
 
 
 _ALLOWED_IMAGE_TYPES = frozenset({
@@ -436,12 +441,6 @@ class Storage:
                     return True
                 logger.info(f"[{slug}] artwork_cached flag set but file missing, re-downloading")
 
-            try:
-                validate_url(artwork_url)
-            except SSRFError as e:
-                logger.warning(f"[{slug}] SSRF blocked in download_artwork: {e}")
-                return False
-
             logger.info(f"[{slug}] Downloading artwork from {artwork_url}")
 
             headers = {
@@ -449,7 +448,18 @@ class Storage:
                 'Accept': '*/*',
                 'Accept-Language': 'en-US,en;q=0.9',
             }
-            response = requests.get(artwork_url, headers=headers, timeout=30, stream=True)
+            try:
+                response = safe_get(
+                    artwork_url,
+                    trust=URLTrust.FEED_CONTENT,
+                    max_redirects=5,
+                    timeout=30,
+                    stream=True,
+                    headers=headers,
+                )
+            except SSRFError as e:
+                logger.warning(f"[{slug}] SSRF blocked in download_artwork: {e}")
+                return False
             response.raise_for_status()
 
             declared_type = (response.headers.get('Content-Type') or '').split(';', 1)[0].strip().lower()

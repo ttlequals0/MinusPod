@@ -84,8 +84,7 @@ def test_download_rejects_html_declared_as_jpeg(temp_db, tmp_path):
     storage = Storage(data_dir=str(tmp_path))
     storage.db.create_podcast('mock-pod', 'https://example.com/feed.xml')
 
-    with patch('storage.requests.get') as mock_get, \
-         patch('storage.validate_url'):
+    with patch('storage.safe_get') as mock_get:
         mock_get.return_value = _mock_response('image/jpeg', b'<html>fake</html>')
         result = storage.download_artwork('mock-pod', 'https://cdn.example.com/x.jpg')
 
@@ -100,8 +99,7 @@ def test_download_rejects_oversize(temp_db, tmp_path, monkeypatch):
     storage.db.create_podcast('mock-pod-oversize', 'https://example.com/feed.xml')
 
     huge = JPEG + b'\x00' * (1024 * 1024)
-    with patch('storage.requests.get') as mock_get, \
-         patch('storage.validate_url'):
+    with patch('storage.safe_get') as mock_get:
         mock_get.return_value = _mock_response('image/jpeg', huge)
         result = storage.download_artwork(
             'mock-pod-oversize', 'https://cdn.example.com/big.jpg'
@@ -116,8 +114,7 @@ def test_download_saves_valid_jpeg(temp_db, tmp_path):
     storage = Storage(data_dir=str(tmp_path))
     storage.db.create_podcast('ok-pod', 'https://example.com/feed.xml')
 
-    with patch('storage.requests.get') as mock_get, \
-         patch('storage.validate_url'):
+    with patch('storage.safe_get') as mock_get:
         mock_get.return_value = _mock_response('image/jpeg', JPEG)
         result = storage.download_artwork('ok-pod', 'https://cdn.example.com/ok.jpg')
 
@@ -134,8 +131,7 @@ def test_download_rejects_disallowed_content_type(temp_db, tmp_path):
     storage = Storage(data_dir=str(tmp_path))
     storage.db.create_podcast('svg-pod', 'https://example.com/feed.xml')
 
-    with patch('storage.requests.get') as mock_get, \
-         patch('storage.validate_url'):
+    with patch('storage.safe_get') as mock_get:
         mock_get.return_value = _mock_response('image/svg+xml', b'<svg></svg>')
         result = storage.download_artwork('svg-pod', 'https://cdn.example.com/x.svg')
 
