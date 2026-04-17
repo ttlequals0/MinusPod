@@ -52,6 +52,8 @@ This release is a coordinated security hardening pass. It includes breaking chan
 
 ### Security
 - Closed the remaining paths where raw exception strings reached API clients (flagged by CodeQL as `py/stack-trace-exposure`). `rotate_passphrase` now checks returned `ValueError` messages against a whitelist of known-safe strings before echoing them; unknown messages are logged server-side and the client receives a generic 400. Webhook template preview, webhook test, OPML import per-item failures, and bulk episode action errors replace `str(exc)` in the response body with a stable generic reason while keeping the detailed traceback in logs.
+- Per-IP login lockout on `POST /api/v1/auth/login`. After 5 failed attempts within a rolling 15-minute window from the same public IP, subsequent attempts return `429 Too many failed attempts` with a `Retry-After` header for the next 15 minutes. Counters live in the SQLite `auth_failures` table so the limit is consistent across gunicorn workers (flask-limiter's in-memory store would reset per worker). Private / loopback / link-local / multicast / reserved / RFC1918 / CGNAT / Tailscale-ULA / IPv6-discard addresses are excluded from lockout so operators behind shared NAT cannot be locked out by a neighbour's traffic. Successful login clears the counter; a periodic cleanup sweep removes rows whose window has expired.
+- `/api/v1/system/status` now reports a `security` block with `cryptoReady: bool` and `plaintextSecretsCount: int` so operators can see at a glance whether any legacy plaintext secret rows remain (e.g. because `MINUSPOD_MASTER_PASSPHRASE` is not yet set).
 
 ## [1.6.2] - 2026-04-15
 

@@ -13,6 +13,7 @@ from api import (
     get_database, get_storage, _get_version, _start_time,
 )
 from pricing_fetcher import force_refresh_pricing
+from secrets_crypto import count_plaintext_secrets, is_available as crypto_available
 
 logger = logging.getLogger('podcast.api')
 
@@ -78,6 +79,7 @@ def get_system_status():
     storage_stats = storage.get_storage_stats()
 
     retention_days = int(db.get_setting('retention_days') or '30')
+    plaintext_secrets = count_plaintext_secrets(db)
 
     return json_response({
         'status': 'running',
@@ -105,6 +107,10 @@ def get_system_status():
             'totalInputTokens': int(db.get_stat('total_input_tokens')),
             'totalOutputTokens': int(db.get_stat('total_output_tokens')),
             'totalLlmCost': round(db.get_stat('total_llm_cost'), 2),
+        },
+        'security': {
+            'cryptoReady': crypto_available(),
+            'plaintextSecretsCount': plaintext_secrets,
         }
     })
 

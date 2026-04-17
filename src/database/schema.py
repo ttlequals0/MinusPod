@@ -834,6 +834,25 @@ class SchemaMixin:
         except Exception as e:
             logger.warning(f"Failed to auto-populate search index: {e}")
 
+        # Migration: Create auth_failures table for login-lockout tracking
+        try:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS auth_failures (
+                    ip TEXT PRIMARY KEY,
+                    failed_count INTEGER NOT NULL DEFAULT 0,
+                    first_failed_at TEXT NOT NULL,
+                    last_failed_at TEXT NOT NULL,
+                    locked_until TEXT
+                )
+            """)
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_auth_failures_last ON auth_failures(last_failed_at)"
+            )
+            conn.commit()
+            logger.info("Migration: Created auth_failures table")
+        except Exception as e:
+            logger.debug(f"auth_failures table creation (may already exist): {e}")
+
         # Migration: Convert numeric podcast_ids to slugs in ad_patterns table
         # This fixes a bug where auto-created patterns stored numeric IDs instead of slugs
         self._migrate_pattern_podcast_ids()

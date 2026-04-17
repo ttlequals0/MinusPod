@@ -4,6 +4,8 @@ import logging
 from flask import request, session
 from werkzeug.security import generate_password_hash, check_password_hash
 
+from utils.validation import is_public_ip_for_lockout
+
 from api import (
     api, limiter, log_request, json_response, error_response,
     get_database,
@@ -65,15 +67,33 @@ def auth_login():
         return error_response('Password is required', 400)
 
     password = data['password']
+    ip = request.remote_addr or ''
+
+    # Lockout only fires on public IPs so operators behind RFC1918, CGNAT,
+    # Docker bridges, or Tailscale ULA prefixes are not denied by an
+    # attacker who shares their NAT. Flask-limiter still rate-limits
+    # everyone via the @limiter.limit decorators above.
+    if is_public_ip_for_lockout(ip):
+        locked_until = db.check_lockout(ip)
+        if locked_until:
+            logger.warning("Login attempt on locked IP %s (until %s)", ip, locked_until)
+            response = error_response('Too many failed attempts; try again later', 429)
+            response[0].headers['Retry-After'] = locked_until
+            return response
 
     if not stored_hash or not check_password_hash(stored_hash, password):
-        logger.warning(f"Failed login attempt from {request.remote_addr}")
+        logger.warning(f"Failed login attempt from {ip}")
+        if is_public_ip_for_lockout(ip):
+            db.record_auth_failure(ip)
         return error_response('Invalid password', 401)
+
+    if is_public_ip_for_lockout(ip):
+        db.record_auth_success(ip)
 
     # Set session
     session.permanent = True
     session['authenticated'] = True
-    logger.info(f"Successful login from {request.remote_addr}")
+    logger.info(f"Successful login from {ip}")
 
     return json_response({
         'authenticated': True,

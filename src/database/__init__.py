@@ -16,6 +16,7 @@ from database.maintenance import MaintenanceMixin
 from database.fingerprints import FingerprintMixin
 from database.queue import QueueMixin
 from database.search import SearchMixin
+from database.auth_lockout import AuthLockoutMixin
 
 logger = logging.getLogger(__name__)
 
@@ -236,7 +237,7 @@ Output: []"""
 
 class Database(SchemaMixin, PodcastMixin, EpisodeMixin, SettingsMixin,
                PatternMixin, SponsorMixin, StatsMixin, MaintenanceMixin,
-               FingerprintMixin, QueueMixin, SearchMixin):
+               FingerprintMixin, QueueMixin, SearchMixin, AuthLockoutMixin):
     """SQLite database manager with thread-safe connections."""
 
     _instance = None
