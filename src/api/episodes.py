@@ -13,6 +13,7 @@ from api import (
 )
 from utils.text import parse_transcript_segments
 from utils.time import parse_timestamp, utc_now_iso
+from utils.validation import is_valid_episode_id
 
 logger = logging.getLogger('podcast.api')
 
@@ -230,9 +231,10 @@ def serve_original_audio(slug, episode_id):
     Returns 404 when the episode has no original retained (global setting
     off, old episode processed before the feature, or retention expired).
     """
-    if not all(c.isalnum() or c in '-_' for c in slug):
-        abort(400)
-    if not all(c.isalnum() or c in '-_' for c in episode_id):
+    # Blueprint url_value_preprocessor already ran is_dangerous_slug on
+    # `slug`; we still need a strict episode-ID check because .isalnum()
+    # accepts Unicode lookalikes, and real IDs are 12-char MD5 hex.
+    if not is_valid_episode_id(episode_id):
         abort(400)
     db = get_database()
     storage = get_storage()

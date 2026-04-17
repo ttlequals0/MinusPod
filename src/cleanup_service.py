@@ -14,6 +14,10 @@ import sqlite3
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional
 
+from secrets_crypto import (
+    encrypt_bytes as _encrypt_bytes,
+    is_available as crypto_available,
+)
 from utils.time import utc_now_iso
 
 logger = logging.getLogger('podcast.cleanup')
@@ -347,68 +351,93 @@ class CleanupService:
             logger.error(f"VACUUM failed: {e}")
 
     def backup_database(self) -> Optional[str]:
-        """
-        Create a timestamped backup of the SQLite database.
+        """Create a timestamped backup of the SQLite database.
 
         Uses SQLite's backup API for consistency (safe during writes).
-        Cleans up old backups, keeping only the configured number.
+        When ``MINUSPOD_MASTER_PASSPHRASE`` is set, the backup is AES-GCM
+        wrapped under the same KEK as provider secrets and written as
+        ``*.db.enc``. Without the passphrase, the plaintext ``*.db`` is
+        kept and a WARN logged so operators know scheduled backups are
+        not protected. Retention matches either extension.
 
-        Returns:
-            Path to backup file, or None if backup failed
+        Returns the path of the final (possibly encrypted) file, or None.
         """
         if not self.db:
             return None
 
+        tmp_path = None
         try:
-            # Get database path
             db_path = self.db.db_path
             if not db_path or not os.path.exists(db_path):
                 logger.warning("Database path not found, skipping backup")
                 return None
 
-            # Create backup directory next to database
             db_dir = os.path.dirname(db_path)
             backup_dir = os.path.join(db_dir, 'backups')
             os.makedirs(backup_dir, exist_ok=True)
 
-            # Generate timestamped backup filename
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            backup_filename = f'podcast_{timestamp}.db'
-            backup_path = os.path.join(backup_dir, backup_filename)
+            # Atomic rename within the same filesystem -- write snapshot
+            # to a .tmp, wrap (or not), then rename to the final name so
+            # readers never see a partial file.
+            tmp_path = os.path.join(backup_dir, f'podcast_{timestamp}.tmp')
 
-            # Use SQLite backup API for safe, consistent backup
             source_conn = self.db.get_connection()
-            backup_conn = sqlite3.connect(backup_path)
-
+            backup_conn = sqlite3.connect(tmp_path)
             try:
                 source_conn.backup(backup_conn)
+            finally:
                 backup_conn.close()
-                logger.info(f"Database backup created: {backup_path}")
-            except Exception as e:
-                backup_conn.close()
-                # Clean up failed backup
-                if os.path.exists(backup_path):
-                    os.remove(backup_path)
-                raise e
 
-            # Clean up old backups
+            if crypto_available():
+                try:
+                    with open(tmp_path, 'rb') as f:
+                        blob = f.read()
+                    enc = _encrypt_bytes(self.db, blob)
+                    final_path = os.path.join(backup_dir, f'podcast_{timestamp}.db.enc')
+                    with open(final_path, 'wb') as f:
+                        f.write(enc)
+                    os.unlink(tmp_path)
+                    tmp_path = None
+                    logger.info(f"Encrypted database backup created: {final_path}")
+                except Exception:
+                    logger.exception("Scheduled backup encryption failed; keeping unencrypted copy")
+                    final_path = os.path.join(backup_dir, f'podcast_{timestamp}.db')
+                    os.rename(tmp_path, final_path)
+                    tmp_path = None
+            else:
+                final_path = os.path.join(backup_dir, f'podcast_{timestamp}.db')
+                os.rename(tmp_path, final_path)
+                tmp_path = None
+                logger.warning(
+                    "Scheduled DB backup written UNENCRYPTED: set "
+                    "MINUSPOD_MASTER_PASSPHRASE to enable AES-GCM wrap"
+                )
+
             self._cleanup_old_backups(backup_dir)
-
-            return backup_path
+            return final_path
 
         except Exception as e:
             logger.error(f"Database backup failed: {e}")
             return None
+        finally:
+            if tmp_path and os.path.exists(tmp_path):
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
 
     def _cleanup_old_backups(self, backup_dir: str):
         """Remove old backups, keeping only the configured number."""
         keep_count = self._get_setting('backup_keep_count')
 
         try:
-            # Get all backup files sorted by modification time (newest first)
+            # Get all backup files sorted by modification time (newest
+            # first). Match both .db (legacy / no passphrase) and .db.enc
+            # (AES-GCM-wrapped) so retention works across the transition.
             backups = []
             for f in os.listdir(backup_dir):
-                if f.startswith('podcast_') and f.endswith('.db'):
+                if f.startswith('podcast_') and (f.endswith('.db') or f.endswith('.db.enc')):
                     path = os.path.join(backup_dir, f)
                     backups.append((path, os.path.getmtime(path)))
 

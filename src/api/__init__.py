@@ -60,54 +60,54 @@ def init_limiter(app):
     logger.info("Rate limiter initialized: 200/min, 1000/hr default limits")
 
 
-# Paths that don't require authentication
-AUTH_EXEMPT_PATHS = {
-    '/api/v1/health',
-    '/api/v1/health/live',
-    '/api/v1/auth/status',
-    '/api/v1/auth/login',
-    '/api/v1/auth/logout',
-}
+# Paths that don't require authentication. Every entry is an exact match;
+# no prefixes or substring contains. A prefix like "/api/v1/auth/" is a
+# footgun: any future endpoint added under it (e.g. /auth/setup-2fa)
+# would be silently unauthenticated. Keeping this list closed helps
+# reviewers see the full public surface at a glance.
+AUTH_EXEMPT_PATHS = frozenset({
+    '/api/v1/health',        # readiness probe
+    '/api/v1/health/live',   # liveness probe
+    '/api/v1/auth/status',   # used by the UI to decide whether to show login
+    '/api/v1/auth/login',    # initial login
+    '/api/v1/auth/logout',   # terminate session
+    # First-time setup + self-service rekey. The handler body-verifies
+    # `currentPassword` when one is already set, so an unauthenticated
+    # caller with no prior password can bootstrap, while an existing
+    # password requires possession of the current one. Do NOT add other
+    # /api/v1/auth/* endpoints here -- the blueprint-prefix version of
+    # this list was removed specifically because it was a footgun for
+    # future auth endpoints.
+    '/api/v1/auth/password',
+})
 
-# Path prefixes that don't require authentication
-AUTH_EXEMPT_PREFIXES = (
-    '/api/v1/auth/',
-    '/api/v1/status/stream',  # SSE stream - EventSource can't handle 401 gracefully
+# Strict pattern exemption for podcast-app cross-origin artwork GETs.
+# <img src> can't bounce through an auth dance on 401, so this one GET is
+# public. The regex mirrors the strict slug shape (is_valid_slug); bad
+# slugs fall through to the authenticated path and 401.
+PODCAST_APP_EXEMPT_PATTERNS = (
+    re.compile(r'^/api/v1/feeds/[a-z0-9][a-z0-9-]{0,63}/artwork$'),
 )
 
 
 @api.before_request
 def check_auth():
-    """Check authentication before each request.
+    """Check authentication before each /api/v1/* request.
 
-    Exempt paths:
-    - /health - health check endpoint
-    - /auth/* - authentication endpoints
-    - /feeds/<slug>/rss - RSS feed endpoints (for podcast apps)
-    - /feeds/<slug>/episodes/<id>/audio - audio files (for podcast apps)
+    Exemptions are all exact-match or strictly regex-matched. Public
+    podcast-feed serving (/<slug>, /episodes/<slug>/<id>.mp3, .vtt,
+    chapters.json) is at the app level, not under this blueprint, and
+    doesn't reach this function.
     """
     path = request.path
 
-    # Check exact path exemptions
     if path in AUTH_EXEMPT_PATHS:
         return None
 
-    # Check prefix exemptions
-    for prefix in AUTH_EXEMPT_PREFIXES:
-        if path.startswith(prefix):
-            return None
-
-    # Allow RSS feeds without auth (for podcast apps)
-    if path.endswith('/rss'):
-        return None
-
-    # Allow audio files without auth (for podcast apps)
-    if '/audio' in path and path.startswith('/api/v1/feeds/'):
-        return None
-
-    # Allow artwork without auth (img tags don't redirect on 401)
-    if '/artwork' in path and path.startswith('/api/v1/feeds/'):
-        return None
+    if request.method == 'GET':
+        for pattern in PODCAST_APP_EXEMPT_PATTERNS:
+            if pattern.match(path):
+                return None
 
     # Check if password is set
     db = get_database()

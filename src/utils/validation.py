@@ -10,8 +10,14 @@ that are actually traversal attempts.
 from __future__ import annotations
 
 import ipaddress
+import logging
 import re
+from functools import wraps
 from typing import Final
+
+from flask import abort
+
+_route_logger = logging.getLogger(__name__)
 
 SLUG_RE: Final = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 EPISODE_ID_RE: Final = re.compile(r"^[a-f0-9]{12}$")
@@ -106,3 +112,41 @@ def is_public_ip_for_lockout(addr: str) -> bool:
             return False
 
     return True
+
+
+def validate_slug_param(f):
+    """Route decorator for app-level ``<slug>`` routes.
+
+    Rejects dangerous slugs with 404 so probing looks the same as "not
+    found". Preserves legacy podcast-app subscription URLs (uppercase,
+    underscores, embedded dots) by delegating to :func:`is_dangerous_slug`.
+    """
+    @wraps(f)
+    def wrapper(slug, *args, **kwargs):
+        if is_dangerous_slug(slug):
+            _route_logger.warning("Dangerous slug rejected: %r", slug)
+            abort(404)
+        return f(slug, *args, **kwargs)
+    return wrapper
+
+
+def validate_slug_and_episode_params(f):
+    """Route decorator for app-level routes with both ``<slug>`` and
+    ``<episode_id>`` path parameters.
+
+    Rejects Unicode lookalike episode IDs (``.isalnum()`` accepts
+    Cyrillic, Greek, full-width digits, etc. -- real MD5-hex episode IDs
+    are strictly ``[0-9a-f]{12}``).
+    """
+    @wraps(f)
+    def wrapper(slug, episode_id, *args, **kwargs):
+        if is_dangerous_slug(slug):
+            _route_logger.warning("Dangerous slug rejected: %r", slug)
+            abort(404)
+        if not is_valid_episode_id(episode_id):
+            _route_logger.warning(
+                "Invalid episode ID rejected: slug=%r id=%r", slug, episode_id
+            )
+            abort(404)
+        return f(slug, episode_id, *args, **kwargs)
+    return wrapper

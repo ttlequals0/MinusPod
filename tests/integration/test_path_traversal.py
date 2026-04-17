@@ -72,3 +72,39 @@ def test_traversal_episode_id_never_returns_200(client, episode_id):
         assert response.status_code < 200 or response.status_code >= 300, (
             f"{path} returned {response.status_code}"
         )
+
+
+# Unicode lookalikes and dangerous slugs must be rejected at
+# route entry; .isalnum() would have accepted several of these.
+@pytest.mark.parametrize("bad_id", [
+    "abcdef\u0435f123",       # Cyrillic e (U+0435)
+    "\uff10\uff11\uff12abcdef\uff13\uff14\uff15",  # full-width digits
+    "abcdef123\u0000",        # null byte
+    "AbCdEf012345",           # uppercase (hex allows a-f only)
+])
+def test_episode_id_unicode_rejected(client, bad_id):
+    for path in (
+        f"/episodes/some-slug/{bad_id}.mp3",
+        f"/episodes/some-slug/{bad_id}.vtt",
+        f"/episodes/some-slug/{bad_id}/chapters.json",
+    ):
+        response = client.get(path)
+        assert response.status_code == 404, f"{path} returned {response.status_code}"
+
+
+@pytest.mark.parametrize("slug", [
+    "../etc/passwd",
+    "foo/bar",
+    "foo\\bar",
+    ".hidden",
+    "null\x00byte",
+])
+def test_public_slug_routes_reject_traversal(client, slug):
+    """serve_rss, serve_episode, serve_transcript_vtt, serve_chapters_json
+    all run through validate_slug_param / validate_slug_and_episode_params
+    and must 404 before hitting storage."""
+    response = client.get(f"/{slug}")
+    assert response.status_code in (404, 301, 308), f"/{slug} returned {response.status_code}"
+    for suffix in ('.mp3', '.vtt', '/chapters.json'):
+        response = client.get(f"/episodes/{slug}/abc123def456{suffix}")
+        assert response.status_code in (404, 301, 308)

@@ -2,11 +2,14 @@
 import datetime
 import logging
 import os
+import re
 import sqlite3
 import tempfile
 import time
+from functools import lru_cache
+from pathlib import Path
 
-from flask import jsonify, request, send_file
+from flask import Response, abort, jsonify, request, send_file
 
 from api import (
     api, limiter, log_request, json_response, error_response,
@@ -20,6 +23,11 @@ from secrets_crypto import (
 )
 
 logger = logging.getLogger('podcast.api')
+
+# Repo root (same file layout as main_app.routes.ROOT_DIR): parents[2]
+# resolves /app from /app/src/api/system.py on the shipped image, and
+# the equivalent checkout root in dev.
+_ROOT_DIR = Path(__file__).resolve().parents[2]
 
 
 # ========== System Endpoints ==========
@@ -256,8 +264,6 @@ def backup_database():
         dst_conn.close()
 
         backup_size = os.path.getsize(tmp_path)
-        logger.info(f"Database backup created: {backup_size} bytes")
-
         timestamp = datetime.datetime.now().strftime('%Y%m%d-%H%M%S')
 
         # If MINUSPOD_MASTER_PASSPHRASE is set, encrypt the backup so an
@@ -289,6 +295,17 @@ def backup_database():
                     "set MINUSPOD_MASTER_PASSPHRASE to enable AES-GCM wrap"
                 )
 
+        # WARN-level audit log so backup downloads are visible in
+        # operator dashboards filtering WARN-and-above. Records the
+        # caller IP and whether the download was AES-GCM-wrapped.
+        encrypted_on_disk = encrypt_param and crypto_available()
+        logger.warning(
+            "Database backup downloaded: size=%d bytes ip=%s encrypted=%s",
+            backup_size,
+            request.remote_addr,
+            encrypted_on_disk,
+        )
+
         # Clean up temp file after response is sent (stream from disk, not memory)
         cleanup_path = tmp_path
         tmp_path = None  # prevent finally block from deleting before send
@@ -316,3 +333,66 @@ def backup_database():
                 os.unlink(tmp_path)
             except OSError:
                 pass
+
+
+# ========== API Documentation ==========
+#
+# Registered on the blueprint so the same ``check_auth`` gate that guards
+# every other /api/v1/* route applies. The route lived at the app level
+# previously, which skipped the gate -- anyone inside the trust boundary
+# could read the OpenAPI spec without logging in.
+
+# All scripts are served as static assets (no inline <script> blocks)
+# so the ``script-src 'self'`` CSP applies without an `unsafe-inline`
+# exception. `/ui/swagger-init.js` ships from the frontend bundle
+# (see `frontend/public/swagger-init.js`).
+_SWAGGER_HTML = '''<!DOCTYPE html>
+<html>
+<head>
+    <title>MinusPod API</title>
+    <link rel="stylesheet" type="text/css" href="/ui/swagger/swagger-ui.css">
+</head>
+<body>
+    <div id="swagger-ui"></div>
+    <script src="/ui/swagger/swagger-ui-bundle.js"></script>
+    <script src="/ui/swagger-init.js"></script>
+</body>
+</html>'''
+
+
+@api.route('/docs', methods=['GET'])
+@api.route('/docs/', methods=['GET'])
+def swagger_ui():
+    """Serve Swagger UI for API documentation (assets bundled locally)."""
+    return _SWAGGER_HTML
+
+
+@lru_cache(maxsize=1)
+def _render_openapi_yaml(openapi_path_str: str, version: str) -> str:
+    """Cache the version-substituted OpenAPI document for the lifetime of
+    the worker. Both key components are stable within a process, so the
+    cache invalidates naturally on container restart (when a version
+    bump or file change takes effect).
+    """
+    content = Path(openapi_path_str).read_text()
+    return re.sub(
+        r'^(\s*version:\s*).*$',
+        rf'\g<1>{version}',
+        content,
+        count=1,
+        flags=re.MULTILINE,
+    )
+
+
+@api.route('/openapi.yaml', methods=['GET'])
+def serve_openapi():
+    """Serve OpenAPI specification with dynamic version."""
+    openapi_path = _ROOT_DIR / 'openapi.yaml'
+    if not openapi_path.exists():
+        abort(404)
+    try:
+        from version import __version__
+        content = _render_openapi_yaml(str(openapi_path), __version__)
+        return Response(content, mimetype='application/x-yaml')
+    except Exception:
+        return send_file(openapi_path, mimetype='application/x-yaml')

@@ -4,7 +4,7 @@ import logging
 import os
 import time
 from datetime import datetime, timezone
-from functools import lru_cache, wraps
+from functools import wraps
 from pathlib import Path
 
 import requests
@@ -17,6 +17,10 @@ from config import APP_USER_AGENT, JIT_RETRY_COOLDOWN_SECONDS, MAX_EPISODE_RETRI
 from utils.safe_http import URLTrust, safe_head
 from utils.time import parse_iso_datetime
 from utils.url import SSRFError
+from utils.validation import (
+    validate_slug_param,
+    validate_slug_and_episode_params,
+)
 
 feed_logger = logging.getLogger('podcast.feed')
 refresh_logger = logging.getLogger('podcast.refresh')
@@ -171,60 +175,8 @@ def register_routes(app):
         response.headers['Cache-Control'] = 'public, max-age=3600'
         return response
 
-    # ========== API Documentation ==========
-
-    # All scripts are served as static assets (no inline <script> blocks)
-    # so the ``script-src 'self'`` CSP applies without an `unsafe-inline`
-    # exception. `/ui/swagger-init.js` ships from the frontend bundle
-    # (see `frontend/public/swagger-init.js`).
-    _SWAGGER_HTML = '''<!DOCTYPE html>
-<html>
-<head>
-    <title>MinusPod API</title>
-    <link rel="stylesheet" type="text/css" href="/ui/swagger/swagger-ui.css">
-</head>
-<body>
-    <div id="swagger-ui"></div>
-    <script src="/ui/swagger/swagger-ui-bundle.js"></script>
-    <script src="/ui/swagger-init.js"></script>
-</body>
-</html>'''
-
-    @app.route('/api/v1/docs')
-    @app.route('/api/v1/docs/')
-    def swagger_ui():
-        """Serve Swagger UI for API documentation (assets bundled locally)."""
-        return _SWAGGER_HTML
-
-    @lru_cache(maxsize=1)
-    def _render_openapi_yaml(openapi_path_str: str, version: str) -> str:
-        """Cache the version-substituted OpenAPI document for the lifetime of
-        the worker. Both key components are stable within a process, so the
-        cache invalidates naturally on container restart (when a version
-        bump or file change takes effect).
-        """
-        import re
-        content = Path(openapi_path_str).read_text()
-        return re.sub(
-            r'^(\s*version:\s*).*$',
-            rf'\g<1>{version}',
-            content,
-            count=1,
-            flags=re.MULTILINE,
-        )
-
-    @app.route('/api/v1/openapi.yaml')
-    def serve_openapi():
-        """Serve OpenAPI specification with dynamic version."""
-        openapi_path = ROOT_DIR / 'openapi.yaml'
-        if not openapi_path.exists():
-            abort(404)
-        try:
-            from version import __version__
-            content = _render_openapi_yaml(str(openapi_path), __version__)
-            return Response(content, mimetype='application/x-yaml')
-        except Exception:
-            return send_file(openapi_path, mimetype='application/x-yaml')
+    # /api/v1/docs and /api/v1/openapi.yaml are defined in
+    # src/api/system.py so the blueprint's check_auth gate applies.
 
     # ========== Browser Icon Routes ==========
     # Short-circuit favicon/apple-touch-icon requests so they don't fall through
@@ -246,6 +198,7 @@ def register_routes(app):
     # ========== RSS Feed Routes ==========
 
     @app.route('/<slug>')
+    @validate_slug_param
     @log_request_detailed
     def serve_rss(slug):
         """Serve modified RSS feed."""
@@ -298,6 +251,7 @@ def register_routes(app):
             abort(503)
 
     @app.route('/episodes/<slug>/<episode_id>.mp3')
+    @validate_slug_and_episode_params
     @log_request_detailed
     def serve_episode(slug, episode_id):
         """Serve processed episode audio (JIT processing)."""
@@ -308,18 +262,8 @@ def register_routes(app):
         feed_map = _routes.get_feed_map()
 
         if slug not in feed_map:
-            # Same amplification concern as serve_rss: unknown slug must
-            # not cascade to refresh_all_feeds(). Episode URLs are only
-            # published inside modified RSS feeds we serve, so a bot
-            # hitting an unknown slug is probing, not a legitimate
-            # listener.
             feed_logger.warning(f"[{slug}] Feed not found for episode {episode_id} (no refresh-on-miss)")
             abort(404)
-
-        # Validate episode ID
-        if not all(c.isalnum() or c in '-_' for c in episode_id):
-            feed_logger.warning(f"[{slug}] Invalid episode ID: {episode_id}")
-            abort(400)
 
         # Check episode status
         episode = db.get_episode(slug, episode_id)
@@ -440,14 +384,11 @@ def register_routes(app):
             )
 
     @app.route('/episodes/<slug>/<episode_id>.vtt')
+    @validate_slug_and_episode_params
     @log_request_detailed
     def serve_transcript_vtt(slug, episode_id):
         """Serve VTT transcript for episode (Podcasting 2.0)."""
         _, storage, _, _ = _get_components()
-        # Validate episode ID
-        if not all(c.isalnum() or c in '-_' for c in episode_id):
-            feed_logger.warning(f"[{slug}] Invalid episode ID for VTT: {episode_id}")
-            abort(400)
 
         vtt_content = storage.get_transcript_vtt(slug, episode_id)
         if not vtt_content:
@@ -464,14 +405,11 @@ def register_routes(app):
         return response
 
     @app.route('/episodes/<slug>/<episode_id>/chapters.json')
+    @validate_slug_and_episode_params
     @log_request_detailed
     def serve_chapters_json(slug, episode_id):
         """Serve chapters JSON for episode (Podcasting 2.0)."""
         _, storage, _, _ = _get_components()
-        # Validate episode ID
-        if not all(c.isalnum() or c in '-_' for c in episode_id):
-            feed_logger.warning(f"[{slug}] Invalid episode ID for chapters: {episode_id}")
-            abort(400)
 
         chapters = storage.get_chapters_json(slug, episode_id)
         if not chapters:
