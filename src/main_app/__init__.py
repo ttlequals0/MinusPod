@@ -158,37 +158,52 @@ pattern_service = PatternService(db)
 shutdown_event = threading.Event()
 processing_queue = ProcessingQueue()
 
-# Backfill processing history from existing episodes (runs once on startup)
+# One-shot startup backfills, version-gated via system_settings so
+# they only run on the first boot that ships the corresponding code.
+# Previously every worker boot scanned the episodes table on every
+# commit that touched these features; the guard avoids that churn on
+# deployments that already ran the backfill.
+_BACKFILL_VERSION_KEY = 'startup_backfills_version'
+_BACKFILL_VERSION = '2.0.0'
+_stored_backfill_version = None
 try:
-    backfilled = db.backfill_processing_history()
-    if backfilled > 0:
-        audio_logger.info(f"Backfilled {backfilled} records to processing_history")
+    _stored_backfill_version = db.get_system_setting(_BACKFILL_VERSION_KEY)
 except Exception as e:
-    audio_logger.warning(f"History backfill failed: {e}")
+    audio_logger.warning(f"Could not read backfill version marker: {e}")
 
-# Backfill patterns from existing corrections (runs once on startup)
-try:
-    patterns_created = db.backfill_patterns_from_corrections()
-    if patterns_created > 0:
-        audio_logger.info(f"Created {patterns_created} patterns from existing corrections")
-except Exception as e:
-    audio_logger.warning(f"Pattern backfill failed: {e}")
+if _stored_backfill_version != _BACKFILL_VERSION:
+    try:
+        backfilled = db.backfill_processing_history()
+        if backfilled > 0:
+            audio_logger.info(f"Backfilled {backfilled} records to processing_history")
+    except Exception as e:
+        audio_logger.warning(f"History backfill failed: {e}")
 
-# Deduplicate patterns (cleanup duplicate patterns from earlier bugs)
-try:
-    deduped = db.deduplicate_patterns()
-    if deduped > 0:
-        audio_logger.info(f"Removed {deduped} duplicate patterns")
-except Exception as e:
-    audio_logger.warning(f"Pattern deduplication failed: {e}")
+    try:
+        patterns_created = db.backfill_patterns_from_corrections()
+        if patterns_created > 0:
+            audio_logger.info(f"Created {patterns_created} patterns from existing corrections")
+    except Exception as e:
+        audio_logger.warning(f"Pattern backfill failed: {e}")
 
-# Extract sponsors for patterns that don't have one
-try:
-    sponsors_extracted = db.extract_sponsors_for_patterns()
-    if sponsors_extracted > 0:
-        audio_logger.info(f"Extracted sponsors for {sponsors_extracted} patterns")
-except Exception as e:
-    audio_logger.warning(f"Sponsor extraction failed: {e}")
+    try:
+        deduped = db.deduplicate_patterns()
+        if deduped > 0:
+            audio_logger.info(f"Removed {deduped} duplicate patterns")
+    except Exception as e:
+        audio_logger.warning(f"Pattern deduplication failed: {e}")
+
+    try:
+        sponsors_extracted = db.extract_sponsors_for_patterns()
+        if sponsors_extracted > 0:
+            audio_logger.info(f"Extracted sponsors for {sponsors_extracted} patterns")
+    except Exception as e:
+        audio_logger.warning(f"Sponsor extraction failed: {e}")
+
+    try:
+        db.set_system_setting(_BACKFILL_VERSION_KEY, _BACKFILL_VERSION)
+    except Exception as e:
+        audio_logger.warning(f"Could not write backfill version marker: {e}")
 
 def _validate_configured_base_urls():
     """Best-effort sanity check on operator-configured base URLs.
