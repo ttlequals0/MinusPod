@@ -62,6 +62,7 @@ def init_limiter(app):
 # Paths that don't require authentication
 AUTH_EXEMPT_PATHS = {
     '/api/v1/health',
+    '/api/v1/health/live',
     '/api/v1/auth/status',
     '/api/v1/auth/login',
     '/api/v1/auth/logout',
