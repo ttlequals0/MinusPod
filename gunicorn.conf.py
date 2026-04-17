@@ -30,24 +30,49 @@ _log = logging.getLogger("gunicorn.lifecycle")
 def on_starting(server):
     """Master-only, pre-fork.
 
-    Runs DB schema init exactly once before any worker is spawned so that
-    concurrent migration attempts from multiple workers can't race each
-    other. Import ``Database`` here so the master process, not just workers,
-    materialises the singleton and applies pending migrations.
+    BEST-EFFORT schema pre-init. Runs Database() in the master so that
+    the first worker's request doesn't pay migration latency and so the
+    migrations don't race between two newly-forked workers. If the
+    master can't open the DB (volume mount race, permissions flap, WAL
+    header from a still-dying previous container), we log and let the
+    workers try -- they'll apply migrations on first access. Failing
+    the master here causes a fatal crash-loop that's worse than the
+    race it was trying to prevent.
 
-    Any failure aborts the gunicorn master — workers must never accept
-    requests against an un-migrated database.
+    Also drops the master's connection + singleton before fork so
+    workers don't inherit a live WAL handle. Each worker opens its own
+    SQLite connection via post_fork + lazy Database().
     """
     src_dir = "/app/src"
     if src_dir not in sys.path:
         sys.path.insert(0, src_dir)
     try:
         from database import Database
-        Database()
+        db = Database()
+        try:
+            if hasattr(db, '_local') and hasattr(db._local, 'connection'):
+                conn = db._local.connection
+                if conn is not None:
+                    conn.close()
+                db._local.connection = None
+        finally:
+            Database._instance = None
         _log.info("gunicorn on_starting: schema init complete")
     except Exception:
-        _log.exception("gunicorn on_starting: schema init FAILED, aborting master")
-        raise
+        _log.warning(
+            "gunicorn on_starting: schema pre-init failed (%s); workers "
+            "will re-attempt on first request. Investigate if this is "
+            "not a transient volume / container-handoff race.",
+            sys.exc_info()[1],
+            exc_info=False,
+        )
+        # Make sure a partially-materialised singleton doesn't linger
+        # into the worker forks.
+        try:
+            from database import Database as _Db
+            _Db._instance = None
+        except Exception:
+            pass
 
 
 def post_fork(server, worker):
