@@ -6,6 +6,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - 2.0.0 (security audit)
+
+This release is a coordinated security hardening pass. It includes breaking changes to the CORS posture, cross-provider API-key fallback, and sponsor-normalization request shape; operators should read the upgrade notes before deploying. Individual findings are grouped by P-tier here; the full audit plan lives in `tmp/MinusPod_Audit_Remediation_Plan.md`.
+
+### Added
+- **Continuous integration** at `.github/workflows/ci.yml`: pytest on Python 3.11 with cached torch CPU wheels, frontend `npm run build` (runs `tsc` and `vite build`), Docker build for `linux/amd64`, and `pip-audit` / `npm audit` gates. Runs on pushes to `main` and `feature/**` and on pull requests to `main`.
+- Scaffolding modules for the audit fixes to migrate against:
+  - `src/utils/validation.py` - strict and permissive slug / episode-id validators, plus `is_public_ip_for_lockout` for login-lockout scoping.
+  - `src/utils/safe_http.py` - trust-tier enum (`OPERATOR_CONFIGURED`, `FEED_CONTENT`), redirect-context enum with per-context caps, `ResponseTooLargeError`, `FetchResult`, and `read_response_capped`.
+  - `src/utils/subprocess_registry.py` - process registry with `tracked_popen` context manager and `terminate_all` for SIGTERM -> SIGKILL escalation on worker shutdown.
+- `gunicorn.conf.py` mirrors the previous inline flags from `entrypoint.sh` so lifecycle hooks (`on_starting`, `post_fork`, `when_ready`) can be wired from a tracked config file.
+
 ## [1.6.2] - 2026-04-15
 
 ### Added
