@@ -62,6 +62,7 @@ paths:
         Returns whether password protection is enabled and if the current session is authenticated.
         This endpoint is always accessible without authentication.
       operationId: getAuthStatus
+      security: []
       responses:
         '200':
           description: Authentication status
@@ -84,6 +85,7 @@ paths:
       summary: Login with password
       description: Authenticate with the configured password. Rate limited to 5 attempts per minute.
       operationId: login
+      security: []
       requestBody:
         required: true
         content:
@@ -122,6 +124,7 @@ paths:
       summary: Logout and clear session
       description: Clears the current session, requiring re-authentication.
       operationId: logout
+      security: []
       responses:
         '200':
           description: Logout successful
@@ -2686,12 +2689,14 @@ paths:
     get:
       tags:
         - System
-      summary: Health check
+      summary: Readiness check (database and storage)
       description: |
-        Health check endpoint for monitoring and load balancers.
-        Returns 200 if healthy, 503 if unhealthy.
-        Checks database connectivity, storage access, and queue availability.
+        Readiness probe used by Docker and Portainer health checks. Returns
+        200 when the DB and storage directory are reachable, 503 otherwise.
+        Does not instantiate the processing queue; a busy queue is not an
+        ill-health signal.
       operationId: healthCheck
+      security: []
       responses:
         '200':
           description: System is healthy
@@ -2728,6 +2733,29 @@ paths:
                     type: object
                   version:
                     type: string
+
+  /health/live:
+    get:
+      tags:
+        - System
+      summary: Liveness probe (minimal)
+      description: |
+        Minimal liveness probe with no side effects. Returns
+        ``{"status": "ok"}`` and 200 whenever the process is alive. Safe for
+        per-second polling by Kubernetes-style liveness probes.
+      operationId: healthLive
+      security: []
+      responses:
+        '200':
+          description: Process is alive
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [ok]
 
   /system/status:
     get:
@@ -3413,7 +3441,21 @@ paths:
                     type: integer
                     description: Number of pending items removed
 
+security:
+  - sessionCookie: []
+
 components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: session
+      description: |
+        Flask session cookie issued by ``POST /auth/login``. Every mutating
+        endpoint additionally requires a matching ``X-CSRF-Token`` header
+        (double-submit). Public endpoints (``/auth/login``, ``/auth/logout``,
+        ``/auth/status``, ``/health``, ``/health/live``) declare ``security: []``.
+
   parameters:
     slug:
       name: slug

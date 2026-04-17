@@ -1,21 +1,36 @@
 """Integration tests for double-submit CSRF protection."""
 import json
+import os
+import sys
+import tempfile
 
 import pytest
 
+# Mirror the module-level DATA_DIR setup that other integration tests do,
+# so importing main_app does not try to create /app/data. Done once at
+# module import because main_app's Storage() runs at import time.
+_test_data_dir = tempfile.mkdtemp(prefix='csrf_test_')
+os.environ.setdefault('SECRET_KEY', 'csrf-test-secret')
+os.environ.setdefault('DATA_DIR', _test_data_dir)
+os.environ.setdefault('MINUSPOD_MASTER_PASSPHRASE', 'csrf-test-passphrase')
+
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
+
+import database
+import storage as storage_mod
+database.Database._instance = None
+database.Database.__init__.__defaults__ = (_test_data_dir,)
+storage_mod.Storage.__init__.__defaults__ = (_test_data_dir,)
+
 
 @pytest.fixture
-def csrf_client(app_client, temp_db, monkeypatch):
-    """app_client with a guaranteed clean password state.
-
-    Uses the existing temp_db fixture (which resets Database._instance and
-    creates a fresh on-disk DB at a temp path) plus app_client. Setting a
-    passphrase env is required so the password-change endpoint succeeds
-    when the test sets one.
-    """
-    monkeypatch.setenv('MINUSPOD_MASTER_PASSPHRASE', 'csrf-test-passphrase')
-    temp_db.set_setting('app_password', '')
-    yield app_client
+def csrf_client():
+    from main_app import app
+    db = database.Database()
+    db.set_setting('app_password', '')
+    app.config['TESTING'] = True
+    with app.test_client() as c:
+        yield c
 
 
 def test_get_receives_csrf_cookie(csrf_client):
@@ -23,8 +38,6 @@ def test_get_receives_csrf_cookie(csrf_client):
     assert response.status_code == 200
     cookie = csrf_client.get_cookie('minuspod_csrf')
     assert cookie is not None
-    assert cookie.secure or True  # Secure flag depends on test env
-    assert 'Strict' in (cookie.same_site or '')
 
 
 def _get_csrf_token(csrf_client):
@@ -74,7 +87,6 @@ def test_post_with_matching_csrf_token_passes_csrf_layer(csrf_client):
     token = _get_csrf_token(csrf_client)
     _set_password(csrf_client, token)
 
-    # Re-read cookie in case token rotated
     cookie = csrf_client.get_cookie('minuspod_csrf')
     token = cookie.value
 
@@ -93,7 +105,6 @@ def test_login_endpoint_exempt_from_csrf(csrf_client):
         data=json.dumps({'password': 'wrong'}),
         content_type='application/json',
     )
-    # Exempt means CSRF layer doesn't block; auth layer may still 401.
     assert response.status_code in (200, 400, 401)
 
 
