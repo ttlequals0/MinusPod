@@ -8,6 +8,8 @@ import requests
 from flask import request
 
 from api import api, log_request, json_response, error_response, get_database, limiter
+from utils.safe_http import URLTrust, safe_get
+from utils.url import SSRFError
 
 logger = logging.getLogger('podcast.api')
 
@@ -51,14 +53,21 @@ def search_podcasts():
         'User-Agent': 'MinusPod/1.0',
     }
 
+    params = {'q': query, 'max': 10, 'fulltext': ''}
+    qs = '&'.join(f"{k}={requests.utils.requote_uri(str(v))}" for k, v in params.items())
+    endpoint = f"https://api.podcastindex.org/api/1.0/search/byterm?{qs}"
     try:
-        resp = requests.get(
-            'https://api.podcastindex.org/api/1.0/search/byterm',
-            params={'q': query, 'max': 10, 'fulltext': ''},
-            headers=headers,
+        resp = safe_get(
+            endpoint,
+            trust=URLTrust.OPERATOR_CONFIGURED,
             timeout=10,
+            max_redirects=3,
+            headers=headers,
         )
         resp.raise_for_status()
+    except SSRFError as e:
+        logger.warning(f"PodcastIndex SSRF block: {e}")
+        return error_response('PodcastIndex endpoint rejected by SSRF validation', 502)
     except requests.exceptions.Timeout:
         return error_response('PodcastIndex API request timed out', 502)
     except requests.exceptions.RequestException as e:

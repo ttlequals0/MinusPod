@@ -72,7 +72,7 @@ class TestPodcastSearchCredentials:
 class TestPodcastSearchAPICall:
     """Tests for PodcastIndex API interaction."""
 
-    @patch('api.podcast_search.requests.get')
+    @patch('api.podcast_search.safe_get')
     @patch('api.podcast_search._get_podcast_index_credentials', return_value=('key', 'secret'))
     def test_successful_search(self, mock_creds, mock_get, client):
         mock_resp = MagicMock()
@@ -100,7 +100,7 @@ class TestPodcastSearchAPICall:
         assert data['results'][0]['feedUrl'] == 'https://example.com/feed.xml'
         assert data['results'][0]['artworkUrl'] == 'https://example.com/art.png'
 
-    @patch('api.podcast_search.requests.get')
+    @patch('api.podcast_search.safe_get')
     @patch('api.podcast_search._get_podcast_index_credentials', return_value=('key', 'secret'))
     def test_artwork_fallback_to_image(self, mock_creds, mock_get, client):
         mock_resp = MagicMock()
@@ -114,7 +114,7 @@ class TestPodcastSearchAPICall:
         data = json.loads(response.data)
         assert data['results'][0]['artworkUrl'] == 'https://img.png'
 
-    @patch('api.podcast_search.requests.get')
+    @patch('api.podcast_search.safe_get')
     @patch('api.podcast_search._get_podcast_index_credentials', return_value=('key', 'secret'))
     def test_empty_results(self, mock_creds, mock_get, client):
         mock_resp = MagicMock()
@@ -126,7 +126,7 @@ class TestPodcastSearchAPICall:
         data = json.loads(response.data)
         assert data['results'] == []
 
-    @patch('api.podcast_search.requests.get')
+    @patch('api.podcast_search.safe_get')
     @patch('api.podcast_search._get_podcast_index_credentials', return_value=('key', 'secret'))
     def test_timeout_returns_502(self, mock_creds, mock_get, client):
         import requests as req
@@ -136,7 +136,7 @@ class TestPodcastSearchAPICall:
         data = json.loads(response.data)
         assert 'timed out' in data['error'].lower()
 
-    @patch('api.podcast_search.requests.get')
+    @patch('api.podcast_search.safe_get')
     @patch('api.podcast_search._get_podcast_index_credentials', return_value=('key', 'secret'))
     def test_connection_error_returns_502(self, mock_creds, mock_get, client):
         import requests as req
@@ -144,7 +144,7 @@ class TestPodcastSearchAPICall:
         response = client.get('/api/v1/podcast-search?q=test')
         assert response.status_code == 502
 
-    @patch('api.podcast_search.requests.get')
+    @patch('api.podcast_search.safe_get')
     @patch('api.podcast_search._get_podcast_index_credentials', return_value=('key', 'secret'))
     def test_non_json_response_returns_502(self, mock_creds, mock_get, client):
         mock_resp = MagicMock()
@@ -157,7 +157,7 @@ class TestPodcastSearchAPICall:
         data = json.loads(response.data)
         assert 'invalid response' in data['error'].lower()
 
-    @patch('api.podcast_search.requests.get')
+    @patch('api.podcast_search.safe_get')
     @patch('api.podcast_search._get_podcast_index_credentials', return_value=('key', 'secret'))
     def test_auth_headers_sent(self, mock_creds, mock_get, client):
         mock_resp = MagicMock()
@@ -174,7 +174,7 @@ class TestPodcastSearchAPICall:
         assert 'Authorization' in headers
         assert 'User-Agent' in headers
 
-    @patch('api.podcast_search.requests.get')
+    @patch('api.podcast_search.safe_get')
     @patch('api.podcast_search._get_podcast_index_credentials', return_value=('key', 'secret'))
     def test_missing_fields_default_to_empty(self, mock_creds, mock_get, client):
         mock_resp = MagicMock()
