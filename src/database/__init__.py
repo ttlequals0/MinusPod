@@ -277,11 +277,22 @@ class Database(SchemaMixin, PodcastMixin, EpisodeMixin, SettingsMixin,
                 timeout=30.0
             )
             self._local.connection.row_factory = sqlite3.Row
-            # Enable WAL mode for better concurrent access (reads don't block writes)
+            # WAL mode for concurrent reader/writer isolation.
             self._local.connection.execute("PRAGMA journal_mode = WAL")
-            # Set busy timeout to 30 seconds (SQLite will retry instead of failing immediately)
+            # 30-second busy timeout so a slow write does not fail the reader.
             self._local.connection.execute("PRAGMA busy_timeout = 30000")
             self._local.connection.execute("PRAGMA foreign_keys = ON")
+            # NORMAL sync gives WAL its durability contract (fsync on
+            # checkpoint and WAL commit) without the fsync-every-write
+            # penalty of FULL. Well-matched to this workload; the
+            # episode-processing pipeline already tolerates a lost
+            # last transaction on power failure (the episode simply
+            # reruns), and the cost savings on the hot path are large.
+            self._local.connection.execute("PRAGMA synchronous = NORMAL")
+            # Trigger an automatic checkpoint every 1000 WAL pages
+            # (~4 MB) so the WAL file does not grow unboundedly
+            # between reader connections.
+            self._local.connection.execute("PRAGMA wal_autocheckpoint = 1000")
         return self._local.connection
 
     class _TransactionContext:

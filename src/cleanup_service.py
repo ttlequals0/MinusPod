@@ -327,15 +327,22 @@ class CleanupService:
             return 0
 
     def _vacuum(self):
-        """Run VACUUM to reclaim space."""
+        """Run VACUUM to reclaim space.
+
+        Also runs a full WAL checkpoint with TRUNCATE so the write-ahead
+        log file is returned to zero bytes instead of recycled. This
+        matters on volumes where readers keep the WAL pinned and the
+        periodic ``wal_autocheckpoint`` cannot reclaim it.
+        """
         if not self.db:
             return
 
         try:
             conn = self.db.get_connection()
+            conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
             # VACUUM must be run outside a transaction
             conn.execute("VACUUM")
-            logger.info("Database VACUUM completed")
+            logger.info("Database VACUUM + WAL checkpoint completed")
         except Exception as e:
             logger.error(f"VACUUM failed: {e}")
 
