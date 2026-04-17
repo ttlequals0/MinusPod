@@ -97,6 +97,45 @@ AD_END_PHRASES = [
     "back to the show",
 ]
 
+
+def _find_json_array_candidates(text: str):
+    """Yield each top-level ``[...]`` substring from ``text`` in left-to-right
+    order.
+
+    Linear-time single-pass scanner: tracks bracket depth and JSON string
+    context (so brackets inside ``"..."`` do not affect depth) and records
+    each span where the depth transitions from 0 -> 1 -> 0. Replaces a
+    nested-alternation regex whose worst case was exponential on adversarial
+    payloads.
+    """
+    depth = 0
+    start = -1
+    in_string = False
+    escape = False
+    for i, ch in enumerate(text):
+        if in_string:
+            if escape:
+                escape = False
+            elif ch == '\\':
+                escape = True
+            elif ch == '"':
+                in_string = False
+            continue
+        if ch == '"':
+            in_string = True
+            continue
+        if ch == '[':
+            if depth == 0:
+                start = i
+            depth += 1
+        elif ch == ']':
+            if depth > 0:
+                depth -= 1
+                if depth == 0 and start >= 0:
+                    yield text[start:i + 1]
+                    start = -1
+
+
 def refine_ad_boundaries(ads: List[Dict], segments: List[Dict]) -> List[Dict]:
     """Refine ad boundaries using word timestamps and keyword detection.
 
@@ -1345,19 +1384,20 @@ class AdDetector:
             except json.JSONDecodeError:
                 pass
 
-        # Strategy 2: Regex scan for JSON arrays (use last valid match).
-        # Bounded quantifiers + length cap avoid catastrophic backtracking on
-        # adversarial payloads (ReDoS).
+        # Strategy 2: O(n) bracket-depth scan for top-level JSON arrays.
+        # Replaces a nested-alternation regex that could regress to
+        # exponential behavior on adversarial inputs. Tracks string-literal
+        # context so brackets inside quotes do not count toward depth.
         scan_text = response_text[:200_000]
         last_valid_ads = None
-        for match in re.finditer(r'\[(?:[^\[\]]{0,10000}|\[(?:[^\[\]]{0,5000}|\[[^\[\]]{0,2000}\]){0,200}\]){0,200}\]', scan_text):
+        for candidate in _find_json_array_candidates(scan_text):
             try:
-                potential_ads = json.loads(match.group())
-                if isinstance(potential_ads, list):
-                    if not potential_ads or (potential_ads and isinstance(potential_ads[0], dict) and 'start' in potential_ads[0]):
-                        last_valid_ads = potential_ads
+                potential_ads = json.loads(candidate)
             except json.JSONDecodeError:
                 continue
+            if isinstance(potential_ads, list):
+                if not potential_ads or (isinstance(potential_ads[0], dict) and 'start' in potential_ads[0]):
+                    last_valid_ads = potential_ads
         if last_valid_ads is not None:
             return last_valid_ads, "regex_json_array"
 

@@ -137,8 +137,16 @@ class SettingsMixin:
         self.set_setting(key, encrypt(self, plaintext))
 
     def clear_secret(self, key: str):
-        """Remove a stored secret so env-var fallback takes over."""
-        self.set_setting(key, '')
+        """Remove a stored secret so env-var fallback takes over.
+
+        Deletes the row outright rather than writing an empty string. An empty
+        string still occupies a row that happens to be readable; a deleted
+        row leaves no residue for an inquisitive attacker who somehow got
+        read access to the ``settings`` table but not the ciphertext.
+        """
+        conn = self.get_connection()
+        conn.execute("DELETE FROM settings WHERE key = ?", (key,))
+        conn.commit()
 
     # ========== System Settings Methods (for schema versioning) ==========
 

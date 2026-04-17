@@ -155,3 +155,29 @@ def safe_get(
     finally:
         if not stream:
             session.close()
+
+
+def safe_post(
+    url: str,
+    trust: URLTrust,
+    *,
+    max_redirects: int = 3,
+    timeout: float = 30,
+    data=None,
+    json=None,
+    headers: Optional[dict] = None,
+) -> requests.Response:
+    """POST ``url`` via a session that revalidates every redirect hop.
+
+    Webhooks and other outbound POSTs commonly follow redirects; this
+    wrapper runs the same trust-tier revalidation on every hop as
+    ``safe_get`` does. Raises ``SSRFError`` on rejected URLs.
+    """
+    _validate_for_tier(url, trust)
+    session = _RevalidatingSession(trust, max_redirects)
+    try:
+        return session.post(
+            url, timeout=timeout, data=data, json=json, headers=headers
+        )
+    finally:
+        session.close()
