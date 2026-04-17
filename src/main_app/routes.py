@@ -173,6 +173,10 @@ def register_routes(app):
 
     # ========== API Documentation ==========
 
+    # All scripts are served as static assets (no inline <script> blocks)
+    # so the ``script-src 'self'`` CSP applies without an `unsafe-inline`
+    # exception. `/ui/swagger-init.js` ships from the frontend bundle
+    # (see `frontend/public/swagger-init.js`).
     _SWAGGER_HTML = '''<!DOCTYPE html>
 <html>
 <head>
@@ -182,14 +186,7 @@ def register_routes(app):
 <body>
     <div id="swagger-ui"></div>
     <script src="/ui/swagger/swagger-ui-bundle.js"></script>
-    <script>
-        SwaggerUIBundle({
-            url: "/api/v1/openapi.yaml",
-            dom_id: '#swagger-ui',
-            presets: [SwaggerUIBundle.presets.apis, SwaggerUIBundle.SwaggerUIStandalonePreset],
-            layout: "BaseLayout"
-        });
-    </script>
+    <script src="/ui/swagger-init.js"></script>
 </body>
 </html>'''
 
@@ -198,13 +195,6 @@ def register_routes(app):
     def swagger_ui():
         """Serve Swagger UI for API documentation (assets bundled locally)."""
         return _SWAGGER_HTML
-
-    # Back-compat: legacy /docs redirects to /api/v1/docs.
-    @app.route('/docs')
-    @app.route('/docs/')
-    def swagger_ui_legacy():
-        from flask import redirect
-        return redirect('/api/v1/docs', code=301)
 
     @lru_cache(maxsize=1)
     def _render_openapi_yaml(openapi_path_str: str, version: str) -> str:
@@ -236,12 +226,6 @@ def register_routes(app):
         except Exception:
             return send_file(openapi_path, mimetype='application/x-yaml')
 
-    # Back-compat: legacy /openapi.yaml redirects to /api/v1/openapi.yaml.
-    @app.route('/openapi.yaml')
-    def serve_openapi_legacy():
-        from flask import redirect
-        return redirect('/api/v1/openapi.yaml', code=301)
-
     # ========== Browser Icon Routes ==========
     # Short-circuit favicon/apple-touch-icon requests so they don't fall through
     # to the /<slug> feed route and trigger expensive DB lookups.
@@ -267,19 +251,19 @@ def register_routes(app):
         """Serve modified RSS feed."""
         # Import here to use the module-level get_feed_map (patchable)
         import main_app.routes as _routes
-        from main_app.feeds import refresh_all_feeds, refresh_rss_feed
+        from main_app.feeds import refresh_rss_feed
         db, storage, _, _ = _get_components()
 
         feed_map = _routes.get_feed_map()
 
         if slug not in feed_map:
-            refresh_logger.info(f"[{slug}] Not found, refreshing feeds")
-            refresh_all_feeds()
-            feed_map = _routes.get_feed_map()
-
-            if slug not in feed_map:
-                feed_logger.warning(f"[{slug}] Feed not found")
-                abort(404)
+            # Do NOT trigger a full refresh on every unknown slug. External
+            # bots probe random slugs (`/foo`, `/.hidden`, `/etc`, ...) and
+            # each probe would otherwise fire an outbound request per
+            # subscribed feed. The scheduled refresher keeps feed_map
+            # current within `RSS_REFRESH_INTERVAL`; a bogus slug just 404s.
+            feed_logger.warning(f"[{slug}] Feed not found (no refresh-on-miss)")
+            abort(404)
 
         # Check if RSS cache exists or is stale
         cached_rss = storage.get_rss(slug)
@@ -317,22 +301,20 @@ def register_routes(app):
     @log_request_detailed
     def serve_episode(slug, episode_id):
         """Serve processed episode audio (JIT processing)."""
-        # Use module-level references so tests can patch them
         import main_app.routes as _routes
-        from main_app.feeds import refresh_all_feeds
         from main_app.processing import start_background_processing
         db, storage, _, status_service = _get_components()
 
         feed_map = _routes.get_feed_map()
 
         if slug not in feed_map:
-            feed_logger.info(f"[{slug}] Not found for episode {episode_id}, refreshing")
-            refresh_all_feeds()
-            feed_map = _routes.get_feed_map()
-
-            if slug not in feed_map:
-                feed_logger.warning(f"[{slug}] Feed not found for episode {episode_id}")
-                abort(404)
+            # Same amplification concern as serve_rss: unknown slug must
+            # not cascade to refresh_all_feeds(). Episode URLs are only
+            # published inside modified RSS feeds we serve, so a bot
+            # hitting an unknown slug is probing, not a legitimate
+            # listener.
+            feed_logger.warning(f"[{slug}] Feed not found for episode {episode_id} (no refresh-on-miss)")
+            abort(404)
 
         # Validate episode ID
         if not all(c.isalnum() or c in '-_' for c in episode_id):

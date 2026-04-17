@@ -11,19 +11,30 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEST_NAME="R-T02-session-cookie" source "$SCRIPT_DIR/../lib/common.sh"
 
-resp=$(curl -s -i -b "$REMOTE_COOKIES" "$REMOTE_BASE/api/v1/auth/status")
+resp=$(curl -s -i -b "$REMOTE_COOKIES" "$REMOTE_BASE/api/v1/system/status")
 status=$(printf '%s' "$resp" | head -1 | awk '{print $2}')
-note "auth/status HTTP $status"
+note "system/status HTTP $status"
 
-cookie_line=$(printf '%s' "$resp" | grep -i '^set-cookie:' | head -1 || true)
-if [ -z "$cookie_line" ]; then
-    skip_step 'no Set-Cookie refresh on /auth/status (session may not refresh on this endpoint); cannot inspect flags this way'
+# The session cookie uses Flask's default name "session"; the CSRF cookie
+# is minuspod_csrf. We inspect the SESSION cookie specifically because it
+# carries HttpOnly whereas CSRF cookie must be JS-readable.
+session_cookie=$(printf '%s' "$resp" | grep -iE '^set-cookie: *session=' | head -1 || true)
+csrf_cookie=$(printf '%s' "$resp" | grep -iE '^set-cookie: *minuspod_csrf=' | head -1 || true)
+
+if [ -z "$session_cookie" ]; then
+    skip_step 'no session cookie refresh on /system/status (permanent session may not tick); cannot inspect flags this way'
 else
-    pass_step 'Set-Cookie inspectable on /auth/status'
-    note "cookie: $cookie_line"
-    assert_match "$cookie_line" '[Ss]ecure' 'Secure flag PRESENT on production HTTPS cookie'
-    assert_match "$cookie_line" '[Hh]ttp[Oo]nly' 'HttpOnly flag present'
-    assert_match "$cookie_line" '[Ss]ame[Ss]ite' 'SameSite attribute present'
+    pass_step 'session Set-Cookie refresh observed'
+    note "session cookie: $session_cookie"
+    assert_match "$session_cookie" ';\s*[Ss]ecure' 'Secure flag PRESENT on production session cookie'
+    assert_match "$session_cookie" '[Hh]ttp[Oo]nly' 'HttpOnly flag present on session cookie'
+    assert_match "$session_cookie" '[Ss]ame[Ss]ite' 'SameSite attribute present on session cookie'
+fi
+
+if [ -n "$csrf_cookie" ]; then
+    note "csrf cookie: $csrf_cookie"
+    assert_match "$csrf_cookie" '[Ss]ame[Ss]ite=Strict' 'CSRF cookie SameSite=Strict on production'
+    assert_match "$csrf_cookie" ';\s*[Ss]ecure' 'CSRF cookie has Secure flag on production HTTPS'
 fi
 
 finish_test "R-T02-session-cookie"

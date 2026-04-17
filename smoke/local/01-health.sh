@@ -7,11 +7,15 @@ TEST_NAME="T01-health" source "$SCRIPT_DIR/../lib/common.sh"
 # Refresh logs in case container has new startup events
 dump_local_logs
 
-# 1. /health returns 200 with status:ok
+# 1. /health returns 200 with status:healthy (readiness probe shape)
 body=$(curl -s "$LOCAL_BASE/api/v1/health")
-assert_match "$body" '"status"\s*:\s*"ok"' '/health body contains status=ok'
+assert_match "$body" '"status"\s*:\s*"healthy"' '/health body contains status=healthy'
 code=$(http_code "$LOCAL_BASE/api/v1/health")
 assert_eq "$code" "200" '/health HTTP 200'
+
+# Liveness probe has the minimal shape
+live=$(curl -s "$LOCAL_BASE/api/v1/health/live")
+assert_match "$live" '"status"\s*:\s*"ok"' '/health/live body contains status=ok'
 
 # 2. Rate limiter init line (F20)
 if grep -Eq 'Rate limiter initialized' "$LOCAL_LOG_FILE"; then

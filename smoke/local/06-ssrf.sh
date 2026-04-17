@@ -23,6 +23,8 @@ urls=(
     "http://192.168.1.1/rss"
 )
 
+ssrf_rejected=0
+rate_limited=0
 for u in "${urls[@]}"; do
     code=$(curl -s -o /dev/null -w '%{http_code}' \
         -b "$JAR" \
@@ -30,12 +32,28 @@ for u in "${urls[@]}"; do
         -H "Content-Type: application/json" \
         -H "X-CSRF-Token: $csrf" \
         -d "{\"sourceUrl\":\"$u\"}")
-    assert_in "$code" "400 422 403" "SSRF $u rejected (got $code)"
+    if printf '%s' "400 422 403" | grep -qw "$code"; then
+        ssrf_rejected=$((ssrf_rejected+1))
+        pass_step "SSRF $u rejected at validator (got $code)"
+    elif [ "$code" = "429" ]; then
+        rate_limited=$((rate_limited+1))
+        note "SSRF $u throttled before validator ran (got 429; POST /feeds is 3/min)"
+    else
+        fail_step "SSRF $u unexpected response (got $code; expected 400/422/403/429)"
+    fi
 done
+
+# Every URL in the list is internal or loopback; the ones that reached
+# the validator must all have been rejected. At least one must reach it.
+if [ "$ssrf_rejected" -ge 1 ]; then
+    pass_step "SSRF validator engaged on at least one of the internal URLs ($ssrf_rejected rejected, $rate_limited throttled)"
+else
+    fail_step "no URL reached the SSRF validator (all $rate_limited were rate-limited)"
+fi
 
 # Verify ssrf_blocked structured event in logs
 dump_local_logs
-ssrf_count=$(grep -c 'ssrf_blocked' "$LOCAL_LOG_FILE" || true)
+ssrf_count=$(grep -cE 'SSRF blocked|ssrf_blocked' "$LOCAL_LOG_FILE" || true)
 if [ "$ssrf_count" -ge 1 ]; then
     pass_step "ssrf_blocked log events present (count=$ssrf_count)"
 else

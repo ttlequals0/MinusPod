@@ -15,10 +15,17 @@ logger = logging.getLogger('podcast.api')
 
 
 def _get_podcast_index_credentials():
-    """Resolve PodcastIndex credentials: DB first, then env vars."""
+    """Resolve PodcastIndex credentials: DB first (decrypted), then env vars.
+
+    Both podcast_index_api_key and podcast_index_api_secret live in
+    SECRET_SETTING_KEYS and are stored encrypted under the master
+    passphrase. Using `get_setting` here would hand the `enc:v1:...`
+    ciphertext to the SHA-1 signer and produce a bogus X-Auth header;
+    PodcastIndex then 401s.
+    """
     db = get_database()
-    api_key = db.get_setting('podcast_index_api_key') or os.environ.get('PODCAST_INDEX_API_KEY', '')
-    api_secret = db.get_setting('podcast_index_api_secret') or os.environ.get('PODCAST_INDEX_API_SECRET', '')
+    api_key = db.get_secret('podcast_index_api_key') or os.environ.get('PODCAST_INDEX_API_KEY', '')
+    api_secret = db.get_secret('podcast_index_api_secret') or os.environ.get('PODCAST_INDEX_API_SECRET', '')
     return api_key, api_secret
 
 

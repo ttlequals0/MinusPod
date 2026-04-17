@@ -156,7 +156,7 @@ function SecuritySection({
             autoComplete="new-password"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
-            placeholder={isPasswordSet ? 'Leave empty to remove password' : 'Minimum 8 characters'}
+            placeholder={isPasswordSet ? 'Leave empty to remove password' : 'Minimum 12 characters'}
             className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           />
         </div>

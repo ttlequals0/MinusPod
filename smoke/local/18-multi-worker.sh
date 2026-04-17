@@ -12,10 +12,12 @@ count_429=0
 count_other=0
 codes_seen=""
 for i in $(seq 1 40); do
+    # Single source IP so rate limiter keys the bucket consistently.
+    # MINUSPOD_TRUSTED_PROXY_COUNT=1 in smoke, so ProxyFix honors this header.
     code=$(curl -s -o /dev/null -w '%{http_code}' \
         -X POST "$LOCAL_BASE/api/v1/auth/login" \
         -H "Content-Type: application/json" \
-        -H "X-Forwarded-For: 198.51.100.$((i % 255))" \
+        -H "X-Forwarded-For: 198.51.100.42" \
         -d '{"password":"wrong"}')
     if [ "$code" = "429" ]; then
         count_429=$((count_429 + 1))

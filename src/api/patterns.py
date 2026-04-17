@@ -681,8 +681,24 @@ def import_patterns():
     if mode not in ('merge', 'replace', 'supplement'):
         return error_response('Invalid mode. Use "merge", "replace", or "supplement"', 400)
 
+    # Empty merge/supplement is a no-op, which is legitimate for a
+    # round-trip on a fresh DB. Replace mode with an empty list would
+    # wipe the table and is almost never what the caller meant, so that
+    # case stays a 400.
     if not patterns:
-        return error_response('Empty patterns array', 400)
+        if mode == 'replace':
+            return error_response(
+                'Empty patterns array with mode=replace would wipe the table; '
+                'pass mode=merge or mode=supplement for a round-trip',
+                400,
+            )
+        return json_response({
+            'mode': mode,
+            'importedCount': 0,
+            'updatedCount': 0,
+            'skippedCount': 0,
+            'message': 'No patterns in payload; nothing to do',
+        })
 
     # Upfront validation so a malformed payload is rejected before any
     # write. Replace-mode import in particular must not half-apply:

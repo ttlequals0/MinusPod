@@ -6,7 +6,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEST_NAME="R-T01-health" source "$SCRIPT_DIR/../lib/common.sh"
 
 body=$(curl -s "$REMOTE_BASE/api/v1/health")
-assert_match "$body" '"status"\s*:\s*"ok"' '/health body status=ok'
+assert_match "$body" '"status"\s*:\s*"healthy"' '/health body status=healthy'
 code=$(http_code "$REMOTE_BASE/api/v1/health")
 assert_eq "$code" "200" '/health HTTP 200'
 

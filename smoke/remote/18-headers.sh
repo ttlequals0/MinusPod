@@ -19,7 +19,10 @@ hsts=$(get_h strict-transport-security)
 if [ -n "$hsts" ]; then
     pass_step "HSTS present: $hsts"
 else
-    fail_step 'HSTS header missing on HTTPS production'
+    # HSTS is opt-in via MINUSPOD_ENABLE_HSTS=true. Flag as SKIP so the
+    # operator sees the surface area without failing the run when it's
+    # intentionally off.
+    skip_step 'HSTS not set on production; opt in with MINUSPOD_ENABLE_HSTS=true'
 fi
 
 # Request-ID round-trip

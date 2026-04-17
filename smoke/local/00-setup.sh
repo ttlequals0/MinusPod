@@ -28,16 +28,20 @@ log "creating volume $LOCAL_VOLUME"
 docker volume create "$LOCAL_VOLUME" >/dev/null
 
 log "starting $LOCAL_CONTAINER on port $PORT"
+# Env var names match the app's actual config (not MINUSPOD_* everywhere):
+# SESSION_COOKIE_SECURE and LOG_LEVEL are plain; MINUSPOD_TRUSTED_PROXY_COUNT
+# and MINUSPOD_MASTER_PASSPHRASE are MINUSPOD-prefixed.
 docker run -d \
     --name "$LOCAL_CONTAINER" \
     --platform linux/amd64 \
     -p "${PORT}:8000" \
-    -v "${LOCAL_VOLUME}:/data" \
-    -e MINUSPOD_PASSWORD="$LOCAL_PASSWORD" \
-    -e MINUSPOD_SESSION_COOKIE_SECURE=false \
+    -v "${LOCAL_VOLUME}:/app/data" \
+    -e SESSION_COOKIE_SECURE=false \
+    -e SESSION_COOKIE_SAMESITE=Lax \
     -e MINUSPOD_TRUSTED_PROXY_COUNT=1 \
+    -e MINUSPOD_MASTER_PASSPHRASE=smoke-test-passphrase \
     -e ANTHROPIC_API_KEY=dummy-key-no-llm-calls-in-smoke \
-    -e MINUSPOD_LOG_LEVEL=INFO \
+    -e LOG_LEVEL=INFO \
     "$IMAGE" >/dev/null
 
 log "waiting for /api/v1/health on $LOCAL_BASE"
@@ -47,6 +51,20 @@ else
     fail_step "container did not become healthy in 90s"
     log "last 80 lines of container logs:"
     docker logs --tail 80 "$LOCAL_CONTAINER" 2>&1 | tee -a "$TEST_RESULT_FILE" >&2 || true
+fi
+
+# Provision the admin password via the first-boot PUT (no current password
+# required while app_password is empty). All subsequent login-based tests
+# assume LOCAL_PASSWORD is active.
+log "setting initial admin password via PUT /auth/password"
+pw_code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 \
+    -X PUT "$LOCAL_BASE/api/v1/auth/password" \
+    -H "Content-Type: application/json" \
+    -d "{\"newPassword\":\"$LOCAL_PASSWORD\"}")
+if [ "$pw_code" = "200" ] || [ "$pw_code" = "204" ]; then
+    pass_step "initial admin password set (HTTP $pw_code)"
+else
+    fail_step "initial password PUT returned HTTP $pw_code (expected 200/204)"
 fi
 
 dump_local_logs

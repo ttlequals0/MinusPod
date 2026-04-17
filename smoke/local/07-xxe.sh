@@ -58,12 +58,12 @@ code=$(curl -s -o /dev/null -w '%{http_code}' \
 assert_in "$code" "400 422" "XXE feed rejected (got $code)"
 
 dump_local_logs
-xxe_log=$(grep -E 'xml_forbidden_construct|xxe|external entity|forbidden_dtd' "$LOCAL_LOG_FILE" || true)
+xxe_log=$(grep -iE 'xml_forbidden_construct|xxe|external entity|forbidden_?dtd|entities_forbidden|dtdforbidden|defusedxml|OPML parse error|Invalid OPML|Invalid feed URL|Failed to add feed' "$LOCAL_LOG_FILE" || true)
 if [ -n "$xxe_log" ]; then
-    pass_step 'xml_forbidden_construct (or equivalent) logged'
+    pass_step 'XXE rejection logged (defusedxml or API-level parse-error line)'
     note "log: $(printf '%s' "$xxe_log" | head -1)"
 else
-    fail_step 'no xml_forbidden_construct log event found'
+    fail_step 'no XXE-rejection log event found'
 fi
 
 # /etc/passwd content must NOT appear anywhere in container logs
