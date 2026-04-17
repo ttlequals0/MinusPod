@@ -181,3 +181,4 @@ docker-compose.local.yml
 # Testing/evaluation docs (user notes)
 ad_detection_baseline.md.playwright-mcp/
 .playwright-mcp/
+*.png
