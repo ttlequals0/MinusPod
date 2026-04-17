@@ -197,6 +197,7 @@ cat > .env << EOF
 ANTHROPIC_API_KEY=your-key-here
 BASE_URL=http://localhost:8000
 APP_PASSWORD=your-password
+MINUSPOD_MASTER_PASSPHRASE=long-random-string-you-will-not-lose
 EOF
 
 # 2. Create data directory
@@ -207,6 +208,8 @@ docker-compose up -d
 ```
 
 Access the web UI at `http://localhost:8000/ui/` to add and manage feeds.
+
+`MINUSPOD_MASTER_PASSPHRASE` is strongly recommended for production. Without it, provider API keys go into the database as plaintext. Setting it later migrates existing plaintext rows to `enc:v1:` encrypted storage on the next boot, with a mandatory pre-migration SQLite snapshot in `data/backups/`. Restoring a backup requires the same passphrase that created it, so pick a long random value and keep it somewhere separate from the database.
 
 ## Upgrading to 2.0
 
@@ -986,6 +989,25 @@ The docker-compose includes an optional Cloudflare tunnel service for secure rem
 2. Add `TUNNEL_TOKEN` to your `.env` file
 3. Configure the tunnel to point to `http://minuspod:8000`
 
+### Before enabling the tunnel profile
+
+The tunnel exposes the admin interface to the public internet. Without all of these set, anyone who reaches the tunnel URL can hit unauthenticated paths and attempt to log in:
+
+1. Set a password via Settings > Security (or seed with `APP_PASSWORD`).
+2. `SESSION_COOKIE_SECURE=true` (default in 2.0).
+3. `MINUSPOD_MASTER_PASSPHRASE` set so provider API keys are encrypted at rest.
+4. Cloudflare WAF rule blocking `/ui`, `/api`, `/docs`, `/openapi.yaml` (see below).
+5. `MINUSPOD_TRUSTED_PROXY_COUNT=1` so login lockout keys on the real client IP, not the tunnel loopback.
+
+### Client IP for login lockout
+
+The 2.0 login lockout feature (5 fails / 15 min / 15 min block) keys on `request.remote_addr`. Depending on how traffic reaches the container, that address may or may not be the real client:
+
+- Direct exposure (no proxy, ports published): `remote_addr` is the client. No config needed.
+- Docker with published ports and no reverse proxy: `remote_addr` is the Docker bridge gateway; lockout will not fire. A startup WARN surfaces this. Deploy behind a proxy or switch to `network_mode: host`.
+- Behind Cloudflare, nginx, Traefik, or cloudflared: set `MINUSPOD_TRUSTED_PROXY_COUNT=1`. Cloudflare sets `X-Forwarded-For` automatically.
+- Multi-proxy chain (e.g., Cloudflare -> nginx -> MinusPod): set the count to the number of proxies you actually trust. Setting it too high lets an attacker spoof their client IP by prepending entries to `X-Forwarded-For`.
+
 ### Security Recommendations
 
 The 2.0.0 baseline covers most of the attack surface. What's still on the operator:
@@ -1028,11 +1050,49 @@ This blocks:
 
 Adjust the User-Agent pattern for your podcast app (e.g., `*Overcast*`, `*Castro*`, `*AntennaPod*`).
 
+### Rate limiting storage
+
+flask-limiter defaults to `memory://`, which means each gunicorn worker tracks its own counters. With `workers=2` (the default), every declared rate limit is effectively 2x in practice: the login limit of 10/hour can handle up to 20 attempts before the limiter refuses any more. That's still infeasible to brute-force, so most deployments leave the default alone. Operators who need exact declared limits or horizontal scaling should set `RATE_LIMIT_STORAGE_URI=redis://redis:6379` and add a Redis sidecar; a commented example lives in `docker-compose.yml`.
+
+The worker count itself is deliberate: two workers prevents the UI from freezing during bulk RSS refresh, because one worker can serve API traffic while the other is busy. If you reduce it to one worker, be aware that the 2x rate-limit math no longer applies and the UI will block during long background jobs.
+
+### Request correlation
+
+Every response carries an `X-Request-ID` header. If you supply one on the request (up to 128 chars), it's preserved; otherwise a 16-char hex value is generated. When reporting a bug, including the `X-Request-ID` from the affected response makes log lookup one `grep` instead of a guessing game. Aggregated log viewers can filter by the `request_id` field on the JSON log records.
+
 ## Data Storage
 
 All data is stored in the `./data` directory:
 - `podcast.db` - SQLite database with feeds, episodes, and settings
 - `{slug}/` - Per-feed directories with cached RSS and processed audio
+- `backups/` - Pre-migration SQLite snapshots + periodic cleanup backups
+
+### Container user
+
+MinusPod runs as UID 1000 (`minuspod`) inside the container. The entrypoint starts as root so it can chown the data volume on first boot (`find ! -user $APP_UID`), then drops privileges with `gosu minuspod gunicorn`. Subsequent boots skip the chown because no files are unowned.
+
+If your host data volume belongs to a different UID, set `APP_UID` and `APP_GID` to match and restart. `docker run --user <N>` bypasses the chown/drop entirely and runs gunicorn as whatever UID the caller asked for.
+
+### Database backup sensitivity
+
+The SQLite backup file produced by `GET /api/v1/system/backup` and by the periodic cleanup task contains:
+
+- Provider API keys (encrypted with `MINUSPOD_MASTER_PASSPHRASE` when set; plaintext legacy rows otherwise)
+- Flask session signing key
+- Webhook HMAC secrets
+- Password hash (scrypt)
+
+Treat the file like a credential. Restoring an encrypted backup requires the same `MINUSPOD_MASTER_PASSPHRASE` the source used. Without a passphrase, unencrypted backups are still written and a WARN is logged at creation time.
+
+### Pattern import / export
+
+Before doing a `replace` import, export first so there's a round-trip backup:
+
+```bash
+curl -b cookies.txt https://your-minuspod/api/v1/patterns/export?include_corrections=true > patterns-backup.json
+```
+
+`POST /api/v1/patterns/import` runs validation on the entire payload before any writes and wraps the delete/update/insert pass in a single `BEGIN IMMEDIATE` transaction. A malformed entry or mid-transaction error rolls back to the pre-import state; `replace` mode can no longer leave an empty pattern table on a bad payload. Modes are `merge` (update matches, add new), `replace` (wipe then import), or `supplement` (add new only).
 
 ## Custom Assets (Optional)
 
