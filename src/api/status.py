@@ -39,8 +39,15 @@ def status_stream():
     application-level ``auth-failed`` event when the session lapses and
     the browser-side handler in GlobalStatusBar.tsx redirects to /login.
     """
+    # Evaluate auth inside the request context before the generator
+    # runs. The generator lives past request-end (SSE is long-polled),
+    # so session/request proxies are not usable from inside the loop.
+    # A lapsed session after connect is caught by the client's next
+    # non-SSE API call, which apiRequest 401-redirects to /ui/login.
+    authenticated_at_connect = _is_authenticated()
+
     def generate():
-        if not _is_authenticated():
+        if not authenticated_at_connect:
             yield "event: auth-failed\ndata: {}\n\n"
             return
 
@@ -63,11 +70,6 @@ def status_stream():
                     status = update_queue.get(timeout=15)
                     yield f"data: {json.dumps(status)}\n\n"
                 except queue.Empty:
-                    # Revalidate session on every keepalive so the client
-                    # is evicted when the operator logs out elsewhere.
-                    if not _is_authenticated():
-                        yield "event: auth-failed\ndata: {}\n\n"
-                        return
                     yield ": keepalive\n\n"
         finally:
             unsubscribe()
