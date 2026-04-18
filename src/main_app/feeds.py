@@ -18,6 +18,15 @@ feed_logger = logging.getLogger('podcast.feed')
 _feed_cache = TTLCache(ttl_seconds=30)
 _parsed_feeds_cache = TTLCache(ttl_seconds=60)
 
+# Coalesce back-to-back refreshes of the same feed. When a PocketCasts
+# poll triggers serve_rss's on-demand refresh at the same moment the
+# 15-min background loop hits the same feed, we see two "Starting RSS
+# refresh" calls 3-5 seconds apart -- both conditional-GET, both hit
+# upstream. Skip the second one. `force=True` (finalize hook, manual
+# reprocess, API force-refresh) bypasses the skip but still stamps so
+# subsequent non-force calls within the window coalesce.
+_refresh_coalesce = TTLCache(ttl_seconds=30)
+
 
 def _get_components():
     """Late import to avoid circular imports at module level."""
@@ -71,7 +80,13 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
         feed_url: URL of the original RSS feed
         force: If True, bypass conditional GET (ETag/Last-Modified) to force full fetch.
                Use this when the RSS cache was deleted and needs regeneration.
+               Also bypasses the refresh-attempt throttle.
     """
+    if not force and _refresh_coalesce.get(slug) is not None:
+        refresh_logger.debug(f"[{slug}] Skipping refresh (recent attempt within coalesce window)")
+        return
+    _refresh_coalesce.set(slug, True)
+
     db, rss_parser, storage, status_service, pattern_service = _get_components()
     try:
         # Get podcast name and etag for conditional fetch

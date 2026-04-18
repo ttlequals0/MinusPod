@@ -21,10 +21,17 @@ database.Database.__new__.__defaults__ = (_test_data_dir,)
 storage_mod.Storage.__init__.__defaults__ = (_test_data_dir,)
 
 from main_app.feeds import refresh_rss_feed
+import main_app.feeds as _feeds_module
 
 
 class TestFeed304Refresh(unittest.TestCase):
     """Verify that last_checked_at is updated when upstream returns 304."""
+
+    def setUp(self):
+        # refresh_rss_feed has a 30s per-slug coalesce. Reset it
+        # between tests so consecutive calls with the same fixture
+        # slug are not skipped.
+        _feeds_module._refresh_coalesce.invalidate()
 
     @patch('main_app.feeds._get_components')
     def test_304_with_episodes_updates_last_checked_at(self, mock_get_components):
