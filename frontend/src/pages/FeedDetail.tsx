@@ -360,9 +360,10 @@ function FeedDetail() {
           <div className="flex gap-2">
             <DropdownMenu
               triggerLabel={reprocessAllMutation.isPending ? 'Queuing...' : 'Reprocess All'}
-              triggerClassName="px-4 py-2 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors flex items-center gap-2"
+              triggerClassName="px-3 py-1.5 sm:px-4 sm:py-2 text-sm rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors flex items-center gap-2 whitespace-nowrap"
               disabled={reprocessAllMutation.isPending}
               title="Reprocess all processed episodes"
+              align="left"
               items={[
                 {
                   title: 'Patterns + AI',
@@ -384,7 +385,7 @@ function FeedDetail() {
             />
             <DropdownMenu
               triggerLabel={refreshMutation.isPending ? 'Refreshing...' : 'Refresh Feed'}
-              triggerClassName="px-4 py-2 rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center gap-2"
+              triggerClassName="px-3 py-1.5 sm:px-4 sm:py-2 text-sm rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center gap-2 whitespace-nowrap"
               disabled={refreshMutation.isPending}
               title="Refresh feed"
               items={[

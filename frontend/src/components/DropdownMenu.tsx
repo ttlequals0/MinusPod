@@ -14,6 +14,11 @@ interface DropdownMenuProps {
   disabled?: boolean;
   title?: string;
   chevronClassName?: string;
+  /** Which edge of the menu aligns to the trigger. `right` (default)
+   *  opens the menu leftward — correct when the trigger sits on the
+   *  right side of a row. Use `left` for triggers on the left side so
+   *  the menu opens rightward and doesn't clip off-screen on mobile. */
+  align?: 'left' | 'right';
 }
 
 function DropdownMenu({
@@ -23,6 +28,7 @@ function DropdownMenu({
   disabled,
   title,
   chevronClassName = 'w-4 h-4',
+  align = 'right',
 }: DropdownMenuProps) {
   const [open, setOpen] = useState(false);
   return (
@@ -38,7 +44,8 @@ function DropdownMenu({
         <ChevronDown className={`${chevronClassName} transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
-        <div className="absolute right-0 mt-1 w-56 bg-card border border-border rounded-lg shadow-lg z-10">
+        <div className={`absolute ${align === 'left' ? 'left-0' : 'right-0'} mt-1 w-56 max-w-[calc(100vw-2rem)] bg-card border border-border rounded-lg shadow-lg z-10`}>
+
           {items.map((item, i) => {
             const isFirst = i === 0;
             const isLast = i === items.length - 1;
