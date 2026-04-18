@@ -219,7 +219,7 @@ The 2.0.0 release is a security hardening milestone. Full detail in `CHANGELOG.m
 - `SESSION_COOKIE_SAMESITE` defaults to `Strict`. Override to `Lax` only if an integration breaks.
 - `flask-cors` is gone. Frontend and API must share an origin; put them behind the same reverse proxy.
 - Every mutating `/api/v1/*` request needs an `X-CSRF-Token` header matching the `minuspod_csrf` cookie. The frontend does this automatically; custom API clients have to echo the cookie value.
-- Login lockout: 5 fails from the same public IP in 15 min locks that IP for 15 min. Behind a proxy, set `MINUSPOD_TRUSTED_PROXY_COUNT=1` or the lockout keys on the proxy hop.
+- Login lockout: 5 fails from the same public IP in 15 min locks that IP for 15 min. **Behind Cloudflare, cloudflared, nginx, Traefik, or any other reverse proxy, set `MINUSPOD_TRUSTED_PROXY_COUNT=1`** (higher for a multi-proxy chain). Without it the container sees the proxy hop, not the client: lockout and per-IP rate limits silently never fire, and audit logs / webhook payloads carry the proxy IP instead of the attacker. See `Remote Access / Security > Client IP for login lockout` for the full impact.
 - The `OPENAI_API_KEY` -> `ANTHROPIC_API_KEY` fallback is removed. Set `OPENAI_API_KEY` explicitly for OpenAI-compatible providers; a startup WARN fires when the old shape is detected.
 - Container runs as UID 1000. First boot chowns the data volume; `APP_UID`/`APP_GID` override if the host volume needs a different owner.
 
@@ -425,7 +425,7 @@ Grouped by how often you'll touch them. **Standard** is what a typical deploymen
 | `SESSION_COOKIE_SECURE` | `true` | Set to `false` only when serving over plain HTTP. |
 | `SESSION_COOKIE_SAMESITE` | `Strict` | Override to `Lax` only if a specific integration breaks. |
 | `MINUSPOD_ENABLE_HSTS` | `false` | Set to `true` once the deployment is HTTPS-only. HSTS traps browsers so don't flip this on a dual-protocol setup. |
-| `MINUSPOD_TRUSTED_PROXY_COUNT` | `0` | Reverse-proxy hops to trust when reading `X-Forwarded-For`. `1` behind Cloudflare / nginx; higher behind a multi-proxy chain. Needed for login lockout to key on the real client IP. |
+| `MINUSPOD_TRUSTED_PROXY_COUNT` | `0` | Reverse-proxy hops to trust when reading `X-Forwarded-For`. Set to `1` when running behind Cloudflare / cloudflared / nginx / Traefik, higher for a multi-proxy chain. **Leaving this at `0` when you are behind a proxy breaks the 2.0 security hardening:** login lockout never fires (the proxy IP is private/loopback, which the lockout excludes), per-IP rate limits apply to the proxy instead of the client, and audit logs + auth-failure webhooks carry the wrong IP. A startup WARN is emitted when it's unset. |
 
 ### Advanced
 
@@ -1043,6 +1043,15 @@ The 2.0.0+ login lockout feature (5 fails / 15 min / 15 min block) keys on `requ
 - Docker with published ports and no reverse proxy: `remote_addr` is the Docker bridge gateway; lockout will not fire. A startup WARN surfaces this. Deploy behind a proxy or switch to `network_mode: host`.
 - Behind Cloudflare, nginx, Traefik, or cloudflared: set `MINUSPOD_TRUSTED_PROXY_COUNT=1`. Cloudflare sets `X-Forwarded-For` automatically.
 - Multi-proxy chain (e.g., Cloudflare -> nginx -> MinusPod): set the count to the number of proxies you actually trust. Setting it too high lets an attacker spoof their client IP by prepending entries to `X-Forwarded-For`.
+
+**What happens if you leave `MINUSPOD_TRUSTED_PROXY_COUNT=0` on a proxy-fronted deployment:**
+
+1. **Login lockout never fires.** All failed login attempts appear to come from the proxy's IP, which is a private / loopback address (Cloudflare tunnel loopback, Docker bridge gateway, nginx on `127.0.0.1`, ...). The lockout deliberately excludes private IPs so NAT neighbors cannot DoS each other. The net effect is that attackers can brute-force the password with no rate limit.
+2. **Per-IP rate limits degrade to per-proxy.** `POST /feeds` (3/min), `POST /system/cleanup` (1/h), `DELETE /system/queue` (6/h), and friends all apply to the proxy as a single client. One user can exhaust them for everyone; an attacker can't.
+3. **Audit logs carry the wrong IP.** Every `[ip]` bracket in the access log is the proxy hop. Forensics become much harder.
+4. **Auth-failure webhooks carry the wrong IP** in the `clientIp` payload field, so any external alerting you wire to Auth Failure events points at the proxy.
+
+Startup emits a WARN (`Running in a container without MINUSPOD_TRUSTED_PROXY_COUNT set ...`) when the variable is unset. Treat the WARN as load-bearing: if you are behind any kind of reverse proxy and the WARN is still firing after you deploy 2.0.0+, your lockout and rate limits are not working.
 
 ### Security Recommendations
 
