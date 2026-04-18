@@ -28,6 +28,25 @@ def test_ciphertext_varies_across_encrypts(temp_db):
     assert secrets_crypto.decrypt(temp_db, a) == secrets_crypto.decrypt(temp_db, b) == 'same'
 
 
+def test_encrypt_bytes_roundtrip(temp_db):
+    payload = b"SQLite format 3\x00" + b"\x00" * 512
+    blob = secrets_crypto.encrypt_bytes(temp_db, payload)
+    assert blob.startswith(b"MPBK01\x00")
+    assert blob != payload
+    assert secrets_crypto.decrypt_bytes(temp_db, blob) == payload
+
+
+def test_decrypt_bytes_rejects_non_envelope(temp_db):
+    with pytest.raises(ValueError):
+        secrets_crypto.decrypt_bytes(temp_db, b"raw plaintext blob")
+
+
+def test_decrypt_bytes_rejects_truncated(temp_db):
+    blob = secrets_crypto.encrypt_bytes(temp_db, b"hello")
+    with pytest.raises(Exception):
+        secrets_crypto.decrypt_bytes(temp_db, blob[:-4])
+
+
 def test_missing_passphrase_raises(temp_db, monkeypatch):
     secrets_crypto.reset_cache()
     monkeypatch.delenv('MINUSPOD_MASTER_PASSPHRASE', raising=False)

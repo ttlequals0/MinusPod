@@ -139,7 +139,7 @@ class TestTranscribeViaApi:
             mock_response.status_code = 200
             mock_response.json.return_value = self._make_api_response(api_segments)
 
-            with patch('transcriber.post_with_retry', return_value=mock_response):
+            with patch('transcriber.safe_post', return_value=mock_response):
                 transcriber = Transcriber()
                 transcriber.preprocess_audio = MagicMock(return_value=None)
                 result = transcriber._transcribe_via_api(
@@ -157,7 +157,7 @@ class TestTranscribeViaApi:
             os.unlink(temp_path)
 
     def test_returns_none_on_missing_base_url(self):
-        with patch('transcriber.post_with_retry') as mock_post:
+        with patch('transcriber.safe_post') as mock_post:
             transcriber = Transcriber()
             result = transcriber._transcribe_via_api(
                 '/tmp/test.wav', whisper_settings=self._make_settings(api_base_url='')
@@ -172,7 +172,7 @@ class TestTranscribeViaApi:
             temp_path = f.name
 
         try:
-            with patch('transcriber.post_with_retry', return_value=None):
+            with patch('transcriber.safe_post', return_value=None):
                 transcriber = Transcriber()
                 transcriber.preprocess_audio = MagicMock(return_value=None)
                 result = transcriber._transcribe_via_api(
@@ -192,7 +192,7 @@ class TestTranscribeViaApi:
             mock_response.status_code = 200
             mock_response.json.return_value = {'segments': []}
 
-            with patch('transcriber.post_with_retry', return_value=mock_response) as mock_post:
+            with patch('transcriber.safe_post', return_value=mock_response) as mock_post:
                 transcriber = Transcriber()
                 transcriber.preprocess_audio = MagicMock(return_value=None)
                 transcriber._transcribe_via_api(
@@ -213,7 +213,7 @@ class TestTranscribeViaApi:
             mock_response.status_code = 200
             mock_response.json.return_value = {'segments': []}
 
-            with patch('transcriber.post_with_retry', return_value=mock_response) as mock_post:
+            with patch('transcriber.safe_post', return_value=mock_response) as mock_post:
                 transcriber = Transcriber()
                 transcriber.preprocess_audio = MagicMock(return_value=None)
                 transcriber._transcribe_via_api(
@@ -241,7 +241,7 @@ class TestTranscribeViaApi:
             mock_response.status_code = 200
             mock_response.json.return_value = self._make_api_response(api_segments)
 
-            with patch('transcriber.post_with_retry', return_value=mock_response):
+            with patch('transcriber.safe_post', return_value=mock_response):
                 transcriber = Transcriber()
                 transcriber.preprocess_audio = MagicMock(return_value=None)
                 result = transcriber._transcribe_via_api(

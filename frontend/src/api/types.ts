@@ -227,6 +227,10 @@ export interface SystemStatus {
     totalOutputTokens: number;
     totalLlmCost: number;
   };
+  security?: {
+    cryptoReady: boolean;
+    plaintextSecretsCount: number;
+  };
 }
 
 export interface TokenUsageModel {

@@ -60,13 +60,24 @@ class SettingsMixin:
         conn.commit()
 
     def reset_setting(self, key: str):
-        """Reset a setting to its default value."""
+        """Reset a setting to its default value.
+
+        Secret keys (provider api keys) get DELETEd so the env-var
+        fallback in ``llm_client`` takes over. Writing an empty-string
+        row would leave a residue that reads as "configured but empty"
+        and also trips the plaintext-secret read warning.
+        """
         # Import here to avoid circular import
         from database import DEFAULT_SYSTEM_PROMPT, DEFAULT_VERIFICATION_PROMPT
         from config import DEFAULT_AD_DETECTION_MODEL as DEFAULT_MODEL
         from chapters_generator import CHAPTERS_MODEL
         from config import PROVIDER_ANTHROPIC
         from llm_client import get_effective_provider
+        from secrets_crypto import SECRET_SETTING_KEYS
+
+        if key in SECRET_SETTING_KEYS:
+            self.clear_secret(key)
+            return True
 
         # Provider-aware defaults for model settings
         provider = get_effective_provider()
@@ -90,12 +101,10 @@ class SettingsMixin:
             'chapters_model': chapters_default,
             'llm_provider': os.environ.get('LLM_PROVIDER', 'anthropic'),
             'openai_base_url': os.environ.get('OPENAI_BASE_URL', 'http://localhost:8000/v1'),
-            'openrouter_api_key': '',  # Reset clears DB value; env var is read at runtime
             'min_cut_confidence': '0.80',
             'auto_process_enabled': 'true',
             'whisper_backend': os.environ.get('WHISPER_BACKEND', 'local'),
             'whisper_api_base_url': os.environ.get('WHISPER_API_BASE_URL', ''),
-            'whisper_api_key': '',  # Reset clears DB value; env var is read at runtime
             'whisper_api_model': os.environ.get('WHISPER_API_MODEL', 'whisper-1'),
         }
 
@@ -125,12 +134,28 @@ class SettingsMixin:
             return None
 
     def set_secret(self, key: str, plaintext: str):
-        """Encrypt and store a secret. Requires provider crypto to be available."""
+        """Encrypt and store a secret. Requires provider crypto to be available.
+
+        No-ops through ``is_ciphertext`` so a request body that replays a
+        previously-emitted ciphertext (e.g. a UI round-trip with a masked
+        field) does not get double-wrapped.
+        """
+        if is_ciphertext(plaintext):
+            self.set_setting(key, plaintext)
+            return
         self.set_setting(key, encrypt(self, plaintext))
 
     def clear_secret(self, key: str):
-        """Remove a stored secret so env-var fallback takes over."""
-        self.set_setting(key, '')
+        """Remove a stored secret so env-var fallback takes over.
+
+        Deletes the row outright rather than writing an empty string. An empty
+        string still occupies a row that happens to be readable; a deleted
+        row leaves no residue for an inquisitive attacker who somehow got
+        read access to the ``settings`` table but not the ciphertext.
+        """
+        conn = self.get_connection()
+        conn.execute("DELETE FROM settings WHERE key = ?", (key,))
+        conn.commit()
 
     # ========== System Settings Methods (for schema versioning) ==========
 

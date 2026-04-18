@@ -62,9 +62,12 @@ def validate_url(url: str) -> str:
     if ALLOWED_URL_PORTS and port not in ALLOWED_URL_PORTS:
         raise SSRFError(f"Blocked port: {port}")
 
-    # Resolve hostname and check all IPs
-    # TODO: DNS rebinding TOCTOU gap -- a custom requests transport adapter
-    # that pins the resolved IP would fully mitigate this but is out of scope.
+    # Resolve hostname and check all IPs.
+    # Known residual risk: DNS-rebinding TOCTOU between validation and
+    # connect. Closing it requires a custom requests HTTPAdapter that
+    # pins the resolved IP (rewriting the URL to the IP while preserving
+    # SNI via the Host header). Not implemented; tracked as a follow-up
+    # issue titled "Pin resolved IP for SSRF TOCTOU closure".
     try:
         addrinfos = socket.getaddrinfo(hostname, port, proto=socket.IPPROTO_TCP)
     except socket.gaierror:
@@ -101,11 +104,13 @@ def validate_url(url: str) -> str:
 
 
 def validate_base_url(url: str) -> str:
-    """Validate a backend service base URL (scheme + hostname check only).
+    """Validate a backend service base URL (scheme + hostname + metadata check).
 
     Unlike validate_url(), this does NOT block private/loopback IPs because
     backend URLs (LLM providers, Whisper API) commonly point to localhost or
-    Docker-internal hosts.
+    Docker-internal hosts. Cloud-provider metadata IPs are still blocked so
+    an operator cannot accidentally pivot a provider write into an EC2 IMDS
+    fetch.
 
     Args:
         url: The URL to validate.
@@ -114,7 +119,8 @@ def validate_base_url(url: str) -> str:
         The validated URL string (stripped).
 
     Raises:
-        SSRFError: If the URL has an invalid scheme or missing hostname.
+        SSRFError: If the URL has an invalid scheme, missing hostname, or
+            hostname is a literal cloud metadata IP.
     """
     if not url or not url.strip():
         raise SSRFError("Empty URL")
@@ -128,5 +134,9 @@ def validate_base_url(url: str) -> str:
 
     if not parsed.hostname:
         raise SSRFError("Missing hostname in URL")
+
+    host = parsed.hostname.strip('[]')
+    if host in _CLOUD_METADATA_IPS:
+        raise SSRFError(f"Blocked cloud metadata IP: {host}")
 
     return url

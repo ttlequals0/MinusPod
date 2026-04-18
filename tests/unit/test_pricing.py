@@ -163,7 +163,7 @@ class TestPricePerTokenScraper:
         </table>
         </body></html>
         """
-        with patch('pricing_fetcher.requests.get') as mock_get:
+        with patch('pricing_fetcher.safe_get') as mock_get:
             mock_resp = MagicMock()
             mock_resp.text = html
             mock_resp.raise_for_status = MagicMock()
@@ -189,7 +189,7 @@ class TestPricePerTokenScraper:
         </table>
         </body></html>
         """
-        with patch('pricing_fetcher.requests.get') as mock_get:
+        with patch('pricing_fetcher.safe_get') as mock_get:
             mock_resp = MagicMock()
             mock_resp.text = html
             mock_resp.raise_for_status = MagicMock()
@@ -205,7 +205,7 @@ class TestPricePerTokenScraper:
     def test_no_table_returns_empty(self):
         from pricing_fetcher import fetch_pricepertoken_pricing
 
-        with patch('pricing_fetcher.requests.get') as mock_get:
+        with patch('pricing_fetcher.safe_get') as mock_get:
             mock_resp = MagicMock()
             mock_resp.text = '<html><body><p>No data</p></body></html>'
             mock_resp.raise_for_status = MagicMock()
@@ -227,7 +227,7 @@ class TestPricePerTokenScraper:
         </table>
         </body></html>
         """
-        with patch('pricing_fetcher.requests.get') as mock_get:
+        with patch('pricing_fetcher.safe_get') as mock_get:
             mock_resp = MagicMock()
             mock_resp.text = html
             mock_resp.raise_for_status = MagicMock()
@@ -249,7 +249,7 @@ class TestPricePerTokenScraper:
         </table>
         </body></html>
         """
-        with patch('pricing_fetcher.requests.get') as mock_get:
+        with patch('pricing_fetcher.safe_get') as mock_get:
             mock_resp = MagicMock()
             mock_resp.text = html
             mock_resp.raise_for_status = MagicMock()
@@ -288,7 +288,7 @@ class TestOpenRouterFetcher:
             ]
         }
 
-        with patch('pricing_fetcher.requests.get') as mock_get:
+        with patch('pricing_fetcher.safe_get') as mock_get:
             mock_resp = MagicMock()
             mock_resp.json.return_value = mock_data
             mock_resp.raise_for_status = MagicMock()

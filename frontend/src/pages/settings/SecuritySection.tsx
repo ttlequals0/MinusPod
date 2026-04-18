@@ -8,9 +8,16 @@ interface SecuritySectionProps {
   isPasswordSet: boolean;
   logout: () => Promise<void>;
   refreshStatus: () => Promise<void>;
+  plaintextSecretsCount?: number;
 }
 
-function SecuritySection({ isPasswordSet, logout, refreshStatus, cryptoReady = false }: SecuritySectionProps) {
+function SecuritySection({
+  isPasswordSet,
+  logout,
+  refreshStatus,
+  cryptoReady = false,
+  plaintextSecretsCount = 0,
+}: SecuritySectionProps) {
   const [oldPassphrase, setOldPassphrase] = useState('');
   const [newPassphrase, setNewPassphrase] = useState('');
   const [confirmPassphrase, setConfirmPassphrase] = useState('');
@@ -149,7 +156,7 @@ function SecuritySection({ isPasswordSet, logout, refreshStatus, cryptoReady = f
             autoComplete="new-password"
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
-            placeholder={isPasswordSet ? 'Leave empty to remove password' : 'Minimum 8 characters'}
+            placeholder={isPasswordSet ? 'Leave empty to remove password' : 'Minimum 12 characters'}
             className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
           />
         </div>
@@ -201,6 +208,16 @@ function SecuritySection({ isPasswordSet, logout, refreshStatus, cryptoReady = f
           Rotate the <code className="font-mono">MINUSPOD_MASTER_PASSPHRASE</code> used to encrypt provider API keys.
           Re-encrypts every stored key under a new passphrase + new salt in a single transaction.
         </p>
+
+        {plaintextSecretsCount > 0 && (
+          <div className="mb-4 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300">
+            {plaintextSecretsCount} provider key
+            {plaintextSecretsCount === 1 ? '' : 's'} still stored as plaintext.
+            {cryptoReady
+              ? ' Restart the server or re-save the key to encrypt it at rest.'
+              : ' Set MINUSPOD_MASTER_PASSPHRASE in the container environment and restart; the startup migration will re-encrypt them.'}
+          </div>
+        )}
 
         {!cryptoReady ? (
           <p className="text-sm text-muted-foreground">

@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getFeed, getEpisodes, refreshFeed, updateFeed, getNetworks, reprocessAllEpisodes, ReprocessAllResult, bulkEpisodeAction, BulkAction } from '../api/feeds';
 import type { BulkActionResult } from '../api/types';
 import CopyButton from '../components/CopyButton';
+import DropdownMenu from '../components/DropdownMenu';
 import EpisodeList from '../components/EpisodeList';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { formatStorage } from './settings/settingsUtils';
@@ -13,7 +14,6 @@ function FeedDetail() {
   const queryClient = useQueryClient();
   const [isEditingNetwork, setIsEditingNetwork] = useState(false);
   const [showReprocessConfirm, setShowReprocessConfirm] = useState(false);
-  const [showReprocessDropdown, setShowReprocessDropdown] = useState(false);
   const [selectedReprocessMode, setSelectedReprocessMode] = useState<'reprocess' | 'full'>('reprocess');
   const [reprocessResult, setReprocessResult] = useState<ReprocessAllResult | null>(null);
   const [editNetworkOverride, setEditNetworkOverride] = useState<string>('');
@@ -61,7 +61,7 @@ function FeedDetail() {
   });
 
   const refreshMutation = useMutation({
-    mutationFn: () => refreshFeed(slug!),
+    mutationFn: (opts?: { force?: boolean }) => refreshFeed(slug!, opts),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['feed', slug] });
       queryClient.invalidateQueries({ queryKey: ['episodes', slug] });
@@ -358,53 +358,49 @@ function FeedDetail() {
             />
           </div>
           <div className="flex gap-2">
-            {/* Reprocess Dropdown */}
-            <div className="relative">
-              <button
-                onClick={() => setShowReprocessDropdown(!showReprocessDropdown)}
-                disabled={reprocessAllMutation.isPending}
-                className="px-4 py-2 rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors flex items-center gap-2"
-                title="Reprocess all processed episodes"
-              >
-                {reprocessAllMutation.isPending ? 'Queuing...' : 'Reprocess All'}
-                <svg className={`w-4 h-4 transition-transform ${showReprocessDropdown ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-              {showReprocessDropdown && (
-                <div className="absolute right-0 mt-1 w-56 bg-card border border-border rounded-lg shadow-lg z-10">
-                  <button
-                    onClick={() => {
-                      setSelectedReprocessMode('reprocess');
-                      setShowReprocessDropdown(false);
-                      setShowReprocessConfirm(true);
-                    }}
-                    className="w-full px-4 py-2 text-left hover:bg-accent transition-colors rounded-t-lg"
-                  >
-                    <span className="block text-sm font-medium text-foreground">Patterns + AI</span>
-                    <span className="block text-xs text-muted-foreground">Use learned patterns for faster detection</span>
-                  </button>
-                  <button
-                    onClick={() => {
-                      setSelectedReprocessMode('full');
-                      setShowReprocessDropdown(false);
-                      setShowReprocessConfirm(true);
-                    }}
-                    className="w-full px-4 py-2 text-left hover:bg-accent transition-colors rounded-b-lg border-t border-border"
-                  >
-                    <span className="block text-sm font-medium text-foreground">AI Only</span>
-                    <span className="block text-xs text-muted-foreground">Fresh analysis without patterns</span>
-                  </button>
-                </div>
-              )}
-            </div>
-            <button
-              onClick={() => refreshMutation.mutate()}
+            <DropdownMenu
+              triggerLabel={reprocessAllMutation.isPending ? 'Queuing...' : 'Reprocess All'}
+              triggerClassName="px-3 py-1.5 sm:px-4 sm:py-2 text-sm rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 transition-colors flex items-center gap-2 whitespace-nowrap"
+              disabled={reprocessAllMutation.isPending}
+              title="Reprocess all processed episodes"
+              align="left"
+              items={[
+                {
+                  title: 'Patterns + AI',
+                  subtitle: 'Use learned patterns for faster detection',
+                  onClick: () => {
+                    setSelectedReprocessMode('reprocess');
+                    setShowReprocessConfirm(true);
+                  },
+                },
+                {
+                  title: 'AI Only',
+                  subtitle: 'Fresh analysis without patterns',
+                  onClick: () => {
+                    setSelectedReprocessMode('full');
+                    setShowReprocessConfirm(true);
+                  },
+                },
+              ]}
+            />
+            <DropdownMenu
+              triggerLabel={refreshMutation.isPending ? 'Refreshing...' : 'Refresh Feed'}
+              triggerClassName="px-3 py-1.5 sm:px-4 sm:py-2 text-sm rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center gap-2 whitespace-nowrap"
               disabled={refreshMutation.isPending}
-              className="px-4 py-2 rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
-            >
-              {refreshMutation.isPending ? 'Refreshing...' : 'Refresh Feed'}
-            </button>
+              title="Refresh feed"
+              items={[
+                {
+                  title: 'Refresh',
+                  subtitle: 'Check for new episodes',
+                  onClick: () => refreshMutation.mutate(undefined),
+                },
+                {
+                  title: 'Force refresh',
+                  subtitle: 'Bypass cache',
+                  onClick: () => refreshMutation.mutate({ force: true }),
+                },
+              ]}
+            />
           </div>
         </div>
       </div>

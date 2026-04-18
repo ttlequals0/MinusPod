@@ -10,6 +10,7 @@ MinusPod is a self-hosted server that removes ads before you ever hit play. It t
 - [Advanced Features (Quick Reference)](#advanced-features-quick-reference)
 - [Requirements](#requirements)
 - [Quick Start](#quick-start)
+- [Upgrading to 2.0.0+](#upgrading-to-200)
 - [Web Interface](#web-interface)
   - [Ad Editor Workflow](#ad-editor-workflow)
   - [Screenshots](#screenshots)
@@ -25,7 +26,7 @@ MinusPod is a self-hosted server that removes ads before you ever hit play. It t
 - [LLM Pricing](#llm-pricing)
 - [API](#api)
 - [Webhooks](#webhooks)
-- [Remote Access](#remote-access)
+- [Remote Access / Security](#remote-access--security)
 - [Data Storage](#data-storage)
 - [Custom Assets (Optional)](#custom-assets-optional)
 - [Disclaimer](#disclaimer)
@@ -109,7 +110,7 @@ Ads are classified as:
 - **REVIEW** - Medium confidence, removed but flagged for review
 - **REJECT** - Too short/long, low confidence, or missing ad signals - kept in audio
 
-Rejected ads appear in a separate "Rejected Detections" section in the UI, allowing you to verify the validator's decisions.
+Rejected ads appear in a separate "Rejected Detections" section in the UI so you can verify the validator's decisions.
 
 ### Pattern Learning
 
@@ -130,7 +131,7 @@ When processing new episodes, the system first checks for known patterns before 
 **User Corrections:**
 In the ad editor, you can confirm, reject, or adjust detected ads:
 - **Confirm** - Creates/updates patterns in the database, incrementing confirmation count
-- **Adjust Boundaries** - Corrects start/end times for an ad; also creates patterns from adjusted boundaries (like confirm), ensuring accurate pattern text is learned
+- **Adjust Boundaries** - Corrects start/end times for an ad; also creates patterns from adjusted boundaries (like confirm), so the learned pattern text matches the corrected range
 - **Mark as Not Ad** - Flags as false positive and stores the transcript text. Similar text is automatically excluded in future episodes of the same podcast using TF-IDF similarity matching (cross-episode false positive learning)
 
 **Pattern Management:**
@@ -196,6 +197,7 @@ cat > .env << EOF
 ANTHROPIC_API_KEY=your-key-here
 BASE_URL=http://localhost:8000
 APP_PASSWORD=your-password
+MINUSPOD_MASTER_PASSPHRASE=long-random-string-you-will-not-lose
 EOF
 
 # 2. Create data directory
@@ -206,6 +208,28 @@ docker-compose up -d
 ```
 
 Access the web UI at `http://localhost:8000/ui/` to add and manage feeds.
+
+`MINUSPOD_MASTER_PASSPHRASE` is strongly recommended for production. Without it, provider API keys go into the database as plaintext. Setting it later migrates existing plaintext rows to `enc:v1:` encrypted storage on the next boot, with a mandatory pre-migration SQLite snapshot in `data/backups/`. Restoring a backup requires the same passphrase that created it, so pick a long random value and keep it somewhere separate from the database.
+
+## Upgrading to 2.0.0+
+
+2.0.0 is a security hardening release. A `docker pull && restart` on a 1.x data volume boots without config changes, but several defaults tightened so a few setups need env-var tweaks. Full detail in `CHANGELOG.md`.
+
+**Likely to bite you if you do nothing:**
+
+- **Plain HTTP:** `SESSION_COOKIE_SECURE` now defaults to `true`, so browsers drop the session cookie. Login looks like it works then the next request is anonymous. Set `SESSION_COOKIE_SECURE=false` if you're not on HTTPS.
+- **Behind a reverse proxy (Cloudflare, cloudflared, nginx, Traefik):** set `MINUSPOD_TRUSTED_PROXY_COUNT=1`. Without it, login lockout and per-IP rate limits silently never fire -- the container sees the proxy hop instead of the client. A startup WARN flags it. Full impact in `Remote Access / Security > Client IP for login lockout`.
+- **External API clients** (cron scripts, homegrown tools, third-party integrations): every `POST` / `PUT` / `DELETE` on `/api/v1/*` now needs an `X-CSRF-Token` header matching the `minuspod_csrf` cookie. The built-in UI handles it; raw curl scripts have to echo the cookie.
+- **`/docs` and `/openapi.yaml` bookmarks / health checks:** moved to `/api/v1/docs` and `/api/v1/openapi.yaml`. The old paths return 404.
+- **OpenAI-compatible provider relying on the `ANTHROPIC_API_KEY` fallback:** that fallback is gone. Set `OPENAI_API_KEY` explicitly or ad detection 401s. A startup WARN fires when the old shape is detected.
+
+**Quieter changes worth knowing:**
+
+- `SESSION_COOKIE_SAMESITE` now `Strict`. Flip to `Lax` only if a specific cross-site integration breaks.
+- Frontend and API must share an origin (`flask-cors` was removed). Put them behind the same reverse proxy.
+- Password minimum is now 12 characters. Existing hashes verify fine; the next password change picks up the new minimum.
+- Saving provider keys via `PUT /api/v1/settings/ad-detection` returns 409 unless `MINUSPOD_MASTER_PASSPHRASE` is set. Existing plaintext keys keep working; the setting endpoint refuses to write a new secret in cleartext.
+- Container runs as UID 1000. First boot chowns the data volume in place. Override with `APP_UID` / `APP_GID` or bypass with `docker run --user <N>` if the host volume belongs to a different UID.
 
 ## Web Interface
 
@@ -370,35 +394,79 @@ This is a comma-separated list of domains excluded from Audiobookshelf's SSRF fi
 
 ## Environment Variables
 
+Grouped by how often you'll touch them. **Standard** is what a typical deployment sets; **Security** is the 2.0.0+ hardening surface; **Advanced** are tuning knobs for edge cases; **Optional** are opt-in features.
+
+### Standard
+
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `ANTHROPIC_API_KEY` | _(none)_ | Claude API key (required when `LLM_PROVIDER=anthropic`, not needed for Ollama) |
 | `LLM_PROVIDER` | `anthropic` | LLM backend: `anthropic`, `openrouter`, `openai-compatible`, or `ollama` |
 | `OPENROUTER_API_KEY` | _(none)_ | OpenRouter API key (required when `LLM_PROVIDER=openrouter`) |
 | `OPENAI_BASE_URL` | `http://localhost:8000/v1` | Base URL for OpenAI-compatible API (only used with non-anthropic providers) |
+| `OPENROUTER_BASE_URL` | `https://openrouter.ai/api/v1` | OpenRouter API base URL. Override for private proxies or regional endpoints. |
+| `ANTHROPIC_BASE_URL` | _(anthropic default)_ | Anthropic API base URL. Override for private proxies. |
 | `OPENAI_API_KEY` | `not-needed` | API key for OpenAI-compatible endpoint (not required for Ollama or local wrappers) |
 | `OPENAI_MODEL` | _(none)_ | Model for OpenAI-compatible/Ollama providers. **Required for Ollama** (e.g. `qwen3:14b`). Defaults to `claude-sonnet-4-5-20250929` for openai-compatible if unset. |
 | `BASE_URL` | `http://localhost:8000` | Public URL for generated feed links |
 | `UI_BASE_URL` | _(falls back to BASE_URL)_ | Public URL for UI links in webhooks (set if UI is on a different domain than feeds) |
-| `WHISPER_MODEL` | `small` | Whisper model size. Supports faster-whisper model names: `tiny`, `base`, `small`, `medium`, `large-v3`, `turbo`, plus `.en` variants (e.g. `small.en`) for English-only |
-| `WHISPER_DEVICE` | `cuda` | Device for Whisper (cuda/cpu). Set to `cpu` when using API backend to skip GPU init. |
-| `WHISPER_BACKEND` | `local` | Whisper backend: `local` (faster-whisper) or `openai-api` (remote HTTP) |
-| `WHISPER_API_BASE_URL` | _(none)_ | Base URL for OpenAI-compatible whisper API (e.g. `http://host.docker.internal:8765/v1`) |
-| `WHISPER_API_KEY` | _(none)_ | API key for whisper API (optional for local servers) |
+| `WHISPER_MODEL` | `small` | Whisper model size. `tiny`, `base`, `small`, `medium`, `large-v3`, `turbo`, plus `.en` variants |
+| `WHISPER_DEVICE` | `cuda` | `cuda` or `cpu`. Set to `cpu` when using API backend to skip GPU init. |
+| `WHISPER_BACKEND` | `local` | `local` (faster-whisper) or `openai-api` (remote HTTP) |
+| `WHISPER_API_BASE_URL` | _(none)_ | Base URL for OpenAI-compatible whisper API |
+| `WHISPER_API_KEY` | _(none)_ | API key for whisper API |
 | `WHISPER_API_MODEL` | `whisper-1` | Model name sent to whisper API |
-| `WHISPER_LANGUAGE` | `en` | ISO 639-1 language code for transcription (e.g. `en`, `fi`, `es`), or `auto` to let Whisper detect. Seeds fresh installs only -- runtime value lives in the settings table, editable under Settings > Transcription. See [supported languages](https://whisper-api.com/docs/languages/). |
-| `PROCESSING_SOFT_TIMEOUT` | `3600` | Seconds before a stuck job is auto-cleared from the queue. Seeds fresh installs only -- runtime value lives in the settings table, editable under Settings > Transcription or via `PUT /api/v1/settings/processing-timeouts`. Raise this for long episodes on CPU or the largest Whisper model. |
-| `PROCESSING_HARD_TIMEOUT` | `7200` | Seconds before the processing lock is force-released even when a worker is still holding it (stuck subprocess safety net). Same DB-backed override path as the soft timeout. Must exceed it. |
-| `RETENTION_PERIOD` | `1440` | **Deprecated.** Legacy minutes-based retention (auto-converted to days on first startup). Use the Settings UI or `PUT /api/v1/settings/retention` instead. Retention now resets episodes to "discovered" instead of deleting them. |
-| `AD_DETECTION_MAX_TOKENS` | `2000` | Maximum tokens for LLM ad detection responses (increase if responses are being truncated) |
+| `WHISPER_LANGUAGE` | `en` | ISO 639-1 language code, or `auto`. Seeds fresh installs only; runtime value is in Settings > Transcription. |
 | `APP_PASSWORD` | _(none)_ | Initial password for web UI (can also be set in Settings > Security) |
-| `OLLAMA_API_KEY` | _(none)_ | Ollama Cloud key. Leave unset for local. Can also be set in Settings > LLM Provider (encrypted). |
-| `MINUSPOD_MASTER_PASSPHRASE` | _(none)_ | Unlocks the encrypted provider-key store. Without it, the UI shows "Setup required" and only env-var keys are used. Keep it stable — lose it and stored keys become unreadable (env fallback still works). |
-| `LOG_LEVEL` | `INFO` | Logging level (DEBUG, INFO, WARNING, ERROR) |
-| `DATA_DIR` | `/app/data` | Data storage directory |
-| `PODCAST_INDEX_API_KEY` | _(none)_ | PodcastIndex.org API key for podcast search (or configure in Settings) |
+| `OLLAMA_API_KEY` | _(none)_ | Ollama Cloud key. Leave unset for local. |
+| `PODCAST_INDEX_API_KEY` | _(none)_ | PodcastIndex.org API key for podcast search |
 | `PODCAST_INDEX_API_SECRET` | _(none)_ | PodcastIndex.org API secret |
-| `TUNNEL_TOKEN` | _(none)_ | Cloudflare tunnel token for remote access |
+| `LOG_LEVEL` | `INFO` | `DEBUG`, `INFO`, `WARNING`, or `ERROR` |
+| `LOG_FORMAT` | `text` | `text` or `json`. JSON output plays nicely with log aggregators (Loki, CloudWatch). |
+| `DATA_DIR` | `/app/data` | Data storage directory. Aliases `DATA_PATH` and `MINUSPOD_DATA_DIR` are also honored. |
+
+### Security
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MINUSPOD_MASTER_PASSPHRASE` | _(unset)_ | Unlocks encrypted provider-key store. Strongly recommended for production; first boot migrates any plaintext rows to `enc:v1:`. Losing it makes stored keys unrecoverable (env fallback still works). |
+| `SESSION_COOKIE_SECURE` | `true` | Set to `false` only when serving over plain HTTP. |
+| `SESSION_COOKIE_SAMESITE` | `Strict` | Override to `Lax` only if a specific integration breaks. |
+| `MINUSPOD_ENABLE_HSTS` | `false` | Set to `true` once the deployment is HTTPS-only. HSTS traps browsers so don't flip this on a dual-protocol setup. |
+| `MINUSPOD_TRUSTED_PROXY_COUNT` | `0` | Reverse-proxy hops to trust when reading `X-Forwarded-For`. `1` behind Cloudflare / cloudflared / nginx / Traefik, higher for a multi-proxy chain. **Leaving this at `0` behind a proxy breaks login lockout** (the proxy IP is private/loopback, which the lockout excludes) and per-IP rate limits (they key on the proxy instead of the client); audit logs + auth-failure webhooks also carry the wrong IP. Startup logs a WARN when unset. |
+
+### Advanced
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `PROCESSING_SOFT_TIMEOUT` | `3600` | Seconds before a stuck job is auto-cleared. Seeds fresh installs; runtime value lives in Settings > Transcription. |
+| `PROCESSING_HARD_TIMEOUT` | `7200` | Seconds before the processing lock is force-released. Must exceed the soft timeout. |
+| `AD_DETECTION_MAX_TOKENS` | `2000` | Max tokens for LLM ad detection responses. |
+| `MINUSPOD_MAX_ARTWORK_BYTES` | `5242880` (5 MB) | Cap on podcast artwork download size. Clamped to `[65536, 52428800]`. |
+| `MINUSPOD_MAX_RSS_BYTES` | `209715200` (200 MB) | Cap on RSS response body size. Floor is 1 MB. |
+| `RATE_LIMIT_STORAGE_URI` | `memory://` | Flask-limiter storage backend. Default is per-worker; set to `redis://host:6379` + run a Redis sidecar for exact declared limits across workers. |
+| `APP_UID` | `1000` | UID gunicorn runs as inside the container. Override to match host volume ownership. |
+| `APP_GID` | `1000` | GID counterpart to `APP_UID`. |
+| `GUNICORN_WORKERS` | `2` | Worker count. Lower means single-threaded UI blocking during RSS refresh; higher multiplies per-worker rate-limit counters (when using `memory://`). |
+| `GUNICORN_TIMEOUT` | `600` | Per-request hard timeout. |
+| `GUNICORN_GRACEFUL_TIMEOUT` | `330` | Seconds between SIGTERM and SIGKILL on shutdown. |
+| `SECRET_KEY` | _(auto-generated)_ | Flask session signing key. If unset, a random value is generated on first boot and persisted at `$DATA_DIR/.secret_key`. Set explicitly only for multi-instance deployments sharing a session store. Rotating invalidates all existing sessions. |
+| `SESSION_LIFETIME_HOURS` | `24` | How long authenticated sessions stay valid, in hours. |
+
+### Optional
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `TUNNEL_TOKEN` | _(none)_ | Cloudflare tunnel token. See Remote Access / Security > Before enabling the tunnel profile. |
+| `SENTRY_DSN` | _(none)_ | Opt-in Sentry. Requires `sentry-sdk` installed. Headers, cookies, CSRF tokens, and credential-like query params are scrubbed before send; no performance tracing. |
+| `MINUSPOD_RELEASE` | _(none)_ | Optional release tag forwarded to Sentry. |
+| `SENTRY_ENVIRONMENT` | `production` | Environment tag forwarded to Sentry. |
+
+### Deprecated
+
+| Variable | Description |
+|----------|-------------|
+| `RETENTION_PERIOD` | Legacy minutes-based retention. Auto-converted to days on first startup. Use Settings UI or `PUT /api/v1/settings/retention` instead. |
 
 ### Using Claude Code Wrapper (Max Subscription)
 
@@ -744,10 +812,11 @@ Pricing data comes from third-party sources and may lag behind provider announce
 
 ## API
 
-REST API available at `/api/v1/`. Interactive docs at `/docs`. Full specification: [`openapi.yaml`](openapi.yaml).
+REST API available at `/api/v1/`. Interactive docs at `/api/v1/docs`. Full specification: [`openapi.yaml`](openapi.yaml).
 
 Key endpoints:
-- `GET /api/v1/health` - Health check (database, storage, queue status)
+- `GET /api/v1/health` - Readiness check (database, storage); returns 503 if either is down
+- `GET /api/v1/health/live` - Liveness probe (process up); always 200, safe for frequent polling
 - `GET /api/v1/feeds` - List all feeds
 - `POST /api/v1/feeds` - Add a new feed (supports `maxEpisodes` for RSS cap)
 - `POST /api/v1/feeds/import-opml` - Import feeds from OPML file
@@ -956,7 +1025,7 @@ ntfy requires a custom payload template to match its expected JSON format.
 
 If a webhook has a secret configured, MinusPod adds an `X-MinusPod-Signature: sha256=<hmac>` header to each POST, computed with HMAC-SHA256 over the request body.
 
-## Remote Access
+## Remote Access / Security
 
 The docker-compose includes an optional Cloudflare tunnel service for secure remote access without port forwarding:
 
@@ -964,36 +1033,114 @@ The docker-compose includes an optional Cloudflare tunnel service for secure rem
 2. Add `TUNNEL_TOKEN` to your `.env` file
 3. Configure the tunnel to point to `http://minuspod:8000`
 
+### Before enabling the tunnel profile
+
+The tunnel exposes the admin interface to the public internet. Without all of these set, anyone who reaches the tunnel URL can hit unauthenticated paths and attempt to log in:
+
+1. Set a password via Settings > Security (or seed with `APP_PASSWORD`).
+2. `SESSION_COOKIE_SECURE=true` (default in 2.0.0+).
+3. `MINUSPOD_MASTER_PASSPHRASE` set so provider API keys are encrypted at rest.
+4. Cloudflare WAF rule blocking `/ui` and `/api` (see below). The docs and OpenAPI spec live under `/api/v1/docs` and `/api/v1/openapi.yaml`, so they're already covered by the `/api` block.
+5. `MINUSPOD_TRUSTED_PROXY_COUNT=1` so login lockout keys on the real client IP, not the tunnel loopback.
+
+### Client IP for login lockout
+
+The 2.0.0+ login lockout feature (5 fails / 15 min / 15 min block) keys on `request.remote_addr`. Depending on how traffic reaches the container, that address may or may not be the real client:
+
+- Direct exposure (no proxy, ports published): `remote_addr` is the client. No config needed.
+- Docker with published ports and no reverse proxy: `remote_addr` is the Docker bridge gateway; lockout will not fire. A startup WARN surfaces this. Deploy behind a proxy or switch to `network_mode: host`.
+- Behind Cloudflare, nginx, Traefik, or cloudflared: set `MINUSPOD_TRUSTED_PROXY_COUNT=1`. Cloudflare sets `X-Forwarded-For` automatically.
+- Multi-proxy chain (e.g., Cloudflare -> nginx -> MinusPod): set the count to the number of proxies you actually trust. Setting it too high lets an attacker spoof their client IP by prepending entries to `X-Forwarded-For`.
+
+**What happens if you leave `MINUSPOD_TRUSTED_PROXY_COUNT=0` on a proxy-fronted deployment:**
+
+1. **Login lockout never fires.** Every failed login appears to come from the proxy's IP, which is private or loopback (Cloudflare tunnel loopback, Docker bridge gateway, nginx on `127.0.0.1`, ...). The lockout excludes private IPs on purpose so NAT neighbors can't DoS each other, so it never triggers. Attackers can brute-force with no rate limit.
+2. **Per-IP rate limits degrade to per-proxy.** `POST /feeds` (3/min), `POST /system/cleanup` (1/h), `DELETE /system/queue` (6/h), and the rest all key on the proxy as one client. One user can exhaust them for everyone; an attacker can't.
+3. **Audit logs carry the wrong IP.** Every `[ip]` bracket in the access log is the proxy hop. Forensics are much harder.
+4. **Auth-failure webhooks carry the wrong IP** in the `clientIp` field, so any Auth Failure alerting points at the proxy.
+
+Startup logs a WARN (`Running in a container without MINUSPOD_TRUSTED_PROXY_COUNT set ...`) when the variable is unset. Treat the WARN as load-bearing: if you're behind a reverse proxy and it's still firing after a deploy, your lockout and rate limits are not working.
+
 ### Security Recommendations
 
-When exposing your feed to the internet (required for apps like Pocket Casts), consider adding WAF rules to:
-- Only allow requests from known podcast app User-Agents
-- Block access to admin endpoints (`/ui`, `/docs`, `/api`)
+Operator checklist:
 
-**Cloudflare WAF Example**
+- Serve over HTTPS (`SESSION_COOKIE_SECURE=true` is the default).
+- `MINUSPOD_TRUSTED_PROXY_COUNT=1` if behind a reverse proxy.
+- `MINUSPOD_MASTER_PASSPHRASE` set so provider keys encrypt at rest.
+- `MINUSPOD_ENABLE_HSTS=true` once the deployment is HTTPS-only.
+- WAF block on `/ui` and `/api`. Public feed paths must stay reachable: `/<slug>`, `/episodes/<slug>/<episode>.mp3`, `.vtt`, `/chapters.json`, and `/api/v1/feeds/<slug>/artwork`.
 
-Create a custom rule to allow only Pocket Casts and block admin paths:
+2.0.0+ ships the rest by default: CSRF, login lockout, SSRF guards, artwork magic-number validation, XXE defense, baseline security headers, non-root container, rate limits on destructive endpoints. See `CHANGELOG.md` for the full list.
+
+**Cloudflare WAF example.** Allow only Pocket Casts on the feed host, block admin paths:
 
 ```
-Rule name: feed_only_allow_pocketcasts
-
-Expression:
-(http.request.full_uri wildcard r"http*://feed.example.com/*" and not http.user_agent wildcard "*Pocket*Casts*") or (http.request.uri.path in {"/ui" "/docs"})
-
-Action: Block
+(http.request.full_uri wildcard r"http*://feed.example.com/*" and not http.user_agent wildcard "*Pocket*Casts*") or starts_with(http.request.uri.path, "/ui") or starts_with(http.request.uri.path, "/api")
 ```
 
-This blocks:
-- Any request to your feed domain without "Pocket Casts" in the User-Agent
-- All requests to `/ui` and `/docs` endpoints
+Swap the User-Agent pattern for your app (`*Overcast*`, `*Castro*`, `*AntennaPod*`, ...).
 
-Adjust the User-Agent pattern for your podcast app (e.g., `*Overcast*`, `*Castro*`, `*AntennaPod*`).
+### Rate limiting storage
+
+Rate limits are tracked per worker (memory-backed), so with the default two workers each declared limit is effectively doubled. For exact limits or multi-host scaling, set `RATE_LIMIT_STORAGE_URI=redis://redis:6379` and add a Redis sidecar. Don't drop below two workers -- the UI freezes during bulk RSS refresh with only one.
+
+### Request correlation
+
+Every response carries an `X-Request-ID` header. If you supply one on the request (up to 128 chars), it's preserved; otherwise a 16-char hex value is generated. When reporting a bug, including the `X-Request-ID` from the affected response makes log lookup one `grep` instead of a guessing game. Aggregated log viewers can filter by the `request_id` field on the JSON log records.
 
 ## Data Storage
 
 All data is stored in the `./data` directory:
 - `podcast.db` - SQLite database with feeds, episodes, and settings
 - `{slug}/` - Per-feed directories with cached RSS and processed audio
+- `backups/` - Pre-migration SQLite snapshots + periodic cleanup backups
+
+### Container user
+
+Runs as UID 1000 (`minuspod`). First boot chowns the data volume, then drops privileges via `gosu`. Override with `APP_UID` / `APP_GID` if your host volume belongs to a different UID, or bypass entirely with `docker run --user <N>`.
+
+### Database backup sensitivity
+
+The SQLite backup files produced by `GET /api/v1/system/backup` and by the periodic cleanup task contain:
+
+- Provider API keys (encrypted with `MINUSPOD_MASTER_PASSPHRASE` when set; plaintext legacy rows otherwise)
+- Flask session signing key
+- Webhook HMAC secrets
+- Password hash (scrypt)
+
+Treat the file like a credential. When `MINUSPOD_MASTER_PASSPHRASE` is set, both backup paths produce AES-GCM encrypted `.db.enc` files, and restoring requires the same passphrase the source used. Without a passphrase, unencrypted `.db` files are written and a WARN is logged at creation time.
+
+### Decrypting a backup
+
+Encrypted backup files (`*.db.enc`) use AES-GCM with a key derived from `MINUSPOD_MASTER_PASSPHRASE` via PBKDF2 (600k iterations, SHA-256). The per-instance salt is stored in the running DB's `settings` table (`provider_crypto_salt`), not in the backup envelope. Decryption needs three things:
+
+1. The encrypted file.
+2. The same `MINUSPOD_MASTER_PASSPHRASE` that produced it.
+3. The live container's DB (for the salt row).
+
+The ship-in-repo CLI handles this:
+
+```bash
+MINUSPOD_MASTER_PASSPHRASE=your-passphrase \
+    python scripts/decrypt_backup.py /path/to/backup.db.enc /path/to/backup.db
+```
+
+Runs from inside the container or any host with the repo checked out and `cryptography` installed. `DATA_PATH` points at the running instance's data dir (default `/app/data`).
+
+**Important caveat:** the salt is per-DB, not per-passphrase. If you rotate the passphrase (`POST /api/v1/settings/providers/rotate-passphrase`), old backups made under the previous passphrase are still decryptable, because rotation re-encrypts rows under a new salt + new DEK in place. But if you lose the DB entirely (full-volume loss, fresh install) and only have backup files, you cannot decrypt them even with the original passphrase — the salt is gone. Treat the passphrase and the DB together as the recovery bundle.
+
+Unencrypted `.db` files are regular SQLite databases. Restore them with `sqlite3` or by copying into place on a stopped instance.
+
+### Pattern import / export
+
+Before doing a `replace` import, export first so there's a round-trip backup:
+
+```bash
+curl -b cookies.txt https://your-minuspod/api/v1/patterns/export?include_corrections=true > patterns-backup.json
+```
+
+`POST /api/v1/patterns/import` runs validation on the entire payload before any writes and wraps the delete/update/insert pass in a single `BEGIN IMMEDIATE` transaction. A malformed entry or mid-transaction error rolls back to the pre-import state; `replace` mode can no longer leave an empty pattern table on a bad payload. Modes are `merge` (update matches, add new), `replace` (wipe then import), or `supplement` (add new only).
 
 ## Custom Assets (Optional)
 

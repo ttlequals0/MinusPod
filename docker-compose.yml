@@ -1,8 +1,13 @@
-version: '3.8'
-
 services:
   minuspod:
-    image: ttlequals0/minuspod:latest
+    image: ttlequals0/minuspod:${MINUSPOD_VERSION:-latest}
+    platform: linux/amd64
+    # The container ships a non-root `minuspod` user at UID/GID 1000
+    # (entrypoint.sh drops root via gosu after fixing volume ownership).
+    # Override here to pin a specific APP_UID/APP_GID if your volume is
+    # owned by a different user -- e.g. `user: "2000:2000"`. Leave unset
+    # to use the image default (1000:1000).
+    # user: "1000:1000"
     ports:
       - "8000:8000"
     volumes:
@@ -41,7 +46,42 @@ services:
       # Server Configuration
       # =================================================================
       - BASE_URL=${BASE_URL:-http://localhost:8000}
-      - RETENTION_PERIOD=${RETENTION_PERIOD:-1440}
+
+      # =================================================================
+      # 2.0.0+ Security (defaults shown; override via .env when needed)
+      # =================================================================
+      # Encrypts provider API keys + scheduled DB backups at rest.
+      # Strongly recommended in any non-throwaway deployment.
+      # - MINUSPOD_MASTER_PASSPHRASE=${MINUSPOD_MASTER_PASSPHRASE}
+
+      # SESSION_COOKIE_SECURE defaults to true in 2.0.0+. Set to false
+      # only if serving over plain HTTP.
+      # - SESSION_COOKIE_SECURE=${SESSION_COOKIE_SECURE:-true}
+
+      # Set once the deployment is HTTPS-only. HSTS traps browsers so
+      # do not flip this on a dual-protocol setup.
+      # - MINUSPOD_ENABLE_HSTS=${MINUSPOD_ENABLE_HSTS:-false}
+
+      # Opt-in error reporting. URL or DSN from sentry.io.
+      # - SENTRY_DSN=${SENTRY_DSN}
+
+      # =================================================================
+      # Reverse proxy / tunnel (behind Cloudflare, nginx, Traefik, ...)
+      # =================================================================
+      # Number of trusted proxy hops in front of this container.
+      # 0 (default) = no proxy; the container sees the real client IP.
+      # 1 = one proxy (Cloudflare tunnel, nginx, Traefik, cloudflared).
+      # Set to 1 when the `tunnel` profile is active, or any time the
+      # container sits behind a reverse proxy, or login lockout and
+      # per-IP rate limits silently never fire. See README "Client IP
+      # for login lockout" for the full impact.
+      - MINUSPOD_TRUSTED_PROXY_COUNT=${MINUSPOD_TRUSTED_PROXY_COUNT:-0}
+
+      # =================================================================
+      # Deprecated -- Retention is managed via Settings > Storage in
+      # the UI. This env var still works for backward compat.
+      # =================================================================
+      # - RETENTION_PERIOD=${RETENTION_PERIOD:-1440}
 
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]

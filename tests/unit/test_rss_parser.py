@@ -1,6 +1,12 @@
-"""Tests for RSSParser._get_episode_description fallback logic."""
+"""Tests for RSSParser._get_episode_description fallback logic, plus
+the structured xml_forbidden_construct event on XXE rejection."""
+
+import logging
 
 import pytest
+
+import defusedxml
+defusedxml.defuse_stdlib()
 
 from rss_parser import RSSParser
 
@@ -69,3 +75,34 @@ class TestGetEpisodeDescription:
             "content": [{"value": "Content encoded"}],
         }
         assert RSSParser._get_episode_description(entry) == "iTunes subtitle"
+
+
+class TestXxeStructuredEvent:
+    """parse_feed must emit an xml_forbidden_construct log event when
+    defusedxml rejects DOCTYPE/ENTITY/EXTERNAL references, rather than
+    folding it into the generic `RSS parse warning` stream."""
+
+    def _dtd_payload(self):
+        return b"""<?xml version="1.0"?>
+<!DOCTYPE rss [<!ENTITY xxe SYSTEM "file:///etc/passwd">]>
+<rss version="2.0"><channel><title>&xxe;</title></channel></rss>"""
+
+    def test_forbidden_construct_returns_none(self, caplog):
+        parser = RSSParser()
+        with caplog.at_level(logging.WARNING):
+            result = parser.parse_feed(self._dtd_payload())
+        assert result is None
+
+    def test_forbidden_construct_event_logged(self, caplog):
+        parser = RSSParser()
+        with caplog.at_level(logging.WARNING):
+            parser.parse_feed(self._dtd_payload())
+        # Either the structured `extra` key is present on a record, or
+        # the rendered message mentions the forbidden-construct event.
+        matches = [
+            r for r in caplog.records
+            if getattr(r, 'event', None) == 'xml_forbidden_construct'
+            or 'xml_forbidden_construct' in r.getMessage()
+            or 'forbidden construct' in r.getMessage().lower()
+        ]
+        assert matches, "expected xml_forbidden_construct event in logs"

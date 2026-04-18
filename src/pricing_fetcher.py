@@ -16,11 +16,15 @@ from bs4 import BeautifulSoup
 
 from config import (
     get_pricing_source,
+    HTTP_MAX_REDIRECTS_API,
+    HTTP_TIMEOUT_EXTERNAL,
     normalize_model_key,
     PRICING_CACHE_TTL,
 )
-from utils.http import get_with_retry
+from utils.http import safe_url_for_log
+from utils.safe_http import URLTrust, safe_get
 from utils.time import parse_iso_datetime
+from utils.url import SSRFError
 
 logger = logging.getLogger(__name__)
 
@@ -35,13 +39,16 @@ def fetch_openrouter_pricing() -> List[Dict]:
       [{match_key, raw_model_id, display_name,
         input_cost_per_mtok, output_cost_per_mtok}, ...]
     """
-    resp = get_with_retry(
-        'https://openrouter.ai/api/v1/models',
-        timeout=15,
-        log_prefix="OpenRouter pricing",
-    )
-    if resp is None:
-        raise ConnectionError("Failed to fetch OpenRouter pricing after retries")
+    try:
+        resp = safe_get(
+            'https://openrouter.ai/api/v1/models',
+            trust=URLTrust.OPERATOR_CONFIGURED,
+            timeout=HTTP_TIMEOUT_EXTERNAL,
+            max_redirects=HTTP_MAX_REDIRECTS_API,
+        )
+        resp.raise_for_status()
+    except (SSRFError, requests.RequestException) as exc:
+        raise ConnectionError(f"Failed to fetch OpenRouter pricing: {exc}") from exc
 
     results = []
     for model in resp.json().get('data', []):
@@ -97,16 +104,23 @@ def fetch_pricepertoken_pricing(url: str) -> List[Dict]:
       [{match_key, raw_model_id, display_name,
         input_cost_per_mtok, output_cost_per_mtok}, ...]
     """
-    resp = get_with_retry(url, timeout=15, log_prefix="pricepertoken")
-    if resp is None:
-        raise ConnectionError(f"Failed to fetch pricing from {url} after retries")
+    try:
+        resp = safe_get(
+            url,
+            trust=URLTrust.OPERATOR_CONFIGURED,
+            timeout=HTTP_TIMEOUT_EXTERNAL,
+            max_redirects=HTTP_MAX_REDIRECTS_API,
+        )
+        resp.raise_for_status()
+    except (SSRFError, requests.RequestException) as exc:
+        raise ConnectionError(f"Failed to fetch pricing from {url}: {exc}") from exc
 
     soup = BeautifulSoup(resp.text, 'html.parser')
 
     results = []
     table = soup.find('table')
     if not table:
-        logger.warning(f"No pricing table found at {url}")
+        logger.warning(f"No pricing table found at {safe_url_for_log(url)}")
         return results
 
     rows = table.find_all('tr')
@@ -116,7 +130,7 @@ def fetch_pricepertoken_pricing(url: str) -> List[Dict]:
     # Detect column positions from header row
     header_cells = rows[0].find_all('th')
     if not header_cells:
-        logger.warning(f"No header row found in pricing table at {url}")
+        logger.warning(f"No header row found in pricing table at {safe_url_for_log(url)}")
         return results
 
     headers = [th.get_text(strip=True).lower() for th in header_cells]
@@ -191,7 +205,7 @@ def fetch_pricing(source: dict) -> List[Dict]:
         return []
 
     url = source.get('url', '')
-    logger.info(f"Fetching pricing from {source_type}: {url}")
+    logger.info(f"Fetching pricing from {source_type}: {safe_url_for_log(url)}")
 
     try:
         if source_type == 'openrouter_api':
@@ -205,7 +219,7 @@ def fetch_pricing(source: dict) -> List[Dict]:
         return results
 
     except Exception as e:
-        logger.warning(f"Failed to fetch pricing from {url}: {e}")
+        logger.warning(f"Failed to fetch pricing from {safe_url_for_log(url)}: {e}")
         return []
 
 

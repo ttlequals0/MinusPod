@@ -16,6 +16,9 @@ eggs/
 .eggs/
 lib/
 lib64/
+# Python lib/ rules above accidentally swallow smoke/lib/; allow it back.
+!smoke/lib/
+!smoke/lib/*
 parts/
 sdist/
 var/
@@ -157,7 +160,9 @@ static/
 *.pfx
 *secret*
 !src/secrets_crypto.py
+!src/utils/secret_writes.py
 !tests/unit/test_secrets_crypto.py
+!tests/unit/test_secrets_migration.py
 *password*
 cookies.txt
 
@@ -179,3 +184,8 @@ docker-compose.local.yml
 # Testing/evaluation docs (user notes)
 ad_detection_baseline.md.playwright-mcp/
 .playwright-mcp/
+*.png
+
+# Smoke test per-run artifacts (scripts and .gitkeep are tracked)
+smoke/results/*
+!smoke/results/.gitkeep

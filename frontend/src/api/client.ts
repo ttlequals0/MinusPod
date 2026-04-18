@@ -2,6 +2,27 @@ const API_BASE = '/api/v1';
 
 const RETRY_DELAYS = [1000, 3000]; // 2 retries with 1s and 3s backoff
 
+const CSRF_COOKIE_NAME = 'minuspod_csrf';
+const CSRF_HEADER_NAME = 'X-CSRF-Token';
+const CSRF_SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+export function getCsrfToken(): string | null {
+  const cookies = document.cookie.split('; ');
+  for (const c of cookies) {
+    const [name, ...rest] = c.split('=');
+    if (name === CSRF_COOKIE_NAME) {
+      return rest.join('=') || null;
+    }
+  }
+  return null;
+}
+
+export function csrfHeaders(method: string): Record<string, string> {
+  if (CSRF_SAFE_METHODS.has(method.toUpperCase())) return {};
+  const token = getCsrfToken();
+  return token ? { [CSRF_HEADER_NAME]: token } : {};
+}
+
 export function buildQueryString(params: Record<string, string | number | boolean | undefined | null>): string {
   const searchParams = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
@@ -45,10 +66,11 @@ export async function apiRequest<T>(endpoint: string, options: RequestOptions = 
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     try {
-      const headers: HeadersInit = {};
+      const headers: Record<string, string> = {};
       if (body) {
         headers['Content-Type'] = 'application/json';
       }
+      Object.assign(headers, csrfHeaders(method));
 
       const response = await fetch(`${API_BASE}${endpoint}`, {
         method,

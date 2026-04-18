@@ -1,0 +1,2 @@
+# results/ is intentionally empty in the repo; per-run artifacts go here
+# and are gitignored. See ../../.gitignore.

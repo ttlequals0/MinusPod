@@ -214,6 +214,7 @@ CREATE TABLE IF NOT EXISTS auto_process_queue (
 CREATE INDEX IF NOT EXISTS idx_queue_status ON auto_process_queue(status);
 CREATE INDEX IF NOT EXISTS idx_queue_created ON auto_process_queue(created_at);
 CREATE INDEX IF NOT EXISTS idx_queue_status_created ON auto_process_queue(status, created_at);
+CREATE INDEX IF NOT EXISTS idx_queue_podcast_episode ON auto_process_queue(podcast_id, episode_id);
 
 CREATE INDEX IF NOT EXISTS idx_podcasts_slug ON podcasts(slug);
 CREATE INDEX IF NOT EXISTS idx_episodes_podcast_id ON episodes(podcast_id);
@@ -746,6 +747,7 @@ class SchemaMixin:
             """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_queue_status ON auto_process_queue(status)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_queue_created ON auto_process_queue(created_at)")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_queue_podcast_episode ON auto_process_queue(podcast_id, episode_id)")
             conn.commit()
             logger.info("Migration: Created auto_process_queue table")
         except Exception as e:
@@ -833,6 +835,25 @@ class SchemaMixin:
                 logger.info(f"Search index populated with {count} items")
         except Exception as e:
             logger.warning(f"Failed to auto-populate search index: {e}")
+
+        # Migration: Create auth_failures table for login-lockout tracking
+        try:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS auth_failures (
+                    ip TEXT PRIMARY KEY,
+                    failed_count INTEGER NOT NULL DEFAULT 0,
+                    first_failed_at TEXT NOT NULL,
+                    last_failed_at TEXT NOT NULL,
+                    locked_until TEXT
+                )
+            """)
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_auth_failures_last ON auth_failures(last_failed_at)"
+            )
+            conn.commit()
+            logger.info("Migration: Created auth_failures table")
+        except Exception as e:
+            logger.debug(f"auth_failures table creation (may already exist): {e}")
 
         # Migration: Convert numeric podcast_ids to slugs in ad_patterns table
         # This fixes a bug where auto-created patterns stored numeric IDs instead of slugs

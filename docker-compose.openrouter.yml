@@ -23,7 +23,13 @@
 
 services:
   minuspod:
-    image: ttlequals0/minuspod:latest
+    image: ttlequals0/minuspod:${MINUSPOD_VERSION:-latest}
+    platform: linux/amd64
+    # Container ships a non-root `minuspod` user at UID/GID 1000; the
+    # entrypoint drops root via gosu after fixing volume ownership on
+    # first boot. Override `user:` if your ./data volume is owned by
+    # a different host UID.
+    # user: "1000:1000"
     ports:
       - "8000:8000"
     volumes:
@@ -35,4 +41,32 @@ services:
 
       # Server
       - BASE_URL=${BASE_URL:-http://localhost:8000}
+
+      # =================================================================
+      # 2.0.0+ Security (recommended overrides)
+      # =================================================================
+      # Encrypts provider API keys + scheduled DB backups at rest.
+      # - MINUSPOD_MASTER_PASSPHRASE=${MINUSPOD_MASTER_PASSPHRASE}
+
+      # SESSION_COOKIE_SECURE defaults to true. Set to false only if
+      # this OpenRouter deploy sits behind plain HTTP (rare).
+      # - SESSION_COOKIE_SECURE=${SESSION_COOKIE_SECURE:-true}
+
+      # Number of trusted proxy hops. 1 when behind Cloudflare /
+      # cloudflared / nginx / Traefik. Leaving at 0 behind a proxy
+      # breaks login lockout and per-IP rate limits silently.
+      - MINUSPOD_TRUSTED_PROXY_COUNT=${MINUSPOD_TRUSTED_PROXY_COUNT:-0}
+
+      # =================================================================
+      # Notes for OpenAI-compatible swap
+      # =================================================================
+      # If you swap LLM_PROVIDER to "openai-compatible", set
+      # OPENAI_API_KEY explicitly. The ANTHROPIC_API_KEY fallback
+      # was removed in 2.0.0+.
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
     restart: unless-stopped

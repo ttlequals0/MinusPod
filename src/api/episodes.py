@@ -13,6 +13,7 @@ from api import (
 )
 from utils.text import parse_transcript_segments
 from utils.time import parse_timestamp, utc_now_iso
+from utils.validation import is_valid_episode_id
 
 logger = logging.getLogger('podcast.api')
 
@@ -230,9 +231,10 @@ def serve_original_audio(slug, episode_id):
     Returns 404 when the episode has no original retained (global setting
     off, old episode processed before the feature, or retention expired).
     """
-    if not all(c.isalnum() or c in '-_' for c in slug):
-        abort(400)
-    if not all(c.isalnum() or c in '-_' for c in episode_id):
+    # Blueprint url_value_preprocessor already ran is_dangerous_slug on
+    # `slug`; we still need a strict episode-ID check because .isalnum()
+    # accepts Unicode lookalikes, and real IDs are 12-char MD5 hex.
+    if not is_valid_episode_id(episode_id):
         abort(400)
     db = get_database()
     storage = get_storage()
@@ -492,7 +494,7 @@ def reprocess_all_episodes(slug):
 
         except Exception as e:
             logger.error(f"Failed to queue {slug}:{episode_id} for reprocessing: {e}")
-            skipped.append({'episodeId': episode_id, 'reason': str(e)})
+            skipped.append({'episodeId': episode_id, 'reason': 'queue failed'})
 
     logger.info(f"Batch reprocess {slug} (mode={mode}): {len(queued)} queued, {len(skipped)} skipped")
 
@@ -570,7 +572,7 @@ def bulk_episode_action(slug):
                 eligible_ids.append(episode_id)
             except Exception as e:
                 logger.error(f"Bulk action error for {slug}:{episode_id}: {e}")
-                errors.append(f"{episode_id}: {str(e)}")
+                errors.append(f"{episode_id}: bulk action failed")
         if eligible_ids:
             db.batch_clear_episode_details(slug, eligible_ids)
             now_str = utc_now_iso()
@@ -594,7 +596,7 @@ def bulk_episode_action(slug):
                 freed_mb += freed
             except Exception as e:
                 logger.error(f"Bulk delete error for {slug}: {e}")
-                errors.append(str(e))
+                errors.append('bulk delete failed')
 
     # Trigger background processing for process/reprocess actions
     if action in ('process', 'reprocess', 'reprocess_full') and queued > 0:

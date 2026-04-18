@@ -104,6 +104,37 @@ class QueueMixin:
         conn.commit()
         return True
 
+    def close_queue_rows_for_episode(self, slug: str, episode_id: str) -> int:
+        """Mark any non-terminal queue rows for this episode as completed.
+
+        Guards the double-trigger bug where a manual
+        POST /episodes/<id>/reprocess finishes the job but leaves the
+        background-enqueued row in auto_process_queue still pending,
+        which then caused the queue processor to re-run the same episode.
+        Safe to call on every successful finalize -- the UPDATE is a
+        no-op when there is no matching pending/processing/failed row.
+        Returns the number of rows touched.
+        """
+        podcast = self.get_podcast_by_slug(slug)
+        if not podcast:
+            return 0
+        conn = self.get_connection()
+        try:
+            cursor = conn.execute(
+                """UPDATE auto_process_queue
+                   SET status = 'completed',
+                       updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')
+                   WHERE podcast_id = ?
+                     AND episode_id = ?
+                     AND status IN ('pending', 'processing', 'failed')""",
+                (podcast['id'], episode_id)
+            )
+            conn.commit()
+            return cursor.rowcount
+        except Exception:
+            conn.rollback()
+            raise
+
     def get_queue_status(self) -> Dict:
         """Get auto-process queue status summary."""
         conn = self.get_connection()

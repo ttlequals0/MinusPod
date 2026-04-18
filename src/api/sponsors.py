@@ -134,6 +134,32 @@ def delete_sponsor(sponsor_id):
 
 # ========== Normalization Endpoints ==========
 
+# Storage column -> v2 API field. Storage column names stay untouched
+# so operators can still back up / restore the raw DB schema.
+_LEGACY_TO_V2 = {'pattern': 'terms', 'replacement': 'canonical'}
+_V2_TO_LEGACY = {v: k for k, v in _LEGACY_TO_V2.items()}
+
+
+def _to_normalization_v2(row):
+    if not row:
+        return row
+    out = dict(row)
+    for legacy, v2 in _LEGACY_TO_V2.items():
+        if legacy in out and v2 not in out:
+            out[v2] = out.pop(legacy)
+    return out
+
+
+def _from_normalization_v2(data):
+    if not data:
+        return data
+    out = dict(data)
+    for v2, legacy in _V2_TO_LEGACY.items():
+        if v2 in out and legacy not in out:
+            out[legacy] = out.pop(v2)
+    return out
+
+
 @api.route('/sponsors/normalizations', methods=['GET'])
 @log_request
 def list_normalizations():
@@ -142,10 +168,11 @@ def list_normalizations():
     category = request.args.get('category')
     include_inactive = request.args.get('include_inactive', 'false').lower() == 'true'
 
-    normalizations = service.db.get_sponsor_normalizations(
+    raw = service.db.get_sponsor_normalizations(
         category=category,
         active_only=not include_inactive
     )
+    normalizations = [_to_normalization_v2(r) for r in raw]
 
     return json_response({'normalizations': normalizations})
 
@@ -153,24 +180,32 @@ def list_normalizations():
 @api.route('/sponsors/normalizations', methods=['POST'])
 @log_request
 def add_normalization():
-    """Add a new normalization."""
+    """Add a new normalization.
+
+    v2 shape: ``{terms, canonical, category}``. Legacy ``{pattern, replacement}``
+    is accepted for back-compat but logged as deprecated.
+    """
     data = request.get_json()
     if not data:
         return error_response('No data provided', 400)
 
+    if 'pattern' in data or 'replacement' in data:
+        logger.info("Normalization endpoint received deprecated {pattern,replacement} fields; translate to {terms,canonical}")
+    data = _from_normalization_v2(data)
+
     required = ['pattern', 'replacement', 'category']
     missing = [f for f in required if not data.get(f)]
     if missing:
-        return error_response(f"Missing required fields: {', '.join(missing)}", 400)
+        canonical_missing = [_LEGACY_TO_V2.get(f, f) for f in missing]
+        return error_response(f"Missing required fields: {', '.join(canonical_missing)}", 400)
 
     if data['category'] not in ('sponsor', 'url', 'number', 'phrase'):
         return error_response("Category must be one of: sponsor, url, number, phrase", 400)
 
-    # Validate regex pattern
     try:
         re.compile(data['pattern'])
     except re.error as e:
-        return error_response(f"Invalid regex pattern: {e}", 400)
+        return error_response(f"Invalid regex in 'terms': {e}", 400)
 
     service = get_sponsor_service()
 
@@ -189,17 +224,24 @@ def add_normalization():
 @api.route('/sponsors/normalizations/<int:norm_id>', methods=['PUT'])
 @log_request
 def update_normalization(norm_id):
-    """Update a normalization."""
+    """Update a normalization.
+
+    Accepts v2 ``{terms, canonical, category}`` or legacy
+    ``{pattern, replacement, category}``.
+    """
     data = request.get_json()
     if not data:
         return error_response('No data provided', 400)
 
-    # Validate regex pattern if provided
+    if 'pattern' in data or 'replacement' in data:
+        logger.info("Normalization PUT received deprecated {pattern,replacement} fields")
+    data = _from_normalization_v2(data)
+
     if 'pattern' in data:
         try:
             re.compile(data['pattern'])
         except re.error as e:
-            return error_response(f"Invalid regex pattern: {e}", 400)
+            return error_response(f"Invalid regex in 'terms': {e}", 400)
 
     if 'category' in data and data['category'] not in ('sponsor', 'url', 'number', 'phrase'):
         return error_response("Category must be one of: sponsor, url, number, phrase", 400)

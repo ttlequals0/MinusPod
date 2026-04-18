@@ -8,7 +8,7 @@ import math
 from flask import request, Response
 
 from api import (
-    api, log_request, json_response,
+    api, limiter, log_request, json_response,
     get_database,
 )
 
@@ -97,65 +97,85 @@ def get_processing_history_stats():
     })
 
 
+_EXPORT_CSV_FIELDS = [
+    'id', 'podcast_slug', 'podcast_title', 'episode_id',
+    'episode_title', 'processed_at', 'processing_duration_seconds',
+    'status', 'ads_detected', 'error_message', 'reprocess_number',
+    'input_tokens', 'output_tokens', 'llm_cost',
+]
+
+
+def _row_to_json_entry(entry: dict) -> dict:
+    return {
+        'id': entry['id'],
+        'podcastSlug': entry['podcast_slug'],
+        'podcastTitle': entry['podcast_title'],
+        'episodeId': entry['episode_id'],
+        'episodeTitle': entry['episode_title'],
+        'processedAt': entry['processed_at'],
+        'processingDurationSeconds': entry['processing_duration_seconds'],
+        'status': entry['status'],
+        'adsDetected': entry['ads_detected'],
+        'errorMessage': entry['error_message'],
+        'reprocessNumber': entry['reprocess_number'],
+        'inputTokens': entry.get('input_tokens', 0) or 0,
+        'outputTokens': entry.get('output_tokens', 0) or 0,
+        'llmCost': round(entry.get('llm_cost', 0.0) or 0.0, 6),
+    }
+
+
 @api.route('/history/export', methods=['GET'])
+@limiter.limit("5 per hour")
 @log_request
 def export_processing_history():
-    """Export processing history as CSV or JSON."""
+    """Export processing history as CSV or JSON.
+
+    Streams rows directly from the SQLite cursor so the worker's memory
+    footprint stays flat regardless of row count. Kept rate-limited to
+    bound cursor wall-time under concurrent exports.
+    """
     db = get_database()
 
-    # Parse query params
     export_format = request.args.get('format', 'json').lower()
     status_filter = request.args.get('status')
     podcast_slug = request.args.get('podcast_slug')
 
-    entries = db.export_processing_history(
+    rows = db.iter_processing_history_rows(
         status_filter=status_filter,
-        podcast_slug=podcast_slug
+        podcast_slug=podcast_slug,
     )
 
     if export_format == 'csv':
-        # Generate CSV
-        output = io.StringIO()
-        if entries:
-            fieldnames = ['id', 'podcast_slug', 'podcast_title', 'episode_id',
-                         'episode_title', 'processed_at', 'processing_duration_seconds',
-                         'status', 'ads_detected', 'error_message', 'reprocess_number',
-                         'input_tokens', 'output_tokens', 'llm_cost']
-            writer = csv.DictWriter(output, fieldnames=fieldnames, extrasaction='ignore')
+        def generate_csv():
+            buf = io.StringIO()
+            writer = csv.DictWriter(buf, fieldnames=_EXPORT_CSV_FIELDS, extrasaction='ignore')
             writer.writeheader()
-            for entry in entries:
-                writer.writerow(entry)
+            yield buf.getvalue()
+            buf.seek(0)
+            buf.truncate()
+            for row in rows:
+                writer.writerow(row)
+                yield buf.getvalue()
+                buf.seek(0)
+                buf.truncate()
 
-        response = Response(
-            output.getvalue(),
+        return Response(
+            generate_csv(),
             mimetype='text/csv',
-            headers={'Content-Disposition': 'attachment; filename=processing_history.csv'}
+            headers={'Content-Disposition': 'attachment; filename=processing_history.csv'},
         )
-        return response
-    else:
-        # JSON format
-        history = []
-        for entry in entries:
-            history.append({
-                'id': entry['id'],
-                'podcastSlug': entry['podcast_slug'],
-                'podcastTitle': entry['podcast_title'],
-                'episodeId': entry['episode_id'],
-                'episodeTitle': entry['episode_title'],
-                'processedAt': entry['processed_at'],
-                'processingDurationSeconds': entry['processing_duration_seconds'],
-                'status': entry['status'],
-                'adsDetected': entry['ads_detected'],
-                'errorMessage': entry['error_message'],
-                'reprocessNumber': entry['reprocess_number'],
-                'inputTokens': entry.get('input_tokens', 0) or 0,
-                'outputTokens': entry.get('output_tokens', 0) or 0,
-                'llmCost': round(entry.get('llm_cost', 0.0) or 0.0, 6),
-            })
 
-        response = Response(
-            json.dumps({'history': history}, indent=2),
-            mimetype='application/json',
-            headers={'Content-Disposition': 'attachment; filename=processing_history.json'}
-        )
-        return response
+    def generate_json():
+        yield '{"history":['
+        first = True
+        for row in rows:
+            sep = '' if first else ','
+            first = False
+            yield sep + json.dumps(_row_to_json_entry(row))
+        yield ']}'
+
+    return Response(
+        generate_json(),
+        mimetype='application/json',
+        headers={'Content-Disposition': 'attachment; filename=processing_history.json'},
+    )

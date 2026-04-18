@@ -12,13 +12,19 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 1.6.2
+  version: 2.0.0
   contact:
     name: MinusPod
   license:
     name: MIT
 
 servers:
+  # Same-origin relative URL. Swagger UI served from /api/v1/docs uses
+  # whatever host the browser is on, so "Try it out" always hits the
+  # correct server: localhost in dev, the production domain in prod,
+  # a Tailscale/Cloudflare URL on a tunnel, etc. No hardcoded host.
+  - url: /api/v1
+    description: Same-origin (current server)
   - url: http://localhost:8000/api/v1
     description: Local development server
   - url: '{baseUrl}/api/v1'
@@ -62,6 +68,7 @@ paths:
         Returns whether password protection is enabled and if the current session is authenticated.
         This endpoint is always accessible without authentication.
       operationId: getAuthStatus
+      security: []
       responses:
         '200':
           description: Authentication status
@@ -84,6 +91,7 @@ paths:
       summary: Login with password
       description: Authenticate with the configured password. Rate limited to 5 attempts per minute.
       operationId: login
+      security: []
       requestBody:
         required: true
         content:
@@ -122,6 +130,7 @@ paths:
       summary: Logout and clear session
       description: Clears the current session, requiring re-authentication.
       operationId: logout
+      security: []
       responses:
         '200':
           description: Logout successful
@@ -471,10 +480,32 @@ paths:
       tags:
         - Feeds
       summary: Refresh a single feed
-      description: Fetch the latest RSS feed and update episode list
+      description: |
+        Fetch the latest RSS feed and update the episode list. By default
+        this sends a conditional GET -- if upstream returns 304 Not
+        Modified, the refresh is a no-op. Pass `{"force": true}` in the
+        body to bypass the stored ETag / Last-Modified headers and do a
+        full fetch, useful when an upstream CDN is falsely returning 304
+        against its own new content.
       operationId: refreshFeed
       parameters:
         - $ref: '#/components/parameters/slug'
+      requestBody:
+        required: false
+        description: Optional force-refresh flag. Omit for default conditional GET.
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                force:
+                  type: boolean
+                  description: |
+                    When true, clears the podcast's stored ETag +
+                    Last-Modified values before fetching so upstream
+                    cannot short-circuit with 304 Not Modified.
+                  default: false
+              additionalProperties: false
       responses:
         '200':
           description: Feed refreshed successfully
@@ -605,7 +636,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /feeds/{slug}/episodes/{episodeId}:
+  /feeds/{slug}/episodes/{episode_id}:
     get:
       tags:
         - Episodes
@@ -614,7 +645,7 @@ paths:
       operationId: getEpisode
       parameters:
         - $ref: '#/components/parameters/slug'
-        - $ref: '#/components/parameters/episodeId'
+        - $ref: '#/components/parameters/episode_id'
       responses:
         '200':
           description: Episode details
@@ -625,7 +656,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /feeds/{slug}/episodes/{episodeId}/transcript:
+  /feeds/{slug}/episodes/{episode_id}/transcript:
     get:
       tags:
         - Episodes
@@ -634,7 +665,7 @@ paths:
       operationId: getEpisodeTranscript
       parameters:
         - $ref: '#/components/parameters/slug'
-        - $ref: '#/components/parameters/episodeId'
+        - $ref: '#/components/parameters/episode_id'
       responses:
         '200':
           description: Episode transcript
@@ -650,7 +681,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /feeds/{slug}/episodes/{episodeId}/original-transcript:
+  /feeds/{slug}/episodes/{episode_id}/original-transcript:
     get:
       tags:
         - Episodes
@@ -659,7 +690,7 @@ paths:
       operationId: getOriginalTranscript
       parameters:
         - $ref: '#/components/parameters/slug'
-        - $ref: '#/components/parameters/episodeId'
+        - $ref: '#/components/parameters/episode_id'
       responses:
         '200':
           description: Original transcript
@@ -675,7 +706,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /episodes/{slug}/{episodeId}/reprocess:
+  /episodes/{slug}/{episode_id}/reprocess:
     post:
       tags:
         - Episodes
@@ -690,7 +721,7 @@ paths:
       operationId: reprocessEpisode
       parameters:
         - $ref: '#/components/parameters/slug'
-        - $ref: '#/components/parameters/episodeId'
+        - $ref: '#/components/parameters/episode_id'
       requestBody:
         required: false
         content:
@@ -726,7 +757,7 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
-  /feeds/{slug}/episodes/{episodeId}/regenerate-chapters:
+  /feeds/{slug}/episodes/{episode_id}/regenerate-chapters:
     post:
       tags:
         - Episodes
@@ -738,7 +769,7 @@ paths:
       operationId: regenerateChapters
       parameters:
         - $ref: '#/components/parameters/slug'
-        - $ref: '#/components/parameters/episodeId'
+        - $ref: '#/components/parameters/episode_id'
       responses:
         '200':
           description: Chapters regenerated successfully
@@ -845,7 +876,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /feeds/{slug}/episodes/{episodeId}/retry-ad-detection:
+  /feeds/{slug}/episodes/{episode_id}/retry-ad-detection:
     post:
       tags:
         - Episodes
@@ -857,7 +888,7 @@ paths:
       operationId: retryAdDetection
       parameters:
         - $ref: '#/components/parameters/slug'
-        - $ref: '#/components/parameters/episodeId'
+        - $ref: '#/components/parameters/episode_id'
       responses:
         '200':
           description: Ad detection retry completed
@@ -883,18 +914,18 @@ paths:
         '500':
           $ref: '#/components/responses/ServerError'
 
-  /feeds/{slug}/episodes/{episodeId}/reprocess:
+  /feeds/{slug}/episodes/{episode_id}/reprocess:
     post:
       tags:
         - Processing
       summary: Force reprocess an episode (legacy)
       description: |
-        Legacy reprocess endpoint. Prefer `/episodes/{slug}/{episodeId}/reprocess`,
+        Legacy reprocess endpoint. Prefer `/episodes/{slug}/{episode_id}/reprocess`,
         which supports `mode=reprocess` and `mode=full`.
       operationId: reprocessEpisodeLegacy
       parameters:
         - $ref: '#/components/parameters/slug'
-        - $ref: '#/components/parameters/episodeId'
+        - $ref: '#/components/parameters/episode_id'
       responses:
         '200':
           description: Episode reprocess queued
@@ -918,7 +949,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /feeds/{slug}/episodes/{episodeId}/original.mp3:
+  /feeds/{slug}/episodes/{episode_id}/original.mp3:
     get:
       tags:
         - Episodes
@@ -932,7 +963,7 @@ paths:
       operationId: serveOriginalAudio
       parameters:
         - $ref: '#/components/parameters/slug'
-        - $ref: '#/components/parameters/episodeId'
+        - $ref: '#/components/parameters/episode_id'
       responses:
         '200':
           description: Original audio stream
@@ -944,7 +975,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /feeds/{slug}/episodes/{episodeId}/cancel:
+  /feeds/{slug}/episodes/{episode_id}/cancel:
     post:
       tags:
         - Processing
@@ -955,7 +986,7 @@ paths:
       operationId: cancelEpisodeProcessing
       parameters:
         - $ref: '#/components/parameters/slug'
-        - $ref: '#/components/parameters/episodeId'
+        - $ref: '#/components/parameters/episode_id'
       responses:
         '200':
           description: Episode processing canceled
@@ -979,7 +1010,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /episodes/{slug}/{episodeId}/corrections:
+  /episodes/{slug}/{episode_id}/corrections:
     post:
       tags:
         - Episodes
@@ -998,7 +1029,7 @@ paths:
       operationId: submitCorrections
       parameters:
         - $ref: '#/components/parameters/slug'
-        - $ref: '#/components/parameters/episodeId'
+        - $ref: '#/components/parameters/episode_id'
       requestBody:
         required: true
         content:
@@ -1207,7 +1238,7 @@ paths:
                     items:
                       $ref: '#/components/schemas/Pattern'
 
-  /patterns/{patternId}:
+  /patterns/{pattern_id}:
     get:
       tags:
         - Patterns
@@ -1215,7 +1246,7 @@ paths:
       description: Returns details for a specific ad pattern
       operationId: getPattern
       parameters:
-        - $ref: '#/components/parameters/patternId'
+        - $ref: '#/components/parameters/pattern_id'
       responses:
         '200':
           description: Pattern details
@@ -1232,7 +1263,7 @@ paths:
       description: Update pattern properties like active status, sponsor, or disabled reason
       operationId: updatePattern
       parameters:
-        - $ref: '#/components/parameters/patternId'
+        - $ref: '#/components/parameters/pattern_id'
       requestBody:
         required: true
         content:
@@ -1272,7 +1303,7 @@ paths:
       description: Permanently delete an ad pattern from the database
       operationId: deletePattern
       parameters:
-        - $ref: '#/components/parameters/patternId'
+        - $ref: '#/components/parameters/pattern_id'
       responses:
         '200':
           description: Pattern deleted successfully
@@ -1584,7 +1615,7 @@ paths:
                         scope:
                           type: string
 
-  /patterns/{patternId}/split:
+  /patterns/{pattern_id}/split:
     post:
       tags:
         - Patterns
@@ -1595,7 +1626,7 @@ paths:
         are created for each detected sponsor segment.
       operationId: splitPattern
       parameters:
-        - name: patternId
+        - name: pattern_id
           in: path
           required: true
           schema:
@@ -1914,7 +1945,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
-  /sponsors/{sponsorId}:
+  /sponsors/{sponsor_id}:
     get:
       tags:
         - Sponsors
@@ -1922,7 +1953,7 @@ paths:
       description: Returns details for a specific sponsor by ID
       operationId: getSponsor
       parameters:
-        - $ref: '#/components/parameters/sponsorId'
+        - $ref: '#/components/parameters/sponsor_id'
       responses:
         '200':
           description: Sponsor details
@@ -1939,7 +1970,7 @@ paths:
       description: Update sponsor properties like name, aliases, or category
       operationId: updateSponsor
       parameters:
-        - $ref: '#/components/parameters/sponsorId'
+        - $ref: '#/components/parameters/sponsor_id'
       requestBody:
         required: true
         content:
@@ -1976,7 +2007,7 @@ paths:
       description: Deactivate a sponsor (soft delete)
       operationId: deleteSponsor
       parameters:
-        - $ref: '#/components/parameters/sponsorId'
+        - $ref: '#/components/parameters/sponsor_id'
       responses:
         '200':
           description: Sponsor deleted
@@ -2064,7 +2095,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /sponsors/normalizations/{normId}:
+  /sponsors/normalizations/{norm_id}:
     put:
       tags:
         - Sponsors
@@ -2072,7 +2103,7 @@ paths:
       description: Update an existing normalization rule's pattern, replacement, or category
       operationId: updateNormalization
       parameters:
-        - $ref: '#/components/parameters/normId'
+        - $ref: '#/components/parameters/norm_id'
       requestBody:
         required: true
         content:
@@ -2110,7 +2141,7 @@ paths:
       description: Deactivate a normalization rule (soft delete)
       operationId: deleteNormalization
       parameters:
-        - $ref: '#/components/parameters/normId'
+        - $ref: '#/components/parameters/norm_id'
       responses:
         '200':
           description: Normalization deleted
@@ -2145,24 +2176,39 @@ paths:
         - Status
       summary: Real-time status stream (SSE)
       description: |
-        Server-Sent Events endpoint for real-time processing status updates.
-        Connect to receive live updates about processing progress, including
-        stage changes and percentage completion.
+        Server-Sent Events stream of processing status updates.
+
+        Authentication is snapshotted once at connect time, not on the
+        HTTP handshake -- the endpoint is in `AUTH_EXEMPT_PATHS` because
+        browser `EventSource` clients cannot surface a 401 response.
+        An unauthenticated connect receives a single
+        `event: auth-failed` SSE frame and the stream closes; the
+        frontend handler redirects to `/ui/login` on that event. An
+        authenticated connect opens the real data stream.
+
+        A session that lapses mid-stream is caught on the client's next
+        non-SSE API call, which 401-redirects normally.
       operationId: streamStatus
       responses:
         '200':
-          description: SSE stream of status updates
+          description: |
+            SSE stream. Body is either a sequence of `data:` frames
+            (authenticated) or a single `event: auth-failed` frame
+            followed by stream close (unauthenticated).
           content:
             text/event-stream:
               schema:
                 type: string
                 description: |
-                  SSE events with JSON data containing:
+                  Authenticated stream: `data:` frames with JSON payload:
                   - processing: boolean
                   - episode: object with title, slug, episodeId
                   - stage: current processing stage
                   - progress: percentage (0-100)
                   - queue_depth: number of pending episodes
+
+                  Unauthenticated stream: single frame
+                  `event: auth-failed\ndata: {}\n\n` then close.
 
   /history:
     get:
@@ -2686,12 +2732,14 @@ paths:
     get:
       tags:
         - System
-      summary: Health check
+      summary: Readiness check (database and storage)
       description: |
-        Health check endpoint for monitoring and load balancers.
-        Returns 200 if healthy, 503 if unhealthy.
-        Checks database connectivity, storage access, and queue availability.
+        Readiness probe used by Docker and Portainer health checks. Returns
+        200 when the DB and storage directory are reachable, 503 otherwise.
+        Does not instantiate the processing queue; a busy queue is not an
+        ill-health signal.
       operationId: healthCheck
+      security: []
       responses:
         '200':
           description: System is healthy
@@ -2728,6 +2776,29 @@ paths:
                     type: object
                   version:
                     type: string
+
+  /health/live:
+    get:
+      tags:
+        - System
+      summary: Liveness probe (minimal)
+      description: |
+        Minimal liveness probe with no side effects. Returns
+        ``{"status": "ok"}`` and 200 whenever the process is alive. Safe for
+        per-second polling by Kubernetes-style liveness probes.
+      operationId: healthLive
+      security: []
+      responses:
+        '200':
+          description: Process is alive
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [ok]
 
   /system/status:
     get:
@@ -2923,6 +2994,80 @@ paths:
                     type: string
                   durationMs:
                     type: integer
+
+  /docs:
+    get:
+      tags:
+        - System
+      summary: Swagger UI
+      description: |
+        Renders this OpenAPI spec in an interactive Swagger UI. Assets
+        are bundled in the image under `/ui/swagger/*` -- no CDN
+        dependency, air-gap friendly. Auth-gated; an unauthenticated
+        GET returns 401 (the blueprint-level `check_auth` runs first).
+      operationId: swaggerUi
+      responses:
+        '200':
+          description: HTML page with Swagger UI
+          content:
+            text/html:
+              schema:
+                type: string
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /docs/:
+    get:
+      tags:
+        - System
+      summary: Swagger UI (trailing-slash alias)
+      description: Same content as `/docs`; exists so browsers don't
+        get a Werkzeug redirect on the trailing slash variant.
+      operationId: swaggerUiSlash
+      responses:
+        '200':
+          description: HTML page with Swagger UI
+          content:
+            text/html:
+              schema:
+                type: string
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /openapi.yaml:
+    get:
+      tags:
+        - System
+      summary: OpenAPI spec
+      description: |
+        Returns this spec file. Auth-gated. Note that the spec
+        describes endpoints relative to `/api/v1`; this handler
+        serves the spec at `/api/v1/openapi.yaml`.
+      operationId: openapiSpec
+      responses:
+        '200':
+          description: OpenAPI YAML document
+          content:
+            application/yaml:
+              schema:
+                type: string
+            text/yaml:
+              schema:
+                type: string
+        '401':
+          description: Authentication required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /system/backup:
     get:
@@ -3182,7 +3327,7 @@ paths:
         '400':
           $ref: '#/components/responses/BadRequest'
 
-  /settings/webhooks/{webhookId}:
+  /settings/webhooks/{webhook_id}:
     put:
       tags:
         - Settings
@@ -3190,7 +3335,7 @@ paths:
       description: Update an existing webhook configuration
       operationId: updateWebhook
       parameters:
-        - $ref: '#/components/parameters/webhookId'
+        - $ref: '#/components/parameters/webhook_id'
       requestBody:
         required: true
         content:
@@ -3230,7 +3375,7 @@ paths:
       description: Remove a webhook subscription
       operationId: deleteWebhook
       parameters:
-        - $ref: '#/components/parameters/webhookId'
+        - $ref: '#/components/parameters/webhook_id'
       responses:
         '200':
           description: Webhook deleted
@@ -3242,7 +3387,7 @@ paths:
                   message:
                     type: string
 
-  /settings/webhooks/{webhookId}/test:
+  /settings/webhooks/{webhook_id}/test:
     post:
       tags:
         - Settings
@@ -3251,7 +3396,7 @@ paths:
         Send a test event to a webhook endpoint to verify it is reachable and correctly configured. Rate limited to 10/min.
       operationId: testWebhook
       parameters:
-        - $ref: '#/components/parameters/webhookId'
+        - $ref: '#/components/parameters/webhook_id'
       responses:
         '200':
           description: Test result
@@ -3413,7 +3558,21 @@ paths:
                     type: integer
                     description: Number of pending items removed
 
+security:
+  - sessionCookie: []
+
 components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: session
+      description: |
+        Flask session cookie issued by ``POST /auth/login``. Every mutating
+        endpoint additionally requires a matching ``X-CSRF-Token`` header
+        (double-submit). Public endpoints (``/auth/login``, ``/auth/logout``,
+        ``/auth/status``, ``/health``, ``/health/live``) declare ``security: []``.
+
   parameters:
     slug:
       name: slug
@@ -3424,8 +3583,8 @@ components:
         type: string
         example: my-podcast
 
-    episodeId:
-      name: episodeId
+    episode_id:
+      name: episode_id
       in: path
       required: true
       description: Episode identifier (MD5 hash)
@@ -3433,8 +3592,8 @@ components:
         type: string
         example: abc123def456
 
-    patternId:
-      name: patternId
+    pattern_id:
+      name: pattern_id
       in: path
       required: true
       description: Pattern identifier (integer)
@@ -3442,8 +3601,8 @@ components:
         type: integer
         example: 42
 
-    sponsorId:
-      name: sponsorId
+    sponsor_id:
+      name: sponsor_id
       in: path
       required: true
       description: Sponsor identifier (integer)
@@ -3451,8 +3610,8 @@ components:
         type: integer
         example: 1
 
-    normId:
-      name: normId
+    norm_id:
+      name: norm_id
       in: path
       required: true
       description: Normalization rule identifier (integer)
@@ -3460,8 +3619,8 @@ components:
         type: integer
         example: 1
 
-    webhookId:
-      name: webhookId
+    webhook_id:
+      name: webhook_id
       in: path
       required: true
       description: Webhook identifier

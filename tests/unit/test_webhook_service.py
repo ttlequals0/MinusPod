@@ -153,7 +153,7 @@ class TestBuildContext:
 class TestPrepareAndDispatchSigning:
 
     @patch('webhook_service.validate_url')
-    @patch('webhook_service.post_with_retry')
+    @patch('webhook_service.safe_post')
     def test_prepare_and_dispatch_with_secret(self, mock_post, _mock_url):
         """X-MinusPod-Signature header is added when secret is set."""
         mock_resp = MagicMock()
@@ -170,7 +170,7 @@ class TestPrepareAndDispatchSigning:
         assert headers['X-MinusPod-Signature'].startswith('sha256=')
 
     @patch('webhook_service.validate_url')
-    @patch('webhook_service.post_with_retry')
+    @patch('webhook_service.safe_post')
     def test_prepare_and_dispatch_no_secret(self, mock_post, _mock_url):
         """No signature header when no secret."""
         mock_resp = MagicMock()
@@ -185,7 +185,7 @@ class TestPrepareAndDispatchSigning:
         headers = call_kwargs.kwargs.get('headers', {})
         assert 'X-MinusPod-Signature' not in headers
 
-    @patch('webhook_service.post_with_retry')
+    @patch('webhook_service.safe_post')
     def test_prepare_and_dispatch_ssrf_blocked(self, mock_post):
         """SSRF check at dispatch time blocks private IPs."""
         from utils.url import SSRFError
@@ -204,7 +204,7 @@ class TestPrepareAndDispatchSigning:
 class TestPrepareAndDispatchPayload:
 
     @patch('webhook_service.validate_url')
-    @patch('webhook_service.post_with_retry')
+    @patch('webhook_service.safe_post')
     def test_prepare_and_dispatch_with_template(self, mock_post, _mock_url):
         """Renders template and dispatches."""
         mock_resp = MagicMock()
@@ -223,7 +223,7 @@ class TestPrepareAndDispatchPayload:
         assert body == b'hello Episode Processed'
 
     @patch('webhook_service.validate_url')
-    @patch('webhook_service.post_with_retry')
+    @patch('webhook_service.safe_post')
     def test_prepare_and_dispatch_default_payload(self, mock_post, _mock_url):
         """Uses json.dumps of context when no template."""
         mock_resp = MagicMock()
@@ -241,7 +241,7 @@ class TestPrepareAndDispatchPayload:
         assert parsed['data'] == 123
 
     @patch('webhook_service.validate_url')
-    @patch('webhook_service.post_with_retry')
+    @patch('webhook_service.safe_post')
     def test_prepare_and_dispatch_test_flag_default(self, mock_post, _mock_url):
         """test: true is in payload for default (no template) path."""
         mock_resp = MagicMock()
@@ -257,7 +257,7 @@ class TestPrepareAndDispatchPayload:
         assert parsed['test'] is True
 
     @patch('webhook_service.validate_url')
-    @patch('webhook_service.post_with_retry')
+    @patch('webhook_service.safe_post')
     def test_prepare_and_dispatch_test_flag_template(self, mock_post, _mock_url):
         """test: true is available in context for the template path too."""
         mock_resp = MagicMock()

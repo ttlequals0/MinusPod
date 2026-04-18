@@ -6,16 +6,14 @@ import re
 import time
 from datetime import datetime, timezone
 from typing import Optional
-from flask import Blueprint, jsonify, request, Response, session
+from flask import Blueprint, abort, jsonify, request, Response, session
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from functools import wraps
-from werkzeug.security import generate_password_hash, check_password_hash
 
 from config import normalize_model_key
 from utils.time import parse_timestamp
 from utils.text import extract_text_in_range
-from utils.url import validate_url, SSRFError
 from sponsor_service import SponsorService
 from cancel import cancel_processing
 
@@ -29,7 +27,9 @@ def _init_server_start_time():
     Always writes the current time on module load (server start).
     This ensures uptime resets on deploy/container restart even when
     the status file persists. Multiple workers may race to write,
-    but the difference is negligible (milliseconds).
+    but the difference is negligible (milliseconds). An exception
+    writing to the shared file is non-fatal (uptime just stays
+    worker-local) but is logged so operators see the regression.
     """
     start_time = time.time()
     try:
@@ -37,19 +37,20 @@ def _init_server_start_time():
         svc = StatusService()
         svc.set_server_start_time(start_time)
     except Exception:
-        pass
+        logger.warning("Failed to record server start time in shared status file", exc_info=True)
     return start_time
 
 _start_time = _init_server_start_time()
 
 api = Blueprint('api', __name__, url_prefix='/api/v1')
 
-# Rate limiter - will be initialized when blueprint is registered with app
-# Default limits: 200 requests per minute, 1000 per hour
+# memory:// storage is per-worker; with workers=2 the effective limit is
+# 2x declared. Set RATE_LIMIT_STORAGE_URI=redis://<host>:6379 to share
+# counters across workers and get exact declared limits.
 limiter = Limiter(
     key_func=get_remote_address,
     default_limits=["200 per minute", "1000 per hour"],
-    storage_uri="memory://",
+    storage_uri=os.environ.get('RATE_LIMIT_STORAGE_URI', 'memory://'),
 )
 
 
@@ -59,53 +60,62 @@ def init_limiter(app):
     logger.info("Rate limiter initialized: 200/min, 1000/hr default limits")
 
 
-# Paths that don't require authentication
-AUTH_EXEMPT_PATHS = {
-    '/api/v1/health',
-    '/api/v1/auth/status',
-    '/api/v1/auth/login',
-    '/api/v1/auth/logout',
-}
+# Paths that don't require authentication. Every entry is an exact match;
+# no prefixes or substring contains. A prefix like "/api/v1/auth/" is a
+# footgun: any future endpoint added under it (e.g. /auth/setup-2fa)
+# would be silently unauthenticated. Keeping this list closed helps
+# reviewers see the full public surface at a glance.
+AUTH_EXEMPT_PATHS = frozenset({
+    '/api/v1/health',        # readiness probe
+    '/api/v1/health/live',   # liveness probe
+    '/api/v1/auth/status',   # used by the UI to decide whether to show login
+    '/api/v1/auth/login',    # initial login
+    '/api/v1/auth/logout',   # terminate session
+    # First-time setup + self-service rekey. The handler body-verifies
+    # `currentPassword` when one is already set, so an unauthenticated
+    # caller with no prior password can bootstrap, while an existing
+    # password requires possession of the current one. Do NOT add other
+    # /api/v1/auth/* endpoints here -- the blueprint-prefix version of
+    # this list was removed specifically because it was a footgun for
+    # future auth endpoints.
+    '/api/v1/auth/password',
+    # SSE: EventSource cannot surface an HTTP 401 to the JavaScript
+    # handler -- the browser silently reconnect-loops against the
+    # closed response. The generator in status.py snapshots auth at
+    # connect time and emits a single `event: auth-failed` SSE message,
+    # which GlobalStatusBar.tsx listens for and redirects to /ui/login.
+    # Exempt here so the generator runs at all; DO NOT generalise this
+    # to other endpoints.
+    '/api/v1/status/stream',
+})
 
-# Path prefixes that don't require authentication
-AUTH_EXEMPT_PREFIXES = (
-    '/api/v1/auth/',
-    '/api/v1/status/stream',  # SSE stream - EventSource can't handle 401 gracefully
+# Strict pattern exemption for podcast-app cross-origin artwork GETs.
+# <img src> can't bounce through an auth dance on 401, so this one GET is
+# public. The regex mirrors the strict slug shape (is_valid_slug); bad
+# slugs fall through to the authenticated path and 401.
+PODCAST_APP_EXEMPT_PATTERNS = (
+    re.compile(r'^/api/v1/feeds/[a-z0-9][a-z0-9-]{0,63}/artwork$'),
 )
 
 
 @api.before_request
 def check_auth():
-    """Check authentication before each request.
+    """Check authentication before each /api/v1/* request.
 
-    Exempt paths:
-    - /health - health check endpoint
-    - /auth/* - authentication endpoints
-    - /feeds/<slug>/rss - RSS feed endpoints (for podcast apps)
-    - /feeds/<slug>/episodes/<id>/audio - audio files (for podcast apps)
+    Exemptions are all exact-match or strictly regex-matched. Public
+    podcast-feed serving (/<slug>, /episodes/<slug>/<id>.mp3, .vtt,
+    chapters.json) is at the app level, not under this blueprint, and
+    doesn't reach this function.
     """
     path = request.path
 
-    # Check exact path exemptions
     if path in AUTH_EXEMPT_PATHS:
         return None
 
-    # Check prefix exemptions
-    for prefix in AUTH_EXEMPT_PREFIXES:
-        if path.startswith(prefix):
-            return None
-
-    # Allow RSS feeds without auth (for podcast apps)
-    if path.endswith('/rss'):
-        return None
-
-    # Allow audio files without auth (for podcast apps)
-    if '/audio' in path and path.startswith('/api/v1/feeds/'):
-        return None
-
-    # Allow artwork without auth (img tags don't redirect on 401)
-    if '/artwork' in path and path.startswith('/api/v1/feeds/'):
-        return None
+    if request.method == 'GET':
+        for pattern in PODCAST_APP_EXEMPT_PATTERNS:
+            if pattern.match(path):
+                return None
 
     # Check if password is set
     db = get_database()
@@ -116,6 +126,16 @@ def check_auth():
     # Check session
     if not session.get('authenticated', False):
         return error_response('Authentication required', 401)
+
+    # Double-submit CSRF check for mutating methods. SameSite=Strict on
+    # the session cookie is the primary defense; the token header is a
+    # belt-and-suspenders layer for same-site edge cases (subdomain
+    # takeover, CNAME trust, etc.).
+    from api.csrf import validate as csrf_validate
+    csrf_err = csrf_validate(request)
+    if csrf_err:
+        logger.warning("CSRF check failed path=%s method=%s ip=%s", path, request.method, request.remote_addr)
+        return error_response(csrf_err, 403)
 
     return None
 
@@ -130,6 +150,30 @@ def get_database():
     """Get database instance."""
     from database import Database
     return Database()
+
+
+@api.url_value_preprocessor
+def _guard_slug_param(_endpoint, values):
+    """Reject dangerous slugs on every /api/v1/* route that takes one.
+
+    Reads use :func:`is_dangerous_slug` (accepts legacy uppercase /
+    underscore subscription URLs while still blocking traversal).
+    Writes use :func:`is_valid_slug` (strict canonical regex) so a
+    typo'd slug fails at 400 instead of making it to storage. Public
+    ``/<slug>`` RSS and ``/episodes/<slug>/...`` routes are registered
+    at the app level and handled by the storage-layer slug guard instead.
+    """
+    if not values or 'slug' not in values:
+        return
+    from utils.validation import is_valid_slug, is_dangerous_slug
+    slug = values['slug']
+    method = request.method
+    if method in ('GET', 'HEAD', 'OPTIONS'):
+        if is_dangerous_slug(slug):
+            abort(404, description='invalid slug')
+    else:
+        if not is_valid_slug(slug):
+            abort(400, description='invalid slug')
 
 
 def log_request(f):

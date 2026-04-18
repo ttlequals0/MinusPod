@@ -19,7 +19,10 @@ from typing import Optional, Dict, List
 
 # Status file location - shared across all workers
 STATUS_FILE = os.path.join(
-    os.environ.get('DATA_DIR', '/app/data'),
+    os.environ.get('DATA_DIR')
+    or os.environ.get('DATA_PATH')
+    or os.environ.get('MINUSPOD_DATA_DIR')
+    or '/app/data',
     'processing_status.json'
 )
 

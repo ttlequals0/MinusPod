@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# Reject commits that stage content looking like a session cookie,
+# CSRF token, or third-party API secret. Scans STAGED content only --
+# the working tree is irrelevant, so local debug files that stay
+# unstaged cannot trigger this.
+#
+# Activate once per clone with:
+#     git config core.hooksPath .githooks
+set -euo pipefail
+
+# Each pattern: regex | short label (shown on hit)
+PATTERNS=(
+    'session=eyJ[A-Za-z0-9_-]{20,}|Flask session cookie (signed, contains auth claim)'
+    'minuspod_csrf=[A-Za-z0-9_-]{30,}|MinusPod CSRF token'
+    'sk-ant-[A-Za-z0-9]{16,}|Anthropic API key'
+    'sk-proj-[A-Za-z0-9]{16,}|OpenAI project key'
+    'xoxb-[A-Za-z0-9-]{16,}|Slack bot token'
+    'AIza[0-9A-Za-z_-]{30,}|Google API key'
+    'ghp_[A-Za-z0-9]{30,}|GitHub personal access token'
+    'AKIA[0-9A-Z]{16}|AWS access key ID'
+    'Bearer [A-Za-z0-9._~+/=-]{32,}|HTTP Authorization header with long bearer'
+)
+
+# Binary files and large blobs: skip. Everything else: diff the staged
+# version (":" prefix = index) and grep.
+hit=0
+while IFS= read -r path; do
+    [ -z "$path" ] && continue
+    # -d = detect binary via numstat; skip if --numstat shows - -
+    if git diff --cached --numstat -- "$path" | awk '$1 == "-" && $2 == "-"' | grep -q .; then
+        continue
+    fi
+
+    staged=$(git show ":$path" 2>/dev/null || true)
+    [ -z "$staged" ] && continue
+
+    for entry in "${PATTERNS[@]}"; do
+        regex="${entry%|*}"
+        label="${entry##*|}"
+        if printf '%s' "$staged" | grep -Eq -- "$regex"; then
+            echo "ERROR: $path appears to contain a $label"
+            echo "       pattern: /$regex/"
+            echo "       first match:"
+            printf '%s' "$staged" | grep -En -- "$regex" | head -1 | sed 's/^/         /'
+            hit=1
+        fi
+    done
+done < <(git diff --cached --name-only --diff-filter=ACM)
+
+if [ $hit -ne 0 ]; then
+    cat >&2 <<EOF
+
+Commit blocked. One or more staged files contain text that looks like
+a credential. Options:
+
+  1. If it's a real secret: unstage the file, scrub the value, rotate
+     the credential upstream, then re-commit.
+  2. If it's a false positive (e.g. a doc example or a detection
+     pattern itself), bypass this hook with:
+         git commit --no-verify
+     -- but first double-check that the match really is benign.
+
+EOF
+    exit 1
+fi

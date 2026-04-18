@@ -13,9 +13,20 @@ from flask import Response, send_file, abort, send_from_directory, request
 from werkzeug.exceptions import NotFound
 from werkzeug.utils import safe_join
 
-from config import APP_USER_AGENT, JIT_RETRY_COOLDOWN_SECONDS, MAX_EPISODE_RETRIES
+from config import (
+    APP_USER_AGENT,
+    HTTP_MAX_REDIRECTS_FEED,
+    HTTP_TIMEOUT_API,
+    JIT_RETRY_COOLDOWN_SECONDS,
+    MAX_EPISODE_RETRIES,
+)
+from utils.safe_http import URLTrust, safe_head
 from utils.time import parse_iso_datetime
-from utils.url import validate_url, SSRFError
+from utils.url import SSRFError
+from utils.validation import (
+    validate_slug_param,
+    validate_slug_and_episode_params,
+)
 
 feed_logger = logging.getLogger('podcast.feed')
 refresh_logger = logging.getLogger('podcast.refresh')
@@ -98,25 +109,36 @@ def _lookup_episode(slug, episode_id, feed_map, episode_row=None):
 
 
 def _head_upstream(slug, episode_id, original_url):
-    """Proxy a HEAD request to the upstream audio URL."""
+    """Proxy a HEAD request to the upstream audio URL.
+
+    Audio enclosures are FEED_CONTENT: private addresses are refused
+    both on the initial URL and on every redirect hop.
+    """
     try:
-        safe_url = validate_url(original_url)
+        resp = safe_head(
+            original_url,
+            trust=URLTrust.FEED_CONTENT,
+            timeout=HTTP_TIMEOUT_API,
+            # Real-world podcast CDNs (Megaphone, Art19, Acast, simplecast)
+            # chain 6-8 redirects per asset request.
+            max_redirects=HTTP_MAX_REDIRECTS_FEED,
+            headers={'User-Agent': APP_USER_AGENT},
+        )
     except SSRFError as e:
         feed_logger.warning(f"[{slug}:{episode_id}] SSRF blocked in HEAD upstream: {e}")
         abort(502)
-    try:
-        resp = requests.head(safe_url, timeout=10, allow_redirects=True,
-                             headers={'User-Agent': APP_USER_AGENT})
-        if resp.status_code == 200:
-            proxy_resp = Response('', status=200)
-            for h in ('Content-Type', 'Accept-Ranges'):
-                if h in resp.headers:
-                    proxy_resp.headers[h] = resp.headers[h]
-            if 'Content-Length' in resp.headers:
-                proxy_resp.content_length = int(resp.headers['Content-Length'])
-            return proxy_resp
     except requests.exceptions.RequestException as e:
         feed_logger.warning(f"[{slug}:{episode_id}] HEAD upstream failed: {e}")
+        abort(503)
+
+    if resp.status_code == 200:
+        proxy_resp = Response('', status=200)
+        for h in ('Content-Type', 'Accept-Ranges'):
+            if h in resp.headers:
+                proxy_resp.headers[h] = resp.headers[h]
+        if 'Content-Length' in resp.headers:
+            proxy_resp.content_length = int(resp.headers['Content-Length'])
+        return proxy_resp
     abort(503)
 
 
@@ -132,72 +154,37 @@ def register_routes(app):
     @app.route('/ui/')
     @app.route('/ui/<path:path>')
     def serve_ui(path=''):
-        """Serve React UI static files."""
+        """Serve React UI static files.
+
+        Cache headers are tuned per file class: Vite-fingerprinted
+        ``assets/*`` are treated as immutable (1 year); ``index.html``
+        must revalidate on every load so the next deploy is picked up;
+        everything else gets a modest 1 hour cap.
+        """
         if not STATIC_DIR.exists():
             return "UI not built. Run 'npm run build' in frontend directory.", 404
 
         # safe_join returns None on traversal attempts (e.g. '../secret').
         safe_path = safe_join(str(STATIC_DIR), path) if path else None
 
-        # For assets directory, return 404 if file doesn't exist (don't serve
-        # index.html) - prevents MIME type errors when JS/CSS are not found.
         if path and path.startswith('assets/'):
             if not safe_path or not os.path.isfile(safe_path):
                 return "Asset not found", 404
+            response = send_from_directory(STATIC_DIR, path)
+            response.headers['Cache-Control'] = 'public, max-age=31536000, immutable'
+            return response
 
-        # Serve index.html for SPA routes (non-asset paths)
         if not path or not safe_path or not os.path.isfile(safe_path):
-            return send_from_directory(STATIC_DIR, 'index.html')
+            response = send_from_directory(STATIC_DIR, 'index.html')
+            response.headers['Cache-Control'] = 'no-cache, must-revalidate'
+            return response
 
-        return send_from_directory(STATIC_DIR, path)
+        response = send_from_directory(STATIC_DIR, path)
+        response.headers['Cache-Control'] = 'public, max-age=3600'
+        return response
 
-    # ========== API Documentation ==========
-
-    @app.route('/docs')
-    @app.route('/docs/')
-    def swagger_ui():
-        """Serve Swagger UI for API documentation."""
-        return '''<!DOCTYPE html>
-<html>
-<head>
-    <title>MinusPod API</title>
-    <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
-</head>
-<body>
-    <div id="swagger-ui"></div>
-    <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
-    <script>
-        SwaggerUIBundle({
-            url: "/openapi.yaml",
-            dom_id: '#swagger-ui',
-            presets: [SwaggerUIBundle.presets.apis, SwaggerUIBundle.SwaggerUIStandalonePreset],
-            layout: "BaseLayout"
-        });
-    </script>
-</body>
-</html>'''
-
-    @app.route('/openapi.yaml')
-    def serve_openapi():
-        """Serve OpenAPI specification with dynamic version."""
-        openapi_path = ROOT_DIR / 'openapi.yaml'
-        if openapi_path.exists():
-            try:
-                from version import __version__
-                import re
-                content = openapi_path.read_text()
-                # Replace version line dynamically
-                content = re.sub(
-                    r'^(\s*version:\s*).*$',
-                    rf'\g<1>{__version__}',
-                    content,
-                    count=1,
-                    flags=re.MULTILINE
-                )
-                return Response(content, mimetype='application/x-yaml')
-            except Exception:
-                return send_file(openapi_path, mimetype='application/x-yaml')
-        abort(404)
+    # /api/v1/docs and /api/v1/openapi.yaml are defined in
+    # src/api/system.py so the blueprint's check_auth gate applies.
 
     # ========== Browser Icon Routes ==========
     # Short-circuit favicon/apple-touch-icon requests so they don't fall through
@@ -219,24 +206,25 @@ def register_routes(app):
     # ========== RSS Feed Routes ==========
 
     @app.route('/<slug>')
+    @validate_slug_param
     @log_request_detailed
     def serve_rss(slug):
         """Serve modified RSS feed."""
         # Import here to use the module-level get_feed_map (patchable)
         import main_app.routes as _routes
-        from main_app.feeds import refresh_all_feeds, refresh_rss_feed
+        from main_app.feeds import refresh_rss_feed
         db, storage, _, _ = _get_components()
 
         feed_map = _routes.get_feed_map()
 
         if slug not in feed_map:
-            refresh_logger.info(f"[{slug}] Not found, refreshing feeds")
-            refresh_all_feeds()
-            feed_map = _routes.get_feed_map()
-
-            if slug not in feed_map:
-                feed_logger.warning(f"[{slug}] Feed not found")
-                abort(404)
+            # Do NOT trigger a full refresh on every unknown slug. External
+            # bots probe random slugs (`/foo`, `/.hidden`, `/etc`, ...) and
+            # each probe would otherwise fire an outbound request per
+            # subscribed feed. The scheduled refresher keeps feed_map
+            # current within `RSS_REFRESH_INTERVAL`; a bogus slug just 404s.
+            feed_logger.warning(f"[{slug}] Feed not found (no refresh-on-miss)")
+            abort(404)
 
         # Check if RSS cache exists or is stale
         cached_rss = storage.get_rss(slug)
@@ -271,30 +259,19 @@ def register_routes(app):
             abort(503)
 
     @app.route('/episodes/<slug>/<episode_id>.mp3')
+    @validate_slug_and_episode_params
     @log_request_detailed
     def serve_episode(slug, episode_id):
         """Serve processed episode audio (JIT processing)."""
-        # Use module-level references so tests can patch them
         import main_app.routes as _routes
-        from main_app.feeds import refresh_all_feeds
         from main_app.processing import start_background_processing
         db, storage, _, status_service = _get_components()
 
         feed_map = _routes.get_feed_map()
 
         if slug not in feed_map:
-            feed_logger.info(f"[{slug}] Not found for episode {episode_id}, refreshing")
-            refresh_all_feeds()
-            feed_map = _routes.get_feed_map()
-
-            if slug not in feed_map:
-                feed_logger.warning(f"[{slug}] Feed not found for episode {episode_id}")
-                abort(404)
-
-        # Validate episode ID
-        if not all(c.isalnum() or c in '-_' for c in episode_id):
-            feed_logger.warning(f"[{slug}] Invalid episode ID: {episode_id}")
-            abort(400)
+            feed_logger.warning(f"[{slug}] Feed not found for episode {episode_id} (no refresh-on-miss)")
+            abort(404)
 
         # Check episode status
         episode = db.get_episode(slug, episode_id)
@@ -415,14 +392,11 @@ def register_routes(app):
             )
 
     @app.route('/episodes/<slug>/<episode_id>.vtt')
+    @validate_slug_and_episode_params
     @log_request_detailed
     def serve_transcript_vtt(slug, episode_id):
         """Serve VTT transcript for episode (Podcasting 2.0)."""
         _, storage, _, _ = _get_components()
-        # Validate episode ID
-        if not all(c.isalnum() or c in '-_' for c in episode_id):
-            feed_logger.warning(f"[{slug}] Invalid episode ID for VTT: {episode_id}")
-            abort(400)
 
         vtt_content = storage.get_transcript_vtt(slug, episode_id)
         if not vtt_content:
@@ -430,19 +404,20 @@ def register_routes(app):
             abort(404)
 
         feed_logger.info(f"[{slug}:{episode_id}] Serving VTT transcript")
+        # Podcasting 2.0 clients fetch transcripts cross-origin from a
+        # different podcast-player host; Access-Control-Allow-Origin: *
+        # is intentional here and matches the spec-standard behavior.
+        # No credentials are involved; the endpoint carries no session.
         response = Response(vtt_content, mimetype='text/vtt')
         response.headers['Access-Control-Allow-Origin'] = '*'
         return response
 
     @app.route('/episodes/<slug>/<episode_id>/chapters.json')
+    @validate_slug_and_episode_params
     @log_request_detailed
     def serve_chapters_json(slug, episode_id):
         """Serve chapters JSON for episode (Podcasting 2.0)."""
         _, storage, _, _ = _get_components()
-        # Validate episode ID
-        if not all(c.isalnum() or c in '-_' for c in episode_id):
-            feed_logger.warning(f"[{slug}] Invalid episode ID for chapters: {episode_id}")
-            abort(400)
 
         chapters = storage.get_chapters_json(slug, episode_id)
         if not chapters:
@@ -450,6 +425,9 @@ def register_routes(app):
             abort(404)
 
         feed_logger.info(f"[{slug}:{episode_id}] Serving chapters JSON")
+        # Podcasting 2.0 chapters.json is fetched cross-origin by
+        # podcast players; the wildcard Access-Control-Allow-Origin
+        # is intentional. No credentials travel with the request.
         response = Response(json.dumps(chapters), mimetype='application/json+chapters')
         response.headers['Access-Control-Allow-Origin'] = '*'
         return response

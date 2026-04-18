@@ -1109,3 +1109,77 @@ class TestBatchMethods:
         temp_db.batch_clear_episode_details(slug, [])
         temp_db.batch_reset_episodes_to_discovered(slug, [])
         assert temp_db.batch_set_episodes_pending(slug, []) == 0
+
+
+class TestCloseQueueRowsForEpisode:
+    """Guards the double-trigger bug where a manual reprocess finished but
+    left a pending auto_process_queue row that the background loop then
+    re-fired seconds later."""
+
+    def _podcast_id(self, db, slug):
+        return db.get_podcast_by_slug(slug)['id']
+
+    def _insert_queue(self, db, podcast_id, episode_id, status):
+        conn = db.get_connection()
+        conn.execute(
+            """INSERT INTO auto_process_queue
+               (podcast_id, episode_id, original_url, title, status)
+               VALUES (?, ?, ?, ?, ?)""",
+            (podcast_id, episode_id, f'https://example.com/{episode_id}.mp3', 'T', status)
+        )
+        conn.commit()
+
+    def _queue_status(self, db, podcast_id, episode_id):
+        conn = db.get_connection()
+        row = conn.execute(
+            "SELECT status FROM auto_process_queue WHERE podcast_id=? AND episode_id=?",
+            (podcast_id, episode_id)
+        ).fetchone()
+        return row['status'] if row else None
+
+    def test_closes_pending(self, temp_db):
+        temp_db.create_podcast('pod', 'https://example.com/feed.xml', 'pod')
+        pid = self._podcast_id(temp_db, 'pod')
+        self._insert_queue(temp_db, pid, 'ep1', 'pending')
+
+        touched = temp_db.close_queue_rows_for_episode('pod', 'ep1')
+
+        assert touched == 1
+        assert self._queue_status(temp_db, pid, 'ep1') == 'completed'
+
+    def test_closes_processing_and_failed(self, temp_db):
+        temp_db.create_podcast('pod', 'https://example.com/feed.xml', 'pod')
+        pid = self._podcast_id(temp_db, 'pod')
+        self._insert_queue(temp_db, pid, 'ep1', 'processing')
+        self._insert_queue(temp_db, pid, 'ep2', 'failed')
+
+        assert temp_db.close_queue_rows_for_episode('pod', 'ep1') == 1
+        assert temp_db.close_queue_rows_for_episode('pod', 'ep2') == 1
+        assert self._queue_status(temp_db, pid, 'ep1') == 'completed'
+        assert self._queue_status(temp_db, pid, 'ep2') == 'completed'
+
+    def test_noop_when_already_completed(self, temp_db):
+        temp_db.create_podcast('pod', 'https://example.com/feed.xml', 'pod')
+        pid = self._podcast_id(temp_db, 'pod')
+        self._insert_queue(temp_db, pid, 'ep1', 'completed')
+
+        assert temp_db.close_queue_rows_for_episode('pod', 'ep1') == 0
+        assert self._queue_status(temp_db, pid, 'ep1') == 'completed'
+
+    def test_noop_when_no_queue_row(self, temp_db):
+        temp_db.create_podcast('pod', 'https://example.com/feed.xml', 'pod')
+        assert temp_db.close_queue_rows_for_episode('pod', 'ep-missing') == 0
+
+    def test_scoped_to_slug(self, temp_db):
+        temp_db.create_podcast('pod-a', 'https://example.com/a.xml', 'pod-a')
+        temp_db.create_podcast('pod-b', 'https://example.com/b.xml', 'pod-b')
+        pid_a = self._podcast_id(temp_db, 'pod-a')
+        pid_b = self._podcast_id(temp_db, 'pod-b')
+        self._insert_queue(temp_db, pid_a, 'shared-id', 'pending')
+        self._insert_queue(temp_db, pid_b, 'shared-id', 'pending')
+
+        touched = temp_db.close_queue_rows_for_episode('pod-a', 'shared-id')
+
+        assert touched == 1
+        assert self._queue_status(temp_db, pid_a, 'shared-id') == 'completed'
+        assert self._queue_status(temp_db, pid_b, 'shared-id') == 'pending'

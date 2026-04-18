@@ -131,6 +131,19 @@ function GlobalStatusBar() {
         setReconnectAttempt(0); // Reset backoff on successful connection
       };
 
+      // EventSource cannot see HTTP 401; the backend emits an
+      // application-level auth-failed event when the session has lapsed,
+      // so we listen for it and redirect to /login. Without this the
+      // bar would silently reconnect-loop against a route that now
+      // requires auth.
+      eventSource.addEventListener('auth-failed', () => {
+        eventSource.close();
+        if (!window.location.pathname.includes('/login')) {
+          sessionStorage.setItem('loginRedirect', window.location.pathname);
+          window.location.href = '/ui/login';
+        }
+      });
+
       eventSource.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data) as StatusData;

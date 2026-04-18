@@ -323,7 +323,7 @@ function Settings() {
           </p>
         </div>
         <a
-          href="/docs"
+          href="/api/v1/docs"
           target="_blank"
           rel="noopener noreferrer"
           className="text-sm text-primary hover:underline flex items-center gap-1 whitespace-nowrap flex-shrink-0"
@@ -489,6 +489,7 @@ function Settings() {
         logout={logout}
         refreshStatus={refreshStatus}
         cryptoReady={providersState?.cryptoReady ?? false}
+        plaintextSecretsCount={status?.security?.plaintextSecretsCount ?? 0}
       />
 
       {/* Error display */}

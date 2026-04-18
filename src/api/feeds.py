@@ -53,17 +53,18 @@ def list_feeds():
 
 
 @api.route('/feeds', methods=['POST'])
-@limiter.limit("10 per minute")
+@limiter.limit("3 per minute")
 @log_request
 def add_feed():
-    """Add a new podcast feed."""
+    """Add a new podcast feed.
+
+    OPML bulk-import lives on its own endpoint with its own limiter, so the
+    feeds POST limit is tuned for interactive use.
+    """
     data = request.get_json()
 
-    # Debug logging for request data
-    logger.debug(f"Add feed request data: {data}")
-
     if not data or 'sourceUrl' not in data:
-        logger.warning(f"Missing sourceUrl in request. Data received: {data}")
+        logger.warning("Missing sourceUrl in POST /feeds request")
         return error_response('sourceUrl is required', 400)
 
     source_url = data['sourceUrl'].strip()
@@ -262,7 +263,7 @@ def import_opml():
             imported.append({'url': source_url, 'slug': slug})
             logger.info(f"OPML import: Created feed {slug}")
         except Exception as e:
-            failed.append({'url': source_url, 'error': str(e)})
+            failed.append({'url': source_url, 'error': 'import failed'})
             logger.error(f"OPML import failed for {source_url}: {e}")
 
     # Invalidate feed cache
@@ -621,4 +622,10 @@ def get_artwork(slug):
         return error_response('Artwork not found', 404)
 
     image_data, content_type = artwork
-    return Response(image_data, mimetype=content_type)
+    # content_type was validated by magic-number check on write; tell the
+    # browser not to sniff it and deny any script loading from this
+    # response even if a downstream intermediary rewrites the type.
+    response = Response(image_data, mimetype=content_type)
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['Content-Security-Policy'] = "default-src 'none'"
+    return response

@@ -452,31 +452,44 @@ class StatsMixin:
 
     def export_processing_history(self, status_filter: str = None,
                                    podcast_slug: str = None) -> List[Dict]:
-        """Export all processing history (no pagination) for export."""
-        conn = self.get_connection()
+        """Export all processing history (no pagination) for export.
 
-        # Build WHERE clause
+        Kept as a materialised list for callers that need random access;
+        for large-table exports use :meth:`iter_processing_history_rows`
+        instead, which yields ``sqlite3.Row`` objects lazily.
+        """
+        return list(self.iter_processing_history_rows(status_filter, podcast_slug))
+
+    def iter_processing_history_rows(self, status_filter: str = None,
+                                     podcast_slug: str = None):
+        """Generator that yields per-row dicts without materialising the
+        whole result set in memory.
+
+        Intended for streaming export endpoints; the underlying sqlite3
+        cursor is iterated lazily so the peak memory footprint stays near
+        one row's worth regardless of table size.
+        """
+        conn = self.get_connection()
         where_clauses = []
         params = []
-
         if status_filter and status_filter in ('completed', 'failed'):
             where_clauses.append("status = ?")
             params.append(status_filter)
-
         if podcast_slug:
             where_clauses.append("podcast_slug = ?")
             params.append(podcast_slug)
-
         where_sql = " AND ".join(where_clauses) if where_clauses else "1=1"
-
         cursor = conn.execute(
             f"""SELECT * FROM processing_history
                 WHERE {where_sql}
                 ORDER BY processed_at DESC""",
             params
         )
-
-        return [dict(row) for row in cursor.fetchall()]
+        try:
+            for row in cursor:
+                yield dict(row)
+        finally:
+            cursor.close()
 
     def get_latest_completed_processing(self) -> Optional[Dict]:
         """Get the most recent completed processing history entry with episode durations.

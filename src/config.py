@@ -154,7 +154,10 @@ POST_ROLL_TRIM_THRESHOLD = 30.0      # Threshold for trimming post-roll content
 FFPROBE_TIMEOUT = 30                 # ffprobe duration/metadata queries
 FFMPEG_SHORT_TIMEOUT = 60            # Short ffmpeg operations
 FFMPEG_LONG_TIMEOUT = 300            # Long ffmpeg operations (processing)
+FFMPEG_CHUNK_TIMEOUT = 120           # Audio chunk extract (seek + transcode)
 FPCALC_TIMEOUT = 60                  # Audio fingerprint generation
+FPCALC_TIMEOUT_FULL = 120            # Fingerprint the entire episode
+SUBPROCESS_VERSION_PROBE = 5         # ffmpeg -version, fpcalc -version
 
 # ============================================================
 # LLM Timeouts (seconds)
@@ -164,6 +167,29 @@ LLM_TIMEOUT_LOCAL = 600.0            # Ollama / local models (10 min)
 LLM_RETRY_MAX_RETRIES = 3            # Default retries for cloud APIs
 LLM_RETRY_MAX_RETRIES_LOCAL = 2      # Fewer retries for local (each is slow)
 AD_DETECTION_MAX_TOKENS = int(os.environ.get('AD_DETECTION_MAX_TOKENS', '2000'))
+
+# ============================================================
+# Outbound HTTP
+# ============================================================
+# Podcast CDN chains are deep -- Megaphone / Art19 / Acast / simplecast
+# routinely chain 6-8 redirects per asset request (edge -> regional ->
+# storage), and analytics bouncers add more. 5 was too tight and caused
+# false "CDN not ready" errors for legitimate feeds. 3 stays on outbound
+# APIs (LLM / PodcastIndex / webhook) where long chains are a misconfig
+# signal rather than expected behaviour.
+HTTP_MAX_REDIRECTS_FEED = 10         # RSS, audio, artwork, VTT, chapters
+HTTP_MAX_REDIRECTS_API = 3           # LLM / PodcastIndex / webhook / pricing
+
+# HTTP request timeouts (seconds). Tiered by how much the call is
+# expected to do, so a slow network doesn't fail-fast a legitimate
+# download nor let a hung API call pin a worker forever.
+HTTP_TIMEOUT_PROBE = 5.0              # Short outbound: /version probes,
+                                      # provider auth pings, webhook delivery
+HTTP_TIMEOUT_API = 10.0               # Standard JSON API (LLM verify, PodcastIndex search)
+HTTP_TIMEOUT_EXTERNAL = 15.0          # Third-party scraping (pricing sources)
+HTTP_TIMEOUT_FETCH = 30.0             # RSS fetch, artwork / audio download
+HTTP_TIMEOUT_WHISPER = 600            # Remote Whisper transcription upload
+                                      # (multi-minute audio over slow network)
 
 # ============================================================
 # Chunked Transcription (OOM prevention for long episodes)

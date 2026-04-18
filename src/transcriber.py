@@ -12,8 +12,10 @@ from pathlib import Path
 from utils.audio import get_audio_duration
 from utils.time import format_vtt_timestamp
 from utils.gpu import clear_gpu_memory, get_available_memory_gb, get_gpu_memory_info
-from utils.http import post_with_retry, safe_url_for_log
-from utils.url import validate_url, SSRFError
+from utils.url import SSRFError
+from utils.http import safe_url_for_log
+from utils.safe_http import URLTrust, safe_get, safe_post
+from utils.subprocess_registry import tracked_run
 from config import (
     API_CHUNK_DURATION_SECONDS,
     WHISPER_BACKEND_LOCAL,
@@ -27,6 +29,11 @@ from config import (
     WHISPER_DEFAULT_PROFILE,
     BROWSER_USER_AGENT, APP_USER_AGENT,
     FFMPEG_LONG_TIMEOUT,
+    FFMPEG_SHORT_TIMEOUT,
+    FFMPEG_CHUNK_TIMEOUT,
+    HTTP_MAX_REDIRECTS_API,
+    HTTP_MAX_REDIRECTS_FEED,
+    HTTP_TIMEOUT_WHISPER,
 )
 
 # Suppress ONNX Runtime warnings before importing faster_whisper
@@ -171,7 +178,7 @@ def extract_audio_chunk(audio_path: str, start_time: float, end_time: float) -> 
         result = subprocess.run(
             cmd,
             capture_output=True,
-            timeout=120  # 2 minutes should be enough for any chunk
+            timeout=FFMPEG_CHUNK_TIMEOUT
         )
 
         if result.returncode == 0 and os.path.exists(output_path):
@@ -567,9 +574,9 @@ class Transcriber:
                 fd, flac_path = tempfile.mkstemp(suffix='.flac')
                 os.close(fd)
                 try:
-                    ffmpeg_result = subprocess.run(
+                    ffmpeg_result = tracked_run(
                         ['ffmpeg', '-y', '-i', transcribe_path, '-c:a', 'flac', flac_path],
-                        capture_output=True, timeout=60,
+                        capture_output=True, timeout=FFMPEG_SHORT_TIMEOUT,
                     )
                     if ffmpeg_result.returncode == 0 and os.path.exists(flac_path):
                         transcribe_path = flac_path
@@ -626,17 +633,43 @@ class Transcriber:
 
             logger.info("Sending audio to whisper API (size=%.1fMB)", upload_size / 1024 / 1024)
 
-            with open(transcribe_path, 'rb') as audio_file:
-                response = post_with_retry(
-                    url,
-                    headers=headers,
-                    files={'file': (os.path.basename(transcribe_path), audio_file)},
-                    data=form_data,
-                    log_prefix="Whisper API",
-                    max_retries=2,
+            # Whisper API URLs are operator-typed, so OPERATOR_CONFIGURED
+            # trust (private / loopback allowed for self-hosted whisper.cpp
+            # servers; cloud metadata and downgrades refused per-hop).
+            # safe_post does not retry; wrap in a small backoff loop so
+            # transient upstream blips do not fail a full transcription.
+            response = None
+            max_attempts = 2
+            for attempt in range(max_attempts):
+                try:
+                    with open(transcribe_path, 'rb') as audio_file:
+                        response = safe_post(
+                            url,
+                            trust=URLTrust.OPERATOR_CONFIGURED,
+                            timeout=HTTP_TIMEOUT_WHISPER,
+                            max_redirects=HTTP_MAX_REDIRECTS_API,
+                            files={'file': (os.path.basename(transcribe_path), audio_file)},
+                            data=form_data,
+                            headers=headers,
+                        )
+                except SSRFError as exc:
+                    logger.warning(f"Whisper API URL blocked: {exc}")
+                    return None
+                except requests.RequestException as exc:
+                    logger.warning(
+                        "Whisper API attempt %d/%d failed: %s",
+                        attempt + 1, max_attempts, exc,
+                    )
+                    response = None
+                    continue
+                if response.status_code < 500:
+                    break
+                logger.warning(
+                    "Whisper API attempt %d/%d returned %d",
+                    attempt + 1, max_attempts, response.status_code,
                 )
 
-            if response is None:
+            if response is None or response.status_code >= 400:
                 return None
 
             # Parse verbose_json response
@@ -834,7 +867,7 @@ class Transcriber:
             # e.g. 50MB file = 500s, 100MB = 1000s, floor at FFMPEG_LONG_TIMEOUT (300s)
             file_size_mb = os.path.getsize(input_path) / (1024 * 1024)
             preprocess_timeout = max(FFMPEG_LONG_TIMEOUT, int(file_size_mb * 10))
-            result = subprocess.run(cmd, capture_output=True, timeout=preprocess_timeout)
+            result = tracked_run(cmd, capture_output=True, timeout=preprocess_timeout)
             if result.returncode == 0:
                 logger.info(f"Audio preprocessed: {input_path} -> {output_path}")
                 success = True
@@ -872,31 +905,35 @@ class Transcriber:
         Returns:
             Tuple of (available: bool, error_message: str or None)
         """
+        from utils.safe_http import safe_head
+        headers = {'User-Agent': BROWSER_USER_AGENT}
         try:
-            validate_url(url)
+            response = safe_head(
+                url,
+                trust=URLTrust.FEED_CONTENT,
+                timeout=timeout,
+                # Megaphone / Art19 / simplecast often chain 6-8 redirects
+                # (CDN edge -> regional -> asset), and Acast adds analytics
+                # bouncers on top. Bumped to 10 so we don't false-fail
+                # CDN checks for legitimate feeds.
+                max_redirects=HTTP_MAX_REDIRECTS_FEED,
+                headers=headers,
+            )
         except SSRFError as e:
             logger.warning(f"SSRF blocked in check_audio_availability: {e}")
             return False, f"URL blocked: {e}"
-
-        try:
-            headers = {
-                'User-Agent': BROWSER_USER_AGENT,
-            }
-            response = requests.head(url, headers=headers, timeout=timeout, allow_redirects=True)
-
-            if response.status_code == 200:
-                return True, None
-            elif response.status_code in (404, 403):
-                return False, f"CDN not ready ({response.status_code})"
-            elif response.status_code >= 500:
-                return False, f"CDN server error ({response.status_code})"
-            else:
-                # Other 2xx/3xx - proceed with download
-                return True, None
         except requests.exceptions.Timeout:
             return False, "CDN timeout"
         except requests.RequestException as e:
             return False, f"CDN check failed: {e}"
+
+        if response.status_code == 200:
+            return True, None
+        if response.status_code in (404, 403):
+            return False, f"CDN not ready ({response.status_code})"
+        if response.status_code >= 500:
+            return False, f"CDN server error ({response.status_code})"
+        return True, None
 
     def download_audio(self, url: str, timeout: tuple = (10, 300)) -> Optional[str]:
         """Download audio file from URL.
@@ -906,20 +943,26 @@ class Transcriber:
             timeout: (connect_timeout, read_timeout) in seconds
         """
         try:
-            validate_url(url)
-        except SSRFError as e:
-            logger.warning(f"SSRF blocked in download_audio: {e}")
-            return None
-
-        try:
-            logger.info(f"Downloading audio from: {url}")
+            logger.info(f"Downloading audio from: {safe_url_for_log(url)}")
             headers = {
                 'User-Agent': BROWSER_USER_AGENT,
                 'Accept': '*/*',
                 'Accept-Language': 'en-US,en;q=0.9',
             }
-            response = requests.get(url, headers=headers, stream=True, timeout=timeout)
+            response = safe_get(
+                url,
+                trust=URLTrust.FEED_CONTENT,
+                timeout=timeout,
+                max_redirects=HTTP_MAX_REDIRECTS_FEED,
+                stream=True,
+                headers=headers,
+            )
             response.raise_for_status()
+        except SSRFError as e:
+            logger.warning(f"SSRF blocked in download_audio: {e}")
+            return None
+
+        try:
 
             # Check file size
             content_length = response.headers.get('Content-Length')
@@ -955,12 +998,6 @@ class Transcriber:
         Returns:
             Path to downloaded file, or None on failure
         """
-        try:
-            validate_url(url)
-        except SSRFError as e:
-            logger.warning(f"SSRF blocked in download_audio_with_resume: {e}")
-            return None
-
         # Generate consistent temp path based on URL hash
         url_hash = hashlib.md5(url.encode()).hexdigest()[:16]
         temp_path = os.path.join(tempfile.gettempdir(), f'podcast_dl_{url_hash}.mp3')
@@ -968,7 +1005,7 @@ class Transcriber:
         downloaded = 0
         if os.path.exists(temp_path):
             downloaded = os.path.getsize(temp_path)
-            logger.info(f"Resuming download from {downloaded} bytes: {url}")
+            logger.info(f"Resuming download from {downloaded} bytes: {safe_url_for_log(url)}")
 
         headers = {
             'User-Agent': f'Mozilla/5.0 (compatible; {APP_USER_AGENT})',
@@ -978,7 +1015,19 @@ class Transcriber:
             headers['Range'] = f'bytes={downloaded}-'
 
         try:
-            response = requests.get(url, headers=headers, stream=True, timeout=(10, timeout))
+            response = safe_get(
+                url,
+                trust=URLTrust.FEED_CONTENT,
+                timeout=(10, timeout),
+                max_redirects=HTTP_MAX_REDIRECTS_FEED,
+                stream=True,
+                headers=headers,
+            )
+        except SSRFError as e:
+            logger.warning(f"SSRF blocked in download_audio_with_resume: {e}")
+            return None
+
+        try:
 
             # Check if server supports range requests
             if downloaded > 0 and response.status_code == 200:

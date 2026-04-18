@@ -10,8 +10,11 @@ import requests
 from flask import request
 
 from api import api, error_response, json_response
+from config import HTTP_MAX_REDIRECTS_API, HTTP_TIMEOUT_PROBE
 from database import Database
 from secrets_crypto import CryptoUnavailableError, is_available as crypto_available, rotate as rotate_passphrase
+from utils.safe_http import URLTrust, safe_get
+from utils.secret_writes import SecretWriteRejected, set_or_clear_secret
 from utils.url import validate_base_url, SSRFError
 
 logger = logging.getLogger(__name__)
@@ -71,12 +74,12 @@ def update_provider(provider):
 
     if 'apiKey' in body:
         api_key = body['apiKey']
-        if api_key is None or api_key == '':
-            db.clear_secret(cfg['secret'])
-        elif isinstance(api_key, str):
-            db.set_secret(cfg['secret'], api_key.strip())
-        else:
+        if api_key is not None and not isinstance(api_key, str):
             return error_response('apiKey must be a string or null', 400)
+        try:
+            set_or_clear_secret(db, cfg['secret'], api_key)
+        except SecretWriteRejected:
+            return error_response('provider_crypto_unavailable', 409)
 
     if cfg['base_url'] and 'baseUrl' in body:
         url = body['baseUrl']
@@ -131,10 +134,19 @@ def rotate_master_passphrase():
     except CryptoUnavailableError:
         return error_response('provider_crypto_unavailable', 409)
     except ValueError as e:
-        # secrets_crypto.rotate raises ValueError only with static, non-sensitive
-        # messages ("current passphrase mismatch", "new passphrase required",
-        # "must differ from current"). Do not relax this contract.
-        return error_response(str(e), 400)
+        # Only pass through the known static error strings documented by
+        # secrets_crypto.rotate; anything else is logged server-side and
+        # surfaced as a generic 400 so exception messages cannot leak.
+        safe_rotation_errors = {
+            "current passphrase mismatch",
+            "new passphrase required",
+            "must differ from current",
+        }
+        msg = str(e)
+        if msg in safe_rotation_errors:
+            return error_response(msg, 400)
+        logger.warning("Unexpected ValueError from rotate_passphrase: %s", e)
+        return error_response('invalid rotation request', 400)
     except Exception:
         logger.exception("provider passphrase rotation failed")
         return error_response('rotation failed', 500)
@@ -169,7 +181,15 @@ def test_provider(provider):
         headers = {'Authorization': f'Bearer {api_key}'}
 
     try:
-        r = requests.get(url, headers=headers, timeout=5)
+        r = safe_get(
+            url,
+            trust=URLTrust.OPERATOR_CONFIGURED,
+            timeout=HTTP_TIMEOUT_PROBE,
+            max_redirects=HTTP_MAX_REDIRECTS_API,
+            headers=headers,
+        )
+    except SSRFError:
+        return json_response({'ok': False, 'error': 'base URL failed SSRF validation'}, 200)
     except requests.RequestException:
         logger.exception("provider test failed for %s", provider)
         return json_response({'ok': False, 'error': 'connection failed'}, 200)

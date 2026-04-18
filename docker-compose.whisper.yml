@@ -17,6 +17,13 @@
 #      WHISPER_API_BASE_URL=http://whisper-server:8765/v1
 #      WHISPER_DEVICE=cpu
 #
+# The `whisper-server` hostname resolves only when both stacks share
+# a Docker network. Either merge this service into your main
+# docker-compose.yml, or run both with the same explicit network
+# (e.g. `docker network create minuspod-net`, then add
+# `networks: [minuspod-net]` to both services, with `networks:
+# minuspod-net: external: true` at the bottom of each file).
+#
 # The server listens on port 8765 with word-level timestamps (--dtw) for
 # precise ad boundary detection. MinusPod sends preprocessed 16kHz mono WAV,
 # so --convert is not needed.

@@ -7,15 +7,17 @@ interface CopyButtonProps {
   className?: string;
   copiedClassName?: string;
   labelClassName?: string;
+  hideLabelOnMobile?: boolean;
 }
 
 function CopyButton({
   text,
   label = 'Copy URL',
-  copiedLabel = 'Copied!',
+  copiedLabel = 'Copied',
   className = '',
   copiedClassName = 'text-green-500',
   labelClassName = 'text-xs',
+  hideLabelOnMobile = false,
 }: CopyButtonProps) {
   const [copied, setCopied] = useState(false);
 
@@ -39,15 +41,24 @@ function CopyButton({
     setCopied(true);
   };
 
+  const labelClass = hideLabelOnMobile
+    ? `hidden sm:inline ${labelClassName}`
+    : labelClassName;
+
+  const baseClass = hideLabelOnMobile
+    ? 'inline-flex items-center justify-center gap-1.5 h-8 w-8 sm:w-auto sm:px-2 rounded'
+    : 'flex items-center gap-1.5 rounded';
+
   return (
     <button
       onClick={handleCopy}
-      className={`flex items-center gap-1.5 rounded transition-colors ${
+      className={`${baseClass} transition-colors ${
         copied
           ? copiedClassName
           : 'text-muted-foreground hover:text-foreground hover:bg-accent'
       } ${className}`}
-      title={label}
+      title={copied ? copiedLabel : label}
+      aria-label={copied ? copiedLabel : label}
     >
       {copied ? (
         <svg className="w-4 h-4 animate-scale-in" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -63,7 +74,7 @@ function CopyButton({
           />
         </svg>
       )}
-      <span className={labelClassName}>{copied ? copiedLabel : label}</span>
+      <span className={labelClass}>{copied ? copiedLabel : label}</span>
     </button>
   );
 }

@@ -57,8 +57,14 @@ class ProcessingQueue:
         if self._initialized:
             return
 
-        # Use /app/data for persistence (mounted volume in Docker)
-        data_dir = Path(os.environ.get('DATA_DIR', '/app/data'))
+        # /app/data is the in-container volume; tests and non-container
+        # deploys override via DATA_PATH / MINUSPOD_DATA_DIR (matches Storage).
+        data_dir = Path(
+            os.environ.get('DATA_DIR')
+            or os.environ.get('DATA_PATH')
+            or os.environ.get('MINUSPOD_DATA_DIR')
+            or '/app/data'
+        )
         data_dir.mkdir(parents=True, exist_ok=True)
 
         self._lock_file_path = data_dir / '.processing_queue.lock'

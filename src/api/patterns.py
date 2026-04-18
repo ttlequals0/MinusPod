@@ -9,7 +9,7 @@ from utils.time import utc_now_iso, parse_iso_datetime
 from flask import request
 
 from api import (
-    api, log_request, json_response, error_response,
+    api, limiter, log_request, json_response, error_response,
     get_database, get_storage,
     extract_transcript_segment, extract_sponsor_from_text,
     _find_similar_pattern,
@@ -658,6 +658,7 @@ def export_patterns():
 
 
 @api.route('/patterns/import', methods=['POST'])
+@limiter.limit("3 per hour")
 @log_request
 def import_patterns():
     """Import patterns from JSON.
@@ -681,37 +682,68 @@ def import_patterns():
     if mode not in ('merge', 'replace', 'supplement'):
         return error_response('Invalid mode. Use "merge", "replace", or "supplement"', 400)
 
+    # Empty merge/supplement is a no-op, which is legitimate for a
+    # round-trip on a fresh DB. Replace mode with an empty list would
+    # wipe the table and is almost never what the caller meant, so that
+    # case stays a 400.
     if not patterns:
-        return error_response('Empty patterns array', 400)
+        if mode == 'replace':
+            return error_response(
+                'Empty patterns array with mode=replace would wipe the table; '
+                'pass mode=merge or mode=supplement for a round-trip',
+                400,
+            )
+        return json_response({
+            'mode': mode,
+            'importedCount': 0,
+            'updatedCount': 0,
+            'skippedCount': 0,
+            'message': 'No patterns in payload; nothing to do',
+        })
+
+    # Upfront validation so a malformed payload is rejected before any
+    # write. Replace-mode import in particular must not half-apply:
+    # deleting every existing pattern and then erroring out on the
+    # first bad item would leave the operator with an empty pattern
+    # table. All-or-nothing via explicit validation + a single
+    # transaction closes that window.
+    valid_patterns = []
+    skipped_count = 0
+    for idx, pattern_data in enumerate(patterns):
+        if not isinstance(pattern_data, dict):
+            return error_response(
+                f'patterns[{idx}] is not an object',
+                400,
+            )
+        scope = pattern_data.get('scope')
+        if scope not in ('global', 'network', 'podcast', 'dai_platform'):
+            return error_response(
+                f'patterns[{idx}] has missing or invalid scope',
+                400,
+            )
+        valid_patterns.append(pattern_data)
 
     imported_count = 0
     updated_count = 0
-    skipped_count = 0
 
+    conn = db.get_connection()
     try:
-        # Replace mode: delete all existing patterns first
+        conn.execute('BEGIN IMMEDIATE')
+
         if mode == 'replace':
             existing = db.get_ad_patterns(active_only=False)
             for p in existing:
                 db.delete_ad_pattern(p['id'])
             logger.info(f"Replace mode: deleted {len(existing)} existing patterns")
 
-        for pattern_data in patterns:
-            # Validate required fields
-            if not pattern_data.get('scope'):
-                skipped_count += 1
-                continue
-
-            # Check for existing similar pattern
+        for pattern_data in valid_patterns:
             existing = _find_similar_pattern(db, pattern_data)
 
             if existing:
                 if mode == 'supplement':
-                    # Don't update existing patterns
                     skipped_count += 1
                     continue
-                elif mode in ('merge', 'replace'):
-                    # Update existing pattern
+                if mode in ('merge', 'replace'):
                     updates = {
                         'text_template': pattern_data.get('text_template'),
                         'intro_variants': pattern_data.get('intro_variants'),
@@ -726,7 +758,6 @@ def import_patterns():
                         skipped_count += 1
                     continue
 
-            # Create new pattern
             db.create_ad_pattern(
                 scope=pattern_data.get('scope'),
                 text_template=pattern_data.get('text_template'),
@@ -739,18 +770,19 @@ def import_patterns():
             )
             imported_count += 1
 
-        logger.info(f"Import complete: {imported_count} imported, {updated_count} updated, {skipped_count} skipped")
-
-        return json_response({
-            'message': 'Import complete',
-            'imported': imported_count,
-            'updated': updated_count,
-            'skipped': skipped_count
-        })
-
-    except Exception as e:
-        logger.exception("Import failed")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        logger.exception("Import failed; rolled back")
         return error_response('Import failed', 500)
+
+    logger.info(f"Import complete: {imported_count} imported, {updated_count} updated, {skipped_count} skipped")
+    return json_response({
+        'message': 'Import complete',
+        'imported': imported_count,
+        'updated': updated_count,
+        'skipped': skipped_count
+    })
 
 
 @api.route('/patterns/backfill-false-positives', methods=['POST'])

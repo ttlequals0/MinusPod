@@ -10,10 +10,49 @@ import requests
 
 from urllib.parse import urlparse
 
-from config import APP_USER_AGENT
+from config import APP_USER_AGENT, HTTP_MAX_REDIRECTS_FEED
 from utils.circuit_breaker import CircuitBreaker, CircuitBreakerOpen
 from utils.time import parse_iso_datetime
-from utils.url import validate_url, SSRFError
+from utils.url import SSRFError
+from utils.http import safe_url_for_log
+from utils.safe_http import ResponseTooLargeError, URLTrust, read_response_capped, safe_get
+
+
+_FEED_CONTENT_TYPES = frozenset({
+    'application/rss+xml',
+    'application/atom+xml',
+    'application/xml',
+    'text/xml',
+    'application/octet-stream',  # common fallback from static hosts
+})
+
+
+def _max_rss_bytes() -> int:
+    """Cap the RSS body size the parser is willing to ingest. Default 200 MB
+    covers the largest legitimate feeds (3k+ episodes); operators with
+    pathological feeds can raise via ``MINUSPOD_MAX_RSS_BYTES``. Floor at
+    1 MB so a typo can't starve legitimate feeds."""
+    try:
+        raw = int(os.environ.get('MINUSPOD_MAX_RSS_BYTES', 200 * 1024 * 1024))
+    except ValueError:
+        raw = 200 * 1024 * 1024
+    return max(1 * 1024 * 1024, raw)
+
+
+def _content_type_looks_like_feed(header_value: str | None) -> bool:
+    """Accept anything that plausibly carries RSS / Atom bytes.
+
+    Missing header is permissive because many legacy RSS hosts send no
+    Content-Type at all; explicit HTML or binary types are rejected so a
+    compromised aggregator cannot feed us arbitrary bytes and hope
+    feedparser does something interesting with them.
+    """
+    if not header_value:
+        return True
+    main_type = header_value.split(';', 1)[0].strip().lower()
+    if not main_type:
+        return True
+    return main_type in _FEED_CONTENT_TYPES
 
 logger = logging.getLogger(__name__)
 
@@ -40,36 +79,61 @@ class RSSParser:
     def fetch_feed(self, url: str, timeout: int = 30) -> Optional[str]:
         """Fetch RSS feed from URL."""
         try:
-            validate_url(url)
-        except SSRFError as e:
-            logger.warning(f"SSRF blocked in fetch_feed: {e} (url={url})")
-            return None
-
-        try:
             _get_rss_circuit_breaker(url).check()
         except CircuitBreakerOpen as e:
             logger.debug(f"RSS fetch skipped: {e}")
             return None
 
         try:
-            logger.info(f"Fetching RSS feed from: {url}")
-            response = requests.get(url, timeout=timeout)
+            logger.info(f"Fetching RSS feed from: {safe_url_for_log(url)}")
+            response = safe_get(
+                url,
+                trust=URLTrust.OPERATOR_CONFIGURED,
+                timeout=timeout,
+                max_redirects=HTTP_MAX_REDIRECTS_FEED,
+                stream=True,
+            )
             response.raise_for_status()
-            logger.info(f"Successfully fetched RSS feed, size: {len(response.content)} bytes")
+            if not _content_type_looks_like_feed(response.headers.get('Content-Type')):
+                logger.warning(
+                    "RSS fetch rejected on content-type: url=%s content_type=%r",
+                    url, response.headers.get('Content-Type'),
+                )
+                _get_rss_circuit_breaker(url).record_failure()
+                return None
+            max_bytes = _max_rss_bytes()
+            try:
+                body = read_response_capped(response, max_bytes)
+            except ResponseTooLargeError:
+                logger.warning(
+                    "feed_size_cap_exceeded: url=%s max=%d",
+                    safe_url_for_log(url), max_bytes,
+                )
+                _get_rss_circuit_breaker(url).record_failure()
+                return None
+            logger.info(f"Successfully fetched RSS feed, size: {len(body)} bytes")
             _get_rss_circuit_breaker(url).record_success()
-            return response.text
+            return body.decode('utf-8', errors='replace')
+        except SSRFError as e:
+            logger.warning(f"SSRF blocked in fetch_feed: {e} (url={safe_url_for_log(url)})")
+            return None
         except requests.exceptions.ContentDecodingError as e:
             # Some servers claim gzip encoding but send malformed data
             # Retry without accepting compressed responses
             logger.warning(f"Gzip decompression failed, retrying without compression: {e}")
             try:
-                headers = {'Accept-Encoding': 'identity'}
-                response = requests.get(url, timeout=timeout, headers=headers)
+                response = safe_get(
+                    url,
+                    trust=URLTrust.OPERATOR_CONFIGURED,
+                    timeout=timeout,
+                    max_redirects=HTTP_MAX_REDIRECTS_FEED,
+                    headers={'Accept-Encoding': 'identity'},
+                )
                 response.raise_for_status()
                 logger.info(f"Successfully fetched RSS feed (uncompressed), size: {len(response.content)} bytes")
                 _get_rss_circuit_breaker(url).record_success()
                 return response.text
-            except requests.RequestException as retry_e:
+            except (requests.RequestException, SSRFError) as retry_e:
                 logger.error(f"Failed to fetch RSS feed (retry): {retry_e}")
                 _get_rss_circuit_breaker(url).record_failure()
                 return None
@@ -96,14 +160,7 @@ class RSSParser:
             If feed not modified (304), returns (None, etag, last_modified)
             On error, returns (None, None, None)
         """
-        try:
-            validate_url(url)
-        except SSRFError as e:
-            logger.warning(f"SSRF blocked in fetch_feed_conditional: {e} (url={url})")
-            return None, None, None
-
         headers = {'User-Agent': APP_USER_AGENT}
-
         if etag:
             headers['If-None-Match'] = etag
         if last_modified:
@@ -116,10 +173,16 @@ class RSSParser:
             return None, None, None
 
         try:
-            response = requests.get(url, headers=headers, timeout=timeout)
+            response = safe_get(
+                url,
+                trust=URLTrust.OPERATOR_CONFIGURED,
+                timeout=timeout,
+                max_redirects=HTTP_MAX_REDIRECTS_FEED,
+                headers=headers,
+            )
 
             if response.status_code == 304:
-                logger.info(f"Feed not modified (304): {url}")
+                logger.info(f"Feed not modified (304): {safe_url_for_log(url)}")
                 _get_rss_circuit_breaker(url).record_success()
                 return None, etag, last_modified
 
@@ -132,12 +195,22 @@ class RSSParser:
             _get_rss_circuit_breaker(url).record_success()
             return response.text, new_etag, new_last_modified
 
+        except SSRFError as e:
+            logger.warning(f"SSRF blocked in fetch_feed_conditional: {e} (url={safe_url_for_log(url)})")
+            return None, None, None
+
         except requests.exceptions.ContentDecodingError as e:
             # Retry without accepting compressed responses
             logger.warning(f"Gzip decompression failed, retrying: {e}")
             try:
                 headers['Accept-Encoding'] = 'identity'
-                response = requests.get(url, headers=headers, timeout=timeout)
+                response = safe_get(
+                    url,
+                    trust=URLTrust.OPERATOR_CONFIGURED,
+                    timeout=timeout,
+                    max_redirects=HTTP_MAX_REDIRECTS_FEED,
+                    headers=headers,
+                )
                 if response.status_code == 304:
                     _get_rss_circuit_breaker(url).record_success()
                     return None, etag, last_modified
@@ -148,7 +221,7 @@ class RSSParser:
                     response.headers.get('ETag'),
                     response.headers.get('Last-Modified')
                 )
-            except requests.RequestException:
+            except (SSRFError, requests.RequestException):
                 _get_rss_circuit_breaker(url).record_failure()
                 return None, None, None
 
@@ -158,8 +231,37 @@ class RSSParser:
             return None, None, None
 
     def parse_feed(self, feed_content: str) -> Dict:
-        """Parse RSS feed content."""
+        """Parse RSS feed content.
+
+        XXE defence: ``defusedxml.defuse_stdlib()`` neutralises expat's
+        DOCTYPE / ENTITY handling at parse time, but feedparser swallows
+        the typed exception and surfaces it as a generic
+        SAXParseException('syntax error'). To surface a useful operator
+        signal, pre-scan the raw bytes for DOCTYPE / ENTITY markers and
+        emit the structured ``xml_forbidden_construct`` event BEFORE
+        handing the payload to feedparser.
+        """
         try:
+            # Normalise to bytes for the pre-scan; feedparser accepts either.
+            if isinstance(feed_content, str):
+                header_bytes = feed_content.encode('utf-8', errors='ignore')
+            else:
+                header_bytes = feed_content
+            # Only scan the first 4 KB; legitimate feeds declare their
+            # prolog up front, and this keeps the cost bounded.
+            header = header_bytes[:4096].lower()
+            if b'<!doctype' in header or b'<!entity' in header:
+                construct = 'DOCTYPE' if b'<!doctype' in header else 'ENTITY'
+                logger.warning(
+                    "XML forbidden construct in feed: %s",
+                    construct,
+                    extra={
+                        'event': 'xml_forbidden_construct',
+                        'construct': construct,
+                    },
+                )
+                return None
+
             feed = feedparser.parse(feed_content)
             if feed.bozo:
                 logger.warning(f"RSS parse warning: {feed.bozo_exception}")
@@ -186,15 +288,26 @@ class RSSParser:
     def generate_episode_id(self, episode_url: str, guid: str = None) -> str:
         """Generate consistent episode ID from GUID or URL.
 
-        Uses RSS GUID if available (stable identifier), falls back to URL hash.
-        This prevents duplicate episode IDs when CDNs include dynamic tracking
-        parameters in audio URLs (e.g., Megaphone's awCollectionId/awEpisodeId).
+        Uses RSS GUID if available (stable identifier), falls back to URL
+        hash. This prevents duplicate episode IDs when CDNs include
+        dynamic tracking parameters in audio URLs (e.g., Megaphone's
+        awCollectionId / awEpisodeId).
+
+        The hash is MD5 truncated to 12 hex characters. This is a
+        deduplication identifier, not a security hash; MD5's
+        cryptographic weaknesses do not apply here. The 48-bit output
+        gives a birthday-collision threshold of ~16M episodes per
+        instance, well above any real deployment scale. We keep the
+        MD5+12 scheme (rather than switching to SHA-256) because
+        changing it would invalidate every existing URL in every
+        podcast-app subscription of every MinusPod user -- a migration
+        cost no attack model justifies. The `is_valid_episode_id`
+        validator in `utils.validation` is the load-bearing contract
+        (`[0-9a-f]{12}`), not the choice of hash function.
         """
-        # Prefer GUID as it's meant to be stable per RSS spec
         if guid and guid.strip():
             clean_guid = guid.strip()
             return hashlib.md5(clean_guid.encode()).hexdigest()[:12]
-        # Fallback to URL hash for feeds without GUIDs
         return hashlib.md5(episode_url.encode()).hexdigest()[:12]
 
     def modify_feed(self, feed_content: str, slug: str, storage=None,

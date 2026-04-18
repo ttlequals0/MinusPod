@@ -16,6 +16,7 @@
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.30.3",
     "recharts": "^3.8.1",
+    "swagger-ui-dist": "^5.17.14",
     "tailwind-merge": "^2.2.1"
   },
   "overrides": {

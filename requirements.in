@@ -1,0 +1,49 @@
+# Source-of-truth direct dependencies. Generate a fully-pinned
+# requirements.txt with:
+#
+#   pip-compile --generate-hashes --resolver=backtracking requirements.in
+#
+# See requirements.txt for the compiled, pinned, hash-locked output.
+
+# Core transcription
+faster-whisper>=1.1.0
+ctranslate2==4.4.0
+
+# API and web
+anthropic>=0.49.0
+openai>=1.0.0                 # OpenAI-compatible API (Claude Code wrapper, Ollama)
+flask>=3.1.3
+flask-compress>=1.14
+flask-limiter>=3.5.0
+gunicorn==23.0.0
+requests>=2.32.4
+
+# HTML parsing (pricepertoken.com pricing scraper)
+beautifulsoup4>=4.12.0
+
+# Utilities
+feedparser==6.0.11
+python-slugify==8.0.4
+
+# Audio analysis (torch/torchaudio 2.6.0+cu124 pre-installed in Dockerfile)
+numpy<2.0                     # numpy 2.x requires X86_V2; target server lacks them
+huggingface_hub>=0.20.0
+
+# Cross-episode ad training (fingerprinting + text matching)
+pyacoustid>=1.2.0
+rapidfuzz>=3.0.0
+scikit-learn>=1.3.0
+
+# Security
+nh3>=0.2.14
+cryptography>=46.0.7
+pyjwt>=2.12.0
+defusedxml>=0.7.1
+
+# Transitive dependency pins (CVE fixes)
+jaraco.context>=6.1.0
+wheel>=0.46.2
+
+# Testing
+pytest>=7.4.0
+pytest-cov>=4.1.0

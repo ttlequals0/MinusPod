@@ -11,6 +11,7 @@ import pytest
 _test_data_dir = tempfile.mkdtemp(prefix='settings_test_')
 os.environ['SECRET_KEY'] = 'test-secret'
 os.environ['DATA_DIR'] = _test_data_dir
+os.environ['MINUSPOD_MASTER_PASSPHRASE'] = 'settings-validation-test-passphrase'
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
@@ -68,3 +69,24 @@ class TestOpenRouterKeyValidation:
             content_type='application/json',
         )
         assert response.status_code == 200
+
+
+class TestResetSettingSecretKeys:
+    """reset_setting on a SECRET_SETTING_KEYS entry must DELETE the row,
+    not write empty string. Empty-string rows surface as "configured"
+    elsewhere and trip the plaintext-secret read warning."""
+
+    def test_reset_deletes_secret_row(self):
+        db = database.Database()
+        db.set_secret('openrouter_api_key', 'sk-or-test-value')
+        assert db.get_setting('openrouter_api_key') is not None
+
+        assert db.reset_setting('openrouter_api_key') is True
+        # Row is deleted, not blank.
+        assert db.get_setting('openrouter_api_key') is None
+
+    def test_reset_non_secret_writes_default(self):
+        db = database.Database()
+        db.set_setting('whisper_model', 'large-v3', is_default=False)
+        assert db.reset_setting('whisper_model') is True
+        assert db.get_setting('whisper_model') is not None

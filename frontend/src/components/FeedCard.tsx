@@ -1,10 +1,11 @@
 import { Link } from 'react-router-dom';
 import { Feed } from '../api/types';
 import CopyButton from './CopyButton';
+import DropdownMenu from './DropdownMenu';
 
 interface FeedCardProps {
   feed: Feed;
-  onRefresh: (slug: string) => void;
+  onRefresh: (slug: string, options?: { force?: boolean }) => void;
   onDelete: (slug: string) => void;
   isRefreshing?: boolean;
 }
@@ -45,13 +46,25 @@ function FeedCard({ feed, onRefresh, onDelete, isRefreshing }: FeedCardProps) {
       <div className="px-4 py-3 bg-secondary/50 border-t border-border flex justify-between items-center">
         <CopyButton text={feed.feedUrl} />
         <div className="flex gap-2">
-          <button
-            onClick={() => onRefresh(feed.slug)}
+          <DropdownMenu
+            triggerLabel={isRefreshing ? 'Refreshing...' : 'Refresh'}
+            triggerClassName="px-3 py-1 text-sm rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center gap-1.5"
             disabled={isRefreshing}
-            className="px-3 py-1 text-sm rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
-          >
-            {isRefreshing ? 'Refreshing...' : 'Refresh'}
-          </button>
+            title="Refresh feed"
+            chevronClassName="w-3 h-3"
+            items={[
+              {
+                title: 'Refresh',
+                subtitle: 'Check for new episodes',
+                onClick: () => onRefresh(feed.slug),
+              },
+              {
+                title: 'Force refresh',
+                subtitle: 'Bypass cache',
+                onClick: () => onRefresh(feed.slug, { force: true }),
+              },
+            ]}
+          />
           <button
             onClick={() => onDelete(feed.slug)}
             className="px-3 py-1 text-sm rounded bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors"

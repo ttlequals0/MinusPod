@@ -55,7 +55,7 @@ class TestHeadRequestDoesNotProcess:
 
     @patch('main_app.processing.start_background_processing')
     @patch('main_app.routes._head_upstream')
-    @patch('main_app.routes._lookup_episode', return_value=({'id': 'abc123', 'url': 'https://example.com/ep.mp3', 'title': 'Ep 1', 'description': 'desc', 'artwork_url': None}, 'Test Podcast'))
+    @patch('main_app.routes._lookup_episode', return_value=({'id': 'abc123def456', 'url': 'https://example.com/ep.mp3', 'title': 'Ep 1', 'description': 'desc', 'artwork_url': None}, 'Test Podcast'))
     @patch('main_app.db')
     @patch('main_app.routes.get_feed_map')
     def test_head_unprocessed_proxies_upstream(
@@ -70,15 +70,15 @@ class TestHeadRequestDoesNotProcess:
             'Content-Length': '12345678',
         })
 
-        resp = client.head('/episodes/test-pod/abc123.mp3')
+        resp = client.head('/episodes/test-pod/abc123def456.mp3')
 
         assert resp.status_code == 200
-        mock_head.assert_called_once_with('test-pod', 'abc123', 'https://example.com/ep.mp3')
+        mock_head.assert_called_once_with('test-pod', 'abc123def456', 'https://example.com/ep.mp3')
         mock_start.assert_not_called()
 
     @patch('main_app.processing.start_background_processing')
     @patch('main_app.routes._head_upstream')
-    @patch('main_app.routes._lookup_episode', return_value=({'id': 'abc123', 'url': 'https://example.com/ep.mp3', 'title': 'Ep 1', 'description': 'desc', 'artwork_url': None}, 'Test Podcast'))
+    @patch('main_app.routes._lookup_episode', return_value=({'id': 'abc123def456', 'url': 'https://example.com/ep.mp3', 'title': 'Ep 1', 'description': 'desc', 'artwork_url': None}, 'Test Podcast'))
     @patch('main_app.db')
     @patch('main_app.routes.get_feed_map')
     def test_head_failed_episode_proxies_upstream(
@@ -92,7 +92,7 @@ class TestHeadRequestDoesNotProcess:
             'Content-Type': 'audio/mpeg',
         })
 
-        resp = client.head('/episodes/test-pod/abc123.mp3')
+        resp = client.head('/episodes/test-pod/abc123def456.mp3')
 
         assert resp.status_code == 200
         mock_start.assert_not_called()
@@ -108,7 +108,7 @@ class TestHeadRequestDoesNotProcess:
         mock_feed_map.return_value = feed_map
         mock_db.get_episode.return_value = None
 
-        resp = client.head('/episodes/test-pod/abc123.mp3')
+        resp = client.head('/episodes/test-pod/abc123def456.mp3')
 
         assert resp.status_code == 404
         mock_start.assert_not_called()
@@ -132,7 +132,7 @@ class TestHeadRequestProcessedEpisode:
         fake_mp3.write_bytes(b'\xff\xfb\x90\x00' * 10)
         mock_storage.get_episode_path.return_value = fake_mp3
 
-        resp = client.head('/episodes/test-pod/abc123.mp3')
+        resp = client.head('/episodes/test-pod/abc123def456.mp3')
 
         assert resp.status_code == 200
         assert resp.content_length > 0
@@ -143,7 +143,7 @@ class TestGetRequestStillProcesses:
 
     @patch('main_app.status_service')
     @patch('main_app.processing.start_background_processing', return_value=(True, None))
-    @patch('main_app.routes._lookup_episode', return_value=({'id': 'abc123', 'url': 'https://example.com/ep.mp3', 'title': 'Ep 1', 'description': 'desc', 'artwork_url': None}, 'Test Podcast'))
+    @patch('main_app.routes._lookup_episode', return_value=({'id': 'abc123def456', 'url': 'https://example.com/ep.mp3', 'title': 'Ep 1', 'description': 'desc', 'artwork_url': None}, 'Test Podcast'))
     @patch('main_app.db')
     @patch('main_app.routes.get_feed_map')
     def test_get_unprocessed_triggers_processing(
@@ -153,7 +153,7 @@ class TestGetRequestStillProcesses:
         mock_feed_map.return_value = feed_map
         mock_db.get_episode.return_value = None
 
-        resp = client.get('/episodes/test-pod/abc123.mp3')
+        resp = client.get('/episodes/test-pod/abc123def456.mp3')
 
         assert resp.status_code == 503
         mock_start.assert_called_once()
@@ -162,7 +162,7 @@ class TestGetRequestStillProcesses:
 class TestHeadUpstreamHelper:
     """Test _head_upstream helper directly."""
 
-    @patch('main_app.routes.requests.head')
+    @patch('main_app.routes.safe_head')
     def test_proxies_content_headers(self, mock_head):
         mock_resp = MagicMock()
         mock_resp.status_code = 200
@@ -183,7 +183,7 @@ class TestHeadUpstreamHelper:
         assert resp.headers['Accept-Ranges'] == 'bytes'
         assert 'X-Other' not in resp.headers
 
-    @patch('main_app.routes.requests.head', side_effect=requests.exceptions.ConnectionError('timeout'))
+    @patch('main_app.routes.safe_head', side_effect=requests.exceptions.ConnectionError('timeout'))
     def test_returns_503_on_upstream_failure(self, mock_head):
         from werkzeug.exceptions import ServiceUnavailable
 
@@ -249,7 +249,7 @@ class TestJITRetryCooldown:
         return {'status': 'failed', 'retry_count': retry_count, 'updated_at': ts}
 
     @patch('main_app.processing.start_background_processing', return_value=(True, None))
-    @patch('main_app.routes._lookup_episode', return_value=({'id': 'abc123', 'url': 'https://example.com/ep.mp3', 'title': 'Ep 1', 'description': 'desc', 'artwork_url': None}, 'Test Podcast'))
+    @patch('main_app.routes._lookup_episode', return_value=({'id': 'abc123def456', 'url': 'https://example.com/ep.mp3', 'title': 'Ep 1', 'description': 'desc', 'artwork_url': None}, 'Test Podcast'))
     @patch('main_app.status_service')
     @patch('main_app.db')
     @patch('main_app.routes.get_feed_map')
@@ -261,7 +261,7 @@ class TestJITRetryCooldown:
         mock_feed_map.return_value = feed_map
         mock_db.get_episode.return_value = self._make_failed_episode(10, retry_count=1)
 
-        resp = client.get('/episodes/test-pod/abc123.mp3')
+        resp = client.get('/episodes/test-pod/abc123def456.mp3')
 
         assert resp.status_code == 503
         assert 'Retry-After' in resp.headers
@@ -269,7 +269,7 @@ class TestJITRetryCooldown:
         mock_start.assert_not_called()
 
     @patch('main_app.processing.start_background_processing', return_value=(True, None))
-    @patch('main_app.routes._lookup_episode', return_value=({'id': 'abc123', 'url': 'https://example.com/ep.mp3', 'title': 'Ep 1', 'description': 'desc', 'artwork_url': None}, 'Test Podcast'))
+    @patch('main_app.routes._lookup_episode', return_value=({'id': 'abc123def456', 'url': 'https://example.com/ep.mp3', 'title': 'Ep 1', 'description': 'desc', 'artwork_url': None}, 'Test Podcast'))
     @patch('main_app.status_service')
     @patch('main_app.db')
     @patch('main_app.routes.get_feed_map')
@@ -281,14 +281,14 @@ class TestJITRetryCooldown:
         mock_feed_map.return_value = feed_map
         mock_db.get_episode.return_value = self._make_failed_episode(120, retry_count=1)
 
-        resp = client.get('/episodes/test-pod/abc123.mp3')
+        resp = client.get('/episodes/test-pod/abc123def456.mp3')
 
         # Should proceed to processing (503 from start_background_processing)
         assert resp.status_code == 503
         mock_start.assert_called_once()
 
     @patch('main_app.processing.start_background_processing', return_value=(True, None))
-    @patch('main_app.routes._lookup_episode', return_value=({'id': 'abc123', 'url': 'https://example.com/ep.mp3', 'title': 'Ep 1', 'description': 'desc', 'artwork_url': None}, 'Test Podcast'))
+    @patch('main_app.routes._lookup_episode', return_value=({'id': 'abc123def456', 'url': 'https://example.com/ep.mp3', 'title': 'Ep 1', 'description': 'desc', 'artwork_url': None}, 'Test Podcast'))
     @patch('main_app.status_service')
     @patch('main_app.db')
     @patch('main_app.routes.get_feed_map')
@@ -301,14 +301,14 @@ class TestJITRetryCooldown:
         # 90s ago - past 60s cooldown but within 120s cooldown for retry 2
         mock_db.get_episode.return_value = self._make_failed_episode(90, retry_count=2)
 
-        resp = client.get('/episodes/test-pod/abc123.mp3')
+        resp = client.get('/episodes/test-pod/abc123def456.mp3')
 
         assert resp.status_code == 503
         assert 'Retry-After' in resp.headers
         mock_start.assert_not_called()
 
     @patch('main_app.processing.start_background_processing', return_value=(True, None))
-    @patch('main_app.routes._lookup_episode', return_value=({'id': 'abc123', 'url': 'https://example.com/ep.mp3', 'title': 'Ep 1', 'description': 'desc', 'artwork_url': None}, 'Test Podcast'))
+    @patch('main_app.routes._lookup_episode', return_value=({'id': 'abc123def456', 'url': 'https://example.com/ep.mp3', 'title': 'Ep 1', 'description': 'desc', 'artwork_url': None}, 'Test Podcast'))
     @patch('main_app.status_service')
     @patch('main_app.db')
     @patch('main_app.routes.get_feed_map')
@@ -320,7 +320,7 @@ class TestJITRetryCooldown:
         mock_feed_map.return_value = feed_map
         mock_db.get_episode.return_value = self._make_failed_episode(5, retry_count=0)
 
-        resp = client.get('/episodes/test-pod/abc123.mp3')
+        resp = client.get('/episodes/test-pod/abc123def456.mp3')
 
         # retry_count=0 skips cooldown, proceeds to processing
         assert resp.status_code == 503

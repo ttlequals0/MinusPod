@@ -605,6 +605,15 @@ def _finalize_episode(slug, episode_id, episode_title, podcast_name,
         reprocess_requested_at=None)
 
     try:
+        closed = db.close_queue_rows_for_episode(slug, episode_id)
+        if closed:
+            audio_logger.info(
+                f"[{slug}:{episode_id}] Closed {closed} auto-process queue row(s) after successful finalize"
+            )
+    except Exception as q_err:
+        audio_logger.warning(f"[{slug}:{episode_id}] Failed to close auto-process queue rows: {q_err}")
+
+    try:
         db.index_episode(episode_id, slug)
     except Exception as idx_err:
         audio_logger.warning(f"[{slug}:{episode_id}] Failed to update search index: {idx_err}")
