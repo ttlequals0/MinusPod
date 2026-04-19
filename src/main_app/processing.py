@@ -574,8 +574,11 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
         if chapters_enabled is None or chapters_enabled.lower() == 'true':
             chapters_gen = ChaptersGenerator()
             chapters = chapters_gen.generate_chapters(
-                segments, all_cuts, episode_description,
-                podcast_name, episode_title
+                segments,
+                episode_description=episode_description,
+                ads_removed=all_cuts,
+                podcast_name=podcast_name,
+                episode_title=episode_title,
             )
             if chapters and chapters.get('chapters'):
                 storage.save_chapters_json(slug, episode_id, chapters)

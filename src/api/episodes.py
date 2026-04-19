@@ -361,11 +361,13 @@ def regenerate_chapters(slug, episode_id):
         chapters_gen = ChaptersGenerator()
 
         try:
-            # VTT segments are ALREADY adjusted (ads removed), so pass empty ads_removed
-            # This prevents double-adjustment of timestamps
-            # The AI topic detection will find natural chapter points in the content
-            chapters = chapters_gen.generate_chapters_from_vtt(
-                segments, episode_description, podcast_name, episode_title
+            # VTT segments are already ad-adjusted; omit ads_removed so
+            # generate_chapters doesn't double-adjust.
+            chapters = chapters_gen.generate_chapters(
+                segments,
+                episode_description=episode_description,
+                podcast_name=podcast_name,
+                episode_title=episode_title,
             )
         finally:
             token_totals = get_episode_token_totals()
