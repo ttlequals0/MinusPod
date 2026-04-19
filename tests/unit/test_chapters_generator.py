@@ -17,14 +17,16 @@ class _StubResponse:
 
 
 class _RecordingClient:
-    """Stub LLM client that records every prompt it was asked to send."""
+    """Stub LLM client that records every prompt + kwargs it was asked to send."""
 
     def __init__(self, canned_text: str = ''):
         self.canned_text = canned_text
         self.prompts: list = []
+        self.calls: list = []
 
     def messages_create(self, **kwargs):
         self.prompts.append(kwargs['messages'][0]['content'])
+        self.calls.append(kwargs)
         return _StubResponse(content=self.canned_text)
 
     @property
@@ -126,9 +128,10 @@ class TestDetectTopicBoundariesDescription:
             num_splits=3,
             episode_description='00:00 Intro\n05:30 Main\n15:00 Guest',
         )
+        # Description contains parseable anchors -> candidate-boundary path.
         assert '00:00 Intro' in stub.last_prompt
         assert '15:00 Guest' in stub.last_prompt
-        assert 'prefer those timestamps' in stub.last_prompt
+        assert 'Candidate boundaries from show notes' in stub.last_prompt
 
     def test_no_description_block_when_empty(self):
         gen, stub = _make_generator_with_stub(canned_text='')
@@ -244,3 +247,115 @@ class TestGenerateChaptersUnifiedEntryPoint:
         # Post-adjustment: the segment originally at 560 should now start at 500 (08:20).
         assert '[08:20] post' in topic_prompt
         assert 'ad body should be dropped' not in topic_prompt
+
+
+class TestParseDescriptionAnchors:
+    """Deterministic show-note timestamp extraction."""
+
+    def test_extracts_plain_mmss_lines(self):
+        from chapters_generator import _parse_description_anchors
+        desc = "00:00 Intro\n05:30 Main topic\n15:00 Guest interview"
+        assert _parse_description_anchors(desc) == [
+            ('00:00', 'Intro'),
+            ('05:30', 'Main topic'),
+            ('15:00', 'Guest interview'),
+        ]
+
+    def test_extracts_bracketed_format(self):
+        from chapters_generator import _parse_description_anchors
+        desc = "Show notes:\n[00:30] Welcome\n[12:45] Deep dive"
+        result = dict(_parse_description_anchors(desc))
+        assert result['00:30'] == 'Welcome'
+        assert result['12:45'] == 'Deep dive'
+
+    def test_extracts_parenthesized_format(self):
+        from chapters_generator import _parse_description_anchors
+        desc = "(0:00) Intro\n(5:30) Topic A"
+        result = dict(_parse_description_anchors(desc))
+        assert result['0:00'] == 'Intro'
+        assert result['5:30'] == 'Topic A'
+
+    def test_strips_html_wrappers(self):
+        from chapters_generator import _parse_description_anchors
+        desc = "<p>00:00 Intro</p><br/>05:30 Main<br>15:00 Guest"
+        result = dict(_parse_description_anchors(desc))
+        assert result['00:00'] == 'Intro'
+        assert result['05:30'] == 'Main'
+        assert result['15:00'] == 'Guest'
+
+    def test_empty_when_no_timestamps(self):
+        from chapters_generator import _parse_description_anchors
+        desc = "Just a regular description with no timestamps."
+        assert _parse_description_anchors(desc) == []
+
+    def test_empty_for_none_or_blank(self):
+        from chapters_generator import _parse_description_anchors
+        assert _parse_description_anchors(None) == []
+        assert _parse_description_anchors('') == []
+        assert _parse_description_anchors('   \n  ') == []
+
+    def test_sorted_by_time(self):
+        from chapters_generator import _parse_description_anchors
+        desc = "15:00 Late\n05:30 Mid\n00:00 Start"
+        anchors = _parse_description_anchors(desc)
+        assert [ts for ts, _ in anchors] == ['00:00', '05:30', '15:00']
+
+    def test_drops_too_short_or_numeric_titles(self):
+        from chapters_generator import _parse_description_anchors
+        desc = "00:00 A\n05:30 12345\n10:00 Real Title"
+        result = dict(_parse_description_anchors(desc))
+        assert '00:00' not in result  # title too short
+        assert '05:30' not in result  # title is digits only
+        assert result['10:00'] == 'Real Title'
+
+
+class TestDescriptionAnchorPromptInjection:
+    """Anchors found in the description go into the prompt as candidate boundaries."""
+
+    def test_anchors_inject_candidate_block(self):
+        gen, stub = _make_generator_with_stub(canned_text='')
+        gen._detect_topic_boundaries(
+            transcript='[00:00] x',
+            start_time=0.0,
+            end_time=1800.0,
+            num_splits=3,
+            episode_description="00:00 Intro\n05:30 Main\n15:00 Guest",
+        )
+        prompt = stub.last_prompt
+        assert 'Candidate boundaries from show notes:' in prompt
+        assert '00:00 Intro' in prompt
+        assert '05:30 Main' in prompt
+        assert '15:00 Guest' in prompt
+        assert 'Episode description:' not in prompt
+
+    def test_no_anchors_falls_back_to_plain_description(self):
+        gen, stub = _make_generator_with_stub(canned_text='')
+        gen._detect_topic_boundaries(
+            transcript='[00:00] x',
+            start_time=0.0,
+            end_time=1800.0,
+            num_splits=3,
+            episode_description="A discussion about modern podcasting and AI.",
+        )
+        prompt = stub.last_prompt
+        assert 'Candidate boundaries from show notes:' not in prompt
+        assert 'Episode description:' in prompt
+        assert 'A discussion about modern podcasting' in prompt
+
+
+class TestTopicDetectionTemperature:
+    """Topic detection runs at the low TOPIC_DETECTION_TEMPERATURE constant."""
+
+    def test_temperature_passed_to_llm(self):
+        from chapters_generator import TOPIC_DETECTION_TEMPERATURE
+        assert TOPIC_DETECTION_TEMPERATURE == 0.1
+
+        gen, stub = _make_generator_with_stub(canned_text='')
+        gen._detect_topic_boundaries(
+            transcript='[00:00] x',
+            start_time=0.0,
+            end_time=1800.0,
+            num_splits=3,
+        )
+        assert stub.calls, 'LLM must have been called'
+        assert stub.calls[-1]['temperature'] == TOPIC_DETECTION_TEMPERATURE

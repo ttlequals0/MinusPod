@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.3] - 2026-04-19
+
+### Changed
+- Lowered topic-detection LLM temperature from 0.3 to 0.1 (`TOPIC_DETECTION_TEMPERATURE` constant). Same transcript now yields the same boundaries across reruns; eliminates the run-to-run title and timestamp variance observed when comparing pipeline vs regenerate output. Title generation keeps temperature 0.3 since title wording benefits from minor variation.
+- Episode-description handling: when the RSS description embeds `MM:SS` markers (any of `05:30 Title`, `[05:30] Title`, `(5:30) Title`), extract them deterministically with `_parse_description_anchors` and inject the resulting candidate-boundary list into the topic-detection prompt with an instruction to prefer them. When the description has no parseable timestamps, the previous behavior of pasting the full description as plain context is preserved. Restores curated show-note chapter quality without re-introducing the divergent multi-stage pipeline removed in 2.0.2.
+
 ## [2.0.2] - 2026-04-19
 
 ### Changed

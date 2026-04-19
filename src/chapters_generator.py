@@ -1,7 +1,7 @@
 """JSON chapters generator for Podcasting 2.0 support."""
 import logging
 import re
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 
 from config import DEFAULT_CHAPTERS_MODEL as _DEFAULT_CHAPTERS_MODEL
 from utils.time import parse_timestamp, adjust_timestamp
@@ -23,6 +23,61 @@ MIN_DURATION_FOR_AI = 900.0
 
 # Two chapters whose start times are closer than this are merged during dedupe.
 MIN_DEDUP_WINDOW = 60.0
+
+# Topic-detection LLM temperature. Low value keeps boundary choices reproducible
+# across reruns of the same transcript (title generation uses its own temperature).
+TOPIC_DETECTION_TEMPERATURE = 0.1
+
+# Patterns for MM:SS timestamps embedded in episode descriptions.
+_TIMESTAMP_PATTERNS = (
+    re.compile(r'(?:^|\n)\s*(\d{1,2}:\d{2}(?::\d{2})?)\s*[-:]*\s*(.+?)(?=\n|$)'),
+    re.compile(r'\[(\d{1,2}:\d{2}(?::\d{2})?)\]\s*(.+?)(?=\n|$)'),
+    re.compile(r'\((\d{1,2}:\d{2}(?::\d{2})?)\)\s*(.+?)(?=\n|$)'),
+)
+
+
+def _strip_html(text: str) -> str:
+    """Convert simple HTML to plain text for show-note timestamp parsing.
+
+    Block-level tags must be turned into newlines (not just stripped) so the
+    downstream `_TIMESTAMP_PATTERNS` regex sees each timestamp on its own line.
+    A bare tag-stripper like nh3 would collapse `<p>00:00 A</p><p>05:30 B</p>`
+    into `00:00 A05:30 B` and miss every anchor after the first.
+    """
+    if not text:
+        return ""
+    text = re.sub(r'<br\s*/?>', '\n', text, flags=re.IGNORECASE)
+    text = re.sub(r'</(p|li|div)>', '\n', text, flags=re.IGNORECASE)
+    text = re.sub(r'<[^>]+>', '', text)
+    for entity, char in (('&amp;', '&'), ('&lt;', '<'), ('&gt;', '>'),
+                         ('&quot;', '"'), ('&#39;', "'"), ('&nbsp;', ' ')):
+        text = text.replace(entity, char)
+    text = re.sub(r'[ \t]+', ' ', text)
+    return text.strip()
+
+
+def _parse_description_anchors(description: str) -> List[Tuple[str, str]]:
+    """Extract (timestamp, title) pairs from an episode description.
+
+    Returns deduplicated, sorted-by-time anchors. Used as soft hints in the
+    topic-detection prompt; the LLM still chooses whether to honor them.
+    """
+    if not description:
+        return []
+    text = _strip_html(description)
+    seen: Dict[str, str] = {}
+    for pattern in _TIMESTAMP_PATTERNS:
+        for ts, title in pattern.findall(text):
+            title = title.strip().rstrip('-:').strip()
+            if not title or len(title) < 2 or title.isdigit():
+                continue
+            seen.setdefault(ts, title)
+
+    def _to_seconds(ts: str) -> int:
+        parts = [int(p) for p in ts.split(':')]
+        return parts[0] * 3600 + parts[1] * 60 + parts[2] if len(parts) == 3 \
+            else parts[0] * 60 + parts[1]
+    return sorted(seen.items(), key=lambda kv: _to_seconds(kv[0]))
 
 # Default model for chapter generation tasks (titles, topic detection, splitting).
 # Uses Haiku for cost efficiency -- these are simple classification/generation tasks.
@@ -112,13 +167,25 @@ class ChaptersGenerator:
         """
         description_block = ""
         if episode_description and episode_description.strip():
-            description_block = (
-                "\n\nIf the episode description below contains explicit timestamp "
-                "markers in MM:SS or H:MM:SS form (for example '05:30 Topic A'), "
-                "prefer those timestamps and titles over inferring your own. "
-                "Otherwise identify topic transitions from the transcript.\n\n"
-                f"Episode description:\n{episode_description}"
-            )
+            anchors = _parse_description_anchors(episode_description)
+            if anchors:
+                anchor_lines = '\n'.join(f"{ts} {title}" for ts, title in anchors)
+                description_block = (
+                    "\n\nThese candidate boundaries were extracted from the episode "
+                    "show notes. Prefer these timestamps when the transcript "
+                    "supports them. Drop any candidate that doesn't match the "
+                    "discussion. Add your own boundaries only when a major "
+                    "transition is missing from the candidates.\n\n"
+                    f"Candidate boundaries from show notes:\n{anchor_lines}"
+                )
+            else:
+                description_block = (
+                    "\n\nIf the episode description below contains explicit "
+                    "timestamp markers in MM:SS or H:MM:SS form, prefer those "
+                    "timestamps and titles over inferring your own. Otherwise "
+                    "identify topic transitions from the transcript.\n\n"
+                    f"Episode description:\n{episode_description}"
+                )
 
         prompt = f"""Analyze this podcast transcript segment and identify {num_splits} major topic changes.
 
@@ -144,7 +211,7 @@ Transcript:
                 model=get_chapters_model(),
                 max_tokens=300,
                 system="",
-                temperature=0.3,
+                temperature=TOPIC_DETECTION_TEMPERATURE,
                 messages=[{"role": "user", "content": prompt}],
                 timeout=get_llm_timeout()
             )
