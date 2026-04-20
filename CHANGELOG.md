@@ -6,6 +6,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.5] - 2026-04-20
+
+### Changed
+- Transient-failure auto-retry schedule extended from 3 attempts (5/15/45 min) to 5 attempts (5/15/30/60 min) before marking `permanently_failed`. Covers the common case where upstream CDNs (Acast's `sphinx` in particular) take 30-90 minutes to propagate a newly-published MP3 after the RSS `<item>` appears. Without the extra attempts, episodes like `daily-tech-news-show:407e3e5382c5` gave up at roughly 8 minutes of wall clock time and required manual reprocess; the new tail reaches ~1h50m. `MAX_EPISODE_RETRIES` bumped 3 -> 4 in `config.py`. Backoff ladder in `reset_failed_queue_items` updated to `5m / 15m / 30m / 60m`. Applies to both auto-process and client-requested reprocess paths.
+- `reset_episode_status` (invoked by `POST /api/v1/feeds/<slug>/episodes/<id>/reprocess`) now zeroes `auto_process_queue.attempts` in addition to `episodes.retry_count`. Before this, a user clicking Reprocess on an episode that had hit attempt 4 would reset the episode row but leave the queue's attempt counter stale, causing the next auto-retry to wait 60 minutes instead of the 5-minute first-step delay. Both counters now reset together so a manual reprocess is a true clean slate.
+
+## [2.0.4] - 2026-04-20
+
+### Fixed
+- `POST /api/v1/feeds` now retries the title-extraction RSS fetch once after a 500 ms gap before giving up. Some hosts (Buzzsprout in particular) 403 the first request from a fresh client but serve the retry successfully, which previously caused the auto-slug branch to fall through to a URL-path fallback and commit junk slugs like `1411126` for "Maintenance Phase". After the retry, title-based slugs succeed end-to-end in the same create request.
+- When the title fetch still fails after the retry and the caller did not supply a `slug`, the endpoint now returns a `400` with "Could not fetch podcast title from RSS. Please provide a 'slug' in the request." The old URL-path fallback (which silently produced a numeric or otherwise misleading slug from paths like `rss.buzzsprout.com/1411126.rss`) is removed. Callers who want to control the slug explicitly can continue to pass `slug` in the request body; that path is unchanged.
+
 ## [2.0.3] - 2026-04-19
 
 ### Changed

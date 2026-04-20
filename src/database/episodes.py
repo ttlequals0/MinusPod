@@ -470,8 +470,17 @@ class EpisodeMixin:
                WHERE podcast_id = ? AND episode_id = ?""",
             (podcast['id'], episode_id)
         )
+        # Also clear the queue-side attempt counter so the next auto-retry
+        # after a manual reprocess starts at the 5-min step, not whatever
+        # step the previous failure left us on.
+        conn.execute(
+            """UPDATE auto_process_queue
+               SET attempts = 0
+               WHERE podcast_id = ? AND episode_id = ?""",
+            (podcast['id'], episode_id)
+        )
         conn.commit()
-        logger.debug(f"[{slug}:{episode_id}] Reset episode status to pending (retry_count reset)")
+        logger.debug(f"[{slug}:{episode_id}] Reset episode status to pending (retry_count + queue attempts reset)")
 
     def get_processed_episodes_for_feed(self, podcast_id: int) -> List[Dict]:
         """Get all processed episodes with files for inclusion in RSS feed."""

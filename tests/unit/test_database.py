@@ -565,23 +565,49 @@ class TestResetFailedQueueItems:
         count = temp_db.reset_failed_queue_items(max_retries=3)
         assert count == 1
 
-    def test_backoff_attempt3_requires_45_minutes(self, temp_db):
-        """Attempt 3+ should require 45 minutes of backoff."""
+    def test_backoff_attempt3_requires_30_minutes(self, temp_db):
+        """Attempt 3 should require 30 minutes of backoff (2.0.5 ladder)."""
         pid = self._setup_podcast_and_episode(temp_db, 'pod6', 'ep6', 'failed', retry_count=2)
 
-        # 30 minutes ago - too soon for 45-minute backoff
-        self._queue_item(temp_db, pid, 'ep6', status='failed', attempts=3, minutes_ago=30)
-        count = temp_db.reset_failed_queue_items(max_retries=3)
+        # 20 minutes ago - too soon for 30-minute backoff
+        self._queue_item(temp_db, pid, 'ep6', status='failed', attempts=3, minutes_ago=20)
+        count = temp_db.reset_failed_queue_items(max_retries=4)
         assert count == 0
 
-        # 50 minutes ago - should be eligible
+        # 35 minutes ago - should be eligible
         conn = temp_db.get_connection()
         conn.execute(
-            "UPDATE auto_process_queue SET updated_at = datetime('now', '-50 minutes') WHERE episode_id = 'ep6'"
+            "UPDATE auto_process_queue SET updated_at = datetime('now', '-35 minutes') WHERE episode_id = 'ep6'"
         )
         conn.commit()
-        count = temp_db.reset_failed_queue_items(max_retries=3)
+        count = temp_db.reset_failed_queue_items(max_retries=4)
         assert count == 1
+
+    def test_backoff_attempt4_requires_60_minutes(self, temp_db):
+        """Attempt 4+ should require 60 minutes of backoff (2.0.5 ladder final step)."""
+        pid = self._setup_podcast_and_episode(temp_db, 'pod6b', 'ep6b', 'failed', retry_count=3)
+
+        # 45 minutes ago - too soon for 60-minute backoff
+        self._queue_item(temp_db, pid, 'ep6b', status='failed', attempts=4, minutes_ago=45)
+        count = temp_db.reset_failed_queue_items(max_retries=4)
+        assert count == 0
+
+        # 65 minutes ago - should be eligible
+        conn = temp_db.get_connection()
+        conn.execute(
+            "UPDATE auto_process_queue SET updated_at = datetime('now', '-65 minutes') WHERE episode_id = 'ep6b'"
+        )
+        conn.commit()
+        count = temp_db.reset_failed_queue_items(max_retries=4)
+        assert count == 1
+
+    def test_no_eligible_retries_after_max_attempts(self, temp_db):
+        """After 4 retries (retry_count=4), episode is no longer eligible for auto-retry."""
+        pid = self._setup_podcast_and_episode(temp_db, 'pod6c', 'ep6c', 'failed', retry_count=4)
+        # Long enough past the 60-minute window that the backoff clause passes.
+        self._queue_item(temp_db, pid, 'ep6c', status='failed', attempts=5, minutes_ago=120)
+        count = temp_db.reset_failed_queue_items(max_retries=4)
+        assert count == 0
 
     def test_skips_old_failed_items(self, temp_db):
         """Failed queue items older than max_age_hours should NOT be retried."""
@@ -608,6 +634,44 @@ class TestResetFailedQueueItems:
         count = temp_db.reset_failed_queue_items(max_retries=3)
 
         assert count == 0
+
+
+class TestResetEpisodeStatusClearsQueueAttempts:
+    """reset_episode_status clears both episodes.retry_count AND auto_process_queue.attempts (2.0.5)."""
+
+    def test_reset_clears_both_counters(self, temp_db):
+        from config import MAX_EPISODE_RETRIES
+        assert MAX_EPISODE_RETRIES == 4
+
+        temp_db.create_podcast('pod-reset', 'https://example.com/pod-reset.xml', 'pod-reset')
+        temp_db.upsert_episode('pod-reset', 'ep-reset',
+                               original_url='https://example.com/ep-reset.mp3',
+                               status='failed',
+                               retry_count=3)
+        podcast = temp_db.get_podcast_by_slug('pod-reset')
+        conn = temp_db.get_connection()
+        conn.execute(
+            """INSERT INTO auto_process_queue
+               (podcast_id, episode_id, original_url, title, status, attempts, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, datetime('now'))""",
+            (podcast['id'], 'ep-reset', 'https://example.com/ep-reset.mp3',
+             'Test', 'failed', 3)
+        )
+        conn.commit()
+
+        temp_db.reset_episode_status('pod-reset', 'ep-reset')
+
+        episode = temp_db.get_episode('pod-reset', 'ep-reset')
+        assert episode['status'] == 'pending'
+        assert episode['retry_count'] == 0
+
+        cursor = conn.execute(
+            "SELECT attempts FROM auto_process_queue WHERE podcast_id = ? AND episode_id = ?",
+            (podcast['id'], 'ep-reset')
+        )
+        row = cursor.fetchone()
+        assert row is not None
+        assert row['attempts'] == 0
 
 
 class TestTokenUsage:

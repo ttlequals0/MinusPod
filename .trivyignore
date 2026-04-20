@@ -1,0 +1,28 @@
+# Trivy vulnerability suppressions.
+#
+# Each entry must include a short justification so future reviewers understand
+# why the finding is intentionally accepted rather than patched.
+
+
+# CVE-2025-3730 (torch 2.6.0 -> fixed in 2.8.0, MEDIUM)
+# ------------------------------------------------------
+# The vulnerability is a DoS triggered when torch.load() deserializes a
+# maliciously-crafted checkpoint or model file. MinusPod's torch usage is
+# limited to:
+#   - Loading Whisper models from HuggingFace (curated, trusted sources)
+#   - faster-whisper's internal transcription path
+# The service does not accept user-uploaded torch state dicts, does not
+# torch.load() anything from RSS feeds / episodes / user input, and does
+# not expose a "bring your own model" feature. The attack surface this
+# CVE targets does not exist in this deployment.
+#
+# Upgrading torch 2.6.0+cu124 -> 2.8.0 is blocked on CUDA-stack compatibility:
+# torch 2.8.x may not ship +cu124 wheels, the current Dockerfile workaround
+# that drops cuDNN 8 alongside torch's bundled cuDNN 9 (for CTranslate2
+# 4.4.0) would need re-verification, and faster-whisper 1.2.1 is pinned
+# against the current torch ABI. Risk of breaking GPU transcription
+# outweighs the value of patching a non-exploitable MEDIUM here.
+#
+# Revisit if: CTranslate2 / faster-whisper are upgraded, or if MinusPod
+# ever starts loading user-supplied torch artifacts.
+CVE-2025-3730

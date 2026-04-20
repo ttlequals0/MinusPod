@@ -1,6 +1,7 @@
 """Feed routes: /feeds/* endpoints."""
 import logging
 import os
+import time
 import xml.etree.ElementTree as ET  # defusedxml has no SubElement/tostring, so keep ET for OPML export only
 from typing import Optional
 
@@ -84,9 +85,18 @@ def add_feed():
         from slugify import slugify as make_slug
         from rss_parser import RSSParser
 
-        # Fetch RSS to get podcast name for slug
+        # Two attempts with a short gap: some hosts (e.g. Buzzsprout) 403 the
+        # first fetch from a new client but serve the retry. Circuit breaker
+        # inside fetch_feed still gates genuinely broken feeds.
         rss_parser = RSSParser()
-        feed_content = rss_parser.fetch_feed(source_url)
+        feed_content = None
+        for attempt in (1, 2):
+            feed_content = rss_parser.fetch_feed(source_url)
+            if feed_content:
+                break
+            if attempt == 1:
+                time.sleep(0.5)
+
         if feed_content:
             parsed_feed = rss_parser.parse_feed(feed_content)
             if parsed_feed and parsed_feed.feed:
@@ -94,20 +104,12 @@ def add_feed():
                 if title:
                     slug = make_slug(title)
 
-        # Fallback to URL-based slug if name not available
-        if not slug:
-            from urllib.parse import urlparse
-            parsed = urlparse(source_url)
-            slug_base = parsed.path.strip('/').split('/')[-1] or parsed.netloc
-            slug_base = slug_base.replace('.xml', '').replace('.rss', '')
-            # Skip common generic path segments
-            if slug_base.lower() in ('rss', 'feed', 'podcast', 'audio'):
-                parts = parsed.path.strip('/').split('/')
-                slug_base = parts[-2] if len(parts) > 1 else parsed.netloc
-            slug = make_slug(slug_base)
-
     if not slug:
-        return error_response('Could not generate valid slug', 400)
+        return error_response(
+            "Could not fetch podcast title from RSS. "
+            "Please provide a 'slug' in the request.",
+            400,
+        )
 
     db = get_database()
 
