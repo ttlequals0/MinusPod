@@ -346,6 +346,20 @@ Customize ad detection in Settings:
 - **Audio Bitrate** - Output bitrate for processed audio (default 128k)
 - **System Prompts** - Customizable prompts for first pass and verification detection
 
+### VAD Gap Detector (advanced)
+
+Whisper uses Voice Activity Detection to skip regions it classifies as silence or non-speech. Sped-up legal disclaimers at the tail of DIA ads, distorted interstitials, and some ad intros fall into that bucket and never make it into the transcript. Since MinusPod's Claude, text-pattern, and roll detectors all run against the transcript, these regions are invisible to them and can leak into the processed output, usually at the very start or end of an episode.
+
+The VAD gap detector (added in 2.0.7) runs after the other stages and treats untranscribed spans as ad candidates:
+
+- **Head gap** at the top of the episode: cut whenever the first transcribed segment starts more than `VAD_GAP_START_MIN_SECONDS` (default 3s) into the audio and nothing already covers it.
+- **Mid gap** between segments: if the span is adjacent to a detected ad, the ad's boundary is extended in place. Otherwise, the gap must be at least `VAD_GAP_MID_MIN_SECONDS` (default 8s) AND have ad-signoff language before it or show-resume language after it. Neutral content pauses are left alone.
+- **Tail gap** at the bottom: cut when the span is at least `VAD_GAP_TAIL_MIN_SECONDS` (default 3s) and the postroll detector hasn't already marked it.
+
+Disable with `VAD_GAP_DETECTION_ENABLED=false` or via `PUT /api/v1/settings` `{"vadGapDetectionEnabled": false}`. The knob is intentionally not in the UI; operators reach it via env or API.
+
+If the detector is cutting too aggressively on a specific podcast, raise the mid threshold before disabling. `VAD_GAP_MID_MIN_SECONDS=15` or higher restricts the standalone mid path to very long spans; the adjacent-ad-extend path still fires regardless.
+
 ### Provider API Keys
 
 You can set the Anthropic, OpenAI-compatible, OpenRouter, Ollama, and remote Whisper keys from the UI (Settings > LLM Provider and Settings > Transcription) or via `PUT /api/v1/settings/providers/<name>`. No container restart needed. Keys are encrypted with AES-256-GCM.
@@ -418,6 +432,10 @@ Grouped by how often you'll touch them. **Standard** is what a typical deploymen
 | `WHISPER_API_MODEL` | `whisper-1` | Model name sent to whisper API |
 | `WHISPER_LANGUAGE` | `en` | ISO 639-1 language code, or `auto`. Seeds fresh installs only; runtime value is in Settings > Transcription. |
 | `WHISPER_COMPUTE_TYPE` | `auto` | `auto`, `float16`, `int8_float16`, `int8`, or `float32`. `auto` picks `float16` on CUDA and `int8` on CPU. Seeds fresh installs only; runtime value is in Settings > Transcription. See [GPU Compute Type](#gpu-compute-type) for per-GPU recommendations. |
+| `VAD_GAP_DETECTION_ENABLED` | `true` | `true` or `false`. Toggles the VAD gap detector, which cuts audio regions Whisper's VAD dropped (sped-up disclaimers, distorted ad tails) that the transcript-based detectors never see. Seeds the DB row on fresh installs; runtime value is at `GET/PUT /api/v1/settings`. Advanced tuning, not surfaced in the UI. |
+| `VAD_GAP_START_MIN_SECONDS` | `3.0` | Minimum pre-transcript gap (seconds) at episode start that the VAD detector will cut. Anything shorter is left alone. Seeds fresh installs only. |
+| `VAD_GAP_MID_MIN_SECONDS` | `8.0` | Minimum mid-episode untranscribed gap. Standalone mid-gaps still require signoff/resume context to emit; gaps adjacent to a detected ad extend that ad in place regardless of this threshold. Seeds fresh installs only. |
+| `VAD_GAP_TAIL_MIN_SECONDS` | `3.0` | Minimum post-transcript gap at episode end that the VAD detector will cut when no postroll marker already covers it. Seeds fresh installs only. |
 | `APP_PASSWORD` | _(none)_ | Initial password for web UI (can also be set in Settings > Security) |
 | `OLLAMA_API_KEY` | _(none)_ | Ollama Cloud key. Leave unset for local. |
 | `PODCAST_INDEX_API_KEY` | _(none)_ | PodcastIndex.org API key for podcast search |

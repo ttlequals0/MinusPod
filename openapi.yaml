@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.0.6
+  version: 2.0.7
   contact:
     name: MinusPod
   license:
@@ -2588,6 +2588,39 @@ paths:
                     (Pascal GTX 10xx, Maxwell GTX 9xx) need `int8` or `float32`.
                     See the README section "GPU Compute Type" for the per-GPU table.
                   example: auto
+                vadGapDetectionEnabled:
+                  type: boolean
+                  description: |
+                    Toggles the VAD gap detector, which cuts audio regions
+                    Whisper's VAD dropped (sped-up disclaimers, distorted ad
+                    tails). Advanced tuning; intentionally not surfaced in the
+                    UI. See README "VAD Gap Detector" for full behavior.
+                  example: true
+                vadGapStartMinSeconds:
+                  type: number
+                  format: float
+                  minimum: 0
+                  description: |
+                    Minimum pre-transcript head gap, in seconds, that the VAD
+                    detector will cut. Values below the threshold are left alone.
+                  example: 3.0
+                vadGapMidMinSeconds:
+                  type: number
+                  format: float
+                  minimum: 0
+                  description: |
+                    Minimum mid-episode untranscribed gap for the standalone
+                    emission path. Gaps adjacent to an already-detected ad
+                    extend that ad in place regardless of this threshold.
+                  example: 8.0
+                vadGapTailMinSeconds:
+                  type: number
+                  format: float
+                  minimum: 0
+                  description: |
+                    Minimum post-transcript tail gap that the VAD detector
+                    will cut when no postroll marker already covers it.
+                  example: 3.0
                 autoProcessEnabled:
                   type: boolean
                   description: Enable automatic processing of new episodes when feeds refresh
@@ -3969,6 +4002,38 @@ components:
                 int8_float16 -> int8 -> float32 when float16 init fails.
             isDefault:
               type: boolean
+        vadGapDetectionEnabled:
+          type: object
+          properties:
+            value:
+              type: boolean
+              description: Toggles the VAD gap detector.
+            isDefault:
+              type: boolean
+        vadGapStartMinSeconds:
+          type: object
+          properties:
+            value:
+              type: number
+              format: float
+            isDefault:
+              type: boolean
+        vadGapMidMinSeconds:
+          type: object
+          properties:
+            value:
+              type: number
+              format: float
+            isDefault:
+              type: boolean
+        vadGapTailMinSeconds:
+          type: object
+          properties:
+            value:
+              type: number
+              format: float
+            isDefault:
+              type: boolean
         autoProcessEnabled:
           type: object
           properties:
@@ -4040,6 +4105,17 @@ components:
             whisperComputeType:
               type: string
               enum: [auto, float16, int8_float16, int8, float32]
+            vadGapDetectionEnabled:
+              type: boolean
+            vadGapStartMinSeconds:
+              type: number
+              format: float
+            vadGapMidMinSeconds:
+              type: number
+              format: float
+            vadGapTailMinSeconds:
+              type: number
+              format: float
             autoProcessEnabled:
               type: boolean
             minCutConfidence:

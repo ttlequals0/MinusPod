@@ -322,6 +322,27 @@ def _detect_ads_first_pass(slug, episode_id, segments, audio_path,
     return first_pass_ads, len(first_pass_ads), ad_result
 
 
+def _vad_gap_enabled(db) -> bool:
+    """Read the vad_gap_detection_enabled setting (default True)."""
+    value = db.get_setting('vad_gap_detection_enabled')
+    if value is None:
+        return True
+    return str(value).strip().lower() != 'false'
+
+
+def _setting_float(db, key: str, default: float) -> float:
+    """Read a float setting with graceful fallback on missing/invalid values."""
+    value = db.get_setting(key)
+    if value is None or value == '':
+        return default
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        audio_logger.warning(f"Invalid float for setting {key!r}: {value!r}; using default {default}")
+        return default
+    return parsed if parsed > 0 else default
+
+
 def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
                           episode_description, episode_duration, min_cut_confidence,
                           podcast_name, skip_patterns=False):
@@ -356,6 +377,21 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
         if postroll_ad:
             all_ads.append(postroll_ad)
             audio_logger.info(f"[{slug}:{episode_id}] Heuristic post-roll: {postroll_ad['start']:.1f}s-{postroll_ad['end']:.1f}s")
+
+        # VAD-gap detection (head/mid/tail)
+        if _vad_gap_enabled(db):
+            from vad_gap_detector import detect_vad_gaps
+            vad_gap_ads = detect_vad_gaps(
+                segments, all_ads, episode_duration,
+                start_min_seconds=_setting_float(db, 'vad_gap_start_min_seconds', 3.0),
+                mid_min_seconds=_setting_float(db, 'vad_gap_mid_min_seconds', 8.0),
+                tail_min_seconds=_setting_float(db, 'vad_gap_tail_min_seconds', 3.0),
+            )
+            if vad_gap_ads:
+                all_ads.extend(vad_gap_ads)
+                audio_logger.info(
+                    f"[{slug}:{episode_id}] VAD gap detector: {len(vad_gap_ads)} gap(s) marked"
+                )
 
     # Validation
     if not all_ads:

@@ -213,6 +213,15 @@ WHISPER_COMPUTE_TYPE_DEFAULT = 'auto'
 # Fallback order when float16 init fails on CUDA (CC < 7.0: Pascal/Maxwell).
 WHISPER_COMPUTE_TYPE_FALLBACK_CHAIN = ('int8_float16', 'int8', 'float32')
 
+# VAD gap detector: catches audio regions Whisper's VAD dropped (sped-up
+# disclaimers, distorted ad tails) that the transcript-based ad detectors
+# never see. A "gap" is a span with no Whisper segment.
+VAD_GAP_DETECTION_ENABLED_DEFAULT = True
+VAD_GAP_START_MIN_SECONDS_DEFAULT = 3.0  # head: cut when gap >= this
+VAD_GAP_MID_MIN_SECONDS_DEFAULT = 8.0    # mid: cut only with signoff/resume context
+VAD_GAP_TAIL_MIN_SECONDS_DEFAULT = 3.0   # tail: cut when no postroll already covers it
+VAD_GAP_CONFIDENCE = 0.75                # emitted marker confidence
+
 # OpenRouter API
 OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1'
 OPENROUTER_HTTP_REFERER = 'https://github.com/ttlequals0/minuspod'

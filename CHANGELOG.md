@@ -6,6 +6,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.7] - 2026-04-21
+
+### Added
+- VAD gap detector (`src/vad_gap_detector.py`) catches audio regions Whisper's VAD drops so they never reach the transcript: sped-up legal disclaimers at ad tails, distorted interstitials, long untranscribed silences adjacent to an ad. Runs after Claude + text-pattern + roll detection, before validation. Head-of-episode gaps (>= 3s) are always cut; mid-episode gaps either extend an adjacent existing ad in place or require signoff/resume context before a standalone cut emits; tail-of-episode gaps (>= 3s) are cut when no postroll already covers them. Motivated by a DTNS episode where the DIA ad's sped-up legal babble sat in the pre-transcript window and would otherwise leak into the processed output. Confidence 0.75 on emitted markers; `detection_stage='vad_gap'`.
+- Four env vars for operators to tune or disable the detector: `VAD_GAP_DETECTION_ENABLED` (default `true`), `VAD_GAP_START_MIN_SECONDS` (default `3.0`), `VAD_GAP_MID_MIN_SECONDS` (default `8.0`), `VAD_GAP_TAIL_MIN_SECONDS` (default `3.0`). Each also available as a DB setting and via `PUT /api/v1/settings` for parity with other whisper knobs. Not surfaced in the UI; these are advanced knobs most operators will never touch.
+
+### Changed
+- `openapi.yaml` documents the four new `vadGap*` fields on `/settings` request and response schemas.
+
 ## [2.0.6] - 2026-04-21
 
 ### Added

@@ -101,12 +101,35 @@ def get_settings():
     default_whisper_api_model = os.environ.get('WHISPER_API_MODEL', 'whisper-1')
     default_whisper_language = os.environ.get('WHISPER_LANGUAGE') or 'en'
     default_whisper_compute_type = os.environ.get('WHISPER_COMPUTE_TYPE', WHISPER_COMPUTE_TYPE_DEFAULT)
+    default_vad_gap_enabled = os.environ.get('VAD_GAP_DETECTION_ENABLED', 'true').lower() in ('true', '1', 'yes')
+
+    def _env_float(key, default):
+        try:
+            return float(os.environ.get(key, str(default)))
+        except (ValueError, TypeError):
+            return default
+
+    default_vad_gap_start = _env_float('VAD_GAP_START_MIN_SECONDS', 3.0)
+    default_vad_gap_mid = _env_float('VAD_GAP_MID_MIN_SECONDS', 8.0)
+    default_vad_gap_tail = _env_float('VAD_GAP_TAIL_MIN_SECONDS', 3.0)
     whisper_backend = _setting_value(settings, 'whisper_backend', default_whisper_backend)
     whisper_api_base_url = _setting_value(settings, 'whisper_api_base_url', default_whisper_api_base_url)
     whisper_api_key = _setting_value(settings, 'whisper_api_key', '')
     whisper_api_model = _setting_value(settings, 'whisper_api_model', default_whisper_api_model)
     whisper_language = _setting_value(settings, 'whisper_language', default_whisper_language)
     whisper_compute_type = _setting_value(settings, 'whisper_compute_type', default_whisper_compute_type)
+    vad_gap_enabled_raw = _setting_value(settings, 'vad_gap_detection_enabled', str(default_vad_gap_enabled).lower())
+    vad_gap_enabled = str(vad_gap_enabled_raw).lower() in ('true', '1', 'yes')
+
+    def _db_float(key, default):
+        try:
+            return float(_setting_value(settings, key, default))
+        except (ValueError, TypeError):
+            return default
+
+    vad_gap_start = _db_float('vad_gap_start_min_seconds', default_vad_gap_start)
+    vad_gap_mid = _db_float('vad_gap_mid_min_seconds', default_vad_gap_mid)
+    vad_gap_tail = _db_float('vad_gap_tail_min_seconds', default_vad_gap_tail)
 
     return json_response({
         'systemPrompt': _sv('system_prompt', _setting_value(settings, 'system_prompt', DEFAULT_SYSTEM_PROMPT)),
@@ -130,6 +153,10 @@ def get_settings():
         'whisperApiModel': _sv('whisper_api_model', whisper_api_model),
         'whisperLanguage': _sv('whisper_language', whisper_language),
         'whisperComputeType': _sv('whisper_compute_type', whisper_compute_type),
+        'vadGapDetectionEnabled': _sv('vad_gap_detection_enabled', vad_gap_enabled),
+        'vadGapStartMinSeconds': _sv('vad_gap_start_min_seconds', vad_gap_start),
+        'vadGapMidMinSeconds': _sv('vad_gap_mid_min_seconds', vad_gap_mid),
+        'vadGapTailMinSeconds': _sv('vad_gap_tail_min_seconds', vad_gap_tail),
         'apiKeyConfigured': api_key_configured,
         'retentionDays': int(db.get_setting('retention_days') or '30'),
         'defaults': {
@@ -151,6 +178,10 @@ def get_settings():
             'whisperApiModel': default_whisper_api_model,
             'whisperLanguage': default_whisper_language,
             'whisperComputeType': default_whisper_compute_type,
+            'vadGapDetectionEnabled': default_vad_gap_enabled,
+            'vadGapStartMinSeconds': default_vad_gap_start,
+            'vadGapMidMinSeconds': default_vad_gap_mid,
+            'vadGapTailMinSeconds': default_vad_gap_tail,
         }
     })
 
@@ -332,6 +363,31 @@ def update_ad_detection_settings():
             logger.exception("Failed to mark Whisper model for reload after compute_type change")
         logger.info(f"Updated whisper compute type to: {ct_val}")
 
+    if 'vadGapDetectionEnabled' in data:
+        raw = data['vadGapDetectionEnabled']
+        if isinstance(raw, bool):
+            enabled = raw
+        else:
+            enabled = str(raw).strip().lower() in ('true', '1', 'yes')
+        db.set_setting('vad_gap_detection_enabled', 'true' if enabled else 'false', is_default=False)
+        logger.info(f"Updated vad_gap_detection_enabled to: {enabled}")
+
+    for field_name, db_key in (
+        ('vadGapStartMinSeconds', 'vad_gap_start_min_seconds'),
+        ('vadGapMidMinSeconds', 'vad_gap_mid_min_seconds'),
+        ('vadGapTailMinSeconds', 'vad_gap_tail_min_seconds'),
+    ):
+        if field_name not in data:
+            continue
+        try:
+            value = float(data[field_name])
+        except (TypeError, ValueError):
+            return json_response({'error': f'{field_name} must be a positive number'}, 400)
+        if value <= 0:
+            return json_response({'error': f'{field_name} must be a positive number'}, 400)
+        db.set_setting(db_key, str(value), is_default=False)
+        logger.info(f"Updated {db_key} to: {value}")
+
     if 'podcastIndexApiKey' in data:
         try:
             set_or_clear_secret(db, 'podcast_index_api_key', data['podcastIndexApiKey'])
@@ -379,6 +435,10 @@ def reset_ad_detection_settings():
     db.reset_setting('whisper_api_key')
     db.reset_setting('whisper_api_model')
     db.reset_setting('whisper_compute_type')
+    db.reset_setting('vad_gap_detection_enabled')
+    db.reset_setting('vad_gap_start_min_seconds')
+    db.reset_setting('vad_gap_mid_min_seconds')
+    db.reset_setting('vad_gap_tail_min_seconds')
 
     # Recreate LLM client with reset settings
     client = get_llm_client(force_new=True)

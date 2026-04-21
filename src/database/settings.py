@@ -107,6 +107,10 @@ class SettingsMixin:
             'whisper_api_base_url': os.environ.get('WHISPER_API_BASE_URL', ''),
             'whisper_api_model': os.environ.get('WHISPER_API_MODEL', 'whisper-1'),
             'whisper_compute_type': os.environ.get('WHISPER_COMPUTE_TYPE', 'auto'),
+            'vad_gap_detection_enabled': os.environ.get('VAD_GAP_DETECTION_ENABLED', 'true'),
+            'vad_gap_start_min_seconds': os.environ.get('VAD_GAP_START_MIN_SECONDS', '3.0'),
+            'vad_gap_mid_min_seconds': os.environ.get('VAD_GAP_MID_MIN_SECONDS', '8.0'),
+            'vad_gap_tail_min_seconds': os.environ.get('VAD_GAP_TAIL_MIN_SECONDS', '3.0'),
         }
 
         if key in defaults:
