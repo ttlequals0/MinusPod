@@ -1,0 +1,77 @@
+# Keep the build context small and avoid baking local or sensitive files into
+# the image. The Dockerfile uses selective COPY statements today, but this is
+# defense-in-depth for future edits.
+
+# VCS and CI metadata
+.git
+.gitignore
+.gitattributes
+.githooks
+.github
+
+# Local dev environments
+.venv
+venv
+.python-version
+node_modules
+
+# Python build / cache artifacts
+__pycache__
+**/__pycache__
+*.py[cod]
+*.egg-info
+build
+dist
+.pytest_cache
+.coverage
+.coverage.*
+htmlcov
+.tox
+.nox
+
+# Frontend local artifacts (frontend/ is copied wholesale for the builder stage;
+# node_modules is reinstalled inside the container so the host copy just bloats
+# the context).
+frontend/node_modules
+frontend/dist
+frontend/.vite
+frontend/coverage
+
+# Runtime data and secrets that must never land in an image
+.env
+.env.*
+!.env.example
+cookies.txt
+*.pem
+*.key
+*.pfx
+*.db
+*.db-journal
+*.sqlite
+*.sqlite-journal
+
+# Test + docs + scratch
+tests
+smoke
+docs
+tmp
+scripts
+
+# Local-only tooling and notes
+.claude
+.claude-mem
+.playwright-mcp
+.trivyignore
+CLAUDE.md
+
+# Editor / OS noise
+.vscode
+.idea
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs

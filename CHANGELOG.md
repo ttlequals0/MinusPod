@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - `openapi.yaml` now documents `whisperComputeType` on the `/settings/transcription` request and response schemas.
+- Added `.dockerignore` so local dev artifacts and secret-bearing files (`cookies.txt`, `.env*`, `*.db`, `.venv`, `node_modules`, `__pycache__`, `tests/`, `docs/`, `tmp/`, etc.) never enter the build context. The existing selective `COPY` statements in the Dockerfile already keep these out of the final image; this is defense-in-depth for future edits.
 
 ## [2.0.5] - 2026-04-20
 
