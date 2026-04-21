@@ -68,6 +68,8 @@ export default defineConfig({
     outDir: '../static/ui',
     emptyOutDir: true,
     sourcemap: false,
+    // React Query v5 + modern deps emit private class fields; es2020 default can't lower them.
+    target: 'es2022',
   },
   server: {
     port: 5173,

@@ -7,7 +7,7 @@
 
 # Core transcription
 faster-whisper>=1.1.0
-ctranslate2==4.4.0
+ctranslate2==4.7.1
 
 # API and web
 anthropic>=0.49.0
@@ -15,14 +15,14 @@ openai>=1.0.0                 # OpenAI-compatible API (Claude Code wrapper, Olla
 flask>=3.1.3
 flask-compress>=1.14
 flask-limiter>=3.5.0
-gunicorn==23.0.0
+gunicorn==25.3.0
 requests>=2.32.4
 
 # HTML parsing (pricepertoken.com pricing scraper)
 beautifulsoup4>=4.12.0
 
 # Utilities
-feedparser==6.0.11
+feedparser==6.0.12
 python-slugify==8.0.4
 
 # Audio analysis (torch/torchaudio 2.6.0+cu124 pre-installed in Dockerfile)
@@ -43,6 +43,10 @@ defusedxml>=0.7.1
 # Transitive dependency pins (CVE fixes)
 jaraco.context>=6.1.0
 wheel>=0.46.2
+# jaraco.context transitive on Python <3.12 (the Docker image runs 3.11).
+# Pinned unconditionally so pip-compile includes it regardless of the compile
+# host's Python version; harmless on 3.12 (unused code path).
+backports.tarfile>=1.2.0
 
 # Testing
 pytest>=7.4.0
