@@ -20,6 +20,9 @@ from config import (
     API_CHUNK_DURATION_SECONDS,
     WHISPER_BACKEND_LOCAL,
     WHISPER_BACKEND_API,
+    WHISPER_COMPUTE_TYPES,
+    WHISPER_COMPUTE_TYPE_DEFAULT,
+    WHISPER_COMPUTE_TYPE_FALLBACK_CHAIN,
     CHUNK_OVERLAP_SECONDS,
     CHUNK_MIN_DURATION_SECONDS,
     CHUNK_MAX_DURATION_SECONDS,
@@ -276,7 +279,8 @@ def merge_overlapping_segments(
 def _get_whisper_settings() -> Dict[str, str]:
     """Read all whisper backend settings from DB with env var fallbacks.
 
-    Returns a dict with keys: backend, api_base_url, api_key, api_model.
+    Returns a dict with keys: backend, api_base_url, api_key, api_model,
+    language, compute_type.
     """
     defaults = {
         'backend': os.environ.get('WHISPER_BACKEND', WHISPER_BACKEND_LOCAL),
@@ -284,6 +288,7 @@ def _get_whisper_settings() -> Dict[str, str]:
         'api_key': os.environ.get('WHISPER_API_KEY', ''),
         'api_model': os.environ.get('WHISPER_API_MODEL', 'whisper-1'),
         'language': os.environ.get('WHISPER_LANGUAGE') or 'en',
+        'compute_type': os.environ.get('WHISPER_COMPUTE_TYPE', WHISPER_COMPUTE_TYPE_DEFAULT),
     }
     try:
         # Inline import: Database depends on modules that import transcriber,
@@ -296,6 +301,7 @@ def _get_whisper_settings() -> Dict[str, str]:
             ('whisper_api_key', 'api_key'),
             ('whisper_api_model', 'api_model'),
             ('whisper_language', 'language'),
+            ('whisper_compute_type', 'compute_type'),
         ]:
             if setting_key == 'whisper_api_key':
                 val = db.get_secret(setting_key)
@@ -305,6 +311,13 @@ def _get_whisper_settings() -> Dict[str, str]:
                 defaults[default_key] = val
     except Exception as e:
         logger.warning(f"Could not read whisper settings from DB, using env defaults: {e}")
+
+    if defaults['compute_type'] not in WHISPER_COMPUTE_TYPES:
+        logger.warning(
+            f"Unknown WHISPER_COMPUTE_TYPE={defaults['compute_type']!r}; "
+            f"falling back to {WHISPER_COMPUTE_TYPE_DEFAULT!r}"
+        )
+        defaults['compute_type'] = WHISPER_COMPUTE_TYPE_DEFAULT
 
     return defaults
 
@@ -459,29 +472,63 @@ class WhisperModelSingleton:
         if cls._instance is None:
             model_size = reload_model or cls.get_configured_model()
             device = os.getenv("WHISPER_DEVICE", "cpu")
+            configured_compute_type = _get_whisper_settings().get(
+                'compute_type', WHISPER_COMPUTE_TYPE_DEFAULT
+            )
 
-            # Check CUDA availability and set compute type
+            # Resolve device and the compute type 'auto' falls back to.
             if device == "cuda":
                 cuda_device_count = ctranslate2.get_cuda_device_count()
                 if cuda_device_count > 0:
                     logger.info(f"CUDA available: {cuda_device_count} device(s) detected")
-                    compute_type = "float16"  # Use FP16 for GPU
-                    logger.info(f"Initializing Whisper model: {model_size} on CUDA with float16")
+                    auto_compute_type = "float16"
                 else:
                     logger.warning("CUDA requested but not available, falling back to CPU")
                     device = "cpu"
-                    compute_type = "int8"
-                    logger.info(f"Initializing Whisper model: {model_size} on CPU with int8")
+                    auto_compute_type = "int8"
             else:
-                compute_type = "int8"  # Use INT8 for CPU
-                logger.info(f"Initializing Whisper model: {model_size} on CPU with int8")
+                auto_compute_type = "int8"
 
-            # Initialize base model
-            cls._base_model = WhisperModel(
-                model_size,
-                device=device,
-                compute_type=compute_type,
+            compute_type = (
+                auto_compute_type if configured_compute_type == "auto"
+                else configured_compute_type
             )
+            logger.info(f"Initializing Whisper model: {model_size} on {device} with {compute_type}")
+
+            # CTranslate2 requires compute capability >= 7.0 for float16. Pascal
+            # consumer (CC 6.1), Maxwell (CC 5.x), and Jetson TX2 (CC 6.2) raise
+            # at init. Walk the fallback chain only when float16 was selected;
+            # any other explicit choice that fails is a config error, not a
+            # hardware mismatch, so re-raise.
+            try:
+                cls._base_model = WhisperModel(
+                    model_size, device=device, compute_type=compute_type,
+                )
+            except Exception as init_err:
+                if device == "cuda" and compute_type == "float16":
+                    last_err = init_err
+                    for fallback in WHISPER_COMPUTE_TYPE_FALLBACK_CHAIN:
+                        logger.warning(
+                            f"Whisper float16 init failed on CUDA: {last_err}; "
+                            f"retrying with {fallback}"
+                        )
+                        # Reclaim VRAM from any partial allocation before retry.
+                        clear_gpu_memory()
+                        try:
+                            cls._base_model = WhisperModel(
+                                model_size, device=device, compute_type=fallback,
+                            )
+                            compute_type = fallback
+                            break
+                        except Exception as retry_err:
+                            last_err = retry_err
+                    else:
+                        # Preserve the original float16 failure as __cause__ so
+                        # operators can see the root cause, not just the last
+                        # fallback attempt's error.
+                        raise last_err from init_err
+                else:
+                    raise
 
             # Initialize batched pipeline
             cls._instance = BatchedInferencePipeline(
@@ -489,7 +536,10 @@ class WhisperModelSingleton:
             )
             cls._current_model_name = model_size
             cls._needs_reload = False
-            logger.info(f"Whisper model '{model_size}' and batched pipeline initialized")
+            logger.info(
+                f"Whisper model '{model_size}' and batched pipeline initialized "
+                f"(device={device}, compute_type={compute_type})"
+            )
 
             # Log actual GPU memory usage after model load
             mem_info = get_gpu_memory_info()

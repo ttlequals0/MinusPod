@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.0.5
+  version: 2.0.6
   contact:
     name: MinusPod
   license:
@@ -2577,6 +2577,17 @@ paths:
                     or `auto` to let Whisper detect. Empty value resets to the default (`en`).
                     Applies to both local (faster-whisper) and remote OpenAI-compatible backends.
                   example: en
+                whisperComputeType:
+                  type: string
+                  enum: [auto, float16, int8_float16, int8, float32]
+                  description: |
+                    Compute precision for the local faster-whisper backend.
+                    `auto` resolves to float16 on CUDA and int8 on CPU. On init
+                    failure with float16, the server falls back through
+                    int8_float16 -> int8 -> float32. Older NVIDIA GPUs
+                    (Pascal GTX 10xx, Maxwell GTX 9xx) need `int8` or `float32`.
+                    See the README section "GPU Compute Type" for the per-GPU table.
+                  example: auto
                 autoProcessEnabled:
                   type: boolean
                   description: Enable automatic processing of new episodes when feeds refresh
@@ -3946,6 +3957,18 @@ components:
               description: ISO 639-1 code (e.g. `en`, `fi`) or `auto` for Whisper auto-detect
             isDefault:
               type: boolean
+        whisperComputeType:
+          type: object
+          properties:
+            value:
+              type: string
+              enum: [auto, float16, int8_float16, int8, float32]
+              description: |
+                Compute precision for the local faster-whisper backend. `auto` resolves to float16
+                on CUDA and int8 on CPU; older GPUs automatically fall back through the chain
+                int8_float16 -> int8 -> float32 when float16 init fails.
+            isDefault:
+              type: boolean
         autoProcessEnabled:
           type: object
           properties:
@@ -4014,6 +4037,9 @@ components:
               type: string
             whisperLanguage:
               type: string
+            whisperComputeType:
+              type: string
+              enum: [auto, float16, int8_float16, int8, float32]
             autoProcessEnabled:
               type: boolean
             minCutConfidence:

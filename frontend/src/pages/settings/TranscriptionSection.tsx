@@ -18,6 +18,8 @@ interface TranscriptionSectionProps {
   onProviderKeyTest: (provider: ProviderName) => Promise<ProviderTestResult>;
   whisperLanguage: string;
   onWhisperLanguageChange: (language: string) => void;
+  whisperComputeType: string;
+  onWhisperComputeTypeChange: (computeType: string) => void;
   softTimeoutMinutes: number;
   hardTimeoutMinutes: number;
   softMinMinutes: number;
@@ -46,6 +48,8 @@ function TranscriptionSection({
   onProviderKeyTest,
   whisperLanguage,
   onWhisperLanguageChange,
+  whisperComputeType,
+  onWhisperComputeTypeChange,
   softTimeoutMinutes,
   hardTimeoutMinutes,
   softMinMinutes,
@@ -168,6 +172,29 @@ function TranscriptionSection({
             {' '}<a href="https://whisper-api.com/docs/languages/" target="_blank" rel="noreferrer" className="underline hover:text-foreground">supported languages</a>.
           </p>
         </div>
+
+        {whisperBackend === WHISPER_BACKENDS.LOCAL && (
+          <div className="pt-2 border-t border-border">
+            <label htmlFor="whisperComputeType" className="block text-sm font-medium text-foreground mb-2">
+              GPU compute type
+            </label>
+            <select
+              id="whisperComputeType"
+              value={whisperComputeType || 'auto'}
+              onChange={(e) => onWhisperComputeTypeChange(e.target.value)}
+              className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              <option value="auto">Auto (float16 on CUDA, int8 on CPU)</option>
+              <option value="float16">float16 (Volta and newer: V100, RTX 20xx+, A100, H100)</option>
+              <option value="int8_float16">int8_float16 (Volta and newer; lower VRAM)</option>
+              <option value="int8">int8 (universal; Pascal GTX 10xx should pick this)</option>
+              <option value="float32">float32 (Maxwell GTX 9xx or Pascal P100)</option>
+            </select>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Older GPUs (Pascal, Maxwell) cannot run float16. On init failure the server retries int8_float16, then int8, then float32 automatically. See the README &quot;GPU Compute Type&quot; section for a per-GPU table.
+            </p>
+          </div>
+        )}
 
         <div className="pt-2 border-t border-border space-y-3">
           <div className="flex items-center gap-3">

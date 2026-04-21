@@ -417,6 +417,7 @@ Grouped by how often you'll touch them. **Standard** is what a typical deploymen
 | `WHISPER_API_KEY` | _(none)_ | API key for whisper API |
 | `WHISPER_API_MODEL` | `whisper-1` | Model name sent to whisper API |
 | `WHISPER_LANGUAGE` | `en` | ISO 639-1 language code, or `auto`. Seeds fresh installs only; runtime value is in Settings > Transcription. |
+| `WHISPER_COMPUTE_TYPE` | `auto` | `auto`, `float16`, `int8_float16`, `int8`, or `float32`. `auto` picks `float16` on CUDA and `int8` on CPU. Seeds fresh installs only; runtime value is in Settings > Transcription. See [GPU Compute Type](#gpu-compute-type) for per-GPU recommendations. |
 | `APP_PASSWORD` | _(none)_ | Initial password for web UI (can also be set in Settings > Security) |
 | `OLLAMA_API_KEY` | _(none)_ | Ollama Cloud key. Leave unset for local. |
 | `PODCAST_INDEX_API_KEY` | _(none)_ | PodcastIndex.org API key for podcast search |
@@ -638,6 +639,26 @@ Look for `json_parse_failed` or `extraction_method` entries in the application l
 ## Whisper / Transcription
 
 By default, MinusPod uses faster-whisper with a local NVIDIA GPU for transcription. If you don't have an NVIDIA GPU (e.g. Apple Silicon Mac), you can use any OpenAI-compatible whisper API as the transcription backend.
+
+### GPU Compute Type
+
+faster-whisper runs on CTranslate2, which only supports certain compute types per GPU generation. MinusPod exposes `WHISPER_COMPUTE_TYPE` as an env var and as a dropdown in Settings > Transcription. The default `auto` picks `float16` on CUDA and `int8` on CPU, matching the prior hardcoded behavior. If `float16` fails at model init (common on Pascal GTX 10xx and Maxwell GTX 9xx, which cannot do fp16 math in CTranslate2), the server retries `int8_float16`, then `int8`, then `float32` and logs the final active type. Any other explicit choice that fails is raised instead of silently masked.
+
+Pick a value that matches your GPU:
+
+| GPU generation | Cards | Recommended value |
+|---|---|---|
+| Blackwell, Hopper, Ada, Ampere | RTX 50xx, H100/H200, RTX 40xx / L40, RTX 30xx / A100 | `auto` (float16) |
+| Turing | RTX 20xx, GTX 16xx, T4 | `auto` (float16) |
+| Volta | V100, Titan V | `auto` (float16) |
+| Pascal (consumer) | GTX 1060 / 1070 / 1080 / 1080 Ti, Titan Xp | `int8` |
+| Pascal P100, Jetson TX2 | P100, Jetson TX2 | `float32` |
+| Maxwell | GTX 9xx, Titan X Maxwell | `float32` |
+
+Sources:
+
+- CTranslate2 compute-type support matrix: [opennmt.net/CTranslate2/quantization.html](https://opennmt.net/CTranslate2/quantization.html)
+- Official NVIDIA CUDA compute-capability table: [developer.nvidia.com/cuda-gpus](https://developer.nvidia.com/cuda-gpus)
 
 ### whisper.cpp with Docker (NVIDIA GPU)
 

@@ -206,6 +206,13 @@ API_CHUNK_DURATION_SECONDS = 600
 WHISPER_BACKEND_LOCAL = 'local'
 WHISPER_BACKEND_API = 'openai-api'
 
+# Whisper compute-type values accepted by faster-whisper/CTranslate2.
+# 'auto' resolves to float16 on CUDA and int8 on CPU at init time.
+WHISPER_COMPUTE_TYPES = ('auto', 'float16', 'int8_float16', 'int8', 'float32')
+WHISPER_COMPUTE_TYPE_DEFAULT = 'auto'
+# Fallback order when float16 init fails on CUDA (CC < 7.0: Pascal/Maxwell).
+WHISPER_COMPUTE_TYPE_FALLBACK_CHAIN = ('int8_float16', 'int8', 'float32')
+
 # OpenRouter API
 OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1'
 OPENROUTER_HTTP_REFERER = 'https://github.com/ttlequals0/minuspod'

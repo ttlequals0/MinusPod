@@ -106,6 +106,7 @@ class SettingsMixin:
             'whisper_backend': os.environ.get('WHISPER_BACKEND', 'local'),
             'whisper_api_base_url': os.environ.get('WHISPER_API_BASE_URL', ''),
             'whisper_api_model': os.environ.get('WHISPER_API_MODEL', 'whisper-1'),
+            'whisper_compute_type': os.environ.get('WHISPER_COMPUTE_TYPE', 'auto'),
         }
 
         if key in defaults:

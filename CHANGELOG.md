@@ -6,6 +6,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.6] - 2026-04-21
+
+### Added
+- `WHISPER_COMPUTE_TYPE` setting (env var, DB setting, and Settings > Transcription dropdown) with values `auto`, `float16`, `int8_float16`, `int8`, `float32`. Default `auto` resolves to `float16` on CUDA and `int8` on CPU, preserving prior behavior when unset. Reported and prototyped by @zuhaibzia in issue #139.
+- Automatic compute-type fallback in `WhisperModelSingleton.get_instance`: when the resolved type is `float16` on CUDA and model init raises (Pascal GTX 10xx, Maxwell GTX 9xx, Jetson TX2 — CTranslate2 does not support fp16 below compute capability 7.0), the server retries `int8_float16`, then `int8`, then `float32` and logs the final active type. Any other explicit choice that fails still raises so a bad value isn't masked.
+- README "GPU Compute Type" subsection with a per-GPU recommendation table and links to the CTranslate2 quantization docs and NVIDIA's CUDA compute-capability list.
+
+### Changed
+- `openapi.yaml` now documents `whisperComputeType` on the `/settings/transcription` request and response schemas.
+
 ## [2.0.5] - 2026-04-20
 
 ### Changed

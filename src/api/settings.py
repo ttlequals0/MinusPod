@@ -13,7 +13,9 @@ from api import (
     get_database, _enrich_models_with_pricing, limiter,
 )
 from config import (
-    WHISPER_BACKEND_LOCAL, WHISPER_BACKEND_API, OPENROUTER_BASE_URL,
+    WHISPER_BACKEND_LOCAL, WHISPER_BACKEND_API,
+    WHISPER_COMPUTE_TYPES, WHISPER_COMPUTE_TYPE_DEFAULT,
+    OPENROUTER_BASE_URL,
     PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER, PROVIDER_OPENAI_COMPATIBLE, PROVIDER_OLLAMA,
 )
 from pricing_fetcher import force_refresh_pricing
@@ -98,11 +100,13 @@ def get_settings():
     default_whisper_api_base_url = os.environ.get('WHISPER_API_BASE_URL', '')
     default_whisper_api_model = os.environ.get('WHISPER_API_MODEL', 'whisper-1')
     default_whisper_language = os.environ.get('WHISPER_LANGUAGE') or 'en'
+    default_whisper_compute_type = os.environ.get('WHISPER_COMPUTE_TYPE', WHISPER_COMPUTE_TYPE_DEFAULT)
     whisper_backend = _setting_value(settings, 'whisper_backend', default_whisper_backend)
     whisper_api_base_url = _setting_value(settings, 'whisper_api_base_url', default_whisper_api_base_url)
     whisper_api_key = _setting_value(settings, 'whisper_api_key', '')
     whisper_api_model = _setting_value(settings, 'whisper_api_model', default_whisper_api_model)
     whisper_language = _setting_value(settings, 'whisper_language', default_whisper_language)
+    whisper_compute_type = _setting_value(settings, 'whisper_compute_type', default_whisper_compute_type)
 
     return json_response({
         'systemPrompt': _sv('system_prompt', _setting_value(settings, 'system_prompt', DEFAULT_SYSTEM_PROMPT)),
@@ -125,6 +129,7 @@ def get_settings():
         'whisperApiKeyConfigured': bool(whisper_api_key),
         'whisperApiModel': _sv('whisper_api_model', whisper_api_model),
         'whisperLanguage': _sv('whisper_language', whisper_language),
+        'whisperComputeType': _sv('whisper_compute_type', whisper_compute_type),
         'apiKeyConfigured': api_key_configured,
         'retentionDays': int(db.get_setting('retention_days') or '30'),
         'defaults': {
@@ -145,6 +150,7 @@ def get_settings():
             'whisperApiBaseUrl': default_whisper_api_base_url,
             'whisperApiModel': default_whisper_api_model,
             'whisperLanguage': default_whisper_language,
+            'whisperComputeType': default_whisper_compute_type,
         }
     })
 
@@ -311,6 +317,21 @@ def update_ad_detection_settings():
         db.set_setting('whisper_language', lang_val or 'en', is_default=False)
         logger.info(f"Updated whisper language to: {lang_val or 'en'}")
 
+    if 'whisperComputeType' in data:
+        ct_val = str(data['whisperComputeType']).strip()
+        if ct_val not in WHISPER_COMPUTE_TYPES:
+            return json_response(
+                {'error': f'whisperComputeType must be one of: {", ".join(WHISPER_COMPUTE_TYPES)}'}, 400
+            )
+        db.set_setting('whisper_compute_type', ct_val, is_default=False)
+        # Trigger model reload on next transcription so the new compute type takes effect.
+        try:
+            from transcriber import WhisperModelSingleton
+            WhisperModelSingleton.mark_for_reload()
+        except Exception:
+            logger.exception("Failed to mark Whisper model for reload after compute_type change")
+        logger.info(f"Updated whisper compute type to: {ct_val}")
+
     if 'podcastIndexApiKey' in data:
         try:
             set_or_clear_secret(db, 'podcast_index_api_key', data['podcastIndexApiKey'])
@@ -357,6 +378,7 @@ def reset_ad_detection_settings():
     db.reset_setting('whisper_api_base_url')
     db.reset_setting('whisper_api_key')
     db.reset_setting('whisper_api_model')
+    db.reset_setting('whisper_compute_type')
 
     # Recreate LLM client with reset settings
     client = get_llm_client(force_new=True)

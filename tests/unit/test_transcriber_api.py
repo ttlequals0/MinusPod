@@ -282,3 +282,164 @@ class TestTranscriberBackendDispatch:
             except Exception:
                 pass
             mock_api.assert_not_called()
+
+
+class TestComputeTypeSettings:
+    """Tests for WHISPER_COMPUTE_TYPE resolution in _get_whisper_settings."""
+
+    def test_defaults_to_auto_when_unset(self):
+        env = {k: v for k, v in os.environ.items() if k != 'WHISPER_COMPUTE_TYPE'}
+        with patch.dict(os.environ, env, clear=True):
+            with patch('database.Database', side_effect=Exception("no db")):
+                settings = _get_whisper_settings()
+        assert settings['compute_type'] == 'auto'
+
+    @patch.dict(os.environ, {'WHISPER_COMPUTE_TYPE': 'int8'})
+    def test_env_var_override(self):
+        with patch('database.Database', side_effect=Exception("no db")):
+            settings = _get_whisper_settings()
+        assert settings['compute_type'] == 'int8'
+
+    def test_db_overrides_env(self):
+        mock_db = _mock_db_with_settings({'whisper_compute_type': 'float32'})
+        with patch.dict(os.environ, {'WHISPER_COMPUTE_TYPE': 'int8'}):
+            with patch('database.Database', return_value=mock_db):
+                settings = _get_whisper_settings()
+        assert settings['compute_type'] == 'float32'
+
+    @patch.dict(os.environ, {'WHISPER_COMPUTE_TYPE': 'nonsense'})
+    def test_unknown_value_falls_back_to_auto(self):
+        with patch('database.Database', side_effect=Exception("no db")):
+            settings = _get_whisper_settings()
+        assert settings['compute_type'] == 'auto'
+
+
+class TestWhisperModelSingletonFallback:
+    """Tests for WhisperModelSingleton float16 -> int8_float16 -> int8 -> float32 fallback."""
+
+    def _reset_singleton(self):
+        from transcriber import WhisperModelSingleton
+        WhisperModelSingleton._instance = None
+        WhisperModelSingleton._base_model = None
+        WhisperModelSingleton._current_model_name = None
+        WhisperModelSingleton._needs_reload = False
+
+    def _settings(self, compute_type):
+        return {
+            'backend': WHISPER_BACKEND_LOCAL,
+            'api_base_url': '', 'api_key': '', 'api_model': 'whisper-1',
+            'language': 'en', 'compute_type': compute_type,
+        }
+
+    @patch.dict(os.environ, {'WHISPER_DEVICE': 'cuda'})
+    def test_float16_on_cuda_succeeds_first_try(self):
+        self._reset_singleton()
+        from transcriber import WhisperModelSingleton
+        with patch('transcriber._get_whisper_settings', return_value=self._settings('auto')), \
+             patch('transcriber.ctranslate2.get_cuda_device_count', return_value=1), \
+             patch('transcriber.WhisperModel') as mock_model, \
+             patch('transcriber.BatchedInferencePipeline'), \
+             patch.object(WhisperModelSingleton, 'get_configured_model', return_value='small'), \
+             patch('transcriber.get_gpu_memory_info', return_value=None):
+            WhisperModelSingleton.get_instance()
+            mock_model.assert_called_once()
+            _, kwargs = mock_model.call_args
+            assert kwargs['compute_type'] == 'float16'
+            assert kwargs['device'] == 'cuda'
+
+    @patch.dict(os.environ, {'WHISPER_DEVICE': 'cuda'})
+    def test_cuda_float16_failure_falls_back_to_int8_float16(self):
+        self._reset_singleton()
+        from transcriber import WhisperModelSingleton
+        call_log = []
+
+        def fake_model(*args, **kwargs):
+            call_log.append(kwargs['compute_type'])
+            if kwargs['compute_type'] == 'float16':
+                raise RuntimeError("no fp16 support")
+            return MagicMock()
+
+        with patch('transcriber._get_whisper_settings', return_value=self._settings('auto')), \
+             patch('transcriber.ctranslate2.get_cuda_device_count', return_value=1), \
+             patch('transcriber.WhisperModel', side_effect=fake_model), \
+             patch('transcriber.BatchedInferencePipeline'), \
+             patch.object(WhisperModelSingleton, 'get_configured_model', return_value='small'), \
+             patch('transcriber.get_gpu_memory_info', return_value=None):
+            WhisperModelSingleton.get_instance()
+        assert call_log == ['float16', 'int8_float16']
+
+    @patch.dict(os.environ, {'WHISPER_DEVICE': 'cuda'})
+    def test_cuda_fallback_walks_chain_to_float32(self):
+        """Pascal consumer (CC 6.1) fails float16 and int8_float16; should land on int8."""
+        self._reset_singleton()
+        from transcriber import WhisperModelSingleton
+        call_log = []
+
+        def fake_model(*args, **kwargs):
+            call_log.append(kwargs['compute_type'])
+            if kwargs['compute_type'] in ('float16', 'int8_float16'):
+                raise RuntimeError("unsupported on this GPU")
+            return MagicMock()
+
+        with patch('transcriber._get_whisper_settings', return_value=self._settings('auto')), \
+             patch('transcriber.ctranslate2.get_cuda_device_count', return_value=1), \
+             patch('transcriber.WhisperModel', side_effect=fake_model), \
+             patch('transcriber.BatchedInferencePipeline'), \
+             patch.object(WhisperModelSingleton, 'get_configured_model', return_value='small'), \
+             patch('transcriber.get_gpu_memory_info', return_value=None):
+            WhisperModelSingleton.get_instance()
+        assert call_log == ['float16', 'int8_float16', 'int8']
+
+    @patch.dict(os.environ, {'WHISPER_DEVICE': 'cuda'})
+    def test_cuda_fallback_raises_when_entire_chain_fails(self):
+        self._reset_singleton()
+        from transcriber import WhisperModelSingleton
+
+        def fake_model(*args, **kwargs):
+            raise RuntimeError(f"boom-{kwargs['compute_type']}")
+
+        with patch('transcriber._get_whisper_settings', return_value=self._settings('auto')), \
+             patch('transcriber.ctranslate2.get_cuda_device_count', return_value=1), \
+             patch('transcriber.WhisperModel', side_effect=fake_model), \
+             patch('transcriber.BatchedInferencePipeline'), \
+             patch.object(WhisperModelSingleton, 'get_configured_model', return_value='small'), \
+             patch('transcriber.get_gpu_memory_info', return_value=None):
+            import pytest
+            with pytest.raises(RuntimeError, match="boom-float32"):
+                WhisperModelSingleton.get_instance()
+
+    @patch.dict(os.environ, {'WHISPER_DEVICE': 'cuda'})
+    def test_explicit_non_float16_reraises_without_fallback(self):
+        """Explicit int8_float16 failure must not silently fall back."""
+        self._reset_singleton()
+        from transcriber import WhisperModelSingleton
+        call_log = []
+
+        def fake_model(*args, **kwargs):
+            call_log.append(kwargs['compute_type'])
+            raise RuntimeError("unsupported")
+
+        with patch('transcriber._get_whisper_settings', return_value=self._settings('int8_float16')), \
+             patch('transcriber.ctranslate2.get_cuda_device_count', return_value=1), \
+             patch('transcriber.WhisperModel', side_effect=fake_model), \
+             patch('transcriber.BatchedInferencePipeline'), \
+             patch.object(WhisperModelSingleton, 'get_configured_model', return_value='small'), \
+             patch('transcriber.get_gpu_memory_info', return_value=None):
+            import pytest
+            with pytest.raises(RuntimeError, match="unsupported"):
+                WhisperModelSingleton.get_instance()
+        assert call_log == ['int8_float16']
+
+    @patch.dict(os.environ, {'WHISPER_DEVICE': 'cpu'})
+    def test_cpu_auto_resolves_to_int8_without_fallback(self):
+        self._reset_singleton()
+        from transcriber import WhisperModelSingleton
+        with patch('transcriber._get_whisper_settings', return_value=self._settings('auto')), \
+             patch('transcriber.WhisperModel') as mock_model, \
+             patch('transcriber.BatchedInferencePipeline'), \
+             patch.object(WhisperModelSingleton, 'get_configured_model', return_value='small'), \
+             patch('transcriber.get_gpu_memory_info', return_value=None):
+            WhisperModelSingleton.get_instance()
+            _, kwargs = mock_model.call_args
+            assert kwargs['compute_type'] == 'int8'
+            assert kwargs['device'] == 'cpu'

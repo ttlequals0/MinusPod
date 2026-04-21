@@ -134,6 +134,7 @@ export interface Settings {
   whisperApiBaseUrl: SettingValue;
   whisperApiModel: SettingValue;
   whisperLanguage: SettingValue;
+  whisperComputeType: SettingValue;
   llmProvider: SettingValue;
   openaiBaseUrl: SettingValue;
   apiKeyConfigured: boolean;
@@ -158,6 +159,7 @@ export interface Settings {
     whisperApiBaseUrl: string;
     whisperApiModel: string;
     whisperLanguage: string;
+    whisperComputeType: string;
   };
 }
 
@@ -180,6 +182,7 @@ export interface UpdateSettingsPayload {
   whisperApiKey?: string;
   whisperApiModel?: string;
   whisperLanguage?: string;
+  whisperComputeType?: string;
   podcastIndexApiKey?: string;
   podcastIndexApiSecret?: string;
 }
