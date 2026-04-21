@@ -60,7 +60,7 @@ docstring-parser==0.18.0
     # via anthropic
 faster-whisper==1.2.1
     # via -r requirements.in
-feedparser==6.0.11
+feedparser==6.0.12
     # via -r requirements.in
 filelock==3.28.0
     # via huggingface-hub

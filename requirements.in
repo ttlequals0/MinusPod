@@ -22,7 +22,7 @@ requests>=2.32.4
 beautifulsoup4>=4.12.0
 
 # Utilities
-feedparser==6.0.11
+feedparser==6.0.12
 python-slugify==8.0.4
 
 # Audio analysis (torch/torchaudio 2.6.0+cu124 pre-installed in Dockerfile)
