@@ -17,7 +17,7 @@
     "react-router-dom": "^6.30.3",
     "recharts": "^3.8.1",
     "swagger-ui-dist": "^5.17.14",
-    "tailwind-merge": "^2.2.1"
+    "tailwind-merge": "^3.5.0"
   },
   "overrides": {
     "serialize-javascript": ">=7.0.5",
