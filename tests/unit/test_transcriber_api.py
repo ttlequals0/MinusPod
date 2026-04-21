@@ -3,7 +3,10 @@ import os
 import tempfile
 from unittest.mock import patch, MagicMock
 
-from transcriber import Transcriber, _get_whisper_settings, calculate_optimal_chunk_duration
+from transcriber import (
+    Transcriber, _get_whisper_settings, _get_whisper_compute_type,
+    calculate_optimal_chunk_duration,
+)
 from config import (
     API_CHUNK_DURATION_SECONDS,
     WHISPER_BACKEND_LOCAL,
@@ -285,33 +288,36 @@ class TestTranscriberBackendDispatch:
 
 
 class TestComputeTypeSettings:
-    """Tests for WHISPER_COMPUTE_TYPE resolution in _get_whisper_settings."""
+    """Tests for WHISPER_COMPUTE_TYPE resolution in _get_whisper_compute_type."""
 
     def test_defaults_to_auto_when_unset(self):
         env = {k: v for k, v in os.environ.items() if k != 'WHISPER_COMPUTE_TYPE'}
         with patch.dict(os.environ, env, clear=True):
             with patch('database.Database', side_effect=Exception("no db")):
-                settings = _get_whisper_settings()
-        assert settings['compute_type'] == 'auto'
+                assert _get_whisper_compute_type() == 'auto'
 
     @patch.dict(os.environ, {'WHISPER_COMPUTE_TYPE': 'int8'})
     def test_env_var_override(self):
         with patch('database.Database', side_effect=Exception("no db")):
-            settings = _get_whisper_settings()
-        assert settings['compute_type'] == 'int8'
+            assert _get_whisper_compute_type() == 'int8'
 
     def test_db_overrides_env(self):
         mock_db = _mock_db_with_settings({'whisper_compute_type': 'float32'})
         with patch.dict(os.environ, {'WHISPER_COMPUTE_TYPE': 'int8'}):
             with patch('database.Database', return_value=mock_db):
-                settings = _get_whisper_settings()
-        assert settings['compute_type'] == 'float32'
+                assert _get_whisper_compute_type() == 'float32'
 
     @patch.dict(os.environ, {'WHISPER_COMPUTE_TYPE': 'nonsense'})
     def test_unknown_value_falls_back_to_auto(self):
         with patch('database.Database', side_effect=Exception("no db")):
+            assert _get_whisper_compute_type() == 'auto'
+
+    def test_settings_dict_does_not_include_compute_type(self):
+        """Ensures compute_type is kept out of the shared settings dict
+        that also holds api_key (CodeQL py/clear-text-logging defense)."""
+        with patch('database.Database', side_effect=Exception("no db")):
             settings = _get_whisper_settings()
-        assert settings['compute_type'] == 'auto'
+        assert 'compute_type' not in settings
 
 
 class TestWhisperModelSingletonFallback:
@@ -324,18 +330,19 @@ class TestWhisperModelSingletonFallback:
         WhisperModelSingleton._current_model_name = None
         WhisperModelSingleton._needs_reload = False
 
-    def _settings(self, compute_type):
+    def _settings(self):
         return {
             'backend': WHISPER_BACKEND_LOCAL,
             'api_base_url': '', 'api_key': '', 'api_model': 'whisper-1',
-            'language': 'en', 'compute_type': compute_type,
+            'language': 'en',
         }
 
     @patch.dict(os.environ, {'WHISPER_DEVICE': 'cuda'})
     def test_float16_on_cuda_succeeds_first_try(self):
         self._reset_singleton()
         from transcriber import WhisperModelSingleton
-        with patch('transcriber._get_whisper_settings', return_value=self._settings('auto')), \
+        with patch('transcriber._get_whisper_settings', return_value=self._settings()), \
+             patch('transcriber._get_whisper_compute_type', return_value='auto'), \
              patch('transcriber.ctranslate2.get_cuda_device_count', return_value=1), \
              patch('transcriber.WhisperModel') as mock_model, \
              patch('transcriber.BatchedInferencePipeline'), \
@@ -359,7 +366,8 @@ class TestWhisperModelSingletonFallback:
                 raise RuntimeError("no fp16 support")
             return MagicMock()
 
-        with patch('transcriber._get_whisper_settings', return_value=self._settings('auto')), \
+        with patch('transcriber._get_whisper_settings', return_value=self._settings()), \
+             patch('transcriber._get_whisper_compute_type', return_value='auto'), \
              patch('transcriber.ctranslate2.get_cuda_device_count', return_value=1), \
              patch('transcriber.WhisperModel', side_effect=fake_model), \
              patch('transcriber.BatchedInferencePipeline'), \
@@ -381,7 +389,8 @@ class TestWhisperModelSingletonFallback:
                 raise RuntimeError("unsupported on this GPU")
             return MagicMock()
 
-        with patch('transcriber._get_whisper_settings', return_value=self._settings('auto')), \
+        with patch('transcriber._get_whisper_settings', return_value=self._settings()), \
+             patch('transcriber._get_whisper_compute_type', return_value='auto'), \
              patch('transcriber.ctranslate2.get_cuda_device_count', return_value=1), \
              patch('transcriber.WhisperModel', side_effect=fake_model), \
              patch('transcriber.BatchedInferencePipeline'), \
@@ -398,7 +407,8 @@ class TestWhisperModelSingletonFallback:
         def fake_model(*args, **kwargs):
             raise RuntimeError(f"boom-{kwargs['compute_type']}")
 
-        with patch('transcriber._get_whisper_settings', return_value=self._settings('auto')), \
+        with patch('transcriber._get_whisper_settings', return_value=self._settings()), \
+             patch('transcriber._get_whisper_compute_type', return_value='auto'), \
              patch('transcriber.ctranslate2.get_cuda_device_count', return_value=1), \
              patch('transcriber.WhisperModel', side_effect=fake_model), \
              patch('transcriber.BatchedInferencePipeline'), \
@@ -419,7 +429,8 @@ class TestWhisperModelSingletonFallback:
             call_log.append(kwargs['compute_type'])
             raise RuntimeError("unsupported")
 
-        with patch('transcriber._get_whisper_settings', return_value=self._settings('int8_float16')), \
+        with patch('transcriber._get_whisper_settings', return_value=self._settings()), \
+             patch('transcriber._get_whisper_compute_type', return_value='int8_float16'), \
              patch('transcriber.ctranslate2.get_cuda_device_count', return_value=1), \
              patch('transcriber.WhisperModel', side_effect=fake_model), \
              patch('transcriber.BatchedInferencePipeline'), \
@@ -434,7 +445,8 @@ class TestWhisperModelSingletonFallback:
     def test_cpu_auto_resolves_to_int8_without_fallback(self):
         self._reset_singleton()
         from transcriber import WhisperModelSingleton
-        with patch('transcriber._get_whisper_settings', return_value=self._settings('auto')), \
+        with patch('transcriber._get_whisper_settings', return_value=self._settings()), \
+             patch('transcriber._get_whisper_compute_type', return_value='auto'), \
              patch('transcriber.WhisperModel') as mock_model, \
              patch('transcriber.BatchedInferencePipeline'), \
              patch.object(WhisperModelSingleton, 'get_configured_model', return_value='small'), \

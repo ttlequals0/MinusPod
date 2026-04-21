@@ -280,7 +280,9 @@ def _get_whisper_settings() -> Dict[str, str]:
     """Read all whisper backend settings from DB with env var fallbacks.
 
     Returns a dict with keys: backend, api_base_url, api_key, api_model,
-    language, compute_type.
+    language. Does NOT include compute_type, which is read separately via
+    _get_whisper_compute_type to keep its value out of any dict that also
+    holds api_key (CodeQL py/clear-text-logging-sensitive-data).
     """
     defaults = {
         'backend': os.environ.get('WHISPER_BACKEND', WHISPER_BACKEND_LOCAL),
@@ -288,7 +290,6 @@ def _get_whisper_settings() -> Dict[str, str]:
         'api_key': os.environ.get('WHISPER_API_KEY', ''),
         'api_model': os.environ.get('WHISPER_API_MODEL', 'whisper-1'),
         'language': os.environ.get('WHISPER_LANGUAGE') or 'en',
-        'compute_type': os.environ.get('WHISPER_COMPUTE_TYPE', WHISPER_COMPUTE_TYPE_DEFAULT),
     }
     try:
         # Inline import: Database depends on modules that import transcriber,
@@ -301,7 +302,6 @@ def _get_whisper_settings() -> Dict[str, str]:
             ('whisper_api_key', 'api_key'),
             ('whisper_api_model', 'api_model'),
             ('whisper_language', 'language'),
-            ('whisper_compute_type', 'compute_type'),
         ]:
             if setting_key == 'whisper_api_key':
                 val = db.get_secret(setting_key)
@@ -312,14 +312,36 @@ def _get_whisper_settings() -> Dict[str, str]:
     except Exception as e:
         logger.warning(f"Could not read whisper settings from DB, using env defaults: {e}")
 
-    if defaults['compute_type'] not in WHISPER_COMPUTE_TYPES:
-        logger.warning(
-            f"Unknown WHISPER_COMPUTE_TYPE={defaults['compute_type']!r}; "
-            f"falling back to {WHISPER_COMPUTE_TYPE_DEFAULT!r}"
-        )
-        defaults['compute_type'] = WHISPER_COMPUTE_TYPE_DEFAULT
-
     return defaults
+
+
+# Canonical lookup: keys are what we accept, values are the literal constants
+# from WHISPER_COMPUTE_TYPES. Looking up untrusted input and returning its
+# canonical form re-sources the value from this module-level literal, so any
+# downstream log of the returned value is references a known-safe constant
+# (CodeQL py/clear-text-logging-sensitive-data).
+_CANONICAL_COMPUTE_TYPES = {t: t for t in WHISPER_COMPUTE_TYPES}
+
+
+def _get_whisper_compute_type() -> str:
+    """Read WHISPER_COMPUTE_TYPE (DB preferred, env fallback), validated."""
+    raw = os.environ.get('WHISPER_COMPUTE_TYPE', WHISPER_COMPUTE_TYPE_DEFAULT)
+    try:
+        from database import Database
+        db_value = Database().get_setting('whisper_compute_type')
+        if db_value:
+            raw = db_value
+    except Exception as e:
+        logger.warning(f"Could not read whisper_compute_type from DB: {e}")
+
+    canonical = _CANONICAL_COMPUTE_TYPES.get(raw)
+    if canonical is None:
+        logger.warning(
+            f"Unknown WHISPER_COMPUTE_TYPE; falling back to "
+            f"{WHISPER_COMPUTE_TYPE_DEFAULT!r}. Allowed: {WHISPER_COMPUTE_TYPES}"
+        )
+        return WHISPER_COMPUTE_TYPE_DEFAULT
+    return canonical
 
 
 def calculate_optimal_chunk_duration(
@@ -472,9 +494,7 @@ class WhisperModelSingleton:
         if cls._instance is None:
             model_size = reload_model or cls.get_configured_model()
             device = os.getenv("WHISPER_DEVICE", "cpu")
-            configured_compute_type = _get_whisper_settings().get(
-                'compute_type', WHISPER_COMPUTE_TYPE_DEFAULT
-            )
+            configured_compute_type = _get_whisper_compute_type()
 
             # Resolve device and the compute type 'auto' falls back to.
             if device == "cuda":
