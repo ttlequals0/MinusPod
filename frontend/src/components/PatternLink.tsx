@@ -1,3 +1,4 @@
+import type { ReactElement } from 'react';
 import { Link } from 'react-router-dom';
 
 interface PatternLinkProps {
@@ -8,7 +9,7 @@ interface PatternLinkProps {
 export default function PatternLink({ reason, className = '' }: PatternLinkProps) {
   // Match "pattern #123" pattern
   const patternRegex = /\(pattern #(\d+)\)/g;
-  const parts: (string | JSX.Element)[] = [];
+  const parts: (string | ReactElement)[] = [];
   let lastIndex = 0;
   let match;
 

@@ -72,14 +72,6 @@ RUN pip install --no-cache-dir \
     torchaudio==2.6.0+cu124 \
     --extra-index-url https://download.pytorch.org/whl/cu124
 
-# Install cuDNN 8 runtime for CTranslate2 4.4.0 compatibility
-# CTranslate2 requires libcudnn_ops_infer.so.8; torch 2.6.0 only ships cuDNN 9
-# Download wheel without deps (avoids replacing torch's nvidia packages), extract .so files
-RUN pip download --no-cache-dir --no-deps --dest /tmp nvidia-cudnn-cu12==8.9.7.29 \
-    && mkdir -p /opt/cudnn8/lib \
-    && python3 -c "import zipfile,glob,shutil,os;whl=glob.glob('/tmp/nvidia_cudnn_cu12-8.9.7.29*.whl')[0];z=zipfile.ZipFile(whl);[shutil.copy2(z.extract(n,'/tmp/cudnn8_x'),'/opt/cudnn8/lib/') for n in z.namelist() if 'libcudnn' in n and '.so.8' in n];z.close()" \
-    && rm -rf /tmp/nvidia_cudnn_cu12* /tmp/cudnn8_x
-
 # Copy requirements and install remaining Python dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt \
@@ -89,7 +81,7 @@ RUN pip install --no-cache-dir -r requirements.txt \
 # Set cache directories to /app/data/.cache (works with volume mounts and non-root users)
 # HOME must point to writable location (/app/data is the volume mount)
 # ORT_LOG_LEVEL=3 suppresses onnxruntime warnings (GPU discovery fails for AMD, irrelevant for NVIDIA)
-# LD_LIBRARY_PATH: cuDNN 8 compat (CTranslate2) + venv nvidia pip dirs (cuDNN 9, cuBLAS)
+# LD_LIBRARY_PATH: venv nvidia pip dirs (cuDNN 9 bundled with torch, cuBLAS)
 ENV HOME=/app/data \
     WHISPER_MODEL=small \
     HF_HOME=/app/data/.cache \
@@ -97,7 +89,7 @@ ENV HOME=/app/data \
     XDG_CACHE_HOME=/app/data/.cache \
     RETENTION_PERIOD=1440 \
     ORT_LOG_LEVEL=3 \
-    LD_LIBRARY_PATH=/opt/cudnn8/lib:/opt/venv/lib/python3.11/site-packages/nvidia/cudnn/lib:/opt/venv/lib/python3.11/site-packages/nvidia/cublas/lib
+    LD_LIBRARY_PATH=/opt/venv/lib/python3.11/site-packages/nvidia/cudnn/lib:/opt/venv/lib/python3.11/site-packages/nvidia/cublas/lib
 
 # Copy application code
 COPY src/ ./src/

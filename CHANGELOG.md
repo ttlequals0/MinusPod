@@ -6,6 +6,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.8] - 2026-04-21
+
+Dependency rollup. No application-behavior changes. Every Dependabot PR open after 2.0.7 merged is addressed here or explicitly deferred.
+
+### Changed
+
+- CI action versions: `actions/checkout@v4 -> @v6`, `actions/setup-node@v4 -> @v6`, `actions/cache@v4 -> @v5`. Closes #141, #143, #144.
+- Frontend React 18 -> 19.2.5 (`react`, `react-dom`, `@types/react`, `@types/react-dom`). Codebase audit found no breaking patterns; `@tanstack/react-query` v5 and `react-router-dom` 6.30 are React-19-compatible. Closes #146, #150.
+- Frontend `swagger-ui-dist` 5.17 -> 5.32. Closes #147.
+- Frontend `tailwind-merge` 2 -> 3.5. Cosmetic; repo has zero `twMerge` callsites (uses `clsx`). Closes #148.
+- Frontend `@typescript-eslint/eslint-plugin` and `@typescript-eslint/parser` 7 -> 8.59, `eslint` 8.56 -> 8.57. Plugin and parser versions now match; CI passes again. Closes #149.
+- Frontend `lucide-react` 0.344 -> 1.8 (peer-dep bump; 0.x didn't support React 19).
+- Backend `ctranslate2` 4.4.0 -> 4.7.1 (Python). Closes #151.
+- Backend `gunicorn` 23.0.0 -> 25.3.0 (Python). `gthread` worker class and lifecycle hooks in `gunicorn.conf.py` unchanged. Closes #152.
+- Backend `feedparser` 6.0.11 -> 6.0.12. Closes #154.
+- Vite build target raised from default (`es2020`) to `es2022` so modern private-field syntax from the bumped React Query / React internals can be emitted.
+
+### Fixed
+
+- `requirements.in` now pins `backports.tarfile` explicitly. `jaraco.context 6.1.2` declares it as a conditional dependency for Python < 3.12. `pip-compile` run on a Python 3.12 host (typical local dev) silently omits the pin, and the container's Python 3.11 `pip install -r requirements.txt` then fails in `--require-hashes` mode with "In --require-hashes mode, all requirements must have their versions pinned with ==". The failure was masked by a `|| true` at the end of the `RUN pip install` chain in the Dockerfile, so the image built "successfully" with ctranslate2 / gunicorn / faster-whisper / etc silently missing. Pinning `backports.tarfile` unconditionally in `requirements.in` makes the lockfile portable across 3.11 and 3.12 compile hosts. Dockerfile `|| true` masking is out of scope for this PR (it's on the cache-cleanup step; the real fix is at the dependency source).
+
+### Removed
+
+- Dockerfile workaround that hand-extracted `libcudnn_ops_infer.so.8` from `nvidia-cudnn-cu12==8.9.7.29`. CTranslate2 made cuDNN optional in 4.6.3 (pure-CUDA Conv1d), so the bump to 4.7.1 lets us drop the side-channel install and the `/opt/cudnn8/lib` entry in `LD_LIBRARY_PATH`. Image dropped from 16 GB to 14.2 GB.
+
+### Ignored / deferred
+
+- `#142` nvidia/cuda 12.6.3 -> 13.2.1. Needs coordinated bump with torch (cu13x wheel) and ctranslate2 CUDA-13 build. Closed, `@dependabot ignore this major version`.
+- `#145` node 20-alpine -> 25-alpine. Jumps LTS. Track node:22-alpine (next LTS) in a follow-up PR. Closed, `@dependabot ignore this major version`.
+- `#153` numpy 1.26.4 -> 2.4.4. `requirements.in` has the load-bearing pin `numpy<2.0` with the comment `numpy 2.x requires X86_V2; target server lacks them`. Closed, `@dependabot ignore this major version`.
+
 ## [2.0.7] - 2026-04-21
 
 ### Added
