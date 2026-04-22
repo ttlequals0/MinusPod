@@ -439,6 +439,10 @@ class AdValidator:
                                flags: List[str]) -> float:
         """Verify ad content appears in transcript.
 
+        For ``detection_stage == 'vad_gap'`` markers without sponsor or
+        ad-signal corroboration in range, clamps confidence below
+        ``self.min_cut_confidence`` so the marker routes to REVIEW.
+
         Args:
             ad: Ad marker
             confidence: Current confidence
@@ -468,6 +472,13 @@ class AdValidator:
         # No signals found - only flag if not already high confidence
         if confidence < 0.85:
             flags.append("WARN: No ad signals in transcript")
+
+        # vad_gap markers come from a heuristic detector with no transcript
+        # content signal. If neither sponsor nor ad-signal patterns matched in
+        # range, there is no corroborating evidence -- force the marker below
+        # the cut threshold so it goes to REVIEW instead of being auto-cut.
+        if ad.get('detection_stage') == 'vad_gap':
+            confidence = min(confidence, max(0.0, self.min_cut_confidence - 0.01))
 
         # Verify end_text exists in transcript
         end_text = ad.get('end_text', '')

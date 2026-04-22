@@ -498,3 +498,66 @@ class TestConfirmedCorrections:
 
         # Low confidence with no boosts should not be accepted
         assert result.ads[0]['validation']['decision'] != Decision.ACCEPT.value
+
+
+class TestAdValidatorVadGapVerification:
+    """Tests for vad_gap-specific transcript verification.
+
+    Regression: MacBreak Weekly 1021 (5ef2df166c8e) produced 8 vad_gap
+    markers carrying 'WARN: No ad signals in transcript' that were ACCEPTed
+    at adjusted confidence 0.80. Validator must not auto-cut a vad_gap
+    marker that has no corroborating sponsor or ad-signal pattern in range.
+    """
+
+    def test_vad_gap_with_no_signals_drops_below_cut_threshold(self):
+        segments = [
+            {'start': 2080.0, 'end': 2098.0,
+             'text': 'And so Apple has been making moves recently.'},
+        ]
+        validator = AdValidator(episode_duration=8000.0, segments=segments)
+        marker = {
+            'start': 2081.8,
+            'end': 2097.6,
+            'confidence': 0.75,
+            'reason': 'VAD gap with signoff and resume context',
+            'detection_stage': 'vad_gap',
+        }
+        result = validator.validate([marker])
+        assert result.ads[0]['validation']['decision'] != Decision.ACCEPT.value
+        assert result.ads[0]['validation']['adjusted_confidence'] < 0.80
+
+    def test_vad_gap_with_sponsor_in_range_keeps_confidence(self):
+        # Sponsor branch returns early, so the vad_gap clamp never runs.
+        segments = [
+            {'start': 2080.0, 'end': 2098.0,
+             'text': 'BetterHelp helps you find a therapist online.'},
+        ]
+        validator = AdValidator(episode_duration=8000.0, segments=segments)
+        marker = {
+            'start': 2081.8,
+            'end': 2097.6,
+            'confidence': 0.75,
+            'reason': 'VAD gap with signoff and resume context',
+            'detection_stage': 'vad_gap',
+        }
+        result = validator.validate([marker])
+        assert result.ads[0]['validation']['adjusted_confidence'] >= 0.80
+
+    def test_non_vad_gap_no_signals_not_penalized(self):
+        # Claude-stage marker: vad_gap clamp must not apply.
+        segments = [
+            {'start': 100.0, 'end': 150.0,
+             'text': 'Just regular conversation about the topic at hand.'},
+        ]
+        validator = AdValidator(episode_duration=8000.0, segments=segments)
+        marker = {
+            'start': 100.0,
+            'end': 150.0,
+            'confidence': 0.85,
+            'reason': 'Identified by Claude as a paid read',
+            'detection_stage': 'claude',
+        }
+        result = validator.validate([marker])
+        # If the clamp fired it would drop to 0.79; without it the marker
+        # stays at or above 0.85 (modulo position adjustments).
+        assert result.ads[0]['validation']['adjusted_confidence'] > 0.79

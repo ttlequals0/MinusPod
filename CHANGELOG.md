@@ -6,6 +6,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.9] - 2026-04-22
+
+VAD gap detector false-positive fix. The mid-gap branch added in 2.0.7 was emitting markers on weak one-sided context and the validator was not penalizing them, causing legitimate content to be cut. Concrete regression: MacBreak Weekly 1021 (`5ef2df166c8e`) had 9 of 11 ad markers come from `vad_gap`, of which 8 carried `WARN: No ad signals in transcript` yet were ACCEPTed at adjusted confidence 0.80 and cut 9 to 44 seconds of show content each. Production `:latest` was rolled back to 2.0.6 ahead of this release; deploying 2.0.9 restores VAD gap detection with both bugs fixed.
+
+### Fixed
+
+- `src/vad_gap_detector.py` mid-gap branch now requires BOTH a signoff phrase before the gap AND a resume phrase after it (logical AND). Previously either side alone was enough, so common podcast filler ("thanks for tuning in", "welcome back") triggered cuts on its own. Marker reason text updated from "VAD gap with signoff/resume context" to "VAD gap with signoff and resume context" to reflect the new semantics. Head-gap and tail-gap branches are unchanged.
+- `src/ad_validator.py:_verify_in_transcript` now forces vad_gap markers below the validator's `min_cut_confidence` threshold when neither sponsor names nor ad-signal patterns matched in range. The marker is sent to REVIEW instead of being auto-cut. Other detection stages (`claude`, `text_pattern`, `verification`, `fingerprint`) are unaffected. The clamp uses `min_cut_confidence - 0.01` rather than a fixed -0.15, so it stays correct if a user moves the aggressiveness slider. Defense-in-depth: even if the detector regresses, the validator stops unsupported cuts.
+
+### Tests
+
+- New `tests/unit/test_vad_gap_detector.py::TestMidGap` cases:
+  - `test_mid_gap_signoff_only_does_not_emit`
+  - `test_mid_gap_resume_only_does_not_emit`
+- New `tests/unit/test_vad_gap_detector.py::TestMBW1021Regression` class with `test_one_sided_signoff_no_resume_skipped` and `test_one_sided_resume_no_signoff_skipped`.
+- New `tests/unit/test_ad_validator.py::TestAdValidatorVadGapVerification` class with `test_vad_gap_with_no_signals_drops_below_cut_threshold`, `test_vad_gap_with_sponsor_in_range_keeps_confidence`, and `test_non_vad_gap_no_signals_not_penalized`.
+- 737 tests pass, 4 skipped (no regressions in other suites).
+
+### Operational
+
+- Production `:latest` was re-pointed to 2.0.6 manifest digest `sha256:012d2f89a77ba02f49c5df5e557d644936308be4aa677e92b629e686ea669d41` while this fix was prepared. Deploying 2.0.9 supersedes that rollback.
+
 ## [2.0.8] - 2026-04-21
 
 Dependency rollup. No application-behavior changes. Every Dependabot PR open after 2.0.7 merged is addressed here or explicitly deferred.

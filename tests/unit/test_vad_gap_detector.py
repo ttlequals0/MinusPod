@@ -79,6 +79,27 @@ class TestMidGap:
                                mid_min_seconds=10.0)
         assert not any(g['start'] == 60.0 for g in gaps)
 
+    def test_mid_gap_signoff_only_does_not_emit(self):
+        # Signoff phrase before the gap, but neutral chatter after. Pre-fix
+        # this emitted; post-fix both sides must show context.
+        segments = [
+            _seg(0.0, 60.0, 'Thanks for tuning in to the show today.'),
+            _seg(75.0, 120.0, 'So Apple has been making moves recently.'),
+        ]
+        gaps = detect_vad_gaps(segments, existing_ads=[], episode_duration=200.0,
+                               mid_min_seconds=10.0)
+        assert not any(g['start'] == 60.0 and g['end'] == 75.0 for g in gaps)
+
+    def test_mid_gap_resume_only_does_not_emit(self):
+        # Resume phrase after the gap, but neutral chatter before.
+        segments = [
+            _seg(0.0, 60.0, 'And then the team continued building out the project.'),
+            _seg(75.0, 120.0, "Welcome back everyone, let's continue."),
+        ]
+        gaps = detect_vad_gaps(segments, existing_ads=[], episode_duration=200.0,
+                               mid_min_seconds=10.0)
+        assert not any(g['start'] == 60.0 and g['end'] == 75.0 for g in gaps)
+
 
 class TestTailGap:
     def test_tail_gap_above_threshold_emits_marker(self):
@@ -118,3 +139,34 @@ class TestDTNSRegression:
         segments = [_seg(10.95, 38.75, 'This is the Daily Tech News for Tuesday')]
         gaps = detect_vad_gaps(segments, existing_ads=[], episode_duration=2522.0)
         assert any(g['start'] == 0.0 and g['end'] == pytest.approx(10.95) for g in gaps)
+
+
+class TestMBW1021Regression:
+    """MacBreak Weekly 1021 (5ef2df166c8e) emitted 8 mid-gap markers where
+    one side had a signoff/resume-like phrase but the other was neutral
+    podcast chatter. Each cut 9-44s of legitimate content. Both sides must
+    now show context to emit a mid-gap marker.
+    """
+    def test_one_sided_signoff_no_resume_skipped(self):
+        segments = [
+            _seg(2070.0, 2081.8, 'See you next week, take care everyone.'),
+            _seg(2097.6, 2150.0, 'So Apple has been making moves recently.'),
+        ]
+        gaps = detect_vad_gaps(segments, existing_ads=[], episode_duration=8359.0,
+                               mid_min_seconds=8.0)
+        assert not any(
+            g.get('detection_stage') == 'vad_gap' and g['start'] == 2081.8
+            for g in gaps
+        )
+
+    def test_one_sided_resume_no_signoff_skipped(self):
+        segments = [
+            _seg(2070.0, 2081.8, 'And the new chip improves performance significantly.'),
+            _seg(2097.6, 2150.0, "Welcome back to MacBreak Weekly, let's continue."),
+        ]
+        gaps = detect_vad_gaps(segments, existing_ads=[], episode_duration=8359.0,
+                               mid_min_seconds=8.0)
+        assert not any(
+            g.get('detection_stage') == 'vad_gap' and g['start'] == 2081.8
+            for g in gaps
+        )

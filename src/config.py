@@ -218,7 +218,7 @@ WHISPER_COMPUTE_TYPE_FALLBACK_CHAIN = ('int8_float16', 'int8', 'float32')
 # never see. A "gap" is a span with no Whisper segment.
 VAD_GAP_DETECTION_ENABLED_DEFAULT = True
 VAD_GAP_START_MIN_SECONDS_DEFAULT = 3.0  # head: cut when gap >= this
-VAD_GAP_MID_MIN_SECONDS_DEFAULT = 8.0    # mid: cut only with signoff/resume context
+VAD_GAP_MID_MIN_SECONDS_DEFAULT = 8.0    # mid: cut only with signoff AND resume context
 VAD_GAP_TAIL_MIN_SECONDS_DEFAULT = 3.0   # tail: cut when no postroll already covers it
 VAD_GAP_CONFIDENCE = 0.75                # emitted marker confidence
 

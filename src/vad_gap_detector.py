@@ -85,7 +85,7 @@ def detect_vad_gaps(
             extended in place when a gap is adjacent.
         episode_duration: Total audio duration in seconds.
         start_min_seconds: Minimum head-gap duration to emit.
-        mid_min_seconds: Minimum mid-gap duration to emit (still needs context signals).
+        mid_min_seconds: Minimum mid-gap duration to emit (still needs both signoff-before AND resume-after context).
         tail_min_seconds: Minimum tail-gap duration to emit.
 
     Returns:
@@ -131,10 +131,13 @@ def detect_vad_gaps(
 
         before_text = segments[i].get('text', '')
         after_text = segments[i + 1].get('text', '')
-        if _ends_with_signoff(before_text) or _starts_with_resume(after_text):
+        # Require BOTH signoff before the gap AND resume after it. Either alone
+        # produces false positives on conversational shows where filler phrases
+        # like "thanks for tuning in" or "welcome back" appear in normal speech.
+        if _ends_with_signoff(before_text) and _starts_with_resume(after_text):
             new_markers.append(_new_marker(
                 gap_start, gap_end,
-                'VAD gap with signoff/resume context',
+                'VAD gap with signoff and resume context',
             ))
             logger.info(f"VAD mid gap: {gap_start:.1f}s-{gap_end:.1f}s")
 
