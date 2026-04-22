@@ -90,3 +90,45 @@ class TestResetSettingSecretKeys:
         db.set_setting('whisper_model', 'large-v3', is_default=False)
         assert db.reset_setting('whisper_model') is True
         assert db.get_setting('whisper_model') is not None
+
+
+class TestWebhookUrlValidation:
+    """Issue #158: webhooks must accept private-IP / non-default-port URLs
+    (the OPERATOR_CONFIGURED trust posture used by LLM and Whisper base URLs)
+    while still blocking cloud metadata IPs and bad schemes.
+    """
+
+    def test_create_webhook_allows_private_ip_url(self, client):
+        response = client.post(
+            '/api/v1/settings/webhooks',
+            data=json.dumps({
+                'url': 'http://192.168.1.10:8123/api/webhook/abc',
+                'events': ['Episode Processed'],
+            }),
+            content_type='application/json',
+        )
+        assert response.status_code == 201, response.data
+
+    def test_create_webhook_blocks_metadata_ip(self, client):
+        response = client.post(
+            '/api/v1/settings/webhooks',
+            data=json.dumps({
+                'url': 'http://169.254.169.254/latest/meta-data/',
+                'events': ['Episode Processed'],
+            }),
+            content_type='application/json',
+        )
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert 'metadata' in data['error'].lower()
+
+    def test_create_webhook_blocks_bad_scheme(self, client):
+        response = client.post(
+            '/api/v1/settings/webhooks',
+            data=json.dumps({
+                'url': 'ftp://hook.example.com/path',
+                'events': ['Episode Processed'],
+            }),
+            content_type='application/json',
+        )
+        assert response.status_code == 400

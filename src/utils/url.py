@@ -103,13 +103,14 @@ def validate_url(url: str) -> str:
 
 
 def validate_base_url(url: str) -> str:
-    """Validate a backend service base URL (scheme + hostname + metadata check).
+    """Validate an operator-configured outbound URL (scheme + hostname + metadata check).
 
     Unlike validate_url(), this does NOT block private/loopback IPs because
-    backend URLs (LLM providers, Whisper API) commonly point to localhost or
-    Docker-internal hosts. Cloud-provider metadata IPs are still blocked so
-    an operator cannot accidentally pivot a provider write into an EC2 IMDS
-    fetch.
+    operator-typed targets (LLM providers, Whisper API, webhook destinations
+    like a self-hosted Home Assistant) commonly point to localhost,
+    Docker-internal hosts, or LAN IPs on non-default ports. Cloud-provider
+    metadata IPs are still blocked so an operator cannot accidentally pivot
+    a write into an EC2 IMDS fetch.
 
     Args:
         url: The URL to validate.

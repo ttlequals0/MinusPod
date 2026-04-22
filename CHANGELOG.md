@@ -8,12 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.0.9] - 2026-04-22
 
-VAD gap detector false-positive fix. The mid-gap branch added in 2.0.7 was emitting markers on weak one-sided context and the validator was not penalizing them, causing legitimate content to be cut. Concrete regression: MacBreak Weekly 1021 (`5ef2df166c8e`) had 9 of 11 ad markers come from `vad_gap`, of which 8 carried `WARN: No ad signals in transcript` yet were ACCEPTed at adjusted confidence 0.80 and cut 9 to 44 seconds of show content each. Production `:latest` was rolled back to 2.0.6 ahead of this release; deploying 2.0.9 restores VAD gap detection with both bugs fixed.
+Two unrelated fixes bundled into a single release: VAD gap detector false-positive cuts on conversational podcasts (regression in 2.0.7), and webhook URL validation rejecting self-hosted destinations on private IPs or non-default ports (issue #158). Production `:latest` was rolled back to 2.0.6 ahead of the VAD fix; deploying 2.0.9 restores VAD gap detection with the bugs fixed and unblocks local webhooks.
 
 ### Fixed
 
-- `src/vad_gap_detector.py` mid-gap branch now requires BOTH a signoff phrase before the gap AND a resume phrase after it (logical AND). Previously either side alone was enough, so common podcast filler ("thanks for tuning in", "welcome back") triggered cuts on its own. Marker reason text updated from "VAD gap with signoff/resume context" to "VAD gap with signoff and resume context" to reflect the new semantics. Head-gap and tail-gap branches are unchanged.
+- VAD gap detector mid-gap branch (`src/vad_gap_detector.py`) now requires BOTH a signoff phrase before the gap AND a resume phrase after it (logical AND). Previously either side alone was enough, so common podcast filler ("thanks for tuning in", "welcome back") triggered cuts on its own. Marker reason text updated from "VAD gap with signoff/resume context" to "VAD gap with signoff and resume context" to reflect the new semantics. Head-gap and tail-gap branches are unchanged. Concrete regression: MacBreak Weekly 1021 (`5ef2df166c8e`) had 9 of 11 ad markers come from `vad_gap`, of which 8 carried `WARN: No ad signals in transcript` yet were ACCEPTed at adjusted confidence 0.80 and cut 9 to 44 seconds of show content each.
 - `src/ad_validator.py:_verify_in_transcript` now forces vad_gap markers below the validator's `min_cut_confidence` threshold when neither sponsor names nor ad-signal patterns matched in range. The marker is sent to REVIEW instead of being auto-cut. Other detection stages (`claude`, `text_pattern`, `verification`, `fingerprint`) are unaffected. The clamp uses `min_cut_confidence - 0.01` rather than a fixed -0.15, so it stays correct if a user moves the aggressiveness slider. Defense-in-depth: even if the detector regresses, the validator stops unsupported cuts.
+- Webhook URL validation now uses `validate_base_url` instead of the strict `validate_url`, matching the SSRF posture already used for the LLM and Whisper base URLs. Self-hosted destinations on private IPs or non-default ports (e.g. Home Assistant on `http://192.168.x.x:8123`) are accepted; cloud metadata IPs and bad schemes are still blocked. Closes #158. The webhook create/update guard in `src/api/settings.py:_validate_webhook_url` is the single validation point at write time; `safe_post(..., trust=URLTrust.OPERATOR_CONFIGURED)` revalidates at dispatch and on every redirect hop, so the redundant pre-check that used to live in `webhook_service._prepare_and_dispatch` was removed.
 
 ### Tests
 
@@ -22,7 +23,9 @@ VAD gap detector false-positive fix. The mid-gap branch added in 2.0.7 was emitt
   - `test_mid_gap_resume_only_does_not_emit`
 - New `tests/unit/test_vad_gap_detector.py::TestMBW1021Regression` class with `test_one_sided_signoff_no_resume_skipped` and `test_one_sided_resume_no_signoff_skipped`.
 - New `tests/unit/test_ad_validator.py::TestAdValidatorVadGapVerification` class with `test_vad_gap_with_no_signals_drops_below_cut_threshold`, `test_vad_gap_with_sponsor_in_range_keeps_confidence`, and `test_non_vad_gap_no_signals_not_penalized`.
-- 737 tests pass, 4 skipped (no regressions in other suites).
+- New `tests/unit/test_webhook_service.py::TestPrepareAndDispatchSigning::test_prepare_and_dispatch_allows_private_ip_per_operator_trust`. Existing `test_prepare_and_dispatch_ssrf_blocked` reworked to assert that `_prepare_and_dispatch` short-circuits on the `SSRFError` raised by `safe_post`'s tier check (rather than the now-removed pre-check).
+- New `tests/unit/test_settings_validation.py::TestWebhookUrlValidation` class with `test_create_webhook_allows_private_ip_url`, `test_create_webhook_blocks_metadata_ip`, and `test_create_webhook_blocks_bad_scheme`.
+- 741 tests pass, 4 skipped (no regressions in other suites).
 
 ### Operational
 

@@ -17,7 +17,7 @@ from config import HTTP_MAX_REDIRECTS_API, HTTP_TIMEOUT_PROBE
 from utils.http import safe_url_for_log
 from utils.safe_http import URLTrust, safe_post
 from utils.time import utc_now_iso
-from utils.url import validate_url, SSRFError
+from utils.url import SSRFError
 
 logger = logging.getLogger('podcast.webhooks')
 
@@ -138,14 +138,6 @@ def _prepare_and_dispatch(webhook_config, context, add_test_flag=False,
     if not url:
         return None
 
-    # Re-validate URL at dispatch time to guard against stored URLs that
-    # predate SSRF validation or DNS changes since creation.
-    try:
-        validate_url(url)
-    except SSRFError as exc:
-        logger.warning("Webhook URL blocked by SSRF check at dispatch time: %s (%s)", safe_url_for_log(url), exc)
-        return None
-
     if add_test_flag:
         context = dict(context)
         context['test'] = True
@@ -190,7 +182,7 @@ def _prepare_and_dispatch(webhook_config, context, add_test_flag=False,
                 headers=headers,
             )
         except SSRFError as exc:
-            logger.warning("Webhook URL blocked mid-redirect: %s (%s)", safe_url_for_log(url), exc)
+            logger.warning("Webhook URL blocked by SSRF check: %s (%s)", safe_url_for_log(url), exc)
             return None
         except Exception as exc:
             logger.warning(

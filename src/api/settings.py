@@ -23,7 +23,7 @@ from llm_client import (
     get_effective_provider, get_effective_base_url, get_api_key, get_effective_openrouter_api_key,
     get_llm_client, create_client_for_provider, _JSON_FORMAT_SETTING_KEY,
 )
-from utils.url import validate_url, validate_base_url, SSRFError
+from utils.url import validate_base_url, SSRFError
 from utils.http import safe_url_for_log
 from utils.secret_writes import SecretWriteRejected, set_or_clear_secret
 from webhook_service import render_template_preview, fire_test_event, load_webhooks, VALID_EVENTS
@@ -743,7 +743,7 @@ def _validate_webhook_url(url):
     if not url:
         return error_response('url is required', 400)
     try:
-        validate_url(url)
+        validate_base_url(url)
     except SSRFError as e:
         return error_response(f'Invalid webhook URL: {e}', 400)
     return None

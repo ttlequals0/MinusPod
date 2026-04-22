@@ -152,9 +152,8 @@ class TestBuildContext:
 
 class TestPrepareAndDispatchSigning:
 
-    @patch('webhook_service.validate_url')
     @patch('webhook_service.safe_post')
-    def test_prepare_and_dispatch_with_secret(self, mock_post, _mock_url):
+    def test_prepare_and_dispatch_with_secret(self, mock_post):
         """X-MinusPod-Signature header is added when secret is set."""
         mock_resp = MagicMock()
         mock_resp.status_code = 200
@@ -169,9 +168,8 @@ class TestPrepareAndDispatchSigning:
         assert 'X-MinusPod-Signature' in headers
         assert headers['X-MinusPod-Signature'].startswith('sha256=')
 
-    @patch('webhook_service.validate_url')
     @patch('webhook_service.safe_post')
-    def test_prepare_and_dispatch_no_secret(self, mock_post, _mock_url):
+    def test_prepare_and_dispatch_no_secret(self, mock_post):
         """No signature header when no secret."""
         mock_resp = MagicMock()
         mock_resp.status_code = 200
@@ -187,14 +185,38 @@ class TestPrepareAndDispatchSigning:
 
     @patch('webhook_service.safe_post')
     def test_prepare_and_dispatch_ssrf_blocked(self, mock_post):
-        """SSRF check at dispatch time blocks private IPs."""
+        """SSRFError raised by safe_post (e.g. cloud metadata IP rejected by
+        the OPERATOR_CONFIGURED tier check) returns None and does not retry."""
         from utils.url import SSRFError
-        config = {'url': 'https://hook.example.com'}
+        mock_post.side_effect = SSRFError('Blocked cloud metadata IP')
+        config = {'url': 'http://169.254.169.254/latest/meta-data/'}
         context = {'event': 'Episode Processed', 'episode': {}}
-        with patch('webhook_service.validate_url', side_effect=SSRFError('Blocked private IP')):
-            result = _prepare_and_dispatch(config, context)
+
+        result = _prepare_and_dispatch(config, context)
+
         assert result is None
-        mock_post.assert_not_called()
+        mock_post.assert_called_once()
+
+    @patch('webhook_service.safe_post')
+    def test_prepare_and_dispatch_allows_private_ip_per_operator_trust(self, mock_post):
+        """Issue #158: private-IP webhook (e.g. local Home Assistant on a
+        non-default port) reaches safe_post under OPERATOR_CONFIGURED trust."""
+        from utils.safe_http import URLTrust
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_post.return_value = mock_resp
+
+        url = 'http://192.168.1.10:8123/api/webhook/abc'
+        config = {'url': url}
+        context = {'event': 'Episode Processed', 'episode': {}}
+
+        result = _prepare_and_dispatch(config, context)
+
+        assert result == 200
+        mock_post.assert_called_once()
+        call_args = mock_post.call_args
+        assert call_args.args[0] == url
+        assert call_args.kwargs.get('trust') is URLTrust.OPERATOR_CONFIGURED
 
 
 # ---------------------------------------------------------------------------
@@ -203,9 +225,8 @@ class TestPrepareAndDispatchSigning:
 
 class TestPrepareAndDispatchPayload:
 
-    @patch('webhook_service.validate_url')
     @patch('webhook_service.safe_post')
-    def test_prepare_and_dispatch_with_template(self, mock_post, _mock_url):
+    def test_prepare_and_dispatch_with_template(self, mock_post):
         """Renders template and dispatches."""
         mock_resp = MagicMock()
         mock_resp.status_code = 200
@@ -222,9 +243,8 @@ class TestPrepareAndDispatchPayload:
         body = call_kwargs.kwargs.get('data', b'')
         assert body == b'hello Episode Processed'
 
-    @patch('webhook_service.validate_url')
     @patch('webhook_service.safe_post')
-    def test_prepare_and_dispatch_default_payload(self, mock_post, _mock_url):
+    def test_prepare_and_dispatch_default_payload(self, mock_post):
         """Uses json.dumps of context when no template."""
         mock_resp = MagicMock()
         mock_resp.status_code = 200
@@ -240,9 +260,8 @@ class TestPrepareAndDispatchPayload:
         assert parsed['event'] == 'Episode Processed'
         assert parsed['data'] == 123
 
-    @patch('webhook_service.validate_url')
     @patch('webhook_service.safe_post')
-    def test_prepare_and_dispatch_test_flag_default(self, mock_post, _mock_url):
+    def test_prepare_and_dispatch_test_flag_default(self, mock_post):
         """test: true is in payload for default (no template) path."""
         mock_resp = MagicMock()
         mock_resp.status_code = 200
@@ -256,9 +275,8 @@ class TestPrepareAndDispatchPayload:
         parsed = json.loads(call_kwargs.kwargs.get('data', b''))
         assert parsed['test'] is True
 
-    @patch('webhook_service.validate_url')
     @patch('webhook_service.safe_post')
-    def test_prepare_and_dispatch_test_flag_template(self, mock_post, _mock_url):
+    def test_prepare_and_dispatch_test_flag_template(self, mock_post):
         """test: true is available in context for the template path too."""
         mock_resp = MagicMock()
         mock_resp.status_code = 200
