@@ -34,6 +34,7 @@ from utils.constants import (
     INVALID_SPONSOR_VALUES, STRUCTURAL_FIELDS,
     SPONSOR_PRIORITY_FIELDS, SPONSOR_PATTERN_KEYWORDS,
     INVALID_SPONSOR_CAPTURE_WORDS, NOT_AD_CLASSIFICATIONS,
+    KNOWN_SHORT_BRANDS,
 )
 
 logger = logging.getLogger('podcast.claude')
@@ -2268,6 +2269,12 @@ class AdDetector:
         patterns_created = 0
         min_confidence = 0.85  # Only learn from high-confidence detections
 
+        # Preload active pattern sponsors once so Gate B doesn't do N queries.
+        try:
+            active_pattern_sponsors = self.db.get_active_pattern_sponsors() if self.db else set()
+        except Exception:
+            active_pattern_sponsors = set()
+
         for ad in ads:
             # Only learn from ads that were actually removed
             if not ad.get('was_cut', False):
@@ -2334,10 +2341,18 @@ class AdDetector:
                 if is_prefix:
                     continue
 
-            # Gate B: reject single short words for unknown sponsors
-            if self.sponsor_service and not self.sponsor_service.find_sponsor_in_text(sponsor):
-                words = sponsor.strip().split()
-                if len(words) == 1 and len(sponsor.strip()) < 6:
+            # Gate B: reject single short words for unknown sponsors.
+            # "Known" means the sponsor is in the sponsor registry, has an
+            # existing active pattern, or is in the curated short-brand seed.
+            words = sponsor.strip().split()
+            if len(words) == 1 and len(sponsor.strip()) < 6:
+                sponsor_lower = sponsor.strip().lower()
+                is_known = (
+                    (self.sponsor_service and self.sponsor_service.find_sponsor_in_text(sponsor))
+                    or sponsor_lower in active_pattern_sponsors
+                    or sponsor_lower in KNOWN_SHORT_BRANDS
+                )
+                if not is_known:
                     logger.info(f"Skipping pattern for unknown short sponsor: '{sponsor}'")
                     continue
 

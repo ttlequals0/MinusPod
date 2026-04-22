@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 
 from config import APP_USER_AGENT, HTTP_MAX_REDIRECTS_FEED
 from utils.circuit_breaker import CircuitBreaker, CircuitBreakerOpen
+from utils.episode_paths import episode_public_url
 from utils.time import parse_iso_datetime
 from utils.url import SSRFError
 from utils.http import safe_url_for_log
@@ -450,7 +451,8 @@ class RSSParser:
     def _append_db_episode_item(self, lines: list, slug: str, ep: Dict, storage) -> None:
         """Append a single <item> for a processed episode from the database."""
         ep_id = ep['episode_id']
-        modified_url = f"{self.base_url}/episodes/{slug}/{ep_id}.mp3"
+        modified_url = episode_public_url(self.base_url, slug, ep_id,
+                                           ep.get('processed_version'))
         lines.append('<item>')
         lines.append(f'  <title>{self._escape_xml(ep.get("title") or "Unknown")}</title>')
         if ep.get('description'):

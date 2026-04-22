@@ -12,6 +12,7 @@ import requests.exceptions
 from cancel import ProcessingCancelled, _check_cancel, _cancel_events, _cancel_events_lock
 from config import MIN_CUT_CONFIDENCE, MAX_EPISODE_RETRIES
 from llm_client import is_retryable_error, is_llm_api_error, start_episode_token_tracking, get_episode_token_totals
+from utils.episode_paths import episode_relative_path
 from utils.gpu import get_available_memory_gb, clear_gpu_memory
 from utils.text import parse_transcript_segments
 from utils.time import parse_timestamp
@@ -470,7 +471,8 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
 def _run_verification_pass(slug, episode_id, processed_path, ads_to_remove,
                             podcast_name, episode_title, episode_description,
                             podcast_description, skip_patterns, min_cut_confidence,
-                            local_audio_processor, progress_callback):
+                            local_audio_processor, progress_callback,
+                            original_segments=None):
     """Pipeline stage: Run verification (second pass) on processed audio.
 
     Returns (verification_count, v_ads_for_ui, processed_path).
@@ -497,6 +499,7 @@ def _run_verification_pass(slug, episode_id, processed_path, ads_to_remove,
             podcast_description=podcast_description,
             skip_patterns=skip_patterns,
             progress_callback=progress_callback,
+            original_segments=original_segments,
         )
         verification_ads_original = verification_result.get('ads', [])
         verification_ads_processed = verification_result.get('ads_processed', [])
@@ -625,15 +628,18 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
 
 def _finalize_episode(slug, episode_id, episode_title, podcast_name,
                        ads_to_remove, verification_count, first_pass_count,
-                       original_duration, new_duration, start_time):
+                       original_duration, new_duration, start_time,
+                       processed_version=0):
     """Pipeline stage: Update DB, record history, refresh RSS."""
     from main_app.feeds import get_feed_map, refresh_rss_feed
     db, storage, _, _, _, _, _, _, _, _ = _get_components()
     original_final = storage.get_original_path(slug, episode_id)
     original_file_rel = f"episodes/{episode_id}-original.mp3" if original_final.exists() else None
+    processed_file_rel = episode_relative_path(episode_id, processed_version)
     db.upsert_episode(slug, episode_id,
         status='processed',
-        processed_file=f"episodes/{episode_id}.mp3",
+        processed_file=processed_file_rel,
+        processed_version=processed_version or 0,
         original_file=original_file_rel,
         original_duration=original_duration,
         new_duration=new_duration,
@@ -642,6 +648,19 @@ def _finalize_episode(slug, episode_id, episode_title, podcast_name,
         ads_removed_secondpass=verification_count,
         reprocess_mode=None,
         reprocess_requested_at=None)
+
+    try:
+        removed = storage.cleanup_stale_audio_versions(
+            slug, episode_id, processed_version or 0
+        )
+        if removed:
+            audio_logger.info(
+                f"[{slug}:{episode_id}] Cleaned up {removed} stale audio version(s)"
+            )
+    except Exception as cleanup_err:
+        audio_logger.warning(
+            f"[{slug}:{episode_id}] Failed to clean stale audio versions: {cleanup_err}"
+        )
 
     try:
         closed = db.close_queue_rows_for_episode(slug, episode_id)
@@ -899,7 +918,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 slug, episode_id, processed_path, ads_to_remove,
                 podcast_name, episode_title, episode_description,
                 podcast_description, skip_patterns, min_cut_confidence,
-                local_audio_processor, detection_progress_callback
+                local_audio_processor, detection_progress_callback,
+                original_segments=segments,
             )
             _check_cancel(cancel_event, slug, episode_id)
 
@@ -911,8 +931,12 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
             new_duration = local_audio_processor.get_audio_duration(processed_path)
 
-            # Move processed file to final location
-            final_path = storage.get_episode_path(slug, episode_id)
+            existing_episode = db.get_episode(slug, episode_id) or {}
+            previously_processed = bool(existing_episode.get('processed_at'))
+            previous_version = existing_episode.get('processed_version') or 0
+            new_version = previous_version + 1 if previously_processed else 0
+
+            final_path = storage.get_episode_path(slug, episode_id, version=new_version)
             shutil.move(processed_path, final_path)
 
             # Retain the pre-cut audio for the ad-editor "Review mode" playback
@@ -936,7 +960,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # Stage 8: Finalize
             _finalize_episode(slug, episode_id, episode_title, podcast_name,
                                ads_to_remove, verification_count, first_pass_count,
-                               original_duration, new_duration, start_time)
+                               original_duration, new_duration, start_time,
+                               processed_version=new_version)
 
             status_service.complete_job()
             return True

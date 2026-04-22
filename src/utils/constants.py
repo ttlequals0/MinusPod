@@ -29,6 +29,15 @@ SPONSOR_PRIORITY_FIELDS = [
     'sponsor_name', 'advertiser', 'sponsor', 'brand', 'company', 'product', 'name'
 ]
 
+# Known brand names that would otherwise be blocked by Gate B in
+# ad_detector.learn_from_detections (single-word sponsors shorter than 6 chars
+# that aren't in the sponsor registry). Lowercase for lookup.
+KNOWN_SHORT_BRANDS = frozenset({
+    'xero', 'venmo', 'kayak', 'meter', 'pura', 'opal', 'waymo', 'plaid',
+    'deel', 'ramp', 'brex', 'lyft', 'uber', 'slack', 'zoom', 'asana',
+    'figma', 'canva', 'miro', 'hinge', 'tonal', 'whoop',
+})
+
 # Keywords to match against any JSON key for fuzzy sponsor field detection.
 SPONSOR_PATTERN_KEYWORDS = [
     'sponsor', 'brand', 'advertiser', 'company', 'product', 'ad_name', 'note'

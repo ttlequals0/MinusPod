@@ -39,7 +39,8 @@ class VerificationPass:
                episode_description: str = None,
                podcast_description: str = None,
                skip_patterns: bool = False,
-               progress_callback=None) -> Dict:
+               progress_callback=None,
+               original_segments: List[Dict] = None) -> Dict:
         """
         Run full pipeline on processed audio to find missed ads.
 
@@ -128,7 +129,7 @@ class VerificationPass:
         if self.pattern_service and original_ads:
             try:
                 self.pattern_service.record_verification_misses(
-                    slug, episode_id, original_ads
+                    slug, episode_id, original_ads, segments=original_segments
                 )
             except Exception as e:
                 logger.warning(f"[{slug}:{episode_id}] Failed to record verification misses: {e}")

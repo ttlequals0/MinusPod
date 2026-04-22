@@ -19,6 +19,7 @@ from config import (
     PROMOTION_SIMILARITY_THRESHOLD,
     SPONSOR_GLOBAL_THRESHOLD
 )
+from text_pattern_matcher import TextPatternMatcher
 
 logger = logging.getLogger('podcast.patterns')
 
@@ -717,22 +718,27 @@ class PatternService:
             return 0
 
     def record_verification_misses(self, slug: str, episode_id: str,
-                                   missed_ads: List[Dict]) -> None:
+                                   missed_ads: List[Dict],
+                                   segments: Optional[List[Dict]] = None) -> None:
         """Record ads found by verification that were missed by the first pass.
 
-        Logs missed ads and boosts matching patterns so they're more likely
-        to be detected in future episodes.
+        Boosts matching patterns so they're more likely to be detected in
+        future episodes. When ``segments`` is provided, also auto-creates a
+        podcast-scoped pattern for any unmatched sponsor so the cheap
+        text_pattern stage can catch it next time.
 
         Args:
             slug: Podcast slug
             episode_id: Episode ID
             missed_ads: List of ad dicts with sponsor, start, end, confidence
+            segments: Original-audio transcript segments (for auto-creation)
         """
         if not self.db:
             return
 
         # Load patterns once for all missed ads (avoid N+1 queries)
         patterns = self.get_patterns_for_podcast(slug)
+        matcher = self._get_text_pattern_matcher() if segments else None
 
         for ad in missed_ads:
             sponsor = ad.get('sponsor')
@@ -756,13 +762,43 @@ class PatternService:
                         matched = True
                         break
 
-                if not matched:
+                if matched:
+                    continue
+
+                if matcher is None:
                     logger.info(
                         f"[{slug}:{episode_id}] No existing pattern for missed sponsor "
-                        f"'{sponsor}' -- manual pattern creation may be needed"
+                        f"'{sponsor}' and no transcript segments available for auto-creation"
+                    )
+                    continue
+
+                pattern_id = matcher.create_pattern_from_ad(
+                    segments=segments,
+                    start=ad.get('start', 0),
+                    end=ad.get('end', 0),
+                    sponsor=sponsor,
+                    scope='podcast',
+                    podcast_id=slug,
+                    episode_id=episode_id,
+                )
+                if pattern_id:
+                    logger.info(
+                        f"[{slug}:{episode_id}] Auto-created pattern {pattern_id} "
+                        f"for sponsor '{sponsor}' from verification miss"
+                    )
+                else:
+                    logger.info(
+                        f"[{slug}:{episode_id}] Declined to auto-create pattern "
+                        f"for '{sponsor}' (validator rejected)"
                     )
             except Exception as e:
                 logger.warning(
                     f"[{slug}:{episode_id}] Failed to process verification miss "
                     f"for '{sponsor}': {e}"
                 )
+
+    def _get_text_pattern_matcher(self) -> TextPatternMatcher:
+        """Lazily instantiate a TextPatternMatcher sharing our db."""
+        if getattr(self, '_text_pattern_matcher', None) is None:
+            self._text_pattern_matcher = TextPatternMatcher(db=self.db)
+        return self._text_pattern_matcher
