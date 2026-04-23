@@ -932,9 +932,16 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             new_duration = local_audio_processor.get_audio_duration(processed_path)
 
             existing_episode = db.get_episode(slug, episode_id) or {}
-            previously_processed = bool(existing_episode.get('processed_at'))
+            # ``processed_at`` is cleared by the reprocess reset before we get
+            # here, so it can't signal "been processed before". ``processed_version``
+            # is not reset and ``reprocess_requested_at`` is set by the reprocess
+            # endpoints - either one means we bump.
             previous_version = existing_episode.get('processed_version') or 0
-            new_version = previous_version + 1 if previously_processed else 0
+            is_reprocess = (
+                previous_version > 0
+                or bool(existing_episode.get('reprocess_requested_at'))
+            )
+            new_version = previous_version + 1 if is_reprocess else 0
 
             final_path = storage.get_episode_path(slug, episode_id, version=new_version)
             shutil.move(processed_path, final_path)

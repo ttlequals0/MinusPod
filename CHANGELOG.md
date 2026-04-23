@@ -6,6 +6,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.11] - 2026-04-23
+
+Hotfix on 2.0.10: the reprocess detection in the new versioned-mp3 path used `processed_at` to decide first-process vs reprocess, but the reprocess state reset in `database.episodes` clears `processed_at` to NULL before `process_episode` runs. Result: `previously_processed` was always False, `new_version` stayed at 0, and the reprocess output overwrote `{episode_id}.mp3` in place - defeating the whole point of the versioned filename. Observed live on DTNS 5253 reprocess: `processedUrl` came back without the `-v1` suffix.
+
+### Fixed
+
+- `src/main_app/processing.py` now derives the reprocess signal from `processed_version > 0` OR `reprocess_requested_at` being set. Both are preserved by the reprocess state reset (the version column because it's new, the timestamp because the reprocess endpoint stamps it on its way in). First-ever process still writes `{episode_id}.mp3`; second run and beyond write `{episode_id}-v{N}.mp3` as intended.
+
 ## [2.0.10] - 2026-04-22
 
 Three independent fixes bundled into one release: close the pattern-learning gaps that left verification-only sponsors unlearned and blocked short-name brands from ever becoming patterns; bump the processed mp3 filename on reprocess so podcast clients actually refetch instead of serving cached stale audio; and add LiteLLM's community pricing JSON as a fallback source so providers without a native OpenRouter or pricepertoken path stop recording `$0` token costs.
