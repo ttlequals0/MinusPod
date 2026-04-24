@@ -99,3 +99,90 @@ class TestRecordVerificationMisses:
         ])
 
         assert svc.record_pattern_match.call_count == 2
+
+
+class TestRecordVerificationMissesAutoCreate:
+    """Verify auto-creation of podcast-scoped patterns for unmatched sponsors."""
+
+    def test_auto_creates_pattern_for_unknown_sponsor_when_segments_provided(self):
+        svc = _make_service(patterns=[])
+        fake_matcher = MagicMock()
+        fake_matcher.create_pattern_from_ad.return_value = 555
+        svc._text_pattern_matcher = fake_matcher
+
+        segments = [{"start": 0, "end": 10, "text": "hello"}]
+        svc.record_verification_misses(
+            "slug", "ep1",
+            [{"sponsor": "NewSponsor", "start": 100, "end": 160}],
+            segments=segments,
+        )
+
+        fake_matcher.create_pattern_from_ad.assert_called_once_with(
+            segments=segments,
+            start=100,
+            end=160,
+            sponsor="NewSponsor",
+            scope="podcast",
+            podcast_id="slug",
+            episode_id="ep1",
+        )
+
+    def test_no_auto_create_when_segments_missing(self):
+        svc = _make_service(patterns=[])
+        fake_matcher = MagicMock()
+        svc._text_pattern_matcher = fake_matcher
+
+        svc.record_verification_misses(
+            "slug", "ep1",
+            [{"sponsor": "NewSponsor", "start": 0, "end": 60}],
+        )
+        fake_matcher.create_pattern_from_ad.assert_not_called()
+
+    def test_logs_declined_when_validator_rejects(self):
+        svc = _make_service(patterns=[])
+        fake_matcher = MagicMock()
+        fake_matcher.create_pattern_from_ad.return_value = None
+        svc._text_pattern_matcher = fake_matcher
+
+        with patch("pattern_service.logger") as mock_logger:
+            svc.record_verification_misses(
+                "slug", "ep1",
+                [{"sponsor": "ContaminatedSponsor", "start": 0, "end": 300}],
+                segments=[{"start": 0, "end": 300, "text": "..."}],
+            )
+            assert any(
+                "Declined to auto-create" in str(c)
+                for c in mock_logger.info.call_args_list
+            )
+
+    def test_zero_alias_normalized_to_xero(self):
+        patterns = [{"id": 77, "sponsor": "Xero"}]
+        svc = _make_service(patterns)
+        fake_matcher = MagicMock()
+        svc._text_pattern_matcher = fake_matcher
+
+        svc.record_verification_misses(
+            "slug", "ep1",
+            [{"sponsor": "Zero", "start": 100, "end": 160}],
+            segments=[{"start": 0, "end": 200, "text": "..."}],
+        )
+        svc.record_pattern_match.assert_called_once_with(
+            77, episode_id="ep1", observed_duration=60,
+        )
+        fake_matcher.create_pattern_from_ad.assert_not_called()
+
+    def test_matched_sponsor_boosts_not_auto_creates(self):
+        patterns = [{"id": 42, "sponsor": "Acme"}]
+        svc = _make_service(patterns)
+        fake_matcher = MagicMock()
+        svc._text_pattern_matcher = fake_matcher
+
+        svc.record_verification_misses(
+            "slug", "ep1",
+            [{"sponsor": "Acme", "start": 100, "end": 160}],
+            segments=[{"start": 0, "end": 200, "text": "..."}],
+        )
+        svc.record_pattern_match.assert_called_once_with(
+            42, episode_id="ep1", observed_duration=60,
+        )
+        fake_matcher.create_pattern_from_ad.assert_not_called()

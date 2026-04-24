@@ -11,11 +11,17 @@ from api import (
     api, limiter, log_request, json_response, error_response,
     get_database, get_storage,
 )
+from utils.episode_paths import episode_public_url
 from utils.text import parse_transcript_segments
 from utils.time import parse_timestamp, utc_now_iso
 from utils.validation import is_valid_episode_id
 
 logger = logging.getLogger('podcast.api')
+
+
+def _processed_url(base_url: str, slug: str, episode_id: str, version: int) -> str:
+    """Build the public processed-audio URL including a version suffix when set."""
+    return episode_public_url(base_url, slug, episode_id, version)
 
 
 def _get_episode_token_fields(db, episode_id: str) -> dict:
@@ -162,7 +168,8 @@ def get_episode(slug, episode_id):
         'originalDuration': episode['original_duration'],
         'newDuration': episode['new_duration'],
         'originalUrl': episode['original_url'],
-        'processedUrl': f"{base_url}/episodes/{slug}/{episode_id}.mp3",
+        'processedUrl': _processed_url(base_url, slug, episode_id,
+                                        episode.get('processed_version') or 0),
         'hasOriginalAudio': bool(episode.get('original_file')),
         'originalAudioUrl': f"/api/v1/feeds/{slug}/episodes/{episode_id}/original.mp3",
         'adsRemoved': episode['ads_removed'],

@@ -386,16 +386,20 @@ class TestPricingFetcher:
         result = fetch_pricing({'type': 'free'})
         assert result == []
 
-    def test_unknown_source_returns_empty(self):
+    def test_unknown_source_falls_back_to_litellm(self):
         from pricing_fetcher import fetch_pricing
-        result = fetch_pricing({'type': 'unknown', 'domain': 'test.com'})
+        with patch('pricing_fetcher.fetch_litellm_pricing', return_value=[]) as mock_litellm:
+            result = fetch_pricing({'type': 'unknown', 'domain': 'test.com'})
         assert result == []
+        mock_litellm.assert_called_once()
 
-    def test_network_error_returns_empty(self):
+    def test_network_error_falls_back_to_litellm(self):
         from pricing_fetcher import fetch_pricing
-        with patch('pricing_fetcher.fetch_openrouter_pricing', side_effect=Exception('timeout')):
+        with patch('pricing_fetcher.fetch_openrouter_pricing', side_effect=Exception('timeout')), \
+             patch('pricing_fetcher.fetch_litellm_pricing', return_value=[]) as mock_litellm:
             result = fetch_pricing({'type': 'openrouter_api', 'url': 'https://openrouter.ai/api/v1/models'})
         assert result == []
+        mock_litellm.assert_called_once()
 
 
 class TestParsePrice:
@@ -560,3 +564,128 @@ class TestGetModelPricingSourceFilter:
         assert len(all_rows) > 0
         assert len(default_rows) == len(all_rows)
         assert len(other_rows) == 0
+
+
+class TestLiteLLMFallback:
+    """Tests for the LiteLLM pricing JSON fallback source."""
+
+    SAMPLE_JSON = {
+        "sample_spec": {
+            "input_cost_per_token": 0.0,
+            "output_cost_per_token": 0.0,
+            "litellm_provider": "sample",
+        },
+        "claude-opus-4-6": {
+            "input_cost_per_token": 0.000015,
+            "output_cost_per_token": 0.000075,
+            "cache_read_input_token_cost": 0.0000015,
+            "litellm_provider": "anthropic",
+        },
+        "gpt-4o": {
+            "input_cost_per_token": 0.0000025,
+            "output_cost_per_token": 0.00001,
+            "litellm_provider": "openai",
+        },
+        "embedding-model": {
+            "output_vector_size": 1536,
+            "litellm_provider": "openai",
+        },
+        "malformed-entry": {
+            "input_cost_per_token": "not-a-number",
+            "output_cost_per_token": 0.00001,
+            "litellm_provider": "openai",
+        },
+    }
+
+    def _mock_resp(self):
+        resp = MagicMock()
+        resp.json = MagicMock(return_value=self.SAMPLE_JSON)
+        resp.raise_for_status = MagicMock()
+        return resp
+
+    def test_parses_and_skips_sample_spec(self):
+        from pricing_fetcher import fetch_litellm_pricing
+
+        with patch('pricing_fetcher.safe_get', return_value=self._mock_resp()):
+            results = fetch_litellm_pricing()
+
+        ids = [r['raw_model_id'] for r in results]
+        assert 'sample_spec' not in ids
+        assert 'claude-opus-4-6' in ids
+        assert 'gpt-4o' in ids
+        # embedding entry skipped (missing input_cost_per_token)
+        assert 'embedding-model' not in ids
+        # malformed entry skipped (bad float)
+        assert 'malformed-entry' not in ids
+
+    def test_converts_per_token_to_per_mtok(self):
+        from pricing_fetcher import fetch_litellm_pricing
+
+        with patch('pricing_fetcher.safe_get', return_value=self._mock_resp()):
+            results = fetch_litellm_pricing()
+        claude = next(r for r in results if r['raw_model_id'] == 'claude-opus-4-6')
+        assert claude['input_cost_per_mtok'] == 15.0
+        assert claude['output_cost_per_mtok'] == 75.0
+
+    def test_provider_filter(self):
+        from pricing_fetcher import fetch_litellm_pricing
+
+        with patch('pricing_fetcher.safe_get', return_value=self._mock_resp()):
+            anthropic_only = fetch_litellm_pricing(provider_filter='anthropic')
+        assert [r['raw_model_id'] for r in anthropic_only] == ['claude-opus-4-6']
+
+    def test_fetch_pricing_falls_back_on_empty_primary(self):
+        from pricing_fetcher import fetch_pricing
+
+        with patch('pricing_fetcher.fetch_pricepertoken_pricing', return_value=[]), \
+             patch('pricing_fetcher.fetch_litellm_pricing') as mock_litellm:
+            mock_litellm.return_value = [{'match_key': 'x', 'raw_model_id': 'x',
+                                          'display_name': 'x',
+                                          'input_cost_per_mtok': 1.0,
+                                          'output_cost_per_mtok': 2.0}]
+            results = fetch_pricing(
+                {'type': 'pricepertoken', 'url': 'https://pricepertoken.com/foo'},
+                provider_for_fallback='anthropic',
+            )
+        assert len(results) == 1
+        mock_litellm.assert_called_once_with(provider_filter='anthropic')
+
+    def test_fetch_pricing_falls_back_on_primary_exception(self):
+        from pricing_fetcher import fetch_pricing
+
+        with patch('pricing_fetcher.fetch_pricepertoken_pricing',
+                   side_effect=ConnectionError('boom')), \
+             patch('pricing_fetcher.fetch_litellm_pricing') as mock_litellm:
+            mock_litellm.return_value = []
+            results = fetch_pricing(
+                {'type': 'pricepertoken', 'url': 'https://pricepertoken.com/foo'},
+                provider_for_fallback='openai',
+            )
+        assert results == []
+        mock_litellm.assert_called_once_with(provider_filter='openai')
+
+    def test_fetch_pricing_unknown_domain_uses_litellm(self):
+        from pricing_fetcher import fetch_pricing
+
+        with patch('pricing_fetcher.fetch_litellm_pricing') as mock_litellm:
+            mock_litellm.return_value = []
+            fetch_pricing(
+                {'type': 'unknown', 'domain': 'mystery.example.com'},
+                provider_for_fallback='openai',
+            )
+        mock_litellm.assert_called_once_with(provider_filter='openai')
+
+    def test_primary_success_does_not_call_litellm(self):
+        from pricing_fetcher import fetch_pricing
+
+        primary = [{'match_key': 'y', 'raw_model_id': 'y',
+                    'display_name': 'y', 'input_cost_per_mtok': 3.0,
+                    'output_cost_per_mtok': 9.0}]
+        with patch('pricing_fetcher.fetch_openrouter_pricing', return_value=primary), \
+             patch('pricing_fetcher.fetch_litellm_pricing') as mock_litellm:
+            results = fetch_pricing(
+                {'type': 'openrouter_api', 'url': 'https://openrouter.ai/api/v1/models'},
+                provider_for_fallback='openrouter',
+            )
+        assert results == primary
+        mock_litellm.assert_not_called()

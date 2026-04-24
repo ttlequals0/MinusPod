@@ -8,6 +8,7 @@ import tempfile
 import shutil
 
 from config import BROWSER_USER_AGENT, HTTP_MAX_REDIRECTS_FEED, HTTP_TIMEOUT_FETCH
+from utils.episode_paths import episode_filename
 from utils.http import safe_url_for_log
 from utils.url import SSRFError
 from utils.validation import is_dangerous_slug, is_valid_episode_id
@@ -201,9 +202,64 @@ class Storage:
         podcast_dir = self.get_podcast_dir(slug)
         return _safe_join_under(podcast_dir, "episodes", filename)
 
-    def get_episode_path(self, slug: str, episode_id: str, extension: str = ".mp3") -> Path:
-        """Get path for episode file."""
-        return self._validated_episode_leaf(slug, episode_id, f"{episode_id}{extension}")
+    def get_episode_path(self, slug: str, episode_id: str,
+                          extension: str = ".mp3",
+                          version: Optional[int] = None) -> Path:
+        """Get path for an episode audio file.
+
+        version=None or 0 -> ``{episode_id}{extension}`` (unversioned, back-compat).
+        version>=1        -> ``{episode_id}-v{N}{extension}`` (incremented per reprocess).
+        """
+        return self._validated_episode_leaf(
+            slug, episode_id, episode_filename(episode_id, version, extension)
+        )
+
+    def iter_episode_audio_paths(self, slug: str, episode_id: str,
+                                   extension: str = ".mp3") -> List[Path]:
+        """Return all audio files for this episode (unversioned + any v1..vN)."""
+        if not is_valid_episode_id(episode_id):
+            raise PathContainmentError(f"refusing invalid episode id {episode_id!r}")
+        episodes_dir = self.get_podcast_dir(slug) / "episodes"
+        if not episodes_dir.exists():
+            return []
+        unversioned = self.get_episode_path(slug, episode_id, extension)
+        versioned = sorted(episodes_dir.glob(f"{episode_id}-v*{extension}"))
+        paths = []
+        if unversioned.exists():
+            paths.append(unversioned)
+        paths.extend(versioned)
+        return paths
+
+    def cleanup_stale_audio_versions(self, slug: str, episode_id: str,
+                                       current_version: int,
+                                       extension: str = ".mp3") -> int:
+        """Remove every audio file except the current version.
+
+        Clients hitting the legacy unversioned URL still resolve via
+        ``serve_episode``, which reads ``processed_version`` from the DB and
+        falls through to the current file, so we can delete everything else
+        immediately on finalize. The retained ``{episode_id}-original`` file
+        is untouched (``iter_episode_audio_paths`` does not include it).
+        Returns the number of files deleted.
+        """
+        if current_version <= 0:
+            return 0
+        current = self.get_episode_path(slug, episode_id, extension,
+                                          version=current_version)
+        keep = {current.resolve()}
+        removed = 0
+        for path in self.iter_episode_audio_paths(slug, episode_id, extension):
+            if path.resolve() in keep:
+                continue
+            try:
+                path.unlink()
+                removed += 1
+                logger.info(
+                    f"[{slug}:{episode_id}] Removed stale audio version: {path.name}"
+                )
+            except Exception as e:
+                logger.warning(f"[{slug}:{episode_id}] Failed to delete {path}: {e}")
+        return removed
 
     def get_original_path(self, slug: str, episode_id: str, extension: str = ".mp3") -> Path:
         """Get path for the retained original (pre-cut) audio file."""
@@ -505,13 +561,14 @@ class Storage:
     # ========== Cleanup Methods ==========
 
     def delete_processed_file(self, slug: str, episode_id: str) -> bool:
-        """Delete the processed audio file and any retained original."""
+        """Delete the processed audio file(s) and any retained original."""
         deleted = False
-        for path in (
-            self.get_episode_path(slug, episode_id, ".mp3"),
-            self.get_original_path(slug, episode_id, ".mp3"),
-        ):
-            if path and path.exists():
+        candidates = list(self.iter_episode_audio_paths(slug, episode_id, ".mp3"))
+        original = self.get_original_path(slug, episode_id, ".mp3")
+        if original and original.exists():
+            candidates.append(original)
+        for path in candidates:
+            if path.exists():
                 path.unlink()
                 deleted = True
         if deleted:
@@ -530,10 +587,11 @@ class Storage:
         # Only delete MP3 files - VTT and chapters are now in database.
         # Originals (retained for ad-editor review) are cleaned on the
         # same schedule as the processed output.
-        for path in (
-            self.get_episode_path(slug, episode_id, '.mp3'),
-            self.get_original_path(slug, episode_id, '.mp3'),
-        ):
+        paths = list(self.iter_episode_audio_paths(slug, episode_id, '.mp3'))
+        original = self.get_original_path(slug, episode_id, '.mp3')
+        if original.exists():
+            paths.append(original)
+        for path in paths:
             if path.exists():
                 try:
                     freed += path.stat().st_size

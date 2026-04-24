@@ -259,10 +259,19 @@ def register_routes(app):
             abort(503)
 
     @app.route('/episodes/<slug>/<episode_id>.mp3')
+    @app.route('/episodes/<slug>/<episode_id>-v<int:requested_version>.mp3')
     @validate_slug_and_episode_params
     @log_request_detailed
-    def serve_episode(slug, episode_id):
-        """Serve processed episode audio (JIT processing)."""
+    def serve_episode(slug, episode_id, requested_version=None):
+        """Serve processed episode audio (JIT processing).
+
+        Two URL shapes are accepted:
+        - ``/episodes/<slug>/<episode_id>.mp3`` (legacy, unversioned) serves
+          whatever ``processed_version`` the DB currently has. Kept working so
+          clients with stale RSS URLs still receive the latest cut.
+        - ``/episodes/<slug>/<episode_id>-v<N>.mp3`` serves that exact version
+          if the file exists, or the current version as a fallback.
+        """
         import main_app.routes as _routes
         from main_app.processing import start_background_processing
         db, storage, _, status_service = _get_components()
@@ -278,9 +287,23 @@ def register_routes(app):
         status = episode['status'] if episode else None
 
         if status == 'processed':
-            file_path = storage.get_episode_path(slug, episode_id)
+            current_version = (episode or {}).get('processed_version') or 0
+            # Pick the version to serve. If client asked for a specific version
+            # and that file is present, serve it; otherwise fall through to current.
+            serve_version = current_version
+            if requested_version is not None:
+                versioned_path = storage.get_episode_path(
+                    slug, episode_id, version=requested_version
+                )
+                if versioned_path.exists():
+                    serve_version = requested_version
+            file_path = storage.get_episode_path(
+                slug, episode_id, version=serve_version
+            )
             if file_path.exists():
-                feed_logger.info(f"[{slug}:{episode_id}] Cache hit")
+                feed_logger.info(
+                    f"[{slug}:{episode_id}] Cache hit (v={serve_version})"
+                )
                 return send_file(file_path, mimetype='audio/mpeg')
             else:
                 feed_logger.error(f"[{slug}:{episode_id}] Processed file missing")

@@ -189,8 +189,77 @@ def fetch_pricepertoken_pricing(url: str) -> List[Dict]:
     return results
 
 
-def fetch_pricing(source: dict) -> List[Dict]:
-    """Fetch pricing based on resolved source config."""
+LITELLM_PRICING_URL = (
+    'https://raw.githubusercontent.com/BerriAI/litellm/main/'
+    'model_prices_and_context_window.json'
+)
+
+
+def fetch_litellm_pricing(provider_filter: Optional[str] = None) -> List[Dict]:
+    """Fetch pricing from the LiteLLM community pricing JSON.
+
+    This is a fallback source when the primary provider fetch returns nothing
+    (e.g. pricepertoken page missing, unknown provider domain). The JSON is
+    maintained by the LiteLLM project and updated frequently.
+
+    Args:
+        provider_filter: Optional ``litellm_provider`` value to filter on
+            ('anthropic', 'openai', 'bedrock', etc.). None returns all providers
+            that report per-token input/output costs.
+
+    Returns list of dicts in the same shape as fetch_openrouter_pricing.
+    """
+    try:
+        resp = safe_get(
+            LITELLM_PRICING_URL,
+            trust=URLTrust.OPERATOR_CONFIGURED,
+            timeout=HTTP_TIMEOUT_EXTERNAL,
+            max_redirects=HTTP_MAX_REDIRECTS_API,
+        )
+        resp.raise_for_status()
+    except (SSRFError, requests.RequestException) as exc:
+        raise ConnectionError(f"Failed to fetch LiteLLM pricing: {exc}") from exc
+
+    try:
+        raw = resp.json()
+    except ValueError as exc:
+        raise ConnectionError(f"LiteLLM pricing response was not valid JSON: {exc}") from exc
+
+    results: List[Dict] = []
+    for raw_id, spec in raw.items():
+        if raw_id == 'sample_spec' or not isinstance(spec, dict):
+            continue
+        try:
+            input_cost = spec.get('input_cost_per_token')
+            output_cost = spec.get('output_cost_per_token')
+            if input_cost is None or output_cost is None:
+                continue
+            if provider_filter and spec.get('litellm_provider') != provider_filter:
+                continue
+            input_per_mtok = float(input_cost) * 1_000_000
+            output_per_mtok = float(output_cost) * 1_000_000
+        except (ValueError, TypeError):
+            logger.debug(f"Skipping LiteLLM entry with unparseable pricing: {raw_id}")
+            continue
+
+        key = normalize_model_key(raw_id)
+        results.append({
+            'match_key': key,
+            'raw_model_id': raw_id,
+            'display_name': raw_id,
+            'input_cost_per_mtok': round(input_per_mtok, 4),
+            'output_cost_per_mtok': round(output_per_mtok, 4),
+        })
+
+    return results
+
+
+def fetch_pricing(source: dict, provider_for_fallback: Optional[str] = None) -> List[Dict]:
+    """Fetch pricing based on resolved source config.
+
+    Falls back to the LiteLLM community JSON when the primary source is
+    unavailable or returns nothing, or when the provider domain is unknown.
+    """
     source_type = source.get('type')
 
     if source_type == 'free':
@@ -198,28 +267,54 @@ def fetch_pricing(source: dict) -> List[Dict]:
         return []
 
     if source_type == 'unknown':
-        logger.warning(
+        logger.info(
             f"Unknown provider domain '{source.get('domain')}' -- "
-            f"no pricing source available, costs will record as $0"
+            f"attempting LiteLLM fallback"
         )
-        return []
+        return _try_litellm_fallback(provider_for_fallback)
 
     url = source.get('url', '')
     logger.info(f"Fetching pricing from {source_type}: {safe_url_for_log(url)}")
 
+    primary_error: Optional[Exception] = None
+    results: List[Dict] = []
     try:
         if source_type == 'openrouter_api':
             results = fetch_openrouter_pricing()
         elif source_type == 'pricepertoken':
             results = fetch_pricepertoken_pricing(url)
-        else:
-            return []
+    except Exception as e:
+        primary_error = e
+        logger.warning(f"Failed to fetch pricing from {safe_url_for_log(url)}: {e}")
 
+    if results:
         logger.info(f"Fetched pricing for {len(results)} models from {source_type}")
         return results
 
+    if primary_error is not None:
+        logger.warning(f"{source_type} fetch errored, trying LiteLLM fallback")
+    else:
+        logger.info(f"{source_type} returned no rows, trying LiteLLM fallback")
+    return _try_litellm_fallback(provider_for_fallback)
+
+
+def _try_litellm_fallback(provider_filter: Optional[str]) -> List[Dict]:
+    """Attempt LiteLLM fallback and swallow fetch errors."""
+    try:
+        results = fetch_litellm_pricing(provider_filter=provider_filter)
+        if results:
+            logger.info(
+                f"Fetched pricing for {len(results)} models from litellm "
+                f"(filter={provider_filter or 'none'})"
+            )
+        else:
+            logger.warning(
+                f"LiteLLM fallback returned no rows "
+                f"(filter={provider_filter or 'none'}); costs may record as $0"
+            )
+        return results
     except Exception as e:
-        logger.warning(f"Failed to fetch pricing from {safe_url_for_log(url)}: {e}")
+        logger.warning(f"LiteLLM fallback failed: {e}")
         return []
 
 
@@ -268,7 +363,7 @@ def refresh_pricing_if_stale(force: bool = False):
 
     logger.info(f"Pricing refresh: provider={provider} source_type={source.get('type')}")
 
-    models = fetch_pricing(source)
+    models = fetch_pricing(source, provider_for_fallback=provider)
 
     try:
         from database import Database

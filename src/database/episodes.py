@@ -198,7 +198,8 @@ class EpisodeMixin:
                 values = []
                 for key, value in kwargs.items():
                     if key in ('original_url', 'title', 'description', 'status', 'processed_file',
-                               'original_file', 'processed_at', 'original_duration', 'new_duration',
+                               'original_file', 'processed_at', 'processed_version',
+                               'original_duration', 'new_duration',
                                'ads_removed', 'ads_removed_firstpass', 'ads_removed_secondpass',
                                'error_message', 'ad_detection_status', 'artwork_url',
                                'reprocess_mode', 'reprocess_requested_at', 'retry_count',
