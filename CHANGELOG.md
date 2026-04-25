@@ -6,6 +6,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.13] - 2026-04-25
+
+Two complementary expansions to the sponsor recognition layer: ~36 more `SPONSOR_ALIASES` entries covering brands cross-referenced with a 2024-2026 podcast-advertiser registry, and a 139-row growth of `SponsorService.SEED_SPONSORS` with a one-time conversion of `seed_initial_data()` from "first-run only" to idempotent name-diff so future SEED additions auto-propagate to existing deployments.
+
+### Improved
+
+- `SPONSOR_ALIASES` (`src/utils/constants.py`) goes from 138 to 174 entries. New families: Affirm, Brex, Cloudflare, Eight Sleep, GitHub Copilot, LMNT, Mercury, Miro, Patreon, Perplexity, Pura, Retool, SeatGeek, Skyscanner, SoFi, StubHub, Substack, Vercel, Whoop. Each family includes the safe compound-split / hyphen / no-space variants. Risky homophones with common English words (`mirror` -> Miro, `cloud` -> Claude, `Sophie` -> SoFi, `brexit` -> Brex, `fuel` -> Huel, `thorn` -> Thorne) and AI model names (`gpt four`, `o three`, etc.) are intentionally excluded. The `Patreon` addition is direct-evidence-driven: episode `ff5a6158313e` ("It's a Thing 416") had a Patreon ad caught only by the verification pass on 2.0.12 with no canonical mapping; the new `pay tree on` and `patron` aliases close that gap.
+- `KNOWN_SHORT_BRANDS` (`src/utils/constants.py`) gains `lmnt` and `acast`. Both are sub-6-character podcast-relevant single words that Gate B was rejecting.
+
+### Added
+
+- `SponsorService.seed_initial_data()` (`src/sponsor_service.py`) is now idempotent. It used to skip entirely on any non-empty `known_sponsors` table, meaning existing deployments never picked up new SEED entries. It now reads existing names, inserts only `SEED_SPONSORS` rows whose names aren't already present, and never touches existing rows. User-edited aliases via PUT `/sponsors/<id>` are preserved across deploys, and future expansions to the seed list propagate automatically on next container restart. Runs from the same call site (`src/main_app/__init__.py:624`) at app startup.
+- `SEED_SPONSORS` grows from 115 to 254 entries, drawing from a curated podcast-advertiser registry (Magellan AI Q4 2025 + March 2026, Podchaser April 2026, SponsorUnited 2024). New brands span 13 categories: mental_health_wellness (Talkspace, Cerebral, Eight Sleep, WHOOP, Function Health, Inside Tracker, Levels, Ultrahuman, etc.), food_beverage_nutrition (Huel, OLIPOP, Poppi, Bloom Nutrition, etc.), tech_software_saas (Cloudflare, Vercel, Cursor, GitHub Copilot, Substack, Patreon, Perplexity, OpenAI, Anthropic, etc.), finance_fintech (Mercury, Brex, Affirm, Chime, Stripe, Coinbase, Plaid, Robinhood, etc.), travel_hospitality (Skyscanner, Hopper, Kayak, Booking.com, Vrbo), and more. De-duplicated against existing SEED names AND aliases (case- and punctuation-insensitive) so the idempotent re-seed adds exactly the missing rows.
+- `tests/unit/test_sponsor_seed_idempotent.py`. 5 regression tests covering the new seed semantics: (a) empty DB seeds everything, (b) partial DB inserts only missing names, (c) user-edited aliases survive a re-seed, (d) deactivated rows are not reactivated, (e) running the seed twice in a row is a no-op. Sponsor seeding had zero test coverage before this; this is also the baseline.
+
+### Operational note
+
+A brand renamed via the API after this ships (e.g. `BetterHelp` to `Better Help`) would create a duplicate row on the next container restart because the old name comes back from the SEED list. Renames are uncommon. If it comes up, edit the matching `SEED_SPONSORS` entry in source at the same time.
+
 ## [2.0.12] - 2026-04-24
 
 Coverage expansion of the sponsor-alias canonicalization layer introduced in 2.0.11, plus one additional Whisper hallucination filter. Pure data and regex changes; no logic changes.

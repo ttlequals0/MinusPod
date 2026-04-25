@@ -126,6 +126,172 @@ SEED_SPONSORS = [
     {"name": "Capital One", "aliases": [], "category": "finance"},
     {"name": "Ford", "aliases": [], "category": "auto"},
     {"name": "WhatsApp", "aliases": [], "category": "tech"},
+
+    # 2.0.13 expansion: pb.json brands not previously in SEED (139 entries from Magellan AI / Podchaser / SponsorUnited)
+    # automotive_transport
+    {"name": "Lime", "aliases": [], "category": "automotive_transport"},
+    {"name": "Lyft", "aliases": [], "category": "automotive_transport"},
+    {"name": "Turo", "aliases": [], "category": "automotive_transport"},
+    {"name": "Uber", "aliases": [], "category": "automotive_transport"},
+    {"name": "Waymo", "aliases": [], "category": "automotive_transport"},
+
+    # b2b_startup
+    {"name": "Gusto", "aliases": [], "category": "b2b_startup"},
+    {"name": "Meter", "aliases": [], "category": "b2b_startup"},
+    {"name": "PagerDuty", "aliases": [], "category": "b2b_startup"},
+    {"name": "Rippling", "aliases": [], "category": "b2b_startup"},
+    {"name": "Splunk", "aliases": [], "category": "b2b_startup"},
+    {"name": "Webflow", "aliases": [], "category": "b2b_startup"},
+
+    # ecommerce_retail_dtc
+    {"name": "Allbirds", "aliases": [], "category": "ecommerce_retail_dtc"},
+    {"name": "Alo Yoga", "aliases": [], "category": "ecommerce_retail_dtc"},
+    {"name": "Birchbox", "aliases": [], "category": "ecommerce_retail_dtc"},
+    {"name": "Everlane", "aliases": [], "category": "ecommerce_retail_dtc"},
+    {"name": "FabFitFun", "aliases": [], "category": "ecommerce_retail_dtc"},
+    {"name": "GOAT", "aliases": [], "category": "ecommerce_retail_dtc"},
+    {"name": "Gopuff", "aliases": [], "category": "ecommerce_retail_dtc"},
+    {"name": "Lululemon", "aliases": [], "category": "ecommerce_retail_dtc"},
+    {"name": "Outdoor Voices", "aliases": [], "category": "ecommerce_retail_dtc"},
+    {"name": "Poshmark", "aliases": [], "category": "ecommerce_retail_dtc"},
+    {"name": "Rothy's", "aliases": [], "category": "ecommerce_retail_dtc"},
+    {"name": "Saatva", "aliases": [], "category": "ecommerce_retail_dtc"},
+    {"name": "Shein", "aliases": [], "category": "ecommerce_retail_dtc"},
+    {"name": "SKIMS", "aliases": [], "category": "ecommerce_retail_dtc"},
+    {"name": "Stitch Fix", "aliases": [], "category": "ecommerce_retail_dtc"},
+    {"name": "StockX", "aliases": [], "category": "ecommerce_retail_dtc"},
+    {"name": "Temu", "aliases": [], "category": "ecommerce_retail_dtc"},
+    {"name": "Ten Thousand", "aliases": [], "category": "ecommerce_retail_dtc"},
+    {"name": "ThredUp", "aliases": [], "category": "ecommerce_retail_dtc"},
+    {"name": "Vuori", "aliases": [], "category": "ecommerce_retail_dtc"},
+    {"name": "Warby Parker", "aliases": [], "category": "ecommerce_retail_dtc"},
+    {"name": "Wayfair", "aliases": [], "category": "ecommerce_retail_dtc"},
+
+    # finance_fintech
+    {"name": "Affirm", "aliases": [], "category": "finance_fintech"},
+    {"name": "Bill.com", "aliases": [], "category": "finance_fintech"},
+    {"name": "Brex", "aliases": [], "category": "finance_fintech"},
+    {"name": "Chime", "aliases": [], "category": "finance_fintech"},
+    {"name": "Coinbase", "aliases": [], "category": "finance_fintech"},
+    {"name": "FreshBooks", "aliases": [], "category": "finance_fintech"},
+    {"name": "Intuit", "aliases": [], "category": "finance_fintech"},
+    {"name": "Klarna", "aliases": [], "category": "finance_fintech"},
+    {"name": "Mercury", "aliases": [], "category": "finance_fintech"},
+    {"name": "NerdWallet", "aliases": [], "category": "finance_fintech"},
+    {"name": "Plaid", "aliases": [], "category": "finance_fintech"},
+    {"name": "Public.com", "aliases": [], "category": "finance_fintech"},
+    {"name": "QuickBooks", "aliases": [], "category": "finance_fintech"},
+    {"name": "Ramp", "aliases": [], "category": "finance_fintech"},
+    {"name": "Robinhood", "aliases": [], "category": "finance_fintech"},
+    {"name": "Stripe", "aliases": [], "category": "finance_fintech"},
+    {"name": "UnitedHealth Group", "aliases": [], "category": "finance_fintech"},
+    {"name": "WebBank", "aliases": [], "category": "finance_fintech"},
+    {"name": "Xero", "aliases": [], "category": "finance_fintech"},
+
+    # food_beverage_nutrition
+    {"name": "Alani Nu", "aliases": [], "category": "food_beverage_nutrition"},
+    {"name": "Bloom Nutrition", "aliases": [], "category": "food_beverage_nutrition"},
+    {"name": "EveryPlate", "aliases": [], "category": "food_beverage_nutrition"},
+    {"name": "Huel", "aliases": [], "category": "food_beverage_nutrition"},
+    {"name": "Imperfect Foods", "aliases": [], "category": "food_beverage_nutrition"},
+    {"name": "McDonald's", "aliases": [], "category": "food_beverage_nutrition"},
+    {"name": "OLIPOP", "aliases": [], "category": "food_beverage_nutrition"},
+    {"name": "Poppi", "aliases": [], "category": "food_beverage_nutrition"},
+    {"name": "Starbucks", "aliases": [], "category": "food_beverage_nutrition"},
+    {"name": "Transparent Labs", "aliases": [], "category": "food_beverage_nutrition"},
+
+    # gaming_sports_betting
+    {"name": "Caesars Sportsbook", "aliases": [], "category": "gaming_sports_betting"},
+    {"name": "ESPN Bet", "aliases": [], "category": "gaming_sports_betting"},
+    {"name": "SeatGeek", "aliases": [], "category": "gaming_sports_betting"},
+    {"name": "StubHub", "aliases": [], "category": "gaming_sports_betting"},
+
+    # home_security
+    {"name": "Pura", "aliases": [], "category": "home_security"},
+
+    # insurance_legal
+    {"name": "LegalZoom", "aliases": [], "category": "insurance_legal"},
+    {"name": "Rocket Lawyer", "aliases": [], "category": "insurance_legal"},
+
+    # media_streaming
+    {"name": "Apple TV+", "aliases": [], "category": "media_streaming"},
+    {"name": "Disney+", "aliases": [], "category": "media_streaming"},
+    {"name": "HBO Max", "aliases": [], "category": "media_streaming"},
+    {"name": "iHeartRadio", "aliases": [], "category": "media_streaming"},
+    {"name": "Netflix", "aliases": [], "category": "media_streaming"},
+    {"name": "Paramount+", "aliases": [], "category": "media_streaming"},
+    {"name": "SiriusXM", "aliases": [], "category": "media_streaming"},
+    {"name": "Spotify", "aliases": [], "category": "media_streaming"},
+    {"name": "YouTube", "aliases": [], "category": "media_streaming"},
+    {"name": "YouTube TV", "aliases": [], "category": "media_streaming"},
+
+    # mental_health_wellness
+    {"name": "Cerebral", "aliases": [], "category": "mental_health_wellness"},
+    {"name": "Eight Sleep", "aliases": [], "category": "mental_health_wellness"},
+    {"name": "Function Health", "aliases": [], "category": "mental_health_wellness"},
+    {"name": "Inside Tracker", "aliases": [], "category": "mental_health_wellness"},
+    {"name": "Joovv", "aliases": [], "category": "mental_health_wellness"},
+    {"name": "Levels", "aliases": [], "category": "mental_health_wellness"},
+    {"name": "Momentous", "aliases": [], "category": "mental_health_wellness"},
+    {"name": "Noom", "aliases": [], "category": "mental_health_wellness"},
+    {"name": "Ro", "aliases": [], "category": "mental_health_wellness"},
+    {"name": "Talkspace", "aliases": [], "category": "mental_health_wellness"},
+    {"name": "Thorne", "aliases": [], "category": "mental_health_wellness"},
+    {"name": "WHOOP", "aliases": [], "category": "mental_health_wellness"},
+
+    # tech_software_saas
+    {"name": "Airtable", "aliases": [], "category": "tech_software_saas"},
+    {"name": "Anthropic", "aliases": [], "category": "tech_software_saas"},
+    {"name": "Asana", "aliases": [], "category": "tech_software_saas"},
+    {"name": "Brilliant", "aliases": [], "category": "tech_software_saas"},
+    {"name": "ClickUp", "aliases": [], "category": "tech_software_saas"},
+    {"name": "Cloudflare", "aliases": [], "category": "tech_software_saas"},
+    {"name": "CrowdStrike", "aliases": [], "category": "tech_software_saas"},
+    {"name": "Cursor", "aliases": [], "category": "tech_software_saas"},
+    {"name": "Databricks", "aliases": [], "category": "tech_software_saas"},
+    {"name": "Datadog", "aliases": [], "category": "tech_software_saas"},
+    {"name": "DocuSign", "aliases": [], "category": "tech_software_saas"},
+    {"name": "Duolingo", "aliases": [], "category": "tech_software_saas"},
+    {"name": "ElevenLabs", "aliases": [], "category": "tech_software_saas"},
+    {"name": "Figma", "aliases": [], "category": "tech_software_saas"},
+    {"name": "GitHub", "aliases": [], "category": "tech_software_saas"},
+    {"name": "GitHub Copilot", "aliases": [], "category": "tech_software_saas"},
+    {"name": "Klaviyo", "aliases": [], "category": "tech_software_saas"},
+    {"name": "Linear", "aliases": [], "category": "tech_software_saas"},
+    {"name": "Loom", "aliases": [], "category": "tech_software_saas"},
+    {"name": "Mailchimp", "aliases": [], "category": "tech_software_saas"},
+    {"name": "Midjourney", "aliases": [], "category": "tech_software_saas"},
+    {"name": "Okta", "aliases": [], "category": "tech_software_saas"},
+    {"name": "OpenAI", "aliases": [], "category": "tech_software_saas"},
+    {"name": "Patreon", "aliases": [], "category": "tech_software_saas"},
+    {"name": "Perplexity", "aliases": [], "category": "tech_software_saas"},
+    {"name": "Retool", "aliases": [], "category": "tech_software_saas"},
+    {"name": "Salesforce", "aliases": [], "category": "tech_software_saas"},
+    {"name": "SendGrid", "aliases": [], "category": "tech_software_saas"},
+    {"name": "ServiceNow", "aliases": [], "category": "tech_software_saas"},
+    {"name": "Skillshare", "aliases": [], "category": "tech_software_saas"},
+    {"name": "Slack", "aliases": [], "category": "tech_software_saas"},
+    {"name": "Snowflake", "aliases": [], "category": "tech_software_saas"},
+    {"name": "Substack", "aliases": [], "category": "tech_software_saas"},
+    {"name": "Twilio", "aliases": [], "category": "tech_software_saas"},
+    {"name": "Vercel", "aliases": [], "category": "tech_software_saas"},
+    {"name": "Workday", "aliases": [], "category": "tech_software_saas"},
+    {"name": "Zendesk", "aliases": [], "category": "tech_software_saas"},
+    {"name": "Zoom", "aliases": [], "category": "tech_software_saas"},
+
+    # telecom
+    {"name": "AT&T", "aliases": [], "category": "telecom"},
+    {"name": "Comcast", "aliases": [], "category": "telecom"},
+    {"name": "Verizon", "aliases": [], "category": "telecom"},
+
+    # travel_hospitality
+    {"name": "Airbnb", "aliases": [], "category": "travel_hospitality"},
+    {"name": "Booking.com", "aliases": [], "category": "travel_hospitality"},
+    {"name": "Expedia", "aliases": [], "category": "travel_hospitality"},
+    {"name": "Hopper", "aliases": [], "category": "travel_hospitality"},
+    {"name": "Kayak", "aliases": [], "category": "travel_hospitality"},
+    {"name": "Skyscanner", "aliases": [], "category": "travel_hospitality"},
+    {"name": "Vrbo", "aliases": [], "category": "travel_hospitality"},
 ]
 
 # Seed data for normalizations (Whisper transcription fixes)
@@ -251,39 +417,45 @@ class SponsorService:
     # ========== Initialization ==========
 
     def seed_initial_data(self):
-        """Seed sponsors and normalizations if tables are empty."""
-        # Check if already seeded
-        existing_sponsors = self.db.get_known_sponsors(active_only=False)
-        if existing_sponsors:
-            logger.debug("Sponsors already seeded, skipping")
-            return
+        """Idempotent. Inserts SEED rows whose names aren't already in the DB; never touches existing rows.
 
-        logger.info("Seeding initial sponsor and normalization data...")
-
-        # Seed sponsors
+        Runs at app startup. On a fresh DB it seeds everything; on an existing DB it adds only new
+        entries from updates to SEED_SPONSORS / SEED_NORMALIZATIONS. User-edited aliases on existing
+        rows are preserved because the membership check happens before any insert.
+        """
+        existing_names = {s['name'].lower() for s in self.db.get_known_sponsors(active_only=False)}
+        added = 0
         for sponsor in SEED_SPONSORS:
+            if sponsor['name'].lower() in existing_names:
+                continue
             try:
                 self.db.create_known_sponsor(
-                    name=sponsor["name"],
-                    aliases=sponsor.get("aliases", []),
-                    category=sponsor.get("category")
+                    name=sponsor['name'],
+                    aliases=sponsor.get('aliases', []),
+                    category=sponsor.get('category'),
                 )
+                added += 1
             except Exception as e:
                 logger.warning(f"Failed to seed sponsor {sponsor['name']}: {e}")
 
-        # Seed normalizations
+        existing_patterns = {n['pattern'] for n in self.db.get_sponsor_normalizations(active_only=False)}
+        norm_added = 0
         for norm in SEED_NORMALIZATIONS:
+            if norm['pattern'] in existing_patterns:
+                continue
             try:
                 self.db.create_sponsor_normalization(
-                    pattern=norm["pattern"],
-                    replacement=norm["replacement"],
-                    category=norm["category"]
+                    pattern=norm['pattern'],
+                    replacement=norm['replacement'],
+                    category=norm['category'],
                 )
+                norm_added += 1
             except Exception as e:
                 logger.warning(f"Failed to seed normalization {norm['pattern']}: {e}")
 
         self.invalidate_cache()
-        logger.info(f"Seeded {len(SEED_SPONSORS)} sponsors and {len(SEED_NORMALIZATIONS)} normalizations")
+        if added or norm_added:
+            logger.info(f"Seeded {added} new sponsors and {norm_added} new normalizations (existing rows preserved)")
 
     # ========== Normalization ==========
 
