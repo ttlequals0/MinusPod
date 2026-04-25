@@ -37,6 +37,7 @@ KNOWN_SHORT_BRANDS = frozenset({
     'deel', 'ramp', 'brex', 'lyft', 'uber', 'slack', 'zoom', 'asana',
     'figma', 'canva', 'miro', 'hinge', 'tonal', 'whoop',
     'noom', 'ipsy', 'lume',
+    'lmnt', 'acast',
 })
 
 # Sponsor name aliases for common Whisper mishearings / spelling variants.
@@ -53,6 +54,8 @@ SPONSOR_ALIASES = {
     '1 password': '1Password',
     'one password': '1Password',
     'one-password': '1Password',
+    # Affirm
+    'a firm': 'Affirm',
     # AG1 / Athletic Greens (SEED canonical is "Athletic Greens"; AG1 is an alias)
     'ag one': 'Athletic Greens',
     'ag 1': 'Athletic Greens',
@@ -77,6 +80,8 @@ SPONSOR_ALIASES = {
     'bit-warden': 'Bitwarden',
     # Blue Apron
     'blueapron': 'Blue Apron',
+    # Brex (skip 'brexit' - distinct noun)
+    'brecks': 'Brex',
     # Butcher Box (SEED canonical is two-word form)
     'butcher box': 'Butcher Box',
     'butcher-box': 'Butcher Box',
@@ -84,6 +89,9 @@ SPONSOR_ALIASES = {
     # CarMax
     'car max': 'CarMax',
     'car-max': 'CarMax',
+    # Cloudflare
+    'cloud flare': 'Cloudflare',
+    'cloud-flare': 'Cloudflare',
     # Credit Karma
     'creditkarma': 'Credit Karma',
     # DeleteMe
@@ -97,6 +105,11 @@ SPONSOR_ALIASES = {
     # DraftKings
     'draft kings': 'DraftKings',
     'draft-kings': 'DraftKings',
+    # Eight Sleep
+    'eight-sleep': 'Eight Sleep',
+    '8 sleep': 'Eight Sleep',
+    '8-sleep': 'Eight Sleep',
+    'eightsleep': 'Eight Sleep',
     # EveryPlate
     'every plate': 'EveryPlate',
     'every-plate': 'EveryPlate',
@@ -113,6 +126,11 @@ SPONSOR_ALIASES = {
     'game time': 'Gametime',
     'game-time': 'Gametime',
     'gametime': 'Gametime',
+    # GitHub Copilot
+    'co pilot': 'GitHub Copilot',
+    'co-pilot': 'GitHub Copilot',
+    'copilot': 'GitHub Copilot',
+    'github-copilot': 'GitHub Copilot',
     # Gopuff
     'go puff': 'Gopuff',
     'go-puff': 'Gopuff',
@@ -161,6 +179,9 @@ SPONSOR_ALIASES = {
     'liquid i v': 'Liquid IV',
     'liquid i.v.': 'Liquid IV',
     'liquidiv': 'Liquid IV',
+    # LMNT (canonical matches existing SEED entry)
+    'l m n t': 'LMNT',
+    'element': 'LMNT',
     # Magic Mind
     'magic mind': 'Magic Mind',
     'magicmind': 'Magic Mind',
@@ -170,10 +191,15 @@ SPONSOR_ALIASES = {
     # MasterClass
     'master class': 'MasterClass',
     'master-class': 'MasterClass',
+    # Mercury
+    'mercury bank': 'Mercury',
+    'mercury-bank': 'Mercury',
     # Mint Mobile
     'mint mobile': 'Mint Mobile',
     'mint-mobile': 'Mint Mobile',
     'mintmobile': 'Mint Mobile',
+    # Miro (skip 'mirror' - common word)
+    'my ro': 'Miro',
     # Monarch Money
     'monarch money': 'Monarch Money',
     'monarch-money': 'Monarch Money',
@@ -192,12 +218,22 @@ SPONSOR_ALIASES = {
     'one-skin': 'OneSkin',
     # P90X
     'p ninety x': 'P90X',
+    # Patreon
+    'pay tree on': 'Patreon',
+    'patron': 'Patreon',
+    # Perplexity
+    'perplexity ai': 'Perplexity',
+    'perplexity-ai': 'Perplexity',
     # PolicyGenius
     'policy genius': 'PolicyGenius',
     'policy-genius': 'PolicyGenius',
+    # Pura
+    'pyura': 'Pura',
     # Raycon
     'ray con': 'Raycon',
     'ray-con': 'Raycon',
+    # Retool
+    're tool': 'Retool',
     # Rocket Lawyer / Money / Mortgage
     'rocketlawyer': 'Rocket Lawyer',
     'rocket money': 'Rocket Money',
@@ -207,6 +243,9 @@ SPONSOR_ALIASES = {
     # Rogaine
     'ro gain': 'Rogaine',
     'ro-gaine': 'Rogaine',
+    # SeatGeek
+    'seat geek': 'SeatGeek',
+    'seat-geek': 'SeatGeek',
     # Shopify
     'shop ify': 'Shopify',
     'shop a fly': 'Shopify',
@@ -215,6 +254,12 @@ SPONSOR_ALIASES = {
     'simpli safe': 'SimpliSafe',
     'simpli-safe': 'SimpliSafe',
     'simply safe': 'SimpliSafe',
+    # Skyscanner
+    'sky scanner': 'Skyscanner',
+    'sky-scanner': 'Skyscanner',
+    # SoFi (skip 'Sophie' - common name)
+    'so fi': 'SoFi',
+    'so-fi': 'SoFi',
     # Squarespace
     'square space': 'Squarespace',
     'square-space': 'Squarespace',
@@ -224,6 +269,12 @@ SPONSOR_ALIASES = {
     'stitch fix': 'Stitch Fix',
     'stitch-fix': 'Stitch Fix',
     'stitchfix': 'Stitch Fix',
+    # StubHub
+    'stub hub': 'StubHub',
+    'stub-hub': 'StubHub',
+    # Substack
+    'sub stack': 'Substack',
+    'sub-stack': 'Substack',
     # Thrive Market
     'thrive market': 'Thrive Market',
     'thrivemarket': 'Thrive Market',
@@ -234,9 +285,14 @@ SPONSOR_ALIASES = {
     'uber eats': 'Uber Eats',
     'uber-eats': 'Uber Eats',
     'ubereats': 'Uber Eats',
+    # Vercel
+    'ver sel': 'Vercel',
+    'ver cell': 'Vercel',
     # Wealthfront
     'wealth front': 'Wealthfront',
     'wealth-front': 'Wealthfront',
+    # Whoop
+    'woop': 'Whoop',
     # ZipRecruiter
     'zip recruiter': 'ZipRecruiter',
     'zip-recruiter': 'ZipRecruiter',
