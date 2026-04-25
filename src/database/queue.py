@@ -65,6 +65,52 @@ class QueueMixin:
             logger.error(f"Failed to queue episode for processing: {e}")
             return None
 
+    def upsert_episode_for_processing(self, slug: str, episode_id: str,
+                                      original_url: str, title: str = None,
+                                      published_at: str = None,
+                                      description: str = None) -> Optional[int]:
+        """Add or reset an episode in the auto-process queue to 'pending'.
+
+        Unlike queue_episode_for_processing (which skips already-queued rows),
+        this method resets the status and attempt counter even when a completed
+        or failed row already exists.  Used by bulk process/reprocess actions
+        so re-queuing is reliable regardless of prior queue history.
+
+        Returns queue row ID or None on failure.
+        """
+        conn = self.get_connection()
+
+        podcast = self.get_podcast_by_slug(slug)
+        if not podcast:
+            logger.error(f"Cannot upsert episode for processing: podcast not found: {slug}")
+            return None
+
+        podcast_id = podcast['id']
+
+        try:
+            cursor = conn.execute(
+                """INSERT INTO auto_process_queue
+                   (podcast_id, episode_id, original_url, title, published_at, description,
+                    status, attempts, error_message)
+                   VALUES (?, ?, ?, ?, ?, ?, 'pending', 0, NULL)
+                   ON CONFLICT(podcast_id, episode_id) DO UPDATE SET
+                     status = 'pending',
+                     attempts = 0,
+                     error_message = NULL,
+                     original_url = excluded.original_url,
+                     title = COALESCE(excluded.title, auto_process_queue.title),
+                     published_at = COALESCE(excluded.published_at, auto_process_queue.published_at),
+                     description = COALESCE(excluded.description, auto_process_queue.description),
+                     updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')""",
+                (podcast_id, episode_id, original_url, title, published_at, description)
+            )
+            conn.commit()
+            return cursor.lastrowid if cursor.lastrowid else None
+        except Exception as e:
+            logger.error(f"Failed to upsert episode for processing: {e}")
+            return None
+
+
     def get_next_queued_episode(self) -> Optional[Dict]:
         """Get the next pending episode from the queue (FIFO order)."""
         conn = self.get_connection()

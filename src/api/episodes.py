@@ -549,6 +549,7 @@ def bulk_episode_action(slug):
     skipped = 0
     freed_mb = 0.0
     errors = []
+    eligible_ids = []
 
     # Batch-fetch all episodes upfront to avoid N+1 queries
     all_episodes = db.get_episodes_by_ids(slug, episode_ids)
@@ -607,13 +608,24 @@ def bulk_episode_action(slug):
                 logger.error(f"Bulk delete error for {slug}: {e}")
                 errors.append('bulk delete failed')
 
-    # Trigger background processing for process/reprocess actions
+    # Enqueue episodes into auto_process_queue so the background processor
+    # picks them up sequentially. Previously this called start_background_processing()
+    # with no arguments (a TypeError silently swallowed by `except Exception: pass`),
+    # which meant episodes were marked pending in the DB but never actually processed.
     if action in ('process', 'reprocess', 'reprocess_full') and queued > 0:
-        try:
-            from main_app.processing import start_background_processing
-            start_background_processing()
-        except Exception:
-            pass
+        for episode_id in eligible_ids:
+            try:
+                ep = episodes_by_id.get(episode_id)
+                if ep:
+                    db.upsert_episode_for_processing(
+                        slug, episode_id,
+                        ep.get('original_url', ''),
+                        ep.get('title'),
+                        ep.get('published_at'),
+                        ep.get('description'),
+                    )
+            except Exception as e:
+                logger.warning(f"[{slug}:{episode_id}] Could not enqueue for processing: {e}")
 
     logger.info(f"Bulk {action} on {slug}: {queued} queued, {skipped} skipped, {freed_mb:.1f} MB freed")
 
