@@ -37,6 +37,8 @@ class CircuitBreaker:
             result = call_external_service()
             breaker.record_success()
         except Exception:
+            # Don't call record_failure on HTTP 429 / rate-limit errors --
+            # throttling is back-pressure, not an outage. See record_failure.
             breaker.record_failure()
             raise
     """
@@ -95,7 +97,13 @@ class CircuitBreaker:
             self._failure_count = 0
 
     def record_failure(self):
-        """Record a failed call. Opens the circuit after threshold failures."""
+        """Record a failed call. Opens the circuit after threshold failures.
+
+        Callers must NOT invoke this for HTTP 429 / rate-limit errors --
+        throttling is the provider asking us to slow down, not a provider
+        outage, and counting it would open the breaker during normal free-tier
+        use.
+        """
         with self._lock:
             self._failure_count += 1
             self._last_failure_time = time.time()

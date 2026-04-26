@@ -29,6 +29,7 @@ from dataclasses import dataclass
 from typing import List, Dict, Optional, Any
 
 from utils.circuit_breaker import CircuitBreaker, CircuitBreakerOpen
+from utils.rate_limit import parse_retry_after
 from utils.http import safe_url_for_log
 
 from config import (
@@ -412,8 +413,10 @@ class AnthropicClient(LLMClient):
                 messages=messages,
                 timeout=timeout
             )
-        except Exception:
-            self._record_circuit_breaker(success=False)
+        except Exception as e:
+            # 429 is throttling, not a provider failure -- don't trip the breaker.
+            if not is_rate_limit_error(e):
+                self._record_circuit_breaker(success=False)
             raise
 
         self._record_circuit_breaker(success=True)
@@ -576,8 +579,9 @@ class OpenAICompatibleClient(LLMClient):
                 response = self._client.chat.completions.create(**kwargs)
             else:
                 response = self._call_with_token_param_fallback(model, kwargs, token_param)
-        except Exception:
-            self._record_circuit_breaker(success=False)
+        except Exception as e:
+            if not is_rate_limit_error(e):
+                self._record_circuit_breaker(success=False)
             raise
 
         self._record_circuit_breaker(success=True)
@@ -834,7 +838,41 @@ def get_llm_max_retries() -> int:
 # =============================================================================
 
 _cached_client: Optional[LLMClient] = None
+_cached_client_config_key: Optional[str] = None
 _client_lock = threading.Lock()
+
+
+def _normalize_base_url_for_provider(provider: str, base_url: str) -> str:
+    """Apply provider-specific base_url normalization.
+
+    Ollama exposes its OpenAI-compatible surface at ``/v1``; the rest of the
+    code expects this suffix. Centralising the rule keeps the cache key and
+    the actual built client byte-identical, so the new cross-worker
+    invalidation in ``get_llm_client`` does not rebuild on a phantom diff.
+    """
+    if provider == PROVIDER_OLLAMA and not base_url.rstrip('/').endswith('/v1'):
+        return base_url.rstrip('/') + '/v1'
+    return base_url
+
+
+def _current_config_key() -> str:
+    """Stable identifier for the *current* effective LLM client config.
+
+    Used by ``get_llm_client`` to detect cross-worker settings changes. Each
+    gunicorn worker has its own ``_cached_client``; only the worker that
+    handled a settings PUT runs ``force_new``. Other workers must notice the
+    change at next call and rebuild themselves -- otherwise requests routed
+    to a sibling worker keep hitting the previous provider/base_url.
+    """
+    provider = get_effective_provider()
+    if provider == PROVIDER_ANTHROPIC:
+        return "anthropic"
+    if provider == PROVIDER_OPENROUTER:
+        return f"openrouter:{OPENROUTER_BASE_URL}"
+    if provider in PROVIDERS_NON_ANTHROPIC:
+        base = _normalize_base_url_for_provider(provider, get_effective_base_url())
+        return f"{provider}:{base}"
+    return f"unknown:{provider}"
 
 # Circuit breaker for LLM API calls (one per process, shared across threads)
 _llm_circuit_breaker = CircuitBreaker("llm-api", failure_threshold=5, recovery_timeout=60)
@@ -911,7 +949,10 @@ def get_llm_client(force_new: bool = False) -> LLMClient:
     Factory function that returns the appropriate LLM client based on config.
 
     The client is cached for reuse. Use force_new=True to create a fresh client
-    (also flushes the provider settings cache).
+    (also flushes the provider settings cache). The cache also auto-invalidates
+    when the effective provider or base_url changes since the last call: only
+    the gunicorn worker that handled a settings PUT runs ``force_new``, so
+    sibling workers detect the diff at next call and rebuild themselves.
 
     Settings are read from the database first, falling back to environment
     variables:
@@ -928,15 +969,26 @@ def get_llm_client(force_new: bool = False) -> LLMClient:
     Returns:
         LLMClient instance
     """
-    global _cached_client
+    global _cached_client, _cached_client_config_key
 
     if force_new:
         _clear_provider_cache()
         _clear_model_list_cache()
 
     with _client_lock:
-        if _cached_client is not None and not force_new:
+        current_key = _current_config_key()
+        if (
+            _cached_client is not None
+            and not force_new
+            and _cached_client_config_key == current_key
+        ):
             return _cached_client
+
+        if _cached_client is not None and _cached_client_config_key != current_key:
+            logger.info(
+                f"LLM config changed ({_cached_client_config_key!r} -> {current_key!r}),"
+                " rebuilding client"
+            )
 
         provider = get_effective_provider()
 
@@ -947,6 +999,7 @@ def get_llm_client(force_new: bool = False) -> LLMClient:
 
         _cached_client.set_usage_callback(_record_token_usage)
         _cached_client.set_circuit_breaker(_llm_circuit_breaker)
+        _cached_client_config_key = current_key
         logger.info(f"LLM client initialized: {_cached_client.get_provider_name()}")
         return _cached_client
 
@@ -966,10 +1019,10 @@ def _build_client(provider: str) -> Optional[LLMClient]:
             }
         )
     elif provider in PROVIDERS_NON_ANTHROPIC:
-        base_url = get_effective_base_url()
+        raw_base_url = get_effective_base_url()
+        base_url = _normalize_base_url_for_provider(provider, raw_base_url)
         if provider == PROVIDER_OLLAMA:
-            if not base_url.rstrip('/').endswith('/v1'):
-                base_url = base_url.rstrip('/') + '/v1'
+            if base_url != raw_base_url:
                 logger.info(f"Ollama provider: normalized base_url to {safe_url_for_log(base_url)}")
             api_key = get_effective_ollama_api_key() or 'not-needed'
         else:
@@ -1167,3 +1220,20 @@ def is_rate_limit_error(error: Exception) -> bool:
     # Check error message for rate limit indicators
     error_str = str(error).lower()
     return 'rate' in error_str and ('limit' in error_str or '429' in error_str)
+
+
+def extract_retry_after(error: Exception, *, max_seconds: float = 300.0) -> Optional[float]:
+    """Pull a `Retry-After` value from a provider rate-limit exception.
+
+    Both the Anthropic and OpenAI SDKs attach the original ``httpx.Response``
+    to error instances as ``error.response``. We read the header off that
+    response and run it through ``parse_retry_after``. Returns ``None`` when
+    the header is absent or the response object isn't reachable, so callers
+    can fall through to their existing backoff curve.
+    """
+    response = getattr(error, 'response', None)
+    headers = getattr(response, 'headers', None) if response is not None else None
+    if headers is None:
+        return None
+    raw = headers.get('Retry-After') or headers.get('retry-after')
+    return parse_retry_after(raw, max_seconds=max_seconds)

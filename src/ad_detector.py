@@ -1,6 +1,7 @@
 """Ad detection using Claude API with configurable prompts and model."""
 import logging
 import json
+import random
 import re
 import time
 from typing import List, Dict, Optional
@@ -9,6 +10,7 @@ from cancel import _check_cancel
 from llm_client import (
     get_llm_client, get_api_key, LLMClient,
     is_retryable_error, is_rate_limit_error, is_auth_error,
+    extract_retry_after,
     get_llm_timeout, get_llm_max_retries,
     get_effective_provider, model_matches_provider,
 )
@@ -1044,7 +1046,7 @@ class AdDetector:
         self.api_key = api_key or get_api_key()
         if not self.api_key:
             logger.warning("No LLM API key found")
-        self._llm_client: Optional[LLMClient] = None
+        self._llm_client_override: Optional[LLMClient] = None
         self._db = None
         self._audio_fingerprinter = None
         self._text_pattern_matcher = None
@@ -1091,15 +1093,31 @@ class AdDetector:
             self._sponsor_service = SponsorService(db=self.db)
         return self._sponsor_service
 
+    @property
+    def _llm_client(self) -> Optional[LLMClient]:
+        """Current LLM client. Reads through ``get_llm_client`` on every access
+        so that provider/base-URL changes via the settings API take effect
+        immediately without restarting the worker."""
+        if self._llm_client_override is not None:
+            return self._llm_client_override
+        if not self.api_key:
+            return None
+        return get_llm_client()
+
+    @_llm_client.setter
+    def _llm_client(self, value: Optional[LLMClient]) -> None:
+        self._llm_client_override = value
+
     def initialize_client(self):
-        """Initialize LLM client."""
-        if self._llm_client is None and self.api_key:
-            try:
-                self._llm_client = get_llm_client()
-                logger.info(f"LLM client initialized: {self._llm_client.get_provider_name()}")
-            except Exception as e:
-                logger.error(f"Failed to initialize LLM client: {e}")
-                raise
+        """Surface LLM client init errors at the start of a detection run."""
+        if not self.api_key:
+            return
+        try:
+            client = get_llm_client()
+            logger.info(f"LLM client initialized: {client.get_provider_name()}")
+        except Exception as e:
+            logger.error(f"Failed to initialize LLM client: {e}")
+            raise
 
     def get_available_models(self) -> List[Dict]:
         """Get list of available models from LLM provider.
@@ -1282,8 +1300,21 @@ class AdDetector:
                 last_error = e
                 if is_retryable_error(e) and attempt < max_retries:
                     if is_rate_limit_error(e):
-                        delay = 60.0
-                        logger.warning(f"[{slug}:{episode_id}] {window_label} rate limit, waiting {delay:.0f}s")
+                        retry_after = extract_retry_after(e)
+                        if retry_after is not None:
+                            # Honor the server hint, but stagger workers waking
+                            # together so we don't all retry on the same tick.
+                            delay = retry_after + random.uniform(0.0, 2.0)
+                            source = f"retry-after={retry_after:.1f}s"
+                        else:
+                            # No header: most providers reset rate limits on a
+                            # one-minute window, so start the backoff there.
+                            delay = calculate_backoff(attempt, base_delay=30.0, max_delay=120.0)
+                            source = "backoff"
+                        logger.warning(
+                            f"[{slug}:{episode_id}] {window_label} rate limit ({source}), "
+                            f"waiting {delay:.1f}s"
+                        )
                     else:
                         delay = calculate_backoff(attempt)
                         logger.warning(f"[{slug}:{episode_id}] {window_label} API error: {e}. Retrying in {delay:.1f}s")

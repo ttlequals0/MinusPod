@@ -112,16 +112,32 @@ class ChaptersGenerator:
             api_key: LLM API key (defaults to environment configuration)
         """
         self.api_key = api_key or get_api_key()
-        self._llm_client: Optional[LLMClient] = None
+        self._llm_client_override: Optional[LLMClient] = None
+
+    @property
+    def _llm_client(self) -> Optional[LLMClient]:
+        """Current LLM client. Reads through ``get_llm_client`` on every access
+        so that provider/base-URL changes via the settings API take effect
+        immediately without restarting the worker."""
+        if self._llm_client_override is not None:
+            return self._llm_client_override
+        if not self.api_key:
+            return None
+        return get_llm_client()
+
+    @_llm_client.setter
+    def _llm_client(self, value: Optional[LLMClient]) -> None:
+        self._llm_client_override = value
 
     def _initialize_client(self):
-        """Initialize LLM client if not already done."""
-        if self._llm_client is None and self.api_key:
-            try:
-                self._llm_client = get_llm_client()
-                logger.debug(f"LLM client initialized for chapters generator: {self._llm_client.get_provider_name()}")
-            except Exception as e:
-                logger.error(f"Failed to initialize LLM client: {e}")
+        """Surface LLM client init errors before a generation run."""
+        if not self.api_key:
+            return
+        try:
+            client = get_llm_client()
+            logger.debug(f"LLM client initialized for chapters generator: {client.get_provider_name()}")
+        except Exception as e:
+            logger.error(f"Failed to initialize LLM client: {e}")
 
     def _get_full_transcript_range(
         self,
