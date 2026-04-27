@@ -81,12 +81,12 @@ function SearchResultItem({ result, isSubscribed, isAdding, onAdd }: {
         <img
           src={result.artworkUrl}
           alt=""
-          className="w-14 h-14 rounded object-cover flex-shrink-0 bg-muted"
+          className="w-14 h-14 rounded object-cover shrink-0 bg-muted"
           loading="lazy"
           onError={() => setImageError(true)}
         />
       ) : (
-        <div className="w-14 h-14 rounded bg-muted flex-shrink-0 flex items-center justify-center">
+        <div className="w-14 h-14 rounded bg-muted shrink-0 flex items-center justify-center">
           <svg className="w-6 h-6 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
           </svg>
@@ -109,7 +109,7 @@ function SearchResultItem({ result, isSubscribed, isAdding, onAdd }: {
             )}
           </div>
           {isSubscribed ? (
-            <span className="flex-shrink-0 text-muted-foreground" title="Already subscribed">
+            <span className="shrink-0 text-muted-foreground" title="Already subscribed">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
               </svg>
@@ -118,7 +118,7 @@ function SearchResultItem({ result, isSubscribed, isAdding, onAdd }: {
             <button
               onClick={handleAdd}
               disabled={isAdding}
-              className="flex-shrink-0 p-1.5 rounded-md text-primary hover:bg-primary/10 disabled:opacity-50 transition-colors"
+              className="shrink-0 p-1.5 rounded-md text-primary hover:bg-primary/10 disabled:opacity-50 transition-colors"
               title="Add this podcast"
             >
               {isAdding ? (
@@ -431,7 +431,7 @@ function AddFeed() {
             <div className="space-y-3">
               {[1, 2, 3].map((i) => (
                 <div key={i} className="flex items-center gap-3 p-3 rounded-lg border border-border animate-pulse">
-                  <div className="w-14 h-14 rounded bg-muted flex-shrink-0" />
+                  <div className="w-14 h-14 rounded bg-muted shrink-0" />
                   <div className="flex-1 space-y-2">
                     <div className="h-4 bg-muted rounded w-3/4" />
                     <div className="h-3 bg-muted rounded w-1/2" />

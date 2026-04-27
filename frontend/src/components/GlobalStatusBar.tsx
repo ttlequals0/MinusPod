@@ -236,7 +236,7 @@ function GlobalStatusBar() {
       >
         {/* Connection indicator */}
         <span
-          className={`w-2 h-2 rounded-full flex-shrink-0 ${
+          className={`w-2 h-2 rounded-full shrink-0 ${
             isConnected ? 'bg-green-500' : 'bg-yellow-500 animate-pulse'
           }`}
           aria-label={isConnected ? 'Connected' : 'Reconnecting'}
@@ -255,7 +255,7 @@ function GlobalStatusBar() {
             </div>
 
             {/* Progress bar */}
-            <div className="w-24 h-1.5 bg-muted rounded-full overflow-hidden flex-shrink-0">
+            <div className="w-24 h-1.5 bg-muted rounded-full overflow-hidden shrink-0">
               <div
                 className="h-full bg-primary transition-all duration-300"
                 style={{ width: `${currentJob.progress}%` }}
@@ -263,7 +263,7 @@ function GlobalStatusBar() {
             </div>
 
             {/* Elapsed time */}
-            <span className="text-xs text-muted-foreground flex-shrink-0 w-14 text-right">
+            <span className="text-xs text-muted-foreground shrink-0 w-14 text-right">
               {formatDuration(elapsed)}
             </span>
           </>
@@ -275,14 +275,14 @@ function GlobalStatusBar() {
 
         {/* Queue badge */}
         {(status?.queueLength ?? 0) > 0 && (
-          <span className="px-1.5 py-0.5 text-xs font-medium bg-primary/10 text-primary rounded flex-shrink-0">
+          <span className="px-1.5 py-0.5 text-xs font-medium bg-primary/10 text-primary rounded shrink-0">
             +{status?.queueLength} queued
           </span>
         )}
 
         {/* Expand/collapse icon */}
         <svg
-          className={`w-4 h-4 text-muted-foreground transition-transform flex-shrink-0 ${
+          className={`w-4 h-4 text-muted-foreground transition-transform shrink-0 ${
             isExpanded ? 'rotate-180' : ''
           }`}
           fill="none"
@@ -313,7 +313,7 @@ function GlobalStatusBar() {
                     {currentJob.podcastName}
                   </p>
                 </div>
-                <div className="text-right flex-shrink-0">
+                <div className="text-right shrink-0">
                   <p className="text-sm font-medium text-primary">{stageLabel}</p>
                   <p className="text-xs text-muted-foreground">
                     {formatDuration(elapsed)}

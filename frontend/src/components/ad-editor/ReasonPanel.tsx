@@ -10,7 +10,7 @@ export function ReasonPanel({ selectedAd }: ReasonPanelProps) {
     <div className="px-3 sm:px-4 py-3 sm:py-4 min-h-0 overflow-y-auto">
       <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">Why this was flagged</h4>
       {selectedAd.reason ? (
-        <p className="text-sm text-foreground break-words mb-4">
+        <p className="text-sm text-foreground wrap-break-word mb-4">
           <PatternLink reason={selectedAd.reason} />
         </p>
       ) : (

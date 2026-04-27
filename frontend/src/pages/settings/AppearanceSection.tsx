@@ -32,7 +32,7 @@ function AppearanceSection() {
                       }`}
                     >
                       <span
-                        className="w-3 h-3 rounded-full flex-shrink-0"
+                        className="w-3 h-3 rounded-full shrink-0"
                         style={{ backgroundColor: t.accentColor }}
                       />
                       <span className="truncate">
@@ -42,7 +42,7 @@ function AppearanceSection() {
                         )}
                       </span>
                       {isActive && (
-                        <svg className="w-4 h-4 text-primary flex-shrink-0 ml-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <svg className="w-4 h-4 text-primary shrink-0 ml-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                         </svg>
                       )}

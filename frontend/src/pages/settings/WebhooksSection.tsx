@@ -242,7 +242,7 @@ function WebhooksSection() {
                   )}
                 </div>
 
-                <div className="flex items-center gap-1.5 flex-shrink-0">
+                <div className="flex items-center gap-1.5 shrink-0">
                   <button
                     onClick={() => testMutation.mutate(wh.id)}
                     disabled={testMutation.isPending}

@@ -99,7 +99,7 @@ function Dashboard() {
     <div>
       <div className="flex flex-wrap justify-between items-center gap-y-2 mb-6">
         <h1 className="text-2xl font-bold text-foreground w-full sm:w-auto">Feeds</h1>
-        <div className="flex gap-2 items-center overflow-x-auto flex-shrink-0 no-scrollbar">
+        <div className="flex gap-2 items-center overflow-x-auto shrink-0 no-scrollbar">
           <div className="flex border border-border rounded overflow-hidden">
             <button
               onClick={() => setViewMode('grid')}

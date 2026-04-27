@@ -6,6 +6,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.17] - 2026-04-26
+
+Frontend build-tooling rollup. Replaces dependabot PRs #170 (vite 8), #171 (tailwindcss 4), and #172 (typescript 6) which each failed CI on their own because they depend on each other. No runtime behavior change; build artifacts are equivalent (CSS 51.84 kB, JS bundle within 200 bytes of prior size).
+
+### Changed
+
+- ``frontend/package.json``: vite ``^6.4.2`` -> ``^8.0.10``, ``@vitejs/plugin-react`` ``^4.2.1`` -> ``^6.0.1`` (only line that supports vite 8 peer), tailwindcss ``^3.4.1`` -> ``^4.2.4``, typescript ``^5.3.3`` -> ``^6.0.3``, esbuild override ``>=0.25.0`` -> ``>=0.27.0`` (vite 8 requires esbuild ^0.27 || ^0.28). Added ``@tailwindcss/vite`` ``^4.2.4``. Removed ``autoprefixer`` and ``postcss`` (handled internally by ``@tailwindcss/vite``).
+- ``frontend/vite.config.ts``: wired ``@tailwindcss/vite`` plugin before ``VitePWA`` so workbox precaches the v4-emitted CSS.
+- ``frontend/src/index.css``: replaced ``@tailwind base/components/utilities`` with ``@import "tailwindcss"`` + ``@config "../tailwind.config.js"`` to keep the existing JS-based theme (``extend.colors``, ``borderRadius``, ``keyframes``, ``animation``) without rewriting it as v4 CSS-first config.
+- ``frontend/tsconfig.json``: dropped deprecated ``baseUrl`` (TS6 warns; ``moduleResolution: bundler`` resolves ``paths`` without it).
+- ``frontend/postcss.config.js``: deleted; @tailwindcss/vite handles transforms.
+- 18 component files: ``flex-shrink-0`` -> ``shrink-0`` and ``break-words`` -> ``wrap-break-word`` per the official ``@tailwindcss/upgrade`` codemod. No visual change; v4 keeps both names but the codemod canonicalizes to the shorter form.
+
+### Added
+
+- ``frontend/.npmrc``: ``legacy-peer-deps=true``. ``vite-plugin-pwa@1.2.0`` (latest) caps its vite peer at ``^7``; vite 8 support has not been published. The flag scopes the install to npm's pre-7 resolver behavior so the install completes. Comment in the file flags this as removable once vite-plugin-pwa publishes vite 8 support.
+- ``react-is`` ``^19.2.5`` to ``dependencies``. recharts declares ``react-is`` as a peer; rolldown (vite 8's bundler) is stricter than rollup about transitive resolution and fails the build at ``recharts/es6/util/ReactUtils.js`` if ``react-is`` isn't a direct dep.
+
+### Closed (without merge)
+
+- #170 vite 6 -> 8 (rolled into this PR)
+- #171 tailwindcss 3 -> 4 (rolled into this PR)
+- #172 typescript 5 -> 6 (rolled into this PR)
+
 ## [2.0.16] - 2026-04-25
 
 Hot-fix on top of 2.0.15. The 2.0.15 fix removed the per-instance ``self._llm_client`` cache in ``AdDetector`` / ``ChaptersGenerator`` and routed every call through ``get_llm_client()``. That closed half the staleness bug. The other half is the **per-worker** cache in ``llm_client._cached_client``: gunicorn runs two workers, each with its own module-level cache, and only the worker that handles the settings PUT runs ``force_new`` to rebuild. The sibling worker keeps its old client and silently routes requests to the previous provider/base_url.

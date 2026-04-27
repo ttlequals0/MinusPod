@@ -153,7 +153,7 @@ export function BoundaryControls({
       <div className="space-y-1.5">
         {/* Start row */}
         <div className="flex items-center gap-2">
-          <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide w-10 flex-shrink-0">Start</span>
+          <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide w-10 shrink-0">Start</span>
           <div className="flex-1 flex items-center rounded-lg bg-muted overflow-hidden h-10">
             <button
               onClick={handleStartDecrement}
@@ -183,7 +183,7 @@ export function BoundaryControls({
         </div>
         {/* End row */}
         <div className="flex items-center gap-2">
-          <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide w-10 flex-shrink-0">End</span>
+          <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide w-10 shrink-0">End</span>
           <div className="flex-1 flex items-center rounded-lg bg-muted overflow-hidden h-10">
             <button
               onClick={handleEndDecrement}
@@ -219,7 +219,7 @@ export function BoundaryControls({
   return (
     <div className="flex items-center gap-2">
       <div className="flex-1 flex items-center gap-1.5">
-        <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide flex-shrink-0">Start</span>
+        <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide shrink-0">Start</span>
         <div className="flex-1 flex items-center rounded-lg bg-muted overflow-hidden">
           <button
             onClick={handleStartDecrement}
@@ -248,7 +248,7 @@ export function BoundaryControls({
         </div>
       </div>
       <div className="flex-1 flex items-center gap-1.5">
-        <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide flex-shrink-0">End</span>
+        <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide shrink-0">End</span>
         <div className="flex-1 flex items-center rounded-lg bg-muted overflow-hidden">
           <button
             onClick={handleEndDecrement}

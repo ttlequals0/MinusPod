@@ -196,7 +196,7 @@ function FeedDetail() {
 
       <div className="bg-card rounded-lg border border-border p-6 mb-6">
         <div className="flex flex-col sm:flex-row gap-6">
-          <div className="w-32 h-32 flex-shrink-0 mx-auto sm:mx-0">
+          <div className="w-32 h-32 shrink-0 mx-auto sm:mx-0">
             <img
               src={`/api/v1/feeds/${slug}/artwork`}
               alt={feed.title}
@@ -224,7 +224,7 @@ function FeedDetail() {
               {isEditingNetwork ? (
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
-                    <label className="text-muted-foreground text-sm w-16 flex-shrink-0">Network:</label>
+                    <label className="text-muted-foreground text-sm w-16 shrink-0">Network:</label>
                     <select
                       value={editNetworkOverride}
                       onChange={(e) => setEditNetworkOverride(e.target.value)}
@@ -239,7 +239,7 @@ function FeedDetail() {
                     </select>
                   </div>
                   <div className="flex items-center gap-2">
-                    <label className="text-muted-foreground text-sm w-16 flex-shrink-0">DAI:</label>
+                    <label className="text-muted-foreground text-sm w-16 shrink-0">DAI:</label>
                     <input
                       type="text"
                       value={editDaiPlatform}
@@ -249,7 +249,7 @@ function FeedDetail() {
                     />
                   </div>
                   <div className="flex items-center gap-2">
-                    <label className="text-muted-foreground text-sm w-16 flex-shrink-0">Feed cap:</label>
+                    <label className="text-muted-foreground text-sm w-16 shrink-0">Feed cap:</label>
                     <input
                       type="number"
                       value={editMaxEpisodes}
@@ -345,7 +345,7 @@ function FeedDetail() {
 
         <div className="mt-6 pt-4 border-t border-border flex flex-wrap gap-4 items-center justify-between">
           <div className="flex items-center gap-2 min-w-0">
-            <span className="hidden sm:inline text-sm text-muted-foreground flex-shrink-0">Feed URL:</span>
+            <span className="hidden sm:inline text-sm text-muted-foreground shrink-0">Feed URL:</span>
             <code className="hidden sm:block text-sm bg-secondary px-2 py-1 rounded truncate min-w-0">
               {feed.feedUrl}
             </code>

@@ -190,7 +190,7 @@ function EpisodeDetail() {
 
       <div className="bg-card rounded-lg border border-border p-4 sm:p-6 mb-6">
         <div className="flex gap-4">
-          <div className="w-16 h-16 sm:w-24 sm:h-24 flex-shrink-0">
+          <div className="w-16 h-16 sm:w-24 sm:h-24 shrink-0">
             <img
               src={`/api/v1/feeds/${slug}/artwork`}
               alt="Podcast artwork"
@@ -311,7 +311,7 @@ function EpisodeDetail() {
         )}
 
         {episode.description && (
-          <p className="mt-4 text-muted-foreground whitespace-pre-wrap break-words">
+          <p className="mt-4 text-muted-foreground whitespace-pre-wrap wrap-break-word">
             {stripHtml(
               episode.description
                 .replace(/<br\s*\/?>/gi, '\n')
@@ -486,7 +486,7 @@ function EpisodeDetail() {
                 </div>
                 {/* Row 2: Description - full width below badges for better mobile display */}
                 {segment.reason && (
-                  <p className="text-sm text-muted-foreground mt-2 break-words">
+                  <p className="text-sm text-muted-foreground mt-2 wrap-break-word">
                     <PatternLink reason={segment.reason} />
                   </p>
                 )}
