@@ -75,7 +75,7 @@ export function BoundaryControls({
                     type="number"
                     value={startAdjustment}
                     onChange={handleStartInputChange}
-                    className="w-12 text-center text-sm font-mono font-medium bg-transparent pr-3 py-1.5 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    className="w-12 text-center text-sm font-mono font-medium bg-transparent pr-3 py-1.5 focus:outline-hidden [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     step="1"
                   />
                   <span className="absolute right-1 text-[10px] text-muted-foreground pointer-events-none">s</span>
@@ -105,7 +105,7 @@ export function BoundaryControls({
                     type="number"
                     value={endAdjustment}
                     onChange={handleEndInputChange}
-                    className="w-12 text-center text-sm font-mono font-medium bg-transparent pr-3 py-1.5 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    className="w-12 text-center text-sm font-mono font-medium bg-transparent pr-3 py-1.5 focus:outline-hidden [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     step="1"
                   />
                   <span className="absolute right-1 text-[10px] text-muted-foreground pointer-events-none">s</span>
@@ -167,7 +167,7 @@ export function BoundaryControls({
                 type="number"
                 value={startAdjustment}
                 onChange={handleStartInputChange}
-                className="w-full text-center text-base font-mono font-medium bg-transparent focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                className="w-full text-center text-base font-mono font-medium bg-transparent focus:outline-hidden [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 step="1"
               />
               <span className="absolute right-2 text-xs text-muted-foreground pointer-events-none">s</span>
@@ -197,7 +197,7 @@ export function BoundaryControls({
                 type="number"
                 value={endAdjustment}
                 onChange={handleEndInputChange}
-                className="w-full text-center text-base font-mono font-medium bg-transparent focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                className="w-full text-center text-base font-mono font-medium bg-transparent focus:outline-hidden [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 step="1"
               />
               <span className="absolute right-2 text-xs text-muted-foreground pointer-events-none">s</span>
@@ -233,7 +233,7 @@ export function BoundaryControls({
               type="number"
               value={startAdjustment}
               onChange={handleStartInputChange}
-              className="w-full text-center text-sm font-mono font-medium bg-transparent py-1.5 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              className="w-full text-center text-sm font-mono font-medium bg-transparent py-1.5 focus:outline-hidden [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
               step="1"
             />
             <span className="absolute right-1 text-[10px] text-muted-foreground pointer-events-none">s</span>
@@ -262,7 +262,7 @@ export function BoundaryControls({
               type="number"
               value={endAdjustment}
               onChange={handleEndInputChange}
-              className="w-full text-center text-sm font-mono font-medium bg-transparent py-1.5 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              className="w-full text-center text-sm font-mono font-medium bg-transparent py-1.5 focus:outline-hidden [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
               step="1"
             />
             <span className="absolute right-1 text-[10px] text-muted-foreground pointer-events-none">s</span>

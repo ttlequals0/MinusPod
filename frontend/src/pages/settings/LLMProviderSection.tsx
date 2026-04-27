@@ -58,7 +58,7 @@ function LLMProviderSection({
             id="llmProvider"
             value={llmProvider}
             onChange={(e) => onProviderChange(e.target.value as LlmProvider)}
-            className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
           >
             <option value={LLM_PROVIDERS.ANTHROPIC}>Anthropic</option>
             <option value={LLM_PROVIDERS.OPENROUTER}>OpenRouter</option>
@@ -78,7 +78,7 @@ function LLMProviderSection({
               value={openaiBaseUrl}
               onChange={(e) => onBaseUrlChange(e.target.value)}
               placeholder="http://localhost:11434/v1"
-              className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring font-mono text-sm"
+              className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring font-mono text-sm"
             />
             <p className="mt-1 text-sm text-muted-foreground">
               {llmProvider === LLM_PROVIDERS.OLLAMA

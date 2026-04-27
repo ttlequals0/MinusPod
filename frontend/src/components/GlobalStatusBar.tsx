@@ -223,7 +223,7 @@ function GlobalStatusBar() {
 
   return (
     <div
-      className={`fixed top-0 left-0 right-0 z-50 bg-card border-b border-border shadow-sm transition-all duration-300 ${
+      className={`fixed top-0 left-0 right-0 z-50 bg-card border-b border-border shadow-xs transition-all duration-300 ${
         hasActivity ? 'translate-y-0' : '-translate-y-full'
       }`}
     >

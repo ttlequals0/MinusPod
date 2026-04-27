@@ -141,7 +141,7 @@ function SecuritySection({
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
               required
-              className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
             />
           </div>
         )}
@@ -157,7 +157,7 @@ function SecuritySection({
             value={newPassword}
             onChange={(e) => setNewPassword(e.target.value)}
             placeholder={isPasswordSet ? 'Leave empty to remove password' : 'Minimum 12 characters'}
-            className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
           />
         </div>
 
@@ -171,7 +171,7 @@ function SecuritySection({
             autoComplete="new-password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
-            className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
           />
         </div>
 
@@ -242,7 +242,7 @@ function SecuritySection({
                 autoComplete="off"
                 value={oldPassphrase}
                 onChange={(e) => setOldPassphrase(e.target.value)}
-                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring font-mono text-sm"
+                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring font-mono text-sm"
               />
             </div>
 
@@ -256,7 +256,7 @@ function SecuritySection({
                 autoComplete="off"
                 value={newPassphrase}
                 onChange={(e) => setNewPassphrase(e.target.value)}
-                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring font-mono text-sm"
+                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring font-mono text-sm"
               />
             </div>
 
@@ -270,7 +270,7 @@ function SecuritySection({
                 autoComplete="off"
                 value={confirmPassphrase}
                 onChange={(e) => setConfirmPassphrase(e.target.value)}
-                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring font-mono text-sm"
+                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring font-mono text-sm"
               />
             </div>
 

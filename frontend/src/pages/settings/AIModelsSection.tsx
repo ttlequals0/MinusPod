@@ -72,7 +72,7 @@ function AIModelsSection({
             id="model"
             value={selectedModel}
             onChange={(e) => onSelectedModelChange(e.target.value)}
-            className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
           >
             {models?.map((model) => (
               <option key={model.id} value={model.id}>
@@ -93,7 +93,7 @@ function AIModelsSection({
             id="verificationModel"
             value={verificationModel}
             onChange={(e) => onVerificationModelChange(e.target.value)}
-            className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
           >
             {models?.map((model) => (
               <option key={model.id} value={model.id}>
@@ -114,7 +114,7 @@ function AIModelsSection({
             id="chaptersModel"
             value={chaptersModel}
             onChange={(e) => onChaptersModelChange(e.target.value)}
-            className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
           >
             {models?.map((model) => (
               <option key={model.id} value={model.id}>

@@ -94,7 +94,7 @@ function ProviderKeyField({
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         placeholder={status.source === 'db' ? '(stored - enter new value to change)' : placeholder}
-        className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring font-mono text-sm"
+        className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring font-mono text-sm"
       />
       {helper && <p className="mt-1 text-sm text-muted-foreground">{helper}</p>}
       {showActions && (

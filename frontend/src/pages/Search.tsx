@@ -158,7 +158,7 @@ function Search() {
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search transcripts, titles, patterns..."
           autoFocus
-          className="w-full pl-12 pr-4 py-3 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring text-lg"
+          className="w-full pl-12 pr-4 py-3 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring text-lg"
         />
       </div>
 

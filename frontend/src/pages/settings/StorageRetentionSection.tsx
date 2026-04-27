@@ -61,7 +61,7 @@ function StorageRetentionSection({
               min={1}
               max={3650}
               placeholder="30"
-              className="w-24 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring disabled:opacity-50"
+              className="w-24 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring disabled:opacity-50"
             />
             <span className="text-sm text-muted-foreground">days</span>
           </div>

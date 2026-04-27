@@ -344,7 +344,7 @@ export function AdEditor({
     <div
       ref={containerRef}
       tabIndex={0}
-      className="flex flex-col max-h-[85dvh] sm:max-h-[80vh] bg-card rounded-lg border border-border outline-none focus:ring-2 focus:ring-primary/50 overflow-hidden"
+      className="flex flex-col max-h-[85dvh] sm:max-h-[80vh] bg-card rounded-lg border border-border outline-hidden focus:ring-2 focus:ring-primary/50 overflow-hidden"
     >
       {/* TOP: Header + Ad Selector */}
       <div className="bg-card shrink-0">

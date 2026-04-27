@@ -311,7 +311,7 @@ function AddFeed() {
             onChange={(e) => setInputValue(e.target.value)}
             onBlur={() => { if (isUrl) setTouched(true); }}
             placeholder={podcastIndexConfigured ? 'Search by name or paste an RSS feed URL...' : 'https://example.com/podcast/feed.xml'}
-            className={`w-full px-4 py-2 rounded-lg border bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring ${
+            className={`w-full px-4 py-2 rounded-lg border bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring ${
               isUrl && touched && urlValidation.error
                 ? 'border-destructive focus:ring-destructive'
                 : isUrl && touched && urlValidation.warning
@@ -344,7 +344,7 @@ function AddFeed() {
                 value={customSlug}
                 onChange={(e) => setCustomSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
                 placeholder="my-podcast"
-                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
               />
               <p className="mt-1 text-sm text-muted-foreground">
                 Custom URL path for this feed. Only lowercase letters, numbers, and hyphens.
@@ -364,7 +364,7 @@ function AddFeed() {
                   else if (value === 'disable') setAutoProcessOverride(false);
                   else setAutoProcessOverride(null);
                 }}
-                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
               >
                 <option value="global">Global Default</option>
                 <option value="enable">Enabled</option>
@@ -387,7 +387,7 @@ function AddFeed() {
                 placeholder="300 (default)"
                 min={10}
                 max={500}
-                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
               />
               <p className="mt-1 text-sm text-muted-foreground">
                 Limits how many episodes are served to podcast clients. Max: 500.

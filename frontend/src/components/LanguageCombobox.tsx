@@ -120,7 +120,7 @@ function LanguageCombobox({ id, value, onChange, className = '' }: LanguageCombo
           setQuery(e.target.value);
         }}
         onKeyDown={onKeyDown}
-        className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+        className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
       />
       {open && (
         <ul
