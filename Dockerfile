@@ -26,7 +26,7 @@ RUN mkdir -p /app/static/ui/swagger \
 # Stage 2: Python application
 # Use CUDA runtime image - PyTorch bundles its own cuDNN/cuBLAS via pip
 # Base image CUDA only needs host driver compatibility (forward compatible)
-FROM nvidia/cuda:12.6.3-runtime-ubuntu24.04
+FROM nvidia/cuda:12.9.1-runtime-ubuntu24.04
 
 # Install Python 3.11 from deadsnakes PPA and system dependencies
 # Ubuntu 24.04 ships Python 3.12; we use deadsnakes to keep Python 3.11
