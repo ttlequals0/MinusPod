@@ -42,7 +42,7 @@ defusedxml>=0.7.1
 
 # Transitive dependency pins (CVE fixes)
 jaraco.context>=6.1.0
-wheel>=0.46.2
+wheel>=0.47.0
 # jaraco.context transitive on Python <3.12 (the Docker image runs 3.11).
 # Pinned unconditionally so pip-compile includes it regardless of the compile
 # host's Python version; harmless on 3.12 (unused code path).
