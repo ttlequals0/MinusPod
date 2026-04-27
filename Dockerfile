@@ -3,8 +3,8 @@ FROM node:24-alpine@sha256:d1b3b4da11eefd5941e7f0b9cf17783fc99d9c6fc34884a665f40
 
 WORKDIR /app/frontend
 
-# Copy frontend package files
-COPY frontend/package.json frontend/package-lock.json* ./
+# Copy frontend package files (.npmrc carries legacy-peer-deps for vite-plugin-pwa peer cap)
+COPY frontend/package.json frontend/package-lock.json* frontend/.npmrc ./
 
 # Install dependencies
 RUN npm ci
