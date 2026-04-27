@@ -74,7 +74,7 @@ function TranscriptionSection({
             id="whisperBackend"
             value={whisperBackend}
             onChange={(e) => onWhisperBackendChange(e.target.value as WhisperBackend)}
-            className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
           >
             <option value={WHISPER_BACKENDS.LOCAL}>Local (faster-whisper)</option>
             <option value={WHISPER_BACKENDS.OPENAI_API}>Remote API (OpenAI-compatible)</option>
@@ -90,7 +90,7 @@ function TranscriptionSection({
               id="whisperModel"
               value={whisperModel}
               onChange={(e) => onWhisperModelChange(e.target.value)}
-              className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
             >
               {whisperModels?.map((model) => (
                 <option key={model.id} value={model.id}>
@@ -121,7 +121,7 @@ function TranscriptionSection({
                 value={apiConfig.baseUrl}
                 onChange={(e) => onApiConfigChange('baseUrl', e.target.value)}
                 placeholder="http://host.docker.internal:8765/v1"
-                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring font-mono text-sm"
+                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring font-mono text-sm"
               />
               <p className="mt-1 text-sm text-muted-foreground">
                 OpenAI-compatible transcription endpoint (e.g. whisper.cpp, Groq, OpenAI)
@@ -149,7 +149,7 @@ function TranscriptionSection({
                 value={apiConfig.model}
                 onChange={(e) => onApiConfigChange('model', e.target.value)}
                 placeholder="whisper-1"
-                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring font-mono text-sm"
+                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring font-mono text-sm"
               />
               <p className="mt-1 text-sm text-muted-foreground">
                 Model identifier sent to the API (e.g. whisper-1, whisper-large-v3-turbo)
@@ -182,7 +182,7 @@ function TranscriptionSection({
               id="whisperComputeType"
               value={whisperComputeType || 'auto'}
               onChange={(e) => onWhisperComputeTypeChange(e.target.value)}
-              className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
             >
               <option value="auto">Auto (float16 on CUDA, int8 on CPU)</option>
               <option value="float16">float16 (Volta and newer: V100, RTX 20xx+, A100, H100)</option>
@@ -208,7 +208,7 @@ function TranscriptionSection({
               onChange={(e) => onSoftTimeoutChange(parseInt(e.target.value, 10) || 0)}
               min={softMinMinutes}
               max={hardMaxMinutes}
-              className="w-24 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-24 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
             />
             <span className="text-sm text-muted-foreground">minutes (default 60)</span>
           </div>
@@ -223,7 +223,7 @@ function TranscriptionSection({
               onChange={(e) => onHardTimeoutChange(parseInt(e.target.value, 10) || 0)}
               min={softMinMinutes + 1}
               max={hardMaxMinutes}
-              className="w-24 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+              className="w-24 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
             />
             <span className="text-sm text-muted-foreground">minutes (default 120)</span>
           </div>

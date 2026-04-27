@@ -242,7 +242,7 @@ function WebhooksSection() {
                   )}
                 </div>
 
-                <div className="flex items-center gap-1.5 flex-shrink-0">
+                <div className="flex items-center gap-1.5 shrink-0">
                   <button
                     onClick={() => testMutation.mutate(wh.id)}
                     disabled={testMutation.isPending}
@@ -303,7 +303,7 @@ function WebhooksSection() {
                 value={form.url}
                 onChange={(e) => setForm((prev) => ({ ...prev, url: e.target.value }))}
                 placeholder="https://example.com/webhook"
-                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm"
+                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring text-sm"
               />
             </div>
 
@@ -342,7 +342,7 @@ function WebhooksSection() {
                 }}
                 placeholder={DEFAULT_TEMPLATE_PLACEHOLDER}
                 rows={6}
-                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm font-mono"
+                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring text-sm font-mono"
               />
               <div className="flex items-center gap-2 mt-1">
                 <button
@@ -377,7 +377,7 @@ function WebhooksSection() {
                 type="text"
                 value={form.contentType}
                 onChange={(e) => setForm((prev) => ({ ...prev, contentType: e.target.value }))}
-                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm"
+                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring text-sm"
               />
             </div>
 
@@ -394,7 +394,7 @@ function WebhooksSection() {
                   onChange={(e) => setForm((prev) => ({ ...prev, secret: e.target.value }))}
                   placeholder="Optional signing secret"
                   autoComplete="off"
-                  className="w-full px-4 py-2 pr-16 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring text-sm"
+                  className="w-full px-4 py-2 pr-16 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring text-sm"
                 />
                 <button
                   type="button"

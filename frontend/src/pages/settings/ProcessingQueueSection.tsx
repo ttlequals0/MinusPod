@@ -45,7 +45,7 @@ function ProcessingQueueSection({
               <button
                 onClick={() => onCancel({ slug: episode.slug, episodeId: episode.episodeId })}
                 disabled={cancelIsPending}
-                className="px-3 py-1 text-sm rounded bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50 transition-colors ml-4 flex-shrink-0"
+                className="px-3 py-1 text-sm rounded bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50 transition-colors ml-4 shrink-0"
               >
                 {cancelIsPending ? 'Canceling...' : 'Cancel'}
               </button>

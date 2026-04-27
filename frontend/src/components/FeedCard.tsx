@@ -16,7 +16,7 @@ function FeedCard({ feed, onRefresh, onDelete, isRefreshing }: FeedCardProps) {
   return (
     <div className="bg-card rounded-lg border border-border overflow-hidden">
       <div className="flex">
-        <div className="w-24 h-24 flex-shrink-0">
+        <div className="w-24 h-24 shrink-0">
           <img
             src={artworkUrl}
             alt={feed.title}

@@ -91,7 +91,7 @@ function DataManagementSection({
         {/* OPML Export Card */}
         <div className="p-4 rounded-lg border border-border bg-background flex flex-col">
           <div className="flex items-start gap-3 mb-3">
-            <div className="p-2 rounded bg-secondary flex-shrink-0">
+            <div className="p-2 rounded bg-secondary shrink-0">
               <svg className="h-5 w-5 text-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3" />
                 <path strokeLinecap="round" strokeLinejoin="round" d="M3 17v2a2 2 0 002 2h14a2 2 0 002-2v-2" />
@@ -127,7 +127,7 @@ function DataManagementSection({
         {/* Database Backup Card */}
         <div className="p-4 rounded-lg border border-border bg-background flex flex-col">
           <div className="flex items-start gap-3 mb-3">
-            <div className="p-2 rounded bg-secondary flex-shrink-0">
+            <div className="p-2 rounded bg-secondary shrink-0">
               <svg className="h-5 w-5 text-foreground" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <ellipse cx="12" cy="5" rx="9" ry="3" />
                 <path d="M21 12c0 1.66-4.03 3-9 3s-9-1.34-9-3" />

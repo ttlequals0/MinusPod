@@ -83,7 +83,7 @@ function CollapsibleSection({
             <p className="text-sm text-muted-foreground mt-0.5">{subtitle}</p>
           )}
         </div>
-        <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+        <div className="flex items-center gap-2 ml-4 shrink-0">
           {headerRight && (
             <div onClick={(e) => e.stopPropagation()}>
               {headerRight}

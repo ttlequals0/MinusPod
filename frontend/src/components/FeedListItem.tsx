@@ -17,7 +17,7 @@ function FeedListItem({ feed, onRefresh, onDelete, isRefreshing }: FeedListItemP
 
   return (
     <div className="bg-card rounded-lg border border-border p-3 flex items-center gap-3 sm:gap-4">
-      <div className="w-10 h-10 flex-shrink-0">
+      <div className="w-10 h-10 shrink-0">
         <img
           src={artworkUrl}
           alt={feed.title}
@@ -43,7 +43,7 @@ function FeedListItem({ feed, onRefresh, onDelete, isRefreshing }: FeedListItemP
           )}
         </p>
       </div>
-      <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+      <div className="flex items-center gap-1 sm:gap-2 shrink-0">
         <CopyButton text={feed.feedUrl} hideLabelOnMobile />
         <button
           onClick={() => onRefresh(feed.slug)}

@@ -75,7 +75,7 @@ export function BoundaryControls({
                     type="number"
                     value={startAdjustment}
                     onChange={handleStartInputChange}
-                    className="w-12 text-center text-sm font-mono font-medium bg-transparent pr-3 py-1.5 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    className="w-12 text-center text-sm font-mono font-medium bg-transparent pr-3 py-1.5 focus:outline-hidden [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     step="1"
                   />
                   <span className="absolute right-1 text-[10px] text-muted-foreground pointer-events-none">s</span>
@@ -105,7 +105,7 @@ export function BoundaryControls({
                     type="number"
                     value={endAdjustment}
                     onChange={handleEndInputChange}
-                    className="w-12 text-center text-sm font-mono font-medium bg-transparent pr-3 py-1.5 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    className="w-12 text-center text-sm font-mono font-medium bg-transparent pr-3 py-1.5 focus:outline-hidden [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                     step="1"
                   />
                   <span className="absolute right-1 text-[10px] text-muted-foreground pointer-events-none">s</span>
@@ -153,7 +153,7 @@ export function BoundaryControls({
       <div className="space-y-1.5">
         {/* Start row */}
         <div className="flex items-center gap-2">
-          <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide w-10 flex-shrink-0">Start</span>
+          <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide w-10 shrink-0">Start</span>
           <div className="flex-1 flex items-center rounded-lg bg-muted overflow-hidden h-10">
             <button
               onClick={handleStartDecrement}
@@ -167,7 +167,7 @@ export function BoundaryControls({
                 type="number"
                 value={startAdjustment}
                 onChange={handleStartInputChange}
-                className="w-full text-center text-base font-mono font-medium bg-transparent focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                className="w-full text-center text-base font-mono font-medium bg-transparent focus:outline-hidden [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 step="1"
               />
               <span className="absolute right-2 text-xs text-muted-foreground pointer-events-none">s</span>
@@ -183,7 +183,7 @@ export function BoundaryControls({
         </div>
         {/* End row */}
         <div className="flex items-center gap-2">
-          <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide w-10 flex-shrink-0">End</span>
+          <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide w-10 shrink-0">End</span>
           <div className="flex-1 flex items-center rounded-lg bg-muted overflow-hidden h-10">
             <button
               onClick={handleEndDecrement}
@@ -197,7 +197,7 @@ export function BoundaryControls({
                 type="number"
                 value={endAdjustment}
                 onChange={handleEndInputChange}
-                className="w-full text-center text-base font-mono font-medium bg-transparent focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                className="w-full text-center text-base font-mono font-medium bg-transparent focus:outline-hidden [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 step="1"
               />
               <span className="absolute right-2 text-xs text-muted-foreground pointer-events-none">s</span>
@@ -219,7 +219,7 @@ export function BoundaryControls({
   return (
     <div className="flex items-center gap-2">
       <div className="flex-1 flex items-center gap-1.5">
-        <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide flex-shrink-0">Start</span>
+        <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide shrink-0">Start</span>
         <div className="flex-1 flex items-center rounded-lg bg-muted overflow-hidden">
           <button
             onClick={handleStartDecrement}
@@ -233,7 +233,7 @@ export function BoundaryControls({
               type="number"
               value={startAdjustment}
               onChange={handleStartInputChange}
-              className="w-full text-center text-sm font-mono font-medium bg-transparent py-1.5 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              className="w-full text-center text-sm font-mono font-medium bg-transparent py-1.5 focus:outline-hidden [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
               step="1"
             />
             <span className="absolute right-1 text-[10px] text-muted-foreground pointer-events-none">s</span>
@@ -248,7 +248,7 @@ export function BoundaryControls({
         </div>
       </div>
       <div className="flex-1 flex items-center gap-1.5">
-        <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide flex-shrink-0">End</span>
+        <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide shrink-0">End</span>
         <div className="flex-1 flex items-center rounded-lg bg-muted overflow-hidden">
           <button
             onClick={handleEndDecrement}
@@ -262,7 +262,7 @@ export function BoundaryControls({
               type="number"
               value={endAdjustment}
               onChange={handleEndInputChange}
-              className="w-full text-center text-sm font-mono font-medium bg-transparent py-1.5 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              className="w-full text-center text-sm font-mono font-medium bg-transparent py-1.5 focus:outline-hidden [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
               step="1"
             />
             <span className="absolute right-1 text-[10px] text-muted-foreground pointer-events-none">s</span>

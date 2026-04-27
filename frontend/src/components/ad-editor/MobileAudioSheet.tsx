@@ -74,7 +74,7 @@ export function MobileAudioSheet({
   getRejectButtonText,
 }: MobileAudioSheetProps) {
   return (
-    <div className="sm:hidden bg-card border-t border-border flex-shrink-0 pb-[env(safe-area-inset-bottom)]">
+    <div className="sm:hidden bg-card border-t border-border shrink-0 pb-[env(safe-area-inset-bottom)]">
       <audio ref={audioRef} src={audioUrl} className="hidden" />
 
       {/* Grab handle */}
@@ -110,7 +110,7 @@ export function MobileAudioSheet({
           <div className="flex items-center gap-2">
             <button
               onClick={onPlayPause}
-              className="p-2 rounded-full bg-primary text-primary-foreground active:scale-95 touch-manipulation flex items-center justify-center transition-all flex-shrink-0"
+              className="p-2 rounded-full bg-primary text-primary-foreground active:scale-95 touch-manipulation flex items-center justify-center transition-all shrink-0"
               aria-label={isPlaying ? 'Pause' : 'Play'}
             >
               {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}

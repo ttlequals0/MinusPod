@@ -64,7 +64,7 @@ export function ActionButtons({
           onClick={onReject}
           disabled={saveStatus === 'saving'}
           className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
-            saveStatus === 'saving' ? 'bg-destructive/50 cursor-wait' : 'bg-destructive hover:bg-destructive/90 shadow-sm'
+            saveStatus === 'saving' ? 'bg-destructive/50 cursor-wait' : 'bg-destructive hover:bg-destructive/90 shadow-xs'
           } text-destructive-foreground`}
         >
           {getRejectButtonText()}

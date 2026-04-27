@@ -17,7 +17,7 @@ function AudioSection({ audioBitrate, onAudioBitrateChange }: AudioSectionProps)
             id="audioBitrate"
             value={audioBitrate}
             onChange={(e) => onAudioBitrateChange(e.target.value)}
-            className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
+            className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
           >
             <option value="64k">64 kbps - Smallest file size</option>
             <option value="96k">96 kbps - Good for speech</option>

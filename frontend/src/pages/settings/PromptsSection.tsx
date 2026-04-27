@@ -29,7 +29,7 @@ function PromptsSection({
             value={systemPrompt}
             onChange={(e) => onSystemPromptChange(e.target.value)}
             rows={6}
-            className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring font-mono text-sm sm:rows-12"
+            className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring font-mono text-sm sm:rows-12"
           />
           <p className="mt-1 text-sm text-muted-foreground">
             Instructions sent to the AI model for the initial ad detection pass
@@ -45,7 +45,7 @@ function PromptsSection({
             value={verificationPrompt}
             onChange={(e) => onVerificationPromptChange(e.target.value)}
             rows={6}
-            className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring font-mono text-sm sm:rows-12"
+            className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring font-mono text-sm sm:rows-12"
           />
           <p className="mt-1 text-sm text-muted-foreground">
             Instructions for the verification pass to detect ads missed by the first pass

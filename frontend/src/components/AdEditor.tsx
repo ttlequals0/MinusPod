@@ -344,10 +344,10 @@ export function AdEditor({
     <div
       ref={containerRef}
       tabIndex={0}
-      className="flex flex-col max-h-[85dvh] sm:max-h-[80vh] bg-card rounded-lg border border-border outline-none focus:ring-2 focus:ring-primary/50 overflow-hidden"
+      className="flex flex-col max-h-[85dvh] sm:max-h-[80vh] bg-card rounded-lg border border-border outline-hidden focus:ring-2 focus:ring-primary/50 overflow-hidden"
     >
       {/* TOP: Header + Ad Selector */}
-      <div className="bg-card flex-shrink-0">
+      <div className="bg-card shrink-0">
         <AdHeader
           selectedAdIndex={selectedAdIndex}
           totalAds={detectedAds.length}
@@ -365,7 +365,7 @@ export function AdEditor({
       <ReasonPanel selectedAd={selectedAd} />
 
       {/* Desktop bottom bar */}
-      <div className="hidden sm:block bg-card border-t border-border flex-shrink-0">
+      <div className="hidden sm:block bg-card border-t border-border shrink-0">
         {audioUrl && (
           <AudioPlayer
             audioUrl={audioUrl}
