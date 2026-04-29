@@ -1208,8 +1208,11 @@ class Transcriber:
                     # intros or sound effects (e.g. English podcast detected as Spanish
                     # at 93% confidence). `whisper_language=auto` (or blank env var)
                     # lets Whisper auto-detect -- useful for multilingual / non-English
-                    # podcasts. Non-English DAI ads are still caught by
-                    # _detect_non_english_segment() downstream.
+                    # podcasts. The non-English DAI heuristic downstream
+                    # (_detect_non_english_segment) is gated by
+                    # _should_detect_foreign_language so it only runs when the audio
+                    # is English; on non-English podcasts it would false-positive
+                    # every segment.
                     segments_generator, info = model.transcribe(
                         transcribe_path,
                         language=transcribe_language,
@@ -1234,10 +1237,8 @@ class Transcriber:
                         transcribe_language, detected_lang
                     )
                     logger.info(
-                        f"Foreign-language DAI detector: "
-                        f"{'enabled' if should_detect_foreign else 'disabled'} "
-                        f"(transcribe_language={transcribe_language!r}, "
-                        f"detected={detected_lang!r})"
+                        "Foreign-language DAI detector: %s",
+                        "enabled" if should_detect_foreign else "disabled",
                     )
 
                     # Collect segments with real-time progress logging
