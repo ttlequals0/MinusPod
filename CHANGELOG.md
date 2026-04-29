@@ -6,6 +6,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.18] - 2026-04-29
+
+Fix [#179](https://github.com/ttlequals0/MinusPod/issues/179): non-English podcasts had nearly every segment flagged as an ad. The "Pre-detect non-English segments as automatic ads (DAI in other languages)" heuristic in `src/transcriber.py` looks at non-ASCII character ratio and Spanish-specific keywords to flag segments. It was designed to catch foreign-language ads inserted into English podcasts (Dynamic Ad Insertion targeting Spanish-speaking audiences) but had no awareness of the configured `whisper_language` setting, so it false-positived entire foreign-language episodes.
+
+The detector now runs only when we are confident the audio is English: configured `whisper_language='en'`, or `'auto'` mode where Whisper detected an English variant. For any explicit non-English language (`'es'`, `'pt-br'`, etc.) and for `'auto'` where Whisper detected non-English, the detector is skipped and the per-segment `is_foreign_language` flag is never set; downstream `_detect_foreign_language_ads` in `src/ad_detector.py` becomes a no-op without any change because it only acts on flagged segments.
+
+No settings UI change. Existing English podcasts behave identically. The decision is logged once per transcription so it's visible in production.
+
+### Fixed
+
+- `src/transcriber.py`: new `Transcriber._should_detect_foreign_language()` static helper gates the detector on `transcribe_language` plus Whisper's `info.language`. Single one-time decision before the per-segment loop, applied via `is_foreign = should_detect_foreign and self._detect_non_english_segment(...)` at the existing call site.
+
+### Added
+
+- 15 parametrized tests in `tests/unit/test_transcriber_foreign_language_gating.py` covering the configured-English / auto-mode / configured-non-English matrix. 822 total tests pass (was 807).
+
 ## [2.0.17] - 2026-04-26
 
 Frontend build-tooling rollup. Replaces dependabot PRs #170 (vite 8), #171 (tailwindcss 4), and #172 (typescript 6) which each failed CI on their own because they depend on each other. No runtime behavior change; build artifacts are equivalent (CSS 51.84 kB, JS bundle within 200 bytes of prior size).

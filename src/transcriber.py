@@ -835,6 +835,21 @@ class Transcriber:
             filtered.append(seg)
         return filtered
 
+    @staticmethod
+    def _should_detect_foreign_language(transcribe_language, detected_lang) -> bool:
+        """Run the foreign-language DAI detector only when the audio is English.
+
+        The detector flags non-English ad insertions inside English podcasts.
+        On a non-English podcast its heuristics match every segment, so we
+        skip it unless the user pinned ``whisper_language='en'`` or chose
+        ``'auto'`` and Whisper detected an English variant.
+        """
+        if transcribe_language == 'en':
+            return True
+        if transcribe_language is None:
+            return (detected_lang or '').lower().startswith('en')
+        return False
+
     def _detect_non_english_segment(self, text: str, primary_language: str) -> bool:
         """Detect if a segment is likely non-English (potential DAI ad).
 
@@ -1215,6 +1230,16 @@ class Transcriber:
                     lang_prob = info.language_probability if hasattr(info, 'language_probability') else 0
                     logger.info(f"Detected primary language: {detected_lang} (probability: {lang_prob:.2f})")
 
+                    should_detect_foreign = self._should_detect_foreign_language(
+                        transcribe_language, detected_lang
+                    )
+                    logger.info(
+                        f"Foreign-language DAI detector: "
+                        f"{'enabled' if should_detect_foreign else 'disabled'} "
+                        f"(transcribe_language={transcribe_language!r}, "
+                        f"detected={detected_lang!r})"
+                    )
+
                     # Collect segments with real-time progress logging
                     result = []
                     segment_count = 0
@@ -1233,12 +1258,14 @@ class Transcriber:
                                     "end": w.end
                                 })
 
-                        # Detect non-English segments (potential DAI ads)
+                        # Detect non-English segments (potential DAI ads).
                         # Whisper segments don't have per-segment language, but we can
                         # detect non-English by checking for non-ASCII characters or
-                        # using the overall detected language with segment analysis
+                        # using the overall detected language with segment analysis.
                         segment_text = segment.text.strip()
-                        is_foreign = self._detect_non_english_segment(segment_text, detected_lang)
+                        is_foreign = should_detect_foreign and self._detect_non_english_segment(
+                            segment_text, detected_lang
+                        )
 
                         segment_dict = {
                             "start": segment.start,
