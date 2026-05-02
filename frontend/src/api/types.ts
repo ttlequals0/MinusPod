@@ -14,8 +14,8 @@ export interface Feed {
   daiPlatform?: string;
   networkIdOverride?: string | null;
   autoProcessOverride?: boolean | null;
-  maxEpisodes?: number;
-  onlyExposeProcessedEpisodes?: boolean;
+  maxEpisodes?: number | null;
+  onlyExposeProcessedEpisodes?: boolean | null;
 }
 
 export interface Episode {
@@ -126,6 +126,8 @@ export interface Settings {
   verificationModel: SettingValue;
   whisperModel: SettingValue;
   autoProcessEnabled: SettingValueBoolean;
+  maxFeedEpisodes: SettingValueNumber;
+  onlyExposeProcessedDefault: SettingValueBoolean;
   audioBitrate: SettingValue;
   vttTranscriptsEnabled: SettingValueBoolean;
   chaptersEnabled: SettingValueBoolean;
@@ -149,6 +151,8 @@ export interface Settings {
     verificationModel: string;
     whisperModel: string;
     autoProcessEnabled: boolean;
+    maxFeedEpisodes: number;
+    onlyExposeProcessedDefault: boolean;
     vttTranscriptsEnabled: boolean;
     chaptersEnabled: boolean;
     chaptersModel: string;
@@ -171,6 +175,8 @@ export interface UpdateSettingsPayload {
   verificationModel?: string;
   whisperModel?: string;
   autoProcessEnabled?: boolean;
+  maxFeedEpisodes?: number;
+  onlyExposeProcessedDefault?: boolean;
   audioBitrate?: string;
   vttTranscriptsEnabled?: boolean;
   chaptersEnabled?: boolean;

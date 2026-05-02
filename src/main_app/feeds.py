@@ -256,13 +256,15 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
             if queued_count > 0:
                 refresh_logger.info(f"[{slug}] Queued {queued_count} new episode(s) for auto-processing")
 
-        # Modify feed URLs (pass storage to include Podcasting 2.0 tags)
-        feed_cap = podcast.get('max_episodes') or 300
+        # Modify feed URLs (pass storage to include Podcasting 2.0 tags).
+        # Both feed_cap and processed_only resolve per-feed override -> global
+        # default -> hard fallback via the database mixin.
+        feed_cap = db.get_max_episodes_for_podcast(slug, podcast=podcast)
         extra_episodes = db.get_processed_episodes_for_feed(podcast['id'])
 
-        # When the per-feed toggle is on, hide upstream entries that have not
-        # finished processing so auto-downloading clients don't hit a 503.
-        processed_only = bool(podcast.get('only_expose_processed_episodes'))
+        # When the resolved value is True, hide upstream entries that have
+        # not finished processing so auto-downloading clients don't hit 503.
+        processed_only = db.is_only_expose_processed_for_podcast(slug, podcast=podcast)
         processed_ids = None
         if processed_only:
             statuses, _ = db.get_episode_statuses_for_podcast(slug)

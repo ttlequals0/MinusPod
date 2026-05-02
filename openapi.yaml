@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.0.19
+  version: 2.0.20
   contact:
     name: MinusPod
   license:
@@ -246,11 +246,12 @@ paths:
                   type: integer
                   minimum: 10
                   maximum: 500
-                  description: Maximum number of episodes served in the RSS feed (default 300)
+                  description: Per-feed cap. Omit or set null to fall back to the global maxFeedEpisodes setting (default 300).
                 onlyExposeProcessedEpisodes:
-                  type: boolean
-                  default: false
-                  description: When true, the served RSS feed hides upstream episodes whose status is not 'processed'. Avoids podcast apps auto-downloading episodes that 503 because they are still queued.
+                  type:
+                    - boolean
+                    - 'null'
+                  description: Per-feed override. true hides non-processed episodes; false shows everything; null falls back to the global onlyExposeProcessedDefault setting.
       responses:
         '201':
           description: Feed created successfully
@@ -463,13 +464,17 @@ paths:
                     - 'null'
                   description: Override auto-process setting (null uses global)
                 maxEpisodes:
-                  type: integer
+                  type:
+                    - integer
+                    - 'null'
                   minimum: 10
                   maximum: 500
-                  description: Maximum number of episodes served in the RSS feed (default 300)
+                  description: Per-feed cap. Set null to fall back to the global maxFeedEpisodes setting.
                 onlyExposeProcessedEpisodes:
-                  type: boolean
-                  description: When true, hide upstream episodes that are not yet status='processed' from the served RSS feed (issue #181).
+                  type:
+                    - boolean
+                    - 'null'
+                  description: Per-feed override. true hides non-processed episodes; false shows everything; null falls back to the global onlyExposeProcessedDefault setting.
       responses:
         '200':
           description: Feed updated successfully
@@ -2631,6 +2636,15 @@ paths:
                 autoProcessEnabled:
                   type: boolean
                   description: Enable automatic processing of new episodes when feeds refresh
+                maxFeedEpisodes:
+                  type: integer
+                  minimum: 10
+                  maximum: 500
+                  description: Global default cap on episodes returned in served RSS feeds. Overridden by per-feed maxEpisodes when set.
+                  example: 300
+                onlyExposeProcessedDefault:
+                  type: boolean
+                  description: Global default for hiding upstream episodes whose status is not 'processed' from served RSS feeds. Overridden by per-feed onlyExposeProcessedEpisodes when set.
                 minCutConfidence:
                   type: number
                   format: float
@@ -3728,11 +3742,12 @@ components:
             - 'null'
           minimum: 10
           maximum: 500
-          description: Max episodes served to podcast clients via modified RSS. Null uses default (300).
+          description: Per-feed cap on episodes served via modified RSS. Null means use the global maxFeedEpisodes setting (default 300).
         onlyExposeProcessedEpisodes:
-          type: boolean
-          default: false
-          description: When true, the served RSS feed hides upstream episodes whose status is not 'processed'. Prevents auto-downloading podcast apps from hitting 503 on queued episodes (issue #181).
+          type:
+            - boolean
+            - 'null'
+          description: Per-feed override for hiding upstream episodes whose status is not 'processed' from the served RSS feed. Null means use the global onlyExposeProcessedDefault setting. true/false override the global for this feed (issue #181).
 
     EpisodeSummary:
       type: object
@@ -4053,6 +4068,24 @@ components:
               description: Whether auto-processing of new episodes is enabled
             isDefault:
               type: boolean
+        maxFeedEpisodes:
+          type: object
+          properties:
+            value:
+              type: integer
+              minimum: 10
+              maximum: 500
+              description: Global default cap on episodes returned in served RSS feeds (per-feed maxEpisodes overrides when set)
+            isDefault:
+              type: boolean
+        onlyExposeProcessedDefault:
+          type: object
+          properties:
+            value:
+              type: boolean
+              description: Global default for hiding non-processed episodes from served feeds (per-feed onlyExposeProcessedEpisodes overrides when set)
+            isDefault:
+              type: boolean
         minCutConfidence:
           type: object
           properties:
@@ -4128,6 +4161,10 @@ components:
               type: number
               format: float
             autoProcessEnabled:
+              type: boolean
+            maxFeedEpisodes:
+              type: integer
+            onlyExposeProcessedDefault:
               type: boolean
             minCutConfidence:
               type: number

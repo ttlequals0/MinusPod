@@ -247,8 +247,7 @@ The server includes a web-based management UI at `/ui/`:
 - Settings for LLM provider, AI models, ad detection prompts, retention, system stats, token usage and cost
 - Real-time status bar showing processing progress across all pages
 - OPML export with original or ad-free (modified) feed URLs
-- Per-feed auto-process control (enable, disable, or use global default)
-- Per-feed "only expose processed episodes in feed" toggle: when enabled, the served RSS feed hides upstream episodes that haven't finished processing, so podcast apps don't auto-download an episode that would 503
+- Global Defaults group in settings (Auto-Process, Max Feed Episodes, Only Expose Processed) that every feed inherits, with per-feed overrides on each feed's settings page
 - Webhook notifications for processed episodes and auth failures
 - Podcast search via PodcastIndex.org
 - Multiple dark themes (Tokyo Night, Dracula, Catppuccin, Nord, Gruvbox, Solarized, and more) with light/dark toggle

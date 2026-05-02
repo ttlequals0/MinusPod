@@ -267,6 +267,22 @@ def _deserialize_auto_process(value):
     return None
 
 
+def _serialize_nullable_bool(value):
+    """API bool/null -> DB int 1/0/None for tri-state boolean columns
+    where None means 'use the matching global default setting'."""
+    if value is None:
+        return None
+    return 1 if value else 0
+
+
+def _deserialize_nullable_bool(value):
+    """DB int 1/0/None -> API True/False/None for tri-state boolean
+    columns. None preserves 'use global default' semantics on the wire."""
+    if value is None:
+        return None
+    return bool(value)
+
+
 def get_sponsor_service():
     """Get sponsor service instance."""
     from sponsor_service import SponsorService

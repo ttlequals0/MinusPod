@@ -78,6 +78,15 @@ def get_settings():
     vtt_enabled = vtt_value.lower() in ('true', '1', 'yes')
     chapters_value = _setting_value(settings, 'chapters_enabled', 'true')
     chapters_enabled = chapters_value.lower() in ('true', '1', 'yes')
+    only_expose_processed_value = _setting_value(
+        settings, 'only_expose_processed_default', 'false')
+    only_expose_processed_default = (
+        only_expose_processed_value.lower() in ('true', '1', 'yes'))
+
+    try:
+        max_feed_episodes = int(_setting_value(settings, 'max_feed_episodes', '300'))
+    except (ValueError, TypeError):
+        max_feed_episodes = 300
 
     # Get min cut confidence (ad detection aggressiveness)
     try:
@@ -138,6 +147,9 @@ def get_settings():
         'verificationModel': _sv('verification_model', verification_model),
         'whisperModel': _sv('whisper_model', whisper_model),
         'autoProcessEnabled': _sv('auto_process_enabled', auto_process_enabled),
+        'maxFeedEpisodes': _sv('max_feed_episodes', max_feed_episodes),
+        'onlyExposeProcessedDefault': _sv(
+            'only_expose_processed_default', only_expose_processed_default),
         'vttTranscriptsEnabled': _sv('vtt_transcripts_enabled', vtt_enabled),
         'chaptersEnabled': _sv('chapters_enabled', chapters_enabled),
         'chaptersModel': _sv('chapters_model', chapters_model),
@@ -166,6 +178,8 @@ def get_settings():
             'verificationModel': DEFAULT_MODEL,
             'whisperModel': default_whisper_model,
             'autoProcessEnabled': True,
+            'maxFeedEpisodes': 300,
+            'onlyExposeProcessedDefault': False,
             'vttTranscriptsEnabled': True,
             'chaptersEnabled': True,
             'chaptersModel': CHAPTERS_MODEL,
@@ -227,6 +241,21 @@ def update_ad_detection_settings():
         value = 'true' if data['autoProcessEnabled'] else 'false'
         db.set_setting('auto_process_enabled', value, is_default=False)
         logger.info(f"Updated auto-process to: {value}")
+
+    if 'maxFeedEpisodes' in data:
+        try:
+            max_ep = int(data['maxFeedEpisodes'])
+        except (TypeError, ValueError):
+            return error_response('maxFeedEpisodes must be an integer', 400)
+        if max_ep < 10 or max_ep > 500:
+            return error_response('maxFeedEpisodes must be between 10 and 500', 400)
+        db.set_setting('max_feed_episodes', str(max_ep), is_default=False)
+        logger.info(f"Updated max feed episodes to: {max_ep}")
+
+    if 'onlyExposeProcessedDefault' in data:
+        value = 'true' if data['onlyExposeProcessedDefault'] else 'false'
+        db.set_setting('only_expose_processed_default', value, is_default=False)
+        logger.info(f"Updated only-expose-processed default to: {value}")
 
     if 'vttTranscriptsEnabled' in data:
         value = 'true' if data['vttTranscriptsEnabled'] else 'false'

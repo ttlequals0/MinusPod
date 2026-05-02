@@ -6,6 +6,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.20] - 2026-05-02
+
+Adds a Global Defaults group to the settings page (under "AI & Processing") that controls auto-process, max episodes per served feed, and "only expose processed episodes" as site-wide defaults. The two existing per-feed knobs that previously hardcoded their fallbacks now resolve through these globals; the `only_expose_processed_episodes` per-feed column becomes tri-state (per-feed override -> global default), matching how `auto_process_override` already worked.
+
+### Added
+
+- Settings: two new keys in the settings table -- `max_feed_episodes` (int, default 300) and `only_expose_processed_default` (bool, default false). Seeded via `_seed_default_settings()`. Existing `auto_process_enabled` is now grouped with them in the UI.
+- `src/database/podcasts.py`: `get_max_episodes_for_podcast(slug, podcast=None)` and `is_only_expose_processed_for_podcast(slug, podcast=None)` resolvers (per-feed value when set, else global, else hard fallback). Mirror the `is_auto_process_enabled_for_podcast` shape.
+- `src/api/__init__.py`: `_serialize_nullable_bool` / `_deserialize_nullable_bool` for tri-state INTEGER columns where None means "use the matching global default."
+- `frontend/src/pages/settings/GlobalDefaultsSection.tsx`: new section component matching the project's CollapsibleSection + custom toggle div + number input patterns.
+- API: `GET /api/v1/settings` and `PUT /api/v1/settings/ad-detection` accept `maxFeedEpisodes` and `onlyExposeProcessedDefault`.
+- OpenAPI: `Settings` schema and POST/PATCH `/feeds` request bodies updated.
+
+### Changed
+
+- `podcasts.only_expose_processed_episodes` schema: `INTEGER DEFAULT 0` -> plain nullable `INTEGER`. Idempotent migration runs the 4-step ALTER chain (add v2 column, copy values, drop old, rename) only when the existing column has a default. Existing per-feed values: `1` is preserved (explicit override-on); `0` becomes `NULL` (resolves to the global default, which seeds as off, so no behavior change).
+- `frontend/src/pages/AddFeed.tsx` + `FeedDetail.tsx`: per-feed control becomes a tri-state select (Global Default / Enabled / Disabled), matching the existing `autoProcessOverride` pattern.
+- `src/main_app/feeds.py` `refresh_rss_feed`: routes both `feed_cap` and `processed_only` through the new resolvers instead of inline `or 300` and `bool(...)`.
+- `src/api/feeds.py`: `maxEpisodes` and `onlyExposeProcessedEpisodes` in feed responses now return null when the per-feed value is not set (was: false / 300). Frontend types updated to `boolean | null` and `number | null`.
+- `Settings` page "Audio" section: removed the static "Audio Analysis" subsection (no controls, just descriptive text -- the section already documented behavior elsewhere).
+- `frontend/src/pages/settings/AdDetectionSection.tsx`: auto-process toggle moved out (now in Global Defaults). Section now hosts only the minimum-confidence slider.
+
 ## [2.0.19] - 2026-05-02
 
 Add a per-feed advanced toggle ([#181](https://github.com/ttlequals0/MinusPod/issues/181)) that hides upstream episodes whose database status is not `processed` from the served RSS feed. Default OFF (no behavior change). Auto-downloading podcast apps (e.g. AntennaPod) currently see new episodes immediately and request the rewritten audio URL while the episode is still in `discovered` / `processing` / `permanently_failed`, which surfaces a 503 as a download error rather than a transparent retry. With this toggle ON, the feed only exposes an episode once it has actually been processed.

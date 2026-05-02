@@ -5,7 +5,7 @@ import { addFeed, importOpml, OpmlImportResult, getFeeds } from '../api/feeds';
 import { searchPodcasts, PodcastSearchResult } from '../api/podcastSearch';
 import { getSettings } from '../api/settings';
 import LoadingSpinner from '../components/LoadingSpinner';
-import Checkbox from '../components/Checkbox';
+import TriStateSelect from '../components/TriStateSelect';
 
 // URL validation patterns
 const URL_PATTERN = /^https?:\/\/[a-zA-Z0-9][-a-zA-Z0-9]*(\.[a-zA-Z0-9][-a-zA-Z0-9]*)+.*$/;
@@ -152,7 +152,7 @@ function AddFeed() {
   const [customSlug, setCustomSlug] = useState('');
   const [autoProcessOverride, setAutoProcessOverride] = useState<boolean | null>(null);
   const [maxEpisodes, setMaxEpisodes] = useState<string>('');
-  const [onlyExposeProcessedEpisodes, setOnlyExposeProcessedEpisodes] = useState(false);
+  const [onlyExposeProcessedEpisodes, setOnlyExposeProcessedEpisodes] = useState<boolean | null>(null);
 
   // Search state
   const [searchResults, setSearchResults] = useState<PodcastSearchResult[]>([]);
@@ -219,7 +219,7 @@ function AddFeed() {
 
   // Add feed mutation (for URL submit)
   const mutation = useMutation({
-    mutationFn: () => addFeed(inputValue, customSlug || undefined, autoProcessOverride, maxEpisodes ? parseInt(maxEpisodes, 10) : undefined, onlyExposeProcessedEpisodes || undefined),
+    mutationFn: () => addFeed(inputValue, customSlug || undefined, autoProcessOverride, maxEpisodes ? parseInt(maxEpisodes, 10) : undefined, onlyExposeProcessedEpisodes ?? undefined),
     onSuccess: (feed) => {
       queryClient.invalidateQueries({ queryKey: ['feeds'] });
       navigate(`/feeds/${feed.slug}`);
@@ -230,7 +230,7 @@ function AddFeed() {
   const addFromSearch = useCallback(async (feedUrl: string) => {
     setAddingFeedUrl(feedUrl);
     try {
-      const feed = await addFeed(feedUrl, customSlug || undefined, autoProcessOverride, maxEpisodes ? parseInt(maxEpisodes, 10) : undefined, onlyExposeProcessedEpisodes || undefined);
+      const feed = await addFeed(feedUrl, customSlug || undefined, autoProcessOverride, maxEpisodes ? parseInt(maxEpisodes, 10) : undefined, onlyExposeProcessedEpisodes ?? undefined);
       queryClient.invalidateQueries({ queryKey: ['feeds'] });
       navigate(`/feeds/${feed.slug}`);
     } finally {
@@ -396,20 +396,18 @@ function AddFeed() {
               </p>
             </div>
 
-            <div className="flex items-start gap-3">
-              <Checkbox
-                checked={onlyExposeProcessedEpisodes}
+            <div>
+              <label htmlFor="onlyExposeProcessedEpisodes" className="block text-sm font-medium text-foreground mb-2">
+                Only expose processed episodes in feed
+              </label>
+              <TriStateSelect
+                id="onlyExposeProcessedEpisodes"
+                value={onlyExposeProcessedEpisodes}
                 onChange={setOnlyExposeProcessedEpisodes}
-                className="mt-1"
               />
-              <div>
-                <span className="block text-sm font-medium text-foreground">
-                  Only expose processed episodes in feed
-                </span>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Hides upstream episodes from the served RSS feed until they finish processing. Prevents podcast apps from auto-downloading episodes that 503 because they are still queued.
-                </p>
-              </div>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Hides upstream episodes from the served RSS feed until they finish processing. "Global Default" follows the site-wide setting; per-feed values override it.
+              </p>
             </div>
           </div>
         </details>

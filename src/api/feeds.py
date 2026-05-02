@@ -11,6 +11,7 @@ from api import (
     api, limiter, log_request, json_response, error_response,
     get_database, get_storage,
     _serialize_auto_process, _deserialize_auto_process,
+    _serialize_nullable_bool, _deserialize_nullable_bool,
 )
 from utils.url import validate_url, SSRFError
 
@@ -47,8 +48,8 @@ def list_feeds():
             'lastEpisodeDate': podcast.get('last_episode_date'),
             'networkId': podcast.get('network_id'),
             'daiPlatform': podcast.get('dai_platform'),
-            'maxEpisodes': podcast.get('max_episodes') or 300,
-            'onlyExposeProcessedEpisodes': bool(podcast.get('only_expose_processed_episodes')),
+            'maxEpisodes': podcast.get('max_episodes'),
+            'onlyExposeProcessedEpisodes': _deserialize_nullable_bool(podcast.get('only_expose_processed_episodes')),
         })
 
     return json_response({'feeds': feeds})
@@ -136,9 +137,12 @@ def add_feed():
             max_ep = max(10, min(int(max_ep), 500))
             db.update_podcast(slug, max_episodes=max_ep)
 
-        only_processed = data.get('onlyExposeProcessedEpisodes')
-        if only_processed is not None:
-            db.update_podcast(slug, only_expose_processed_episodes=1 if only_processed else 0)
+        if 'onlyExposeProcessedEpisodes' in data:
+            db.update_podcast(
+                slug,
+                only_expose_processed_episodes=_serialize_nullable_bool(
+                    data['onlyExposeProcessedEpisodes']),
+            )
 
         # Invalidate feed cache since we added a new feed
         from main_app.feeds import invalidate_feed_cache
@@ -382,8 +386,8 @@ def get_feed(slug):
         'daiPlatform': podcast.get('dai_platform'),
         'networkIdOverride': podcast.get('network_id_override'),
         'autoProcessOverride': auto_process_override_result,
-        'maxEpisodes': podcast.get('max_episodes') or 300,
-        'onlyExposeProcessedEpisodes': bool(podcast.get('only_expose_processed_episodes')),
+        'maxEpisodes': podcast.get('max_episodes'),
+        'onlyExposeProcessedEpisodes': _deserialize_nullable_bool(podcast.get('only_expose_processed_episodes')),
     })
 
 
@@ -429,7 +433,8 @@ def update_feed(slug):
         updates['max_episodes'] = max_ep
 
     if 'onlyExposeProcessedEpisodes' in data:
-        updates['only_expose_processed_episodes'] = 1 if data['onlyExposeProcessedEpisodes'] else 0
+        updates['only_expose_processed_episodes'] = _serialize_nullable_bool(
+            data['onlyExposeProcessedEpisodes'])
 
     if not updates:
         return error_response('No valid fields to update', 400)
@@ -464,8 +469,8 @@ def update_feed(slug):
             'networkId': podcast.get('network_id'),
             'daiPlatform': podcast.get('dai_platform'),
             'networkIdOverride': podcast.get('network_id_override'),
-            'maxEpisodes': podcast.get('max_episodes') or 300,
-            'onlyExposeProcessedEpisodes': bool(podcast.get('only_expose_processed_episodes')),
+            'maxEpisodes': podcast.get('max_episodes'),
+            'onlyExposeProcessedEpisodes': _deserialize_nullable_bool(podcast.get('only_expose_processed_episodes')),
             'feedUrl': f"{base_url}/{slug}"
         })
     except Exception as e:

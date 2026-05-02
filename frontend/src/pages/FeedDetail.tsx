@@ -7,7 +7,7 @@ import CopyButton from '../components/CopyButton';
 import DropdownMenu from '../components/DropdownMenu';
 import EpisodeList from '../components/EpisodeList';
 import LoadingSpinner from '../components/LoadingSpinner';
-import Checkbox from '../components/Checkbox';
+import TriStateSelect from '../components/TriStateSelect';
 import { formatStorage } from './settings/settingsUtils';
 
 function FeedDetail() {
@@ -70,7 +70,7 @@ function FeedDetail() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: { networkIdOverride?: string | null; daiPlatform?: string; autoProcessOverride?: boolean | null; maxEpisodes?: number | null; onlyExposeProcessedEpisodes?: boolean }) => updateFeed(slug!, data),
+    mutationFn: (data: { networkIdOverride?: string | null; daiPlatform?: string; autoProcessOverride?: boolean | null; maxEpisodes?: number | null; onlyExposeProcessedEpisodes?: boolean | null }) => updateFeed(slug!, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['feed', slug] });
       setIsEditingNetwork(false);
@@ -341,18 +341,24 @@ function FeedDetail() {
                 </div>
               </div>
 
-              <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap sm:mt-0.5">Hide unprocessed:</span>
-                <div className="flex items-start gap-2">
-                  <Checkbox
-                    checked={!!feed.onlyExposeProcessedEpisodes}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
+                <span className="text-muted-foreground whitespace-nowrap">Hide unprocessed:</span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <TriStateSelect
+                    value={feed.onlyExposeProcessedEpisodes}
+                    onChange={(next) => updateMutation.mutate({ onlyExposeProcessedEpisodes: next })}
                     disabled={updateMutation.isPending}
-                    onChange={(checked) => updateMutation.mutate({ onlyExposeProcessedEpisodes: checked })}
-                    className="mt-0.5"
+                    className="px-2 py-1.5 text-sm bg-secondary border border-border rounded flex-1 sm:flex-none min-w-0"
                   />
-                  <span className="text-muted-foreground">
-                    Only expose episodes whose status is <code className="bg-secondary px-1 rounded">processed</code> in the served RSS feed. Default: off.
-                  </span>
+                  {feed.onlyExposeProcessedEpisodes !== null && feed.onlyExposeProcessedEpisodes !== undefined && (
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                      feed.onlyExposeProcessedEpisodes
+                        ? 'bg-green-500/20 text-green-600 dark:text-green-400'
+                        : 'bg-red-500/20 text-red-600 dark:text-red-400'
+                    }`}>
+                      {feed.onlyExposeProcessedEpisodes ? 'Hiding' : 'Showing all'}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>

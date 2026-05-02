@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS podcasts (
     auto_process_override TEXT,
     skip_second_pass INTEGER DEFAULT 0,
     max_episodes INTEGER,
-    only_expose_processed_episodes INTEGER DEFAULT 0,
+    only_expose_processed_episodes INTEGER,
     created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
@@ -548,10 +548,44 @@ class SchemaMixin:
             ('max_episodes', 'INTEGER'),
             ('etag', 'TEXT'),
             ('last_modified_header', 'TEXT'),
-            ('only_expose_processed_episodes', 'INTEGER DEFAULT 0'),
+            # Plain INTEGER (nullable, no DEFAULT) so NULL means "use the
+            # only_expose_processed_default global setting" (2.0.20+). On
+            # databases created at 2.0.19 the column was INTEGER DEFAULT 0;
+            # the conversion step below rewrites that to match.
+            ('only_expose_processed_episodes', 'INTEGER'),
         ]
         for col, definition in podcasts_migrations:
             self._add_column_if_missing(conn, 'podcasts', col, definition, pod_cols)
+
+        # 2.0.19 -> 2.0.20: convert only_expose_processed_episodes from
+        # INTEGER DEFAULT 0 to plain nullable INTEGER, treating the previous
+        # 0 default as "use global default" (NULL). Explicit per-feed 1
+        # values (override-ON) are preserved verbatim. Idempotent: the
+        # PRAGMA check below short-circuits once the column has no default.
+        col_info = conn.execute("PRAGMA table_info(podcasts)").fetchall()
+        oepe_col = next((row for row in col_info
+                         if row['name'] == 'only_expose_processed_episodes'), None)
+        if oepe_col is not None and oepe_col['dflt_value'] is not None:
+            logger.info(
+                "Converting podcasts.only_expose_processed_episodes "
+                "from INTEGER DEFAULT 0 to plain nullable INTEGER"
+            )
+            conn.execute(
+                "ALTER TABLE podcasts ADD COLUMN "
+                "only_expose_processed_episodes_v2 INTEGER"
+            )
+            conn.execute(
+                "UPDATE podcasts SET only_expose_processed_episodes_v2 = "
+                "CASE WHEN only_expose_processed_episodes = 1 THEN 1 ELSE NULL END"
+            )
+            conn.execute(
+                "ALTER TABLE podcasts DROP COLUMN only_expose_processed_episodes"
+            )
+            conn.execute(
+                "ALTER TABLE podcasts RENAME COLUMN "
+                "only_expose_processed_episodes_v2 TO only_expose_processed_episodes"
+            )
+            conn.commit()
 
         # Backfill: pre-v1.0.41 rows may store RFC 2822 dates which break
         # SQLite lexicographic sorting.  After first run this is a no-op.
@@ -1390,6 +1424,22 @@ class SchemaMixin:
             """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
                ON CONFLICT(key) DO NOTHING""",
             ('auto_process_enabled', 'true')
+        )
+
+        # Default cap on episodes returned in served RSS feeds (per-feed
+        # max_episodes overrides this when set).
+        conn.execute(
+            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
+               ON CONFLICT(key) DO NOTHING""",
+            ('max_feed_episodes', '300')
+        )
+
+        # Global default for hiding unprocessed episodes from served RSS
+        # feeds (per-feed only_expose_processed_episodes overrides when set).
+        conn.execute(
+            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
+               ON CONFLICT(key) DO NOTHING""",
+            ('only_expose_processed_default', 'false')
         )
 
         # Audio output bitrate (defaults to 128k)
