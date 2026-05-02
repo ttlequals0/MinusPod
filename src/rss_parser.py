@@ -442,7 +442,7 @@ class RSSParser:
         lines.append('</channel>')
         lines.append('</rss>')
 
-        total_episodes = len(entries) + appended_count
+        total_episodes = len(included_episode_ids) + appended_count
         modified_rss = '\n'.join(lines)
         logger.info(f"[{slug}] Modified RSS feed with {total_episodes} episodes ({appended_count} appended from DB)")
         return modified_rss
