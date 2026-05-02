@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS podcasts (
     auto_process_override TEXT,
     skip_second_pass INTEGER DEFAULT 0,
     max_episodes INTEGER,
+    only_expose_processed_episodes INTEGER DEFAULT 0,
     created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
@@ -547,6 +548,7 @@ class SchemaMixin:
             ('max_episodes', 'INTEGER'),
             ('etag', 'TEXT'),
             ('last_modified_header', 'TEXT'),
+            ('only_expose_processed_episodes', 'INTEGER DEFAULT 0'),
         ]
         for col, definition in podcasts_migrations:
             self._add_column_if_missing(conn, 'podcasts', col, definition, pod_cols)

@@ -259,9 +259,21 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
         # Modify feed URLs (pass storage to include Podcasting 2.0 tags)
         feed_cap = podcast.get('max_episodes') or 300
         extra_episodes = db.get_processed_episodes_for_feed(podcast['id'])
+
+        # When the per-feed toggle is on, hide upstream entries that have not
+        # finished processing so auto-downloading clients don't hit a 503.
+        processed_only = bool(podcast.get('only_expose_processed_episodes'))
+        processed_ids = None
+        if processed_only:
+            statuses, _ = db.get_episode_statuses_for_podcast(slug)
+            processed_ids = {eid for eid, status in statuses.items()
+                             if status == 'processed'}
+
         modified_rss = rss_parser.modify_feed(feed_content, slug, storage=storage,
                                                max_episodes=feed_cap,
-                                               extra_episodes=extra_episodes)
+                                               extra_episodes=extra_episodes,
+                                               processed_only=processed_only,
+                                               processed_episode_ids=processed_ids)
 
         # Save modified RSS
         storage.save_rss(slug, modified_rss)

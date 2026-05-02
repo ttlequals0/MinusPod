@@ -7,6 +7,7 @@ import CopyButton from '../components/CopyButton';
 import DropdownMenu from '../components/DropdownMenu';
 import EpisodeList from '../components/EpisodeList';
 import LoadingSpinner from '../components/LoadingSpinner';
+import Checkbox from '../components/Checkbox';
 import { formatStorage } from './settings/settingsUtils';
 
 function FeedDetail() {
@@ -69,7 +70,7 @@ function FeedDetail() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: { networkIdOverride?: string | null; daiPlatform?: string; autoProcessOverride?: boolean | null; maxEpisodes?: number | null }) => updateFeed(slug!, data),
+    mutationFn: (data: { networkIdOverride?: string | null; daiPlatform?: string; autoProcessOverride?: boolean | null; maxEpisodes?: number | null; onlyExposeProcessedEpisodes?: boolean }) => updateFeed(slug!, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['feed', slug] });
       setIsEditingNetwork(false);
@@ -337,6 +338,21 @@ function FeedDetail() {
                       {feed.autoProcessOverride ? 'Enabled' : 'Disabled'}
                     </span>
                   )}
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
+                <span className="text-muted-foreground whitespace-nowrap sm:mt-0.5">Hide unprocessed:</span>
+                <div className="flex items-start gap-2">
+                  <Checkbox
+                    checked={!!feed.onlyExposeProcessedEpisodes}
+                    disabled={updateMutation.isPending}
+                    onChange={(checked) => updateMutation.mutate({ onlyExposeProcessedEpisodes: checked })}
+                    className="mt-0.5"
+                  />
+                  <span className="text-muted-foreground">
+                    Only expose episodes whose status is <code className="bg-secondary px-1 rounded">processed</code> in the served RSS feed. Default: off.
+                  </span>
                 </div>
               </div>
             </div>

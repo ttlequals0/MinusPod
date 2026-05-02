@@ -6,6 +6,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.19] - 2026-05-02
+
+Add a per-feed advanced toggle ([#181](https://github.com/ttlequals0/MinusPod/issues/181)) that hides upstream episodes whose database status is not `processed` from the served RSS feed. Default OFF (no behavior change). Auto-downloading podcast apps (e.g. AntennaPod) currently see new episodes immediately and request the rewritten audio URL while the episode is still in `discovered` / `processing` / `permanently_failed`, which surfaces a 503 as a download error rather than a transparent retry. With this toggle ON, the feed only exposes an episode once it has actually been processed.
+
+### Added
+
+- `src/database/schema.py`: new `podcasts.only_expose_processed_episodes INTEGER DEFAULT 0` column (idempotent ALTER TABLE migration; existing feeds default to OFF).
+- `src/rss_parser.py`: `RSSParser.modify_feed` accepts `processed_only` and `processed_episode_ids` parameters; entries whose `episode_id` is not in the allow-list are skipped before URL rewrite. `rss_parser` stays DB-free (caller supplies the allow-list).
+- `src/main_app/feeds.py` `refresh_rss_feed`: reads the new column off the loaded podcast row, calls `db.get_episode_statuses_for_podcast(slug)` once when the flag is ON, and passes the `'processed'`-only allow-list through to `modify_feed`.
+- `src/api/feeds.py`: `onlyExposeProcessedEpisodes` accepted on `POST /feeds` and `PATCH /feeds/{slug}`, surfaced on `GET /feeds`, `GET /feeds/{slug}`, and the PATCH response. Field changes on PATCH trigger an immediate `refresh_rss_feed` so the served RSS reflects the new value without waiting for the 15-minute cache.
+- `frontend/src/api/types.ts`, `frontend/src/api/feeds.ts`: `onlyExposeProcessedEpisodes` on the `Feed` interface, `addFeed()` signature, and `UpdateFeedPayload`.
+- `frontend/src/pages/AddFeed.tsx`: checkbox in the existing "Advanced options" `<details>` block, piped through to `addFeed(...)`.
+- `frontend/src/pages/FeedDetail.tsx`: checkbox row alongside the existing per-feed settings, calls `updateFeed(...)` on change.
+- `tests/unit/test_rss_parser_processed_only.py`: parametrized cases covering default OFF (regression guard), ON with a populated allow-list, ON with an empty allow-list (channel metadata preserved, zero items).
+
 ## [2.0.18] - 2026-04-29
 
 Fix [#179](https://github.com/ttlequals0/MinusPod/issues/179): non-English podcasts had nearly every segment flagged as an ad. The "Pre-detect non-English segments as automatic ads (DAI in other languages)" heuristic in `src/transcriber.py` looks at non-ASCII character ratio and Spanish-specific keywords to flag segments. It was designed to catch foreign-language ads inserted into English podcasts (Dynamic Ad Insertion targeting Spanish-speaking audiences) but had no awareness of the configured `whisper_language` setting, so it false-positived entire foreign-language episodes.

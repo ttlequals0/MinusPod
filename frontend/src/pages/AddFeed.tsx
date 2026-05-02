@@ -5,6 +5,7 @@ import { addFeed, importOpml, OpmlImportResult, getFeeds } from '../api/feeds';
 import { searchPodcasts, PodcastSearchResult } from '../api/podcastSearch';
 import { getSettings } from '../api/settings';
 import LoadingSpinner from '../components/LoadingSpinner';
+import Checkbox from '../components/Checkbox';
 
 // URL validation patterns
 const URL_PATTERN = /^https?:\/\/[a-zA-Z0-9][-a-zA-Z0-9]*(\.[a-zA-Z0-9][-a-zA-Z0-9]*)+.*$/;
@@ -151,6 +152,7 @@ function AddFeed() {
   const [customSlug, setCustomSlug] = useState('');
   const [autoProcessOverride, setAutoProcessOverride] = useState<boolean | null>(null);
   const [maxEpisodes, setMaxEpisodes] = useState<string>('');
+  const [onlyExposeProcessedEpisodes, setOnlyExposeProcessedEpisodes] = useState(false);
 
   // Search state
   const [searchResults, setSearchResults] = useState<PodcastSearchResult[]>([]);
@@ -217,7 +219,7 @@ function AddFeed() {
 
   // Add feed mutation (for URL submit)
   const mutation = useMutation({
-    mutationFn: () => addFeed(inputValue, customSlug || undefined, autoProcessOverride, maxEpisodes ? parseInt(maxEpisodes, 10) : undefined),
+    mutationFn: () => addFeed(inputValue, customSlug || undefined, autoProcessOverride, maxEpisodes ? parseInt(maxEpisodes, 10) : undefined, onlyExposeProcessedEpisodes || undefined),
     onSuccess: (feed) => {
       queryClient.invalidateQueries({ queryKey: ['feeds'] });
       navigate(`/feeds/${feed.slug}`);
@@ -228,7 +230,7 @@ function AddFeed() {
   const addFromSearch = useCallback(async (feedUrl: string) => {
     setAddingFeedUrl(feedUrl);
     try {
-      const feed = await addFeed(feedUrl, customSlug || undefined, autoProcessOverride, maxEpisodes ? parseInt(maxEpisodes, 10) : undefined);
+      const feed = await addFeed(feedUrl, customSlug || undefined, autoProcessOverride, maxEpisodes ? parseInt(maxEpisodes, 10) : undefined, onlyExposeProcessedEpisodes || undefined);
       queryClient.invalidateQueries({ queryKey: ['feeds'] });
       navigate(`/feeds/${feed.slug}`);
     } finally {
@@ -392,6 +394,22 @@ function AddFeed() {
               <p className="mt-1 text-sm text-muted-foreground">
                 Limits how many episodes are served to podcast clients. Max: 500.
               </p>
+            </div>
+
+            <div className="flex items-start gap-3">
+              <Checkbox
+                checked={onlyExposeProcessedEpisodes}
+                onChange={setOnlyExposeProcessedEpisodes}
+                className="mt-1"
+              />
+              <div>
+                <span className="block text-sm font-medium text-foreground">
+                  Only expose processed episodes in feed
+                </span>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  Hides upstream episodes from the served RSS feed until they finish processing. Prevents podcast apps from auto-downloading episodes that 503 because they are still queued.
+                </p>
+              </div>
             </div>
           </div>
         </details>

@@ -313,7 +313,9 @@ class RSSParser:
 
     def modify_feed(self, feed_content: str, slug: str, storage=None,
                     max_episodes: int = 300,
-                    extra_episodes: Optional[List[Dict]] = None) -> str:
+                    extra_episodes: Optional[List[Dict]] = None,
+                    processed_only: bool = False,
+                    processed_episode_ids: Optional[set] = None) -> str:
         """Modify RSS feed to use our server URLs.
 
         Args:
@@ -324,6 +326,12 @@ class RSSParser:
             extra_episodes: Processed episodes from DB to append beyond the cap.
                 Each dict must have: episode_id, title, description, published_at,
                 new_duration, episode_number.
+            processed_only: When True, upstream RSS entries whose episode_id is
+                not in processed_episode_ids are dropped from the served feed
+                (issue #181). extra_episodes are unaffected (already processed).
+            processed_episode_ids: Allow-list of episode_ids the caller has
+                determined to be status='processed'. Required when
+                processed_only=True; ignored otherwise.
         """
         feed = self.parse_feed(feed_content)
         if not feed:
@@ -375,6 +383,8 @@ class RSSParser:
                 continue
 
             episode_id = self.generate_episode_id(episode_url, entry.get('id'))
+            if processed_only and episode_id not in (processed_episode_ids or set()):
+                continue
             included_episode_ids.add(episode_id)
             modified_url = f"{self.base_url}/episodes/{slug}/{episode_id}.mp3"
 

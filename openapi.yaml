@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.0.18
+  version: 2.0.19
   contact:
     name: MinusPod
   license:
@@ -247,6 +247,10 @@ paths:
                   minimum: 10
                   maximum: 500
                   description: Maximum number of episodes served in the RSS feed (default 300)
+                onlyExposeProcessedEpisodes:
+                  type: boolean
+                  default: false
+                  description: When true, the served RSS feed hides upstream episodes whose status is not 'processed'. Avoids podcast apps auto-downloading episodes that 503 because they are still queued.
       responses:
         '201':
           description: Feed created successfully
@@ -463,6 +467,9 @@ paths:
                   minimum: 10
                   maximum: 500
                   description: Maximum number of episodes served in the RSS feed (default 300)
+                onlyExposeProcessedEpisodes:
+                  type: boolean
+                  description: When true, hide upstream episodes that are not yet status='processed' from the served RSS feed (issue #181).
       responses:
         '200':
           description: Feed updated successfully
@@ -3722,6 +3729,10 @@ components:
           minimum: 10
           maximum: 500
           description: Max episodes served to podcast clients via modified RSS. Null uses default (300).
+        onlyExposeProcessedEpisodes:
+          type: boolean
+          default: false
+          description: When true, the served RSS feed hides upstream episodes whose status is not 'processed'. Prevents auto-downloading podcast apps from hitting 503 on queued episodes (issue #181).
 
     EpisodeSummary:
       type: object

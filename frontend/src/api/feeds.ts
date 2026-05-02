@@ -10,7 +10,7 @@ export async function getFeed(slug: string): Promise<Feed> {
   return apiRequest<Feed>(`/feeds/${slug}`);
 }
 
-export async function addFeed(sourceUrl: string, slug?: string, autoProcessOverride?: boolean | null, maxEpisodes?: number): Promise<Feed> {
+export async function addFeed(sourceUrl: string, slug?: string, autoProcessOverride?: boolean | null, maxEpisodes?: number, onlyExposeProcessedEpisodes?: boolean): Promise<Feed> {
   return apiRequest<Feed>('/feeds', {
     method: 'POST',
     body: {
@@ -18,6 +18,7 @@ export async function addFeed(sourceUrl: string, slug?: string, autoProcessOverr
       slug,
       ...(autoProcessOverride != null && { autoProcessOverride }),
       ...(maxEpisodes != null && { maxEpisodes }),
+      ...(onlyExposeProcessedEpisodes != null && { onlyExposeProcessedEpisodes }),
     },
   });
 }
@@ -95,6 +96,7 @@ export interface UpdateFeedPayload {
   networkIdOverride?: string | null;
   autoProcessOverride?: boolean | null;
   maxEpisodes?: number | null;
+  onlyExposeProcessedEpisodes?: boolean;
 }
 
 export interface Network {

@@ -248,6 +248,7 @@ The server includes a web-based management UI at `/ui/`:
 - Real-time status bar showing processing progress across all pages
 - OPML export with original or ad-free (modified) feed URLs
 - Per-feed auto-process control (enable, disable, or use global default)
+- Per-feed "only expose processed episodes in feed" toggle: when enabled, the served RSS feed hides upstream episodes that haven't finished processing, so podcast apps don't auto-download an episode that would 503
 - Webhook notifications for processed episodes and auth failures
 - Podcast search via PodcastIndex.org
 - Multiple dark themes (Tokyo Night, Dracula, Catppuccin, Nord, Gruvbox, Solarized, and more) with light/dark toggle
@@ -857,7 +858,7 @@ Key endpoints:
 - `GET /api/v1/health` - Readiness check (database, storage); returns 503 if either is down
 - `GET /api/v1/health/live` - Liveness probe (process up); always 200, safe for frequent polling
 - `GET /api/v1/feeds` - List all feeds
-- `POST /api/v1/feeds` - Add a new feed (supports `maxEpisodes` for RSS cap)
+- `POST /api/v1/feeds` - Add a new feed (supports `maxEpisodes` for RSS cap, `onlyExposeProcessedEpisodes` to hide unprocessed episodes from the served feed)
 - `POST /api/v1/feeds/import-opml` - Import feeds from OPML file
 - `GET /api/v1/feeds/export-opml?mode=original|modified` - Export feeds as OPML (original or ad-free URLs)
 - `GET /api/v1/podcast-search?q=query` - Search podcasts via PodcastIndex.org

@@ -15,6 +15,7 @@ export interface Feed {
   networkIdOverride?: string | null;
   autoProcessOverride?: boolean | null;
   maxEpisodes?: number;
+  onlyExposeProcessedEpisodes?: boolean;
 }
 
 export interface Episode {
