@@ -357,21 +357,11 @@ function AddFeed() {
               <label htmlFor="autoProcess" className="block text-sm font-medium text-foreground mb-2">
                 Auto-Process
               </label>
-              <select
+              <TriStateSelect
                 id="autoProcess"
-                value={autoProcessOverride === true ? 'enable' : autoProcessOverride === false ? 'disable' : 'global'}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  if (value === 'enable') setAutoProcessOverride(true);
-                  else if (value === 'disable') setAutoProcessOverride(false);
-                  else setAutoProcessOverride(null);
-                }}
-                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
-              >
-                <option value="global">Global Default</option>
-                <option value="enable">Enabled</option>
-                <option value="disable">Disabled</option>
-              </select>
+                value={autoProcessOverride}
+                onChange={setAutoProcessOverride}
+              />
               <p className="mt-1 text-sm text-muted-foreground">
                 Controls whether new episodes are automatically processed.
               </p>

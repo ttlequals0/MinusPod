@@ -310,25 +310,12 @@ function FeedDetail() {
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
                 <span className="text-muted-foreground whitespace-nowrap">Auto-Process:</span>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <select
-                    value={
-                      feed.autoProcessOverride === true ? 'enable' :
-                      feed.autoProcessOverride === false ? 'disable' : 'global'
-                    }
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      let autoProcessOverride: boolean | null = null;
-                      if (value === 'enable') autoProcessOverride = true;
-                      else if (value === 'disable') autoProcessOverride = false;
-                      updateMutation.mutate({ autoProcessOverride: autoProcessOverride });
-                    }}
+                  <TriStateSelect
+                    value={feed.autoProcessOverride}
+                    onChange={(next) => updateMutation.mutate({ autoProcessOverride: next })}
                     disabled={updateMutation.isPending}
                     className="px-2 py-1.5 text-sm bg-secondary border border-border rounded flex-1 sm:flex-none min-w-0"
-                  >
-                    <option value="global">Global Default</option>
-                    <option value="enable">Enabled</option>
-                    <option value="disable">Disabled</option>
-                  </select>
+                  />
                   {feed.autoProcessOverride !== null && feed.autoProcessOverride !== undefined && (
                     <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                       feed.autoProcessOverride

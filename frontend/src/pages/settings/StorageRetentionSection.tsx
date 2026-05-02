@@ -1,4 +1,5 @@
 import CollapsibleSection from '../../components/CollapsibleSection';
+import ToggleSwitch from '../../components/ToggleSwitch';
 
 interface StorageRetentionSectionProps {
   keepOriginalAudio: boolean;
@@ -31,18 +32,11 @@ function StorageRetentionSection({
         <div>
           <div className="flex items-center gap-3 mb-3">
             <label className="flex items-center gap-3 cursor-pointer">
-              <div
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                  retentionEnabled ? 'bg-primary' : 'bg-secondary'
-                }`}
-                onClick={() => onRetentionEnabledChange(!retentionEnabled)}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    retentionEnabled ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </div>
+              <ToggleSwitch
+                checked={retentionEnabled}
+                onChange={onRetentionEnabledChange}
+                ariaLabel={retentionEnabled ? 'Retention enabled' : 'Retention disabled'}
+              />
               <span className="text-sm font-medium text-foreground">
                 {retentionEnabled ? 'Retention enabled' : 'Retention disabled'}
               </span>
@@ -82,18 +76,12 @@ function StorageRetentionSection({
 
         <div className="pt-4 border-t border-border">
           <label className="flex items-center gap-3 cursor-pointer">
-            <div
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                keepOriginalAudio ? 'bg-primary' : 'bg-secondary'
-              } ${keepOriginalSaveIsPending ? 'opacity-50' : ''}`}
-              onClick={() => !keepOriginalSaveIsPending && onKeepOriginalAudioChange(!keepOriginalAudio)}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  keepOriginalAudio ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </div>
+            <ToggleSwitch
+              checked={keepOriginalAudio}
+              onChange={onKeepOriginalAudioChange}
+              disabled={keepOriginalSaveIsPending}
+              ariaLabel="Keep original audio for ad boundary review"
+            />
             <span className="text-sm font-medium text-foreground">
               Keep original audio for ad boundary review
             </span>
