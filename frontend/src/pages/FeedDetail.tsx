@@ -7,6 +7,7 @@ import CopyButton from '../components/CopyButton';
 import DropdownMenu from '../components/DropdownMenu';
 import EpisodeList from '../components/EpisodeList';
 import LoadingSpinner from '../components/LoadingSpinner';
+import TriStateSelect from '../components/TriStateSelect';
 import { formatStorage } from './settings/settingsUtils';
 
 function FeedDetail() {
@@ -69,7 +70,7 @@ function FeedDetail() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: { networkIdOverride?: string | null; daiPlatform?: string; autoProcessOverride?: boolean | null; maxEpisodes?: number | null }) => updateFeed(slug!, data),
+    mutationFn: (data: { networkIdOverride?: string | null; daiPlatform?: string; autoProcessOverride?: boolean | null; maxEpisodes?: number | null; onlyExposeProcessedEpisodes?: boolean | null }) => updateFeed(slug!, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['feed', slug] });
       setIsEditingNetwork(false);
@@ -309,25 +310,12 @@ function FeedDetail() {
               <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
                 <span className="text-muted-foreground whitespace-nowrap">Auto-Process:</span>
                 <div className="flex items-center gap-2 flex-wrap">
-                  <select
-                    value={
-                      feed.autoProcessOverride === true ? 'enable' :
-                      feed.autoProcessOverride === false ? 'disable' : 'global'
-                    }
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      let autoProcessOverride: boolean | null = null;
-                      if (value === 'enable') autoProcessOverride = true;
-                      else if (value === 'disable') autoProcessOverride = false;
-                      updateMutation.mutate({ autoProcessOverride: autoProcessOverride });
-                    }}
+                  <TriStateSelect
+                    value={feed.autoProcessOverride}
+                    onChange={(next) => updateMutation.mutate({ autoProcessOverride: next })}
                     disabled={updateMutation.isPending}
                     className="px-2 py-1.5 text-sm bg-secondary border border-border rounded flex-1 sm:flex-none min-w-0"
-                  >
-                    <option value="global">Global Default</option>
-                    <option value="enable">Enabled</option>
-                    <option value="disable">Disabled</option>
-                  </select>
+                  />
                   {feed.autoProcessOverride !== null && feed.autoProcessOverride !== undefined && (
                     <span className={`px-2 py-0.5 rounded text-xs font-medium ${
                       feed.autoProcessOverride
@@ -335,6 +323,27 @@ function FeedDetail() {
                         : 'bg-red-500/20 text-red-600 dark:text-red-400'
                     }`}>
                       {feed.autoProcessOverride ? 'Enabled' : 'Disabled'}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
+                <span className="text-muted-foreground whitespace-nowrap">Hide unprocessed:</span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <TriStateSelect
+                    value={feed.onlyExposeProcessedEpisodes}
+                    onChange={(next) => updateMutation.mutate({ onlyExposeProcessedEpisodes: next })}
+                    disabled={updateMutation.isPending}
+                    className="px-2 py-1.5 text-sm bg-secondary border border-border rounded flex-1 sm:flex-none min-w-0"
+                  />
+                  {feed.onlyExposeProcessedEpisodes !== null && feed.onlyExposeProcessedEpisodes !== undefined && (
+                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                      feed.onlyExposeProcessedEpisodes
+                        ? 'bg-green-500/20 text-green-600 dark:text-green-400'
+                        : 'bg-red-500/20 text-red-600 dark:text-red-400'
+                    }`}>
+                      {feed.onlyExposeProcessedEpisodes ? 'Hiding' : 'Showing all'}
                     </span>
                   )}
                 </div>

@@ -11,6 +11,7 @@ from api import (
     api, limiter, log_request, json_response, error_response,
     get_database, get_storage,
     _serialize_auto_process, _deserialize_auto_process,
+    _serialize_nullable_bool, _deserialize_nullable_bool,
 )
 from utils.url import validate_url, SSRFError
 
@@ -47,7 +48,8 @@ def list_feeds():
             'lastEpisodeDate': podcast.get('last_episode_date'),
             'networkId': podcast.get('network_id'),
             'daiPlatform': podcast.get('dai_platform'),
-            'maxEpisodes': podcast.get('max_episodes') or 300,
+            'maxEpisodes': podcast.get('max_episodes'),
+            'onlyExposeProcessedEpisodes': _deserialize_nullable_bool(podcast.get('only_expose_processed_episodes')),
         })
 
     return json_response({'feeds': feeds})
@@ -134,6 +136,13 @@ def add_feed():
         if max_ep is not None:
             max_ep = max(10, min(int(max_ep), 500))
             db.update_podcast(slug, max_episodes=max_ep)
+
+        if 'onlyExposeProcessedEpisodes' in data:
+            db.update_podcast(
+                slug,
+                only_expose_processed_episodes=_serialize_nullable_bool(
+                    data['onlyExposeProcessedEpisodes']),
+            )
 
         # Invalidate feed cache since we added a new feed
         from main_app.feeds import invalidate_feed_cache
@@ -377,7 +386,8 @@ def get_feed(slug):
         'daiPlatform': podcast.get('dai_platform'),
         'networkIdOverride': podcast.get('network_id_override'),
         'autoProcessOverride': auto_process_override_result,
-        'maxEpisodes': podcast.get('max_episodes') or 300,
+        'maxEpisodes': podcast.get('max_episodes'),
+        'onlyExposeProcessedEpisodes': _deserialize_nullable_bool(podcast.get('only_expose_processed_episodes')),
     })
 
 
@@ -422,6 +432,10 @@ def update_feed(slug):
             max_ep = max(10, min(int(max_ep), 500))
         updates['max_episodes'] = max_ep
 
+    if 'onlyExposeProcessedEpisodes' in data:
+        updates['only_expose_processed_episodes'] = _serialize_nullable_bool(
+            data['onlyExposeProcessedEpisodes'])
+
     if not updates:
         return error_response('No valid fields to update', 400)
 
@@ -437,13 +451,17 @@ def update_feed(slug):
         podcast = db.get_podcast_by_slug(slug)
         base_url = os.environ.get('BASE_URL', 'http://localhost:8000')
 
-        # Trigger refresh if maxEpisodes changed (to regenerate modified RSS)
-        if 'max_episodes' in updates:
+        # Settings changes that alter the served RSS body must regenerate it.
+        # Clearing etag/last_modified first ensures that if the force-refresh
+        # below throws, the next scheduled refresh cannot 304 and will fully
+        # regenerate the feed with the new settings applied.
+        if 'max_episodes' in updates or 'only_expose_processed_episodes' in updates:
+            db.update_podcast_etag(slug, None, None)
             try:
                 from main_app.feeds import refresh_rss_feed
-                refresh_rss_feed(slug, podcast['source_url'])
+                refresh_rss_feed(slug, podcast['source_url'], force=True)
             except Exception as e:
-                logger.warning(f"Feed refresh after maxEpisodes change failed for {slug}: {e}")
+                logger.warning(f"Feed refresh after settings change failed for {slug}: {e}")
 
         return json_response({
             'slug': podcast['slug'],
@@ -451,7 +469,8 @@ def update_feed(slug):
             'networkId': podcast.get('network_id'),
             'daiPlatform': podcast.get('dai_platform'),
             'networkIdOverride': podcast.get('network_id_override'),
-            'maxEpisodes': podcast.get('max_episodes') or 300,
+            'maxEpisodes': podcast.get('max_episodes'),
+            'onlyExposeProcessedEpisodes': _deserialize_nullable_bool(podcast.get('only_expose_processed_episodes')),
             'feedUrl': f"{base_url}/{slug}"
         })
     except Exception as e:

@@ -29,13 +29,6 @@ function AudioSection({ audioBitrate, onAudioBitrateChange }: AudioSectionProps)
             Higher bitrates produce better audio quality but larger file sizes
           </p>
         </div>
-
-        <div className="pt-3 border-t border-border">
-          <h3 className="text-sm font-medium text-foreground mb-1">Audio Analysis</h3>
-          <p className="text-sm text-muted-foreground">
-            Volume and transition analysis runs automatically on every episode. Detects volume anomalies and abrupt loudness transitions that indicate dynamically inserted ads. Audio signals are included as context in the AI detection prompt.
-          </p>
-        </div>
       </div>
     </CollapsibleSection>
   );

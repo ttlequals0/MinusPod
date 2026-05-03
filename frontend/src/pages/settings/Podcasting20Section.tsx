@@ -1,4 +1,5 @@
 import CollapsibleSection from '../../components/CollapsibleSection';
+import ToggleSwitch from '../../components/ToggleSwitch';
 
 interface Podcasting20SectionProps {
   vttTranscriptsEnabled: boolean;
@@ -18,18 +19,11 @@ function Podcasting20Section({
       <div className="space-y-4">
         <div>
           <label className="flex items-center gap-3 cursor-pointer">
-            <div
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                vttTranscriptsEnabled ? 'bg-primary' : 'bg-secondary'
-              }`}
-              onClick={() => onVttTranscriptsEnabledChange(!vttTranscriptsEnabled)}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  vttTranscriptsEnabled ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </div>
+            <ToggleSwitch
+              checked={vttTranscriptsEnabled}
+              onChange={onVttTranscriptsEnabledChange}
+              ariaLabel="Generate VTT Transcripts"
+            />
             <span className="text-sm font-medium text-foreground">Generate VTT Transcripts</span>
           </label>
           <p className="mt-2 text-sm text-muted-foreground ml-14">
@@ -39,18 +33,11 @@ function Podcasting20Section({
 
         <div>
           <label className="flex items-center gap-3 cursor-pointer">
-            <div
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                chaptersEnabled ? 'bg-primary' : 'bg-secondary'
-              }`}
-              onClick={() => onChaptersEnabledChange(!chaptersEnabled)}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  chaptersEnabled ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </div>
+            <ToggleSwitch
+              checked={chaptersEnabled}
+              onChange={onChaptersEnabledChange}
+              ariaLabel="Generate Chapters"
+            />
             <span className="text-sm font-medium text-foreground">Generate Chapters</span>
           </label>
           <p className="mt-2 text-sm text-muted-foreground ml-14">

@@ -63,7 +63,8 @@ class PodcastMixin:
             if key in ('title', 'description', 'artwork_url', 'artwork_cached',
                        'last_checked_at', 'source_url', 'network_id', 'dai_platform',
                        'network_id_override', 'audio_analysis_override', 'auto_process_override',
-                       'max_episodes', 'etag', 'last_modified_header'):
+                       'max_episodes', 'etag', 'last_modified_header',
+                       'only_expose_processed_episodes'):
                 fields.append(f"{key} = ?")
                 values.append(value)
 
@@ -101,3 +102,38 @@ class PodcastMixin:
             True if update succeeded
         """
         return self.update_podcast(slug, etag=etag, last_modified_header=last_modified)
+
+    # ---- Per-feed -> global default resolvers ----
+
+    DEFAULT_MAX_FEED_EPISODES = 300
+
+    def get_max_episodes_for_podcast(self, slug: str,
+                                     podcast: Optional[Dict] = None) -> int:
+        """Resolve max_episodes for a podcast: per-feed value if set, else
+        the max_feed_episodes global setting, else DEFAULT_MAX_FEED_EPISODES.
+        """
+        if podcast is None:
+            podcast = self.get_podcast_by_slug(slug)
+        per_feed = podcast.get('max_episodes') if podcast else None
+        if per_feed:
+            return int(per_feed)
+        global_value = self.get_setting('max_feed_episodes')
+        if global_value:
+            try:
+                return int(global_value)
+            except (TypeError, ValueError):
+                pass
+        return self.DEFAULT_MAX_FEED_EPISODES
+
+    def is_only_expose_processed_for_podcast(self, slug: str,
+                                             podcast: Optional[Dict] = None) -> bool:
+        """Resolve only_expose_processed_episodes for a podcast: per-feed
+        value if non-NULL (0=off, 1=on), else the
+        only_expose_processed_default global setting, else False.
+        """
+        if podcast is None:
+            podcast = self.get_podcast_by_slug(slug)
+        per_feed = podcast.get('only_expose_processed_episodes') if podcast else None
+        if per_feed is not None:
+            return bool(per_feed)
+        return self.get_setting('only_expose_processed_default') == 'true'

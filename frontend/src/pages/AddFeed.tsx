@@ -5,6 +5,7 @@ import { addFeed, importOpml, OpmlImportResult, getFeeds } from '../api/feeds';
 import { searchPodcasts, PodcastSearchResult } from '../api/podcastSearch';
 import { getSettings } from '../api/settings';
 import LoadingSpinner from '../components/LoadingSpinner';
+import TriStateSelect from '../components/TriStateSelect';
 
 // URL validation patterns
 const URL_PATTERN = /^https?:\/\/[a-zA-Z0-9][-a-zA-Z0-9]*(\.[a-zA-Z0-9][-a-zA-Z0-9]*)+.*$/;
@@ -151,6 +152,7 @@ function AddFeed() {
   const [customSlug, setCustomSlug] = useState('');
   const [autoProcessOverride, setAutoProcessOverride] = useState<boolean | null>(null);
   const [maxEpisodes, setMaxEpisodes] = useState<string>('');
+  const [onlyExposeProcessedEpisodes, setOnlyExposeProcessedEpisodes] = useState<boolean | null>(null);
 
   // Search state
   const [searchResults, setSearchResults] = useState<PodcastSearchResult[]>([]);
@@ -217,7 +219,7 @@ function AddFeed() {
 
   // Add feed mutation (for URL submit)
   const mutation = useMutation({
-    mutationFn: () => addFeed(inputValue, customSlug || undefined, autoProcessOverride, maxEpisodes ? parseInt(maxEpisodes, 10) : undefined),
+    mutationFn: () => addFeed(inputValue, customSlug || undefined, autoProcessOverride, maxEpisodes ? parseInt(maxEpisodes, 10) : undefined, onlyExposeProcessedEpisodes ?? undefined),
     onSuccess: (feed) => {
       queryClient.invalidateQueries({ queryKey: ['feeds'] });
       navigate(`/feeds/${feed.slug}`);
@@ -228,7 +230,7 @@ function AddFeed() {
   const addFromSearch = useCallback(async (feedUrl: string) => {
     setAddingFeedUrl(feedUrl);
     try {
-      const feed = await addFeed(feedUrl, customSlug || undefined, autoProcessOverride, maxEpisodes ? parseInt(maxEpisodes, 10) : undefined);
+      const feed = await addFeed(feedUrl, customSlug || undefined, autoProcessOverride, maxEpisodes ? parseInt(maxEpisodes, 10) : undefined, onlyExposeProcessedEpisodes ?? undefined);
       queryClient.invalidateQueries({ queryKey: ['feeds'] });
       navigate(`/feeds/${feed.slug}`);
     } finally {
@@ -355,21 +357,11 @@ function AddFeed() {
               <label htmlFor="autoProcess" className="block text-sm font-medium text-foreground mb-2">
                 Auto-Process
               </label>
-              <select
+              <TriStateSelect
                 id="autoProcess"
-                value={autoProcessOverride === true ? 'enable' : autoProcessOverride === false ? 'disable' : 'global'}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  if (value === 'enable') setAutoProcessOverride(true);
-                  else if (value === 'disable') setAutoProcessOverride(false);
-                  else setAutoProcessOverride(null);
-                }}
-                className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
-              >
-                <option value="global">Global Default</option>
-                <option value="enable">Enabled</option>
-                <option value="disable">Disabled</option>
-              </select>
+                value={autoProcessOverride}
+                onChange={setAutoProcessOverride}
+              />
               <p className="mt-1 text-sm text-muted-foreground">
                 Controls whether new episodes are automatically processed.
               </p>
@@ -391,6 +383,20 @@ function AddFeed() {
               />
               <p className="mt-1 text-sm text-muted-foreground">
                 Limits how many episodes are served to podcast clients. Max: 500.
+              </p>
+            </div>
+
+            <div>
+              <label htmlFor="onlyExposeProcessedEpisodes" className="block text-sm font-medium text-foreground mb-2">
+                Only expose processed episodes in feed
+              </label>
+              <TriStateSelect
+                id="onlyExposeProcessedEpisodes"
+                value={onlyExposeProcessedEpisodes}
+                onChange={setOnlyExposeProcessedEpisodes}
+              />
+              <p className="mt-1 text-sm text-muted-foreground">
+                Hides upstream episodes from the served RSS feed until they finish processing. "Global Default" follows the site-wide setting; per-feed values override it.
               </p>
             </div>
           </div>

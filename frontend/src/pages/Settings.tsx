@@ -28,6 +28,7 @@ import AIModelsSection from './settings/AIModelsSection';
 import TranscriptionSection from './settings/TranscriptionSection';
 import AudioSection from './settings/AudioSection';
 import AdDetectionSection from './settings/AdDetectionSection';
+import GlobalDefaultsSection from './settings/GlobalDefaultsSection';
 import Podcasting20Section from './settings/Podcasting20Section';
 import PromptsSection from './settings/PromptsSection';
 
@@ -52,6 +53,8 @@ function Settings() {
   const [verificationModel, setVerificationModel] = useState('');
   const [whisperModel, setWhisperModel] = useState('');
   const [autoProcessEnabled, setAutoProcessEnabled] = useState(true);
+  const [maxFeedEpisodes, setMaxFeedEpisodes] = useState(300);
+  const [onlyExposeProcessedDefault, setOnlyExposeProcessedDefault] = useState(false);
   const [audioBitrate, setAudioBitrate] = useState('128k');
   const [vttTranscriptsEnabled, setVttTranscriptsEnabled] = useState(true);
   const [chaptersEnabled, setChaptersEnabled] = useState(true);
@@ -210,6 +213,8 @@ function Settings() {
       setVerificationModel(settings.verificationModel?.value || '');
       setWhisperModel(settings.whisperModel?.value || 'small');
       setAutoProcessEnabled(settings.autoProcessEnabled?.value ?? true);
+      setMaxFeedEpisodes(settings.maxFeedEpisodes?.value ?? 300);
+      setOnlyExposeProcessedDefault(settings.onlyExposeProcessedDefault?.value ?? false);
       setAudioBitrate(settings.audioBitrate?.value || '128k');
       setVttTranscriptsEnabled(settings.vttTranscriptsEnabled?.value ?? true);
       setChaptersEnabled(settings.chaptersEnabled?.value ?? true);
@@ -236,6 +241,8 @@ function Settings() {
       verificationModel !== (settings.verificationModel?.value || '') ||
       whisperModel !== (settings.whisperModel?.value || 'small') ||
       autoProcessEnabled !== (settings.autoProcessEnabled?.value ?? true) ||
+      maxFeedEpisodes !== (settings.maxFeedEpisodes?.value ?? 300) ||
+      onlyExposeProcessedDefault !== (settings.onlyExposeProcessedDefault?.value ?? false) ||
       audioBitrate !== (settings.audioBitrate?.value || '128k') ||
       vttTranscriptsEnabled !== (settings.vttTranscriptsEnabled?.value ?? true) ||
       chaptersEnabled !== (settings.chaptersEnabled?.value ?? true) ||
@@ -250,7 +257,7 @@ function Settings() {
       whisperComputeType !== (settings.whisperComputeType?.value || 'auto') ||
       (podcastIndexApiKey !== '' && podcastIndexApiSecret !== '')
     );
-  }, [systemPrompt, verificationPrompt, selectedModel, verificationModel, whisperModel, autoProcessEnabled, audioBitrate, vttTranscriptsEnabled, chaptersEnabled, chaptersModel, minCutConfidence, llmProvider, openaiBaseUrl, whisperBackend, whisperApiConfig.baseUrl, whisperApiConfig.model, whisperLanguage, whisperComputeType, podcastIndexApiKey, podcastIndexApiSecret, settings]);
+  }, [systemPrompt, verificationPrompt, selectedModel, verificationModel, whisperModel, autoProcessEnabled, maxFeedEpisodes, onlyExposeProcessedDefault, audioBitrate, vttTranscriptsEnabled, chaptersEnabled, chaptersModel, minCutConfidence, llmProvider, openaiBaseUrl, whisperBackend, whisperApiConfig.baseUrl, whisperApiConfig.model, whisperLanguage, whisperComputeType, podcastIndexApiKey, podcastIndexApiSecret, settings]);
 
   const updateMutation = useMutation({
     mutationFn: () =>
@@ -261,6 +268,8 @@ function Settings() {
         verificationModel,
         whisperModel,
         autoProcessEnabled,
+        maxFeedEpisodes,
+        onlyExposeProcessedDefault,
         audioBitrate,
         vttTranscriptsEnabled,
         chaptersEnabled,
@@ -372,6 +381,15 @@ function Settings() {
         <p className="text-sm text-destructive mb-2">Could not load provider status: {providersError}</p>
       )}
 
+      <GlobalDefaultsSection
+        autoProcessEnabled={autoProcessEnabled}
+        onAutoProcessEnabledChange={setAutoProcessEnabled}
+        maxFeedEpisodes={maxFeedEpisodes}
+        onMaxFeedEpisodesChange={setMaxFeedEpisodes}
+        onlyExposeProcessedDefault={onlyExposeProcessedDefault}
+        onOnlyExposeProcessedDefaultChange={setOnlyExposeProcessedDefault}
+      />
+
       <LLMProviderSection
         llmProvider={llmProvider}
         openaiBaseUrl={openaiBaseUrl}
@@ -436,9 +454,7 @@ function Settings() {
 
       <AdDetectionSection
         minCutConfidence={minCutConfidence}
-        autoProcessEnabled={autoProcessEnabled}
         onMinCutConfidenceChange={setMinCutConfidence}
-        onAutoProcessEnabledChange={setAutoProcessEnabled}
       />
 
       <PromptsSection
