@@ -6,6 +6,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- `Dockerfile.cpu` and `docker-compose.cpu.yml` -- CPU-only variant for hosts without an NVIDIA GPU (issue #184). Drops the CUDA runtime base layer (~3.3 GB) and the bundled `nvidia-*` wheels (~2.8 GB) by installing the CPU torch wheels from `https://download.pytorch.org/whl/cpu`. Final image lands around 3 GB versus ~16 GB for the GPU image. Not published to Docker Hub; build locally with `docker compose -f docker-compose.cpu.yml up -d --build`. CPU transcription is slow -- for non-trivial feeds, set `WHISPER_BACKEND=openai-api` and point at Groq, OpenAI, or a self-hosted whisper.cpp server.
+
+### Removed
+
+- `docker-compose.openrouter.yml` -- superseded by `docker-compose.cpu.yml` (which delivers the same no-GPU path with a 3 GB image instead of the 16 GB GPU image the openrouter compose was pulling). Switch to OpenRouter on either main or CPU compose by setting `LLM_PROVIDER=openrouter` and `OPENROUTER_API_KEY` in `.env`.
+
 ## [2.0.20] - 2026-05-02
 
 Adds a Global Defaults group to the settings page (under "AI & Processing") that controls auto-process, max episodes per served feed, and "only expose processed episodes" as site-wide defaults. The two existing per-feed knobs that previously hardcoded their fallbacks now resolve through these globals; the `only_expose_processed_episodes` per-feed column becomes tri-state (per-feed override -> global default), matching how `auto_process_override` already worked.
