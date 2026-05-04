@@ -14,7 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `Dockerfile.cpu` and `docker-compose.cpu.yml` -- CPU-only variant for hosts without an NVIDIA GPU (issue #184). Drops the CUDA runtime base layer (~3.3 GB) and the bundled `nvidia-*` wheels (~2.8 GB) by installing the CPU torch wheels from `https://download.pytorch.org/whl/cpu`. Final image lands around 3 GB versus ~16 GB for the GPU image. Not published to Docker Hub; build locally with `docker compose -f docker-compose.cpu.yml up -d --build`. CPU transcription is slow -- for non-trivial feeds, set `WHISPER_BACKEND=openai-api` and point at Groq, OpenAI, or a self-hosted whisper.cpp server.
+- `Dockerfile.cpu` and `docker-compose.cpu.yml` -- CPU-only variant for hosts without an NVIDIA GPU (issue #184). Drops the CUDA runtime base layer (~3.3 GB) and the bundled `nvidia-*` wheels (~2.8 GB) by installing the CPU torch wheels from `https://download.pytorch.org/whl/cpu`. Final image lands around 3 GB versus ~16 GB for the GPU image. Published to Docker Hub as `ttlequals0/minuspod:2.0.21-cpu` and the floating `:cpu` tag. Pull with `docker compose -f docker-compose.cpu.yml up -d`. The `:latest` tag still points at the GPU image; CPU users should track `:cpu` or a versioned `-cpu` tag. CPU transcription is slow -- for non-trivial feeds, set `WHISPER_BACKEND=openai-api` and point at Groq, OpenAI, or a self-hosted whisper.cpp server.
+
+### Changed
+
+- `docker-compose.cpu.yml` now pulls `ttlequals0/minuspod:cpu` from Docker Hub by default. The previous `build:` directive is left commented in place. Users who relied on the local build behavior need to uncomment the `build:` block (one-line edit) and pass `--build` to `docker compose up`.
 
 ### Removed
 

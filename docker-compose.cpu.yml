@@ -1,13 +1,14 @@
 # =============================================================================
 # CPU-only MinusPod (issue #184). No GPU required.
 #
-# This compose file builds the image locally from Dockerfile.cpu. It is NOT
-# pulled from Docker Hub -- there is no published CPU tag.
+# Pulls ttlequals0/minuspod:cpu (or pin via MINUSPOD_VERSION=2.0.21-cpu) from
+# Docker Hub. To build locally instead -- e.g. when modifying Dockerfile.cpu --
+# uncomment the `build:` block below and run with `--build`.
 #
 # Usage:
 #   1. Copy .env.example to .env and set ANTHROPIC_API_KEY (or your LLM choice).
 #   2. mkdir -p data
-#   3. docker compose -f docker-compose.cpu.yml up -d --build
+#   3. docker compose -f docker-compose.cpu.yml up -d
 #
 # CPU transcription with faster-whisper is slow. For any non-trivial feed,
 # offload Whisper to a remote API by uncommenting the WHISPER_BACKEND block
@@ -17,10 +18,11 @@
 
 services:
   minuspod:
-    build:
-      context: .
-      dockerfile: Dockerfile.cpu
-    image: minuspod-cpu:local            # local-only tag, never pushed
+    image: ttlequals0/minuspod:${MINUSPOD_VERSION:-cpu}
+    # Uncomment to build locally from Dockerfile.cpu instead of pulling.
+    # build:
+    #   context: .
+    #   dockerfile: Dockerfile.cpu
     platform: linux/amd64
     # The container ships a non-root `minuspod` user at UID/GID 1000
     # (entrypoint.sh drops root via gosu after fixing volume ownership).
