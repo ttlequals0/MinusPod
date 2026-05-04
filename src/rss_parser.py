@@ -3,6 +3,7 @@ import feedparser
 import logging
 import hashlib
 import os
+import re
 from datetime import datetime, timezone
 from email.utils import format_datetime, parsedate_to_datetime
 from typing import Dict, List, Optional
@@ -73,9 +74,39 @@ def _get_rss_circuit_breaker(url: str) -> CircuitBreaker:
     return _rss_circuit_breakers[host]
 
 
+_ENCLOSURE_PREFIX_RE = re.compile(r'<enclosure url="([^"]+)/episodes/')
+
+
+def extract_cached_base_url(cached_rss: str) -> Optional[str]:
+    """Return the BASE_URL prefix used to render a cached RSS, or None.
+
+    Used by serve_rss to detect a BASE_URL change since the cache was written
+    and force a refresh (issue #193). Owned here so format changes to the
+    enclosure shape stay co-located with the rendering code.
+    """
+    m = _ENCLOSURE_PREFIX_RE.search(cached_rss)
+    return m.group(1) if m else None
+
+
 class RSSParser:
     def __init__(self, base_url: str = None):
+        self._explicit_base_url = base_url
         self.base_url = base_url or os.getenv('BASE_URL', 'http://localhost:8000')
+
+    def _resolved_base_url(self) -> str:
+        """Resolve BASE_URL per call (issue #193).
+
+        Order: explicit constructor arg > env > self.base_url > localhost.
+        Reading per call instead of mutating self.base_url avoids a
+        shared-state write on the singleton parser used across gunicorn
+        threads.
+        """
+        if getattr(self, '_explicit_base_url', None) is not None:
+            return self._explicit_base_url
+        env = os.getenv('BASE_URL')
+        if env is not None:
+            return env
+        return getattr(self, 'base_url', 'http://localhost:8000')
 
     def fetch_feed(self, url: str, timeout: int = 30) -> Optional[str]:
         """Fetch RSS feed from URL."""
@@ -386,7 +417,7 @@ class RSSParser:
             if processed_only and episode_id not in (processed_episode_ids or set()):
                 continue
             included_episode_ids.add(episode_id)
-            modified_url = f"{self.base_url}/episodes/{slug}/{episode_id}.mp3"
+            modified_url = f"{self._resolved_base_url()}/episodes/{slug}/{episode_id}.mp3"
 
             lines.append('<item>')
             lines.append(f'  <title>{self._escape_xml(entry.get("title", ""))}</title>')
@@ -451,17 +482,18 @@ class RSSParser:
         """Append Podcasting 2.0 transcript and chapters tags if available."""
         if not storage:
             return
+        base_url = self._resolved_base_url()
         if storage.has_transcript_vtt(slug, episode_id):
-            transcript_url = f"{self.base_url}/episodes/{slug}/{episode_id}.vtt"
+            transcript_url = f"{base_url}/episodes/{slug}/{episode_id}.vtt"
             lines.append(f'  <podcast:transcript url="{transcript_url}" type="text/vtt" language="en" rel="captions" />')
         if storage.has_chapters_json(slug, episode_id):
-            chapters_url = f"{self.base_url}/episodes/{slug}/{episode_id}/chapters.json"
+            chapters_url = f"{base_url}/episodes/{slug}/{episode_id}/chapters.json"
             lines.append(f'  <podcast:chapters url="{chapters_url}" type="application/json+chapters" />')
 
     def _append_db_episode_item(self, lines: list, slug: str, ep: Dict, storage) -> None:
         """Append a single <item> for a processed episode from the database."""
         ep_id = ep['episode_id']
-        modified_url = episode_public_url(self.base_url, slug, ep_id,
+        modified_url = episode_public_url(self._resolved_base_url(), slug, ep_id,
                                            ep.get('processed_version'))
         lines.append('<item>')
         lines.append(f'  <title>{self._escape_xml(ep.get("title") or "Unknown")}</title>')

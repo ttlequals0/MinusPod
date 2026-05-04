@@ -6,7 +6,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.0.21] - 2026-05-04
+
+### Fixed
+
+- Cached RSS keeps stale enclosure URLs after `BASE_URL` changes (issue #193). The module-level `RSSParser` captured `BASE_URL` once at gunicorn boot, and the rendered RSS was cached on disk for 15 minutes, so an operator who set or corrected `BASE_URL` after first feed render would keep serving `http://localhost:8000/episodes/...` enclosures until the next staleness cycle. `RSSParser` now re-resolves `BASE_URL` at every URL-construction site (no longer mutates shared singleton state), and `serve_rss` sniffs the cached XML's enclosure prefix and forces a refresh on `BASE_URL` mismatch.
 
 ### Added
 
