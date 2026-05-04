@@ -213,7 +213,7 @@ Access the web UI at `http://localhost:8000/ui/` to add and manage feeds.
 
 ### CPU-only build (no GPU)
 
-No NVIDIA GPU? Build the CPU variant. It drops the CUDA runtime layer and the bundled NVIDIA Python wheels; the final image is around 3 GB instead of ~16 GB.
+No NVIDIA GPU? Build the CPU variant ([#184](https://github.com/ttlequals0/MinusPod/issues/184)). It drops the CUDA runtime layer and the bundled NVIDIA Python wheels; the final image is around 3 GB instead of ~16 GB.
 
 There is no CPU image on Docker Hub -- you build it locally. Reuse the same `.env` and `data/` directory as the Quick Start, then:
 
