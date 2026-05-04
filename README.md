@@ -211,6 +211,27 @@ Access the web UI at `http://localhost:8000/ui/` to add and manage feeds.
 
 `MINUSPOD_MASTER_PASSPHRASE` is strongly recommended for production. Without it, provider API keys go into the database as plaintext. Setting it later migrates existing plaintext rows to `enc:v1:` encrypted storage on the next boot, with a mandatory pre-migration SQLite snapshot in `data/backups/`. Restoring a backup requires the same passphrase that created it, so pick a long random value and keep it somewhere separate from the database.
 
+### CPU-only build (no GPU)
+
+No NVIDIA GPU? Build the CPU variant. It drops the CUDA runtime layer and the bundled NVIDIA Python wheels; the final image is around 3 GB instead of ~16 GB.
+
+There is no CPU image on Docker Hub -- you build it locally. Reuse the same `.env` and `data/` directory as the Quick Start, then:
+
+```bash
+docker compose -f docker-compose.cpu.yml up -d --build
+```
+
+Local CPU transcription with `faster-whisper` is slow. For anything beyond a quick test, offload Whisper to a remote API in your `.env`:
+
+```
+WHISPER_BACKEND=openai-api
+WHISPER_API_BASE_URL=https://api.groq.com/openai/v1
+WHISPER_API_KEY=gsk_your_key_here
+WHISPER_API_MODEL=whisper-large-v3-turbo
+```
+
+Groq, OpenAI, or a self-hosted whisper.cpp server (see `docker-compose.whisper.yml`) all work here.
+
 ## Upgrading to 2.0.0+
 
 2.0.0 is a security hardening release. A `docker pull && restart` on a 1.x data volume boots without config changes, but several defaults tightened so a few setups need env-var tweaks. Full detail in `CHANGELOG.md`.
@@ -781,17 +802,7 @@ Three-hour CPU runs with the largest Whisper model hit these. When they fire, th
 ### Setup
 
 1. Get an API key from [openrouter.ai/keys](https://openrouter.ai/keys)
-2. Use the pre-configured compose file:
-
-```bash
-# Create .env
-echo "OPENROUTER_API_KEY=sk-or-v1-your-key-here" > .env
-
-# Start
-docker compose -f docker-compose.openrouter.yml up -d
-```
-
-Or add OpenRouter to an existing setup:
+2. Add these to your `.env`, then start with `docker-compose.yml` (GPU) or `docker-compose.cpu.yml` (no GPU):
 
 ```bash
 LLM_PROVIDER=openrouter
@@ -807,8 +818,6 @@ Change the model in the Settings UI or with the `OPENAI_MODEL` env var. Any [Ope
 - `google/gemini-2.5-flash-preview` -- Gemini Flash via OpenRouter
 
 All of these can be changed at runtime from the Settings UI -- no container restart needed.
-
-See [`docker-compose.openrouter.yml`](docker-compose.openrouter.yml) for a full working example.
 
 ## LLM Pricing
 

@@ -1,0 +1,104 @@
+# =============================================================================
+# CPU-only MinusPod (issue #184). No GPU required.
+#
+# This compose file builds the image locally from Dockerfile.cpu. It is NOT
+# pulled from Docker Hub -- there is no published CPU tag.
+#
+# Usage:
+#   1. Copy .env.example to .env and set ANTHROPIC_API_KEY (or your LLM choice).
+#   2. mkdir -p data
+#   3. docker compose -f docker-compose.cpu.yml up -d --build
+#
+# CPU transcription with faster-whisper is slow. For any non-trivial feed,
+# offload Whisper to a remote API by uncommenting the WHISPER_BACKEND block
+# below and supplying credentials -- Groq, OpenAI, or a self-hosted
+# whisper.cpp server (see docker-compose.whisper.yml) all work.
+# =============================================================================
+
+services:
+  minuspod:
+    build:
+      context: .
+      dockerfile: Dockerfile.cpu
+    image: minuspod-cpu:local            # local-only tag, never pushed
+    platform: linux/amd64
+    # The container ships a non-root `minuspod` user at UID/GID 1000
+    # (entrypoint.sh drops root via gosu after fixing volume ownership).
+    # Override here to pin a specific APP_UID/APP_GID if your volume is
+    # owned by a different user -- e.g. `user: "2000:2000"`.
+    # user: "1000:1000"
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      # Optional: Custom assets directory for replacement audio
+      # - ./assets:/app/assets:ro
+    environment:
+      # =================================================================
+      # LLM Provider Configuration (set in .env file)
+      # =================================================================
+      - LLM_PROVIDER=${LLM_PROVIDER:-anthropic}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
+      - OPENAI_BASE_URL=${OPENAI_BASE_URL}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL}
+
+      # =================================================================
+      # Whisper Configuration -- CPU defaults
+      # =================================================================
+      # Local CPU transcription. `tiny` is the only model that's tolerable
+      # on most CPU hosts; bump to `base` if you have spare cores.
+      - WHISPER_MODEL=${WHISPER_MODEL:-tiny}
+      - WHISPER_DEVICE=${WHISPER_DEVICE:-cpu}
+
+      # Recommended for real workloads: offload Whisper to a remote API.
+      # - WHISPER_BACKEND=openai-api
+      # - WHISPER_API_BASE_URL=https://api.groq.com/openai/v1
+      # - WHISPER_API_KEY=${WHISPER_API_KEY}
+      # - WHISPER_API_MODEL=whisper-large-v3-turbo
+
+      # =================================================================
+      # Server Configuration
+      # =================================================================
+      - BASE_URL=${BASE_URL:-http://localhost:8000}
+
+      # =================================================================
+      # 2.0.0+ Security (defaults shown; override via .env when needed)
+      # =================================================================
+      # Encrypts provider API keys + scheduled DB backups at rest.
+      # - MINUSPOD_MASTER_PASSPHRASE=${MINUSPOD_MASTER_PASSPHRASE}
+
+      # SESSION_COOKIE_SECURE defaults to true. Set to false only if
+      # serving over plain HTTP.
+      # - SESSION_COOKIE_SECURE=${SESSION_COOKIE_SECURE:-true}
+
+      # Set once the deployment is HTTPS-only. HSTS traps browsers so
+      # do not flip this on a dual-protocol setup.
+      # - MINUSPOD_ENABLE_HSTS=${MINUSPOD_ENABLE_HSTS:-false}
+
+      # Opt-in error reporting. URL or DSN from sentry.io.
+      # - SENTRY_DSN=${SENTRY_DSN}
+
+      # =================================================================
+      # Reverse proxy / tunnel
+      # =================================================================
+      # Number of trusted proxy hops in front of this container.
+      # 0 (default) = no proxy. 1 = one proxy (Cloudflare, nginx, Traefik).
+      # See README "Client IP for login lockout".
+      - MINUSPOD_TRUSTED_PROXY_COUNT=${MINUSPOD_TRUSTED_PROXY_COUNT:-0}
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    logging:
+      driver: json-file
+      options:
+        max-size: "50m"
+        max-file: "3"
+    restart: unless-stopped
+    expose:
+      - "8000"
