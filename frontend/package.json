@@ -35,7 +35,7 @@
     "@typescript-eslint/eslint-plugin": "^8.59.0",
     "@typescript-eslint/parser": "^8.59.0",
     "@vitejs/plugin-react": "^6.0.1",
-    "eslint": "^8.57.1",
+    "eslint": "^10.3.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "tailwindcss": "^4.2.4",
     "typescript": "^6.0.3",
