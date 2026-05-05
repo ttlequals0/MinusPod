@@ -43,7 +43,9 @@ export function AdEditor({
 
   // Ref to always have current selectedAdIndex for callbacks (avoids stale closures)
   const selectedAdIndexRef = useRef(selectedAdIndex);
-  selectedAdIndexRef.current = selectedAdIndex;
+  useEffect(() => {
+    selectedAdIndexRef.current = selectedAdIndex;
+  }, [selectedAdIndex]);
 
   const setSelectedAdIndex = useCallback((index: number) => {
     if (onSelectedAdIndexChange) {
@@ -77,18 +79,24 @@ export function AdEditor({
   const NUDGE_AMOUNT = 0.5;
   const selectedAd = detectedAds[selectedAdIndex];
 
-  // Initialize adjusted bounds and seek audio when ad changes
-  useEffect(() => {
+  // Initialize adjusted bounds when ad changes (during-render compare).
+  const [lastSelectedAd, setLastSelectedAd] = useState(selectedAd);
+  if (selectedAd !== lastSelectedAd) {
+    setLastSelectedAd(selectedAd);
     if (selectedAd) {
       setAdjustedStart(selectedAd.start);
       setAdjustedEnd(selectedAd.end);
       setStartAdjustment(0);
       setEndAdjustment(0);
-      if (audioRef.current && !seekingFromJumpRef.current) {
-        audioRef.current.currentTime = selectedAd.start;
-      }
-      seekingFromJumpRef.current = false;
     }
+  }
+
+  // Seek audio when ad changes - DOM side effect stays in useEffect.
+  useEffect(() => {
+    if (selectedAd && audioRef.current && !seekingFromJumpRef.current) {
+      audioRef.current.currentTime = selectedAd.start;
+    }
+    seekingFromJumpRef.current = false;
   }, [selectedAd]);
 
   // Update current time from audio
@@ -111,7 +119,8 @@ export function AdEditor({
     };
   }, []);
 
-  // Handle initial seek time (from Jump button)
+  // Handle initial seek time (from Jump button). Effect rather than during-
+  // render because we also write a transient ref and seek the audio element.
   useEffect(() => {
     if (initialSeekTime !== undefined && audioRef.current) {
       const adIndex = detectedAds.findIndex(
@@ -120,12 +129,13 @@ export function AdEditor({
       );
       if (adIndex !== -1) {
         seekingFromJumpRef.current = true;
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setSelectedAdIndex(adIndex);
       }
       audioRef.current.currentTime = initialSeekTime;
       setPreserveSeekPosition(true);
     }
-  }, [initialSeekTime, detectedAds]);
+  }, [initialSeekTime, detectedAds, setSelectedAdIndex]);
 
   // Auto-focus container when editor opens for keyboard shortcuts
   useEffect(() => {
@@ -138,7 +148,7 @@ export function AdEditor({
   const handleAdSelect = useCallback((index: number) => {
     setSelectedAdIndex(index);
     triggerHaptic('light');
-  }, [triggerHaptic]);
+  }, [triggerHaptic, setSelectedAdIndex]);
 
   // Navigate to previous/next ad (for swipe gestures)
   const goToPreviousAd = useCallback(() => {
@@ -207,7 +217,7 @@ export function AdEditor({
     if (selectedAdIndex < detectedAds.length - 1) {
       setSelectedAdIndex(selectedAdIndex + 1);
     }
-  }, [selectedAd, adjustedStart, adjustedEnd, onCorrection, selectedAdIndex, detectedAds.length, saveStatus, triggerHaptic]);
+  }, [selectedAd, adjustedStart, adjustedEnd, onCorrection, selectedAdIndex, detectedAds.length, saveStatus, triggerHaptic, setSelectedAdIndex]);
 
   const handleReset = useCallback(() => {
     if (selectedAd) {
@@ -226,7 +236,7 @@ export function AdEditor({
     if (selectedAdIndex < detectedAds.length - 1) {
       setSelectedAdIndex(selectedAdIndex + 1);
     }
-  }, [selectedAd, onCorrection, selectedAdIndex, detectedAds.length, saveStatus, triggerHaptic]);
+  }, [selectedAd, onCorrection, selectedAdIndex, detectedAds.length, saveStatus, triggerHaptic, setSelectedAdIndex]);
 
   const handleReject = useCallback(() => {
     if (!selectedAd || saveStatus === 'saving') return;
@@ -238,7 +248,7 @@ export function AdEditor({
     if (selectedAdIndex < detectedAds.length - 1) {
       setSelectedAdIndex(selectedAdIndex + 1);
     }
-  }, [selectedAd, onCorrection, selectedAdIndex, detectedAds.length, saveStatus, triggerHaptic]);
+  }, [selectedAd, onCorrection, selectedAdIndex, detectedAds.length, saveStatus, triggerHaptic, setSelectedAdIndex]);
 
   // Set up keyboard shortcuts
   useTranscriptKeyboard({

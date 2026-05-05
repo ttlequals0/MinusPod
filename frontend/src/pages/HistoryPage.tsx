@@ -14,13 +14,44 @@ import LoadingSpinner from '../components/LoadingSpinner';
 
 type StatusFilter = 'all' | 'completed' | 'failed';
 type SortField = 'processedAt' | 'processingDurationSeconds' | 'adsDetected' | 'reprocessNumber' | 'llmCost';
+type SortDirection = 'asc' | 'desc';
+
+function SortHeader({
+  field,
+  label,
+  className = '',
+  sortField,
+  sortDirection,
+  onSort,
+}: {
+  field: SortField;
+  label: string;
+  className?: string;
+  sortField: SortField;
+  sortDirection: SortDirection;
+  onSort: (field: SortField) => void;
+}) {
+  return (
+    <th
+      className={`px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer hover:bg-accent/50 ${className}`}
+      onClick={() => onSort(field)}
+    >
+      <div className="flex items-center gap-1">
+        {label}
+        {sortField === field && (
+          <span>{sortDirection === 'asc' ? '↑' : '↓'}</span>
+        )}
+      </div>
+    </th>
+  );
+}
 
 function HistoryPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [podcastFilter, setPodcastFilter] = useState<string>('');
   const [page, setPage] = useState(1);
   const [sortField, setSortField] = useState<SortField>('processedAt');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [exporting, setExporting] = useState<'csv' | 'json' | null>(null);
   const limit = 20;
 
@@ -113,20 +144,6 @@ function HistoryPage() {
     }
     return pages;
   };
-
-  const SortHeader = ({ field, label, className = '' }: { field: SortField; label: string; className?: string }) => (
-    <th
-      className={`px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer hover:bg-accent/50 ${className}`}
-      onClick={() => handleSort(field)}
-    >
-      <div className="flex items-center gap-1">
-        {label}
-        {sortField === field && (
-          <span>{sortDirection === 'asc' ? '\u2191' : '\u2193'}</span>
-        )}
-      </div>
-    </th>
-  );
 
   if (isLoading) {
     return <LoadingSpinner className="py-12" />;
@@ -293,11 +310,11 @@ function HistoryPage() {
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Episode
                 </th>
-                <SortHeader field="processedAt" label="Processed" />
-                <SortHeader field="processingDurationSeconds" label="Duration" className="hidden md:table-cell" />
-                <SortHeader field="adsDetected" label="Ads" />
-                <SortHeader field="llmCost" label="Cost" className="hidden md:table-cell" />
-                <SortHeader field="reprocessNumber" label="Reprocess #" className="hidden md:table-cell" />
+                <SortHeader field="processedAt" label="Processed" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <SortHeader field="processingDurationSeconds" label="Duration" className="hidden md:table-cell" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <SortHeader field="adsDetected" label="Ads" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <SortHeader field="llmCost" label="Cost" className="hidden md:table-cell" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <SortHeader field="reprocessNumber" label="Reprocess #" className="hidden md:table-cell" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <th className="px-4 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Status
                 </th>

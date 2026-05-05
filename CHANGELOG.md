@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.0.22] - 2026-05-04
 
+### Added
+
+- Frontend ESLint flat config (`frontend/eslint.config.js`) plus `Lint (eslint)` step in the CI frontend job. Previously `npm run lint` was opt-in and unwired; now it runs on every PR. Rules in force: `@eslint/js` recommended, `typescript-eslint` recommended, and `eslint-plugin-react-hooks` recommended (which surfaces React 19 violations like `set-state-in-effect`, `static-components`, `refs` writes during render, and `exhaustive-deps`).
+
+### Fixed
+
+- React 19 hook violations across 12 frontend files surfaced by the new lint config. No user-visible behavior change; refactors are mechanical (during-render compare instead of useEffect+setState for prop-derived state, hoist nested components out of parents, sync ref-to-prop writes inside an effect, fill in missing `useCallback` / `useEffect` dependencies). Files touched: `AdEditor.tsx`, `CollapsibleSection.tsx`, `GlobalStatusBar.tsx`, `LanguageCombobox.tsx`, `Layout.tsx`, `AuthContext.tsx`, `AddFeed.tsx`, `EpisodeDetail.tsx`, `HistoryPage.tsx`, `PatternsPage.tsx`, `Settings.tsx`, `settings/PodcastIndexSection.tsx`, `settings/ProcessingQueueSection.tsx`.
+
 ### Changed
 
 - Dependency bumps via dependabot:
@@ -18,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `@typescript-eslint/eslint-plugin` 8.59.0 -> 8.59.1 (#188)
   - `@typescript-eslint/parser` 8.59.0 -> 8.59.1 (#185)
   - `eslint` 8.57.1 -> 10.3.0 (#186)
+- New devDependencies in `frontend/package.json` to back the lint config: `@eslint/js`, `typescript-eslint`, `globals`.
 
 ## [2.0.21] - 2026-05-04
 

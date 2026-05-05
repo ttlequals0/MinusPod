@@ -153,25 +153,34 @@ function Settings() {
     }
   }, [location.hash]);
 
-  useEffect(() => {
+  // Sync form fields with server data via during-render compare. This is the
+  // React 19 alternative to a useEffect+setState that fires whenever the
+  // upstream query data identity changes.
+  const [retentionSnapshot, setRetentionSnapshot] = useState(retention);
+  if (retention !== retentionSnapshot) {
+    setRetentionSnapshot(retention);
     if (retention) {
       setRetentionDays(retention.retentionDays || 30);
       setRetentionEnabled(retention.enabled);
     }
-  }, [retention]);
+  }
 
-  useEffect(() => {
+  const [processingTimeoutsSnapshot, setProcessingTimeoutsSnapshot] = useState(processingTimeouts);
+  if (processingTimeouts !== processingTimeoutsSnapshot) {
+    setProcessingTimeoutsSnapshot(processingTimeouts);
     if (processingTimeouts) {
       setSoftTimeoutMinutes(Math.round(processingTimeouts.softTimeoutSeconds / 60));
       setHardTimeoutMinutes(Math.round(processingTimeouts.hardTimeoutSeconds / 60));
     }
-  }, [processingTimeouts]);
+  }
 
-  useEffect(() => {
+  const [audioSettingsSnapshot, setAudioSettingsSnapshot] = useState(audioSettings);
+  if (audioSettings !== audioSettingsSnapshot) {
+    setAudioSettingsSnapshot(audioSettings);
     if (audioSettings) {
       setKeepOriginalAudio(audioSettings.keepOriginalAudio);
     }
-  }, [audioSettings]);
+  }
 
   const audioSettingsMutation = useMutation({
     mutationFn: (keep: boolean) => updateAudioSettings(keep),
@@ -205,7 +214,9 @@ function Settings() {
     onError: (err: Error) => setTimeoutsError(err.message || 'Failed to save'),
   });
 
-  useEffect(() => {
+  const [settingsSnapshot, setSettingsSnapshot] = useState(settings);
+  if (settings !== settingsSnapshot) {
+    setSettingsSnapshot(settings);
     if (settings) {
       setSystemPrompt(settings.systemPrompt?.value || '');
       setVerificationPrompt(settings.verificationPrompt?.value || '');
@@ -230,7 +241,7 @@ function Settings() {
       setWhisperLanguage(settings.whisperLanguage?.value || 'en');
       setWhisperComputeType(settings.whisperComputeType?.value || 'auto');
     }
-  }, [settings]);
+  }
 
   const hasChanges = useMemo(() => {
     if (!settings) return false;

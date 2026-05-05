@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
 
@@ -6,10 +6,12 @@ function Layout() {
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [lastPath, setLastPath] = useState(location.pathname);
 
-  useEffect(() => {
+  if (location.pathname !== lastPath) {
+    setLastPath(location.pathname);
     setMobileMenuOpen(false);
-  }, [location.pathname]);
+  }
 
   const isActive = (path: string) => {
     if (path === '/') {

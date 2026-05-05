@@ -6,6 +6,37 @@ import PatternDetailModal from '../components/PatternDetailModal';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 type ScopeFilter = 'all' | 'global' | 'network' | 'podcast';
+type SortDirection = 'asc' | 'desc';
+
+function SortHeader({
+  field,
+  label,
+  className,
+  sortField,
+  sortDirection,
+  onSort,
+}: {
+  field: keyof AdPattern;
+  label: string;
+  className?: string;
+  sortField: keyof AdPattern;
+  sortDirection: SortDirection;
+  onSort: (field: keyof AdPattern) => void;
+}) {
+  return (
+    <th
+      className={`py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer hover:bg-accent/50 ${className || 'px-4'}`}
+      onClick={() => onSort(field)}
+    >
+      <div className="flex items-center gap-1">
+        {label}
+        {sortField === field && (
+          <span>{sortDirection === 'asc' ? '↑' : '↓'}</span>
+        )}
+      </div>
+    </th>
+  );
+}
 
 function PatternsPage() {
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>('all');
@@ -13,7 +44,7 @@ function PatternsPage() {
   const [showInactive, setShowInactive] = useState(false);
   const [selectedPattern, setSelectedPattern] = useState<AdPattern | null>(null);
   const [sortField, setSortField] = useState<keyof AdPattern>('created_at');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [page, setPage] = useState(1);
   const limit = 20;
   const [searchParams, setSearchParams] = useSearchParams();
@@ -41,12 +72,14 @@ function PatternsPage() {
     setPage(1); // Reset to first page on sort change
   };
 
-  // Handle ?id= query param to open pattern detail
+  // Handle ?id= query param to open pattern detail. setSearchParams writes
+  // router state, so this lives in an effect rather than running during render.
   useEffect(() => {
     const idParam = searchParams.get('id');
     if (idParam && patterns) {
       const pattern = patterns.find(p => p.id === parseInt(idParam));
       if (pattern) {
+        // eslint-disable-next-line react-hooks/set-state-in-effect
         setSelectedPattern(pattern);
         // Clear the param after opening
         setSearchParams({});
@@ -75,7 +108,7 @@ function PatternsPage() {
     if (aVal === null || aVal === undefined) return 1;
     if (bVal === null || bVal === undefined) return -1;
 
-    let comparison = 0;
+    let comparison: number;
     if (typeof aVal === 'string' && typeof bVal === 'string') {
       comparison = aVal.localeCompare(bVal);
     } else if (typeof aVal === 'number' && typeof bVal === 'number') {
@@ -142,20 +175,6 @@ function PatternsPage() {
     }
     return pages;
   };
-
-  const SortHeader = ({ field, label, className }: { field: keyof AdPattern; label: string; className?: string }) => (
-    <th
-      className={`py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer hover:bg-accent/50 ${className || 'px-4'}`}
-      onClick={() => handleSort(field)}
-    >
-      <div className="flex items-center gap-1">
-        {label}
-        {sortField === field && (
-          <span>{sortDirection === 'asc' ? '\u2191' : '\u2193'}</span>
-        )}
-      </div>
-    </th>
-  );
 
   if (isLoading) {
     return <LoadingSpinner className="py-12" />;
@@ -329,13 +348,13 @@ function PatternsPage() {
             </colgroup>
             <thead className="bg-muted/50">
               <tr>
-                <SortHeader field="id" label="ID" className="px-2" />
-                <SortHeader field="scope" label="Scope" />
-                <SortHeader field="sponsor" label="Sponsor" />
-                <SortHeader field="confirmation_count" label="Confirmed" className="px-2" />
-                <SortHeader field="false_positive_count" label="False Pos." className="px-2" />
-                <SortHeader field="created_at" label="Created" />
-                <SortHeader field="last_matched_at" label="Last Matched" />
+                <SortHeader field="id" label="ID" className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <SortHeader field="scope" label="Scope" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <SortHeader field="sponsor" label="Sponsor" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <SortHeader field="confirmation_count" label="Confirmed" className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <SortHeader field="false_positive_count" label="False Pos." className="px-2" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <SortHeader field="created_at" label="Created" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
+                <SortHeader field="last_matched_at" label="Last Matched" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <th className="px-2 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Status
                 </th>

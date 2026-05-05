@@ -189,20 +189,26 @@ function AddFeed() {
     return new Set(feedsData.map((f) => f.sourceUrl));
   }, [feedsData]);
 
+  const inputTrimmed = inputValue.trim();
+  const shouldSearch = !isUrl && podcastIndexConfigured && inputTrimmed.length >= 2;
+
+  // Clear stale search state during render when the search is no longer
+  // applicable. Avoids a setState-in-effect for the early-return branch.
+  if (!shouldSearch && (searchResults.length > 0 || searchError !== null)) {
+    setSearchResults([]);
+    setSearchError(null);
+  }
+
   // Debounced search with AbortController to cancel stale requests
   useEffect(() => {
-    if (isUrl || !podcastIndexConfigured || inputValue.trim().length < 2) {
-      setSearchResults([]);
-      setSearchError(null);
-      return;
-    }
+    if (!shouldSearch) return;
 
     const controller = new AbortController();
     const timer = setTimeout(async () => {
       setIsSearching(true);
       setSearchError(null);
       try {
-        const results = await searchPodcasts(inputValue.trim(), controller.signal);
+        const results = await searchPodcasts(inputTrimmed, controller.signal);
         setSearchResults(results);
       } catch (err) {
         if (!controller.signal.aborted) {
@@ -215,7 +221,7 @@ function AddFeed() {
     }, 400);
 
     return () => { controller.abort(); clearTimeout(timer); };
-  }, [inputValue, isUrl, podcastIndexConfigured]);
+  }, [inputTrimmed, shouldSearch]);
 
   // Add feed mutation (for URL submit)
   const mutation = useMutation({
@@ -236,7 +242,7 @@ function AddFeed() {
     } finally {
       setAddingFeedUrl(null);
     }
-  }, [customSlug, autoProcessOverride, maxEpisodes, queryClient, navigate]);
+  }, [customSlug, autoProcessOverride, maxEpisodes, onlyExposeProcessedEpisodes, queryClient, navigate]);
 
   // OPML handlers
   const opmlMutation = useMutation({

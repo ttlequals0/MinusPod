@@ -83,6 +83,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Lint (eslint)
+        run: npm run lint
+
       - name: Build (runs tsc then vite build)
         run: npm run build
 

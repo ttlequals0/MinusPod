@@ -57,6 +57,7 @@ function CollapsibleSection({
   // Intentionally no dependency array: re-measures content height after every
   // render so dynamic child changes (e.g. conditional content, async loads)
   // are reflected in the animation. Cost is negligible (single DOM read).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (isOpen && maxHeight !== 'none') {
       const el = contentRef.current;

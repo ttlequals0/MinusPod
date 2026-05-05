@@ -8,6 +8,21 @@ interface PodcastIndexSectionProps {
   onApiSecretChange: (secret: string) => void;
 }
 
+const STATUS_BADGE_STYLES = {
+  green: { bg: 'bg-green-500/10 text-green-600 dark:text-green-400', dot: 'bg-green-500' },
+  muted: { bg: 'bg-muted text-muted-foreground', dot: 'bg-muted-foreground/50' },
+} as const;
+
+function StatusBadge({ variant, label }: { variant: 'green' | 'muted'; label: string }) {
+  const s = STATUS_BADGE_STYLES[variant];
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${s.bg}`}>
+      <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
+      {label}
+    </span>
+  );
+}
+
 function PodcastIndexSection({
   podcastIndexApiKeyConfigured,
   podcastIndexApiKey,
@@ -15,20 +30,6 @@ function PodcastIndexSection({
   onApiKeyChange,
   onApiSecretChange,
 }: PodcastIndexSectionProps) {
-  function StatusBadge({ variant, label }: { variant: 'green' | 'muted'; label: string }) {
-    const styles = {
-      green: { bg: 'bg-green-500/10 text-green-600 dark:text-green-400', dot: 'bg-green-500' },
-      muted: { bg: 'bg-muted text-muted-foreground', dot: 'bg-muted-foreground/50' },
-    };
-    const s = styles[variant];
-    return (
-      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${s.bg}`}>
-        <span className={`w-1.5 h-1.5 rounded-full ${s.dot}`} />
-        {label}
-      </span>
-    );
-  }
-
   return (
     <CollapsibleSection title="Podcast Search" storageKey="settings-section-podcast-index">
       <div className="space-y-4">

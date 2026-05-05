@@ -61,9 +61,13 @@ function LanguageCombobox({ id, value, onChange, className = '' }: LanguageCombo
     return () => document.removeEventListener('mousedown', onDocClick);
   }, [open]);
 
-  useEffect(() => {
+  const [lastQuery, setLastQuery] = useState(query);
+  const [lastOpen, setLastOpen] = useState(open);
+  if (query !== lastQuery || open !== lastOpen) {
+    setLastQuery(query);
+    setLastOpen(open);
     setHighlight(0);
-  }, [query, open]);
+  }
 
   useEffect(() => {
     if (!open || !listRef.current) return;
