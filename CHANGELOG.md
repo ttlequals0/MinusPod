@@ -6,11 +6,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.0.22] - 2026-05-04
 
 ### Added
 
-- `Dockerfile.cpu` and `docker-compose.cpu.yml` -- CPU-only variant for hosts without an NVIDIA GPU (issue #184). Drops the CUDA runtime base layer (~3.3 GB) and the bundled `nvidia-*` wheels (~2.8 GB) by installing the CPU torch wheels from `https://download.pytorch.org/whl/cpu`. Final image lands around 3 GB versus ~16 GB for the GPU image. Not published to Docker Hub; build locally with `docker compose -f docker-compose.cpu.yml up -d --build`. CPU transcription is slow -- for non-trivial feeds, set `WHISPER_BACKEND=openai-api` and point at Groq, OpenAI, or a self-hosted whisper.cpp server.
+- Frontend ESLint flat config (`frontend/eslint.config.js`) plus `Lint (eslint)` step in the CI frontend job. Previously `npm run lint` was opt-in and unwired; now it runs on every PR. Rules in force: `@eslint/js` recommended, `typescript-eslint` recommended, and `eslint-plugin-react-hooks` recommended (which surfaces React 19 violations like `set-state-in-effect`, `static-components`, `refs` writes during render, and `exhaustive-deps`).
+
+### Fixed
+
+- React 19 hook violations across 12 frontend files surfaced by the new lint config. No user-visible behavior change; refactors are mechanical (during-render compare instead of useEffect+setState for prop-derived state, hoist nested components out of parents, sync ref-to-prop writes inside an effect, fill in missing `useCallback` / `useEffect` dependencies). Files touched: `AdEditor.tsx`, `CollapsibleSection.tsx`, `GlobalStatusBar.tsx`, `LanguageCombobox.tsx`, `Layout.tsx`, `AuthContext.tsx`, `AddFeed.tsx`, `EpisodeDetail.tsx`, `HistoryPage.tsx`, `PatternsPage.tsx`, `Settings.tsx`, `settings/PodcastIndexSection.tsx`, `settings/ProcessingQueueSection.tsx`.
+
+### Changed
+
+- Dependency bumps via dependabot:
+  - `openai` 2.32.0 -> 2.33.0 (#191)
+  - `huggingface-hub` 1.12.0 -> 1.13.0 (#189)
+  - `lucide-react` 1.11.0 -> 1.14.0 (#190)
+  - `swagger-ui-dist` 5.32.4 -> 5.32.5 (#187)
+  - `@typescript-eslint/eslint-plugin` 8.59.0 -> 8.59.1 (#188)
+  - `@typescript-eslint/parser` 8.59.0 -> 8.59.1 (#185)
+  - `eslint` 8.57.1 -> 10.3.0 (#186)
+- New devDependencies in `frontend/package.json` to back the lint config: `@eslint/js`, `typescript-eslint`, `globals`.
+
+## [2.0.21] - 2026-05-04
+
+### Fixed
+
+- Cached RSS keeps stale enclosure URLs after `BASE_URL` changes (issue #193). The module-level `RSSParser` captured `BASE_URL` once at gunicorn boot, and the rendered RSS was cached on disk for 15 minutes, so an operator who set or corrected `BASE_URL` after first feed render would keep serving `http://localhost:8000/episodes/...` enclosures until the next staleness cycle. `RSSParser` now re-resolves `BASE_URL` at every URL-construction site (no longer mutates shared singleton state), and `serve_rss` sniffs the cached XML's enclosure prefix and forces a refresh on `BASE_URL` mismatch.
+
+### Added
+
+- `Dockerfile.cpu` and `docker-compose.cpu.yml` -- CPU-only variant for hosts without an NVIDIA GPU (issue #184). Drops the CUDA runtime base layer (~3.3 GB) and the bundled `nvidia-*` wheels (~2.8 GB) by installing the CPU torch wheels from `https://download.pytorch.org/whl/cpu`. Final image lands around 3 GB versus ~16 GB for the GPU image. Published to Docker Hub as `ttlequals0/minuspod:2.0.21-cpu` and the floating `:cpu` tag. Pull with `docker compose -f docker-compose.cpu.yml up -d`. The `:latest` tag still points at the GPU image; CPU users should track `:cpu` or a versioned `-cpu` tag. CPU transcription is slow -- for non-trivial feeds, set `WHISPER_BACKEND=openai-api` and point at Groq, OpenAI, or a self-hosted whisper.cpp server.
+
+### Changed
+
+- `docker-compose.cpu.yml` now pulls `ttlequals0/minuspod:cpu` from Docker Hub by default. The previous `build:` directive is left commented in place. Users who relied on the local build behavior need to uncomment the `build:` block (one-line edit) and pass `--build` to `docker compose up`.
 
 ### Removed
 

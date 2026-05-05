@@ -101,21 +101,22 @@ function GlobalStatusBar() {
   const prevStatusRef = useRef<StatusData | null>(null);
   const queryClient = useQueryClient();
 
-  // Update elapsed time every second when there's a current job
+  // Reset the elapsed counter when the current job changes (during render).
+  const currentJobStarted = status?.currentJob?.startedAt;
+  const [lastJobStarted, setLastJobStarted] = useState(currentJobStarted);
+  if (currentJobStarted !== lastJobStarted) {
+    setLastJobStarted(currentJobStarted);
+    setElapsed(0);
+  }
+
+  // Tick the elapsed counter every second while a job is running.
   useEffect(() => {
-    if (!status?.currentJob) {
-      setElapsed(0);
-      return;
-    }
-
+    if (!currentJobStarted) return;
     const interval = setInterval(() => {
-      if (status?.currentJob?.startedAt) {
-        setElapsed(Date.now() / 1000 - status.currentJob.startedAt);
-      }
+      setElapsed(Date.now() / 1000 - currentJobStarted);
     }, 1000);
-
     return () => clearInterval(interval);
-  }, [status?.currentJob?.startedAt]);
+  }, [currentJobStarted]);
 
   useEffect(() => {
     function connect() {
@@ -210,6 +211,9 @@ function GlobalStatusBar() {
         clearTimeout(reconnectTimeoutRef.current);
       }
     };
+    // queryClient is stable across renders (react-query); SSE connect is
+    // intentionally one-shot on mount, not re-keyed off the client identity.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Don't show if no activity

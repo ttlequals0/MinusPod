@@ -11,13 +11,13 @@
   "dependencies": {
     "@tanstack/react-query": "^5.24.0",
     "clsx": "^2.1.0",
-    "lucide-react": "^1.8.0",
+    "lucide-react": "^1.14.0",
     "react": "^19.2.5",
     "react-dom": "^19.2.5",
     "react-is": "^19.2.5",
     "react-router-dom": "^6.30.3",
     "recharts": "^3.8.1",
-    "swagger-ui-dist": "^5.32.4",
+    "swagger-ui-dist": "^5.32.5",
     "tailwind-merge": "^3.5.0"
   },
   "overrides": {
@@ -29,16 +29,19 @@
     "esbuild": ">=0.27.0"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@tailwindcss/vite": "^4.2.4",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
-    "@typescript-eslint/eslint-plugin": "^8.59.0",
-    "@typescript-eslint/parser": "^8.59.0",
+    "@typescript-eslint/eslint-plugin": "^8.59.1",
+    "@typescript-eslint/parser": "^8.59.1",
     "@vitejs/plugin-react": "^6.0.1",
-    "eslint": "^8.57.1",
+    "eslint": "^10.3.0",
     "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.6.0",
     "tailwindcss": "^4.2.4",
     "typescript": "^6.0.3",
+    "typescript-eslint": "^8.59.2",
     "vite": "^8.0.10",
     "vite-plugin-pwa": "^1.2.0"
   }

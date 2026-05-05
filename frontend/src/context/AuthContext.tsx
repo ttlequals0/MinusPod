@@ -33,6 +33,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    // One-shot bootstrap fetch on mount; this is the "subscribe to external
+    // system" pattern the rule docs allow, just expressed as a single fire.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     refreshStatus();
   }, []);
 

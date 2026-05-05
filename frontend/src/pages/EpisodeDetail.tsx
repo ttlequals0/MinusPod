@@ -119,9 +119,10 @@ function EpisodeDetail() {
   };
 
   // Convert ad markers to AdEditor format - memoized to prevent stale closures in editor
+  const adMarkers = episode?.adMarkers;
   const detectedAds = useMemo(() => {
-    if (!episode?.adMarkers) return [];
-    return episode.adMarkers.map((marker) => ({
+    if (!adMarkers) return [];
+    return adMarkers.map((marker) => ({
       start: marker.start,
       end: marker.end,
       confidence: marker.confidence,
@@ -130,7 +131,7 @@ function EpisodeDetail() {
       pattern_id: undefined,
       detection_stage: marker.detection_stage || 'first_pass',
     }));
-  }, [episode?.adMarkers]);
+  }, [adMarkers]);
 
   const formatDuration = (seconds?: number) => {
     if (!seconds) return '';

@@ -211,15 +211,17 @@ Access the web UI at `http://localhost:8000/ui/` to add and manage feeds.
 
 `MINUSPOD_MASTER_PASSPHRASE` is strongly recommended for production. Without it, provider API keys go into the database as plaintext. Setting it later migrates existing plaintext rows to `enc:v1:` encrypted storage on the next boot, with a mandatory pre-migration SQLite snapshot in `data/backups/`. Restoring a backup requires the same passphrase that created it, so pick a long random value and keep it somewhere separate from the database.
 
-### CPU-only build (no GPU)
+### CPU-only image (no GPU)
 
-No NVIDIA GPU? Build the CPU variant. It drops the CUDA runtime layer and the bundled NVIDIA Python wheels; the final image is around 3 GB instead of ~16 GB.
+No NVIDIA GPU? Pull the CPU variant. It drops the CUDA runtime layer and the bundled NVIDIA Python wheels; the image is around 3 GB instead of ~16 GB.
 
-There is no CPU image on Docker Hub -- you build it locally. Reuse the same `.env` and `data/` directory as the Quick Start, then:
+Reuse the same `.env` and `data/` directory as the Quick Start, then:
 
 ```bash
-docker compose -f docker-compose.cpu.yml up -d --build
+docker compose -f docker-compose.cpu.yml up -d
 ```
+
+That pulls `ttlequals0/minuspod:cpu` (the floating CPU tag). To pin a specific release, set `MINUSPOD_VERSION=2.0.21-cpu` in your `.env`. The `:latest` tag always points at the GPU image; CPU users should track `:cpu` or a versioned `-cpu` tag.
 
 Local CPU transcription with `faster-whisper` is slow. For anything beyond a quick test, offload Whisper to a remote API in your `.env`:
 
@@ -231,6 +233,17 @@ WHISPER_API_MODEL=whisper-large-v3-turbo
 ```
 
 Groq, OpenAI, or a self-hosted whisper.cpp server (see `docker-compose.whisper.yml`) all work here.
+
+<details>
+<summary>Build the CPU image locally</summary>
+
+If you are modifying `Dockerfile.cpu` or want to compile from source, uncomment the `build:` block in `docker-compose.cpu.yml` and run with `--build`:
+
+```bash
+docker compose -f docker-compose.cpu.yml up -d --build
+```
+
+</details>
 
 ## Upgrading to 2.0.0+
 

@@ -809,9 +809,9 @@ httpx==0.28.1 \
     #   anthropic
     #   huggingface-hub
     #   openai
-huggingface-hub==1.12.0 \
-    --hash=sha256:7c3fe85e24b652334e5d456d7a812cd9a071e75630fac4365d9165ab5e4a34b6 \
-    --hash=sha256:d74939969585ee35748bd66de09baf84099d461bda7287cd9043bfb99b0e424d
+huggingface-hub==1.13.0 \
+    --hash=sha256:e942cb50d6a08dd5306688b1ac05bda157fd2fcc88b63dae405f7bd0d3234005 \
+    --hash=sha256:f6df2dac5abe82ce2fe05873d10d5ff47bc677d616a2f521f4ee26db9415d9d0
     # via
     #   -r requirements.in
     #   faster-whisper
@@ -1164,9 +1164,9 @@ onnxruntime==1.24.4 \
     --hash=sha256:e99a48078baaefa2b50fe5836c319499f71f13f76ed32d0211f39109147a49e0 \
     --hash=sha256:fbff2a248940e3398ae78374c5a839e49a2f39079b488bc64439fa0ec327a3e4
     # via faster-whisper
-openai==2.32.0 \
-    --hash=sha256:4dcc9badeb4bf54ad0d187453742f290226d30150890b7890711bda4f32f192f \
-    --hash=sha256:c54b27a9e4cb8d51f0dd94972ffd1a04437efeb259a9e60d8922b8bd26fe55e0
+openai==2.33.0 \
+    --hash=sha256:03ac37d70e8c9e3a8124214e3afa785e2cbc12e627fbd98177a086ef2fd87ad5 \
+    --hash=sha256:f850c435e2a4685bba3295bd54912dd26315d9c1b7733068186134d6e0599f9a
     # via -r requirements.in
 ordered-set==4.1.0 \
     --hash=sha256:046e1132c71fcf3330438a539928932caf51ddbc582496833e23de611de14562 \

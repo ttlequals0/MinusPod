@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useState } from 'react';
 import type { ProcessingEpisode } from '../../api/settings';
 import CollapsibleSection from '../../components/CollapsibleSection';
 
@@ -16,14 +16,17 @@ function ProcessingQueueSection({
   cancelIsPending,
 }: ProcessingQueueSectionProps) {
   const hasProcessing = !!(processingEpisodes && processingEpisodes.length > 0);
-  const prevHasProcessing = useRef(false);
 
-  // Write synchronously (before key-triggered remount) so the new CollapsibleSection reads it.
-  // Gated by ref to avoid writing on every 5s poll cycle.
-  if (hasProcessing && !prevHasProcessing.current) {
-    localStorage.setItem(STORAGE_KEY, 'true');
+  // Write synchronously (before key-triggered remount) so the new
+  // CollapsibleSection reads it. Tracked in state so we only write on
+  // transitions, not every 5s poll cycle.
+  const [prevHasProcessing, setPrevHasProcessing] = useState(false);
+  if (hasProcessing !== prevHasProcessing) {
+    setPrevHasProcessing(hasProcessing);
+    if (hasProcessing) {
+      localStorage.setItem(STORAGE_KEY, 'true');
+    }
   }
-  prevHasProcessing.current = hasProcessing;
 
   return (
     <CollapsibleSection

@@ -20,6 +20,7 @@ from config import (
     JIT_RETRY_COOLDOWN_SECONDS,
     MAX_EPISODE_RETRIES,
 )
+from rss_parser import extract_cached_base_url
 from utils.safe_http import URLTrust, safe_head
 from utils.time import parse_iso_datetime
 from utils.url import SSRFError
@@ -237,7 +238,20 @@ def register_routes(app):
             should_refresh = True
             force_refresh = True  # No cache, must get full content (can't use 304)
             feed_logger.info(f"[{slug}] No RSS cache, refreshing")
-        elif last_checked:
+        else:
+            # Issue #193: cached RSS keeps stale enclosure URLs when BASE_URL
+            # changes between renders. Force a refresh on prefix mismatch.
+            cached_base = extract_cached_base_url(cached_rss)
+            if cached_base is not None:
+                current_base = os.getenv('BASE_URL', 'http://localhost:8000')
+                if cached_base != current_base:
+                    should_refresh = True
+                    force_refresh = True
+                    feed_logger.info(
+                        f"[{slug}] cached RSS BASE_URL mismatch "
+                        f"({cached_base} != {current_base}), forcing refresh"
+                    )
+        if not should_refresh and last_checked:
             try:
                 last_time = parse_iso_datetime(last_checked)
                 age_minutes = (datetime.now(timezone.utc) - last_time).total_seconds() / 60
