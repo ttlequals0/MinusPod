@@ -8,7 +8,7 @@ coordinates for UI/DB and processed-audio coordinates for cutting.
 """
 
 import logging
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger('podcast.verification')
 
@@ -190,3 +190,44 @@ def _map_to_original(processed_time: float,
         else:
             break
     return processed_time + offset
+
+
+def _map_correction_to_processed(
+    orig_start: float,
+    orig_end: float,
+    cuts: List[Tuple[float, float]],
+) -> Optional[Tuple[float, float]]:
+    """Map a user-correction range from original time to processed-audio time.
+
+    Pass 1 already removed `cuts` (in original time). For a user-flagged
+    region `[orig_start, orig_end)`, return the visible portion in
+    processed-audio coordinates. Returns None when the entire range was
+    removed by a cut (no representation in processed audio).
+
+    Cuts are pre-sorted by start ascending. If a cut contains `orig_start`,
+    the visible portion begins at the cut's end. If a cut contains
+    `orig_end`, the visible portion ends at the cut's start. Then both
+    endpoints are shifted left by the total cut duration that ended at or
+    before them.
+    """
+    if orig_end <= orig_start:
+        return None
+
+    start, end = orig_start, orig_end
+    for cut_start, cut_duration in cuts:
+        cut_end = cut_start + cut_duration
+        if cut_start <= start < cut_end:
+            start = cut_end
+        if cut_start < end <= cut_end:
+            end = cut_start
+
+    if end <= start:
+        return None
+
+    removed_before_start = sum(d for s, d in cuts if s + d <= start)
+    removed_before_end = sum(d for s, d in cuts if s + d <= end)
+    proc_start = start - removed_before_start
+    proc_end = end - removed_before_end
+    if proc_end <= proc_start:
+        return None
+    return (proc_start, proc_end)
