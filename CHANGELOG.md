@@ -6,20 +6,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-<<<<<<< HEAD
+## [2.0.24] - 2026-05-05
+
+### Fixed
+
+- Pattern auto-creation from user corrections (`POST /api/v1/episodes/{slug}/{episode_id}/corrections` with `correction_type=confirm` or `boundary_adjustment`) stored the numeric `podcasts.id` in `ad_patterns.podcast_id`, while every other creation path (`learn_from_detections`, verification-miss auto-create) and the detection-side query (`get_ad_patterns(podcast_id=slug)`) use the slug. Patterns created this way were scoped to a value the matcher never queries with, so they were silently orphaned -- never retrieved during detection on subsequent episodes. `src/api/patterns.py` now stores the slug at both call sites, matching the `ap.podcast_id = p.slug` join the rest of the schema assumes (see `src/database/patterns.py:17`). Existing orphaned rows can be repaired by rewriting `ad_patterns.podcast_id` from numeric ids to the corresponding `podcasts.slug`.
+
 ## [2.0.23] - 2026-05-05
 
 ### Fixed
 
 - The verification (second) pass now honors per-episode "not an ad" corrections (issue #183). Previously the pass-1 detector and validator already excluded user-rejected regions, but the verification pass constructed its `AdValidator` without `false_positive_corrections`, so the second-pass LLM rediscovered rejected segments on the cut audio and re-cut them. The reporter (Welcome to Night Vale, in-universe Big Rico's Pizza ad-read) saw the cut survive every reprocess. Pass 2 now translates each rejection from original-time to processed-audio coordinates using the pass-1 cut map and feeds them to the verification validator, which auto-rejects any verification ad that overlaps a user-flagged region by 50% or more.
 - Stage-3 (Claude) post-processing in pass 1 now applies the same-episode false-positive region check that stages 1 and 2 already do. Defense-in-depth: the validator already protects pass-1 audio output, but the rejected segment used to still appear in `rejectedAdMarkers` for the editor whenever the cross-episode text-similarity check missed.
-=======
-## [Unreleased]
-
-### Fixed
-
-- Pattern auto-creation from user corrections (`POST /api/v1/episodes/{slug}/{episode_id}/corrections` with `correction_type=confirm` or `boundary_adjustment`) stored the numeric `podcasts.id` in `ad_patterns.podcast_id`, while every other creation path (`learn_from_detections`, verification-miss auto-create) and the detection-side query (`get_ad_patterns(podcast_id=slug)`) use the slug. Patterns created this way were scoped to a value the matcher never queries with, so they were silently orphaned -- never retrieved during detection on subsequent episodes. `src/api/patterns.py` now stores the slug at both call sites, matching the `ap.podcast_id = p.slug` join the rest of the schema assumes (see `src/database/patterns.py:17`). Existing orphaned rows can be repaired by rewriting `ad_patterns.podcast_id` from numeric ids to the corresponding `podcasts.slug`.
->>>>>>> 16e0c34 (fix: store slug (not numeric id) on patterns created from corrections)
 
 ## [2.0.22] - 2026-05-04
 
