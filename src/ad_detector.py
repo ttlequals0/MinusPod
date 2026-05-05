@@ -2134,6 +2134,7 @@ class AdDetector:
         # Merge Claude detections with pattern matches
         claude_ads = result.get('ads', [])
         cross_episode_skipped = 0
+        fp_pairs = [(fp['start'], fp['end']) for fp in false_positive_regions]
 
         # Duration feedback: update pattern avg_duration from Claude's more accurate boundaries
         updated_patterns = set()
@@ -2172,7 +2173,19 @@ class AdDetector:
                                 f"(from Claude ad {ad['start']:.1f}s-{ad['end']:.1f}s)")
 
             for portion in uncovered_portions:
-                # Existing false positive check (applied per-portion now)
+                # Mirrors the same-episode false-positive region check that
+                # stages 1 and 2 already apply.
+                if fp_pairs and self._is_region_covered(
+                    portion['start'], portion['end'], fp_pairs,
+                ):
+                    logger.debug(
+                        f"[{slug}:{episode_id}] Skipping Claude portion "
+                        f"{portion['start']:.1f}s-{portion['end']:.1f}s "
+                        f"(same-episode false positive)"
+                    )
+                    continue
+
+                # Cross-episode false positive check
                 if false_positive_texts and self.text_pattern_matcher:
                     ad_text = self._get_segment_text(segments, portion['start'], portion['end'])
                     if ad_text and len(ad_text) >= 50:

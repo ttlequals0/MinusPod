@@ -540,9 +540,31 @@ def _run_verification_pass(slug, episode_id, processed_path, ads_to_remove,
 
             # Validate verification ads
             if verification_segments:
+                # Pass-1 cut user-rejections in original time; verification
+                # operates on cut audio, so map them to processed coordinates
+                # before the validator can use them to auto-reject overlaps.
+                from verification_pass import _build_timestamp_map, _map_correction_to_processed
+                fp_corrections_orig = db.get_false_positive_corrections(episode_id) or []
+                fp_corrections_processed = []
+                if fp_corrections_orig:
+                    ts_map = _build_timestamp_map(ads_to_remove) if ads_to_remove else []
+                    for c in fp_corrections_orig:
+                        proc = _map_correction_to_processed(c['start'], c['end'], ts_map)
+                        if proc is not None:
+                            fp_corrections_processed.append({'start': proc[0], 'end': proc[1]})
+                    if fp_corrections_processed:
+                        audio_logger.info(
+                            f"[{slug}:{episode_id}] Pass 2 honoring "
+                            f"{len(fp_corrections_processed)} user-rejected region(s)"
+                        )
+
                 processed_duration = verification_segments[-1]['end']
-                v_validator = AdValidator(processed_duration, verification_segments,
-                                         episode_description, min_cut_confidence=min_cut_confidence)
+                v_validator = AdValidator(
+                    processed_duration, verification_segments,
+                    episode_description,
+                    false_positive_corrections=fp_corrections_processed,
+                    min_cut_confidence=min_cut_confidence,
+                )
                 v_validation = v_validator.validate(verification_ads_processed)
 
                 keep_indices = {idx for idx, ad in enumerate(v_validation.ads)

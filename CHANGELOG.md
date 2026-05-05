@@ -6,6 +6,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.23] - 2026-05-05
+
+### Fixed
+
+- The verification (second) pass now honors per-episode "not an ad" corrections (issue #183). Previously the pass-1 detector and validator already excluded user-rejected regions, but the verification pass constructed its `AdValidator` without `false_positive_corrections`, so the second-pass LLM rediscovered rejected segments on the cut audio and re-cut them. The reporter (Welcome to Night Vale, in-universe Big Rico's Pizza ad-read) saw the cut survive every reprocess. Pass 2 now translates each rejection from original-time to processed-audio coordinates using the pass-1 cut map and feeds them to the verification validator, which auto-rejects any verification ad that overlaps a user-flagged region by 50% or more.
+- Stage-3 (Claude) post-processing in pass 1 now applies the same-episode false-positive region check that stages 1 and 2 already do. Defense-in-depth: the validator already protects pass-1 audio output, but the rejected segment used to still appear in `rejectedAdMarkers` for the editor whenever the cross-episode text-similarity check missed.
+
 ## [2.0.22] - 2026-05-04
 
 ### Added
