@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.24] - 2026-05-05
+
+### Fixed
+
+- Pattern auto-creation from user corrections (`POST /api/v1/episodes/{slug}/{episode_id}/corrections` with `correction_type=confirm` or `boundary_adjustment`) stored the numeric `podcasts.id` in `ad_patterns.podcast_id`, while every other creation path (`learn_from_detections`, verification-miss auto-create) and the detection-side query (`get_ad_patterns(podcast_id=slug)`) use the slug. Patterns created this way were scoped to a value the matcher never queries with, so they were silently orphaned -- never retrieved during detection on subsequent episodes. `src/api/patterns.py` now stores the slug at both call sites, matching the `ap.podcast_id = p.slug` join the rest of the schema assumes (see `src/database/patterns.py:17`). Existing orphaned rows can be repaired by rewriting `ad_patterns.podcast_id` from numeric ids to the corresponding `podcasts.slug`.
+
 ## [2.0.23] - 2026-05-05
 
 ### Fixed

@@ -442,7 +442,7 @@ def submit_correction(slug, episode_id):
                 if ad_text and len(ad_text) >= 50:  # Minimum for TF-IDF matching
                     # Get podcast info for scope
                     podcast = db.get_podcast_by_slug(slug)
-                    podcast_id_str = str(podcast['id']) if podcast else None
+                    podcast_id_str = slug if podcast else None
 
                     # Check for existing pattern with same text (deduplication)
                     existing_pattern = db.find_pattern_by_text(ad_text, podcast_id_str)
@@ -553,7 +553,7 @@ def submit_correction(slug, episode_id):
         elif adjusted_text and len(adjusted_text) >= 50:
             # No pattern exists - create one from adjusted boundaries (like confirm does)
             podcast = db.get_podcast_by_slug(slug)
-            podcast_id_str = str(podcast['id']) if podcast else None
+            podcast_id_str = slug if podcast else None
 
             # Check for existing pattern with same text
             existing_pattern = db.find_pattern_by_text(adjusted_text, podcast_id_str)
