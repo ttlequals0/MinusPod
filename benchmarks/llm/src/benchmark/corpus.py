@@ -13,6 +13,8 @@ import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 
+from ad_detector import create_windows  # type: ignore[import-not-found]
+
 from .truth_parser import Truth, parse as parse_truth, validate_cross_reference, validate_logical
 
 
@@ -71,8 +73,6 @@ def list_episodes(corpus_dir: Path) -> list[str]:
 
 
 def compute_windows(segments: list[dict]) -> list[Window]:
-    from ad_detector import create_windows
-
     raw = create_windows(segments)
     out: list[Window] = []
     for i, w in enumerate(raw):

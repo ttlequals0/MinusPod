@@ -12,6 +12,9 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
+from config import normalize_model_key  # type: ignore[import-not-found]
+from pricing_fetcher import fetch_litellm_pricing  # type: ignore[import-not-found]
+
 logger = logging.getLogger(__name__)
 
 
@@ -33,14 +36,10 @@ class PricingSnapshot:
         self._index = {e.match_key: e for e in self.entries}
 
     def lookup(self, model_id: str) -> ModelPrice | None:
-        from config import normalize_model_key
-
         return self._index.get(normalize_model_key(model_id))
 
 
 def fetch_current() -> PricingSnapshot:
-    from pricing_fetcher import fetch_litellm_pricing
-
     raw = fetch_litellm_pricing()
     entries = [
         ModelPrice(
