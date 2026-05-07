@@ -380,6 +380,80 @@ class EpisodeMixin:
         row = cursor.fetchone()
         return row['original_transcript_text'] if row else None
 
+    def save_original_segments(self, slug: str, episode_id: str, segments: List[Dict]):
+        """Save original (pre-cut) Whisper segments as JSON. Write-once."""
+        conn = self.get_connection()
+
+        db_episode_id = self._get_episode_db_id(slug, episode_id)
+        if not db_episode_id:
+            logger.warning(f"Episode not found for original segments: {slug}/{episode_id}")
+            return
+
+        segments_json = json.dumps(segments)
+        conn.execute(
+            """INSERT INTO episode_details (episode_id, original_segments_json)
+               VALUES (?, ?)
+               ON CONFLICT(episode_id) DO UPDATE
+               SET original_segments_json = COALESCE(
+                   episode_details.original_segments_json, excluded.original_segments_json
+               )""",
+            (db_episode_id, segments_json)
+        )
+
+        conn.commit()
+        logger.debug(f"[{slug}:{episode_id}] Saved {len(segments)} original segments to database")
+
+    def save_final_segments(self, slug: str, episode_id: str, segments: List[Dict]):
+        """Save final (post-cut) segments as JSON. Overwrites on reprocess."""
+        conn = self.get_connection()
+
+        db_episode_id = self._get_episode_db_id(slug, episode_id)
+        if not db_episode_id:
+            logger.warning(f"Episode not found for final segments: {slug}/{episode_id}")
+            return
+
+        segments_json = json.dumps(segments)
+        conn.execute(
+            """INSERT INTO episode_details (episode_id, final_segments_json)
+               VALUES (?, ?)
+               ON CONFLICT(episode_id) DO UPDATE
+               SET final_segments_json = excluded.final_segments_json""",
+            (db_episode_id, segments_json)
+        )
+
+        conn.commit()
+        logger.debug(f"[{slug}:{episode_id}] Saved {len(segments)} final segments to database")
+
+    def get_original_segments(self, slug: str, episode_id: str) -> Optional[List[Dict]]:
+        """Get original (pre-cut) Whisper segments as a list, or None."""
+        conn = self.get_connection()
+        cursor = conn.execute(
+            """SELECT ed.original_segments_json FROM episode_details ed
+               JOIN episodes e ON ed.episode_id = e.id
+               JOIN podcasts p ON e.podcast_id = p.id
+               WHERE p.slug = ? AND e.episode_id = ?""",
+            (slug, episode_id)
+        )
+        row = cursor.fetchone()
+        if not row or not row['original_segments_json']:
+            return None
+        return json.loads(row['original_segments_json'])
+
+    def get_final_segments(self, slug: str, episode_id: str) -> Optional[List[Dict]]:
+        """Get final (post-cut) segments as a list, or None."""
+        conn = self.get_connection()
+        cursor = conn.execute(
+            """SELECT ed.final_segments_json FROM episode_details ed
+               JOIN episodes e ON ed.episode_id = e.id
+               JOIN podcasts p ON e.podcast_id = p.id
+               WHERE p.slug = ? AND e.episode_id = ?""",
+            (slug, episode_id)
+        )
+        row = cursor.fetchone()
+        if not row or not row['final_segments_json']:
+            return None
+        return json.loads(row['final_segments_json'])
+
     def get_transcript_for_timestamps(self, slug: str, episode_id: str) -> str:
         """Get the best transcript for timestamp-based extraction.
 

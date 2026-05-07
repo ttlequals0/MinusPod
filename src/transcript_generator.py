@@ -41,6 +41,31 @@ class TranscriptGenerator:
 
         return False
 
+    def compute_final_segments(
+        self,
+        segments: List[Dict],
+        ads_removed: List[Dict]
+    ) -> List[Dict]:
+        """Apply ad-removal filter + timestamp adjustment, return surviving segments.
+
+        Mirrors the filter/adjust pass used by generate_vtt and generate_text,
+        producing the post-cut segment list as plain dicts so it can be persisted
+        as final_segments_json alongside the VTT.
+        """
+        out = []
+        for segment in segments:
+            if self.is_segment_in_ad(segment, ads_removed):
+                continue
+            text = segment.get('text', '').strip()
+            if not text:
+                continue
+            adjusted_start = adjust_timestamp(segment.get('start', 0), ads_removed)
+            adjusted_end = adjust_timestamp(segment.get('end', 0), ads_removed)
+            if adjusted_end <= adjusted_start:
+                continue
+            out.append({'start': adjusted_start, 'end': adjusted_end, 'text': text})
+        return out
+
     def generate_vtt(
         self,
         segments: List[Dict],
@@ -61,38 +86,15 @@ class TranscriptGenerator:
 
         lines = ["WEBVTT", ""]
 
-        cue_count = 0
-        for segment in segments:
-            # Skip segments that fall within removed ads
-            if self.is_segment_in_ad(segment, ads_removed):
-                continue
-
-            text = segment.get('text', '').strip()
-            if not text:
-                continue
-
-            original_start = segment.get('start', 0)
-            original_end = segment.get('end', 0)
-
-            # Adjust timestamps for removed ads
-            adjusted_start = adjust_timestamp(original_start, ads_removed)
-            adjusted_end = adjust_timestamp(original_end, ads_removed)
-
-            # Skip if timestamps are invalid after adjustment
-            if adjusted_end <= adjusted_start:
-                continue
-
-            # Format cue
-            start_ts = format_vtt_timestamp(adjusted_start)
-            end_ts = format_vtt_timestamp(adjusted_end)
-
+        final = self.compute_final_segments(segments, ads_removed)
+        for seg in final:
+            start_ts = format_vtt_timestamp(seg['start'])
+            end_ts = format_vtt_timestamp(seg['end'])
             lines.append(f"{start_ts} --> {end_ts}")
-            lines.append(text)
-            lines.append("")  # Blank line between cues
+            lines.append(seg['text'])
+            lines.append("")
 
-            cue_count += 1
-
-        logger.info(f"Generated VTT with {cue_count} cues from {len(segments)} segments")
+        logger.info(f"Generated VTT with {len(final)} cues from {len(segments)} segments")
 
         return "\n".join(lines)
 
@@ -108,28 +110,11 @@ class TranscriptGenerator:
         if not segments:
             return ""
 
-        lines = []
-        for segment in segments:
-            if self.is_segment_in_ad(segment, ads_removed):
-                continue
-
-            text = segment.get('text', '').strip()
-            if not text:
-                continue
-
-            original_start = segment.get('start', 0)
-            original_end = segment.get('end', 0)
-
-            adjusted_start = adjust_timestamp(original_start, ads_removed)
-            adjusted_end = adjust_timestamp(original_end, ads_removed)
-
-            if adjusted_end <= adjusted_start:
-                continue
-
-            start_ts = format_vtt_timestamp(adjusted_start)
-            end_ts = format_vtt_timestamp(adjusted_end)
-
-            lines.append(f"[{start_ts} --> {end_ts}] {text}")
+        final = self.compute_final_segments(segments, ads_removed)
+        lines = [
+            f"[{format_vtt_timestamp(seg['start'])} --> {format_vtt_timestamp(seg['end'])}] {seg['text']}"
+            for seg in final
+        ]
 
         logger.info(f"Generated text transcript with {len(lines)} segments")
         return "\n".join(lines)

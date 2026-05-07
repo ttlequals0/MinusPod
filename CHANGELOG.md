@@ -6,6 +6,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.26] - 2026-05-06
+
+### Added
+
+- Persist Whisper segments as JSON alongside the existing transcript columns. Two new TEXT columns on `episode_details`: `original_segments_json` (pre-cut, write-once via COALESCE) and `final_segments_json` (post-cut, overwritten on reprocess). Two paired endpoints expose them: `GET /api/v1/feeds/{slug}/episodes/{episode_id}/original-segments` and `.../final-segments`, each returning `{episodeId, segments: [{start, end, text}]}`. Older episodes return 404 until reprocessed.
+- New `TranscriptGenerator.compute_final_segments(segments, ads_removed)` helper that applies the same filter+timestamp-adjust pass used internally by `generate_vtt` / `generate_text`, returning the post-cut segment list as plain dicts. Used by the pipeline to populate `final_segments_json`.
+
+### Changed
+
+- `src/main_app/processing.py` writes both segment columns at the natural points in the pipeline: `original_segments_json` immediately after Whisper transcription completes (alongside the existing `save_original_transcript` call), and `final_segments_json` inside `_generate_assets` once `compute_final_segments` has been computed for VTT generation.
+
+### Why
+
+- Unblocks the offline LLM benchmark (see `tmp/BENCHMARK_PLAN.md`): the benchmark needs original timestamped segments to feed `create_windows()` and to score IoU against ground truth. The existing `original-transcript` endpoint returns plain text; the `.vtt` endpoint serves the post-cut VTT with ads stripped. Persisting segments as JSON gives the benchmark a hermetic capture surface that matches what production saw at detection time, without re-running Whisper.
+
 ## [2.0.25] - 2026-05-06
 
 ### Changed
