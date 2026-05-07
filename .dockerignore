@@ -57,6 +57,10 @@ docs
 tmp
 scripts
 
+# Offline LLM benchmark (corpus, raw responses, generated reports). Not a
+# runtime component; production code never imports from this directory.
+benchmarks
+
 # Local-only tooling and notes
 .claude
 .claude-mem
