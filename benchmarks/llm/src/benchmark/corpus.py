@@ -54,8 +54,8 @@ def load_episode(ep_dir: Path) -> Episode:
     if not ep_dir.is_dir():
         raise CorpusError(f"Episode directory not found: {ep_dir}")
 
-    metadata = _load_metadata(ep_dir / "metadata.toml")
-    segments = _load_segments(ep_dir / "segments.json", expected_hash=metadata.segments_hash)
+    metadata = load_metadata(ep_dir / "metadata.toml")
+    segments = load_segments(ep_dir / "segments.json", expected_hash=metadata.segments_hash)
     truth = parse_truth(ep_dir / "truth.txt")
     validate_logical(truth, episode_duration=metadata.duration)
     validate_cross_reference(truth, segments)
@@ -118,7 +118,7 @@ def _toml_escape(s: str) -> str:
     return s.replace("\\", "\\\\").replace('"', '\\"').replace("\n", "\\n")
 
 
-def _load_metadata(path: Path) -> EpisodeMetadata:
+def load_metadata(path: Path) -> EpisodeMetadata:
     if not path.is_file():
         raise CorpusError(f"metadata.toml not found at {path}")
     with path.open("rb") as f:
@@ -139,7 +139,7 @@ def _load_metadata(path: Path) -> EpisodeMetadata:
         raise CorpusError(f"metadata.toml missing required field: {e}") from e
 
 
-def _load_segments(path: Path, *, expected_hash: str) -> list[dict]:
+def load_segments(path: Path, *, expected_hash: str) -> list[dict]:
     if not path.is_file():
         raise CorpusError(f"segments.json not found at {path}")
     segments = json.loads(path.read_text())

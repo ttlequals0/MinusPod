@@ -6,15 +6,20 @@ import statistics
 from dataclasses import dataclass, field
 
 
-COMPLIANCE_SCORE_BY_METHOD: dict[str, float] = {
+EXACT_METHOD_SCORES: dict[str, float] = {
     "json_array_direct": 1.0,
-    "json_object_with_ads_key": 0.85,
-    "json_object_wrapper": 0.85,
+    "json_object_segments_key": 0.85,
     "json_object_single_ad": 0.7,
+    "json_object_no_ads": 1.0,
     "markdown_code_block": 0.6,
     "regex_json_array": 0.4,
     "bracket_fallback": 0.2,
 }
+
+PREFIX_METHOD_SCORES: tuple[tuple[str, float], ...] = (
+    ("json_object_window_", 0.85),
+    ("json_object_", 0.85),
+)
 
 
 @dataclass
@@ -121,7 +126,12 @@ def no_ad_score(per_window_predictions: list[list[tuple[float, float]]]) -> NoAd
 def compliance_score(extraction_method: str | None) -> float:
     if extraction_method is None:
         return 0.0
-    return COMPLIANCE_SCORE_BY_METHOD.get(extraction_method, 0.5)
+    if extraction_method in EXACT_METHOD_SCORES:
+        return EXACT_METHOD_SCORES[extraction_method]
+    for prefix, score in PREFIX_METHOD_SCORES:
+        if extraction_method.startswith(prefix):
+            return score
+    return 0.5
 
 
 @dataclass

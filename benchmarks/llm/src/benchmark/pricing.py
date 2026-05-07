@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -27,15 +27,15 @@ class ModelPrice:
 class PricingSnapshot:
     captured_at: str
     entries: list[ModelPrice]
+    _index: dict[str, ModelPrice] = field(init=False, repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        self._index = {e.match_key: e for e in self.entries}
 
     def lookup(self, model_id: str) -> ModelPrice | None:
         from config import normalize_model_key
 
-        key = normalize_model_key(model_id)
-        for entry in self.entries:
-            if entry.match_key == key:
-                return entry
-        return None
+        return self._index.get(normalize_model_key(model_id))
 
 
 def fetch_current() -> PricingSnapshot:

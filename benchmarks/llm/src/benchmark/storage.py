@@ -4,9 +4,8 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable, Iterator
+from typing import Iterator
 
 
 SCHEMA_VERSION = 1
@@ -81,31 +80,40 @@ def hash_prompt(*, system_prompt: str, user_prompt: str, model: str, temperature
     return "sha256:" + h.hexdigest()
 
 
-def dedup_index(calls_path: Path) -> set[tuple[str, str, int, int, str]]:
-    """Return set of completed (model, episode, trial, window_index, prompt_hash) tuples.
+CallKey = tuple[str, str, int, int, str]
 
-    Used to skip already-completed work on resume. Records with non-null
-    ``error`` count as 'attempted' and are skipped by default; callers wanting
-    to re-run errored records should filter accordingly.
+
+def scan_calls(calls_path: Path) -> tuple[set[CallKey], set[CallKey]]:
+    """Single-pass read of calls.jsonl. Returns (completed, errored).
+
+    Errored is the subset of completed where ``error`` is populated, so callers
+    that want to skip errored records use ``completed - errored`` and callers
+    that want to retry only errored records use ``errored``.
     """
-    seen: set[tuple[str, str, int, int, str]] = set()
+    completed: set[CallKey] = set()
+    errored: set[CallKey] = set()
     for rec in read_jsonl(calls_path):
-        seen.add((
+        key: CallKey = (
             rec["model"],
             rec["episode_id"],
             int(rec["trial"]),
             int(rec["window_index"]),
             rec["prompt_hash"],
-        ))
-    return seen
-
-
-def errored_keys(calls_path: Path) -> set[tuple[str, str, int, int, str]]:
-    out: set[tuple[str, str, int, int, str]] = set()
-    for rec in read_jsonl(calls_path):
+        )
+        completed.add(key)
         if rec.get("error"):
-            out.add((rec["model"], rec["episode_id"], int(rec["trial"]), int(rec["window_index"]), rec["prompt_hash"]))
-    return out
+            errored.add(key)
+    return completed, errored
+
+
+def dedup_index(calls_path: Path) -> set[CallKey]:
+    completed, _ = scan_calls(calls_path)
+    return completed
+
+
+def errored_keys(calls_path: Path) -> set[CallKey]:
+    _, errored = scan_calls(calls_path)
+    return errored
 
 
 def sanitize_error(exc: BaseException) -> dict:

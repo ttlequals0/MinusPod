@@ -113,7 +113,14 @@ def test_no_ad_empty_input():
 
 @pytest.mark.parametrize("method,expected", [
     ("json_array_direct", 1.0),
+    ("json_object_segments_key", 0.85),
+    ("json_object_ads_key", 0.85),
+    ("json_object_window_ads", 0.85),
+    ("json_object_advertisement_segments_key", 0.85),
+    ("json_object_single_ad", 0.7),
+    ("json_object_no_ads", 1.0),
     ("markdown_code_block", 0.6),
+    ("regex_json_array", 0.4),
     ("bracket_fallback", 0.2),
     (None, 0.0),
     ("unknown_method", 0.5),

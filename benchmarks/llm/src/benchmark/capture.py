@@ -120,10 +120,10 @@ def verify(
         if not (candidate_dir / required).is_file():
             raise CaptureError(f"Missing {required} in {candidate_dir}")
 
-    from .corpus import _load_metadata, _load_segments
+    from .corpus import load_metadata, load_segments
 
-    metadata = _load_metadata(candidate_dir / "metadata.toml")
-    segments = _load_segments(candidate_dir / "segments.json", expected_hash=metadata.segments_hash)
+    metadata = load_metadata(candidate_dir / "metadata.toml")
+    segments = load_segments(candidate_dir / "segments.json", expected_hash=metadata.segments_hash)
     truth = parse_truth(candidate_dir / "truth.txt")
     validate_logical(truth, episode_duration=metadata.duration)
     validate_cross_reference(truth, segments)
@@ -142,10 +142,10 @@ def regenerate_windows(ep_id: str, *, corpus_dir: Path) -> int:
     ep_dir = corpus_dir / ep_id
     if not ep_dir.is_dir():
         raise CaptureError(f"Corpus episode not found: {ep_dir}")
-    from .corpus import _load_metadata, _load_segments
+    from .corpus import load_metadata, load_segments
 
-    metadata = _load_metadata(ep_dir / "metadata.toml")
-    segments = _load_segments(ep_dir / "segments.json", expected_hash=metadata.segments_hash)
+    metadata = load_metadata(ep_dir / "metadata.toml")
+    segments = load_segments(ep_dir / "segments.json", expected_hash=metadata.segments_hash)
     windows = compute_windows(segments)
     write_windows(ep_dir, windows)
     return len(windows)
