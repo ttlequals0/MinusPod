@@ -20,6 +20,8 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
+from rapidfuzz import fuzz
+
 NO_ADS_MARKER_RE = re.compile(r"^#\s*Verified:\s*no ads", re.IGNORECASE)
 LABEL_RE = re.compile(r"^(start|end|text)\s*:\s*(.*)$", re.IGNORECASE)
 
@@ -103,8 +105,6 @@ def validate_cross_reference(
 ) -> None:
     if truth.is_no_ad_episode:
         return
-    from rapidfuzz import fuzz
-
     for i, ad in enumerate(truth.ads):
         covering = [s for s in segments if not (s["end"] <= ad.start or s["start"] >= ad.end)]
         if not covering:

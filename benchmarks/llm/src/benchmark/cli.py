@@ -10,8 +10,10 @@ from typing import Optional
 
 import typer
 
-from . import auth, capture as capture_mod, corpus as corpus_mod, pricing, report as report_mod, runner as runner_mod
+from . import auth, capture as capture_mod, corpus as corpus_mod, parsing, pricing, report as report_mod, runner as runner_mod
 from .config import BenchmarkConfig, load as load_config
+from .runner import build_work_list, precompute_prompt_hashes
+from .storage import scan_calls
 
 app = typer.Typer(
     add_completion=False,
@@ -237,13 +239,9 @@ def archive() -> None:
 
 
 def _preview(cfg, episodes, *, paths):
-    from . import parsing
-    from .runner import build_work_list, precompute_prompt_hashes
-    from .storage import dedup_index, errored_keys
-
     system_prompt = parsing.get_static_system_prompt()
     hashes = precompute_prompt_hashes(cfg, episodes, system_prompt=system_prompt)
-    completed = dedup_index(paths.calls_jsonl)
+    completed, _ = scan_calls(paths.calls_jsonl)
     units, skipped = build_work_list(cfg, episodes, completed=completed, prompt_hashes=hashes)
     return units, skipped
 

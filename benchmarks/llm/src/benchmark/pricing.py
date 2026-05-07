@@ -51,12 +51,12 @@ def fetch_current() -> PricingSnapshot:
         )
         for item in raw
     ]
-    return PricingSnapshot(captured_at=_utc_now(), entries=entries)
+    return PricingSnapshot(captured_at=_utc_now_microseconds(), entries=entries)
 
 
 def write_snapshot(snapshot: PricingSnapshot, snapshots_dir: Path) -> Path:
     snapshots_dir.mkdir(parents=True, exist_ok=True)
-    filename = snapshot.captured_at.replace(":", "").replace("-", "")[:15] + ".json"
+    filename = snapshot.captured_at.replace(":", "").replace("-", "").replace(".", "_").rstrip("Z") + ".json"
     path = snapshots_dir / filename
     payload = {
         "captured_at": snapshot.captured_at,
@@ -95,5 +95,5 @@ def cost_usd(price: ModelPrice, *, input_tokens: int, output_tokens: int) -> tup
     return in_cost, out_cost, in_cost + out_cost
 
 
-def _utc_now() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+def _utc_now_microseconds() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")

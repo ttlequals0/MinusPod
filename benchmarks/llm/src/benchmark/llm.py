@@ -152,6 +152,8 @@ async def _call_openai_compatible(
             try:
                 msg = await client.chat.completions.create(**kwargs)
                 json_format_used = "prompt_injection"
+            except (RateLimitError, APITimeoutError, APIConnectionError) as e2:
+                raise LLMTransientError(str(e2)) from e2
             except APIStatusError as e2:
                 if 500 <= getattr(e2, "status_code", 0) < 600:
                     raise LLMTransientError(str(e2)) from e2

@@ -4,6 +4,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 from pathlib import Path
 from typing import Iterator
 
@@ -43,12 +44,14 @@ def read_jsonl(path: Path) -> Iterator[dict]:
 def write_response(responses_dir: Path, call_id: str, body: str) -> Path:
     responses_dir.mkdir(parents=True, exist_ok=True)
     path = responses_dir / f"{call_id}.txt"
-    fd = os.open(str(path), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
+    tmp = path.with_suffix(".tmp")
+    fd = os.open(str(tmp), os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o644)
     try:
         os.write(fd, body.encode())
         os.fsync(fd)
     finally:
         os.close(fd)
+    os.replace(tmp, path)
     return path
 
 
@@ -118,8 +121,6 @@ def errored_keys(calls_path: Path) -> set[CallKey]:
 
 def sanitize_error(exc: BaseException) -> dict:
     """Strip secrets from exception data before persisting."""
-    import re
-
     msg = str(exc)
     msg = re.sub(r"(Bearer|Token)\s+\S+", r"\1 <redacted>", msg, flags=re.IGNORECASE)
     msg = re.sub(

@@ -21,15 +21,16 @@ def test_build_user_prompt_uses_minuspod_format(make_episode):
 def test_precompute_prompt_hashes_one_per_combo(minimal_cfg, make_episode):
     ep = make_episode(n_windows=3)
     hashes = runner.precompute_prompt_hashes(minimal_cfg, [ep], system_prompt="S")
-    # 2 models * 1 episode * 2 trials * 3 windows = 12 (deprecated kept in dict)
-    assert len(hashes) == 12
+    # 1 active model * 1 episode * 2 trials * 3 windows = 6 (deprecated skipped)
+    assert len(hashes) == 6
+    assert all(model_id == "m1" for (model_id, _, _, _) in hashes)
 
 
 def test_precompute_prompt_hashes_identical_across_trials_for_same_model(minimal_cfg, make_episode):
     ep = make_episode(n_windows=2)
     hashes = runner.precompute_prompt_hashes(minimal_cfg, [ep], system_prompt="S")
     assert hashes[("m1", "ep-001", 0, 0)] == hashes[("m1", "ep-001", 1, 0)]
-    assert hashes[("m1", "ep-001", 0, 0)] != hashes[("m-old", "ep-001", 0, 0)]
+    assert ("m-old", "ep-001", 0, 0) not in hashes
 
 
 def test_build_work_list_skips_deprecated_models(minimal_cfg, make_episode):

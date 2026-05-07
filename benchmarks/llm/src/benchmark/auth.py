@@ -74,7 +74,7 @@ def _login(cfg: MinusPodConfig) -> Session:
     )
     if r.status_code == 429:
         raise AuthError(
-            "Rate-limited by /auth/login (3/min, 10/hour). Wait before retrying — auto-retry risks lockout."
+            "Rate-limited by /auth/login (3/min, 10/hour). Wait before retrying -- auto-retry risks lockout."
         )
     if r.status_code != 200:
         raise AuthError(f"Login failed: HTTP {r.status_code} {r.text[:200]}")

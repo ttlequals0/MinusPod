@@ -17,6 +17,7 @@ from .storage import (
     SCHEMA_VERSION,
     append_jsonl,
     hash_prompt,
+    read_jsonl,
     sanitize_error,
     scan_calls,
     write_prompt,
@@ -113,6 +114,7 @@ def precompute_prompt_hashes(
         (ep.ep_id, w.index): _build_user_prompt(ep, w, total_windows=len(ep.windows))
         for ep in episodes for w in ep.windows
     }
+    active_models = [m for m in cfg.models if not m.deprecated]
     hash_by_model_window: dict[tuple[str, str, int], str] = {
         (model.id, ep_id, w_idx): hash_prompt(
             system_prompt=system_prompt,
@@ -120,7 +122,7 @@ def precompute_prompt_hashes(
             model=model.id,
             temperature=cfg.run.temperature,
         )
-        for model in cfg.models
+        for model in active_models
         for (ep_id, w_idx) in user_prompts
     }
     return {
@@ -185,6 +187,17 @@ async def run(
         async with global_sema, per_provider_sema[unit.provider_name]:
             call_id = _call_id(unit, ph)
             t0 = time.perf_counter()
+            error_payload: dict | None = None
+            response_text = ""
+            input_tokens = output_tokens = 0
+            json_format_used = "n/a"
+            underlying_provider = unit.provider_name
+            parsed_ads: list[dict] = []
+            extraction_method: str | None = None
+            comp = 0.0
+            in_cost = out_cost = total_cost = 0.0
+            response_path: Path | None = None
+
             try:
                 resp = await llm.call_with_retry(
                     provider=provider_cfg,
@@ -197,7 +210,6 @@ async def run(
                     response_format=cfg.run.response_format,
                     max_retries=cfg.run.max_retries,
                 )
-                error_payload: dict | None = None
                 response_text = resp.text
                 input_tokens = resp.input_tokens
                 output_tokens = resp.output_tokens
@@ -205,25 +217,24 @@ async def run(
                 underlying_provider = resp.underlying_provider
             except Exception as e:
                 error_payload = sanitize_error(e)
-                response_text = ""
-                input_tokens = output_tokens = 0
-                json_format_used = "n/a"
-                underlying_provider = unit.provider_name
+
             elapsed_ms = int((time.perf_counter() - t0) * 1000)
-
-            parsed_ads, extraction_method = _parse_response(response_text)
+            try:
+                parsed_ads, extraction_method = _parse_response(response_text)
+                comp = compliance_score(extraction_method)
+                cost_lookup = pricing_snapshot.lookup(unit.model_id)
+                if cost_lookup is not None:
+                    in_cost, out_cost, total_cost = pricing.cost_usd(
+                        cost_lookup, input_tokens=input_tokens, output_tokens=output_tokens
+                    )
+                response_path = write_response(paths.responses_dir, call_id, response_text)
+                write_prompt(paths.prompts_dir, ph, user_prompt)
+            except Exception as post_e:
+                if error_payload is None:
+                    error_payload = sanitize_error(post_e)
+                else:
+                    logger.exception("post-LLM error after LLM also errored: %s", post_e)
             violations = schema_audit(parsed_ads)
-            comp = compliance_score(extraction_method)
-
-            cost_lookup = pricing_snapshot.lookup(unit.model_id)
-            in_cost = out_cost = total_cost = 0.0
-            if cost_lookup is not None:
-                in_cost, out_cost, total_cost = pricing.cost_usd(
-                    cost_lookup, input_tokens=input_tokens, output_tokens=output_tokens
-                )
-
-            response_path = write_response(paths.responses_dir, call_id, response_text)
-            write_prompt(paths.prompts_dir, ph, user_prompt)
 
             record = {
                 "schema_version": SCHEMA_VERSION,
@@ -245,7 +256,7 @@ async def run(
                 "total_cost_usd_at_runtime": round(total_cost, 6),
                 "pricing_snapshot_id_at_runtime": pricing_snapshot.captured_at,
                 "json_format_used": json_format_used,
-                "response_path": str(response_path.relative_to(paths.calls_jsonl.parent)),
+                "response_path": str(response_path.relative_to(paths.calls_jsonl.parent)) if response_path else None,
                 "prompt_path": f"prompts/{ph}.txt",
                 "extraction_method": extraction_method,
                 "compliance_score": comp,
@@ -254,14 +265,18 @@ async def run(
                 "windows_stale": False,
                 "error": error_payload,
             }
-            append_jsonl(paths.calls_jsonl, record)
+            try:
+                append_jsonl(paths.calls_jsonl, record)
+            except Exception as write_e:
+                logger.exception("failed to append calls.jsonl record %s: %s", call_id, write_e)
+                return
 
             if error_payload:
                 stats.errored += 1
             else:
                 stats.completed += 1
 
-    await asyncio.gather(*(execute(u) for u in units))
+    await asyncio.gather(*(execute(u) for u in units), return_exceptions=False)
 
     derive_episode_results(cfg, episodes, paths=paths)
     return stats
@@ -269,8 +284,6 @@ async def run(
 
 def derive_episode_results(cfg: BenchmarkConfig, episodes: list[Episode], *, paths: RunPaths) -> None:
     """Recompute episode_results.jsonl from calls.jsonl. Idempotent."""
-    from .storage import read_jsonl
-
     if paths.episode_results_jsonl.exists():
         paths.episode_results_jsonl.unlink()
 
