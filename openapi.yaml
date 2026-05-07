@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.0.25
+  version: 2.0.26
   contact:
     name: MinusPod
   license:
@@ -715,6 +715,74 @@ paths:
                     type: string
                   originalTranscript:
                     type: string
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /feeds/{slug}/episodes/{episode_id}/original-segments:
+    get:
+      tags:
+        - Episodes
+      summary: Get original (pre-cut) Whisper segments
+      description: Returns the original Whisper transcript segments with timestamps, captured before any ads were removed. Only available for episodes processed with v2.0.26+.
+      operationId: getOriginalSegments
+      parameters:
+        - $ref: '#/components/parameters/slug'
+        - $ref: '#/components/parameters/episode_id'
+      responses:
+        '200':
+          description: Original segments
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  episodeId:
+                    type: string
+                  segments:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        start:
+                          type: number
+                        end:
+                          type: number
+                        text:
+                          type: string
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /feeds/{slug}/episodes/{episode_id}/final-segments:
+    get:
+      tags:
+        - Episodes
+      summary: Get final (post-cut) segments
+      description: Returns the post-cut transcript segments with adjusted timestamps after ad removal. Only available for episodes processed with v2.0.26+.
+      operationId: getFinalSegments
+      parameters:
+        - $ref: '#/components/parameters/slug'
+        - $ref: '#/components/parameters/episode_id'
+      responses:
+        '200':
+          description: Final segments
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  episodeId:
+                    type: string
+                  segments:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        start:
+                          type: number
+                        end:
+                          type: number
+                        text:
+                          type: string
         '404':
           $ref: '#/components/responses/NotFound'
 

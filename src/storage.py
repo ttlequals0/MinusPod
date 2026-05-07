@@ -311,6 +311,14 @@ class Storage:
         """Save original (pre-cut) transcript to database. Write-once."""
         self.db.save_original_transcript(slug, episode_id, transcript)
 
+    def save_original_segments(self, slug: str, episode_id: str, segments: list) -> None:
+        """Save original (pre-cut) Whisper segments JSON to database. Write-once."""
+        self.db.save_original_segments(slug, episode_id, segments)
+
+    def save_final_segments(self, slug: str, episode_id: str, segments: list) -> None:
+        """Save final (post-cut) segments JSON to database. Overwrites on reprocess."""
+        self.db.save_final_segments(slug, episode_id, segments)
+
     # ========== VTT Transcript Methods (Podcasting 2.0) ==========
 
     def save_transcript_vtt(self, slug: str, episode_id: str, vtt_content: str) -> None:

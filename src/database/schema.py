@@ -78,6 +78,8 @@ CREATE TABLE IF NOT EXISTS episode_details (
     first_pass_prompt TEXT,
     second_pass_prompt TEXT,
     second_pass_response TEXT,
+    original_segments_json TEXT,
+    final_segments_json TEXT,
     created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     FOREIGN KEY (episode_id) REFERENCES episodes(id) ON DELETE CASCADE
 );
@@ -531,6 +533,8 @@ class SchemaMixin:
             ('transcript_vtt', 'TEXT'),
             ('chapters_json', 'TEXT'),
             ('original_transcript_text', 'TEXT'),
+            ('original_segments_json', 'TEXT'),
+            ('final_segments_json', 'TEXT'),
         ]
         for col, definition in details_migrations:
             self._add_column_if_missing(conn, 'episode_details', col, definition, det_cols)

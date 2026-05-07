@@ -249,6 +249,7 @@ def _download_and_transcribe(slug, episode_id, episode_url, podcast_name):
         transcript_text = transcriber.segments_to_text(segments)
         storage.save_transcript(slug, episode_id, transcript_text)
         storage.save_original_transcript(slug, episode_id, transcript_text)
+        storage.save_original_segments(slug, episode_id, segments)
 
     return audio_path, segments
 
@@ -620,6 +621,11 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
     try:
         vtt_enabled = db.get_setting('vtt_transcripts_enabled')
         transcript_gen = TranscriptGenerator()
+
+        # Persist final segments unconditionally; consumers (e.g. the offline
+        # benchmark) need them even when VTT generation is disabled.
+        final_segments = transcript_gen.compute_final_segments(segments, all_cuts)
+        storage.save_final_segments(slug, episode_id, final_segments)
 
         if vtt_enabled is None or vtt_enabled.lower() == 'true':
             vtt_content = transcript_gen.generate_vtt(segments, all_cuts)
