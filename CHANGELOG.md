@@ -6,6 +6,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.25] - 2026-05-06
+
+### Changed
+
+- Pre-work for an offline LLM benchmark that imports MinusPod modules directly. All changes are behavior-preserving for production:
+  - Lifted `_extract_json_ads_array` and `_parse_ads_from_response` from `AdDetector` instance methods to module-level functions in `src/ad_detector.py` (`extract_json_ads_array`, `parse_ads_from_response`). The 3 in-tree call sites are updated; no external callers existed. `parse_ads_from_response` gains an optional `sponsor_service` keyword arg (defaults to `None`) so the benchmark can call it without an `AdDetector` instance.
+  - Lifted the per-window prompt assembly to a module-level `format_window_prompt(...)` function. Both first-pass detection and verification-pass loops now call it instead of duplicating the assembly inline.
+  - Added a module-level `get_static_system_prompt()` that returns `DEFAULT_SYSTEM_PROMPT` + the static `SEED_SPONSORS` list -- a deterministic, source-controlled prompt for the benchmark. `AdDetector.get_system_prompt()` (the production instance method that loads stored prompts and merges DB-derived sponsors) is unchanged. The two functions live side-by-side; production never calls the module-level one.
+  - Moved `SEED_SPONSORS` and `SEED_NORMALIZATIONS` from `src/sponsor_service.py` into `src/utils/constants.py`. Re-exported from `sponsor_service` so existing imports (incl. `tests/unit/test_sponsor_seed_idempotent.py`) keep working without modification.
+  - Renamed `_parse_vtt_to_segments` -> `parse_vtt_to_segments` in `src/api/episodes.py` (single in-tree caller updated). The benchmark imports it directly to feed transcripts through the same parser production uses.
+  - Added `benchmarks/` to `.dockerignore` so the offline benchmark corpus, raw LLM responses, and reports never land in the production image.
+
+### Tuned
+
+- `AD_DETECTION_MAX_TOKENS` default raised from 2000 to 4096. The 2000-token ceiling was tight for verbose-but-correct LLM responses (multi-sponsor transcripts with detailed `reason` fields could truncate mid-JSON, surfacing as parse failures rather than truncation). 4096 doubles headroom while still bounding cost. **Cost note:** operators using the default will see higher max output tokens per detection call -- typical responses are well under 2000 already, so practical token spend is unchanged for short responses but larger for verbose ones. Operators with a custom `AD_DETECTION_MAX_TOKENS` env override are unaffected.
+
 ## [2.0.24] - 2026-05-05
 
 ### Fixed

@@ -350,7 +350,7 @@ def regenerate_chapters(slug, episode_id):
         return error_response('No VTT transcript available - full reprocess required', 400)
 
     # Parse VTT back to segments
-    segments = _parse_vtt_to_segments(vtt_content)
+    segments = parse_vtt_to_segments(vtt_content)
     if not segments:
         return error_response('Failed to parse VTT transcript', 500)
 
@@ -403,7 +403,7 @@ def regenerate_chapters(slug, episode_id):
         return error_response('Failed to regenerate chapters', 500)
 
 
-def _parse_vtt_to_segments(vtt_content: str) -> list:
+def parse_vtt_to_segments(vtt_content: str) -> list:
     """Parse VTT content back to segment list."""
     segments = []
 
