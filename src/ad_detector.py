@@ -1822,7 +1822,6 @@ class AdDetector:
 
             # Get prompts and model
             system_prompt = self.get_system_prompt()
-            user_prompt_template = self.get_user_prompt_template()
             model = self.get_model()
 
             logger.info(f"[{slug}:{episode_id}] Using model: {model}")
