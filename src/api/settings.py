@@ -209,8 +209,6 @@ def update_ad_detection_settings():
     if not data:
         return error_response('Request body required', 400)
 
-    logger.info(f"PUT /settings/ad-detection payload keys ({len(data)}): {sorted(data.keys())}")
-
     db = get_database()
 
     if 'systemPrompt' in data:
