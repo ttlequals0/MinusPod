@@ -19,7 +19,11 @@ from flask import abort
 
 _route_logger = logging.getLogger(__name__)
 
-SLUG_RE: Final = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
+# Cap is generous — real-world podcast slugs auto-generated from long
+# titles routinely exceed the prior 64-char limit. The strict regex still
+# refuses path-traversal characters; length is bounded only to stop
+# obvious abuse, not to gate legitimate slugs.
+SLUG_RE: Final = re.compile(r"^[a-z0-9][a-z0-9-]{0,199}$")
 EPISODE_ID_RE: Final = re.compile(r"^[a-f0-9]{12}$")
 
 RESERVED_SLUGS: Final = frozenset(
