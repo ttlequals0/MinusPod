@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getSettings, updateSettings, resetSettings, resetPrompts, getModels, getWhisperModels, getSystemStatus, runCleanup, getProcessingEpisodes, cancelProcessing, refreshModels, getRetention, updateRetention, getProcessingTimeouts, updateProcessingTimeouts, getAudioSettings, updateAudioSettings } from '../api/settings';
 import { useAuth } from '../context/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
-import type { LlmProvider, WhisperBackend, WhisperApiConfig } from '../api/types';
+import type { LlmProvider, WhisperBackend, WhisperApiConfig, UpdateSettingsPayload } from '../api/types';
 import { LLM_PROVIDERS } from '../api/types';
 
 import SystemStatusSection from './settings/SystemStatusSection';
@@ -271,31 +271,91 @@ function Settings() {
   }, [systemPrompt, verificationPrompt, selectedModel, verificationModel, whisperModel, autoProcessEnabled, maxFeedEpisodes, onlyExposeProcessedDefault, audioBitrate, vttTranscriptsEnabled, chaptersEnabled, chaptersModel, minCutConfidence, llmProvider, openaiBaseUrl, whisperBackend, whisperApiConfig.baseUrl, whisperApiConfig.model, whisperLanguage, whisperComputeType, podcastIndexApiKey, podcastIndexApiSecret, settings]);
 
   const updateMutation = useMutation({
-    mutationFn: () =>
-      updateSettings({
-        systemPrompt,
-        verificationPrompt,
-        claudeModel: selectedModel,
-        verificationModel,
-        whisperModel,
-        autoProcessEnabled,
-        maxFeedEpisodes,
-        onlyExposeProcessedDefault,
-        audioBitrate,
-        vttTranscriptsEnabled,
-        chaptersEnabled,
-        chaptersModel,
-        minCutConfidence,
-        llmProvider,
-        openaiBaseUrl,
-        whisperBackend,
-        whisperApiBaseUrl: whisperApiConfig.baseUrl,
-        whisperApiModel: whisperApiConfig.model,
-        whisperLanguage,
-        whisperComputeType,
-        ...(podcastIndexApiKey ? { podcastIndexApiKey } : {}),
-        ...(podcastIndexApiSecret ? { podcastIndexApiSecret } : {}),
-      }),
+    mutationFn: () => {
+      if (!settings) {
+        throw new Error('Settings not loaded yet');
+      }
+
+      // Send ONLY fields whose current state differs from the loaded API value.
+      // Backend PUT handlers use `if 'fieldName' in data:` guards, so omitted
+      // fields are left untouched in the DB. This prevents a save from
+      // clobbering unrelated fields when the user only edited one — and also
+      // closes the hydration-race window where a Save could fire with
+      // hardcoded useState defaults before the snapshot effect copied real
+      // values into local state.
+      const payload: UpdateSettingsPayload = {};
+
+      if (systemPrompt !== (settings.systemPrompt?.value || '')) {
+        payload.systemPrompt = systemPrompt;
+      }
+      if (verificationPrompt !== (settings.verificationPrompt?.value || '')) {
+        payload.verificationPrompt = verificationPrompt;
+      }
+      if (selectedModel !== (settings.claudeModel?.value || '')) {
+        payload.claudeModel = selectedModel;
+      }
+      if (verificationModel !== (settings.verificationModel?.value || '')) {
+        payload.verificationModel = verificationModel;
+      }
+      if (whisperModel !== (settings.whisperModel?.value || 'small')) {
+        payload.whisperModel = whisperModel;
+      }
+      if (chaptersModel !== (settings.chaptersModel?.value || '')) {
+        payload.chaptersModel = chaptersModel;
+      }
+      if (llmProvider !== (settings.llmProvider?.value || LLM_PROVIDERS.ANTHROPIC)) {
+        payload.llmProvider = llmProvider;
+      }
+      if (openaiBaseUrl !== (settings.openaiBaseUrl?.value || 'http://localhost:8000/v1')) {
+        payload.openaiBaseUrl = openaiBaseUrl;
+      }
+      if (whisperBackend !== (settings.whisperBackend?.value || 'local')) {
+        payload.whisperBackend = whisperBackend;
+      }
+      if (whisperApiConfig.baseUrl !== (settings.whisperApiBaseUrl?.value || '')) {
+        payload.whisperApiBaseUrl = whisperApiConfig.baseUrl;
+      }
+      if (whisperApiConfig.model !== (settings.whisperApiModel?.value || 'whisper-1')) {
+        payload.whisperApiModel = whisperApiConfig.model;
+      }
+      if (whisperLanguage !== (settings.whisperLanguage?.value || 'en')) {
+        payload.whisperLanguage = whisperLanguage;
+      }
+      if (whisperComputeType !== (settings.whisperComputeType?.value || 'auto')) {
+        payload.whisperComputeType = whisperComputeType;
+      }
+      if (audioBitrate !== (settings.audioBitrate?.value || '128k')) {
+        payload.audioBitrate = audioBitrate;
+      }
+
+      // Booleans — use ?? because false is a meaningful value
+      if (autoProcessEnabled !== (settings.autoProcessEnabled?.value ?? true)) {
+        payload.autoProcessEnabled = autoProcessEnabled;
+      }
+      if (onlyExposeProcessedDefault !== (settings.onlyExposeProcessedDefault?.value ?? false)) {
+        payload.onlyExposeProcessedDefault = onlyExposeProcessedDefault;
+      }
+      if (vttTranscriptsEnabled !== (settings.vttTranscriptsEnabled?.value ?? true)) {
+        payload.vttTranscriptsEnabled = vttTranscriptsEnabled;
+      }
+      if (chaptersEnabled !== (settings.chaptersEnabled?.value ?? true)) {
+        payload.chaptersEnabled = chaptersEnabled;
+      }
+
+      // Numerics — use ?? because 0 is a meaningful value
+      if (maxFeedEpisodes !== (settings.maxFeedEpisodes?.value ?? 300)) {
+        payload.maxFeedEpisodes = maxFeedEpisodes;
+      }
+      if (minCutConfidence !== (settings.minCutConfidence?.value ?? 0.80)) {
+        payload.minCutConfidence = minCutConfidence;
+      }
+
+      // PodcastIndex credentials — only include if user typed them in this session
+      if (podcastIndexApiKey) payload.podcastIndexApiKey = podcastIndexApiKey;
+      if (podcastIndexApiSecret) payload.podcastIndexApiSecret = podcastIndexApiSecret;
+
+      return updateSettings(payload);
+    },
     onSuccess: () => {
       setPodcastIndexApiKey('');
       setPodcastIndexApiSecret('');

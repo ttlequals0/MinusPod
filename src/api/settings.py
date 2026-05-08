@@ -209,6 +209,30 @@ def update_ad_detection_settings():
     if not data:
         return error_response('Request body required', 400)
 
+    logger.info(f"PUT /settings/ad-detection payload keys ({len(data)}): {sorted(data.keys())}")
+
+    # Defense in depth: reject payloads that match the known "stale frontend
+    # bundle" wipe signature -- a buggy older Settings.tsx sent every field on
+    # every Save, with the buggy initial useState defaults overwriting working
+    # values. The diff-payload fix prevents this client-side, but a stale
+    # browser tab can still serve the old bundle. Catch it here.
+    _wipe_sigs = (
+        {'whisperBackend': 'local', 'whisperApiBaseUrl': '', 'whisperApiModel': 'whisper-1'},
+        {'llmProvider': 'anthropic', 'openaiBaseUrl': 'http://localhost:8000/v1', 'claudeModel': ''},
+    )
+    for sig in _wipe_sigs:
+        if all(k in data and data[k] == v for k, v in sig.items()):
+            logger.warning(
+                f"Rejected suspected stale-bundle wipe payload (matched signature {sig}); "
+                f"all keys={sorted(data.keys())}"
+            )
+            return error_response(
+                'Save rejected: payload matches a known buggy pattern from a stale '
+                'browser bundle. Hard-refresh the page (Ctrl+Shift+R) and retry.',
+                409,
+            )
+
+
     db = get_database()
 
     if 'systemPrompt' in data:
