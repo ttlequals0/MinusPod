@@ -102,6 +102,17 @@ COPY gunicorn.conf.py ./
 # Copy built frontend from builder stage
 COPY --from=frontend-builder /app/static/ui ./static/ui/
 
+# Apple Podcasts / iTunes wants 1400-3000 px square artwork for channel
+# images; the bundled icon-512.png is too small and renders wonky in
+# clients. ffmpeg is already installed for transcoding, so use it here
+# to upscale once at build time into a derived feed-icon.png — no extra
+# source file in frontend/public, no Pillow dependency, no runtime cost.
+RUN ffmpeg -hide_banner -loglevel error -y \
+    -i ./static/ui/icon-512.png \
+    -vf scale=3000:3000:flags=lanczos \
+    ./static/ui/feed-icon.png \
+    && ls -la ./static/ui/feed-icon.png
+
 # Copy entrypoint script
 COPY entrypoint.sh /app/
 

@@ -571,6 +571,34 @@ class EpisodeMixin:
         )
         return [dict(row) for row in cursor.fetchall()]
 
+    def get_recent_processed_across_all_feeds(self, limit: int) -> List[Dict]:
+        """Return the most-recent processed episodes across every podcast.
+
+        Used by the unified ``/all`` RSS feed: caller only ever exposes
+        processed episodes, sorted by ``published_at`` desc, capped at
+        ``limit``. Joins ``podcasts`` so the RSS builder has slug, title,
+        and artwork without an N+1.
+        """
+        if limit <= 0:
+            return []
+        conn = self.get_connection()
+        cursor = conn.execute(
+            """SELECT e.episode_id, e.title, e.description, e.published_at,
+                      e.new_duration, e.episode_number, e.processed_version,
+                      e.artwork_url AS episode_artwork_url,
+                      p.slug AS podcast_slug,
+                      p.title AS podcast_title,
+                      p.artwork_url AS podcast_artwork_url
+               FROM episodes e
+               JOIN podcasts p ON e.podcast_id = p.id
+               WHERE e.status = 'processed'
+                     AND e.processed_file IS NOT NULL
+               ORDER BY COALESCE(e.published_at, e.created_at) DESC
+               LIMIT ?""",
+            (limit,)
+        )
+        return [dict(row) for row in cursor.fetchall()]
+
     def get_episodes_by_ids(self, slug: str, episode_ids: List[str]) -> List[Dict]:
         """Get multiple episodes by slug and episode_ids in a single query."""
         if not episode_ids:

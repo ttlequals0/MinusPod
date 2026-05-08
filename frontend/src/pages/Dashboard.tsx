@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { getFeeds, refreshFeed, refreshAllFeeds, deleteFeed } from '../api/feeds';
 import FeedCard from '../components/FeedCard';
 import FeedListItem from '../components/FeedListItem';
+import CombinedFeedCard from '../components/CombinedFeedCard';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 function Dashboard() {
@@ -183,6 +184,8 @@ function Dashboard() {
           </Link>
         </div>
       </div>
+
+      {feeds && feeds.length > 0 && <CombinedFeedCard />}
 
       {!feeds || feeds.length === 0 ? (
         <div className="text-center py-12 bg-card rounded-lg border border-border">

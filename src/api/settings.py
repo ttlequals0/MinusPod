@@ -88,6 +88,12 @@ def get_settings():
     except (ValueError, TypeError):
         max_feed_episodes = 300
 
+    try:
+        combined_feed_episode_limit = int(
+            _setting_value(settings, 'combined_feed_episode_limit', '50'))
+    except (ValueError, TypeError):
+        combined_feed_episode_limit = 50
+
     # Get min cut confidence (ad detection aggressiveness)
     try:
         min_cut_confidence = float(_setting_value(settings, 'min_cut_confidence', '0.80'))
@@ -148,6 +154,7 @@ def get_settings():
         'whisperModel': _sv('whisper_model', whisper_model),
         'autoProcessEnabled': _sv('auto_process_enabled', auto_process_enabled),
         'maxFeedEpisodes': _sv('max_feed_episodes', max_feed_episodes),
+        'combinedFeedEpisodeLimit': _sv('combined_feed_episode_limit', combined_feed_episode_limit),
         'onlyExposeProcessedDefault': _sv(
             'only_expose_processed_default', only_expose_processed_default),
         'vttTranscriptsEnabled': _sv('vtt_transcripts_enabled', vtt_enabled),
@@ -179,6 +186,7 @@ def get_settings():
             'whisperModel': default_whisper_model,
             'autoProcessEnabled': True,
             'maxFeedEpisodes': 300,
+            'combinedFeedEpisodeLimit': 50,
             'onlyExposeProcessedDefault': False,
             'vttTranscriptsEnabled': True,
             'chaptersEnabled': True,
@@ -251,6 +259,16 @@ def update_ad_detection_settings():
             return error_response('maxFeedEpisodes must be between 10 and 500', 400)
         db.set_setting('max_feed_episodes', str(max_ep), is_default=False)
         logger.info(f"Updated max feed episodes to: {max_ep}")
+
+    if 'combinedFeedEpisodeLimit' in data:
+        try:
+            combined_limit = int(data['combinedFeedEpisodeLimit'])
+        except (TypeError, ValueError):
+            return error_response('combinedFeedEpisodeLimit must be an integer', 400)
+        if combined_limit < 1 or combined_limit > 500:
+            return error_response('combinedFeedEpisodeLimit must be between 1 and 500', 400)
+        db.set_setting('combined_feed_episode_limit', str(combined_limit), is_default=False)
+        logger.info(f"Updated combined feed episode limit to: {combined_limit}")
 
     if 'onlyExposeProcessedDefault' in data:
         value = 'true' if data['onlyExposeProcessedDefault'] else 'false'

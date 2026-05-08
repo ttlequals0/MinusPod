@@ -127,6 +127,7 @@ export interface Settings {
   whisperModel: SettingValue;
   autoProcessEnabled: SettingValueBoolean;
   maxFeedEpisodes: SettingValueNumber;
+  combinedFeedEpisodeLimit: SettingValueNumber;
   onlyExposeProcessedDefault: SettingValueBoolean;
   audioBitrate: SettingValue;
   vttTranscriptsEnabled: SettingValueBoolean;
@@ -152,6 +153,7 @@ export interface Settings {
     whisperModel: string;
     autoProcessEnabled: boolean;
     maxFeedEpisodes: number;
+    combinedFeedEpisodeLimit: number;
     onlyExposeProcessedDefault: boolean;
     vttTranscriptsEnabled: boolean;
     chaptersEnabled: boolean;
@@ -176,6 +178,7 @@ export interface UpdateSettingsPayload {
   whisperModel?: string;
   autoProcessEnabled?: boolean;
   maxFeedEpisodes?: number;
+  combinedFeedEpisodeLimit?: number;
   onlyExposeProcessedDefault?: boolean;
   audioBitrate?: string;
   vttTranscriptsEnabled?: boolean;

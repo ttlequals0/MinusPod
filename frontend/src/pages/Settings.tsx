@@ -54,6 +54,7 @@ function Settings() {
   const [whisperModel, setWhisperModel] = useState('');
   const [autoProcessEnabled, setAutoProcessEnabled] = useState(true);
   const [maxFeedEpisodes, setMaxFeedEpisodes] = useState(300);
+  const [combinedFeedEpisodeLimit, setCombinedFeedEpisodeLimit] = useState(50);
   const [onlyExposeProcessedDefault, setOnlyExposeProcessedDefault] = useState(false);
   const [audioBitrate, setAudioBitrate] = useState('128k');
   const [vttTranscriptsEnabled, setVttTranscriptsEnabled] = useState(true);
@@ -225,6 +226,7 @@ function Settings() {
       setWhisperModel(settings.whisperModel?.value || 'small');
       setAutoProcessEnabled(settings.autoProcessEnabled?.value ?? true);
       setMaxFeedEpisodes(settings.maxFeedEpisodes?.value ?? 300);
+      setCombinedFeedEpisodeLimit(settings.combinedFeedEpisodeLimit?.value ?? 50);
       setOnlyExposeProcessedDefault(settings.onlyExposeProcessedDefault?.value ?? false);
       setAudioBitrate(settings.audioBitrate?.value || '128k');
       setVttTranscriptsEnabled(settings.vttTranscriptsEnabled?.value ?? true);
@@ -253,6 +255,7 @@ function Settings() {
       whisperModel !== (settings.whisperModel?.value || 'small') ||
       autoProcessEnabled !== (settings.autoProcessEnabled?.value ?? true) ||
       maxFeedEpisodes !== (settings.maxFeedEpisodes?.value ?? 300) ||
+      combinedFeedEpisodeLimit !== (settings.combinedFeedEpisodeLimit?.value ?? 50) ||
       onlyExposeProcessedDefault !== (settings.onlyExposeProcessedDefault?.value ?? false) ||
       audioBitrate !== (settings.audioBitrate?.value || '128k') ||
       vttTranscriptsEnabled !== (settings.vttTranscriptsEnabled?.value ?? true) ||
@@ -268,7 +271,7 @@ function Settings() {
       whisperComputeType !== (settings.whisperComputeType?.value || 'auto') ||
       (podcastIndexApiKey !== '' && podcastIndexApiSecret !== '')
     );
-  }, [systemPrompt, verificationPrompt, selectedModel, verificationModel, whisperModel, autoProcessEnabled, maxFeedEpisodes, onlyExposeProcessedDefault, audioBitrate, vttTranscriptsEnabled, chaptersEnabled, chaptersModel, minCutConfidence, llmProvider, openaiBaseUrl, whisperBackend, whisperApiConfig.baseUrl, whisperApiConfig.model, whisperLanguage, whisperComputeType, podcastIndexApiKey, podcastIndexApiSecret, settings]);
+  }, [systemPrompt, verificationPrompt, selectedModel, verificationModel, whisperModel, autoProcessEnabled, maxFeedEpisodes, combinedFeedEpisodeLimit, onlyExposeProcessedDefault, audioBitrate, vttTranscriptsEnabled, chaptersEnabled, chaptersModel, minCutConfidence, llmProvider, openaiBaseUrl, whisperBackend, whisperApiConfig.baseUrl, whisperApiConfig.model, whisperLanguage, whisperComputeType, podcastIndexApiKey, podcastIndexApiSecret, settings]);
 
   const updateMutation = useMutation({
     mutationFn: () =>
@@ -280,6 +283,7 @@ function Settings() {
         whisperModel,
         autoProcessEnabled,
         maxFeedEpisodes,
+        combinedFeedEpisodeLimit,
         onlyExposeProcessedDefault,
         audioBitrate,
         vttTranscriptsEnabled,

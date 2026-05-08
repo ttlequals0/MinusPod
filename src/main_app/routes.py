@@ -206,6 +206,42 @@ def register_routes(app):
 
     # ========== RSS Feed Routes ==========
 
+    # In-memory cache for the unified /all feed. Werkzeug routing prefers
+    # literal rules over <slug>, so this never collides with a real podcast
+    # named "all". TTL matches the per-feed serve_rss freshness window.
+    _COMBINED_CACHE = {'xml': None, 'built_at': 0.0, 'base_url': None}
+    _COMBINED_TTL_SECONDS = 15 * 60
+
+    @app.route('/all')
+    @log_request_detailed
+    def serve_combined_rss():
+        """Serve a unified RSS feed combining all processed episodes."""
+        db, storage, rss_parser, _ = _get_components()
+
+        try:
+            limit = int(db.get_setting('combined_feed_episode_limit') or '50')
+        except (ValueError, TypeError):
+            limit = 50
+        limit = max(1, min(limit, 500))
+
+        current_base = os.getenv('BASE_URL', 'http://localhost:8000')
+        now = time.time()
+        cached = _COMBINED_CACHE
+        if (cached['xml']
+                and cached['base_url'] == current_base
+                and (now - cached['built_at']) < _COMBINED_TTL_SECONDS):
+            feed_logger.info(f"[/all] Serving cached combined feed (limit={limit})")
+            return Response(cached['xml'], mimetype='application/rss+xml')
+
+        episodes = db.get_recent_processed_across_all_feeds(limit)
+        xml = rss_parser.build_combined_feed(episodes, storage=storage)
+        cached['xml'] = xml
+        cached['built_at'] = now
+        cached['base_url'] = current_base
+        feed_logger.info(
+            f"[/all] Built combined feed: {len(episodes)} episodes (limit={limit})")
+        return Response(xml, mimetype='application/rss+xml')
+
     @app.route('/<slug>')
     @validate_slug_param
     @log_request_detailed

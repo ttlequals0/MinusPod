@@ -510,6 +510,103 @@ class RSSParser:
         self._append_podcasting2_tags(lines, slug, ep_id, storage)
         lines.append('</item>')
 
+    def build_combined_feed(self, episodes: List[Dict], storage=None,
+                            channel_title: str = "MinusPod — All Podcasts",
+                            channel_link: Optional[str] = None,
+                            channel_description: str = (
+                                "All processed episodes from every podcast in MinusPod, "
+                                "newest first."
+                            )) -> str:
+        """Build a unified RSS feed across all podcasts.
+
+        Each episode dict must include the keys returned by
+        ``EpisodeMixin.get_recent_processed_across_all_feeds``: ``episode_id``,
+        ``title``, ``description``, ``published_at``, ``new_duration``,
+        ``episode_number``, ``processed_version``, ``episode_artwork_url``,
+        ``podcast_slug``, ``podcast_title``, ``podcast_artwork_url``.
+
+        Output mirrors the per-feed shape produced by ``modify_feed`` so
+        existing podcast clients render it identically; episode titles are
+        prefixed with the source podcast title in brackets so listeners can
+        see which show each item belongs to.
+        """
+        base_url = self._resolved_base_url()
+        link = channel_link or base_url
+
+        lines = []
+        lines.append('<?xml version="1.0" encoding="UTF-8"?>')
+        lines.append('<rss version="2.0" '
+                     'xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" '
+                     'xmlns:podcast="https://podcastindex.org/namespace/1.0">')
+        lines.append('<channel>')
+        lines.append(f'<title>{self._escape_xml(channel_title)}</title>')
+        lines.append(f'<link>{self._escape_xml(link)}</link>')
+        lines.append(f'<description><![CDATA[{channel_description}]]></description>')
+        lines.append('<language>en</language>')
+        lines.append('<itunes:author>MinusPod</itunes:author>')
+
+        # Channel artwork: 3000×3000 PNG. Apple Podcasts requires 1400-3000 px
+        # square JPG/PNG and validates strictly; smaller images render wonky
+        # in many clients. The Dockerfile upscales the bundled 512×512
+        # icon to /ui/feed-icon.png at build time so we don't have to keep
+        # a second source asset in frontend/public/.
+        artwork_href = f"{base_url}/ui/feed-icon.png"
+        lines.append('<image>')
+        lines.append(f'  <url>{self._escape_xml(artwork_href)}</url>')
+        lines.append(f'  <title>{self._escape_xml(channel_title)}</title>')
+        lines.append(f'  <link>{self._escape_xml(link)}</link>')
+        lines.append('</image>')
+        lines.append(f'<itunes:image href="{self._escape_xml(artwork_href)}" />')
+
+        for ep in episodes:
+            slug = ep.get('podcast_slug')
+            episode_id = ep.get('episode_id')
+            if not slug or not episode_id:
+                continue
+
+            podcast_title = ep.get('podcast_title') or 'Unknown'
+            ep_title = ep.get('title') or 'Untitled'
+            display_title = f"[{podcast_title}] {ep_title}"
+
+            modified_url = episode_public_url(
+                base_url, slug, episode_id, ep.get('processed_version'))
+
+            lines.append('<item>')
+            lines.append(f'  <title>{self._escape_xml(display_title)}</title>')
+            if ep.get('description'):
+                lines.append(
+                    f'  <description><![CDATA[{ep["description"]}]]></description>')
+            lines.append(f'  <enclosure url="{modified_url}" type="audio/mpeg" />')
+            # GUID combines slug + episode_id so two podcasts that happen to
+            # share an episode_id never collide in the unified feed.
+            lines.append(
+                f'  <guid isPermaLink="false">{self._escape_xml(slug)}::{self._escape_xml(episode_id)}</guid>')
+            if ep.get('published_at'):
+                lines.append(
+                    f'  <pubDate>{self._format_rfc2822(ep["published_at"])}</pubDate>')
+            if ep.get('new_duration'):
+                try:
+                    lines.append(
+                        f'  <itunes:duration>{int(ep["new_duration"])}</itunes:duration>')
+                except (TypeError, ValueError):
+                    pass
+            if ep.get('episode_number'):
+                lines.append(
+                    f'  <itunes:episode>{ep["episode_number"]}</itunes:episode>')
+            artwork_url = ep.get('episode_artwork_url') or ep.get('podcast_artwork_url')
+            if artwork_url:
+                lines.append(
+                    f'  <itunes:image href="{self._escape_xml(artwork_url)}" />')
+            self._append_podcasting2_tags(lines, slug, episode_id, storage)
+            lines.append('</item>')
+
+        lines.append('</channel>')
+        lines.append('</rss>')
+
+        rendered = '\n'.join(lines)
+        logger.info(f"[/all] Built combined RSS feed with {len(episodes)} episodes")
+        return rendered
+
     def _format_rfc2822(self, iso_date: str) -> str:
         """Convert ISO 8601 date string to RFC 2822 format for RSS pubDate."""
         try:
