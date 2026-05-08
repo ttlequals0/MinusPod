@@ -6,6 +6,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.27] - 2026-05-08
+
+### Fixed
+
+- Settings page: editing one field and clicking Save no longer ships the entire form as a payload. The `updateMutation.mutationFn` in `frontend/src/pages/Settings.tsx` now compares each state variable to its loaded value (`settings.X?.value`) and includes the field in the request body only when it changed. A short-circuit guard throws if `settings` is undefined at Save time, closing a sub-frame hydration window where the Save button could briefly render before the loaded values were applied to local state. The backend `if 'fieldName' in data:` guards in `update_ad_detection_settings()` already left omitted fields untouched in the DB; this PR adds two regression tests (`test_single_field_save_leaves_others_untouched`, `test_revert_to_defaults_is_accepted`) that lock that behaviour in. (#201)
+- Slug length cap raised from 64 to 200 chars in `src/utils/validation.py`. The strict canonical `SLUG_RE` was rejecting auto-generated slugs from long podcast titles -- representative example: an "Artificial Intelligence (AI) News, ChatGPT, OpenAI..." podcast generates a 78-char slug. Such podcasts created successfully (read-side validators are permissive) but every WRITE endpoint that re-validates the slug -- including `POST /api/v1/feeds/{slug}/episodes/{episode_id}/corrections` -- silently returned 400 with no obvious user-facing signal. Path-traversal characters and the must-start-with-alphanumeric rule are unchanged. (#202)
+
 ## [2.0.26] - 2026-05-06
 
 ### Added
