@@ -423,6 +423,20 @@ def submit_correction(slug, episode_id):
     if original_start is None or original_end is None:
         return error_response('Missing original ad boundaries', 400)
 
+    # Optional top-level sponsor override from the Ad Inbox modal: when the
+    # automatic extractor returned nothing on the original detection, the user
+    # can type a sponsor name in the review UI. We honor it here so the
+    # confirm/adjust paths below create the ad_patterns row instead of
+    # silently skipping with "no sponsor detected".
+    explicit_sponsor = data.get('sponsor')
+    if explicit_sponsor and isinstance(explicit_sponsor, str):
+        sponsor_clean = explicit_sponsor.strip()
+        if sponsor_clean:
+            # Mutating original_ad here is the cheapest way to thread the
+            # value into both branches below — both already read it from
+            # original_ad.get('sponsor') as their first lookup.
+            original_ad['sponsor'] = sponsor_clean
+
     # Get pattern service for recording corrections
     from pattern_service import PatternService
     pattern_service = PatternService(db)

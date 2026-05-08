@@ -35,6 +35,10 @@ export interface PatternCorrection {
   adjusted_start?: number;
   adjusted_end?: number;
   notes?: string;
+  // Optional sponsor name typed by the user in the Ad Inbox modal when the
+  // server's sponsor extractor returned nothing. Backend honors this on
+  // confirm/adjust to create an ad_patterns row.
+  sponsor?: string;
 }
 
 // Pattern Stats

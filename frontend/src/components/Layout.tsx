@@ -56,6 +56,16 @@ function Layout() {
                   Add Feed
                 </Link>
                 <Link
+                  to="/inbox"
+                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                    isActive('/inbox')
+                      ? 'bg-primary text-primary-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                  }`}
+                >
+                  Ad Inbox
+                </Link>
+                <Link
                   to="/patterns"
                   className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
                     isActive('/patterns')
@@ -175,6 +185,17 @@ function Layout() {
                 }`}
               >
                 Add Feed
+              </Link>
+              <Link
+                to="/inbox"
+                onClick={() => setMobileMenuOpen(false)}
+                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+                  isActive('/inbox')
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+                }`}
+              >
+                Ad Inbox
               </Link>
               <Link
                 to="/patterns"

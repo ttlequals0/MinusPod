@@ -571,6 +571,53 @@ class EpisodeMixin:
         )
         return [dict(row) for row in cursor.fetchall()]
 
+    def get_all_ad_markers(self) -> List[Dict]:
+        """Return every episode's ad_markers_json plus identifying metadata.
+
+        Used by the Ad Inbox to enumerate all detected ads across the system.
+        Skips rows with no markers. Returns rows with the columns:
+        ``episode_id``, ``podcast_slug``, ``podcast_title``, ``episode_title``,
+        ``published_at``, ``ad_markers_json`` (raw JSON string),
+        ``processed_version``.
+        """
+        conn = self.get_connection()
+        cursor = conn.execute(
+            """SELECT e.episode_id,
+                      e.title          AS episode_title,
+                      e.published_at,
+                      e.processed_version,
+                      ed.ad_markers_json,
+                      p.slug           AS podcast_slug,
+                      p.title          AS podcast_title
+               FROM episode_details ed
+               JOIN episodes e ON e.id = ed.episode_id
+               JOIN podcasts p ON p.id = e.podcast_id
+               WHERE ed.ad_markers_json IS NOT NULL
+                     AND ed.ad_markers_json <> '[]'
+               ORDER BY COALESCE(e.published_at, e.created_at) DESC"""
+        )
+        return [dict(row) for row in cursor.fetchall()]
+
+    def get_corrections_for_episodes(self, episode_ids: List[str]) -> List[Dict]:
+        """Return all pattern_corrections rows for the given episode_ids.
+
+        Returns empty list when ``episode_ids`` is empty. Useful for the Ad
+        Inbox's status derivation: caller groups results by ``episode_id`` and
+        compares ``original_bounds`` against each ad marker.
+        """
+        if not episode_ids:
+            return []
+        conn = self.get_connection()
+        placeholders = ','.join('?' for _ in episode_ids)
+        cursor = conn.execute(
+            f"""SELECT id, episode_id, correction_type, pattern_id,
+                       original_bounds, corrected_bounds, created_at
+                FROM pattern_corrections
+                WHERE episode_id IN ({placeholders})""",
+            list(episode_ids)
+        )
+        return [dict(row) for row in cursor.fetchall()]
+
     def get_episodes_by_ids(self, slug: str, episode_ids: List[str]) -> List[Dict]:
         """Get multiple episodes by slug and episode_ids in a single query."""
         if not episode_ids:

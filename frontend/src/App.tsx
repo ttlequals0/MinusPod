@@ -9,6 +9,7 @@ import EpisodeDetail from './pages/EpisodeDetail';
 import AddFeed from './pages/AddFeed';
 import Settings from './pages/Settings';
 import PatternsPage from './pages/PatternsPage';
+import AdInboxPage from './pages/AdInboxPage';
 import HistoryPage from './pages/HistoryPage';
 import StatsPage from './pages/StatsPage';
 import Login from './pages/Login';
@@ -28,6 +29,7 @@ function App() {
               <Route path="feeds/:slug/episodes/:episodeId" element={<EpisodeDetail />} />
               <Route path="add" element={<AddFeed />} />
               <Route path="search" element={<Search />} />
+              <Route path="inbox" element={<AdInboxPage />} />
               <Route path="patterns" element={<PatternsPage />} />
               <Route path="history" element={<HistoryPage />} />
               <Route path="stats" element={<StatsPage />} />
