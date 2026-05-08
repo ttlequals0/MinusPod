@@ -243,117 +243,58 @@ function Settings() {
     }
   }
 
+  // Build a payload of fields whose current state differs from the loaded
+  // API value. Backend PUT handlers use `if 'fieldName' in data:` guards,
+  // so omitted fields stay untouched in the DB; that's what lets a Save
+  // change one field without wiping the rest, and also closes the
+  // hydration-race window where Save could fire before loaded values were
+  // copied into local state. Caller must verify settings is non-null.
+  // String fields use || (treat empty string as "fall back to default");
+  // boolean and numeric fields use ?? (false and 0 are meaningful values).
+  // audioBitrate's default isn't in settings.defaults so it stays inline.
+  const computeChangedFields = (): UpdateSettingsPayload => {
+    if (!settings) return {};
+    const d = settings.defaults;
+    const payload: UpdateSettingsPayload = {};
+
+    if (systemPrompt !== (settings.systemPrompt?.value || d.systemPrompt)) payload.systemPrompt = systemPrompt;
+    if (verificationPrompt !== (settings.verificationPrompt?.value || d.verificationPrompt)) payload.verificationPrompt = verificationPrompt;
+    if (selectedModel !== (settings.claudeModel?.value || d.claudeModel)) payload.claudeModel = selectedModel;
+    if (verificationModel !== (settings.verificationModel?.value || d.verificationModel)) payload.verificationModel = verificationModel;
+    if (whisperModel !== (settings.whisperModel?.value || d.whisperModel)) payload.whisperModel = whisperModel;
+    if (chaptersModel !== (settings.chaptersModel?.value || d.chaptersModel)) payload.chaptersModel = chaptersModel;
+    if (llmProvider !== (settings.llmProvider?.value || d.llmProvider)) payload.llmProvider = llmProvider;
+    if (openaiBaseUrl !== (settings.openaiBaseUrl?.value || d.openaiBaseUrl)) payload.openaiBaseUrl = openaiBaseUrl;
+    if (whisperBackend !== (settings.whisperBackend?.value || d.whisperBackend)) payload.whisperBackend = whisperBackend;
+    if (whisperApiConfig.baseUrl !== (settings.whisperApiBaseUrl?.value || d.whisperApiBaseUrl)) payload.whisperApiBaseUrl = whisperApiConfig.baseUrl;
+    if (whisperApiConfig.model !== (settings.whisperApiModel?.value || d.whisperApiModel)) payload.whisperApiModel = whisperApiConfig.model;
+    if (whisperLanguage !== (settings.whisperLanguage?.value || d.whisperLanguage)) payload.whisperLanguage = whisperLanguage;
+    if (whisperComputeType !== (settings.whisperComputeType?.value || d.whisperComputeType)) payload.whisperComputeType = whisperComputeType;
+    if (audioBitrate !== (settings.audioBitrate?.value || '128k')) payload.audioBitrate = audioBitrate;
+
+    if (autoProcessEnabled !== (settings.autoProcessEnabled?.value ?? d.autoProcessEnabled)) payload.autoProcessEnabled = autoProcessEnabled;
+    if (onlyExposeProcessedDefault !== (settings.onlyExposeProcessedDefault?.value ?? d.onlyExposeProcessedDefault)) payload.onlyExposeProcessedDefault = onlyExposeProcessedDefault;
+    if (vttTranscriptsEnabled !== (settings.vttTranscriptsEnabled?.value ?? d.vttTranscriptsEnabled)) payload.vttTranscriptsEnabled = vttTranscriptsEnabled;
+    if (chaptersEnabled !== (settings.chaptersEnabled?.value ?? d.chaptersEnabled)) payload.chaptersEnabled = chaptersEnabled;
+    if (maxFeedEpisodes !== (settings.maxFeedEpisodes?.value ?? d.maxFeedEpisodes)) payload.maxFeedEpisodes = maxFeedEpisodes;
+    if (minCutConfidence !== (settings.minCutConfidence?.value ?? d.minCutConfidence)) payload.minCutConfidence = minCutConfidence;
+
+    return payload;
+  };
+
   const hasChanges = useMemo(() => {
     if (!settings) return false;
-    return (
-      systemPrompt !== (settings.systemPrompt?.value || '') ||
-      verificationPrompt !== (settings.verificationPrompt?.value || '') ||
-      selectedModel !== (settings.claudeModel?.value || '') ||
-      verificationModel !== (settings.verificationModel?.value || '') ||
-      whisperModel !== (settings.whisperModel?.value || 'small') ||
-      autoProcessEnabled !== (settings.autoProcessEnabled?.value ?? true) ||
-      maxFeedEpisodes !== (settings.maxFeedEpisodes?.value ?? 300) ||
-      onlyExposeProcessedDefault !== (settings.onlyExposeProcessedDefault?.value ?? false) ||
-      audioBitrate !== (settings.audioBitrate?.value || '128k') ||
-      vttTranscriptsEnabled !== (settings.vttTranscriptsEnabled?.value ?? true) ||
-      chaptersEnabled !== (settings.chaptersEnabled?.value ?? true) ||
-      chaptersModel !== (settings.chaptersModel?.value || '') ||
-      minCutConfidence !== (settings.minCutConfidence?.value ?? 0.80) ||
-      llmProvider !== (settings.llmProvider?.value || LLM_PROVIDERS.ANTHROPIC) ||
-      openaiBaseUrl !== (settings.openaiBaseUrl?.value || 'http://localhost:8000/v1') ||
-      whisperBackend !== (settings.whisperBackend?.value || 'local') ||
-      whisperApiConfig.baseUrl !== (settings.whisperApiBaseUrl?.value || '') ||
-      whisperApiConfig.model !== (settings.whisperApiModel?.value || 'whisper-1') ||
-      whisperLanguage !== (settings.whisperLanguage?.value || 'en') ||
-      whisperComputeType !== (settings.whisperComputeType?.value || 'auto') ||
-      (podcastIndexApiKey !== '' && podcastIndexApiSecret !== '')
-    );
+    if (Object.keys(computeChangedFields()).length > 0) return true;
+    return podcastIndexApiKey !== '' && podcastIndexApiSecret !== '';
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [systemPrompt, verificationPrompt, selectedModel, verificationModel, whisperModel, autoProcessEnabled, maxFeedEpisodes, onlyExposeProcessedDefault, audioBitrate, vttTranscriptsEnabled, chaptersEnabled, chaptersModel, minCutConfidence, llmProvider, openaiBaseUrl, whisperBackend, whisperApiConfig.baseUrl, whisperApiConfig.model, whisperLanguage, whisperComputeType, podcastIndexApiKey, podcastIndexApiSecret, settings]);
 
   const updateMutation = useMutation({
     mutationFn: () => {
-      if (!settings) {
-        throw new Error('Settings not loaded yet');
-      }
-
-      // Send ONLY fields whose current state differs from the loaded API value.
-      // Backend PUT handlers use `if 'fieldName' in data:` guards, so omitted
-      // fields are left untouched in the DB. This prevents a save from
-      // clobbering unrelated fields when the user only edited one — and also
-      // closes the hydration-race window where a Save could fire with
-      // hardcoded useState defaults before the snapshot effect copied real
-      // values into local state.
-      const payload: UpdateSettingsPayload = {};
-
-      if (systemPrompt !== (settings.systemPrompt?.value || '')) {
-        payload.systemPrompt = systemPrompt;
-      }
-      if (verificationPrompt !== (settings.verificationPrompt?.value || '')) {
-        payload.verificationPrompt = verificationPrompt;
-      }
-      if (selectedModel !== (settings.claudeModel?.value || '')) {
-        payload.claudeModel = selectedModel;
-      }
-      if (verificationModel !== (settings.verificationModel?.value || '')) {
-        payload.verificationModel = verificationModel;
-      }
-      if (whisperModel !== (settings.whisperModel?.value || 'small')) {
-        payload.whisperModel = whisperModel;
-      }
-      if (chaptersModel !== (settings.chaptersModel?.value || '')) {
-        payload.chaptersModel = chaptersModel;
-      }
-      if (llmProvider !== (settings.llmProvider?.value || LLM_PROVIDERS.ANTHROPIC)) {
-        payload.llmProvider = llmProvider;
-      }
-      if (openaiBaseUrl !== (settings.openaiBaseUrl?.value || 'http://localhost:8000/v1')) {
-        payload.openaiBaseUrl = openaiBaseUrl;
-      }
-      if (whisperBackend !== (settings.whisperBackend?.value || 'local')) {
-        payload.whisperBackend = whisperBackend;
-      }
-      if (whisperApiConfig.baseUrl !== (settings.whisperApiBaseUrl?.value || '')) {
-        payload.whisperApiBaseUrl = whisperApiConfig.baseUrl;
-      }
-      if (whisperApiConfig.model !== (settings.whisperApiModel?.value || 'whisper-1')) {
-        payload.whisperApiModel = whisperApiConfig.model;
-      }
-      if (whisperLanguage !== (settings.whisperLanguage?.value || 'en')) {
-        payload.whisperLanguage = whisperLanguage;
-      }
-      if (whisperComputeType !== (settings.whisperComputeType?.value || 'auto')) {
-        payload.whisperComputeType = whisperComputeType;
-      }
-      if (audioBitrate !== (settings.audioBitrate?.value || '128k')) {
-        payload.audioBitrate = audioBitrate;
-      }
-
-      // Booleans — use ?? because false is a meaningful value
-      if (autoProcessEnabled !== (settings.autoProcessEnabled?.value ?? true)) {
-        payload.autoProcessEnabled = autoProcessEnabled;
-      }
-      if (onlyExposeProcessedDefault !== (settings.onlyExposeProcessedDefault?.value ?? false)) {
-        payload.onlyExposeProcessedDefault = onlyExposeProcessedDefault;
-      }
-      if (vttTranscriptsEnabled !== (settings.vttTranscriptsEnabled?.value ?? true)) {
-        payload.vttTranscriptsEnabled = vttTranscriptsEnabled;
-      }
-      if (chaptersEnabled !== (settings.chaptersEnabled?.value ?? true)) {
-        payload.chaptersEnabled = chaptersEnabled;
-      }
-
-      // Numerics — use ?? because 0 is a meaningful value
-      if (maxFeedEpisodes !== (settings.maxFeedEpisodes?.value ?? 300)) {
-        payload.maxFeedEpisodes = maxFeedEpisodes;
-      }
-      if (minCutConfidence !== (settings.minCutConfidence?.value ?? 0.80)) {
-        payload.minCutConfidence = minCutConfidence;
-      }
-
-      // PodcastIndex credentials — only include if user typed them in this session
+      if (!settings) throw new Error('Settings not loaded yet');
+      const payload = computeChangedFields();
       if (podcastIndexApiKey) payload.podcastIndexApiKey = podcastIndexApiKey;
       if (podcastIndexApiSecret) payload.podcastIndexApiSecret = podcastIndexApiSecret;
-
       return updateSettings(payload);
     },
     onSuccess: () => {
