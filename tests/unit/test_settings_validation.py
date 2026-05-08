@@ -132,3 +132,51 @@ class TestWebhookUrlValidation:
             content_type='application/json',
         )
         assert response.status_code == 400
+
+
+class TestPartialUpdatePreservesOtherFields:
+    """A PUT to /settings/ad-detection with one field must not touch the
+    others. Locks in the `if 'fieldName' in data:` guard pattern that the
+    frontend's diff-only payload depends on."""
+
+    def test_single_field_save_leaves_others_untouched(self, client):
+        db = database.Database()
+        db.set_setting('whisper_backend', 'api', is_default=False)
+        db.set_setting('whisper_api_base_url', 'https://my-whisper.example.com', is_default=False)
+        db.set_setting('whisper_api_model', 'large-v3', is_default=False)
+        db.set_setting('llm_provider', 'openrouter', is_default=False)
+        db.set_setting('claude_model', 'anthropic/claude-sonnet-4.6', is_default=False)
+
+        response = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'chaptersEnabled': False}),
+            content_type='application/json',
+        )
+        assert response.status_code == 200, response.data
+
+        assert db.get_setting('whisper_backend') == 'api'
+        assert db.get_setting('whisper_api_base_url') == 'https://my-whisper.example.com'
+        assert db.get_setting('whisper_api_model') == 'large-v3'
+        assert db.get_setting('llm_provider') == 'openrouter'
+        assert db.get_setting('claude_model') == 'anthropic/claude-sonnet-4.6'
+        assert db.get_setting('chapters_enabled') == 'false'
+
+    def test_revert_to_defaults_is_accepted(self, client):
+        db = database.Database()
+        db.set_setting('whisper_backend', 'api', is_default=False)
+        db.set_setting('whisper_api_base_url', 'https://my-whisper.example.com', is_default=False)
+        db.set_setting('whisper_api_model', 'large-v3', is_default=False)
+
+        response = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({
+                'whisperBackend': 'local',
+                'whisperApiBaseUrl': '',
+                'whisperApiModel': 'whisper-1',
+            }),
+            content_type='application/json',
+        )
+        assert response.status_code == 200, response.data
+        assert db.get_setting('whisper_backend') == 'local'
+        assert db.get_setting('whisper_api_base_url') == ''
+        assert db.get_setting('whisper_api_model') == 'whisper-1'
