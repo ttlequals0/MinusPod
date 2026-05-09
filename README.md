@@ -15,6 +15,7 @@ MinusPod is a self-hosted server that removes ads before you ever hit play. It t
   - [Ad Editor Workflow](#ad-editor-workflow)
   - [Screenshots](#screenshots)
 - [Configuration](#configuration)
+- [Experiments](#experiments)
 - [Finding Podcast RSS Feeds](#finding-podcast-rss-feeds)
 - [Usage](#usage)
   - [Audiobookshelf](#audiobookshelf)
@@ -404,6 +405,45 @@ Two things have to be in place first:
 2. An admin password set in the UI, so Settings is reachable. The password gates the surface only; it isn't part of the crypto. Changing it leaves stored keys untouched.
 
 If the passphrase is missing, the key inputs collapse to a "Setup required" note, the API returns `409 provider_crypto_unavailable`, and env-var credentials keep working. GET responses never include key values, only booleans plus a `db`/`env`/`none` source marker.
+
+## Experiments
+
+The Experiments section in Settings holds opt-in features that are still being evaluated. Everything here is disabled by default. Turning a feature on does not change behavior on existing processed episodes; it applies only to subsequent processing runs.
+
+### Ad Reviewer
+
+The ad reviewer is an opt-in third LLM stage that sits between detection and audio cutting. After pass 1 detection (and again after pass 2), the reviewer takes each candidate ad along with 60 seconds of transcript on either side and decides one of three things: confirm the detection as is, adjust the start or end timestamps within a configured cap, or reject the segment as a false positive. The reviewer also gets a second look at validator-rejected detections whose confidence sits within 20 percentage points of your `min_cut_confidence` slider, and may resurrect them as real ads.
+
+When to enable it:
+
+- Comedy and fiction podcasts that include in-bit fake sponsor reads (Welcome to Night Vale was the torture test for this feature)
+- News shows that read sponsor-adjacent copy editorially without it actually being an ad break
+- Hosts who organically mention their own other shows or Patreon, where the detector flags a non-ad as promotional
+- Episodes where you have noticed the cut is starting a few seconds late or ending a few seconds early
+
+Cost is one extra LLM call per detected ad (and one extra call per rejected detection in the resurrection band). With the default Claude pass-1 model and a typical episode that produces 4 to 8 ad detections, expect a small percentage increase in per-episode token spend rather than a doubling.
+
+Settings live under Experiments → Ad Reviewer:
+
+- **Enable ad reviewer** - master toggle, off by default
+- **Review model** - `Same as pass model` reuses the pass-1 detection model on pass-1 review and the verification model on pass-2 review. You can override to a single specific model for both reviewer passes (for example, run pass-1 detection on a smaller cheap model and run reviewer on a larger model that is better at boundary work)
+- **Max boundary shift** - caps how far the reviewer can move start or end timestamps when it chooses adjust. Default 60 seconds. Enforced in code regardless of what the prompt says
+- **Review prompt** - system prompt for the confirm/adjust/reject reviewer
+- **Resurrect prompt** - system prompt for the resurrect/reject reviewer over rejected detections
+
+Reviewer activity surfaces in two places:
+
+- The episode detail page shows the original timestamps on top and a `Reviewer: MM:SS - MM:SS` line beneath when the reviewer adjusted boundaries. Reviewer-rejected ads carry a `Source: Reviewer` tag in the rejected detections list.
+- The Stats page shows an Ad Reviewer Stats card with verdict counts (confirmed, adjusted, rejected, resurrected, failed), pass-1 and pass-2 adjustment counts, average boundary shift in seconds, and resurrection count. The card hides when the reviewer has not run.
+
+### Prompt placeholders
+
+Detection, verification, and reviewer prompts use explicit placeholder substitution rather than always appending dynamic content. Available placeholders:
+
+- `{sponsor_database}` - substituted at runtime with the dynamic sponsor list (the one that grows as new sponsors are detected). Available in the system, verification, review, and resurrect prompts. If you remove this placeholder from your customized prompt, no sponsor list is injected on that prompt.
+- `{max_boundary_shift_seconds}` - review prompt only. Substituted with the current `Max boundary shift` setting. The boundary cap is enforced in code regardless of whether the placeholder is in the prompt.
+
+If you customized your system or verification prompt before this release, the upgrade automatically appends `{sponsor_database}` to your prompt so behavior is preserved. The migration is idempotent and runs once.
 
 ## Finding Podcast RSS Feeds
 

@@ -6,6 +6,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.0] - 2026-05-09
+
+### Added
+
+- Opt-in LLM ad reviewer (issue #197). New third LLM stage that runs after detection and validation but before audio cuts. Per detected ad it returns one of: `confirmed` (cut as-is), `adjust` (shift boundaries within a configurable cap, default 60 seconds), or `reject` (false positive). The reviewer also evaluates validator-rejected detections whose confidence sits within 20 percentage points of the user's `min_cut_confidence` slider and may resurrect them as real ads. Disabled by default. Lives behind a single toggle under a new "Experiments" section in Settings, with a dedicated Ad Reviewer subsection that exposes the toggle, model selector ("Same as pass model" by default), max boundary shift, and editable confirm/adjust/reject and resurrect/reject prompts with reset-to-default. New module `src/ad_reviewer.py`. New `ad_reviewer_log` audit table populated with one row per ad reviewed (verdict, original/adjusted boundaries, reasoning, confidence, model, latency, success). Per-ad reviewer fields persist inside `episodes.ad_markers_json` (`reviewer_verdict`, `reviewer_original_start`, `reviewer_original_end`, `reviewer_reasoning`, `reviewer_confidence`, `reviewer_model`, `source`). Failure handling is non-blocking: a per-ad LLM failure falls through with the ad unchanged, and a catastrophic stage failure returns the input ads unmodified.
+- New `GET /api/v1/stats/reviewer` endpoint with optional `podcast_slug` and `episode_id` query params. Returns total reviews, per-verdict counts, pass 1 / pass 2 adjustment counts, average boundary shift in seconds, resurrection count, and failure count. Surfaced in the Stats page as a new "Ad Reviewer Stats" card that hides when the reviewer has no logged data.
+- Episode detail page renders the original timestamps on top and a "Reviewer: MM:SS - MM:SS" line beneath when the reviewer adjusted boundaries. Reviewer-rejected ads in the rejected detections list show a "Source: Reviewer" tag.
+
+### Changed
+
+- Prompt placeholder substitution replaces unconditional appending of the dynamic sponsor block. `_inject_dynamic_sponsors` is gone; system, verification, review, and resurrect prompts now use explicit `{sponsor_database}` placeholders that the runtime substitutes via `_render_prompt`. The review prompt also accepts `{max_boundary_shift_seconds}`. Removing a placeholder from a customized prompt is now a supported way to opt out of that injection (legacy behavior always appended). Boundary-cap enforcement remains in code regardless of prompt content.
+- One-time migration on first start of this version backfills `{sponsor_database}` to user-customized `system_prompt` and `verification_prompt` rows so behavior matches what users had before. Idempotent via the `_review_prompt_migrated` settings flag. Default-flagged rows are untouched (the seed/refresh path manages those).
+- `get_static_system_prompt()` (used by the offline benchmark) now uses placeholder substitution against the seed sponsor list rather than appending. Output is identical to the previous concat for a non-empty list.
+- Extracted `_call_llm_for_window` from `src/ad_detector.py` to a free function `call_llm_for_window` in `src/utils/llm_call.py` with a parameterized `max_tokens` argument. The detector keeps the method as a thin wrapper. The reviewer reuses the same retry/backoff/auth-error semantics with a smaller token cap. Existing tests that patched the helper at `ad_detector.*` were updated to patch `utils.llm_call.*`.
+- Extracted `_find_json_array_candidates`, `extract_json_ads_array`, and the JSON parsing strategies from `src/ad_detector.py` to `src/utils/llm_response.py`. Added `extract_json_object` for the reviewer's single-object responses. Backward-compatible re-exports keep existing imports working.
+
+### Schema
+
+- New `ad_reviewer_log` table (created on fresh installs via SCHEMA_SQL and on existing installs via `_create_new_tables_only`). Indexed on `episode_id` and `podcast_id`.
+- Five new settings keys: `enable_ad_review` (bool, default false), `review_model` (string, default `same_as_pass`), `review_max_boundary_shift` (int seconds, default 60), `review_prompt`, `resurrect_prompt`. Plus the `_review_prompt_migrated` flag.
+
 ## [2.0.27] - 2026-05-08
 
 ### Fixed

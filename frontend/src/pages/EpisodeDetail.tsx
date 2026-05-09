@@ -442,7 +442,9 @@ function EpisodeDetail() {
                 {/* Row 1: Time, badges, jump button, confidence */}
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="font-mono text-sm">
-                    {formatTimestamp(segment.start)} - {formatTimestamp(segment.end)}
+                    {segment.reviewer_verdict === 'adjust' && segment.reviewer_original_start !== undefined && segment.reviewer_original_end !== undefined
+                      ? `${formatTimestamp(segment.reviewer_original_start)} - ${formatTimestamp(segment.reviewer_original_end)}`
+                      : `${formatTimestamp(segment.start)} - ${formatTimestamp(segment.end)}`}
                   </span>
                   {segment.detection_stage && (
                     <span className={`px-1.5 py-0.5 text-xs rounded font-medium ${
@@ -451,6 +453,16 @@ function EpisodeDetail() {
                         : 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
                     }`}>
                       {segment.detection_stage === 'verification' ? 'Pass 2' : 'Pass 1'}
+                    </span>
+                  )}
+                  {segment.reviewer_verdict === 'resurrect' && (
+                    <span className="px-1.5 py-0.5 text-xs rounded font-medium bg-amber-500/20 text-amber-600 dark:text-amber-400" title="Resurrected by reviewer">
+                      Resurrected
+                    </span>
+                  )}
+                  {segment.reviewer_verdict === 'adjust' && (
+                    <span className="px-1.5 py-0.5 text-xs rounded font-medium bg-cyan-500/20 text-cyan-600 dark:text-cyan-400" title="Boundaries adjusted by reviewer">
+                      Reviewer adjusted
                     </span>
                   )}
                   {episode.transcript && (
@@ -491,6 +503,16 @@ function EpisodeDetail() {
                     <PatternLink reason={segment.reason} />
                   </p>
                 )}
+                {segment.reviewer_verdict === 'adjust' && (
+                  <p className="text-sm text-cyan-600 dark:text-cyan-400 mt-1 font-mono">
+                    Reviewer: {formatTimestamp(segment.start)} - {formatTimestamp(segment.end)}
+                  </p>
+                )}
+                {segment.reviewer_verdict && segment.reviewer_reasoning && (
+                  <p className="text-xs text-muted-foreground mt-1 italic">
+                    Reviewer: {segment.reviewer_reasoning}
+                  </p>
+                )}
               </div>
             ))}
           </div>
@@ -526,6 +548,11 @@ function EpisodeDetail() {
                           <span className="px-1.5 py-0.5 text-xs rounded font-medium bg-red-500/20 text-red-600 dark:text-red-400">
                             Rejected
                           </span>
+                          {segment.source === 'reviewer' && (
+                            <span className="px-1.5 py-0.5 text-xs rounded font-medium bg-cyan-500/20 text-cyan-600 dark:text-cyan-400" title="Rejected by ad reviewer">
+                              Source: Reviewer
+                            </span>
+                          )}
                           {correction && (
                             <span className={`px-1.5 py-0.5 text-xs rounded font-medium ${
                               correction.correction_type === 'confirm'

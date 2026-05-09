@@ -259,6 +259,27 @@ CREATE TABLE IF NOT EXISTS token_usage (
     call_count INTEGER NOT NULL DEFAULT 0,
     updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
+
+CREATE TABLE IF NOT EXISTS ad_reviewer_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    episode_id TEXT NOT NULL,
+    podcast_id TEXT,
+    pass INTEGER NOT NULL,
+    pool TEXT NOT NULL,
+    original_start REAL NOT NULL,
+    original_end REAL NOT NULL,
+    verdict TEXT NOT NULL,
+    adjusted_start REAL,
+    adjusted_end REAL,
+    reasoning TEXT,
+    confidence REAL,
+    model_used TEXT NOT NULL,
+    latency_ms INTEGER,
+    success INTEGER NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_ad_reviewer_log_episode ON ad_reviewer_log(episode_id);
+CREATE INDEX IF NOT EXISTS idx_ad_reviewer_log_podcast ON ad_reviewer_log(podcast_id);
 """
 
 # Indexes that depend on columns added by migrations - created separately
@@ -447,6 +468,35 @@ class SchemaMixin:
                 updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
             )
         """)
+
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS ad_reviewer_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                episode_id TEXT NOT NULL,
+                podcast_id TEXT,
+                pass INTEGER NOT NULL,
+                pool TEXT NOT NULL,
+                original_start REAL NOT NULL,
+                original_end REAL NOT NULL,
+                verdict TEXT NOT NULL,
+                adjusted_start REAL,
+                adjusted_end REAL,
+                reasoning TEXT,
+                confidence REAL,
+                model_used TEXT NOT NULL,
+                latency_ms INTEGER,
+                success INTEGER NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_ad_reviewer_log_episode "
+            "ON ad_reviewer_log(episode_id)"
+        )
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_ad_reviewer_log_podcast "
+            "ON ad_reviewer_log(podcast_id)"
+        )
 
         conn.commit()
         logger.info("Created new tables for cross-episode training and processing history")
@@ -1114,6 +1164,26 @@ class SchemaMixin:
         except Exception as e:
             logger.warning(f"Migration failed for retention_days: {e}")
 
+        try:
+            from database import DEFAULT_REVIEW_PROMPT, DEFAULT_RESURRECT_PROMPT
+            ad_reviewer_seeds = [
+                ('enable_ad_review', 'false'),
+                ('review_model', 'same_as_pass'),
+                ('review_max_boundary_shift', '60'),
+                ('review_prompt', DEFAULT_REVIEW_PROMPT),
+                ('resurrect_prompt', DEFAULT_RESURRECT_PROMPT),
+            ]
+            for key, value in ad_reviewer_seeds:
+                conn.execute(
+                    """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
+                       ON CONFLICT(key) DO NOTHING""",
+                    (key, value)
+                )
+            conn.commit()
+            self._migrate_user_prompts_to_placeholders(conn)
+        except Exception as e:
+            logger.warning(f"Migration failed for ad reviewer settings: {e}")
+
     def _cleanup_contaminated_patterns(self):
         """Delete patterns with text_template > 3500 chars (contaminated).
 
@@ -1303,7 +1373,12 @@ class SchemaMixin:
 
     def _seed_default_settings(self, conn: 'sqlite3.Connection'):
         """Seed default settings."""
-        from database import DEFAULT_SYSTEM_PROMPT, DEFAULT_VERIFICATION_PROMPT
+        from database import (
+            DEFAULT_SYSTEM_PROMPT,
+            DEFAULT_VERIFICATION_PROMPT,
+            DEFAULT_REVIEW_PROMPT,
+            DEFAULT_RESURRECT_PROMPT,
+        )
 
         conn.execute(
             """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
@@ -1489,5 +1564,78 @@ class SchemaMixin:
             ('openai_base_url', os.environ.get('OPENAI_BASE_URL', 'http://localhost:8000/v1'))
         )
 
+        ad_reviewer_seeds = [
+            ('enable_ad_review', 'false'),
+            ('review_model', 'same_as_pass'),
+            ('review_max_boundary_shift', '60'),
+            ('review_prompt', DEFAULT_REVIEW_PROMPT),
+            ('resurrect_prompt', DEFAULT_RESURRECT_PROMPT),
+        ]
+        for key, value in ad_reviewer_seeds:
+            conn.execute(
+                """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
+                   ON CONFLICT(key) DO NOTHING""",
+                (key, value)
+            )
+
         conn.commit()
         logger.info("Default settings seeded")
+
+        self._migrate_user_prompts_to_placeholders(conn)
+
+    def _migrate_user_prompts_to_placeholders(self, conn: 'sqlite3.Connection'):
+        """One-time backfill: append ``{sponsor_database}`` to user-customized
+        system / verification prompts.
+
+        Before this change, ad_detector.py unconditionally appended a sponsor
+        block to every prompt at runtime. After the placeholder switch, prompts
+        without a ``{sponsor_database}`` placeholder get no sponsor content -
+        which would silently strip the dynamic sponsor list from any
+        user-customized prompt that pre-dates this release. This migration
+        adds the placeholder so behavior is preserved.
+
+        Idempotent via _review_prompt_migrated flag. Touches only is_default=0
+        prompts (user-customized), since defaults are reseeded fresh on every
+        startup.
+        """
+        try:
+            row = conn.execute(
+                "SELECT value FROM settings WHERE key = ?",
+                ('_review_prompt_migrated',)
+            ).fetchone()
+            if row is not None:
+                return
+        except Exception:
+            return
+
+        for key in ('system_prompt', 'verification_prompt'):
+            try:
+                row = conn.execute(
+                    "SELECT value, is_default FROM settings WHERE key = ?",
+                    (key,)
+                ).fetchone()
+                if not row:
+                    continue
+                value = row[0] if not isinstance(row, dict) else row['value']
+                is_default = row[1] if not isinstance(row, dict) else row['is_default']
+                if is_default:
+                    continue
+                if not value or '{sponsor_database}' in value:
+                    continue
+                conn.execute(
+                    "UPDATE settings SET value = ? WHERE key = ?",
+                    (value + '{sponsor_database}', key)
+                )
+                logger.info(
+                    f"Migration: appended {{sponsor_database}} placeholder to "
+                    f"customized {key}"
+                )
+            except Exception as e:
+                logger.warning(f"Migration: failed to backfill {key}: {e}")
+
+        conn.execute(
+            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
+               ON CONFLICT(key) DO NOTHING""",
+            ('_review_prompt_migrated', 'true')
+        )
+        conn.commit()

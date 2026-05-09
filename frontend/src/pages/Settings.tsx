@@ -31,6 +31,7 @@ import AdDetectionSection from './settings/AdDetectionSection';
 import GlobalDefaultsSection from './settings/GlobalDefaultsSection';
 import Podcasting20Section from './settings/Podcasting20Section';
 import PromptsSection from './settings/PromptsSection';
+import ExperimentsSection from './settings/ExperimentsSection';
 
 function SettingsGroupHeader({ title }: { title: string }) {
   return (
@@ -49,6 +50,13 @@ function Settings() {
 
   const [systemPrompt, setSystemPrompt] = useState('');
   const [verificationPrompt, setVerificationPrompt] = useState('');
+  const [reviewer, setReviewer] = useState({
+    enabled: false,
+    model: 'same_as_pass',
+    maxShift: 60,
+    reviewPrompt: '',
+    resurrectPrompt: '',
+  });
   const [selectedModel, setSelectedModel] = useState('');
   const [verificationModel, setVerificationModel] = useState('');
   const [whisperModel, setWhisperModel] = useState('');
@@ -220,6 +228,13 @@ function Settings() {
     if (settings) {
       setSystemPrompt(settings.systemPrompt?.value || '');
       setVerificationPrompt(settings.verificationPrompt?.value || '');
+      setReviewer({
+        enabled: settings.enableAdReview?.value ?? false,
+        model: settings.reviewModel?.value || 'same_as_pass',
+        maxShift: settings.reviewMaxBoundaryShift?.value ?? 60,
+        reviewPrompt: settings.reviewPrompt?.value || '',
+        resurrectPrompt: settings.resurrectPrompt?.value || '',
+      });
       setSelectedModel(settings.claudeModel?.value || '');
       setVerificationModel(settings.verificationModel?.value || '');
       setWhisperModel(settings.whisperModel?.value || 'small');
@@ -259,6 +274,11 @@ function Settings() {
 
     if (systemPrompt !== (settings.systemPrompt?.value || d.systemPrompt)) payload.systemPrompt = systemPrompt;
     if (verificationPrompt !== (settings.verificationPrompt?.value || d.verificationPrompt)) payload.verificationPrompt = verificationPrompt;
+    if (reviewer.reviewPrompt !== (settings.reviewPrompt?.value || d.reviewPrompt)) payload.reviewPrompt = reviewer.reviewPrompt;
+    if (reviewer.resurrectPrompt !== (settings.resurrectPrompt?.value || d.resurrectPrompt)) payload.resurrectPrompt = reviewer.resurrectPrompt;
+    if (reviewer.enabled !== (settings.enableAdReview?.value ?? d.enableAdReview)) payload.enableAdReview = reviewer.enabled;
+    if (reviewer.model !== (settings.reviewModel?.value || d.reviewModel)) payload.reviewModel = reviewer.model;
+    if (reviewer.maxShift !== (settings.reviewMaxBoundaryShift?.value ?? d.reviewMaxBoundaryShift)) payload.reviewMaxBoundaryShift = reviewer.maxShift;
     if (selectedModel !== (settings.claudeModel?.value || d.claudeModel)) payload.claudeModel = selectedModel;
     if (verificationModel !== (settings.verificationModel?.value || d.verificationModel)) payload.verificationModel = verificationModel;
     if (whisperModel !== (settings.whisperModel?.value || d.whisperModel)) payload.whisperModel = whisperModel;
@@ -287,7 +307,7 @@ function Settings() {
     if (Object.keys(computeChangedFields()).length > 0) return true;
     return podcastIndexApiKey !== '' && podcastIndexApiSecret !== '';
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [systemPrompt, verificationPrompt, selectedModel, verificationModel, whisperModel, autoProcessEnabled, maxFeedEpisodes, onlyExposeProcessedDefault, audioBitrate, vttTranscriptsEnabled, chaptersEnabled, chaptersModel, minCutConfidence, llmProvider, openaiBaseUrl, whisperBackend, whisperApiConfig.baseUrl, whisperApiConfig.model, whisperLanguage, whisperComputeType, podcastIndexApiKey, podcastIndexApiSecret, settings]);
+  }, [systemPrompt, verificationPrompt, reviewer, selectedModel, verificationModel, whisperModel, autoProcessEnabled, maxFeedEpisodes, onlyExposeProcessedDefault, audioBitrate, vttTranscriptsEnabled, chaptersEnabled, chaptersModel, minCutConfidence, llmProvider, openaiBaseUrl, whisperBackend, whisperApiConfig.baseUrl, whisperApiConfig.model, whisperLanguage, whisperComputeType, podcastIndexApiKey, podcastIndexApiSecret, settings]);
 
   const updateMutation = useMutation({
     mutationFn: () => {
@@ -474,6 +494,15 @@ function Settings() {
         verificationPrompt={verificationPrompt}
         onSystemPromptChange={setSystemPrompt}
         onVerificationPromptChange={setVerificationPrompt}
+        onResetPrompts={() => resetPromptsMutation.mutate()}
+        resetIsPending={resetPromptsMutation.isPending}
+      />
+
+      <SettingsGroupHeader title="Experiments" />
+
+      <ExperimentsSection
+        reviewer={reviewer}
+        onChange={setReviewer}
         onResetPrompts={() => resetPromptsMutation.mutate()}
         resetIsPending={resetPromptsMutation.isPending}
       />

@@ -82,6 +82,14 @@ export interface AdSegment {
   sponsor?: string;
   detection_stage?: 'first_pass' | 'claude' | 'fingerprint' | 'text_pattern' | 'language' | 'verification';
   validation?: AdValidation;
+  // Ad reviewer (issue #197) -- populated only when the reviewer ran on this ad.
+  reviewer_verdict?: 'confirmed' | 'adjust' | 'reject' | 'resurrect' | 'failure';
+  reviewer_original_start?: number;
+  reviewer_original_end?: number;
+  reviewer_reasoning?: string;
+  reviewer_confidence?: number;
+  reviewer_model?: string;
+  source?: 'reviewer' | 'validator';
 }
 
 export interface SettingValue {
@@ -122,6 +130,11 @@ export const WHISPER_BACKENDS = {
 export interface Settings {
   systemPrompt: SettingValue;
   verificationPrompt: SettingValue;
+  reviewPrompt: SettingValue;
+  resurrectPrompt: SettingValue;
+  enableAdReview: SettingValueBoolean;
+  reviewModel: SettingValue;
+  reviewMaxBoundaryShift: SettingValueNumber;
   claudeModel: SettingValue;
   verificationModel: SettingValue;
   whisperModel: SettingValue;
@@ -147,6 +160,11 @@ export interface Settings {
   defaults: {
     systemPrompt: string;
     verificationPrompt: string;
+    reviewPrompt: string;
+    resurrectPrompt: string;
+    enableAdReview: boolean;
+    reviewModel: string;
+    reviewMaxBoundaryShift: number;
     claudeModel: string;
     verificationModel: string;
     whisperModel: string;
@@ -171,6 +189,11 @@ export interface Settings {
 export interface UpdateSettingsPayload {
   systemPrompt?: string;
   verificationPrompt?: string;
+  reviewPrompt?: string;
+  resurrectPrompt?: string;
+  enableAdReview?: boolean;
+  reviewModel?: string;
+  reviewMaxBoundaryShift?: number;
   claudeModel?: string;
   verificationModel?: string;
   whisperModel?: string;
@@ -388,4 +411,21 @@ export interface PodcastStats {
   totalInputTokens: number;
   totalOutputTokens: number;
   avgTokensPerEpisode: number;
+}
+
+// Ad reviewer stats (issue #197). Empty (zero counts) when reviewer hasn't run.
+export interface ReviewerStats {
+  totalReviews: number;
+  verdictCounts: {
+    confirmed: number;
+    adjust: number;
+    reject: number;
+    resurrect: number;
+    failure: number;
+  };
+  pass1AdjustmentCount: number;
+  pass2AdjustmentCount: number;
+  avgBoundaryShiftSeconds: number;
+  resurrectionCount: number;
+  failureCount: number;
 }

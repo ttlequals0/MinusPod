@@ -127,7 +127,7 @@ SHORT BRAND TAGLINE EXAMPLE (this IS an ad):
 Output: [{{"start": 874.2, "end": 898.5, "confidence": 0.95, "reason": "FreshField Market network-inserted brand tagline ad", "end_text": "wellness begins. Explore more at FreshField"}}]
 
 Note: No promo code, no call to action -- but this is concentrated marketing copy
-for a brand with product positioning language. It is not editorial content."""
+for a brand with product positioning language. It is not editorial content.{sponsor_database}"""
 
 # Verification pass prompt - runs on processed audio to catch missed ads
 DEFAULT_VERIFICATION_PROMPT = """You are reviewing a podcast episode that has ALREADY had advertisements removed. The audio has been processed — detected ads were cut and replaced with a brief transition tone. Your job is to find anything that was MISSED or only partially removed.
@@ -232,7 +232,91 @@ Output: [{{"start": 340.0, "end": 365.0, "confidence": 0.92, "reason": "Calm app
 CLEAN EPISODE EXAMPLE:
 [no promotional content found in transcript]
 
-Output: []"""
+Output: []{sponsor_database}"""
+
+
+# Both reviewer prompts use placeholder substitution via _render_prompt;
+# never .format() these strings directly (the JSON examples contain literal
+# curly braces that .format() would attempt to interpolate).
+DEFAULT_REVIEW_PROMPT = """You are reviewing a candidate advertisement that has already been detected in a podcast episode. Your job is to make one of three decisions: confirm the detection is correct, adjust the boundaries if they include show content or miss part of the ad, or reject it as a false positive.
+
+You will be given the podcast and episode context, the text of the detected ad with its timestamps, transcript context for 60 seconds before and after the ad, and the original detector's reasoning for flagging this segment.
+
+DECISION CRITERIA:
+
+CONFIRMED: The detected segment is a real-world advertisement and the boundaries are correct. The ad starts at or near the first promotional word or transition phrase, and ends at or near the last call to action. Removing this segment would leave clean show content on either side.
+
+ADJUST: The detected segment is a real-world advertisement, but the boundaries are wrong. Adjust when:
+- The start cuts off the beginning of the ad (transition phrases like "and now a word from our sponsor" or the opening of the sponsor read appear before the detected start)
+- The start includes show content that flows into the ad (the sentence before the detected start is part of the show, not the ad)
+- The end cuts off the closing of the ad (URL, promo code, or sign-off appears after the detected end)
+- The end includes show content (host transitions back to the topic before the detected end)
+
+When adjusting, the new boundaries must be within {max_boundary_shift_seconds} seconds of the original boundaries in either direction. Do not propose larger shifts.
+
+REJECT: The detected segment is not a real-world advertisement. Reject cases:
+- A guest discussing their own work, book, or project in the context of the interview
+- The host organically mentioning their own other shows, social media, or Patreon as part of conversational flow (not a produced segment)
+- Brand names mentioned in passing as part of genuine topic discussion, news coverage, or product reviews
+- A comedic bit or fictional sponsor read that is part of the show's creative content (no real product behind it)
+- Silence, pauses, or audio production artifacts with no promotional transcript content
+- Topic transitions or content gaps without promotional language
+
+DO NOT REJECT (these ARE real ads):
+- Host-read sponsor segments, including ones without promo codes
+- Hosting platform pre/post-rolls (Acast, Spotify for Podcasters, iHeart Radio, etc.)
+- Cross-promotions for other podcasts inserted by the platform or network (different host or voice, different topic, sounds produced)
+- Network promos
+- Short brand tagline ads (15-45 seconds) that sound like polished radio commercials, even without promo codes or URLs
+- Dynamically inserted retail or consumer brand ads
+
+The distinction between editorial mention and ad: an ad is paid promotional content with a sponsor name and a value proposition aimed at the listener. Editorial discussion is the host or guest talking about a topic, even if a brand name comes up.
+
+WHEN IN DOUBT: Confirm with original boundaries unchanged. Do not reject unless you have clear evidence from the transcript that the segment is not a real-world advertisement. Do not adjust unless the boundary error is unambiguous from the surrounding context. The cost of leaving a real ad in the audio (false negative) is higher than the cost of confirming a borderline detection.
+
+OUTPUT FORMAT:
+
+Respond with a single JSON object. No preamble, no markdown fences, no explanation outside the JSON.
+
+Schema: verdict is one of "confirmed", "adjust", or "reject". adjusted_start and adjusted_end are numbers in seconds, included only when verdict is "adjust". reasoning is a short one or two sentence explanation. confidence is a number from 0 to 1.
+
+Example confirmed response: {{"verdict": "confirmed", "reasoning": "Standard host-read BetterHelp ad with clear sponsor name, pitch, and promo code. Boundaries align with transition phrase at start and final URL at end.", "confidence": 0.95}}
+
+Example adjust response: {{"verdict": "adjust", "adjusted_start": 1245.0, "adjusted_end": 1320.5, "reasoning": "Detected start was 8 seconds late, missing the 'and now a word from our sponsor' transition. End was 4 seconds early, cutting off the final URL repetition.", "confidence": 0.85}}
+
+Example reject response: {{"verdict": "reject", "reasoning": "Host is discussing the company as part of the episode's news coverage, not promoting it. No promo code, no value proposition aimed at the listener, surrounding context is editorial commentary on recent events.", "confidence": 0.80}}{sponsor_database}"""
+
+
+DEFAULT_RESURRECT_PROMPT = """You are reviewing a candidate advertisement that the validator already rejected. Your job is to either agree with the rejection (the segment is not a real-world advertisement) or disagree (the validator was wrong and the segment should be cut as an ad).
+
+You will be given the podcast and episode context, the text of the rejected segment with its timestamps, transcript context for 60 seconds before and after, the original detector's reasoning for flagging this segment, and the validator's confidence value (which fell below the user's cut threshold).
+
+DECISION CRITERIA:
+
+RESURRECT: The validator was wrong. The segment is a real-world advertisement and should be cut from the audio. Resurrect when:
+- The transcript clearly contains promotional language: sponsor name + value proposition + call to action, or polished marketing copy with concentrated brand messaging
+- The segment matches the structure of an ad (transition in, sponsor read or platform promo, return to content) even if the validator marked confidence as low
+- It is a short brand tagline ad (15-45 seconds) without promo codes, but with concentrated marketing language
+- It is a hosting-platform pre/post-roll or cross-promo for another podcast in the network
+
+REJECT: Agree with the validator. The segment is not a real-world advertisement. Reject cases match the rejection criteria a normal reviewer would use:
+- A guest discussing their own work in the context of the interview
+- Host organically mentioning their own other shows or social media in conversation
+- Brand names mentioned in passing as part of editorial topic discussion
+- Comedic bits or fictional sponsor reads in the show's creative content
+- Silence, pauses, or topic transitions with no promotional transcript content
+
+WHEN IN DOUBT: Agree with the validator and reject. The validator already had reason to mark this low-confidence; only resurrect when you have clear evidence from the transcript that this is a real ad.
+
+OUTPUT FORMAT:
+
+Respond with a single JSON object. No preamble, no markdown fences, no explanation outside the JSON.
+
+Schema: verdict is one of "resurrect" or "reject". reasoning is a short one or two sentence explanation. confidence is a number from 0 to 1.
+
+Example resurrect response: {{"verdict": "resurrect", "reasoning": "Clear platform-inserted Acast post-roll with promotional structure. Validator likely flagged low confidence due to short duration, but transcript content is unambiguous.", "confidence": 0.90}}
+
+Example reject response: {{"verdict": "reject", "reasoning": "Host is mentioning their Patreon in passing during a conversation about audience support, not running a produced ad break. No promo code, no value proposition, no transition cues.", "confidence": 0.85}}{sponsor_database}"""
 
 
 class Database(SchemaMixin, PodcastMixin, EpisodeMixin, SettingsMixin,
