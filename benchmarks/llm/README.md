@@ -28,19 +28,14 @@ From `benchmarks/llm/`:
 ```sh
 cp benchmark.toml.example benchmark.toml   # edit to fill in your MinusPod base_url
 cp .env.example .env                       # fill in MINUSPOD_PASSWORD and provider keys
-uv sync                                    # benchmark's own deps
-uv pip install -r ../../requirements.txt   # MinusPod's runtime deps (jinja2, flask, ...)
+uv sync                                    # installs deps into benchmarks/llm/.venv
 ```
 
 Then run any command via `uv run benchmark <cmd>`.
 
-Both installs are required. The benchmark imports MinusPod modules from `../../src/` via a path bootstrap (`src/benchmark/__init__.py`), and those modules do module-level imports of MinusPod's runtime stack (jinja2, flask, sqlalchemy, ...). `uv sync` only installs what's declared in this project's `pyproject.toml`, so the benchmark CLI will fail to start with `ModuleNotFoundError: jinja2` until MinusPod's `requirements.txt` is layered in.
-
-If you prefer not to layer them, the alternative is to install the benchmark editable into MinusPod's parent venv (`../../.venv/bin/pip install -e .`) and invoke `../../.venv/bin/benchmark <cmd>`. Same result; pick whichever is more convenient.
-
 The CLI auto-loads `benchmarks/llm/.env` on startup (resolved relative to the package, not the CWD, so it works from any directory). Shell-exported variables take precedence over `.env` values.
 
-Requires MinusPod >= 2.0.26 on the server you point at: `benchmark capture` reads `GET /api/v1/feeds/{slug}/episodes/{id}/original-segments`, which was added in 2.0.26. Older episodes return 404 until reprocessed.
+Requires MinusPod >= 2.0.28 on the server you point at: the benchmark imports `create_windows` from `ad_detector` and `fetch_litellm_pricing` from `pricing_fetcher`. Before 2.0.28 those modules eagerly imported `webhook_service` (which pulls jinja2) and `bs4`, so a clean `uv sync` could not start the CLI. 2.0.28 deferred both. The benchmark also calls `GET /api/v1/feeds/{slug}/episodes/{id}/original-segments`, an endpoint added in 2.0.26; older episodes return 404 until reprocessed.
 
 ## Common workflows
 
