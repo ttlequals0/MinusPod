@@ -9,6 +9,11 @@ from pathlib import Path
 from typing import Optional
 
 import typer
+from dotenv import load_dotenv
+
+# Load benchmarks/llm/.env so MINUSPOD_PASSWORD and provider API keys are available
+# regardless of where the user invokes `benchmark` from. Shell-exported vars still win.
+load_dotenv(dotenv_path=Path(__file__).resolve().parents[2] / ".env", override=False)
 
 from . import auth, capture as capture_mod, corpus as corpus_mod, parsing, pricing, report as report_mod, runner as runner_mod
 from .config import BenchmarkConfig, load as load_config

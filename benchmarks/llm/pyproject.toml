@@ -8,6 +8,7 @@ dependencies = [
     "httpx>=0.27",
     "matplotlib>=3.9",
     "openai>=1.50",
+    "python-dotenv>=1.0",
     "rapidfuzz>=3.10",
     "tomli>=2.0; python_version < '3.11'",
     "typer>=0.13",

@@ -28,10 +28,12 @@ From `benchmarks/llm/`:
 ```sh
 cp benchmark.toml.example benchmark.toml   # edit to fill in your MinusPod base_url
 cp .env.example .env                       # fill in MINUSPOD_PASSWORD and provider keys
-uv sync                                    # or: pip install -e .
+../../.venv/bin/pip install -e .           # install into MinusPod's parent venv
 ```
 
-The benchmark imports MinusPod modules from `../../src/` via a path bootstrap, so MinusPod itself does not need to be installed as a package.
+Install into the MinusPod parent venv (`/path/to/MinusPod/.venv`) rather than a fresh benchmark-only venv. The benchmark imports MinusPod modules from `../../src/` via a path bootstrap, and those modules pull in MinusPod's runtime dependencies (jinja2, flask, etc.) at import time. Running from the parent venv satisfies those transitively. `uv sync` inside `benchmarks/llm/` will install the benchmark's own deps but does not satisfy the MinusPod transitive imports, so the CLI will fail to start from there.
+
+The CLI auto-loads `benchmarks/llm/.env` on startup (resolved relative to the package, not the CWD, so it works from any directory). Shell-exported variables take precedence over `.env` values.
 
 Requires MinusPod >= 2.0.26 on the server you point at: `benchmark capture` reads `GET /api/v1/feeds/{slug}/episodes/{id}/original-segments`, which was added in 2.0.26. Older episodes return 404 until reprocessed.
 
