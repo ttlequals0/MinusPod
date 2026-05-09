@@ -30,6 +30,57 @@ from .truth_parser import (
 
 UI_URL_RE = re.compile(r"/ui/feeds/(?P<slug>[^/]+)/episodes/(?P<episode_id>[^/?#]+)")
 
+# Whisper occasionally emits these phrases on silent or musical regions of audio.
+# Production ad-detection sometimes accepts a marker around such a region; the
+# capture template auto-rejects markers whose entire transcript is one of these.
+_HALLUCINATION_PHRASES: frozenset[str] = frozenset({
+    "thank you for watching.",
+    "thanks for watching.",
+    "thank you.",
+    "thanks.",
+    "subtitles by the amara.org community",
+})
+
+# Strong ad signals. A marker with no signal in this set is rejected as a
+# likely false positive (e.g. main-content discussion mistakenly flagged).
+_AD_SIGNALS_RE = re.compile(
+    r"(?:brought to you by|sponsor(?:ed|ship)?\b|"
+    r"\.com\s*(?:slash|/)|"
+    r"promo\s*code|use\s*code|discount\s*code|"
+    r"free\s*trial|sign\s*up\s*at|get\s*started\s*at|listen\s*at|visit\s*\w)",
+    re.IGNORECASE,
+)
+
+
+def _classify_marker(marker: dict, segments: list[dict]) -> tuple[bool, str | None]:
+    """Return (accepted, rejection_reason).
+
+    Heuristic auto-rejects markers that look like false positives so the human
+    reviewer sees them in the commented "rejected" section instead of having to
+    delete them from the active list.
+    """
+    start = float(marker.get("start", marker.get("startTime", 0)))
+    end = float(marker.get("end", marker.get("endTime", 0)))
+    duration = max(end - start, 0.1)
+    covering = [s for s in segments if not (s["end"] <= start or s["start"] >= end)]
+    text = " ".join(s.get("text", "").strip() for s in covering).strip()
+
+    if not text:
+        return False, "no transcript in range"
+
+    norm = text.lower().rstrip(".").strip() + "."
+    if norm in _HALLUCINATION_PHRASES:
+        return False, "Whisper hallucination only"
+
+    density = len(text) / duration
+    if density < 3.0:
+        return False, f"low text density ({density:.1f} chars/sec)"
+
+    if not _AD_SIGNALS_RE.search(text):
+        return False, "no ad signals (brought-to-you-by / .com / promo code)"
+
+    return True, None
+
 
 @dataclass(frozen=True)
 class CaptureTarget:
@@ -166,10 +217,10 @@ def _build_truth_template(episode_data: dict, segments: list[dict]) -> str:
         "# # Verified: no ads in this episode.",
         "",
     ]
-    ad_markers = episode_data.get("adMarkers") or episode_data.get("ad_markers") or []
-    rejected = episode_data.get("rejectedAdMarkers") or episode_data.get("rejected_ad_markers") or []
+    raw_accepted = episode_data.get("adMarkers") or episode_data.get("ad_markers") or []
+    raw_rejected = episode_data.get("rejectedAdMarkers") or episode_data.get("rejected_ad_markers") or []
 
-    if not ad_markers and not rejected:
+    if not raw_accepted and not raw_rejected:
         return "\n".join(lines + [
             "# No ad markers from production. Edit this file:",
             "# - if the episode has no ads, uncomment the marker line above",
@@ -180,16 +231,29 @@ def _build_truth_template(episode_data: dict, segments: list[dict]) -> str:
             "#   ---",
         ]) + "\n"
 
-    for i, marker in enumerate(ad_markers):
+    accepted: list[dict] = []
+    auto_rejected: list[tuple[dict, str]] = []
+    for marker in raw_accepted:
+        ok, reason = _classify_marker(marker, segments)
+        if ok:
+            accepted.append(marker)
+        else:
+            auto_rejected.append((marker, reason or "unknown"))
+
+    for i, marker in enumerate(accepted):
         if i > 0:
             lines.append("---")
         lines.extend(_format_ad_block(marker, segments, commented=False))
 
-    if rejected:
+    if auto_rejected or raw_rejected:
         lines.append("")
-        lines.append("# Rejected markers from production -- uncomment if any are real:")
-        for marker in rejected:
-            lines.append("# ---")
+        lines.append("# Rejected markers -- uncomment if any are real:")
+        for marker, reason in auto_rejected:
+            lines.append(f"# --- (auto-rejected: {reason})")
+            for ln in _format_ad_block(marker, segments, commented=True):
+                lines.append(ln)
+        for marker in raw_rejected:
+            lines.append("# --- (rejected by production)")
             for ln in _format_ad_block(marker, segments, commented=True):
                 lines.append(ln)
 
