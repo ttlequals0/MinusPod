@@ -31,7 +31,9 @@ cp .env.example .env                       # fill in MINUSPOD_PASSWORD and provi
 uv sync                                    # or: pip install -e .
 ```
 
-The benchmark imports MinusPod modules from `../../src/` via a path bootstrap; you do not need MinusPod installed as a package.
+The benchmark imports MinusPod modules from `../../src/` via a path bootstrap, so MinusPod itself does not need to be installed as a package.
+
+Requires MinusPod >= 2.0.26 on the server you point at: `benchmark capture` reads `GET /api/v1/feeds/{slug}/episodes/{id}/original-segments`, which was added in 2.0.26. Older episodes return 404 until reprocessed.
 
 ## Common workflows
 
