@@ -7,7 +7,7 @@ from typing import Callable, Dict, List, Literal, Optional, Tuple
 from database import DEFAULT_REVIEW_PROMPT, DEFAULT_RESURRECT_PROMPT
 from llm_client import get_llm_max_retries, get_llm_timeout
 from utils.llm_call import call_llm_for_window
-from utils.llm_response import extract_json_object
+from utils.llm_response import extract_json_object, find_first_dict_with_key
 from utils.prompt import format_sponsor_block, render_prompt
 from utils.text import get_transcript_text_for_range
 
@@ -270,11 +270,19 @@ class AdReviewer:
 
         text = self._extract_response_text(response)
         parsed, _method = extract_json_object(text, slug=slug, episode_id=episode_id)
-        if not parsed or "verdict" not in parsed:
+        # LLMs sometimes wrap the verdict in extra metadata fields or nest it
+        # inside an `ads_reviewed: [...]` array despite the prompt asking for
+        # a single object. Walk the parsed value to recover the verdict.
+        verdict_obj = (
+            parsed if isinstance(parsed, dict) and "verdict" in parsed
+            else find_first_dict_with_key(parsed, "verdict") if parsed is not None
+            else None
+        )
+        if verdict_obj is None:
             logger.warning(
                 f"[{slug}:{episode_id}] Reviewer {window_label} "
-                f"@ {original_start:.1f}s returned unparseable response. "
-                f"Falling through with original ad."
+                f"@ {original_start:.1f}s returned unparseable response "
+                f"(text head: {text[:200]!r}). Falling through with original ad."
             )
             return (
                 ReviewVerdict(
@@ -285,6 +293,7 @@ class AdReviewer:
                 ),
                 ad,
             )
+        parsed = verdict_obj
 
         raw_verdict = str(parsed.get("verdict", "")).strip().lower()
         canonical = _VERDICT_NORMALIZATION.get(raw_verdict)
@@ -558,24 +567,28 @@ class AdReviewer:
 
     @staticmethod
     def _extract_response_text(response) -> str:
-        """Pull the first text content block from an Anthropic-shaped response.
+        """Pull the response body text.
 
-        Falls back to the full repr so a malformed shape still gets logged
-        through the parser rather than crashing here.
+        ``LLMClient.messages_create`` returns an ``LLMResponse`` whose
+        ``content`` is already the extracted string. Anthropic SDK responses
+        instead carry ``content`` as a list of TextBlocks. Handle both, and
+        fall through to ``response.text`` for any other shape; never call
+        ``str(response)`` since a dataclass repr produces literal ``\\n``
+        escape sequences that look like JSON but break the parser.
         """
-        try:
-            content = response.content
-            if isinstance(content, list) and content:
-                first = content[0]
-                if hasattr(first, "text"):
-                    return first.text
-                if isinstance(first, dict) and "text" in first:
-                    return first["text"]
-            if hasattr(response, "text"):
-                return response.text
-        except Exception:
-            pass
-        return str(response)
+        content = getattr(response, "content", None)
+        if isinstance(content, str):
+            return content
+        if isinstance(content, list) and content:
+            first = content[0]
+            if hasattr(first, "text"):
+                return first.text
+            if isinstance(first, dict) and "text" in first:
+                return first["text"]
+        text = getattr(response, "text", None)
+        if isinstance(text, str):
+            return text
+        return ""
 
     def _flush_log(self, verdicts: List[ReviewVerdict], episode_meta: Dict) -> None:
         """Write all ad_reviewer_log rows in one transaction. Failures here are

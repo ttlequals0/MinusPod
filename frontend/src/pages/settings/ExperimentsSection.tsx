@@ -15,8 +15,6 @@ interface ExperimentsSectionProps {
   onChange: (next: ReviewerState) => void;
   onResetPrompts: () => void;
   resetIsPending: boolean;
-  // Available models from existing model dropdowns; we mirror that source so
-  // the reviewer can select any model already configured for the providers.
   modelOptions?: Array<{ id: string; label: string }>;
 }
 
@@ -29,29 +27,27 @@ function ExperimentsSection({
 }: ExperimentsSectionProps) {
   const update = <K extends keyof ReviewerState>(key: K, value: ReviewerState[K]) =>
     onChange({ ...reviewer, [key]: value });
-  return (
-    <CollapsibleSection title="Ad Reviewer">
-      <div className="space-y-6">
-        <div className="text-sm text-muted-foreground">
-          Opt-in third LLM stage that reviews each detected ad before audio is
-          cut. The reviewer can confirm a detection, adjust its boundaries
-          within a configured cap, or reject it as a false positive. It also
-          reviews validator-rejected detections that fell within 20 percentage
-          points of the cut threshold and may resurrect them as real ads.
-          Adds one LLM call per detected ad. Disabled by default.
-        </div>
 
-        <div className="flex items-center justify-between">
-          <div>
-            <label className="block text-sm font-medium text-foreground">
+  return (
+    <CollapsibleSection
+      title="Ad Reviewer"
+      subtitle="Reviews each detected ad and decides confirm, adjust, or reject before the cut. Off by default."
+    >
+      <div className="space-y-6">
+        <div>
+          <label className="flex items-center gap-3 cursor-pointer">
+            <ToggleSwitch
+              checked={reviewer.enabled}
+              onChange={(v) => update('enabled', v)}
+              ariaLabel="Enable ad reviewer"
+            />
+            <span className="text-sm font-medium text-foreground">
               Enable ad reviewer
-            </label>
-            <p className="text-sm text-muted-foreground">
-              Adds an LLM cost per detected ad but can improve accuracy on
-              comedy, fiction, and sponsor-adjacent news podcasts.
-            </p>
-          </div>
-          <ToggleSwitch checked={reviewer.enabled} onChange={(v) => update('enabled', v)} />
+            </span>
+          </label>
+          <p className="mt-2 text-sm text-muted-foreground ml-14">
+            Adds one LLM call per detected ad. Worth it on comedy, fiction, and sponsor-adjacent news podcasts where the detector struggles with editorial mentions.
+          </p>
         </div>
 
         <div>
@@ -72,28 +68,28 @@ function ExperimentsSection({
             ))}
           </select>
           <p className="mt-1 text-sm text-muted-foreground">
-            "Same as pass model" reuses the pass 1 detection model on pass 1
-            review and the verification model on pass 2 review. Override to
-            run a single specific model for both reviewer passes.
+            "Same as pass model" reuses each pass's own model for its review. Pick a specific model to use one for both passes instead.
           </p>
         </div>
 
         <div>
           <label htmlFor="reviewMaxBoundaryShift" className="block text-sm font-medium text-foreground mb-2">
-            Max boundary shift (seconds)
+            Max boundary shift
           </label>
-          <input
-            id="reviewMaxBoundaryShift"
-            type="number"
-            min={1}
-            max={600}
-            value={reviewer.maxShift}
-            onChange={(e) => update('maxShift', parseInt(e.target.value, 10) || 60)}
-            className="w-32 px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
-          />
-          <p className="mt-1 text-sm text-muted-foreground">
-            Cap on how far the reviewer can move start/end timestamps when it
-            chooses adjust. Enforced in code regardless of the prompt content.
+          <div className="flex items-center gap-3">
+            <input
+              type="number"
+              id="reviewMaxBoundaryShift"
+              value={reviewer.maxShift}
+              onChange={(e) => update('maxShift', parseInt(e.target.value, 10) || 60)}
+              min={1}
+              max={600}
+              className="w-24 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
+            />
+            <span className="text-sm text-muted-foreground">seconds (1-600)</span>
+          </div>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Cap on how far the reviewer can move boundaries when it chooses adjust. Enforced in code, not just the prompt.
           </p>
         </div>
 
@@ -104,9 +100,7 @@ function ExperimentsSection({
           onChange={(v) => update('reviewPrompt', v)}
           helpText={
             <>
-              Available placeholders: <code>{'{sponsor_database}'}</code>,{' '}
-              <code>{'{max_boundary_shift_seconds}'}</code>. Removing a
-              placeholder means that content is not inserted at runtime.
+              Placeholders: <code>{'{sponsor_database}'}</code>, <code>{'{max_boundary_shift_seconds}'}</code>. Remove a placeholder to skip that injection.
             </>
           }
         />
@@ -118,8 +112,7 @@ function ExperimentsSection({
           onChange={(v) => update('resurrectPrompt', v)}
           helpText={
             <>
-              Used to second-guess validator rejections within the resurrection
-              band. Available placeholder: <code>{'{sponsor_database}'}</code>.
+              Second-guesses validator rejections in the resurrection band. Placeholder: <code>{'{sponsor_database}'}</code>.
             </>
           }
         />

@@ -4,6 +4,7 @@ import pytest
 from utils.llm_response import (
     extract_json_ads_array,
     extract_json_object,
+    find_first_dict_with_key,
     find_json_array_candidates,
 )
 
@@ -126,6 +127,56 @@ def test_extract_json_object_no_json_returns_none():
 def test_extract_json_object_malformed_json_returns_none():
     obj, _ = extract_json_object('{"verdict": "confirmed"')  # missing brace
     assert obj is None
+
+
+# ---------- find_first_dict_with_key ----------
+
+def test_find_first_dict_with_key_top_level():
+    obj = {'verdict': 'confirmed', 'confidence': 0.9}
+    assert find_first_dict_with_key(obj, 'verdict') is obj
+
+
+def test_find_first_dict_with_key_nested_in_array():
+    obj = {
+        'podcast': 'x',
+        'ads_reviewed': [
+            {'verdict': 'confirmed', 'reasoning': 'r', 'confidence': 0.9},
+        ],
+    }
+    found = find_first_dict_with_key(obj, 'verdict')
+    assert found == {'verdict': 'confirmed', 'reasoning': 'r', 'confidence': 0.9}
+
+
+def test_find_first_dict_with_key_deeply_nested():
+    obj = {
+        'meta': {'podcast': 'x'},
+        'results': [{'item': {'review': {'verdict': 'reject', 'confidence': 0.7}}}],
+    }
+    found = find_first_dict_with_key(obj, 'verdict')
+    assert found == {'verdict': 'reject', 'confidence': 0.7}
+
+
+def test_find_first_dict_with_key_returns_first_match():
+    """If multiple matching dicts exist, returns the first encountered in the
+    in-order traversal."""
+    obj = {
+        'a': {'verdict': 'first'},
+        'b': {'verdict': 'second'},
+    }
+    found = find_first_dict_with_key(obj, 'verdict')
+    assert found in ({'verdict': 'first'}, {'verdict': 'second'})
+
+
+def test_find_first_dict_with_key_no_match():
+    obj = {'podcast': 'x', 'summary': 'none'}
+    assert find_first_dict_with_key(obj, 'verdict') is None
+
+
+def test_find_first_dict_with_key_handles_non_dict_root():
+    assert find_first_dict_with_key([{'verdict': 'confirmed'}], 'verdict') == {'verdict': 'confirmed'}
+    assert find_first_dict_with_key('a string', 'verdict') is None
+    assert find_first_dict_with_key(42, 'verdict') is None
+    assert find_first_dict_with_key(None, 'verdict') is None
 
 
 # ---------- Backward compatibility shims ----------

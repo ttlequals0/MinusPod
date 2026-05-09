@@ -276,9 +276,11 @@ WHEN IN DOUBT: Confirm with original boundaries unchanged. Do not reject unless 
 
 OUTPUT FORMAT:
 
-Respond with a single JSON object. No preamble, no markdown fences, no explanation outside the JSON.
+Output exactly one flat JSON object with these top-level keys and nothing else: verdict, reasoning, confidence, and (only when verdict is "adjust") adjusted_start and adjusted_end.
 
-Schema: verdict is one of "confirmed", "adjust", or "reject". adjusted_start and adjusted_end are numbers in seconds, included only when verdict is "adjust". reasoning is a short one or two sentence explanation. confidence is a number from 0 to 1.
+Do NOT wrap the result in any container object. Do NOT include podcast, episode, sponsor, ads_reviewed, results, summary, or any other field. The whole response body must start with the literal character {{ and end with }} with no preamble, no markdown fences, and no commentary.
+
+Field types: verdict is one of "confirmed", "adjust", or "reject" (lowercase). reasoning is a string with one or two sentences. confidence is a number from 0 to 1. adjusted_start and adjusted_end are numbers in seconds.
 
 Example confirmed response: {{"verdict": "confirmed", "reasoning": "Standard host-read BetterHelp ad with clear sponsor name, pitch, and promo code. Boundaries align with transition phrase at start and final URL at end.", "confidence": 0.95}}
 
@@ -310,9 +312,11 @@ WHEN IN DOUBT: Agree with the validator and reject. The validator already had re
 
 OUTPUT FORMAT:
 
-Respond with a single JSON object. No preamble, no markdown fences, no explanation outside the JSON.
+Output exactly one flat JSON object with these top-level keys and nothing else: verdict, reasoning, confidence.
 
-Schema: verdict is one of "resurrect" or "reject". reasoning is a short one or two sentence explanation. confidence is a number from 0 to 1.
+Do NOT wrap the result in any container object. Do NOT include podcast, episode, sponsor, ads_reviewed, results, summary, or any other field. The whole response body must start with the literal character {{ and end with }} with no preamble, no markdown fences, and no commentary.
+
+Field types: verdict is one of "resurrect" or "reject" (lowercase). reasoning is a string with one or two sentences. confidence is a number from 0 to 1.
 
 Example resurrect response: {{"verdict": "resurrect", "reasoning": "Clear platform-inserted Acast post-roll with promotional structure. Validator likely flagged low confidence due to short duration, but transcript content is unambiguous.", "confidence": 0.90}}
 

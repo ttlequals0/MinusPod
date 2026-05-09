@@ -153,6 +153,26 @@ def extract_json_ads_array(
     return None, None
 
 
+def find_first_dict_with_key(obj, key: str) -> Optional[dict]:
+    """Walk a parsed JSON value and return the first dict that contains
+    ``key`` at its top level. Used to recover from LLMs that wrap their
+    verdict object in extra metadata fields or nest it inside an array.
+    """
+    if isinstance(obj, dict):
+        if key in obj:
+            return obj
+        for value in obj.values():
+            found = find_first_dict_with_key(value, key)
+            if found is not None:
+                return found
+    elif isinstance(obj, list):
+        for item in obj:
+            found = find_first_dict_with_key(item, key)
+            if found is not None:
+                return found
+    return None
+
+
 def extract_json_object(
     response_text: str,
     slug: Optional[str] = None,

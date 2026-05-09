@@ -1017,6 +1017,29 @@ class SchemaMixin:
         except Exception as e:
             logger.warning(f"Migration failed for verification_prompt v1.0.8: {e}")
 
+        # Migration: refresh default reviewer prompts to v2.1.1 strict-output
+        # form. Only touches is_default=1 rows so users who customized their
+        # reviewer prompts keep their edits.
+        try:
+            from database import DEFAULT_REVIEW_PROMPT, DEFAULT_RESURRECT_PROMPT
+            for key, value in (
+                ('review_prompt', DEFAULT_REVIEW_PROMPT),
+                ('resurrect_prompt', DEFAULT_RESURRECT_PROMPT),
+            ):
+                row = conn.execute(
+                    "SELECT value, is_default FROM settings WHERE key = ?",
+                    (key,)
+                ).fetchone()
+                if row and row['is_default'] and 'must start with the literal character' not in (row['value'] or ''):
+                    conn.execute(
+                        "UPDATE settings SET value = ? WHERE key = ?",
+                        (value, key)
+                    )
+                    conn.commit()
+                    logger.info(f"Migration: Updated default {key} to v2.1.1 (strict output format)")
+        except Exception as e:
+            logger.warning(f"Migration failed for reviewer prompts v2.1.1: {e}")
+
         # Migration: Create token usage tables and seed default model pricing
         try:
             conn.execute("""

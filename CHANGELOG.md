@@ -6,6 +6,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.1] - 2026-05-09
+
+### Fixed
+
+- Ad reviewer was hitting the unparseable-response failure path on every LLM call in 2.1.0. Two root causes, both fixed:
+  - `AdReviewer._extract_response_text` did not handle the case where `LLMClient.messages_create` returns an `LLMResponse` dataclass with `.content` already a string (rather than the Anthropic SDK's `[TextBlock]` list). It fell through to `str(response)`, which produced a Python repr containing literal `\n` escape sequences instead of real newlines, causing every downstream JSON parse to fail with "Expecting property name enclosed in double quotes: line 1 column 2 (char 1)". The helper now handles `content` as a string directly.
+  - Even when text extraction worked, claude-sonnet-4-6 was wrapping verdicts in extra metadata fields (`podcast`, `episode`, `ads_reviewed: [...]`) despite the prompt asking for a flat object. The reviewer now walks the parsed value to find the first nested dict containing a `verdict` key (`utils.llm_response.find_first_dict_with_key`).
+- `DEFAULT_REVIEW_PROMPT` and `DEFAULT_RESURRECT_PROMPT` tightened to forbid wrapper objects explicitly (Output exactly one flat JSON object ... must start with `{` and end with `}` ... do NOT include podcast, episode, sponsor, ads_reviewed, results, summary, or any other field). Default-flagged rows refresh on next start via the existing v1.0.x prompt-refresh migration pattern; user-customized rows are untouched.
+
+### Added
+
+- 9 unit tests covering: `find_first_dict_with_key` traversal (top-level, nested-in-array, deeply nested, no-match, non-dict roots), and the reviewer end-to-end with the LLMResponse-dataclass shape, with extra-top-level-fields, and with the `ads_reviewed` array wrap.
+
 ## [2.1.0] - 2026-05-09
 
 ### Added

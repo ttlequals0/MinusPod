@@ -185,6 +185,76 @@ def test_review_failure_falls_through_with_original_ad():
     assert result.verdicts[0].success is False
 
 
+def test_review_handles_llm_response_dataclass_content():
+    """Regression test: LLMClient.messages_create returns an LLMResponse
+    dataclass whose `content` is a string (not a list of TextBlocks). The
+    reviewer must read it directly rather than fall through to str(response)
+    which yields a Python repr with literal `\\n` escapes that look like
+    JSON but break the parser."""
+    from dataclasses import dataclass
+
+    @dataclass
+    class FakeLLMResponse:
+        content: str
+        model: str = "test-model"
+
+    reviewer = _build_reviewer({
+        'review_prompt': 'review',
+        'resurrect_prompt': 'resurrect',
+    })
+    reviewer._llm_client.messages_create.return_value = FakeLLMResponse(
+        content='{"verdict": "confirmed", "reasoning": "ok", "confidence": 0.9}'
+    )
+    ad = {'start': 100.0, 'end': 130.0, 'confidence': 0.9}
+    result = reviewer.review(
+        accepted_ads=[ad], resurrection_eligible=[],
+        segments=_mock_segments(), episode_meta=_mock_episode_meta(),
+        pass_num=1, pass_model='claude-test',
+    )
+    assert result.verdicts[0].verdict == 'confirmed'
+
+
+def test_review_unwraps_verdict_from_extra_top_level_fields():
+    """LLMs sometimes add extra top-level fields (podcast, episode, etc.)
+    alongside the verdict. The reviewer should still extract it."""
+    reviewer = _build_reviewer({
+        'review_prompt': 'review',
+        'resurrect_prompt': 'resurrect',
+    })
+    reviewer._llm_client.messages_create.return_value = _MockResponse(
+        '{"podcast": "Test", "episode": "Ep", "verdict": "reject", '
+        '"reasoning": "fp", "confidence": 0.85, "is_real_world_sponsor": false}'
+    )
+    ad = {'start': 100.0, 'end': 130.0, 'confidence': 0.9}
+    result = reviewer.review(
+        accepted_ads=[ad], resurrection_eligible=[],
+        segments=_mock_segments(), episode_meta=_mock_episode_meta(),
+        pass_num=1, pass_model='claude-test',
+    )
+    assert result.verdicts[0].verdict == 'reject'
+    assert len(result.rejected_by_reviewer) == 1
+
+
+def test_review_unwraps_verdict_from_ads_reviewed_array():
+    """LLMs sometimes wrap the verdict in an ads_reviewed array (Sample A
+    from the 2.1.0 production logs)."""
+    reviewer = _build_reviewer({
+        'review_prompt': 'review',
+        'resurrect_prompt': 'resurrect',
+    })
+    reviewer._llm_client.messages_create.return_value = _MockResponse(
+        '{"podcast": "Test", "ads_reviewed": [{"verdict": "confirmed", '
+        '"reasoning": "ok", "confidence": 0.95}]}'
+    )
+    ad = {'start': 100.0, 'end': 130.0, 'confidence': 0.9}
+    result = reviewer.review(
+        accepted_ads=[ad], resurrection_eligible=[],
+        segments=_mock_segments(), episode_meta=_mock_episode_meta(),
+        pass_num=1, pass_model='claude-test',
+    )
+    assert result.verdicts[0].verdict == 'confirmed'
+
+
 def test_review_unparseable_response_falls_through():
     reviewer = _build_reviewer({
         'review_prompt': 'review',
