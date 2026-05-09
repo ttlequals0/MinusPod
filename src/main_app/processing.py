@@ -659,7 +659,7 @@ def _run_ad_reviewer(slug, episode_id, podcast_id, ads_to_remove,
     Non-blocking: any failure inside the reviewer falls through with the
     original lists. Skips entirely when ``enable_ad_review`` is false.
     """
-    db, _, _, ad_detector, _, _, _, status_service, _, _ = _get_components()
+    db, storage, _, ad_detector, _, _, _, status_service, _, _ = _get_components()
 
     if not _ad_review_enabled(db):
         return ads_to_remove, all_ads_with_validation
@@ -734,6 +734,11 @@ def _run_ad_reviewer(slug, episode_id, podcast_id, ads_to_remove,
         f"{sum(1 for v in result.verdicts if v.verdict == 'resurrect')} resurrected, "
         f"{sum(1 for v in result.verdicts if v.verdict == 'failure')} failed"
     )
+
+    # Persist the reviewer's mutations. The downstream save in process_episode
+    # is gated on v_ads_for_ui being non-empty, so a pass-2 reviewer that
+    # rejects everything will skip that save and lose pass-1 reviewer fields.
+    storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
 
     return new_ads_to_remove, all_ads_with_validation
 
