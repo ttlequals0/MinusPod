@@ -6,11 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.1.4] - 2026-05-09
+## [2.1.5] - 2026-05-09
 
 ### Fixed
 
 - Reviewer mutations were not persisting to `ad_markers_json` when pass 2 reviewer rejected all verification ads (`v_ads_for_ui` empty). The downstream save in `process_episode` was gated on `if v_ads_for_ui:`, so when pass 2 cleared the list, the pass 1 reviewer fields the user saw in logs (`Reviewer pass 1 verdicts: 4 confirmed, 0 adjusted, 2 rejected, ...`) never made it into the persisted ad markers. UI showed no per-segment reviewer indicators because the data wasn't there. `_run_ad_reviewer` now calls `storage.save_combined_ads` itself after applying verdicts so persistence is self-contained and not coupled to pass 2 outcomes.
+- Settings -> Experiments -> Ad Reviewer: the Review model dropdown only listed the literal "Same as pass model" sentinel and offered no concrete model choices. `Settings.tsx` was never passing `modelOptions` to `ExperimentsSection`, so the prop fell back to its empty default. Now wires the same `models` query result that `AIModelsSection` consumes (mapped through `formatModelLabel` for display parity with the existing Detection / Verification / Chapters dropdowns).
 
 ## [2.1.3] - 2026-05-09
 

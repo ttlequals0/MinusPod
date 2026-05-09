@@ -32,6 +32,7 @@ import GlobalDefaultsSection from './settings/GlobalDefaultsSection';
 import Podcasting20Section from './settings/Podcasting20Section';
 import PromptsSection from './settings/PromptsSection';
 import ExperimentsSection from './settings/ExperimentsSection';
+import { formatModelLabel } from './settings/settingsUtils';
 
 function SettingsGroupHeader({ title }: { title: string }) {
   return (
@@ -505,6 +506,7 @@ function Settings() {
         onChange={setReviewer}
         onResetPrompts={() => resetPromptsMutation.mutate()}
         resetIsPending={resetPromptsMutation.isPending}
+        modelOptions={models?.map((m) => ({ id: m.id, label: formatModelLabel(m) })) ?? []}
       />
 
       <SettingsGroupHeader title="Output" />
