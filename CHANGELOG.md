@@ -6,6 +6,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.3] - 2026-05-09
+
+### Added
+
+- Reviewer stage in the global status bar. The pipeline now emits `pass1:reviewing` (75%) and `pass2:reviewing` (90%) status updates when the reviewer is actually running, so the user no longer sees the bar stuck on the previous stage during the ~1-2 minute reviewer block. Frontend `STAGE_LABELS` carries matching "Pass 1: Reviewing detections" / "Pass 2: Reviewing detections" labels.
+- Per-segment reviewer verdict badges on the episode detail page. Every reviewer-touched ad now carries an explicit pill: green "Reviewer: confirmed", cyan "Reviewer: adjusted", amber "Reviewer: resurrected", red "Reviewer: rejected", or gray "Reviewer: skipped" (the LLM call failed and the original detection was kept). Tooltips surface `reviewer_reasoning` on hover when present. The bare "Source: Reviewer" tag in the rejected detections list is replaced by the verdict-specific badge.
+- Pass 2 reviewer verdict summary log line. `_apply_pass2_reviewer` now emits the same `Reviewer pass 2 verdicts: X confirmed, Y adjusted, Z rejected, ...` summary that `_run_ad_reviewer` already emitted for pass 1.
+
+### Changed
+
+- The Ad Reviewer Stats card on the Stats page now renders whenever the `/stats/reviewer` query has loaded, not only when `totalReviews > 0`. When zero, the card displays a hint pointing the user to Settings, Experiments to enable the reviewer.
+
 ## [2.1.2] - 2026-05-09
 
 ### Fixed

@@ -301,11 +301,17 @@ export default function StatsPage() {
         )}
       </div>
 
-      {/* Ad Reviewer Stats (issue #197). Hidden when reviewer is disabled
-          and no log rows exist yet. */}
-      {reviewer && reviewer.totalReviews > 0 && (
+      {/* Ad Reviewer Stats. Renders whenever the query has loaded; all-zero
+          counts are the visible signal that the reviewer is configured but
+          has not yet run on any episode. */}
+      {reviewer && (
         <div className="bg-card rounded-lg border border-border p-4 sm:p-6 mb-6">
           <h2 className="text-lg font-semibold text-foreground mb-4">Ad Reviewer Stats</h2>
+          {reviewer.totalReviews === 0 && (
+            <p className="text-sm text-muted-foreground mb-4">
+              No reviews yet. Enable Ad Reviewer in Settings, Experiments section, and reprocess an episode to see stats here.
+            </p>
+          )}
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
             <ReviewerStatCard label="Total reviews" value={reviewer.totalReviews} />
             <ReviewerStatCard label="Confirmed" value={reviewer.verdictCounts.confirmed} />

@@ -506,7 +506,7 @@ def _apply_pass2_reviewer(slug, episode_id, podcast_name, episode_title,
     original coords cannot safely round-trip through pass 1 cuts to processed
     coords; supporting it would require a per-pass-1-cut timestamp map.
     """
-    db, _, _, ad_detector, _, _, _, _, _, _ = _get_components()
+    db, _, _, ad_detector, _, _, _, status_service, _, _ = _get_components()
 
     if not _ad_review_enabled(db):
         return
@@ -520,6 +520,8 @@ def _apply_pass2_reviewer(slug, episode_id, podcast_name, episode_title,
     )
     if not accepted_originals and not eligible_originals:
         return
+
+    status_service.update_job_stage("pass2:reviewing", 90)
 
     podcast_row = db.get_podcast_by_slug(slug)
     podcast_id = podcast_row.get('id') if podcast_row else None
@@ -628,6 +630,15 @@ def _apply_pass2_reviewer(slug, episode_id, podcast_name, episode_title,
         if ui_ad is not None:
             _stamp(ui_ad, v)
 
+    audio_logger.info(
+        f"[{slug}:{episode_id}] Reviewer pass 2 verdicts: "
+        f"{sum(1 for v in result.verdicts if v.verdict == 'confirmed')} confirmed, "
+        f"{sum(1 for v in result.verdicts if v.verdict == 'adjust')} adjusted, "
+        f"{sum(1 for v in result.verdicts if v.verdict == 'reject')} rejected, "
+        f"{sum(1 for v in result.verdicts if v.verdict == 'resurrect')} resurrected, "
+        f"{sum(1 for v in result.verdicts if v.verdict == 'failure')} failed"
+    )
+
 
 def _ad_review_enabled(db) -> bool:
     """Read the opt-in flag for the LLM ad reviewer."""
@@ -648,7 +659,7 @@ def _run_ad_reviewer(slug, episode_id, podcast_id, ads_to_remove,
     Non-blocking: any failure inside the reviewer falls through with the
     original lists. Skips entirely when ``enable_ad_review`` is false.
     """
-    db, _, _, ad_detector, _, _, _, _, _, _ = _get_components()
+    db, _, _, ad_detector, _, _, _, status_service, _, _ = _get_components()
 
     if not _ad_review_enabled(db):
         return ads_to_remove, all_ads_with_validation
@@ -658,6 +669,8 @@ def _run_ad_reviewer(slug, episode_id, podcast_id, ads_to_remove,
     )
     if not ads_to_remove and not eligible:
         return ads_to_remove, all_ads_with_validation
+
+    status_service.update_job_stage(f"pass{pass_num}:reviewing", 75)
 
     audio_logger.info(
         f"[{slug}:{episode_id}] Reviewer pass {pass_num}: "

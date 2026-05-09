@@ -47,10 +47,12 @@ const STAGE_LABELS: Record<string, string> = {
   'pass1:transcribing': 'Pass 1: Transcribing',
   'pass1:analyzing': 'Pass 1: Analyzing audio',
   'pass1:detecting': 'Pass 1: Detecting ads',
+  'pass1:reviewing': 'Pass 1: Reviewing detections',
   'pass1:processing': 'Pass 1: Processing audio',
   'pass2:transcribing': 'Pass 2: Transcribing',
   'pass2:analyzing': 'Pass 2: Analyzing audio',
   'pass2:detecting': 'Pass 2: Detecting ads',
+  'pass2:reviewing': 'Pass 2: Reviewing detections',
 };
 
 function getStageLabel(stage: string): string {

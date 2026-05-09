@@ -455,14 +455,24 @@ function EpisodeDetail() {
                       {segment.detection_stage === 'verification' ? 'Pass 2' : 'Pass 1'}
                     </span>
                   )}
-                  {segment.reviewer_verdict === 'resurrect' && (
-                    <span className="px-1.5 py-0.5 text-xs rounded font-medium bg-amber-500/20 text-amber-600 dark:text-amber-400" title="Resurrected by reviewer">
-                      Resurrected
+                  {segment.reviewer_verdict === 'confirmed' && (
+                    <span className="px-1.5 py-0.5 text-xs rounded font-medium bg-green-500/20 text-green-600 dark:text-green-400" title={segment.reviewer_reasoning || 'Confirmed by reviewer'}>
+                      Reviewer: confirmed
                     </span>
                   )}
                   {segment.reviewer_verdict === 'adjust' && (
-                    <span className="px-1.5 py-0.5 text-xs rounded font-medium bg-cyan-500/20 text-cyan-600 dark:text-cyan-400" title="Boundaries adjusted by reviewer">
-                      Reviewer adjusted
+                    <span className="px-1.5 py-0.5 text-xs rounded font-medium bg-cyan-500/20 text-cyan-600 dark:text-cyan-400" title={segment.reviewer_reasoning || 'Boundaries adjusted by reviewer'}>
+                      Reviewer: adjusted
+                    </span>
+                  )}
+                  {segment.reviewer_verdict === 'resurrect' && (
+                    <span className="px-1.5 py-0.5 text-xs rounded font-medium bg-amber-500/20 text-amber-600 dark:text-amber-400" title={segment.reviewer_reasoning || 'Resurrected by reviewer'}>
+                      Reviewer: resurrected
+                    </span>
+                  )}
+                  {segment.reviewer_verdict === 'failure' && (
+                    <span className="px-1.5 py-0.5 text-xs rounded font-medium bg-muted text-muted-foreground" title="Reviewer LLM call failed; original detection kept">
+                      Reviewer: skipped
                     </span>
                   )}
                   {episode.transcript && (
@@ -548,9 +558,14 @@ function EpisodeDetail() {
                           <span className="px-1.5 py-0.5 text-xs rounded font-medium bg-red-500/20 text-red-600 dark:text-red-400">
                             Rejected
                           </span>
-                          {segment.source === 'reviewer' && (
-                            <span className="px-1.5 py-0.5 text-xs rounded font-medium bg-cyan-500/20 text-cyan-600 dark:text-cyan-400" title="Rejected by ad reviewer">
-                              Source: Reviewer
+                          {segment.reviewer_verdict === 'reject' && (
+                            <span className="px-1.5 py-0.5 text-xs rounded font-medium bg-red-500/20 text-red-700 dark:text-red-300" title={segment.reviewer_reasoning || 'Rejected by reviewer'}>
+                              Reviewer: rejected
+                            </span>
+                          )}
+                          {segment.reviewer_verdict === 'failure' && segment.source === 'reviewer' && (
+                            <span className="px-1.5 py-0.5 text-xs rounded font-medium bg-muted text-muted-foreground" title="Reviewer LLM call failed; validator decision kept">
+                              Reviewer: skipped
                             </span>
                           )}
                           {correction && (
