@@ -1,4 +1,5 @@
 """Tests for the ad reviewer."""
+from dataclasses import dataclass
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -8,7 +9,6 @@ from ad_reviewer import (
     RESURRECT_BAND_WIDTH,
     ReviewResult,
     ReviewVerdict,
-    _VERDICT_NORMALIZATION,
     split_resurrection_pool,
 )
 
@@ -44,23 +44,15 @@ def _build_reviewer(db_settings=None, conn=None):
     return AdReviewer(db=db, llm_client=llm_client, sponsor_service=None)
 
 
-class _MockResponse:
-    """Simulates an Anthropic Messages response."""
-    def __init__(self, text):
-        block = MagicMock()
-        block.text = text
-        self.content = [block]
+@dataclass
+class _LLMResp:
+    """Matches the LLMResponse dataclass shape (content is a string)."""
+    content: str
+    model: str = "test-model"
 
 
-def test_verdict_normalization_map_canonical_values():
-    """Spelling variants and synonyms collapse to canonical lowercase values."""
-    canonical = set(_VERDICT_NORMALIZATION.values())
-    assert canonical == {'confirmed', 'adjust', 'reject', 'resurrect'}
-    assert _VERDICT_NORMALIZATION['CONFIRMED'.lower()] == 'confirmed'
-    assert _VERDICT_NORMALIZATION['adjust_boundary'] == 'adjust'
-    assert _VERDICT_NORMALIZATION['boundary_adjust'] == 'adjust'
-    assert _VERDICT_NORMALIZATION['false_positive'] == 'reject'
-    assert _VERDICT_NORMALIZATION['rejected'] == 'reject'
+def _resp(body: str) -> _LLMResp:
+    return _LLMResp(content=body)
 
 
 def test_clamp_to_cap_limits_shifts():
@@ -71,107 +63,169 @@ def test_clamp_to_cap_limits_shifts():
     assert AdReviewer._clamp_to_cap(100.0, 100.0, 60) == 100.0  # no shift
 
 
-def test_review_confirm_verdict_keeps_ad_in_cut_list():
-    reviewer = _build_reviewer({
-        'review_prompt': 'review {sponsor_database}',
-        'resurrect_prompt': 'resurrect {sponsor_database}',
-        'review_max_boundary_shift': '60',
-        'review_model': 'same_as_pass',
-    })
-    reviewer._llm_client.messages_create.return_value = _MockResponse(
-        '{"verdict": "confirmed", "reasoning": "ok", "confidence": 0.9}'
-    )
-    ad = {'start': 120.0, 'end': 180.0, 'confidence': 0.9, 'sponsor': 'AG1', 'reason': 'r'}
+# ---------- Pass 1 (accepted pool) ----------
 
+def test_array_with_unchanged_boundaries_yields_confirmed():
+    """One element back, start/end within tolerance of original -> confirmed."""
+    reviewer = _build_reviewer({
+        'review_prompt': 'review',
+        'resurrect_prompt': 'resurrect',
+        'review_max_boundary_shift': '60',
+    })
+    reviewer._llm_client.messages_create.return_value = _resp(
+        '[{"start": 120.0, "end": 180.0, "confidence": 0.95, '
+        '"reason": "Confirmed sponsor read"}]'
+    )
+    ad = {'start': 120.0, 'end': 180.0, 'confidence': 0.9}
     result = reviewer.review(
         accepted_ads=[ad], resurrection_eligible=[],
         segments=_mock_segments(), episode_meta=_mock_episode_meta(),
         pass_num=1, pass_model='claude-test',
     )
-
-    assert len(result.accepted_after_review) == 1
-    assert len(result.rejected_by_reviewer) == 0
     assert result.verdicts[0].verdict == 'confirmed'
+    assert len(result.accepted_after_review) == 1
+    assert result.accepted_after_review[0]['start'] == 120.0
+    assert result.accepted_after_review[0]['end'] == 180.0
 
 
-def test_review_adjust_clamps_to_cap_and_stashes_originals():
+def test_array_with_shifted_boundaries_yields_adjust():
+    """One element back, start/end shifted within cap -> adjust, boundaries updated."""
+    reviewer = _build_reviewer({
+        'review_prompt': 'review',
+        'resurrect_prompt': 'resurrect',
+        'review_max_boundary_shift': '60',
+    })
+    reviewer._llm_client.messages_create.return_value = _resp(
+        '[{"start": 115.0, "end": 185.0, "confidence": 0.88, '
+        '"reason": "Adjusted to capture transition phrase"}]'
+    )
+    ad = {'start': 120.0, 'end': 180.0, 'confidence': 0.9}
+    result = reviewer.review(
+        accepted_ads=[ad], resurrection_eligible=[],
+        segments=_mock_segments(), episode_meta=_mock_episode_meta(),
+        pass_num=1, pass_model='claude-test',
+    )
+    out = result.accepted_after_review[0]
+    assert result.verdicts[0].verdict == 'adjust'
+    assert out['start'] == 115.0
+    assert out['end'] == 185.0
+    assert out['reviewer_original_start'] == 120.0
+    assert out['reviewer_original_end'] == 180.0
+
+
+def test_array_with_shift_outside_cap_clamps():
+    """Shifts beyond review_max_boundary_shift are clamped to the cap."""
     reviewer = _build_reviewer({
         'review_prompt': 'review',
         'resurrect_prompt': 'resurrect',
         'review_max_boundary_shift': '30',
     })
-    # Model proposes a 200-second shift; cap is 30s.
-    reviewer._llm_client.messages_create.return_value = _MockResponse(
-        '{"verdict": "adjust", "adjusted_start": 320.0, '
-        '"adjusted_end": 380.0, "confidence": 0.85}'
+    # Model proposes a 200s shift; cap is 30s.
+    reviewer._llm_client.messages_create.return_value = _resp(
+        '[{"start": 320.0, "end": 380.0, "confidence": 0.85}]'
     )
     ad = {'start': 120.0, 'end': 180.0, 'confidence': 0.85}
-
     result = reviewer.review(
         accepted_ads=[ad], resurrection_eligible=[],
         segments=_mock_segments(), episode_meta=_mock_episode_meta(),
         pass_num=1, pass_model='claude-test',
     )
-
     out = result.accepted_after_review[0]
-    assert out['start'] == 150.0  # clamped to original_start + cap
-    assert out['end'] == 210.0    # clamped to original_end + cap
+    assert result.verdicts[0].verdict == 'adjust'
+    assert out['start'] == 150.0  # clamped: original_start + cap
+    assert out['end'] == 210.0    # clamped: original_end + cap
     assert out['reviewer_original_start'] == 120.0
     assert out['reviewer_original_end'] == 180.0
-    assert result.verdicts[0].verdict == 'adjust'
 
 
-def test_review_reject_removes_from_cut_list_with_source_reviewer():
+def test_empty_array_yields_reject():
+    """Empty array from accepted pool -> reject, ad removed from cut list."""
     reviewer = _build_reviewer({
         'review_prompt': 'review',
         'resurrect_prompt': 'resurrect',
     })
-    reviewer._llm_client.messages_create.return_value = _MockResponse(
-        '{"verdict": "reject", "reasoning": "topic mention", "confidence": 0.8}'
-    )
+    reviewer._llm_client.messages_create.return_value = _resp('[]')
     ad = {'start': 120.0, 'end': 180.0, 'confidence': 0.85}
-
     result = reviewer.review(
         accepted_ads=[ad], resurrection_eligible=[],
         segments=_mock_segments(), episode_meta=_mock_episode_meta(),
         pass_num=1, pass_model='claude-test',
     )
-
+    assert result.verdicts[0].verdict == 'reject'
     assert result.accepted_after_review == []
     assert len(result.rejected_by_reviewer) == 1
     assert result.rejected_by_reviewer[0]['source'] == 'reviewer'
     assert result.rejected_by_reviewer[0]['was_cut'] is False
 
 
-def test_review_resurrect_pulls_eligible_ad_back_into_cut_list():
+# ---------- Resurrection pool ----------
+
+def test_array_with_element_yields_resurrect():
+    """One element back from resurrection pool -> resurrect, ad added to cut list."""
     reviewer = _build_reviewer({
         'review_prompt': 'review',
         'resurrect_prompt': 'resurrect',
     })
-    reviewer._llm_client.messages_create.return_value = _MockResponse(
-        '{"verdict": "resurrect", "reasoning": "real ad", "confidence": 0.85}'
+    reviewer._llm_client.messages_create.return_value = _resp(
+        '[{"start": 120.0, "end": 180.0, "confidence": 0.85, '
+        '"reason": "Acast post-roll, validator was wrong"}]'
     )
     eligible = {'start': 120.0, 'end': 180.0, 'confidence': 0.7}
-
     result = reviewer.review(
         accepted_ads=[], resurrection_eligible=[eligible],
         segments=_mock_segments(), episode_meta=_mock_episode_meta(),
         pass_num=1, pass_model='claude-test',
     )
-
+    assert result.verdicts[0].verdict == 'resurrect'
     assert len(result.resurrected) == 1
     assert result.accepted_after_review[0]['was_cut'] is True
     assert result.accepted_after_review[0]['source'] == 'reviewer'
-    assert result.verdicts[0].verdict == 'resurrect'
 
 
-def test_review_failure_falls_through_with_original_ad():
+def test_empty_array_in_resurrection_pool_yields_reject():
+    """Empty array from resurrection pool -> reject, ad stays out of cut list."""
+    reviewer = _build_reviewer({
+        'review_prompt': 'review',
+        'resurrect_prompt': 'resurrect',
+    })
+    reviewer._llm_client.messages_create.return_value = _resp('[]')
+    eligible = {'start': 120.0, 'end': 180.0, 'confidence': 0.7}
+    result = reviewer.review(
+        accepted_ads=[], resurrection_eligible=[eligible],
+        segments=_mock_segments(), episode_meta=_mock_episode_meta(),
+        pass_num=1, pass_model='claude-test',
+    )
+    assert result.verdicts[0].verdict == 'reject'
+    assert result.resurrected == []
+    assert result.accepted_after_review == []
+
+
+# ---------- Failure / fall-through ----------
+
+def test_unparseable_response_falls_through():
+    reviewer = _build_reviewer({
+        'review_prompt': 'review',
+        'resurrect_prompt': 'resurrect',
+    })
+    reviewer._llm_client.messages_create.return_value = _resp(
+        'this is not json at all'
+    )
+    ad = {'start': 120.0, 'end': 180.0, 'confidence': 0.9}
+    result = reviewer.review(
+        accepted_ads=[ad], resurrection_eligible=[],
+        segments=_mock_segments(), episode_meta=_mock_episode_meta(),
+        pass_num=1, pass_model='claude-test',
+    )
+    assert result.accepted_after_review == [ad]
+    assert result.verdicts[0].verdict == 'failure'
+
+
+def test_llm_call_failure_falls_through():
     """Per-ad LLM failure: ad stays unchanged, verdict logged as failure."""
     reviewer = _build_reviewer({
         'review_prompt': 'review',
         'resurrect_prompt': 'resurrect',
     })
-    # call_llm_for_window returns (None, error) on exhausted retries.
     with patch('ad_reviewer.call_llm_for_window', return_value=(None, RuntimeError('boom'))):
         ad = {'start': 120.0, 'end': 180.0, 'confidence': 0.9}
         result = reviewer.review(
@@ -185,137 +239,15 @@ def test_review_failure_falls_through_with_original_ad():
     assert result.verdicts[0].success is False
 
 
-def test_review_handles_llm_response_dataclass_content():
-    """Regression test: LLMClient.messages_create returns an LLMResponse
-    dataclass whose `content` is a string (not a list of TextBlocks). The
-    reviewer must read it directly rather than fall through to str(response)
-    which yields a Python repr with literal `\\n` escapes that look like
-    JSON but break the parser."""
-    from dataclasses import dataclass
-
-    @dataclass
-    class FakeLLMResponse:
-        content: str
-        model: str = "test-model"
-
-    reviewer = _build_reviewer({
-        'review_prompt': 'review',
-        'resurrect_prompt': 'resurrect',
-    })
-    reviewer._llm_client.messages_create.return_value = FakeLLMResponse(
-        content='{"verdict": "confirmed", "reasoning": "ok", "confidence": 0.9}'
-    )
-    ad = {'start': 100.0, 'end': 130.0, 'confidence': 0.9}
-    result = reviewer.review(
-        accepted_ads=[ad], resurrection_eligible=[],
-        segments=_mock_segments(), episode_meta=_mock_episode_meta(),
-        pass_num=1, pass_model='claude-test',
-    )
-    assert result.verdicts[0].verdict == 'confirmed'
-
-
-def test_review_unwraps_verdict_from_extra_top_level_fields():
-    """LLMs sometimes add extra top-level fields (podcast, episode, etc.)
-    alongside the verdict. The reviewer should still extract it."""
-    reviewer = _build_reviewer({
-        'review_prompt': 'review',
-        'resurrect_prompt': 'resurrect',
-    })
-    reviewer._llm_client.messages_create.return_value = _MockResponse(
-        '{"podcast": "Test", "episode": "Ep", "verdict": "reject", '
-        '"reasoning": "fp", "confidence": 0.85, "is_real_world_sponsor": false}'
-    )
-    ad = {'start': 100.0, 'end': 130.0, 'confidence': 0.9}
-    result = reviewer.review(
-        accepted_ads=[ad], resurrection_eligible=[],
-        segments=_mock_segments(), episode_meta=_mock_episode_meta(),
-        pass_num=1, pass_model='claude-test',
-    )
-    assert result.verdicts[0].verdict == 'reject'
-    assert len(result.rejected_by_reviewer) == 1
-
-
-def test_review_unwraps_verdict_from_ads_reviewed_array():
-    """LLMs sometimes wrap the verdict in an ads_reviewed array (Sample A
-    from the 2.1.0 production logs)."""
-    reviewer = _build_reviewer({
-        'review_prompt': 'review',
-        'resurrect_prompt': 'resurrect',
-    })
-    reviewer._llm_client.messages_create.return_value = _MockResponse(
-        '{"podcast": "Test", "ads_reviewed": [{"verdict": "confirmed", '
-        '"reasoning": "ok", "confidence": 0.95}]}'
-    )
-    ad = {'start': 100.0, 'end': 130.0, 'confidence': 0.9}
-    result = reviewer.review(
-        accepted_ads=[ad], resurrection_eligible=[],
-        segments=_mock_segments(), episode_meta=_mock_episode_meta(),
-        pass_num=1, pass_model='claude-test',
-    )
-    assert result.verdicts[0].verdict == 'confirmed'
-
-
-def test_review_unparseable_response_falls_through():
-    reviewer = _build_reviewer({
-        'review_prompt': 'review',
-        'resurrect_prompt': 'resurrect',
-    })
-    reviewer._llm_client.messages_create.return_value = _MockResponse(
-        'this is not JSON at all'
-    )
-    ad = {'start': 120.0, 'end': 180.0, 'confidence': 0.9}
-
-    result = reviewer.review(
-        accepted_ads=[ad], resurrection_eligible=[],
-        segments=_mock_segments(), episode_meta=_mock_episode_meta(),
-        pass_num=1, pass_model='claude-test',
-    )
-
-    assert result.accepted_after_review == [ad]
-    assert result.verdicts[0].verdict == 'failure'
-
-
-def test_review_cross_pool_verdict_coercion():
-    """Resurrect from accepted pool gets coerced to confirmed; confirm from
-    resurrection pool gets coerced to resurrect."""
-    reviewer = _build_reviewer({
-        'review_prompt': 'review',
-        'resurrect_prompt': 'resurrect',
-    })
-    # Model returns 'resurrect' on accepted pool ad: should be coerced.
-    reviewer._llm_client.messages_create.return_value = _MockResponse(
-        '{"verdict": "resurrect", "reasoning": "x", "confidence": 0.8}'
-    )
-    ad = {'start': 120.0, 'end': 180.0, 'confidence': 0.9}
-    result = reviewer.review(
-        accepted_ads=[ad], resurrection_eligible=[],
-        segments=_mock_segments(), episode_meta=_mock_episode_meta(),
-        pass_num=1, pass_model='claude-test',
-    )
-    assert result.verdicts[0].verdict == 'confirmed'
-
-    # Model returns 'confirmed' on resurrection-pool ad: should be coerced.
-    reviewer._llm_client.messages_create.return_value = _MockResponse(
-        '{"verdict": "confirmed", "reasoning": "x", "confidence": 0.8}'
-    )
-    eligible = {'start': 200.0, 'end': 240.0, 'confidence': 0.7}
-    result = reviewer.review(
-        accepted_ads=[], resurrection_eligible=[eligible],
-        segments=_mock_segments(), episode_meta=_mock_episode_meta(),
-        pass_num=1, pass_model='claude-test',
-    )
-    assert result.verdicts[0].verdict == 'resurrect'
-
-
-def test_review_per_ad_failure_does_not_block_other_ads():
+def test_per_ad_failure_does_not_block_other_ads():
     """One failing ad does not prevent the rest from being reviewed."""
     reviewer = _build_reviewer({
         'review_prompt': 'review',
         'resurrect_prompt': 'resurrect',
     })
     reviewer._llm_client.messages_create.side_effect = [
-        _MockResponse('not json'),  # ad 1 unparseable -> failure
-        _MockResponse('{"verdict": "confirmed", "confidence": 0.9}'),  # ad 2
+        _resp('not json'),  # ad 1 unparseable -> failure
+        _resp('[{"start": 200.0, "end": 220.0, "confidence": 0.9}]'),  # ad 2 confirmed
     ]
     ads = [
         {'start': 100.0, 'end': 120.0, 'confidence': 0.9},
@@ -330,6 +262,50 @@ def test_review_per_ad_failure_does_not_block_other_ads():
     assert result.verdicts[0].verdict == 'failure'
     assert result.verdicts[1].verdict == 'confirmed'
     assert len(result.accepted_after_review) == 2
+
+
+def test_inverted_boundaries_keep_original():
+    """If the LLM returns end < start, fall back to original boundaries."""
+    reviewer = _build_reviewer({
+        'review_prompt': 'review',
+        'resurrect_prompt': 'resurrect',
+    })
+    reviewer._llm_client.messages_create.return_value = _resp(
+        '[{"start": 200.0, "end": 100.0, "confidence": 0.5}]'
+    )
+    ad = {'start': 120.0, 'end': 180.0, 'confidence': 0.9}
+    result = reviewer.review(
+        accepted_ads=[ad], resurrection_eligible=[],
+        segments=_mock_segments(), episode_meta=_mock_episode_meta(),
+        pass_num=1, pass_model='claude-test',
+    )
+    # Treated as confirmed (within tolerance of original since we restored them)
+    out = result.accepted_after_review[0]
+    assert out['start'] == 120.0
+    assert out['end'] == 180.0
+    assert result.verdicts[0].verdict == 'confirmed'
+
+
+def test_multi_element_array_takes_first():
+    """Defensive: if the LLM returns multiple elements, take the first."""
+    reviewer = _build_reviewer({
+        'review_prompt': 'review',
+        'resurrect_prompt': 'resurrect',
+    })
+    reviewer._llm_client.messages_create.return_value = _resp(
+        '[{"start": 120.0, "end": 180.0, "confidence": 0.95}, '
+        '{"start": 999.0, "end": 9999.0, "confidence": 0.1}]'
+    )
+    ad = {'start': 120.0, 'end': 180.0, 'confidence': 0.9}
+    result = reviewer.review(
+        accepted_ads=[ad], resurrection_eligible=[],
+        segments=_mock_segments(), episode_meta=_mock_episode_meta(),
+        pass_num=1, pass_model='claude-test',
+    )
+    out = result.accepted_after_review[0]
+    assert out['start'] == 120.0
+    assert out['end'] == 180.0
+    assert result.verdicts[0].verdict == 'confirmed'
 
 
 def test_catastrophic_failure_returns_inputs_unchanged():
@@ -347,7 +323,7 @@ def test_catastrophic_failure_returns_inputs_unchanged():
     assert result.accepted_after_review == [ad]
 
 
-# ---------- Resurrection pool selector tests ----------
+# ---------- Resurrection pool selector ----------
 
 def test_resurrection_pool_filters_by_band():
     min_cut = 0.80  # band [0.60, 0.80)
@@ -424,7 +400,7 @@ def test_resurrection_pool_uses_validation_adjusted_confidence_when_present():
     assert len(eligible) == 1
 
 
-def test_review_disabled_band_dynamic_with_min_cut_confidence():
+def test_resurrection_band_dynamic_with_min_cut_confidence():
     """Resurrection band shifts with the user's min_cut_confidence slider."""
     all_ads = [{'start': 10.0, 'end': 20.0, 'confidence': 0.45, 'validation': {}}]
     # With min_cut=0.50, band is [0.30, 0.50): 0.45 is eligible

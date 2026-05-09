@@ -7,7 +7,7 @@ from typing import Callable, Dict, List, Literal, Optional, Tuple
 from database import DEFAULT_REVIEW_PROMPT, DEFAULT_RESURRECT_PROMPT
 from llm_client import get_llm_max_retries, get_llm_timeout
 from utils.llm_call import call_llm_for_window
-from utils.llm_response import extract_json_object, find_first_dict_with_key
+from utils.llm_response import extract_json_ads_array
 from utils.prompt import format_sponsor_block, render_prompt
 from utils.text import get_transcript_text_for_range
 
@@ -25,22 +25,10 @@ RESURRECT_BAND_WIDTH = 0.20
 # response cannot eat a whole detection budget.
 REVIEW_MAX_TOKENS = 1024
 
-# Strict normalization map for the verdict field. Keys are lowercased; values
-# are the canonical verdict identifiers used in the rest of the codebase.
-_VERDICT_NORMALIZATION = {
-    "confirmed": "confirmed",
-    "confirm": "confirmed",
-    "adjust": "adjust",
-    "adjust_boundary": "adjust",
-    "boundary_adjust": "adjust",
-    "adjusted": "adjust",
-    "reject": "reject",
-    "rejected": "reject",
-    "false_positive": "reject",
-    "resurrect": "resurrect",
-    "resurrected": "resurrect",
-    "rescue": "resurrect",
-}
+# Tolerance for treating a returned ad as "boundaries unchanged". The LLM
+# may emit floats that differ from the input by less than half a second of
+# rounding noise; treat that as confirmed rather than adjust.
+_CONFIRMED_BOUNDARY_TOLERANCE_S = 0.5
 
 
 @dataclass
@@ -269,16 +257,10 @@ class AdReviewer:
             )
 
         text = self._extract_response_text(response)
-        parsed, _method = extract_json_object(text, slug=slug, episode_id=episode_id)
-        # LLMs sometimes wrap the verdict in extra metadata fields or nest it
-        # inside an `ads_reviewed: [...]` array despite the prompt asking for
-        # a single object. Walk the parsed value to recover the verdict.
-        verdict_obj = (
-            parsed if isinstance(parsed, dict) and "verdict" in parsed
-            else find_first_dict_with_key(parsed, "verdict") if parsed is not None
-            else None
+        ads_returned, _method = extract_json_ads_array(
+            text, slug=slug, episode_id=episode_id
         )
-        if verdict_obj is None:
+        if ads_returned is None:
             logger.warning(
                 f"[{slug}:{episode_id}] Reviewer {window_label} "
                 f"@ {original_start:.1f}s returned unparseable response "
@@ -293,119 +275,58 @@ class AdReviewer:
                 ),
                 ad,
             )
-        parsed = verdict_obj
 
-        raw_verdict = str(parsed.get("verdict", "")).strip().lower()
-        canonical = _VERDICT_NORMALIZATION.get(raw_verdict)
-        reasoning = parsed.get("reasoning")
-        confidence = parsed.get("confidence")
-        try:
-            confidence = float(confidence) if confidence is not None else None
-        except (TypeError, ValueError):
-            confidence = None
+        # Empty array carries the rejection signal in both pools: the LLM
+        # decided this segment is not (or no longer) an ad to cut.
+        if not ads_returned:
+            verdict = "reject" if pool == "accepted" else "reject"
+            return (
+                ReviewVerdict(
+                    pool=pool, pass_num=pass_num, verdict=verdict,
+                    original_start=original_start, original_end=original_end,
+                    reasoning=None, confidence=None,
+                    model_used=model, latency_ms=latency_ms, success=True,
+                ),
+                ad,
+            )
 
-        if canonical is None:
+        # One or more elements: take the first. Multi-element responses are
+        # not expected (one ad in, one ad out) but are handled defensively.
+        kept = ads_returned[0]
+        if not isinstance(kept, dict):
             logger.warning(
                 f"[{slug}:{episode_id}] Reviewer {window_label} returned "
-                f"unknown verdict {raw_verdict!r}. Treating as failure."
+                f"non-object array element. Falling through with original ad."
             )
             return (
                 ReviewVerdict(
                     pool=pool, pass_num=pass_num, verdict="failure",
                     original_start=original_start, original_end=original_end,
-                    reasoning=f"Unknown verdict: {raw_verdict}",
-                    confidence=confidence, model_used=model,
-                    latency_ms=latency_ms, success=False,
+                    reasoning="Array element is not an object",
+                    model_used=model, latency_ms=latency_ms, success=False,
                 ),
                 ad,
             )
 
-        # Pool gates verdict set: accepted pool may not return resurrect, and
-        # resurrection pool may not return confirmed/adjust. Coerce illegal
-        # cross-pool verdicts to safe defaults rather than fabricating data.
-        if pool == "accepted" and canonical == "resurrect":
-            canonical = "confirmed"
-        if pool == "resurrection" and canonical in ("confirmed", "adjust"):
-            canonical = "resurrect"
-
-        if canonical == "adjust":
-            return self._apply_adjust(
-                ad=ad,
-                parsed=parsed,
-                pool=pool,
-                pass_num=pass_num,
-                original_start=original_start,
-                original_end=original_end,
-                reasoning=reasoning,
-                confidence=confidence,
-                model=model,
-                latency_ms=latency_ms,
-                max_shift=max_shift,
-                slug=slug,
-                episode_id=episode_id,
-            )
-
-        return (
-            ReviewVerdict(
-                pool=pool, pass_num=pass_num, verdict=canonical,
-                original_start=original_start, original_end=original_end,
-                reasoning=reasoning, confidence=confidence,
-                model_used=model, latency_ms=latency_ms, success=True,
-            ),
-            ad,
-        )
-
-    def _apply_adjust(
-        self,
-        *,
-        ad: Dict,
-        parsed: Dict,
-        pool: str,
-        pass_num: int,
-        original_start: float,
-        original_end: float,
-        reasoning: Optional[str],
-        confidence: Optional[float],
-        model: str,
-        latency_ms: int,
-        max_shift: int,
-        slug: Optional[str],
-        episode_id: Optional[str],
-    ) -> Tuple[ReviewVerdict, Dict]:
         try:
-            new_start = float(parsed.get("adjusted_start", original_start))
-            new_end = float(parsed.get("adjusted_end", original_end))
+            new_start = float(kept.get("start", original_start))
+            new_end = float(kept.get("end", original_end))
         except (TypeError, ValueError):
-            logger.warning(
-                f"[{slug}:{episode_id}] Reviewer adjust verdict "
-                f"@ {original_start:.1f}s missing/invalid adjusted_start/end. "
-                f"Treating as confirmed."
-            )
-            return (
-                ReviewVerdict(
-                    pool=pool, pass_num=pass_num, verdict="confirmed",
-                    original_start=original_start, original_end=original_end,
-                    reasoning=reasoning, confidence=confidence,
-                    model_used=model, latency_ms=latency_ms, success=True,
-                ),
-                ad,
-            )
+            new_start, new_end = original_start, original_end
+        reason = kept.get("reason")
+        try:
+            confidence = float(kept["confidence"]) if "confidence" in kept else None
+        except (TypeError, ValueError):
+            confidence = None
 
+        # Inverted or zero-width boundaries: keep the original.
         if new_end <= new_start:
             logger.warning(
                 f"[{slug}:{episode_id}] Reviewer proposed inverted boundaries "
                 f"({new_start:.1f}s >= {new_end:.1f}s) @ original "
-                f"{original_start:.1f}-{original_end:.1f}s. Treating as confirmed."
+                f"{original_start:.1f}-{original_end:.1f}s. Keeping original."
             )
-            return (
-                ReviewVerdict(
-                    pool=pool, pass_num=pass_num, verdict="confirmed",
-                    original_start=original_start, original_end=original_end,
-                    reasoning=reasoning, confidence=confidence,
-                    model_used=model, latency_ms=latency_ms, success=True,
-                ),
-                ad,
-            )
+            new_start, new_end = original_start, original_end
 
         clamped_start = self._clamp_to_cap(new_start, original_start, max_shift)
         clamped_end = self._clamp_to_cap(new_end, original_end, max_shift)
@@ -415,37 +336,50 @@ class AdReviewer:
                 f"{new_start:.1f}-{new_end:.1f} to "
                 f"{clamped_start:.1f}-{clamped_end:.1f} (cap {max_shift}s)"
             )
-
         if clamped_end <= clamped_start:
+            clamped_start, clamped_end = original_start, original_end
+
+        # Verdict is derived from the boundary delta, not from the LLM.
+        unchanged = (
+            abs(clamped_start - original_start) <= _CONFIRMED_BOUNDARY_TOLERANCE_S
+            and abs(clamped_end - original_end) <= _CONFIRMED_BOUNDARY_TOLERANCE_S
+        )
+        if pool == "resurrection":
+            verdict = "resurrect"
+        elif unchanged:
+            verdict = "confirmed"
+        else:
+            verdict = "adjust"
+
+        if verdict == "adjust":
+            updated = dict(ad)
+            updated["start"] = clamped_start
+            updated["end"] = clamped_end
+            updated["reviewer_verdict"] = "adjust"
+            updated["reviewer_original_start"] = original_start
+            updated["reviewer_original_end"] = original_end
+            updated["reviewer_reasoning"] = reason
+            updated["reviewer_confidence"] = confidence
+            updated["reviewer_model"] = model
             return (
                 ReviewVerdict(
-                    pool=pool, pass_num=pass_num, verdict="confirmed",
+                    pool=pool, pass_num=pass_num, verdict="adjust",
                     original_start=original_start, original_end=original_end,
-                    reasoning=reasoning, confidence=confidence,
+                    adjusted_start=clamped_start, adjusted_end=clamped_end,
+                    reasoning=reason, confidence=confidence,
                     model_used=model, latency_ms=latency_ms, success=True,
                 ),
-                ad,
+                updated,
             )
-
-        adjusted_ad = dict(ad)
-        adjusted_ad["start"] = clamped_start
-        adjusted_ad["end"] = clamped_end
-        adjusted_ad["reviewer_verdict"] = "adjust"
-        adjusted_ad["reviewer_original_start"] = original_start
-        adjusted_ad["reviewer_original_end"] = original_end
-        adjusted_ad["reviewer_reasoning"] = reasoning
-        adjusted_ad["reviewer_confidence"] = confidence
-        adjusted_ad["reviewer_model"] = model
 
         return (
             ReviewVerdict(
-                pool=pool, pass_num=pass_num, verdict="adjust",
+                pool=pool, pass_num=pass_num, verdict=verdict,
                 original_start=original_start, original_end=original_end,
-                adjusted_start=clamped_start, adjusted_end=clamped_end,
-                reasoning=reasoning, confidence=confidence,
+                reasoning=reason, confidence=confidence,
                 model_used=model, latency_ms=latency_ms, success=True,
             ),
-            adjusted_ad,
+            ad,
         )
 
     @staticmethod
@@ -465,6 +399,15 @@ class AdReviewer:
         episode_meta: Dict,
         pool: str,
     ) -> str:
+        """Build the per-ad user prompt.
+
+        Mirrors detection's minimal-prose shape (Podcast / Episode /
+        description / Transcript) so the LLM emits a JSON array of ad
+        segments rather than inventing its own analysis schema. The
+        candidate ad is called out inline inside the transcript with
+        brackets, the same way detection presents segments. The system
+        prompt examples then drive the output shape.
+        """
         start = float(ad.get("start", 0.0))
         end = float(ad.get("end", 0.0))
         before_text = get_transcript_text_for_range(
@@ -474,10 +417,6 @@ class AdReviewer:
             ad.get("end_text", "") or ""
         )
         after_text = get_transcript_text_for_range(segments, end, end + 60.0)
-
-        sponsor = ad.get("sponsor") or ad.get("brand") or "(unknown)"
-        reason = ad.get("reason") or ad.get("reasoning") or "(no reason recorded)"
-        validator_confidence = ad.get("confidence")
 
         podcast_name = episode_meta.get("podcast_name", "Unknown")
         episode_title = episode_meta.get("episode_title", "Unknown")
@@ -495,27 +434,34 @@ class AdReviewer:
             except Exception as e:
                 logger.warning(f"sponsor history provider failed: {e}")
 
-        validator_line = ""
-        if pool == "resurrection" and validator_confidence is not None:
-            validator_line = (
-                f"VALIDATOR CONFIDENCE: {float(validator_confidence):.2f} "
-                f"(below cut threshold)\n"
+        description_section = ""
+        if podcast_description or episode_description:
+            description_section = (
+                f"Podcast description: {podcast_description}\n"
+                f"Episode description: {episode_description}\n"
+            )
+
+        if pool == "resurrection":
+            framing = (
+                f"This segment was rejected for low confidence by the validator. "
+                f"Decide whether it should be cut after all.\n"
+                f"Original boundaries: {start:.2f}s - {end:.2f}s.\n"
+            )
+        else:
+            framing = (
+                f"This is the candidate ad to review.\n"
+                f"Original boundaries: {start:.2f}s - {end:.2f}s.\n"
             )
 
         return (
             f"Podcast: {podcast_name}\n"
             f"Episode: {episode_title}\n"
-            f"Podcast description: {podcast_description}\n"
-            f"Episode description: {episode_description}\n\n"
-            f"DETECTED AD:\n"
-            f"Start: {start:.2f}s\n"
-            f"End: {end:.2f}s\n"
-            f"Sponsor: {sponsor}\n"
-            f"Detector reasoning: {reason}\n"
-            f"{validator_line}\n"
-            f"TRANSCRIPT (60s before ad):\n{before_text}\n\n"
-            f"DETECTED AD TRANSCRIPT:\n{ad_text}\n\n"
-            f"TRANSCRIPT (60s after ad):\n{after_text}\n"
+            f"{description_section}\n"
+            f"{framing}\n"
+            f"Transcript (60s before, the candidate ad, 60s after):\n"
+            f"[{max(0.0, start - 60.0):.1f}s] {before_text}\n"
+            f"[{start:.1f}s] >>> CANDIDATE AD START >>> {ad_text} <<< CANDIDATE AD END <<< [{end:.1f}s]\n"
+            f"[{end:.1f}s] {after_text}\n"
         )
 
     def _render_review_prompt(self, max_shift: int, sponsor_block: str) -> str:

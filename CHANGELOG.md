@@ -6,6 +6,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.2] - 2026-05-09
+
+### Fixed
+
+- Reviewer was still failing parse on every LLM call after 2.1.1: production stats showed 16/16 reviews returned failure. Root cause was prompt architecture, not parsing. The reviewer asked for a flat single-object output (`{verdict, reasoning, confidence}`) with structured user-prompt fields (`DETECTED AD: Start: X, End: Y, Sponsor: Z`), which invited the LLM to invent its own schema (`detected_ads: [...]`, `ad_segment: {...}`, `is_ad: bool`, etc.) instead of emitting the requested verdict object. Pass 1 / pass 2 detection do not have this problem because they emit a JSON array of `{start, end, confidence, reason}` objects, which is a familiar extraction shape every LLM handles consistently.
+- Reviewer now mirrors detection's prompt and parser. Output is a JSON array of ad segments, parsed by the same `extract_json_ads_array` helper detection uses. Empty array means reject; one element means keep, with verdict (confirmed / adjust / resurrect) derived from the boundary delta vs the original (within 0.5s tolerance is treated as confirmed; shifted within the cap is adjust; resurrection-pool returns map to resurrect or reject).
+- Provider-neutral fix. Works on Anthropic, OpenAI-compatible, OpenRouter, and Ollama backends since they all already emit array JSON for detection. No tool-call API used.
+- The user prompt drops the labeled `DETECTED AD: Start: X, End: Y, Sponsor: Z` block that was inviting the LLM to mirror with structured analysis. Replaced with the same minimal `Podcast / Episode / description / Transcript` shape detection uses, with the candidate ad called out inline via `>>> CANDIDATE AD START >>>` markers in the transcript.
+- Schema migration v2.1.2 refreshes default-flagged `review_prompt` and `resurrect_prompt` rows to the new array-output prompts. User-customized prompts are left alone (matches the existing v1.0.x prompt-refresh pattern).
+
+### Removed
+
+- `_VERDICT_NORMALIZATION` map, `_apply_adjust` helper, and the cross-pool verdict-coercion logic from `src/ad_reviewer.py`. The verdict label is now derived from the array shape, so synonyms / case variations / wrap-recovery are not needed.
+
 ## [2.1.1] - 2026-05-09
 
 ### Fixed
