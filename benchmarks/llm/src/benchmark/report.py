@@ -66,6 +66,20 @@ class ModelStats:
     tokens_per_detected_ad: float | None = None
 
 
+def _dedup_last_write_wins(calls: list[dict]) -> list[dict]:
+    """`calls.jsonl` is append-only -- a `benchmark run --retry-errors` that
+    successfully retries a previously-failed tuple appends a new row alongside
+    the original error row. The report should reflect the final state, not the
+    historical errors, so dedup per (model, episode_id, trial, window_index)
+    and keep the last row encountered.
+    """
+    by_key: dict[tuple, dict] = {}
+    for rec in calls:
+        key = (rec.get("model"), rec.get("episode_id"), rec.get("trial"), rec.get("window_index"))
+        by_key[key] = rec
+    return list(by_key.values())
+
+
 def render(
     *,
     cfg,
@@ -76,10 +90,11 @@ def render(
     output_path: Path,
     assets_dir: Path,
 ) -> None:
-    calls = list(read_jsonl(calls_path))
-    if not calls:
+    raw_calls = list(read_jsonl(calls_path))
+    if not raw_calls:
         output_path.write_text("# MinusPod LLM Benchmark Report\n\nNo benchmark data yet. Run `benchmark run` first.\n")
         return
+    calls = _dedup_last_write_wins(raw_calls)
 
     by_model, extras = _aggregate(calls, episodes, pricing_snapshot=pricing_snapshot)
     deprecated_ids = {m.id for m in cfg.models if m.deprecated}
@@ -110,7 +125,7 @@ def render(
         sections.append(_render_deprecated(deprecated))
     sections += [
         _render_methodology(cfg, episodes, pricing_snapshot=pricing_snapshot),
-        _render_run_metadata(calls, pricing_snapshot=pricing_snapshot),
+        _render_run_metadata(calls, pricing_snapshot=pricing_snapshot, raw_calls=raw_calls),
     ]
 
     body = "\n\n".join(s for s in sections if s) + "\n"
@@ -617,19 +632,31 @@ def _render_methodology(cfg, episodes, *, pricing_snapshot: pricing.PricingSnaps
     return "\n".join(lines)
 
 
-def _render_run_metadata(calls: list[dict], *, pricing_snapshot: pricing.PricingSnapshot) -> str:
+def _render_run_metadata(
+    calls: list[dict],
+    *,
+    pricing_snapshot: pricing.PricingSnapshot,
+    raw_calls: list[dict] | None = None,
+) -> str:
     total_calls = len(calls)
     successful = sum(1 for c in calls if not c.get("error"))
     failed = total_calls - successful
-    lifetime_actual = sum(float(c.get("total_cost_usd_at_runtime", 0.0)) for c in calls)
+    lifetime_actual = sum(float(c.get("total_cost_usd_at_runtime", 0.0)) for c in (raw_calls or calls))
     lines = [
         "### Run Metadata",
         "",
         f"- Report generated: {datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}",
-        f"- Total LLM calls recorded: {total_calls}",
+        f"- Unique work units (current state, last-write-wins after retries): {total_calls}",
+    ]
+    if raw_calls is not None and len(raw_calls) != total_calls:
+        lines.append(
+            f"- Raw rows in calls.jsonl: {len(raw_calls)} "
+            f"({len(raw_calls) - total_calls} superseded by later retries; kept for audit)"
+        )
+    lines += [
         f"- Successful: {successful}",
         f"- Failed: {failed}",
-        f"- Lifetime actual spend (sum of at-runtime costs): ${lifetime_actual:.4f}",
+        f"- Lifetime actual spend (sum of at-runtime costs, includes superseded rows): ${lifetime_actual:.4f}",
         f"- Active pricing snapshot: {pricing_snapshot.captured_at}",
     ]
     return "\n".join(lines)
