@@ -67,7 +67,7 @@ class ModelStats:
 
 
 def _dedup_last_write_wins(calls: list[dict]) -> list[dict]:
-    """`calls.jsonl` is append-only -- a `benchmark run --retry-errors` that
+    """`calls.jsonl` is append-only. A `benchmark run --retry-errors` that
     successfully retries a previously-failed tuple appends a new row alongside
     the original error row. The report should reflect the final state, not the
     historical errors, so dedup per (model, episode_id, trial, window_index)
@@ -427,7 +427,7 @@ def _render_quick_comparison(stats: dict[str, ModelStats], episodes: list[Episod
     lines = [
         "## Quick Comparison",
         "",
-        "One row per model, one column per episode. The headline columns (`F1`, `Cost/ep`, `p50`) summarize across all episodes; the per-episode columns let you see whether a model's average hides wide swings (a model that scores well overall might still bomb on a specific genre). The right-most `F1 stdev` column averages the per-trial standard deviations across episodes -- high values mean the model isn't deterministic at temperature 0.0, so its single-trial F1 number is noisy.",
+        "One row per model, one column per episode. The headline columns (`F1`, `Cost/ep`, `p50`) summarize across all episodes; the per-episode columns let you see whether a model's average hides wide swings (a model that scores well overall might still bomb on a specific genre). The right-most `F1 stdev` column averages the per-trial standard deviations across episodes; high values mean the model isn't deterministic at temperature 0.0, so its single-trial F1 number is noisy.",
         "",
         "| " + " | ".join(header) + " |",
         "|" + "|".join("---" for _ in header) + "|",
@@ -469,7 +469,7 @@ def _render_how_to_read() -> str:
         "- **Trial**: each (model, episode) pair runs 5 trials at temperature 0.0 to surface non-determinism. F1 numbers in tables are averaged across trials.\n"
         "- **Window**: each episode is split into ~85-second sliding windows; the model judges each window independently. Per-window predictions are stitched together for episode-level scoring.\n"
         "- **Schema violations**: number of times the response had at least one missing-required-field, wrong-type, or extra-key issue. Doesn't tank F1, but signals brittleness.\n"
-        "- **Extraction method**: the route the parser took to recover the ad list -- `json_array_direct` is the cleanest; method names with `regex_*` mean the JSON itself was malformed and we fell back to text matching.\n"
+        "- **Extraction method**: the route the parser took to recover the ad list. `json_array_direct` is the cleanest; method names with `regex_*` mean the JSON itself was malformed and we fell back to text matching.\n"
     )
 
 
@@ -513,7 +513,7 @@ def _render_failures(calls: list[dict]) -> str:
         "",
         "### By category",
         "",
-        "Errors classified into coarse buckets so failure patterns are visible at a glance. A model showing up here doesn't mean it's broken -- some categories are provider-side (content moderation, rate limits) and tell you more about routing reliability than model quality.",
+        "Errors classified into coarse buckets so failure patterns are visible at a glance. A model showing up here doesn't mean it's broken. Some categories are provider-side (content moderation, rate limits) and tell you more about routing reliability than model quality.",
         "",
         "| Category | Calls | Affected models |",
         "|----------|------:|-----------------|",
@@ -557,9 +557,9 @@ def _render_failures(calls: list[dict]) -> str:
         "",
         "If you're picking a model for production, an aggregate compliance score doesn't tell you when the provider will simply refuse to answer. A few cases that have shown up here:",
         "",
-        "- **Content moderation rejections** (Alibaba on Qwen, Google on Gemma, sometimes others): the provider's classifier blocks the prompt before the model runs. For ad detection on real podcast transcripts, this can happen on episodes with adult content, profanity, or politically sensitive topics. Rate is small but non-zero -- plan for it.",
+        "- **Content moderation rejections** (Alibaba on Qwen, Google on Gemma, sometimes others): the provider's classifier blocks the prompt before the model runs. For ad detection on real podcast transcripts, this can happen on episodes with adult content, profanity, or politically sensitive topics. Rate is small but non-zero; plan for it.",
         "- **Deprecated parameters**: the Claude 4.x family rejects `temperature`. The benchmark memoizes this per-process and retries without, but it tells you which models you cannot pass legacy sampling controls to.",
-        "- **Rate limits**: tail-latency or 429s under load -- not a model-quality issue but determines whether a given provider is operationally viable for your throughput.",
+        "- **Rate limits**: tail-latency or 429s under load. Not a model-quality issue, but determines whether a given provider is operationally viable for your throughput.",
         "",
     ]
     return "\n".join(lines)
@@ -571,45 +571,59 @@ def _render_charts_section() -> str:
         "### Cost vs F1 (Pareto)\n\n"
         "Each model is one colored point. Lower-left is unhelpful (expensive, inaccurate). Upper-left is the sweet spot (accurate, cheap). The legend below the chart shows each model's color next to its F1 and cost-per-episode.\n\n"
         "![Cost vs F1 by model](report_assets/pareto.svg)\n\n"
+        "Source data: [Best Accuracy](#best-accuracy-f1--iou--05), [Best Value](#best-value-f1-per-dollar), [Best Free-Tier](#best-free-tier-f1)\n\n"
         "### JSON schema compliance\n\n"
         "Fraction of each model's responses that parsed as a clean JSON array. 1.0 means every response came back exactly as requested; lower numbers mean the parser had to recover from markdown fences, object wrappers, or extra fields.\n\n"
         "![JSON compliance per model](report_assets/compliance.svg)\n\n"
+        "Source data: [Per-Model Detail](#per-model-detail) (`JSON compliance` field)\n\n"
         "### F1 by episode (heatmap)\n\n"
-        "F1 score for each (model, episode) pair. Greener is more accurate, redder is less. The no-ad episode is excluded -- it has no F1 because it's a PASS/FAIL negative control.\n\n"
+        "F1 score for each (model, episode) pair. Greener is more accurate, redder is less. The no-ad episode is excluded. It has no F1 because it's a PASS/FAIL negative control.\n\n"
         "![F1 score per model and episode](report_assets/episodes.svg)\n\n"
+        "Source data: [Quick Comparison](#quick-comparison), [Per-Episode Detail](#per-episode-detail)\n\n"
         "### Confidence calibration (heatmap)\n\n"
         "One row per model, one column per self-reported confidence bin. Cell text is the actual hit rate at that bin plus the sample size; cell color is the calibration error (actual minus bin midpoint). Red cells mean the model claimed high confidence but was usually wrong; green is well-calibrated; blue is underconfident. Empty cells mean the model never produced a prediction in that bin. Models are sorted from most overconfident at the top to most underconfident at the bottom.\n\n"
         "![Confidence calibration per model](report_assets/calibration.svg)\n\n"
+        "Source data: [Confidence calibration](#confidence-calibration) table\n\n"
         "### Latency percentiles\n\n"
         "p50, p90, p99, and max per model on a log scale. The gap between p99 and max indicates how heavy the tail is. For OpenRouter-routed models, the tail also includes upstream provider load.\n\n"
         "![Latency percentiles per model](report_assets/latency_tail.svg)\n\n"
+        "Source data: [Latency tail](#latency-tail) table\n\n"
         "### Cross-model agreement (window distribution)\n\n"
-        "Histogram of how many models flagged at least one ad per (episode, window). The left side is windows nobody flagged (clear non-ad content), the right side is windows everyone flagged (clear sponsor reads). Bars in the middle are contested -- some models said yes, some said no -- and are candidates for ensemble voting or manual review. This view is anonymous (bars don't show which models contributed); the per-model breakdown is in the next chart.\n\n"
+        "Histogram of how many models flagged at least one ad per (episode, window). The left side is windows nobody flagged (clear non-ad content), the right side is windows everyone flagged (clear sponsor reads). Bars in the middle are contested (some models said yes, some said no) and are candidates for ensemble voting or manual review. This view is anonymous (bars don't show which models contributed); the per-model breakdown is in the next chart.\n\n"
         "![Cross-model agreement histogram](report_assets/agreement.svg)\n\n"
+        "Source data: [Cross-model agreement](#cross-model-agreement) table\n\n"
         "### Per-model alignment with majority\n\n"
         "Stacked horizontal bar per model. Green + blue segments are windows where the model voted with the majority (true positives + true negatives); orange is windows where it voted yes but most others voted no (likely false positive / hallucination); red is windows where it voted no but most others voted yes (likely missed real ad). Right-edge label is alignment rate. High alignment means the model tracks consensus; low alignment is either insight or noise depending on whether those broken-from-consensus calls were right.\n\n"
         "![Per-model alignment with majority](report_assets/alignment.svg)\n\n"
+        "Source data: [Per-model alignment with consensus](#per-model-alignment-with-consensus) table\n\n"
         "### Precision vs Recall (with F1 isocurves)\n\n"
-        "Scatter of precision (y) vs recall (x) for each model. Dashed gray lines are F1 isocurves -- points on the same dashed line have the same F1. Top-right is ideal (high precision AND high recall). Top-left is cautious (high precision, low recall). Bottom-right is greedy (high recall, low precision). Useful for picking a model whose error profile matches your tolerance: precision-leaning for environments where false positives are expensive, recall-leaning for completeness-first.\n\n"
+        "Scatter of precision (y) vs recall (x) for each model. Dashed gray lines are F1 isocurves; points on the same dashed line have the same F1. Top-right is ideal (high precision AND high recall). Top-left is cautious (high precision, low recall). Bottom-right is greedy (high recall, low precision). Useful for picking a model whose error profile matches your tolerance: precision-leaning for environments where false positives are expensive, recall-leaning for completeness-first.\n\n"
         "![Precision vs recall scatter](report_assets/precision_recall.svg)\n\n"
+        "Source data: [Precision, recall, and FP/FN breakdown](#precision-recall-and-fpfn-breakdown) table\n\n"
         "### Boundary accuracy (start + end MAE)\n\n"
-        "Stacked horizontal bars per model: blue is mean absolute error on the predicted ad START in seconds, orange is the same for END. Total error labeled at the right. Sorted by total ascending so the cleanest boundaries are at the top. Skewed bars (start much larger than end, or vice versa) mean the model systematically overshoots on one side -- relevant if you cut audio downstream.\n\n"
+        "Stacked horizontal bars per model: blue is mean absolute error on the predicted ad START in seconds, orange is the same for END. Total error labeled at the right. Sorted by total ascending so the cleanest boundaries are at the top. Skewed bars (start much larger than end, or vice versa) mean the model systematically overshoots on one side. Relevant if you cut audio downstream.\n\n"
         "![Boundary MAE per model](report_assets/boundary.svg)\n\n"
+        "Source data: [Boundary accuracy](#boundary-accuracy) table\n\n"
         "### Token efficiency vs F1\n\n"
-        "Scatter of output tokens per detected ad (x, log scale) vs F1 (y). Upper-left is the efficient zone: high accuracy with few output tokens. Right-side points are reasoning-heavy models that emit chain-of-thought alongside their JSON. The chart answers whether the extra tokens buy more F1 or just burn output budget -- a model that lands far right at modest F1 is paying for reasoning that didn't help.\n\n"
+        "Scatter of output tokens per detected ad (x, log scale) vs F1 (y). Upper-left is the efficient zone: high accuracy with few output tokens. Right-side points are reasoning-heavy models that emit chain-of-thought alongside their JSON. The chart answers whether the extra tokens buy more F1 or just burn output budget. A model that lands far right at modest F1 is paying for reasoning that didn't help.\n\n"
         "![Token efficiency vs F1](report_assets/token_efficiency.svg)\n\n"
+        "Source data: [Output token efficiency](#output-token-efficiency) table\n\n"
         "### Trial variance (determinism check)\n\n"
         "Horizontal bars of mean F1 stdev across episodes per model. All trials run at temperature 0.0 so well-behaved models cluster near zero. Bars are color-graded: green below 0.02 (effectively deterministic), yellow 0.02-0.05 (slight noise), red above 0.05 (single-trial F1 numbers from this model should be treated with suspicion). Dotted reference lines mark the 0.02 and 0.05 thresholds.\n\n"
         "![Trial F1 variance per model](report_assets/trial_variance.svg)\n\n"
+        "Source data: [Trial variance (determinism check)](#trial-variance-determinism-check) table\n\n"
         "### Detection rate by ad length\n\n"
         "Heatmap of model (row) vs ad-length bucket (column), cell = detection rate with sample size. Greener = caught more ads in that bucket; redder = missed more. Models are sorted by overall detection rate so the strongest are at the top. Empty (gray) cells mean that bucket had no truth ads for the corresponding model's trials.\n\n"
         "![Detection rate by ad length](report_assets/detection_by_length.svg)\n\n"
+        "Source data: [Detection rate by ad characteristic > By ad length](#by-ad-length) table\n\n"
         "### Detection rate by ad position\n\n"
         "Same shape as the ad-length heatmap, but columns are episode position (pre-roll / mid-roll / post-roll). A common pattern: pre-roll is easy because of clear show-intro transitions; post-roll is harder because models near the end of long episodes often produce shorter responses or run out of context to anchor on.\n\n"
         "![Detection rate by ad position](report_assets/detection_by_position.svg)\n\n"
+        "Source data: [Detection rate by ad characteristic > By ad position](#by-ad-position) table\n\n"
         "### Parser stress (extraction-method usage)\n\n"
-        "Heatmap of model (row) vs extraction-method (column), cell = number of responses parsed via that method. Columns are ordered by total usage. `json_array_direct` is the clean path; everything else is a recovery path the parser had to take because the model added markdown fences, wrapped the array in an object, or returned malformed JSON. Models near the top of the chart use the clean path most often -- they are operationally easier to consume.\n\n"
-        "![Parser stress heatmap](report_assets/parser_stress.svg)\n"
+        "Heatmap of model (row) vs extraction-method (column), cell = number of responses parsed via that method. Columns are ordered by total usage. `json_array_direct` is the clean path; everything else is a recovery path the parser had to take because the model added markdown fences, wrapped the array in an object, or returned malformed JSON. Models near the top of the chart use the clean path most often. They are operationally easier to consume.\n\n"
+        "![Parser stress heatmap](report_assets/parser_stress.svg)\n\n"
+        "Source data: [Parser stress test](#parser-stress-test) table\n"
     )
 
 
@@ -617,7 +631,7 @@ def _render_per_model_detail(stats: dict[str, ModelStats]) -> str:
     lines = [
         "### Per-Model Detail",
         "",
-        "Full per-model profile: F1 averaged across episodes, total cost per episode at current pricing, p50 / p95 latency, JSON compliance, parse-failure rate, and the distribution of extraction methods the parser had to use. The `Extraction methods` list shows how often each route was hit -- `json_array_direct` is the cleanest, the rest are recovery paths. Ordered by F1 descending so the best performers appear first.",
+        "Full per-model profile: F1 averaged across episodes, total cost per episode at current pricing, p50 / p95 latency, JSON compliance, parse-failure rate, and the distribution of extraction methods the parser had to use. The `Extraction methods` list shows how often each route was hit. `json_array_direct` is the cleanest; the rest are recovery paths. Ordered by F1 descending so the best performers appear first.",
         "",
     ]
     for s in sorted(stats.values(), key=lambda s: _avg_f1(s), reverse=True):
@@ -676,9 +690,9 @@ def _render_per_episode_detail(stats: dict[str, ModelStats], episodes: list[Epis
 
 def _render_parser_stress(stats: dict[str, ModelStats]) -> str:
     lines = [
-        "### Parser Stress Test",
+        "### Parser stress test",
         "",
-        "How each model's responses were actually parsed. Columns are extraction methods, ordered alphabetically; rows are models, sorted by parse-failure rate (cleanest at top). `json_array_direct` is the happy path: a bare JSON array we could `json.loads` and process immediately. `markdown_code_block` means we had to strip triple-backtick fences first; `json_object_*` means the model wrapped the array in an outer object and we had to find the array key; `regex_*` are last-resort recovery paths. A model that needs anything but `json_array_direct` for most calls is fragile -- it works today but a small prompt change can break the parser.",
+        "How each model's responses were actually parsed. Columns are extraction methods, ordered alphabetically; rows are models, sorted by parse-failure rate (cleanest at top). `json_array_direct` is the happy path: a bare JSON array we could `json.loads` and process immediately. `markdown_code_block` means we had to strip triple-backtick fences first; `json_object_*` means the model wrapped the array in an outer object and we had to find the array key; `regex_*` are last-resort recovery paths. A model that needs anything but `json_array_direct` for most calls is fragile. It works today, but a small prompt change can break the parser.",
         "",
     ]
     methods = sorted({m for s in stats.values() for m in s.extraction_method_counts})
@@ -890,7 +904,7 @@ def _render_accuracy_breakdown(stats: dict[str, ModelStats]) -> str:
         "| **Precision** | `TP / (TP + FP)`. Of the ads the model claimed, how many were real? Higher means fewer false positives. | 0.000 to 1.000 |",
         "| **Recall** | `TP / (TP + FN)`. Of the real ads, how many did the model find? Higher means fewer misses. | 0.000 to 1.000 |",
         "",
-        "Reading the table: high precision + low recall means the model is cautious -- it rarely flags something that isn't an ad, but misses real ads. High recall + low precision means the opposite: catches everything but invents false positives. F1 is the harmonic mean of the two and rewards models that do both well.",
+        "Reading the table: high precision + low recall means the model is cautious. It rarely flags something that isn't an ad, but misses real ads. High recall + low precision means the opposite: catches everything but invents false positives. F1 is the harmonic mean of the two and rewards models that do both well.",
         "",
         "| Model | Precision | Recall | TP | FP | FN |",
         "|---|---:|---:|---:|---:|---:|",
@@ -911,7 +925,7 @@ def _render_boundary_accuracy(stats: dict[str, ModelStats]) -> str:
     lines = [
         "## Boundary accuracy",
         "",
-        "For ads that match the truth at IoU >= 0.5, how far off were the predicted start and end timestamps? Lower is better. A model can hit F1 cleanly while still being 20s off on every boundary -- bad for any pipeline that cuts the audio.",
+        "For ads that match the truth at IoU >= 0.5, how far off were the predicted start and end timestamps? Lower is better. A model can hit F1 cleanly while still being 20s off on every boundary. Bad for any pipeline that cuts the audio.",
         "",
         "| Model | Start MAE (s) | End MAE (s) |",
         "|---|---:|---:|",
@@ -963,8 +977,8 @@ def _render_calibration_table(calibration: dict[str, list[tuple[float, bool]]]) 
 
 
 def _render_latency_tail(stats: dict[str, ModelStats]) -> str:
-    """Full latency percentile table including p99 and max -- not just p50/p95
-    -- because the tail is what matters for production capacity planning."""
+    """Full latency percentile table including p99 and max, not just p50/p95.
+    The tail is what matters for production capacity planning."""
     lines = [
         "## Latency tail",
         "",
@@ -989,7 +1003,7 @@ def _render_token_efficiency(stats: dict[str, ModelStats]) -> str:
     lines = [
         "## Output token efficiency",
         "",
-        "How many output tokens the model spent per detected ad. Lower is more concise -- the model finds an ad and returns the JSON. Higher means the model is producing a lot of text the parser will discard, which costs you whether or not the answer is right.",
+        "How many output tokens the model spent per detected ad. Lower is more concise (the model finds an ad and returns the JSON). Higher means the model is producing a lot of text the parser will discard, which costs you whether or not the answer is right.",
         "",
         "| Model | Total output tokens | Ads detected | Tokens / ad | Cost / TP |",
         "|---|---:|---:|---:|---:|",
@@ -1013,7 +1027,7 @@ def _render_trial_variance(stats: dict[str, ModelStats]) -> str:
     lines = [
         "## Trial variance (determinism check)",
         "",
-        "All trials run at temperature 0.0. If a model produces stable output you'd expect the F1 stdev across trials to be near zero. Higher numbers mean the model is non-deterministic even at temp=0 -- which is fine to know, but means you cannot trust a single trial's number for that model.",
+        "All trials run at temperature 0.0. If a model produces stable output you'd expect the F1 stdev across trials to be near zero. Higher numbers mean the model is non-deterministic even at temp=0. That's fine to know, but means you cannot trust a single trial's number for that model.",
         "",
         "| Model | Mean F1 stdev across episodes | Highest single-episode stdev |",
         "|---|---:|---:|",
@@ -1045,7 +1059,7 @@ def _render_cross_model_agreement(
     lines = [
         "## Cross-model agreement",
         "",
-        f"For each of the {total_windows} (episode, window, trial-equivalent) entries, how many of the {n_models} active models predicted at least one ad? High-agreement windows are unambiguous ads (or unambiguously not ads). Low-agreement windows are where individual models disagree -- candidates for ensemble voting if you want a cheap accuracy boost.",
+        f"For each of the {total_windows} (episode, window, trial-equivalent) entries, how many of the {n_models} active models predicted at least one ad? High-agreement windows are unambiguous ads (or unambiguously not ads). Low-agreement windows are where individual models disagree, and are candidates for ensemble voting if you want a cheap accuracy boost.",
         "",
         "| Models predicting an ad | Window count | Share |",
         "|---:|---:|---:|",
@@ -1055,7 +1069,7 @@ def _render_cross_model_agreement(
         lines.append(f"| {k} of {n_models} | {bins[k]} | {share * 100:.1f}% |")
     lines += [
         "",
-        "Read this as: rows near the top are windows where the field disagrees (most models said no, a few said yes -- usually false positives); rows near the bottom are windows where the field broadly agrees (typical of clear sponsor reads).",
+        "Read this as: rows near the top are windows where the field disagrees (most models said no, a few said yes, usually false positives); rows near the bottom are windows where the field broadly agrees (typical of clear sponsor reads).",
         "",
         "### Per-model alignment with consensus",
         "",
@@ -1066,7 +1080,7 @@ def _render_cross_model_agreement(
         "- **broke-yes**: this model voted yes, majority voted no (likely false positive / hallucination)",
         "- **broke-no**: this model voted no, majority voted yes (likely missed real ad)",
         "",
-        "Alignment rate is `(with-yes + with-no) / total`. High alignment means the model tracks the consensus; low alignment means it disagrees often -- which could be brilliance or noise depending on whether its disagreements are also where its F1 wins or loses.",
+        "Alignment rate is `(with-yes + with-no) / total`. High alignment means the model tracks the consensus; low alignment means it disagrees often, which could be brilliance or noise depending on whether its disagreements are also where its F1 wins or loses.",
         "",
         "| Model | with-yes | with-no | broke-yes | broke-no | Alignment |",
         "|---|---:|---:|---:|---:|---:|",
@@ -1465,7 +1479,7 @@ def _render_boundary_chart(stats: dict[str, ModelStats], path: Path) -> None:
     """Stacked horizontal bars of start MAE and end MAE per model. Sorted by
     total error so the cleanest boundaries appear at the top. Models with
     skewed bars (one side much larger than the other) consistently overshoot
-    on one boundary -- worth knowing if you cut audio downstream."""
+    on one boundary. Worth knowing if you cut audio downstream."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -1522,7 +1536,7 @@ def _render_token_efficiency_chart(stats: dict[str, ModelStats], path: Path) -> 
     ax.set_xlabel("Output tokens per detected ad (log scale, lower is more concise)", fontsize=10)
     ax.set_ylabel("F1 score (higher is better)", fontsize=10)
     ax.set_title(
-        "Token efficiency vs accuracy -- does verbose output buy more F1?\n"
+        "Token efficiency vs accuracy: does verbose output buy more F1?\n"
         "Upper-left = efficient (high F1, few tokens)   |   Lower-right = burning tokens for no gain",
         fontsize=11, fontweight="bold",
     )
