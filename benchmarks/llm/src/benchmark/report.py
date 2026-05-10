@@ -138,6 +138,10 @@ def render(
     _render_calibration_chart(extras.calibration, assets_dir / "calibration.svg")
     _render_latency_tail_chart(active, assets_dir / "latency_tail.svg")
     _render_agreement_chart(extras.agreement, len(active), assets_dir / "agreement.svg")
+    _render_alignment_chart(extras.agreement, len(active), assets_dir / "alignment.svg")
+    _render_precision_recall_chart(active, assets_dir / "precision_recall.svg")
+    _render_boundary_chart(active, assets_dir / "boundary.svg")
+    _render_token_efficiency_chart(active, assets_dir / "token_efficiency.svg")
 
 
 @dataclass
@@ -565,9 +569,21 @@ def _render_charts_section() -> str:
         "### Latency percentiles\n\n"
         "p50, p90, p99, and max per model on a log scale. The gap between p99 and max indicates how heavy the tail is. For OpenRouter-routed models, the tail also includes upstream provider load.\n\n"
         "![Latency percentiles per model](report_assets/latency_tail.svg)\n\n"
-        "### Cross-model agreement\n\n"
-        "Histogram of how many models flagged at least one ad per (episode, window). The left side is windows nobody flagged (clear non-ad content), the right side is windows everyone flagged (clear sponsor reads). Bars in the middle are contested -- some models said yes, some said no -- and are candidates for ensemble voting or manual review.\n\n"
-        "![Cross-model agreement histogram](report_assets/agreement.svg)\n"
+        "### Cross-model agreement (window distribution)\n\n"
+        "Histogram of how many models flagged at least one ad per (episode, window). The left side is windows nobody flagged (clear non-ad content), the right side is windows everyone flagged (clear sponsor reads). Bars in the middle are contested -- some models said yes, some said no -- and are candidates for ensemble voting or manual review. This view is anonymous (bars don't show which models contributed); the per-model breakdown is in the next chart.\n\n"
+        "![Cross-model agreement histogram](report_assets/agreement.svg)\n\n"
+        "### Per-model alignment with majority\n\n"
+        "Stacked horizontal bar per model. Green + blue segments are windows where the model voted with the majority (true positives + true negatives); orange is windows where it voted yes but most others voted no (likely false positive / hallucination); red is windows where it voted no but most others voted yes (likely missed real ad). Right-edge label is alignment rate. High alignment means the model tracks consensus; low alignment is either insight or noise depending on whether those broken-from-consensus calls were right.\n\n"
+        "![Per-model alignment with majority](report_assets/alignment.svg)\n\n"
+        "### Precision vs Recall (with F1 isocurves)\n\n"
+        "Scatter of precision (y) vs recall (x) for each model. Dashed gray lines are F1 isocurves -- points on the same dashed line have the same F1. Top-right is ideal (high precision AND high recall). Top-left is cautious (high precision, low recall). Bottom-right is greedy (high recall, low precision). Useful for picking a model whose error profile matches your tolerance: precision-leaning for environments where false positives are expensive, recall-leaning for completeness-first.\n\n"
+        "![Precision vs recall scatter](report_assets/precision_recall.svg)\n\n"
+        "### Boundary accuracy (start + end MAE)\n\n"
+        "Stacked horizontal bars per model: blue is mean absolute error on the predicted ad START in seconds, orange is the same for END. Total error labeled at the right. Sorted by total ascending so the cleanest boundaries are at the top. Skewed bars (start much larger than end, or vice versa) mean the model systematically overshoots on one side -- relevant if you cut audio downstream.\n\n"
+        "![Boundary MAE per model](report_assets/boundary.svg)\n\n"
+        "### Token efficiency vs F1\n\n"
+        "Scatter of output tokens per detected ad (x, log scale) vs F1 (y). Upper-left is the efficient zone: high accuracy with few output tokens. Right-side points are reasoning-heavy models that emit chain-of-thought alongside their JSON. The chart answers whether the extra tokens buy more F1 or just burn output budget -- a model that lands far right at modest F1 is paying for reasoning that didn't help.\n\n"
+        "![Token efficiency vs F1](report_assets/token_efficiency.svg)\n"
     )
 
 
@@ -1014,8 +1030,60 @@ def _render_cross_model_agreement(
     lines += [
         "",
         "Read this as: rows near the top are windows where the field disagrees (most models said no, a few said yes -- usually false positives); rows near the bottom are windows where the field broadly agrees (typical of clear sponsor reads).",
+        "",
+        "### Per-model alignment with consensus",
+        "",
+        f"Same data, viewed per model. For each window, the **majority** is whether more than half of the {n_models} active models flagged an ad. Then for each model: did it vote with the majority or against it? Four buckets:",
+        "",
+        "- **with-yes**: this model voted yes, majority also voted yes (likely true positive)",
+        "- **with-no**: this model voted no, majority also voted no (likely true negative)",
+        "- **broke-yes**: this model voted yes, majority voted no (likely false positive / hallucination)",
+        "- **broke-no**: this model voted no, majority voted yes (likely missed real ad)",
+        "",
+        "Alignment rate is `(with-yes + with-no) / total`. High alignment means the model tracks the consensus; low alignment means it disagrees often -- which could be brilliance or noise depending on whether its disagreements are also where its F1 wins or loses.",
+        "",
+        "| Model | with-yes | with-no | broke-yes | broke-no | Alignment |",
+        "|---|---:|---:|---:|---:|---:|",
     ]
+    per_model = _per_model_alignment(agreement, n_models)
+    for row in sorted(per_model, key=lambda r: -r["alignment"]):
+        lines.append(
+            f"| `{row['model']}` | {row['with_yes']} | {row['with_no']} | "
+            f"{row['broke_yes']} | {row['broke_no']} | {row['alignment'] * 100:.1f}% |"
+        )
     return "\n".join(lines)
+
+
+def _per_model_alignment(
+    agreement: dict[tuple[str, int], dict[str, int]],
+    n_models: int,
+) -> list[dict]:
+    """For each (episode, window): majority = >half of active models voted yes.
+    For each model: count its alignment vs that majority into 4 buckets.
+    Returns list of {model, with_yes, with_no, broke_yes, broke_no, alignment}.
+    """
+    # Pre-resolve majority per window
+    window_majority: dict[tuple[str, int], bool] = {}
+    for key, per_model in agreement.items():
+        n_yes = sum(1 for v in per_model.values() if v > 0)
+        window_majority[key] = n_yes > n_models / 2
+    # Tally per model
+    models = {m for per_model in agreement.values() for m in per_model.keys()}
+    out: list[dict] = []
+    for model in sorted(models):
+        wy = wn = by = bn = 0
+        for key, per_model in agreement.items():
+            voted_yes = per_model.get(model, 0) > 0
+            maj_yes = window_majority[key]
+            if voted_yes and maj_yes: wy += 1
+            elif not voted_yes and not maj_yes: wn += 1
+            elif voted_yes and not maj_yes: by += 1
+            else: bn += 1
+        total = wy + wn + by + bn
+        alignment = (wy + wn) / total if total else 0
+        out.append({"model": model, "with_yes": wy, "with_no": wn,
+                    "broke_yes": by, "broke_no": bn, "alignment": alignment})
+    return out
 
 
 def _render_detection_buckets(
@@ -1252,6 +1320,195 @@ def _render_agreement_chart(
     ax.set_ylim(0, max(counts) * 1.15)
     ax.grid(True, axis="y", alpha=0.3)
     fig.tight_layout()
+    fig.savefig(path, format="svg", bbox_inches="tight")
+    plt.close(fig)
+
+
+def _render_alignment_chart(
+    agreement: dict[tuple[str, int], dict[str, int]],
+    n_models: int,
+    path: Path,
+) -> None:
+    """Per-model stacked bars of agreement-with-majority. Each model has a
+    horizontal bar split into 4 segments: with-yes / with-no / broke-yes /
+    broke-no. Sorted by alignment so highest-consensus models are at top."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    rows = _per_model_alignment(agreement, n_models)
+    if not rows:
+        return
+    rows.sort(key=lambda r: r["alignment"])
+    labels = [r["model"] for r in rows]
+    wy = np.array([r["with_yes"] for r in rows])
+    wn = np.array([r["with_no"] for r in rows])
+    by_arr = np.array([r["broke_yes"] for r in rows])
+    bn = np.array([r["broke_no"] for r in rows])
+    y = np.arange(len(rows))
+
+    fig, ax = plt.subplots(figsize=(12, max(5, 0.40 * len(rows))))
+    ax.barh(y, wy, color="#2ca02c", edgecolor="black", linewidth=0.3, label="with-yes (matches majority yes)")
+    ax.barh(y, wn, left=wy, color="#1f77b4", edgecolor="black", linewidth=0.3, label="with-no (matches majority no)")
+    ax.barh(y, by_arr, left=wy + wn, color="#f0a020", edgecolor="black", linewidth=0.3, label="broke-yes (likely false positive)")
+    ax.barh(y, bn, left=wy + wn + by_arr, color="#d62728", edgecolor="black", linewidth=0.3, label="broke-no (likely miss)")
+    for i, r in enumerate(rows):
+        total = r["with_yes"] + r["with_no"] + r["broke_yes"] + r["broke_no"]
+        ax.text(total + 1, i, f"{r['alignment'] * 100:.0f}%", va="center", fontsize=8)
+    ax.set_yticks(y)
+    ax.set_yticklabels(labels, fontsize=9)
+    ax.set_xlabel(f"Windows (of {sum(wy + wn + by_arr + bn) // max(len(rows), 1)} total)", fontsize=10)
+    ax.set_title(
+        "Per-model alignment with majority vote (right-edge label = alignment rate)\n"
+        "Green + blue = matches consensus   |   Orange = likely false positive   |   Red = likely missed real ad",
+        fontsize=11, fontweight="bold",
+    )
+    ax.legend(loc="lower right", fontsize=8, framealpha=0.95)
+    ax.grid(True, axis="x", alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(path, format="svg", bbox_inches="tight")
+    plt.close(fig)
+
+
+def _render_precision_recall_chart(stats: dict[str, ModelStats], path: Path) -> None:
+    """Scatter of precision vs recall per model, with F1 isocurves for reference.
+    Top-right = perfect; top-left = cautious (high precision, low recall);
+    bottom-right = greedy (high recall, low precision); bottom-left = bad both
+    ways."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    points = []
+    for s in stats.values():
+        if not s.precision_per_episode or not s.recall_per_episode:
+            continue
+        p = statistics.fmean(s.precision_per_episode.values())
+        r = statistics.fmean(s.recall_per_episode.values())
+        if p == 0 and r == 0:
+            continue
+        points.append((s, p, r))
+    if not points:
+        return
+    points.sort(key=lambda t: -(2 * t[1] * t[2] / (t[1] + t[2]) if (t[1] + t[2]) > 0 else 0))  # F1 desc
+
+    cmap = plt.get_cmap("tab20")
+    fig, ax = plt.subplots(figsize=(11, 9))
+
+    # F1 isocurves: for each target F1, plot the curve precision*recall*2 / (p+r) = F1
+    # Equivalent: r = (F1 * p) / (2p - F1) for p > F1/2
+    for f1_iso in [0.2, 0.4, 0.6, 0.8]:
+        ps = np.linspace(f1_iso / 2 + 0.001, 1.0, 200)
+        rs = (f1_iso * ps) / (2 * ps - f1_iso)
+        rs = np.clip(rs, 0, 1)
+        ax.plot(rs, ps, "--", color="gray", linewidth=0.6, alpha=0.5)
+        # Label at top-right end of each curve
+        ax.text(rs[-1] + 0.005, ps[-1] - 0.015, f"F1={f1_iso}",
+                fontsize=7, color="gray", alpha=0.7)
+
+    for i, (s, p, r) in enumerate(points):
+        f1 = 2 * p * r / (p + r) if (p + r) > 0 else 0
+        ax.scatter(r, p, s=180, color=cmap(i % 20),
+                   edgecolors="black", linewidths=0.7, zorder=3,
+                   label=f"{s.model}  (P {p:.2f}, R {r:.2f}, F1 {f1:.2f})")
+
+    ax.set_xlabel("Recall -- of the real ads, what fraction the model found", fontsize=10)
+    ax.set_ylabel("Precision -- of the model's flags, what fraction were real ads", fontsize=10)
+    ax.set_title(
+        "Precision vs Recall per model (dashed lines are F1 isocurves)\n"
+        "Top-right = ideal   |   Top-left = cautious   |   Bottom-right = greedy   |   Bottom-left = poor",
+        fontsize=11, fontweight="bold",
+    )
+    ax.set_xlim(-0.02, 1.02)
+    ax.set_ylim(-0.02, 1.02)
+    ax.grid(True, alpha=0.3)
+
+    ncol = 2 if len(points) > 6 else 1
+    fig.legend(loc="lower center", bbox_to_anchor=(0.5, 0.02), ncol=ncol,
+               fontsize=8, frameon=True, edgecolor="lightgray")
+    rows = (len(points) + ncol - 1) // ncol
+    bottom = min(0.55, 0.10 + 0.035 * rows)
+    fig.subplots_adjust(left=0.10, right=0.96, top=0.90, bottom=bottom)
+    fig.savefig(path, format="svg", bbox_inches="tight")
+    plt.close(fig)
+
+
+def _render_boundary_chart(stats: dict[str, ModelStats], path: Path) -> None:
+    """Stacked horizontal bars of start MAE and end MAE per model. Sorted by
+    total error so the cleanest boundaries appear at the top. Models with
+    skewed bars (one side much larger than the other) consistently overshoot
+    on one boundary -- worth knowing if you cut audio downstream."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    rows = [s for s in stats.values() if s.boundary_start_mae is not None]
+    if not rows:
+        return
+    rows.sort(key=lambda s: (s.boundary_start_mae or 0) + (s.boundary_end_mae or 0))
+    labels = [s.model for s in rows]
+    starts = [s.boundary_start_mae or 0 for s in rows]
+    ends = [s.boundary_end_mae or 0 for s in rows]
+    y = np.arange(len(rows))
+
+    fig, ax = plt.subplots(figsize=(11, max(5, 0.40 * len(rows))))
+    ax.barh(y, starts, color="#1f77b4", edgecolor="black", linewidth=0.3, label="start MAE")
+    ax.barh(y, ends, left=starts, color="#ff7f0e", edgecolor="black", linewidth=0.3, label="end MAE")
+    for i, (s_v, e_v) in enumerate(zip(starts, ends)):
+        ax.text(s_v + e_v + 0.3, i, f"{s_v + e_v:.1f}s total",
+                va="center", fontsize=8)
+    ax.set_yticks(y)
+    ax.set_yticklabels(labels, fontsize=9)
+    ax.set_xlabel("Boundary error in seconds (lower is better)", fontsize=10)
+    ax.set_title("Boundary accuracy per model (matched ads only, IoU >= 0.5)", fontsize=11, fontweight="bold")
+    ax.legend(loc="lower right", fontsize=9)
+    ax.grid(True, axis="x", alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(path, format="svg", bbox_inches="tight")
+    plt.close(fig)
+
+
+def _render_token_efficiency_chart(stats: dict[str, ModelStats], path: Path) -> None:
+    """Scatter of tokens-per-detected-ad vs F1. Upper-left is the efficient
+    zone (high F1 with few output tokens). Right side is verbose reasoning
+    models -- the question is whether they buy more F1 with the extra tokens
+    or just burn output budget."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    points = [(s, _avg_f1(s)) for s in stats.values()
+              if s.tokens_per_detected_ad is not None and s.detected_ads_total > 0]
+    if not points:
+        return
+    points.sort(key=lambda t: -t[1])
+
+    cmap = plt.get_cmap("tab20")
+    fig, ax = plt.subplots(figsize=(11, 8))
+    for i, (s, f1) in enumerate(points):
+        ax.scatter(s.tokens_per_detected_ad, f1, s=180, color=cmap(i % 20),
+                   edgecolors="black", linewidths=0.7, zorder=3,
+                   label=f"{s.model}  (F1 {f1:.2f}, {s.tokens_per_detected_ad:.0f} tok/ad)")
+    ax.set_xscale("log")
+    ax.set_xlabel("Output tokens per detected ad (log scale, lower is more concise)", fontsize=10)
+    ax.set_ylabel("F1 score (higher is better)", fontsize=10)
+    ax.set_title(
+        "Token efficiency vs accuracy -- does verbose output buy more F1?\n"
+        "Upper-left = efficient (high F1, few tokens)   |   Lower-right = burning tokens for no gain",
+        fontsize=11, fontweight="bold",
+    )
+    ax.set_ylim(-0.02, 1.02)
+    ax.grid(True, alpha=0.3, which="both")
+
+    ncol = 2 if len(points) > 6 else 1
+    fig.legend(loc="lower center", bbox_to_anchor=(0.5, 0.02), ncol=ncol,
+               fontsize=8, frameon=True, edgecolor="lightgray")
+    rows = (len(points) + ncol - 1) // ncol
+    bottom = min(0.55, 0.10 + 0.035 * rows)
+    fig.subplots_adjust(left=0.10, right=0.96, top=0.92, bottom=bottom)
     fig.savefig(path, format="svg", bbox_inches="tight")
     plt.close(fig)
 
