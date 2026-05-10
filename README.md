@@ -22,6 +22,7 @@ MinusPod is a self-hosted server that removes ads before you ever hit play. It t
 - [Environment Variables](#environment-variables)
   - [Using Claude Code Wrapper (Max Subscription)](#using-claude-code-wrapper-max-subscription)
 - [Using Ollama (Local or Cloud)](#using-ollama-local-or-cloud)
+  - [Recommended Models](#recommended-models)
 - [Whisper / Transcription](#whisper--transcription)
 - [Using OpenRouter](#using-openrouter)
 - [LLM Pricing](#llm-pricing)
@@ -643,11 +644,29 @@ The `OPENAI_API_KEY` variable is not required for Ollama. Token counts will stil
 
 ### Recommended Models
 
-Models are loaded sequentially, not concurrently -- VRAM requirements are not additive between passes.
-
 > **Note:** Detection quality varies between models and between runs of the same model. LLMs are non-deterministic, so identical inputs can yield different outputs. Expect variation, and treat the recommendations below as starting points rather than guarantees.
 
-#### Pass 1 -- First Pass Detection
+#### Cloud LLMs (benchmark-tested)
+
+These come from the [offline LLM benchmark](benchmarks/llm/) included in this repo. The benchmark runs each candidate model against a corpus of human-verified episodes and scores accuracy (F1 at IoU >= 0.5), JSON compliance, latency, and per-episode cost. Full per-model breakdown -- precision, recall, boundary accuracy, calibration, latency tail, token efficiency, cross-model agreement -- is in [`benchmarks/llm/results/report.md`](benchmarks/llm/results/report.md). Want to expand the corpus or test more models? See [`benchmarks/llm/CONTRIBUTING.md`](benchmarks/llm/CONTRIBUTING.md).
+
+| Use case | Model | F1 | Cost / episode | Why |
+|---|---|---:|---:|---|
+| Best accuracy at any cost | `x-ai/grok-4.1-fast` (via OpenRouter) | 0.61 | $0.12 | Highest F1 in the sweep. Also the best F1-per-dollar by ~4x. Passes the no-ad negative control. |
+| Best Anthropic-direct | `claude-opus-4-7` | 0.54 | $3.06 | Perfect JSON compliance, perfect no-ad PASS, lowest false-positive rate. ~25x more expensive than grok for ~12% less F1; pick this when you need direct Anthropic billing or want the strictest control side. |
+| Free tier | `qwen/qwen3.5-plus-02-15` (via OpenRouter) | 0.57 | $0.00 | Free via OpenRouter app attribution. Perfect JSON compliance. p50 latency 53s and verbose output, so not suitable for live UX -- great for offline batches. Note: Alibaba's content classifier may reject ~0.3% of windows as inappropriate. |
+| Cheap and fast (production) | `mistralai/mistral-medium-3.1` (via OpenRouter) | 0.41 | $0.00 | Free, p50 latency 0.9s (fastest in the sweep), perfect JSON compliance. F1 lower than the top tier, but trades quality for throughput cleanly. |
+
+Caveats:
+- Numbers come from a 5-episode corpus (4 ad-bearing, 1 no-ad control). They will refine as the corpus grows. The latest sweep covered 14 models; an expanded 32-model sweep is in progress and will replace these numbers when complete.
+- Latency for OpenRouter-routed models reflects routing-layer queueing, not just model compute. Treat it as an availability indicator.
+- F1 uses IoU >= 0.5 against human-verified ad spans. A model with F1 0.5 catches half the ads with the right boundaries; a higher F1 means closer to the truth.
+
+#### Local Ollama Models (by VRAM tier)
+
+Models are loaded sequentially, not concurrently -- VRAM requirements are not additive between passes.
+
+##### Pass 1 -- First Pass Detection
 
 Hardest task. Contextual reasoning, host-read ads, new sponsors. Use your best model here.
 
@@ -660,7 +679,7 @@ Hardest task. Contextual reasoning, host-read ads, new sponsors. Use your best m
 | 24GB | `qwen3.5:35b` | Q4_K_M | Best quality under 40GB. 256K context. |
 | 40GB+ | `qwen3.5:122b` | Q4_K_M | In the same tier as Claude Sonnet for this task in author testing. |
 
-#### Verification Pass
+##### Verification Pass
 
 Easier task. Looks for remnants in already-cut audio. Speed matters more than raw accuracy.
 
@@ -671,7 +690,7 @@ Easier task. Looks for remnants in already-cut audio. Speed matters more than ra
 | 16GB | `mistral-nemo:12b` | Q4_K_M | Excellent JSON reliability, fast inference. |
 | 24GB | `qwen3:14b` | Q5_K_M | Overkill for verification but uses available VRAM productively. |
 
-#### Chapters
+##### Chapters
 
 Simplest task. Summarization only -- no structured detection. Minimize VRAM usage and latency.
 
