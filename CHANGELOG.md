@@ -6,12 +6,6 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.1.7] - 2026-05-10
-
-### Added
-
-- `benchmarks/llm/CONTRIBUTING.md` documenting how outside contributors can ship PRs against the offline LLM ad-detection benchmark. Covers the three accepted PR shapes (new corpus episode, new model, scoring/report code), the exact diff a reviewable PR should look like (four files under `data/corpus/ep-<slug>-<id>/`, no `data/candidates/` or `results/raw/` artifacts), what `benchmark verify` validates so reviewers don't redo it by hand, copyright/PII guidance for transcript excerpts (gap not covered in the existing READMEs), and zero-cost expectations for contributors since maintainers run the sweep post-merge. Cross-references `benchmarks/llm/README.md` and `benchmarks/llm/data/README.md` rather than duplicating their content. Doc-only change; no behavior, schema, or test impact.
-
 ## [2.1.6] - 2026-05-09
 
 ### Changed
