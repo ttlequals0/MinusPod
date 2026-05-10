@@ -205,7 +205,16 @@ async def _call_openai_compatible(
         else:
             raise LLMNonRetryableError(str(e)) from e
 
-    choice = msg.choices[0]
+    # OpenRouter sometimes returns a successful HTTP response with `choices=None`
+    # when the upstream provider hits its own internal read-timeout (observed
+    # around 120s on cohere/command-r-plus). Classify as transient so the
+    # runner retries with backoff instead of crashing on `None[0]`.
+    choices = msg.choices or []
+    if not choices or not getattr(choices[0], "message", None):
+        raise LLMTransientError(
+            f"empty response from {model_id} (no choices in body; likely upstream timeout)"
+        )
+    choice = choices[0]
     text = choice.message.content or ""
     usage = msg.usage
     underlying = msg.model or model_id
