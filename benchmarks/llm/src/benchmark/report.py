@@ -685,7 +685,7 @@ def _render_pareto(stats: dict[str, ModelStats], path: Path) -> None:
     rows = (len(points) + ncol - 1) // ncol
     bottom = min(0.55, 0.10 + 0.038 * rows)
     fig.subplots_adjust(left=0.10, right=0.96, top=0.93, bottom=bottom)
-    fig.savefig(path, format="svg")
+    fig.savefig(path, format="svg", bbox_inches="tight")
     plt.close(fig)
 
 
@@ -713,7 +713,7 @@ def _render_compliance(stats: dict[str, ModelStats], path: Path) -> None:
         ax.text(v + 0.01, bar.get_y() + bar.get_height() / 2, f"{v:.2f}",
                 va="center", fontsize=8)
     fig.tight_layout()
-    fig.savefig(path, format="svg")
+    fig.savefig(path, format="svg", bbox_inches="tight")
     plt.close(fig)
 
 
@@ -750,7 +750,7 @@ def _render_episode_heatmap(stats: dict[str, ModelStats], episodes: list[Episode
     ax.set_title("F1 score by model and episode (no-ad episode excluded)", fontsize=11, fontweight="bold")
     fig.colorbar(im, ax=ax, label="F1 score (0 to 1)", shrink=0.6)
     fig.tight_layout()
-    fig.savefig(path, format="svg")
+    fig.savefig(path, format="svg", bbox_inches="tight")
     plt.close(fig)
 
 
@@ -1073,13 +1073,13 @@ def _render_calibration_chart(
                     ha="center", va="center", fontsize=7, color=color)
 
     ax.set_title(
-        "Confidence calibration: cell text shows actual hit rate at each self-reported confidence bin\n"
-        "Red = overconfident (claimed high, was wrong)   |   Green = well-calibrated   |   Blue = underconfident",
+        "Confidence calibration (cell text = actual hit rate, n = sample size)\n"
+        "Red = overconfident   Green = well-calibrated   Blue = underconfident",
         fontsize=10, fontweight="bold",
     )
     fig.colorbar(im, ax=ax, label="actual hit rate minus bin midpoint", shrink=0.7)
     fig.tight_layout()
-    fig.savefig(path, format="svg")
+    fig.savefig(path, format="svg", bbox_inches="tight")
     plt.close(fig)
 
 
@@ -1115,7 +1115,7 @@ def _render_latency_tail_chart(stats: dict[str, ModelStats], path: Path) -> None
     ax.grid(True, axis="x", alpha=0.3, which="both")
     ax.legend(loc="lower right", fontsize=9)
     fig.tight_layout()
-    fig.savefig(path, format="svg")
+    fig.savefig(path, format="svg", bbox_inches="tight")
     plt.close(fig)
 
 
