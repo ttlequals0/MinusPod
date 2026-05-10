@@ -981,7 +981,7 @@ def get_static_system_prompt() -> str:
     Used by the offline LLM benchmark. Production reads stored prompts and
     merges DB-derived sponsors via ``AdDetector.get_system_prompt`` instead.
     """
-    from database import DEFAULT_SYSTEM_PROMPT
+    from utils.constants import DEFAULT_SYSTEM_PROMPT
     from utils.constants import SEED_SPONSORS
     sponsor_list = ', '.join(s['name'] for s in SEED_SPONSORS)
     return render_prompt(
@@ -1506,7 +1506,7 @@ class AdDetector:
         except Exception as e:
             logger.warning(f"Could not load system prompt from DB: {e}")
 
-        from database import DEFAULT_SYSTEM_PROMPT
+        from utils.constants import DEFAULT_SYSTEM_PROMPT
         return self._render_with_sponsors(DEFAULT_SYSTEM_PROMPT)
 
     def get_verification_prompt(self) -> str:
