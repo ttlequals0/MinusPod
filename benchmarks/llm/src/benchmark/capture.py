@@ -231,31 +231,35 @@ def _build_truth_template(episode_data: dict, segments: list[dict]) -> str:
             "#   ---",
         ]) + "\n"
 
-    accepted: list[dict] = []
-    auto_rejected: list[tuple[dict, str]] = []
+    # Build a unified, chronologically sorted list. Rejected blocks (auto or
+    # production) sit in their natural time slot, commented out. When the
+    # reviewer uncomments a block, validate_logical's ordering check passes
+    # without further reshuffling.
+    items: list[tuple[float, dict, bool, str | None, str | None]] = []
     for marker in raw_accepted:
         ok, reason = _classify_marker(marker, segments)
-        if ok:
-            accepted.append(marker)
-        else:
-            auto_rejected.append((marker, reason or "unknown"))
+        source = None if ok else "auto"
+        items.append((float(marker.get("start", marker.get("startTime", 0))), marker, ok, reason, source))
+    for marker in raw_rejected:
+        items.append((float(marker.get("start", marker.get("startTime", 0))), marker, False, None, "production"))
+    items.sort(key=lambda x: x[0])
 
-    for i, marker in enumerate(accepted):
+    if any(not ok for _, _, ok, _, _ in items):
+        lines.append("# Lines starting with '#' are ignored. To accept a rejected block,")
+        lines.append("# remove the '# ' prefix from its start/end/text lines.")
+        lines.append("")
+
+    for i, (_, marker, ok, reason, source) in enumerate(items):
         if i > 0:
             lines.append("---")
-        lines.extend(_format_ad_block(marker, segments, commented=False))
-
-    if auto_rejected or raw_rejected:
-        lines.append("")
-        lines.append("# Rejected markers -- uncomment if any are real:")
-        for marker, reason in auto_rejected:
-            lines.append(f"# --- (auto-rejected: {reason})")
-            for ln in _format_ad_block(marker, segments, commented=True):
-                lines.append(ln)
-        for marker in raw_rejected:
-            lines.append("# --- (rejected by production)")
-            for ln in _format_ad_block(marker, segments, commented=True):
-                lines.append(ln)
+        if ok:
+            lines.extend(_format_ad_block(marker, segments, commented=False))
+        else:
+            if source == "auto":
+                lines.append(f"# auto-rejected: {reason}")
+            else:
+                lines.append("# rejected by production")
+            lines.extend(_format_ad_block(marker, segments, commented=True))
 
     return "\n".join(lines) + "\n"
 

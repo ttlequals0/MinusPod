@@ -59,7 +59,7 @@ def test_truth_template_with_rejected():
     segments = [{"start": 100.0, "end": 130.0, "text": "rejected text"}]
     episode = {"adMarkers": [], "rejectedAdMarkers": [{"start": 100, "end": 130}]}
     out = _build_truth_template(episode, segments)
-    assert "Rejected" in out
+    assert "rejected by production" in out
     assert "# start: 1:40.00" in out
     assert "# text:  rejected text" in out
 
@@ -137,12 +137,36 @@ def test_truth_template_routes_suspect_marker_to_rejected_section():
         {"start": 100.0, "end": 126.0},
     ]}
     out = _build_truth_template(episode, segments)
-    # Real ad stays in active section
+    # Real ad stays accepted
     assert "start: 0:00.00" in out
     assert "brought to you by Acme" in out
     # Suspect marker is auto-rejected with a reason
     assert "auto-rejected: Whisper hallucination" in out
     assert "# start: 1:40.00" in out
+
+
+def test_truth_template_interleaves_rejected_in_chronological_order():
+    real_ad = (
+        "This episode is brought to you by Acme, the leading platform out there. "
+        "Visit acme.com slash twit today and use code TWIT for a free trial."
+    )
+    segments = [
+        {"start": 0.0, "end": 30.0, "text": real_ad},
+        {"start": 1000.0, "end": 1026.0, "text": "Thank you for watching."},
+        {"start": 2000.0, "end": 2030.0, "text": real_ad.replace("Acme", "Beta Corp")},
+    ]
+    episode = {"adMarkers": [
+        {"start": 0.0, "end": 30.0},
+        {"start": 1000.0, "end": 1026.0},
+        {"start": 2000.0, "end": 2030.0},
+    ]}
+    out = _build_truth_template(episode, segments)
+    # The hallucination block is rejected and lives between the two real ads,
+    # so uncommenting it would still leave the file ordered by start time.
+    pos_acme = out.index("brought to you by Acme")
+    pos_rej = out.index("auto-rejected: Whisper hallucination")
+    pos_beta = out.index("Beta Corp")
+    assert pos_acme < pos_rej < pos_beta
 
 
 def test_truth_template_keeps_production_rejected_section_too():
