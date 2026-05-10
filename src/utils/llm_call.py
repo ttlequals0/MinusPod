@@ -11,7 +11,10 @@ from llm_client import (
     extract_retry_after,
     get_effective_provider,
 )
-from webhook_service import fire_auth_failure_event
+# webhook_service is lazy-imported at the call site below (only entered on
+# is_auth_error). Keeping it out of this module's import-time graph lets the
+# offline benchmark in benchmarks/llm/ import ad_detector -> utils.llm_call
+# without pulling in jinja2/flask transitively.
 from utils.retry import calculate_backoff
 
 logger = logging.getLogger(__name__)
@@ -78,6 +81,7 @@ def call_llm_for_window(
             else:
                 logger.warning(f"[{slug}:{episode_id}] {window_label} failed: {e}")
                 if is_auth_error(e):
+                    from webhook_service import fire_auth_failure_event
                     provider = get_effective_provider()
                     fire_auth_failure_event(
                         provider, model, str(e),
