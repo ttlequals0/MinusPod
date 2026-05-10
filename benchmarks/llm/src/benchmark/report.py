@@ -333,12 +333,14 @@ def _percentile(sorted_values: list[int], p: int) -> float:
 
 def _render_tldr(stats: dict[str, ModelStats], episodes: list[Episode]) -> str:
     accuracy_rows = sorted(stats.values(), key=lambda s: _avg_f1(s), reverse=True)
-    value_rows = sorted(
-        (s for s in stats.values() if s.total_episode_cost > 0),
-        key=lambda s: _avg_f1(s) / s.total_episode_cost,
-        reverse=True,
-    )
+    paid_rows = [s for s in stats.values() if s.total_episode_cost > 0]
+    free_rows = [s for s in stats.values() if s.total_episode_cost == 0]
+    value_rows = sorted(paid_rows, key=lambda s: _avg_f1(s) / s.total_episode_cost, reverse=True)
+    free_by_f1 = sorted(free_rows, key=lambda s: _avg_f1(s), reverse=True)
+
     lines = ["## TL;DR", "", "### Best Accuracy (F1 @ IoU >= 0.5)", ""]
+    lines.append("All models ranked by F1 against human-verified ground truth. Cost includes free-tier models (shown at $0.00).")
+    lines.append("")
     lines.append("| Rank | Model | F1 | Cost / episode | p50 latency | JSON compliance |")
     lines.append("|------|-------|----|----------------|-------------|-----------------|")
     for i, s in enumerate(accuracy_rows, 1):
@@ -346,7 +348,13 @@ def _render_tldr(stats: dict[str, ModelStats], episodes: list[Episode]) -> str:
             f"| {i} | `{s.model}` | {_avg_f1(s):.3f} | ${s.total_episode_cost:.4f} | "
             f"{s.p50_call_latency_ms / 1000:.1f}s | {s.json_compliance_mean:.2f} |"
         )
+
     lines += ["", "### Best Value (F1 per dollar)", ""]
+    lines.append(
+        "Paid-tier only. Free-tier models are excluded here because F1 / 0 is undefined; "
+        "they are ranked separately under Best Free-Tier below."
+    )
+    lines.append("")
     lines.append("| Rank | Model | F1/$ | F1 | Cost / episode |")
     lines.append("|------|-------|------|----|----------------|")
     for i, s in enumerate(value_rows, 1):
@@ -354,6 +362,23 @@ def _render_tldr(stats: dict[str, ModelStats], episodes: list[Episode]) -> str:
             f"| {i} | `{s.model}` | {_avg_f1(s) / s.total_episode_cost:.2f} | "
             f"{_avg_f1(s):.3f} | ${s.total_episode_cost:.4f} |"
         )
+
+    if free_by_f1:
+        lines += ["", "### Best Free-Tier (F1)", ""]
+        lines.append(
+            "Models that came back at $0.00 cost. F1 / $ is undefined for these, so they are ranked by F1 alone. "
+            "Free-tier eligibility on OpenRouter depends on the attribution headers wired into the benchmark "
+            "(`HTTP-Referer`, `X-Title`); a model showing as free here may bill on your own deployment if those headers are missing."
+        )
+        lines.append("")
+        lines.append("| Rank | Model | F1 | p50 latency | JSON compliance |")
+        lines.append("|------|-------|----|-------------|-----------------|")
+        for i, s in enumerate(free_by_f1, 1):
+            lines.append(
+                f"| {i} | `{s.model}` | {_avg_f1(s):.3f} | "
+                f"{s.p50_call_latency_ms / 1000:.1f}s | {s.json_compliance_mean:.2f} |"
+            )
+
     return "\n".join(lines)
 
 
