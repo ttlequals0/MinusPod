@@ -1,4 +1,5 @@
 import CollapsibleSection from '../../components/CollapsibleSection';
+import PromptField from './PromptField';
 
 interface PromptsSectionProps {
   systemPrompt: string;
@@ -20,37 +21,21 @@ function PromptsSection({
   return (
     <CollapsibleSection title="Prompts">
       <div className="space-y-6">
-        <div>
-          <label htmlFor="systemPrompt" className="block text-sm font-medium text-foreground mb-2">
-            First Pass System Prompt
-          </label>
-          <textarea
-            id="systemPrompt"
-            value={systemPrompt}
-            onChange={(e) => onSystemPromptChange(e.target.value)}
-            rows={6}
-            className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring font-mono text-sm sm:rows-12"
-          />
-          <p className="mt-1 text-sm text-muted-foreground">
-            Instructions sent to the AI model for the initial ad detection pass
-          </p>
-        </div>
+        <PromptField
+          id="systemPrompt"
+          label="First Pass System Prompt"
+          value={systemPrompt}
+          onChange={onSystemPromptChange}
+          helpText="Instructions sent to the AI model for the initial ad detection pass"
+        />
 
-        <div>
-          <label htmlFor="verificationPrompt" className="block text-sm font-medium text-foreground mb-2">
-            Verification Prompt
-          </label>
-          <textarea
-            id="verificationPrompt"
-            value={verificationPrompt}
-            onChange={(e) => onVerificationPromptChange(e.target.value)}
-            rows={6}
-            className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring font-mono text-sm sm:rows-12"
-          />
-          <p className="mt-1 text-sm text-muted-foreground">
-            Instructions for the verification pass to detect ads missed by the first pass
-          </p>
-        </div>
+        <PromptField
+          id="verificationPrompt"
+          label="Verification Prompt"
+          value={verificationPrompt}
+          onChange={onVerificationPromptChange}
+          helpText="Instructions for the verification pass to detect ads missed by the first pass"
+        />
 
         <button
           onClick={onResetPrompts}

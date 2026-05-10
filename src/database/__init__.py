@@ -127,7 +127,7 @@ SHORT BRAND TAGLINE EXAMPLE (this IS an ad):
 Output: [{{"start": 874.2, "end": 898.5, "confidence": 0.95, "reason": "FreshField Market network-inserted brand tagline ad", "end_text": "wellness begins. Explore more at FreshField"}}]
 
 Note: No promo code, no call to action -- but this is concentrated marketing copy
-for a brand with product positioning language. It is not editorial content."""
+for a brand with product positioning language. It is not editorial content.{sponsor_database}"""
 
 # Verification pass prompt - runs on processed audio to catch missed ads
 DEFAULT_VERIFICATION_PROMPT = """You are reviewing a podcast episode that has ALREADY had advertisements removed. The audio has been processed — detected ads were cut and replaced with a brief transition tone. Your job is to find anything that was MISSED or only partially removed.
@@ -232,7 +232,120 @@ Output: [{{"start": 340.0, "end": 365.0, "confidence": 0.92, "reason": "Calm app
 CLEAN EPISODE EXAMPLE:
 [no promotional content found in transcript]
 
-Output: []"""
+Output: []{sponsor_database}"""
+
+
+# Both reviewer prompts use placeholder substitution via _render_prompt;
+# never .format() these strings directly (the JSON examples contain literal
+# curly braces that .format() would attempt to interpolate).
+DEFAULT_REVIEW_PROMPT = """You are reviewing a candidate advertisement that has already been detected in a podcast episode. The transcript shows the candidate ad clearly marked, with up to 60 seconds of context before and after.
+
+Your job is to return the corrected ad segment, OR an empty array if it is not actually an ad. Treat this exactly like ad detection on a single short window: you are emitting the ad object that should be cut from the audio, with start and end timestamps, or no object at all.
+
+KEEP THE AD (return one segment): The candidate is a real-world advertisement that should be cut. Use the original start and end if they are already correct. Adjust them when the boundaries clip into show content or miss part of the ad:
+- Start should land at or just before the first promotional word or transition phrase ("let's take a break", "and now a word from", "this episode is brought to you by")
+- End should land at or just after the last call to action (final URL, promo code, sign-off), not in the middle of show content that follows
+- Adjusted boundaries must stay within {max_boundary_shift_seconds} seconds of the original boundaries in either direction
+
+DROP THE AD (return empty array): The candidate is not a real-world advertisement. Reject cases:
+- A guest discussing their own work, book, or project in the context of the interview
+- The host organically mentioning their own other shows, social media, or Patreon as part of conversational flow (not a produced segment)
+- Brand names mentioned in passing as part of genuine topic discussion, news coverage, or product reviews
+- A comedic bit or fictional sponsor read that is part of the show's creative content (no real product behind it)
+- Silence, pauses, or audio production artifacts with no promotional transcript content
+- Topic transitions or content gaps without promotional language
+
+DO NOT REJECT (these ARE real ads, keep them):
+- Host-read sponsor segments, including ones without promo codes
+- Hosting platform pre/post-rolls (Acast, Spotify for Podcasters, iHeart Radio, etc.)
+- Cross-promotions for other podcasts inserted by the platform or network (different host or voice, different topic, sounds produced)
+- Network promos
+- Short brand tagline ads (15-45 seconds) that sound like polished radio commercials, even without promo codes or URLs
+- Dynamically inserted retail or consumer brand ads
+
+The distinction between editorial mention and ad: an ad is paid promotional content with a sponsor name and a value proposition aimed at the listener. Editorial discussion is the host or guest talking about a topic, even if a brand name comes up.
+
+WHEN IN DOUBT: Keep the ad with original boundaries unchanged. Do not drop unless you have clear evidence from the transcript that the segment is not a real-world advertisement. Do not adjust unless the boundary error is unambiguous from the surrounding context. The cost of leaving a real ad in the audio (false negative) is higher than the cost of keeping a borderline detection.
+
+OUTPUT FORMAT:
+Return ONLY a valid JSON array. No explanation, no markdown.
+
+Each kept ad: {{"start": FLOAT_SECONDS, "end": FLOAT_SECONDS, "confidence": FLOAT_0_TO_1, "reason": "brief description"}}
+
+ALL values for "start", "end", and "confidence" MUST be numeric (float). Never use strings like "high", "low", "medium", or percentages like "95%". Examples: "start": 45.0, "end": 82.0, "confidence": 0.95
+
+EXAMPLE - KEEP UNCHANGED (boundaries are correct):
+Original detection: 1245.0s - 1320.5s, sponsor: BetterHelp
+[1245.5s] This episode is brought to you by BetterHelp.
+[1248.0s] BetterHelp is the largest online therapy platform...
+[1315.0s] Visit betterhelp.com slash podcast.
+[1318.0s] That's betterhelp.com slash podcast.
+[1322.0s] Anyway, back to what we were talking about.
+
+Output: [{{"start": 1245.0, "end": 1320.5, "confidence": 0.95, "reason": "Confirmed BetterHelp host-read sponsor with clean boundaries"}}]
+
+EXAMPLE - ADJUST BOUNDARIES (start was late, end was early):
+Original detection: 100.0s - 130.0s, sponsor: AG1
+[92.0s] So that wraps up our discussion. Let's take a quick break.
+[95.0s] This episode is brought to you by Athletic Greens.
+[100.0s] AG1 is the daily foundational nutrition supplement...
+[128.0s] Go to athleticgreens.com slash podcast.
+[130.5s] That's athleticgreens.com slash podcast.
+[133.0s] Now, back to our conversation.
+
+Output: [{{"start": 95.0, "end": 132.0, "confidence": 0.92, "reason": "Adjusted start back to capture transition; extended end past final URL repetition"}}]
+
+EXAMPLE - DROP (host mentioning a brand editorially, not an ad):
+Original detection: 50.0s - 70.0s, sponsor: Apple
+[48.0s] Have you been following the Apple antitrust case?
+[55.0s] The DOJ argued that Apple's app store policies harm developers.
+[68.0s] What's your take on the proposed remedies?
+
+Output: []{sponsor_database}"""
+
+
+DEFAULT_RESURRECT_PROMPT = """You are taking a second look at a segment that the validator already rejected for low confidence. The transcript shows the candidate clearly marked, with up to 60 seconds of context before and after.
+
+Your job: if the transcript shows this is actually an ad that should be cut, return the ad segment. If the validator was right and it is not an ad, return an empty array.
+
+RESURRECT (return one segment): The validator was wrong. The segment is a real-world advertisement and should be cut. Resurrect when:
+- The transcript clearly contains promotional language: sponsor name + value proposition + call to action, or polished marketing copy with concentrated brand messaging
+- The segment matches the structure of an ad (transition in, sponsor read or platform promo, return to content) even if the validator marked confidence as low
+- It is a short brand tagline ad (15-45 seconds) without promo codes, but with concentrated marketing language
+- It is a hosting-platform pre/post-roll or cross-promo for another podcast in the network
+
+KEEP REJECTED (return empty array): Agree with the validator. The segment is not a real-world advertisement. Match the same not-an-ad criteria the main reviewer uses:
+- A guest discussing their own work in the context of the interview
+- Host organically mentioning their own other shows or social media in conversation
+- Brand names mentioned in passing as part of editorial topic discussion
+- Comedic bits or fictional sponsor reads in the show's creative content
+- Silence, pauses, or topic transitions with no promotional transcript content
+
+WHEN IN DOUBT: Agree with the validator and return empty. Only resurrect when the transcript shows clear evidence that this is a real ad. The validator already saw reason to flag low confidence; do not override without evidence.
+
+OUTPUT FORMAT:
+Return ONLY a valid JSON array. No explanation, no markdown.
+
+Each resurrected ad: {{"start": FLOAT_SECONDS, "end": FLOAT_SECONDS, "confidence": FLOAT_0_TO_1, "reason": "brief description"}}
+
+ALL values for "start", "end", and "confidence" MUST be numeric (float). Never use strings like "high", "low", "medium", or percentages like "95%". Examples: "start": 45.0, "end": 82.0, "confidence": 0.95
+
+EXAMPLE - RESURRECT (validator missed a real ad):
+Validator-rejected segment: 666.7s - 674.3s (validator confidence 0.71)
+[660.0s] So that's our take on the antitrust case.
+[666.7s] Hosted on Acast. See acast dot com slash privacy for more information.
+[674.5s] Welcome back, today we're talking about the Switch 2 launch.
+
+Output: [{{"start": 666.7, "end": 674.3, "confidence": 0.92, "reason": "Acast hosting platform post-roll, clearly promotional and not editorial"}}]
+
+EXAMPLE - KEEP REJECTED (validator was right):
+Validator-rejected segment: 200.0s - 215.0s (validator confidence 0.65)
+[195.0s] We've been talking about Apple's new privacy framework.
+[200.0s] Apple says the new framework gives users more control over data sharing.
+[215.0s] But critics argue Apple still has too much power over the app store.
+[220.0s] Let's get into the developer reaction next.
+
+Output: []{sponsor_database}"""
 
 
 class Database(SchemaMixin, PodcastMixin, EpisodeMixin, SettingsMixin,

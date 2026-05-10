@@ -6,6 +6,80 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.6] - 2026-05-09
+
+### Changed
+
+- Reviewer "boundaries unchanged" tolerance dropped from 0.5s to 0.1s. The previous floor was hiding any sub-second corrections the LLM was proposing by rounding them to `confirmed`. With the tighter floor, genuine half-second boundary tweaks now surface as `adjust` verdicts in the audit log so the distribution is visible.
+- Added an INFO-level log line for every non-zero LLM-proposed boundary shift, including ones that round to `confirmed`. Format: `Reviewer @ A-Bs proposed delta start=+X.XXs end=+Y.YYs (rounded to confirmed | applied as adjust)`. Lets us see whether the LLM is consistently echoing original boundaries or proposing shifts that the floor was masking.
+
+## [2.1.5] - 2026-05-09
+
+### Fixed
+
+- Reviewer mutations were not persisting to `ad_markers_json` when pass 2 reviewer rejected all verification ads (`v_ads_for_ui` empty). The downstream save in `process_episode` was gated on `if v_ads_for_ui:`, so when pass 2 cleared the list, the pass 1 reviewer fields the user saw in logs (`Reviewer pass 1 verdicts: 4 confirmed, 0 adjusted, 2 rejected, ...`) never made it into the persisted ad markers. UI showed no per-segment reviewer indicators because the data wasn't there. `_run_ad_reviewer` now calls `storage.save_combined_ads` itself after applying verdicts so persistence is self-contained and not coupled to pass 2 outcomes.
+- Settings -> Experiments -> Ad Reviewer: the Review model dropdown only listed the literal "Same as pass model" sentinel and offered no concrete model choices. `Settings.tsx` was never passing `modelOptions` to `ExperimentsSection`, so the prop fell back to its empty default. Now wires the same `models` query result that `AIModelsSection` consumes (mapped through `formatModelLabel` for display parity with the existing Detection / Verification / Chapters dropdowns).
+
+## [2.1.3] - 2026-05-09
+
+### Added
+
+- Reviewer stage in the global status bar. The pipeline now emits `pass1:reviewing` (75%) and `pass2:reviewing` (90%) status updates when the reviewer is actually running, so the user no longer sees the bar stuck on the previous stage during the ~1-2 minute reviewer block. Frontend `STAGE_LABELS` carries matching "Pass 1: Reviewing detections" / "Pass 2: Reviewing detections" labels.
+- Per-segment reviewer verdict badges on the episode detail page. Every reviewer-touched ad now carries an explicit pill: green "Reviewer: confirmed", cyan "Reviewer: adjusted", amber "Reviewer: resurrected", red "Reviewer: rejected", or gray "Reviewer: skipped" (the LLM call failed and the original detection was kept). Tooltips surface `reviewer_reasoning` on hover when present. The bare "Source: Reviewer" tag in the rejected detections list is replaced by the verdict-specific badge.
+- Pass 2 reviewer verdict summary log line. `_apply_pass2_reviewer` now emits the same `Reviewer pass 2 verdicts: X confirmed, Y adjusted, Z rejected, ...` summary that `_run_ad_reviewer` already emitted for pass 1.
+
+### Changed
+
+- The Ad Reviewer Stats card on the Stats page now renders whenever the `/stats/reviewer` query has loaded, not only when `totalReviews > 0`. When zero, the card displays a hint pointing the user to Settings, Experiments to enable the reviewer.
+
+## [2.1.2] - 2026-05-09
+
+### Fixed
+
+- Reviewer was still failing parse on every LLM call after 2.1.1: production stats showed 16/16 reviews returned failure. Root cause was prompt architecture, not parsing. The reviewer asked for a flat single-object output (`{verdict, reasoning, confidence}`) with structured user-prompt fields (`DETECTED AD: Start: X, End: Y, Sponsor: Z`), which invited the LLM to invent its own schema (`detected_ads: [...]`, `ad_segment: {...}`, `is_ad: bool`, etc.) instead of emitting the requested verdict object. Pass 1 / pass 2 detection do not have this problem because they emit a JSON array of `{start, end, confidence, reason}` objects, which is a familiar extraction shape every LLM handles consistently.
+- Reviewer now mirrors detection's prompt and parser. Output is a JSON array of ad segments, parsed by the same `extract_json_ads_array` helper detection uses. Empty array means reject; one element means keep, with verdict (confirmed / adjust / resurrect) derived from the boundary delta vs the original (within 0.5s tolerance is treated as confirmed; shifted within the cap is adjust; resurrection-pool returns map to resurrect or reject).
+- Provider-neutral fix. Works on Anthropic, OpenAI-compatible, OpenRouter, and Ollama backends since they all already emit array JSON for detection. No tool-call API used.
+- The user prompt drops the labeled `DETECTED AD: Start: X, End: Y, Sponsor: Z` block that was inviting the LLM to mirror with structured analysis. Replaced with the same minimal `Podcast / Episode / description / Transcript` shape detection uses, with the candidate ad called out inline via `>>> CANDIDATE AD START >>>` markers in the transcript.
+- Schema migration v2.1.2 refreshes default-flagged `review_prompt` and `resurrect_prompt` rows to the new array-output prompts. User-customized prompts are left alone (matches the existing v1.0.x prompt-refresh pattern).
+
+### Removed
+
+- `_VERDICT_NORMALIZATION` map, `_apply_adjust` helper, and the cross-pool verdict-coercion logic from `src/ad_reviewer.py`. The verdict label is now derived from the array shape, so synonyms / case variations / wrap-recovery are not needed.
+
+## [2.1.1] - 2026-05-09
+
+### Fixed
+
+- Ad reviewer was hitting the unparseable-response failure path on every LLM call in 2.1.0. Two root causes, both fixed:
+  - `AdReviewer._extract_response_text` did not handle the case where `LLMClient.messages_create` returns an `LLMResponse` dataclass with `.content` already a string (rather than the Anthropic SDK's `[TextBlock]` list). It fell through to `str(response)`, which produced a Python repr containing literal `\n` escape sequences instead of real newlines, causing every downstream JSON parse to fail with "Expecting property name enclosed in double quotes: line 1 column 2 (char 1)". The helper now handles `content` as a string directly.
+  - Even when text extraction worked, claude-sonnet-4-6 was wrapping verdicts in extra metadata fields (`podcast`, `episode`, `ads_reviewed: [...]`) despite the prompt asking for a flat object. The reviewer now walks the parsed value to find the first nested dict containing a `verdict` key (`utils.llm_response.find_first_dict_with_key`).
+- `DEFAULT_REVIEW_PROMPT` and `DEFAULT_RESURRECT_PROMPT` tightened to forbid wrapper objects explicitly (Output exactly one flat JSON object ... must start with `{` and end with `}` ... do NOT include podcast, episode, sponsor, ads_reviewed, results, summary, or any other field). Default-flagged rows refresh on next start via the existing v1.0.x prompt-refresh migration pattern; user-customized rows are untouched.
+
+### Added
+
+- 9 unit tests covering: `find_first_dict_with_key` traversal (top-level, nested-in-array, deeply nested, no-match, non-dict roots), and the reviewer end-to-end with the LLMResponse-dataclass shape, with extra-top-level-fields, and with the `ads_reviewed` array wrap.
+
+## [2.1.0] - 2026-05-09
+
+### Added
+
+- Opt-in LLM ad reviewer (issue #197). New third LLM stage that runs after detection and validation but before audio cuts. Per detected ad it returns one of: `confirmed` (cut as-is), `adjust` (shift boundaries within a configurable cap, default 60 seconds), or `reject` (false positive). The reviewer also evaluates validator-rejected detections whose confidence sits within 20 percentage points of the user's `min_cut_confidence` slider and may resurrect them as real ads. Disabled by default. Lives behind a single toggle under a new "Experiments" section in Settings, with a dedicated Ad Reviewer subsection that exposes the toggle, model selector ("Same as pass model" by default), max boundary shift, and editable confirm/adjust/reject and resurrect/reject prompts with reset-to-default. New module `src/ad_reviewer.py`. New `ad_reviewer_log` audit table populated with one row per ad reviewed (verdict, original/adjusted boundaries, reasoning, confidence, model, latency, success). Per-ad reviewer fields persist inside `episodes.ad_markers_json` (`reviewer_verdict`, `reviewer_original_start`, `reviewer_original_end`, `reviewer_reasoning`, `reviewer_confidence`, `reviewer_model`, `source`). Failure handling is non-blocking: a per-ad LLM failure falls through with the ad unchanged, and a catastrophic stage failure returns the input ads unmodified.
+- New `GET /api/v1/stats/reviewer` endpoint with optional `podcast_slug` and `episode_id` query params. Returns total reviews, per-verdict counts, pass 1 / pass 2 adjustment counts, average boundary shift in seconds, resurrection count, and failure count. Surfaced in the Stats page as a new "Ad Reviewer Stats" card that hides when the reviewer has no logged data.
+- Episode detail page renders the original timestamps on top and a "Reviewer: MM:SS - MM:SS" line beneath when the reviewer adjusted boundaries. Reviewer-rejected ads in the rejected detections list show a "Source: Reviewer" tag.
+
+### Changed
+
+- Prompt placeholder substitution replaces unconditional appending of the dynamic sponsor block. `_inject_dynamic_sponsors` is gone; system, verification, review, and resurrect prompts now use explicit `{sponsor_database}` placeholders that the runtime substitutes via `_render_prompt`. The review prompt also accepts `{max_boundary_shift_seconds}`. Removing a placeholder from a customized prompt is now a supported way to opt out of that injection (legacy behavior always appended). Boundary-cap enforcement remains in code regardless of prompt content.
+- One-time migration on first start of this version backfills `{sponsor_database}` to user-customized `system_prompt` and `verification_prompt` rows so behavior matches what users had before. Idempotent via the `_review_prompt_migrated` settings flag. Default-flagged rows are untouched (the seed/refresh path manages those).
+- `get_static_system_prompt()` (used by the offline benchmark) now uses placeholder substitution against the seed sponsor list rather than appending. Output is identical to the previous concat for a non-empty list.
+- Extracted `_call_llm_for_window` from `src/ad_detector.py` to a free function `call_llm_for_window` in `src/utils/llm_call.py` with a parameterized `max_tokens` argument. The detector keeps the method as a thin wrapper. The reviewer reuses the same retry/backoff/auth-error semantics with a smaller token cap. Existing tests that patched the helper at `ad_detector.*` were updated to patch `utils.llm_call.*`.
+- Extracted `_find_json_array_candidates`, `extract_json_ads_array`, and the JSON parsing strategies from `src/ad_detector.py` to `src/utils/llm_response.py`. Added `extract_json_object` for the reviewer's single-object responses. Backward-compatible re-exports keep existing imports working.
+
+### Schema
+
+- New `ad_reviewer_log` table (created on fresh installs via SCHEMA_SQL and on existing installs via `_create_new_tables_only`). Indexed on `episode_id` and `podcast_id`.
+- Five new settings keys: `enable_ad_review` (bool, default false), `review_model` (string, default `same_as_pass`), `review_max_boundary_shift` (int seconds, default 60), `review_prompt`, `resurrect_prompt`. Plus the `_review_prompt_migrated` flag.
+
 ## [2.0.27] - 2026-05-08
 
 ### Fixed

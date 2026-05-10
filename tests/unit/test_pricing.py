@@ -458,8 +458,8 @@ class TestCallLlmForWindowRetry:
         auth_error = Exception("401 Unauthorized: invalid API key")
         detector._llm_client.messages_create.side_effect = auth_error
 
-        with patch('ad_detector.is_retryable_error', return_value=False), \
-             patch('ad_detector.calculate_backoff', return_value=0.0):
+        with patch('utils.llm_call.is_retryable_error', return_value=False), \
+             patch('utils.llm_call.calculate_backoff', return_value=0.0):
             response, error = detector._call_llm_for_window(
                 model="test-model", system_prompt="test", prompt="test",
                 max_retries=1, llm_timeout=10, slug="test", episode_id="ep1",
@@ -486,9 +486,9 @@ class TestCallLlmForWindowRetry:
             transient_error, transient_error, success_response
         ]
 
-        with patch('ad_detector.is_retryable_error', return_value=True), \
-             patch('ad_detector.calculate_backoff', return_value=0.0), \
-             patch('ad_detector.time.sleep'):
+        with patch('utils.llm_call.is_retryable_error', return_value=True), \
+             patch('utils.llm_call.calculate_backoff', return_value=0.0), \
+             patch('utils.llm_call.time.sleep'):
             response, error = detector._call_llm_for_window(
                 model="test-model", system_prompt="test", prompt="test",
                 max_retries=1, llm_timeout=10, slug="test", episode_id="ep1",

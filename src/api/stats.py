@@ -38,3 +38,19 @@ def get_stats_by_podcast():
     db = get_database()
     data = db.get_stats_by_podcast()
     return json_response({'podcasts': data})
+
+
+@api.route('/stats/reviewer', methods=['GET'])
+@log_request
+def get_reviewer_stats():
+    """Aggregate ad reviewer stats.
+
+    Optional filters: ``podcast_slug`` and ``episode_id``. Without either,
+    returns global aggregates over the ad_reviewer_log table.
+    """
+    db = get_database()
+    podcast_slug = request.args.get('podcast_slug')
+    episode_id = request.args.get('episode_id')
+    return json_response(db.get_reviewer_stats(
+        podcast_slug=podcast_slug, episode_id=episode_id
+    ))

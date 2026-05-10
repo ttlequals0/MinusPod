@@ -682,3 +682,78 @@ class StatsMixin:
             'totalOutputTokens': r['total_output_tokens'],
             'avgTokensPerEpisode': round(r['avg_tokens_per_episode']),
         } for r in rows]
+
+    def get_reviewer_stats(self, podcast_slug: str = None,
+                           episode_id: str = None) -> Dict:
+        """Aggregate ad reviewer stats from ad_reviewer_log.
+
+        Filters: podcast_slug joins to podcasts.slug; episode_id is the raw
+        episodes table id. Either, both, or neither may be set.
+        """
+        conn = self.get_connection()
+        where: List[str] = []
+        params: List = []
+        if episode_id:
+            where.append("l.episode_id = ?")
+            params.append(episode_id)
+        if podcast_slug:
+            where.append(
+                "l.podcast_id IN (SELECT id FROM podcasts WHERE slug = ?)"
+            )
+            params.append(podcast_slug)
+        where_clause = ("WHERE " + " AND ".join(where)) if where else ""
+
+        # SQL-side aggregation so we don't pull every row into Python.
+        # avg shift uses (|delta_start| + |delta_end|) / 2 across all adjust
+        # rows; SQLite's AVG handles the per-row mean and we compute the
+        # numerator inline.
+        agg_rows = conn.execute(
+            f"""
+            SELECT verdict, pass, COUNT(*) AS n,
+                   AVG(
+                       (ABS(adjusted_start - original_start) +
+                        ABS(adjusted_end - original_end)) / 2.0
+                   ) AS avg_shift
+            FROM ad_reviewer_log l
+            {where_clause}
+            GROUP BY verdict, pass
+            """,
+            params,
+        ).fetchall()
+
+        counts = {
+            'confirmed': 0, 'adjust': 0, 'reject': 0,
+            'resurrect': 0, 'failure': 0,
+        }
+        pass1_adjust = 0
+        pass2_adjust = 0
+        adjust_shift_sum = 0.0
+        adjust_shift_count = 0
+
+        for r in agg_rows:
+            verdict = r['verdict']
+            n = r['n']
+            counts[verdict] = counts.get(verdict, 0) + n
+            if verdict == 'adjust':
+                if r['pass'] == 1:
+                    pass1_adjust += n
+                else:
+                    pass2_adjust += n
+                if r['avg_shift'] is not None:
+                    adjust_shift_sum += r['avg_shift'] * n
+                    adjust_shift_count += n
+
+        avg_adjust_magnitude = (
+            round(adjust_shift_sum / adjust_shift_count, 2)
+            if adjust_shift_count else 0.0
+        )
+
+        return {
+            'totalReviews': sum(counts.values()),
+            'verdictCounts': counts,
+            'pass1AdjustmentCount': pass1_adjust,
+            'pass2AdjustmentCount': pass2_adjust,
+            'avgBoundaryShiftSeconds': avg_adjust_magnitude,
+            'resurrectionCount': counts.get('resurrect', 0),
+            'failureCount': counts.get('failure', 0),
+        }

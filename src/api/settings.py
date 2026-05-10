@@ -48,7 +48,10 @@ def _setting_is_default(settings, key):
 def get_settings():
     """Get all settings."""
     db = get_database()
-    from database import DEFAULT_SYSTEM_PROMPT, DEFAULT_VERIFICATION_PROMPT
+    from database import (
+        DEFAULT_SYSTEM_PROMPT, DEFAULT_VERIFICATION_PROMPT,
+        DEFAULT_REVIEW_PROMPT, DEFAULT_RESURRECT_PROMPT,
+    )
     from ad_detector import AdDetector
     from config import DEFAULT_AD_DETECTION_MODEL as DEFAULT_MODEL
     from chapters_generator import CHAPTERS_MODEL
@@ -140,9 +143,24 @@ def get_settings():
     vad_gap_mid = _db_float('vad_gap_mid_min_seconds', default_vad_gap_mid)
     vad_gap_tail = _db_float('vad_gap_tail_min_seconds', default_vad_gap_tail)
 
+    enable_ad_review_raw = _setting_value(settings, 'enable_ad_review', 'false')
+    enable_ad_review = str(enable_ad_review_raw).strip().lower() == 'true'
+    review_model = _setting_value(settings, 'review_model', 'same_as_pass')
+    try:
+        review_max_boundary_shift = int(_setting_value(settings, 'review_max_boundary_shift', '60'))
+    except (ValueError, TypeError):
+        review_max_boundary_shift = 60
+    review_prompt = _setting_value(settings, 'review_prompt', DEFAULT_REVIEW_PROMPT)
+    resurrect_prompt = _setting_value(settings, 'resurrect_prompt', DEFAULT_RESURRECT_PROMPT)
+
     return json_response({
         'systemPrompt': _sv('system_prompt', _setting_value(settings, 'system_prompt', DEFAULT_SYSTEM_PROMPT)),
         'verificationPrompt': _sv('verification_prompt', _setting_value(settings, 'verification_prompt', DEFAULT_VERIFICATION_PROMPT)),
+        'enableAdReview': _sv('enable_ad_review', enable_ad_review),
+        'reviewModel': _sv('review_model', review_model),
+        'reviewMaxBoundaryShift': _sv('review_max_boundary_shift', review_max_boundary_shift),
+        'reviewPrompt': _sv('review_prompt', review_prompt),
+        'resurrectPrompt': _sv('resurrect_prompt', resurrect_prompt),
         'claudeModel': _sv('claude_model', current_model),
         'verificationModel': _sv('verification_model', verification_model),
         'whisperModel': _sv('whisper_model', whisper_model),
@@ -174,6 +192,11 @@ def get_settings():
         'defaults': {
             'systemPrompt': DEFAULT_SYSTEM_PROMPT,
             'verificationPrompt': DEFAULT_VERIFICATION_PROMPT,
+            'reviewPrompt': DEFAULT_REVIEW_PROMPT,
+            'resurrectPrompt': DEFAULT_RESURRECT_PROMPT,
+            'enableAdReview': False,
+            'reviewModel': 'same_as_pass',
+            'reviewMaxBoundaryShift': 60,
             'claudeModel': DEFAULT_MODEL,
             'verificationModel': DEFAULT_MODEL,
             'whisperModel': default_whisper_model,
@@ -218,6 +241,31 @@ def update_ad_detection_settings():
     if 'verificationPrompt' in data:
         db.set_setting('verification_prompt', data['verificationPrompt'], is_default=False)
         logger.info("Updated verification prompt")
+
+    if 'reviewPrompt' in data:
+        db.set_setting('review_prompt', data['reviewPrompt'], is_default=False)
+        logger.info("Updated review prompt")
+
+    if 'resurrectPrompt' in data:
+        db.set_setting('resurrect_prompt', data['resurrectPrompt'], is_default=False)
+        logger.info("Updated resurrect prompt")
+
+    if 'enableAdReview' in data:
+        value = 'true' if bool(data['enableAdReview']) else 'false'
+        db.set_setting('enable_ad_review', value, is_default=False)
+        logger.info(f"Updated enable_ad_review to: {value}")
+
+    if 'reviewModel' in data:
+        db.set_setting('review_model', data['reviewModel'], is_default=False)
+        logger.info(f"Updated review_model to: {data['reviewModel']}")
+
+    if 'reviewMaxBoundaryShift' in data:
+        try:
+            value = max(1, min(600, int(data['reviewMaxBoundaryShift'])))
+        except (TypeError, ValueError):
+            return error_response('reviewMaxBoundaryShift must be an integer', 400)
+        db.set_setting('review_max_boundary_shift', str(value), is_default=False)
+        logger.info(f"Updated review_max_boundary_shift to: {value}")
 
     if 'claudeModel' in data:
         db.set_setting('claude_model', data['claudeModel'], is_default=False)
@@ -493,6 +541,8 @@ def reset_prompts_only():
 
     db.reset_setting('system_prompt')
     db.reset_setting('verification_prompt')
+    db.reset_setting('review_prompt')
+    db.reset_setting('resurrect_prompt')
 
     logger.info("Reset prompts to defaults")
     return json_response({'message': 'Prompts reset to defaults'})

@@ -1,7 +1,6 @@
 """Ad detection using Claude API with configurable prompts and model."""
 import logging
 import json
-import random
 import re
 import time
 from typing import List, Dict, Optional
@@ -9,13 +8,12 @@ from typing import List, Dict, Optional
 from cancel import _check_cancel
 from llm_client import (
     get_llm_client, get_api_key, LLMClient,
-    is_retryable_error, is_rate_limit_error, is_auth_error,
-    extract_retry_after,
+    is_retryable_error,
     get_llm_timeout, get_llm_max_retries,
     get_effective_provider, model_matches_provider,
 )
-from webhook_service import fire_auth_failure_event
-from utils.retry import calculate_backoff
+from utils.llm_call import call_llm_for_window
+from utils.prompt import format_sponsor_block, render_prompt
 from utils.text import get_transcript_text_for_range
 from utils.time import parse_timestamp, first_not_none
 
@@ -101,42 +99,11 @@ AD_END_PHRASES = [
 ]
 
 
-def _find_json_array_candidates(text: str):
-    """Yield each top-level ``[...]`` substring from ``text`` in left-to-right
-    order.
-
-    Linear-time single-pass scanner: tracks bracket depth and JSON string
-    context (so brackets inside ``"..."`` do not affect depth) and records
-    each span where the depth transitions from 0 -> 1 -> 0. Replaces a
-    nested-alternation regex whose worst case was exponential on adversarial
-    payloads.
-    """
-    depth = 0
-    start = -1
-    in_string = False
-    escape = False
-    for i, ch in enumerate(text):
-        if in_string:
-            if escape:
-                escape = False
-            elif ch == '\\':
-                escape = True
-            elif ch == '"':
-                in_string = False
-            continue
-        if ch == '"':
-            in_string = True
-            continue
-        if ch == '[':
-            if depth == 0:
-                start = i
-            depth += 1
-        elif ch == ']':
-            if depth > 0:
-                depth -= 1
-                if depth == 0 and start >= 0:
-                    yield text[start:i + 1]
-                    start = -1
+from utils.llm_response import (
+    extract_json_ads_array,
+    extract_json_object,
+    find_json_array_candidates as _find_json_array_candidates,
+)
 
 
 def refine_ad_boundaries(ads: List[Dict], segments: List[Dict]) -> List[Dict]:
@@ -1007,13 +974,8 @@ def format_window_prompt(
     ) + audio_context + window_context
 
 
-SPONSOR_DATABASE_HEADER = (
-    "\n\nDYNAMIC SPONSOR DATABASE (current known sponsors - treat as high confidence):\n"
-)
-
-
 def get_static_system_prompt() -> str:
-    """Return DEFAULT_SYSTEM_PROMPT with the static SEED_SPONSORS list appended.
+    """Return DEFAULT_SYSTEM_PROMPT with the static SEED_SPONSORS list substituted.
 
     Reproducible from source code -- no DB, env, or wallclock dependency.
     Used by the offline LLM benchmark. Production reads stored prompts and
@@ -1022,7 +984,10 @@ def get_static_system_prompt() -> str:
     from database import DEFAULT_SYSTEM_PROMPT
     from utils.constants import SEED_SPONSORS
     sponsor_list = ', '.join(s['name'] for s in SEED_SPONSORS)
-    return DEFAULT_SYSTEM_PROMPT + SPONSOR_DATABASE_HEADER + sponsor_list
+    return render_prompt(
+        DEFAULT_SYSTEM_PROMPT,
+        sponsor_database=format_sponsor_block(sponsor_list),
+    )
 
 
 def deduplicate_window_ads(all_ads: List[Dict], merge_threshold: float = 5.0) -> List[Dict]:
@@ -1079,111 +1044,6 @@ def deduplicate_window_ads(all_ads: List[Dict], merge_threshold: float = 5.0) ->
         logger.info(f"Window deduplication: {len(all_ads)} -> {len(merged)} ads")
 
     return merged
-
-
-def extract_json_ads_array(response_text: str, slug: str = None,
-                            episode_id: str = None):
-    """Extract a JSON array of ad dicts from Claude's response text.
-
-    Tries 4 strategies in order:
-    0. Direct JSON parse (handles various wrapper object structures)
-    1. Markdown code block extraction
-    2. Regex scan for JSON arrays (uses last valid match)
-    3. Bracket-delimited fallback (first '[' to last ']')
-
-    Returns (ads_list, extraction_method) or (None, None) if no valid JSON found.
-    """
-    # Pre-process: Remove common preamble patterns that break JSON parsing
-    cleaned_text = response_text.strip()
-    preamble_patterns = [
-        r'^(?:Here (?:are|is) (?:the )?(?:detected )?ads?[:\s]*)',
-        r'^(?:I (?:found|detected|identified)[^:]*[:\s]*)',
-        r'^(?:The following (?:ads|advertisements)[^:]*[:\s]*)',
-        r'^(?:Based on (?:my|the) analysis[^:]*[:\s]*)',
-        r'^(?:After (?:reviewing|analyzing)[^:]*[:\s]*)',
-    ]
-    for pattern in preamble_patterns:
-        match = re.match(pattern, cleaned_text, re.IGNORECASE)
-        if match:
-            cleaned_text = cleaned_text[match.end():].strip()
-            logger.debug(f"[{slug}:{episode_id}] Removed preamble: '{match.group()[:50]}'")
-            break
-
-    # Strategy 0: Direct JSON parse
-    try:
-        parsed = json.loads(cleaned_text)
-        if isinstance(parsed, list):
-            return parsed, "json_array_direct"
-        if isinstance(parsed, dict):
-            # Check nested window structure
-            if 'window' in parsed and isinstance(parsed['window'], dict):
-                window = parsed['window']
-                for key in ['ads_detected', 'ads', 'advertisement_segments', 'ads_and_sponsorships', 'segments']:
-                    if key in window and isinstance(window[key], list):
-                        ads = window[key]
-                        if key == 'segments':
-                            ads = [s for s in ads if isinstance(s, dict) and s.get('type') == 'advertisement']
-                        return ads, f"json_object_window_{key}"
-            # Check top-level ad keys
-            ad_keys = ['ads', 'ads_detected', 'advertisement_segments', 'ads_and_sponsorships']
-            for key in ad_keys:
-                if key in parsed and isinstance(parsed[key], list):
-                    return parsed[key], f"json_object_{key}_key"
-            if 'segments' in parsed and isinstance(parsed['segments'], list):
-                ads = [s for s in parsed['segments']
-                       if isinstance(s, dict) and s.get('type') == 'advertisement']
-                return ads, "json_object_segments_key"
-            # Single ad object (e.g. Ollama/qwen3 returns bare dict instead of array)
-            _has_start = any('start' in k.lower() for k in parsed)
-            _has_end = any('end' in k.lower() and k.lower() != 'endorser' for k in parsed)
-            if _has_start and _has_end:
-                logger.info(f"[{slug}:{episode_id}] Single ad object detected, wrapping in array")
-                return [parsed], "json_object_single_ad"
-            return [], "json_object_no_ads"
-    except json.JSONDecodeError:
-        pass
-
-    # Strategy 1: Markdown code block
-    code_block_match = re.search(r'```(?:json)?\s*(\[[\s\S]*?\])\s*```', response_text)
-    if code_block_match:
-        try:
-            return json.loads(code_block_match.group(1)), "markdown_code_block"
-        except json.JSONDecodeError:
-            pass
-
-    # Strategy 2: O(n) bracket-depth scan for top-level JSON arrays.
-    # Replaces a nested-alternation regex that could regress to
-    # exponential behavior on adversarial inputs. Tracks string-literal
-    # context so brackets inside quotes do not count toward depth.
-    scan_text = response_text[:200_000]
-    last_valid_ads = None
-    for candidate in _find_json_array_candidates(scan_text):
-        try:
-            potential_ads = json.loads(candidate)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(potential_ads, list):
-            if not potential_ads or (isinstance(potential_ads[0], dict) and 'start' in potential_ads[0]):
-                last_valid_ads = potential_ads
-    if last_valid_ads is not None:
-        return last_valid_ads, "regex_json_array"
-
-    # Strategy 3: Bracket-delimited fallback
-    clean_response = re.sub(r'```json\s*', '', response_text)
-    clean_response = re.sub(r'```\s*', '', clean_response)
-    start_idx = clean_response.find('[')
-    end_idx = clean_response.rfind(']') + 1
-    if start_idx >= 0 and end_idx > start_idx:
-        json_str = clean_response[start_idx:end_idx]
-        try:
-            return json.loads(json_str), "bracket_fallback"
-        except json.JSONDecodeError as e:
-            logger.warning(
-                f"[{slug}:{episode_id}] Strategy 3 JSON parse failed: {e} "
-                f"(length={len(json_str)}, start={json_str[:50]!r}, end={json_str[-50:]!r})"
-            )
-
-    return None, None
 
 
 def parse_ads_from_response(response_text: str, slug: str = None,
@@ -1638,45 +1498,46 @@ class AdDetector:
         return self.get_model()
 
     def get_system_prompt(self) -> str:
-        """Get system prompt from database or default, with dynamic sponsors appended."""
+        """Get system prompt from database or default, with dynamic sponsors substituted."""
         try:
             prompt = self.db.get_setting('system_prompt')
             if prompt:
-                return self._inject_dynamic_sponsors(prompt)
+                return self._render_with_sponsors(prompt)
         except Exception as e:
             logger.warning(f"Could not load system prompt from DB: {e}")
 
-        # Default fallback
         from database import DEFAULT_SYSTEM_PROMPT
-        return self._inject_dynamic_sponsors(DEFAULT_SYSTEM_PROMPT)
+        return self._render_with_sponsors(DEFAULT_SYSTEM_PROMPT)
 
     def get_verification_prompt(self) -> str:
-        """Get verification prompt from database or default, with dynamic sponsors appended."""
+        """Get verification prompt from database or default, with dynamic sponsors substituted."""
         try:
             prompt = self.db.get_setting('verification_prompt')
             if prompt:
-                return self._inject_dynamic_sponsors(prompt)
+                return self._render_with_sponsors(prompt)
         except Exception:
             pass
         from database import DEFAULT_VERIFICATION_PROMPT
-        return self._inject_dynamic_sponsors(DEFAULT_VERIFICATION_PROMPT)
+        return self._render_with_sponsors(DEFAULT_VERIFICATION_PROMPT)
 
-    def _inject_dynamic_sponsors(self, prompt: str) -> str:
-        """Append dynamic sponsor database to a prompt at detection time.
-
-        This supplements the hardcoded sponsor list in the stored prompt with
-        any sponsors added via API or discovered during processing.
-        """
+    def _get_sponsor_list_safely(self) -> str:
+        """Pull the dynamic sponsor list, returning empty string on any error."""
         try:
             if not self.sponsor_service:
-                return prompt
-            sponsor_list = self.sponsor_service.get_claude_sponsor_list()
-            if not sponsor_list:
-                return prompt
-            return prompt + SPONSOR_DATABASE_HEADER + sponsor_list
+                return ""
+            return self.sponsor_service.get_claude_sponsor_list() or ""
         except Exception as e:
-            logger.warning(f"Could not inject dynamic sponsors into prompt: {e}")
-            return prompt
+            logger.warning(f"Could not load dynamic sponsor list: {e}")
+            return ""
+
+    def _render_with_sponsors(self, prompt: str) -> str:
+        """Substitute ``{sponsor_database}`` in a prompt with the dynamic sponsor block.
+
+        Prompts without the placeholder get no sponsor content (the user
+        opted out by editing the placeholder away).
+        """
+        sponsor_block = format_sponsor_block(self._get_sponsor_list_safely())
+        return render_prompt(prompt, sponsor_database=sponsor_block)
 
     def _get_podcast_sponsor_history(self, podcast_slug: str) -> str:
         """Get previously detected sponsor names for a podcast from ad_patterns.
@@ -1706,78 +1567,19 @@ class AdDetector:
 
     def _call_llm_for_window(self, *, model, system_prompt, prompt, llm_timeout,
                               max_retries, slug, episode_id, window_label):
-        """Call LLM with primary retry + per-window fallback retry.
-
-        Returns:
-            Tuple of (response, last_error). response is None if all retries failed.
-        """
-        llm_kwargs = dict(
+        """Thin wrapper over the shared utils.llm_call.call_llm_for_window."""
+        return call_llm_for_window(
+            llm_client=self._llm_client,
             model=model,
+            system_prompt=system_prompt,
+            prompt=prompt,
+            llm_timeout=llm_timeout,
+            max_retries=max_retries,
             max_tokens=AD_DETECTION_MAX_TOKENS,
-            temperature=0.0,
-            system=system_prompt,
-            messages=[{"role": "user", "content": prompt}],
-            timeout=llm_timeout,
-            response_format={"type": "json_object"},
+            slug=slug,
+            episode_id=episode_id,
+            window_label=window_label,
         )
-        response = None
-        last_error = None
-
-        for attempt in range(max_retries + 1):
-            try:
-                response = self._llm_client.messages_create(**llm_kwargs)
-                return response, None
-            except Exception as e:
-                last_error = e
-                if is_retryable_error(e) and attempt < max_retries:
-                    if is_rate_limit_error(e):
-                        retry_after = extract_retry_after(e)
-                        if retry_after is not None:
-                            # Honor the server hint, but stagger workers waking
-                            # together so we don't all retry on the same tick.
-                            delay = retry_after + random.uniform(0.0, 2.0)
-                            source = f"retry-after={retry_after:.1f}s"
-                        else:
-                            # No header: most providers reset rate limits on a
-                            # one-minute window, so start the backoff there.
-                            delay = calculate_backoff(attempt, base_delay=30.0, max_delay=120.0)
-                            source = "backoff"
-                        logger.warning(
-                            f"[{slug}:{episode_id}] {window_label} rate limit ({source}), "
-                            f"waiting {delay:.1f}s"
-                        )
-                    else:
-                        delay = calculate_backoff(attempt)
-                        logger.warning(f"[{slug}:{episode_id}] {window_label} API error: {e}. Retrying in {delay:.1f}s")
-                    time.sleep(delay)
-                    continue
-                else:
-                    logger.warning(f"[{slug}:{episode_id}] {window_label} failed: {e}")
-                    if is_auth_error(e):
-                        provider = get_effective_provider()
-                        fire_auth_failure_event(provider, model, str(e),
-                                                getattr(e, 'status_code', None))
-                    break
-
-        # Per-window retry for transient failures (intermittent 400s/500s)
-        if response is None and last_error is not None and is_retryable_error(last_error):
-            for retry_num, delay in enumerate([2, 5], 1):
-                logger.warning(
-                    f"[{slug}:{episode_id}] {window_label} per-window retry "
-                    f"{retry_num}/2 after {delay}s backoff"
-                )
-                time.sleep(delay)
-                try:
-                    response = self._llm_client.messages_create(**llm_kwargs)
-                    logger.info(f"[{slug}:{episode_id}] {window_label} succeeded on retry {retry_num}")
-                    return response, None
-                except Exception as e:
-                    last_error = e
-                    logger.warning(
-                        f"[{slug}:{episode_id}] {window_label} retry {retry_num} failed: {e}"
-                    )
-
-        return None, last_error
 
 
     def detect_ads(self, segments: List[Dict], podcast_name: str = "Unknown",

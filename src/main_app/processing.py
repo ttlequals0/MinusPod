@@ -9,6 +9,9 @@ import time
 import requests
 import requests.exceptions
 
+from ad_reviewer import (
+    AdReviewer, ReviewVerdict, split_resurrection_pool,
+)
 from cancel import ProcessingCancelled, _check_cancel, _cancel_events, _cancel_events_lock
 from config import MIN_CUT_CONFIDENCE, MAX_EPISODE_RETRIES
 from llm_client import is_retryable_error, is_llm_api_error, start_episode_token_tracking, get_episode_token_totals
@@ -469,6 +472,277 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
     return ads_to_remove, all_ads_with_validation
 
 
+def _build_reviewer(db, ad_detector) -> AdReviewer:
+    return AdReviewer(
+        db=db,
+        llm_client=ad_detector._llm_client,
+        sponsor_service=getattr(ad_detector, 'sponsor_service', None),
+        sponsor_history_provider=ad_detector._get_podcast_sponsor_history,
+    )
+
+
+def _build_episode_meta(slug, episode_id, podcast_id, podcast_name,
+                        episode_title, podcast_description, episode_description):
+    return {
+        'podcast_name': podcast_name,
+        'episode_title': episode_title,
+        'episode_description': episode_description,
+        'podcast_description': podcast_description,
+        'slug': slug,
+        'episode_id': episode_id,
+        'podcast_id': podcast_id,
+    }
+
+
+def _apply_pass2_reviewer(slug, episode_id, podcast_name, episode_title,
+                           episode_description, podcast_description,
+                           v_ads_to_cut, v_ads_for_ui,
+                           verification_ads_processed, verification_ads_original,
+                           original_segments, min_cut_confidence):
+    """Run the reviewer on pass 2 results, in original transcript coordinates.
+
+    Mutates ``v_ads_to_cut`` and ``v_ads_for_ui`` in place. Adjust verdicts
+    are coerced to confirmed in pass 2 because applying a boundary shift in
+    original coords cannot safely round-trip through pass 1 cuts to processed
+    coords; supporting it would require a per-pass-1-cut timestamp map.
+    """
+    db, _, _, ad_detector, _, _, _, status_service, _, _ = _get_components()
+
+    if not _ad_review_enabled(db):
+        return
+
+    accepted_originals = list(v_ads_for_ui)
+    if not accepted_originals and not verification_ads_original:
+        return
+
+    eligible_originals = split_resurrection_pool(
+        verification_ads_original, accepted_originals, min_cut_confidence
+    )
+    if not accepted_originals and not eligible_originals:
+        return
+
+    status_service.update_job_stage("pass2:reviewing", 90)
+
+    podcast_row = db.get_podcast_by_slug(slug)
+    podcast_id = podcast_row.get('id') if podcast_row else None
+
+    audio_logger.info(
+        f"[{slug}:{episode_id}] Reviewer pass 2: "
+        f"{len(accepted_originals)} accepted + {len(eligible_originals)} resurrection-eligible"
+    )
+
+    reviewer = _build_reviewer(db, ad_detector)
+    episode_meta = _build_episode_meta(
+        slug, episode_id, podcast_id, podcast_name,
+        episode_title, podcast_description, episode_description,
+    )
+    pass2_model = ad_detector.get_verification_model()
+    result = reviewer.review(
+        accepted_ads=accepted_originals,
+        resurrection_eligible=eligible_originals,
+        segments=original_segments or [],
+        episode_meta=episode_meta,
+        pass_num=2,
+        pass_model=pass2_model,
+    )
+
+    # Index by (start, end) so verdict application is O(V), not O(V*N).
+    original_to_processed = {
+        (orig.get('start'), orig.get('end')): proc
+        for orig, proc in zip(verification_ads_original, verification_ads_processed)
+    }
+    ui_by_key = {(a.get('start'), a.get('end')): a for a in v_ads_for_ui}
+    original_by_key = {(a.get('start'), a.get('end')): a for a in verification_ads_original}
+
+    def _stamp(ad, v):
+        ad['reviewer_verdict'] = v.verdict
+        if v.reasoning is not None:
+            ad['reviewer_reasoning'] = v.reasoning
+        if v.confidence is not None:
+            ad['reviewer_confidence'] = v.confidence
+        if v.model_used:
+            ad['reviewer_model'] = v.model_used
+
+    for v in result.verdicts:
+        key = (v.original_start, v.original_end)
+        proc_ad = original_to_processed.get(key)
+        ui_ad = ui_by_key.get(key)
+
+        if v.verdict == 'adjust':
+            # Pass 2 cannot safely round-trip a boundary shift across pass 1
+            # cuts, so coerce to confirmed instead of mutating boundaries.
+            audio_logger.info(
+                f"[{slug}:{episode_id}] Pass 2 reviewer proposed adjust "
+                f"@ {v.original_start:.1f}s; treating as confirmed"
+            )
+            coerced = ReviewVerdict(
+                pool=v.pool, pass_num=v.pass_num, verdict='confirmed',
+                original_start=v.original_start, original_end=v.original_end,
+                reasoning=v.reasoning, confidence=v.confidence,
+                model_used=v.model_used, latency_ms=v.latency_ms,
+                success=v.success,
+            )
+            if proc_ad is not None:
+                _stamp(proc_ad, coerced)
+            if ui_ad is not None:
+                _stamp(ui_ad, coerced)
+            continue
+
+        if v.verdict == 'reject':
+            if proc_ad in v_ads_to_cut:
+                v_ads_to_cut.remove(proc_ad)
+            if ui_ad is not None:
+                _stamp(ui_ad, v)
+                ui_ad['was_cut'] = False
+                ui_ad['source'] = 'reviewer'
+                v_ads_for_ui.remove(ui_ad)
+            continue
+
+        if v.verdict == 'resurrect':
+            if proc_ad is None:
+                # Without a processed-coord twin we cannot add to the recut
+                # list; UI would falsely show it cut. Drop the resurrection
+                # rather than create that mismatch.
+                audio_logger.warning(
+                    f"[{slug}:{episode_id}] Pass 2 resurrect dropped "
+                    f"@ {v.original_start:.1f}s: no processed-coord twin"
+                )
+                continue
+            if proc_ad not in v_ads_to_cut:
+                proc_ad['was_cut'] = True
+                proc_ad['detection_stage'] = 'verification'
+                proc_ad['source'] = 'reviewer'
+                _stamp(proc_ad, v)
+                v_ads_to_cut.append(proc_ad)
+            orig_ad = original_by_key.get(key)
+            if orig_ad is not None:
+                orig_ad['was_cut'] = True
+                orig_ad['detection_stage'] = 'verification'
+                orig_ad['source'] = 'reviewer'
+                _stamp(orig_ad, v)
+                if orig_ad not in v_ads_for_ui:
+                    v_ads_for_ui.append(orig_ad)
+            continue
+
+        # confirmed or failure: stamp reviewer fields without mutating cuts.
+        if proc_ad is not None:
+            _stamp(proc_ad, v)
+        if ui_ad is not None:
+            _stamp(ui_ad, v)
+
+    audio_logger.info(
+        f"[{slug}:{episode_id}] Reviewer pass 2 verdicts: "
+        f"{sum(1 for v in result.verdicts if v.verdict == 'confirmed')} confirmed, "
+        f"{sum(1 for v in result.verdicts if v.verdict == 'adjust')} adjusted, "
+        f"{sum(1 for v in result.verdicts if v.verdict == 'reject')} rejected, "
+        f"{sum(1 for v in result.verdicts if v.verdict == 'resurrect')} resurrected, "
+        f"{sum(1 for v in result.verdicts if v.verdict == 'failure')} failed"
+    )
+
+
+def _ad_review_enabled(db) -> bool:
+    """Read the opt-in flag for the LLM ad reviewer."""
+    try:
+        value = db.get_setting('enable_ad_review')
+    except Exception:
+        return False
+    return str(value or '').strip().lower() == 'true'
+
+
+def _run_ad_reviewer(slug, episode_id, podcast_id, ads_to_remove,
+                     all_ads_with_validation, segments, podcast_name,
+                     episode_title, episode_description, podcast_description,
+                     min_cut_confidence, pass_num, pass_model):
+    """Run the LLM ad reviewer over the cut list and resurrection-eligible
+    rejects. Returns updated ``(ads_to_remove, all_ads_with_validation)``.
+
+    Non-blocking: any failure inside the reviewer falls through with the
+    original lists. Skips entirely when ``enable_ad_review`` is false.
+    """
+    db, storage, _, ad_detector, _, _, _, status_service, _, _ = _get_components()
+
+    if not _ad_review_enabled(db):
+        return ads_to_remove, all_ads_with_validation
+
+    eligible = split_resurrection_pool(
+        all_ads_with_validation, ads_to_remove, min_cut_confidence
+    )
+    if not ads_to_remove and not eligible:
+        return ads_to_remove, all_ads_with_validation
+
+    status_service.update_job_stage(f"pass{pass_num}:reviewing", 75)
+
+    audio_logger.info(
+        f"[{slug}:{episode_id}] Reviewer pass {pass_num}: "
+        f"{len(ads_to_remove)} accepted + {len(eligible)} resurrection-eligible"
+    )
+
+    reviewer = _build_reviewer(db, ad_detector)
+    episode_meta = _build_episode_meta(
+        slug, episode_id, podcast_id, podcast_name,
+        episode_title, podcast_description, episode_description,
+    )
+    result = reviewer.review(
+        accepted_ads=ads_to_remove,
+        resurrection_eligible=eligible,
+        segments=segments,
+        episode_meta=episode_meta,
+        pass_num=pass_num,
+        pass_model=pass_model,
+    )
+
+    new_ads_to_remove = list(result.accepted_after_review)
+
+    # Merge reviewer fields into the master list (in-place), and pull in any
+    # resurrected ads that weren't there before. Index by (start, end) so the
+    # verdict loop is O(V), not O(V*N).
+    master_by_key = {(a.get('start'), a.get('end')): a for a in all_ads_with_validation}
+    for v in result.verdicts:
+        ad = master_by_key.get((v.original_start, v.original_end))
+        if ad is None:
+            continue
+        ad['reviewer_verdict'] = v.verdict
+        if v.reasoning is not None:
+            ad['reviewer_reasoning'] = v.reasoning
+        if v.confidence is not None:
+            ad['reviewer_confidence'] = v.confidence
+        if v.model_used:
+            ad['reviewer_model'] = v.model_used
+        if v.verdict == 'adjust':
+            ad['reviewer_original_start'] = v.original_start
+            ad['reviewer_original_end'] = v.original_end
+            ad['start'] = v.adjusted_start
+            ad['end'] = v.adjusted_end
+        elif v.verdict == 'reject':
+            ad['was_cut'] = False
+            ad['source'] = 'reviewer'
+        elif v.verdict == 'resurrect':
+            ad['was_cut'] = True
+            ad['source'] = 'reviewer'
+
+    for ad in result.resurrected:
+        key = (ad.get('start'), ad.get('end'))
+        if key not in master_by_key:
+            all_ads_with_validation.append(ad)
+            master_by_key[key] = ad
+
+    audio_logger.info(
+        f"[{slug}:{episode_id}] Reviewer pass {pass_num} verdicts: "
+        f"{sum(1 for v in result.verdicts if v.verdict == 'confirmed')} confirmed, "
+        f"{sum(1 for v in result.verdicts if v.verdict == 'adjust')} adjusted, "
+        f"{sum(1 for v in result.verdicts if v.verdict == 'reject')} rejected, "
+        f"{sum(1 for v in result.verdicts if v.verdict == 'resurrect')} resurrected, "
+        f"{sum(1 for v in result.verdicts if v.verdict == 'failure')} failed"
+    )
+
+    # Persist the reviewer's mutations. The downstream save in process_episode
+    # is gated on v_ads_for_ui being non-empty, so a pass-2 reviewer that
+    # rejects everything will skip that save and lose pass-1 reviewer fields.
+    storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
+
+    return new_ads_to_remove, all_ads_with_validation
+
+
 def _run_verification_pass(slug, episode_id, processed_path, ads_to_remove,
                             podcast_name, episode_title, episode_description,
                             podcast_description, skip_patterns, min_cut_confidence,
@@ -588,6 +862,19 @@ def _run_verification_pass(slug, episode_id, processed_path, ads_to_remove,
                         v_ads_for_ui.append(orig_ad)
                     else:
                         ad['was_cut'] = False
+
+                # Pass 2 reviewer operates on original-coord ads (the prompt
+                # context window comes from the original transcript). Adjust
+                # verdicts are coerced to confirmed in pass 2 because mapping
+                # a boundary shift back to processed coordinates is unsafe
+                # across pass 1 cuts.
+                _apply_pass2_reviewer(
+                    slug, episode_id, podcast_name, episode_title,
+                    episode_description, podcast_description,
+                    v_ads_to_cut, v_ads_for_ui,
+                    verification_ads_processed, verification_ads_original,
+                    original_segments, min_cut_confidence,
+                )
 
                 if v_ads_to_cut:
                     recut_path = local_audio_processor.process_episode(processed_path, v_ads_to_cut)
@@ -843,13 +1130,15 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
     2. Audio analysis (volume + transition detection)
     3. First-pass ad detection via Claude
     4. Boundary refinement, roll detection, validation
+    4b. Optional ad reviewer (opt-in; off by default)
     5. Audio processing (FFMPEG cut)
-    6. Verification pass (second-pass detection on processed audio)
+    6. Verification pass (second-pass detection on processed audio,
+       with the same optional reviewer applied to its output)
     7. Generate Podcasting 2.0 assets (VTT transcript, chapters)
     8. Finalize (update DB, record history, refresh RSS)
     """
     from audio_processor import AudioProcessor
-    db, storage, _, _, audio_processor, _, _, status_service, _, _ = _get_components()
+    db, storage, _, ad_detector, audio_processor, _, _, status_service, _, _ = _get_components()
     start_time = time.time()
     start_episode_token_tracking()
 
@@ -919,6 +1208,18 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 slug, episode_id, all_ads, segments, audio_path,
                 episode_description, episode_duration, min_cut_confidence, podcast_name,
                 skip_patterns=skip_patterns
+            )
+            _check_cancel(cancel_event, slug, episode_id)
+
+            # No-op when enable_ad_review is off (the default).
+            podcast_row = db.get_podcast_by_slug(slug)
+            podcast_id = podcast_row.get('id') if podcast_row else None
+            ads_to_remove, all_ads_with_validation = _run_ad_reviewer(
+                slug, episode_id, podcast_id, ads_to_remove,
+                all_ads_with_validation, segments, podcast_name,
+                episode_title, episode_description, podcast_description,
+                min_cut_confidence, pass_num=1,
+                pass_model=ad_detector.get_model(),
             )
             _check_cancel(cancel_event, slug, episode_id)
 

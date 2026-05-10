@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.0.27
+  version: 2.1.6
   contact:
     name: MinusPod
   license:
@@ -1280,6 +1280,54 @@ paths:
                           type: integer
                         avgTokensPerEpisode:
                           type: integer
+
+  /stats/reviewer:
+    get:
+      tags:
+        - Stats
+      summary: Get ad reviewer aggregate stats
+      description: |
+        Aggregate counts and averages from the ad_reviewer_log table.
+        Returns zero counts when the reviewer has not run.
+      parameters:
+        - name: podcast_slug
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: episode_id
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Reviewer stats
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totalReviews:
+                    type: integer
+                  verdictCounts:
+                    type: object
+                    properties:
+                      confirmed: { type: integer }
+                      adjust: { type: integer }
+                      reject: { type: integer }
+                      resurrect: { type: integer }
+                      failure: { type: integer }
+                  pass1AdjustmentCount:
+                    type: integer
+                  pass2AdjustmentCount:
+                    type: integer
+                  avgBoundaryShiftSeconds:
+                    type: number
+                  resurrectionCount:
+                    type: integer
+                  failureCount:
+                    type: integer
 
   /patterns:
     get:
@@ -4014,6 +4062,49 @@ components:
               type: boolean
         verificationPrompt:
           type: object
+          properties:
+            value:
+              type: string
+            isDefault:
+              type: boolean
+        enableAdReview:
+          type: object
+          description: Opt-in LLM ad reviewer. Default false.
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
+        reviewModel:
+          type: object
+          description: |
+            Model used for the reviewer pass. Sentinel `same_as_pass` reuses
+            the corresponding pass model (claude_model for pass 1,
+            verification_model for pass 2). Otherwise a concrete model id.
+          properties:
+            value:
+              type: string
+            isDefault:
+              type: boolean
+        reviewMaxBoundaryShift:
+          type: object
+          description: Cap on boundary shift in seconds for adjust verdicts.
+          properties:
+            value:
+              type: integer
+            isDefault:
+              type: boolean
+        reviewPrompt:
+          type: object
+          description: System prompt for the confirm/adjust/reject reviewer.
+          properties:
+            value:
+              type: string
+            isDefault:
+              type: boolean
+        resurrectPrompt:
+          type: object
+          description: System prompt for the resurrect/reject reviewer over rejected ads.
           properties:
             value:
               type: string

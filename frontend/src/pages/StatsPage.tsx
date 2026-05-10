@@ -4,7 +4,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, Cell,
 } from 'recharts';
-import { getDashboardStats, getStatsByDay, getStatsByPodcast } from '../api/stats';
+import { getDashboardStats, getStatsByDay, getStatsByPodcast, getReviewerStats } from '../api/stats';
 import { getFeeds } from '../api/feeds';
 import { formatTokenCount } from './settings/settingsUtils';
 import LoadingSpinner from '../components/LoadingSpinner';
@@ -59,6 +59,15 @@ function SortTh({ field, label, align = 'right', className = '', sortField, sort
   );
 }
 
+function ReviewerStatCard({ label, value }: { label: string; value: number | string }) {
+  return (
+    <div className="bg-secondary/50 rounded-md p-3">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="text-lg font-semibold text-foreground">{value}</p>
+    </div>
+  );
+}
+
 function formatDuration(seconds: number): string {
   if (seconds < 60) return `${Math.round(seconds)}s`;
   if (seconds < 3600) return `${(seconds / 60).toFixed(1)}m`;
@@ -104,6 +113,15 @@ export default function StatsPage() {
   const { data: byDay, isLoading: dayLoading } = useQuery({
     queryKey: ['stats-by-day', podcastFilter],
     queryFn: () => getStatsByDay(podcastFilter || undefined),
+  });
+
+  // Defer until the dashboard query confirms there are reviews to summarize.
+  // Avoids a wasted round-trip on every Stats page mount when the reviewer
+  // (off by default) has never run.
+  const { data: reviewer } = useQuery({
+    queryKey: ['stats', 'reviewer', podcastFilter],
+    queryFn: () => getReviewerStats(podcastFilter || undefined),
+    enabled: !!dashboard,
   });
 
   const { data: byPodcast, isLoading: podLoading } = useQuery({
@@ -282,6 +300,31 @@ export default function StatsPage() {
           </div>
         )}
       </div>
+
+      {/* Ad Reviewer Stats. Renders whenever the query has loaded; all-zero
+          counts are the visible signal that the reviewer is configured but
+          has not yet run on any episode. */}
+      {reviewer && (
+        <div className="bg-card rounded-lg border border-border p-4 sm:p-6 mb-6">
+          <h2 className="text-lg font-semibold text-foreground mb-4">Ad Reviewer Stats</h2>
+          {reviewer.totalReviews === 0 && (
+            <p className="text-sm text-muted-foreground mb-4">
+              No reviews yet. Enable Ad Reviewer in Settings, Experiments section, and reprocess an episode to see stats here.
+            </p>
+          )}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+            <ReviewerStatCard label="Total reviews" value={reviewer.totalReviews} />
+            <ReviewerStatCard label="Confirmed" value={reviewer.verdictCounts.confirmed} />
+            <ReviewerStatCard label="Adjusted" value={reviewer.verdictCounts.adjust} />
+            <ReviewerStatCard label="Rejected" value={reviewer.verdictCounts.reject} />
+            <ReviewerStatCard label="Resurrected" value={reviewer.verdictCounts.resurrect} />
+            <ReviewerStatCard label="Failed" value={reviewer.verdictCounts.failure} />
+            <ReviewerStatCard label="Pass 1 adjusts" value={reviewer.pass1AdjustmentCount} />
+            <ReviewerStatCard label="Pass 2 adjusts" value={reviewer.pass2AdjustmentCount} />
+            <ReviewerStatCard label="Avg shift" value={`${reviewer.avgBoundaryShiftSeconds}s`} />
+          </div>
+        </div>
+      )}
 
       {/* Podcast Stats Table */}
       {/* Mobile Card Layout */}
