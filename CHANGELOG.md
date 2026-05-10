@@ -6,6 +6,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.6] - 2026-05-09
+
+### Changed
+
+- Reviewer "boundaries unchanged" tolerance dropped from 0.5s to 0.1s. The previous floor was hiding any sub-second corrections the LLM was proposing by rounding them to `confirmed`. With the tighter floor, genuine half-second boundary tweaks now surface as `adjust` verdicts in the audit log so the distribution is visible.
+- Added an INFO-level log line for every non-zero LLM-proposed boundary shift, including ones that round to `confirmed`. Format: `Reviewer @ A-Bs proposed delta start=+X.XXs end=+Y.YYs (rounded to confirmed | applied as adjust)`. Lets us see whether the LLM is consistently echoing original boundaries or proposing shifts that the floor was masking.
+
 ## [2.1.5] - 2026-05-09
 
 ### Fixed

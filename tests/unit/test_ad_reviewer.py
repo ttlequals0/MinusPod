@@ -88,6 +88,51 @@ def test_array_with_unchanged_boundaries_yields_confirmed():
     assert result.accepted_after_review[0]['end'] == 180.0
 
 
+def test_sub_tolerance_shift_rounds_to_confirmed():
+    """Shifts within +/-0.1s round to confirmed; original boundaries kept."""
+    reviewer = _build_reviewer({
+        'review_prompt': 'review',
+        'resurrect_prompt': 'resurrect',
+        'review_max_boundary_shift': '60',
+    })
+    reviewer._llm_client.messages_create.return_value = _resp(
+        '[{"start": 120.05, "end": 179.97, "confidence": 0.95}]'
+    )
+    ad = {'start': 120.0, 'end': 180.0, 'confidence': 0.9}
+    result = reviewer.review(
+        accepted_ads=[ad], resurrection_eligible=[],
+        segments=_mock_segments(), episode_meta=_mock_episode_meta(),
+        pass_num=1, pass_model='claude-test',
+    )
+    assert result.verdicts[0].verdict == 'confirmed'
+    out = result.accepted_after_review[0]
+    assert out['start'] == 120.0
+    assert out['end'] == 180.0
+
+
+def test_supra_tolerance_subsecond_shift_yields_adjust():
+    """0.5s shift previously rounded to confirmed; with the tighter 0.1s
+    floor it now lands as an adjust verdict."""
+    reviewer = _build_reviewer({
+        'review_prompt': 'review',
+        'resurrect_prompt': 'resurrect',
+        'review_max_boundary_shift': '60',
+    })
+    reviewer._llm_client.messages_create.return_value = _resp(
+        '[{"start": 119.5, "end": 180.5, "confidence": 0.9}]'
+    )
+    ad = {'start': 120.0, 'end': 180.0, 'confidence': 0.9}
+    result = reviewer.review(
+        accepted_ads=[ad], resurrection_eligible=[],
+        segments=_mock_segments(), episode_meta=_mock_episode_meta(),
+        pass_num=1, pass_model='claude-test',
+    )
+    assert result.verdicts[0].verdict == 'adjust'
+    out = result.accepted_after_review[0]
+    assert out['start'] == 119.5
+    assert out['end'] == 180.5
+
+
 def test_array_with_shifted_boundaries_yields_adjust():
     """One element back, start/end shifted within cap -> adjust, boundaries updated."""
     reviewer = _build_reviewer({

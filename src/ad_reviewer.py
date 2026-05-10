@@ -25,10 +25,12 @@ RESURRECT_BAND_WIDTH = 0.20
 # response cannot eat a whole detection budget.
 REVIEW_MAX_TOKENS = 1024
 
-# Tolerance for treating a returned ad as "boundaries unchanged". The LLM
-# may emit floats that differ from the input by less than half a second of
-# rounding noise; treat that as confirmed rather than adjust.
-_CONFIRMED_BOUNDARY_TOLERANCE_S = 0.5
+# Tolerance for treating a returned ad as "boundaries unchanged". Floats
+# that differ from the input by less than this are treated as confirmed
+# rather than adjust. Set tight (0.1s) so genuine sub-second corrections
+# from the LLM surface as adjust verdicts in the audit log; only true
+# rounding noise rounds away.
+_CONFIRMED_BOUNDARY_TOLERANCE_S = 0.1
 
 
 @dataclass
@@ -340,10 +342,22 @@ class AdReviewer:
             clamped_start, clamped_end = original_start, original_end
 
         # Verdict is derived from the boundary delta, not from the LLM.
+        delta_start = clamped_start - original_start
+        delta_end = clamped_end - original_end
         unchanged = (
-            abs(clamped_start - original_start) <= _CONFIRMED_BOUNDARY_TOLERANCE_S
-            and abs(clamped_end - original_end) <= _CONFIRMED_BOUNDARY_TOLERANCE_S
+            abs(delta_start) <= _CONFIRMED_BOUNDARY_TOLERANCE_S
+            and abs(delta_end) <= _CONFIRMED_BOUNDARY_TOLERANCE_S
         )
+        # Log every non-zero LLM-proposed shift, even when rounded to
+        # confirmed, so we can see the distribution of adjustments the model
+        # is making vs the tolerance floor.
+        if delta_start != 0 or delta_end != 0:
+            disposition = "rounded to confirmed" if unchanged else "applied as adjust"
+            logger.info(
+                f"[{slug}:{episode_id}] Reviewer @ {original_start:.1f}-"
+                f"{original_end:.1f}s proposed delta start={delta_start:+.2f}s "
+                f"end={delta_end:+.2f}s ({disposition})"
+            )
         if pool == "resurrection":
             verdict = "resurrect"
         elif unchanged:
