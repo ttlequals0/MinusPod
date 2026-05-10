@@ -137,6 +137,7 @@ def render(
     _render_episode_heatmap(active, episodes, assets_dir / "episodes.svg")
     _render_calibration_chart(extras.calibration, assets_dir / "calibration.svg")
     _render_latency_tail_chart(active, assets_dir / "latency_tail.svg")
+    _render_agreement_chart(extras.agreement, len(active), assets_dir / "agreement.svg")
 
 
 @dataclass
@@ -405,7 +406,14 @@ def _render_quick_comparison(stats: dict[str, ModelStats], episodes: list[Episod
     header += [f"{ep.ep_id} (no-ad)" for ep in no_ad_eps]
     header += ["F1 stdev"]
 
-    lines = ["## Quick Comparison", "", "| " + " | ".join(header) + " |", "|" + "|".join("---" for _ in header) + "|"]
+    lines = [
+        "## Quick Comparison",
+        "",
+        "One row per model, one column per episode. The headline columns (`F1`, `Cost/ep`, `p50`) summarize across all episodes; the per-episode columns let you see whether a model's average hides wide swings (a model that scores well overall might still bomb on a specific genre). The right-most `F1 stdev` column averages the per-trial standard deviations across episodes -- high values mean the model isn't deterministic at temperature 0.0, so its single-trial F1 number is noisy.",
+        "",
+        "| " + " | ".join(header) + " |",
+        "|" + "|".join("---" for _ in header) + "|",
+    ]
     for s in sorted(stats.values(), key=lambda s: _avg_f1(s), reverse=True):
         cells = [f"`{s.model}`", f"{_avg_f1(s):.3f}", f"${s.total_episode_cost:.4f}", f"{s.p50_call_latency_ms / 1000:.1f}s"]
         for ep in ad_eps:
@@ -487,6 +495,8 @@ def _render_failures(calls: list[dict]) -> str:
         "",
         "### By category",
         "",
+        "Errors classified into coarse buckets so failure patterns are visible at a glance. A model showing up here doesn't mean it's broken -- some categories are provider-side (content moderation, rate limits) and tell you more about routing reliability than model quality.",
+        "",
         "| Category | Calls | Affected models |",
         "|----------|------:|-----------------|",
     ]
@@ -494,12 +504,26 @@ def _render_failures(calls: list[dict]) -> str:
         affected = sorted({r["model"] for r in recs})
         lines.append(f"| {cat} | {len(recs)} | {', '.join(f'`{m}`' for m in affected)} |")
 
-    lines += ["", "### Per-model error count", "", "| Model | Errors | of total |", "|---|---:|---:|"]
+    lines += [
+        "",
+        "### Per-model error count",
+        "",
+        "Same errors grouped by model, with the failure rate as a fraction of that model's total calls. Rates under 1% are usually one-off provider hiccups; rates above 5% suggest the model isn't operationally viable for production with the current prompts and concurrency caps.",
+        "",
+        "| Model | Errors | of total |",
+        "|---|---:|---:|",
+    ]
     for m in sorted(by_model, key=lambda k: -by_model[k]):
         total = sum(1 for r in calls if r["model"] == m)
         lines.append(f"| `{m}` | {by_model[m]} | {by_model[m]}/{total} ({by_model[m] * 100.0 / total:.1f}%) |")
 
-    lines += ["", "### Sample messages (first 3 per category)", ""]
+    lines += [
+        "",
+        "### Sample messages (first 3 per category)",
+        "",
+        "First three raw error messages per category, so you can see what the provider actually returned without grepping calls.jsonl. Messages are truncated to ~240 characters; full text lives in `results/raw/calls.jsonl`.",
+        "",
+    ]
     for cat, recs in sorted(by_bucket.items(), key=lambda x: -len(x[1])):
         lines.append(f"**{cat}** ({len(recs)})")
         for r in recs[:3]:
@@ -540,12 +564,20 @@ def _render_charts_section() -> str:
         "![Confidence calibration per model](report_assets/calibration.svg)\n\n"
         "### Latency percentiles\n\n"
         "p50, p90, p99, and max per model on a log scale. The gap between p99 and max indicates how heavy the tail is. For OpenRouter-routed models, the tail also includes upstream provider load.\n\n"
-        "![Latency percentiles per model](report_assets/latency_tail.svg)\n"
+        "![Latency percentiles per model](report_assets/latency_tail.svg)\n\n"
+        "### Cross-model agreement\n\n"
+        "Histogram of how many models flagged at least one ad per (episode, window). The left side is windows nobody flagged (clear non-ad content), the right side is windows everyone flagged (clear sponsor reads). Bars in the middle are contested -- some models said yes, some said no -- and are candidates for ensemble voting or manual review.\n\n"
+        "![Cross-model agreement histogram](report_assets/agreement.svg)\n"
     )
 
 
 def _render_per_model_detail(stats: dict[str, ModelStats]) -> str:
-    lines = ["### Per-Model Detail", ""]
+    lines = [
+        "### Per-Model Detail",
+        "",
+        "Full per-model profile: F1 averaged across episodes, total cost per episode at current pricing, p50 / p95 latency, JSON compliance, parse-failure rate, and the distribution of extraction methods the parser had to use. The `Extraction methods` list shows how often each route was hit -- `json_array_direct` is the cleanest, the rest are recovery paths. Ordered by F1 descending so the best performers appear first.",
+        "",
+    ]
     for s in sorted(stats.values(), key=lambda s: _avg_f1(s), reverse=True):
         lines.append(f"#### `{s.model}`\n")
         lines.append(f"- F1 (avg across episodes): **{_avg_f1(s):.3f}**")
@@ -565,7 +597,12 @@ def _render_per_model_detail(stats: dict[str, ModelStats]) -> str:
 
 
 def _render_per_episode_detail(stats: dict[str, ModelStats], episodes: list[Episode]) -> str:
-    lines = ["### Per-Episode Detail", ""]
+    lines = [
+        "### Per-Episode Detail",
+        "",
+        "One subsection per episode in the corpus, showing how every model performed on that specific episode. For ad-bearing episodes you see F1 and the stdev across trials (low stdev means stable, high stdev means the model's number on this episode is noisy). For the no-ad episode you see PASS / FAIL on the negative control: PASS = zero false positives across all windows, FAIL = the model flagged something that wasn't an ad, with the count.",
+        "",
+    ]
     for ep in episodes:
         lines.append(f"#### `{ep.ep_id}` -- {ep.metadata.title}\n")
         lines.append(f"- Podcast: {ep.metadata.podcast_name}")
@@ -596,7 +633,12 @@ def _render_per_episode_detail(stats: dict[str, ModelStats], episodes: list[Epis
 
 
 def _render_parser_stress(stats: dict[str, ModelStats]) -> str:
-    lines = ["### Parser Stress Test", ""]
+    lines = [
+        "### Parser Stress Test",
+        "",
+        "How each model's responses were actually parsed. Columns are extraction methods, ordered alphabetically; rows are models, sorted by parse-failure rate (cleanest at top). `json_array_direct` is the happy path: a bare JSON array we could `json.loads` and process immediately. `markdown_code_block` means we had to strip triple-backtick fences first; `json_object_*` means the model wrapped the array in an outer object and we had to find the array key; `regex_*` are last-resort recovery paths. A model that needs anything but `json_array_direct` for most calls is fragile -- it works today but a small prompt change can break the parser.",
+        "",
+    ]
     methods = sorted({m for s in stats.values() for m in s.extraction_method_counts})
     if not methods:
         return "\n".join(lines + ["No data."])
@@ -621,6 +663,8 @@ def _render_deprecated(stats: dict[str, ModelStats]) -> str:
 def _render_methodology(cfg, episodes, *, pricing_snapshot: pricing.PricingSnapshot) -> str:
     lines = [
         "### Methodology",
+        "",
+        "Reproducibility settings used for this run. The benchmark sends the same prompts MinusPod sends in production (same system prompt, same sponsor list, same windowing) so the F1 numbers here are directly relevant to production accuracy decisions. Cost is recomputed at report time from token counts against the active pricing snapshot, so all rows compare at the same prices regardless of when the actual call ran.",
         "",
         f"- Trials per (model, episode): **{cfg.run.trials}**, temperature {cfg.run.temperature}",
         f"- max_tokens: 4096 (matches MinusPod production)",
@@ -996,6 +1040,8 @@ def _render_detection_buckets(
         lines += [
             "### By ad length",
             "",
+            "Truth ads bucketed by duration: short (<30s), medium (30-90s), long (>=90s). Cell values are detection rate (fraction of truth ads in that bucket the model caught), with the sample size `n` so a misleading 1.00 on a 2-ad bucket doesn't get over-weighted. Models that systematically miss short ads usually fail on network-inserted brand-tagline spots; missing long ads is rarer and usually means the model gave up before processing the full window.",
+            "",
             "| Model | " + " | ".join(length_labels) + " |",
             "|---|" + "|".join(["---:"] * len(length_labels)) + "|",
         ]
@@ -1015,6 +1061,8 @@ def _render_detection_buckets(
     if position_labels:
         lines += [
             "### By ad position",
+            "",
+            "Truth ads bucketed by where they fall in the episode: pre-roll (first 10%), mid-roll (10-90%), post-roll (last 10%). Cell values are the same detection-rate-with-`n` format as ad length. A common failure pattern in our data: most models detect pre-roll and mid-roll reliably and miss post-roll, because the prompt windows near the end often catch the model mid-reasoning or with fewer transition phrases to anchor on.",
             "",
             "| Model | " + " | ".join(position_labels) + " |",
             "|---|" + "|".join(["---:"] * len(position_labels)) + "|",
@@ -1153,6 +1201,56 @@ def _render_latency_tail_chart(stats: dict[str, ModelStats], path: Path) -> None
     ax.set_title("Latency percentiles per model", fontsize=11, fontweight="bold")
     ax.grid(True, axis="x", alpha=0.3, which="both")
     ax.legend(loc="lower right", fontsize=9)
+    fig.tight_layout()
+    fig.savefig(path, format="svg", bbox_inches="tight")
+    plt.close(fig)
+
+
+def _render_agreement_chart(
+    agreement: dict[tuple[str, int], dict[str, int]],
+    n_models: int,
+    path: Path,
+) -> None:
+    """Histogram of how many models flagged each (episode, window). Tall bars
+    at the extremes (0-of-N or N-of-N) mean the field broadly agrees on those
+    windows; bars in the middle are contested cases worth inspecting."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    if not agreement:
+        return
+    counts = np.zeros(n_models + 1, dtype=int)
+    for per_model in agreement.values():
+        n_voted = sum(1 for v in per_model.values() if v > 0)
+        counts[n_voted] += 1
+    total = counts.sum()
+    if total == 0:
+        return
+    xs = np.arange(n_models + 1)
+    # Color gradient: low agreement = red, mid = yellow, high = green
+    colors = ["#d62728" if i < n_models * 0.25 else "#f0a020" if i < n_models * 0.75 else "#2ca02c" for i in xs]
+
+    fig, ax = plt.subplots(figsize=(11, 5.5))
+    bars = ax.bar(xs, counts, color=colors, edgecolor="black", linewidth=0.4)
+    for bar, c in zip(bars, counts):
+        if c == 0:
+            continue
+        ax.text(bar.get_x() + bar.get_width() / 2, c + max(counts) * 0.01,
+                f"{c}\n({c * 100 / total:.0f}%)",
+                ha="center", va="bottom", fontsize=8)
+    ax.set_xlabel(f"Models predicting at least one ad (out of {n_models})", fontsize=10)
+    ax.set_ylabel("Window count", fontsize=10)
+    ax.set_title(
+        "Cross-model agreement per window\n"
+        "Left = nobody flags (clear non-ad), right = everyone agrees (clear ad), middle = contested",
+        fontsize=11, fontweight="bold",
+    )
+    ax.set_xticks(xs)
+    ax.set_xticklabels([str(i) for i in xs], fontsize=8)
+    ax.set_ylim(0, max(counts) * 1.15)
+    ax.grid(True, axis="y", alpha=0.3)
     fig.tight_layout()
     fig.savefig(path, format="svg", bbox_inches="tight")
     plt.close(fig)
