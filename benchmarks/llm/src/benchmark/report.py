@@ -66,9 +66,11 @@ def render(
     deprecated = {mid: s for mid, s in by_model.items() if mid in deprecated_ids}
 
     sections = [
-        _render_tldr(active, episodes),
-        _render_quick_comparison(active, episodes),
         _render_how_to_read(),
+        _render_tldr(active, episodes),
+        _render_charts_section(),
+        _render_failures(calls),
+        _render_quick_comparison(active, episodes),
         "---",
         "## Detailed Results",
         _render_per_model_detail(active),
@@ -87,6 +89,8 @@ def render(
 
     assets_dir.mkdir(parents=True, exist_ok=True)
     _render_pareto(active, assets_dir / "pareto.svg")
+    _render_compliance(active, assets_dir / "compliance.svg")
+    _render_episode_heatmap(active, episodes, assets_dir / "episodes.svg")
 
 
 def _aggregate(
@@ -228,7 +232,6 @@ def _render_tldr(stats: dict[str, ModelStats], episodes: list[Episode]) -> str:
             f"| {i} | `{s.model}` | {_avg_f1(s) / s.total_episode_cost:.2f} | "
             f"{_avg_f1(s):.3f} | ${s.total_episode_cost:.4f} |"
         )
-    lines += ["", "### Cost vs Accuracy", "", "![Pareto](report_assets/pareto.svg)", ""]
     return "\n".join(lines)
 
 
@@ -262,12 +265,114 @@ def _render_quick_comparison(stats: dict[str, ModelStats], episodes: list[Episod
 
 def _render_how_to_read() -> str:
     return (
-        "## How to Read This Report\n\n"
-        "- **F1**: harmonic mean of precision and recall, computed against ground-truth ad ranges using IoU >= 0.5.\n"
-        "- **IoU**: intersection-over-union on time ranges; >=0.5 means the predicted span overlaps the truth span by at least 50%.\n"
-        "- **JSON compliance**: 1.0 if the model returned a clean JSON array, decreasing for object wrappers, code-block fences, regex fallbacks, etc.\n"
-        "- **Cost**: recomputed from token counts against the current pricing snapshot, so all rows compare at consistent prices.\n"
-        "- **No-ad episode**: PASS if zero predictions across all windows; FAIL otherwise (with FP count).\n"
+        "## Metric Key\n\n"
+        "Quick reference for the columns in every table below.\n\n"
+        "| Metric | Range | Direction | What it means |\n"
+        "|--------|-------|-----------|---------------|\n"
+        "| **F1 (accuracy)** | 0 to 1 | higher is better | Combined score of precision and recall against the human-verified ground-truth ad spans. F1 = 0 means the model found nothing right; F1 = 1 means it found every ad with the correct boundaries. Uses IoU >= 0.5 (predicted span must overlap truth span by at least half) to count a match. |\n"
+        "| **Cost / episode** | USD | lower is better | Average dollars per episode at the current pricing snapshot. Recomputed from token counts so all rows compare at the same prices regardless of when the call ran. |\n"
+        "| **F1 / $** | ratio | higher is better | F1 divided by cost-per-episode. Cheap accurate models score highest. Free-tier models are rank-listed separately because the ratio is undefined. |\n"
+        "| **p50 / p95 latency** | seconds | lower is better, with caveats | Median (p50) and tail (p95) wall-clock response time. **Note**: for models routed through OpenRouter (everything except `claude-*`), this includes OpenRouter's queueing and upstream-provider latency, not just the model itself. Treat as a load/availability indicator, not a model-quality signal. |\n"
+        "| **JSON compliance** | 0 to 1 | higher is better | Fraction of responses that parsed as a clean JSON array matching the requested schema. 1.0 = always clean; lower = used object wrappers (`{ads: [...]}`), markdown fences, extra fields like `sponsor`, or required regex fallback to extract. |\n"
+        "| **No-ad episode** | PASS / FAIL | PASS desired | Negative-control test on `ep-ai-cloud-essentials` (which has no ads). PASS = zero predictions across all 15 windows. FAIL = the model false-positived on a non-ad segment, with the FP count shown. |\n"
+        "| **F1 stdev** | 0 to 1 | lower means more consistent | Standard deviation of F1 across the four ad-bearing episodes. High stdev = inconsistent across content types. |\n\n"
+        "### Glossary\n\n"
+        "- **IoU (intersection over union)**: how much two time ranges overlap, expressed as `(overlap) / (union)`. 0 means no overlap, 1 means identical ranges. We use IoU >= 0.5 as the threshold for a predicted ad to count as matching a truth ad.\n"
+        "- **Trial**: each (model, episode) pair runs 5 trials at temperature 0.0 to surface non-determinism. F1 numbers in tables are averaged across trials.\n"
+        "- **Window**: each episode is split into ~85-second sliding windows; the model judges each window independently. Per-window predictions are stitched together for episode-level scoring.\n"
+        "- **Schema violations**: number of times the response had at least one missing-required-field, wrong-type, or extra-key issue. Doesn't tank F1, but signals brittleness.\n"
+        "- **Extraction method**: the route the parser took to recover the ad list -- `json_array_direct` is the cleanest; method names with `regex_*` mean the JSON itself was malformed and we fell back to text matching.\n"
+    )
+
+
+def _render_failures(calls: list[dict]) -> str:
+    """Surface every error row, classified, since failures often signal real
+    production-relevant gotchas (provider content moderation, deprecated params,
+    rate-limit ceilings) that don't show up in the aggregated F1 / cost tables.
+    """
+    errors = [r for r in calls if r.get("error")]
+    if not errors:
+        return (
+            "## Failures and provider issues\n\n"
+            "No call errors observed across this run. Every (model, episode, trial, window) tuple returned a parseable response.\n"
+        )
+
+    # Classify each error message into a coarse bucket so the per-bucket call-out is meaningful.
+    def bucket(msg: str) -> str:
+        m = msg.lower()
+        if "data_inspection_failed" in m or "inappropriate content" in m: return "Provider content moderation rejection"
+        if "rate" in m and "limit" in m: return "Rate-limited"
+        if "timeout" in m: return "Timeout"
+        if "404" in m: return "Unknown model (404)"
+        if "temperature" in m and "deprecated" in m: return "Deprecated parameter (`temperature`)"
+        if "401" in m or "unauthor" in m: return "Auth failure"
+        if "5" in m[:5] and "00" in m[:8]: return "Server-side 5xx"
+        return "Other"
+
+    by_bucket: dict[str, list[dict]] = defaultdict(list)
+    by_model: dict[str, int] = defaultdict(int)
+    for r in errors:
+        err = r.get("error", {})
+        msg = (err.get("message") if isinstance(err, dict) else str(err)) or ""
+        by_bucket[bucket(msg)].append({**r, "_msg": msg})
+        by_model[r["model"]] += 1
+
+    lines = [
+        "## Failures and provider issues",
+        "",
+        f"**{len(errors)} call(s) failed out of {len(calls)} total ({len(errors) * 100.0 / len(calls):.2f}%).** "
+        "Failures are excluded from F1 / cost calculations, but they often surface real production-relevant gotchas worth knowing.",
+        "",
+        "### By category",
+        "",
+        "| Category | Calls | Affected models |",
+        "|----------|------:|-----------------|",
+    ]
+    for cat, recs in sorted(by_bucket.items(), key=lambda x: -len(x[1])):
+        affected = sorted({r["model"] for r in recs})
+        lines.append(f"| {cat} | {len(recs)} | {', '.join(f'`{m}`' for m in affected)} |")
+
+    lines += ["", "### Per-model error count", "", "| Model | Errors | of total |", "|---|---:|---:|"]
+    for m in sorted(by_model, key=lambda k: -by_model[k]):
+        total = sum(1 for r in calls if r["model"] == m)
+        lines.append(f"| `{m}` | {by_model[m]} | {by_model[m]}/{total} ({by_model[m] * 100.0 / total:.1f}%) |")
+
+    lines += ["", "### Sample messages (first 3 per category)", ""]
+    for cat, recs in sorted(by_bucket.items(), key=lambda x: -len(x[1])):
+        lines.append(f"**{cat}** ({len(recs)})")
+        for r in recs[:3]:
+            preview = r["_msg"].replace("\n", " ")
+            preview = preview[:240] + ("..." if len(preview) > 240 else "")
+            lines.append(f"- `{r['model']}` on `{r['episode_id']}` (trial {r.get('trial')}, window {r.get('window_index')}): {preview}")
+        if len(recs) > 3:
+            lines.append(f"- ... and {len(recs) - 3} more")
+        lines.append("")
+
+    lines += [
+        "### Why this section exists",
+        "",
+        "If you're picking a model for production, an aggregate compliance score doesn't tell you when the provider will simply refuse to answer. A few cases that have shown up here:",
+        "",
+        "- **Content moderation rejections** (Alibaba on Qwen, Google on Gemma, sometimes others): the provider's classifier blocks the prompt before the model runs. For ad detection on real podcast transcripts, this can happen on episodes with adult content, profanity, or politically sensitive topics. Rate is small but non-zero -- plan for it.",
+        "- **Deprecated parameters**: the Claude 4.x family rejects `temperature`. The benchmark memoizes this per-process and retries without, but it tells you which models you cannot pass legacy sampling controls to.",
+        "- **Rate limits**: tail-latency or 429s under load -- not a model-quality issue but determines whether a given provider is operationally viable for your throughput.",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def _render_charts_section() -> str:
+    return (
+        "## Charts\n\n"
+        "### Cost vs Accuracy (Pareto)\n\n"
+        "Each model is one numbered point. Lower-left = unhelpful (expensive, inaccurate). Upper-left = the sweet spot (accurate, cheap). The legend maps numbers back to model IDs.\n\n"
+        "![Cost vs F1 by model](report_assets/pareto.svg)\n\n"
+        "### JSON schema compliance\n\n"
+        "Fraction of each model's responses that parsed as a clean JSON array. 1.0 = perfect.\n\n"
+        "![JSON compliance per model](report_assets/compliance.svg)\n\n"
+        "### F1 by episode (heatmap)\n\n"
+        "F1 score for each (model, episode) pair. Greener = more accurate, redder = less. The no-ad episode is excluded (it doesn't have an F1 -- it's PASS/FAIL on the negative control).\n\n"
+        "![F1 score per model and episode](report_assets/episodes.svg)\n"
     )
 
 
@@ -383,22 +488,96 @@ def _avg_f1(stats: ModelStats) -> float:
 
 
 def _render_pareto(stats: dict[str, ModelStats], path: Path) -> None:
+    """Numbered scatter + legend so labels never overlap each other."""
     import matplotlib
-
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    fig, ax = plt.subplots(figsize=(8, 5))
-    for s in stats.values():
-        f1 = _avg_f1(s)
-        if f1 == 0 and s.total_episode_cost == 0:
-            continue
-        ax.scatter(s.total_episode_cost, f1, s=60)
-        ax.annotate(s.model, (s.total_episode_cost, f1), fontsize=8, alpha=0.7)
-    ax.set_xlabel("Cost per episode (USD)")
-    ax.set_ylabel("F1 @ IoU >= 0.5")
-    ax.set_title("Cost vs Accuracy")
-    ax.grid(alpha=0.3)
+    points = [(s, _avg_f1(s)) for s in stats.values()]
+    points = [(s, f1) for s, f1 in points if not (f1 == 0 and s.total_episode_cost == 0)]
+    points.sort(key=lambda t: (-t[1], t[0].total_episode_cost))  # rank by F1 desc, then cost asc
+
+    fig, ax = plt.subplots(figsize=(11, 6.5))
+    for i, (s, f1) in enumerate(points, 1):
+        x = s.total_episode_cost
+        y = f1
+        ax.scatter(x, y, s=140, edgecolors="black", linewidths=0.6, zorder=3)
+        ax.annotate(str(i), (x, y), ha="center", va="center", fontsize=8, fontweight="bold", zorder=4)
+    ax.set_xlabel("Cost per episode (USD) -- lower is better", fontsize=10)
+    ax.set_ylabel("F1 score (accuracy, 0-1) -- higher is better", fontsize=10)
+    ax.set_title("Cost vs F1 by model", fontsize=12, fontweight="bold")
+    ax.grid(True, alpha=0.3)
+
+    # Legend mapping numbers -> model IDs, sorted by rank
+    legend_lines = [f"{i}. {s.model}  (F1 {f1:.3f}, ${s.total_episode_cost:.4f})" for i, (s, f1) in enumerate(points, 1)]
+    legend_text = "\n".join(legend_lines)
+    fig.text(0.78, 0.5, legend_text, fontsize=8, family="monospace",
+             verticalalignment="center", bbox=dict(boxstyle="round,pad=0.5", facecolor="white", edgecolor="lightgray"))
+    fig.subplots_adjust(left=0.08, right=0.75, top=0.92, bottom=0.10)
+    fig.savefig(path, format="svg")
+    plt.close(fig)
+
+
+def _render_compliance(stats: dict[str, ModelStats], path: Path) -> None:
+    """Horizontal bar chart of JSON-array compliance, sorted descending."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    rows = sorted(stats.values(), key=lambda s: s.json_compliance_mean)
+    if not rows:
+        return
+    labels = [s.model for s in rows]
+    values = [s.json_compliance_mean for s in rows]
+    colors = ["#2ca02c" if v >= 0.95 else "#f0a020" if v >= 0.7 else "#d62728" for v in values]
+
+    fig, ax = plt.subplots(figsize=(10, max(4, 0.45 * len(rows))))
+    bars = ax.barh(labels, values, color=colors, edgecolor="black", linewidth=0.4)
+    ax.set_xlim(0, 1.05)
+    ax.set_xlabel("JSON schema compliance (0 to 1, higher is better)", fontsize=10)
+    ax.set_title("How often each model returned the requested JSON shape cleanly", fontsize=11, fontweight="bold")
+    ax.axvline(0.95, color="gray", linestyle=":", linewidth=0.8, alpha=0.7)
+    ax.grid(True, axis="x", alpha=0.3)
+    for bar, v in zip(bars, values):
+        ax.text(v + 0.01, bar.get_y() + bar.get_height() / 2, f"{v:.2f}",
+                va="center", fontsize=8)
+    fig.tight_layout()
+    fig.savefig(path, format="svg")
+    plt.close(fig)
+
+
+def _render_episode_heatmap(stats: dict[str, ModelStats], episodes: list[Episode], path: Path) -> None:
+    """Heatmap of F1 across (model, episode). Skips the no-ad episode."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    ad_episodes = [ep for ep in episodes if not ep.truth.is_no_ad_episode]
+    if not ad_episodes or not stats:
+        return
+    # Sort models by avg F1 desc so the best are at the top
+    models_sorted = sorted(stats.values(), key=lambda s: _avg_f1(s), reverse=True)
+
+    matrix = np.zeros((len(models_sorted), len(ad_episodes)))
+    for i, s in enumerate(models_sorted):
+        for j, ep in enumerate(ad_episodes):
+            matrix[i, j] = s.f1_per_episode.get(ep.ep_id, 0.0)
+
+    fig, ax = plt.subplots(figsize=(max(8, 1.5 * len(ad_episodes)), max(4, 0.4 * len(models_sorted))))
+    im = ax.imshow(matrix, cmap="RdYlGn", vmin=0, vmax=1, aspect="auto")
+    ax.set_xticks(range(len(ad_episodes)))
+    # Use podcast slug if title would be too long
+    ax.set_xticklabels([ep.metadata.podcast_slug for ep in ad_episodes], rotation=30, ha="right", fontsize=9)
+    ax.set_yticks(range(len(models_sorted)))
+    ax.set_yticklabels([s.model for s in models_sorted], fontsize=9)
+    for i in range(len(models_sorted)):
+        for j in range(len(ad_episodes)):
+            v = matrix[i, j]
+            ax.text(j, i, f"{v:.2f}", ha="center", va="center",
+                    fontsize=8, color="black" if v > 0.4 else "white")
+    ax.set_title("F1 score by model and episode (no-ad episode excluded)", fontsize=11, fontweight="bold")
+    fig.colorbar(im, ax=ax, label="F1 score (0 to 1)", shrink=0.6)
     fig.tight_layout()
     fig.savefig(path, format="svg")
     plt.close(fig)
