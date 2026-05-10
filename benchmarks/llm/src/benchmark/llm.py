@@ -16,6 +16,11 @@ from .config import ProviderConfig, secret
 
 logger = logging.getLogger(__name__)
 
+# Process-level memo of Anthropic models that have rejected `temperature` as
+# deprecated. Populated lazily on the first 400 per model so subsequent calls
+# skip the wasted round-trip. See _call_anthropic.
+_ANTHROPIC_TEMPERATURE_DEPRECATED: set[str] = set()
+
 
 @dataclass(frozen=True)
 class LLMResponse:
@@ -83,20 +88,45 @@ async def _call_anthropic(
     from anthropic import APIStatusError, APIConnectionError, APITimeoutError, RateLimitError
 
     client = AsyncAnthropic(api_key=secret(provider.api_key_env), timeout=timeout)
+    # Anthropic deprecated `temperature` for the Claude 4.x family; the API
+    # returns 400 "`temperature` is deprecated for this model.". We memoize
+    # per model so each affected model burns at most one wasted round-trip
+    # for the lifetime of the process; subsequent calls skip `temperature`
+    # upfront. Mirrors the response_format fallback in _call_openai_compatible
+    # but cached so a full sweep doesn't 400-then-200 every Anthropic call.
+    skip_temperature = model_id in _ANTHROPIC_TEMPERATURE_DEPRECATED
+    kwargs: dict[str, Any] = dict(
+        model=model_id,
+        max_tokens=max_tokens,
+        system=system_prompt,
+        messages=[{"role": "user", "content": user_prompt}],
+    )
+    if not skip_temperature:
+        kwargs["temperature"] = temperature
     try:
-        msg = await client.messages.create(
-            model=model_id,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            system=system_prompt,
-            messages=[{"role": "user", "content": user_prompt}],
-        )
+        msg = await client.messages.create(**kwargs)
     except (RateLimitError, APITimeoutError, APIConnectionError) as e:
         raise LLMTransientError(str(e)) from e
     except APIStatusError as e:
-        if 500 <= getattr(e, "status_code", 0) < 600:
-            raise LLMTransientError(str(e)) from e
-        raise LLMNonRetryableError(str(e)) from e
+        if (
+            getattr(e, "status_code", 0) == 400
+            and "temperature" in str(e).lower()
+            and "temperature" in kwargs
+        ):
+            _ANTHROPIC_TEMPERATURE_DEPRECATED.add(model_id)
+            kwargs.pop("temperature", None)
+            try:
+                msg = await client.messages.create(**kwargs)
+            except (RateLimitError, APITimeoutError, APIConnectionError) as e2:
+                raise LLMTransientError(str(e2)) from e2
+            except APIStatusError as e2:
+                if 500 <= getattr(e2, "status_code", 0) < 600:
+                    raise LLMTransientError(str(e2)) from e2
+                raise LLMNonRetryableError(str(e2)) from e2
+        else:
+            if 500 <= getattr(e, "status_code", 0) < 600:
+                raise LLMTransientError(str(e)) from e
+            raise LLMNonRetryableError(str(e)) from e
 
     text = "".join(block.text for block in msg.content if getattr(block, "type", None) == "text")
     return LLMResponse(
@@ -122,10 +152,22 @@ async def _call_openai_compatible(
     from openai import AsyncOpenAI
     from openai import APIConnectionError, APIStatusError, APITimeoutError, RateLimitError
 
+    # OpenRouter recommends HTTP-Referer + X-Title headers for app attribution.
+    # Routes calls to the project's free-tier allowance and shows up named in
+    # OpenRouter's dashboard. Detected by base_url so it doesn't fire on
+    # other openai_compatible providers.
+    default_headers: dict[str, str] | None = None
+    if provider.base_url and "openrouter.ai" in provider.base_url:
+        default_headers = {
+            "HTTP-Referer": "https://github.com/ttlequals0/MinusPod",
+            "X-Title": "MinusPod LLM Benchmark",
+        }
+
     client = AsyncOpenAI(
         api_key=secret(provider.api_key_env),
         base_url=provider.base_url,
         timeout=timeout,
+        default_headers=default_headers,
     )
     kwargs: dict[str, Any] = dict(
         model=model_id,
