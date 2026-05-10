@@ -488,7 +488,8 @@ def _avg_f1(stats: ModelStats) -> float:
 
 
 def _render_pareto(stats: dict[str, ModelStats], path: Path) -> None:
-    """Numbered scatter + legend so labels never overlap each other."""
+    """Distinct color per model, legend rendered as a real matplotlib legend
+    below the plot so each model's color sits next to its name."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -497,23 +498,40 @@ def _render_pareto(stats: dict[str, ModelStats], path: Path) -> None:
     points = [(s, f1) for s, f1 in points if not (f1 == 0 and s.total_episode_cost == 0)]
     points.sort(key=lambda t: (-t[1], t[0].total_episode_cost))  # rank by F1 desc, then cost asc
 
-    fig, ax = plt.subplots(figsize=(11, 6.5))
-    for i, (s, f1) in enumerate(points, 1):
-        x = s.total_episode_cost
-        y = f1
-        ax.scatter(x, y, s=140, edgecolors="black", linewidths=0.6, zorder=3)
-        ax.annotate(str(i), (x, y), ha="center", va="center", fontsize=8, fontweight="bold", zorder=4)
+    cmap = plt.get_cmap("tab20")
+    fig, ax = plt.subplots(figsize=(11, 9))
+    for i, (s, f1) in enumerate(points):
+        color = cmap(i % 20)
+        ax.scatter(
+            s.total_episode_cost, f1,
+            s=180, color=color,
+            edgecolors="black", linewidths=0.7, zorder=3,
+            label=f"{s.model}  (F1 {f1:.3f}, ${s.total_episode_cost:.4f}/ep)",
+        )
+
     ax.set_xlabel("Cost per episode (USD) -- lower is better", fontsize=10)
     ax.set_ylabel("F1 score (accuracy, 0-1) -- higher is better", fontsize=10)
     ax.set_title("Cost vs F1 by model", fontsize=12, fontweight="bold")
     ax.grid(True, alpha=0.3)
 
-    # Legend mapping numbers -> model IDs, sorted by rank
-    legend_lines = [f"{i}. {s.model}  (F1 {f1:.3f}, ${s.total_episode_cost:.4f})" for i, (s, f1) in enumerate(points, 1)]
-    legend_text = "\n".join(legend_lines)
-    fig.text(0.78, 0.5, legend_text, fontsize=8, family="monospace",
-             verticalalignment="center", bbox=dict(boxstyle="round,pad=0.5", facecolor="white", edgecolor="lightgray"))
-    fig.subplots_adjust(left=0.08, right=0.75, top=0.92, bottom=0.10)
+    ncol = 2 if len(points) > 6 else 1
+    legend = fig.legend(
+        loc="lower center",
+        bbox_to_anchor=(0.5, 0.02),
+        ncol=ncol,
+        fontsize=9,
+        frameon=True,
+        edgecolor="lightgray",
+        columnspacing=2.0,
+        handletextpad=0.7,
+        borderpad=0.8,
+    )
+    legend.get_frame().set_alpha(0.95)
+
+    # Reserve enough bottom space for the legend; 0.45 fits ~7-row 2-column legend
+    rows = (len(points) + ncol - 1) // ncol
+    bottom = min(0.55, 0.10 + 0.038 * rows)
+    fig.subplots_adjust(left=0.10, right=0.96, top=0.93, bottom=bottom)
     fig.savefig(path, format="svg")
     plt.close(fig)
 
