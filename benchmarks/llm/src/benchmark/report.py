@@ -520,8 +520,8 @@ def _render_charts_section() -> str:
         "### F1 by episode (heatmap)\n\n"
         "F1 score for each (model, episode) pair. Greener is more accurate, redder is less. The no-ad episode is excluded -- it has no F1 because it's a PASS/FAIL negative control.\n\n"
         "![F1 score per model and episode](report_assets/episodes.svg)\n\n"
-        "### Confidence calibration (reliability diagram)\n\n"
-        "Each line is one model. The x-axis is the model's self-reported confidence on its predictions (binned). The y-axis is the actual hit rate within that bin -- the fraction that turned out to be true positives at IoU >= 0.5. A model whose line tracks the diagonal is calibrated; lines below the diagonal are overconfident.\n\n"
+        "### Confidence calibration (heatmap)\n\n"
+        "One row per model, one column per self-reported confidence bin. Cell text is the actual hit rate at that bin plus the sample size; cell color is the calibration error (actual minus bin midpoint). Red cells mean the model claimed high confidence but was usually wrong; green is well-calibrated; blue is underconfident. Empty cells mean the model never produced a prediction in that bin. Models are sorted from most overconfident at the top to most underconfident at the bottom.\n\n"
         "![Confidence calibration per model](report_assets/calibration.svg)\n\n"
         "### Latency percentiles\n\n"
         "p50, p90, p99, and max per model on a log scale. The gap between p99 and max indicates how heavy the tail is. For OpenRouter-routed models, the tail also includes upstream provider load.\n\n"
@@ -998,45 +998,87 @@ def _render_calibration_chart(
     calibration: dict[str, list[tuple[float, bool]]],
     path: Path,
 ) -> None:
-    """Reliability diagram: x = self-reported confidence bin, y = actual hit rate.
-    Diagonal reference line means perfect calibration."""
+    """Calibration heatmap: one row per model, one column per confidence bin,
+    cell color = calibration error (actual hit rate minus bin midpoint), cell
+    text = actual hit rate plus sample size. Replaces the prior line-overlay
+    chart, which crowded near-identical points at the high-confidence end and
+    rendered the x-axis labels unreadable.
+
+    Diverging colormap centered on 0:
+      green  -> well-calibrated (actual close to expected)
+      red    -> overconfident   (actual << expected)
+      blue   -> underconfident  (actual >> expected)
+    """
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    import numpy as np
 
     bins = [(0.0, 0.7), (0.7, 0.9), (0.9, 0.95), (0.95, 0.99), (0.99, 1.001)]
-    bin_centers = [(lo + min(hi, 1.0)) / 2 for lo, hi in bins]
+    bin_labels = ["0.00-0.70", "0.70-0.90", "0.90-0.95", "0.95-0.99", "0.99+"]
+    bin_midpoints = [(lo + min(hi, 1.0)) / 2 for lo, hi in bins]
 
-    cmap = plt.get_cmap("tab20")
-    fig, ax = plt.subplots(figsize=(11, 7))
-    ax.plot([0, 1], [0, 1], "--", color="gray", alpha=0.5, label="perfect calibration")
-    plotted = 0
-    for i, model in enumerate(sorted(calibration)):
+    # Build the (model, bin) matrices: actual hit rate, sample count, calibration error.
+    model_rows = []
+    for model in sorted(calibration):
         pairs = calibration[model]
         if len(pairs) < 5:
             continue
-        xs, ys = [], []
-        for c, (lo, hi) in zip(bin_centers, bins):
+        row_actual = [float("nan")] * len(bins)
+        row_n = [0] * len(bins)
+        row_err = [float("nan")] * len(bins)
+        for j, (lo, hi) in enumerate(bins):
             ins = [t for conf, t in pairs if lo <= conf < hi]
             if not ins:
                 continue
-            xs.append(c)
-            ys.append(sum(ins) / len(ins))
-        if not xs:
-            continue
-        ax.plot(xs, ys, marker="o", color=cmap(plotted % 20), linewidth=1.4, markersize=6, label=model)
-        plotted += 1
-    ax.set_xlabel("Self-reported confidence (bin center)", fontsize=10)
-    ax.set_ylabel("Actual hit rate (fraction TP)", fontsize=10)
-    ax.set_title("Confidence calibration -- below diagonal means overconfident", fontsize=12, fontweight="bold")
-    ax.set_xlim(0, 1.02)
-    ax.set_ylim(-0.02, 1.02)
-    ax.grid(True, alpha=0.3)
-    ncol = 2 if plotted > 6 else 1
-    fig.legend(loc="lower center", bbox_to_anchor=(0.5, 0.02), ncol=ncol, fontsize=9, frameon=True, edgecolor="lightgray")
-    rows = (plotted + 1 + ncol - 1) // ncol
-    bottom = min(0.50, 0.10 + 0.04 * rows)
-    fig.subplots_adjust(left=0.10, right=0.96, top=0.93, bottom=bottom)
+            actual = sum(ins) / len(ins)
+            row_actual[j] = actual
+            row_n[j] = len(ins)
+            row_err[j] = actual - bin_midpoints[j]
+        # Sort key: largest dominant-bin sample size, used to put high-volume models near the top.
+        dominant_n = max(row_n) if row_n else 0
+        model_rows.append((model, row_actual, row_n, row_err, dominant_n))
+
+    if not model_rows:
+        return
+
+    # Sort by overall mean calibration error (negative -> overconfident at top)
+    def mean_err(r):
+        errs = [e for e in r[3] if not np.isnan(e)]
+        return sum(errs) / len(errs) if errs else 0
+    model_rows.sort(key=mean_err)
+
+    n_models = len(model_rows)
+    fig, ax = plt.subplots(figsize=(max(9, 1.6 * len(bins)), max(5, 0.40 * n_models)))
+    matrix = np.array([r[3] for r in model_rows], dtype=float)
+    masked = np.ma.masked_invalid(matrix)
+    im = ax.imshow(masked, cmap="RdYlGn", vmin=-0.6, vmax=0.6, aspect="auto")
+    cmap = im.get_cmap().copy()
+    cmap.set_bad(color="#eeeeee")
+    im.set_cmap(cmap)
+
+    ax.set_xticks(range(len(bin_labels)))
+    ax.set_xticklabels(bin_labels, fontsize=9)
+    ax.set_yticks(range(n_models))
+    ax.set_yticklabels([r[0] for r in model_rows], fontsize=9)
+    ax.set_xlabel("Self-reported confidence bin", fontsize=10)
+
+    # Annotate each cell: actual hit rate + (n=sample size). Blank cells (NaN) stay empty.
+    for i, (_, row_actual, row_n, row_err, _) in enumerate(model_rows):
+        for j in range(len(bins)):
+            if np.isnan(row_actual[j]):
+                continue
+            color = "black" if abs(row_err[j]) < 0.4 else "white"
+            ax.text(j, i, f"{row_actual[j]:.2f}\n(n={row_n[j]})",
+                    ha="center", va="center", fontsize=7, color=color)
+
+    ax.set_title(
+        "Confidence calibration: cell text shows actual hit rate at each self-reported confidence bin\n"
+        "Red = overconfident (claimed high, was wrong)   |   Green = well-calibrated   |   Blue = underconfident",
+        fontsize=10, fontweight="bold",
+    )
+    fig.colorbar(im, ax=ax, label="actual hit rate minus bin midpoint", shrink=0.7)
+    fig.tight_layout()
     fig.savefig(path, format="svg")
     plt.close(fig)
 
