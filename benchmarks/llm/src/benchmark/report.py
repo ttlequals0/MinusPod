@@ -142,6 +142,20 @@ def render(
     _render_precision_recall_chart(active, assets_dir / "precision_recall.svg")
     _render_boundary_chart(active, assets_dir / "boundary.svg")
     _render_token_efficiency_chart(active, assets_dir / "token_efficiency.svg")
+    _render_trial_variance_chart(active, assets_dir / "trial_variance.svg")
+    _render_detection_bucket_chart(
+        extras.detection_buckets, "length",
+        ["short (<30s)", "medium (30-90s)", "long (>=90s)"],
+        "Detection rate by ad length (rows sorted by overall detection rate, descending)",
+        assets_dir / "detection_by_length.svg",
+    )
+    _render_detection_bucket_chart(
+        extras.detection_buckets, "position",
+        ["pre-roll (<10%)", "mid-roll (10-90%)", "post-roll (>90%)"],
+        "Detection rate by ad position (rows sorted by overall detection rate, descending)",
+        assets_dir / "detection_by_position.svg",
+    )
+    _render_parser_stress_chart(active, assets_dir / "parser_stress.svg")
 
 
 @dataclass
@@ -583,7 +597,19 @@ def _render_charts_section() -> str:
         "![Boundary MAE per model](report_assets/boundary.svg)\n\n"
         "### Token efficiency vs F1\n\n"
         "Scatter of output tokens per detected ad (x, log scale) vs F1 (y). Upper-left is the efficient zone: high accuracy with few output tokens. Right-side points are reasoning-heavy models that emit chain-of-thought alongside their JSON. The chart answers whether the extra tokens buy more F1 or just burn output budget -- a model that lands far right at modest F1 is paying for reasoning that didn't help.\n\n"
-        "![Token efficiency vs F1](report_assets/token_efficiency.svg)\n"
+        "![Token efficiency vs F1](report_assets/token_efficiency.svg)\n\n"
+        "### Trial variance (determinism check)\n\n"
+        "Horizontal bars of mean F1 stdev across episodes per model. All trials run at temperature 0.0 so well-behaved models cluster near zero. Bars are color-graded: green below 0.02 (effectively deterministic), yellow 0.02-0.05 (slight noise), red above 0.05 (single-trial F1 numbers from this model should be treated with suspicion). Dotted reference lines mark the 0.02 and 0.05 thresholds.\n\n"
+        "![Trial F1 variance per model](report_assets/trial_variance.svg)\n\n"
+        "### Detection rate by ad length\n\n"
+        "Heatmap of model (row) vs ad-length bucket (column), cell = detection rate with sample size. Greener = caught more ads in that bucket; redder = missed more. Models are sorted by overall detection rate so the strongest are at the top. Empty (gray) cells mean that bucket had no truth ads for the corresponding model's trials.\n\n"
+        "![Detection rate by ad length](report_assets/detection_by_length.svg)\n\n"
+        "### Detection rate by ad position\n\n"
+        "Same shape as the ad-length heatmap, but columns are episode position (pre-roll / mid-roll / post-roll). A common pattern: pre-roll is easy because of clear show-intro transitions; post-roll is harder because models near the end of long episodes often produce shorter responses or run out of context to anchor on.\n\n"
+        "![Detection rate by ad position](report_assets/detection_by_position.svg)\n\n"
+        "### Parser stress (extraction-method usage)\n\n"
+        "Heatmap of model (row) vs extraction-method (column), cell = number of responses parsed via that method. Columns are ordered by total usage. `json_array_direct` is the clean path; everything else is a recovery path the parser had to take because the model added markdown fences, wrapped the array in an object, or returned malformed JSON. Models near the top of the chart use the clean path most often -- they are operationally easier to consume.\n\n"
+        "![Parser stress heatmap](report_assets/parser_stress.svg)\n"
     )
 
 
@@ -1509,6 +1535,147 @@ def _render_token_efficiency_chart(stats: dict[str, ModelStats], path: Path) -> 
     rows = (len(points) + ncol - 1) // ncol
     bottom = min(0.55, 0.10 + 0.035 * rows)
     fig.subplots_adjust(left=0.10, right=0.96, top=0.92, bottom=bottom)
+    fig.savefig(path, format="svg", bbox_inches="tight")
+    plt.close(fig)
+
+
+def _render_trial_variance_chart(stats: dict[str, ModelStats], path: Path) -> None:
+    """Horizontal bars of mean F1 stdev across episodes per model. Color
+    threshold at 0.05: below = stable at temp=0, above = wobbly."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    rows = [(s, statistics.fmean(s.f1_stdev_per_episode.values()))
+            for s in stats.values() if s.f1_stdev_per_episode]
+    if not rows:
+        return
+    rows.sort(key=lambda t: t[1])
+    labels = [r[0].model for r in rows]
+    values = [r[1] for r in rows]
+    colors = ["#2ca02c" if v < 0.02 else "#f0a020" if v < 0.05 else "#d62728" for v in values]
+
+    fig, ax = plt.subplots(figsize=(11, max(5, 0.40 * len(rows))))
+    bars = ax.barh(labels, values, color=colors, edgecolor="black", linewidth=0.4)
+    for bar, v in zip(bars, values):
+        ax.text(v + max(values) * 0.01, bar.get_y() + bar.get_height() / 2,
+                f"{v:.4f}", va="center", fontsize=8)
+    ax.axvline(0.02, color="gray", linestyle=":", linewidth=0.8, alpha=0.7)
+    ax.axvline(0.05, color="gray", linestyle=":", linewidth=0.8, alpha=0.7)
+    ax.set_xlabel("Mean F1 stdev across episodes (lower is more deterministic at temp=0)", fontsize=10)
+    ax.set_title("Trial-to-trial F1 variance per model", fontsize=11, fontweight="bold")
+    ax.grid(True, axis="x", alpha=0.3)
+    fig.tight_layout()
+    fig.savefig(path, format="svg", bbox_inches="tight")
+    plt.close(fig)
+
+
+def _render_detection_bucket_chart(
+    detection_buckets: dict[str, dict[str, dict[str, list[bool]]]],
+    bucket_kind: str,
+    bucket_order: list[str],
+    title: str,
+    path: Path,
+) -> None:
+    """Heatmap of detection rate per (model, bucket) for a given bucket kind
+    ('length' or 'position'). Cell text shows rate + sample size."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    if not detection_buckets:
+        return
+    # Sort models by overall detection rate (sum of hits / total) for that bucket kind, desc
+    def overall_rate(model):
+        all_hits = []
+        for label in bucket_order:
+            all_hits.extend(detection_buckets[model].get(bucket_kind, {}).get(label, []))
+        return sum(all_hits) / len(all_hits) if all_hits else 0
+    models_sorted = sorted(detection_buckets, key=overall_rate, reverse=True)
+    if not models_sorted:
+        return
+
+    matrix = np.full((len(models_sorted), len(bucket_order)), np.nan)
+    sizes = [[0] * len(bucket_order) for _ in models_sorted]
+    for i, model in enumerate(models_sorted):
+        buckets = detection_buckets[model].get(bucket_kind, {})
+        for j, label in enumerate(bucket_order):
+            hits = buckets.get(label, [])
+            if hits:
+                matrix[i, j] = sum(hits) / len(hits)
+                sizes[i][j] = len(hits)
+
+    fig, ax = plt.subplots(figsize=(max(7, 1.7 * len(bucket_order)), max(5, 0.40 * len(models_sorted))))
+    masked = np.ma.masked_invalid(matrix)
+    im = ax.imshow(masked, cmap="RdYlGn", vmin=0, vmax=1, aspect="auto")
+    cmap = im.get_cmap().copy(); cmap.set_bad(color="#eeeeee"); im.set_cmap(cmap)
+    ax.set_xticks(range(len(bucket_order)))
+    ax.set_xticklabels(bucket_order, rotation=20, ha="right", fontsize=9)
+    ax.set_yticks(range(len(models_sorted)))
+    ax.set_yticklabels(models_sorted, fontsize=9)
+    for i in range(len(models_sorted)):
+        for j in range(len(bucket_order)):
+            v = matrix[i, j]
+            if np.isnan(v):
+                continue
+            color = "black" if 0.3 < v < 0.7 else "white"
+            ax.text(j, i, f"{v:.2f}\n(n={sizes[i][j]})", ha="center", va="center",
+                    fontsize=7, color=color)
+    ax.set_title(title, fontsize=11, fontweight="bold")
+    fig.colorbar(im, ax=ax, label="detection rate", shrink=0.7)
+    fig.tight_layout()
+    fig.savefig(path, format="svg", bbox_inches="tight")
+    plt.close(fig)
+
+
+def _render_parser_stress_chart(stats: dict[str, ModelStats], path: Path) -> None:
+    """Heatmap of extraction-method usage per model. Rows = models, columns =
+    methods sorted by total usage (most common first), cell = call count."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    methods_global: dict[str, int] = {}
+    for s in stats.values():
+        for m, n in s.extraction_method_counts.items():
+            methods_global[m] = methods_global.get(m, 0) + n
+    methods = sorted(methods_global, key=lambda m: -methods_global[m])
+    if not methods:
+        return
+    models_sorted = sorted(
+        stats.values(),
+        key=lambda s: -(s.extraction_method_counts.get("json_array_direct", 0)
+                        / max(sum(s.extraction_method_counts.values()), 1)),
+    )
+
+    matrix = np.zeros((len(models_sorted), len(methods)), dtype=int)
+    for i, s in enumerate(models_sorted):
+        for j, m in enumerate(methods):
+            matrix[i, j] = s.extraction_method_counts.get(m, 0)
+
+    fig, ax = plt.subplots(figsize=(max(10, 1.4 * len(methods)), max(5, 0.40 * len(models_sorted))))
+    im = ax.imshow(matrix, cmap="YlOrRd", aspect="auto")
+    ax.set_xticks(range(len(methods)))
+    ax.set_xticklabels(methods, rotation=25, ha="right", fontsize=8)
+    ax.set_yticks(range(len(models_sorted)))
+    ax.set_yticklabels([s.model for s in models_sorted], fontsize=9)
+    max_v = matrix.max() if matrix.size else 1
+    for i in range(len(models_sorted)):
+        for j in range(len(methods)):
+            v = matrix[i, j]
+            if v == 0:
+                continue
+            color = "white" if v > max_v * 0.6 else "black"
+            ax.text(j, i, str(v), ha="center", va="center", fontsize=7, color=color)
+    ax.set_title(
+        "Extraction-method usage per model (cell = call count)\n"
+        "Models at top use the clean json_array_direct path most often",
+        fontsize=11, fontweight="bold",
+    )
+    fig.colorbar(im, ax=ax, label="call count", shrink=0.7)
+    fig.tight_layout()
     fig.savefig(path, format="svg", bbox_inches="tight")
     plt.close(fig)
 
