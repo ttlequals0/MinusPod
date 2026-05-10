@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 223.7,
+      "end": 226.2,
+      "confidence": 0.95,
+      "reason": "Blinds.com sponsor read",
+      "end_text": "right window treatments change everything. Your sleep, your privacy, the way every room looks and feels. At Blinds.com bacterial we've spent 30 years making it surprisingly simple to get exactly what your home needs. We've covered over 25 million windows এবং have 50 million five-star reviews to prove we deliver. Whether you DIY it or want a pro to handle everything from measure to install, we have you covered. Real design professionals and free samples with zero pressure. Right now get up to 45% off site-wide plus get a free professional measure at Blinds.com."
+    }
+  ]
+}

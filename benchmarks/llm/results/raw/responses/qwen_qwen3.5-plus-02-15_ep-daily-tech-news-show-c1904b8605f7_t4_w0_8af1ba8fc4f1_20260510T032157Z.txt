@@ -1,0 +1,1 @@
+[{"start": 0.0, "end": 152.9, "confidence": 0.98, "reason": "Pre-roll sponsor block (Capital One, Xero, Spectrum, Warby Parker)", "end_text": "That's warbyparker.com."}]

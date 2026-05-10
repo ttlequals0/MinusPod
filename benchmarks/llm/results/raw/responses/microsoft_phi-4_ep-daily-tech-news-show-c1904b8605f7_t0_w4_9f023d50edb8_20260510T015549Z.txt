@@ -1,0 +1,7 @@
+{
+  "start": 16.74,
+  "end": 18.84,
+  "confidence": 0.95,
+  "reason": "The ad starts with Jason Howell discussing the DTNS episode and continues with the introduction of the sponsor, Capital One, and their technology.",
+  "end_text": "I'm sorry. It's okay. It says hundreds, not thousands. My bad. Whoop announced plans to launch in-app video visits with licensed clinicians in the U.S. integrate health records, and Layer AI-driven health guidance on top of biometric data from its fitness wearable."
+}

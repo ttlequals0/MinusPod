@@ -1,0 +1,9 @@
+[
+  {
+    "start": 6016.6,
+    "end": 6162.3,
+    "confidence": 0.98,
+    "reason": "Hawks Hunt sponsor read",
+    "end_text": "hawkshunt.com security now"
+  }
+]

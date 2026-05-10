@@ -1,0 +1,11 @@
+{
+"ad_segments": [
+    {
+      "start": 21.0,
+      "end": 31.0,
+      "confidence": 0.0,
+      "reason": "no ads detected in this window",
+      "end_text": ""
+    }
+  ]
+}

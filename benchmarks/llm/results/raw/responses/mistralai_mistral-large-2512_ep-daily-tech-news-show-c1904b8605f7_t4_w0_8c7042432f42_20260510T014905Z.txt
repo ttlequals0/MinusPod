@@ -1,0 +1,37 @@
+[
+    {
+        "start": 0.0,
+        "end": 23.1,
+        "confidence": 0.99,
+        "reason": "Capital One host-read sponsor segment with product pitch, self-reflection, and layered reasoning language",
+        "end_text": "technology at Capital One."
+    },
+    {
+        "start": 23.6,
+        "end": 52.3,
+        "confidence": 0.98,
+        "reason": "Xero accounting platform sponsor read with promotional language, batch payments, and automated accounts payable pitch",
+        "end_text": "for your free trial."
+    },
+    {
+        "start": 52.5,
+        "end": 100.9,
+        "confidence": 0.97,
+        "reason": "Spectrum Business network-inserted ad with fiber-powered internet, three-year price guarantee, and bundling pitch",
+        "end_text": "focus on running your business."
+    },
+    {
+        "start": 124.0,
+        "end": 152.9,
+        "confidence": 0.98,
+        "reason": "Warby Parker host-read ad with prescription glasses, virtual try-on, eye exams, and vanity URL (warbyparker.com)",
+        "end_text": "warbyparker.com today."
+    },
+    {
+        "start": 0.0,
+        "end": 0.0,
+        "confidence": 0.0,
+        "reason": "Hosted on Acast platform notice in episode description (not in transcript window)",
+        "end_text": ""
+    }
+]

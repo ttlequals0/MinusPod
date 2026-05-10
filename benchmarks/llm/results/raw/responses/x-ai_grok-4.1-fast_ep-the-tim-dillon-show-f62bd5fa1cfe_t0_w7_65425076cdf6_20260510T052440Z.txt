@@ -1,0 +1,1 @@
+{"start":3079.6,"end":3270.1,"confidence":1.0,"reason":"Host-read sponsor segments for Morgan & Morgan (ForThePeople.com/TIM, Poundlaw), Stash (stash.com/mood), NeuroGum (NeuroGum.com code TIM) with promo URLs, codes, calls to action, 'paid advertisement' disclosure","end_text":"Neuro at CVS and Amazon"}

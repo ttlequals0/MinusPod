@@ -1,0 +1,41 @@
+[
+
+[
+  {
+    "start": 469.0,
+    "end": 516.0,
+    "confidence": 0.98,
+    "reason": "Zscaler sponsor read with promotional language",
+    "end_text": "phishing attacks."
+  },
+  {
+    "start": 516.6,
+    "end": 525.1,
+    "confidence": 0.95,
+    "reason": "Continuation of Zscaler sponsor read with testimonial",
+    "end_text": "security concerns."
+  },
+  {
+    "start": 525.7,
+    "end": 552.5,
+    "confidence": 0.97,
+    "reason": "Continuation of Zscaler sponsor read with testimonial",
+    "end_text": "LLM models, etc."
+  },
+  {
+    "start": 552.9,
+    "end": 572.1,
+    "confidence": 0.98,
+    "reason": "Zscaler sponsor read with call to action",
+    "end_text": "security. That's"
+  },
+  {
+    "start": 575.3,
+    "end": 594.4,
+    "confidence": 0.90,
+    "reason": "Transition to next ad segment with mention of Starlink",
+    "end_text": "Starlink."
+  }
+]
+
+]

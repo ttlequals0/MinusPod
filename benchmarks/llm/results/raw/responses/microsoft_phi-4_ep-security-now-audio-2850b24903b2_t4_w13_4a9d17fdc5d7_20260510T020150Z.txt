@@ -1,0 +1,6 @@
+[
+
+[{"start": 5977.2, "end": 6015.8, "confidence": 0.95, "reason": "Hawks Hunt sponsor read with promotional language", "end_text": "more often than not."},  
+{"start": 6045.5, "end": 6083.5, "confidence": 0.98, "reason": "Hawkshunt network-inserted ad with promotional content", "end_text": "the bad guys."}]
+
+]

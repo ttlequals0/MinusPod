@@ -1,0 +1,1 @@
+{"start": 417.2, "end": 572.1, "confidence": 0.99, "reason": "Zscaler host-read sponsor segment beginning with break transition and including promotional copy, testimonial, and CTA to zscaler.com/security", "end_text": "back to Steve and Security Now."}

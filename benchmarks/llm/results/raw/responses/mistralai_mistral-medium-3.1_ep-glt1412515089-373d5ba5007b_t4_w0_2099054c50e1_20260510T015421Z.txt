@@ -1,0 +1,1 @@
+[{"start": 0.0, "end": 10.0, "confidence": 0.95, "reason": "Platform-inserted pre-roll ad for Joe Rogan Podcast", "end_text": "Joe Rogan Podcast by night, all day"}, {"start": 539.2, "end": 600.0, "confidence": 0.98, "reason": "Movie and product sponsorships", "end_text": "sandals, sneakers,"}]

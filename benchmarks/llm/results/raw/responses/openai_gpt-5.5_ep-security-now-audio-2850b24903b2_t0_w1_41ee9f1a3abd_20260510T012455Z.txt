@@ -1,0 +1,1 @@
+{"start":417.2,"end":572.1,"confidence":0.99,"reason":"Zscaler sponsor read; transition into break followed by 'This episode of Security Now brought to you by Zscaler' and CTA 'Learn more at zscaler.com/security.'","end_text":"Security Now. Thank you, Leo."}

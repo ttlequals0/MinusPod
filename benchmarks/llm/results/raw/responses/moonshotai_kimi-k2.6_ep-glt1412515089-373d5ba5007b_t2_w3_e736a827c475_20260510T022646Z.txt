@@ -1,0 +1,1 @@
+ {"start": 1603.2, "end": 1626.2, "confidence": 0.3, "reason": "23-second content gap with no transcript; possible missing ad but zero promotional language detected", "end_text": "And so they run around"}

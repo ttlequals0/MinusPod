@@ -1,0 +1,1 @@
+{"start": 2510.5, "end": 2674.1, "confidence": 0.0, "reason": "no ad detected", "end_text": "work out"}

@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 5975.6,
+      "end": 6083.5,
+      "confidence": 0.98,
+      "reason": "Hoxhunt sponsor read with promotional language about phishing training",
+      "end_text": "just like the bad guys."
+    }
+  ]
+}

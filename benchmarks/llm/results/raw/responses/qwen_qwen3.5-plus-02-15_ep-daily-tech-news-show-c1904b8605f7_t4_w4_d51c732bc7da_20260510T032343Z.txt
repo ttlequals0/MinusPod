@@ -1,0 +1,16 @@
+[
+  {
+    "start": 1742.3,
+    "end": 1799.6,
+    "confidence": 0.98,
+    "reason": "Capital One sponsor read and Lemonada Media network promo",
+    "end_text": "six-part Thrive series."
+  },
+  {
+    "start": 2246.0,
+    "end": 2280.0,
+    "confidence": 0.98,
+    "reason": "Capital One sponsor read and Ted's Rethinking Podcast/Rinse cross-promo (continues in next)",
+    "end_text": "breakthrough is doing less?"
+  }
+]

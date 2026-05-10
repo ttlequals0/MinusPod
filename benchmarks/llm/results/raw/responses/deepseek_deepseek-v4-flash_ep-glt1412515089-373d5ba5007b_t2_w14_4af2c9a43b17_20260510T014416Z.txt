@@ -1,0 +1,1 @@
+{"start": 6368.2, "end": 6394.8, "confidence": 0.95, "reason": "Perplexity AI sponsor mention with promotional language", "end_text": "flexing on us, showing us how smart it is"}

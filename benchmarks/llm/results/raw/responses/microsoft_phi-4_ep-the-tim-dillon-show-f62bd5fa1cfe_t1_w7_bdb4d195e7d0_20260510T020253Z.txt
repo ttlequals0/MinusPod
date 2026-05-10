@@ -1,0 +1,7 @@
+{
+  "start": 29.16,
+  "end": 35.40,
+  "confidence": 0.95,
+  "reason": "Mint Mobile and Morgan & Morgan are mentioned as sponsors with promotional language and URLs, indicating a sponsored segment.",
+  "end_text": "You're dead. Say it. By the way, don't release the information to the public."
+}

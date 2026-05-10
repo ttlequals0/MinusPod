@@ -1,0 +1,18 @@
+{  
+  "ads": [  
+    {  
+      "start": 46.00,  
+      "end": 47.27,  
+      "confidence": 0.95,  
+      "reason": "Google introduces Claude Security, a new AI cybersecurity tool, with a focus on software vulnerability detection and autonomous exploitation capabilities.",  
+      "end_text": "Thank you for watching."  
+    },  
+    {  
+      "start": 47.70,  
+      "end": 47.97,  
+      "confidence": 0.90,  
+      "reason": "Claude Security's capabilities are highlighted, including integration into software tools and partnerships with cybersecurity firms.",  
+      "end_text": "We're entering a pivotal time for cybersecurity."  
+    }  
+  ]  
+}

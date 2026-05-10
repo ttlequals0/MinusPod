@@ -1,0 +1,5 @@
+[
+
+[1439.2, 1465.2, 0.98, "Mint Mobile sponsor read", "5G network"]
+
+]

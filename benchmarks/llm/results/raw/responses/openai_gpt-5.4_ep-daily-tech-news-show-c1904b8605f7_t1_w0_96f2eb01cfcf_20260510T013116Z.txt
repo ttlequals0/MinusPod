@@ -1,0 +1,1 @@
+{"start":0.0,"end":152.9,"confidence":0.99,"reason":"Cluster of network-inserted ads before show content: Capital One, Xero, Spectrum Business, and Warby Parker with promotional copy and calls to action","end_text":"That's warbyparker.com."}

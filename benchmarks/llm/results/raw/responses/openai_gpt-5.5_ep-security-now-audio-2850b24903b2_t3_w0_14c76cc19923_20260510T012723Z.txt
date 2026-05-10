@@ -1,0 +1,7 @@
+{
+  "start": 16.7,
+  "end": 84.9,
+  "confidence": 0.99,
+  "reason": "OutSystems pre-roll sponsor ad with product pitch and URL OutSystems.com/twit",
+  "end_text": "people you trust. This is Twit"
+}

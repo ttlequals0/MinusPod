@@ -1,0 +1,1 @@
+[{"start": 0.0, "end": 27.7, "confidence": 0.92, "reason": "Colgate brand tagline ad - network-inserted spot promoting Colgate and the Colgate Women's Games, with concentrated marketing language ('your smile is your strength', 'supported female athletes for over 50 years'). Tonally distinct from host content, voiced differently.", "end_text": "your smile is your strength"}]

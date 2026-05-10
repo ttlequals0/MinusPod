@@ -1,0 +1,1 @@
+[{"start": 3079.6, "end": 3270.1, "confidence": 0.98, "reason": "Morgan & Morgan, Stash, and NeuroGum sponsor reads merged (gaps < 15s)", "end_text": "find Neuro at CVS and Amazon"}]

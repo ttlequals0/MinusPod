@@ -1,0 +1,9 @@
+[
+  {
+    "start": 9739.8,
+    "end": 9839.9,
+    "confidence": 0.85,
+    "reason": "The guest promotes her own non-profit project, Applied Love Labs, and a specific service at the URL timemachine.love, providing a product pitch and call-to-action. This segment is a structured self-promotion rather than a casual mention. The ad appears to continue past the end of the window.",
+    "end_text": "unconditional love itself caused"
+  }
+]

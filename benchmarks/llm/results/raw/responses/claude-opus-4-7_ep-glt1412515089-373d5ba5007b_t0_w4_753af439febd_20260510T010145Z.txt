@@ -1,0 +1,1 @@
+[{"start": 2208.3, "end": 2237.2, "confidence": 0.98, "reason": "Blinds.com sponsor read inserted mid-conversation", "end_text": "restrictions apply"}]

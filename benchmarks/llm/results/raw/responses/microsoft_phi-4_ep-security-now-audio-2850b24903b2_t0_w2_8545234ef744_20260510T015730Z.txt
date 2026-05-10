@@ -1,0 +1,20 @@
+[
+
+[
+  {
+    "start": 1281.3,
+    "end": 1302.3,
+    "confidence": 0.95,
+    "reason": "Club TWiT ad with call to action for ad-free content",
+    "end_text": "audio feeds, a members-only Discord"
+  },
+  {
+    "start": 1281.3,
+    "end": 1440.0,
+    "confidence": 0.95,
+    "reason": "Sponsor segment with multiple product promotions",
+    "end_text": "securitynow365"
+  }
+]
+
+]

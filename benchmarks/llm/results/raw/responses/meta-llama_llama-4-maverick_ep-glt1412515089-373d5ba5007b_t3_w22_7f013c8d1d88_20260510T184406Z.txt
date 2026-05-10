@@ -1,0 +1,1 @@
+{"start": 9741.1, "end": 9840.0, "confidence": 0.9, "reason": "Sponsor read for Applied Love Labs with call to action to visit timemachine.love", "end_text": "unconditional love itself caused"}

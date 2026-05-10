@@ -1,0 +1,1 @@
+{"start": 4525.1, "end": 4528.1, "confidence": 0.19, "reason": "No ad detected; phrase is non-promotional show-style signoff without sponsor, brand, URL, or call to action", "end_text": "you next time"}

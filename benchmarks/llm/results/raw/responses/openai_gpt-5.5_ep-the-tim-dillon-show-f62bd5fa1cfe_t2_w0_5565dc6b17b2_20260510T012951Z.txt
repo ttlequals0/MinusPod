@@ -1,0 +1,1 @@
+{"start":0.0,"end":51.6,"confidence":0.96,"reason":"Colgate brand ad with promotional messaging about supported female athletes and tagline 'your smile is your strength'","end_text":"your smile is your strength"}

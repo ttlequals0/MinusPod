@@ -1,0 +1,3 @@
+```json
+[{"start": 4204.1, "end": 4396.1, "confidence": 0.97, "reason": "Bitwarden sponsor read with transition to break, host read ad covering password management, Agent Access SDK, and passkey login features", "end_text": "unlocking devices at the OS level"}]
+```

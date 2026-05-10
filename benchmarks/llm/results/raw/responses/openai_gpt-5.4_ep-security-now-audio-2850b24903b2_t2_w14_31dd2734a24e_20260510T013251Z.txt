@@ -1,0 +1,1 @@
+{"start": 6016.6, "end": 6162.3, "confidence": 0.99, "reason": "Host-read Hoxhunt sponsor segment introduced by break transition and containing promotional copy, sponsor name, benefits, social proof, and CTA URL hoxhunt.com/securitynow", "end_text": "that's hoxhunt.com security now"}

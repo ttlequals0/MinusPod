@@ -1,0 +1,9 @@
+[
+  {
+    "start": 7537.6,
+    "end": 7743.9,
+    "confidence": 0.98,
+    "reason": "Host-read ad for Trusted Tech. The ad appears to continue past the end of the provided transcript window.",
+    "end_text": "impressed. You will be too."
+  }
+]

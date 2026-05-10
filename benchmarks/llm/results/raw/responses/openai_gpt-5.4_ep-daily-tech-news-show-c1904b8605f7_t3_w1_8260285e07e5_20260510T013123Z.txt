@@ -1,0 +1,1 @@
+{"start": 821.4, "end": 1020.0, "confidence": 0.99, "reason": "Ad break with multiple inserted ads: Capital One tech team pitch, BetterHelp promo with URL, Amazon Health AI, Spectrum Business, and Rinse; starts with sponsor language and continues through end of window", "end_text": "It's time to be great."}

@@ -1,0 +1,1 @@
+{"start":5946.7,"end":6060.0,"confidence":0.99,"reason":"Hoxhunt sponsor read; includes break transition and promotional language ('This episode... brought to you by Hawks Hunt', product pitch for phishing training); continues in next window","end_text":"is this actually working well"}

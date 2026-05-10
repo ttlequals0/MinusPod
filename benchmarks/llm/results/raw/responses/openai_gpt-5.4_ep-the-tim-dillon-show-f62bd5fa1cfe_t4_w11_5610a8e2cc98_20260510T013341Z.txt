@@ -1,0 +1,1 @@
+{"start":4646.2,"end":4806.1,"confidence":0.99,"reason":"Series of network-inserted retail/brand ads: Colgate Women's Games, Skinny Pop, Viz eye drops, and Garnier/National Park Foundation; promotional tagline and call-to-action language throughout. Continues from previous/merged ad break.","end_text":"help support our national parks"}

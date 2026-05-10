@@ -1,0 +1,1 @@
+[{"start": 3079.6, "end": 3270.1, "confidence": 0.99, "reason": "Merged sponsor reads for Morgan & Morgan, Stash, and NeuroGum with URLs, promo codes, and paid advertisement disclaimer", "end_text": "CVS and Amazon."}]

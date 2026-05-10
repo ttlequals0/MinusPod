@@ -1,0 +1,37 @@
+[
+    {
+        "start": 1043.5,
+        "end": 1102.3,
+        "confidence": 0.99,
+        "reason": "Mint Mobile sponsor read with promotional URL and call to action",
+        "end_text": "mintmobile.com/TIMDILLON"
+    },
+    {
+        "start": 1102.3,
+        "end": 1145.8,
+        "confidence": 0.99,
+        "reason": "Aura Frames sponsor read with promotional URL and promo code",
+        "end_text": "on.auraframes.com/TIM"
+    },
+    {
+        "start": 1145.8,
+        "end": 1189.2,
+        "confidence": 0.99,
+        "reason": "Morgan & Morgan sponsor read with promotional URL and call to action",
+        "end_text": "forthepeople.com/TIM"
+    },
+    {
+        "start": 1189.2,
+        "end": 1225.6,
+        "confidence": 0.99,
+        "reason": "Stash sponsor read with promotional URL and call to action",
+        "end_text": "stash.com/mood"
+    },
+    {
+        "start": 1225.6,
+        "end": 1260.0,
+        "confidence": 0.99,
+        "reason": "Neuro Gum sponsor read with promotional URL and promo code",
+        "end_text": "neurogum.com"
+    }
+]

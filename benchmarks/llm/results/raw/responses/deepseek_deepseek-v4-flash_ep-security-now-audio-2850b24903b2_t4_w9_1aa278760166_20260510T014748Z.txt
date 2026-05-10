@@ -1,0 +1,18 @@
+{
+  "ads": [
+    {
+      "start": 4204.1,
+      "end": 4264.3,
+      "confidence": 0.95,
+      "reason": "Host-read break transition and show promotion (not a sponsor ad, but includes 'we'll have more Security Now right after this' which is a typical ad break transition; however, the content is self-promotional for the show itself, not a paid sponsor. Per rules, host mentioning their own show is not an ad. But the 'take a little break' and 'right after this' are ad break transitions. The actual sponsor read starts at 4265.2. So this segment is the transition to ad break, not the ad itself. I will not include it as an ad.",
+      "end_text": "Security Now right after this"
+    },
+    {
+      "start": 4265.2,
+      "end": 4396.1,
+      "confidence": 0.99,
+      "reason": "Bitwarden sponsor read with promotional language, product features, and call to action",
+      "end_text": "securely unlocking devices at the OS level"
+    }
+  ]
+}

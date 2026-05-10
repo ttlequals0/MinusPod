@@ -1,0 +1,1 @@
+[{"start": 0.0, "end": 152.9, "confidence": 0.98, "reason": "Multiple back-to-back ads: Capital One, Xero, Spectrum Business, Warby Parker", "end_text": "warbyparker.com"}]

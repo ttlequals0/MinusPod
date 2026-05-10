@@ -1,0 +1,37 @@
+[
+    {
+        "start": 2286.5,
+        "end": 2345.2,
+        "confidence": 0.99,
+        "reason": "Mint Mobile sponsor read with promo code and call to action. Transition phrase 'Let’s take a quick break' included.",
+        "end_text": "mintmobile.com/TIMDILLON"
+    },
+    {
+        "start": 2345.2,
+        "end": 2403.8,
+        "confidence": 0.99,
+        "reason": "Aura Frames sponsor read with exclusive discount and promo code 'TIM'.",
+        "end_text": "on.auraframes.com/TIM"
+    },
+    {
+        "start": 2403.8,
+        "end": 2462.1,
+        "confidence": 0.99,
+        "reason": "Morgan & Morgan sponsor read with vanity URL and call to action 'Dial POUND LAW'.",
+        "end_text": "forthepeople.com/TIM"
+    },
+    {
+        "start": 2462.1,
+        "end": 2520.7,
+        "confidence": 0.99,
+        "reason": "Stash sponsor read with vanity URL and call to action for market mood check.",
+        "end_text": "stash.com/mood"
+    },
+    {
+        "start": 2520.7,
+        "end": 2579.3,
+        "confidence": 0.99,
+        "reason": "Neuro Gum sponsor read with promo code 'TIM' and 20% discount call to action.",
+        "end_text": "neurogum.com"
+    }
+]

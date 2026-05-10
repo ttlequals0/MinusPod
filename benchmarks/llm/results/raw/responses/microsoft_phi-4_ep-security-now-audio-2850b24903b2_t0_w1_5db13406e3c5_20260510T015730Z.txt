@@ -1,0 +1,32 @@
+{
+  "ad_segments": [
+    {
+      "start": 417.2,
+      "end": 444.6,
+      "confidence": 0.95,
+      "reason": "Host-Read Sponsor Segment with transition phrase 'first break' and mention of Zscaler.",
+      "end_text": "Zscaler"
+    },
+    {
+      "start": 469.0,
+      "end": 487.8,
+      "confidence": 0.98,
+      "reason": "Host-Read Sponsor Segment with transition phrase 'good coverage' and mention of Zscaler's Zero Trust Plus AI.",
+      "end_text": "Zscaler"
+    },
+    {
+      "start": 516.6,
+      "end": 525.1,
+      "confidence": 0.97,
+      "reason": "Host-Read Sponsor Segment with transition phrase 'check out what Siva says' and mention of Zscaler.",
+      "end_text": "Zscaler"
+    },
+    {
+      "start": 552.9,
+      "end": 572.1,
+      "confidence": 0.96,
+      "reason": "Host-Read Sponsor Segment with transition phrase 'learn more' and mention of Zscaler.",
+      "end_text": "Zscaler"
+    }
+  ]
+}

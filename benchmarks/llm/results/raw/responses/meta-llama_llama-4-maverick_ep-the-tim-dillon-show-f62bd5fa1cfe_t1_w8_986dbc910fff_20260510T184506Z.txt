@@ -1,0 +1,1 @@
+{"start": 3360.3, "end": 3975.9, "confidence": 0.0, "reason": "No ads found in the given transcript window", "end_text": "I went on Meta. I went on Facebook. There was an article that there was no God. We're all created by aliens. So I guess this is literally the last thing I'll ever do."}

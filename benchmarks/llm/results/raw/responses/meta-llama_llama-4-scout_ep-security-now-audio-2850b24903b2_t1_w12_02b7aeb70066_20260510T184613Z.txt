@@ -1,0 +1,7 @@
+{ 
+  "start": 5296.0, 
+  "end": 5444.9, 
+  "confidence": 0.98, 
+  "reason": "ChatGPT Advanced Account Security promotional segment", 
+  "end_text": "become more commonplace"
+}

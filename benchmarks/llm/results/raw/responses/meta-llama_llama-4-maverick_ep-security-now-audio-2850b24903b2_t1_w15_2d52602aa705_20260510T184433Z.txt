@@ -1,0 +1,1 @@
+{"type": "function", "name": "analyze_transcript", "parameters": {"transcript": "Security Now episode SN 1077 transcript", "start_time": 6284.0, "end_time": 6907.2}}

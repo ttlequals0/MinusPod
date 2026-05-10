@@ -1,0 +1,23 @@
+[  
+  {  
+    "start": 0.0,  
+    "end": 52.3,  
+    "confidence": 0.98,  
+    "reason": "Capital One and Xero sponsor read with promotional language",  
+    "end_text": "your free trial. Conditions apply."
+  },  
+  {  
+    "start": 52.5,  
+    "end": 100.9,  
+    "confidence": 0.97,  
+    "reason": "Spectrum Business network-inserted ad with promotional language",  
+    "end_text": "with 100%"
+  },  
+  {  
+    "start": 124.0,  
+    "end": 152.9,  
+    "confidence": 0.95,  
+    "reason": "Warby Parker sponsor read with promotional language",  
+    "end_text": "warbyparker.com today."
+  }  
+]

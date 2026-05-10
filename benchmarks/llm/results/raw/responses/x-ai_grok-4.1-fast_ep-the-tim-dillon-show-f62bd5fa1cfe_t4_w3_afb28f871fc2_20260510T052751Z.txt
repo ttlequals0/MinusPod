@@ -1,0 +1,1 @@
+{"start":1439.2,"end":1665.9,"confidence":0.98,"reason":"Host-read Mint Mobile (mintmobile.com/TimDillon) and Aura Frames (AuraFrames.com promo code TIM) sponsors followed by Colgate and Skinny Pop network-inserted brand tagline ads","end_text":"perfectly salted. Skinny Pop"}

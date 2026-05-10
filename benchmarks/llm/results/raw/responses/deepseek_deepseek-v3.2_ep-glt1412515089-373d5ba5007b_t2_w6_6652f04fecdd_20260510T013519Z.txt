@@ -1,0 +1,1 @@
+{"start": 3120.9, "end": 3120.9, "confidence": 0.95, "reason": "Hosting platform post-roll ad for Perplexity with URL and podcastchoices.com", "end_text": "Visit podcastchoices.com/adchoices"}

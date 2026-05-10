@@ -1,0 +1,3 @@
+```json
+[{"start": 7607.7, "end": 7797.4, "confidence": 0.99, "reason": "Trusted Tech Microsoft 365 sponsor read with URL trustedtech.team/securitynow365 and promo details", "end_text": "trustedtech.team securitynow365"}]
+```

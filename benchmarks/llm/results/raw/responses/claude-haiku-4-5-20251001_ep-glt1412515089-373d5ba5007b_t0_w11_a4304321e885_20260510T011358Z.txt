@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 5220.0,
+    "end": 5220.0,
+    "confidence": 0.0,
+    "reason": "No ads detected in this transcript window. The content is entirely editorial discussion between the host and Julia Mossbridge about telepathy experiments and mind-reading phenomena. No sponsor reads, promotional language, URLs, promo codes, or calls to action are present.",
+    "end_text": "N/A"
+  }
+]
+```

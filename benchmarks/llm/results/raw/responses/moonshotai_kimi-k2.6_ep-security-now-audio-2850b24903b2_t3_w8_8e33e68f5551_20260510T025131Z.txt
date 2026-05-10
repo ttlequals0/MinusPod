@@ -1,0 +1,1 @@
+{"start": 3358.6, "end": 3376.2, "confidence": 0.95, "reason": "Platform-inserted post-roll or outro with 'Thank you for watching' - promotional insertion marking end of content", "end_text": "Thank you for watching."}

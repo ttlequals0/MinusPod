@@ -1,0 +1,9 @@
+[
+    {
+        "start": 8573.3,
+        "end": 8580.0,
+        "confidence": 0.95,
+        "reason": "Club TWiT cross-promotion (partial ad, continues in next window). Promotes 'Join Club TWiT for Ad-Free Podcasts' with a call to action and URL (twit.tv/clubtwit).",
+        "end_text": "opportunity."
+    }
+]

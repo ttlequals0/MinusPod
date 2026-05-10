@@ -1,0 +1,37 @@
+[
+    {
+        "start": 12600.0,
+        "end": 12660.0,
+        "confidence": 0.99,
+        "reason": "Zscaler sponsor read with call to action and vanity URL (zscaler.com/security)",
+        "end_text": "zscaler.com/securitynow"
+    },
+    {
+        "start": 12660.0,
+        "end": 12720.0,
+        "confidence": 0.99,
+        "reason": "Meter sponsor read with call to action and vanity URL (meter.com/securitynow)",
+        "end_text": "meter.com/securitynow"
+    },
+    {
+        "start": 12720.0,
+        "end": 12780.0,
+        "confidence": 0.99,
+        "reason": "Bitwarden sponsor read with call to action and vanity URL (bitwarden.com/twit)",
+        "end_text": "bitwarden.com/twit"
+    },
+    {
+        "start": 12780.0,
+        "end": 12840.0,
+        "confidence": 0.99,
+        "reason": "Hoxhunt sponsor read with call to action and vanity URL (hoxhunt.com/securitynow)",
+        "end_text": "hoxhunt.com/securitynow"
+    },
+    {
+        "start": 12840.0,
+        "end": 12900.0,
+        "confidence": 0.99,
+        "reason": "Trusted Tech Team sponsor read with call to action and vanity URL (trustedtech.team/securitynow365)",
+        "end_text": "trustedtech.team/securitynow365"
+    }
+]

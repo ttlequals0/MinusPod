@@ -1,0 +1,23 @@
+[
+  {
+    "start": 9075.4,
+    "end": 9130.0,
+    "confidence": 0.95,
+    "reason": "Host-read promotion for the co-host's product, Spinrite, with a direct call to action.",
+    "end_text": "get it now for sure"
+  },
+  {
+    "start": 9259.3,
+    "end": 9290.5,
+    "confidence": 0.9,
+    "reason": "Produced cross-promotion for another podcast, 'This Week in Tech', on the same network.",
+    "end_text": "the TWiT Network. Thank you."
+  },
+  {
+    "start": 9344.4,
+    "end": 9374.4,
+    "confidence": 1.0,
+    "reason": "Pre-recorded ad for Mint Mobile with a vanity URL.",
+    "end_text": "at mintmobile.com."
+  }
+]

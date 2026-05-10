@@ -1,0 +1,16 @@
+[
+    {
+        "start": 7916.6,
+        "end": 7937.1,
+        "confidence": 0.99,
+        "reason": "Platform-inserted ad for Perplexity AI, including promotional URL and call to action (pre-roll or mid-roll ad placement).",
+        "end_text": "pplx.ai/rogan."
+    },
+    {
+        "start": 7937.1,
+        "end": 7963.4,
+        "confidence": 0.98,
+        "reason": "Platform-inserted ad for ad choices, including promotional URL (podcastchoices.com/adchoices) and call to action.",
+        "end_text": "podcastchoices.com/adchoices"
+    }
+]

@@ -1,0 +1,6 @@
+[{{"start": 4178.2, "end": 4203.3, "confidence": 0.0, "reason": "not an ad", "end_text": "non-speakers or spellers"}}, 
+{"start": 4203.9, "end": 4227.9, "confidence": 0.0, "reason": "not an ad", "end_text": "not very interesting"}]
+
+However, since the provided transcript does not contain any clear advertisement segments, the correct output should be:
+
+[]

@@ -1,0 +1,1 @@
+{"start":2532.3,"end":2693.0,"confidence":0.98,"reason":"Meter host-read sponsor with transition 'break time', product pitch, testimonial, URL meter.com/securitynow, call to action 'book a demo'","end_text":"security now book a demo"}

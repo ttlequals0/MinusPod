@@ -1,0 +1,53 @@
+{  
+  "ads": [  
+    {  
+      "start": 50.37,  
+      "end": 50.62,  
+      "confidence": 0.95,  
+      "reason": "Host mentions the benefit of running a security audit on repositories, indicating a promotional segment for security services.",  
+      "end_text": "periodically, the code base is given a scan and check to see if anything significant has been found."  
+    },  
+    {  
+      "start": 50.63,  
+      "end": 50.71,  
+      "confidence": 0.90,  
+      "reason": "Host discusses the future availability of Mythos security features, suggesting a promotional segment.",  
+      "end_text": "I think from what they've said, what this adds is the ability to schedule scans."  
+    },  
+    {  
+      "start": 50.73,  
+      "end": 51.06,  
+      "confidence": 0.85,  
+      "reason": "Host discusses the introduction of advanced account security by OpenAI, indicating a promotional segment.",  
+      "end_text": "Once enrolled, advanced account security protects users in Codex as well."  
+    },  
+    {  
+      "start": 51.02,  
+      "end": 51.23,  
+      "confidence": 0.90,  
+      "reason": "Host explains the increased responsibility for account recovery with advanced account security, indicating a promotional segment.",  
+      "end_text": "Backup pass keys, security keys, and recovery keys."  
+    },  
+    {  
+      "start": 51.19,  
+      "end": 51.25,  
+      "confidence": 0.85,  
+      "reason": "Host discusses the heightened security measures and the responsibility for account recovery, indicating a promotional segment.",  
+      "end_text": "Automatic training exclusion is enabled."  
+    },  
+    {  
+      "start": 51.36,  
+      "end": 51.48,  
+      "confidence": 0.80,  
+      "reason": "Host mentions the partnership with Yubico for enhanced security keys, indicating a promotional segment.",  
+      "end_text": "The Yubikey C Nano is designed to stay in your laptop."  
+    },  
+    {  
+      "start": 51.56,  
+      "end": 51.80,  
+      "confidence": 0.75,  
+      "reason": "Host discusses the availability of Yubikey C Nano and its features, indicating a promotional segment.",  
+      "end_text": "Users will also be able to use other FIDO-compliant security keys."  
+    }  
+  ]  
+}

@@ -1,0 +1,1 @@
+[{"start": 3079.6, "end": 3120.0, "confidence": 0.98, "reason": "Morgan & Morgan sponsor read", "end_text": "ForThePeople.com slash Tim, dial Poundlaw"} ]

@@ -1,0 +1,1 @@
+{"start":1742.3,"end":1799.6,"confidence":0.99,"reason":"Capital One sponsor read followed by Lemonada Media cross-promo; promotional language includes 'This episode is brought to you by Capital One,' product/technology pitch, and 'Tune in to Good Things from Lemonada Media.'","end_text":"the six-part Thrive series"}

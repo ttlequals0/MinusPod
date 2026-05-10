@@ -1,0 +1,1 @@
+{"start":2246.0,"end":2314.4,"confidence":0.99,"reason":"Capital One sponsor ad followed by Rinse promotional ad; merged due to <15s gap","end_text":"It's time to be great."}

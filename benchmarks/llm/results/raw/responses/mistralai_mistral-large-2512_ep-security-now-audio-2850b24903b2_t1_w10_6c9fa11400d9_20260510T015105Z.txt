@@ -1,0 +1,16 @@
+[
+    {
+        "start": 4230.9,
+        "end": 4465.7,
+        "confidence": 0.99,
+        "reason": "Bitwarden sponsor read with promotional language, URLs, and calls to action (e.g., 'bitwarden.com/twit', 'open-source development toolkit', 'passkey login for Windows 11'). Includes transition phrase 'This episode of Security Now is brought to you by Bitwarden'.",
+        "end_text": "GRC.com or our site, twit.tv slash SN."
+    },
+    {
+        "start": 4797.9,
+        "end": 4800.0,
+        "confidence": 0.95,
+        "reason": "Partial Anthropic Claude Security ad with promotional URL ('claude.ai/slash/security') and call to action ('start a scan'). Ad continues in next window.",
+        "end_text": "or at claude.ai slash security."
+    }
+]

@@ -1,0 +1,16 @@
+[
+    {
+        "start": 9259.3,
+        "end": 9290.5,
+        "confidence": 0.98,
+        "reason": "Network-inserted cross-promotion for 'This Week in Tech' (different show, different host/topic). Promotional language and call to action ('I hope you'll tune in').",
+        "end_text": "subscribe. This Week in Tech from the TWiT Network. Thank you."
+    },
+    {
+        "start": 9344.4,
+        "end": 9374.4,
+        "confidence": 0.99,
+        "reason": "Mint Mobile host-read ad with promotional language, vanity URL (mintmobile.com/switch), and pricing details.",
+        "end_text": "full terms at mintmobile.com."
+    }
+]

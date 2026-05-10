@@ -1,0 +1,1 @@
+{"start": 1302.7, "end": 1314.1, "confidence": 0.22, "reason": "Possible incomplete platform-inserted promo fragment ('and many more') but lacks clear promotional language and brand identification; partial/uncertain", "end_text": "and many more"}

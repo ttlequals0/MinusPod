@@ -1,0 +1,16 @@
+[
+    {
+        "start": 5516.0,
+        "end": 5578.4,
+        "confidence": 0.98,
+        "reason": "Yubico sponsor read with promotional language, product pitch, and partnership announcement. Includes call to action for preferred pricing and security key bundle.",
+        "end_text": "adopt stronger phishing-resistant account protection"
+    },
+    {
+        "start": 5580.1,
+        "end": 5608.1,
+        "confidence": 0.95,
+        "reason": "Continued discussion of ChatGPT's security features, but transitions into a platform-inserted ad for Bitwarden (known sponsor) with promotional language and call to action likely following this segment. Partial detection due to window limit.",
+        "end_text": "continues in next"
+    }
+]

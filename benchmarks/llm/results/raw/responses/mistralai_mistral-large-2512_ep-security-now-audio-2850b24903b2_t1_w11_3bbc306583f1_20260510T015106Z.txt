@@ -1,0 +1,16 @@
+[
+    {
+        "start": 4683.1,
+        "end": 4690.8,
+        "confidence": 0.0,
+        "reason": "Non-promotional content gap (host transition, no ad markers)",
+        "end_text": "Thank you for watching."
+    },
+    {
+        "start": 5210.0,
+        "end": 5220.0,
+        "confidence": 0.95,
+        "reason": "Platform-inserted pre-roll ad for TWiT Club (ad-free podcasts, Discord, exclusive content). Promotional language and call-to-action URL (twit.tv/clubtwit).",
+        "end_text": "continues in next"
+    }
+]

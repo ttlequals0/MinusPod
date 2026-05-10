@@ -1,0 +1,1 @@
+{"start": 821.4, "end": 1020.0, "confidence": 0.99, "reason": "Host-read sponsor break with Capital One, BetterHelp, Amazon Health AI, Spectrum Business, and Rinse featuring URLs, promo codes, and product pitches; continues in next", "end_text": "It's time to be great."}

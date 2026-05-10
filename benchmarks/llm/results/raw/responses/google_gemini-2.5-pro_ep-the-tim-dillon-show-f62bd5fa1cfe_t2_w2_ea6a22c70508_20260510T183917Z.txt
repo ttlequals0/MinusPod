@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1439.2,
+    "end": 1465.2,
+    "confidence": 0.98,
+    "reason": "Host-read ad for Mint Mobile. The ad appears to continue past the end of the provided transcript window.",
+    "end_text": "the nation's largest 5G network."
+  }
+]

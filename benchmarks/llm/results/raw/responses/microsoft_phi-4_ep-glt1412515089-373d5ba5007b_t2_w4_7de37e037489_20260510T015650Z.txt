@@ -1,0 +1,32 @@
+{  
+  "ad_segments": [  
+    {  
+      "start": 16.77,  
+      "end": 17.84,  
+      "confidence": 0.95,  
+      "reason": "The segment discusses the importance of separating personality from information, highlighting the need for communication and boundaries in human interactions.",  
+      "end_text": "you know, there's a lot of that in academia"  
+    },  
+    {  
+      "start": 17.84,  
+      "end": 18.76,  
+      "confidence": 0.90,  
+      "reason": "The segment discusses social hierarchies and the human tendency towards territorial behavior, emphasizing the need for harmony in interactions.",  
+      "end_text": "we're territorial apes with weapons"  
+    },  
+    {  
+      "start": 18.76,  
+      "end": 19.44,  
+      "confidence": 0.85,  
+      "reason": "The segment discusses the human problem of establishing dominance and the superficial aspects of identity, such as name-dropping and material possessions.",  
+      "end_text": "I think it's rare"  
+    },  
+    {  
+      "start": 19.44,  
+      "end": 20.07,  
+      "confidence": 0.80,  
+      "reason": "The segment discusses the human mind's complexity and the lack of a guidebook for managing it, highlighting the need for understanding and managing mental processes.",  
+      "end_text": "we're trying the best we can"  
+    }  
+  ]  
+}

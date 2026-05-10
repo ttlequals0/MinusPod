@@ -1,0 +1,16 @@
+[
+    {
+        "start": 7965.7,
+        "end": 7965.7,
+        "confidence": 0.0,
+        "reason": "No ad detected in this segment; only episode content and discussion.",
+        "end_text": "Perplexity: Download the app"
+    },
+    {
+        "start": 8580.0,
+        "end": 8588.5,
+        "confidence": 0.95,
+        "reason": "Platform-inserted ad for Perplexity (promotional URL and call to action).",
+        "end_text": "podcastchoices.com/adchoices"
+    }
+]

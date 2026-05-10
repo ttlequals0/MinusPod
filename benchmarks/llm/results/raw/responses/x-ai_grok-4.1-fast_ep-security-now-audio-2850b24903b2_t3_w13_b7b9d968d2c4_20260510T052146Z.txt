@@ -1,0 +1,1 @@
+{"start":6016.6,"end":6060.0,"confidence":0.98,"reason":"Hoxhunt (transcribed as Hawks Hunt) host-read sponsor segment with transition 'We'll take a little break' and 'brought to you by', continues past window","end_text":"personalized to each employee, just like the bad guys."}

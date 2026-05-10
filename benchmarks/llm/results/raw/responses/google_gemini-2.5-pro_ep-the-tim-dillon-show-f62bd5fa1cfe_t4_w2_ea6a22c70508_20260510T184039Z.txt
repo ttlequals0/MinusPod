@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1439.2,
+    "end": 1465.2,
+    "confidence": 0.99,
+    "reason": "Partial host-read ad for Mint Mobile.",
+    "end_text": "the nation's largest 5G network."
+  }
+]

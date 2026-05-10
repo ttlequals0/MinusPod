@@ -1,0 +1,9 @@
+[
+  {
+    "start": 5546.3,
+    "end": 5596.3,
+    "confidence": 0.99,
+    "reason": "Ad for the Netflix show 'Remarkably Bright Creatures', identified by the phrase 'This episode is brought to you by...'",
+    "end_text": "only on Netflix."
+  }
+]

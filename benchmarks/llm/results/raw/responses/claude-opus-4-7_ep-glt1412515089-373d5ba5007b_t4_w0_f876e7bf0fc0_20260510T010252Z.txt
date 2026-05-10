@@ -1,0 +1,1 @@
+[{"start": 539.2, "end": 624.5, "confidence": 0.98, "reason": "Ads for In the Gray movie and Skechers", "end_text": "sandals, sneakers, continues in next"}]

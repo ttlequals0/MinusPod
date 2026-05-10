@@ -1,0 +1,1 @@
+{"start": 4525.1, "end": 4528.1, "confidence": 0.05, "reason": "No ad detected; closing/show transition text only and no promotional language, sponsor name, URL, or call to action in this window", "end_text": "We'll see you next time."}

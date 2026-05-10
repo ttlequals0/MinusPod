@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 4265.2,
+    "end": 4465.7,
+    "confidence": 0.98,
+    "reason": "Bitwarden sponsor read with product features, passkey login, Agent Access SDK, pricing, and call to action (bitwarden.com/twit)",
+    "end_text": "bitwarden.com slash twit"
+  }
+]
+```

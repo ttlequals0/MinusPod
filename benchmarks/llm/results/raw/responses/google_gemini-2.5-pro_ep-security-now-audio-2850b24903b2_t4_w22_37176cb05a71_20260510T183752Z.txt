@@ -1,0 +1,23 @@
+[
+  {
+    "start": 9259.3,
+    "end": 9290.5,
+    "confidence": 0.95,
+    "reason": "Cross-promotion for another podcast on the TWiT network, 'This Week in Tech'.",
+    "end_text": "TWiT Network. Thank you."
+  },
+  {
+    "start": 9312.9,
+    "end": 9315.5,
+    "confidence": 0.9,
+    "reason": "Short, likely network-inserted brand tagline ad, possibly for Citizens Bank.",
+    "end_text": "for citizens back."
+  },
+  {
+    "start": 9344.4,
+    "end": 9374.4,
+    "confidence": 1.0,
+    "reason": "Mint Mobile ad read by Ryan Reynolds, with a clear product pitch, price, and vanity URL.",
+    "end_text": "terms at mintmobile.com."
+  }
+]

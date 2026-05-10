@@ -1,0 +1,7 @@
+{
+  "start": 3774.5,
+  "end": 4380.0,
+  "confidence": 0.0,
+  "reason": "No promotional language found in this transcript window. The content is entirely editorial discussion about a hantavirus outbreak on a cruise ship, with no sponsor mentions, promo codes, URLs, or calls to action.",
+  "end_text": "and it's got to look like an accident"
+}

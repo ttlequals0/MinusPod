@@ -1,0 +1,39 @@
+{
+  "ads": [
+    {
+      "start": 821.4,
+      "end": 857.6,
+      "confidence": 1.0,
+      "reason": "Capital One sponsor read",
+      "end_text": "technology at Capital One"
+    },
+    {
+      "start": 862.2,
+      "end": 889.7,
+      "confidence": 1.0,
+      "reason": "BetterHelp sponsor read with promo code",
+      "end_text": "first month of online therapy"
+    },
+    {
+      "start": 889.7,
+      "end": 910.1,
+      "confidence": 1.0,
+      "reason": "Amazon Health AI sponsor read",
+      "end_text": "Healthcare just got less painful"
+    },
+    {
+      "start": 912.2,
+      "end": 990.3,
+      "confidence": 1.0,
+      "reason": "Spectrum Business sponsor read",
+      "end_text": "Restrictions apply. Service is not available in all areas"
+    },
+    {
+      "start": 990.3,
+      "end": 1021.1,
+      "confidence": 1.0,
+      "reason": "Rinse laundry service sponsor read by Nick Martell",
+      "end_text": "It's time to be great"
+    }
+  ]
+}

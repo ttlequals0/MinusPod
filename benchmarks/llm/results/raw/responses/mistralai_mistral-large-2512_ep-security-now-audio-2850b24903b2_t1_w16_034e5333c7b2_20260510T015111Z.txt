@@ -1,0 +1,9 @@
+[
+    {
+        "start": 7124.3,
+        "end": 7138.1,
+        "confidence": 0.0,
+        "reason": "Content gap with no promotional language, topic transition only",
+        "end_text": "because this will be better"
+    }
+]

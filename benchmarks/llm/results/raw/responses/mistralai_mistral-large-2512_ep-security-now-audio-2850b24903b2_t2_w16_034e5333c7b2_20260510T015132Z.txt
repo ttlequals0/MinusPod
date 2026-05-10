@@ -1,0 +1,9 @@
+[
+    {
+        "start": 7124.3,
+        "end": 7138.1,
+        "confidence": 0.0,
+        "reason": "Content gap, no promotional language detected",
+        "end_text": "because this will be"
+    }
+]

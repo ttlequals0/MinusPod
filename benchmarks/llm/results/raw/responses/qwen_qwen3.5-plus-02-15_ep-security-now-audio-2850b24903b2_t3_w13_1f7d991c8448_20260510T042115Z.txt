@@ -1,0 +1,1 @@
+[{"start": 6016.6, "end": 6083.5, "confidence": 0.98, "reason": "HoxHunt (transcribed as Hawks Hunt) sponsor read, includes transition 'take a little break'. Ad continues past transcript end.", "end_text": "just like the bad guys."}]

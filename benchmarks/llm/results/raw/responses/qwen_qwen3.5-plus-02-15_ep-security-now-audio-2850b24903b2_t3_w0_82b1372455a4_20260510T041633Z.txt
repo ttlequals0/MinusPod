@@ -1,0 +1,16 @@
+[
+  {
+    "start": 16.7,
+    "end": 84.9,
+    "confidence": 0.98,
+    "reason": "OutSystems sponsor read with vanity URL",
+    "end_text": "you trust. This is Twit."
+  },
+  {
+    "start": 444.6,
+    "end": 572.1,
+    "confidence": 0.98,
+    "reason": "Zscaler sponsor read with break transition",
+    "end_text": "to Steve and Security Now."
+  }
+]

@@ -1,0 +1,1 @@
+[{"start": 1439.2, "end": 1665.9, "confidence": 0.98, "reason": "Host-read sponsors (Mint Mobile, Aura Frames) and produced ads (Colgate, Skinny Pop) with gaps < 15s", "end_text": "popped, perfectly salted. Skinny Pop."}]

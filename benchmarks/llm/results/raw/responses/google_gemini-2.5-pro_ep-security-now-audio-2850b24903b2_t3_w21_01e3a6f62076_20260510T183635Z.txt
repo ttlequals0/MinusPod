@@ -1,0 +1,16 @@
+[
+  {
+    "start": 9259.3,
+    "end": 9290.5,
+    "confidence": 0.95,
+    "reason": "Cross-promotion for 'This Week in Tech', another podcast on the same network.",
+    "end_text": "the TWiT Network. Thank you."
+  },
+  {
+    "start": 9344.4,
+    "end": 9374.4,
+    "confidence": 1.0,
+    "reason": "Celebrity-read ad for Mint Mobile, a known sponsor, with a vanity URL and disclaimer.",
+    "end_text": "terms at mintmobile.com."
+  }
+]

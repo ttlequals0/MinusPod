@@ -1,0 +1,1 @@
+{"start":3079.6,"end":3120.0,"confidence":0.99,"reason":"Morgan & Morgan host-read sponsor with URL (ForThePeople.com/Tim), Poundlaw call to action, 'paid advertisement' disclosure, followed by Stash sponsor mention; continues in next window","end_text":"Stash is the one"}

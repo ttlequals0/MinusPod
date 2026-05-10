@@ -1,0 +1,1 @@
+{"start": 7959.9, "end": 8599.9, "confidence": 0.0, "reason": "No promotional content, sponsor reads, transition phrases, or platform-inserted ads detected in this window. The transcript contains continuous editorial discussion about Google's AI API, Mozilla's objections, and search engine advertising models.", "end_text": "continually being offered the opportunity"}

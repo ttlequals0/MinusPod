@@ -1,0 +1,23 @@
+[
+    {
+        "start": 1340.8,
+        "end": 1383.9,
+        "confidence": 0.95,
+        "reason": "Host-read sponsor segment for Zscaler with promotional language and vanity URL. Transition includes 'And when we would have our conversation' suggesting a return from break.",
+        "end_text": "when we would have our conversation"
+    },
+    {
+        "start": 1383.9,
+        "end": 1413.1,
+        "confidence": 0.98,
+        "reason": "Host-read sponsor segment for Meter with vanity URL (meter.com/securitynow) and promotional language. Includes call to action.",
+        "end_text": "the UK's"
+    },
+    {
+        "start": 1413.1,
+        "end": 1441.5,
+        "confidence": 0.98,
+        "reason": "Host-read sponsor segment for Bitwarden with vanity URL (bitwarden.com/twit) and promotional language. Continues past this window but marked as ending at last timestamp.",
+        "end_text": "decades of technical debt."
+    }
+]

@@ -1,0 +1,16 @@
+[
+    {
+        "start": 1255.9,
+        "end": 1268.8,
+        "confidence": 0.95,
+        "reason": "Platform-inserted ad for TWiT Club (ad-free podcasts, Discord, exclusive content). Includes call to action: 'Join today: https://twit.tv/clubtwit'",
+        "end_text": "watching. Thank you for"
+    },
+    {
+        "start": 1584.6,
+        "end": 1606.1,
+        "confidence": 0.95,
+        "reason": "Platform-inserted ad for TWiT Club (repetition of earlier ad segment). Includes promotional language for ad-free content and membership perks",
+        "end_text": "watching. Thank you for"
+    }
+]

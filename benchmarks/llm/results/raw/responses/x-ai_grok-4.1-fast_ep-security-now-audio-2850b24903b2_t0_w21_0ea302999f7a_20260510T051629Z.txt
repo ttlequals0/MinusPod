@@ -1,0 +1,1 @@
+{"start":9344.4,"end":9374.4,"confidence":1.0,"reason":"Mint Mobile network-inserted sponsor ad (Ryan Reynolds read with promo URL and CTA)","end_text":"See full terms at mintmobile.com."}

@@ -1,0 +1,9 @@
+[
+    {
+        "start": 9655.2,
+        "end": 9655.2,
+        "confidence": 0.0,
+        "reason": "No ad detected in this window. The segment contains organic conversation and mentions of the guest's work, book, and nonprofit without promotional language or calls to action.",
+        "end_text": "No ads found."
+    }
+]

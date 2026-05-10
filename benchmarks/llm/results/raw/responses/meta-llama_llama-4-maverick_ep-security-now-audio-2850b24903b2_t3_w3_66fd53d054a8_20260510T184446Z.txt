@@ -1,0 +1,1 @@
+{"start": 1255.9, "end": 1302.3, "confidence": 0.1, "reason": "Possible ad or transition, but no clear promotional content", "end_text": "and many more"}

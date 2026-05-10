@@ -1,0 +1,1 @@
+{"start": 9741.1, "end": 9750.4, "confidence": 0.85, "reason": "Guest promoting own nonprofit and website timemachine.love during interview - organic mention but with clear call to action to visit website", "end_text": "Can you go to timemachine.love?"}

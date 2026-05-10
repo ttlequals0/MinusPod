@@ -1,0 +1,1 @@
+{"start":16.7,"end":84.9,"confidence":0.99,"reason":"OutSystems network/host-read pre-roll ad with promotional copy and URL call to action","end_text":"OutSystems.com slash twit. This is Twit."}

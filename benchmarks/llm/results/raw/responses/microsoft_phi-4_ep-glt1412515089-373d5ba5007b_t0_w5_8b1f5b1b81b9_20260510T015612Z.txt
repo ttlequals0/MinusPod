@@ -1,0 +1,5 @@
+[
+
+[2237.2, 2262.0, 0.95, "Blinds.com network-inserted ad", "Blinds.com"]
+
+]

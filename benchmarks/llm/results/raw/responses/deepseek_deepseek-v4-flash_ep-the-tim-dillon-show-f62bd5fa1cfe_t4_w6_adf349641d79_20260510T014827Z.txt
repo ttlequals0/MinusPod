@@ -1,0 +1,7 @@
+{
+  "start": 3079.6,
+  "end": 3134.3,
+  "confidence": 0.99,
+  "reason": "Morgan & Morgan personal injury law firm sponsor read with promo URL and phone number",
+  "end_text": "Stash is the one. Stash is the one."
+}

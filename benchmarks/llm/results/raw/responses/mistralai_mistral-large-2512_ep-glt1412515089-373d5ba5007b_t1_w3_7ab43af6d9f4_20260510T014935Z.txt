@@ -1,0 +1,9 @@
+[
+    {
+        "start": 1257.4,
+        "end": 1267.2,
+        "confidence": 0.95,
+        "reason": "Perplexity platform-inserted ad at the start of the transcript (pre-roll or dynamically inserted). Promotional language: 'Perplexity: Download the app or ask Perplexity anything at https://pplx.ai/rogan' and 'Learn more about your ad choices. Visit podcastchoices.com/adchoices'",
+        "end_text": "podcastchoices.com/adchoices"
+    }
+]

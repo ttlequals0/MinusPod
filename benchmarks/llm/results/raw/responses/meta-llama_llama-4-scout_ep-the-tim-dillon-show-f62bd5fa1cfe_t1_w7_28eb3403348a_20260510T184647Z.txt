@@ -1,0 +1,25 @@
+{
+"ads": [
+    {
+      "start": 3079.6,
+      "end": 3134.3,
+      "confidence": 0.98,
+      "reason": "Morgan & Morgan sponsor read",
+      "end_text": "dial Poundlaw"
+    },
+    {
+      "start": 3135.6,
+      "end": 3188.1,
+      "confidence": 0.98,
+      "reason": "Stash sponsor read",
+      "end_text": "stash.com slash mood"
+    },
+    {
+      "start": 3209.1,
+      "end": 3270.1,
+      "confidence": 0.98,
+      "reason": "NeuroGum sponsor read",
+      "end_text": "NeuroGum.com"
+    }
+  ]
+}

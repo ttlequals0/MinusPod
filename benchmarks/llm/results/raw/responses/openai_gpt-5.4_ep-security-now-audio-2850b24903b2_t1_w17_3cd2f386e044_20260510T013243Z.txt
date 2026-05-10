@@ -1,0 +1,1 @@
+{"start": 7606.9, "end": 7743.9, "confidence": 0.99, "reason": "Trusted Tech host-read sponsor segment beginning with break transition and promotional pitch for Microsoft 365 licensing help; continues in next window", "end_text": "You will be too."}

@@ -1,0 +1,7 @@
+{
+  "start": 2085.5,
+  "end": 2700.0,
+  "confidence": 0.0,
+  "reason": "No promotional language found in this window. The host discusses screen time for babies, GLP-1s, and parenting in a comedic monologue. No sponsor names, URLs, promo codes, or calls to action are present.",
+  "end_text": "iPads for the entire day"
+}

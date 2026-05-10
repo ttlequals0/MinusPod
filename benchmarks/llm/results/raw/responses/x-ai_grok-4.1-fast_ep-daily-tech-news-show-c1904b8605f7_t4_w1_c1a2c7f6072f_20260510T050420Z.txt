@@ -1,0 +1,1 @@
+{"start":821.4,"end":1021.1,"confidence":0.99,"reason":"Merged block of platform-inserted/dynamic ads: Capital One (Chat Concierge), BetterHelp (betterhelp.com promo), Amazon Health AI, Spectrum Business (spectrum.com/business), Rinse (rinse.com) with sponsor names, pitches, URLs, promos","end_text":"It's time to be great."}

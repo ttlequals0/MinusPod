@@ -1,0 +1,1 @@
+{"start":8215.0,"end":8218.9,"confidence":0.91,"reason":"Produced transcript service credit mentioning Rev.com; platform-style promotional insertion with brand name and URL-like domain","end_text":"Transcript by Rev.com."}

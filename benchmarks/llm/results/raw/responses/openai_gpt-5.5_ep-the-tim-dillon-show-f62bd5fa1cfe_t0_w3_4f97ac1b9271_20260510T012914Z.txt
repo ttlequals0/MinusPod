@@ -1,0 +1,1 @@
+{"start":1439.2,"end":1665.9,"confidence":0.99,"reason":"Ad break with Mint Mobile sponsor read (mintmobile.com/TimDillon), Aura Frames sponsor read (AuraFrames.com, promo code TIM), and produced Colgate and SkinnyPop brand ads","end_text":"perfectly salted. Skinny Pop."}

@@ -1,0 +1,8 @@
+[{"start": 3079.6, "end": 3105.5, "confidence": 0.98, "reason": "Morgan & Morgan sponsor read", "end_text": "ForThePeople.com slash Tim, dial Poundlaw"},
+{"start": 3107.1, "end": 3134.3, "confidence": 0.98, "reason": "Morgan & Morgan sponsor read continues", "end_text": "ForThePeople.com slash Tim, dial Poundlaw"},
+{"start": 3135.6, "end": 3160.8, "confidence": 0.95, "reason": "Stash sponsor read", "end_text": "understand what's going on"},
+{"start": 3161.8, "end": 3188.1, "confidence": 0.95, "reason": "Stash sponsor read continues", "end_text": "stash.com slash mood"},
+{"start": 3188.7, "end": 3208.0, "confidence": 0.95, "reason": "Stash sponsor read continues", "end_text": "stash.com slash mood"},
+{"start": 3209.1, "end": 3234.2, "confidence": 0.95, "reason": "NeuroGum sponsor read", "end_text": "you do NeuroGum"},
+{"start": 3236.0, "end": 3261.6, "confidence": 0.95, "reason": "NeuroGum sponsor read continues", "end_text": "vitamin B12 plus B6"},
+{"start": 3261.9, "end": 3270.1, "confidence": 0.95, "reason": "NeuroGum sponsor read continues", "end_text": "NeuroGum.com by using code TIM"} ]

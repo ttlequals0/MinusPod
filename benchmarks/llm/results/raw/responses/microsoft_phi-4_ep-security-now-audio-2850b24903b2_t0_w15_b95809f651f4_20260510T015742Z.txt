@@ -1,0 +1,7 @@
+{
+  "start": 6.284,
+  "end": 6.304,
+  "confidence": 0.95,
+  "reason": "John cited Microsoft's Recall as a no-thanks example, highlighting the evolution of AI in browsers.",
+  "end_text": "John cited Microsoft's Recall as a no-thanks example."
+}

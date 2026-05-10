@@ -1,0 +1,7 @@
+{ 
+  "start": 2286.3, 
+  "end": 2307.9, 
+  "confidence": 0.98, 
+  "reason": "Mint Mobile sponsor read", 
+  "end_text": "TIMDILLON"
+}

@@ -1,0 +1,1 @@
+{"start": 1439.2, "end": 1440.0, "confidence": 0.95, "reason": "Host-read ad for Mint Mobile with promotional language and call to action. Segment appears to be cut off at the end of the provided window.", "end_text": "delivered on the nation's largest 5G network"}

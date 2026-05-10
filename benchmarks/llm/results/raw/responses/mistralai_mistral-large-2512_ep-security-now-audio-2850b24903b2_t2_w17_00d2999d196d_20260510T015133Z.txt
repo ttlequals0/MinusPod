@@ -1,0 +1,9 @@
+[
+    {
+        "start": 7607.7,
+        "end": 7743.9,
+        "confidence": 0.99,
+        "reason": "Trusted Tech sponsor read with promotional language, call to action, and pricing urgency (Microsoft licensing changes). Includes transition phrase 'let's take our final break' and vanity URL 'trustedtech.team/securitynow365'.",
+        "end_text": "impressed. You will be too."
+    }
+]

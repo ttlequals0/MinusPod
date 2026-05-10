@@ -1,0 +1,7 @@
+[{
+    "start": 0.0,
+    "end": 27.7,
+    "confidence": 0.95,
+    "reason": "Colgate Women's Games sponsor segment",
+    "end_text": "strength to keep me moving"
+}]

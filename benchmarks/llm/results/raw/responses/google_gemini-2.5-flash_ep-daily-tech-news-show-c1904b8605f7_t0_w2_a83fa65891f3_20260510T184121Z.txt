@@ -1,0 +1,37 @@
+[
+  {
+    "start": 821.4,
+    "end": 844.7,
+    "confidence": 0.98,
+    "reason": "Capital One sponsor read",
+    "end_text": "at Capital One"
+  },
+  {
+    "start": 862.2,
+    "end": 889.7,
+    "confidence": 0.98,
+    "reason": "BetterHelp sponsor read",
+    "end_text": "my downtown"
+  },
+  {
+    "start": 890.6,
+    "end": 910.1,
+    "confidence": 0.98,
+    "reason": "Amazon Health AI sponsor read",
+    "end_text": "got less painful"
+  },
+  {
+    "start": 912.2,
+    "end": 961.5,
+    "confidence": 0.98,
+    "reason": "Spectrum Business sponsor read",
+    "end_text": "stay up and running"
+  },
+  {
+    "start": 961.9,
+    "end": 1018.9,
+    "confidence": 0.98,
+    "reason": "Rinse sponsor read",
+    "end_text": "Schedule at rinse.com. Rinse"
+  }
+]

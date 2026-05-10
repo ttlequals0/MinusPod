@@ -1,0 +1,16 @@
+[
+    {
+        "start": 3430.8,
+        "end": 3446.1,
+        "confidence": 0.0,
+        "reason": "Silence/pause gap with no promotional content",
+        "end_text": "And..."
+    },
+    {
+        "start": 3960.0,
+        "end": 3962.9,
+        "confidence": 0.95,
+        "reason": "Perplexity platform-inserted ad (promotional URL and call to action in episode description)",
+        "end_text": "pplx.ai/rogan."
+    }
+]

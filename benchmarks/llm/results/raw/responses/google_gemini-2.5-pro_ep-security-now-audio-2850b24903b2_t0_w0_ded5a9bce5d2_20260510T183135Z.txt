@@ -1,0 +1,16 @@
+[
+  {
+    "start": 16.7,
+    "end": 84.9,
+    "confidence": 1.0,
+    "reason": "This is a pre-roll ad for OutSystems, identified by the phrase 'This episode is brought to you by OutSystems' and the URL outsystems.com/twit.",
+    "end_text": "This is Twit."
+  },
+  {
+    "start": 445.6,
+    "end": 572.1,
+    "confidence": 1.0,
+    "reason": "This ad break begins with a host transition and features a pre-recorded ad for Zscaler, identified by the phrase 'This episode of Security Now brought to you by Zscaler' and the URL zscaler.com/security.",
+    "end_text": "Now. Thank you, Leo."
+  }
+]

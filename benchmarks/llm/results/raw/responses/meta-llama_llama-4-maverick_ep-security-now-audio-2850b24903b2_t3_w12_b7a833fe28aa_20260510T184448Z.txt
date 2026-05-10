@@ -1,0 +1,1 @@
+{"type": "Function", "name": "analyze_transcript", "parameters": {"transcript": "Security Now transcript content here"}}

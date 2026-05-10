@@ -1,0 +1,18 @@
+{
+  "ads": [
+    {
+      "start": 9259.3,
+      "end": 9290.5,
+      "confidence": 0.95,
+      "reason": "Cross-promotion for 'This Week in Tech' on the TWiT network - a produced segment promoting another show",
+      "end_text": "This Week in Tech from the TWiT Network. Thank you."
+    },
+    {
+      "start": 9344.4,
+      "end": 9374.4,
+      "confidence": 0.98,
+      "reason": "Mint Mobile sponsor read with promo code and terms",
+      "end_text": "See full terms at mintmobile.com."
+    }
+  ]
+}

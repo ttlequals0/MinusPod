@@ -1,0 +1,16 @@
+[
+    {
+        "start": 1340.8,
+        "end": 1405.0,
+        "confidence": 0.98,
+        "reason": "Host-read sponsor segment for Zscaler. Includes promotional language, vanity URL (zscaler.com/security), and call to action. Transition phrase 'And when we would have our conversation' suggests return to content after ad.",
+        "end_text": "when we would have our conversation"
+    },
+    {
+        "start": 1405.0,
+        "end": 1441.5,
+        "confidence": 0.95,
+        "reason": "Host-read sponsor segment for Meter. Includes promotional language and vanity URL (meter.com/securitynow). Ends with return to episode content (NCSC warning).",
+        "end_text": "decades of technical debt."
+    }
+]

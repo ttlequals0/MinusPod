@@ -1,0 +1,1 @@
+{"start":539.2,"end":600.0,"confidence":0.99,"reason":"Sponsor ad break for In the Gray movie and Skechers slip-ins; promotional phrases include 'This episode is brought to you by,' theatrical release details, and Skechers product pitch; continues in next window","end_text":"with no bending down"}

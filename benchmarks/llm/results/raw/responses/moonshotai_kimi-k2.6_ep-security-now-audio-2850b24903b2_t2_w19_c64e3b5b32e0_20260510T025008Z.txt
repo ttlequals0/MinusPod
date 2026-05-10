@@ -1,0 +1,1 @@
+{"start": 7959.9, "end": 8599.9, "confidence": 0.0, "reason": "No ads detected in this window", "end_text": "continually being offered the opportunity"}

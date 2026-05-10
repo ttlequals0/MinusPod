@@ -1,0 +1,1 @@
+{"start": 58.0, "end": 80.1, "confidence": 0.85, "reason": "Show intro includes 'brought to you by Core Read' - likely CoreWeave branded podcast intro, but contains promotional branding for the producing company", "end_text": "Let's kick things off with..."}

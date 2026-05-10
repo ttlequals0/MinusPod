@@ -1,0 +1,1 @@
+{"start": 7936.3, "end": 7937.1, "confidence": 0.72, "reason": "Platform-inserted YouTube outro/promo language: 'Thank you for watching' appears as a produced interruption distinct from surrounding interview; partial short promo in this window", "end_text": "Thank you for watching"}

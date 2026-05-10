@@ -1,0 +1,9 @@
+[
+    {
+        "start": 2208.3,
+        "end": 2262.0,
+        "confidence": 0.99,
+        "reason": "Blinds.com host-read sponsor segment with promotional language, discount offer, and call to action (up to 45% off, free professional measure). Includes transition phrase and product pitch.",
+        "end_text": "rules and restrictions apply"
+    }
+]

@@ -1,0 +1,16 @@
+[
+    {
+        "start": 6368.2,
+        "end": 6372.0,
+        "confidence": 0.98,
+        "reason": "Perplexity sponsor mention with promotional context ('our AI sponsor, trying to flex')",
+        "end_text": "flex. Oh, okay, cool."
+    },
+    {
+        "start": 6900.0,
+        "end": 6900.0,
+        "confidence": 0.95,
+        "reason": "Platform-inserted ad detected at end of window ('Learn more about your ad choices. Visit podcastchoices.com/adchoices'). Partial ad, continues in next window.",
+        "end_text": "podcastchoices.com/adchoices"
+    }
+]

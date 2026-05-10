@@ -1,0 +1,7 @@
+[{
+	"start": 9344.4,
+	"end": 9374.4,
+	"confidence": 0.98,
+	"reason": "Mint Mobile sponsor read with promotional language and call to action",
+	"end_text": "mintmobile.com"
+}]

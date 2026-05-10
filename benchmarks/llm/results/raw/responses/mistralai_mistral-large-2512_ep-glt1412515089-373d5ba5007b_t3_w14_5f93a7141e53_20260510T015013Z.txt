@@ -1,0 +1,16 @@
+[
+    {
+        "start": 6084.9,
+        "end": 6087.4,
+        "confidence": 0.95,
+        "reason": "Perplexity platform-inserted ad (pre-roll or mid-roll placement with call to action)",
+        "end_text": "pplx.ai/rogan"
+    },
+    {
+        "start": 6087.4,
+        "end": 6087.4,
+        "confidence": 0.9,
+        "reason": "Platform-inserted ad choices disclaimer (standard network ad marker)",
+        "end_text": "podcastchoices.com/adchoices"
+    }
+]

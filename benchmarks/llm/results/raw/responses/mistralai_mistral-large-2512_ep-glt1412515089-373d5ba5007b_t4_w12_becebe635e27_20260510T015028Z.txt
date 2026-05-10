@@ -1,0 +1,9 @@
+[
+    {
+        "start": 5568.0,
+        "end": 5596.3,
+        "confidence": 0.99,
+        "reason": "Netflix 'Remarkably Bright Creatures' sponsor read with promotional language, call to action, and platform-exclusive content mention",
+        "end_text": "only on Netflix."
+    }
+]

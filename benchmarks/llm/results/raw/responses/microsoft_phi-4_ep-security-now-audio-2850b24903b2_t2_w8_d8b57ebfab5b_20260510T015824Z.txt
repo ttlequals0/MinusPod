@@ -1,0 +1,7 @@
+{  
+  "start": 34.68,  
+  "end": 36.15,  
+  "confidence": 0.95,  
+  "reason": "The segment discusses the transition from AI-generated bug bounty programs to a system where vulnerability disclosure is expected rather than incentivized, suggesting a shift towards more targeted rewards and focusing on better security outcomes. This transition phase indicates a move from a historical model to a potentially more refined system, where the emphasis is on meaningful contributions rather than financial incentives.",  
+  "end_text": "This transition phase suggests a shift from incentivized reporting to expected disclosure, focusing on better outcomes rather than broad reports."  
+}

@@ -1,0 +1,1 @@
+{"start": 9752.2, "end": 9854.2, "confidence": 0.9, "reason": "Promotion of Applied Love Labs' time machine app", "end_text": "That makes sense. Yeah."}

@@ -1,0 +1,16 @@
+[
+    {
+        "start": 4690.8,
+        "end": 4816.0,
+        "confidence": 0.98,
+        "reason": "Anthropic Claude Security sponsor read with promotional language, URLs (claude.ai/slash/security), and calls to action (e.g., 'start a scan')",
+        "end_text": "claude.ai slash security"
+    },
+    {
+        "start": 5174.0,
+        "end": 5220.0,
+        "confidence": 0.95,
+        "reason": "Partial OpenAI promotional segment; continues in next window. Mentions 'Advanced Account Security' as a feature pitch, though not a traditional ad, it aligns with platform-inserted promotional content.",
+        "end_text": "connected tools and workflows"
+    }
+]

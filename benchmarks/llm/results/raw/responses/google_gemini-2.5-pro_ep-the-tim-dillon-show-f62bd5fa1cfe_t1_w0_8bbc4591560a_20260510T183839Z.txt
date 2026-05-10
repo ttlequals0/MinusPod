@@ -1,0 +1,9 @@
+[
+  {
+    "start": 0.0,
+    "end": 28.1,
+    "confidence": 0.98,
+    "reason": "This is a pre-roll, network-inserted brand ad for Colgate, with a distinct voice and production style from the host content.",
+    "end_text": "your smile is your strength."
+  }
+]

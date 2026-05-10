@@ -1,0 +1,1 @@
+{"start": 9655.2, "end": 9920.6, "confidence": 0.0, "reason": "No advertisement segments detected. The transcript contains only the conversation between the host and guest, including discussion of the guest's work, book, and projects.", "end_text": "I agree. I'm glad you did it. Yeah. All right. I'll listen to it. Bye, everybody. Bye."}

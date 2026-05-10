@@ -1,0 +1,1 @@
+{"start":7606.9,"end":7797.4,"confidence":0.99,"reason":"Host-read Trusted Tech sponsor segment beginning with transition phrase and including promotional pitch, urgency around Microsoft 365 pricing, and CTA to trustedtech.team/securitynow365","end_text":"trustedtech.team securitynow365 Now, back to Steve."}

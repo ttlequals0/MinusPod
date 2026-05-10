@@ -1,0 +1,1 @@
+{"start":3079.6,"end":3270.1,"confidence":1.0,"reason":"Morgan & Morgan, Stash, NeuroGum host-read sponsor segments with URLs, promo codes, calls to action","end_text":"Neuro at CVS and Amazon"}

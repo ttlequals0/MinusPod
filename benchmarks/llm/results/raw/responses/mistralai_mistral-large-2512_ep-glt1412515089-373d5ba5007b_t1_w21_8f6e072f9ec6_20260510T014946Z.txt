@@ -1,0 +1,9 @@
+[
+    {
+        "start": 8797.7,
+        "end": 8800.5,
+        "confidence": 0.95,
+        "reason": "Perplexity platform-inserted ad at the start of the transcript segment",
+        "end_text": "pplx.ai/rogan."
+    }
+]

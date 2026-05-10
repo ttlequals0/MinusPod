@@ -1,0 +1,26 @@
+{
+  "ads": [
+  {
+    "start": 46.28,
+    "end": 47.63,
+    "confidence": 0.95,
+    "reason": "Colgate Women's Games sponsor read",
+    "end_text": "Colgate, your smile is your strength"
+  },
+  {
+    "start": 47.66,
+    "end": 47.88,
+    "confidence": 0.85,
+    "reason": "Viz brand tagline ad",
+    "end_text": "Learn more at Viz.com"
+  },
+  {
+    "start": 47.88,
+    "end": 48.06,
+    "confidence": 0.90,
+    "reason": "Garnier brand tagline ad",
+    "end_text": "Learn more at GarnierUSA.com slash NPF"
+  }
+] 
+
+  	}

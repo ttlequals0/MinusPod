@@ -1,0 +1,1 @@
+{"start": 5231.8, "end": 5231.8, "confidence": 0.0, "reason": "No ad content found in this transcript segment. The provided text is all show content.", "end_text": ""}

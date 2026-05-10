@@ -1,0 +1,25 @@
+```json
+[
+  {
+    "start": 0.0,
+    "end": 52.3,
+    "confidence": 0.98,
+    "reason": "Capital One sponsor read with Chat Concierge product pitch and Xero accounting platform sponsor read merged together",
+    "end_text": "search XERO for your free trial"
+  },
+  {
+    "start": 52.5,
+    "end": 100.9,
+    "confidence": 0.95,
+    "reason": "Spectrum Business sponsor read with product pitch and call to action",
+    "end_text": "you get support with 100%"
+  },
+  {
+    "start": 124.0,
+    "end": 152.9,
+    "confidence": 0.98,
+    "reason": "Warby Parker sponsor read with product pitch, store locations, app mention, and URL",
+    "end_text": "warbyparker.com"
+  }
+]
+```

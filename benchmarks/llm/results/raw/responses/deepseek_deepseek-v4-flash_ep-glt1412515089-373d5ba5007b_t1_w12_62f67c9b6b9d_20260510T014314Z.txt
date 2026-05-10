@@ -1,0 +1,7 @@
+{
+  "start": 5568.0,
+  "end": 5596.3,
+  "confidence": 0.98,
+  "reason": "Netflix 'Remarkably Bright Creatures' promotional segment with show description and call to action",
+  "end_text": "only on Netflix. Yeah. Right."
+}

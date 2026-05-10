@@ -1,0 +1,1 @@
+{"start":821.4,"end":1021.1,"confidence":1.0,"reason":"Platform-inserted ad block: Capital One sponsor read, BetterHelp, Amazon Health AI, Spectrum Business, Rinse laundry service promo with URLs/promo language","end_text":"It's time to be great."}

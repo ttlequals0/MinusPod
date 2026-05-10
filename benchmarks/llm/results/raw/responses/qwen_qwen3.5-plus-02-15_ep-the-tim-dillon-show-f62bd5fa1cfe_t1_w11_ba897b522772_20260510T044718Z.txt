@@ -1,0 +1,1 @@
+[{"start": 4646.2, "end": 4806.1, "confidence": 0.98, "reason": "Network-inserted ad block featuring Colgate, Skinny Pop, Viz, and Garnier", "end_text": "parks at GarnierUSA.com slash NPF"}]

@@ -1,0 +1,16 @@
+[  
+  {  
+    "start": 16.7,  
+    "end": 68.0,  
+    "confidence": 0.98,  
+    "reason": "OutSystems sponsor read with promotional language",  
+    "end_text": "security now"  
+  },  
+  {  
+    "start": 445.6,  
+    "end": 516.0,  
+    "confidence": 0.97,  
+    "reason": "Zscaler sponsor read with promotional language",  
+    "end_text": "security now"  
+  }  
+]

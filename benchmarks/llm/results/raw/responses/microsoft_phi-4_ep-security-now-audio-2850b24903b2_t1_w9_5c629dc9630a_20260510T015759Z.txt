@@ -1,0 +1,5 @@
+[
+
+[{"start": 4265.2, "end": 4291.9, "confidence": 0.98, "reason": "Bitwarden sponsor read with promotional language and call to action", "end_text": "fixable. And now, Bitwarden"}]
+
+]

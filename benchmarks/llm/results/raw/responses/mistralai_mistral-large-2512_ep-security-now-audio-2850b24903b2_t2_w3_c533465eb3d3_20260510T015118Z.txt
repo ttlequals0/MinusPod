@@ -1,0 +1,23 @@
+[
+    {
+        "start": 1255.9,
+        "end": 1268.8,
+        "confidence": 0.95,
+        "reason": "Platform-inserted ad read for TWiT Club (ad-free podcasts, Discord, exclusive content). Includes call to action: 'Join Club TWiT for Ad-Free Podcasts!' and URL 'https://twit.tv/clubtwit'",
+        "end_text": "Thank you for watching."
+    },
+    {
+        "start": 1584.6,
+        "end": 1606.1,
+        "confidence": 0.95,
+        "reason": "Platform-inserted ad read for TWiT Club (repetition of earlier ad segment). Includes promotional language and call to action.",
+        "end_text": "Thank you for watching."
+    },
+    {
+        "start": 1855.8,
+        "end": 1860.0,
+        "confidence": 0.9,
+        "reason": "Partial ad segment for sponsor 'Zscaler' (listed in episode sponsors). Likely continues in next window as the segment cuts off abruptly.",
+        "end_text": "greased path."
+    }
+]

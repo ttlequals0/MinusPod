@@ -1,0 +1,16 @@
+[
+    {
+        "start": 5516.0,
+        "end": 5578.4,
+        "confidence": 0.98,
+        "reason": "Yubico sponsor read with promotional language, product pitch, and partnership announcement. Includes call to action for preferred pricing and product details.",
+        "end_text": "backup and use across laptops and mobile devices."
+    },
+    {
+        "start": 5580.1,
+        "end": 5640.0,
+        "confidence": 0.95,
+        "reason": "Continues host-read discussion of ChatGPT's Advanced Account Security features, but transitions into organic show content about personal AI usage. Ad segment ends when promotional tone shifts to editorial discussion (no explicit ad markers beyond Yubico mention). Partial ad; continues in next window if more sponsor content appears.",
+        "end_text": "more tightly controlling its access becomes, I think, very clear."
+    }
+]

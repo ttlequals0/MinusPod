@@ -1,0 +1,1 @@
+{"start":6016.6,"end":6060.0,"confidence":0.99,"reason":"Hoxhunt sponsor read; ad begins with break transition and includes promotional pitch for Hoxhunt. Continues in next window.","end_text":"actually working well?"}

@@ -1,0 +1,1 @@
+{"type": "Function", "name": "analyze_transcript", "parameters": {"transcript": "the provided transcript", "window": "7.0-17.0 minutes"}}

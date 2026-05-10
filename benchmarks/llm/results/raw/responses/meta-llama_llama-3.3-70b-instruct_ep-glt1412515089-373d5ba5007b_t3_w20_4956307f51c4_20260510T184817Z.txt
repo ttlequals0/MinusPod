@@ -1,0 +1,1 @@
+{"start": 8405.6, "end": 8439.1, "confidence": 0.0, "reason": "no ad detected", "end_text": "The War of Art"}

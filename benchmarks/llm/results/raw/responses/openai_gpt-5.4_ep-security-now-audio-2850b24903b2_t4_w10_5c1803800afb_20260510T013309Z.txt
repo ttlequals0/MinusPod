@@ -1,0 +1,1 @@
+{"start": 4265.2, "end": 4465.7, "confidence": 0.99, "reason": "Bitwarden sponsor read with explicit promo language and URL, following break transition", "end_text": "supporting. Security Now. Okay."}

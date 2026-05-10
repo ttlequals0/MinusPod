@@ -1,0 +1,16 @@
+[
+  {
+    "start": 9259.3,
+    "end": 9290.5,
+    "confidence": 0.95,
+    "reason": "TWiT Network cross-promotion for This Week in Tech",
+    "end_text": "TWiT Network. Thank you."
+  },
+  {
+    "start": 9344.4,
+    "end": 9374.4,
+    "confidence": 0.99,
+    "reason": "Mint Mobile sponsor read with Ryan Reynolds",
+    "end_text": "terms at mintmobile.com."
+  }
+]

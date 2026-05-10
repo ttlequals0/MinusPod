@@ -1,0 +1,1 @@
+{ "start": 0.0, "end": 152.9, "confidence": 0.99, "reason": "Pre-roll ad pod with promotional reads for Capital One, Xero, Spectrum Business, and Warby Parker, including calls to action like free trial and warbyparker.com", "end_text": "today. That's warbyparker.com." }

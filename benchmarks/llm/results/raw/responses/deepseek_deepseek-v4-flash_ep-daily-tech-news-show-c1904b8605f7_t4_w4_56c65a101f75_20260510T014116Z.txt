@@ -1,0 +1,18 @@
+{
+  "ads": [
+    {
+      "start": 1742.3,
+      "end": 1799.6,
+      "confidence": 0.98,
+      "reason": "Capital One sponsor read and Lemonada Media cross-promotion ad",
+      "end_text": "hear the six-part Thrive series"
+    },
+    {
+      "start": 2246.0,
+      "end": 2301.6,
+      "confidence": 0.98,
+      "reason": "Capital One sponsor read and Rinse network-inserted ad",
+      "end_text": "friction of a relentless task"
+    }
+  ]
+}

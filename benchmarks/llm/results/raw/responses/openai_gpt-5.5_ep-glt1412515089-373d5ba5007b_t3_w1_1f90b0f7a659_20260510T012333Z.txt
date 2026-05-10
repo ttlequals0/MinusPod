@@ -1,0 +1,1 @@
+{"start":539.2,"end":652.8,"confidence":0.99,"reason":"Sponsor ad break for In the Gray movie and Skechers slip-ins with promotional language, theater release date, product pitch, and Skechers.com call to action","end_text":"only at Skechers.com."}

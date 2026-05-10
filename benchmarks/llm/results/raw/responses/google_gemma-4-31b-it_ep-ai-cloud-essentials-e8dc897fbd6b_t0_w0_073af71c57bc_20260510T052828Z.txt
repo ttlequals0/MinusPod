@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 58.0,
+      "end": 80.1,
+      "confidence": 0.95,
+      "reason": "Podcast series brought to you by CoreWeave (sponsor read)",
+      "end_text": "Welcome, Richard. Let's kick things off with"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 3079.6,
+    "end": 3270.1,
+    "confidence": 1.0,
+    "reason": "Host-read ad break for Morgan & Morgan, Stash, and NeuroGum, identified by brand names, URLs (ForThePeople.com/Tim, stash.com/mood), a promo code (TIM), and an explicit disclaimer ('This is a paid advertisement').",
+    "end_text": "at CVS and Amazon."
+  }
+]

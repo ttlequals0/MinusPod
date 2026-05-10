@@ -1,0 +1,9 @@
+[
+  {
+    "start": 444.6,
+    "end": 572.1,
+    "confidence": 0.98,
+    "reason": "Host-read sponsor segment for Zscaler, including the transition into and out of the ad break.",
+    "end_text": "Now. Thank you, Leo."
+  }
+]

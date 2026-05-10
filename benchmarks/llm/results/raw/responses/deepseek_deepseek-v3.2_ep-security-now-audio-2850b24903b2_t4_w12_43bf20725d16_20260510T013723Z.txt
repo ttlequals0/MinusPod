@@ -1,0 +1,1 @@
+{"start": 5640.0, "end": 5649.4, "confidence": 0.95, "reason": "Host-read sponsor segment for Zscaler, Meter, Bitwarden, Hoxhunt, and Trusted Tech Team with promo URLs", "end_text": "very clear."}

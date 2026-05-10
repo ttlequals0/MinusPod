@@ -1,0 +1,1 @@
+{"start":16.7,"end":84.9,"confidence":0.99,"reason":"OutSystems preroll ad with sponsor pitch and URL ('This episode is brought to you by OutSystems' / 'Learn more at OutSystems.com slash twit')","end_text":"OutSystems.com slash twit. This is Twit."}

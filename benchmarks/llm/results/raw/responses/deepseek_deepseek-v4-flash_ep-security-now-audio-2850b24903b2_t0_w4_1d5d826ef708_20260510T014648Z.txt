@@ -1,0 +1,7 @@
+{
+  "start": 1905.2,
+  "end": 1928.8,
+  "confidence": 0.95,
+  "reason": "Network-inserted brand tagline ad: 'Thank you for watching.' — This is a short, produced segment that is tonally distinct from the surrounding editorial content, functioning as a promotional tagline for the show or network.",
+  "end_text": "Thank you for watching."
+}

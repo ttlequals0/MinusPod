@@ -1,0 +1,9 @@
+[
+    {
+        "start": 9238.0,
+        "end": 9238.0,
+        "confidence": 0.0,
+        "reason": "No ad detected in this window. The segment contains only conversation and no promotional language, sponsor mentions, or calls to action.",
+        "end_text": "Perplexity. Download the app"
+    }
+]

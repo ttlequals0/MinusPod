@@ -1,0 +1,9 @@
+[
+    {
+        "start": 6016.6,
+        "end": 6083.5,
+        "confidence": 0.99,
+        "reason": "HoxHunt sponsor read with promotional language, call to action, and product pitch. Includes transition phrase 'We'll take a little break. We'll talk about this and more in just a bit. You're watching Security Now with Steve Gibson. But first, this word.'",
+        "end_text": "just like the bad guys."
+    }
+]

@@ -1,0 +1,1 @@
+{"start":4646.2,"end":4806.1,"confidence":0.98,"reason":"Network-inserted brand tagline ads cluster (Colgate Women's Games x2, Skinny Pop, Viz eye drops, Garnier National Park Foundation) with gaps <15s; promotional pitches, URLs, tonally distinct from host content","end_text":"GarnierUSA.com slash NPF"}

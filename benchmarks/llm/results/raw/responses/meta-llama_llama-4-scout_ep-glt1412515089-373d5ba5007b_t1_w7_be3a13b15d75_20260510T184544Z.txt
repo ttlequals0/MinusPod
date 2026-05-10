@@ -1,0 +1,7 @@
+{
+"start": 3432.2,
+  "end": 3432.2,
+  "confidence": 0.0,
+  "reason": "no ad content",
+  "end_text": ""
+}

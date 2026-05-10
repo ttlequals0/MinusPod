@@ -1,0 +1,1 @@
+{"start": 3774.5, "end": 4378.5, "confidence": 0.0, "reason": "No promotional content, sponsor reads, URLs, promo codes, or platform-inserted ads detected in this transcript window. All content appears to be host commentary and news clips related to the Hantavirus cruise ship topic.", "end_text": "look like an accident"}

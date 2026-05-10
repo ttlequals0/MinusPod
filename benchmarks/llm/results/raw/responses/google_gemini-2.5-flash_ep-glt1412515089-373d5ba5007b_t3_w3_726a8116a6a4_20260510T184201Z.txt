@@ -1,0 +1,16 @@
+[
+  {
+    "start": 1890.0,
+    "end": 1900.0,
+    "confidence": 0.9,
+    "reason": "Perplexity ad",
+    "end_text": "pplx.ai/rogan"
+  },
+  {
+    "start": 1900.0,
+    "end": 1903.0,
+    "confidence": 0.9,
+    "reason": "PodcastChoices.com ad",
+    "end_text": "podcastchoices.com/adchoices"
+  }
+]

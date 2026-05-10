@@ -1,0 +1,1 @@
+[{"start": 3079.6, "end": 3270.1, "confidence": 0.98, "reason": "Host-read ad block for Morgan & Morgan, Stash, and NeuroGum with URLs and promo codes", "end_text": "find Neuro at CVS and Amazon."}]

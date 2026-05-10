@@ -1,0 +1,44 @@
+[
+  {
+    "start": 821.4,
+    "end": 844.7,
+    "confidence": 0.98,
+    "reason": "Capital One sponsor read",
+    "end_text": "technology at Capital One"
+  },
+  {
+    "start": 845.2,
+    "end": 889.7,
+    "confidence": 0.98,
+    "reason": "BetterHelp sponsor read",
+    "end_text": "betterhelp.com slash random podcast"
+  },
+  {
+    "start": 890.6,
+    "end": 910.1,
+    "confidence": 0.95,
+    "reason": "Amazon Health AI network-inserted ad",
+    "end_text": "Healthcare just got less painful"
+  },
+  {
+    "start": 912.2,
+    "end": 933.7,
+    "confidence": 0.98,
+    "reason": "Spectrum Business sponsor read",
+    "end_text": "stay connected to customers, employees, and vendors"
+  },
+  {
+    "start": 934.1,
+    "end": 961.5,
+    "confidence": 0.98,
+    "reason": "Spectrum Business sponsor read continuation",
+    "end_text": "spectrum.com slash business today"
+  },
+  {
+    "start": 961.9,
+    "end": 990.3,
+    "confidence": 0.95,
+    "reason": "Rinse network-inserted ad",
+    "end_text": "rinse.com"
+  }
+]

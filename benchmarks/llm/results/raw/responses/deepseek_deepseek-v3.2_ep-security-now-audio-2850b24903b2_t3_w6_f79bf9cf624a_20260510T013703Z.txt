@@ -1,0 +1,1 @@
+[{"start": 2532.3, "end": 2693.0, "confidence": 0.99, "reason": "Host-read sponsor segment for Meter, includes transition 'break time', product pitch, and call to action 'meter.com slash security now'", "end_text": "security now book a demo"}]

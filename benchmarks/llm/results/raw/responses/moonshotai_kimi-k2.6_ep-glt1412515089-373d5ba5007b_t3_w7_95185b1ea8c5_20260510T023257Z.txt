@@ -1,0 +1,1 @@
+ {"start": 3430.8, "end": 3446.1, "confidence": 0.85, "reason": "Content gap with no transcript - likely music bed or production transition, not promotional content", "end_text": "And..."}

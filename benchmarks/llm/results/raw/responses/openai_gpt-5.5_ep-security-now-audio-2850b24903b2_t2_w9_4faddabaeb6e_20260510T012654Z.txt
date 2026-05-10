@@ -1,0 +1,1 @@
+{"start":4204.1,"end":4380.0,"confidence":0.99,"reason":"Bitwarden sponsor read; includes break transition and continues in next window","end_text":"Bitwarden now enables passkey login"}

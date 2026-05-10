@@ -1,0 +1,1 @@
+{"start":3079.6,"end":3270.1,"confidence":0.99,"reason":"Sponsor ad break with Morgan & Morgan personal injury law firm, Stash investing app, and NeuroGum promotions; includes URLs, promo code TIM, calls to action, and explicit 'paid advertisement' disclosure.","end_text":"at CVS and Amazon"}

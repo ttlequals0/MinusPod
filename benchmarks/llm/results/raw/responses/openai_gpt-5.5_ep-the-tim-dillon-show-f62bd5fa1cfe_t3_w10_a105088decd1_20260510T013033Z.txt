@@ -1,0 +1,1 @@
+{"start":4646.2,"end":4800.0,"confidence":0.99,"reason":"Network-inserted ad pod featuring Colgate Women's Games, SkinnyPop, Viz prescription eye drops, and Garnier/National Park Foundation; continues in next window","end_text":"GarnierUSA.com slash NPF"}

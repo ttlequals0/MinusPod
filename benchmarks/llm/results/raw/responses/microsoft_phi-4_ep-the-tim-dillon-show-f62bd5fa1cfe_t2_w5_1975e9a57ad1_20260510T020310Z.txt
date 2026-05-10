@@ -1,0 +1,7 @@
+{
+  "start": 21.10,
+  "end": 26.99,
+  "confidence": 0.95,
+  "reason": "Mint Mobile and GLP-1s are mentioned as products being used by parents for their children, indicating a sponsored segment.",
+  "end_text": "my toddler's stomach exploded"
+}

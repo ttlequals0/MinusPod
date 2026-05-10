@@ -1,0 +1,1 @@
+{"start":4646.2,"end":4806.1,"confidence":0.98,"reason":"Multiple network-inserted brand tagline ads (Colgate x3, Skinny Pop, Viz, Garnier) with small gaps <15s; promotional pitches, URLs, calls to action","end_text":"GarnierUSA.com slash NPF"}

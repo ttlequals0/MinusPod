@@ -1,0 +1,1 @@
+{"start": 4627.6, "end": 4638.7, "confidence": 0.95, "reason": "Host-read sponsor segment for Zscaler, includes promotional language and URL", "end_text": "zscaler.com/security"}

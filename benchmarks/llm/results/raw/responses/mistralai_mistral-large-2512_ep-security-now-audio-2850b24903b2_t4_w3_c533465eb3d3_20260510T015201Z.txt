@@ -1,0 +1,51 @@
+[
+    {
+        "start": 1255.9,
+        "end": 1268.8,
+        "confidence": 0.95,
+        "reason": "Platform-inserted ad for TWiT network (Club TWiT promotion). Contains promotional language for ad-free podcasts and membership benefits.",
+        "end_text": "for watching."
+    },
+    {
+        "start": 1584.6,
+        "end": 1606.1,
+        "confidence": 0.95,
+        "reason": "Platform-inserted ad for TWiT network (repeated Club TWiT promotion). Contains promotional language for ad-free content.",
+        "end_text": "for watching."
+    },
+    {
+        "start": 1608.4,
+        "end": 1744.9,
+        "confidence": 0.98,
+        "reason": "Host-read sponsor ad for Zscaler. Contains promotional language, vanity URL (zscaler.com/security), and call to action.",
+        "end_text": "active exploitation of vulnerabilities for more information."
+    },
+    {
+        "start": 1745.8,
+        "end": 1772.1,
+        "confidence": 0.98,
+        "reason": "Host-read sponsor ad for Meter. Contains promotional language and vanity URL (meter.com/securitynow).",
+        "end_text": "update management process, but we recognize"
+    },
+    {
+        "start": 1773.7,
+        "end": 1801.2,
+        "confidence": 0.98,
+        "reason": "Host-read sponsor ad for Bitwarden. Contains promotional language and vanity URL (bitwarden.com/twit).",
+        "end_text": "my previous blogs have addressed."
+    },
+    {
+        "start": 1801.7,
+        "end": 1826.9,
+        "confidence": 0.98,
+        "reason": "Host-read sponsor ad for HoxHunt. Contains promotional language and vanity URL (hoxhunt.com/securitynow).",
+        "end_text": "essential services such as energy, healthcare, transport,"
+    },
+    {
+        "start": 1827.5,
+        "end": 1855.8,
+        "confidence": 0.98,
+        "reason": "Host-read sponsor ad for Trusted Tech Team. Contains promotional language and vanity URL (trustedtech.team/securitynow365).",
+        "end_text": "vulnerability patch wave, a good start is"
+    }
+]

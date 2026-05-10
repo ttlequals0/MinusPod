@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 7320.0,
+    "end": 7320.0,
+    "confidence": 0.0,
+    "reason": "No ad content detected in this transcript window. The segment contains only scientific discussion about quantum mechanics, the double-slit experiment, and retrocausality between Julia Mossbridge and the host.",
+    "end_text": "N/A"
+  }
+]
+```

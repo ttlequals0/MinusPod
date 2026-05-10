@@ -1,0 +1,1 @@
+[{"start": 4204.1, "end": 4264.3, "confidence": 0.9, "reason": "Transition to break and TWiT/Club TWiT self-promotional segment", "end_text": "right after this"}, {"start": 4265.2, "end": 4380.0, "confidence": 0.98, "reason": "Bitwarden sponsor read", "end_text": "continues in next"}]

@@ -1,0 +1,13 @@
+[
+
+[
+  {
+    "start": 2560.1,
+    "end": 2687.4,
+    "confidence": 0.98,
+    "reason": "Meter network infrastructure sponsor read with promotional language",
+    "end_text": "Meter.com"
+  }
+]
+
+]

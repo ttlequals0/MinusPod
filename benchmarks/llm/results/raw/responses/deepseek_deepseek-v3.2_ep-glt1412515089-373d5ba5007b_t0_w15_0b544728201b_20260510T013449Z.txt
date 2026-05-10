@@ -1,0 +1,1 @@
+{"start": 6368.2, "end": 6394.8, "confidence": 0.95, "reason": "Host-read Perplexity sponsorship mention with promotional language", "end_text": "spanning past, present, and potential future"}

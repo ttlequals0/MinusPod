@@ -1,0 +1,16 @@
+[
+    {
+        "start": 4690.8,
+        "end": 4878.7,
+        "confidence": 0.3,
+        "reason": "Discussion of Anthropic's Claude Security product with detailed features and usage instructions, but lacks explicit promotional language, calls to action, or sponsor indicators. Likely editorial content.",
+        "end_text": "work through the fix in context."
+    },
+    {
+        "start": 5174.0,
+        "end": 5220.0,
+        "confidence": 0.4,
+        "reason": "Mention of OpenAI's 'Advanced Account Security' with descriptive language, but no clear promotional intent, sponsor transition, or call to action. Likely editorial discussion. Continues in next window.",
+        "end_text": "connected tools and workflows. For some people,"
+    }
+]

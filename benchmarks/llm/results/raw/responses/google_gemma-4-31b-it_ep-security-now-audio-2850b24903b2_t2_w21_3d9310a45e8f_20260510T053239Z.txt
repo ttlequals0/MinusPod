@@ -1,0 +1,25 @@
+{
+  "ads": [
+    {
+      "start": 9259.3,
+      "end": 9290.5,
+      "confidence": 0.95,
+      "reason": "Network cross-promotion for This Week in Tech",
+      "end_text": "from the TWiT Network"
+    },
+    {
+      "start": 9312.9,
+      "end": 9315.5,
+      "confidence": 0.8,
+      "reason": "Short brand tagline ad",
+      "end_text": "for citizens back"
+    },
+    {
+      "start": 9344.4,
+      "end": 9374.4,
+      "confidence": 0.99,
+      "reason": "Mint Mobile sponsor read with URL and pricing",
+      "end_text": "terms at mintmobile.com"
+    }
+  ]
+}

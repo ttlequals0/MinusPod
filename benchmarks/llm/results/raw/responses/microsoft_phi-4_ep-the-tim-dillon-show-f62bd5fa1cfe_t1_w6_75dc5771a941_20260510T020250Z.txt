@@ -1,0 +1,7 @@
+{
+  "start": 25.23,
+  "end": 26.00,
+  "confidence": 0.95,
+  "reason": "Mint Mobile network-inserted ad with promotional language",
+  "end_text": "Mint Mobile"
+}

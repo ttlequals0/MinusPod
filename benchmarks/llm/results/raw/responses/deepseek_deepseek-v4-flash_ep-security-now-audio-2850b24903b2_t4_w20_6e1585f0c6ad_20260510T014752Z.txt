@@ -1,0 +1,7 @@
+{
+  "start": 8498.3,
+  "end": 8524.9,
+  "confidence": 0.95,
+  "reason": "Host discusses sponsored advertisements in search results, but this is editorial commentary about ads, not a promotional ad segment itself.",
+  "end_text": "I have zero interest in."
+}

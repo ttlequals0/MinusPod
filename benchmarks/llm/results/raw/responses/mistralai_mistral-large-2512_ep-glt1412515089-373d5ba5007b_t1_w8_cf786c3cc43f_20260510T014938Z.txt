@@ -1,0 +1,16 @@
+[
+    {
+        "start": 3430.8,
+        "end": 3446.1,
+        "confidence": 0.0,
+        "reason": "Silence/gap with no promotional content",
+        "end_text": "And..."
+    },
+    {
+        "start": 3960.0,
+        "end": 3960.0,
+        "confidence": 0.95,
+        "reason": "Platform-inserted ad at episode end (Perplexity promo and ad choices notice). Partial detection; continues in next window.",
+        "end_text": "podcastchoices.com/adchoices"
+    }
+]

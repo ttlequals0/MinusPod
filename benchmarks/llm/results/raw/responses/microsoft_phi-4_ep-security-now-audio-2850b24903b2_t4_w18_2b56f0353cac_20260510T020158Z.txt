@@ -1,0 +1,7 @@
+{
+  "start": 76.58,
+  "end": 76.83,
+  "confidence": 0.95,
+  "reason": "The segment discusses the introduction of a new AI model into Chrome, highlighting concerns about Google's dominance and the lack of choice for users.",
+  "end_text": "And we'll be back with Mozilla's response as seen through the filter of the register."
+}

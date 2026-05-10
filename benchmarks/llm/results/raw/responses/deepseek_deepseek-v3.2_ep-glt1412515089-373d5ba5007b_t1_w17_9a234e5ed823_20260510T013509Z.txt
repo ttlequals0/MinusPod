@@ -1,0 +1,1 @@
+{"start": 7740.0, "end": 7756.0, "confidence": 0.95, "reason": "Host-read Perplexity sponsorship with call to action and URL", "end_text": "ask Perplexity anything at"}

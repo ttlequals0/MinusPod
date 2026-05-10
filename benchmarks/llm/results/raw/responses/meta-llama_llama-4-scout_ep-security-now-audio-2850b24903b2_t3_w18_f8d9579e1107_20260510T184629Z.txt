@@ -1,0 +1,9 @@
+{"ads": [
+  {
+    "start": 7607.7,
+    "end": 7770.9,
+    "confidence": 0.99,
+    "reason": "Trusted Tech sponsor read",
+    "end_text": "trustedtech.team securitynow365"
+  }
+]}

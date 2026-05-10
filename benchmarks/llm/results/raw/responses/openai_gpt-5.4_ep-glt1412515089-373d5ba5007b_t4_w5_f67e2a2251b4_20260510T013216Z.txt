@@ -1,0 +1,1 @@
+{"start":2208.3,"end":2237.0,"confidence":0.99,"reason":"Blinds.com network-inserted ad with promotional copy, social proof, discount offer, and call to action ('get up to 45% off site-wide' and 'free professional measure at Blinds.com'); partial/short within this window","end_text":"free professional measure at Blinds.com"}

@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 7320.0,
+    "end": 7320.0,
+    "confidence": 0.0,
+    "reason": "No ads detected in this transcript window. The content is entirely editorial discussion of quantum physics, the double-slit experiment, and retrocausality between Julia Mossbridge and the host. No sponsor reads, promotional language, URLs, promo codes, or calls to action are present.",
+    "end_text": "N/A"
+  }
+]
+```

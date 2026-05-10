@@ -1,0 +1,7 @@
+{
+  "start": 9.237,
+  "end": 9.363,
+  "confidence": 0.95,
+  "reason": "Sponsor segment with promotional language for Mint Mobile",
+  "end_text": "switch you to Mint Mobile today"
+}

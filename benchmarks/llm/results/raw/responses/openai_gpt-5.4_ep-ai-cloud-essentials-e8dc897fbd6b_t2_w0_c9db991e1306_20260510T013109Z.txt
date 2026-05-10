@@ -1,0 +1,1 @@
+{"start":58.0,"end":80.1,"confidence":0.78,"reason":"Show-branded promotional intro with sponsor language: \"a podcast series brought to you by Core Read/CoreWeave\"","end_text":"So welcome, Richard. Let's kick things off with..."}

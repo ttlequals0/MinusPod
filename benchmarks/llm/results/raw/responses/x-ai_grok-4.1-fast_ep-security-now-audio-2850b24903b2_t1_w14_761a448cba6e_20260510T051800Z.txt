@@ -1,0 +1,1 @@
+{"start":6044.5,"end":6162.3,"confidence":0.99,"reason":"Hoxhunt host-read sponsor ad with transition, product pitch, URL hoxhunt.com/securitynow, and call to action","end_text":"hoxhunt.com security now"}

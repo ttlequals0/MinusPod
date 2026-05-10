@@ -1,0 +1,9 @@
+[
+  {
+    "start": 7537.6,
+    "end": 7743.9,
+    "confidence": 0.99,
+    "reason": "The segment begins with a transition to a break and proceeds into a host-read ad for Trusted Tech, discussing Microsoft 365 licensing services.",
+    "end_text": "impressed. You will be too."
+  }
+]

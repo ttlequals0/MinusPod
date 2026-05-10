@@ -1,0 +1,1 @@
+{"start": 5866.3, "end": 5894.7, "confidence": 0.0, "reason": "no ad detected", "end_text": "at life."}

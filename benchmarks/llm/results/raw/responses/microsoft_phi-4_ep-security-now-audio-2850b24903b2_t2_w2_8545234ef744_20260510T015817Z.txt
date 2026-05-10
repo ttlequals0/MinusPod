@@ -1,0 +1,7 @@
+{
+  "start": 14.0,
+  "end": 24.0,
+  "confidence": 0.95,
+  "reason": "The segment contains a clear transition from the host's introduction to the main content of the episode, including a warning from a government official and a call to action.",
+  "end_text": "Organizations must act now to prepare for a wave of patches that will address decades of technical debt."
+}

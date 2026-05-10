@@ -1,0 +1,7 @@
+{
+  "start": 418.7,
+  "end": 10.21,
+  "confidence": 0.98,
+  "reason": "The ad segment begins with the mention of a new product and continues with promotional language and a call to action.",
+  "end_text": "It's time to be great."
+}

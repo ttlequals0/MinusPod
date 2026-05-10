@@ -1,0 +1,16 @@
+{"ads": [
+    {
+        "start": 0.0,
+        "end": 71.6,
+        "confidence": 0.98,
+        "reason": "Capital One, Xero, and Spectrum Business sponsor reads",
+        "end_text": "Spectrum business"
+    },
+    {
+        "start": 127.1,
+        "end": 152.9,
+        "confidence": 0.95,
+        "reason": "Warby Parker sponsor read",
+        "end_text": "warbyparker.com"
+    }
+]}

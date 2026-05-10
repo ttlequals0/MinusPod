@@ -1,0 +1,7 @@
+{
+  "start": 6699.7,
+  "end": 7320.0,
+  "confidence": 0.0,
+  "reason": "No promotional content detected in this window. The transcript contains only editorial discussion about Google's AI API proposal for Chrome, with no sponsor mentions, promo codes, URLs, calls to action, or other advertising language.",
+  "end_text": "an eloquent hamster is going to respond"
+}

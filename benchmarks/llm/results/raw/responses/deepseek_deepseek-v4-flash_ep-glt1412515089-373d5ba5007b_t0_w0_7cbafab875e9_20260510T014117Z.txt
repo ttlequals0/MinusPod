@@ -1,0 +1,1 @@
+{"start": 539.2, "end": 600.0, "confidence": 0.98, "reason": "In the Gray movie ad and Skechers slip-ins ad (continues in next window)", "end_text": "so many colors and sizes"}

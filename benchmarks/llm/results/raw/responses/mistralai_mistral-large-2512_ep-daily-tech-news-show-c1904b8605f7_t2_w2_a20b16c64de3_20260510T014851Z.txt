@@ -1,0 +1,37 @@
+[
+    {
+        "start": 821.4,
+        "end": 857.6,
+        "confidence": 0.99,
+        "reason": "Capital One sponsor read with product pitch, self-reflection, and layered reasoning details",
+        "end_text": "Hold on. One second."
+    },
+    {
+        "start": 862.2,
+        "end": 889.7,
+        "confidence": 0.99,
+        "reason": "BetterHelp sponsor read with promotional language, URL, and discount offer",
+        "end_text": "betterhelp.com slash random podcast"
+    },
+    {
+        "start": 890.6,
+        "end": 910.1,
+        "confidence": 0.98,
+        "reason": "Amazon Health AI network-inserted ad with symptom chat and virtual care pitch",
+        "end_text": "Healthcare just got less painful."
+    },
+    {
+        "start": 912.2,
+        "end": 961.5,
+        "confidence": 0.99,
+        "reason": "Spectrum Business sponsor read with fiber-powered internet, price guarantee, and bundle savings pitch",
+        "end_text": "spectrum.com slash business today to get started."
+    },
+    {
+        "start": 990.6,
+        "end": 1021.1,
+        "confidence": 0.99,
+        "reason": "Rinse sponsor read with premium laundry service, smart scheduling, and URL mention",
+        "end_text": "It's time to be great."
+    }
+]

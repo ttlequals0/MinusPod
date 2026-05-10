@@ -1,0 +1,1 @@
+ {"start": 7936.3, "end": 7963.4, "confidence": 0.95, "reason": "Perplexity sponsor read with URL pplx.ai/rogan", "end_text": "pplx.ai/rogan"}

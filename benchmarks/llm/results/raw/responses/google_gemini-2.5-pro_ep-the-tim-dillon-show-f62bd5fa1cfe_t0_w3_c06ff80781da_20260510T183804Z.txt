@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1439.2,
+    "end": 1665.9,
+    "confidence": 1.0,
+    "reason": "A multi-part ad break featuring host-reads for Mint Mobile and Aura Frames, followed by network-inserted ads for Colgate and Skinny Pop.",
+    "end_text": "salted. Skinny Pop."
+  }
+]

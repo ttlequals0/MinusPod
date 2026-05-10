@@ -1,0 +1,1 @@
+{"start":1281.3,"end":1314.1,"confidence":0.28,"reason":"No clear promotional language; mentions credit cards and then a stray produced line 'and many more' but lacks sponsor name, CTA, URL, or product pitch, so not a confident ad","end_text":"and many more."}

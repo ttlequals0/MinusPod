@@ -1,0 +1,1 @@
+{"start":4265.2,"end":4380.0,"confidence":0.99,"reason":"Bitwarden host-read sponsor segment with product pitch and calls to action, continues past window","end_text":"devices at the OS level"}

@@ -1,0 +1,1 @@
+{"start": 3339.8, "end": 3962.9, "confidence": 0.0, "reason": "No promotional language, sponsor names, URLs, promo codes, or calls to action found in this transcript segment. The conversation is a natural discussion about consciousness, language, internal voices, and a scientific study. No ad breaks or transitions detected.", "end_text": "So it's just sitting there"}

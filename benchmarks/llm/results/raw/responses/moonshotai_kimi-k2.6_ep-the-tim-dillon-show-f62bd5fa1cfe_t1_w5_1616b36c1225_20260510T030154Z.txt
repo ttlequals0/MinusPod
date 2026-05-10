@@ -1,0 +1,1 @@
+{"start": 2085.5, "end": 2699.0, "confidence": 0.0, "reason": "No promotional content detected in this window. The transcript contains continuous host monologue about screen time and parenting with no sponsor names, URLs, promo codes, or calls to action.", "end_text": "chicken nuggets and we forgot the fiber"}

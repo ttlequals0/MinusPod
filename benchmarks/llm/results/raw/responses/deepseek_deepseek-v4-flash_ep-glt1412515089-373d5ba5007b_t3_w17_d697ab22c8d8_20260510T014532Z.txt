@@ -1,0 +1,1 @@
+{"start": 7131.4, "end": 7740.0, "confidence": 0.0, "reason": "No promotional language, sponsor names, URLs, promo codes, or calls to action found in this transcript window. The content is a continuous discussion about quantum physics, retrocausality, and the double-slit experiment.", "end_text": "solving the same problem"}

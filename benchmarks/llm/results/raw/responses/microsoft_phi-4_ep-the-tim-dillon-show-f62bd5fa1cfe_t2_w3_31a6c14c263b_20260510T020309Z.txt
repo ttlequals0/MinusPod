@@ -1,0 +1,5 @@
+[
+
+[1466.3, 1860.0, 0.98, "Multiple sponsor segments including Mint Mobile, Aura Frames, and Colgate Women's Games", "Colgate Women's Games"]
+
+]

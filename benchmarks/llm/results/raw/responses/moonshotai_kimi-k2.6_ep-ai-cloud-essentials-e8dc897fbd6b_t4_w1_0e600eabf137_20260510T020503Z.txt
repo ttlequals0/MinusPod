@@ -1,0 +1,1 @@
+{"start": 415.2, "end": 984.2, "confidence": 0.0, "reason": "No promotional content, sponsor mentions, URLs, promo codes, platform insertions, or network promos detected in this transcript window. All brand mentions (NVIDIA, Nissan, Starbucks, SpaceX, Monolith, CoreWeave) appear within organic editorial context.", "end_text": "stay tuned for more. Thank you."}

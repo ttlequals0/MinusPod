@@ -1,0 +1,25 @@
+{  
+  "ads": [  
+    {  
+      "start": 89.17,  
+      "end": 90.26,  
+      "confidence": 0.95,  
+      "reason": "The segment describes a memory lapse related to word processing at Lockheed Martin, indicating a potential ad related to cognitive abilities and memory manipulation.",  
+      "end_text": "I left."  
+    },  
+    {  
+      "start": 90.26,  
+      "end": 90.92,  
+      "confidence": 0.98,  
+      "reason": "The segment continues discussing the memory lapse and the context of word processing, suggesting a continuation of the ad narrative.",  
+      "end_text": "I don't know what to say about those instances."  
+    },  
+    {  
+      "start": 90.92,  
+      "end": 91.38,  
+      "confidence": 0.97,  
+      "reason": "The segment discusses the memory lapse and the context of word processing, indicating a continuation of the ad narrative.",  
+      "end_text": "I get burpy when I talk about stuff that's hard."  
+    }  
+  ]  
+}

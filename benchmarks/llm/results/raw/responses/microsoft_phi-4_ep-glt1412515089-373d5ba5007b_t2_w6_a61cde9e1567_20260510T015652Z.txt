@@ -1,0 +1,7 @@
+{  
+  "start": 25.10,  
+  "end": 26.20,  
+  "confidence": 0.95,  
+  "reason": "Julia Mossbridge discusses her interest in studying the nature of time and precognition, which aligns with her experiences and the scientific method she applies to her research.",  
+  "end_text": "I started asking questions about the nature of time and precognition."  
+}

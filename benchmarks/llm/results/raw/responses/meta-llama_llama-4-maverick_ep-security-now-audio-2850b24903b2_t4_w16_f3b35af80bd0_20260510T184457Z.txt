@@ -1,0 +1,1 @@
+{"start": 7138.1, "end": 7321.9, "confidence": 0.0, "reason": "No ads found in the given transcript window", "end_text": "Pretend to be an eloquent hamster"}

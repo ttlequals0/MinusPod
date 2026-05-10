@@ -1,0 +1,20 @@
+{
+  "start": 0.0,
+  "end": 10.0,
+  "ads": [
+    {
+      "start": 0.0,
+      "end": 6.0,
+      "confidence": 0.95,
+      "reason": "AI-Cloud Essentials host introduces AI-powered engineering advancements and discusses the transformative impact of AI in physical simulations.",
+      "end_text": "transformative impact of AI in physical simulations"
+    },
+    {
+      "start": 6.0,
+      "end": 10.0,
+      "confidence": 0.98,
+      "reason": "Discussion of AI applications in engineering and physical simulations, including mention of specific companies and technologies.",
+      "end_text": "applications of AI in engineering and physical simulations"
+    }
+  ]
+}

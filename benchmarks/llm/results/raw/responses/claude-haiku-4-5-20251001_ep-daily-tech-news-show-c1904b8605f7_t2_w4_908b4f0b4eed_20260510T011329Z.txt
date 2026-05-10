@@ -1,0 +1,32 @@
+```json
+[
+  {
+    "start": 1742.3,
+    "end": 1771.5,
+    "confidence": 0.98,
+    "reason": "Capital One sponsor read with product pitch (Chat Concierge AI for car shopping)",
+    "end_text": "technology at Capital One"
+  },
+  {
+    "start": 1772.6,
+    "end": 1799.6,
+    "confidence": 0.92,
+    "reason": "Lemonada Media network-inserted ad for Good Things podcast Thrive series",
+    "end_text": "Thrive series"
+  },
+  {
+    "start": 2246.0,
+    "end": 2275.3,
+    "confidence": 0.98,
+    "reason": "Capital One sponsor read (duplicate/repeat of earlier segment with Chat Concierge pitch)",
+    "end_text": "technology at Capital One"
+  },
+  {
+    "start": 2276.2,
+    "end": 2301.6,
+    "confidence": 0.95,
+    "reason": "Rinse laundry service network-inserted ad with Adam Grant testimonial and product positioning",
+    "end_text": "hang dry, they remove the friction"
+  }
+]
+```

@@ -1,0 +1,9 @@
+[
+    {
+        "start": 5975.6,
+        "end": 6162.9,
+        "confidence": 0.99,
+        "reason": "HoxHunt sponsor read with promotional language, call to action (hoxhunt.com/securitynow), and transition phrases ('Let's take a timeout', 'This episode of Security Now brought to you by')",
+        "end_text": "back to the work he's doing"
+    }
+]

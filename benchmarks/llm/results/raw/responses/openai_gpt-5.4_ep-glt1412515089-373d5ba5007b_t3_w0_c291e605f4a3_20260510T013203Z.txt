@@ -1,0 +1,1 @@
+{"start":539.2,"end":600.0,"confidence":0.99,"reason":"Back-to-back sponsor ads: host-read promo for the film 'In the Gray' followed by Skechers slip-ins product pitch with explicit ad markers ('This episode is brought to you by'). Continues in next window.","end_text":"casual and dress footwear, sandals, sneakers"}

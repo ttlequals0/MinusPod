@@ -1,0 +1,7 @@
+{ 
+  "start": 1020.0, 
+  "end": 1043.5, 
+  "confidence": 0.0, 
+  "reason": "no ad content detected", 
+  "end_text": "algorithm has focused on"
+}

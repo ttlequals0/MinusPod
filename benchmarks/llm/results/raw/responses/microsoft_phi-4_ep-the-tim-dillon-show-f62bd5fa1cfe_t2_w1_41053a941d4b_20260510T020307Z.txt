@@ -1,0 +1,7 @@
+{
+  "start": 401.8,
+  "end": 1015.8,
+  "confidence": 0.95,
+  "reason": "The segment discusses the concept of the metaverse and its implications, including references to Meta and Mark Zuckerberg, which are promotional elements. The segment also mentions the New York Times article about Meta, indicating a sponsorship.",
+  "end_text": "Facebook's now settling lawsuits with people because it's now proven that Meta's algorithm has driven people to negative outcomes."
+}

@@ -1,0 +1,1 @@
+{"start": 16.7, "end": 84.9, "confidence": 0.99, "reason": "OutSystems host-read sponsor segment with network ID", "end_text": "This is Twit."}

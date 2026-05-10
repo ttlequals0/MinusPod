@@ -1,0 +1,1 @@
+{"start":4646.2,"end":4800.0,"confidence":0.99,"reason":"Platform-inserted ad block with multiple brand promos: Colgate Women's Games, SkinnyPop, Viz eye drops, and Garnier National Park Foundation partnership; contains concentrated promotional language and CTA/URL, continues in next window","end_text":"support our national parks at"}

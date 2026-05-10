@@ -1,0 +1,16 @@
+[
+    {
+        "start": 2700.6,
+        "end": 2702.6,
+        "confidence": 0.95,
+        "reason": "Perplexity platform-inserted ad at the end of the episode description",
+        "end_text": "pplx.ai/rogan"
+    },
+    {
+        "start": 2702.6,
+        "end": 2704.6,
+        "confidence": 0.9,
+        "reason": "Platform-inserted ad for ad choices (network promo)",
+        "end_text": "podcastchoices.com/adchoices"
+    }
+]

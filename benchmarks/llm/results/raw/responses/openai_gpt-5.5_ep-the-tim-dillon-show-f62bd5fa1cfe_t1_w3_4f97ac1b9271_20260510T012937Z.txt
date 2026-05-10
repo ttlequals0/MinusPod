@@ -1,0 +1,1 @@
+{"start":1439.2,"end":1665.9,"confidence":0.99,"reason":"Ad break containing Mint Mobile and Aura Frames host-read sponsor pitches with URLs/promo codes, followed by produced Colgate Women's Games and Skinny Pop promotional ads","end_text":"perfectly salted. Skinny Pop."}

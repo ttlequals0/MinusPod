@@ -1,0 +1,1 @@
+{"start":3079.6,"end":3270.1,"confidence":0.99,"reason":"Consecutive sponsor reads for Morgan & Morgan, Stash, and NeuroGum with promotional claims, URLs, promo code TIM, and paid advertisement disclosure","end_text":"CVS and Amazon"}

@@ -1,0 +1,1 @@
+[{"start": 821.4, "end": 1021.1, "confidence": 0.98, "reason": "Multiple sponsor ads (Capital One, BetterHelp, Amazon Health AI, Spectrum Business, Rinse) with gaps <15s, merged into one ad break. Continues in next window.", "end_text": "It's time to be great."}]

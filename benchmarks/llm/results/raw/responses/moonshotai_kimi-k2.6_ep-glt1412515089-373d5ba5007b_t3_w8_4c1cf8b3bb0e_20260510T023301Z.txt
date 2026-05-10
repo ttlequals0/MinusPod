@@ -1,0 +1,1 @@
+{"start": 3786.9, "end": 3814.9, "confidence": 0.85, "reason": "Mid-roll ad break gap - silence gap between content segments consistent with ad insertion, but no transcript text available to confirm promotional content", "end_text": "back to the language thing"}

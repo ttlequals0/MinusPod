@@ -1,0 +1,1 @@
+{"start":2208.3,"end":2262.0,"confidence":0.99,"reason":"Network-inserted Blinds.com ad with promotional claims, discount offer, call to action, and restrictions; content resumes within the final timestamped segment after 'rules and restrictions apply'.","end_text":"rules and restrictions apply"}

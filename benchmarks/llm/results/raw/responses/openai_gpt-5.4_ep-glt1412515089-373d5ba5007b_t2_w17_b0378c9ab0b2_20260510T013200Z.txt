@@ -1,0 +1,1 @@
+{"start":7756.0,"end":7756.0,"confidence":0.99,"reason":"Perplexity sponsor mention in episode metadata with URL/call to action but no corresponding transcript ad segment in this window","end_text":"same problem."}

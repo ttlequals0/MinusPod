@@ -1,0 +1,16 @@
+{"ad_segments": [
+  {
+    "start": 9259.3,
+    "end": 9281.2,
+    "confidence": 0.95,
+    "reason": "Cross-promotion for another TWiT show",
+    "end_text": "This Week in Tech from the TWiT Network"
+  },
+  {
+    "start": 9312.9,
+    "end": 9374.4,
+    "confidence": 0.98,
+    "reason": "Mint Mobile ad with promo code and pricing information",
+    "end_text": "see full terms at mintmobile.com"
+  }
+]}

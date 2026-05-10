@@ -1,0 +1,7 @@
+{ 
+  "start": 4178.2, 
+  "end": 4227.9, 
+  "confidence": 0.0, 
+  "reason": "no promotional content detected", 
+  "end_text": "show their stuff"
+}

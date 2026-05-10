@@ -1,0 +1,1 @@
+{"start": 821.4, "end": 1020.0, "confidence": 0.99, "reason": "Ad break begins after listener thanks and contains multiple inserted ads: Capital One, BetterHelp, Amazon Health AI, Spectrum Business, and Rinse; continues to end of window", "end_text": "Rinse. It's time to be great"}

@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 5975.6,
+    "end": 6083.5,
+    "confidence": 0.98,
+    "reason": "Hoxhunt sponsor read with transition 'Let's take a timeout' and full product pitch with behavioral science positioning",
+    "end_text": "personalized to each employee, just like the bad guys"
+  }
+]
+```

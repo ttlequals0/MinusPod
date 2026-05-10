@@ -1,0 +1,7 @@
+{
+  "start": 1255.9,
+  "end": 1268.8,
+  "confidence": 0.0,
+  "reason": "No promotional content found in this window. The transcript contains only editorial discussion about AI, OAuth, credit card theft, Apple Wallet, and the UK NCSC's warning about technical debt and patch waves. No sponsor names, URLs, promo codes, or calls to action are present.",
+  "end_text": "Thank you for watching."
+}

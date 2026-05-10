@@ -1,0 +1,1 @@
+{"start":6016.6,"end":6162.3,"confidence":0.99,"reason":"Hoxhunt sponsor read with product pitch, customer claims, and call to action to visit hawkshunt.com/securitynow","end_text":"discussion of Chrome and"}

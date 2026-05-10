@@ -1,0 +1,1 @@
+{"start": 2208.3, "end": 2237.0, "confidence": 1.0, "reason": "Blinds.com sponsor read with promotional offer and URL", "end_text": "measure at Blinds.com"}

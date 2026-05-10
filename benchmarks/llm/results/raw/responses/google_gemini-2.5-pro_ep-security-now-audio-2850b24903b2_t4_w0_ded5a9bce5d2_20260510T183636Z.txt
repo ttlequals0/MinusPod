@@ -1,0 +1,16 @@
+[
+  {
+    "start": 16.7,
+    "end": 84.9,
+    "confidence": 0.99,
+    "reason": "Host-read ad for OutSystems, including a vanity URL and product pitch.",
+    "end_text": "people you trust. This is Twit."
+  },
+  {
+    "start": 444.6,
+    "end": 572.1,
+    "confidence": 0.99,
+    "reason": "Host-read ad for Zscaler, including the transition into the ad break and a vanity URL.",
+    "end_text": "Security Now. Thank you, Leo."
+  }
+]

@@ -1,0 +1,1 @@
+{"start":58.0,"end":80.1,"confidence":0.72,"reason":"Brief sponsor/brand acknowledgment for CoreWeave/Core Read in show intro: 'a podcast series brought to you by Core Read'","end_text":"So welcome, Richard. Let's kick things off with"}

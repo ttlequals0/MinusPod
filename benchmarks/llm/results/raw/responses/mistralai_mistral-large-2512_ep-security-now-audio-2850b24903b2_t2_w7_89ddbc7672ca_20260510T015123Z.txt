@@ -1,0 +1,51 @@
+[
+    {
+        "start": 3376.2,
+        "end": 3382.8,
+        "confidence": 0.95,
+        "reason": "Platform-inserted ad break transition with promotional language for sponsors (Zscaler, Meter, Bitwarden, Hoxhunt, TrustedTech). This is a standard mid-roll ad insertion point in TWiT podcasts.",
+        "end_text": "Thank you for watching."
+    },
+    {
+        "start": 3382.8,
+        "end": 3410.7,
+        "confidence": 0.98,
+        "reason": "Host-read sponsor segment for Zscaler. Promotional language with call to action (URL: zscaler.com/security).",
+        "end_text": "zscaler.com/security"
+    },
+    {
+        "start": 3410.7,
+        "end": 3438.3,
+        "confidence": 0.98,
+        "reason": "Host-read sponsor segment for Meter. Promotional language with call to action (URL: meter.com/securitynow).",
+        "end_text": "meter.com/securitynow"
+    },
+    {
+        "start": 3438.3,
+        "end": 3467.6,
+        "confidence": 0.98,
+        "reason": "Host-read sponsor segment for Bitwarden. Promotional language with call to action (URL: bitwarden.com/twit).",
+        "end_text": "bitwarden.com/twit"
+    },
+    {
+        "start": 3467.6,
+        "end": 3488.9,
+        "confidence": 0.98,
+        "reason": "Host-read sponsor segment for Hoxhunt. Promotional language with call to action (URL: hoxhunt.com/securitynow).",
+        "end_text": "hoxhunt.com/securitynow"
+    },
+    {
+        "start": 3488.9,
+        "end": 3518.3,
+        "confidence": 0.98,
+        "reason": "Host-read sponsor segment for TrustedTech. Promotional language with call to action (URL: trustedtech.team/securitynow365).",
+        "end_text": "trustedtech.team/securitynow365"
+    },
+    {
+        "start": 3518.3,
+        "end": 3540.0,
+        "confidence": 0.95,
+        "reason": "Ad segment continues in next window (partial detection). Promotional language for sponsors likely extends beyond this timestamp.",
+        "end_text": "massively accelerated."
+    }
+]

@@ -1,0 +1,18 @@
+```json
+[
+  {
+    "start": 4204.1,
+    "end": 4264.3,
+    "confidence": 0.92,
+    "reason": "Host transition to break and show information segment. Leo says 'You want to take a little break? I do.' followed by show scheduling details and platform mentions, then explicit ad intro 'This episode of Security Now is brought to you by Bitwarden'",
+    "end_text": "We'll have more Security Now right after this."
+  },
+  {
+    "start": 4265.2,
+    "end": 4396.1,
+    "confidence": 0.98,
+    "reason": "Bitwarden sponsor read. Host-read ad for Bitwarden password manager featuring product features, Agent Access SDK, passkey login for Windows 11, and company positioning. Includes promotional language about product capabilities and open-source toolkit.",
+    "end_text": "securely unlocking devices at the OS level."
+  }
+]
+```

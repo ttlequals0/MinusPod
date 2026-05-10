@@ -1,0 +1,1 @@
+{"start":4204.1,"end":4396.1,"confidence":0.98,"reason":"Break transition followed by host-read Bitwarden sponsor ad with promotional language, product pitch, and sponsor identification; ad continues in next window","end_text":"unlocking devices at the OS level"}

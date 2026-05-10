@@ -1,0 +1,1 @@
+{"start":3079.6,"end":3270.1,"confidence":0.99,"reason":"Back-to-back sponsor ads: Morgan & Morgan, Stash, and Neuro Gum with promotional claims, URLs, promo code, and explicit 'paid advertisement' disclosure","end_text":"find Neuro at CVS and Amazon"}

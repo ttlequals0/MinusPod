@@ -1,0 +1,16 @@
+[
+    {
+        "start": 9712.2,
+        "end": 9752.2,
+        "confidence": 0.95,
+        "reason": "Promotion of Applied Love Labs and timemachine.love, including a direct call to action ('Can you go to timemachine.love?') and product pitch for the time machine app. This is a host-read ad for the guest's own project, which qualifies as an ad due to promotional language and compensation context (guest's nonprofit).",
+        "end_text": "Can you go to timemachine.love?"
+    },
+    {
+        "start": 9752.2,
+        "end": 9840.0,
+        "confidence": 0.98,
+        "reason": "Continued promotion of timemachine.love with detailed product description and use cases (e.g., 'journaling app,' 'audio journaling,' 'veterans,' 'Cook County Jail'). The segment includes concentrated marketing language and a clear call to action, qualifying as an ad. Ends at window limit; continues in next.",
+        "end_text": "continues in next"
+    }
+]

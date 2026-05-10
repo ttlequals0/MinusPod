@@ -1,0 +1,1 @@
+{"start":0.0,"end":100.9,"confidence":0.99,"reason":"Pre-roll ad block with Capital One sponsor read, Xero free trial call to action, and Spectrum Business promotional pitch","end_text":"support with 100%"}

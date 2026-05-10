@@ -1,0 +1,9 @@
+{"ad_segments": [
+  {
+    "start": 0.0,
+    "end": 71.6,
+    "confidence": 0.98,
+    "reason": "Capital One, Xero, and Spectrum Business sponsor reads",
+    "end_text": "get support with 100"
+  }
+] }

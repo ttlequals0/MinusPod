@@ -1,0 +1,4 @@
+[
+    {"start": 0.0, "end": 100.9, "confidence": 0.98, "reason": "Host-read sponsor ads: Capital One, Xero, Spectrum Business", "end_text": "you get support with 100%"},
+    {"start": 124.0, "end": 152.9, "confidence": 0.98, "reason": "Host-read Warby Parker ad", "end_text": "warbyparker.com"}
+]

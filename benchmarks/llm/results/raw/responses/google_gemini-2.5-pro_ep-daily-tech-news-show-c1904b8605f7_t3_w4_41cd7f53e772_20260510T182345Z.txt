@@ -1,0 +1,23 @@
+[
+  {
+    "start": 1718.3,
+    "end": 1799.6,
+    "confidence": 1,
+    "reason": "A multi-part ad break containing a host-read promotion for the DTNS store, a produced ad for Capital One, and a cross-promotion for a Lemonada Media podcast.",
+    "end_text": "the six-part Thrive series."
+  },
+  {
+    "start": 2155.2,
+    "end": 2171.6,
+    "confidence": 1,
+    "reason": "Host-read promotion for the show's Patreon page at patreon.com/DTNS.",
+    "end_text": "See you next time."
+  },
+  {
+    "start": 2246.0,
+    "end": 2301.6,
+    "confidence": 1,
+    "reason": "A multi-part post-roll ad break containing a produced ad for Capital One and an ad for the laundry service Rinse.",
+    "end_text": "of a relentless task."
+  }
+]

@@ -1,0 +1,37 @@
+[
+  {
+    "start": 4675.4,
+    "end": 4697.4,
+    "confidence": 0.98,
+    "reason": "Colgate Women's Games sponsor read with promotional language",
+    "end_text": "your strength."
+  },
+  {
+    "start": 4705.5,
+    "end": 4733.9,
+    "confidence": 0.98,
+    "reason": "Skinny Pop popcorn sponsor read with promotional language",
+    "end_text": "makes sense."
+  },
+  {
+    "start": 4734.3,
+    "end": 4763.1,
+    "confidence": 0.98,
+    "reason": "Colgate Women's Games repeat sponsor read with promotional language",
+    "end_text": "your strength."
+  },
+  {
+    "start": 4766.5,
+    "end": 4787.9,
+    "confidence": 0.98,
+    "reason": "Viz eye drops sponsor read with promotional language",
+    "end_text": "right for you."
+  },
+  {
+    "start": 4788.6,
+    "end": 4806.1,
+    "confidence": 0.98,
+    "reason": "Garnier National Park Foundation sponsor read with promotional language",
+    "end_text": "support our national parks."
+  }
+]

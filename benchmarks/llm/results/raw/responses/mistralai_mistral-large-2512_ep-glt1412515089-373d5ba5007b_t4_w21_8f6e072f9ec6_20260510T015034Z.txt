@@ -1,0 +1,9 @@
+[
+    {
+        "start": 8797.7,
+        "end": 8822.5,
+        "confidence": 0.0,
+        "reason": "No promotional content detected; this is part of the conversation.",
+        "end_text": "especially if they actually invested"
+    }
+]

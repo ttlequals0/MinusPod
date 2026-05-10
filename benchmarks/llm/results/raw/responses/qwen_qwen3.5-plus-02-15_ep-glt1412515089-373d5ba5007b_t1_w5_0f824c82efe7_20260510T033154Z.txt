@@ -1,0 +1,1 @@
+[{"start": 2208.3, "end": 2237.0, "confidence": 0.98, "reason": "Blinds.com network-inserted ad segment", "end_text": "free professional measure at Blinds.com."}]

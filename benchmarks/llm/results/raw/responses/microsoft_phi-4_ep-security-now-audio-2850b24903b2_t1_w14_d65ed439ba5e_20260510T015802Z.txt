@@ -1,0 +1,7 @@
+{
+  "start": 58.63,
+  "end": 64.21,
+  "confidence": 0.95,
+  "reason": "The transcript discusses the introduction of a Chrome AI API, highlighting concerns about interoperability risks and terms and conditions imposed by Google. The discussion frames this as a power grab rather than a feature competition, with elements of a prohibited use policy included in the API documentation.",
+  "end_text": "elements of a prohibited use policy"
+}

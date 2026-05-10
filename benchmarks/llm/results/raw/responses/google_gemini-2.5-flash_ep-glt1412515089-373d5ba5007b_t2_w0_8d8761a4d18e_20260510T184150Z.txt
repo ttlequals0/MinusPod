@@ -1,0 +1,16 @@
+[
+  {
+    "start": 539.2,
+    "end": 595.4,
+    "confidence": 0.98,
+    "reason": "Movie promotion and Skechers ad read",
+    "end_text": "and they're on."
+  },
+  {
+    "start": 595.8,
+    "end": 600.0,
+    "confidence": 0.98,
+    "reason": "Skechers ad read",
+    "end_text": "sandals, sneakers,"
+  }
+]

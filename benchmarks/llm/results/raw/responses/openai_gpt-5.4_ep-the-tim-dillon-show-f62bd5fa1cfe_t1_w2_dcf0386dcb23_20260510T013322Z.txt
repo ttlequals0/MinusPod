@@ -1,0 +1,1 @@
+{"start":1439.2,"end":1465.2,"confidence":0.98,"reason":"Mint Mobile host-read sponsor segment begins with product pitch about saving money on cell phone service; partial ad continues in next window","end_text":"the nation's largest 5G network"}

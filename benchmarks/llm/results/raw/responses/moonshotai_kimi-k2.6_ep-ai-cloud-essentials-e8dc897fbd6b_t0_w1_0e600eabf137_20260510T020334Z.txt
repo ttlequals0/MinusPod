@@ -1,0 +1,1 @@
+ {"start": 415.2, "end": 984.2, "confidence": 0.0, "reason": "No promotional content, sponsor mentions, URLs, promo codes, or platform/network insertions detected in this window. All content appears to be organic interview discussion.", "end_text": "Thank you."}

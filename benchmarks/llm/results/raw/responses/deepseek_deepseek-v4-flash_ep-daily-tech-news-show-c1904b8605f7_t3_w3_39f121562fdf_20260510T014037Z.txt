@@ -1,0 +1,18 @@
+{
+  "ads": [
+    {
+      "start": 1742.3,
+      "end": 1771.5,
+      "confidence": 0.98,
+      "reason": "Capital One sponsor read with promotional language about Chat Concierge AI",
+      "end_text": "technology at Capital One."
+    },
+    {
+      "start": 1772.6,
+      "end": 1799.6,
+      "confidence": 0.95,
+      "reason": "Lemonada Media podcast cross-promotion for the Thrive series",
+      "end_text": "hear the six-part Thrive series."
+    }
+  ]
+}

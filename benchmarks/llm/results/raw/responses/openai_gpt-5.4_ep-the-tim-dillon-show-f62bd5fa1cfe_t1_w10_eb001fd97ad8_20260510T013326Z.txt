@@ -1,0 +1,1 @@
+{"start":4646.2,"end":4806.1,"confidence":0.99,"reason":"Cluster of network-inserted ads: Colgate Women's Games, SkinnyPop, Vuity/Viz eye drops, and Garnier partnership promos; ad continues through end of window","end_text":"support our national parks at GarnierUSA.com slash NPF"}

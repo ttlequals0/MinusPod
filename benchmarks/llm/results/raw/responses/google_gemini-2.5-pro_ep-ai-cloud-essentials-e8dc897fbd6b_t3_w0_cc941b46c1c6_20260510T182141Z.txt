@@ -1,0 +1,9 @@
+[
+  {
+    "start": 58.0,
+    "end": 80.1,
+    "confidence": 0.95,
+    "reason": "This is a sponsor billboard integrated into the show's introduction, explicitly stating the series is 'brought to you by Core Read' (likely CoreWeave).",
+    "end_text": "kick things off with..."
+  }
+]

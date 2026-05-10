@@ -1,0 +1,1 @@
+[{"start": 4646.2, "end": 4806.1, "confidence": 0.98, "reason": "Continuous ad break containing Colgate, Skinny Pop, Viz, and Garnier sponsor spots with gaps under 15 seconds", "end_text": "national parks at GarnierUSA.com slash NPF"}]

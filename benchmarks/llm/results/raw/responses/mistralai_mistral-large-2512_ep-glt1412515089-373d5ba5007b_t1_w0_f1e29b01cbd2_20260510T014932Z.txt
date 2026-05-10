@@ -1,0 +1,23 @@
+[
+    {
+        "start": 1.4,
+        "end": 9.3,
+        "confidence": 0.95,
+        "reason": "Platform-inserted pre-roll ad for 'The Joe Rogan Experience' podcast, promotional language for the show itself.",
+        "end_text": "all day."
+    },
+    {
+        "start": 539.2,
+        "end": 568.3,
+        "confidence": 0.98,
+        "reason": "Host-read ad for 'In the Gray' movie with promotional language, release date, and cast details.",
+        "end_text": "they operate."
+    },
+    {
+        "start": 568.4,
+        "end": 624.5,
+        "confidence": 0.98,
+        "reason": "Host-read ad for Skechers slip-ins with product pitch, call to action, and brand endorsement.",
+        "end_text": "sneakers,"
+    }
+]

@@ -1,0 +1,1 @@
+{"start": 5568.0, "end": 5596.3, "confidence": 0.98, "reason": "Netflix 'Remarkably Bright Creatures' host-read sponsor segment with product pitch and call to action 'now playing, only on Netflix'", "end_text": "now playing, only on Netflix"}

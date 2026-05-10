@@ -1,0 +1,16 @@
+[
+    {
+        "start": 3376.2,
+        "end": 3382.8,
+        "confidence": 0.95,
+        "reason": "Platform-inserted ad transition phrase 'Thank you for watching.' followed by a gap and sponsor-like silence before content resumes. Likely a network-inserted ad break marker.",
+        "end_text": "Thank you for watching."
+    },
+    {
+        "start": 3538.6,
+        "end": 3540.0,
+        "confidence": 0.9,
+        "reason": "Partial ad segment at window end. Likely a network-inserted ad or sponsor read continues in the next segment (e.g., 'continues in next').",
+        "end_text": "massively accelerated."
+    }
+]

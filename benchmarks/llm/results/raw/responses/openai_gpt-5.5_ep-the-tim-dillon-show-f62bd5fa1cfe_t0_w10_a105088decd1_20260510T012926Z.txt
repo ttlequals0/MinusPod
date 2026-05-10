@@ -1,0 +1,7 @@
+{
+  "start": 4646.2,
+  "end": 4800.0,
+  "confidence": 0.99,
+  "reason": "Network-inserted ad break with produced spots for Colgate Women's Games, Skinny Pop, Viz prescription eye drops, and Garnier/National Park Foundation; continues in next window",
+  "end_text": "support our national parks"
+}

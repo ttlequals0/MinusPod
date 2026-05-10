@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 5220.0,
+    "end": 5220.0,
+    "confidence": 0.0,
+    "reason": "No ads detected in this transcript window. Content is continuous interview discussion about telepathy experiments and mind-reading phenomena with no sponsor reads, promotional language, URLs, promo codes, or calls to action.",
+    "end_text": "N/A"
+  }
+]
+```

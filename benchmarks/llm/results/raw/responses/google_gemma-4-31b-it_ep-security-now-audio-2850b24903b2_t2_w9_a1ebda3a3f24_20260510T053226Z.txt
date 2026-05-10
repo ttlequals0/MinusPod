@@ -1,0 +1,1 @@
+{"start": 4204.1, "end": 4396.1, "confidence": 0.98, "reason": "Bitwarden sponsor read including transition and show promo", "end_text": "unlocking devices at the OS level."}

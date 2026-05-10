@@ -1,0 +1,16 @@
+[
+    {
+        "start": 9238.0,
+        "end": 9238.0,
+        "confidence": 0.0,
+        "reason": "Perplexity platform-inserted ad at episode start (partial, continues from previous)",
+        "end_text": "pplx.ai/rogan."
+    },
+    {
+        "start": 9750.4,
+        "end": 9752.2,
+        "confidence": 0.95,
+        "reason": "Host-directed call to action for Applied Love Labs (timemachine.love) with URL, promotional language",
+        "end_text": "timemachine.love?"
+    }
+]

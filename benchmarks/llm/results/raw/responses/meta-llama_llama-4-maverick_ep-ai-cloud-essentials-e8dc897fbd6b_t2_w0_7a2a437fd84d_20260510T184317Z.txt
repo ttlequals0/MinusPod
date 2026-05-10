@@ -1,0 +1,1 @@
+{"start": 396.8, "end": 415.2, "confidence": 0.9, "reason": "Abrupt 'Thank you for watching' likely indicates an ad break or non-content segment", "end_text": "Thank you for watching"}

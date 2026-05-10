@@ -1,0 +1,1 @@
+{"start": 539.2, "end": 652.8, "confidence": 0.99, "reason": "Back-to-back host-read ads for the film 'In the Gray' and Skechers, with explicit sponsor language, product pitch, release date, CTA, and URL.", "end_text": "That's only at Skechers.com."}

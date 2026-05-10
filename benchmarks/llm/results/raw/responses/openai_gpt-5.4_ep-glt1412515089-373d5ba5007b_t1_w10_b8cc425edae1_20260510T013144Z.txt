@@ -1,0 +1,1 @@
+{"start": 4525.1, "end": 4560.5, "confidence": 0.22, "reason": "No clear advertisement detected; brief sign-off phrase without sponsor, product pitch, URL, or call to action", "end_text": "includes a link to this video as well"}

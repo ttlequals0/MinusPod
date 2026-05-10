@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 9750.4,
+    "end": 9780.4,
+    "confidence": 0.85,
+    "reason": "Host-read promotion for Applied Love Labs' timemachine.love product. Julia promotes her nonprofit's journaling app with direct URL mention and call to action ('Can you go to timemachine.love?'). This is organic promotion of her own work within interview context, not a paid sponsor segment.",
+    "end_text": "Enter your time machine"
+  }
+]
+```

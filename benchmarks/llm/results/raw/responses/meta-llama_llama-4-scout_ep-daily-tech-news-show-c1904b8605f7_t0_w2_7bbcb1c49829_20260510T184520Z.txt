@@ -1,0 +1,16 @@
+{"ads": [
+  {
+    "start": 821.4,
+    "end": 961.5,
+    "confidence": 0.99,
+    "reason": "Capital One, BetterHelp, Amazon Health AI, and Spectrum Business sponsor reads",
+    "end_text": "spectrum.com slash business"
+  },
+  {
+    "start": 990.6,
+    "end": 1018.9,
+    "confidence": 0.95,
+    "reason": "Rinse sponsor read",
+    "end_text": "rinse.com. Rinse"
+  }
+]}

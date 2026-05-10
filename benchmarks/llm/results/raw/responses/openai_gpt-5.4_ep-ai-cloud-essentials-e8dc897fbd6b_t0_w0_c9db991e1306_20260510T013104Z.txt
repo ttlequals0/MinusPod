@@ -1,0 +1,1 @@
+{"start": 58.0, "end": 80.1, "confidence": 0.84, "reason": "Podcast intro contains promotional attribution language for Core Read/CoreWeave: 'a podcast series brought to you by Core Read'", "end_text": "So welcome, Richard. Let's kick things off with..."}

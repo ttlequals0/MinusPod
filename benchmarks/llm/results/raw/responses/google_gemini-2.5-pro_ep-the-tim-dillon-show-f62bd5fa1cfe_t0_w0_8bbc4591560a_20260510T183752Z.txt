@@ -1,0 +1,9 @@
+[
+  {
+    "start": 0.0,
+    "end": 28.1,
+    "confidence": 0.98,
+    "reason": "A network-inserted brand ad for Colgate, promoting the Colgate Women's Games.",
+    "end_text": "your smile is your strength."
+  }
+]

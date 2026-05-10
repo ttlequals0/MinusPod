@@ -1,0 +1,1 @@
+{"start":9259.3,"end":9290.5,"confidence":0.94,"reason":"TWiT network promo for another podcast, 'This Week in Tech,' with subscription call to action","end_text":"This Week in Tech from the TWiT Network. Thank you."}

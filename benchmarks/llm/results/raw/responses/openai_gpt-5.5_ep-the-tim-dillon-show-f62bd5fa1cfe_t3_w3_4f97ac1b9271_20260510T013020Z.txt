@@ -1,0 +1,1 @@
+{"start":1439.2,"end":1665.9,"confidence":0.99,"reason":"Merged ad break with Mint Mobile and Aura Frames host-read sponsor ads plus produced Colgate and Skinny Pop brand ads; includes promotional URLs, promo code TIM, product pitches, and calls to action.","end_text":"perfectly salted. Skinny Pop."}

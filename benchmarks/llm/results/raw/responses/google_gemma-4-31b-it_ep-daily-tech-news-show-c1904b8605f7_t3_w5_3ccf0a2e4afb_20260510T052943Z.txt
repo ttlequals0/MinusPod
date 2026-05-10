@@ -1,0 +1,18 @@
+{
+  "ads": [
+    {
+      "start": 2246.0,
+      "end": 2275.3,
+      "confidence": 1.0,
+      "reason": "Capital One sponsor read",
+      "end_text": "technology at Capital One"
+    },
+    {
+      "start": 2276.2,
+      "end": 2314.4,
+      "confidence": 1.0,
+      "reason": "Rinse laundry service ad read by Adam Grant",
+      "end_text": "Rinse. It's time to be great"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+[
+    {
+        "start": 4690.8,
+        "end": 4816.0,
+        "confidence": 0.98,
+        "reason": "Anthropic Claude Security sponsor read with promotional language, URLs (claude.ai/slash/security), and calls to action (e.g., 'start a scan', 'select one of your repositories')",
+        "end_text": "claude.ai slash security"
+    },
+    {
+        "start": 4816.6,
+        "end": 4961.8,
+        "confidence": 0.95,
+        "reason": "Continued Claude Security ad with detailed product features (scheduled scans, targeted scans, integrations) and enterprise-focused promotional language",
+        "end_text": "via webhooks. Okay"
+    }
+]

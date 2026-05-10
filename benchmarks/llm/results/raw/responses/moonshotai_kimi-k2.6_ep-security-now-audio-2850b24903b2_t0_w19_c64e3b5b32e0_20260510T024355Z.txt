@@ -1,0 +1,1 @@
+{"start": 7959.9, "end": 8599.9, "confidence": 0.0, "reason": "No promotional content detected in this window. The transcript contains only editorial discussion about Google's AI Prompt API, browser interoperability concerns, and commentary on search engine advertising as a topic, not as a sponsored segment.", "end_text": "continually being offered the opportunity"}

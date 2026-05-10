@@ -1,0 +1,1 @@
+{"start": 821.4, "end": 1020.0, "confidence": 0.99, "reason": "Ad block containing Capital One, BetterHelp, Amazon Health AI, Spectrum Business, and Rinse promotional spots with calls to action and product pitches; partial block continues in next window", "end_text": "Rinse. It's time to be great"}

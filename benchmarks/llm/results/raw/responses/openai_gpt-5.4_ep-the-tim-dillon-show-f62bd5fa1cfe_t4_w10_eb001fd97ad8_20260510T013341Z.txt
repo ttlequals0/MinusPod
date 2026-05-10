@@ -1,0 +1,1 @@
+{"start":4646.2,"end":4806.1,"confidence":0.99,"reason":"Platform-inserted ad block with multiple brand promos: Colgate Women's Games, SkinnyPop, Viz, and Garnier/National Park Foundation; contains concentrated promotional copy and CTA like 'Learn more at Viz.com' and 'GarnierUSA.com slash NPF'. Continues in next window.","end_text":"at GarnierUSA.com slash NPF"}

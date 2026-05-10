@@ -1,0 +1,9 @@
+[
+  {
+    "start": 6368.2,
+    "end": 6394.8,
+    "confidence": 0.98,
+    "reason": "Host-read integrated ad for Perplexity, who is explicitly identified as 'our AI sponsor'.",
+    "end_text": "past, present, and potential future."
+  }
+]

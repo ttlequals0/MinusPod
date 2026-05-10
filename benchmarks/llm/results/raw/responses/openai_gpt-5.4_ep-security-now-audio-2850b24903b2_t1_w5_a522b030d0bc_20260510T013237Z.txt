@@ -1,0 +1,1 @@
+{"start":2558.9,"end":2693.0,"confidence":0.99,"reason":"Host-read Meter sponsor segment beginning with break transition and promoting meter.com/securitynow with product pitch and call to book a demo","end_text":"okay meter all right now back to steve"}

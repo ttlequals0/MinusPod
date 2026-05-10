@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 6368.2,
+    "end": 6394.8,
+    "confidence": 0.92,
+    "reason": "Perplexity AI sponsor read - host acknowledges 'Perplexity, our AI sponsor, trying to flex' and product is promoted with description of capabilities",
+    "end_text": "showing us how smart it is"
+  }
+]
+```

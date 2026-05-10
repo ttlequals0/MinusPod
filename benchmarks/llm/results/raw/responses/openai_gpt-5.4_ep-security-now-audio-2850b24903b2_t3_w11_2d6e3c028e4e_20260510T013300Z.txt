@@ -1,0 +1,1 @@
+{"start": 4639.7, "end": 4935.6, "confidence": 0.92, "reason": "Anthropic Claude Security promotional segment with product pitch and call to action including claude.ai/security; partial ad-like promo continues from earlier in window", "end_text": "and acting on findings. With this release,"}

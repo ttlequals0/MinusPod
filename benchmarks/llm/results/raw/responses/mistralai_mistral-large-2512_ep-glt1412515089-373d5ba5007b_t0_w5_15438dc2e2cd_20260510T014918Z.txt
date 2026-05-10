@@ -1,0 +1,16 @@
+[
+    {
+        "start": 2208.3,
+        "end": 2237.0,
+        "confidence": 0.99,
+        "reason": "Blinds.com host-read sponsor segment with promotional language, call to action ('get up to 45% off site-wide'), and brand-specific details (free professional measure, 50,000 five-star reviews). Includes transition phrase ('The right window treatments change everything').",
+        "end_text": "free professional measure at Blinds.com"
+    },
+    {
+        "start": 2374.9,
+        "end": 2375.6,
+        "confidence": 0.7,
+        "reason": "Partial or incomplete ad segment detected (likely a platform-inserted retail ad or dynamic insertion). Contains promotional language ('Click here to see me try the world's loudest...') but cuts off abruptly. May continue in next window.",
+        "end_text": "loudest..."
+    }
+]

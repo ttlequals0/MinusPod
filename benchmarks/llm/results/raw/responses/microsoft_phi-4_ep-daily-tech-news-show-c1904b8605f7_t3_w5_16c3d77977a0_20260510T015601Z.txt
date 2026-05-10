@@ -1,0 +1,7 @@
+{
+  "start": 2180.8,
+  "end": 2314.4,
+  "confidence": 0.98,
+  "reason": "Capital One network-inserted brand tagline ad",
+  "end_text": "Rinse. It's time to be great."
+}

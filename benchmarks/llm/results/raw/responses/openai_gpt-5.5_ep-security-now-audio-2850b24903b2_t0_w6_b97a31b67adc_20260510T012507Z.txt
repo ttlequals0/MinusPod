@@ -1,0 +1,1 @@
+{"start":2532.3,"end":2693.0,"confidence":0.99,"reason":"Meter sponsor read with product pitch and call to action to go to meter.com/securitynow and book a demo","end_text":"now back to steve"}

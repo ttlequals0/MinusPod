@@ -1,0 +1,1 @@
+{"start":539.2,"end":600.0,"confidence":0.99,"reason":"Back-to-back ad break with promotional language for the film 'In the Gray' ('Only in theaters May 15th') followed by a Skechers sponsor read ('This episode is brought to you by Skechers', product pitch for hands-free slip-ins); continues in next window","end_text":"dress footwear, sandals, sneakers"}

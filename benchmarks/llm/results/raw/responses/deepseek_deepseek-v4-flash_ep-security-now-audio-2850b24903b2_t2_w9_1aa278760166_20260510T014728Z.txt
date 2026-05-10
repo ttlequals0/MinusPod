@@ -1,0 +1,7 @@
+{
+  "start": 4204.1,
+  "end": 4396.1,
+  "confidence": 0.99,
+  "reason": "Host-read Bitwarden sponsor segment with promotional language, product features, and call to action",
+  "end_text": "securely unlocking devices at the OS level"
+}

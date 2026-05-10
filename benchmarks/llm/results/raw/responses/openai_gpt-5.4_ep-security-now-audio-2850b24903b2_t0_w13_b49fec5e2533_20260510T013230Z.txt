@@ -1,0 +1,1 @@
+{"start": 6016.6, "end": 6060.0, "confidence": 0.98, "reason": "Host-read sponsor segment for Hoxhunt/Hawks Hunt begins with break transition and explicit promo language; continues in next window", "end_text": "personalized to each employee, just like the bad guys"}

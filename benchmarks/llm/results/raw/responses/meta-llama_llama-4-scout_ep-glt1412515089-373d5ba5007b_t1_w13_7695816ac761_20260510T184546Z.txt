@@ -1,0 +1,11 @@
+{
+"ads": [
+    {
+      "start": 5546.3,
+      "end": 5568.0,
+      "confidence": 0.98,
+      "reason": "Netflix sponsored segment",
+      "end_text": "only on Netflix"
+    }
+  ]
+}

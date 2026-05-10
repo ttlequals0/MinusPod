@@ -1,0 +1,18 @@
+{
+  "ads": [
+    {
+      "start": 4204.1,
+      "end": 4264.3,
+      "confidence": 0.95,
+      "reason": "Host-led transition to break with show promotion and platform cross-promotion for live viewing options, followed by 'We'll have more Security Now right after this' — a clear ad break transition.",
+      "end_text": "right after this"
+    },
+    {
+      "start": 4265.2,
+      "end": 4396.1,
+      "confidence": 0.98,
+      "reason": "Bitwarden sponsor read with promotional language: product name, features, URLs implied, calls to action, and detailed pitch about Agent Access SDK. Includes host endorsement and open-source giveaway mention.",
+      "end_text": "securely unlocking devices at the OS level"
+    }
+  ]
+}

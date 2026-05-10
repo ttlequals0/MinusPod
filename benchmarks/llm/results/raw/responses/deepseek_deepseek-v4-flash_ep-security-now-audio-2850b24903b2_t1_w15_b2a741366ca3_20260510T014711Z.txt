@@ -1,0 +1,7 @@
+{
+  "start": 6284.0,
+  "end": 6907.2,
+  "confidence": 0.0,
+  "reason": "No promotional language, sponsor names, URLs, promo codes, or calls to action found. This is editorial discussion about Google's prompt API and Mozilla's opposition.",
+  "end_text": "they're just using a generic LLM that the user has provided to their browser"
+}

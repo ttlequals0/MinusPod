@@ -1,0 +1,1 @@
+{"start": 417.2, "end": 572.1, "confidence": 0.99, "reason": "Host-read sponsor segment for Zscaler beginning with break transition and including promotional URL/call to action 'zscaler.com/security'; ad appears to start in this window and ends before show content resumes.", "end_text": "Now back to Steve and Security Now."}

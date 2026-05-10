@@ -1,0 +1,1 @@
+{"start":4204.1,"end":4380.0,"confidence":0.99,"reason":"Bitwarden sponsor read; includes break transition and promotional copy for password/passkey/secrets management, Access Intelligence, Agent Access SDK; continues in next window","end_text":"continues in next window"}

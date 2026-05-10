@@ -1,0 +1,1 @@
+{"transcript_analysis": "No promotional content detected in this window. The transcript contains only host commentary and news clips about the Hantavirus cruise ship topic, with comedic asides. No sponsor names, URLs, promo codes, product pitches, calls to action, or transition phrases indicating advertising were found.", "ads": []}

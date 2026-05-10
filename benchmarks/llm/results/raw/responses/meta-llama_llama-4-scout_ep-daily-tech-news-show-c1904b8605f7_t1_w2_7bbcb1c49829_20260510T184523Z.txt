@@ -1,0 +1,30 @@
+{"ad_segments": [
+    {
+        "start": 821.4,
+        "end": 889.7,
+        "confidence": 0.98,
+        "reason": "Capital One and BetterHelp sponsor reads",
+        "end_text": "betterhelp.com slash random podcast"
+    },
+    {
+        "start": 890.6,
+        "end": 910.1,
+        "confidence": 0.95,
+        "reason": "Amazon Health AI sponsor read",
+        "end_text": "Healthcare just got less painful"
+    },
+    {
+        "start": 912.2,
+        "end": 961.5,
+        "confidence": 0.96,
+        "reason": "Spectrum Business sponsor read",
+        "end_text": "spectrum.com slash business today"
+    },
+    {
+        "start": 990.6,
+        "end": 1018.9,
+        "confidence": 0.94,
+        "reason": "Rinse sponsor read",
+        "end_text": "rinse.com. Rinse"
+    }
+]}

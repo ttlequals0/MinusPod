@@ -1,0 +1,16 @@
+[
+    {
+        "start": 4230.9,
+        "end": 4264.3,
+        "confidence": 0.98,
+        "reason": "Platform-inserted ad for Club TWiT and live viewing options, including promotional calls to action for the show and club membership.",
+        "end_text": "twit.tv slash SN."
+    },
+    {
+        "start": 4265.2,
+        "end": 4465.7,
+        "confidence": 0.99,
+        "reason": "Bitwarden sponsor read with promotional language, URLs (bitwarden.com/twit), product pitches, and calls to action. Includes transition phrase and repeated URL.",
+        "end_text": "bitwarden.com slash twit."
+    }
+]

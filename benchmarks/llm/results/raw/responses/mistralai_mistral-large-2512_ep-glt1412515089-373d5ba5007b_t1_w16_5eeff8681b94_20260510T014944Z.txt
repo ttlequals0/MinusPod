@@ -1,0 +1,9 @@
+[
+    {
+        "start": 6706.4,
+        "end": 6706.4,
+        "confidence": 0.0,
+        "reason": "No ad detected in this segment; purely conversational content.",
+        "end_text": "Protons, neutrons, electrons."
+    }
+]

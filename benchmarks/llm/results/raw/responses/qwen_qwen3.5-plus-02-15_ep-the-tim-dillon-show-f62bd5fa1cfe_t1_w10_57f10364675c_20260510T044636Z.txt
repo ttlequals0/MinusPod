@@ -1,0 +1,1 @@
+[{"start": 4646.2, "end": 4806.1, "confidence": 0.98, "reason": "Continuous block of network-inserted ads (Colgate, Skinny Pop, Viz, Garnier) following show content", "end_text": "GarnierUSA.com slash NPF."}]

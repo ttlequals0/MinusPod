@@ -1,0 +1,1 @@
+{"start": 3781.2, "end": 3835.8, "confidence": 0.8, "reason": "Sponsor mention and promotion", "end_text": "to participate, thus"}

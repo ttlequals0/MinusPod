@@ -1,0 +1,16 @@
+[
+  {
+    "start": 0.0,
+    "end": 100.9,
+    "confidence": 0.99,
+    "reason": "A multi-part pre-roll ad block featuring Capital One, Xero, and Spectrum Business.",
+    "end_text": "get support with 100%"
+  },
+  {
+    "start": 124.0,
+    "end": 152.9,
+    "confidence": 0.98,
+    "reason": "An ad for Warby Parker with a call to action to visit their website.",
+    "end_text": "That's warbyparker.com."
+  }
+]

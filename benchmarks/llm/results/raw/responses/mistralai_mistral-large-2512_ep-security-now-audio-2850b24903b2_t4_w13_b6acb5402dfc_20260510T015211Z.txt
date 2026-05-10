@@ -1,0 +1,9 @@
+[
+    {
+        "start": 6039.6,
+        "end": 6083.5,
+        "confidence": 0.99,
+        "reason": "HoxHunt sponsor read with promotional language, call to action, and brand-specific messaging",
+        "end_text": "actually working well?"
+    }
+]

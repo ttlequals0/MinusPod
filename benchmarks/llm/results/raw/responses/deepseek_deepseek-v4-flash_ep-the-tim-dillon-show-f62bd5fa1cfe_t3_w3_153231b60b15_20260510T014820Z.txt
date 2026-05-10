@@ -1,0 +1,25 @@
+{
+  "ads": [
+    {
+      "start": 1439.2,
+      "end": 1576.1,
+      "confidence": 0.99,
+      "reason": "Mint Mobile and Aura Frames host-read sponsor segments with promo codes and URLs",
+      "end_text": "AuraFrames.com slash Tim. Promo code TIM"
+    },
+    {
+      "start": 1578.3,
+      "end": 1629.5,
+      "confidence": 0.95,
+      "reason": "Colgate network-inserted brand tagline ad with product positioning",
+      "end_text": "your smile is your strength"
+    },
+    {
+      "start": 1637.6,
+      "end": 1665.9,
+      "confidence": 0.95,
+      "reason": "Skinny Pop network-inserted brand tagline ad with product description",
+      "end_text": "perfectly salted. Skinny Pop"
+    }
+  ]
+}

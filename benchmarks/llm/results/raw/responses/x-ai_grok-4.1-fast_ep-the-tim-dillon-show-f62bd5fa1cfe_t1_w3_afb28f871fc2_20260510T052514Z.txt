@@ -1,0 +1,1 @@
+{"start":1439.2,"end":1665.9,"confidence":0.99,"reason":"Host-read Mint Mobile and Aura Frames ads with promo URLs/codes, merged with platform-inserted Colgate and Skinny Pop brand tagline ads (gaps <15s)","end_text":"Deliciously popped, perfectly salted. Skinny Pop."}

@@ -1,0 +1,16 @@
+[
+    {
+        "start": 3376.2,
+        "end": 3382.8,
+        "confidence": 0.95,
+        "reason": "Platform-inserted ad transition with promotional language ('Thank you for watching') and abrupt content break, likely a network-inserted ad or sponsor tag.",
+        "end_text": "Thank you for watching."
+    },
+    {
+        "start": 3538.6,
+        "end": 3540.0,
+        "confidence": 0.9,
+        "reason": "Partial ad segment at window boundary; likely continues into next segment with promotional or sponsor content (e.g., 'Casey emphasized...').",
+        "end_text": "stupid things faster with more energy."
+    }
+]

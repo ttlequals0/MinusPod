@@ -1,0 +1,1 @@
+{"start":2246.0,"end":2314.4,"confidence":0.98,"reason":"Capital One sponsor read ('This episode is brought to you by Capital One') merged with Rinse platform-inserted ad (product pitch, URL, call to action), gap <15s","end_text":"Rinse. It's time to be great."}

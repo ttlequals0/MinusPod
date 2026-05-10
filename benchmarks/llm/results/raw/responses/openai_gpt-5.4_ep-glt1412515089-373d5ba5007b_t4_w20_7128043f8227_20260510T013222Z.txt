@@ -1,0 +1,1 @@
+{"start": 8405.6, "end": 9008.6, "confidence": 0.01, "reason": "No advertisement detected in this window; episode content discusses creativity, gifted programs, and Lockheed Martin in conversation without promotional language, sponsor pitch, URL, or call to action", "end_text": "They hire me on the spot. Then,"}

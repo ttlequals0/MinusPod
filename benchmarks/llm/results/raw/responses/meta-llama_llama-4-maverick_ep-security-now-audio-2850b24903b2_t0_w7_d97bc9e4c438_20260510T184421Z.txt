@@ -1,0 +1,1 @@
+{"start": 3279.5, "end": 3332.3, "confidence": 0.8, "reason": "Transition phrase 'let's take a step back' precedes sponsor content, discussing security and bug bounty", "end_text": "busy"}

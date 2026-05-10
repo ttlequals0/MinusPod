@@ -1,0 +1,9 @@
+[
+    {
+        "start": 7607.7,
+        "end": 7743.9,
+        "confidence": 0.99,
+        "reason": "Trusted Tech sponsor read with promotional language, call to action, and mention of pricing changes (Microsoft licensing). Includes transition phrase 'let's take our final break' and explicit sponsor attribution ('This episode of Security Now brought to you by Trusted Tech').",
+        "end_text": "impressed. You will be too."
+    }
+]

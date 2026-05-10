@@ -1,0 +1,1 @@
+{"start":6016.6,"end":6060.0,"confidence":0.98,"reason":"Hoxhunt (transcribed as Hawks Hunt) host-read sponsor ad with transition 'We'll take a little break... brought to you by Hawks Hunt'; partial ad continues in next window","end_text":"just like the bad guys"}

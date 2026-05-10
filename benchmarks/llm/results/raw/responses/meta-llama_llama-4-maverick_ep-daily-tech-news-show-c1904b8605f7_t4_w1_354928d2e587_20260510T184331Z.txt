@@ -1,0 +1,1 @@
+{"start": 796.9, "end": 816.3, "confidence": 0.8, "reason": "Transition to thank listeners and sponsors", "end_text": "Pete Patron. Yep, yep, yep, yep."}

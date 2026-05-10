@@ -1,0 +1,18 @@
+```json
+[
+  {
+    "start": 9259.3,
+    "end": 9290.5,
+    "confidence": 0.92,
+    "reason": "Leo Laporte cross-promotion for This Week in Tech podcast - network-inserted show promo",
+    "end_text": "TWiT Network. Thank you."
+  },
+  {
+    "start": 9312.9,
+    "end": 9374.4,
+    "confidence": 0.95,
+    "reason": "Mint Mobile sponsor read by Ryan Reynolds with promo code and URL",
+    "end_text": "See full terms at mintmobile.com."
+  }
+]
+```

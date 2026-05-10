@@ -1,0 +1,16 @@
+[
+    {
+        "start": 1742.3,
+        "end": 1771.5,
+        "confidence": 0.99,
+        "reason": "Capital One sponsor read with promotional language, product pitch (Chat Concierge), and brand tagline",
+        "end_text": "technology at Capital One."
+    },
+    {
+        "start": 1772.6,
+        "end": 1799.6,
+        "confidence": 0.95,
+        "reason": "Lemonada Media cross-promotion for 'Good Things' podcast (network-inserted ad segment)",
+        "end_text": "Thrive series."
+    }
+]

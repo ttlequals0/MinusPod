@@ -1,0 +1,1 @@
+[{"start": 5975.6, "end": 6060.0, "confidence": 0.97, "reason": "Hawkshunt sponsor read", "end_text": "just like the bad guys", "continues_in_next": true}]

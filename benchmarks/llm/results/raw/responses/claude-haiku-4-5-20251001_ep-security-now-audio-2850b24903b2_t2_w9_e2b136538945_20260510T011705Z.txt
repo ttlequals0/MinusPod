@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 4204.1,
+    "end": 4264.3,
+    "confidence": 0.92,
+    "reason": "Bitwarden sponsor read with product features, Agent Access SDK announcement, and passkey login details. Includes transition ('You want to take a little break?') and show information before sponsor content.",
+    "end_text": "unlocking devices at the OS level"
+  }
+]
+```

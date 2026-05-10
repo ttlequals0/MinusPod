@@ -1,0 +1,7 @@
+{
+  "start": 821.4,
+  "end": 1021.1,
+  "confidence": 0.99,
+  "reason": "Contiguous dynamic ad break with promotional spots for Capital One, BetterHelp, Amazon Health AI, Spectrum Business, and Rinse; includes sponsor names, URLs/calls to action, product pitches, and promotional language.",
+  "end_text": "It's time to be great"
+}

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 6016.6,
+    "end": 6162.3,
+    "confidence": 1.0,
+    "reason": "Hoxhunt host-read sponsor read.",
+    "end_text": "discussion of Chrome and"
+  }
+]

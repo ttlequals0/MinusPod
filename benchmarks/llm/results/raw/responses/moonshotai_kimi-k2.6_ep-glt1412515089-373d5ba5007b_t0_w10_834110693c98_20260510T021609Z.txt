@@ -1,0 +1,1 @@
+{"start": 4525.1, "end": 4533.0, "confidence": 0.3, "reason": "Silence or dead air between content segments - no promotional language present", "end_text": "We'll see you next time."}

@@ -1,0 +1,1 @@
+{"start":539.2,"end":600.0,"confidence":0.99,"reason":"Sponsor ad break with promotional reads for In the Gray movie and Skechers; includes 'This episode is brought to you by,' theater release date, and product pitch; continues in next window","end_text":"sandals, sneakers"}

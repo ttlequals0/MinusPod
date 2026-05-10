@@ -1,0 +1,46 @@
+```json
+[
+  {
+    "start": 1439.2,
+    "end": 1488.9,
+    "confidence": 0.98,
+    "reason": "Mint Mobile host-read sponsor segment with URL and promotional language",
+    "end_text": "mintmobile.com slash Tim Dillon"
+  },
+  {
+    "start": 1489.6,
+    "end": 1512.6,
+    "confidence": 0.95,
+    "reason": "Mint Mobile legal/terms continuation of sponsor read",
+    "end_text": "see Mint Mobile for details"
+  },
+  {
+    "start": 1512.6,
+    "end": 1563.8,
+    "confidence": 0.98,
+    "reason": "Aura Frames host-read sponsor segment with promo code TIM and URL",
+    "end_text": "promo code TIM"
+  },
+  {
+    "start": 1564.4,
+    "end": 1576.1,
+    "confidence": 0.95,
+    "reason": "Aura Frames continuation with terms and code TIM",
+    "end_text": "Promo code TIM"
+  },
+  {
+    "start": 1578.3,
+    "end": 1629.5,
+    "confidence": 0.92,
+    "reason": "Colgate Women's Games network-inserted brand ad with product positioning",
+    "end_text": "your smile is your strength"
+  },
+  {
+    "start": 1637.6,
+    "end": 1665.9,
+    "confidence": 0.92,
+    "reason": "Skinny Pop network-inserted brand tagline ad with product pitch",
+    "end_text": "Deliciously popped, perfectly salted. Skinny Pop"
+  }
+]
+```

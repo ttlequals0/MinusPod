@@ -1,0 +1,32 @@
+{  
+  "ad_segments": [  
+    {  
+      "start": 58.66,  
+      "end": 58.94,  
+      "confidence": 0.95,  
+      "reason": "Transition phrase 'Time travel therapy is a thing.'",  
+      "end_text": "I think we're going to talk about this."  
+    },  
+    {  
+      "start": 59.23,  
+      "end": 59.41,  
+      "confidence": 0.98,  
+      "reason": "Transition phrase 'This works regardless of whether it's a bad choice or abuse.'",  
+      "end_text": "You know, it's like you're a human being that understands language."  
+    },  
+    {  
+      "start": 60.58,  
+      "end": 62.18,  
+      "confidence": 0.90,  
+      "reason": "Transition phrase 'Isn't that funny how in dreams you just know it's someone.'",  
+      "end_text": "I sort of think this is true."  
+    },  
+    {  
+      "start": 62.18,  
+      "end": 62.80,  
+      "confidence": 0.85,  
+      "reason": "Transition phrase 'What makes you think that there's an informational substrate.'",  
+      "end_text": "It's just a feeling I have."  
+    }  
+  ]  
+}

@@ -1,0 +1,7 @@
+{
+  "start": 7606.9,
+  "end": 7797.4,
+  "confidence": 0.99,
+  "reason": "Host-read sponsor segment for Trusted Tech Microsoft 365 licensing consultation, with promo URL trustedtech.team/securitynow365, multiple calls to action, and transition phrases",
+  "end_text": "trustedtech.team securitynow365"
+}

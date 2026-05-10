@@ -1,0 +1,32 @@
+```json
+[
+  {
+    "start": 4646.2,
+    "end": 4697.4,
+    "confidence": 0.92,
+    "reason": "Colgate Women's Games network-inserted brand tagline ad with female athlete testimonial and call to action",
+    "end_text": "Colgate, your smile is your strength"
+  },
+  {
+    "start": 4705.5,
+    "end": 4733.9,
+    "confidence": 0.90,
+    "reason": "Skinny Pop network-inserted brand tagline ad promoting popcorn product with marketing language",
+    "end_text": "Skinny Pop"
+  },
+  {
+    "start": 4734.3,
+    "end": 4763.1,
+    "confidence": 0.92,
+    "reason": "Colgate Women's Games network-inserted brand tagline ad with athlete testimonial",
+    "end_text": "Colgate, your smile is your strength"
+  },
+  {
+    "start": 4766.5,
+    "end": 4806.1,
+    "confidence": 0.88,
+    "reason": "Network-inserted retail ads: Viz prescription eye drop ad, Garnier National Park Foundation partnership ad with URLs",
+    "end_text": "GarnierUSA.com slash NPF"
+  }
+]
+```

@@ -1,0 +1,1 @@
+{"start": 9741.1, "end": 9840.0, "confidence": 0.76, "reason": "Guest promotes her nonprofit/product with explicit call to action and URL-like site mention: 'Can you go to timemachine.love?' and describes the app's benefits; segment continues in next window", "end_text": "caused"}

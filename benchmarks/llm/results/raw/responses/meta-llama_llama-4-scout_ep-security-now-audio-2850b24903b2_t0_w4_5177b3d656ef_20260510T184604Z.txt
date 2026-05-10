@@ -1,0 +1,7 @@
+{ 
+  "start": 2288.2, 
+  "end": 2290.2, 
+  "confidence": 0.98, 
+  "reason": "pre-roll ad for Acast", 
+  "end_text": "Acast powers the world's best podcasts"
+}

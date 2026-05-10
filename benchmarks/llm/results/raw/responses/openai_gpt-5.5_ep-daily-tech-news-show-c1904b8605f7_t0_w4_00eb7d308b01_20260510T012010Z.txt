@@ -1,0 +1,1 @@
+{"start":1742.3,"end":1799.6,"confidence":0.99,"reason":"Capital One sponsor read followed by Lemonada Media cross-promo for Good Things/Thrive series; merged due to <15s gap","end_text":"the six-part Thrive series"}

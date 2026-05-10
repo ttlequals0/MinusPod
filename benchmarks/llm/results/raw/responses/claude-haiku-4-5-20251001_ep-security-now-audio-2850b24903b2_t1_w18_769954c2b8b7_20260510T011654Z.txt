@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 7607.7,
+    "end": 7797.4,
+    "confidence": 0.98,
+    "reason": "Trusted Tech sponsor read with URL and call to action",
+    "end_text": "trustedtech.team/securitynow365"
+  }
+]
+```

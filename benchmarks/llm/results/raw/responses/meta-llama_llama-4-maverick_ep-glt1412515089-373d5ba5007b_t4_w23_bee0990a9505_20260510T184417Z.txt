@@ -1,0 +1,1 @@
+{"start": 9752.2, "end": 9854.2, "confidence": 0.9, "reason": "Sponsor mention with call to action and product description", "end_text": "That makes sense. Yeah."}

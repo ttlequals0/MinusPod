@@ -1,0 +1,61 @@
+Podcast: security-now-audio
+Episode: SN 1077: A Browser AI API? - End of Bug Bounties?
+
+
+Episode description: <p>Google is sneaking a massive 4.7GB AI model into Chrome, and Mozilla is fighting back as the future of browsers threatens to turn into an AI arms race. Find out what's really happening behind this push and why it's setting off alarm bells across the web.</p><ul> 
+<li>Hackers AI-code a portal, forget to add authentication.</li> 
+<li>The UK's NCSC issues a Mythos warning. Where's CISA?</li> 
+<li>Another (of many) Linux local privilege escalations.</li> 
+<li>AI may be spelling the end of bug bounties.</li> 
+<li>Anthropic releases "Claude Security" mini-Mythos.</li> 
+<li>ChatGPT gets very serious about login security.</li> 
+<li>Syncthing's SyncTrayzor v1 abandoned; v2 created.</li> 
+<li>Google drops an AI API into Chrome; Mozilla objects</li></ul> 
+<p>Show Notes - <a href="https://www.grc.com/sn/SN-1077-Notes.pdf">https://www.grc.com/sn/SN-1077-Notes.pdf</a></p> 
+<p><strong>Hosts:</strong> <a href="https://twit.tv/people/steve-gibson">Steve Gibson</a> and <a href="https://twit.tv/people/leo-laporte">Leo Laporte</a></p> 
+<p>Download or subscribe to <em>Security Now</em> at <a href="https://twit.tv/shows/security-now">https://twit.tv/shows/security-now</a>.</p> 
+<p>You can submit a question to <em>Security Now</em> at the <a href="https://www.grc.com/feedback.htm" target="_blank">GRC Feedback Page</a>.</p> 
+<p>For 16kbps versions, transcripts, and notes (including fixes), visit Steve's site: <a href="https://www.grc.com/securitynow.htm" target="_blank">grc.com</a>, also the home of the best disk maintenance and recovery utility ever written <a href="https://www.grc.com/sr/spinrite.htm" target="_blank">Spinrite 6</a>.</p> 
+<p><strong>Join Club TWiT for Ad-Free Podcasts!</strong><br /> 
+Support what you love and get ad-free audio <em>and</em> video feeds, a members-only Discord, and exclusive content. Join today: <a href="https://twit.tv/clubtwit" rel="payment">https://twit.tv/clubtwit</a></p>
+<p><strong>Sponsors:</strong><ul>
+<li><a href="http://zscaler.com/security" rel="sponsored" target="_blank">zscaler.com/security</a></li>
+<li><a href="http://meter.com/securitynow" rel="sponsored" target="_blank">meter.com/securitynow</a></li>
+<li><a href="http://bitwarden.com/twit" rel="sponsored" target="_blank">bitwarden.com/twit</a></li>
+<li><a href="http://hoxhunt.com/securitynow" rel="sponsored" target="_blank">hoxhunt.com/securitynow</a></li>
+<li><a href="http://trustedtech.team/securitynow365" rel="sponsored" target="_blank">trustedtech.team/securitynow365</a></li>
+</ul></p>
+
+Transcript:
+[2087.6s - 2109.3s] Earlier this month, an Anthropic official told Axios the company had briefed CISA and the Commerce Department on Mythos' capabilities. The Commerce Department's Center for AI Standards and Innovation has reportedly been testing Mythos, so they have it. The NSA is also among
+[2109.8s - 2138.0s] The organizations using Mythos, despite the Department of Defense, which oversees the agency, having declared Anthropic is a supply chain risk, unquote. It's unclear if the ongoing turmoil within the agency during the second Trump administration played any role in the agency not moving more swiftly to secure access. Spokespeople for CISA and Anthropic both declined.
+[2138.6s - 2162.9s] Any comment for this reporting by Axios? They wrote, the Trump administration has spent the last year, as we know, reducing capacity at CISA. Instead of opting to give more policy influence to the White House's national, instead of that, they have opted to give more policy influence to the White House's national cyber director.
+[2163.6s - 2190.1s] and pushing some programs out to the state and local level. So trying to, you know, distribute this instead of having it as centralized as it had been under CISA. CISA's acting director, a guy named Nick Anderson, told lawmakers last week that the agency's resources are, quote, more limited than I would like, unquote, he said. Trump has proposed cutting as much as $707 million.
+[2191.1s - 2200.2s] More from the agency's budget in the upcoming fiscal year. CISA has already lost more than a third of its workforce and millions of dollars in funding.
+[2201.1s - 2226.3s] National Cyber Director Sean Carencross is among the Trump officials negotiating broader civilian agency access to Mythos. The Treasury Department has also been negotiating access. Sources tell Axios that other organizations with access to Mythos have predominantly been using it to find exploitable security vulnerabilities within their own networks and software.
+[2226.9s - 2250.7s] Security teams at critical infrastructure organizations have often looked to CISA to share threat intelligence across their sectors and determine how to prioritize their security strategies. And as we know, those critical infrastructure organizations have very much depended upon CISA, but also on that blanket
+[2258.8s - 2270.2s] So, I hadn't heard about this acting CISA director, Nick Anderson, so I checked him out, and he appears to be imminently
+[2270.7s - 2288.1s] Thank you for watching.
+[2295.7s - 2298.2s] of the Operation Iraqi Freedom.
+[2324.2s - 2350.6s] He's certainly competent to be on top of CISA. I've got no complaints with Nick's background. It appears what he needs is more resources and support, and that CISA's lack of access to mythos is largely due to the, as we're now calling it, the War Department's unfortunate feud with Anthropic. Anthropic made clear in 2025.
+[2351.9s - 2374.2s] At the time that it signed its contract with the Pentagon, that it did not want its AI technology to be used for mass surveillance of people within the United States or for fully autonomous weapons systems. As we know then, subsequently the Department of War demanded that Anthropic drop those restrictions.
+[2375.0s - 2402.2s] And Anthropic refused to do so. They published a public statement explaining their position. And regarding fully autonomous weapons, they wrote, frontier AI systems are simply not reliable enough to power fully autonomous weapons. And without proper oversight, fully autonomous weapons cannot be relied upon to exercise the critical judgment that highly trained professional troops exhibit every day.
+[2402.7s - 2429.1s] Anthropic offered to work with the Department of War on R&D to improve the reliability of these systems, but were turned down. So, after that, in apparent retaliation, and without any evidence, the Pentagon declared Anthropic suddenly to be a supply chain risk. And this is all very unfortunate, since CISA should absolutely have access to Anthropic's mythos preview.
+[2429.7s - 2457.3s] Hopefully, the White House's National Cyber Director, this Sean Caroncross, who appears to understand the need, will be able to make something happen. You know, it's clearly ridiculous to have one of the US's leading AI firms frozen out of the government because, as Secretary Pete Hegseth declared, it is woke AI, whatever that means in this context. For the time being, it appears that CISA is silent.
+[2458.2s - 2479.8s] For purely political reasons. This is really politics should not be in intrude into this at all and unfortunately very much has I mean CISA is in the doghouse because of what happened in 2020 right Chris Krebs right and Now the White House is saying they want approval of all future AI models
+[2480.5s - 2504.8s] Period. They're about to draft a proposal that AI models can't be released without government approval. This is exactly the wrong direction to take with this stuff. Well, and I also did see that Anthropic wanted to do a second round. They wanted to expand their program by adding an additional 70 organizations that would have access to Mythos Preview, and the White House said no.
+[2505.3s - 2531.8s] is like blocking their ability to incrementally roll this out. And incremental disclosure here is exactly what you want. You get the core 40, they have a month with it, and then you widen the circle again and let another, you know, like next tier have access to it. Yeah, this is, it's a little infuriating because political motivation and
+[2532.3s - 2558.9s] What's the right thing to do from a security point of view don't necessarily coincide. And that's what you're seeing here. And it makes us all less safe, frankly. Yeah. Okay, break time. And then we're going to look at this newest Linux local privilege escalation and look at how AI is reshaping the bug bounty business. Excellent. Well, I could just sit back and relax because Petaluma Leo is going to take control.
+[2560.1s - 2585.5s] This episode of Security Now brought to you by Meter, the company building better networks. If you're a network engineer, you know the headaches. Legacy providers, inflexible pricing, IT resource constraints, stretching you thin, complex deployments across fragmented tools. Look, you're mission critical to the business, but you're working with infrastructure that wasn't built for today's demands. That's why businesses are switching to Meter.
+[2586.0s - 2608.5s] Meter delivers full-stack networking infrastructure, wired, wireless, and cellular, that's built for performance and scalability. Meter designs the hardware, they write the firmware, they build the software, they manage the deployments, they provide support. Meter offers everything from ISP procurement to security, routing, switching,
+[2609.8s - 2632.1s] Wireless, Firewall, they do cellular, they do power, DNS security, VPN, SD-WAN, multi-site workflows, all in a single solution. Meters single integrated networking stack scales from major hospitals, branch offices, warehouses, and large campuses to data centers, even Reddit. The Assistant Director of Technology for Web School of Knoxville said this, quote,
+[2632.8s - 2658.0s] We had more than 20 games on our campus between our two facilities. Each game was streamed via wired and wireless connections, and the event went off without a hitch. We could never have done this before Meter redesigned our network. With Meter, you get a single partner for all your connectivity needs, from first site survey to ongoing support without the complexity of managing multiple providers or tools. One number to call.
+[2658.7s - 2664.9s] Meteor's integrated networking stack is designed to take the burden off your IT team and give you deep control and visibility.
+[2658.6s - 2687.4s] Meter's integrated networking stack is designed to take the burden off your IT team and give you deep control and visibility, reimagining what it means for businesses to get and stay online. Meter, built for the bandwidth demands of today and tomorrow. Thanks to Meter so much for supporting Steve and Security Now. And we invite you to go to meter.com slash security now and book a demo. You'll be glad you did. That's M-E-T-E-R, meter.com.
+[2687.7s - 2693.0s] security now book a demo okay meter all right now back to steve
+[2694.2s - 2722.9s] All right, Steve, on we go with security. So the news late last week was of the discovery of another serious local privilege escalation discovered in the Linux kernel. And it had been there for a long time. And yes, before you ask, it was found by an AI vulnerability discovery system operated by a security firm named Theory. They wrote, quote, an unprivileged local user
+
+=== WINDOW 6/23: 35.0-45.0 minutes ===
+- Use absolute timestamps from transcript (as shown in brackets)
+- If an ad starts before this window, use the first timestamp with note "continues from previous"
+- If an ad extends past this window, use 2700.0 with note "continues in next"

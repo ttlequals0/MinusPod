@@ -1,0 +1,7 @@
+{
+  "start": 1255.9,
+  "end": 1860.0,
+  "confidence": 0.0,
+  "reason": "No promotional language, sponsor names, URLs, promo codes, or calls to action found. The transcript contains only editorial discussion of NCSC warning and technical debt.",
+  "end_text": "continues in next"
+}

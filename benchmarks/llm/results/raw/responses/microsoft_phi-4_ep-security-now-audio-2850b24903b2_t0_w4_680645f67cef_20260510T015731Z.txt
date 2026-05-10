@@ -1,0 +1,7 @@
+{
+  "start": 16.64,
+  "end": 22.26,
+  "confidence": 0.95,
+  "reason": "The segment discusses the importance of automatic updates and patch management, highlighting the NCSC's guidance on vulnerability management and the need for organizations to prepare for the patch wave. It also mentions the lack of access to Anthropic's Mythos model by CISA, which is a significant point of discussion.",
+  "end_text": "Security teams at critical infrastructure organizations have often looked to CISA to share threat intelligence across their sectors and determine how to prioritize their security strategies."
+}

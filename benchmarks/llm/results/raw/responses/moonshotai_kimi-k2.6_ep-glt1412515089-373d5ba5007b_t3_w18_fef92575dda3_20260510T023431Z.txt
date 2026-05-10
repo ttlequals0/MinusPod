@@ -1,0 +1,1 @@
+ {"start": 7916.6, "end": 7937.1, "confidence": 0.15, "reason": "Non-promotional closing phrase 'Thank you for watching' with no product/service pitch; appears to be production artifact or standard outro, not an advertisement", "end_text": "Thank you for watching."}

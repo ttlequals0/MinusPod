@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 0.0,
+      "end": 27.7,
+      "confidence": 0.95,
+      "reason": "Colgate Women's Games sponsored segment with promotional language and brand tagline",
+      "end_text": "Colgate, your smile is your strength"
+    }
+  ]
+}

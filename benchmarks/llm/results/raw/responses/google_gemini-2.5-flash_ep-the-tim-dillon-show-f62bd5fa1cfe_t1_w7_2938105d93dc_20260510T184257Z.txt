@@ -1,0 +1,23 @@
+[
+  {
+    "start": 3079.6,
+    "end": 3134.3,
+    "confidence": 0.99,
+    "reason": "Morgan & Morgan sponsor read",
+    "end_text": "This is a paid advertisement. Stash is the one. Stash is the one."
+  },
+  {
+    "start": 3135.6,
+    "end": 3208.0,
+    "confidence": 0.99,
+    "reason": "Stash sponsor read",
+    "end_text": "Head over to stash.com slash mood. Paid non-client endorsement, not a guarantee, not representative of all clients investment advisory services offered by Stash Investments LLC, an SEC registered advisor. Investing involves risk."
+  },
+  {
+    "start": 3209.1,
+    "end": 3270.1,
+    "confidence": 0.99,
+    "reason": "NeuroGum sponsor read",
+    "end_text": "Use code TIM for 20% off your first order. You can also find Neuro at CVS and Amazon."
+  }
+]

@@ -1,0 +1,19 @@
+[{
+	"start": 0.0,
+	"end": 9.3,
+	"confidence": 0.95,
+	"reason": "Platform-inserted ad for Joe Rogan Podcast",
+	"end_text": "all day."
+}, {
+	"start": 539.2,
+	"end": 595.4,
+	"confidence": 0.98,
+	"reason": "In the Gray movie promotion",
+	"end_text": "or adult guardian."
+}, {
+	"start": 595.8,
+	"end": 600.0,
+	"confidence": 0.98,
+	"reason": "Skechers sponsor read",
+	"end_text": "sneakers,"
+}]

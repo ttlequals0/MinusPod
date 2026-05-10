@@ -1,0 +1,7 @@
+{
+  "start": 14.0,
+  "end": 24.0,
+  "confidence": 0.95,
+  "reason": "The discussion highlights the gender dynamics in listening and communication, emphasizing the traits associated with masculinity and femininity. It suggests that listening is often perceived as a feminine trait due to its association with humility, which is considered a feminine trait. The conversation also touches on the idea that women are generally better listeners, which aligns with the notion of genuine curiosity being a feminine trait. However, the speaker acknowledges that listening is not inherently gendered and depends on the context and relationship dynamics.",
+  "end_text": "I think it's about insecurity and emotional maturity, not gender. It's a learned behavior."
+}

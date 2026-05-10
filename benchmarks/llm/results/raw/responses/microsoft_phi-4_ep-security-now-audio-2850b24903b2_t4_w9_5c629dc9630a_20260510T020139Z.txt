@@ -1,0 +1,7 @@
+{
+  "start": 63.0,
+  "end": 73.0,
+  "confidence": 0.95,
+  "reason": "The segment contains a transition phrase indicating a continuation from a previous ad, and it ends with a note suggesting continuation into the next ad.",
+  "end_text": "passkey login for Windows 11"
+}

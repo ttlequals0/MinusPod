@@ -1,0 +1,16 @@
+[
+  {
+    "start": 539.2,
+    "end": 568.3,
+    "confidence": 0.99,
+    "reason": "Sponsor read for 'In the Gray' movie",
+    "end_text": "they operate."
+  },
+  {
+    "start": 568.4,
+    "end": 652.8,
+    "confidence": 0.99,
+    "reason": "Sponsor read for Skechers Slip-ins",
+    "end_text": "Skechers.com"
+  }
+]

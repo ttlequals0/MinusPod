@@ -1,0 +1,16 @@
+{"ads": [
+    {
+        "start": 3079.6,
+        "end": 3134.3,
+        "confidence": 0.98,
+        "reason": "Morgan & Morgan sponsor read",
+        "end_text": "dial Poundlaw"
+    },
+    {
+        "start": 3134.5,
+        "end": 3145.0,
+        "confidence": 0.98,
+        "reason": "Stash sponsor read",
+        "end_text": "Stash is the one"
+    }
+]}

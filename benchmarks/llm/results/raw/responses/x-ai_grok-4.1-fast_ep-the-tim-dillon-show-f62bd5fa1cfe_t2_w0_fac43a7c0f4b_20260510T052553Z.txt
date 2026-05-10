@@ -1,0 +1,1 @@
+{"start":0.0,"end":27.7,"confidence":0.95,"reason":"Colgate pre-roll network-inserted brand tagline ad","end_text":"Colgate, your smile is your strength."}

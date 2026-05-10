@@ -1,0 +1,1 @@
+{"start": 4525.1, "end": 4560.5, "confidence": 0.85, "reason": "Perplexity sponsor read with URL - 'Perplexity: Download the app or ask Perplexity anything at https://pplx.ai/rogan' from episode description maps to this transition segment with 'We'll see you next time' followed by product pitch", "end_text": "includes a link to this video as well"}

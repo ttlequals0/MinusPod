@@ -1,0 +1,9 @@
+[
+    {
+        "start": 6894.0,
+        "end": 6900.0,
+        "confidence": 0.95,
+        "reason": "Partial ad segment for Bitwarden, continues in next window. Host-read sponsor with promo code 'twit' and call to action.",
+        "end_text": "continues in next"
+    }
+]

@@ -1,0 +1,9 @@
+{"ads": [
+  {
+    "start": 4265.2,
+    "end": 4465.7,
+    "confidence": 0.98,
+    "reason": "Bitwarden sponsor read",
+    "end_text": "bitwarden.com slash twit"
+  }
+]}

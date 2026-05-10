@@ -1,0 +1,1 @@
+[{"start": 4646.2, "end": 4733.9, "confidence": 0.98, "reason": "Colgate and Skinny Pop sponsor reads", "end_text": "Deliciously popped, perfectly salted. Skinny Pop."}, {"start": 4734.3, "end": 4787.9, "confidence": 0.95, "reason": "Colgate and Viz sponsor reads", "end_text": "Learn more at Viz.com."}]

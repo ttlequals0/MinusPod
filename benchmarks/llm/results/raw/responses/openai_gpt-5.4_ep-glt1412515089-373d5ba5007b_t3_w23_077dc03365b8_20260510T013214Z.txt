@@ -1,0 +1,7 @@
+{
+  "start": 9881.1,
+  "end": 9898.0,
+  "confidence": 0.62,
+  "reason": "Guest book promotion with explicit call to action: 'The book is called Have a Nice Disclosure... Go get it.'",
+  "end_text": "right there. Go get it."
+}

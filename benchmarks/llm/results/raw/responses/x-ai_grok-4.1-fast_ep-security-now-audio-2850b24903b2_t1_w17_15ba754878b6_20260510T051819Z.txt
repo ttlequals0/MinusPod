@@ -1,0 +1,1 @@
+{"start":7584.4,"end":7743.9,"confidence":0.98,"reason":"Trusted Tech host-read sponsor segment for Microsoft 365 licensing (partial, ends at window end)","end_text":"You will be too."}

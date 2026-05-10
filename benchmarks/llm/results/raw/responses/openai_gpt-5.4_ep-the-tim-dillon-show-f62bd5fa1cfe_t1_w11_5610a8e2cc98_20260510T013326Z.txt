@@ -1,0 +1,1 @@
+{"start":4646.2,"end":4806.1,"confidence":0.99,"reason":"Network-inserted retail/brand ad block with Colgate Women's Games, SkinnyPop, Viz, and Garnier promotional copy and calls to action; starts mid-ad and continues from previous window","end_text":"support our national parks at GarnierUSA.com slash NPF"}

@@ -1,0 +1,7 @@
+{  
+  "start": 33.39,  
+  "end": 39.60,  
+  "confidence": 0.95,  
+  "reason": "The segment contains a discussion about the impact of language on human consciousness and the role of internal voices in guiding behavior, which aligns with the podcast's theme of cognitive neuroscience and human consciousness. The segment also mentions the book 'Have a Nice Disclosure!' by Julia Mossbridge, which is relevant to the podcast's content.",  
+  "end_text": "It's just sitting there."  
+}

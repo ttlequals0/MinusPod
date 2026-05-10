@@ -1,0 +1,1 @@
+{"start":445.6,"end":572.1,"confidence":0.99,"reason":"Zscaler host-read sponsor with transition, product pitch, testimonial, and URL zscaler.com/security","end_text":"zscaler.com slash security"}

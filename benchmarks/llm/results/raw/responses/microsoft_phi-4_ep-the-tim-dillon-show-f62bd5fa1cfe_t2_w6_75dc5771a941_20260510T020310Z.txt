@@ -1,0 +1,20 @@
+[
+
+[
+  {
+    "start": 3107.1,
+    "end": 3134.3,
+    "confidence": 0.98,
+    "reason": "Morgan & Morgan sponsor read with promo code and call to action",
+    "end_text": "I sent you."
+  },
+  {
+    "start": 3134.3,
+    "end": 3134.3,
+    "confidence": 0.95,
+    "reason": "Stash network-inserted brand tagline ad",
+    "end_text": "the one."
+  }
+]
+
+]

@@ -1,0 +1,1 @@
+{"start": 6284.0, "end": 6907.2, "confidence": 0.0, "reason": "No promotional content detected in transcript window; entire segment is editorial discussion between hosts about Chrome AI API and Mozilla objections", "end_text": "not an ad segment"}

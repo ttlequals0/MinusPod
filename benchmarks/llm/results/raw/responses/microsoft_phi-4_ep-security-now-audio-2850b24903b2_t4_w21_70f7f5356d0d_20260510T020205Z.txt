@@ -1,0 +1,7 @@
+{
+  "start": 88.13,
+  "end": 89.25,
+  "confidence": 0.98,
+  "reason": "Host-Read Sponsor Segment: Microsoft's AI integration into Chrome, and the discussion about browser standards and Google's role in AI implementation.",
+  "end_text": "Thanks Steve. Have a great week."
+}

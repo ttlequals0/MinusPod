@@ -1,0 +1,16 @@
+[
+    {
+        "start": 4690.8,
+        "end": 4854.2,
+        "confidence": 0.95,
+        "reason": "Anthropic Claude Security promotional segment with product pitch, URLs (claude.ai/slash/security), and calls to action for enterprise customers. Includes integration details, partner mentions, and feature descriptions.",
+        "end_text": "work through the fix in context"
+    },
+    {
+        "start": 5174.0,
+        "end": 5220.0,
+        "confidence": 0.9,
+        "reason": "OpenAI's 'Advanced Account Security' promotional segment with product positioning language ('strongest account protections available') and targeted user pitch. Continues in next window.",
+        "end_text": "connected tools and workflows. For some people"
+    }
+]

@@ -1,0 +1,16 @@
+[
+    {
+        "start": 6894.0,
+        "end": 6900.0,
+        "confidence": 0.95,
+        "reason": "Partial ad segment promoting Club TWiT at the end of the episode description. Contains promotional language ('Join Club TWiT for Ad-Free Podcasts!', 'Support what you love and get ad-free audio and video feeds'). Continues in next window.",
+        "end_text": "Club TWiT today."
+    },
+    {
+        "start": 6900.0,
+        "end": 6900.0,
+        "confidence": 0.98,
+        "reason": "Sponsor list from episode description (zscaler.com/security, meter.com/securitynow, bitwarden.com/twit, hoxhunt.com/securitynow, trustedtech.team/securitynow365). Network-inserted ads likely follow in next window.",
+        "end_text": "trustedtech.team/securitynow365"
+    }
+]

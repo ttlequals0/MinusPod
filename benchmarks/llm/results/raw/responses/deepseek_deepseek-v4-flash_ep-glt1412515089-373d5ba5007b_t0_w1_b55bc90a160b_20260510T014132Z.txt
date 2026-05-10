@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 539.2,
+      "end": 652.8,
+      "confidence": 0.99,
+      "reason": "Two consecutive host-read ads: In the Gray movie promotion and Skechers slip-ins with promo URL",
+      "end_text": "only at Skechers.com"
+    }
+  ]
+}

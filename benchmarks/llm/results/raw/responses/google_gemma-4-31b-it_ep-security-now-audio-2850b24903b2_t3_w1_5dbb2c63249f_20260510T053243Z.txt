@@ -1,0 +1,1 @@
+{"ads": [{"start": 417.2, "end": 572.1, "confidence": 0.98, "reason": "Zscaler sponsor read including transition phrase 'we'll take our first break'", "end_text": "zscaler.com slash security"}]}

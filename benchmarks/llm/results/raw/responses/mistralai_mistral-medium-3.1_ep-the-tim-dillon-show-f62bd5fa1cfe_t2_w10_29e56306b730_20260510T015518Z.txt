@@ -1,0 +1,25 @@
+[{
+    "start": 4646.2,
+    "end": 4705.5,
+    "confidence": 0.95,
+    "reason": "Colgate Women's Games sponsor read",
+    "end_text": "Colgate, your smile is your strength"
+}, {
+    "start": 4705.5,
+    "end": 4734.3,
+    "confidence": 0.95,
+    "reason": "Skinny Pop sponsor read",
+    "end_text": "Deliciously popped, perfectly salted. Skinny Pop"
+}, {
+    "start": 4734.3,
+    "end": 4766.5,
+    "confidence": 0.95,
+    "reason": "Colgate Women's Games sponsor read",
+    "end_text": "Colgate, your smile is your strength"
+}, {
+    "start": 4766.5,
+    "end": 4788.6,
+    "confidence": 0.95,
+    "reason": "Viz and Garnier sponsor read",
+    "end_text": "Learn more at Viz.com"
+}]

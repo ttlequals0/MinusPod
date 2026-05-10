@@ -1,0 +1,1 @@
+{"start": 4661.9, "end": 4683.1, "confidence": 0.3, "reason": "Non-promotional gap - only contains 'Thank you for watching' with no sponsor names, URLs, or product pitches. Insufficient promotional content to flag as ad.", "end_text": "Thank you for watching."}

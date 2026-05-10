@@ -1,0 +1,1 @@
+{"start":2208.3,"end":2237.0,"confidence":0.95,"reason":"Blinds.com host-read sponsor segment with discount offer and URL","end_text":"professional measure at Blinds.com"}

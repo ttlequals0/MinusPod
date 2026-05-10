@@ -1,0 +1,1 @@
+{"start": 7584.4, "end": 7797.4, "confidence": 0.98, "reason": "Trusted Tech host-read sponsor segment with URL trustedtech.team/securitynow365", "end_text": "Now, back to Steve."}

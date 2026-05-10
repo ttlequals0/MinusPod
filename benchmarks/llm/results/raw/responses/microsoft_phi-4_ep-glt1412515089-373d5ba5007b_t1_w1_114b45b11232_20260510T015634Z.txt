@@ -1,0 +1,7 @@
+{
+  "start": 402.7,
+  "end": 1002.1,
+  "confidence": 0.95,
+  "reason": "The segment contains promotional language for Skechers, including a call to action and product endorsement, indicating it is an advertisement.",
+  "end_text": "you have to believe all the things"
+}

@@ -1,0 +1,30 @@
+[
+    {
+        "start": 1439.2,
+        "end": 1489.6,
+        "confidence": 0.99,
+        "reason": "Mint Mobile sponsor read with promotional language, URL, and call to action",
+        "end_text": "mintmobile.com slash Tim Dillon"
+    },
+    {
+        "start": 1514.6,
+        "end": 1576.1,
+        "confidence": 0.99,
+        "reason": "Aura Frames sponsor read with promotional language, promo code, and URL",
+        "end_text": "Promo code TIM"
+    },
+    {
+        "start": 1607.4,
+        "end": 1629.5,
+        "confidence": 0.95,
+        "reason": "Colgate network-inserted brand tagline ad with concentrated marketing language",
+        "end_text": "your smile is your strength"
+    },
+    {
+        "start": 1637.6,
+        "end": 1665.9,
+        "confidence": 0.95,
+        "reason": "Skinny Pop network-inserted brand tagline ad with concentrated marketing language",
+        "end_text": "Skinny Pop just makes sense"
+    }
+]

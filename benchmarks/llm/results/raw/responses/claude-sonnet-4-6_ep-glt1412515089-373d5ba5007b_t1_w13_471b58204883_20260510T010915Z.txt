@@ -1,0 +1,5 @@
+Looking at this transcript window, I can identify one ad segment:
+
+[5546.3s - 5568.0s] contains a Netflix promotional segment for "Remarkably Bright Creatures" - it's a produced ad read with promotional language describing the show's plot and a call to action ("now playing, only on Netflix").
+
+[{"start": 5546.3, "end": 5568.0, "confidence": 0.97, "reason": "Netflix 'Remarkably Bright Creatures' sponsor read with plot description and call to action", "end_text": "now playing, only on Netflix"}]

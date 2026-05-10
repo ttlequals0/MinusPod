@@ -1,0 +1,1 @@
+{"start": 1735.3, "end": 1799.6, "confidence": 0.99, "reason": "Host-read DTNS store promo and Capital One sponsor read, followed by network-inserted ad for Lemonada Media's 'Good Things' podcast", "end_text": "six-part Thrive series"}

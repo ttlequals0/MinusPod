@@ -1,0 +1,1 @@
+{"start": 3120.9, "end": 3120.9, "confidence": 0.95, "reason": "Perplexity platform-inserted ad at episode end", "end_text": "ask Perplexity anything at https://pplx.ai/rogan"}

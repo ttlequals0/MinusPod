@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 58.0,
+      "end": 80.1,
+      "confidence": 0.95,
+      "reason": "Host-read sponsor mention: 'podcast series brought to you by Core Read'",
+      "end_text": "Welcome, Richard. Let's kick"
+    }
+  ]
+}
