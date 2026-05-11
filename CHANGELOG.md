@@ -6,6 +6,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.8] - 2026-05-11
+
+### Fixed
+
+- **iOS PWA blank screen on 2.1.7**. The 2.1.7 bump of `react-router-dom` 6.30.3 -> 7.15.0 broke `<BrowserRouter basename="/ui">` initialization under iOS WKWebView. Desktop browsers rendered fine; the installed iOS PWA loaded the bundle but rendered an empty `<div id="root">`. Fix migrates `frontend/src/App.tsx` from the v6 `<BrowserRouter>` + `<Routes>` + `<Route>` shape to v7's `createBrowserRouter([...], { basename: "/ui" })` + `<RouterProvider>` data-router shape. All page hooks (`useNavigate`, `useParams`, `useLocation`, `useSearchParams`, `Outlet`, `Link`, `Navigate`) are unchanged between v6 and v7, so no call sites were touched.
+
+### Changed
+
+- Benchmark docs now disclose how the corpus transcripts were produced. `benchmarks/llm/README.md` has a new "Transcript source" section listing the faster-whisper `large-v3` config, the exact `model.transcribe()` parameters (`beam_size=5`, adaptive `batch_size`, `word_timestamps=True`, `vad_filter=True` with custom `vad_parameters`, forced `language="en"`, and the sponsor-vocabulary `initial_prompt`), and a sample of `SEED_SPONSORS`. `benchmarks/llm/data/README.md` has a short pointer paragraph at the top. The generated `results/report.md` now contains a "Transcript source" section between "Methodology" and "Run Metadata" with the full sponsor list (254 entries) pulled lazily from `src/utils/constants.SEED_SPONSORS` at report time.
+- Full humanizer pass on `benchmarks/llm/README.md`, `benchmarks/llm/data/README.md`, `benchmarks/llm/CONTRIBUTING.md`, and prose strings in `benchmarks/llm/src/benchmark/report.py`. All ASCII pseudo-em-dashes (` -- `) replaced with sentence breaks, semicolons, or colons depending on context. No Unicode em/en-dashes, smart quotes, bullets, or ellipsis chars in any benchmark doc.
+
 ## [2.1.7] - 2026-05-10
 
 ### Added

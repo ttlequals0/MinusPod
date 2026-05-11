@@ -10,7 +10,7 @@ This doc covers PR mechanics. Background and setup live in [`README.md`](README.
 
 ## Setup
 
-Follow [`README.md`](README.md) for `uv sync`, `.env`, and `benchmark.toml`. The CLI commands are documented under `uv run benchmark --help`. `benchmark capture` requires an account on a MinusPod instance; if you don't run one, file an issue describing the episode you want added and a maintainer will capture it for you.
+Follow [`README.md`](README.md) for `uv sync`, `.env`, and `benchmark.toml`. The CLI commands are documented under `uv run benchmark --help`. `benchmark capture` requires an account on a MinusPod instance. If you don't run one, file an issue describing the episode you want added and a maintainer will capture it for you.
 
 ## PR type 1: add an episode
 
@@ -25,10 +25,10 @@ uv run benchmark verify ep-<slug>-<id>
 
 `verify` validates the candidate and promotes it to `data/corpus/`. Your PR diff should contain exactly four files under `data/corpus/ep-<slug>-<id>/`:
 
-- `metadata.toml` -- podcast/episode identity plus a sha256 of `segments.json`.
-- `segments.json` -- Whisper segments, byte-exact from the MinusPod `original-segments` endpoint.
-- `truth.txt` -- human-verified ad markers in the format documented in `data/README.md`.
-- `windows.json` -- precomputed sliding windows used for scoring.
+- `metadata.toml`: podcast/episode identity plus a sha256 of `segments.json`.
+- `segments.json`: Whisper segments, byte-exact from the MinusPod `original-segments` endpoint.
+- `truth.txt`: human-verified ad markers in the format documented in `data/README.md`.
+- `windows.json`: precomputed sliding windows used for scoring.
 
 Your PR diff must NOT contain:
 
@@ -56,7 +56,7 @@ Workflow:
 
 Your PR diff should be one file: `benchmark.toml.example`.
 
-You do not need to run the benchmark sweep yourself. Maintainers run it post-merge for cost reasons (a single episode against a single new model is roughly $0.01 to $0.30; a maintainer batches model adds before regenerating the public report).
+You do not need to run the benchmark sweep yourself. Maintainers run it post-merge for cost reasons. A single episode against a single new model is roughly $0.01 to $0.30. A maintainer batches model adds before regenerating the public report.
 
 ## PR type 3: code or scoring changes
 
@@ -67,29 +67,29 @@ cd benchmarks/llm
 uv run pytest tests/ -q
 ```
 
-All tests must pass. A schema-version bump on `calls.jsonl` or `episode_results.jsonl` requires a maintainer review thread: existing readers depend on `schema_version: 1`, and a bump invalidates the dedup-by-prompt-hash behavior on existing data.
+All tests must pass. A schema-version bump on `calls.jsonl` or `episode_results.jsonl` requires a maintainer review thread. Existing readers depend on `schema_version: 1`, and a bump invalidates the dedup-by-prompt-hash behavior on existing data.
 
 For changes to `report.py`, charts, or the metric glossary: the bar is clarity for a deep-technical-but-not-ML-research audience, not just correctness. Reviewers will read the rendered Markdown, not just the diff.
 
 ## What's in the repo vs what your PR should include
 
-The repo holds the full benchmark state -- corpus, calls, prompts, responses, and the rendered report -- so anyone can audit a result without re-running. For your PR, you only add the files relevant to your change.
+The repo holds the full benchmark state (corpus, calls, prompts, responses, and the rendered report) so anyone can audit a result without re-running. For your PR, you only add the files relevant to your change.
 
 | Path | In the repo | Include in your PR if... |
 |------|-------------|--------------------------|
 | `data/corpus/ep-*/` | yes | you're adding a new episode (4 files: `metadata.toml`, `segments.json`, `truth.txt`, `windows.json`) |
-| `data/pricing_snapshots/` | yes | you're refreshing pricing (rare; maintainer task) |
+| `data/pricing_snapshots/` | yes | you're refreshing pricing (rare, maintainer task) |
 | `results/report.md` | yes | you're changing report rendering and your PR shows the new render |
 | `results/report_assets/*.svg` | yes | same as above |
-| `results/raw/calls.jsonl` | yes | never -- maintainers regenerate against the new corpus / model list |
+| `results/raw/calls.jsonl` | yes | never. Maintainers regenerate against the new corpus or model list |
 | `results/raw/episode_results.jsonl` | yes | never |
 | `results/raw/prompts/` and `responses/` | yes | never |
 | `benchmark.toml.example` | yes | you're adding a new model (1 line change) |
-| `data/candidates/` | no (gitignored) | never -- intermediate artifacts only |
-| `benchmark.toml` (your local config) | no | never -- contains your API keys |
-| `.env` | no | never -- contains your secrets |
+| `data/candidates/` | no (gitignored) | never. Intermediate artifacts only |
+| `benchmark.toml` (your local config) | no | never. Contains your API keys |
+| `.env` | no | never. Contains your secrets |
 
-The repo root `.gitignore` excludes `data/` globally, then re-includes `benchmarks/llm/data/`. Contributors don't need to think about this; the existing rules already do the right thing.
+The repo root `.gitignore` excludes `data/` globally, then re-includes `benchmarks/llm/data/`. Contributors don't need to think about this. The existing rules already do the right thing.
 
 ## Copyright, fair use, and PII
 
@@ -105,7 +105,7 @@ When unsure, open a GitHub issue with the episode URL and a one-paragraph descri
 
 - **Episode-add PR**: zero contributor cost. The capture and verify steps don't call any LLM. A maintainer runs the sweep post-merge, which adds the new episode against the existing model list.
 - **Model-add PR**: zero contributor cost. A maintainer runs the sweep against the existing corpus.
-- **Code PR**: zero. Tests run against fixture data; no LLM calls.
+- **Code PR**: zero. Tests run against fixture data. No LLM calls.
 
 Free-tier OpenRouter models stay free during maintainer sweeps because the benchmark sends the OpenRouter attribution headers (see `src/benchmark/llm.py`).
 
