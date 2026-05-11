@@ -65,7 +65,11 @@ model.transcribe(
 )
 ```
 
-The `initial_prompt` carries a vocabulary of known sponsors so Whisper produces consistent spellings (`Athletic Greens` rather than `AG1`, `ExpressVPN` rather than `express vpn`). This biases what shows up in the transcript and therefore what every benchmarked LLM is scored against. The list lives in [`src/utils/constants.py`](../../src/utils/constants.py) as `SEED_SPONSORS` (~250 sponsors as of this writing, each with canonical name, aliases, and category). The full list is rendered in the generated `results/report.md` under "Transcript source". A small sample for context: Athletic Greens, BetterHelp, Squarespace, Shopify, HelloFresh, NordVPN, ExpressVPN, ZipRecruiter, SimpliSafe, Mint Mobile.
+The `initial_prompt` carries a vocabulary of known sponsors so Whisper produces consistent spellings (`Athletic Greens` rather than `AG1`, `ExpressVPN` rather than `express vpn`). This biases what shows up in the transcript and therefore what every benchmarked LLM is scored against. The list lives in [`src/utils/constants.py`](../../src/utils/constants.py) as `SEED_SPONSORS` (~250 sponsors as of this writing, each with canonical name, intentional alias spellings, and category).
+
+A second mapping, `SPONSOR_ALIASES`, is applied **after** transcription to normalize Whisper mishearings toward the canonical name (`a firm` -> `Affirm`, `xerox` -> `Xero`, `pure tea` -> `Purity`). About 174 such corrections in production. This affects sponsor-name matching but not the transcript fed to the LLM.
+
+Both lists are rendered in full in the generated `results/report.md` under "Transcript source". A small canonical-name sample: Athletic Greens, BetterHelp, Squarespace, Shopify, HelloFresh, NordVPN, ExpressVPN, ZipRecruiter, SimpliSafe, Mint Mobile.
 
 Two practical consequences for anyone reading the F1 numbers:
 

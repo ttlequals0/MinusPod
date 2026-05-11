@@ -796,16 +796,28 @@ model.transcribe(
 )"""
 
 
-def _seed_sponsors() -> list[str] | None:
+def _seed_sponsors() -> list[dict] | None:
     """Pull the SEED_SPONSORS list from MinusPod at render time so the report
     reflects whatever's in production today. SEED_SPONSORS is a list of
-    {name, aliases, category} dicts; this returns the canonical names sorted
-    case-insensitively. Returns None if the import path isn't available
-    (e.g. running outside a MinusPod checkout)."""
+    {name, aliases, category} dicts. Returns the entries sorted by canonical
+    name (case-insensitively). Returns None if the import path isn't
+    available (e.g. running outside a MinusPod checkout)."""
     try:
         from utils.constants import SEED_SPONSORS  # type: ignore[import-not-found]
-        names = [s["name"] for s in SEED_SPONSORS if isinstance(s, dict) and s.get("name")]
-        return sorted(set(names), key=str.lower)
+        entries = [s for s in SEED_SPONSORS if isinstance(s, dict) and s.get("name")]
+        return sorted(entries, key=lambda s: s["name"].lower())
+    except Exception:
+        return None
+
+
+def _sponsor_aliases() -> dict | None:
+    """Pull SPONSOR_ALIASES from MinusPod at render time. This is the
+    post-transcription mishearing-correction map (`a firm` -> `Affirm`),
+    distinct from the canonical-aliases field on each SEED_SPONSORS entry.
+    Returns None if the import fails."""
+    try:
+        from utils.constants import SPONSOR_ALIASES  # type: ignore[import-not-found]
+        return dict(SPONSOR_ALIASES)
     except Exception:
         return None
 
@@ -838,9 +850,39 @@ def _render_transcript_source() -> str:
     if sponsors is None:
         lines.append("**Sponsor vocabulary:** [unable to import `SEED_SPONSORS` from MinusPod at render time]")
     else:
-        lines.append(f"**Sponsor vocabulary** ({len(sponsors)} entries, from `src/utils/constants.py` `SEED_SPONSORS`):")
+        with_aliases = sum(1 for s in sponsors if s.get("aliases"))
+        total_aliases = sum(len(s.get("aliases") or []) for s in sponsors)
+        lines += [
+            f"**Sponsor vocabulary** ({len(sponsors)} canonical sponsors, "
+            f"{with_aliases} of them with explicit alias spellings totaling {total_aliases} aliases; "
+            "from `src/utils/constants.py` `SEED_SPONSORS`):",
+            "",
+            "| Sponsor | Aliases | Category |",
+            "|---|---|---|",
+        ]
+        for s in sponsors:
+            aliases = ", ".join(f"`{a}`" for a in (s.get("aliases") or [])) or "-"
+            cat = s.get("category") or "-"
+            lines.append(f"| {s['name']} | {aliases} | {cat} |")
+
+    aliases_map = _sponsor_aliases()
+    if aliases_map is None:
         lines.append("")
-        lines.append(", ".join(sponsors))
+        lines.append("**Mishearing corrections:** [unable to import `SPONSOR_ALIASES` from MinusPod at render time]")
+    else:
+        lines += [
+            "",
+            f"**Mishearing corrections** ({len(aliases_map)} entries, from `src/utils/constants.py` `SPONSOR_ALIASES`). "
+            "Applied post-transcription to normalize Whisper output toward the canonical sponsor name. "
+            "Distinct from the `aliases` column above, which lists intentional alternative spellings "
+            "(e.g. `AG1` vs `Athletic Greens`); the entries below are mostly Whisper mishearings "
+            "(e.g. `a firm` -> `Affirm`, `xerox` -> `Xero`).",
+            "",
+            "| Heard as | Normalized to |",
+            "|---|---|",
+        ]
+        for heard, canonical in sorted(aliases_map.items(), key=lambda kv: kv[0].lower()):
+            lines.append(f"| `{heard}` | {canonical} |")
     return "\n".join(lines)
 
 
