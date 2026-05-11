@@ -648,17 +648,17 @@ The `OPENAI_API_KEY` variable is not required for Ollama. Token counts will stil
 
 #### Cloud LLMs (benchmark-tested)
 
-These come from the [offline LLM benchmark](benchmarks/llm/) included in this repo. The benchmark runs each candidate model against a corpus of human-verified episodes and scores accuracy (F1 at IoU >= 0.5), JSON compliance, latency, and per-episode cost. Full per-model breakdown -- precision, recall, boundary accuracy, calibration, latency tail, token efficiency, cross-model agreement -- is in [`benchmarks/llm/results/report.md`](benchmarks/llm/results/report.md). Want to expand the corpus or test more models? See [`benchmarks/llm/CONTRIBUTING.md`](benchmarks/llm/CONTRIBUTING.md).
+These come from the [offline LLM benchmark](benchmarks/llm/) included in this repo. The benchmark runs each candidate model against a corpus of human-verified episodes and scores accuracy (F1 at IoU >= 0.5), JSON compliance, latency, and per-episode cost. Full per-model breakdown (precision, recall, boundary accuracy, calibration, latency tail, token efficiency, cross-model agreement) is in [`benchmarks/llm/results/report.md`](benchmarks/llm/results/report.md). Want to expand the corpus or test more models? See [`benchmarks/llm/CONTRIBUTING.md`](benchmarks/llm/CONTRIBUTING.md).
 
 | Use case | Model | F1 | Cost / episode | Why |
 |---|---|---:|---:|---|
-| Best accuracy at any cost | `x-ai/grok-4.1-fast` (via OpenRouter) | 0.61 | $0.12 | Highest F1 in the sweep. Also the best F1-per-dollar by ~4x. Passes the no-ad negative control. |
-| Best Anthropic-direct | `claude-opus-4-7` | 0.54 | $3.06 | Perfect JSON compliance, perfect no-ad PASS, lowest false-positive rate. ~25x more expensive than grok for ~12% less F1; pick this when you need direct Anthropic billing or want the strictest control side. |
-| Free tier | `qwen/qwen3.5-plus-02-15` (via OpenRouter) | 0.57 | $0.00 | Free via OpenRouter app attribution. Perfect JSON compliance. p50 latency 53s and verbose output, so not suitable for live UX -- great for offline batches. Note: Alibaba's content classifier may reject ~0.3% of windows as inappropriate. |
-| Cheap and fast (production) | `mistralai/mistral-medium-3.1` (via OpenRouter) | 0.41 | $0.00 | Free, p50 latency 0.9s (fastest in the sweep), perfect JSON compliance. F1 lower than the top tier, but trades quality for throughput cleanly. |
+| Best accuracy at any cost | `x-ai/grok-4.1-fast` (via OpenRouter) | 0.64 | $0.15 | Highest F1 of 32 models. Best F1-per-dollar of any paid model in the sweep (2.7x the next paid pick). Passes the no-ad negative control. |
+| Best Anthropic-direct | `claude-opus-4-7` | 0.59 | $4.10 | Perfect JSON compliance (1.00), perfect no-ad pass, lowest false-positive rate. ~27x more expensive than grok for ~8% less F1; pick this for direct Anthropic billing or the strictest control side. |
+| Free tier (best F1) | `qwen/qwen3.5-plus-02-15` (via OpenRouter) | 0.62 | $0.00 | Highest free-tier F1, rank 2 overall, beating most paid models. Perfect JSON compliance. p50 latency 52s, not for live UX, fine for offline batches. Alibaba's content classifier may reject a small fraction of windows. |
+| Cheap and fast (production) | `google/gemma-4-31b-it` (via OpenRouter) | 0.44 | $0.00 | Free via OpenRouter, p50 latency 1.7s, top-8 F1. JSON compliance 0.84 (16% of windows take a parser-fallback path; the production parser handles this). |
 
 Caveats:
-- Numbers come from a 5-episode corpus (4 ad-bearing, 1 no-ad control). They will refine as the corpus grows. The latest sweep covered 14 models; an expanded 32-model sweep is in progress and will replace these numbers when complete.
+- Numbers come from a 7-episode corpus (6 ad-bearing, 1 no-ad control), 32 models, 5 trials each, 14,400 total calls. They will refine as the corpus grows.
 - Latency for OpenRouter-routed models reflects routing-layer queueing, not just model compute. Treat it as an availability indicator.
 - F1 uses IoU >= 0.5 against human-verified ad spans. A model with F1 0.5 catches half the ads with the right boundaries; a higher F1 means closer to the truth.
 

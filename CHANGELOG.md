@@ -18,6 +18,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Benchmark `schema_audit` now imports production's `STRUCTURAL_FIELDS` and `SPONSOR_PRIORITY_FIELDS` to stop flagging fields the live parser already accepts (`end_text`, `sponsor`, etc.) as `extra_keys`. Prior runs reported ~9,898 spurious violations on those two field names alone.
 - Benchmark code-quality cleanup: removed local duplicates of `parse_timestamp` and `format_time` in favor of `utils.time`; replaced hand-rolled `_violations_dict` with `dataclasses.asdict`; converted derived `ModelStats` fields (`cost_per_tp`, `tokens_per_detected_ad`) to `@property`; precomputed per-model indexes in `_aggregate` and per-model call counts in `_render_failures`; cached `avg_f1` and `mean_f1_stdev` on `ModelStats`; tightened the HTTP-5xx error classifier to use `\b5\d{2}\b` instead of fragile substring matching; extracted `_length_bucket` and `_position_bucket` helpers from inline ternaries.
 
+### Dependencies
+
+- bump anthropic 0.97.0 -> 0.100.0
+- bump cryptography 47.0.0 -> 48.0.0
+- bump gunicorn 25.3.0 -> 26.0.0
+- bump huggingface-hub 1.13.0 -> 1.14.0
+- bump openai 2.33.0 -> 2.36.0
+- bump @tanstack/react-query 5.100.5 -> 5.100.9 (frontend)
+- bump react 19.2.5 -> 19.2.6 (frontend)
+- bump react-router-dom 6.30.3 -> 7.15.0 (frontend; major upgrade, no API surface change needed in this app)
+- bump tailwind-merge 3.5.0 -> 3.6.0 (frontend)
+- bump vite-plugin-pwa 1.2.0 -> 1.3.0 (frontend dev)
+- bump node 24-alpine -> 26-alpine (Dockerfile frontend builder, both GPU and CPU images)
+- holding ubuntu 24.04 -> 26.04 (Dependabot PR #208) until nvidia/cuda ships a 26.04 base; the GPU image is pinned to ubuntu 24.04 through `nvidia/cuda:12.9.1-runtime-ubuntu24.04`, so taking it now would split the GPU and CPU base images across a major OS version.
+
 ## [2.1.6] - 2026-05-09
 
 ### Changed
