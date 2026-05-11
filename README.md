@@ -2,7 +2,7 @@
   <img src="frontend/public/logo.png" alt="MinusPod" width="400" />
 </p>
 
-MinusPod is a self-hosted server that removes ads before you ever hit play. It transcribes episodes with Whisper, uses an LLM to detect and cut ad segments, and gets smarter over time by building cross-episode ad patterns and learning from your corrections. Bring your own LLM -- Claude, Ollama, OpenRouter, or any OpenAI-compatible provider.
+MinusPod is a self-hosted server that removes ads before you ever hit play. It transcribes episodes with Whisper, uses an LLM to detect and cut ad segments, and gets smarter over time by building cross-episode ad patterns and learning from your corrections. Bring your own LLM: Claude, Ollama, OpenRouter, or any OpenAI-compatible provider.
 
 ## Table of Contents
 
@@ -151,8 +151,8 @@ A global status bar shows real-time processing progress via Server-Sent Events. 
 
 When reprocessing an episode from the UI, two modes are available:
 
-- Reprocess (default) -- uses learned patterns from the pattern database plus LLM analysis
-- Full Analysis -- skips the pattern database entirely for a fresh LLM-only analysis
+- Reprocess (default): uses learned patterns from the pattern database plus LLM analysis
+- Full Analysis: skips the pattern database entirely for a fresh LLM-only analysis
 
 Full Analysis is useful when you want to re-evaluate an episode without learned patterns (e.g., after disabling patterns that caused false positives).
 
@@ -254,7 +254,7 @@ docker compose -f docker-compose.cpu.yml up -d --build
 **Likely to bite you if you do nothing:**
 
 - **Plain HTTP:** `SESSION_COOKIE_SECURE` now defaults to `true`, so browsers drop the session cookie. Login looks like it works then the next request is anonymous. Set `SESSION_COOKIE_SECURE=false` if you're not on HTTPS.
-- **Behind a reverse proxy (Cloudflare, cloudflared, nginx, Traefik):** set `MINUSPOD_TRUSTED_PROXY_COUNT=1`. Without it, login lockout and per-IP rate limits silently never fire -- the container sees the proxy hop instead of the client. A startup WARN flags it. Full impact in `Remote Access / Security > Client IP for login lockout`.
+- **Behind a reverse proxy (Cloudflare, cloudflared, nginx, Traefik):** set `MINUSPOD_TRUSTED_PROXY_COUNT=1`. Without it, login lockout and per-IP rate limits silently never fire. The container sees the proxy hop instead of the client. A startup WARN flags it. Full impact in `Remote Access / Security > Client IP for login lockout`.
 - **External API clients** (cron scripts, homegrown tools, third-party integrations): every `POST` / `PUT` / `DELETE` on `/api/v1/*` now needs an `X-CSRF-Token` header matching the `minuspod_csrf` cookie. The built-in UI handles it; raw curl scripts have to echo the cookie.
 - **`/docs` and `/openapi.yaml` bookmarks / health checks:** moved to `/api/v1/docs` and `/api/v1/openapi.yaml`. The old paths return 404.
 - **OpenAI-compatible provider relying on the `ANTHROPIC_API_KEY` fallback:** that fallback is gone. Set `OPENAI_API_KEY` explicitly or ad detection 401s. A startup WARN fires when the old shape is detected.
@@ -293,10 +293,10 @@ The server includes a web-based management UI at `/ui/`:
 
 The ad editor supports two review modes, selected by a toggle above the ads list:
 
-- **Processed** (default) -- plays the post-cut output so you can verify what the final listener will hear. Ad timestamps map onto the new timeline.
-- **Original** -- plays the pre-cut download at the ad's original timestamps, so you can hear exactly what was removed.
+- **Processed** (default): plays the post-cut output so you can verify what the final listener will hear. Ad timestamps map onto the new timeline.
+- **Original**: plays the pre-cut download at the ad's original timestamps, so you can hear exactly what was removed.
 
-Original mode requires the pre-cut audio to have been retained. That's controlled by the "Keep original audio for ad boundary review" toggle under Settings > Storage & Retention (default on). Keeping originals roughly doubles per-episode storage; disable it if disk is tight. Episodes processed before v1.6.0 have no retained original -- the toggle is disabled (with a tooltip) until you reprocess.
+Original mode requires the pre-cut audio to have been retained. That's controlled by the "Keep original audio for ad boundary review" toggle under Settings > Storage & Retention (default on). Keeping originals roughly doubles per-episode storage; disable it if disk is tight. Episodes processed before v1.6.0 have no retained original. The toggle is disabled (with a tooltip) until you reprocess.
 
 The **Original Transcript** panel on the Episode Detail page shows the full pre-cut transcript so you can see exactly what text was identified and removed.
 
@@ -402,7 +402,7 @@ You can set the Anthropic, OpenAI-compatible, OpenRouter, Ollama, and remote Whi
 
 Two things have to be in place first:
 
-1. `MINUSPOD_MASTER_PASSPHRASE` set in the container environment. PBKDF2 derives the encryption key from it, so treat it like any other production secret: back it up, keep it stable, don't commit it. To rotate, use Settings > Security > Provider Key Encryption (or `POST /api/v1/settings/providers/rotate-passphrase`). The call re-encrypts every stored key in one transaction, then you must update the env var to the new value before the next restart -- otherwise the next boot won't decrypt anything.
+1. `MINUSPOD_MASTER_PASSPHRASE` set in the container environment. PBKDF2 derives the encryption key from it, so treat it like any other production secret: back it up, keep it stable, don't commit it. To rotate, use Settings > Security > Provider Key Encryption (or `POST /api/v1/settings/providers/rotate-passphrase`). The call re-encrypts every stored key in one transaction, then you must update the env var to the new value before the next restart, or the next boot won't decrypt anything.
 2. An admin password set in the UI, so Settings is reachable. The password gates the surface only; it isn't part of the crypto. Changing it leaves stored keys untouched.
 
 If the passphrase is missing, the key inputs collapse to a "Setup required" note, the API returns `409 provider_crypto_unavailable`, and env-var credentials keep working. GET responses never include key values, only booleans plus a `db`/`env`/`none` source marker.
@@ -612,8 +612,8 @@ Note: The AI model is configured via the Settings UI, not environment variables.
 
 [Ollama](https://ollama.com) is an alternative to the Anthropic API. MinusPod supports both flavors:
 
-- **Local** (`http://host:11434`) -- no auth, no API costs, nothing leaves the machine.
-- **Cloud** (`https://ollama.com/api`) -- same OpenAI-compatible endpoints, just with `Authorization: Bearer <key>` on every request. Free tier works for this pipeline. Grab a key at [ollama.com/settings/keys](https://ollama.com/settings/keys).
+- **Local** (`http://host:11434`): no auth, no API costs, nothing leaves the machine.
+- **Cloud** (`https://ollama.com/api`): same OpenAI-compatible endpoints, just with `Authorization: Bearer <key>` on every request. Free tier works for this pipeline. Grab a key at [ollama.com/settings/keys](https://ollama.com/settings/keys).
 
 Configuration is identical either way: pick `Ollama` in Settings > LLM Provider, set the Base URL, and (for Cloud) paste the key. The key is stored encrypted. Leave it blank for local.
 
@@ -644,7 +644,7 @@ The `OPENAI_API_KEY` variable is not required for Ollama. Token counts will stil
 
 ### Recommended Models
 
-> **Note:** Detection quality varies between models and between runs of the same model. LLMs are non-deterministic, so identical inputs can yield different outputs. Expect variation, and treat the recommendations below as starting points rather than guarantees.
+> **Note:** LLMs are non-deterministic. The same prompt against the same model can yield different ads on different runs. The picks below are where I'd start, not where I'd stop tuning.
 
 #### Cloud LLMs (benchmark-tested)
 
@@ -664,11 +664,11 @@ Caveats:
 
 #### Local Ollama Models (by VRAM tier)
 
-Note on benchmarking: the offline benchmark in [`benchmarks/llm/`](benchmarks/llm/) covers cloud-hosted models (OpenRouter, Anthropic direct). Local Ollama runs are not in that sweep -- adding an Ollama provider would let contributors compare local quants apples-to-apples against the cloud numbers. The recommendations below come from author testing, not from a structured benchmark, and should be treated accordingly.
+Note on benchmarking: the offline benchmark in [`benchmarks/llm/`](benchmarks/llm/) covers cloud-hosted models (OpenRouter, Anthropic direct). Local Ollama runs are not in that sweep. Adding an Ollama provider would let contributors compare local quants apples-to-apples against the cloud numbers. The recommendations below come from author testing, not from a structured benchmark, and should be treated accordingly.
 
-Models are loaded sequentially, not concurrently -- VRAM requirements are not additive between passes.
+Models are loaded sequentially, not concurrently; VRAM requirements are not additive between passes.
 
-##### Pass 1 -- First Pass Detection
+##### Pass 1: First Pass Detection
 
 Hardest task. Contextual reasoning, host-read ads, new sponsors. Use your best model here.
 
@@ -694,7 +694,7 @@ Easier task. Looks for remnants in already-cut audio. Speed matters more than ra
 
 ##### Chapters
 
-Simplest task. Summarization only -- no structured detection. Minimize VRAM usage and latency.
+Simplest task. Summarization only, no structured detection. Minimize VRAM usage and latency.
 
 | VRAM | Model | Quantization | Notes |
 |------|-------|--------------|-------|
@@ -710,20 +710,18 @@ Simplest task. Summarization only -- no structured detection. Minimize VRAM usag
 
 ### Cloud vs. Local: What Changes
 
-The cloud benchmark in [`benchmarks/llm/`](benchmarks/llm/) sets the upper bound on what's achievable on this task: F1 around 0.61 for the best-scoring model on a 5-episode corpus. Even within cloud, Claude Sonnet (F1 0.33) trails Grok-4.1-fast (F1 0.61) by a wide margin, so "Claude" is not a single accuracy ceiling -- the choice of cloud model matters as much as cloud-vs-local.
+Best cloud F1 in the [benchmark](benchmarks/llm/) is 0.64 (`x-ai/grok-4.1-fast`) over 32 models on a 7-episode corpus. `claude-sonnet-4-6` scores 0.36 in the same sweep, less than two-thirds of Grok's number, so "use Claude" doesn't fix accuracy by itself. The cloud model you pick matters as much as cloud-vs-local does.
 
-What is unaffected by the LLM choice: audio fingerprinting, text pattern matching, pre/post-roll heuristics, and audio-signal enforcement all run without the LLM. These catch a substantial portion of ads regardless of which model is used.
-
-What the LLM passes handle: host-read ads that blend into content, new sponsors not yet in the pattern database, and ambiguous mid-rolls without explicit promo codes. This is where the cloud-vs-local gap shows up.
+The LLM only sees host-read ads that blend into content, new sponsors not yet in the pattern database, and ambiguous mid-rolls without promo codes or URLs. Everything else (audio fingerprinting, text pattern matching, pre/post-roll heuristics, audio-signal enforcement) runs without an LLM and catches a substantial share of ads regardless of model.
 
 | Content type | Cloud-vs-local impact |
 |---|---|
-| Standard sponsor reads with promo codes / vanity URLs | Minimal -- patterns and fingerprinting cover most of these without the LLM |
-| Heavy host-read or conversational ad integrations | Noticeable -- requires strong contextual reasoning |
-| Network-inserted brand-tagline ads (no promo code, no URL) | Moderate -- the cloud benchmark shows even frontier models miss roughly a third of these, so don't expect local to outperform |
-| New sponsors not in the pattern database | Moderate -- depends heavily on model capability |
+| Standard sponsor reads with promo codes / vanity URLs | Minimal: patterns and fingerprinting cover most of these without the LLM |
+| Heavy host-read or conversational ad integrations | Noticeable: requires strong contextual reasoning |
+| Network-inserted brand-tagline ads (no promo code, no URL) | Moderate: the cloud benchmark shows even frontier models miss roughly a third of these, so don't expect local to outperform |
+| New sponsors not in the pattern database | Moderate: depends heavily on model capability |
 
-Rough guide: a capable local model like `qwen3:14b` handles standard sponsor reads cleanly. The gap to cloud-frontier becomes apparent on shows that weave sponsor content into conversation without clear transitions. To measure the gap on your own content, capture the episode (see [`benchmarks/llm/`](benchmarks/llm/)) and compare predictions against your verified ground truth.
+`qwen3:14b` locally is fine for standard sponsor reads. The gap to cloud-frontier shows up on conversational ad reads that lack clear transitions. To measure the gap on your own content, capture the episode (see [`benchmarks/llm/`](benchmarks/llm/)) and compare predictions against your verified ground truth.
 
 ---
 
@@ -733,19 +731,19 @@ MinusPod's ad detection pipeline requires models to return structured JSON. The 
 
 Failure modes:
 
-- **Malformed JSON** -- missing brackets, trailing commas, unquoted keys. The parser tries direct parse, then markdown-fence extraction, then regex scan. Structurally broken JSON falls through all three.
-- **Truncated output** -- models under memory pressure or processing long transcript windows can cut off mid-response, leaving valid-looking but incomplete JSON.
-- **Preamble text** -- some models prefix their JSON with conversational text ("Sure, here are the ads I found:"). The parser usually strips this, but it adds fragility.
+- **Malformed JSON**: missing brackets, trailing commas, unquoted keys. The parser tries direct parse, then markdown-fence extraction, then regex scan. Structurally broken JSON falls through all three.
+- **Truncated output**: models under memory pressure or processing long transcript windows can cut off mid-response, leaving valid-looking but incomplete JSON.
+- **Preamble text**: some models prefix their JSON with conversational text ("Sure, here are the ads I found:"). The parser usually strips this, but it adds fragility.
 
 When a window fails to parse, those ads are silently missed. No UI error; the episode processes normally with gaps in detection coverage.
 
-Even cloud models vary on this dimension. The benchmark report shows JSON compliance from 0.53 (verbose reasoning models) to 1.00 (Mistral pair, Qwen, Claude Opus). Claude Haiku 4.5 scores 0.60 because it wraps every response in markdown code fences -- the parser recovers, but the fallback path is slower and more brittle. See the JSON compliance chart in [`benchmarks/llm/results/report.md`](benchmarks/llm/results/report.md).
+Cloud models vary widely on this. Benchmark JSON compliance ranges from 0.05 (`openai/o4-mini`, which buries JSON in reasoning chains) and 0.07 (`mistral-7b-instruct-v0.1`, which often returns prose) up to 1.00 (Mistral Medium / Codestral / Large, Qwen 3.5-plus, Claude Opus, Gemini Flash). Claude Haiku 4.5 sits at 0.60 because it wraps every response in markdown code fences; the parser recovers, but the fallback path is slower and more brittle. See the JSON compliance chart in [`benchmarks/llm/results/report.md`](benchmarks/llm/results/report.md).
 
 Reducing the risk for local runs:
 
 - Use a model of at least 7B parameters
 - Prefer Qwen3 or Mistral families (consistently high JSON compliance in author testing)
-- Don't run other GPU workloads concurrently -- memory pressure increases truncation risk
+- Don't run other GPU workloads concurrently; memory pressure increases truncation risk
 - Watch the `extraction_method` field in processing logs
 
 Healthy run signal: `extraction_method` reads `json_array_direct` for most calls. Fallback methods (`markdown_code_block`, `regex_*`) mean the model isn't returning clean JSON. Frequent fallback in production means you should upgrade the model.
@@ -786,7 +784,7 @@ bash whisper.cpp/models/download-ggml-model.sh large-v3-turbo
 mkdir -p models && mv whisper.cpp/models/ggml-large-v3-turbo.bin models/
 ```
 
-Other models are available -- replace `large-v3-turbo` with `tiny`, `base`, `small`, `medium`, or `large-v3`. See the [whisper.cpp models README](https://github.com/ggml-org/whisper.cpp/tree/master/models) for the full list.
+Other models are available: replace `large-v3-turbo` with `tiny`, `base`, `small`, `medium`, or `large-v3`. See the [whisper.cpp models README](https://github.com/ggml-org/whisper.cpp/tree/master/models) for the full list.
 
 **2. Start the server:**
 
@@ -804,7 +802,7 @@ WHISPER_DEVICE=cpu
 
 If MinusPod and whisper-server are on the same Docker network, use the container name (`whisper-server`). If they are on separate hosts, use the host IP and the exposed port (`http://your-server:8765/v1`).
 
-The `--dtw large.v3.turbo` flag enables word-level timestamps for precise ad boundary detection. On CUDA GPUs, `--no-flash-attn` is required alongside `--dtw` -- flash attention silently disables DTW, causing word-level timestamps to be missing from the API response. On Apple Silicon (Metal), this flag is not needed. `WHISPER_DEVICE=cpu` prevents MinusPod from attempting to initialize a local CUDA GPU. MinusPod already preprocesses audio to 16kHz mono WAV before sending it to the API, so the whisper.cpp `--convert` flag is not needed.
+The `--dtw large.v3.turbo` flag enables word-level timestamps for precise ad boundary detection. On CUDA GPUs, `--no-flash-attn` is required alongside `--dtw`. Flash attention silently disables DTW, causing word-level timestamps to be missing from the API response. On Apple Silicon (Metal), this flag is not needed. `WHISPER_DEVICE=cpu` prevents MinusPod from attempting to initialize a local CUDA GPU. MinusPod already preprocesses audio to 16kHz mono WAV before sending it to the API, so the whisper.cpp `--convert` flag is not needed.
 
 > **Warning:** If you add `--convert` for use with other clients, be aware that whisper.cpp writes temporary converted files to the current working directory. In Docker, the default CWD may not be writable, causing whisper.cpp to silently return empty transcription results (200 with 0 segments). Set `working_dir: /tmp` in your compose file or mount a writable volume if you need `--convert`.
 
@@ -859,7 +857,7 @@ All settings can also be configured via the Settings UI under the Transcription 
 
 ### Transcription language
 
-Whisper is pinned to English by default. That keeps it from misdetecting on music intros or cold opens (a common failure mode on podcasts). If you run a non-English show, pick the language in Settings > Transcription or set `WHISPER_LANGUAGE` on first boot. Use `auto` for multilingual feeds -- Whisper will detect per request. Full list: [supported languages](https://whisper-api.com/docs/languages/).
+Whisper is pinned to English by default. That keeps it from misdetecting on music intros or cold opens (a common failure mode on podcasts). If you run a non-English show, pick the language in Settings > Transcription or set `WHISPER_LANGUAGE` on first boot. Use `auto` for multilingual feeds; Whisper will detect per request. Full list: [supported languages](https://whisper-api.com/docs/languages/).
 
 ### Processing timeouts
 
@@ -872,7 +870,7 @@ Three-hour CPU runs with the largest Whisper model hit these. When they fire, th
 
 ## Using OpenRouter
 
-[OpenRouter](https://openrouter.ai) is a unified API that routes to 200+ models (Claude, GPT, Gemini, open-weights) with one API key. OpenRouter is supported as an **LLM provider only** -- it does not support the `/v1/audio/transcriptions` endpoint required for Whisper transcription. For transcription without a GPU, use a [remote Whisper backend](#whisper--transcription) such as Groq.
+[OpenRouter](https://openrouter.ai) is a unified API that routes to 200+ models (Claude, GPT, Gemini, open-weights) with one API key. OpenRouter is supported as an **LLM provider only**: it does not support the `/v1/audio/transcriptions` endpoint required for Whisper transcription. For transcription without a GPU, use a [remote Whisper backend](#whisper--transcription) such as Groq.
 
 ### Setup
 
@@ -888,11 +886,11 @@ OPENROUTER_API_KEY=sk-or-v1-your-key-here
 
 Change the model in the Settings UI or with the `OPENAI_MODEL` env var. Any [OpenRouter model ID](https://openrouter.ai/models) works:
 
-- `anthropic/claude-sonnet-4-5` -- Claude Sonnet via OpenRouter
-- `openai/gpt-4o` -- GPT-4o via OpenRouter
-- `google/gemini-2.5-flash-preview` -- Gemini Flash via OpenRouter
+- `anthropic/claude-sonnet-4-5`: Claude Sonnet via OpenRouter
+- `openai/gpt-4o`: GPT-4o via OpenRouter
+- `google/gemini-2.5-flash-preview`: Gemini Flash via OpenRouter
 
-All of these can be changed at runtime from the Settings UI -- no container restart needed.
+All of these can be changed at runtime from the Settings UI. No container restart needed.
 
 ## LLM Pricing
 
@@ -1105,7 +1103,7 @@ When no custom template is configured, MinusPod sends these JSON payloads.
 
 ### Example: Pushover
 
-Pushover supports native webhook ingestion with data extraction selectors. No custom payload template needed -- MinusPod's default JSON payload works directly.
+Pushover supports native webhook ingestion with data extraction selectors. No custom payload template needed. MinusPod's default JSON payload works directly.
 
 1. Log in to [pushover.net/dashboard](https://pushover.net/dashboard), scroll to "Your Webhooks", click "Create a Webhook". Name it MinusPod.
 2. Copy the unique webhook URL.
@@ -1123,13 +1121,13 @@ Pushover supports native webhook ingestion with data extraction selectors. No cu
 
 7. Click "Test Selectors on Last Payload" to preview, then Save.
 
-> Pushover's `{{...}}` selector syntax is evaluated on Pushover's side -- these are not Jinja2 templates.
+> Pushover's `{{...}}` selector syntax is evaluated on Pushover's side; these are not Jinja2 templates.
 
 ### Example: ntfy
 
 ntfy requires a custom payload template to match its expected JSON format.
 
-1. Self-hosted or ntfy.sh -- set your topic name
+1. Self-hosted or ntfy.sh: set your topic name
 2. Add a webhook in Settings > Webhooks:
    - **URL:** `https://ntfy.sh/your-topic` (or your self-hosted instance)
    - **Payload template:**
@@ -1142,7 +1140,7 @@ ntfy requires a custom payload template to match its expected JSON format.
      }
      ```
 
-> ntfy also supports header-based delivery (`X-Title`, `X-Message`, `X-Click` headers with plain text body) -- either approach works with MinusPod's template system.
+> ntfy also supports header-based delivery (`X-Title`, `X-Message`, `X-Click` headers with plain text body); either approach works with MinusPod's template system.
 
 ### Request Signing
 
@@ -1206,7 +1204,7 @@ Swap the User-Agent pattern for your app (`*Overcast*`, `*Castro*`, `*AntennaPod
 
 ### Rate limiting storage
 
-Rate limits are tracked per worker (memory-backed), so with the default two workers each declared limit is effectively doubled. For exact limits or multi-host scaling, set `RATE_LIMIT_STORAGE_URI=redis://redis:6379` and add a Redis sidecar. Don't drop below two workers -- the UI freezes during bulk RSS refresh with only one.
+Rate limits are tracked per worker (memory-backed), so with the default two workers each declared limit is effectively doubled. For exact limits or multi-host scaling, set `RATE_LIMIT_STORAGE_URI=redis://redis:6379` and add a Redis sidecar. Don't drop below two workers. The UI freezes during bulk RSS refresh with only one.
 
 ### Request correlation
 
@@ -1251,7 +1249,7 @@ MINUSPOD_MASTER_PASSPHRASE=your-passphrase \
 
 Runs from inside the container or any host with the repo checked out and `cryptography` installed. `DATA_PATH` points at the running instance's data dir (default `/app/data`).
 
-**Important caveat:** the salt is per-DB, not per-passphrase. If you rotate the passphrase (`POST /api/v1/settings/providers/rotate-passphrase`), old backups made under the previous passphrase are still decryptable, because rotation re-encrypts rows under a new salt + new DEK in place. But if you lose the DB entirely (full-volume loss, fresh install) and only have backup files, you cannot decrypt them even with the original passphrase -- the salt is gone. Treat the passphrase and the DB together as the recovery bundle.
+**Important caveat:** the salt is per-DB, not per-passphrase. If you rotate the passphrase (`POST /api/v1/settings/providers/rotate-passphrase`), old backups made under the previous passphrase are still decryptable, because rotation re-encrypts rows under a new salt + new DEK in place. But if you lose the DB entirely (full-volume loss, fresh install) and only have backup files, you cannot decrypt them even with the original passphrase. The salt is gone. Treat the passphrase and the DB together as the recovery bundle.
 
 Unencrypted `.db` files are regular SQLite databases. Restore them with `sqlite3` or by copying into place on a stopped instance.
 
@@ -1285,7 +1283,7 @@ The `replace.mp3` file will be inserted at each ad break. Keep it short (1-3 sec
 
 This tool is for personal use only. Only use it with podcasts you have permission to modify or where such modification is permitted under applicable laws. Respect content creators and their terms of service.
 
-**LLM accuracy notice:** Detection accuracy varies significantly between providers and models. The [offline benchmark](benchmarks/llm/) measured 14 cloud models at F1 0.04 to 0.61 on a 5-episode corpus, with the top-scoring model not being a Claude variant. Local Ollama runs are not yet in the benchmark. See [Cloud vs. Local: What Changes](#cloud-vs-local-what-changes) and the [latest report](benchmarks/llm/results/report.md) for details.
+**LLM accuracy notice:** Detection accuracy depends heavily on the model. The [offline benchmark](benchmarks/llm/) ran 32 cloud models over a 7-episode corpus and got F1 from 0.00 to 0.64. The top-scoring model is not a Claude variant. Local Ollama runs are not in the benchmark yet. See [Cloud vs. Local: What Changes](#cloud-vs-local-what-changes) and the [latest report](benchmarks/llm/results/report.md) for the full numbers.
 
 ## License
 
