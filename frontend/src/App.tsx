@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { createBrowserRouter, RouterProvider, Outlet, Navigate } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
 import Layout from './components/Layout';
@@ -14,29 +14,49 @@ import StatsPage from './pages/StatsPage';
 import Login from './pages/Login';
 import Search from './pages/Search';
 
+function RootLayout() {
+  return (
+    <>
+      <GlobalStatusBar />
+      <Outlet />
+    </>
+  );
+}
+
+const router = createBrowserRouter(
+  [
+    {
+      element: <RootLayout />,
+      children: [
+        { path: '/login', element: <Login /> },
+        {
+          path: '/',
+          element: <Layout />,
+          children: [
+            { index: true, element: <Dashboard /> },
+            { path: 'feeds/:slug', element: <FeedDetail /> },
+            { path: 'feeds/:slug/episodes/:episodeId', element: <EpisodeDetail /> },
+            { path: 'add', element: <AddFeed /> },
+            { path: 'search', element: <Search /> },
+            { path: 'patterns', element: <PatternsPage /> },
+            { path: 'history', element: <HistoryPage /> },
+            { path: 'stats', element: <StatsPage /> },
+            { path: 'settings', element: <Settings /> },
+            { path: '*', element: <Navigate to="/" replace /> },
+          ],
+        },
+      ],
+    },
+  ],
+  { basename: '/ui' }
+);
+
 function App() {
   return (
     <ThemeProvider>
-      <BrowserRouter basename="/ui">
-        <AuthProvider>
-          <GlobalStatusBar />
-          <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/" element={<Layout />}>
-              <Route index element={<Dashboard />} />
-              <Route path="feeds/:slug" element={<FeedDetail />} />
-              <Route path="feeds/:slug/episodes/:episodeId" element={<EpisodeDetail />} />
-              <Route path="add" element={<AddFeed />} />
-              <Route path="search" element={<Search />} />
-              <Route path="patterns" element={<PatternsPage />} />
-              <Route path="history" element={<HistoryPage />} />
-              <Route path="stats" element={<StatsPage />} />
-              <Route path="settings" element={<Settings />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
-            </Route>
-          </Routes>
-        </AuthProvider>
-      </BrowserRouter>
+      <AuthProvider>
+        <RouterProvider router={router} />
+      </AuthProvider>
     </ThemeProvider>
   );
 }
