@@ -1,5 +1,25 @@
 # MinusPod LLM Benchmark Report
 
+## Table of Contents
+
+- [Metric Key](#metric-key)
+- [TL;DR](#tldr)
+- [Charts](#charts)
+- [Failures and provider issues](#failures-and-provider-issues)
+- [Precision, recall, and FP/FN breakdown](#precision-recall-and-fpfn-breakdown)
+- [Boundary accuracy](#boundary-accuracy)
+- [Confidence calibration](#confidence-calibration)
+- [Latency tail](#latency-tail)
+- [Output token efficiency](#output-token-efficiency)
+- [Trial variance (determinism check)](#trial-variance-determinism-check)
+- [Cross-model agreement](#cross-model-agreement)
+- [Detection rate by ad characteristic](#detection-rate-by-ad-characteristic)
+- [Quick Comparison](#quick-comparison)
+- [Detailed Results](#detailed-results)
+- [Methodology](#methodology)
+- [Transcript source](#transcript-source)
+- [Run Metadata](#run-metadata)
+
 ## Metric Key
 
 Quick reference for the columns in every table below.
@@ -1044,37 +1064,37 @@ One subsection per episode in the corpus, showing how every model performed on t
 
 | Model | Result | FP count |
 |-------|--------|----------|
-| `qwen/qwen3.5-plus-02-15` | PASS | 0 |
-| `meta-llama/llama-3.3-70b-instruct` | PASS | 0 |
-| `claude-sonnet-4-6` | PASS | 0 |
-| `meta-llama/llama-3.1-8b-instruct` | PASS | 0 |
-| `deepseek/deepseek-v3.2` | PASS | 0 |
-| `mistralai/mistral-7b-instruct-v0.1` | PASS | 0 |
+| `google/gemini-2.5-flash` | PASS | 0 |
 | `meta-llama/llama-4-scout` | PASS | 0 |
-| `mistralai/mistral-large-2512` | PASS | 0 |
-| `x-ai/grok-4.1-fast` | PASS | 0 |
-| `claude-opus-4-7` | PASS | 0 |
 | `mistralai/codestral-2508` | PASS | 0 |
-| `openai/o4-mini` | PASS | 0 |
+| `claude-opus-4-7` | PASS | 0 |
+| `claude-sonnet-4-6` | PASS | 0 |
 | `mistralai/mistral-medium-3.1` | PASS | 0 |
-| `claude-haiku-4-5-20251001` | PASS | 0 |
 | `nvidia/llama-3.3-nemotron-super-49b-v1.5` | PASS | 0 |
 | `openai/o3` | PASS | 0 |
+| `deepseek/deepseek-v3.2` | PASS | 0 |
+| `x-ai/grok-4.1-fast` | PASS | 0 |
+| `meta-llama/llama-3.3-70b-instruct` | PASS | 0 |
+| `openai/o4-mini` | PASS | 0 |
+| `meta-llama/llama-3.1-8b-instruct` | PASS | 0 |
+| `qwen/qwen3.5-plus-02-15` | PASS | 0 |
+| `mistralai/mistral-large-2512` | PASS | 0 |
+| `claude-haiku-4-5-20251001` | PASS | 0 |
 | `cohere/command-r-plus-08-2024` | PASS | 0 |
-| `google/gemini-2.5-flash` | PASS | 0 |
-| `google/gemini-2.5-pro` | FAIL | 1 |
-| `meta-llama/llama-4-maverick` | FAIL | 1 |
-| `deepseek/deepseek-v4-flash` | FAIL | 1 |
-| `moonshotai/kimi-k2.6` | FAIL | 1 |
-| `google/gemma-4-31b-it` | FAIL | 1 |
+| `mistralai/mistral-7b-instruct-v0.1` | PASS | 0 |
 | `openai/gpt-5.4` | FAIL | 1 |
+| `moonshotai/kimi-k2.6` | FAIL | 1 |
+| `openai/gpt-5.5` | FAIL | 1 |
 | `deepseek/deepseek-r1` | FAIL | 1 |
 | `nvidia/nemotron-nano-9b-v2` | FAIL | 1 |
-| `openai/gpt-5.5` | FAIL | 1 |
+| `meta-llama/llama-4-maverick` | FAIL | 1 |
+| `google/gemini-2.5-pro` | FAIL | 1 |
+| `google/gemma-4-31b-it` | FAIL | 1 |
+| `deepseek/deepseek-v4-flash` | FAIL | 1 |
 | `deepseek/deepseek-r1-distill-llama-70b` | FAIL | 2 |
-| `microsoft/phi-4` | FAIL | 3 |
 | `openai/gpt-3.5-turbo` | FAIL | 3 |
 | `cohere/command-a` | FAIL | 3 |
+| `microsoft/phi-4` | FAIL | 3 |
 | `deepseek/deepseek-r1-0528` | FAIL | 27 |
 
 #### `ep-daily-tech-news-show-c1904b8605f7`: Switch 2 Prices Rise, Forecast Drops - DTNS 5265
@@ -1155,9 +1175,9 @@ One subsection per episode in the corpus, showing how every model performed on t
 | `mistralai/codestral-2508` | 0.231 | 0.091 |
 | `meta-llama/llama-3.1-8b-instruct` | 0.183 | 0.109 |
 | `openai/o4-mini` | 0.080 | 0.179 |
+| `cohere/command-r-plus-08-2024` | 0.000 | 0.000 |
 | `microsoft/phi-4` | 0.000 | 0.000 |
 | `mistralai/mistral-7b-instruct-v0.1` | 0.000 | 0.000 |
-| `cohere/command-r-plus-08-2024` | 0.000 | 0.000 |
 
 #### `ep-it-s-a-thing-e339179dfad6`: SOUP shots - It's a Thing 418
 
@@ -1167,38 +1187,38 @@ One subsection per episode in the corpus, showing how every model performed on t
 
 | Model | F1 | F1 stdev |
 |-------|----|----------|
+| `claude-opus-4-7` | 0.667 | 0.000 |
+| `x-ai/grok-4.1-fast` | 0.667 | 0.000 |
+| `openai/gpt-5.5` | 0.667 | 0.000 |
 | `qwen/qwen3.5-plus-02-15` | 0.667 | 0.000 |
 | `google/gemini-2.5-pro` | 0.667 | 0.000 |
-| `x-ai/grok-4.1-fast` | 0.667 | 0.000 |
-| `claude-opus-4-7` | 0.667 | 0.000 |
-| `openai/gpt-5.5` | 0.667 | 0.000 |
 | `openai/gpt-5.4` | 0.613 | 0.119 |
 | `google/gemma-4-31b-it` | 0.467 | 0.274 |
 | `deepseek/deepseek-r1-0528` | 0.404 | 0.281 |
-| `meta-llama/llama-3.1-8b-instruct` | 0.400 | 0.548 |
 | `deepseek/deepseek-v3.2` | 0.400 | 0.548 |
+| `meta-llama/llama-3.1-8b-instruct` | 0.400 | 0.548 |
 | `cohere/command-a` | 0.400 | 0.000 |
 | `deepseek/deepseek-v4-flash` | 0.337 | 0.239 |
 | `openai/o3` | 0.333 | 0.471 |
 | `deepseek/deepseek-r1` | 0.313 | 0.301 |
 | `nvidia/llama-3.3-nemotron-super-49b-v1.5` | 0.233 | 0.325 |
 | `moonshotai/kimi-k2.6` | 0.200 | 0.274 |
+| `google/gemini-2.5-flash` | 0.000 | 0.000 |
+| `meta-llama/llama-4-scout` | 0.000 | 0.000 |
+| `mistralai/codestral-2508` | 0.000 | 0.000 |
+| `openai/gpt-3.5-turbo` | 0.000 | 0.000 |
+| `claude-sonnet-4-6` | 0.000 | 0.000 |
+| `mistralai/mistral-medium-3.1` | 0.000 | 0.000 |
+| `meta-llama/llama-3.3-70b-instruct` | 0.000 | 0.000 |
+| `openai/o4-mini` | 0.000 | 0.000 |
+| `deepseek/deepseek-r1-distill-llama-70b` | 0.000 | 0.000 |
+| `mistralai/mistral-large-2512` | 0.000 | 0.000 |
+| `nvidia/nemotron-nano-9b-v2` | 0.000 | 0.000 |
+| `claude-haiku-4-5-20251001` | 0.000 | 0.000 |
+| `cohere/command-r-plus-08-2024` | 0.000 | 0.000 |
 | `microsoft/phi-4` | 0.000 | 0.000 |
 | `meta-llama/llama-4-maverick` | 0.000 | 0.000 |
-| `meta-llama/llama-3.3-70b-instruct` | 0.000 | 0.000 |
-| `claude-sonnet-4-6` | 0.000 | 0.000 |
 | `mistralai/mistral-7b-instruct-v0.1` | 0.000 | 0.000 |
-| `meta-llama/llama-4-scout` | 0.000 | 0.000 |
-| `mistralai/mistral-large-2512` | 0.000 | 0.000 |
-| `openai/gpt-3.5-turbo` | 0.000 | 0.000 |
-| `mistralai/codestral-2508` | 0.000 | 0.000 |
-| `openai/o4-mini` | 0.000 | 0.000 |
-| `mistralai/mistral-medium-3.1` | 0.000 | 0.000 |
-| `deepseek/deepseek-r1-distill-llama-70b` | 0.000 | 0.000 |
-| `claude-haiku-4-5-20251001` | 0.000 | 0.000 |
-| `nvidia/nemotron-nano-9b-v2` | 0.000 | 0.000 |
-| `cohere/command-r-plus-08-2024` | 0.000 | 0.000 |
-| `google/gemini-2.5-flash` | 0.000 | 0.000 |
 
 #### `ep-security-now-audio-2850b24903b2`: SN 1077: A Browser AI API? - End of Bug Bounties?
 
@@ -1279,8 +1299,8 @@ One subsection per episode in the corpus, showing how every model performed on t
 | `deepseek/deepseek-v3.2` | 0.100 | 0.224 |
 | `microsoft/phi-4` | 0.067 | 0.092 |
 | `meta-llama/llama-3.1-8b-instruct` | 0.000 | 0.000 |
-| `mistralai/mistral-7b-instruct-v0.1` | 0.000 | 0.000 |
 | `cohere/command-r-plus-08-2024` | 0.000 | 0.000 |
+| `mistralai/mistral-7b-instruct-v0.1` | 0.000 | 0.000 |
 
 #### `ep-the-tim-dillon-show-f62bd5fa1cfe`: 495 - Hantavirus Cruise & iPad Babies
 
@@ -1310,8 +1330,8 @@ One subsection per episode in the corpus, showing how every model performed on t
 | `nvidia/llama-3.3-nemotron-super-49b-v1.5` | 0.171 | 0.125 |
 | `meta-llama/llama-4-maverick` | 0.167 | 0.000 |
 | `deepseek/deepseek-r1-distill-llama-70b` | 0.163 | 0.159 |
-| `claude-haiku-4-5-20251001` | 0.154 | 0.000 |
 | `google/gemini-2.5-flash` | 0.154 | 0.000 |
+| `claude-haiku-4-5-20251001` | 0.154 | 0.000 |
 | `openai/gpt-3.5-turbo` | 0.125 | 0.000 |
 | `microsoft/phi-4` | 0.079 | 0.072 |
 | `deepseek/deepseek-v3.2` | 0.057 | 0.079 |
@@ -1320,8 +1340,8 @@ One subsection per episode in the corpus, showing how every model performed on t
 | `meta-llama/llama-3.1-8b-instruct` | 0.049 | 0.019 |
 | `nvidia/nemotron-nano-9b-v2` | 0.044 | 0.061 |
 | `mistralai/mistral-large-2512` | 0.044 | 0.025 |
-| `mistralai/mistral-7b-instruct-v0.1` | 0.000 | 0.000 |
 | `openai/o4-mini` | 0.000 | 0.000 |
+| `mistralai/mistral-7b-instruct-v0.1` | 0.000 | 0.000 |
 
 
 ### Parser stress test
@@ -1330,31 +1350,31 @@ How each model's responses were actually parsed. Columns are extraction methods,
 
 | Model | bracket_fallback | json_array_direct | json_object_ads_key | json_object_no_ads | json_object_segments_key | json_object_single_ad | json_object_single_ad_truncated | json_object_window_segments | markdown_code_block | parse_failure | regex_json_array |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| `qwen/qwen3.5-plus-02-15` | 0 | 450 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `meta-llama/llama-4-maverick` | 0 | 0 | 0 | 93 | 0 | 357 | 0 | 0 | 0 | 0 | 0 |
-| `claude-sonnet-4-6` | 0 | 413 | 0 | 0 | 0 | 0 | 0 | 0 | 27 | 0 | 10 |
-| `deepseek/deepseek-v3.2` | 0 | 355 | 4 | 0 | 0 | 91 | 0 | 0 | 0 | 0 | 0 |
-| `google/gemma-4-31b-it` | 0 | 0 | 278 | 72 | 0 | 99 | 1 | 0 | 0 | 0 | 0 |
-| `mistralai/mistral-large-2512` | 0 | 450 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `google/gemini-2.5-flash` | 0 | 450 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `mistralai/codestral-2508` | 0 | 450 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `openai/gpt-3.5-turbo` | 0 | 0 | 0 | 4 | 0 | 446 | 0 | 0 | 0 | 0 | 0 |
 | `claude-opus-4-7` | 0 | 448 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 2 |
-| `mistralai/codestral-2508` | 0 | 450 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `openai/gpt-5.4` | 0 | 0 | 0 | 134 | 0 | 316 | 0 | 0 | 0 | 0 | 0 |
+| `claude-sonnet-4-6` | 0 | 413 | 0 | 0 | 0 | 0 | 0 | 0 | 27 | 0 | 10 |
 | `mistralai/mistral-medium-3.1` | 0 | 450 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `claude-haiku-4-5-20251001` | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 450 | 0 | 0 |
+| `deepseek/deepseek-v3.2` | 0 | 355 | 4 | 0 | 0 | 91 | 0 | 0 | 0 | 0 | 0 |
+| `openai/gpt-5.4` | 0 | 0 | 0 | 134 | 0 | 316 | 0 | 0 | 0 | 0 | 0 |
+| `qwen/qwen3.5-plus-02-15` | 0 | 450 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `mistralai/mistral-large-2512` | 0 | 450 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `cohere/command-a` | 0 | 0 | 0 | 3 | 0 | 447 | 0 | 0 | 0 | 0 | 0 |
+| `claude-haiku-4-5-20251001` | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 450 | 0 | 0 |
 | `cohere/command-r-plus-08-2024` | 0 | 0 | 10 | 395 | 0 | 45 | 0 | 0 | 0 | 0 | 0 |
-| `google/gemini-2.5-flash` | 0 | 450 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `meta-llama/llama-3.3-70b-instruct` | 0 | 101 | 0 | 118 | 0 | 229 | 0 | 0 | 0 | 1 | 1 |
-| `meta-llama/llama-3.1-8b-instruct` | 0 | 242 | 0 | 52 | 0 | 155 | 0 | 0 | 0 | 1 | 0 |
+| `meta-llama/llama-4-maverick` | 0 | 0 | 0 | 93 | 0 | 357 | 0 | 0 | 0 | 0 | 0 |
+| `google/gemma-4-31b-it` | 0 | 0 | 278 | 72 | 0 | 99 | 1 | 0 | 0 | 0 | 0 |
 | `meta-llama/llama-4-scout` | 23 | 3 | 318 | 44 | 0 | 58 | 0 | 0 | 0 | 1 | 3 |
 | `x-ai/grok-4.1-fast` | 0 | 0 | 0 | 259 | 0 | 190 | 0 | 0 | 0 | 1 | 0 |
+| `meta-llama/llama-3.3-70b-instruct` | 0 | 101 | 0 | 118 | 0 | 229 | 0 | 0 | 0 | 1 | 1 |
+| `meta-llama/llama-3.1-8b-instruct` | 0 | 242 | 0 | 52 | 0 | 155 | 0 | 0 | 0 | 1 | 0 |
 | `openai/gpt-5.5` | 0 | 0 | 0 | 258 | 0 | 191 | 0 | 0 | 0 | 1 | 0 |
 | `google/gemini-2.5-pro` | 0 | 429 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 19 |
-| `deepseek/deepseek-r1-distill-llama-70b` | 0 | 14 | 15 | 32 | 0 | 385 | 0 | 0 | 0 | 4 | 0 |
 | `openai/o3` | 0 | 0 | 12 | 341 | 6 | 87 | 0 | 0 | 0 | 4 | 0 |
-| `microsoft/phi-4` | 0 | 209 | 21 | 19 | 11 | 181 | 0 | 2 | 0 | 6 | 1 |
+| `deepseek/deepseek-r1-distill-llama-70b` | 0 | 14 | 15 | 32 | 0 | 385 | 0 | 0 | 0 | 4 | 0 |
 | `deepseek/deepseek-r1` | 0 | 390 | 2 | 12 | 3 | 28 | 0 | 0 | 7 | 6 | 2 |
+| `microsoft/phi-4` | 0 | 209 | 21 | 19 | 11 | 181 | 0 | 2 | 0 | 6 | 1 |
 | `deepseek/deepseek-v4-flash` | 0 | 13 | 303 | 2 | 0 | 119 | 0 | 0 | 0 | 13 | 0 |
 | `nvidia/nemotron-nano-9b-v2` | 0 | 394 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 46 | 10 |
 | `deepseek/deepseek-r1-0528` | 0 | 354 | 23 | 3 | 0 | 21 | 0 | 0 | 1 | 48 | 0 |
@@ -1363,7 +1383,7 @@ How each model's responses were actually parsed. Columns are extraction methods,
 | `mistralai/mistral-7b-instruct-v0.1` | 1 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 370 | 79 |
 | `openai/o4-mini` | 0 | 0 | 0 | 8 | 0 | 19 | 0 | 0 | 0 | 423 | 0 |
 
-### Methodology
+## Methodology
 
 Reproducibility settings used for this run. The benchmark sends the same prompts MinusPod sends in production (same system prompt, same sponsor list, same windowing) so the F1 numbers here are directly relevant to production accuracy decisions. Cost is recomputed at report time from token counts against the active pricing snapshot, so all rows compare at the same prices regardless of when the actual call ran.
 
@@ -1374,7 +1394,7 @@ Reproducibility settings used for this run. The benchmark sends the same prompts
 - Pricing snapshot: 2026-05-09T22:50:45.889333Z
 - Corpus episodes: 7
 
-### Transcript source
+## Transcript source
 
 `segments.json` for every corpus episode is pulled byte-exact from the source MinusPod instance's `original-segments` endpoint. The transcript itself was generated by faster-whisper inside that instance, not by the benchmark. Model choice and decoding params affect what gets transcribed, which sets an upper bound on what every benchmarked LLM can find.
 
@@ -1406,266 +1426,139 @@ model.transcribe(
 
 The `initial_prompt` carries a sponsor vocabulary so Whisper produces consistent spellings (`Athletic Greens` rather than `AG1`, `ExpressVPN` rather than `express vpn`). This biases what shows up in the transcript and therefore what every benchmarked LLM is scored against.
 
-**Sponsor vocabulary** (254 canonical sponsors, 43 of them with explicit alias spellings totaling 46 aliases; from `src/utils/constants.py` `SEED_SPONSORS`):
+**Sponsor vocabulary** (254 canonical sponsors, 43 of them with explicit alias spellings totaling 46 aliases; from `src/utils/constants.py` `SEED_SPONSORS`). Laid out in two side-by-side groups, read top-to-bottom in each group.
 
-| Sponsor | Aliases | Category |
-|---|---|---|
-| 1Password | `One Password` | tech |
-| Acorns | - | finance |
-| ADT | - | home |
-| Affirm | - | finance_fintech |
-| Airbnb | - | travel_hospitality |
-| Airtable | - | tech_software_saas |
-| Alani Nu | - | food_beverage_nutrition |
-| Allbirds | - | ecommerce_retail_dtc |
-| Alo Yoga | - | ecommerce_retail_dtc |
-| Amazon | - | retail |
-| Anthropic | - | tech_software_saas |
-| Apple TV+ | - | media_streaming |
-| Asana | - | tech_software_saas |
-| AT&T | - | telecom |
-| Athletic Brewing | - | beverage |
-| Athletic Greens | `AG1`, `AG One` | health |
-| Audible | - | entertainment |
-| Aura | - | tech |
-| Babbel | - | education |
-| BetMGM | `Bet MGM` | gambling |
-| BetterHelp | `Better Help` | health |
-| Betterment | - | finance |
-| Bill.com | - | finance_fintech |
-| Birchbox | - | ecommerce_retail_dtc |
-| Bitwarden | `Bit Warden` | tech |
-| Blinkist | - | education |
-| Bloom Nutrition | - | food_beverage_nutrition |
-| Blue Apron | - | food |
-| Bombas | - | apparel |
-| Booking.com | - | travel_hospitality |
-| Bose | - | electronics |
-| Brex | - | finance_fintech |
-| Brilliant | - | tech_software_saas |
-| Brooklinen | - | home |
-| Butcher Box | `ButcherBox` | food |
-| CacheFly | - | tech |
-| Caesars Sportsbook | - | gaming_sports_betting |
-| Calm | - | health |
-| Canva | - | tech |
-| Capital One | - | finance |
-| Care/of | `Care of`, `Careof` | health |
-| CarMax | `Car Max` | auto |
-| Carvana | - | auto |
-| Casper | - | home |
-| Cerebral | - | mental_health_wellness |
-| Chime | - | finance_fintech |
-| ClickUp | - | tech_software_saas |
-| Cloudflare | - | tech_software_saas |
-| Coinbase | - | finance_fintech |
-| Comcast | - | telecom |
-| Cozy Earth | - | home |
-| Credit Karma | - | finance |
-| CrowdStrike | - | tech_software_saas |
-| Cursor | - | tech_software_saas |
-| Databricks | - | tech_software_saas |
-| Datadog | - | tech_software_saas |
-| Deel | - | business |
-| DeleteMe | `Delete Me` | tech |
-| Disney+ | - | media_streaming |
-| DocuSign | - | tech_software_saas |
-| Dollar Shave Club | `DSC` | personal |
-| DoorDash | `Door Dash` | food |
-| DraftKings | `Draft Kings` | gambling |
-| Duolingo | - | tech_software_saas |
-| eBay Motors | - | auto |
-| Eight Sleep | - | mental_health_wellness |
-| ElevenLabs | - | tech_software_saas |
-| ESPN Bet | - | gaming_sports_betting |
-| Everlane | - | ecommerce_retail_dtc |
-| EveryPlate | - | food_beverage_nutrition |
-| Expedia | - | travel_hospitality |
-| ExpressVPN | `Express VPN` | vpn |
-| FabFitFun | - | ecommerce_retail_dtc |
-| Factor | - | food |
-| FanDuel | `Fan Duel` | gambling |
-| Figma | - | tech_software_saas |
-| Ford | - | auto |
-| Framer | - | tech |
-| FreshBooks | - | finance_fintech |
-| Function Health | - | mental_health_wellness |
-| Function of Beauty | - | personal |
-| Gametime | `Game Time` | entertainment |
-| Geico | - | finance |
-| GitHub | - | tech_software_saas |
-| GitHub Copilot | - | tech_software_saas |
-| GOAT | - | ecommerce_retail_dtc |
-| GoodRx | `Good Rx` | health |
-| Gopuff | - | ecommerce_retail_dtc |
-| Grammarly | - | tech |
-| Green Chef | `GreenChef` | food |
-| Grubhub | `Grub Hub` | food |
-| Gusto | - | b2b_startup |
-| Harry's | `Harrys` | personal |
-| HBO Max | - | media_streaming |
-| Headspace | `Head Space` | health |
-| Helix Sleep | `Helix` | home |
-| HelloFresh | `Hello Fresh` | food |
-| Hers | - | health |
-| Hims | - | health |
-| Honeylove | `Honey Love` | apparel |
-| Hopper | - | travel_hospitality |
-| HubSpot | `Hub Spot` | tech |
-| Huel | - | food_beverage_nutrition |
-| Hyundai | - | auto |
-| iHeartRadio | - | media_streaming |
-| Imperfect Foods | - | food_beverage_nutrition |
-| Incogni | - | tech |
-| Indeed | - | jobs |
-| Inside Tracker | - | mental_health_wellness |
-| Instacart | - | food |
-| Intuit | - | finance_fintech |
-| Joovv | - | mental_health_wellness |
-| Kayak | - | travel_hospitality |
-| Keeps | - | health |
-| Klarna | - | finance_fintech |
-| Klaviyo | - | tech_software_saas |
-| LegalZoom | - | insurance_legal |
-| Lemonade | - | finance |
-| Levels | - | mental_health_wellness |
-| Liberty Mutual | - | finance |
-| Lime | - | automotive_transport |
-| Linear | - | tech_software_saas |
-| LinkedIn | `LinkedIn Jobs` | jobs |
-| Liquid IV | `Liquid I.V.` | health |
-| LMNT | `Element` | health |
-| Loom | - | tech_software_saas |
-| Lululemon | - | ecommerce_retail_dtc |
-| Lyft | - | automotive_transport |
-| MacPaw | `CleanMyMac` | tech |
-| Magic Mind | - | beverage |
-| Magic Spoon | - | food |
-| Mailchimp | - | tech_software_saas |
-| Manscaped | - | personal |
-| MasterClass | `Master Class` | education |
-| McDonald's | - | food_beverage_nutrition |
-| Mercury | - | finance_fintech |
-| Meter | - | b2b_startup |
-| Midjourney | - | tech_software_saas |
-| Mint Mobile | `MintMobile` | telecom |
-| Miro | - | tech |
-| Momentous | - | mental_health_wellness |
-| Monarch Money | - | finance |
-| Monday.com | `Monday` | tech |
-| Native | - | personal |
-| NerdWallet | - | finance_fintech |
-| Netflix | - | media_streaming |
-| NetSuite | `Net Suite` | tech |
-| Noom | - | mental_health_wellness |
-| NordVPN | `Nord VPN` | vpn |
-| Notion | - | tech |
-| Nutrafol | - | health |
-| Okta | - | tech_software_saas |
-| OLIPOP | - | food_beverage_nutrition |
-| OneSkin | `One Skin` | personal |
-| OpenAI | - | tech_software_saas |
-| Outdoor Voices | - | ecommerce_retail_dtc |
-| OutSystems | - | tech |
-| PagerDuty | - | b2b_startup |
-| Paramount+ | - | media_streaming |
-| Patreon | - | tech_software_saas |
-| Perplexity | - | tech_software_saas |
-| Plaid | - | finance_fintech |
-| PolicyGenius | `Policy Genius` | finance |
-| Poppi | - | food_beverage_nutrition |
-| Poshmark | - | ecommerce_retail_dtc |
-| Progressive | - | finance |
-| Public.com | - | finance_fintech |
-| Pura | - | home_security |
-| Purple | - | home |
-| QuickBooks | - | finance_fintech |
-| Quince | - | apparel |
-| Quip | - | personal |
-| Ramp | - | finance_fintech |
-| Raycon | - | electronics |
-| Retool | - | tech_software_saas |
-| Ring | - | home |
-| Rippling | - | b2b_startup |
-| Ritual | - | health |
-| Ro | - | mental_health_wellness |
-| Robinhood | - | finance_fintech |
-| Rocket Lawyer | - | insurance_legal |
-| Rocket Money | `RocketMoney`, `Truebill` | finance |
-| Roman | - | health |
-| Rosetta Stone | - | education |
-| Rothy's | - | ecommerce_retail_dtc |
-| Saatva | - | ecommerce_retail_dtc |
-| Salesforce | - | tech_software_saas |
-| SeatGeek | - | gaming_sports_betting |
-| Seed | - | health |
-| SendGrid | - | tech_software_saas |
-| ServiceNow | - | tech_software_saas |
-| Shein | - | ecommerce_retail_dtc |
-| Shopify | - | tech |
-| SimpliSafe | `Simpli Safe` | home |
-| SiriusXM | - | media_streaming |
-| Skillshare | - | tech_software_saas |
-| SKIMS | - | ecommerce_retail_dtc |
-| Skyscanner | - | travel_hospitality |
-| Slack | - | tech_software_saas |
-| Snowflake | - | tech_software_saas |
-| SoFi | - | finance |
-| Spaceship | - | tech |
-| Splunk | - | b2b_startup |
-| Spotify | - | media_streaming |
-| Squarespace | `Square Space` | tech |
-| Stamps.com | `Stamps` | business |
-| Starbucks | - | food_beverage_nutrition |
-| State Farm | - | finance |
-| Stitch Fix | - | ecommerce_retail_dtc |
-| StockX | - | ecommerce_retail_dtc |
-| Stripe | - | finance_fintech |
-| StubHub | - | gaming_sports_betting |
-| Substack | - | tech_software_saas |
-| T-Mobile | `TMobile` | telecom |
-| Talkspace | - | mental_health_wellness |
-| Temu | - | ecommerce_retail_dtc |
-| Ten Thousand | - | ecommerce_retail_dtc |
-| Thinkst Canary | - | tech |
-| Thorne | - | mental_health_wellness |
-| ThreatLocker | - | tech |
-| ThredUp | - | ecommerce_retail_dtc |
-| Thrive Market | - | food |
-| Toyota | - | auto |
-| Transparent Labs | - | food_beverage_nutrition |
-| Turo | - | automotive_transport |
-| Twilio | - | tech_software_saas |
-| Uber | - | automotive_transport |
-| Uber Eats | `UberEats` | food |
-| UnitedHealth Group | - | finance_fintech |
-| Vanta | - | tech |
-| Veeam | - | tech |
-| Vercel | - | tech_software_saas |
-| Verizon | - | telecom |
-| Visible | - | telecom |
-| Vrbo | - | travel_hospitality |
-| Vuori | - | ecommerce_retail_dtc |
-| Warby Parker | - | ecommerce_retail_dtc |
-| Wayfair | - | ecommerce_retail_dtc |
-| Waymo | - | automotive_transport |
-| Wealthfront | - | finance |
-| WebBank | - | finance_fintech |
-| Webflow | - | b2b_startup |
-| WhatsApp | - | tech |
-| WHOOP | - | mental_health_wellness |
-| Workday | - | tech_software_saas |
-| Xero | - | finance_fintech |
-| YouTube | - | media_streaming |
-| YouTube TV | - | media_streaming |
-| Zapier | - | tech |
-| Zendesk | - | tech_software_saas |
-| ZipRecruiter | `Zip Recruiter` | jobs |
-| ZocDoc | `Zoc Doc` | health |
-| Zoom | - | tech_software_saas |
-| Zscaler | - | tech |
+| Sponsor | Aliases | Category | Sponsor | Aliases | Category |
+|---|---|---|---|---|---|
+| 1Password | `One Password` | tech | Lyft | - | automotive_transport |
+| Acorns | - | finance | MacPaw | `CleanMyMac` | tech |
+| ADT | - | home | Magic Mind | - | beverage |
+| Affirm | - | finance_fintech | Magic Spoon | - | food |
+| Airbnb | - | travel_hospitality | Mailchimp | - | tech_software_saas |
+| Airtable | - | tech_software_saas | Manscaped | - | personal |
+| Alani Nu | - | food_beverage_nutrition | MasterClass | `Master Class` | education |
+| Allbirds | - | ecommerce_retail_dtc | McDonald's | - | food_beverage_nutrition |
+| Alo Yoga | - | ecommerce_retail_dtc | Mercury | - | finance_fintech |
+| Amazon | - | retail | Meter | - | b2b_startup |
+| Anthropic | - | tech_software_saas | Midjourney | - | tech_software_saas |
+| Apple TV+ | - | media_streaming | Mint Mobile | `MintMobile` | telecom |
+| Asana | - | tech_software_saas | Miro | - | tech |
+| AT&T | - | telecom | Momentous | - | mental_health_wellness |
+| Athletic Brewing | - | beverage | Monarch Money | - | finance |
+| Athletic Greens | `AG1`, `AG One` | health | Monday.com | `Monday` | tech |
+| Audible | - | entertainment | Native | - | personal |
+| Aura | - | tech | NerdWallet | - | finance_fintech |
+| Babbel | - | education | Netflix | - | media_streaming |
+| BetMGM | `Bet MGM` | gambling | NetSuite | `Net Suite` | tech |
+| BetterHelp | `Better Help` | health | Noom | - | mental_health_wellness |
+| Betterment | - | finance | NordVPN | `Nord VPN` | vpn |
+| Bill.com | - | finance_fintech | Notion | - | tech |
+| Birchbox | - | ecommerce_retail_dtc | Nutrafol | - | health |
+| Bitwarden | `Bit Warden` | tech | Okta | - | tech_software_saas |
+| Blinkist | - | education | OLIPOP | - | food_beverage_nutrition |
+| Bloom Nutrition | - | food_beverage_nutrition | OneSkin | `One Skin` | personal |
+| Blue Apron | - | food | OpenAI | - | tech_software_saas |
+| Bombas | - | apparel | Outdoor Voices | - | ecommerce_retail_dtc |
+| Booking.com | - | travel_hospitality | OutSystems | - | tech |
+| Bose | - | electronics | PagerDuty | - | b2b_startup |
+| Brex | - | finance_fintech | Paramount+ | - | media_streaming |
+| Brilliant | - | tech_software_saas | Patreon | - | tech_software_saas |
+| Brooklinen | - | home | Perplexity | - | tech_software_saas |
+| Butcher Box | `ButcherBox` | food | Plaid | - | finance_fintech |
+| CacheFly | - | tech | PolicyGenius | `Policy Genius` | finance |
+| Caesars Sportsbook | - | gaming_sports_betting | Poppi | - | food_beverage_nutrition |
+| Calm | - | health | Poshmark | - | ecommerce_retail_dtc |
+| Canva | - | tech | Progressive | - | finance |
+| Capital One | - | finance | Public.com | - | finance_fintech |
+| Care/of | `Care of`, `Careof` | health | Pura | - | home_security |
+| CarMax | `Car Max` | auto | Purple | - | home |
+| Carvana | - | auto | QuickBooks | - | finance_fintech |
+| Casper | - | home | Quince | - | apparel |
+| Cerebral | - | mental_health_wellness | Quip | - | personal |
+| Chime | - | finance_fintech | Ramp | - | finance_fintech |
+| ClickUp | - | tech_software_saas | Raycon | - | electronics |
+| Cloudflare | - | tech_software_saas | Retool | - | tech_software_saas |
+| Coinbase | - | finance_fintech | Ring | - | home |
+| Comcast | - | telecom | Rippling | - | b2b_startup |
+| Cozy Earth | - | home | Ritual | - | health |
+| Credit Karma | - | finance | Ro | - | mental_health_wellness |
+| CrowdStrike | - | tech_software_saas | Robinhood | - | finance_fintech |
+| Cursor | - | tech_software_saas | Rocket Lawyer | - | insurance_legal |
+| Databricks | - | tech_software_saas | Rocket Money | `RocketMoney`, `Truebill` | finance |
+| Datadog | - | tech_software_saas | Roman | - | health |
+| Deel | - | business | Rosetta Stone | - | education |
+| DeleteMe | `Delete Me` | tech | Rothy's | - | ecommerce_retail_dtc |
+| Disney+ | - | media_streaming | Saatva | - | ecommerce_retail_dtc |
+| DocuSign | - | tech_software_saas | Salesforce | - | tech_software_saas |
+| Dollar Shave Club | `DSC` | personal | SeatGeek | - | gaming_sports_betting |
+| DoorDash | `Door Dash` | food | Seed | - | health |
+| DraftKings | `Draft Kings` | gambling | SendGrid | - | tech_software_saas |
+| Duolingo | - | tech_software_saas | ServiceNow | - | tech_software_saas |
+| eBay Motors | - | auto | Shein | - | ecommerce_retail_dtc |
+| Eight Sleep | - | mental_health_wellness | Shopify | - | tech |
+| ElevenLabs | - | tech_software_saas | SimpliSafe | `Simpli Safe` | home |
+| ESPN Bet | - | gaming_sports_betting | SiriusXM | - | media_streaming |
+| Everlane | - | ecommerce_retail_dtc | Skillshare | - | tech_software_saas |
+| EveryPlate | - | food_beverage_nutrition | SKIMS | - | ecommerce_retail_dtc |
+| Expedia | - | travel_hospitality | Skyscanner | - | travel_hospitality |
+| ExpressVPN | `Express VPN` | vpn | Slack | - | tech_software_saas |
+| FabFitFun | - | ecommerce_retail_dtc | Snowflake | - | tech_software_saas |
+| Factor | - | food | SoFi | - | finance |
+| FanDuel | `Fan Duel` | gambling | Spaceship | - | tech |
+| Figma | - | tech_software_saas | Splunk | - | b2b_startup |
+| Ford | - | auto | Spotify | - | media_streaming |
+| Framer | - | tech | Squarespace | `Square Space` | tech |
+| FreshBooks | - | finance_fintech | Stamps.com | `Stamps` | business |
+| Function Health | - | mental_health_wellness | Starbucks | - | food_beverage_nutrition |
+| Function of Beauty | - | personal | State Farm | - | finance |
+| Gametime | `Game Time` | entertainment | Stitch Fix | - | ecommerce_retail_dtc |
+| Geico | - | finance | StockX | - | ecommerce_retail_dtc |
+| GitHub | - | tech_software_saas | Stripe | - | finance_fintech |
+| GitHub Copilot | - | tech_software_saas | StubHub | - | gaming_sports_betting |
+| GOAT | - | ecommerce_retail_dtc | Substack | - | tech_software_saas |
+| GoodRx | `Good Rx` | health | T-Mobile | `TMobile` | telecom |
+| Gopuff | - | ecommerce_retail_dtc | Talkspace | - | mental_health_wellness |
+| Grammarly | - | tech | Temu | - | ecommerce_retail_dtc |
+| Green Chef | `GreenChef` | food | Ten Thousand | - | ecommerce_retail_dtc |
+| Grubhub | `Grub Hub` | food | Thinkst Canary | - | tech |
+| Gusto | - | b2b_startup | Thorne | - | mental_health_wellness |
+| Harry's | `Harrys` | personal | ThreatLocker | - | tech |
+| HBO Max | - | media_streaming | ThredUp | - | ecommerce_retail_dtc |
+| Headspace | `Head Space` | health | Thrive Market | - | food |
+| Helix Sleep | `Helix` | home | Toyota | - | auto |
+| HelloFresh | `Hello Fresh` | food | Transparent Labs | - | food_beverage_nutrition |
+| Hers | - | health | Turo | - | automotive_transport |
+| Hims | - | health | Twilio | - | tech_software_saas |
+| Honeylove | `Honey Love` | apparel | Uber | - | automotive_transport |
+| Hopper | - | travel_hospitality | Uber Eats | `UberEats` | food |
+| HubSpot | `Hub Spot` | tech | UnitedHealth Group | - | finance_fintech |
+| Huel | - | food_beverage_nutrition | Vanta | - | tech |
+| Hyundai | - | auto | Veeam | - | tech |
+| iHeartRadio | - | media_streaming | Vercel | - | tech_software_saas |
+| Imperfect Foods | - | food_beverage_nutrition | Verizon | - | telecom |
+| Incogni | - | tech | Visible | - | telecom |
+| Indeed | - | jobs | Vrbo | - | travel_hospitality |
+| Inside Tracker | - | mental_health_wellness | Vuori | - | ecommerce_retail_dtc |
+| Instacart | - | food | Warby Parker | - | ecommerce_retail_dtc |
+| Intuit | - | finance_fintech | Wayfair | - | ecommerce_retail_dtc |
+| Joovv | - | mental_health_wellness | Waymo | - | automotive_transport |
+| Kayak | - | travel_hospitality | Wealthfront | - | finance |
+| Keeps | - | health | WebBank | - | finance_fintech |
+| Klarna | - | finance_fintech | Webflow | - | b2b_startup |
+| Klaviyo | - | tech_software_saas | WhatsApp | - | tech |
+| LegalZoom | - | insurance_legal | WHOOP | - | mental_health_wellness |
+| Lemonade | - | finance | Workday | - | tech_software_saas |
+| Levels | - | mental_health_wellness | Xero | - | finance_fintech |
+| Liberty Mutual | - | finance | YouTube | - | media_streaming |
+| Lime | - | automotive_transport | YouTube TV | - | media_streaming |
+| Linear | - | tech_software_saas | Zapier | - | tech |
+| LinkedIn | `LinkedIn Jobs` | jobs | Zendesk | - | tech_software_saas |
+| Liquid IV | `Liquid I.V.` | health | ZipRecruiter | `Zip Recruiter` | jobs |
+| LMNT | `Element` | health | ZocDoc | `Zoc Doc` | health |
+| Loom | - | tech_software_saas | Zoom | - | tech_software_saas |
+| Lululemon | - | ecommerce_retail_dtc | Zscaler | - | tech |
 
-**Mishearing corrections** (174 entries, from `src/utils/constants.py` `SPONSOR_ALIASES`). Applied post-transcription to normalize Whisper output toward the canonical sponsor name. Distinct from the `aliases` column above, which lists intentional alternative spellings (e.g. `AG1` vs `Athletic Greens`); the entries below are mostly Whisper mishearings (e.g. `a firm` -> `Affirm`, `xerox` -> `Xero`). Laid out in three side-by-side pairs, read top-to-bottom in each column.
+**Mishearing corrections** (174 entries, from `src/utils/constants.py` `SPONSOR_ALIASES`). Applied post-transcription to normalize Whisper output toward the canonical sponsor name. Distinct from the `aliases` column above, which lists intentional alternative spellings (e.g. `AG1` vs `Athletic Greens`); the entries below are mostly Whisper mishearings (e.g. `a firm` -> `Affirm`, `xerox` -> `Xero`). Laid out in three side-by-side groups, read top-to-bottom in each group.
 
 | Heard as | Normalized to | Heard as | Normalized to | Heard as | Normalized to |
 |---|---|---|---|---|---|
@@ -1728,9 +1621,9 @@ The `initial_prompt` carries a sponsor vocabulary so Whisper produces consistent
 | `go-puff` | Gopuff | `one-skin` | OneSkin | `zoc-doc` | ZocDoc |
 | `good rx` | GoodRx | `p ninety x` | P90X | `zock doc` | ZocDoc |
 
-### Run Metadata
+## Run Metadata
 
-- Report generated: 2026-05-11T16:43:25Z
+- Report generated: 2026-05-11T16:48:44Z
 - Unique work units (current state, last-write-wins after retries): 14400
 - Raw rows in calls.jsonl: 14416 (16 superseded by later retries; kept for audit)
 - Successful: 14400
