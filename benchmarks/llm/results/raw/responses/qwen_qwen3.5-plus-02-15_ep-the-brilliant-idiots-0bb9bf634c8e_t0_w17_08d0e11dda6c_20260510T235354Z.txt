@@ -1,0 +1,1 @@
+[{"start": 7135.4, "end": 7158.5, "confidence": 0.85, "reason": "Cross-promotion for Lauren LaRosa podcast with daily upload pitch", "end_text": "get into some things."}, {"start": 7173.7, "end": 7196.8, "confidence": 0.98, "reason": "Netflix sponsor read for Remarkably Bright Creatures", "end_text": "playing only on Netflix."}]

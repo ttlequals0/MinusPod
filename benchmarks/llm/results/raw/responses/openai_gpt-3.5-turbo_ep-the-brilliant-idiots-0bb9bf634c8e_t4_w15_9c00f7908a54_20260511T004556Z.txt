@@ -1,0 +1,7 @@
+{
+	"start": 6286.5,
+	"end": 6390.2,
+	"confidence": 0.95,
+	"reason": "Multiple sponsor mentions",
+	"end_text": "Let's pay some bills and do some asking idiots, man."
+}

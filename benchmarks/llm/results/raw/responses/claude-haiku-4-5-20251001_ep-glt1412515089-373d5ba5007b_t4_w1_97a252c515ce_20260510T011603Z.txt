@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 539.2,
+    "end": 652.8,
+    "confidence": 0.95,
+    "reason": "Two network-inserted retail ads: 'In the Gray' movie promotion (539.2-568.3) and Skechers slip-ins product ad (568.4-652.8) with product pitch, features, and call to action to visit Skechers.com",
+    "end_text": "only at Skechers.com"
+  }
+]
+```

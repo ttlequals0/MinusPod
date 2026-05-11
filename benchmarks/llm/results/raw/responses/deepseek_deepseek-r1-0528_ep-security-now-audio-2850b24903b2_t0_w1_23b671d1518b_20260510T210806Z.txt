@@ -1,0 +1,7 @@
+[{
+    "start": 469.0,
+    "end": 572.1,
+    "confidence": 0.98,
+    "reason": "Zscaler sponsor read with product pitch, customer testimonial, and call to action",
+    "end_text": "zscaler.com slash security"
+}]

@@ -1,0 +1,16 @@
+[
+  {
+    "start": 16.7,
+    "end": 84.9,
+    "confidence": 0.99,
+    "reason": "OutSystems sponsor read with product pitch and call to action (OutSystems.com/twit)",
+    "end_text": "OutSystems.com slash twit"
+  },
+  {
+    "start": 469.0,
+    "end": 572.1,
+    "confidence": 0.99,
+    "reason": "Zscaler sponsor read with security product pitch and call to action (zscaler.com/security)",
+    "end_text": "zscaler.com slash security"
+  }
+]

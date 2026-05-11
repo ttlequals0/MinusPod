@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1381.4,
+    "end": 1382.0,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Big Bank podcast and Big Facts podcast on the Black Effect podcast network",
+    "end_text": "podcast on the Black Effect podcast network"
+  }
+]

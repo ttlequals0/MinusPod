@@ -1,0 +1,25 @@
+{
+  "segments": [
+  {
+    "start": 393.1,
+    "end": 422.5,
+    "confidence": 0.95,
+    "reason": "Transition phrase 'I wanted to do a destination wedding' indicates a shift to promotional content.",
+    "end_text": "you're doing your thing"
+  },
+  {
+    "start": 566.6,
+    "end": 640.8,
+    "confidence": 0.98,
+    "reason": "Discussion about the power of platforms and their impact on hip-hop media, indicating a promotional segment.",
+    "end_text": "that's why I was saying"
+  },
+  {
+    "start": 737.0,
+    "end": 765.0,
+    "confidence": 0.97,
+    "reason": "The segment discusses the influence of a rapper's album and its impact, suggesting promotional content.",
+    "end_text": "that conversation turns into a whole different conversation"
+  }
+]
+}

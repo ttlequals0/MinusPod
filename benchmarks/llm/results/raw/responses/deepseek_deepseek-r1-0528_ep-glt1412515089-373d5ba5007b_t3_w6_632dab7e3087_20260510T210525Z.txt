@@ -1,0 +1,7 @@
+{
+  "start": 2510.5,
+  "end": 2538.2,
+  "confidence": 0.95,
+  "reason": "Host-read ad for Perplexity with URL and call to action",
+  "end_text": "ask Perplexity anything at"
+}

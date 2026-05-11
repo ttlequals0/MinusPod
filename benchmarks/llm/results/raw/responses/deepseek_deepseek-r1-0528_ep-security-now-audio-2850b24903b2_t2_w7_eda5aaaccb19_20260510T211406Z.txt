@@ -1,0 +1,9 @@
+[
+  {
+    "start": 3278.7,
+    "end": 3305.2,
+    "confidence": 0.95,
+    "reason": "Host-read sponsor transition",
+    "end_text": "most effective ideas in security"
+  }
+]

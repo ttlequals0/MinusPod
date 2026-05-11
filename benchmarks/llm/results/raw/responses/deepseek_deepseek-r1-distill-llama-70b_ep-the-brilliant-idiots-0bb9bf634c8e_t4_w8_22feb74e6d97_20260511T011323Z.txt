@@ -1,0 +1,7 @@
+{
+  "start": 3354.0,
+  "end": 3403.5,
+  "confidence": 0.8,
+  "reason": "Underground Sound sponsor read",
+  "end_text": "names like Netspin and SD Kid."
+}

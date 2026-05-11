@@ -1,0 +1,7 @@
+{
+  "start": 75.44,
+  "end": 76.16,
+  "confidence": 0.95,
+  "reason": "The segment discusses the concept of quantum computing and retrocausality, suggesting a naturalistic approach to understanding phenomena. It aligns with the idea of multiple universes and retrocausality, which are themes in the episode.",
+  "end_text": "build things and just go forward"
+}

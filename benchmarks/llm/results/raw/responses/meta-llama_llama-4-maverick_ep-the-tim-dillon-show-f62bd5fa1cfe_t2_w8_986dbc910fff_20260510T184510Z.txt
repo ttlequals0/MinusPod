@@ -1,0 +1,1 @@
+{"start": 3360.3, "end": 3360.3, "confidence": 0.0, "reason": "no ad detected in this window", "end_text": ""}

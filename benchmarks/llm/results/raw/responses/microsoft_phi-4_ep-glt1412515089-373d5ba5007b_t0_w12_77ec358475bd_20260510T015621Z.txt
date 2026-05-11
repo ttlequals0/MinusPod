@@ -1,0 +1,7 @@
+{
+  "start": 50.38,
+  "end": 56.14,
+  "confidence": 0.95,
+  "reason": "The segment contains a transition phrase and a description of a non-speaking participant's experience, which aligns with the detection rules for ads.",
+  "end_text": "the frequency that humans can hear"
+}

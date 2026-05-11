@@ -1,0 +1,1 @@
+{"start":5946.7,"end":6162.3,"confidence":0.99,"reason":"Host-read Hoxhunt sponsor segment; includes break transition, product pitch for phishing training platform, call to action hawkshunt.com/securitynow, and sponsor thanks.","end_text":"discussion of Chrome and"}

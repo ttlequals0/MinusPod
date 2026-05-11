@@ -1,0 +1,7 @@
+{
+  "start": 1668.7,
+  "end": 2286.3,
+  "confidence": 0.95,
+  "reason": "Multiple sponsor reads including Mint Mobile, Aura Frames, Morgan & Morgan, Stash, Neuro Gum with promotional URLs and codes",
+  "end_text": "nothing you can do about it. I'm sorry."
+}

@@ -1,0 +1,7 @@
+{
+  "start": 7916.6,
+  "end": 7937.1,
+  "confidence": 0.95,
+  "reason": "Network-inserted brand tagline ad for an unspecified product/service, with promotional language 'Thank you for watching' and a distinct tonal shift from the surrounding conversation.",
+  "end_text": "Thank you for watching."
+}

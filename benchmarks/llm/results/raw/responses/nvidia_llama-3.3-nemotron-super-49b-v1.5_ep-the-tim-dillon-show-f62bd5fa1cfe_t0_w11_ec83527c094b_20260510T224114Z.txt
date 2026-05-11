@@ -1,0 +1,9 @@
+```json
+[
+    {"start": 4675.4, "end": 4697.4, "confidence": 0.95, "reason": "Colgate Women's Games sponsor read", "end_text": "Colgate, your smile is your strength."},
+    {"start": 4705.5, "end": 4733.9, "confidence": 0.92, "reason": "Skinny Pop snack promotion", "end_text": "Skinny Pop."},
+    {"start": 4734.3, "end": 4763.1, "confidence": 0.94, "reason": "Colgate Women's Games repeat sponsor read", "end_text": "Colgate, your smile is your strength."},
+    {"start": 4766.5, "end": 4787.9, "confidence": 0.98, "reason": "Viz eye drops ad with URL", "end_text": "Learn more at Viz.com."},
+    {"start": 4788.6, "end": 4806.1, "confidence": 0.97, "reason": "Garnier/National Park Foundation partnership ad with URL", "end_text": "GarnierUSA.com slash NPF"}
+]
+```

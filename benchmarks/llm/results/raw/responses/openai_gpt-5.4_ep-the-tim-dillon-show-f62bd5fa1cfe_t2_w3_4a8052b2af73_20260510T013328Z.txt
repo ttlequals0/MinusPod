@@ -1,0 +1,1 @@
+{"start":1439.2,"end":1665.9,"confidence":0.99,"reason":"Back-to-back ad break: Mint Mobile host-read sponsor segment, Aura Frames host-read sponsor segment, followed by network-inserted ads for Colgate Women's Games and Skinny Pop; contains explicit promotional language, URLs, promo code, pricing, and product pitches.","end_text":"perfectly salted. Skinny Pop."}

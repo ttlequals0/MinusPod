@@ -1,0 +1,7 @@
+ {
+  "start": 1664.0,
+  "end": 2288.1,
+  "confidence": 0.0,
+  "reason": "No promotional language, sponsor names, URLs, promo codes, or product pitches detected in transcript window. Continuous editorial content about NCSC/CISA with non-promotional video transition phrases ('Thank you for watching').",
+  "end_text": "Thank you for watching."
+}

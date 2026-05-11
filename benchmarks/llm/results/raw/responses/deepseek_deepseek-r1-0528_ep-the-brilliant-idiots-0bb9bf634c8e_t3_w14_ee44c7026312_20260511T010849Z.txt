@@ -1,0 +1,9 @@
+[
+  {
+    "start": 6390.2,
+    "end": 6445.0,
+    "confidence": 0.95,
+    "reason": "Transition to ad break with mention of 'pay some bills' and subsequent discussion of Blue Chew (known sponsor) in a promotional context",
+    "end_text": "start lying. For no reason"
+  }
+]

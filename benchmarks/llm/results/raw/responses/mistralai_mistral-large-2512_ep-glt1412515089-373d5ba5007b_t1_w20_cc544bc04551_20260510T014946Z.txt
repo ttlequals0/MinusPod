@@ -1,0 +1,16 @@
+[
+    {
+        "start": 8409.5,
+        "end": 8412.0,
+        "confidence": 0.95,
+        "reason": "Perplexity platform-inserted ad at the start of the transcript segment",
+        "end_text": "pplx.ai/rogan."
+    },
+    {
+        "start": 8409.5,
+        "end": 8412.0,
+        "confidence": 0.98,
+        "reason": "Platform-inserted ad for ad choices (standard network disclaimer)",
+        "end_text": "podcastchoices.com/adchoices"
+    }
+]

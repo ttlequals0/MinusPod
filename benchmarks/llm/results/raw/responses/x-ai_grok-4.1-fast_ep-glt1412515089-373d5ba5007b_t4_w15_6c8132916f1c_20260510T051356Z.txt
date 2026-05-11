@@ -1,0 +1,1 @@
+{"start":6368.2,"end":6394.8,"confidence":0.95,"reason":"Perplexity AI sponsor mention ('our AI sponsor') with positive promo ('showing us how smart it is') and live demo of definition","end_text":"past, present, and potential future."}

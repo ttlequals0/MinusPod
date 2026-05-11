@@ -1,0 +1,1 @@
+{ "start": 7558.3, "end": 7797.4, "confidence": 0.95, "reason": "Trusted Tech sponsor read", "end_text": "securitynow365" }

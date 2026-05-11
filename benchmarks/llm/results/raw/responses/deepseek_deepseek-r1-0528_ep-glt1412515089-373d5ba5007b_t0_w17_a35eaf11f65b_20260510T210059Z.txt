@@ -1,0 +1,9 @@
+[
+  {
+    "start": 7740.0,
+    "end": 7756.0,
+    "confidence": 0.0,
+    "reason": "No promotional content detected; entire segment is topic discussion",
+    "end_text": "throw them out, right?"
+  }
+]

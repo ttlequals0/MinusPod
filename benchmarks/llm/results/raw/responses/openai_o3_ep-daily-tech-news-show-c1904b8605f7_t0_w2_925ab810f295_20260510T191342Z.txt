@@ -1,0 +1,1 @@
+{"error": "Please provide the episode's transcript including at least one timestamped line so I can check for advertisements."}

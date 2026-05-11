@@ -1,0 +1,1 @@
+[{"start": 4324.2, "end": 4334.1, "confidence": 0.95, "reason": "All Love Racquet Club event promotion", "end_text": "All Love Racquet Club"}, {"start": 4334.7, "end": 4361.4, "confidence": 0.95, "reason": "AM Mornings show promotion", "end_text": "AM Mornings on YouTube"}]

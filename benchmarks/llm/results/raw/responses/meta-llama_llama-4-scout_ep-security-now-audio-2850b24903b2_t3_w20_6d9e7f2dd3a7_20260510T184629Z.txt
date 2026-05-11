@@ -1,0 +1,7 @@
+{ 
+  "start": 8380.6, 
+  "end": 8408.1, 
+  "confidence": 0.3, 
+  "reason": "No clear ad markers", 
+  "end_text": ""
+}

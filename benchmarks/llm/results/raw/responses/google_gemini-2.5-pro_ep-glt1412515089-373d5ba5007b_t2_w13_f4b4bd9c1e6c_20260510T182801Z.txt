@@ -1,0 +1,9 @@
+[
+  {
+    "start": 5566.3,
+    "end": 5596.3,
+    "confidence": 1.0,
+    "reason": "Host-read promotion for the Netflix show 'Remarkably Bright Creatures'.",
+    "end_text": "playing, only on Netflix."
+  }
+]

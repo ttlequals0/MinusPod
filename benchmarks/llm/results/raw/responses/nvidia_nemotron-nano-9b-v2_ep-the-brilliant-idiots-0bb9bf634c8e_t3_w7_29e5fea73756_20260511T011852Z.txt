@@ -1,0 +1,1 @@
+[{"start": 2938.5, "end": 2959.5, "confidence": 0.95, "reason": "Sponsor Brilliant Idiots with pre-orders and links", "end_text": "megaphone.fm/adchoices"}]

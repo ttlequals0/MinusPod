@@ -1,0 +1,9 @@
+[
+  {
+    "start": 539.2,
+    "end": 624.5,
+    "confidence": 0.97,
+    "reason": "Host-read ads for 'In the Gray' movie and Skechers slip-ins with product pitches and calls to action",
+    "end_text": "casual and dress footwear, sandals, sneakers"
+  }
+]

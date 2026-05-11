@@ -1,0 +1,1 @@
+ {"start": 814.4, "end": 984.2, "confidence": 0.0, "reason": "No promotional content, sponsor mentions, URLs, promo codes, or calls to action detected in this window. The transcript contains only editorial discussion about robotics and AI, followed by the organic show outro.", "end_text": "stay tuned for more. Thank you."}

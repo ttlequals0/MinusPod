@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1359.1,
+    "end": 1381.4,
+    "confidence": 0.85,
+    "reason": "Host-read cross-promotion for other podcasts on the Black Effect network, containing a direct call to action: 'make sure you listen to the Big Bank podcast and the Big Facts podcast'.",
+    "end_text": "yes, Cam, of course, know him."
+  }
+]

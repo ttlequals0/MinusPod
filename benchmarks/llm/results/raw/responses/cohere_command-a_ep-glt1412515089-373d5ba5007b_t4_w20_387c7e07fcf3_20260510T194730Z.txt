@@ -1,0 +1,7 @@
+{
+  "start": 8400.0,
+  "end": 8409.5,
+  "confidence": 0.95,
+  "reason": "Perplexity sponsor mention with URL",
+  "end_text": "https://pplx.ai/rogan"
+}

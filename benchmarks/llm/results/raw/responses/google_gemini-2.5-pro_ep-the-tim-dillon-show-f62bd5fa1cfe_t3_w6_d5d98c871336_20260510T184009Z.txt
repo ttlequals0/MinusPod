@@ -1,0 +1,9 @@
+[
+  {
+    "start": 3079.6,
+    "end": 3134.3,
+    "confidence": 0.99,
+    "reason": "Host-read ads for Morgan & Morgan and Stash. The Stash ad is partial and continues past the end of the transcript window.",
+    "end_text": "Stash is the one."
+  }
+]

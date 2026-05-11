@@ -1,0 +1,37 @@
+[
+    {
+        "start": 2671.3,
+        "end": 2700.0,
+        "confidence": 0.95,
+        "reason": "Mint Mobile sponsor read continues from previous segment with promotional URL and call to action. Partial ad at end of window.",
+        "end_text": "continues in next"
+    },
+    {
+        "start": 2671.3,
+        "end": 2700.0,
+        "confidence": 0.98,
+        "reason": "Aura Frames sponsor read with exclusive discount code and vanity URL (on.auraframes.com/TIM, promo code TIM). Partial ad at end of window.",
+        "end_text": "continues in next"
+    },
+    {
+        "start": 2671.3,
+        "end": 2700.0,
+        "confidence": 0.98,
+        "reason": "Morgan & Morgan sponsor read with vanity URL (forthepeople.com/TIM) and call to action ('Dial POUND LAW'). Partial ad at end of window.",
+        "end_text": "continues in next"
+    },
+    {
+        "start": 2671.3,
+        "end": 2700.0,
+        "confidence": 0.97,
+        "reason": "Stash sponsor read with vanity URL (stash.com/mood) and call to action. Partial ad at end of window.",
+        "end_text": "continues in next"
+    },
+    {
+        "start": 2671.3,
+        "end": 2700.0,
+        "confidence": 0.98,
+        "reason": "Neuro Gum sponsor read with promotional URL (neurogum.com) and discount code (TIM). Partial ad at end of window.",
+        "end_text": "continues in next"
+    }
+]

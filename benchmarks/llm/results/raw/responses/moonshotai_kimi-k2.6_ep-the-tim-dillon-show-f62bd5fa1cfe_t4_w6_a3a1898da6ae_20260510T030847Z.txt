@@ -1,0 +1,1 @@
+{"start": 3079.6, "end": 3134.3, "confidence": 0.99, "reason": "Host-read sponsor segment for Morgan & Morgan with URL ForThePeople.com/Tim, promo code Poundlaw, and explicit paid advertisement disclaimer, immediately transitioning into Stash sponsor read; continues past window", "end_text": "Stash is the one. Stash is the one."}

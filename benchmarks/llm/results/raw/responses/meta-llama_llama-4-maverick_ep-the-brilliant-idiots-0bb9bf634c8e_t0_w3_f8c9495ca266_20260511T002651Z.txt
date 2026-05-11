@@ -1,0 +1,1 @@
+{"start": 1382.0, "end": 1407.9, "confidence": 0.8, "reason": "Promotion of Black Effect podcast network", "end_text": "on the Black Effect podcast network"}

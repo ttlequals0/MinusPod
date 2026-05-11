@@ -1,0 +1,7 @@
+{
+  "start": 140.0,
+  "end": 150.0,
+  "confidence": 0.95,
+  "reason": "The segment discusses the integration of AI into Chrome and the implications for browser standards and user choice, highlighting concerns about data privacy and the dominance of Google's AI-driven browser technology.",
+  "end_text": "This is what happens when AI is integrated into browser technology, potentially limiting user choice and data privacy."
+}

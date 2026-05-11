@@ -1,0 +1,8 @@
+
+{
+	"start": 1250.2,
+	"end": 1271.1,
+	"confidence": 1,
+	"reason": "Sponsor mentions for Jess Hilarious, 2Chainz, Cheryl McKissack Daniel, Dawn Staley, Charlamagne Tha God, Andrew Schulz, Black Effect Network, AlexxMedia",
+	"end_text": "Learn more about your ad choices. Visit megaphone.fm/adchoices"
+}

@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 2510.5,
+      "end": 3120.0,
+      "confidence": 0.95,
+      "reason": "No promotional content detected in the provided transcript segment. The conversation is entirely about Julia Mossbridge's personal experiences and scientific interests.",
+      "end_text": "he's like, oh, okay."
+    }
+  ]
+}

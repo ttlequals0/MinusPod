@@ -1,0 +1,1 @@
+[{"start": 6016.6, "end": 6060.0, "confidence": 0.98, "reason": "HoxHunt sponsor read (transcribed as Hawks Hunt), includes break transition. Ad continues past window limit.", "end_text": "Hawkshunt empowers your employees"}]

@@ -1,0 +1,7 @@
+{
+  "start": 4323.9,
+  "end": 4361.4,
+  "confidence": 0.95,
+  "reason": "Host-read promotion for Jess Hilarious' book 'Til Death Do We Parent', All Love Racquet Club tennis event, and AM Mornings show with specific calls to action and URLs",
+  "end_text": "See you guys there. Peace."
+}

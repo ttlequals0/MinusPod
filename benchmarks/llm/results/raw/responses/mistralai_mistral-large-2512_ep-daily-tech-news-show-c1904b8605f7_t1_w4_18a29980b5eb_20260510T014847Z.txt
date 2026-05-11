@@ -1,0 +1,30 @@
+[
+    {
+        "start": 1718.3,
+        "end": 1735.3,
+        "confidence": 0.95,
+        "reason": "DTNS merchandise promotion with call to action (DailyTechNewsShow.com/slash store) and product pitch (mugs, t-shirts, mouse pads)",
+        "end_text": "support the show, there you go."
+    },
+    {
+        "start": 1742.3,
+        "end": 1771.5,
+        "confidence": 0.98,
+        "reason": "Capital One sponsor read with product pitch (Chat Concierge), brand tagline, and promotional language",
+        "end_text": "That's technology at Capital One."
+    },
+    {
+        "start": 2246.0,
+        "end": 2275.3,
+        "confidence": 0.98,
+        "reason": "Capital One sponsor read repeat with product pitch (Chat Concierge), brand tagline, and promotional language",
+        "end_text": "That's technology at Capital One."
+    },
+    {
+        "start": 2276.2,
+        "end": 2301.6,
+        "confidence": 0.95,
+        "reason": "Rinse network-inserted ad with product pitch (laundry service) and promotional language (seamless digital interface, high-quality garment care)",
+        "end_text": "relentless task."
+    }
+]

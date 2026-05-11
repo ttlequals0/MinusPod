@@ -1,0 +1,7 @@
+{
+  "start": 1659.8,
+  "end": 1684.4,
+  "confidence": 0.0,
+  "reason": "No promotional language or sponsor mentions.",
+  "end_text": "right?"
+}

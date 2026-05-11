@@ -1,0 +1,1 @@
+{"start":6016.6,"end":6060.0,"confidence":0.99,"reason":"Hoxhunt/Hawks Hunt sponsor read with 'brought to you by' language and product pitch; continues in next window","end_text":"Hawkshunt empowers your employees"}

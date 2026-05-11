@@ -1,0 +1,1 @@
+{"start":417.2,"end":572.1,"confidence":0.99,"reason":"Host transition into commercial break followed by Zscaler sponsor read with product pitch and CTA to zscaler.com/security","end_text":"Security Now. Thank you, Leo"}

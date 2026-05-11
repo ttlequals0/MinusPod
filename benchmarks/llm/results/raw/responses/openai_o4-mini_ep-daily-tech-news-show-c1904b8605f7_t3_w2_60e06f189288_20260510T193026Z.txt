@@ -1,0 +1,1 @@
+{"start":821.4,"end":857.6,"confidence":0.98,"reason":"Capital One sponsor read","end_text":"I just need to"}

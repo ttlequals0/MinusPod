@@ -1,0 +1,1 @@
+{"start": 9741.1, "end": 9780.4, "confidence": 0.32, "reason": "Possible self-promotion for Applied Love Labs time machine app ('timemachine.love'), but presented organically in interview without clear sponsor/compensation framing", "end_text": "later it comes out and you hear yourself"}

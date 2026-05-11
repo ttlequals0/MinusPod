@@ -1,0 +1,37 @@
+[
+    {
+        "start": 10140.0,
+        "end": 10200.0,
+        "confidence": 0.99,
+        "reason": "Zscaler host-read sponsor segment with promotional language, URL, and call to action. Transition phrase included.",
+        "end_text": "zscaler.com/securitynow"
+    },
+    {
+        "start": 10200.0,
+        "end": 10260.0,
+        "confidence": 0.99,
+        "reason": "Meter host-read sponsor segment with promotional language, vanity URL, and call to action. Transition phrase included.",
+        "end_text": "meter.com/securitynow"
+    },
+    {
+        "start": 10260.0,
+        "end": 10320.0,
+        "confidence": 0.99,
+        "reason": "Bitwarden host-read sponsor segment with promotional language, vanity URL, and call to action. Transition phrase included.",
+        "end_text": "bitwarden.com/twit"
+    },
+    {
+        "start": 10320.0,
+        "end": 10380.0,
+        "confidence": 0.99,
+        "reason": "HoxHunt host-read sponsor segment with promotional language, vanity URL, and call to action. Transition phrase included.",
+        "end_text": "hoxhunt.com/securitynow"
+    },
+    {
+        "start": 10380.0,
+        "end": 10440.0,
+        "confidence": 0.99,
+        "reason": "Trusted Tech Team host-read sponsor segment with promotional language, vanity URL, and call to action. Transition phrase included.",
+        "end_text": "trustedtech.team/securitynow365"
+    }
+]

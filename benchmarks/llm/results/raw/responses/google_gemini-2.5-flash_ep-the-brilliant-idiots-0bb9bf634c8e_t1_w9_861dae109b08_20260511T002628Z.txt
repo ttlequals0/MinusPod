@@ -1,0 +1,23 @@
+[
+  {
+    "start": 4059.4,
+    "end": 4077.5,
+    "confidence": 0.9,
+    "reason": "Host asks to pay bills and mentions Lil P needs to eat, indicating a transition to ads.",
+    "end_text": "all goddamn day, okay?"
+  },
+  {
+    "start": 4323.9,
+    "end": 4334.1,
+    "confidence": 0.95,
+    "reason": "Host promotes Jess Elias' book and a tennis event with All Love Racquet Club.",
+    "end_text": "All Love Racquet Club."
+  },
+  {
+    "start": 4334.7,
+    "end": 4359.9,
+    "confidence": 0.95,
+    "reason": "Host promotes his new show AM Mornings and YouTube channel.",
+    "end_text": "meet the moment."
+  }
+]

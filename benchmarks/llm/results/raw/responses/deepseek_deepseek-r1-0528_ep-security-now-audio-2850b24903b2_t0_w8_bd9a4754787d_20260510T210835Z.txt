@@ -1,0 +1,16 @@
+[
+  {
+    "start": 3358.6,
+    "end": 3376.2,
+    "confidence": 0.95,
+    "reason": "Host-read sponsor segment",
+    "end_text": "Thank you for watching."
+  },
+  {
+    "start": 3862.5,
+    "end": 3879.8,
+    "confidence": 0.95,
+    "reason": "Host-read sponsor segment",
+    "end_text": "Thank you for watching."
+  }
+]

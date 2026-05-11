@@ -1,0 +1,1 @@
+{"start":7173.7,"end":7196.8,"confidence":0.98,"reason":"Netflix sponsor read promoting 'Remarkably Bright Creatures' with explicit phrase 'This episode is brought to you by' and product pitch","end_text":"now playing only on Netflix"}

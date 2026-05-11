@@ -1,0 +1,1 @@
+[{"start": 7607.7, "end": 7740.0, "confidence": 0.95, "reason": "Trusted Tech sponsor read", "end_text": "differentiates you in the marketplace."}]

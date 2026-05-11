@@ -1,0 +1,1 @@
+{"start":7584.4,"end":7797.4,"confidence":0.99,"reason":"Trusted Tech sponsor read for Microsoft 365 licensing consultation; includes break transition, sponsor name, promotional pitch, CTA and vanity URL trustedtech.team/securitynow365","end_text":"Now, back to Steve."}

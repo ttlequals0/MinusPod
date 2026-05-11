@@ -1,0 +1,1 @@
+{"start": 7320.0, "end": 7320.0, "confidence": 0.0, "reason": "No ad content found in this transcript segment. The provided window (112.0-122.0 minutes / 6720-7320s) contains only the conversation about physics and the double-slit experiment.", "end_text": "No ad content"}

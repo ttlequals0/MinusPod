@@ -1,0 +1,1 @@
+{"start": 1267.2, "end": 1270.2, "confidence": 0.95, "reason": "Perplexity sponsor ad", "end_text": "right there."}

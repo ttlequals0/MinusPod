@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I was thinking about this whole Hantavirus cruise ship thing. It's wild how one little virus can shut down an entire ship. I mean, can you imagine being stuck on a boat with a bunch of sick people? It's like a real-life horror movie. Anyway, let's take a break and we'll be right back after this.",
+  "start": 120.0,
+  "end": 150.0
+}

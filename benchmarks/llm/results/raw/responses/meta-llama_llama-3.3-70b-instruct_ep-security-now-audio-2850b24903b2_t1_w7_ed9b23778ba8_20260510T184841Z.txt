@@ -1,0 +1,1 @@
+{"start": 3279.5, "end": 3305.2, "confidence": 0.8, "reason": "Let's take a step back", "end_text": "in security"}

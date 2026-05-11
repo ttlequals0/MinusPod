@@ -1,0 +1,7 @@
+{
+  "start": 4707.7,
+  "end": 4816.7,
+  "confidence": 0.95,
+  "reason": "The segment contains a transition phrase indicating a shift back to the video, followed by a discussion about the telepathy trial involving participants and their ideas, which is promotional content.",
+  "end_text": "slam a beach ball"
+}

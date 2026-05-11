@@ -6,6 +6,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.7] - 2026-05-10
+
+### Added
+
+- LLM parser strategy 4: salvage a single-ad dict from responses that ran out of token budget mid-output. Triggered after the existing four strategies fail on structurally invalid JSON (no closing brace, unclosed string). Regex-extracts the numeric fields (`start`, `end`, `confidence`, `*_time`, `*_seconds`) and partial string fields (`reason`, `sponsor`, `advertiser`, `end_text`, `description`), returning the dict only when both `start` and `end` were recovered. Observed on Microsoft phi-4 in the offline benchmark; production hits this when a model emits a verbose `reason` field and saturates `AD_DETECTION_MAX_TOKENS`. Extraction method label: `json_object_single_ad_truncated`.
+
+### Changed
+
+- Benchmark `max_tokens` is now config-driven via `[run].max_tokens` in `benchmark.toml`, defaulting to production's `AD_DETECTION_MAX_TOKENS` so the benchmark matches the live app's budget by default. Reasoning models that need more headroom can override locally without touching production config.
+- Benchmark `schema_audit` now imports production's `STRUCTURAL_FIELDS` and `SPONSOR_PRIORITY_FIELDS` to stop flagging fields the live parser already accepts (`end_text`, `sponsor`, etc.) as `extra_keys`. Prior runs reported ~9,898 spurious violations on those two field names alone.
+- Benchmark code-quality cleanup: removed local duplicates of `parse_timestamp` and `format_time` in favor of `utils.time`; replaced hand-rolled `_violations_dict` with `dataclasses.asdict`; converted derived `ModelStats` fields (`cost_per_tp`, `tokens_per_detected_ad`) to `@property`; precomputed per-model indexes in `_aggregate` and per-model call counts in `_render_failures`; cached `avg_f1` and `mean_f1_stdev` on `ModelStats`; tightened the HTTP-5xx error classifier to use `\b5\d{2}\b` instead of fragile substring matching; extracted `_length_bucket` and `_position_bucket` helpers from inline ternaries.
+
+### Security
+
+- **Accepted CVE (no fix available)**: CVE-2026-31431 in `linux-libc-dev` (HIGH). The package provides kernel ABI headers from the ubuntu 24.04 base; it is used only at build time and not loaded at runtime. There is no upstream patch as of release. Both `2.1.7` and `2.1.7-cpu` images carry the same finding; it goes away when ubuntu publishes the fixed kernel-headers package.
+
+### Dependencies
+
+- bump anthropic 0.97.0 -> 0.100.0
+- bump cryptography 47.0.0 -> 48.0.0
+- bump gunicorn 25.3.0 -> 26.0.0
+- bump huggingface-hub 1.13.0 -> 1.14.0
+- bump openai 2.33.0 -> 2.36.0
+- bump @tanstack/react-query 5.100.5 -> 5.100.9 (frontend)
+- bump react 19.2.5 -> 19.2.6 (frontend)
+- bump react-router-dom 6.30.3 -> 7.15.0 (frontend; major upgrade, no API surface change needed in this app)
+- bump tailwind-merge 3.5.0 -> 3.6.0 (frontend)
+- bump vite-plugin-pwa 1.2.0 -> 1.3.0 (frontend dev)
+- bump node 24-alpine -> 26-alpine (Dockerfile frontend builder, both GPU and CPU images)
+- holding ubuntu 24.04 -> 26.04 (Dependabot PR #208) until nvidia/cuda ships a 26.04 base; the GPU image is pinned to ubuntu 24.04 through `nvidia/cuda:12.9.1-runtime-ubuntu24.04`, so taking it now would split the GPU and CPU base images across a major OS version.
+
 ## [2.1.6] - 2026-05-09
 
 ### Changed

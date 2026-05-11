@@ -1,0 +1,1 @@
+{"start":539.2,"end":624.5,"confidence":0.99,"reason":"Host-read sponsor segments for movie 'In the Gray' and Skechers slip-ins; ad continues past window","end_text":"dress footwear, sandals, sneakers,"}

@@ -1,0 +1,7 @@
+{
+  "start": 4057.2,
+  "end": 4083.9,
+  "confidence": 0.76,
+  "reason": "Host transitions to ad break with promotional language for show-related products/projects: 'Let's pay some bills,' followed by plugs for Lauren LaRosa TV/Latest with Lauren LaRosa before content resumes; partial/brief break in this window",
+  "end_text": "All right, let's get back to this show"
+}

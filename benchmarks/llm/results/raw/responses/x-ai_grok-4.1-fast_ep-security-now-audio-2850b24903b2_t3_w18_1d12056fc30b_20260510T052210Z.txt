@@ -1,0 +1,1 @@
+{"start":7584.4,"end":7797.4,"confidence":1.0,"reason":"Trusted Tech Microsoft 365 licensing host-read sponsor with promo URL trustedtech.team/securitynow365","end_text":"trustedtech.team securitynow365"}

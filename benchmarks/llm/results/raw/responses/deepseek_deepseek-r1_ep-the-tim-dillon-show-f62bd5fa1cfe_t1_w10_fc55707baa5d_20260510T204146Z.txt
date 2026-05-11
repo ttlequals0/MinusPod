@@ -1,0 +1,1 @@
+[{"start": 4675.4, "end": 4800.0, "confidence": 1.0, "reason": "Multiple ads: Colgate (Women's Games), Skinny Pop, Colgate (Women's Games again), Viz eye drops, Garnier National Park partnership (continues beyond window)", "end_text": "Garnier is proudly partnering"}]

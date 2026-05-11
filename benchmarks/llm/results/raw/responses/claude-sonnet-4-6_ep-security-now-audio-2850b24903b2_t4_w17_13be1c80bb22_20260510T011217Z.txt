@@ -1,0 +1,1 @@
+[{"start": 7557.6, "end": 7743.9, "confidence": 0.97, "reason": "Trusted Tech sponsor read - Microsoft 365 licensing service promotion with call to action and URL trustedtech.team/securitynow365", "end_text": "He was impressed. You will be too."}]

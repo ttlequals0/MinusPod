@@ -1,0 +1,1 @@
+{"start":5546.3,"end":5596.3,"confidence":0.96,"reason":"Netflix ad for Remarkably Bright Creatures with explicit sponsor language and promotional pitch; partial segment likely continues from previous sentence boundary","end_text":"now playing, only on Netflix. Yeah."}

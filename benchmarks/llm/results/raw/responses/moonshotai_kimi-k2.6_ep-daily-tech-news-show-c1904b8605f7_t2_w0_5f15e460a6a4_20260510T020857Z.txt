@@ -1,0 +1,1 @@
+{"start": 0.0, "end": 100.9, "confidence": 0.98, "reason": "Host-read sponsor segments for Capital One, Xero, and Spectrum Business", "end_text": "You get support with 100%"}

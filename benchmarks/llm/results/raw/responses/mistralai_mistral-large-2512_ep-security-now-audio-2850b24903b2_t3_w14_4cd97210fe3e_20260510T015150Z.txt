@@ -1,0 +1,16 @@
+[
+    {
+        "start": 5975.6,
+        "end": 6162.3,
+        "confidence": 0.99,
+        "reason": "Host-read sponsor segment for HoxHunt with promotional language, call to action (hoxhunt.com/securitynow), and transition phrases ('Let's take a timeout', 'This episode of Security Now brought to you by Hawks Hunt').",
+        "end_text": "making the switch to Hawkshunt."
+    },
+    {
+        "start": 6162.9,
+        "end": 6189.1,
+        "confidence": 0.95,
+        "reason": "Network-inserted ad break with distinct audio transition and promotional tagline ('Thank you for watching'). Likely a platform-inserted ad or cross-promotion.",
+        "end_text": "Thank you for watching."
+    }
+]

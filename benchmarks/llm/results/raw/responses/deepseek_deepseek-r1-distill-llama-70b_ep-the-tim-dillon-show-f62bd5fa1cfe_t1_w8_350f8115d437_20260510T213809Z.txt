@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I've been thinking about this a lot, and I really believe that Shopify is the way to go for any small business looking to expand their online presence. It's user-friendly, scalable, and they have amazing customer support. Plus, with their 24/7 support team, you can get help whenever you need it. If you're considering moving your business online, I highly recommend checking out Shopify. You can get a free trial by going to shopify.com/podcast. That's shopify.com/podcast. Let's take a quick break.",
+  "start": 3600.0,
+  "end": 3660.0
+}

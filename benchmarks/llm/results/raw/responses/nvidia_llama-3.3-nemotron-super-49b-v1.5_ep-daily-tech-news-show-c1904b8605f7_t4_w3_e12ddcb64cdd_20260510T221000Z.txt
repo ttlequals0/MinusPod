@@ -1,0 +1,1 @@
+[{"start": 1742.3, "end": 1799.6, "confidence": 0.95, "reason": "Capital One sponsor read and Good Things podcast cross-promo", "end_text": "six-part Thrive series."}]

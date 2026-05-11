@@ -1,0 +1,1 @@
+{"start":9898.8,"end":9920.6,"confidence":0.83,"reason":"partial platform-inserted Perplexity/podcastchoices ad indicated by episode metadata; ad likely continues in this window but transcript only contains show outro, so boundaries are partial","end_text":"All right. I'll listen to it. Bye, everybody. Bye."}

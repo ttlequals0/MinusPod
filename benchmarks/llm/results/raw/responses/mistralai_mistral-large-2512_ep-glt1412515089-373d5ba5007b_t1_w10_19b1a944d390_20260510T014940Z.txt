@@ -1,0 +1,9 @@
+[
+    {
+        "start": 4525.1,
+        "end": 4560.5,
+        "confidence": 0.95,
+        "reason": "Platform-inserted ad segment promoting Perplexity AI, including a call to action (URL: pplx.ai/rogan) and standard ad choices disclaimer (podcastchoices.com/adchoices). Transition phrase 'We'll see you next time' suggests ad break.",
+        "end_text": "podcastchoices.com/adchoices"
+    }
+]

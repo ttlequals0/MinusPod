@@ -1,0 +1,25 @@
+{
+  "ads": [
+    {
+      "start": 0.0,
+      "end": 52.3,
+      "confidence": 0.99,
+      "reason": "Capital One sponsor read (multi-agentic AI, Chat Concierge) followed by XERO ad (accounting platform, batch payments, free trial)",
+      "end_text": "search XERO for your free trial"
+    },
+    {
+      "start": 52.5,
+      "end": 100.9,
+      "confidence": 0.99,
+      "reason": "Spectrum Business ad (fiber-powered internet, three-year price guarantee, bundle savings)",
+      "end_text": "support with 100%"
+    },
+    {
+      "start": 124.0,
+      "end": 152.9,
+      "confidence": 0.99,
+      "reason": "Warby Parker ad (prescription glasses, eye exams, virtual try-on, warbyparker.com)",
+      "end_text": "visit warbyparker.com today"
+    }
+  ]
+}

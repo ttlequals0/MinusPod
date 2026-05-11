@@ -1,0 +1,1 @@
+{"start": 6699.7, "end": 7320.0, "confidence": 0.95, "reason": "Zscaler, Meter, Bitwarden, Hoxhunt, and Trusted Tech Team sponsor mentions in episode description", "end_text": "an eloquent hamster is going to respond"}

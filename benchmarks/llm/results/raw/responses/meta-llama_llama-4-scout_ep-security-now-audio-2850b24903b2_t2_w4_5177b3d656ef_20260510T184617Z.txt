@@ -1,0 +1,7 @@
+{ 
+  "start": 2288.2, 
+  "end": 2299.0, 
+  "confidence": 0.98, 
+  "reason": "Bitwarden sponsor read", 
+  "end_text": "bitwarden.com/twit"
+}

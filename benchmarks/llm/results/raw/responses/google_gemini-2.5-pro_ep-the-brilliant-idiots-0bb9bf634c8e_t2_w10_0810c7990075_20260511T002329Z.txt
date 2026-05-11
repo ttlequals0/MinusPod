@@ -1,0 +1,9 @@
+[
+  {
+    "start": 4296.0,
+    "end": 4361.4,
+    "confidence": 0.98,
+    "reason": "Host-read promotional block for Jess Hilarious's book, the All Love Racquet Club event, and the AM Mornings show.",
+    "end_text": "listen to this moment."
+  }
+]

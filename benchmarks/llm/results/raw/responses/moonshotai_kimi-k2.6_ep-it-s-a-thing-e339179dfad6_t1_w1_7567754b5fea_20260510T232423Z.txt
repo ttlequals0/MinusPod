@@ -1,0 +1,1 @@
+{"start": 675.0, "end": 693.2, "confidence": 0.15, "reason": "Possible ad transition: 'pick-me-up' and 'soup shot' phrasing resembles sponsored content, but no sponsor name, URL, promo code, or product pitch found. Likely organic content transition to 'soup shots' topic.", "end_text": "No, this is a coffee soup."}

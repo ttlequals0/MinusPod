@@ -1,0 +1,18 @@
+{
+  "ads": [
+    {
+      "start": 1524.5,
+      "end": 1561.9,
+      "confidence": 0.99,
+      "reason": "Xero sponsor read",
+      "end_text": "Acast powers the world's best podcasts."
+    },
+    {
+      "start": 1565.4,
+      "end": 1592.5,
+      "confidence": 0.99,
+      "reason": "Acast network-inserted cross-promotion for Wrong Turns podcast",
+      "end_text": "Acast helps creators launch, grow, and monetize their podcasts everywhere. Acast.com."
+    }
+  ]
+}

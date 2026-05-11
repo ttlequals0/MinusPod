@@ -1,0 +1,1 @@
+ {"start": 5037.8, "end": 5649.4, "confidence": 0.0, "reason": "No promotional content, sponsor reads, or advertisements detected in this transcript window. All content is editorial discussion of security news.", "end_text": "very clear."}

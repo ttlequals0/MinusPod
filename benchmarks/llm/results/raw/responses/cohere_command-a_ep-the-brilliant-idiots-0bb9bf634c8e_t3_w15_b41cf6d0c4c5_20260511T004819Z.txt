@@ -1,0 +1,7 @@
+{
+  "start": 6365.0,
+  "end": 6390.2,
+  "confidence": 0.85,
+  "reason": "Potential network-inserted retail ad mentioning Walmart, Lowe's, McDonald's, Target, and DEI initiatives",
+  "end_text": "come on, y'all. I'm not saying, by the way, I'm not saying that you shouldn't take stands."
+}

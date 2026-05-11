@@ -1,0 +1,1 @@
+{"start": 1439.2, "end": 1665.9, "confidence": 0.99, "reason": "Multiple sponsor reads including Mint Mobile, Aura Frames, Colgate, and Skinny Pop", "end_text": "perfectly salted. Skinny Pop."}

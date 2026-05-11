@@ -1,0 +1,1 @@
+[{"start": 8405.6, "end": 8980.5, "confidence": 0.95, "reason": "Content gap between segments", "end_text": "word processor. And I either saw an ad in the newspaper at Lockheed Martin or my dad told me, I know someone you should talk to at Lockheed Martin for a job. I end up at Lockheed Martin for an interview in the morning. They hire me on the spot. Then,"}]

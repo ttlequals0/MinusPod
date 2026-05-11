@@ -1,0 +1,61 @@
+# Copy to benchmark.toml and fill in. benchmark.toml is gitignored.
+
+[minuspod]
+base_url = "https://podsrv.example.com"
+password_env = "MINUSPOD_PASSWORD"
+session_cache_path = "~/.cache/minuspod-benchmark/session.json"
+
+[providers.openrouter]
+client = "openai_compatible"
+base_url = "https://openrouter.ai/api/v1"
+api_key_env = "OPENROUTER_API_KEY"
+
+[providers.together]
+client = "openai_compatible"
+base_url = "https://api.together.xyz/v1"
+api_key_env = "TOGETHER_API_KEY"
+
+[providers.anthropic_direct]
+client = "anthropic"
+api_key_env = "ANTHROPIC_API_KEY"
+
+# --- Models ---
+
+[[models]]
+id = "anthropic/claude-sonnet-4.6"
+provider = "openrouter"
+
+[[models]]
+id = "anthropic/claude-haiku-4.5"
+provider = "openrouter"
+
+[[models]]
+id = "openai/gpt-5.5"
+provider = "openrouter"
+
+[[models]]
+id = "deepseek/deepseek-v3.2"
+provider = "openrouter"
+
+# Mark deprecated to keep historical data but exclude from headline rankings.
+# [[models]]
+# id = "openai/gpt-3.5-turbo"
+# provider = "openrouter"
+# deprecated = true
+
+[run]
+trials = 5
+temperature = 0.0
+timeout_seconds = 180
+max_retries = 3
+response_format = "json_object"
+# max_tokens defaults to MinusPod's AD_DETECTION_MAX_TOKENS (4096) so the
+# benchmark matches production by default. Override here if you want to give
+# reasoning models more headroom for the benchmark only. The AD_DETECTION_MAX_TOKENS
+# env var still controls production; this setting is benchmark-only.
+# max_tokens = 8192
+max_concurrent_calls = 8
+max_concurrent_per_provider = 4
+
+[corpus]
+path = "data/corpus"

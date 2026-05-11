@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 7557.6,
+    "end": 7743.9,
+    "confidence": 0.98,
+    "reason": "Trusted Tech sponsor read with transition 'let's take our final break' and full product pitch including Microsoft 365 licensing optimization, pricing context, compliance benefits, and call to action",
+    "end_text": "differentiates you in the marketplace"
+  }
+]
+```

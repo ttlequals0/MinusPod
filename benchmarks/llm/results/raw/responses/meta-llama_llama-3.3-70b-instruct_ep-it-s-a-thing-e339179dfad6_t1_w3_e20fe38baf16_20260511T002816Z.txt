@@ -1,0 +1,1 @@
+{"start": 1524.5, "end": 1534.1, "confidence": 0.9, "reason": "Xero ad", "end_text": "search XERO for your free trial"}

@@ -1,0 +1,7 @@
+{  
+  "start": 29.36,  
+  "end": 35.18,  
+  "confidence": 0.95,  
+  "reason": "The segment discusses the impact of AI on bug bounty programs, highlighting the shift in dynamics due to AI-generated reports and the challenges faced by companies like HackerOne, Akito, and Netscape. It covers the transition from traditional bug bounty models to AI-driven approaches, emphasizing the economic and operational changes brought about by AI, and the need for verification and validation of reports. The segment also mentions the historical context of bug bounties and the current challenges, making it a high-confidence ad segment due to its detailed analysis of the topic.",  
+  "end_text": "Node.js lost its bounty when funding disappeared. The reports still come in, but the payouts are gone. And Curl removed financial rewards after being flooded with AI-generated reports."  
+}

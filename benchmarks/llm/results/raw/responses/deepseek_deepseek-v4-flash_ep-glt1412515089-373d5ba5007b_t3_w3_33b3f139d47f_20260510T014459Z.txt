@@ -1,0 +1,7 @@
+{
+  "start": 1257.4,
+  "end": 1860.0,
+  "confidence": 0.0,
+  "reason": "No promotional language found in this window. The transcript contains only editorial conversation about insecurity, listening, martial arts, and intellect. No sponsor names, URLs, promo codes, calls to action, or network-inserted ads are present.",
+  "end_text": "ignoring the personality is kind of like..."
+}

@@ -1,0 +1,7 @@
+{
+  "start": 8405.6,
+  "end": 9008.6,
+  "confidence": 0.8,
+  "reason": "No ads detected in this window",
+  "end_text": "word processor. So I either got, I either saw an ad in the newspaper at Lockheed Martin or my dad told me, I know someone you should talk to at Lockheed Martin for a job. I end up at Lockheed Martin for an interview in the morning. They hire me on the spot. Then,"
+}

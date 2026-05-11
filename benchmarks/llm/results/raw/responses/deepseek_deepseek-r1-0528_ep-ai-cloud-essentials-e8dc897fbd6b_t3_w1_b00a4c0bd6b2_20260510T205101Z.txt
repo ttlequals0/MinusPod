@@ -1,0 +1,184 @@
+[
+  {
+    "start": 415.2,
+    "end": 438.2,
+    "confidence": 0.95,
+    "reason": "Host transition to ad break",
+    "end_text": "and people have"
+  },
+  {
+    "start": 438.5,
+    "end": 446.5,
+    "confidence": 0.95,
+    "reason": "Sponsor mention",
+    "end_text": "very hard to unify"
+  },
+  {
+    "start": 447.0,
+    "end": 475.6,
+    "confidence": 0.95,
+    "reason": "Promotional content",
+    "end_text": "hot happening items"
+  },
+  {
+    "start": 476.3,
+    "end": 504.0,
+    "confidence": 0.95,
+    "reason": "Product endorsement",
+    "end_text": "crash test."
+  },
+  {
+    "start": 504.4,
+    "end": 528.6,
+    "confidence": 0.95,
+    "reason": "Call to action",
+    "end_text": "physical prototypes?"
+  },
+  {
+    "start": 529.7,
+    "end": 556.5,
+    "confidence": 0.95,
+    "reason": "Sponsored content",
+    "end_text": "plastic bottle,"
+  },
+  {
+    "start": 557.1,
+    "end": 560.4,
+    "confidence": 0.95,
+    "reason": "Ad continuation",
+    "end_text": "bottle is solid."
+  },
+  {
+    "start": 560.9,
+    "end": 589.8,
+    "confidence": 0.95,
+    "reason": "Promotional message",
+    "end_text": "real physical..."
+  },
+  {
+    "start": 589.9,
+    "end": 606.1,
+    "confidence": 0.95,
+    "reason": "Ad content",
+    "end_text": "world environment."
+  },
+  {
+    "start": 606.9,
+    "end": 635.8,
+    "confidence": 0.95,
+    "reason": "Case study promotion",
+    "end_text": "trying to figure out"
+  },
+  {
+    "start": 635.8,
+    "end": 661.0,
+    "confidence": 0.95,
+    "reason": "Sponsor mention",
+    "end_text": "real world. And"
+  },
+  {
+    "start": 661.5,
+    "end": 672.4,
+    "confidence": 0.95,
+    "reason": "Results endorsement",
+    "end_text": "be omitted."
+  },
+  {
+    "start": 672.9,
+    "end": 698.9,
+    "confidence": 0.95,
+    "reason": "Transition back",
+    "end_text": "those areas as"
+  },
+  {
+    "start": 700.5,
+    "end": 716.2,
+    "confidence": 0.95,
+    "reason": "Brand mention",
+    "end_text": "cyclist on the"
+  },
+  {
+    "start": 717.5,
+    "end": 743.2,
+    "confidence": 0.95,
+    "reason": "Ad content",
+    "end_text": "different way."
+  },
+  {
+    "start": 744.0,
+    "end": 768.3,
+    "confidence": 0.95,
+    "reason": "Promotional",
+    "end_text": "49 trillion"
+  },
+  {
+    "start": 769.0,
+    "end": 793.8,
+    "confidence": 0.95,
+    "reason": "Product pitch",
+    "end_text": "close the lid"
+  },
+  {
+    "start": 794.3,
+    "end": 813.9,
+    "confidence": 0.95,
+    "reason": "Call to action",
+    "end_text": "fun to watch."
+  },
+  {
+    "start": 814.4,
+    "end": 842.7,
+    "confidence": 0.95,
+    "reason": "Ad continuation",
+    "end_text": "be out of scope."
+  },
+  {
+    "start": 843.4,
+    "end": 871.7,
+    "confidence": 0.95,
+    "reason": "Promotional anecdote",
+    "end_text": "robotics. That said..."
+  },
+  {
+    "start": 872.0,
+    "end": 878.9,
+    "confidence": 0.95,
+    "reason": "Ad closing",
+    "end_text": "breakthrough. So"
+  },
+  {
+    "start": 879.6,
+    "end": 902.7,
+    "confidence": 0.95,
+    "reason": "Transition to close",
+    "end_text": "do after this?"
+  },
+  {
+    "start": 903.1,
+    "end": 927.0,
+    "confidence": 0.95,
+    "reason": "Parting advice",
+    "end_text": "like SpaceX,"
+  },
+  {
+    "start": 927.8,
+    "end": 948.5,
+    "confidence": 0.95,
+    "reason": "Sponsor mention",
+    "end_text": "iterate from this."
+  },
+  {
+    "start": 948.9,
+    "end": 963.4,
+    "confidence": 0.95,
+    "reason": "Call to action",
+    "end_text": "lot of problems."
+  },
+  {
+    "start": 963.9,
+    "end": 984.2,
+    "confidence": 0.95,
+    "reason": "Episode closing",
+    "end_text": "for more. Thank"
+  }
+]

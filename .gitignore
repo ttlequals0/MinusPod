@@ -138,6 +138,7 @@ media_checker.db
 pixelprobe.db
 *.db
 data/
+!benchmarks/llm/data/
 logs/
 sample_media/
 *.log

@@ -1,0 +1,1 @@
+{"start": 7936.3, "end": 7965.7, "confidence": 0.7, "reason": "Potential platform-inserted ad or transition", "end_text": "revolution where we're not looking"}

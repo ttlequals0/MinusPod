@@ -1,0 +1,7 @@
+{
+  "start": 3339.8,
+  "end": 3962.9,
+  "confidence": 0.95,
+  "reason": "No promotional content detected in the transcript segment",
+  "end_text": "do this with their minds. So it's just sitting there."
+}

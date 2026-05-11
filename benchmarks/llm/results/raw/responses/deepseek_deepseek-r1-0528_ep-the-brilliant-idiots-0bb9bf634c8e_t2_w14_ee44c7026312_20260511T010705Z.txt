@@ -1,0 +1,9 @@
+[
+  {
+    "start": 6390.2,
+    "end": 6396.7,
+    "confidence": 0.95,
+    "reason": "Transition phrase 'Let's pay some bills' indicates ad break start, but transcript gap follows without content",
+    "end_text": "do some asking idiots"
+  }
+]

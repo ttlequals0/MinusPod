@@ -1,0 +1,1 @@
+{"start":8405.6,"end":9008.6,"confidence":0.0,"reason":"No promotional language, sponsor names, URLs, promo codes, or calls to action found in transcript. Entire window is conversational content.","end_text":"Lockheed Martin for an interview"}

@@ -1,0 +1,7 @@
+{
+  "start": 20.87,
+  "end": 26.93,
+  "confidence": 0.95,
+  "reason": "The segment discusses the integration of AI technology into cybersecurity, specifically focusing on the use of Anthropic's AI model by CISA and the Department of Defense. It highlights the political and resource-related challenges faced by CISA in accessing AI technology, which is crucial for understanding the current state of AI integration in cybersecurity.",
+  "end_text": "You'll be glad you did. That's M-E-T-E-R, meter.com."
+}

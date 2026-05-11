@@ -1,0 +1,1 @@
+[{"start": 6472.2, "end": 6499.6, "confidence": 0.95, "reason": "Sponsor read for Brilliant Idiots", "end_text": "Cardi is like a..."}]

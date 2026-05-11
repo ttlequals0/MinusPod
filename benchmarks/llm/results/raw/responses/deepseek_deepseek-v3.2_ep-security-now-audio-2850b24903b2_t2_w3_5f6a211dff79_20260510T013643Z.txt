@@ -1,0 +1,1 @@
+{"start": 1584.6, "end": 1608.4, "confidence": 0.95, "reason": "Network-inserted platform promo 'Thank you for watching'", "end_text": "Thank you for watching"}

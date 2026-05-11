@@ -1,0 +1,1 @@
+{ "start": 0.5, "end": 16.8, "confidence": 0.95, "reason": "Carvana car selling ad", "end_text": "Sell your car today on Carvana" }

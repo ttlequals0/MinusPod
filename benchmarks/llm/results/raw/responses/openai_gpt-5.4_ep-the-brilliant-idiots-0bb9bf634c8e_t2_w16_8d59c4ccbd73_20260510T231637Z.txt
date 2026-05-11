@@ -1,0 +1,1 @@
+{"start":7173.7,"end":7196.8,"confidence":0.98,"reason":"Netflix Remarkably Bright Creatures promotional ad with sponsor language and product pitch; partial ad continues in next window","end_text":"now playing only on Netflix"}

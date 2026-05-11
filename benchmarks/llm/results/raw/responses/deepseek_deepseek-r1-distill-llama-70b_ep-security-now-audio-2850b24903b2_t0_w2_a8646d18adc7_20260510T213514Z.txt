@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I've been using this new service called Zscaler. It's been a game-changer for our company's security. I mean, the cloud-based platform is so easy to use, and it's really helped us streamline our security protocols. Plus, the customer support is top-notch. I highly recommend checking them out at zscaler.com/security. Let me tell you, it's made a huge difference for us.",
+  "start": 1234.5,
+  "end": 1278.9
+}

@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I've been using this AI model called Claude. It's been really helpful for my work. I just wanted to share my experience with it. Let's take a break. This episode is brought to you by Athletic Greens. Their AG1 is a daily foundational nutrition supplement that I personally use every morning. It's packed with vitamins, minerals, and adaptogens to help me stay focused and energized throughout the day. If you're looking to upgrade your daily routine, I highly recommend giving AG1 a try. Visit athleticgreens.com/podcast for a special offer. That's athleticgreens.com/podcast. We'll be right back after this break.",
+  "start": 45.0,
+  "end": 82.0
+}

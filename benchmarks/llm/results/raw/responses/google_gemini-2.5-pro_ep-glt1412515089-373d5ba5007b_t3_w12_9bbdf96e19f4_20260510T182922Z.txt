@@ -1,0 +1,9 @@
+[
+  {
+    "start": 5546.3,
+    "end": 5596.3,
+    "confidence": 1.0,
+    "reason": "Host-read ad for Netflix's 'Remarkably Bright Creatures', which is explicitly introduced with 'This episode is brought to you by...'.",
+    "end_text": "This is lockdown. This is the box."
+  }
+]

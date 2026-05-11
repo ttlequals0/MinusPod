@@ -1,0 +1,25 @@
+{
+
+"start": 105.0, 
+"end": 107.0, 
+"confidence": 0.8, 
+"reason": "Zscaler sponsor read continues from previous", 
+"end_text": "security now"
+
+,
+
+"start": 112.0, 
+"end": 114.0, 
+"confidence": 0.8, 
+"reason": "Meter sponsor read", 
+"end_text": "meter.com/securitynow"
+
+,
+
+"start": 114.5, 
+"end": 115.0, 
+"confidence": 0.8, 
+"reason": "Bitwarden sponsor read continues in next", 
+"end_text": "bitwarden.com/twit"
+
+}

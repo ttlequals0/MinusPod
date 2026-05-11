@@ -1,0 +1,1 @@
+{"start":2208.3,"end":2237.2,"confidence":0.98,"reason":"Blinds.com inserted ad with product pitch, discount offer, and call to action; show content resumes in same timestamp after disclaimer","end_text":"rules and restrictions apply"}

@@ -1,0 +1,16 @@
+[
+    {
+        "start": 4324.2,
+        "end": 4334.1,
+        "confidence": 0.98,
+        "reason": "Host-read ad for Jess Hilarious' book 'Tell Death Do We Parent' and All Love Racquet Club event promotion with call to action (Instagram, ticket purchase).",
+        "end_text": "All Love Racquet Club"
+    },
+    {
+        "start": 4334.7,
+        "end": 4361.4,
+        "confidence": 0.99,
+        "reason": "Host-read ad for Charlamagne's new show 'AM Mornings' with explicit call to action (YouTube, schedule details).",
+        "end_text": "See you guys there. Peace"
+    }
+]

@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 9312.9,
+      "end": 9363.3,
+      "confidence": 0.95,
+      "reason": "Mint Mobile host-read sponsorship",
+      "end_text": "plan options available. Taxes and fees extra. See full terms at mintmobile.com."
+    }
+  ]
+}

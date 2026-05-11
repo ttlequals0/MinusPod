@@ -1,0 +1,1 @@
+[{"start": 5443.4, "end": 6060.0, "confidence": 0.95, "reason": "Continues from previous window, includes multiple book promotions and network cross-promotions", "end_text": "even the..."}]

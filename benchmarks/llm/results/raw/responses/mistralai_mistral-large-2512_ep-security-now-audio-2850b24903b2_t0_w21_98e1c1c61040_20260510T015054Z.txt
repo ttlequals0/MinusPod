@@ -1,0 +1,16 @@
+[
+    {
+        "start": 9259.3,
+        "end": 9290.5,
+        "confidence": 0.98,
+        "reason": "Network promo for 'This Week in Tech' by Leo Laporte, a different show on the TWiT Network. Platform-inserted cross-promotion ad.",
+        "end_text": "subscribe. This Week in Tech from the TWiT Network."
+    },
+    {
+        "start": 9344.4,
+        "end": 9374.4,
+        "confidence": 0.99,
+        "reason": "Mint Mobile host-read ad with promotional language, vanity URL (mintmobile.com/switch), and pricing details. Call to action included.",
+        "end_text": "full terms at mintmobile.com."
+    }
+]

@@ -1,0 +1,7 @@
+{
+	"start": 28.1,
+	"end": 64.0,
+	"confidence": 0.98,
+	"reason": "Colgate sponsor mention",
+	"end_text": "Thank you all for coming out to my show"
+}

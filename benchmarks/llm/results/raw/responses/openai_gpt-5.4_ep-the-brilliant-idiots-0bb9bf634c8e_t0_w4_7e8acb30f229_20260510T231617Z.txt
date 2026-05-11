@@ -1,0 +1,1 @@
+{"start": 2185.4, "end": 2198.0, "confidence": 0.62, "reason": "Possible self-promotional network mention: 'Drink Champs is definitely partnering with the Black Effect Podcast Network,' but lacks clear sponsor language, URL, or call to action", "end_text": "what it is you do for granted"}

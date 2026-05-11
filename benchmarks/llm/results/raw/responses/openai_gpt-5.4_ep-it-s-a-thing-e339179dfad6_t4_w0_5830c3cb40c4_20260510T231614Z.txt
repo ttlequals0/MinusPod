@@ -1,0 +1,1 @@
+{"start":1.6,"end":77.2,"confidence":0.99,"reason":"Acast platform-inserted promo block advertising the podcast Wrong Turns, Acast, and Formative with explicit promotional language like 'Acast powers the world's best podcasts,' 'Here's a show that we recommend,' and 'Go to your favorite podcast app right now to listen'","end_text":"the leaders of tomorrow."}

@@ -1,0 +1,1 @@
+ {"start": 1668.7, "end": 2286.3, "confidence": 0.0, "reason": "No promotional content, sponsor mentions, URLs, promo codes, or transition phrases detected in this window. The transcript consists entirely of host monologue/content.", "end_text": "nothing you can do about it. I'm sorry."}

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 4323.9,
+    "end": 4361.4,
+    "confidence": 0.99,
+    "reason": "Host-read ad for Jess Elias book 'Tell Death Do We Parent', All Love Racquet Club event, and AM Mornings show with calls to action",
+    "end_text": "listen to this moment"
+  }
+]

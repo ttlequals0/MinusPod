@@ -1,0 +1,5 @@
+[{"start": 821.4, "end": 857.6, "confidence": 0.98, "reason": "Capital One ad with Chat Concierge promotion", "end_text": "car shopping"}]  
+[{"start": 862.2, "end": 889.7, "confidence": 0.97, "reason": "BetterHelp ad with 10% discount offer", "end_text": "betterhelp.com/slash random podcast"}  
+[{"start": 890.6, "end": 910.1, "confidence": 0.96, "reason": "Amazon Health AI ad with symptom chat promotion", "end_text": "24-7 virtual care"}  
+[{"start": 934.1, "end": 961.5, "confidence": 0.95, "reason": "Spectrum Business ad with price guarantee", "end_text": "spectrum.com/slash business"}  
+[{"start": 990.6, "end": 1018.9, "confidence": 0.94, "reason": "Rinse ad with laundry service promotion", "end_text": "rinse.com"}]

@@ -1,0 +1,18 @@
+{
+"ads": [
+    {
+      "start": 1524.5,
+      "end": 1561.9,
+      "confidence": 0.98,
+      "reason": "Xero sponsor read",
+      "end_text": "search XERO for your free trial"
+    },
+    {
+      "start": 1565.4,
+      "end": 1592.5,
+      "confidence": 0.95,
+      "reason": "Acast network promo for Wrong Turns podcast",
+      "end_text": "Wrong Turns, where dignity goes to die"
+    }
+  ]
+}

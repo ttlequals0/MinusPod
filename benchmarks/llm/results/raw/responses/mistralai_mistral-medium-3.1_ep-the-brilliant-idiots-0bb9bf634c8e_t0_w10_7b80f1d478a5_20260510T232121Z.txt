@@ -1,0 +1,1 @@
+[{"start": 4324.2, "end": 4361.4, "confidence": 0.95, "reason": "Promotion for All Love Racquet Club event and AM Mornings show", "end_text": "AM Mornings on YouTube."}]

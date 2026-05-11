@@ -1,0 +1,7 @@
+{ 
+"start": 1020.0, 
+"end": 1043.5, 
+"confidence": 0.0, 
+"reason": "No ad content detected", 
+"end_text": "and it has incentivized and encouraged"
+}

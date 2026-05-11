@@ -1,0 +1,1 @@
+ {"start": 8405.6, "end": 9008.6, "confidence": 0.0, "reason": "No promotional language, sponsor names, URLs, promo codes, or product pitches found in transcript. Conversation is entirely organic discussion about creativity, consciousness, and personal experiences.", "end_text": "I end up at Lockheed Martin for an interview in the morning. They hire me on the spot. Then,"}

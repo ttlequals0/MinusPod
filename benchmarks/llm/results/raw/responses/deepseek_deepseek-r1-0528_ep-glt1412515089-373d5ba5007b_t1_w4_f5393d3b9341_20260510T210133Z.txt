@@ -1,0 +1,7 @@
+[{
+    "start": 2208.3,
+    "end": 2237.0,
+    "confidence": 0.98,
+    "reason": "Blinds.com platform-inserted retail ad with product pitch and discount offer",
+    "end_text": "free professional measure at Blinds.com"
+}]

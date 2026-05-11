@@ -1,0 +1,1 @@
+{"start": 4661.9, "end": 4683.1, "confidence": 0.3, "reason": "Non-promotional platform insertion ('Thank you for watching') without sponsor names, URLs, or product pitches. Lacks required promotional language to qualify as an ad per detection rules.", "end_text": "Thank you for watching."}

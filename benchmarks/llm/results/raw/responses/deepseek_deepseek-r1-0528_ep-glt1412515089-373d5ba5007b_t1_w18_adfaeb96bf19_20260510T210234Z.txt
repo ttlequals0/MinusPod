@@ -1,0 +1,16 @@
+[
+  {
+    "start": 7936.3,
+    "end": 7963.4,
+    "confidence": 0.95,
+    "reason": "Host-read sponsor segment for Perplexity with URL mention",
+    "end_text": "at https://pplx.ai/rogan"
+  },
+  {
+    "start": 8068.7,
+    "end": 8092.5,
+    "confidence": 0.9,
+    "reason": "Host-read ad for podcastchoices.com with call to action",
+    "end_text": "Visit podcastchoices.com/adchoices"
+  }
+]

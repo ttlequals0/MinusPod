@@ -1,0 +1,1 @@
+{"start":0.5,"end":43.4,"confidence":1.0,"reason":"Carvana platform-inserted retail ad with promotional script, testimonial, and call to action 'Sell your car today on Carvana'", "end_text":"Pickup fees may apply."}

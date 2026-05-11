@@ -1,0 +1,1 @@
+[{"start": 1061.8, "end": 1183.4, "confidence": 0.95, "reason": "Retail network-inserted ads for gutter guards, roofing, ISP services, solar panels", "end_text": "We shouldn't allow it"} ]

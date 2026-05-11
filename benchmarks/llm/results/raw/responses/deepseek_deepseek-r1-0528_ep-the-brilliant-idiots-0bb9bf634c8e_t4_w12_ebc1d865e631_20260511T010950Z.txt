@@ -1,0 +1,16 @@
+[
+    {
+        "start": 5501.6,
+        "end": 5530.4,
+        "confidence": 0.95,
+        "reason": "Interracial pairing statistics discussion with promotional tone for census data",
+        "end_text": "across the US"
+    },
+    {
+        "start": 5558.5,
+        "end": 5565.9,
+        "confidence": 0.92,
+        "reason": "Debate about interracial pairings with implied promotion of online discourse",
+        "end_text": "pull an Asian woman"
+    }
+]

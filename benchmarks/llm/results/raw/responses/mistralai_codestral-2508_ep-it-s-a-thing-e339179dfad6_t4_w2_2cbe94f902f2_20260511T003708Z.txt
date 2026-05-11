@@ -1,0 +1,1 @@
+[{"start": 1061.8, "end": 1154.5, "confidence": 0.95, "reason": "Damon's retail ad about third-party salespeople in stores", "end_text": "I don't spend a lot of time inside"} ]

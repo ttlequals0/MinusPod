@@ -1,0 +1,1 @@
+{"start":539.2,"end":652.8,"confidence":0.99,"reason":"Host-read sponsor segments for 'In the Gray' movie and Skechers slip-ins with promotional pitches, calls to action, theater details, and Skechers.com URL","end_text":"That's only at Skechers.com"}

@@ -1,0 +1,7 @@
+{
+  "start": 6699.7,
+  "end": 7321.9,
+  "confidence": 0.95,
+  "reason": "Host-read sponsor segments discussing Zscaler, Meter, Bitwarden, HoxHunt, and Trusted Tech Team",
+  "end_text": "wellness begins. Explore more at FreshField"
+}

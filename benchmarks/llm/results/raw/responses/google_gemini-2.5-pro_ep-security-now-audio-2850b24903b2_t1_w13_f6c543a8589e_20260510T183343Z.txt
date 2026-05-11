@@ -1,0 +1,9 @@
+[
+  {
+    "start": 5946.7,
+    "end": 6083.5,
+    "confidence": 0.99,
+    "reason": "Host-read ad for Hoxhunt. The ad appears to continue past the end of the provided transcript window.",
+    "end_text": "just like the bad guys."
+  }
+]

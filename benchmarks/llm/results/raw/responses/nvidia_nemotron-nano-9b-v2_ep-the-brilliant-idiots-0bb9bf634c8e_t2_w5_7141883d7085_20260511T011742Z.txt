@@ -1,0 +1,1 @@
+[{"start": 2353.9, "end": 2404.4, "confidence": 0.95, "reason": "Blue Chew Gold ED product promotion", "end_text": "Visit BlueChew.com for more details"}, {"start": 2404.7, "end": 2479.7, "confidence": 0.95, "reason": "ZipRecruiter job hiring promotion", "end_text": "Meet your match on ZipRecruiter"}]

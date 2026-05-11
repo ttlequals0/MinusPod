@@ -1,0 +1,1 @@
+{"start": 9655.2, "end": 9655.2, "confidence": 0.0, "reason": "No ad segments detected in this transcript window. The content is a continuous conversation between host and guest, including mentions of the guest's own work (Applied Love Labs, timemachine.love) and book promotion, which are part of the interview, not paid advertisements.", "end_text": "It's creepy. Yeah, I know."}

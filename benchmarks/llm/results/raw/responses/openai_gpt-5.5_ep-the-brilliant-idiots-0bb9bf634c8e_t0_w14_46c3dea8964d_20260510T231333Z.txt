@@ -1,0 +1,1 @@
+{"start":6365.0,"end":6445.0,"confidence":0.72,"reason":"Sponsor break introduced by 'Let's pay some bills'; host banter references BlueChew/ED product during the bill-paying segment, though no URL or promo code is captured.","end_text":"Let's do some Asking Idiots."}

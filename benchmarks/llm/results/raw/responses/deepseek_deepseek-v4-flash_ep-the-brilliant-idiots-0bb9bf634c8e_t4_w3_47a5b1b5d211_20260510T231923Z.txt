@@ -1,0 +1,7 @@
+{
+  "start": 1867.6,
+  "end": 1867.6,
+  "confidence": 0.0,
+  "reason": "No promotional content found in this transcript window. The conversation is a discussion about hip-hop media personalities and journalism, with no sponsor mentions, promo codes, calls to action, or network-inserted ads.",
+  "end_text": ""
+}

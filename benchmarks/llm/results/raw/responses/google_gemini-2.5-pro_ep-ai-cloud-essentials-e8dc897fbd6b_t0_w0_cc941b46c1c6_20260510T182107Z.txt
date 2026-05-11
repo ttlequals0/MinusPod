@@ -1,0 +1,9 @@
+[
+  {
+    "start": 58.0,
+    "end": 80.1,
+    "confidence": 0.95,
+    "reason": "Host-read presenting sponsor credit for 'Core Read' (likely CoreWeave) integrated into the show's introduction.",
+    "end_text": "kick things off with..."
+  }
+]

@@ -1,0 +1,1 @@
+{"start": 9655.2, "end": 9750.4, "confidence": 0.85, "reason": "Guest promotes their own nonprofit and website (timemachine.love) as part of the conversation, not a paid ad", "end_text": "Can you go to timemachine.love?"}

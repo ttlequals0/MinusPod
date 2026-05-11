@@ -1,0 +1,1 @@
+{"start": 7936.3, "end": 7937.1, "confidence": 0.62, "reason": "Likely inserted YouTube-style promotional CTA with explicit call to action 'Thank you for watching' appearing abruptly mid-conversation; partial/very short if ad", "end_text": "Thank you for watching."}

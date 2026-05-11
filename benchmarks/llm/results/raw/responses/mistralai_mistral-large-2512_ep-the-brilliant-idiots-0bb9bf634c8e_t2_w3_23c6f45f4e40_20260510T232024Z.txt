@@ -1,0 +1,23 @@
+[
+    {
+        "start": 1359.1,
+        "end": 1381.4,
+        "confidence": 0.95,
+        "reason": "Promotion of Black Effect Podcast Network with call to action to listen to specific shows (Big Bank Podcast, Big Facts Podcast).",
+        "end_text": "Black Effect podcast network."
+    },
+    {
+        "start": 1575.8,
+        "end": 1605.1,
+        "confidence": 0.85,
+        "reason": "Promotion of Loren Rosa's own podcast ('on the latest with Lorna Rosa') as part of the conversation, but lacks explicit call to action or sponsor language. Not flagged as ad.",
+        "end_text": "N/A"
+    },
+    {
+        "start": 1860.0,
+        "end": 1860.0,
+        "confidence": 0.0,
+        "reason": "No ads detected in this window. Mentions of books, podcasts, and networks are organic discussion.",
+        "end_text": "N/A"
+    }
+]

@@ -1,0 +1,7 @@
+{
+	"start": 8380.6,
+	"end": 8408.1,
+	"confidence": 1,
+	"reason": "Zscaler sponsor mention",
+	"end_text": "trustedtech.team/securitynow365"
+}

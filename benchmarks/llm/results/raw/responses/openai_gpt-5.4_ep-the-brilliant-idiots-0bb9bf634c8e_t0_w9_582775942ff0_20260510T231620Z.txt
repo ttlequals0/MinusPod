@@ -1,0 +1,11 @@
+{
+  "result": [
+    {
+      "start": 4057.2,
+      "end": 4083.9,
+      "confidence": 0.78,
+      "reason": "Ad break transition with 'Let's pay some bills' and 'Lil P got to eat'; no sponsor copy present in this window, partial break",
+      "end_text": "All right, let's get back to this show"
+    }
+  ]
+}

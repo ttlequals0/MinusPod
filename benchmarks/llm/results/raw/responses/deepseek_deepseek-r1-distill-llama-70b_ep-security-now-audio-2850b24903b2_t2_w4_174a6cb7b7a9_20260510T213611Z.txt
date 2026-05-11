@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I've been thinking about this a lot. Let's take a break and hear from our sponsors. This episode is brought to you by Zscaler. Zscaler's cloud-native platform delivers fast, secure, and reliable access to applications and data from anywhere, on any device. Visit zscaler.com/security to learn more. Also, check out Meter, the smart way to manage your team's cybersecurity training. Get started at meter.com/securitynow. And don't forget Bitwarden, the secure and open-source password manager for teams and individuals. Visit bitwarden.com/twit for a free trial. We're also sponsored by HoxHunt, the AI-powered security awareness training platform. Find out more at hoxhunt.com/securitynow. And finally, Trusted Tech Team has you covered with their Security Now 365 training program. Learn more at trustedtech.team/securitynow365. We'll be right back after this break.",
+  "start": 2280.0,
+  "end": 2300.0
+}

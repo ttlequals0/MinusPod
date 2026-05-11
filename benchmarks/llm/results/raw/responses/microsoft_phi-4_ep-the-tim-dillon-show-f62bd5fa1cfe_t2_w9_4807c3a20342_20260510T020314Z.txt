@@ -1,0 +1,7 @@
+{
+  "start": 37.74,
+  "end": 43.18,
+  "confidence": 0.95,
+  "reason": "The segment contains promotional language for the MV Hondas cruise ship, including a call to action and a URL. It mentions the government's decision to make everyone on the ship walk the plank, which is a clear sponsorship message.",
+  "end_text": "they won't"
+}

@@ -1,0 +1,1 @@
+[{"start": 469.0, "end": 572.1, "confidence": 0.98, "reason": "Zscaler sponsor read", "end_text": "zscaler.com slash security. Now back to Steve and Security Now. Thank you, Leo."}]

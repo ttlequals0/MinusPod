@@ -1,0 +1,1 @@
+{"start":0.0,"end":28.1,"confidence":0.98,"reason":"Colgate brand ad with promotional language about supporting female athletes and Colgate Women's Games; episode content begins immediately after the Colgate tagline.","end_text":"your smile is your strength"}

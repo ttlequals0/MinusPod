@@ -1,0 +1,45 @@
+[
+{
+"start": 4646.2,
+  "end": 4674.6,
+  "confidence": 0.98,
+  "reason": "Colgate sponsor read",
+  "end_text": "your strength"
+},
+[
+  {
+    "start": 4675.4,
+    "end": 4697.4,
+    "confidence": 0.98,
+    "reason": "Colgate sponsor read",
+    "end_text": "your strength"
+  },
+  {
+    "start": 4705.5,
+    "end": 4733.9,
+    "confidence": 0.95,
+    "reason": "Skinny Pop ad",
+    "end_text": "Skinny Pop"
+  },
+  {
+    "start": 4734.3,
+    "end": 4763.1,
+    "confidence": 0.95,
+    "reason": "Colgate sponsor read",
+    "end_text": "your strength"
+  },
+  {
+    "start": 4766.5,
+    "end": 4787.9,
+    "confidence": 0.90,
+    "reason": "Viz ad",
+    "end_text": "Viz.com"
+  },
+  {
+    "start": 4788.6,
+    "end": 4806.1,
+    "confidence": 0.90,
+    "reason": "Garnier ad",
+    "end_text": "NPF"
+  }]
+]

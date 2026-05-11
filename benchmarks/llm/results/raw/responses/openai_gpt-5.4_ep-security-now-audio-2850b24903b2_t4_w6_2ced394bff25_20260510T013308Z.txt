@@ -1,0 +1,7 @@
+{
+  "start": 2558.9,
+  "end": 2693.0,
+  "confidence": 0.99,
+  "reason": "Host-read sponsor segment for Meter begins with break transition and includes promotional language, product pitch, testimonial, URL, and call to action; includes slight transcript overlap/repetition.",
+  "end_text": "security now book a demo okay meter all right now back to steve"
+}

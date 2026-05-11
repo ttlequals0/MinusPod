@@ -1,0 +1,1 @@
+{"start": 3079.6, "end": 3120.0, "confidence": 0.96, "reason": "Morgan & Morgan sponsor read with promo URL; ad break continues into next segment", "end_text": "dial Poundlaw. ForThePeople.com slash"}

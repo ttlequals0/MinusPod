@@ -1,0 +1,1 @@
+{"start": 6699.7, "end": 7321.9, "confidence": 0.0, "reason": "No promotional content detected in this window", "end_text": "an eloquent hamster is going to respond"}

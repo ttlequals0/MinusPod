@@ -1,0 +1,7 @@
+{
+  "start": 8498.3,
+  "end": 8524.9,
+  "confidence": 0.95,
+  "reason": "Host discusses Google's sponsored search results and advertisements, but this is editorial commentary, not a paid sponsor segment. No promotional language, sponsor name, URL, or call to action for a product/service.",
+  "end_text": "that I have zero interest in"
+}

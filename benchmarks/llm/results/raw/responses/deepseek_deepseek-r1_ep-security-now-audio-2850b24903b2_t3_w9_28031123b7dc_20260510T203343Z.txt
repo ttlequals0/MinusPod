@@ -1,0 +1,7 @@
+[{
+    "start": 4265.2,
+    "end": 4396.1,
+    "confidence": 0.98,
+    "reason": "Bitwarden sponsor read with product features, URL mention (bitwarden.com/twit), and calls to action",
+    "end_text": "securely unlocking devices at the OS level"
+}]

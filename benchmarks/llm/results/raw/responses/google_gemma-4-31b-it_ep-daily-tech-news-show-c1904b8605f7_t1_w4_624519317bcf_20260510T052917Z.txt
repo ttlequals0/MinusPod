@@ -1,0 +1,1 @@
+{"start": 1718.3, "end": 1735.3, "confidence": 0.9, "reason": "Host promotion of the show's own merchandise store", "end_text": "there you go. There you go."}

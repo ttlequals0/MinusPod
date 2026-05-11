@@ -1,0 +1,7 @@
+{  
+  "start": 29.24,  
+  "end": 35.40,  
+  "confidence": 0.95,  
+  "reason": "The segment discusses Julia Mossbridge's experiences with precognitive dreams and her scientific exploration into the nature of time and pre-sentiment, which are considered high-confidence ad content due to the detailed description of her research and findings.",  
+  "end_text": "I think it's kind of, well... Is it your voice? Like... Oh, it's not me. No. I mean, it might be me. Is it like your dad? No, no, no, no. Is it a guy? Yeah, it's like a general."  
+}

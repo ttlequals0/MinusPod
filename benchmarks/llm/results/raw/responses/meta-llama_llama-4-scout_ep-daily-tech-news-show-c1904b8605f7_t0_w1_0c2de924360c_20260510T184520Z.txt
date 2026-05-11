@@ -1,0 +1,60 @@
+{  
+  "ads": [
+    {
+      "start": 796.9,
+      "end": 816.3,
+      "confidence": 0.95,
+      "reason": "Listener support segment",
+      "end_text": "thank you"
+    },
+    {
+      "start": 821.4,
+      "end": 844.7,
+      "confidence": 0.98,
+      "reason": "Capital One sponsor read",
+      "end_text": "technology at Capital One"
+    },
+    {
+      "start": 845.2,
+      "end": 857.6,
+      "confidence": 0.95,
+      "reason": "Transition to next ad",
+      "end_text": "Hold on"
+    },
+    {
+      "start": 862.2,
+      "end": 889.7,
+      "confidence": 0.98,
+      "reason": "BetterHelp sponsor read",
+      "end_text": "online therapy"
+    },
+    {
+      "start": 890.6,
+      "end": 910.1,
+      "confidence": 0.98,
+      "reason": "Amazon Health AI sponsor read",
+      "end_text": "less painful"
+    },
+    {
+      "start": 912.2,
+      "end": 933.7,
+      "confidence": 0.98,
+      "reason": "Spectrum Business sponsor read",
+      "end_text": "stay up and running"
+    },
+    {
+      "start": 934.1,
+      "end": 961.5,
+      "confidence": 0.98,
+      "reason": "Spectrum Business sponsor read continuation",
+      "end_text": "get started"
+    },
+    {
+      "start": 961.9,
+      "end": 990.3,
+      "confidence": 0.98,
+      "reason": "Rinse sponsor read",
+      "end_text": "Rinse"
+    }
+  ]
+}

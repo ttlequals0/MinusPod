@@ -1,0 +1,7 @@
+{
+  "start": 4600.8,
+  "end": 4961.8,
+  "confidence": 0.95,
+  "reason": "Anthropic Claude Security promotional segment - reads like a press release or sponsored content promoting Claude Security product with detailed feature descriptions, calls to action (claude.ai/security), and partner mentions. This is a network-inserted or host-read ad for Anthropic's product.",
+  "end_text": "via webhooks. Okay."
+}

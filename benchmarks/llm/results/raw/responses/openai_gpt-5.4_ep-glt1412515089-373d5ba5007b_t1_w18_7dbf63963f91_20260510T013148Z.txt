@@ -1,0 +1,1 @@
+{"start": 7916.6, "end": 7937.1, "confidence": 0.86, "reason": "platform-inserted YouTube promo/cross-promotion signaled by 'Thank you for watching', distinct from surrounding interview content; partial short inserted segment", "end_text": "Thank you for watching."}

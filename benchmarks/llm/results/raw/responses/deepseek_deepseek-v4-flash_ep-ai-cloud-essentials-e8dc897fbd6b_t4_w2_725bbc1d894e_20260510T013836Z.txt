@@ -1,0 +1,1 @@
+{"start": 814.4, "end": 984.2, "confidence": 0.0, "reason": "No promotional language, sponsor names, URLs, promo codes, or calls to action found in this transcript window. The content is purely editorial discussion about robotics and AI engineering, with a closing wrap-up by the host.", "end_text": "stay tuned for more. Thank you"}

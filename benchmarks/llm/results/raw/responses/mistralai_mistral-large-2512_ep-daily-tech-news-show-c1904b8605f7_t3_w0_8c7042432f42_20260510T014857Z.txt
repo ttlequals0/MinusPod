@@ -1,0 +1,30 @@
+[
+    {
+        "start": 0.0,
+        "end": 23.1,
+        "confidence": 0.99,
+        "reason": "Capital One host-read sponsor segment with product pitch, deployment details, and brand tagline",
+        "end_text": "technology at Capital One."
+    },
+    {
+        "start": 23.6,
+        "end": 52.3,
+        "confidence": 0.98,
+        "reason": "Xero accounting platform host-read ad with automated features pitch and call to action (search XERO for free trial)",
+        "end_text": "for your free trial."
+    },
+    {
+        "start": 52.5,
+        "end": 100.9,
+        "confidence": 0.97,
+        "reason": "Spectrum Business host-read ad with fiber internet pitch, price guarantee, and bundling offer",
+        "end_text": "mobile services when you can bundle."
+    },
+    {
+        "start": 124.0,
+        "end": 152.9,
+        "confidence": 0.98,
+        "reason": "Warby Parker host-read ad with prescription glasses pitch, virtual try-on, and URL call to action (warbyparker.com)",
+        "end_text": "warbyparker.com today."
+    }
+]

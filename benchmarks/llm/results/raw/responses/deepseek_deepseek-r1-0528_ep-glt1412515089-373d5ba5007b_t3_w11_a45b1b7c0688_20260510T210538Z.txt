@@ -1,0 +1,9 @@
+[
+  {
+    "start": 4620.0,
+    "end": 5220.0,
+    "confidence": 0.95,
+    "reason": "No ad content detected in transcript window",
+    "end_text": "window ends at 5220.0s"
+  }
+]

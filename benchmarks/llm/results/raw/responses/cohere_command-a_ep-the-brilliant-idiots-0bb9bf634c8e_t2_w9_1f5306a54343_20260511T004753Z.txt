@@ -1,0 +1,7 @@
+{
+  "start": 4059.4,
+  "end": 4380.0,
+  "confidence": 0.95,
+  "reason": "Host-read promotion segment for multiple products and events, including Jess Elias' book, a tennis event, and a new show called AM Mornings. Also includes a call to action for a YouTube channel subscription and a mention of a conference award.",
+  "end_text": "your outfit is..."
+}

@@ -1,0 +1,1 @@
+[{"start": 7607.7, "end": 7740.0, "confidence": 0.98, "reason": "Trusted Tech sponsor read, continues past window", "end_text": "impressed. You will be too."}]

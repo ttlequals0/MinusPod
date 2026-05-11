@@ -1,0 +1,9 @@
+.env
+benchmark.toml
+data/candidates/
+*.log
+__pycache__/
+*.egg-info/
+.venv/
+.pytest_cache/
+uv.lock

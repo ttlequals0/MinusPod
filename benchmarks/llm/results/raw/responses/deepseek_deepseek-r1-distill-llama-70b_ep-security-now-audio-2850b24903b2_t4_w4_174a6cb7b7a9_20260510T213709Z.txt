@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I've been thinking about this whole AI thing in browsers. It's kind of crazy how Google is integrating this massive AI model into Chrome. I mean, 4.7GB is huge! And Mozilla is pushing back, which makes sense because they don't want Chrome to have all the power. But wait, is this really the future of browsing? It feels like we're heading into an AI arms race, and I'm not sure if that's a good thing. I mean, what's the benefit for the average user? Maybe better search results or personalized experiences, but at what cost? Privacy concerns must be through the roof. And then there's the issue of security. If browsers are becoming more AI-dependent, how vulnerable does that make them to attacks? I guess only time will tell, but it's definitely something to keep an eye on. Let's take a break and hear from our sponsors.",
+  "start": 1800.0,
+  "end": 1820.0
+}

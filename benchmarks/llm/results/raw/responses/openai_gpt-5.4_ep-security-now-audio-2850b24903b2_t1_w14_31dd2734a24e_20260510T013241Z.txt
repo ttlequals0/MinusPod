@@ -1,0 +1,1 @@
+{"start": 6000.7, "end": 6162.3, "confidence": 0.99, "reason": "Host-read sponsor ad for Hoxhunt begins with break transition and includes promotional copy plus CTA URL hawkshunt.com/securitynow", "end_text": "hawkshunt.com security now"}

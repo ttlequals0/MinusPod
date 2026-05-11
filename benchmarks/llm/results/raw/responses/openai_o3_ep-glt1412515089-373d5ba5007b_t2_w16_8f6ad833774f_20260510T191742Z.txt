@@ -1,0 +1,1 @@
+{"error": "Awaiting further user instructions or transcript segment for ad detection."}

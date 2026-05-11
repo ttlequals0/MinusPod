@@ -1,0 +1,19 @@
+# Pre-populated from MinusPod production ad markers.
+# Verify each ad: check boundaries, confirm text matches transcript.
+# Use the no-ads marker (uncomment) if this episode has no ads:
+# # Verified: no ads in this episode.
+
+# Lines starting with '#' are ignored. To accept a rejected block,
+# remove the '# ' prefix from its start/end/text lines.
+
+start: 0:00.49
+end:   0:43.35
+text:  Hey, sweetie, your mother showed me this Carvana thing for selling the car. I'm gonna give it a try. Wish me luck. Me again. I put in the license plate. It gave me an offer. Unbelievable. Okay, I accepted the offer. They're picking it up Tuesday from the driveway. I haven't even left my chair. It's done. The car is gone. I'm holding a check. Anyway, Carvana, give it a whirl. Love ya. So good, you'll want to leave a voicemail about it. Sell your car today on Carvana. Pickup fees may apply. 
+---
+start: 38:31.69
+end:   40:50.00
+text:  Bluetooth! The future of erectile function is here, y'all. Blue Chew Gold is changing the way men are having sex in 2026, all right? The new arousal boosting formula combines passion and performance into one tablet that dissolves under your tongue for super fast onset. No more waiting for a pill to kick in, no more moments ruined by performance anxiety, just the results you want when you want them. Most ED meds only focus on blood flow, but Blue Chew Gold goes further by combining two ingredients for blood flow with two for mental arousal and So you're not just physically ready, you are actually in the mood. This type of innovation is why Bluetooth Gold is the number one brand in erectile dysfunction. The process is simple and all online. Get started today at Bluetooth.com and go for gold. Okay, ladies? If you're listening, send your man the link and make him a trophy husband with Bluetooth Gold. Okay, turbocharge your love life and make it easy to get bricked up out here. You want to send your man the link, Lauren? Yeah, I don't need this link. Discover your options at BlueChew.com. We've got a special deal for our listeners right now. When you buy two months of BlueChew gold, you get the third for free with promo code, Idiots. That's promo code, Idiots. Visit BlueChew.com for more details and important safety information. And we thank BlueChew for sponsoring the podcast. Salute to ZipRecruiter, man. ZipRecruiter, thank you for sponsoring the Brilliant Idiots podcast. If you're hiring... You want a candidate who's passionate about your role, but you can't get that insight from a resume unless you post your job on ZipRecruiter. Yes, the Black Effect hires from ZipRecruiter, and now... You can too, because you can try it for free at ZipRecruiter.com slash idiots. Okay, ZipRecruiter is powerful matching technology, finds qualified candidates quickly, and ZipRecruiter has a new feature that shows you the most interested qualified candidates first, so you meet the right people faster. Candidates can tell you in their own words why they're interested in your job. No wonder ZipRecruiter is the number one rated hiring site based on G2. Find candidates who really want your job on ZipRecruiter. Four out of five employers who post on ZipRecruiter get a quality candidate within the first day. Try it for free. at ZipRecruiter.com slash idiots, at ZipRecruiter.com slash idiots. Meet your match on ZipRecruiter.
+---
+start: 1:59:33.68
+end:   1:59:56.82
+text:  This episode is brought to you by Netflix's Remarkably Bright Creatures. What if a Pacific octopus held the key to a mystery that could heal your heart? Well, that's Tova's reality. An elderly widow working at an aquarium, Tova forms an unlikely friendship with the curmudgeonly Marcellus, whose remarkable intelligence leads her to a life-changing discovery. Remarkably Bright Creatures is now playing only on Netflix.

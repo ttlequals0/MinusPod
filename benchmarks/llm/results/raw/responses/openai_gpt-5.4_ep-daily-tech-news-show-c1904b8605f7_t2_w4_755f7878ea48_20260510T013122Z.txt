@@ -1,0 +1,1 @@
+{"start":1742.3,"end":1799.6,"confidence":0.99,"reason":"Back-to-back ad break with Capital One sponsor read followed by promo for Lemonada Media's Good Things/Thrive series; contains explicit promotional language ('This episode is brought to you by Capital One', 'Tune in to Good Things from Lemonada Media').","end_text":"the six-part Thrive series."}

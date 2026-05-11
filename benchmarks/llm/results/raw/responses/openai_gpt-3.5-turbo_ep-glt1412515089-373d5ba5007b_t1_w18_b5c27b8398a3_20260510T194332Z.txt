@@ -1,0 +1,7 @@
+{
+	"start": 7544.3,
+	"end": 7569.6,
+	"confidence": 1,
+	"reason": "Perplexity app promotion",
+	"end_text": "Learn more about your ad choices. Visit podcastchoices.com/adchoices"
+}

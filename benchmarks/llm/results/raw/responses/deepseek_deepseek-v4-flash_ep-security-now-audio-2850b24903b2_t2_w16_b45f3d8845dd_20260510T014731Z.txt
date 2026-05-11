@@ -1,0 +1,7 @@
+{
+  "start": 6699.7,
+  "end": 7321.9,
+  "confidence": 0.0,
+  "reason": "No promotional language, sponsor names, URLs, promo codes, or calls to action found. This is editorial discussion of Google's AI API proposal.",
+  "end_text": "an eloquent hamster is going to respond"
+}

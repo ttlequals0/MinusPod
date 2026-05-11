@@ -1,0 +1,1 @@
+{"start":445.6,"end":572.1,"confidence":0.98,"reason":"Zscaler host-read sponsor segment with transition handoff, promotional pitch on AI security, testimonial, and CTA zscaler.com/security","end_text":"zscaler.com slash security"}

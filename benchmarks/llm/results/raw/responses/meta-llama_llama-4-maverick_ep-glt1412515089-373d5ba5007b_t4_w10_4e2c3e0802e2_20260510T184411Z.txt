@@ -1,0 +1,1 @@
+{"start": 4533.0, "end": 4719.2, "confidence": 0.8, "reason": "Perplexity ad read", "end_text": "Taro said thanks."}

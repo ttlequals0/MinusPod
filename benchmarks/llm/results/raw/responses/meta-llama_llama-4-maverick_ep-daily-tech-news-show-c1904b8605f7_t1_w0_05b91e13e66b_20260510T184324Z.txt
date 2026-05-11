@@ -1,0 +1,1 @@
+{"start": 0.0, "end": 100.9, "confidence": 0.98, "reason": "Multiple sponsor reads (Capital One, Xero, Spectrum Business)", "end_text": "when you can bundle"}

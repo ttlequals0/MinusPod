@@ -1,0 +1,1 @@
+[{"start": 6016.6, "end": 6060.0, "confidence": 1.0, "reason": "Hoxhunt sponsor read starting with explicit break transition and promotional content", "end_text": "working well?"}]

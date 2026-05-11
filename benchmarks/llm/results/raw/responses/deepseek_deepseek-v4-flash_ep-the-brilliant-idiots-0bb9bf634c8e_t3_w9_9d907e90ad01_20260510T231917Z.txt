@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 4057.2,
+      "end": 4083.9,
+      "confidence": 0.95,
+      "reason": "Host-read ad break transition with 'Let's pay some bills' and 'Pull up some bills' indicating sponsor segment, followed by return to show content with 'All right, let's get back to this show'",
+      "end_text": "let's get back to this show"
+    }
+  ]
+}

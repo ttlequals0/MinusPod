@@ -1,0 +1,7 @@
+{
+  "start": 0.0,
+  "end": 71.6,
+  "confidence": 0.95,
+  "reason": "Capital One and Xero sponsor reads with transition phrase 'This episode is brought to you by...'",
+  "end_text": "warbyparker.com today. That's warbyparker.com."
+}

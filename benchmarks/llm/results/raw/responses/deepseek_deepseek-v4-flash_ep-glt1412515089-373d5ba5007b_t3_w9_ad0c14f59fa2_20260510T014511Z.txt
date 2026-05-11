@@ -1,0 +1,1 @@
+{"start": 3761.9, "end": 4380.0, "confidence": 0.0, "reason": "No promotional language, sponsor names, URLs, promo codes, or calls to action found in this transcript segment. The content is a discussion about neuroscience, psychic abilities, and non-speaking autistic children. No ad segments detected.", "end_text": "it's a beautiful sky"}

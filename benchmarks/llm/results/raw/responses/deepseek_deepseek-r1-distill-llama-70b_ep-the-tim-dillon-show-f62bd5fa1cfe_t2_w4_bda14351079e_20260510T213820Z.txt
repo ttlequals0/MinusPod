@@ -1,0 +1,9 @@
+{
+  "transcript": [
+    {
+      "start": 2280.0,
+      "end": 2280.0,
+      "text": "Alright, let's take a break. This episode is brought to you by Mint Mobile. Get premium wireless service for just 15 bucks a month. Go to mintmobile.com/TIMDILLON to sign up. That's mintmobile.com/TIMDILLON. Alright, back to the show."
+    }
+  ]
+}

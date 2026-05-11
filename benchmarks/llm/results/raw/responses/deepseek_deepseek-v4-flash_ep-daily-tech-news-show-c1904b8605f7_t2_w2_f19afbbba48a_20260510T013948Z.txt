@@ -1,0 +1,32 @@
+{
+  "ads": [
+    {
+      "start": 821.4,
+      "end": 857.6,
+      "confidence": 0.98,
+      "reason": "Capital One sponsor read with promotional language about Chat Concierge and multi-agentic AI",
+      "end_text": "That's technology at Capital One. A BetterHelp ad. Hold on. One second. I just need to..."
+    },
+    {
+      "start": 862.2,
+      "end": 910.1,
+      "confidence": 0.99,
+      "reason": "BetterHelp sponsor read with promo code and Amazon Health AI ad with promotional language",
+      "end_text": "Healthcare just got less painful."
+    },
+    {
+      "start": 912.2,
+      "end": 990.3,
+      "confidence": 0.99,
+      "reason": "Spectrum Business sponsor read with promotional language, price guarantee, and call to action",
+      "end_text": "Service is not available in all areas. Hi, I'm Nick Martell from the Best One Yet podcast. Fact, laundry, it's the ultimate zombie chore. It's relentless, it regenerates, it's always rising from the dead right before your plate is already full. That's not just a time suck."
+    },
+    {
+      "start": 990.6,
+      "end": 1021.1,
+      "confidence": 0.98,
+      "reason": "Rinse laundry service sponsor read with promotional language and call to action",
+      "end_text": "It's time to be great."
+    }
+  ]
+}

@@ -1,0 +1,18 @@
+{
+  "ads": [
+    {
+      "start": 16.7,
+      "end": 84.9,
+      "confidence": 0.99,
+      "reason": "OutSystems sponsor read",
+      "end_text": "OutSystems.com slash twit. That's OutSystems.com slash twit. Podcasts you love. From people you trust. This is Twit."
+    },
+    {
+      "start": 469.0,
+      "end": 572.1,
+      "confidence": 0.99,
+      "reason": "Zscaler sponsor read",
+      "end_text": "Learn more at zscaler.com slash security. That's zscaler.com slash security. Now back to Steve and Security Now. Thank you, Leo."
+    }
+  ]
+}

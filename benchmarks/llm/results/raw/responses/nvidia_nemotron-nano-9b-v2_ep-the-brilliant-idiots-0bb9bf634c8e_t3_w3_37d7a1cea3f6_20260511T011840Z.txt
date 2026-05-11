@@ -1,0 +1,1 @@
+[{"start": 1850.0, "end": 1860.0, "confidence": 0.95, "reason": "Platform-inserted ad choices message", "end_text": "Visit megaphone.fm/adchoices"}]

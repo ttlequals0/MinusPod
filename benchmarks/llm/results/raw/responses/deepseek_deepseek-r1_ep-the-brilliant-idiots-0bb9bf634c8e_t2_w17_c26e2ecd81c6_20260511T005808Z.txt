@@ -1,0 +1,7 @@
+[{
+    "start": 7173.7,
+    "end": 7196.8,
+    "confidence": 0.98,
+    "reason": "Netflix Remarkably Bright Creatures sponsor read with explicit transition phrase and call to action",
+    "end_text": "only on Netflix"
+}]

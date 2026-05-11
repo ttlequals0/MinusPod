@@ -1,0 +1,32 @@
+{
+  "ads": [
+    {
+      "start": 3079.6,
+      "end": 3105.5,
+      "confidence": 0.99,
+      "reason": "Morgan & Morgan personal injury law firm sponsor read with promo URL and phone number",
+      "end_text": "Morgan & Morgan!"
+    },
+    {
+      "start": 3107.1,
+      "end": 3134.3,
+      "confidence": 0.99,
+      "reason": "Morgan & Morgan continued ad with fee-free pitch, URL, and Poundlaw dial code",
+      "end_text": "dial Poundlaw"
+    },
+    {
+      "start": 3135.6,
+      "end": 3208.0,
+      "confidence": 0.99,
+      "reason": "Stash investing app sponsor read with Market Mood feature, URL, and disclosure",
+      "end_text": "stash.com slash mood"
+    },
+    {
+      "start": 3209.1,
+      "end": 3270.1,
+      "confidence": 0.99,
+      "reason": "NeuroGum sponsor read with product benefits, promo code TIM, and retailer mention",
+      "end_text": "code TIM for 20% off your first order"
+    }
+  ]
+}

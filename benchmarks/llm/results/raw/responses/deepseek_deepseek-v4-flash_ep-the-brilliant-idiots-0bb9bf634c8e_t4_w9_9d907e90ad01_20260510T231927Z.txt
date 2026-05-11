@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 4057.2,
+      "end": 4107.1,
+      "confidence": 0.95,
+      "reason": "Host-read ad break with transition 'Let's pay some bills' and return 'Let's get back to this show'",
+      "end_text": "Let's get back to this show"
+    }
+  ]
+}

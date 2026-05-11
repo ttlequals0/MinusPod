@@ -1,0 +1,9 @@
+[
+  {
+    "start": 4675.4,
+    "end": 4806.1,
+    "confidence": 0.98,
+    "reason": "Multiple consecutive ads: Colgate Women's Games, Skinny Pop, Viz eye drops, Garnier National Park Foundation",
+    "end_text": "support our national parks at GarnierUSA.com slash NPF"
+  }
+]

@@ -1,0 +1,184 @@
+[
+{
+  "start": 2936.4,
+   "end": 2961.9,
+   "confidence": 0.95,
+   "reason": "Club TWiT ad",
+   "end_text": "fund the remediation work"
+},
+{
+   "start": 2963.9,
+   "end": 2976.5,
+   "confidence": 0.95,
+   "reason": "Club TWiT ad",
+   "end_text": "makes the program go"
+},
+{
+   "start": 2977.8,
+   "end": 2998.8,
+   "confidence": 0.95,
+   "reason": "Club TWiT ad",
+   "end_text": "the program began"
+},
+{
+   "start": 3002.5,
+   "end": 3029.4,
+   "confidence": 0.95,
+   "reason": "Club TWiT ad",
+   "end_text": "the problem is being called"
+},
+{
+   "start": 3031.3,
+   "end": 3038.6,
+   "confidence": 0.95,
+   "reason": "Club TWiT ad",
+   "end_text": "has increased"
+},
+{
+   "start": 3039.7,
+   "end": 3068.1,
+   "confidence": 0.95,
+   "reason": "Club TWiT ad",
+   "end_text": "stops feeling like"
+},
+{
+   "start": 3068.5,
+   "end": 3076.2,
+   "confidence": 0.95,
+   "reason": "Club TWiT ad",
+   "end_text": "denial of service attack"
+},
+{
+   "start": 3077.7,
+   "end": 3106.1,
+   "confidence": 0.95,
+   "reason": "Club TWiT ad",
+   "end_text": "31 years ago"
+},
+{
+   "start": 3106.7,
+   "end": 3132.6,
+   "confidence": 0.95,
+   "reason": "Club TWiT ad",
+   "end_text": "ever since"
+},
+{
+   "start": 3133.0,
+   "end": 3154.8,
+   "confidence": 0.95,
+   "reason": "Club TWiT ad",
+   "end_text": "long-standing vulnerability"
+},
+{
+   "start": 3155.5,
+   "end": 3183.1,
+   "confidence": 0.95,
+   "reason": "Club TWiT ad",
+   "end_text": "half-cocked and adding"
+},
+{
+   "start": 3183.7,
+   "end": 3198.2,
+   "confidence": 0.95,
+   "reason": "Club TWiT ad",
+   "end_text": "is breaking"
+},
+{
+   "start": 3199.7,
+   "end": 3227.7,
+   "confidence": 0.95,
+   "reason": "Club TWiT ad",
+   "end_text": "where bug bounty"
+},
+{
+   "start": 3228.0,
+   "end": 3251.1,
+   "confidence": 0.95,
+   "reason": "Club TWiT ad",
+   "end_text": "is actually heading"
+},
+{
+   "start": 3251.5,
+   "end": 3278.7,
+   "confidence": 0.95,
+   "reason": "Club TWiT ad",
+   "end_text": "where the model is headed"
+},
+{
+   "start": 3279.5,
+   "end": 3305.2,
+   "confidence": 0.95,
+   "reason": "Club TWiT ad",
+   "end_text": "has been one of"
+},
+{
+   "start": 3305.7,
+   "end": 3331.8,
+   "confidence": 0.95,
+   "reason": "Club TWiT ad",
+   "end_text": "different skill sets"
+},
+{
+   "start": 3332.3,
+   "end": 3358.1,
+   "confidence": 0.95,
+   "reason": "Club TWiT ad",
+   "end_text": "how bug bounties operate"
+},
+{
+   "start": 3358.6,
+   "end": 3376.2,
+   "confidence": 0.95,
+   "reason": "Club TWiT ad",
+   "end_text": "is now cheaper than ever"
+},
+{
+   "start": 3382.8,
+   "end": 3410.7,
+   "confidence": 0.95,
+   "reason": "Club TWiT ad",
+   "end_text": "the reports still come in"
+},
+{
+   "start": 3411.7,
+   "end": 3438.3,
+   "confidence": 0.95,
+   "reason": "Club TWiT ad",
+   "end_text": "much higher quality reports"
+},
+{
+   "start": 3440.3,
+   "end": 3467.6,
+   "confidence": 0.95,
+   "reason": "Club TWiT ad",
+   "end_text": "enumerating these three classes"
+},
+{
+   "start": 3468.1,
+   "end": 3488.9,
+   "confidence": 0.95,
+   "reason": "Club TWiT ad",
+   "end_text": "completely wrong"
+},
+{
+   "start": 3489.7,
+   "end": 3518.3,
+   "confidence": 0.95,
+   "reason": "Club TWiT ad",
+   "end_text": "starts to resemble"
+},
+{
+   "start": 3518.6,
+   "end": 3545.1,
+   "confidence": 0.95,
+   "reason": "Club TWiT ad",
+   "end_text": "has been truly devastating"
+},
+{
+   "start": 3540.0,
+   "end": 3540.0,
+   "confidence": 0.95,
+   "reason": "continues in next",
+   "end_text": "continues in next"
+}
+]

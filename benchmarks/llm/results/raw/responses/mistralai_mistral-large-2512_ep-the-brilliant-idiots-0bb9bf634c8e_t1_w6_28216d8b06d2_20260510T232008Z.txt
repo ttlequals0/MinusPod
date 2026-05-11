@@ -1,0 +1,16 @@
+[
+    {
+        "start": 2659.4,
+        "end": 2666.0,
+        "confidence": 0.95,
+        "reason": "Mid-roll ad transition with explicit mention of 'shout out to the mid-roll' and promotional context for sponsorship",
+        "end_text": "years ago and this"
+    },
+    {
+        "start": 3119.0,
+        "end": 3120.0,
+        "confidence": 0.9,
+        "reason": "Platform-inserted ad detected (Megaphone ad choices disclaimer at end of window, continues in next)",
+        "end_text": "continues in next"
+    }
+]

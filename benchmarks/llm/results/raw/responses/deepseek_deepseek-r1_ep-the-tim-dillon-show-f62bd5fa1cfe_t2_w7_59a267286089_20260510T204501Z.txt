@@ -1,0 +1,9 @@
+[
+  {
+    "start": 3079.6,
+    "end": 3270.1,
+    "confidence": 1.0,
+    "reason": "Morgan & Morgan, Stash, and NeuroGum sponsor reads with URLs, promo codes, and calls to action",
+    "end_text": "at CVS and Amazon"
+  }
+]

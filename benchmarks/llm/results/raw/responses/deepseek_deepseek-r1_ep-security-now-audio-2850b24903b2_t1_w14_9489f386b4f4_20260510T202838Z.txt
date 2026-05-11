@@ -1,0 +1,7 @@
+{
+  "start": 6045.5,
+  "end": 6162.3,
+  "confidence": 0.98,
+  "reason": "Hawkshunt sponsor read with promotional language and URL",
+  "end_text": "hawkshunt.com security now"
+}

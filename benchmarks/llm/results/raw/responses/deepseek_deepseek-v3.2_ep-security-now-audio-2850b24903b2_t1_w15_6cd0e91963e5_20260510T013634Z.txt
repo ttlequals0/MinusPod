@@ -1,0 +1,1 @@
+{"start": 6284.0, "end": 6907.2, "confidence": 0.0, "reason": "No promotional content found in transcript segment. Content is editorial discussion about browser AI APIs.", "end_text": "the user has provided to their browser."}

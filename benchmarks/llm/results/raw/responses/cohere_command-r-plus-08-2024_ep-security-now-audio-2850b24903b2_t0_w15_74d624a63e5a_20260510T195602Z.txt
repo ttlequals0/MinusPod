@@ -1,0 +1,1 @@
+{"start": 6284.0, "end": 6900.0, "confidence": 0.99, "reason": "Sponsors: zscaler.com/security, meter.com/securitynow, bitwarden.com/twit, hoxhunt.com/securitynow, trustedtech.team/securitynow365", "end_text": "web developers to prompt a language model directly."}

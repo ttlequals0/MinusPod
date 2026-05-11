@@ -1,0 +1,1 @@
+ {"start": 4608.9, "end": 5231.8, "confidence": 0.0, "reason": "No promotional content detected in transcript window", "end_text": "from her"}

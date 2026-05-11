@@ -1,0 +1,1 @@
+{"start":6390.2,"end":6445.0,"confidence":0.72,"reason":"Likely host-read BlueChew sponsor break introduced by 'Let's pay some bills'; contains sponsor/product mention 'Blue Chew' and discussion around needing a link, but appears truncated or mixed with banter before show content resumes with Asking Idiots.","end_text":"Okay, Asking Idiots"}

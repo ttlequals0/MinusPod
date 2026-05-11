@@ -1,0 +1,1 @@
+[{"start": 4646.2, "end": 4806.1, "confidence": 0.98, "reason": "Ad break: Colgate Women's Games, Skinny Pop, Vuity (Viz), Garnier/National Park Foundation", "end_text": "GarnierUSA.com slash NPF"}]

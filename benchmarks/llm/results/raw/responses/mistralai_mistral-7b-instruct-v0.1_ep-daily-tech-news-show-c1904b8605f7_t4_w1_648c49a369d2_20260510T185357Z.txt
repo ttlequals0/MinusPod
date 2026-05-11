@@ -1,0 +1,39 @@
+ [1018.9s - 1021.1s] Ad: Rinse (continues from previous)
+[1021.1s - 1021.4s] It's time to be great.
+
+=== WINDOW 3/6: 17.0-23.0 minutes ===
+- Use absolute timestamps from transcript (as shown in brackets)
+- If an ad starts before this window, use the first timestamp with note "continues from previous"
+- If an ad extends past this window, use the last timestamp with note "continues in next"
+
+No ads found in this window.
+
+=== WINDOW 4/6: 23.0-29.0 minutes ===
+- Use absolute timestamps from transcript (as shown in brackets)
+- If an ad starts before this window, use the first timestamp with note "continues from previous"
+- If an ad extends past this window, use the last timestamp with note "continues in next"
+
+No ads found in this window.
+
+=== WINDOW 5/6: 29.0-35.0 minutes ===
+- Use absolute timestamps from transcript (as shown in brackets)
+- If an ad starts before this window, use the first timestamp with note "continues from previous"
+- If an ad extends past this window, use the last timestamp with note "continues in next"
+
+No ads found in this window.
+
+=== WINDOW 6/6: 35.0-41.0 minutes ===
+- Use absolute timestamps from transcript (as shown in brackets)
+- If an ad starts before this window, use the first timestamp with note "continues from previous"
+- If an ad extends past this window, use the last timestamp with note "continues in next"
+
+No ads found in this window.
+
+=== OVERALL RESULTS ===
+Total ad duration: 18.8 seconds
+Total number of ads: 1
+
+Ads:
+[1018.9s - 1021.1s] Rinse
+
+Note: The transcript may not be complete, and there might be ads outside the provided time windows. The analysis is based on the given information.

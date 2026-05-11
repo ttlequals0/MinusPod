@@ -1,0 +1,133 @@
+{
+  "analysis": {
+    "transcript_segments": [
+      {
+        "start": 828.9,
+        "end": 850.2,
+        "content": "The team explained, quote, we were able to confirm the leak originated from the user asking to create a statistics dashboard and cursor created an unauthenticated open web directory to serve the web page, ignoring the need, because of course you didn't ask for it, ignoring the need to set up authentication."
+      },
+      {
+        "start": 851.0,
+        "end": 877.4,
+        "content": "or ensure that only the intended dashboard would be accessible. In other words, it's just like a regular user. If you don't ask for authentication, you're not going to get authentication. Anyway, they finished saying, Moreover, the chat history reveals there was sufficient information for the cursor large language model to identify that it was helping set up a credit card verification service."
+      },
+      {
+        "start": 878.2,
+        "end": 902.2,
+        "content": "Indicating a lack of sufficient guardrails to prevent abuse. And as you've often heard me say, I don't think you can really control a large language model. Researchers said, quote, It's a lesson for developers using cursor for legitimate uses, showing how it can lead to accidental data leaks. Right. It's just going to write what you ask it to. It's not going to, like, be your security nanny. So."
+      },
+      {
+        "start": 902.9,
+        "end": 928.6,
+        "content": "CyberNews said that they'd reached out to Cursor for comment and would update their article with any additional information they receive. The fact that the Cursor AI produced a statistics dashboard driven by an unsecured and open web directory allowing unauthenticated remote access, I think it's a great example of the danger of using AI without being a domain expert."
+      },
+      {
+        "start": 929.2,
+        "end": 954.2,
+        "content": "That is, you know, without knowing what to ask for, because you, you know, it'll give you what you ask for, but you need to know what that is. I've no doubt that the Cursor AI would have easily provided the instructions for the authentication that was needed if it had been asked to, but apparently the bad guys never thought to ask. So somebody..."
+      },
+      {
+        "start": 954.8,
+        "end": 982.6,
+        "content": "Who wasn't really up to speed on web-based application security could easily fail to anticipate all the various ways others might access and penetrate their system. So expecting AI to produce secure solutions by default is probably a fool's errand. In this case, either it never occurred to them,"
+      },
+      {
+        "start": 983.0,
+        "end": 986.4,
+        "content": "Thank you for watching."
+      },
+      {
+        "start": 1009.1,
+        "end": 1029.9,
+        "content": "are integral to the cyber crime infrastructure. Once scammers obtain stolen credit card information, they need to verify which cards can still be exploited. Jerry's Store provides that service. Our team noticed that to complete the task, Jerry's Store operators use legitimate, well-known merchants."
+      },
+      {
+        "start": 1030.8,
+        "end": 1058.3,
+        "content": "The cyber news team explained, quote, threat actors used multiple legitimate merchant websites such as Amazon US, Amazon Japan, Grubhub, Sam's Club, Timu, Lyft, Elf Cosmetics, and CountryMax, utilizing hundreds or in some cases thousands of accounts that have already been established on these platforms to perform credit card validity checks."
+      },
+      {
+        "start": 1059.0,
+        "end": 1079.6,
+        "content": "Attackers created those accounts to register stolen cards and then perform low-risk actions, as they called them. These could include adding cards as a payment method or making a very small purchase. If the platform accepts the card, threat actors mark the card as valid and sell it to other threat actors on the dark web."
+      },
+      {
+        "start": 1080.0,
+        "end": 1108.2,
+        "content": "Using large merchants like Amazon or Grubhub, of course, is a way to mask their activity. Since large merchants process billions of payments, tiny transactions on a well-known website don't ring any alarm bells. They wrote, according to our team, the exposed server contained a treasure trove of credit card details. Details meaning everything you need to process someone's card. Researchers identified nearly 200,000"
+      },
+      {
+        "start": 1108.7,
+        "end": 1136.5,
+        "content": "Credit card details that the service had verified as valid and over 145 accounts, I'm sorry, 200,000 that were invalid and over 145,000 accounts that they had verified as valid. Now, the exposed information includes all the details that you need. Credit card numbers, expiration dates, the security code, the cardholder's name, and their address."
+      },
+      {
+        "start": 1137.2,
+        "end": 1147.8,
+        "content": "Typically, they wrote, valid credit card details are sold for between $7 and $18 each on the dark web, meaning that the value of the valid..."
+      },
+      {
+        "start": 1149.2,
+        "end": 1174.8,
+        "content": "Stolen card data, that's the 145,000 cards that have been verified there, is somewhere between a million and $2.6 million. They said, however, our team added that the actual value of the exposed infrastructure may be a lot higher since Jerry's store sells much more than just credit card data. That's just one of the types of, you know, fraud that they're..."
+      },
+      {
+        "start": 1175.4,
+        "end": 1200.5,
+        "content": "They're there making available in the store. They said, while it's unclear where Jerry's store is located, internal tooling and leaked large language model chat logs suggest that the marketplace's administrator is fluent in Chinese. The server itself appears to be hosted in Germany by a suspected bulletproof hosting provider. The marketplace, which, yeah."
+      },
+      {
+        "start": 1201.2,
+        "end": 1227.2,
+        "content": "The marketplace, which launched in late 2023, is a well-known credit card vetting tool within the cybercrime underground, aimed primarily at cards stolen from victims in the U.S. and the E.U. Fluent in Chinese, but not AI, apparently. You know, this comes up a lot. We're going to see more of these. Whoops. Whoa. So hold on. Camera, I'm over here. Thank you. People blame AI."
+      },
+      {
+        "start": 1228.7,
+        "end": 1255.2,
+        "content": "for stuff that they do that's dumb. There was a big story last week and everybody blamed AI because the guy's database, production database got clobbered. But of course, if you give AI the keys to your production database, it's on you, my friend. And if you're dumb enough to say, hey, just make me a website to authenticate, but don't put any authentication layers in there, AI is gonna do what you say. I think this comes from sort of a magical."
+      },
+      {
+        "start": 1255.9,
+        "end": 1268.8,
+        "content": "Thank you for watching."
+      },
+      {
+        "start": 1281.3,
+        "end": 1302.3,
+        "content": "AI is great at OAuth. If you say write the login page, use OAuth, make it secure, it will absolutely do that, but you have to tell it to. It's not going to assume that. It might, but again, it might not. The other thing I wanted to mention is I have had credit cards stolen due to my own stupidity. First of all, credit card companies know to look for those low risk."
+      },
+      {
+        "start": 1302.7,
+        "end": 1314.1,
+        "content": "and many more."
+      },
+      {
+        "start": 1340.8,
+        "end": 1347.8,
+        "content": "I'm not trying to do an Apple Wallet."
+      },
+      {
+        "start": 1342.2,
+        "end": 1363.7,
+        "content": "Code. It said, okay, we're trying to add this to that Apple Wallet. And I said, what are you talking about? I'm not trying to do an Apple Wallet. That should have been the hint to me that they were doing something funny. You know, it's a cat and mouse, Tom and Jerry kind of a game. Yeah, it does feel like, as I have said on the podcast before, for like, I mean,"
+      },
+      {
+        "start": 1377.5,
+        "end": 1383.9,
+        "content": "And when we would have our conversation"
+      },
+      {
+        "start": 1405.0,
+        "end": 1413.1,
+        "content": "Allie Whitehouse, the Chief Technology Officer for the UK's"
+      },
+      {
+        "start": 1413.5,
+        "end": 1441.5,
+        "content": "NCSC, their national cybersecurity center, issued a clear warning at the level of the government. Ollie's warning posting was titled, Preparing for a Vulnerability Patch Wave. And it carried the tagline, Organizations must act now to prepare for a wave of patches that will address decades of technical debt."
+      }
+    ],
+    "detection_notes": "The provided transcript segments do not contain any explicit advertisement content. There are no sponsor mentions, promotional language, URLs, or calls to action typical of podcast ads. The content is entirely editorial, discussing cybersecurity topics. The segments labeled 'Thank you for watching' appear to be production artifacts but lack any ad content. The episode description lists sponsors, but none appear in the given transcript window. Therefore, no ad segments are detected."
+  },
+  "output": []
+}

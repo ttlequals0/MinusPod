@@ -1,0 +1,13 @@
+{
+  "transcript": [
+    "[2280.0s - 2286.3s] They're coming for the fatties for the kids. We're going to have them all. Your kids are on peptides, they're on GLP-1s, and they're on the screen. And there's nothing you can do about it. I'm sorry.",
+    "[2286.8s - 2293.5s] Let's take a break. This episode is brought to you by Mint Mobile. Get premium wireless service for just $15 bucks a month. Go to mintmobile.com/TIMDILLON to sign up. That's mintmobile.com/TIMDILLON.",
+    "[2294.0s - 2300.0s] Aura Frames. Get $25 off the Carver Mat when you visit on.auraframes.com/TIM. Use promo code TIM at checkout. That's on.auraframes.com/TIM.",
+    "[2301.0s - 2310.0s] For the People. Morgan & Morgan. They fight for you. Go to forthepeople.com/TIM or dial POUND LAW. Their fee is free unless they win. That's forthepeople.com/TIM.",
+    "[2311.0s - 2318.0s] Stash. Stash is the smart way to invest. Go to stash.com/mood to check today's market mood. It's free and takes just two minutes. That's stash.com/mood.",
+    "[2319.0s - 2325.0s] Neuro Gum. Get 20% off your first order with code TIM. Go to neurogum.com. That's neurogum.com.",
+    "[2326.0s - 2330.0s] Alright, let's get back to the show."
+  ],
+  "window_start": 2280.0,
+  "window_end": 2330.0
+}

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 4646.2,
+    "end": 4806.1,
+    "confidence": 1.0,
+    "reason": "A block of multiple network-inserted ads for Colgate, Skinny Pop, Viz, and Garnier.",
+    "end_text": "at GarnierUSA.com slash NPF."
+  }
+]

@@ -1,0 +1,13 @@
+[{
+	"start": 7135.4,
+	"end": 7158.5,
+	"confidence": 0.9,
+	"reason": "Promotion for Lauren LaRosa's podcast",
+	"end_text": "trending, conversations. You know, we get into some things."
+}, {
+	"start": 7173.7,
+	"end": 7196.8,
+	"confidence": 0.98,
+	"reason": "Netflix's Remarkably Bright Creatures sponsor read",
+	"end_text": "life-changing discovery. Remarkably Bright Creatures is now playing only on Netflix."
+}]

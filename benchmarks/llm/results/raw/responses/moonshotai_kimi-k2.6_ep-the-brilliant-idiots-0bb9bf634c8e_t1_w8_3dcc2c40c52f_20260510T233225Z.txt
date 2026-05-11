@@ -1,0 +1,1 @@
+{"start":3354.0,"end":3380.1,"confidence":0.0,"reason":"No promotional content detected in this window. The transcript contains only editorial discussion about Complex's hip hop media list.","end_text":"camera. I love Gina"}

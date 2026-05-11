@@ -1,0 +1,1 @@
+[{"start": 1742.3, "end": 1829.8, "confidence": 0.95, "reason": "Capital One sponsor read followed by Lemonada Media podcast promo", "end_text": "good to know"}]

@@ -1,0 +1,1 @@
+[{"start": 6884.7, "end": 6907.2, "confidence": 0.9, "reason": "Bitwarden sponsor read", "end_text": "manage their dependencies"}]

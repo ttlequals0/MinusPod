@@ -1,0 +1,16 @@
+[
+    {
+        "start": 9750.4,
+        "end": 9752.2,
+        "confidence": 0.95,
+        "reason": "Host directs listeners to a specific URL (timemachine.love) for a product/service tied to her nonprofit, which is promotional in nature and includes a call to action.",
+        "end_text": "Can you go to timemachine.love?"
+    },
+    {
+        "start": 9839.9,
+        "end": 9840.0,
+        "confidence": 0.9,
+        "reason": "Platform-inserted ad disclaimer at the end of the segment. 'Learn more about your ad choices. Visit podcastchoices.com/adchoices' is a standard network-inserted ad marker, continues in next window.",
+        "end_text": "continues in next"
+    }
+]

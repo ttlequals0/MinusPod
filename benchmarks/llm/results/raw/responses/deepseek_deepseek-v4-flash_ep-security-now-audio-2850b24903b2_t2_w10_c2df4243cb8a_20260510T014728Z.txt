@@ -1,0 +1,18 @@
+{
+  "ads": [
+    {
+      "start": 4204.1,
+      "end": 4264.3,
+      "confidence": 0.95,
+      "reason": "Host-read break transition and platform cross-promotion for Mac Break Weekly and club TWiT, with call to watch live on various platforms",
+      "end_text": "twit.tv slash SN"
+    },
+    {
+      "start": 4265.2,
+      "end": 4465.7,
+      "confidence": 0.99,
+      "reason": "Bitwarden sponsor segment with promotional language, product features, and call to action with URL bitwarden.com/twit",
+      "end_text": "bitwarden.com slash twit"
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "start": 5390.9,
+  "end": 5415.0,
+  "confidence": 0.95,
+  "reason": "Host-read sponsor segment mentioning multiple sponsors",
+  "end_text": "about black girls. Like, do they?"
+}

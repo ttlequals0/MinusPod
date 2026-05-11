@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I've been thinking about this whole AI in browsers thing. It's kind of wild how Chrome is integrating such a massive AI model. I mean, 4.7GB is huge! And Mozilla is pushing back, which makes sense. I wonder how this will play out. Maybe we'll see a new era of browser features powered by AI. But then again, there are security implications. I should probably look into how they're handling the data and privacy aspects. Oh, and speaking of security, I need to remember to update my extensions. Wait, I just got a notification from my password manager. Hmm, maybe I should switch to something more secure like Bitwarden. They've been advertising a lot lately, but I've heard good things. Oh well, I'll think about it later. Anyway, back to the topic at hand. So, the AI integration in Chrome could really change how we browse the web. It might make things more efficient, but I'm concerned about the potential risks. I guess only time will tell how this all shakes out.",
+  "start": 3600.0,
+  "end": 3660.0
+}

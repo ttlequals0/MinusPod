@@ -1,0 +1,19 @@
+{
+  "transcript": "...",
+  "ads": [
+    {
+      "start": 2246.0,
+      "end": 2269.3,
+      "confidence": 0.95,
+      "reason": "Capital One sponsor read",
+      "end_text": "That's technology at Capital One."
+    },
+    {
+      "start": 2269.8,
+      "end": 2314.4,
+      "confidence": 0.95,
+      "reason": "Rinse sponsor read",
+      "end_text": "Rinse. It's time to be great."
+    }
+  ]
+}

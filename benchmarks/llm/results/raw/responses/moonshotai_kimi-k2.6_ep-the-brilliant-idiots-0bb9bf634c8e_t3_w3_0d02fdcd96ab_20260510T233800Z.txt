@@ -1,0 +1,1 @@
+{"start":1250.2,"end":1271.1,"confidence":0.95,"reason":"Host-read sponsor segment for Athletic Greens with promo code and URL","end_text":"athleticgreens.com/podcast"}

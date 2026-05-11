@@ -1,0 +1,7 @@
+{
+  "start": 8797.7,
+  "end": 9426.7,
+  "confidence": 0.0,
+  "reason": "No promotional language, sponsor names, URLs, promo codes, or calls to action found. The transcript is a conversation about gifted programs, memory lapses, and government experiments.",
+  "end_text": "uranium dust on his boots"
+}

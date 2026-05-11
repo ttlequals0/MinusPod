@@ -1,0 +1,7 @@
+{
+  "start": 4057.2,
+  "end": 4083.9,
+  "confidence": 0.62,
+  "reason": "Host ad-break transition with promotional/self-promotional plugs: 'Let's pay some bills' and 'Pull up some bills' followed by return to show content; ad copy appears omitted/inaudible in this window",
+  "end_text": "let's get back to this show"
+}

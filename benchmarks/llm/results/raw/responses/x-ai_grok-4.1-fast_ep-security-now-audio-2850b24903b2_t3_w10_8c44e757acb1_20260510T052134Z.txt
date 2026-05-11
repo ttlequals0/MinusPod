@@ -1,0 +1,1 @@
+{"start":4258.6,"end":4465.7,"confidence":0.99,"reason":"Bitwarden host-read sponsor segment: 'brought to you by Bitwarden', product pitches, bitwarden.com/twit URL, calls to action 'Get started today'", "end_text":"bitwarden.com slash twit"}

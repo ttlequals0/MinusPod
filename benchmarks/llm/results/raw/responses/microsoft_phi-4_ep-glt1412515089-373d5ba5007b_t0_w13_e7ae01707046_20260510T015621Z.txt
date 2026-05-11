@@ -1,0 +1,7 @@
+{
+  "start": 5457.3,
+  "end": 6058.2,
+  "confidence": 0.95,
+  "reason": "The segment contains a transition phrase indicating a continuation of a sponsor segment, with promotional language about Netflix's creatures and the discussion of the singing mice experiment.",
+  "end_text": "I was holding him in my hand like a little baby mouse."
+}

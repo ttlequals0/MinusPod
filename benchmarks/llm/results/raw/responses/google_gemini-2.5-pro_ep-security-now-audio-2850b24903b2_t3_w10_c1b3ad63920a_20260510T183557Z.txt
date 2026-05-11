@@ -1,0 +1,9 @@
+[
+  {
+    "start": 4204.1,
+    "end": 4465.7,
+    "confidence": 0.99,
+    "reason": "Host-read ad for Bitwarden, including the transition into the break and the return to the show.",
+    "end_text": "singing. Back to Steve."
+  }
+]

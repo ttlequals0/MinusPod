@@ -1,0 +1,1 @@
+{"start":0.0,"end":30.0,"confidence":0.95,"reason":"Colgate brand ad pre-roll with promotional copy and tagline","end_text":"your smile is your strength"}

@@ -1,0 +1,5 @@
+[
+
+[1742.3, 1765.6, 0.98, "Capital One sponsor read", "technology at Capital One"]
+
+]

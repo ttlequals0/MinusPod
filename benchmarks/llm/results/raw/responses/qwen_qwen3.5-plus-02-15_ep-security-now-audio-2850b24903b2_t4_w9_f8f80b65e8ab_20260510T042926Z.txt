@@ -1,0 +1,1 @@
+[{"start": 4204.1, "end": 4380.0, "confidence": 0.98, "reason": "Bitwarden sponsor read with transition (continues in next)", "end_text": "for Windows 11, securely unlocking"}]

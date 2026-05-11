@@ -1,0 +1,1 @@
+[{"start": 845.2, "end": 857.6, "confidence": 0.95, "reason": "Capital One host-read ad", "end_text": "tech team isn't just talking"}, {"start": 862.2, "end": 889.7, "confidence": 0.93, "reason": "BetterHelp host-read ad", "end_text": "online therapy. Amazon Health AI"}]

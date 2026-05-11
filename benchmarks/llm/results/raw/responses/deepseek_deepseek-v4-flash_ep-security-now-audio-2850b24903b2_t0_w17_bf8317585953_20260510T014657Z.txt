@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 7537.6,
+      "end": 7743.9,
+      "confidence": 0.99,
+      "reason": "Host-read sponsor segment for Trusted Tech with promotional language, call to action, and testimonial",
+      "end_text": "He was impressed. You will be too."
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+[
+  {
+    "start": 1718.3,
+    "end": 1735.3,
+    "confidence": 0.95,
+    "reason": "Host-read promotion for the show's merchandise store, including the URL DailyTechNewsShow.com/store.",
+    "end_text": "There you go."
+  },
+  {
+    "start": 1742.3,
+    "end": 1799.6,
+    "confidence": 0.99,
+    "reason": "Sponsor read for Capital One, followed by a cross-promotion for the 'Good Things' podcast from Lemonada Media.",
+    "end_text": "the six-part Thrive series."
+  },
+  {
+    "start": 2246.0,
+    "end": 2280.0,
+    "confidence": 0.99,
+    "reason": "Post-roll ad block featuring Capital One and Rinse. The ad for Rinse continues past the end of the window.",
+    "end_text": "friction of a relentless task."
+  }
+]

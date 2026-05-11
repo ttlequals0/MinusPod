@@ -1,0 +1,1 @@
+[{"start": 5977.2, "end": 6162.9, "confidence": 0.98, "reason": "Hoxhunt sponsor read with promotional language and URL", "end_text": "back to the work he's doing"} ]

@@ -1,0 +1,1 @@
+{"start":1.6,"end":77.2,"confidence":0.99,"reason":"Platform-inserted Acast promo and cross-promotions for other podcasts (Wrong Turns and Formative), with calls to listen and Acast.com promotion","end_text":"leaders of tomorrow"}

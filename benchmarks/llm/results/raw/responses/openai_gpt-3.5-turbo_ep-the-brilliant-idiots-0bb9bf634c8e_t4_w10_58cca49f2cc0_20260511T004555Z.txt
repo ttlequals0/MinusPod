@@ -1,0 +1,7 @@
+{
+	"start": 4175.0,
+	"end": 4334.1,
+	"confidence": 0.98,
+	"reason": "Multiple sponsor mentions",
+	"end_text": "See you guys there. Peace."
+}

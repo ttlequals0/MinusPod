@@ -1,0 +1,1 @@
+[{"start": 4598.9, "end": 4626.6, "confidence": 0.0, "reason": "not an ad, conversation segment", "end_text": "let them make their videos"}]

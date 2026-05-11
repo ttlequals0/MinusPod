@@ -1,0 +1,18 @@
+{
+  "ads": [
+    {
+      "start": 1742.3,
+      "end": 1799.6,
+      "confidence": 0.98,
+      "reason": "Capital One sponsor read followed by Good Things podcast cross-promotion",
+      "end_text": "to hear the six-part Thrive series"
+    },
+    {
+      "start": 2246.0,
+      "end": 2301.6,
+      "confidence": 0.98,
+      "reason": "Capital One sponsor read followed by Rinse laundry service ad",
+      "end_text": "the friction of a relentless task"
+    }
+  ]
+}

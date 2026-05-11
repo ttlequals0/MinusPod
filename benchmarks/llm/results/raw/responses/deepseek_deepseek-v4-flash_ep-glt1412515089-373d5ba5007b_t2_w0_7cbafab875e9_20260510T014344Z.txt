@@ -1,0 +1,7 @@
+{
+  "start": 539.2,
+  "end": 600.0,
+  "confidence": 0.98,
+  "reason": "In the Gray movie promotion and Skechers slip-ins sponsor read (merged, continues in next window)",
+  "end_text": "sizes. You can get slip-ins"
+}

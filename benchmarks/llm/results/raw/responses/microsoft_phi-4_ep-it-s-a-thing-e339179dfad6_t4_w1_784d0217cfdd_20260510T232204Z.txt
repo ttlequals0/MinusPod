@@ -1,0 +1,25 @@
+{  
+  "ads": [  
+    {  
+      "start": 398.7,  
+      "end": 422.6,  
+      "confidence": 0.95,  
+      "reason": "Host mentions a product (Kalahari indoor water park) in a promotional context, indicating a sponsored segment.",  
+      "end_text": "the price you pay for a little water park enjoyment"  
+    },  
+    {  
+      "start": 546.9,  
+      "end": 553.1,  
+      "confidence": 0.85,  
+      "reason": "Host discusses the benefits of a product (wave pool coffee) in a promotional context, indicating a sponsored segment.",  
+      "end_text": "the wave pool is the answer to all problems at the water park"  
+    },  
+    {  
+      "start": 747.9,  
+      "end": 764.6,  
+      "confidence": 0.90,  
+      "reason": "Host describes a product (Kalahari coffee) in a promotional context, indicating a sponsored segment.",  
+      "end_text": "it's just like a bunch of people on one particular coffee forum started calling it that"  
+    }  
+  ]  
+}

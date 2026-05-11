@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 2560.1,
+    "end": 2693.0,
+    "confidence": 0.98,
+    "reason": "Meter sponsor read with full product pitch, company details, customer testimonial, and call to action to book demo at meter.com/securitynow",
+    "end_text": "meter.com/securitynow book a demo"
+  }
+]
+```

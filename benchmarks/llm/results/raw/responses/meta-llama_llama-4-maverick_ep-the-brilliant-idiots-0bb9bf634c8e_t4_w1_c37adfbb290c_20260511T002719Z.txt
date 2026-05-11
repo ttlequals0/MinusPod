@@ -1,0 +1,1 @@
+{"start": 951.6, "end": 972.9, "confidence": 0.7, "reason": "Partial detection, possible ad read for Jess Hilarious book 'Get Honest or Die Lying' or other sponsor", "end_text": "ain't never watch a video"}

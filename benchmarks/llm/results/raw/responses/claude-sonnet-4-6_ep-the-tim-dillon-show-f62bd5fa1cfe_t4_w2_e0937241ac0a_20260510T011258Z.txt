@@ -1,0 +1,1 @@
+[{"start": 1439.2, "end": 1440.0, "confidence": 0.97, "reason": "Mint Mobile sponsor read begins - host mentions Mint Mobile, economy framing, plan features on nation's largest 5G network", "end_text": "largest 5G network", "note": "continues in next"}]

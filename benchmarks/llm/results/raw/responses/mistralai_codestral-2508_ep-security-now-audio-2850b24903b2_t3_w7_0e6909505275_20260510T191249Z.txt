@@ -1,0 +1,1 @@
+[{"start": 3358.6, "end": 3382.8, "confidence": 0.95, "reason": "Platform-inserted ad break", "end_text": "Thank you for watching"}]

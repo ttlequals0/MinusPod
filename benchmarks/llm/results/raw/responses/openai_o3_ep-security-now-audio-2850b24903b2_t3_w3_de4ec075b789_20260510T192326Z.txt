@@ -1,0 +1,1 @@
+{"error":"No advertisement segments detected. Output should be a JSON array, not an object"}

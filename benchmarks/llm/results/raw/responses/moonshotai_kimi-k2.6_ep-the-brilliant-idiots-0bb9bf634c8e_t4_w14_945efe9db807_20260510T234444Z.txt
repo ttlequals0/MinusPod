@@ -1,0 +1,1 @@
+{"start":6390.2,"end":6396.7,"confidence":0.3,"reason":"Host says 'Let's pay some bills' (common ad transition) but no promotional content appears in transcript; likely a content gap or false transition","end_text":"do some asking idiots, man."}

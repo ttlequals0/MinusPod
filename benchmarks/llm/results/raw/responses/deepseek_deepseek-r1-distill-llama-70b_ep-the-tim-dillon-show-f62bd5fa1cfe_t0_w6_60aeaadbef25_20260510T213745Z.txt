@@ -1,0 +1,8 @@
+{
+  "transcript": "Morgan & Morgan is America's largest personal injury law firm. Here's my favorite thing about them. Their fee is free unless they win. Hiring the wrong people can be disastrous. That's where the Morgan & Morgan comes in. If you're ever injured by the negligence of another, Morgan & Morgan is America's law firm that you need to try. It's the largest in the country. Whenever I witness an injury or a car accident happen, I automatically think Morgan & Morgan, and I yell it. If I see it, I yell it. I go, Morgan & Morgan! I'm telling you, $30 billion recovered for over 500,000 clients. Morgan & Morgan has a proven track record of fighting to get you full and fair compensation. If you're ever injured, you can check out Morgan & Morgan. Their fee is free unless they win. Yes, that's right, free. For more information, go to ForThePeople.com slash Tim or dial Poundlaw. ForThePeople.com slash Tim, dial Poundlaw. That's ForThePeople.com slash Tim, dial Poundlaw. Let them know I sent you. This is a paid advertisement. Stash is the one. Stash is the one.",
+  "start": 3079.6,
+  "end": 3134.3,
+  "confidence": 0.95,
+  "reason": "Morgan & Morgan sponsor read with URL and call to action",
+  "end_text": "ForThePeople.com/Tim or dial Poundlaw"
+}

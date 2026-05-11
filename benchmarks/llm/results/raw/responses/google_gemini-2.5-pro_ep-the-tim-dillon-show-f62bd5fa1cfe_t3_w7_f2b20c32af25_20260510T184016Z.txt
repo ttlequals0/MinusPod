@@ -1,0 +1,9 @@
+[
+  {
+    "start": 3079.6,
+    "end": 3270.1,
+    "confidence": 1.0,
+    "reason": "Host-read ads for Morgan & Morgan, Stash, and Neuro Gum, identified by sponsor names, URLs (ForThePeople.com/Tim, stash.com/mood, NeuroGum.com), and a promo code (TIM).",
+    "end_text": "at CVS and Amazon."
+  }
+]

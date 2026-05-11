@@ -1,0 +1,1 @@
+{"start": 3360.3, "end": 3975.9, "confidence": 0.0, "reason": "No promotional content found in transcript segment. Content is editorial discussion about Hantavirus outbreak on a cruise ship.", "end_text": "last thing I'll ever do."}

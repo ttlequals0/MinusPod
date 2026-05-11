@@ -1,0 +1,7 @@
+{
+"start": 4265.2,
+  "end": 4370.4,
+  "confidence": 0.98,
+  "reason": "Bitwarden sponsor read",
+  "end_text": "passkey login, I love this"
+}

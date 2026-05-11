@@ -1,0 +1,9 @@
+[
+    {
+        "start": 3432.2,
+        "end": 3446.1,
+        "confidence": 0.95,
+        "reason": "Platform-inserted ad break with promotional language for Perplexity, including a call to action (URL and app download). Transition phrase 'Learn more about your ad choices' is a standard ad marker.",
+        "end_text": "podcastchoices.com/adchoices"
+    }
+]

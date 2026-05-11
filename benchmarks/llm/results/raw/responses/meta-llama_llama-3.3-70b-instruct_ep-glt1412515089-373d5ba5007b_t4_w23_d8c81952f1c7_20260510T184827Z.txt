@@ -1,0 +1,1 @@
+{"start": 9655.2, "end": 9920.6, "confidence": 0.0, "reason": "no ads found in transcript", "end_text": "Bye, everybody. Bye."}

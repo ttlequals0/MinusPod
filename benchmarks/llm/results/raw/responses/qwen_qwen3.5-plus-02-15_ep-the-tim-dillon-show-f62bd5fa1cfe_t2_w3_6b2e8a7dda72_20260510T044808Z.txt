@@ -1,0 +1,1 @@
+[{"start": 1439.2, "end": 1665.9, "confidence": 0.98, "reason": "Host-read ads for Mint Mobile and Aura Frames, followed by produced ads for Colgate and Skinny Pop in a continuous break with gaps < 15 seconds", "end_text": "popped, perfectly salted. Skinny Pop."}]

@@ -1,0 +1,1 @@
+[{"start": 6045.5, "end": 6162.3, "confidence": 0.98, "reason": "Hawkshunt sponsor read with promotional language, URL, and transition phrase", "end_text": "security now. Thank you so much for supporting Steve and the work he's doing and now back to the work he's doing."}]

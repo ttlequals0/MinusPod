@@ -1,0 +1,16 @@
+[
+  {
+    "start": 1718.3,
+    "end": 1799.6,
+    "confidence": 1.0,
+    "reason": "Host-read DTNS merchandise promotion with URL (DailyTechNewsShow.com/store) followed by Capital One sponsor segment and Lemonada Media podcast cross-promotion",
+    "end_text": "six-part Thrive series"
+  },
+  {
+    "start": 2246.0,
+    "end": 2280.0,
+    "confidence": 0.98,
+    "reason": "Capital One sponsor read and partial Rinse laundry service ad (continues in next segment)",
+    "end_text": "Ted's Rethinking Podcast"
+  }
+]

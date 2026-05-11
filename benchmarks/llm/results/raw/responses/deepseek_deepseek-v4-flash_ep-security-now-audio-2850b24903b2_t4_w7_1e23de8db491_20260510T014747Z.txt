@@ -1,0 +1,7 @@
+{
+  "start": 2936.4,
+  "end": 3545.1,
+  "confidence": 0.0,
+  "reason": "No promotional language, sponsor names, URLs, promo codes, or calls to action found. This is editorial discussion about bug bounty programs and AI impact.",
+  "end_text": "doing stupid things faster with more energy"
+}

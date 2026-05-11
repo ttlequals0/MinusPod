@@ -1,0 +1,9 @@
+[
+  {
+    "start": 401.8,
+    "end": 1043.5,
+    "confidence": 0.0,
+    "reason": "No promotional content detected in transcript segment",
+    "end_text": "negativity and it has"
+  }
+]

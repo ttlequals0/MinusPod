@@ -1,0 +1,5 @@
+{
+  "transcript": "This episode is brought to you by Netflix's Remarkably Bright Creatures. What if a Pacific octopus held the key to a mystery that could heal your heart? Well, that's Tova's reality. An elderly widow working at an aquarium, Tova forms an unlikely friendship with the curmudgeonly Marcellus, whose remarkable intelligence leads her to a life-changing discovery. Remarkably Bright Creatures is now playing only on Netflix.",
+  "start": 7173.7,
+  "end": 7196.8
+}

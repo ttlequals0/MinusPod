@@ -1,0 +1,8 @@
+
+{
+	"start": 6699.7,
+	"end": 7008.8,
+	"confidence": 0.95,
+	"reason": "Zscaler, Meter, Bitwarden, HoxHunt, Trusted Tech Team sponsor mentions",
+	"end_text": "trustedtech.team/securitynow365"
+}

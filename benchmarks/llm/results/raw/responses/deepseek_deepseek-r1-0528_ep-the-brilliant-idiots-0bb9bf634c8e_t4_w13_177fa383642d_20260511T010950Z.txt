@@ -1,0 +1,177 @@
+[
+  {
+    "start": 5443.4,
+    "end": 5471.1,
+    "confidence": 0.0,
+    "reason": "Conversation about interracial dating and census data, no promotional content",
+    "end_text": "disgusting to me. Damn."
+  },
+  {
+    "start": 5471.3,
+    "end": 5494.4,
+    "confidence": 0.0,
+    "reason": "Continuation of conversation, no ads",
+    "end_text": "I didn't see that."
+  },
+  {
+    "start": 5494.9,
+    "end": 5501.6,
+    "confidence": 0.0,
+    "reason": "Discussion of census data, no ads",
+    "end_text": "the number 10."
+  },
+  {
+    "start": 5502.0,
+    "end": 5530.4,
+    "confidence": 0.0,
+    "reason": "Reading census data on interracial pairings, no ads",
+    "end_text": "across the US."
+  },
+  {
+    "start": 5531.1,
+    "end": 5558.5,
+    "confidence": 0.0,
+    "reason": "Debate about interracial pairings, no ads",
+    "end_text": "white dads and Asian moms"
+  },
+  {
+    "start": 5559.0,
+    "end": 5565.9,
+    "confidence": 0.0,
+    "reason": "Continuation of debate, no ads",
+    "end_text": "professional agent to pull"
+  },
+  {
+    "start": 5567.2,
+    "end": 5590.0,
+    "confidence": 0.0,
+    "reason": "Stereotype discussion, no ads",
+    "end_text": "y'all foot first"
+  },
+  {
+    "start": 5592.6,
+    "end": 5620.2,
+    "confidence": 0.0,
+    "reason": "Dating preferences conversation, no ads",
+    "end_text": "I love an English accent"
+  },
+  {
+    "start": 5626.9,
+    "end": 5646.8,
+    "confidence": 0.0,
+    "reason": "Discussion of old stereotypes, no ads",
+    "end_text": "I'm really asking why"
+  },
+  {
+    "start": 5648.2,
+    "end": 5676.2,
+    "confidence": 0.0,
+    "reason": "Humorous exchange, no ads",
+    "end_text": "that shit don't work out"
+  },
+  {
+    "start": 5676.9,
+    "end": 5701.0,
+    "confidence": 0.0,
+    "reason": "Transition to Met Gala topic, no ads",
+    "end_text": "he is... Let's hear"
+  },
+  {
+    "start": 5702.4,
+    "end": 5730.3,
+    "confidence": 0.0,
+    "reason": "Jennifer Lewis quote, no ads",
+    "end_text": "hoping to be the most?"
+  },
+  {
+    "start": 5735.1,
+    "end": 5758.1,
+    "confidence": 0.0,
+    "reason": "Continuation of quote, no ads",
+    "end_text": "We're at war"
+  },
+  {
+    "start": 5760.0,
+    "end": 5788.5,
+    "confidence": 0.0,
+    "reason": "Charlamagne discussing Met Gala sponsorship, no ads",
+    "end_text": "one-off thing. So, yeah"
+  },
+  {
+    "start": 5789.0,
+    "end": 5815.9,
+    "confidence": 0.0,
+    "reason": "Discussion of boycotting Bezos, no ads",
+    "end_text": "Amazon Studios, MGM Studios"
+  },
+  {
+    "start": 5816.8,
+    "end": 5842.6,
+    "confidence": 0.0,
+    "reason": "Inconsistency of taking stands, no ads",
+    "end_text": "y'all partaking? Like"
+  },
+  {
+    "start": 5843.4,
+    "end": 5870.9,
+    "confidence": 0.0,
+    "reason": "Shift to cancel culture discussion, no ads",
+    "end_text": "a whole other conversation"
+  },
+  {
+    "start": 5871.4,
+    "end": 5900.1,
+    "confidence": 0.0,
+    "reason": "Killer Mike and Elon Musk discussion, no ads",
+    "end_text": "say might have unintentionally"
+  },
+  {
+    "start": 5900.4,
+    "end": 5925.5,
+    "confidence": 0.0,
+    "reason": "Continuation of platform discussion, no ads",
+    "end_text": "smoke for each other"
+  },
+  {
+    "start": 5925.8,
+    "end": 5948.0,
+    "confidence": 0.0,
+    "reason": "Tech leaders and Trump, no ads",
+    "end_text": "inauguration if you don't"
+  },
+  {
+    "start": 5949.1,
+    "end": 5976.4,
+    "confidence": 0.0,
+    "reason": "Elon Musk's impact discussion, no ads",
+    "end_text": "wrecking shit. Like"
+  },
+  {
+    "start": 5976.6,
+    "end": 5989.3,
+    "confidence": 0.0,
+    "reason": "Job losses discussion, no ads",
+    "end_text": "Because of Doge. Yeah"
+  },
+  {
+    "start": 5990.0,
+    "end": 6009.7,
+    "confidence": 0.0,
+    "reason": "Killer Mike and Kamala Harris, no ads",
+    "end_text": "on his podcast, Conversate"
+  },
+  {
+    "start": 6010.6,
+    "end": 6037.5,
+    "confidence": 0.0,
+    "reason": "Continuation of Killer Mike story, no ads",
+    "end_text": "in Georgia. But her team"
+  },
+  {
+    "start": 6038.0,
+    "end": 6060.2,
+    "confidence": 0.0,
+    "reason": "Democratic Party and Georgia, no ads",
+    "end_text": "they needed to lean into"
+  }
+]

@@ -1,0 +1,7 @@
+{
+    "start": 4602.8,
+    "end": 4774.2,
+    "confidence": 0.95,
+    "reason": "Host discussing Met Gala, celebrity interviews, and personal experiences without promotional content",
+    "end_text": "stop and get off"
+  }

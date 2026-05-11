@@ -1,0 +1,37 @@
+[
+    {
+        "start": 3976.0,
+        "end": 4036.0,
+        "confidence": 0.99,
+        "reason": "Mint Mobile sponsor read with promotional URL and call to action",
+        "end_text": "premium wireless for $15 bucks a month"
+    },
+    {
+        "start": 4036.0,
+        "end": 4080.0,
+        "confidence": 0.99,
+        "reason": "Aura Frames sponsor read with promotional URL and promo code",
+        "end_text": "Promo Code TIM"
+    },
+    {
+        "start": 4080.0,
+        "end": 4120.0,
+        "confidence": 0.99,
+        "reason": "Morgan & Morgan sponsor read with promotional URL and call to action",
+        "end_text": "Fee is FREE Unless they Win"
+    },
+    {
+        "start": 4120.0,
+        "end": 4160.0,
+        "confidence": 0.99,
+        "reason": "Stash sponsor read with promotional URL and call to action",
+        "end_text": "Takes Just 2 Minutes"
+    },
+    {
+        "start": 4160.0,
+        "end": 4200.0,
+        "confidence": 0.99,
+        "reason": "Neuro Gum sponsor read with promotional URL and promo code",
+        "end_text": "20% OFF Your First Order"
+    }
+]

@@ -1,0 +1,1 @@
+{ "start": 2085.5, "end": 2700.0, "confidence": 0.95, "reason": "No explicit ads found, but discussion of GLP-1s and iPads for toddlers", "end_text": "my toddler's stomach exploded" }

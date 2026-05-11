@@ -1,0 +1,1 @@
+{"start": 2208.3, "end": 2237.2, "confidence": 0.95, "reason": "Blinds.com host-read sponsor segment offering up to 45% off with promotional language and disclaimer", "end_text": "rules and restrictions apply"}

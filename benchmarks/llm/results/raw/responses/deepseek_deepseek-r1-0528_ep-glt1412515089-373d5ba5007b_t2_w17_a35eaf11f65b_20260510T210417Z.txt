@@ -1,0 +1,30 @@
+[
+  {
+    "start": 7131.4,
+    "end": 7155.5,
+    "confidence": 0.95,
+    "reason": "Host-read sponsor segment for Perplexity",
+    "end_text": "ask Perplexity anything at"
+  },
+  {
+    "start": 7156.1,
+    "end": 7182.4,
+    "confidence": 0.95,
+    "reason": "Host-read sponsor segment for Perplexity",
+    "end_text": "https://pplx.ai/rogan"
+  },
+  {
+    "start": 7183.4,
+    "end": 7211.0,
+    "confidence": 0.95,
+    "reason": "Host-read sponsor segment for Perplexity",
+    "end_text": "Learn more about your"
+  },
+  {
+    "start": 7213.3,
+    "end": 7239.1,
+    "confidence": 0.95,
+    "reason": "Host-read sponsor segment for Perplexity",
+    "end_text": "ad choices. Visit podcastchoices.com/adchoices"
+  }
+]

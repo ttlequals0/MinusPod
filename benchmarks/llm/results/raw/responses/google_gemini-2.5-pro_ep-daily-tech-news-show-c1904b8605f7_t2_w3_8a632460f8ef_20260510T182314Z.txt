@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1718.3,
+    "end": 1799.6,
+    "confidence": 0.99,
+    "reason": "A merged ad break containing a self-promo for the DTNS store, a sponsor read for Capital One, and a cross-promotion for the Lemonada Media podcast 'Good Things'.",
+    "end_text": "the six-part Thrive series."
+  }
+]

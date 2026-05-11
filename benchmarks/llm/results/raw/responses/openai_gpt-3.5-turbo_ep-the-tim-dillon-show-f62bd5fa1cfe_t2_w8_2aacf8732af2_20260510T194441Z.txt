@@ -1,0 +1,8 @@
+
+{
+	"start": 3360.3,
+	"end": 3425.1,
+	"confidence": 0.95,
+	"reason": "Multiple sponsor mentions - Mint Mobile, Aura Frames, Morgan & Morgan, Stash, Neuro Gum",
+	"end_text": "Go to https://stash.com/mood To Check Today’s Market Mood - It’s FREE And Takes Just 2 Minutes!"
+}

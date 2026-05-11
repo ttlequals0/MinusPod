@@ -1,0 +1,7 @@
+{
+  "start": 1439.2,
+  "end": 1489.6,
+  "confidence": 0.98,
+  "reason": "Mint Mobile sponsor read",
+  "end_text": "mintmobile.com slash Tim Dillon"
+}

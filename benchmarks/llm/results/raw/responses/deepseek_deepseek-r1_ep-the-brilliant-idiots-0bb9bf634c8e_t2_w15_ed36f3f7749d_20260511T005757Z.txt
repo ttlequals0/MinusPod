@@ -1,0 +1,7 @@
+[{
+    "start": 6390.2,
+    "end": 6419.1,
+    "confidence": 0.95,
+    "reason": "Host-read BlueChew promotion with product discussion and usage context",
+    "end_text": "Why was you giving her Blue Chew?"
+}]

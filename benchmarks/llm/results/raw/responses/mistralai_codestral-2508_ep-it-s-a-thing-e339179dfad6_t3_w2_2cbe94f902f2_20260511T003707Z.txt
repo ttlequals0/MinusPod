@@ -1,0 +1,1 @@
+[{"start": 1061.8, "end": 1183.4, "confidence": 0.95, "reason": "Network-inserted retail ads for Lowe's, Home Depot, Walmart, and Target", "end_text": "Definitely a thing they're trying to pull off"}]

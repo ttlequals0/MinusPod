@@ -1,0 +1,7 @@
+{
+  "start": 7138.1,
+  "end": 7320.0,
+  "confidence": 0.95,
+  "reason": "Zscaler sponsor read, continues in next",
+  "end_text": "an eloquent hamster is going to respond"
+}

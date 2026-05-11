@@ -1,0 +1,1 @@
+{"data":[{"start":0.5,"end":43.4,"confidence":0.97,"reason":"Produced Carvana commercial with promotional language and call to action","end_text":"Pickup fees may apply"}]}

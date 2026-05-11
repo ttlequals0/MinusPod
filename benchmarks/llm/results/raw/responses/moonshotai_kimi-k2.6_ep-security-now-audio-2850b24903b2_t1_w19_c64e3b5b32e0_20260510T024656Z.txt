@@ -1,0 +1,1 @@
+{"start": 7959.9, "end": 8599.9, "confidence": 0.0, "reason": "No promotional content detected in transcript window. All text is editorial discussion of Google's Chrome AI API, Mozilla's objections, and host commentary on web standards and search advertising.", "end_text": "continually being offered the opportunity"}

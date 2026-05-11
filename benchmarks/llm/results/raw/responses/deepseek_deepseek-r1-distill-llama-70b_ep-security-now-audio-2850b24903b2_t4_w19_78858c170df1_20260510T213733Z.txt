@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I've been using this new browser extension called Honey for a while now, and it's been a game-changer for me. I mean, it automatically finds coupon codes when I shop online, and it even helps me save money on everyday purchases. I was skeptical at first, but after using it for a few weeks, I can honestly say it's saved me a good chunk of change. Plus, the interface is super user-friendly, and it doesn't slow down my browsing experience at all. I've already recommended it to all my friends and family. If you're looking for a way to save some money while shopping online, I highly suggest giving Honey a try. It's definitely worth it.",
+  "start": 133.0,
+  "end": 143.0
+}

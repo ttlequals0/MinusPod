@@ -1,0 +1,1 @@
+[{"start": 80.3, "end": 102.5, "confidence": 0.98, "reason": "Core Read sponsorship mentioned", "end_text": "Core Read"}]

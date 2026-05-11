@@ -1,0 +1,30 @@
+[
+    {
+        "start": 0.0,
+        "end": 23.1,
+        "confidence": 0.99,
+        "reason": "Capital One sponsor read with product pitch, self-reflection, and layered reasoning language",
+        "end_text": "technology at Capital One."
+    },
+    {
+        "start": 23.6,
+        "end": 52.3,
+        "confidence": 0.98,
+        "reason": "Xero accounting platform sponsor read with promotional language, product features, and call to action",
+        "end_text": "search XERO for your free trial."
+    },
+    {
+        "start": 52.5,
+        "end": 100.9,
+        "confidence": 0.97,
+        "reason": "Spectrum Business sponsor read with fiber-powered internet pitch, three-year price guarantee, and bundling offers",
+        "end_text": "mobile services when you can bundle."
+    },
+    {
+        "start": 124.0,
+        "end": 152.9,
+        "confidence": 0.98,
+        "reason": "Warby Parker sponsor read with prescription glasses, sunglasses, eye exams, and vanity URL (warbyparker.com)",
+        "end_text": "visit warbyparker.com today."
+    }
+]

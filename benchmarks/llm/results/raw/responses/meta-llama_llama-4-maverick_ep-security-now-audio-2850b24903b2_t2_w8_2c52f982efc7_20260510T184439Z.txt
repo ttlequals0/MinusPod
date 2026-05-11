@@ -1,0 +1,1 @@
+{"start": 3783.0, "end": 3944.0, "confidence": 0.0, "reason": "no ads found in this window", "end_text": "This would look like a system where disclosure is expected, not incentivized"}

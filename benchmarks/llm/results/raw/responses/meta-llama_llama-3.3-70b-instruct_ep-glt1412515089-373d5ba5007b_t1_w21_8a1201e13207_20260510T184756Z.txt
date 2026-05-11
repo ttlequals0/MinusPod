@@ -1,0 +1,1 @@
+{"start": 8797.7, "end": 8822.5, "confidence": 0.0, "reason": "no ad content", "end_text": "lines. Yeah, but the problem is they were doing these..."}

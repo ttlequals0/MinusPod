@@ -1,0 +1,7 @@
+{
+  "start": 476.3,
+  "end": 504.0,
+  "confidence": 0.8,
+  "reason": "Host transition to break",
+  "end_text": "to and what are you seeing in the industry?"
+}

@@ -1,0 +1,23 @@
+[
+  {
+    "start": 3358.6,
+    "end": 3376.2,
+    "confidence": 0.95,
+    "reason": "Host transition to ad break",
+    "end_text": "Thank you for watching"
+  },
+  {
+    "start": 3781.2,
+    "end": 3783.0,
+    "confidence": 0.9,
+    "reason": "Host interruption for sponsor mention",
+    "end_text": "I have a theory"
+  },
+  {
+    "start": 3879.8,
+    "end": 3890.3,
+    "confidence": 0.95,
+    "reason": "Host transition back from break",
+    "end_text": "Thank you for watching"
+  }
+]

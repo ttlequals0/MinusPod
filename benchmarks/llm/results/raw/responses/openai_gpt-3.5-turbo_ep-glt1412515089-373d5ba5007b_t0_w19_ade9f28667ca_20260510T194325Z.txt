@@ -1,0 +1,7 @@
+{
+	"start": 8242.2,
+	"end": 8270.6,
+	"confidence": 1,
+	"reason": "Perplexity app promotion",
+	"end_text": "I'm reading Diana Posalka's book, American Cosmic, she talks about finding these artifacts and how she's not even sure she believes in them, and I totally get it, I think I would feel the same way, but then there's this other side to it that's not artifactual, it's about consciousness, it's about some kind of mystical awareness. You can also do acupuncture that way."
+}

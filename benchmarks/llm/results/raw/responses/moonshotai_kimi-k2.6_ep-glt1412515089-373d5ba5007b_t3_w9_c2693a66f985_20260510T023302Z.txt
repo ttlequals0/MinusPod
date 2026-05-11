@@ -1,0 +1,1 @@
+{"start": 3780.0, "end": 4380.0, "confidence": 0.0, "reason": "No promotional content detected in this window", "end_text": "N/A"}

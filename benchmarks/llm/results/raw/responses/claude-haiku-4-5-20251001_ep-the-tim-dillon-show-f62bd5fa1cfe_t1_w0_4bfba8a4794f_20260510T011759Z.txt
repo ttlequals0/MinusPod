@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 0.0,
+    "end": 27.7,
+    "confidence": 0.92,
+    "reason": "Colgate Women's Games brand tagline ad - network-inserted retail/consumer brand spot with concentrated marketing language about female athletes and brand positioning",
+    "end_text": "longest-running indoor track and field series"
+  }
+]
+```

@@ -1,0 +1,23 @@
+[
+{
+  "start": 0.0,
+   "end": 140.0,
+   "confidence": 0.0,
+   "reason": "No ads found in this window",
+   "end_text": ""
+},
+{
+   "start": 140.0,
+   "end": 150.0,
+   "confidence": 0.95,
+   "reason": "Club TWiT ad",
+   "end_text": "ad-free audio and video feeds"
+},
+{
+   "start": 150.0,
+   "end": 9000.0,
+   "confidence": 0.95,
+   "reason": "Multiple sponsor ads",
+   "end_text": "securitynow365"
+}
+]

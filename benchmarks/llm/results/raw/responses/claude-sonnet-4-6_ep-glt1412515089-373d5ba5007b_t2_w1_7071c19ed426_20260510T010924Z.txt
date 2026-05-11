@@ -1,0 +1,3 @@
+```json
+[{"start": 539.2, "end": 652.8, "confidence": 0.98, "reason": "Two back-to-back host-read sponsor segments: 'In the Gray' movie promotion and Skechers slip-ins product pitch with URL", "end_text": "only at Skechers.com"}]
+```

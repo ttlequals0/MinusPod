@@ -1,0 +1,48 @@
+[
+
+[
+  {
+    "start": 3107.1,
+    "end": 3134.3,
+    "confidence": 0.98,
+    "reason": "Morgan & Morgan sponsor read with promo code and call to action",
+    "end_text": "Morgan & Morgan!"
+  },
+  {
+    "start": 3135.6,
+    "end": 3160.8,
+    "confidence": 0.97,
+    "reason": "Stash sponsor read with promo code and call to action",
+    "end_text": "stash.com slash mood"
+  },
+  {
+    "start": 3161.8,
+    "end": 3188.1,
+    "confidence": 0.97,
+    "reason": "Stash continues with detailed product pitch",
+    "end_text": "daily answer"
+  },
+  {
+    "start": 3188.7,
+    "end": 3208.0,
+    "confidence": 0.97,
+    "reason": "Stash promo code and call to action",
+    "end_text": "stash.com slash mood"
+  },
+  {
+    "start": 3209.1,
+    "end": 3234.2,
+    "confidence": 0.98,
+    "reason": "NeuroGum sponsor read with promo code and call to action",
+    "end_text": "NeuroGum.com"
+  },
+  {
+    "start": 3236.0,
+    "end": 3261.6,
+    "confidence": 0.97,
+    "reason": "NeuroGum product details and benefits",
+    "end_text": "without pills"
+  }
+]
+
+]

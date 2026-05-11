@@ -1,0 +1,1 @@
+[{"start": 3079.6, "end": 3270.1, "confidence": 0.98, "reason": "Ad block: Morgan & Morgan, Stash, and NeuroGum sponsor reads", "end_text": "CVS and Amazon"}]

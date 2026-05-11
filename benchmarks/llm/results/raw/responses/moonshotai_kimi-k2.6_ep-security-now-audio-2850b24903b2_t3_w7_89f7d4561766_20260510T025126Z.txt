@@ -1,0 +1,1 @@
+{"start": 2936.4, "end": 2961.9, "confidence": 0.1, "reason": "Non-promotional sign-off phrase, not an ad", "end_text": "Thank you for watching."}

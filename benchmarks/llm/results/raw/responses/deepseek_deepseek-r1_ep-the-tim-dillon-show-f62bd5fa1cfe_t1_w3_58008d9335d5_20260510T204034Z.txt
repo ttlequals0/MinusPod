@@ -1,0 +1,30 @@
+[
+  {
+    "start": 1439.2,
+    "end": 1512.6,
+    "confidence": 0.99,
+    "reason": "Mint Mobile host-read ad with URL mintmobile.com/TIMDILLON and pricing details",
+    "end_text": "see Mint Mobile for details"
+  },
+  {
+    "start": 1514.6,
+    "end": 1564.4,
+    "confidence": 0.99,
+    "reason": "Aura Frames host-read ad with promo code TIM and URL AuraFrames.com",
+    "end_text": "promo code TIM"
+  },
+  {
+    "start": 1578.3,
+    "end": 1629.5,
+    "confidence": 0.95,
+    "reason": "Colgate network-inserted brand ad with product messaging",
+    "end_text": "your smile is your strength"
+  },
+  {
+    "start": 1637.6,
+    "end": 1665.9,
+    "confidence": 0.95,
+    "reason": "Skinny Pop network-inserted brand ad with product description",
+    "end_text": "Skinny Pop just makes sense"
+  }
+]

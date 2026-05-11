@@ -1,0 +1,1 @@
+[{"start": 1453.0, "end": 1475.0, "confidence": 0.95, "reason": "Perplexity app promotion", "end_text": "https://pplx.ai/rogan"}, {"start": 1475.5, "end": 1485.0, "confidence": 0.95, "reason": "Podcast ad choices information", "end_text": "podcastchoices.com/adchoices"}]

@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 0.0,
+      "end": 27.7,
+      "confidence": 0.95,
+      "reason": "Colgate brand tagline ad with promotional language about Colgate Women's Games and 'your smile is your strength'",
+      "end_text": "for girls and women"
+    }
+  ]
+}

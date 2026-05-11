@@ -1,0 +1,1 @@
+{"type": "function", "name": "ad_identification", "parameters": {"transcript": "Security Now episode SN 1077 transcript", "start_time": 6699.7, "end_time": 7321.9}}

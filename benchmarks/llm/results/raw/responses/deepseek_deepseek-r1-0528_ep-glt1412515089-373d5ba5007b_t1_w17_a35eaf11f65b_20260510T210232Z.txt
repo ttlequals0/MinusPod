@@ -1,0 +1,9 @@
+[
+  {
+    "start": 7131.4,
+    "end": 7756.0,
+    "confidence": 0.95,
+    "reason": "No ad segments detected in the provided transcript",
+    "end_text": "they're solving the same problem."
+  }
+]

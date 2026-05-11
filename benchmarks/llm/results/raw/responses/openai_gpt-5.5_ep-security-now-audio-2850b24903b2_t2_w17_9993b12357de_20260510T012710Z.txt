@@ -1,0 +1,1 @@
+{"start":7537.6,"end":7740.0,"confidence":0.99,"reason":"Trusted Tech sponsor read for Microsoft 365 licensing; includes break transition and promotional language/CTA-style sponsor pitch; continues in next window","end_text":"You will be too."}

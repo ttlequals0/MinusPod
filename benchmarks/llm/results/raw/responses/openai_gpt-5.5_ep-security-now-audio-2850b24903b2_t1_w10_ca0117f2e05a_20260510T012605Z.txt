@@ -1,0 +1,1 @@
+{"start":4204.1,"end":4465.7,"confidence":0.99,"reason":"Bitwarden sponsor read following break transition; includes promotional language for password/passkey/secrets management and CTA URL bitwarden.com/twit","end_text":"Okay. No more singing. Back to Steve."}

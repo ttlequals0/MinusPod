@@ -1,0 +1,1 @@
+{"start": 4296.0, "end": 4323.9, "confidence": 0.85, "reason": "Jess Hilarious 'Til Death Do We Parent' book sponsor read with call to action to purchase", "end_text": "available everywhere"}

@@ -1,0 +1,1 @@
+{"start":2246.0,"end":2314.4,"confidence":0.99,"reason":"Two back-to-back platform-inserted ads merged into one break: Capital One brand ad ('This episode is brought to you by Capital One') followed by Rinse ad with call to action ('Sign up at Rinse.com')","end_text":"Rinse. It's time to be great."}

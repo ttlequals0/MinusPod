@@ -1,0 +1,1 @@
+{"start": 4324.2, "end": 4334.1, "confidence": 0.8, "reason": "Charlamagne promoting his tennis event and new show", "end_text": "get your ticket there"}

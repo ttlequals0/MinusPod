@@ -1,0 +1,1 @@
+{"start": 3079.6, "end": 3134.3, "confidence": 0.99, "reason": "Morgan & Morgan host-read ad with promotional claims, URL, call to action, and explicit 'paid advertisement'; continues in next window into Stash ad", "end_text": "Stash is the one. Stash is the one."}

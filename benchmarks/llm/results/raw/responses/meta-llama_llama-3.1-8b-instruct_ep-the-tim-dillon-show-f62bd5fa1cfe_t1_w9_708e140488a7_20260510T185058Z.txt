@@ -1,0 +1,1 @@
+{ "start": 3774.5, "end": 4002.7, "confidence": 0.95, "reason": "Mint Mobile ad read", "end_text": "get 3 months of premium wireless" }

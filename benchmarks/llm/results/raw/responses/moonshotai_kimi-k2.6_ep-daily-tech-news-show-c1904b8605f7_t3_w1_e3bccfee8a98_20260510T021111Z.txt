@@ -1,0 +1,1 @@
+{"start": 821.4, "end": 1021.1, "confidence": 0.99, "reason": "Multi-sponsor ad block: Capital One, BetterHelp, Amazon Health AI, Spectrum Business, and Rinse with host transitions; gaps between spots are <15 seconds", "end_text": "It's time to be great."}

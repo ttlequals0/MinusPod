@@ -1,0 +1,1 @@
+[{"start": 7173.7, "end": 7196.8, "confidence": 0.98, "reason": "Netflix host-read sponsor", "end_text": "Netflix's Remarkably Bright Creatures"}]

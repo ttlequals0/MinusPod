@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 539.2,
+      "end": 624.5,
+      "confidence": 1.0,
+      "reason": "Host-read sponsor segments for 'In the Gray' movie and Skechers",
+      "end_text": "sandals, sneakers,"
+    }
+  ]
+}

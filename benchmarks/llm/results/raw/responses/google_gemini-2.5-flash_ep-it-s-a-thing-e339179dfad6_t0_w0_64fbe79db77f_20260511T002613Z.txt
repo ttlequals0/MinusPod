@@ -1,0 +1,51 @@
+[
+  {
+    "start": 1.6,
+    "end": 7.0,
+    "confidence": 0.99,
+    "reason": "Acast platform ad",
+    "end_text": "we recommend."
+  },
+  {
+    "start": 10.4,
+    "end": 37.6,
+    "confidence": 0.99,
+    "reason": "Podcast cross-promotion (Wrong Turns)",
+    "end_text": "goes to die."
+  },
+  {
+    "start": 40.8,
+    "end": 51.9,
+    "confidence": 0.99,
+    "reason": "Acast platform ad",
+    "end_text": "also like Formative."
+  },
+  {
+    "start": 52.4,
+    "end": 77.2,
+    "confidence": 0.99,
+    "reason": "Podcast cross-promotion (Formative)",
+    "end_text": "leaders of tomorrow."
+  },
+  {
+    "start": 140.0,
+    "end": 145.2,
+    "confidence": 0.95,
+    "reason": "Merch shop promotion",
+    "end_text": "collaborated on."
+  },
+  {
+    "start": 146.5,
+    "end": 166.4,
+    "confidence": 0.95,
+    "reason": "Merch shop and Patreon promotion",
+    "end_text": "in the cooker."
+  },
+  {
+    "start": 220.0,
+    "end": 224.0,
+    "confidence": 0.95,
+    "reason": "Patreon promotion",
+    "end_text": "itsathing,"
+  }
+]

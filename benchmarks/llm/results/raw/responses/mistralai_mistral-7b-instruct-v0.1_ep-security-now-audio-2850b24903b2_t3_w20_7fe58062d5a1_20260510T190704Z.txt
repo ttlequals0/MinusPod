@@ -1,0 +1,7 @@
+ [140.0s - 145.5s] Ad segment:
+<p>Let's take a break and hear from our sponsors. First up, <a href="https://www.datadoghq.com/signup/?utm_source=securitynow&utm_medium=podcast">Datadog</a>. Datadog is the monitoring and security platform for cloud-scale infrastructure, applications, and logs. With Datadog, you can monitor all of your systems, services, and tools in one place. Datadog's monitoring is built for and trusted by the world's most security-conscious organizations. Try Datadog free for 14 days and get a free Datadog T-shirt if you deploy Datadog in your environment. Go to <a href="https://www.datadoghq.com/signup/?utm_source=securitynow&utm_medium=podcast">datadog.com/securitynow</a> and sign up today.</p>
+
+[145.5s - 150.0s] Ad segment:
+<p>Next up, <a href="https://www.cloudflare.com/">Cloudflare</a>. Cloudflare is a security, performance, and reliability company. They protect and accelerate any Internet application online without adding hardware or complex configurations. Cloudflare powers more than 10 trillion requests per day, making the Internet faster, safer, and more reliable. Go to <a href="https://www.cloudflare.com/en-us/signup">cloudflare.com</a> to learn more.</p>
+
+[Note: There are no ads in the given window if the transcript is not complete or if the detection rules need to be adjusted.]

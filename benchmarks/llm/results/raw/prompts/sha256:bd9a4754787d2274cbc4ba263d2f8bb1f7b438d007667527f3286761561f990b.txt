@@ -1,0 +1,60 @@
+Podcast: security-now-audio
+Episode: SN 1077: A Browser AI API? - End of Bug Bounties?
+
+
+Episode description: <p>Google is sneaking a massive 4.7GB AI model into Chrome, and Mozilla is fighting back as the future of browsers threatens to turn into an AI arms race. Find out what's really happening behind this push and why it's setting off alarm bells across the web.</p><ul> 
+<li>Hackers AI-code a portal, forget to add authentication.</li> 
+<li>The UK's NCSC issues a Mythos warning. Where's CISA?</li> 
+<li>Another (of many) Linux local privilege escalations.</li> 
+<li>AI may be spelling the end of bug bounties.</li> 
+<li>Anthropic releases "Claude Security" mini-Mythos.</li> 
+<li>ChatGPT gets very serious about login security.</li> 
+<li>Syncthing's SyncTrayzor v1 abandoned; v2 created.</li> 
+<li>Google drops an AI API into Chrome; Mozilla objects</li></ul> 
+<p>Show Notes - <a href="https://www.grc.com/sn/SN-1077-Notes.pdf">https://www.grc.com/sn/SN-1077-Notes.pdf</a></p> 
+<p><strong>Hosts:</strong> <a href="https://twit.tv/people/steve-gibson">Steve Gibson</a> and <a href="https://twit.tv/people/leo-laporte">Leo Laporte</a></p> 
+<p>Download or subscribe to <em>Security Now</em> at <a href="https://twit.tv/shows/security-now">https://twit.tv/shows/security-now</a>.</p> 
+<p>You can submit a question to <em>Security Now</em> at the <a href="https://www.grc.com/feedback.htm" target="_blank">GRC Feedback Page</a>.</p> 
+<p>For 16kbps versions, transcripts, and notes (including fixes), visit Steve's site: <a href="https://www.grc.com/securitynow.htm" target="_blank">grc.com</a>, also the home of the best disk maintenance and recovery utility ever written <a href="https://www.grc.com/sr/spinrite.htm" target="_blank">Spinrite 6</a>.</p> 
+<p><strong>Join Club TWiT for Ad-Free Podcasts!</strong><br /> 
+Support what you love and get ad-free audio <em>and</em> video feeds, a members-only Discord, and exclusive content. Join today: <a href="https://twit.tv/clubtwit" rel="payment">https://twit.tv/clubtwit</a></p>
+<p><strong>Sponsors:</strong><ul>
+<li><a href="http://zscaler.com/security" rel="sponsored" target="_blank">zscaler.com/security</a></li>
+<li><a href="http://meter.com/securitynow" rel="sponsored" target="_blank">meter.com/securitynow</a></li>
+<li><a href="http://bitwarden.com/twit" rel="sponsored" target="_blank">bitwarden.com/twit</a></li>
+<li><a href="http://hoxhunt.com/securitynow" rel="sponsored" target="_blank">hoxhunt.com/securitynow</a></li>
+<li><a href="http://trustedtech.team/securitynow365" rel="sponsored" target="_blank">trustedtech.team/securitynow365</a></li>
+</ul></p>
+
+Transcript:
+[3358.6s - 3376.2s] Thank you for watching.
+[3382.8s - 3410.7s] We are seeing this play out in practice. There are three types of report submitters. There are those companies that use a new approach for legitimate reports. These are reports that use layered AI approaches that combine the strengths of multiple AI models, guardrails, orchestration, and context, such as Akito's own AI pen testing capabilities.
+[3411.7s - 3438.3s] And Aikido is, of course, plugging their own solution, as we would expect them to on their own website. But we know that Anthropic also set up their Mythos preview system to do the same. Both are discovering, and importantly, verifying suspected vulnerabilities to produce much higher quality reports, which, in the case of Mythos, include proofs of concepts of exploits. Aikido continues.
+[3440.3s - 3467.6s] enumerating these three classes of bug sources. So they said, then there are individuals who escalate their research and report writing using AI as a tool. And finally, there are individuals who are able to upskill by virtue of these AI models. They generate reports that seem technically plausible, but are still completely wrong.
+[3468.1s - 3488.9s] Daniel described it perfectly, and this is where we quoted him earlier saying, more convincing crap is worse than obvious crap. They said you can't dismiss it quickly, you must investigate it, right, because it looks real, and then you waste real time getting to the proof that it's nonsense.
+[3489.7s - 3518.3s] At scale, this stops feeling like a helpful external contribution model and starts to resemble something closer to a denial of service attack on the people responsible for security. And the impact, they write, has been truly devastating. The internet bug bounty program paused all new submissions because AI has dramatically increased discovery volume beyond what their maintainers can handle.
+[3518.6s - 3545.1s] Node.js lost its bounty when funding disappeared. The reports still come in, but the payouts are gone. And Curl removed financial rewards after being flooded with AI-generated reports. Casey emphasized that this isn't a new problem, it's an old one, just massively accelerated. He said, we're doing stupid things faster with more energy.
+[3546.3s - 3567.2s] Bug Bounty, they write, has always had an issue with being a level playing field. One person submits a report and another person has to validate it. That sounds equal on paper, but in practice, it has always been difficult for one person to keep up with validation even before AI existed. Now...
+[3567.4s - 3590.0s] It's practically impossible. We're now in a world where anyone can generate dozens of reports, make them appear credible and submit them instantly. On the receiving end, however, the constraints have not changed. It's still humans reviewing, triaging and making decisions. Open source has been the first to feel this impact.
+[3590.5s - 3614.8s] Open source is where the pressure has shown up first, largely because it was already operating close to its limits. Most projects are maintained by small teams, often volunteers with limited time and resources, yet they underpin massive portions of the web. Of course, we all think of that XKCD cartoon, right, with a little tiny block that's holding up this whole, you know, creaky infrastructure.
+[3615.5s - 3642.3s] They said, add financial incentives, global participation, and now, AI generated submissions, and the system is quickly overwhelmed. The Internet Bug Bounty Program said it directly, quote, AI-assisted discovery has shifted the balance between findings and remediation capability. Translation, we're finding more bugs than we're able to handle.
+[3642.8s - 3661.6s] So now the bounty is gone, and yet the expectation of reporting remains. But the question is, is the way bug bounty programs have been used to effectively scale security teams and improve security posture still viable without financial incentives?
+[3662.8s - 3685.3s] Bug Crowd's founder, Casey Ellis, doesn't necessarily believe so. Every organization should have a vulnerability disclosure program because if you're on the internet, people will find issues, but not every organization is in a position to run a public reward-driven bounty program. In Casey's words, curl.
+[3685.8s - 3710.2s] likely should not have had one to begin with. Casey said, I don't think every organization should run a bounty program. The Curl program should not have been a bounty program in the first place, unquote. And yet, Daniel's experience shows something more nuanced. Daniel views the bounty program as a success because it incentivized real scrutiny of the code.
+[3710.7s - 3719.1s] He said, quote, I've always thought about it as a success because it's a great way to actually encourage people to scrutinize the code.
+[3720.7s - 3746.4s] So what happens when you remove financial incentives? You'd assume that when you remove financial incentives, you'd get rid of AI slop, but that you'd also reduce the likelihood of genuine vulnerabilities being disclosed. However, when Curl removed the financial incentives, something interesting happened.
+[3749.1s - 3775.5s] AI-generated noise largely disappeared. Daniel said, quote, We have stopped getting AI slop security reports. Instead, we get an ever-increasing amount of really good security reports submitted in a never-before-seen frequency, which put us under serious load, unquote.
+[3776.4s - 3781.2s] Okay, so I'm going to interrupt here to mention that I have a theory about why that is.
+[3783.0s - 3806.8s] Back when discovering vulnerabilities required long hours of painstaking, grueling work to step through and reverse engineer code, it was no fun. The only motivation, and it needed to be significant, was the promise of a big pot of gold payout at the end of that tunnel.
+[3807.6s - 3835.8s] AI-driven vulnerability discovery has changed that. Today, AI makes bugs both fun and easy to find. It allows less skilled users to participate, thus broadening the bug hunter base. And there are plenty of people who would sincerely like to give back and contribute. Until now, they haven't been able to.
+[3836.4s - 3861.9s] But now they have the means. They don't need a monetary incentive. They truly want to help. I think it makes sense. Aikido continues with their report, writing, Instead of drowning in low-quality reports, maintainers are now dealing with a high volume of genuinely useful findings, many of which are powered by AI-assisted research.
+[3862.5s - 3879.8s] Thank you for watching.
+[3890.3s - 3915.5s] ways increase load on already constrained teams. So in a strange way, the system has not been relieved. It's been refined. And this is where it gets interesting because while this is painful in the short term, it might actually be a step in the right direction. By removing financial incentives, we strip away a large portion of the noise.
+[3916.2s - 3943.6s] What's left is a signal that is on average of higher quality, more intentional, and more aligned with actual security outcomes. AI is lowering the barrier for researchers to do meaningful work. It's enabling more people to find real issues faster than ever before. That combination, less noise, more signal, but still overwhelming volume.
+[3944.0s - 3972.0s] Suggests we're in a transition phase. The historical model is breaking under the pressure, but what's emerging underneath it might be better. This would look like a system where disclosure is expected, not incentivized. Rewards are more targeted, not broad. And the focus shifts from more reports to better outcomes. We're not there yet. Right now,
+[3954.0s - 3979.0s] This would look like a system where disclosure is expected, not incentivized, rewards are more targeted, not broad, and the focus shifts from more reports to better outcomes. We're not there yet. Right now, we're in the messy middle, where the old model no longer works and the new one hasn't fully formed yet.
+
+=== WINDOW 9/23: 56.0-66.0 minutes ===
+- Use absolute timestamps from transcript (as shown in brackets)
+- If an ad starts before this window, use the first timestamp with note "continues from previous"
+- If an ad extends past this window, use 3960.0 with note "continues in next"

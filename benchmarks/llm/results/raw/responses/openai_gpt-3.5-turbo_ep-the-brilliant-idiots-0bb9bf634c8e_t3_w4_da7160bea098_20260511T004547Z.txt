@@ -1,0 +1,8 @@
+
+{
+	"start": 1659.8,
+	"end": 1684.4,
+	"confidence": 1,
+	"reason": "Sponsor mention for Brilliant Idiots",
+	"end_text": "Learn more about your ad choices. Visit megaphone.fm/adchoices"
+}

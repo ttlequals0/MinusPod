@@ -1,0 +1,7 @@
+[
+
+{"start": 1742.3, "end": 1765.6, "confidence": 0.95, "reason": "DailyTechNewsShow.com store promotion with call to action", "end_text": "support the show"},
+{"start": 1766.0, "end": 1775.3, "confidence": 0.98, "reason": "Capital One sponsor read with product pitch", "end_text": "technology at Capital One"},
+{"start": 2276.2, "end": 2301.6, "confidence": 0.97, "reason": "Rinse laundry service promotion with call to action", "end_text": "relentless task"}
+
+]

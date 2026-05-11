@@ -1,0 +1,8 @@
+
+{
+	"start": 0.5,
+	"end": 16.8,
+	"confidence": 0.95,
+	"reason": "Carvana ad promoting selling cars easily",
+	"end_text": "Love ya. So good, you'll want to leave a voicemail about it. Sell your car today on Carvana."
+}

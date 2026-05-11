@@ -1,0 +1,23 @@
+[
+  {
+    "start": 0.0,
+    "end": 52.3,
+    "confidence": 0.98,
+    "reason": "Capital One and XERO host-read ads with product pitches and calls to action",
+    "end_text": "search XERO for your free trial"
+  },
+  {
+    "start": 52.5,
+    "end": 100.9,
+    "confidence": 0.97,
+    "reason": "Spectrum Business ad with fiber internet promotion and bundle savings offer",
+    "end_text": "you get support with 100%"
+  },
+  {
+    "start": 124.0,
+    "end": 152.9,
+    "confidence": 0.99,
+    "reason": "Warby Parker ad with product benefits, store promotion, and vanity URL (warbyparker.com)",
+    "end_text": "visit warbyparker.com today"
+  }
+]

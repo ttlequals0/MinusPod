@@ -1,0 +1,9 @@
+[
+  {
+    "start": 4296.0,
+    "end": 4361.4,
+    "confidence": 0.95,
+    "reason": "A series of host-read promotions for a book (Jess Hilarious), a tennis event (All Love Racquet Club), and a YouTube show (AM Mornings).",
+    "end_text": "See you guys there. Peace."
+  }
+]

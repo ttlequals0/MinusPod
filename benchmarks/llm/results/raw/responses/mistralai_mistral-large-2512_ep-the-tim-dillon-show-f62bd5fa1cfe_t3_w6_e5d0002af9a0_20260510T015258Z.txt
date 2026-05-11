@@ -1,0 +1,9 @@
+[
+    {
+        "start": 3107.1,
+        "end": 3134.3,
+        "confidence": 0.99,
+        "reason": "Morgan & Morgan host-read sponsor segment with promotional language, vanity URL (ForThePeople.com/Tim), and call to action (dial Poundlaw). Includes transition phrase and repeated URL.",
+        "end_text": "ForThePeople.com slash Tim, dial Poundlaw"
+    }
+]

@@ -1,0 +1,11 @@
+ [1425.7s - 1434.5s] This segment does not contain promotional language and is not an ad. It is a conversation between the hosts.
+
+[821.4s - 844.7s] This is an advertisement segment.
+
+Transition phrase: "This episode is brought to you by Capital One"
+
+Promotional content: "Capital One's tech team isn't just talking about multi-agentic AI. They already deployed one. It's called Chat Concierge and it's simplifying car shopping. Using self-reflection and layered reasoning with live API checks, it doesn't just help buyers find a car they love. It helps schedule a test drive, get pre-approved for financing, and even negotiate the price."
+
+Call to action: "Check it out at Capital One."
+
+Therefore, the advertisement segment is from 821.4s to 844.7s.

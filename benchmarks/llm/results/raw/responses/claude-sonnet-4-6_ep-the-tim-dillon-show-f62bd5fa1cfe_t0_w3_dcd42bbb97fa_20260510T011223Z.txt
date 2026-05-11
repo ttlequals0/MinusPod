@@ -1,0 +1,32 @@
+```json
+[
+  {
+    "start": 1439.2,
+    "end": 1512.6,
+    "confidence": 0.98,
+    "reason": "Mint Mobile host-read sponsor segment with promo URL mintmobile.com/TimDillon, price pitch, and call to action",
+    "end_text": "see Mint Mobile for details"
+  },
+  {
+    "start": 1512.6,
+    "end": 1576.1,
+    "confidence": 0.97,
+    "reason": "Aura Frames host-read sponsor segment with promo code TIM, $25 off offer, and URL AuraFrames.com",
+    "end_text": "AuraFrames.com slash Tim. Promo code TIM"
+  },
+  {
+    "start": 1578.3,
+    "end": 1629.5,
+    "confidence": 0.92,
+    "reason": "Colgate Women's Games network-inserted brand tagline ad with promotional messaging and brand positioning",
+    "end_text": "your smile is your strength"
+  },
+  {
+    "start": 1637.6,
+    "end": 1665.9,
+    "confidence": 0.93,
+    "reason": "Skinny Pop network-inserted brand tagline ad with product pitch and promotional language",
+    "end_text": "Deliciously popped, perfectly salted. Skinny Pop"
+  }
+]
+```

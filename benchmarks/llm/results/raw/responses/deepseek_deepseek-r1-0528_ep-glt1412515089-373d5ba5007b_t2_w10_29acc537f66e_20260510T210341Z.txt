@@ -1,0 +1,9 @@
+[
+    {
+        "start": 4525.1,
+        "end": 4800.0,
+        "confidence": 0.95,
+        "reason": "Host-read Perplexity sponsorship with URL and call to action",
+        "end_text": "podcastchoices.com/adchoices"
+    }
+]

@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 1439.2,
+      "end": 1465.2,
+      "confidence": 0.98,
+      "reason": "Mint Mobile sponsor read with promotional language and call to action",
+      "end_text": "nation's largest 5G network"
+    }
+  ]
+}

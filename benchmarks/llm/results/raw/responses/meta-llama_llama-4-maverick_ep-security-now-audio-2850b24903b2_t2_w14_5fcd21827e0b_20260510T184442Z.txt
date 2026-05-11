@@ -1,0 +1,1 @@
+{"start": 6016.6, "end": 6162.9, "confidence": 0.98, "reason": "Hawkshunt sponsor read with promotional language and URL", "end_text": "back to our discussion"}

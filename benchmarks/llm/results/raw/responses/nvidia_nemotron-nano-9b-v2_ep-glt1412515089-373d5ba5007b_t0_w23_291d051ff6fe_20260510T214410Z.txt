@@ -1,0 +1,1 @@
+[{"start": 9660.0, "end": 9682.2, "confidence": 0.95, "reason": "Platform-inserted Perplexity ad", "end_text": "rogan"}]

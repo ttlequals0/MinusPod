@@ -1,0 +1,7 @@
+{
+	"start": 6699.7,
+	"end": 7008.8,
+	"confidence": 1,
+	"reason": "Multiple sponsor mentions",
+	"end_text": "trustedtech.team/securitynow365"
+}

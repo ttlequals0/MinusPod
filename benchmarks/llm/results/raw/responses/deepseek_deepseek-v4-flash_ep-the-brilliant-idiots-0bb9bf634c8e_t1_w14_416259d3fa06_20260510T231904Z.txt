@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 6390.2,
+      "end": 6396.7,
+      "confidence": 0.95,
+      "reason": "Host-read sponsor transition: 'Let's pay some bills and do some asking idiots, man.' This is a transition into an ad break.",
+      "end_text": "do some asking idiots, man."
+    }
+  ]
+}

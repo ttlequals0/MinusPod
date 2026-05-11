@@ -1,0 +1,18 @@
+{
+"ads": [
+    {
+      "start": 17.7,
+      "end": 43.4,
+      "confidence": 0.98,
+      "reason": "Carvana host-read sponsor segment",
+      "end_text": "Sell your car today on Carvana"
+    },
+    {
+      "start": 511.5,
+      "end": 538.5,
+      "confidence": 0.8,
+      "reason": "Possible ad transition, but no clear ad content",
+      "end_text": "all memes necessary"
+    }
+  ]
+}

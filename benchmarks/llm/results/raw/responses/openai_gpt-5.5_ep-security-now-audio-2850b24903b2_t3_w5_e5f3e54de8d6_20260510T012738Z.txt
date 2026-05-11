@@ -1,0 +1,1 @@
+{"start":2532.3,"end":2693.0,"confidence":0.99,"reason":"Meter sponsor read with promotional networking infrastructure pitch, URL meter.com/securitynow, and call to action to book a demo; includes break transition","end_text":"right now back to steve"}

@@ -1,0 +1,1 @@
+{"start":539.2,"end":652.8,"confidence":0.99,"reason":"Back-to-back sponsor ads: 'This episode is brought to you by In the Gray' movie promotion followed by Skechers slip-ins with product pitch and CTA 'Check out Skechers.com'","end_text":"That's only at Skechers.com."}

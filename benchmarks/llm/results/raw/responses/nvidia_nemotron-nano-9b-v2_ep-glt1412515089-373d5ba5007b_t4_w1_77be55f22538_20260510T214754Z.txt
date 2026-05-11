@@ -1,0 +1,1 @@
+[{"start": 568.4, "end": 624.5, "confidence": 0.98, "reason": "In the Gray movie promotion", "end_text": "only in theaters May 15th"}, {"start": 595.8, "end": 681.8, "confidence": 0.97, "reason": "Skechers slip-ins sponsorship", "end_text": "Skechers.com for selection"}]

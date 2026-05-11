@@ -1,0 +1,7 @@
+{ 
+  "start": 6395.6, 
+  "end": 6442.5, 
+  "confidence": 0.98, 
+  "reason": "Perplexity AI sponsor mention", 
+  "end_text": "accessible forever"
+}

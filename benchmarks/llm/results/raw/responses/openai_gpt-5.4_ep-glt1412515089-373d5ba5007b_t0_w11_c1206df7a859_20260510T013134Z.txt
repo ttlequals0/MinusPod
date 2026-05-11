@@ -1,0 +1,1 @@
+{"start":5220.0,"end":5220.0,"confidence":0.0,"reason":"no promotional transcript content in this window","end_text":""}

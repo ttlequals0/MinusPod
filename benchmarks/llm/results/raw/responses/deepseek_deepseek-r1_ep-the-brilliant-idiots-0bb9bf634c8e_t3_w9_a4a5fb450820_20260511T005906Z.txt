@@ -1,0 +1,1 @@
+[{"start": 4323.9, "end": 4334.1, "confidence": 0.95, "reason": "Promotion for Jess Hilarious' book and All Love Racquet Club event with call to action", "end_text": "head to All Love Racquet Club"}]

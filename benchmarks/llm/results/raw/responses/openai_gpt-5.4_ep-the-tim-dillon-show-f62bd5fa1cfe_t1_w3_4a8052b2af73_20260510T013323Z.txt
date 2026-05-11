@@ -1,0 +1,1 @@
+{"start":1439.2,"end":1665.9,"confidence":0.99,"reason":"Back-to-back ad block: host-read Mint Mobile and Aura Frames sponsor reads followed by network-inserted Colgate Women's Games and SkinnyPop ads; contains sponsor names, URL/promo code, pricing, and marketing copy","end_text":"perfectly salted. Skinny Pop."}

@@ -1,0 +1,16 @@
+[
+    {
+        "start": 675.0,
+        "end": 719.8,
+        "confidence": 0.95,
+        "reason": "Promotional segment for 'soup shots' (coffee product) with detailed product description and call to action ('ask the barista for some soup'). Organic discussion but framed as a trendy product discovery.",
+        "end_text": "an easier to produce espresso shot right now."
+    },
+    {
+        "start": 0.0,
+        "end": 0.0,
+        "confidence": 0.0,
+        "reason": "No ads detected in this transcript window. All content is editorial discussion or topic transitions.",
+        "end_text": ""
+    }
+]

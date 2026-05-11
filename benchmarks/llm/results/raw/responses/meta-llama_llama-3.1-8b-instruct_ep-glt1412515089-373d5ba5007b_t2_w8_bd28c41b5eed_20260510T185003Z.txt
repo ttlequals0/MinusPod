@@ -1,0 +1,1 @@
+{ "start": 3814.9, "end": 3962.9, "confidence": 0.95, "reason": "Perplexity sponsor read", "end_text": "different humans" }

@@ -1,0 +1,23 @@
+[
+    {
+        "start": 4057.2,
+        "end": 4083.9,
+        "confidence": 0.98,
+        "reason": "Host-read sponsor segment with promotional language and call to action ('Let's pay some bills, Chris. What we got, Taylor gang?'). Transition phrase included.",
+        "end_text": "Lil P got to eat"
+    },
+    {
+        "start": 4324.2,
+        "end": 4361.4,
+        "confidence": 0.97,
+        "reason": "Multiple host-read promotions: Jess Hilarious' book ('Tell Death Do We Parent'), All Love Racquet Club event ('May 16th... head to All Love Racquet Club on Instagram'), and AM Mornings show ('every Sunday at 11 a.m. Head over to AM Mornings on YouTube'). Includes calls to action and URLs.",
+        "end_text": "Peace. Let's listen to this moment"
+    },
+    {
+        "start": 4361.9,
+        "end": 4380.0,
+        "confidence": 0.95,
+        "reason": "Platform-inserted ad for Megaphone ('Learn more about your ad choices. Visit megaphone.fm/adchoices'). Continues in next window.",
+        "end_text": "continues in next"
+    }
+]

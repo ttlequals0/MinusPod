@@ -1,0 +1,7 @@
+{
+  "start": 9344.4,
+  "end": 9374.4,
+  "confidence": 0.95,
+  "reason": "Mint Mobile ad with Ryan Reynolds",
+  "end_text": "mintmobile.com."
+}

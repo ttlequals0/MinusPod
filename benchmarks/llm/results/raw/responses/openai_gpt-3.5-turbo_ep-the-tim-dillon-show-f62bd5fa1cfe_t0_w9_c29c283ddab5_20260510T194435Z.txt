@@ -1,0 +1,7 @@
+{
+	"start": 3774.5,
+	"end": 3908.5,
+	"confidence": 0.95,
+	"reason": "Multiple sponsor mentions - Mint Mobile, Aura Frames, Morgan & Morgan, Stash, Neuro Gum",
+	"end_text": "▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬▬"
+}

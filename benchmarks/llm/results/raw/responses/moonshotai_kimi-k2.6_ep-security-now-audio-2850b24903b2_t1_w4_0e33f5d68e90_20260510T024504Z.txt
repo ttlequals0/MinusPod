@@ -1,0 +1,1 @@
+{"start": 1886.8, "end": 1901.8, "confidence": 0.3, "reason": "Non-promotional sign-off phrase 'Thank you for watching' with no sponsor mention, product pitch, or CTA. Lacks required promotional language to qualify as an ad per detection rules.", "end_text": "Thank you for watching."}

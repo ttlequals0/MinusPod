@@ -1,0 +1,1 @@
+[{"start": 7607.7, "end": 7797.4, "confidence": 0.98, "reason": "Trusted Tech sponsor read", "end_text": "trustedtech.team securitynow365"}, {"start": 7862.1, "end": 8170.1, "confidence": 0.95, "reason": "The Register network-inserted brand tagline ad", "end_text": "Amen to that. Anyway, the register continues"}]

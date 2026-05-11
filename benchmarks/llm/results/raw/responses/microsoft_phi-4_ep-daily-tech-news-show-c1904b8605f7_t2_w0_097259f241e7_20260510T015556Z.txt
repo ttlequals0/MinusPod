@@ -1,0 +1,7 @@
+{
+  "start": 0.0,
+  "end": 23.1,
+  "confidence": 0.95,
+  "reason": "Capital One's sponsor read, featuring promotional language and a call to action.",
+  "end_text": "it's simplifying car shopping"
+}

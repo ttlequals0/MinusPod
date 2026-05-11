@@ -1,0 +1,1 @@
+{"start":4204.1,"end":4465.7,"confidence":0.99,"reason":"Ad break including transition and Bitwarden sponsor read with product promotion and URL bitwarden.com/twit","end_text":"Back to Steve."}

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 821.4,
+    "end": 1021.1,
+    "confidence": 0.99,
+    "reason": "Multiple consecutive network-inserted ads: Capital One, BetterHelp, Amazon Health AI, Spectrum Business, Best One Yet podcast promo, Rinse laundry service",
+    "end_text": "It's time to be great."
+  }
+]

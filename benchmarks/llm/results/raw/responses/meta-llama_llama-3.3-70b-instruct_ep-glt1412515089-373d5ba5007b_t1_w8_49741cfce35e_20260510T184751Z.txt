@@ -1,0 +1,1 @@
+{"start": 3339.8, "end": 3367.2, "confidence": 0.0, "reason": "no ad content", "end_text": "da-da-da-da"}

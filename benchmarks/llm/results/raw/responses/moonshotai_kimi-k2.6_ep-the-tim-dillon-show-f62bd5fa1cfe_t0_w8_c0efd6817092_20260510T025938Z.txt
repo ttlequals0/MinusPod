@@ -1,0 +1,1 @@
+{"start": 3360.3, "end": 3975.9, "confidence": 0.0, "reason": "No promotional content, sponsor mentions, URLs, promo codes, or transition phrases detected in this window. Entire segment consists of host commentary and news clips related to the Hantavirus cruise ship topic.", "end_text": "I went on Meta. I went on Facebook."}

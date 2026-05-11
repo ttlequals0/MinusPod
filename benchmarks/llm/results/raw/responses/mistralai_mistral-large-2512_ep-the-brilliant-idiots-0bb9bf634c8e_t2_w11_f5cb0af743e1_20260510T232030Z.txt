@@ -1,0 +1,23 @@
+[
+    {
+        "start": 4871.2,
+        "end": 4896.0,
+        "confidence": 0.9,
+        "reason": "Promotion of books and projects with explicit order links (The Black Family Who Built America, Uncommon Favor, Get Honest or Die Lying) and a call to check out Andrew Schulz's website. These are host-read promotions with direct calls to action.",
+        "end_text": "absorb the culture of things"
+    },
+    {
+        "start": 4896.0,
+        "end": 4922.3,
+        "confidence": 0.95,
+        "reason": "Promotion of Charlamagne's 'Black Effect Network' with a direct URL (blackeffect.com) and a call to check out AlexxMedia's 'AM Mornings'. This is a network cross-promotion with promotional language.",
+        "end_text": "wanting to absorb the culture of things"
+    },
+    {
+        "start": 5218.9,
+        "end": 5220.0,
+        "confidence": 0.85,
+        "reason": "Partial ad segment promoting Jess Hilarious' and 2Chainz's pre-order links (continues in next window).",
+        "end_text": "continues in next"
+    }
+]

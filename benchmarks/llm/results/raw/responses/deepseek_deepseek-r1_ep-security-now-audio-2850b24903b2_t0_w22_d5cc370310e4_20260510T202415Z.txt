@@ -1,0 +1,7 @@
+[{
+    "start": 9344.4,
+    "end": 9374.4,
+    "confidence": 0.95,
+    "reason": "Mint Mobile celebrity-read ad with price promotion and vanity URL",
+    "end_text": "terms at mintmobile.com"
+}]

@@ -1,0 +1,1 @@
+[{"start": 1.6, "end": 77.2, "confidence": 0.95, "reason": "Acast platform-inserted ads including Wrong Turns and Formative podcast promos", "end_text": "leaders of tomorrow"}]

@@ -1,0 +1,1 @@
+{"start":0.0,"end":100.9,"confidence":0.98,"reason":"Platform-inserted pre-roll ads for Capital One, Xero, Spectrum Business with sponsor names, product pitches, calls to action","end_text":"support with 100%"}

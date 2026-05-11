@@ -1,0 +1,7 @@
+{
+  "start": 7.138,
+  "end": 7.16,
+  "confidence": 0.98,
+  "reason": "Google's implementation of a 4.7GB language model into Chrome is described as premature and potentially problematic due to web standards' importance and the difficulty of deprecating them once established.",
+  "end_text": "Chrome becomes massive with this implementation, and there's no reason to do this now."
+}

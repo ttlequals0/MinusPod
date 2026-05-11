@@ -1,0 +1,9 @@
+[
+  {
+    "start": 7936.3,
+    "end": 7963.4,
+    "confidence": 0.95,
+    "reason": "Host sign-off with 'Thank you for watching' and transition to next segment",
+    "end_text": "Thank you for watching."
+  }
+]

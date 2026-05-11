@@ -1,0 +1,9 @@
+[
+  {
+    "start": 442.8,
+    "end": 572.1,
+    "confidence": 0.99,
+    "reason": "Host-read ad for Zscaler, including a transition, product pitch, testimonial, and vanity URL.",
+    "end_text": "Thank you, Leo."
+  }
+]

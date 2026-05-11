@@ -1,0 +1,16 @@
+[
+    {
+        "start": 5789.0,
+        "end": 5815.9,
+        "confidence": 0.7,
+        "reason": "Mention of Amazon as a corporate sponsor of the Met Gala, which is promotional context for the brand. While not a direct ad read, it aligns with platform-inserted ad patterns for retail/consumer brands.",
+        "end_text": "subscribe to Amazon, you know, Prime."
+    },
+    {
+        "start": 6060.0,
+        "end": 6060.0,
+        "confidence": 0.3,
+        "reason": "Partial ad segment at window end. Transcript cuts off mid-sentence; no clear promotional language detected, but timestamp marked as potential continuation point.",
+        "end_text": "as a battleground state."
+    }
+]

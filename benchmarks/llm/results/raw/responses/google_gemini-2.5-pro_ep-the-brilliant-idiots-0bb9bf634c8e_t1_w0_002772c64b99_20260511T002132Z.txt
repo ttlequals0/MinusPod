@@ -1,0 +1,9 @@
+[
+  {
+    "start": 0.5,
+    "end": 43.4,
+    "confidence": 0.98,
+    "reason": "This is a pre-roll, produced ad for Carvana featuring a testimonial and a direct call to action.",
+    "end_text": "Pickup fees may apply."
+  }
+]

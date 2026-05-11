@@ -1,0 +1,7 @@
+{
+  "start": 4057.2,
+  "end": 4077.5,
+  "confidence": 0.95,
+  "reason": "Host-read ad break transition 'Let's pay some bills' followed by sponsor pitch for bills/payment, with call to action 'Pull up some bills' and product mention 'Lil P got to eat'",
+  "end_text": "tasty cakes all goddamn day, okay?"
+}

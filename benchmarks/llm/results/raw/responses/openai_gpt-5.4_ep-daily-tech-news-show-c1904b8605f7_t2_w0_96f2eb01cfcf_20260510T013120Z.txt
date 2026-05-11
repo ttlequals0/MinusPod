@@ -1,0 +1,1 @@
+{"start":0.0,"end":152.9,"confidence":0.99,"reason":"Continuous pre-roll ad block with multiple inserted ads: Capital One ('This episode is brought to you by Capital One'), Xero ('search XERO for your free trial'), Spectrum Business pitch, and Warby Parker ('visit warbyparker.com today')","end_text":"That's warbyparker.com."}

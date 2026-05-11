@@ -1,0 +1,1 @@
+{"start": 4204.1, "end": 4396.1, "confidence": 0.96, "reason": "Bitwarden sponsor read with preceding break transition", "end_text": "devices at the OS level"}

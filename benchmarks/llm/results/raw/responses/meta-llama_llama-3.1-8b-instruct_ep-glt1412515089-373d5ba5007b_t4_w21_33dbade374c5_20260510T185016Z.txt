@@ -1,0 +1,7 @@
+{
+  "start": 8797.7,
+   "end": 9426.7,
+   "confidence": 0.95,
+   "reason": "No ads found in this window",
+   "end_text": "understand the effect of radioactivity"
+}

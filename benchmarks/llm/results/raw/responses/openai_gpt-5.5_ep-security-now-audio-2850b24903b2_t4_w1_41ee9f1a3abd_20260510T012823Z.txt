@@ -1,0 +1,1 @@
+{"start":417.2,"end":572.1,"confidence":0.99,"reason":"Zscaler sponsor read; includes transition to break and promotional pitch with zscaler.com/security call to action","end_text":"Security Now. Thank you, Leo."}

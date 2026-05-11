@@ -1,0 +1,1 @@
+{"start":4646.2,"end":4806.1,"confidence":0.99,"reason":"Continuous block of network-inserted ads: Colgate Women's Games, Skinny Pop, Vuity/Viz prescription eye drops, and Garnier National Park Foundation promotion","end_text":"support our national parks at GarnierUSA.com slash NPF."}

@@ -1,0 +1,1 @@
+{"type": "Function", "name": "analyze_transcript", "parameters": {"transcript": "Security Now transcript", "start_time": 1680.0, "end_time": 2280.0}}

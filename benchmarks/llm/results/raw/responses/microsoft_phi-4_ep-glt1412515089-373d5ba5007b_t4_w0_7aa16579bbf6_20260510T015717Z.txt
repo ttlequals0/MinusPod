@@ -1,0 +1,46 @@
+{  
+  "segments": [  
+    {  
+      "start": 1.4,  
+      "end": 9.3,  
+      "confidence": 0.95,  
+      "reason": "Introduction of sponsor segment with promotional language",  
+      "end_text": "all day"  
+    },  
+    {  
+      "start": 14.5,  
+      "end": 41.9,  
+      "confidence": 0.98,  
+      "reason": "Sponsor segment with promotional language and transition phrase",  
+      "end_text": "questions for me"  
+    },  
+    {  
+      "start": 43.1,  
+      "end": 57.8,  
+      "confidence": 0.98,  
+      "reason": "Sponsor segment with promotional language and transition phrase",  
+      "end_text": "predicting future events"  
+    },  
+    {  
+      "start": 58.7,  
+      "end": 83.0,  
+      "confidence": 0.98,  
+      "reason": "Sponsor segment with promotional language and transition phrase",  
+      "end_text": "people still don't"  
+    },  
+    {  
+      "start": 83.5,  
+      "end": 109.3,  
+      "confidence": 0.98,  
+      "reason": "Sponsor segment with promotional language and transition phrase",  
+      "end_text": "people who study"  
+    },  
+    {  
+      "start": 137.5,  
+      "end": 164.0,  
+      "confidence": 0.98,  
+      "reason": "Sponsor segment with promotional language and transition phrase",  
+      "end_text": "people still"  
+    }  
+  ]  
+}

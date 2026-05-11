@@ -1,0 +1,1 @@
+[{"start": 16.7, "end": 84.9, "confidence": 0.99, "reason": "Host-read sponsor segment for OutSystems with URL call to action", "end_text": "OutSystems.com slash twit"}, {"start": 445.6, "end": 572.1, "confidence": 0.99, "reason": "Host-read sponsor segment for Zscaler with URL call to action", "end_text": "zscaler.com slash security"}]

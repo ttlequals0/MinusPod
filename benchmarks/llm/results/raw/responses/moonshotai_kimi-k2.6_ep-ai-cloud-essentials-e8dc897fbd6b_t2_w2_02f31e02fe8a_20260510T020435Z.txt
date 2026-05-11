@@ -1,0 +1,1 @@
+{"start": 814.4, "end": 984.2, "confidence": 0.0, "reason": "No promotional content detected in this window. The transcript contains only editorial interview content and show outro.", "end_text": "Thank you."}

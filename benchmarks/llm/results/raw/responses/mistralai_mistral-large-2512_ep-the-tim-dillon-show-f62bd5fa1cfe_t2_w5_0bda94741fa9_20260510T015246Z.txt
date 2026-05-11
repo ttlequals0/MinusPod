@@ -1,0 +1,9 @@
+[
+    {
+        "start": 2671.3,
+        "end": 2700.0,
+        "confidence": 0.98,
+        "reason": "Mint Mobile sponsor read with call to action and vanity URL (continues in next segment)",
+        "end_text": "continues in next"
+    }
+]

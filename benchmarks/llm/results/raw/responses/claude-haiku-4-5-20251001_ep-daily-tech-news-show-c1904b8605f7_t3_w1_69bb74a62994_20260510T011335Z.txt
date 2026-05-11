@@ -1,0 +1,46 @@
+```json
+[
+  {
+    "start": 796.9,
+    "end": 816.3,
+    "confidence": 0.92,
+    "reason": "Host transition thanking listeners and patrons, leading into sponsor segment",
+    "end_text": "Thank you."
+  },
+  {
+    "start": 821.4,
+    "end": 857.6,
+    "confidence": 0.95,
+    "reason": "Capital One sponsor read with product pitch (Chat Concierge AI for car shopping) and brand tagline",
+    "end_text": "technology at Capital One."
+  },
+  {
+    "start": 857.6,
+    "end": 889.7,
+    "confidence": 0.98,
+    "reason": "BetterHelp sponsor read with URL (betterhelp.com/randompodcast) and promo code (10% off)",
+    "end_text": "first month of online therapy."
+  },
+  {
+    "start": 889.7,
+    "end": 910.1,
+    "confidence": 0.96,
+    "reason": "Amazon Health AI sponsor read with product pitch and call to action",
+    "end_text": "Healthcare just got less painful."
+  },
+  {
+    "start": 910.1,
+    "end": 961.5,
+    "confidence": 0.97,
+    "reason": "Spectrum Business sponsor read with product pitch, pricing guarantee, and bundle offer",
+    "end_text": "stay up and running."
+  },
+  {
+    "start": 961.9,
+    "end": 1018.9,
+    "confidence": 0.97,
+    "reason": "Rinse laundry service sponsor read with product pitch and URL (rinse.com)",
+    "end_text": "It's time to be great."
+  }
+]
+```

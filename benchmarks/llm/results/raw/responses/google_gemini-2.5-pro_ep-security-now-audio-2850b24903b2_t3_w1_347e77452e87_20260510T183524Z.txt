@@ -1,0 +1,9 @@
+[
+  {
+    "start": 417.2,
+    "end": 572.1,
+    "confidence": 0.98,
+    "reason": "The segment begins with a transition to a break, followed by a host-read ad for Zscaler, including a testimonial and a specific URL (zscaler.com/security), and concludes with a transition back to the show.",
+    "end_text": "security. Now back to Steve and Security Now. Thank you, Leo."
+  }
+]

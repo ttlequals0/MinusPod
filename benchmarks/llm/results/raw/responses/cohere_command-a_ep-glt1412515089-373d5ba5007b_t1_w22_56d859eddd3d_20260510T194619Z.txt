@@ -1,0 +1,7 @@
+{
+  "start": 9741.1,
+  "end": 9785.0,
+  "confidence": 0.85,
+  "reason": "Promotional mention of Applied Love Labs and timemachine.love with a call to action to visit the website",
+  "end_text": "In the future."
+}

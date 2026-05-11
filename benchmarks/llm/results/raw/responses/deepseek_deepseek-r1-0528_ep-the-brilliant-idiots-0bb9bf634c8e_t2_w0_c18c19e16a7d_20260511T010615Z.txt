@@ -1,0 +1,9 @@
+[
+  {
+    "start": 0.5,
+    "end": 16.8,
+    "confidence": 1.0,
+    "reason": "Carvana platform-inserted pre-roll ad: voicemail-style promotion with explicit call to action to sell car",
+    "end_text": "Sell your car today on Carvana."
+  }
+]

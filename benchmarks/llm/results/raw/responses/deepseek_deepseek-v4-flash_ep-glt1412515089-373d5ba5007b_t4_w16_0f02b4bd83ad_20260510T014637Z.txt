@@ -1,0 +1,1 @@
+{"start": 6706.4, "end": 7323.7, "confidence": 0.0, "reason": "No promotional language, sponsor names, URLs, promo codes, or calls to action found in this transcript segment. The content is a continuous discussion about the double-slit experiment, photons, and retrocausality.", "end_text": "the double slit experiment."}

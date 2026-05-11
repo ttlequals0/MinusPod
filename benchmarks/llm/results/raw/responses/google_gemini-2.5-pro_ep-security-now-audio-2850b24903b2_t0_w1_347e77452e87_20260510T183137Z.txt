@@ -1,0 +1,9 @@
+[
+  {
+    "start": 417.2,
+    "end": 572.1,
+    "confidence": 0.99,
+    "reason": "Host-read sponsor segment for Zscaler, including the transition into the ad break and the return to the show.",
+    "end_text": "Now back to Steve and Security Now. Thank you, Leo."
+  }
+]

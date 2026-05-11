@@ -1,0 +1,1 @@
+[{"start": 7607.7, "end": 7743.9, "confidence": 0.98, "reason": "Trusted Tech sponsor read - Microsoft 365 licensing services with testimonial from former Microsoft COO Kevin Turner", "end_text": "He was impressed. You will be too."}]

@@ -1,0 +1,16 @@
+[
+    {
+        "start": 1359.1,
+        "end": 1381.4,
+        "confidence": 0.98,
+        "reason": "Promotion of Black Effect Podcast Network with call to action for Big Bank and Big Facts podcasts",
+        "end_text": "Black Effect podcast network"
+    },
+    {
+        "start": 1438.7,
+        "end": 1440.0,
+        "confidence": 0.9,
+        "reason": "Partial network promo for R&B Money podcast (continues in next window)",
+        "end_text": "Tank and J. Valentine"
+    }
+]

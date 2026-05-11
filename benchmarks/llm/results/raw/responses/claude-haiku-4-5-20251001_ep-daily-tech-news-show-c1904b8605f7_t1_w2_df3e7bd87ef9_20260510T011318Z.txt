@@ -1,0 +1,39 @@
+```json
+[
+  {
+    "start": 821.4,
+    "end": 844.7,
+    "confidence": 0.98,
+    "reason": "Capital One sponsor read about Chat Concierge AI for car shopping",
+    "end_text": "technology at Capital One"
+  },
+  {
+    "start": 845.2,
+    "end": 889.7,
+    "confidence": 0.98,
+    "reason": "BetterHelp sponsor read with URL betterhelp.com/randompodcast and 10% promo",
+    "end_text": "first month of online therapy"
+  },
+  {
+    "start": 890.6,
+    "end": 910.1,
+    "confidence": 0.95,
+    "reason": "Amazon Health AI sponsored segment about virtual care and symptom chat",
+    "end_text": "Healthcare just got less painful"
+  },
+  {
+    "start": 912.2,
+    "end": 961.5,
+    "confidence": 0.98,
+    "reason": "Spectrum Business sponsor read with URL spectrum.com/business and service details",
+    "end_text": "stay up and running"
+  },
+  {
+    "start": 961.9,
+    "end": 1018.9,
+    "confidence": 0.98,
+    "reason": "Rinse laundry service sponsor read with URL rinse.com and call to action",
+    "end_text": "Schedule at rinse.com. Rinse"
+  }
+]
+```

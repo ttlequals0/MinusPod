@@ -1,0 +1,1 @@
+{ "start": 2938.5, "end": 3540.0, "confidence": 0.95, "reason": "No explicit ads found, but the episode description and sponsor links at the beginning of the transcript are likely ads", "end_text": "continues in next" }

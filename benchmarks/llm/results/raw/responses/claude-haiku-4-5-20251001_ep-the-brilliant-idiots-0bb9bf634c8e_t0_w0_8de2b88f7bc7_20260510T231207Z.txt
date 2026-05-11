@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 0.5,
+    "end": 43.4,
+    "confidence": 0.95,
+    "reason": "Carvana host-read sponsor segment with product pitch, offer acceptance, and call to action",
+    "end_text": "Pickup fees may apply"
+  }
+]
+```

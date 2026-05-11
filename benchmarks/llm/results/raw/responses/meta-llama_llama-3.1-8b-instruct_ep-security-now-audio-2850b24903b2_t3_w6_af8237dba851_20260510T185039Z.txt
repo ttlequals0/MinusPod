@@ -1,0 +1,1 @@
+{ "start": 2505.3, "end": 2531.8, "confidence": 0.0, "reason": "not an ad, transition to break", "end_text": "break time" }

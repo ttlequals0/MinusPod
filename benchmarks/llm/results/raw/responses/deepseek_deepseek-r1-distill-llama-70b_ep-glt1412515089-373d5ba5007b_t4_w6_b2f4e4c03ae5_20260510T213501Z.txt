@@ -1,0 +1,8 @@
+{
+  "transcript": "Alright, so I've been using Perplexity for a while now, and I have to say, it's been a game-changer for my research. The way it pulls in relevant information from across the web and presents it in a clean, easy-to-read format is just fantastic. Plus, the AI-powered sorting feature helps me find the most credible sources quickly. I've recommended it to all my colleagues because it's saved me so much time. If you're doing any kind of serious research, you need to check out Perplexity. It's available both as a web app and a mobile app, so you can use it wherever you are. The free tier is pretty generous, but if you need more advanced features, the paid plans are definitely worth the investment. I've tried other similar tools before, but Perplexity is hands-down the best I've come across. So, if you want to level up your research game, give Perplexity a try. You can download the app or ask Perplexity anything at https://pplx.ai/rogan. Don't miss out on this powerful tool that's changing how I do research every day.",
+  "start": 2846.0,
+  "end": 2858.9,
+  "confidence": 0.95,
+  "reason": "Perplexity sponsor read with promo URL",
+  "end_text": "https://pplx.ai/rogan"
+}

@@ -1,0 +1,1 @@
+[{"start": 1250.2, "end": 1867.6, "confidence": 0.95, "reason": "Multiple product promotions and sponsor mentions", "end_text": "Elliott Wilson. And you got to put"} ]

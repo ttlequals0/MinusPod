@@ -1,0 +1,7 @@
+{
+  "start": 4059.4,
+  "end": 4380.0,
+  "confidence": 0.95,
+  "reason": "Multiple host-read promotions and cross-promotions",
+  "end_text": "beautiful and you're a black journalist."
+}

@@ -1,0 +1,16 @@
+[
+    {
+        "start": 4230.9,
+        "end": 4465.7,
+        "confidence": 0.99,
+        "reason": "Bitwarden sponsor read with promotional language, vanity URL (bitwarden.com/twit), product pitches (Agent Access SDK, passkey login, Bitwarden Lite), and calls to action",
+        "end_text": "bitwarden.com slash twit"
+    },
+    {
+        "start": 4797.9,
+        "end": 4800.0,
+        "confidence": 0.95,
+        "reason": "Partial Anthropic Claude Security promotion with vanity URL (claude.ai/security) and call to action; continues in next window",
+        "end_text": "claude.ai slash security"
+    }
+]

@@ -1,0 +1,1 @@
+{"start": 6016.6, "end": 6162.3, "confidence": 0.98, "reason": "Hoxhunt host-read sponsor segment with transition, product pitch, and URL", "end_text": "our discussion of Chrome and"}

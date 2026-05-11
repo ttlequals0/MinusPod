@@ -1,0 +1,8 @@
+
+{
+	"start": 9312.9,
+	"end": 9374.4,
+	"confidence": 0.95,
+	"reason": "Mint Mobile sponsor read",
+	"end_text": "full terms at mintmobile.com."
+}

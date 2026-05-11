@@ -1,0 +1,1 @@
+{"start": 1901.8, "end": 1928.8, "confidence": 0.1, "reason": "not an ad, normal content", "end_text": "Thank you for watching."}

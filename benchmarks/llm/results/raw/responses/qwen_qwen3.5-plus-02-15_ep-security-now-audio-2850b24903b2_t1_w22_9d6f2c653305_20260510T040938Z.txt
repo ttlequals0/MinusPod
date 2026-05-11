@@ -1,0 +1,1 @@
+[{"start": 9259.3, "end": 9290.5, "confidence": 0.85, "reason": "TWiT Network cross-promotion for This Week in Tech podcast", "end_text": "TWiT Network. Thank you."}, {"start": 9344.4, "end": 9374.4, "confidence": 0.98, "reason": "Mint Mobile sponsor read by Ryan Reynolds with URL and legal disclaimers", "end_text": "full terms at mintmobile.com"}]

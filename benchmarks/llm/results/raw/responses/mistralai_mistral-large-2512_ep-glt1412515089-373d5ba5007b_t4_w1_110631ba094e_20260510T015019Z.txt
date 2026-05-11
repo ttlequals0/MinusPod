@@ -1,0 +1,16 @@
+[
+    {
+        "start": 539.2,
+        "end": 568.3,
+        "confidence": 0.99,
+        "reason": "Host-read ad for 'In the Gray' movie with promotional language, release date, and cast details",
+        "end_text": "they operate."
+    },
+    {
+        "start": 568.4,
+        "end": 652.8,
+        "confidence": 0.99,
+        "reason": "Host-read Skechers slip-ins ad with product pitch, call to action (Skechers.com), and promotional language",
+        "end_text": "only at Skechers.com."
+    }
+]

@@ -1,0 +1,18 @@
+```json
+[
+  {
+    "start": 4204.1,
+    "end": 4264.3,
+    "confidence": 0.92,
+    "reason": "Bitwarden sponsor read with product features, Agent Access SDK announcement, and call to action to use the open-source toolkit",
+    "end_text": "twit.tv slash SN. We'll have more"
+  },
+  {
+    "start": 4265.2,
+    "end": 4396.1,
+    "confidence": 0.98,
+    "reason": "Bitwarden full sponsor segment with detailed product pitch including Access Intelligence, Vault health alerts, Agent Access SDK, passkey login features, and promotional messaging about open-source availability",
+    "end_text": "unlocking devices at the OS level"
+  }
+]
+```

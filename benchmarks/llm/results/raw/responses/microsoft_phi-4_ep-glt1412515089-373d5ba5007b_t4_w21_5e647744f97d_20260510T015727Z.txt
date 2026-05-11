@@ -1,0 +1,18 @@
+{  
+  "ads": [  
+    {  
+      "start": 89.17,  
+      "end": 90.26,  
+      "confidence": 0.95,  
+      "reason": "The segment describes a memory lapse related to word processing at Lockheed Martin, indicating a potential ad related to cognitive abilities and memory manipulation.",  
+      "end_text": "I left."  
+    },  
+    {  
+      "start": 90.26,  
+      "end": 90.92,  
+      "confidence": 0.90,  
+      "reason": "The segment discusses the recruitment process and potential manipulation through FOIA requests, suggesting an ad related to government recruitment and information control.",  
+      "end_text": "I got a call from the recruiter saying, okay, you've passed to the next level."  
+    }  
+  ]  
+}

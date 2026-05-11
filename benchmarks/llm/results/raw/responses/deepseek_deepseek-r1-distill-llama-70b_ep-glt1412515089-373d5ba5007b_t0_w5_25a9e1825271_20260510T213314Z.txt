@@ -1,0 +1,8 @@
+{
+  "transcript": "The right window treatments change everything. Your sleep, your privacy, the way every room looks and feels. At Blinds.com, we've spent 30 years making it surprisingly simple to get exactly what your home needs. We've covered over 25 million windows and have 50,000 five-star reviews to prove we deliver. Whether you DIY it or want a pro to handle everything from measure to install, we have you covered. Real design professionals, free samples, zero pressure. Right now, get up to 45% off site-wide, plus get a free professional measure at Blinds.com.",
+  "start": 2208.3,
+  "end": 2237.0,
+  "confidence": 0.95,
+  "reason": "Blinds.com advertisement with promotional language and call to action",
+  "end_text": "Blinds.com."
+}

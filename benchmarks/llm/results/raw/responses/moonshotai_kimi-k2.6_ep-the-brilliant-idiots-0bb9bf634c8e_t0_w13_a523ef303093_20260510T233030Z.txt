@@ -1,0 +1,1 @@
+{"start":5443.4,"end":6060.2,"confidence":0.0,"reason":"No promotional content detected in transcript window. Entire segment consists of host/guest conversation about interracial dating statistics, Met Gala boycotts, and political commentary with no sponsor reads, product pitches, URLs, promo codes, or platform-inserted ads.","end_text":"continues in next"}

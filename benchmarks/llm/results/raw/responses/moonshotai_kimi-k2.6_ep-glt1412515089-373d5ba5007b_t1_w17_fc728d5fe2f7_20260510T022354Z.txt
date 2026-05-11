@@ -1,0 +1,1 @@
+{"start":7131.4,"end":7756.0,"confidence":0.0,"reason":"No advertisements detected in transcript window. Entire segment consists of host-guest conversation about quantum physics, retrocausality, and the double-slit experiment.","end_text":"solving the same problem"}

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 8524.9,
+    "end": 8572.8,
+    "confidence": 0.95,
+    "reason": "Host-read sponsor segment for Google services (implicit promotion)",
+    "end_text": "commercial interests. Yes, Google"
+  }
+]

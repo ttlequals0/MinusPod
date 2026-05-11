@@ -1,0 +1,1 @@
+{"start":1439.2,"end":1665.9,"confidence":0.99,"reason":"Continuous ad break with host-read Mint Mobile and Aura Frames ads followed by network-inserted Colgate Women's Games and SkinnyPop ads; includes sponsor names, URLs, promo code TIM, pricing, and product pitches","end_text":"perfectly salted. Skinny Pop."}

@@ -1,0 +1,1 @@
+{"start": 7173.7, "end": 7196.8, "confidence": 0.96, "reason": "Host-read ad for Netflix's 'Remarkably Bright Creatures' featuring promotional language and call to watch on Netflix", "end_text": "now playing only on Netflix"}

@@ -1,0 +1,1 @@
+{"start":3079.6,"end":3270.1,"confidence":0.99,"reason":"Merged sponsor ad break for Morgan & Morgan, Stash, and NeuroGum with promotional calls to action, URLs, promo code, and paid advertisement disclosure.","end_text":"at CVS and Amazon"}

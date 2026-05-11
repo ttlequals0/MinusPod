@@ -1,0 +1,1 @@
+{"start": 8242.2, "end": 8270.6, "confidence": 0.0, "reason": "no ad detected", "end_text": "American Cosmic, she talks about finding these artifacts"}

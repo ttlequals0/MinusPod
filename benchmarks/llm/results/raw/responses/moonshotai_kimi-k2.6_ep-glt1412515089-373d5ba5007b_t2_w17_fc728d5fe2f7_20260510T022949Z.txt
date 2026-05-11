@@ -1,0 +1,1 @@
+{"start":7131.4,"end":7756.0,"confidence":0.0,"reason":"No promotional content detected in transcript window","end_text":"retrocausality, but not both because they're solving the same problem"}

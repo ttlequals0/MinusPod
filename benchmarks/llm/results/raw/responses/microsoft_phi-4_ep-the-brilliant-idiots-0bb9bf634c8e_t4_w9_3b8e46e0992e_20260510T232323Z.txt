@@ -1,0 +1,7 @@
+{
+  "start": 63.0,
+  "end": 73.0,
+  "confidence": 0.95,
+  "reason": "The segment contains promotional language and mentions a specific event (the Met Gala) and a book (Tell Death Do We Parent) with a call to action, indicating an advertisement.",
+  "end_text": "It's a really fun event. Just head to All Love Racquet Club."
+}

@@ -1,0 +1,1 @@
+[{"start": 6396.7, "end": 6471.0, "confidence": 0.95, "reason": "Host-read sponsor segments for books and podcasts", "end_text": "Asking Idiots"} ]

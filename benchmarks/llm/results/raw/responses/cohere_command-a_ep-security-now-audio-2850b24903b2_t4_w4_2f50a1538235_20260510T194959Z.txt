@@ -1,0 +1,7 @@
+{
+  "start": 1664.0,
+  "end": 1692.2,
+  "confidence": 0.95,
+  "reason": "Zscaler sponsor read",
+  "end_text": "automatic updates and go for it. And third"
+}

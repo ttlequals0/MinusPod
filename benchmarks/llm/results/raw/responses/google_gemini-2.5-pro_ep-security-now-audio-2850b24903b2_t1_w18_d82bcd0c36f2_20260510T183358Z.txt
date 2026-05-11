@@ -1,0 +1,9 @@
+[
+  {
+    "start": 7584.4,
+    "end": 7797.4,
+    "confidence": 0.99,
+    "reason": "Host-read ad for Trusted Tech, including the transition phrase 'let's take our final break' and the vanity URL trustedtech.team/securitynow365.",
+    "end_text": "securitynow365 Now, back to Steve."
+  }
+]

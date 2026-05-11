@@ -1,0 +1,1 @@
+{"start":6368.2,"end":6394.8,"confidence":0.84,"reason":"Partial Perplexity sponsor mention within show content; explicit promotional identification 'Perplexity, our AI sponsor' but no full read in this window","end_text":"showing us how smart it is"}

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 4646.2,
+    "end": 4800.0,
+    "confidence": 0.98,
+    "reason": "Multiple network-inserted ads (Colgate, Skinny Pop, Viz, Garnier) merged due to gaps < 15s; segment continues past window limit",
+    "end_text": "national parks that we all love"
+  }
+]

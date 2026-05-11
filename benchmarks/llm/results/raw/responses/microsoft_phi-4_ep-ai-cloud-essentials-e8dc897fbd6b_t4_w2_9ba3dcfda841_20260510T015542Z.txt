@@ -1,0 +1,7 @@
+{  
+  "start": 814.4,  
+  "end": 963.9,  
+  "confidence": 0.95,  
+  "reason": "Dynamic AI-powered engineering discussion with references to specific AI applications in robotics and engineering workflows, including mentions of high-confidence sponsors like CoreWeave and SpaceX.",  
+  "end_text": "Thank you everyone for joining us for this episode."  
+}

@@ -1,0 +1,1 @@
+{"start": 1603.2, "end": 1626.2, "confidence": 0.0, "reason": "23-second content gap with no transcript; silence/dead air without promotional language is not an ad", "end_text": "N/A"}

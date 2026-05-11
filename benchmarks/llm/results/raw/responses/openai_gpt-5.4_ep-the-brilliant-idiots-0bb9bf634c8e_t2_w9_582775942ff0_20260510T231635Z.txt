@@ -1,0 +1,7 @@
+{
+  "start": 4057.2,
+  "end": 4083.9,
+  "confidence": 0.84,
+  "reason": "Host transitions to ad break with 'Let's pay some bills' and banter about paying bills, but promotional copy is not present in this window; partial ad segment continues from previous/next context",
+  "end_text": "All right, let's get back to this show"
+}

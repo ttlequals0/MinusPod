@@ -1,0 +1,16 @@
+[
+    {
+        "start": 4230.9,
+        "end": 4465.7,
+        "confidence": 0.99,
+        "reason": "Bitwarden sponsor read with promotional language, URLs (bitwarden.com/twit), product pitches (Agent Access SDK, passkey login), and calls to action",
+        "end_text": "bitwarden.com slash twit"
+    },
+    {
+        "start": 4265.2,
+        "end": 4291.9,
+        "confidence": 0.98,
+        "reason": "Platform-inserted ad transition phrase ('This episode of Security Now is brought to you by Bitwarden') and sponsor introduction",
+        "end_text": "consistently ranked number one"
+    }
+]

@@ -1,0 +1,7 @@
+{
+  "start": 7607.7,
+  "end": 7771.7,
+  "confidence": 0.98,
+  "reason": "Trusted Tech sponsor segment with promotional language, URLs, and call to action",
+  "end_text": "trustedtech.team securitynow365"
+}

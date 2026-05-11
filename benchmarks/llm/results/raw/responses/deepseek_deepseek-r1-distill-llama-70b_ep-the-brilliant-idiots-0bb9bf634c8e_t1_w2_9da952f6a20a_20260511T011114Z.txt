@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so let's take a break. This episode is brought to you by BetterHelp. If you're feeling overwhelmed, BetterHelp offers convenient, affordable, and private online counseling. Anytime, anywhere. Take control of your mental health. Visit BetterHelp.com/Idiots or use the code IDIOTS15 at checkout for 15% off your first month. Alright, let's get back to the conversation.",
+  "start": 1440.0,
+  "end": 1466.2
+}

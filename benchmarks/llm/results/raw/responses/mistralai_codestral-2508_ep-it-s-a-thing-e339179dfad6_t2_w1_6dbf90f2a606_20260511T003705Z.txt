@@ -1,0 +1,1 @@
+[{"start": 675.0, "end": 719.8, "confidence": 0.95, "reason": "OXO Rapid Brewer Coffee Espresso Soup Shots sponsor read", "end_text": "you need to look for soup on the menu"}]

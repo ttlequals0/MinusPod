@@ -1,0 +1,7 @@
+{
+  "start": 77.0,
+  "end": 87.0,
+  "confidence": 0.95,
+  "reason": "The transcript contains a segment with concentrated marketing language, indicating a network-inserted ad. The segment includes a brand name and product category pitch, which are typical characteristics of an ad.",
+  "end_text": "telepathy trials"
+}

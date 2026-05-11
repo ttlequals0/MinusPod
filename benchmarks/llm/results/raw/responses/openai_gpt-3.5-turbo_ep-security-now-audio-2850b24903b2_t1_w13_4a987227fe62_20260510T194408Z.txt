@@ -1,0 +1,8 @@
+
+{
+    "start": 6045.5,
+    "end": 6083.5,
+    "confidence": 0.95,
+    "reason": "HoxHunt sponsor read",
+    "end_text": "just like the bad guys."
+}

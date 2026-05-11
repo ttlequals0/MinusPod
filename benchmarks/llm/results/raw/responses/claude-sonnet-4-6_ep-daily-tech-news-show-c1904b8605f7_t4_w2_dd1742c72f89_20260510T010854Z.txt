@@ -1,0 +1,1 @@
+[{"start": 821.4, "end": 1021.1, "confidence": 0.97, "reason": "Multiple back-to-back sponsor reads: Capital One Chat Concierge, BetterHelp, Amazon Health AI, Spectrum Business, and Rinse laundry service with URLs and calls to action", "end_text": "It's time to be great."}]

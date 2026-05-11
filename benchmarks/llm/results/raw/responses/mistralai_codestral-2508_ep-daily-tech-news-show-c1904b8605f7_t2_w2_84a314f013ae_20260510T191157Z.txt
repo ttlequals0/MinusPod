@@ -1,0 +1,1 @@
+[{"start": 821.4, "end": 1440.0, "confidence": 0.98, "reason": "Capital One, BetterHelp, Spectrum Business, Rinse sponsor reads", "end_text": "Schedule at rinse.com. Rinse"}]

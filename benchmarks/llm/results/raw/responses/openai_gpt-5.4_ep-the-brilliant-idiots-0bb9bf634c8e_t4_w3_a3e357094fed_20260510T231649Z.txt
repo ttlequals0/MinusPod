@@ -1,0 +1,1 @@
+{"start":1659.8,"end":1860.0,"confidence":0.12,"reason":"No advertisement detected in this window; discussion of hip-hop media and journalism only","end_text":"category, too."}

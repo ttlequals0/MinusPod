@@ -1,0 +1,9 @@
+[
+  {
+    "start": 539.2,
+    "end": 624.5,
+    "confidence": 0.99,
+    "reason": "Host-read ads for the movie 'In the Gray' and Skechers. The ad segment is incomplete as it continues past the end of the provided transcript window.",
+    "end_text": "sandals, sneakers,"
+  }
+]

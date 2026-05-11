@@ -1,0 +1,9 @@
+[
+  {
+    "start": 4296.0,
+    "end": 4361.4,
+    "confidence": 0.95,
+    "reason": "Host-read promotional block for a book ('Tell Death Do We Parent'), a tennis event ('All Love Racquet Club'), and the host's other show ('AM Mornings').",
+    "end_text": "See you guys there. Peace."
+  }
+]

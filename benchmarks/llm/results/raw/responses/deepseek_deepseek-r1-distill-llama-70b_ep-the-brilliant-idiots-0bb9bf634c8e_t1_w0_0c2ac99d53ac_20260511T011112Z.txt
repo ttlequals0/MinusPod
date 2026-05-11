@@ -1,0 +1,7 @@
+{
+  "transcript": "Hey, sweetie, your mother showed me this Carvana thing for selling the car. I'm gonna give it a try. Wish me luck. Me again. I put in the license plate. It gave me an offer. Unbelievable. Okay, I accepted the offer. They're picking it up Tuesday from the driveway. I haven't even left my chair. It's done. The car is gone. I'm holding a check. Anyway, Carvana, give it a whirl. Love ya. So good, you'll want to leave a voicemail about it. Sell your car today on Carvana. Pickup fees may apply. Yep, Charlemagne Tha God, back for another week of the Brilliant Idiots podcast. My guy Hezekiah Walker is not here this week. I don't know what the hell Hezi is doing. What is Hezi doing, Alex? Netflix is a joke.",
+  "start": 0.5,
+  "end": 43.4,
+  "window_start": 0.0,
+  "window_end": 600.0
+}

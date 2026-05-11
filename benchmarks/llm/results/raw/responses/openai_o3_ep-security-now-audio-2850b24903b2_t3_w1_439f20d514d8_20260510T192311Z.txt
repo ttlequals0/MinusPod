@@ -1,0 +1,1 @@
+{"start":417.2,"end":575.3,"confidence":0.98,"reason":"Host-read Zscaler sponsor segment following the first-break announcement","end_text":"Steve and Security Now"}

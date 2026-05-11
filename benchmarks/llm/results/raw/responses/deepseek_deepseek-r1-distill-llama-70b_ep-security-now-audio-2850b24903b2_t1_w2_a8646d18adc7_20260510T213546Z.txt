@@ -1,0 +1,7 @@
+{
+  "start": 983.0,
+  "end": 986.4,
+  "confidence": 0.95,
+  "reason": "Thank you for watching.",
+  "end_text": "Thank you for watching."
+}

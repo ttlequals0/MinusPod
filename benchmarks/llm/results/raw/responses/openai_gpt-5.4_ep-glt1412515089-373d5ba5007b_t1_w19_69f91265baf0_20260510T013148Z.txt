@@ -1,0 +1,1 @@
+{"start":8215.0,"end":8218.9,"confidence":0.91,"reason":"Rev.com platform credit/tagline insertion: \"Transcript by Rev.com.\"","end_text":"Transcript by Rev.com."}

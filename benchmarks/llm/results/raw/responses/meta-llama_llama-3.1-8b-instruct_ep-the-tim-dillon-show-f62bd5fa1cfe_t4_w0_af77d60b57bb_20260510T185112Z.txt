@@ -1,0 +1,51 @@
+[
+{
+  "start": 0.0,
+   "end": 27.7,
+   "confidence": 0.95,
+   "reason": "Colgate Women's Games sponsor read",
+   "end_text": "Colgate Women's Games"
+},
+{
+   "start": 28.1,
+   "end": 51.6,
+   "confidence": 0.98,
+   "reason": "Welcome to the Tim Dillon Show",
+   "end_text": "Welcome to the Tim Dillon Show"
+},
+{
+   "start": 497.4,
+   "end": 506.0,
+   "confidence": 0.95,
+   "reason": "Mint Mobile sponsor read",
+   "end_text": "Mint Mobile"
+},
+{
+   "start": 507.2,
+   "end": 534.0,
+   "confidence": 0.98,
+   "reason": "Aura Frames sponsor read",
+   "end_text": "Aura Frames"
+},
+{
+   "start": 535.2,
+   "end": 561.5,
+   "confidence": 0.95,
+   "reason": "Morgan & Morgan sponsor read",
+   "end_text": "Morgan & Morgan"
+},
+{
+   "start": 562.8,
+   "end": 585.7,
+   "confidence": 0.98,
+   "reason": "Stash sponsor read",
+   "end_text": "Stash"
+},
+{
+   "start": 587.5,
+   "end": 612.8,
+   "confidence": 0.95,
+   "reason": "Neuro Gum sponsor read",
+   "end_text": "Neuro Gum"
+}
+]

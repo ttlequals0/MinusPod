@@ -1,0 +1,81 @@
+{  
+  "segments": [  
+    {  
+      "start": 402.7,  
+      "end": 429.9,  
+      "confidence": 0.95,  
+      "reason": "transition phrase 'all of a sudden' and mention of '10 million people' listening to the conversation",  
+      "end_text": "you don't have to worry about being a fool"  
+    },  
+    {  
+      "start": 430.4,  
+      "end": 456.0,  
+      "confidence": 0.98,  
+      "reason": "transition phrase 'all kinds of different things' and mention of '10 million people' listening",  
+      "end_text": "you can have conversations"  
+    },  
+    {  
+      "start": 525.0,  
+      "end": 568.3,  
+      "confidence": 0.97,  
+      "reason": "transition phrase 'what is all this?' and mention of 'Guy Ritchie'",  
+      "end_text": "they operate"  
+    },  
+    {  
+      "start": 568.4,  
+      "end": 595.4,  
+      "confidence": 0.96,  
+      "reason": "transition phrase 'only in theaters' and mention of 'Skechers'",  
+      "end_text": "they're even machine washable"  
+    },  
+    {  
+      "start": 595.8,  
+      "end": 626.5,  
+      "confidence": 0.95,  
+      "reason": "transition phrase 'how about this for convenience?' and mention of 'Skechers'",  
+      "end_text": "they're even machine washable"  
+    },  
+    {  
+      "start": 653.1,  
+      "end": 681.8,  
+      "confidence": 0.98,  
+      "reason": "transition phrase 'yeah, I'm just clapping' and mention of 'Skechers'",  
+      "end_text": "Einstein was more like the two-year-old"  
+    },  
+    {  
+      "start": 682.3,  
+      "end": 704.6,  
+      "confidence": 0.97,  
+      "reason": "transition phrase 'my favorite side was the two-year-old' and mention of 'Skechers'",  
+      "end_text": "Einstein was full of wonder and confusion"  
+    },  
+    {  
+      "start": 726.0,  
+      "end": 751.1,  
+      "confidence": 0.95,  
+      "reason": "transition phrase 'he just asked questions' and mention of 'Skechers'",  
+      "end_text": "you have to be careful"  
+    },  
+    {  
+      "start": 764.6,  
+      "end": 790.2,  
+      "confidence": 0.96,  
+      "reason": "transition phrase 'but that's what' and mention of 'Skechers'",  
+      "end_text": "I'm not afraid to be foolish"  
+    },  
+    {  
+      "start": 805.8,  
+      "end": 833.9,  
+      "confidence": 0.95,  
+      "reason": "transition phrase 'I wonder how much it helps me' and mention of 'Skechers'",  
+      "end_text": "I'm not afraid to be foolish"  
+    },  
+    {  
+      "start": 858.0,  
+      "end": 877.8,  
+      "confidence": 0.98,  
+      "reason": "transition phrase 'I'm now independent' and mention of 'Skechers'",  
+      "end_text": "I'm now independent"  
+    }  
+  ]  
+}

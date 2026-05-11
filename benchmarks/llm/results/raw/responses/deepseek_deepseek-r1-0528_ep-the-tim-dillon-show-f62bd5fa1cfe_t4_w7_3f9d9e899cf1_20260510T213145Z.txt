@@ -1,0 +1,23 @@
+[
+  {
+    "start": 3079.6,
+    "end": 3134.3,
+    "confidence": 1.0,
+    "reason": "Morgan & Morgan law firm ad with URL and phone number",
+    "end_text": "a paid advertisement"
+  },
+  {
+    "start": 3135.6,
+    "end": 3208.0,
+    "confidence": 1.0,
+    "reason": "Stash investing app ad with Market Mood feature",
+    "end_text": "involves risk"
+  },
+  {
+    "start": 3209.1,
+    "end": 3270.1,
+    "confidence": 1.0,
+    "reason": "Neuro Gum ad with promo code TIM",
+    "end_text": "CVS and Amazon"
+  }
+]

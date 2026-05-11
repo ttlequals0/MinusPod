@@ -1,0 +1,1 @@
+{"start": 9004.0, "end": 9004.0, "confidence": 0.0, "reason": "No ad content detected in this transcript segment. The provided text is editorial discussion about browsers and AI.", "end_text": "No ad content"}

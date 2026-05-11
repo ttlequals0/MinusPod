@@ -1,0 +1,1 @@
+{"start":1439.2,"end":1665.9,"confidence":0.99,"reason":"Ad block with Mint Mobile and Aura Frames sponsor reads (URLs, promo code, product pitches), followed by network-inserted Colgate and Skinny Pop promotional spots; merged due to gaps under 15 seconds.","end_text":"perfectly salted. Skinny Pop."}

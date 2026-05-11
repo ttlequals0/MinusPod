@@ -1,0 +1,7 @@
+{
+  "start": 2936.4,
+  "end": 2961.9,
+  "confidence": 0.95,
+  "reason": "Platform-inserted ad for Club TWiT (ad-free podcast subscription) - 'Thank you for watching' is a transition to a promotional segment for the show's own subscription service, which is a common ad format in TWiT network podcasts.",
+  "end_text": "Thank you for watching."
+}

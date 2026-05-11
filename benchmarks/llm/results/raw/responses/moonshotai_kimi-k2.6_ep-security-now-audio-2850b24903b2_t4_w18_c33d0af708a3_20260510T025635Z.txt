@@ -1,0 +1,1 @@
+{"start": 7584.4, "end": 7816.6, "confidence": 0.99, "reason": "Trusted Tech host-read sponsor segment with break transition, M365 licensing pitch, URL call to action, and return to show", "end_text": "Now, back to Steve."}

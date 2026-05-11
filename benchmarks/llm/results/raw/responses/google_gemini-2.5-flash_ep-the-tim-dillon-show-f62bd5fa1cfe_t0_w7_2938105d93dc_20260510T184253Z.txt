@@ -1,0 +1,23 @@
+[
+  {
+    "start": 3079.6,
+    "end": 3134.3,
+    "confidence": 0.98,
+    "reason": "Morgan & Morgan sponsor read with call to action and promo code",
+    "end_text": "Poundlaw. This is a paid advertisement."
+  },
+  {
+    "start": 3135.6,
+    "end": 3208.0,
+    "confidence": 0.98,
+    "reason": "Stash sponsor read with call to action and promo code",
+    "end_text": "Investments LLC, an SEC registered advisor. Investing involves risk."
+  },
+  {
+    "start": 3209.1,
+    "end": 3270.1,
+    "confidence": 0.98,
+    "reason": "Neuro Gum sponsor read with call to action and promo code",
+    "end_text": "at CVS and Amazon."
+  }
+]

@@ -1,0 +1,191 @@
+[
+{
+  "start": 3360.3,
+   "end": 3389.5,
+   "confidence": 0.95,
+   "reason": "Episode description and intro",
+   "end_text": "Hantavirus outbreak linked"
+},
+{
+   "start": 3389.5,
+   "end": 3413.7,
+   "confidence": 0.95,
+   "reason": "Episode content",
+   "end_text": "exit the cruise"
+},
+{
+   "start": 3415.8,
+   "end": 3425.1,
+   "confidence": 0.95,
+   "reason": "Episode content",
+   "end_text": "Hanta! Hanta! Hanta!"
+},
+{
+   "start": 3427.7,
+   "end": 3446.4,
+   "confidence": 0.95,
+   "reason": "Episode content",
+   "end_text": "Hantavirus, which my"
+},
+{
+   "start": 3448.7,
+   "end": 3458.9,
+   "confidence": 0.95,
+   "reason": "Episode content",
+   "end_text": "We're going to get hantavirus"
+},
+{
+   "start": 3460.8,
+   "end": 3483.7,
+   "confidence": 0.95,
+   "reason": "Episode content",
+   "end_text": "limited resources"
+},
+{
+   "start": 3484.2,
+   "end": 3512.0,
+   "confidence": 0.95,
+   "reason": "Episode content",
+   "end_text": "but who knows"
+},
+{
+   "start": 3513.7,
+   "end": 3541.2,
+   "confidence": 0.95,
+   "reason": "Episode content",
+   "end_text": "bomb the ship"
+},
+{
+   "start": 3542.1,
+   "end": 3566.5,
+   "confidence": 0.95,
+   "reason": "Episode content",
+   "end_text": "bomb it"
+},
+{
+   "start": 3567.4,
+   "end": 3572.0,
+   "confidence": 0.95,
+   "reason": "Episode content",
+   "end_text": "that we thought was going"
+},
+{
+   "start": 3573.4,
+   "end": 3597.6,
+   "confidence": 0.95,
+   "reason": "Episode content",
+   "end_text": "make up a story"
+},
+{
+   "start": 3598.1,
+   "end": 3624.2,
+   "confidence": 0.95,
+   "reason": "Episode content",
+   "end_text": "Hantavirus is rare"
+},
+{
+   "start": 3625.1,
+   "end": 3647.5,
+   "confidence": 0.95,
+   "reason": "Episode content",
+   "end_text": "I am currently on board"
+},
+{
+   "start": 3650.1,
+   "end": 3672.0,
+   "confidence": 0.95,
+   "reason": "Episode content",
+   "end_text": "I'll kill myself"
+},
+{
+   "start": 3673.2,
+   "end": 3700.0,
+   "confidence": 0.95,
+   "reason": "Episode content",
+   "end_text": "We got too many fucking problems"
+},
+{
+   "start": 3700.6,
+   "end": 3725.8,
+   "confidence": 0.95,
+   "reason": "Episode content",
+   "end_text": "burn alive with their choices"
+},
+{
+   "start": 3726.5,
+   "end": 3743.8,
+   "confidence": 0.95,
+   "reason": "Episode content",
+   "end_text": "You're dead"
+},
+{
+   "start": 3744.9,
+   "end": 3772.7,
+   "confidence": 0.95,
+   "reason": "Episode content",
+   "end_text": "I'm back"
+},
+{
+   "start": 3774.5,
+   "end": 3802.7,
+   "confidence": 0.95,
+   "reason": "Episode content",
+   "end_text": "Hantavirus, friend of the show"
+},
+{
+   "start": 3803.3,
+   "end": 3822.8,
+   "confidence": 0.95,
+   "reason": "Episode content",
+   "end_text": "But here's the deal"
+},
+{
+   "start": 3824.1,
+   "end": 3842.1,
+   "confidence": 0.95,
+   "reason": "Episode content",
+   "end_text": "We're pretty fucked"
+},
+{
+   "start": 3843.2,
+   "end": 3870.8,
+   "confidence": 0.95,
+   "reason": "Episode content",
+   "end_text": "to human civilization"
+},
+{
+   "start": 3879.5,
+   "end": 3882.3,
+   "confidence": 0.95,
+   "reason": "Episode content",
+   "end_text": "Selflessly"
+},
+{
+   "start": 3883.6,
+   "end": 3908.5,
+   "confidence": 0.95,
+   "reason": "Episode content",
+   "end_text": "No"
+},
+{
+   "start": 3911.2,
+   "end": 3935.8,
+   "confidence": 0.95,
+   "reason": "Episode content",
+   "end_text": "They walk the plank"
+},
+{
+   "start": 3936.9,
+   "end": 3949.4,
+   "confidence": 0.95,
+   "reason": "Episode content",
+   "end_text": "and God"
+},
+{
+   "start": 3950.7,
+   "end": 3975.9,
+   "confidence": 0.95,
+   "reason": "Episode content",
+   "end_text": "That was kind of disturbing"
+}
+]

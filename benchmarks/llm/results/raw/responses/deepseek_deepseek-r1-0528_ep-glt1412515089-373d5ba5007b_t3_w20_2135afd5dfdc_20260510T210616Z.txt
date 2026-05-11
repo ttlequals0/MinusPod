@@ -1,0 +1,7 @@
+{
+  "start": 8405.6,
+  "end": 9008.6,
+  "confidence": 0.95,
+  "reason": "No promotional content detected in the provided transcript segment. The conversation is entirely focused on the guest's experiences, book writing process, and personal anecdotes without any sponsor mentions, calls to action, or ad transitions.",
+  "end_text": "Lockheed Martin for an interview"
+}

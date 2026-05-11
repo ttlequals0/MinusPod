@@ -1,0 +1,9 @@
+[
+  {
+    "start": 5546.3,
+    "end": 5596.3,
+    "confidence": 0.99,
+    "reason": "Netflix's Remarkably Bright Creatures host-read promotion",
+    "end_text": "only on Netflix."
+  }
+]

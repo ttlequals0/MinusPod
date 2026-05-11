@@ -1,0 +1,9 @@
+[
+  {
+    "start": 0.0,
+    "end": 27.7,
+    "confidence": 0.95,
+    "reason": "Colgate Women's Games sponsorship ad",
+    "end_text": "girls and women"
+  }
+]

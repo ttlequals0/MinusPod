@@ -1,0 +1,7 @@
+{
+  "start": 12.57,
+  "end": 18.36,
+  "confidence": 0.95,
+  "reason": "The segment contains promotional language for Mint Mobile and Aura Frames, including specific calls to action and URLs.",
+  "end_text": "learn things"
+}

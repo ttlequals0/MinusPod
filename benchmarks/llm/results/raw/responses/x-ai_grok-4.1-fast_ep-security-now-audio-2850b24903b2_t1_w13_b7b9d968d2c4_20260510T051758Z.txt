@@ -1,0 +1,1 @@
+{"start":6016.6,"end":6060.0,"confidence":0.99,"reason":"Hoxhunt sponsor read with transition 'We'll take a little break... brought to you by Hoxhunt'; continues in next window","end_text":"personalized to each employee, just"}

@@ -1,0 +1,9 @@
+[
+    {
+        "start": 2560.1,
+        "end": 2693.0,
+        "confidence": 0.99,
+        "reason": "Meter sponsor read with promotional language, vanity URL (meter.com/securitynow), and call to action ('book a demo')",
+        "end_text": "now book a demo okay meter"
+    }
+]

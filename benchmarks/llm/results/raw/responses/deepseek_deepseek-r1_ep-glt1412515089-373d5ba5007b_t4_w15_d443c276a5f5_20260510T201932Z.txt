@@ -1,0 +1,9 @@
+[
+    {
+        "start": 6368.2,
+        "end": 6394.8,
+        "confidence": 0.95,
+        "reason": "Perplexity AI sponsor mention with URL",
+        "end_text": "showing us how smart it is"
+    }
+]

@@ -1,0 +1,16 @@
+[
+  {
+    "start": 0.5,
+    "end": 43.4,
+    "confidence": 0.97,
+    "reason": "Carvana host-read ad with product pitch and call to action",
+    "end_text": "Sell your car today on Carvana"
+  },
+  {
+    "start": 302.9,
+    "end": 391.0,
+    "confidence": 0.99,
+    "reason": "Multiple show promos for books/podcasts with order links and URLs (Jess Hilarious, 2Chainz, Charlamagne's book, Andrew Schulz, Black Effect Network)",
+    "end_text": "podcast on Charlamagne's \"Black Effect Network\""
+  }
+]

@@ -1,0 +1,1 @@
+{"start": 9238.0, "end": 9258.3, "confidence": 0.95, "reason": "Perplexity host-read ad with URL and call to action", "end_text": "ask Perplexity anything at https://pplx.ai/rogan"}

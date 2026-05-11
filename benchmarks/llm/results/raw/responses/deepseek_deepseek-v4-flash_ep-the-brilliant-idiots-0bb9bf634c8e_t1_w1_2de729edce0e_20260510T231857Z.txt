@@ -1,0 +1,7 @@
+{
+  "start": 511.5,
+  "end": 512.6,
+  "confidence": 0.0,
+  "reason": "No promotional language found. The segment is a natural topic transition from wedding talk to the Complex list.",
+  "end_text": "2026 complex list came out"
+}

@@ -1,0 +1,8 @@
+
+{
+	"start": 4766.5,
+	"end": 4806.1,
+	"confidence": 0.95,
+	"reason": "Multiple sponsor ads including Viz and Garnier supporting National Park Foundation",
+	"end_text": "help support our national parks at GarnierUSA.com slash NPF."
+}

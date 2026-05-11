@@ -1,0 +1,23 @@
+[
+    {
+        "start": 1255.9,
+        "end": 1268.8,
+        "confidence": 0.95,
+        "reason": "Network-inserted platform tagline ad (likely TWiT or hosting platform promo). Contains promotional language ('Thank you for watching') typical of pre/post-roll ads.",
+        "end_text": "Thank you for watching."
+    },
+    {
+        "start": 1584.6,
+        "end": 1606.1,
+        "confidence": 0.95,
+        "reason": "Network-inserted platform tagline ad (likely TWiT or hosting platform promo). Repeats promotional language ('Thank you for watching') typical of mid-roll ads.",
+        "end_text": "Thank you for watching."
+    },
+    {
+        "start": 1855.8,
+        "end": 1860.0,
+        "confidence": 0.9,
+        "reason": "Partial ad segment likely continues in next window. Sponsor list includes Zscaler, Meter, Bitwarden, Hoxhunt, and TrustedTech, but no explicit ad detected yet. High probability of ad transition due to episode structure.",
+        "end_text": "greased path."
+    }
+]

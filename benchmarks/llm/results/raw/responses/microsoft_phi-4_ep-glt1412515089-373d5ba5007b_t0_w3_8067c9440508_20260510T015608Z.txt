@@ -1,0 +1,7 @@
+{  
+  "start": 12.57,  
+  "end": 13.11,  
+  "confidence": 0.95,  
+  "reason": "The segment discusses the insecurity and standards of masculinity, highlighting the importance of emotional maturity and genuine curiosity over proving dominance. It suggests a better world where people are more curious and less focused on intellectual dominance, which aligns with the theme of promoting genuine conversation and understanding.",  
+  "end_text": "I think the world would be a better place if more people were curious."  
+}

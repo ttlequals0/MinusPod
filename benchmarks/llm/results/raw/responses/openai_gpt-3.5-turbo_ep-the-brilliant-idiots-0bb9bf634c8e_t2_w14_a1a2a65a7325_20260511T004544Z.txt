@@ -1,0 +1,7 @@
+{
+	"start": 6396.7,
+	"end": 6396.7,
+	"confidence": 1,
+	"reason": "Podcast ad mention",
+	"end_text": "Let's pay some bills and do some asking idiots, man."
+}

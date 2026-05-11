@@ -1,0 +1,18 @@
+```json
+[
+  {
+    "start": 2324.6,
+    "end": 2404.4,
+    "confidence": 0.98,
+    "reason": "BlueChew Gold erectile dysfunction product sponsor read with promo code 'Idiots' and call to action",
+    "end_text": "BlueChew for sponsoring the podcast"
+  },
+  {
+    "start": 2404.4,
+    "end": 2450.0,
+    "confidence": 0.98,
+    "reason": "ZipRecruiter hiring platform sponsor read with promo code 'idiots' and vanity URL ZipRecruiter.com/slash/idiots",
+    "end_text": "Meet your match on ZipRecruiter"
+  }
+]
+```

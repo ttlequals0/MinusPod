@@ -1,0 +1,16 @@
+[
+    {
+        "start": 2286.5,
+        "end": 2345.2,
+        "confidence": 0.99,
+        "reason": "Mint Mobile host-read ad with promo URL and call to action, continues from previous window",
+        "end_text": "mintmobile.com/TIMDILLON"
+    },
+    {
+        "start": 2345.2,
+        "end": 2403.7,
+        "confidence": 0.99,
+        "reason": "Aura Frames host-read ad with promo code and URL, continues in next window",
+        "end_text": "on.auraframes.com/TIM"
+    }
+]

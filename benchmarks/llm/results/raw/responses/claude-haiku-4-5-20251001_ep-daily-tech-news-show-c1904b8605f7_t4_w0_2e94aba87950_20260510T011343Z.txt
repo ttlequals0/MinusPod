@@ -1,0 +1,32 @@
+```json
+[
+  {
+    "start": 0.0,
+    "end": 52.3,
+    "confidence": 0.98,
+    "reason": "Capital One Chat Concierge sponsor read with product pitch and call to action",
+    "end_text": "That's technology at Capital One"
+  },
+  {
+    "start": 52.5,
+    "end": 71.6,
+    "confidence": 0.98,
+    "reason": "Xero accounting platform sponsor read with free trial offer and search call to action",
+    "end_text": "search XERO for your free trial"
+  },
+  {
+    "start": 72.1,
+    "end": 100.9,
+    "confidence": 0.98,
+    "reason": "Spectrum Business sponsor read with product features, price guarantee, and bundle offer",
+    "end_text": "you get support with 100%"
+  },
+  {
+    "start": 124.0,
+    "end": 152.9,
+    "confidence": 0.98,
+    "reason": "Warby Parker sponsor read with store/app directions and website URL",
+    "end_text": "warbyparker.com"
+  }
+]
+```

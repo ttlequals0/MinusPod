@@ -1,0 +1,1 @@
+{"start":2208.3,"end":2237.0,"confidence":0.99,"reason":"Blinds.com network-inserted retail ad with promotional copy and offer: 'Right now, get up to 45% off site-wide' and brand CTA","end_text":"free professional measure at Blinds.com"}

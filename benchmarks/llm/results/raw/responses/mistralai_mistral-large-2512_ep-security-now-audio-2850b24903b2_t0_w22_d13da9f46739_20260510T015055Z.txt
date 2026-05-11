@@ -1,0 +1,16 @@
+[
+    {
+        "start": 9259.3,
+        "end": 9290.5,
+        "confidence": 0.98,
+        "reason": "Network-inserted cross-promotion for 'This Week in Tech' (different show, different host/topic). Platform-inserted ad.",
+        "end_text": "Tech from the TWiT Network. Thank you."
+    },
+    {
+        "start": 9344.4,
+        "end": 9374.4,
+        "confidence": 0.99,
+        "reason": "Mint Mobile host-read ad with promo code ('mintmobile.com/switch'), call to action, and pricing details. Continues in next window.",
+        "end_text": "terms at mintmobile.com."
+    }
+]

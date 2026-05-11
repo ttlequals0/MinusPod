@@ -1,0 +1,16 @@
+[
+    {
+        "start": 2246.0,
+        "end": 2275.3,
+        "confidence": 0.99,
+        "reason": "Capital One sponsor read with promotional language, product pitch (Chat Concierge), and brand tagline",
+        "end_text": "technology at Capital One"
+    },
+    {
+        "start": 2276.2,
+        "end": 2314.4,
+        "confidence": 0.98,
+        "reason": "Rinse network-inserted ad with promotional language, call to action (Sign up at Rinse.com), and brand tagline",
+        "end_text": "time to be great"
+    }
+]

@@ -1,0 +1,30 @@
+[
+    {
+        "start": 4057.2,
+        "end": 4083.9,
+        "confidence": 0.98,
+        "reason": "Host-read sponsor transition with call to action ('Let's pay some bills, Chris') and promotional language for Lil P's needs, typical ad structure.",
+        "end_text": "Lil P got to eat, okay?"
+    },
+    {
+        "start": 4324.2,
+        "end": 4334.1,
+        "confidence": 0.95,
+        "reason": "Promotion of Jess Hilarious' book ('Tell Death Do We Parent') and host's tennis event ('All Love Racquet Club'), including call to action.",
+        "end_text": "All Love Racquet Club."
+    },
+    {
+        "start": 4334.7,
+        "end": 4361.4,
+        "confidence": 0.98,
+        "reason": "Host-read promotion for 'AM Mornings' show on YouTube, including schedule and platform details, structured as a clear ad segment.",
+        "end_text": "See you guys there. Peace."
+    },
+    {
+        "start": 4380.0,
+        "end": 4380.0,
+        "confidence": 0.9,
+        "reason": "Platform-inserted ad likely follows (e.g., 'Learn more about your ad choices. Visit megaphone.fm/adchoices'), but transcript window ends. Marked as partial.",
+        "end_text": "continues in next"
+    }
+]

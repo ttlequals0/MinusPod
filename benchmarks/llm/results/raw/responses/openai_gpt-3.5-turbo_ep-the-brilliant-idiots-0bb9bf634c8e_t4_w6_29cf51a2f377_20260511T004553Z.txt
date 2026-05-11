@@ -1,0 +1,7 @@
+{
+	"start": 2505.7,
+	"end": 2522.4,
+	"confidence": 1,
+	"reason": "Podcast sponsor mentions",
+	"end_text": "15 years ago. What was the pushback when you were trying to do it? Like, did they not want to?"
+}

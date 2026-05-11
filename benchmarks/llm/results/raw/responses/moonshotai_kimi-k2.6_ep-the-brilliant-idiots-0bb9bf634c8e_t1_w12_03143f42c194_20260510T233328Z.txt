@@ -1,0 +1,1 @@
+{"start":5019.7,"end":5646.8,"confidence":0.0,"reason":"No promotional content found in transcript window","end_text":"I don't"}

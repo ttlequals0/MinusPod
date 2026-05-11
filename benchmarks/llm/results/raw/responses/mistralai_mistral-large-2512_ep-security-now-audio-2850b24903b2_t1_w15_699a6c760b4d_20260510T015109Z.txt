@@ -1,0 +1,9 @@
+[
+    {
+        "start": 6884.7,
+        "end": 6900.0,
+        "confidence": 0.0,
+        "reason": "continues in next (no ad detected in this window)",
+        "end_text": "provided to their browser."
+    }
+]

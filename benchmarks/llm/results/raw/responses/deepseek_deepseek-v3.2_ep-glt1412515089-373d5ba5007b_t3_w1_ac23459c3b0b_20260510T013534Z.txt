@@ -1,0 +1,1 @@
+{"start": 539.2, "end": 652.8, "confidence": 1.0, "reason": "Host-read ad for movie 'In the Gray' and Skechers slip-ins with promotional language and calls to action", "end_text": "only at Skechers.com"}

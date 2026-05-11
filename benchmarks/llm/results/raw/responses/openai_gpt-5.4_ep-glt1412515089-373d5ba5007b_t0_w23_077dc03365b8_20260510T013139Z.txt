@@ -1,0 +1,1 @@
+{"start":9898.8,"end":9920.6,"confidence":0.97,"reason":"Perplexity post-roll ad copy in episode metadata: 'Download the app or ask Perplexity anything at https://pplx.ai/rogan' plus ad choices URL; ad continues from outside transcript window","end_text":"Visit podcastchoices.com/adchoices"}

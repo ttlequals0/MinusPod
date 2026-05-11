@@ -1,0 +1,16 @@
+[
+    {
+        "start": 6390.2,
+        "end": 6419.1,
+        "confidence": 0.98,
+        "reason": "Host transition to sponsor read with promotional language for 'Asking Idiots' segment, including call to action ('Let's pay some bills and do some asking idiots, man'). This is a recurring sponsored segment in the show.",
+        "end_text": "do some Asking Idiots, man."
+    },
+    {
+        "start": 6446.1,
+        "end": 6480.0,
+        "confidence": 0.95,
+        "reason": "Platform-inserted ad for Megaphone (hosting platform) with promotional language ('Learn more about your ad choices. Visit megaphone.fm/adchoices'). Continues in next window.",
+        "end_text": "continues in next"
+    }
+]

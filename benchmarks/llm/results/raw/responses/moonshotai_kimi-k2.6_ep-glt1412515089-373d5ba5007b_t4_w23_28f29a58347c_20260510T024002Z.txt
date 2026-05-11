@@ -1,0 +1,1 @@
+ {"start": 9655.2, "end": 9920.6, "confidence": 0.0, "reason": "No promotional content detected in transcript. Entire window is conversational interview content where the guest discusses her own nonprofit, app, and book organically.", "end_text": "Bye, everybody. Bye."}

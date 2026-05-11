@@ -1,0 +1,1 @@
+[{"start": 3077.7, "end": 3188.0, "confidence": 0.98, "reason": "Morgan & Morgan sponsor read", "end_text": "Market Mood gives you something most investing tools don't"}, {"start": 3208.0, "end": 3270.1, "confidence": 0.98, "reason": "NeuroGum sponsor read", "end_text": "code TIM for 20% off your first order"}]

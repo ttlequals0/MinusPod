@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 5546.3,
+      "end": 5596.3,
+      "confidence": 1.0,
+      "reason": "Netflix sponsor read for 'Remarkably Bright Creatures'",
+      "end_text": "only on Netflix"
+    }
+  ]
+}

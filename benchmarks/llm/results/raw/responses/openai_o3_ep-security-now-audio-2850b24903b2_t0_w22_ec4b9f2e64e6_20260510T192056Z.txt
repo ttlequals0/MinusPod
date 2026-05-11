@@ -1,0 +1,25 @@
+{
+  "segments": [
+    {
+      "start": 9259.3,
+      "end": 9290.5,
+      "confidence": 0.81,
+      "reason": "Cross-promotion for another TWiT Network show with call to subscribe.",
+      "end_text": "TWiT Network. Thank you."
+    },
+    {
+      "start": 9312.9,
+      "end": 9315.5,
+      "confidence": 0.40,
+      "reason": "Short brand tagline ad likely for Citizens Bank.",
+      "end_text": "for citizens back."
+    },
+    {
+      "start": 9344.4,
+      "end": 9374.4,
+      "confidence": 0.95,
+      "reason": "Mint Mobile commercial featuring Ryan Reynolds, with URL and price promotion.",
+      "end_text": "terms at mintmobile.com."
+    }
+  ]
+}

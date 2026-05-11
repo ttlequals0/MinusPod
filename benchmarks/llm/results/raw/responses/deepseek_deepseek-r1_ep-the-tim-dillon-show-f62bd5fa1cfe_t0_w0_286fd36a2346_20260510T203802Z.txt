@@ -1,0 +1,7 @@
+[{
+    "start": 0.0,
+    "end": 27.7,
+    "confidence": 1.0,
+    "reason": "Colgate pre-roll advertisement with brand tagline and product pitch",
+    "end_text": "girls and women."
+}]

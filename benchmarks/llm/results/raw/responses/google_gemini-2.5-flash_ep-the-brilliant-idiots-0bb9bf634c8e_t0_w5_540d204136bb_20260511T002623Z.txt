@@ -1,0 +1,23 @@
+[
+  {
+    "start": 2324.6,
+    "end": 2380.3,
+    "confidence": 0.98,
+    "reason": "BlueChew Gold sponsor read",
+    "end_text": "mental arousal and"
+  },
+  {
+    "start": 2381.0,
+    "end": 2403.9,
+    "confidence": 0.98,
+    "reason": "BlueChew Gold sponsor read with promo code",
+    "end_text": "sponsoring the podcast"
+  },
+  {
+    "start": 2403.9,
+    "end": 2450.0,
+    "confidence": 0.98,
+    "reason": "ZipRecruiter sponsor read with promo code",
+    "end_text": "on ZipRecruiter"
+  }
+]

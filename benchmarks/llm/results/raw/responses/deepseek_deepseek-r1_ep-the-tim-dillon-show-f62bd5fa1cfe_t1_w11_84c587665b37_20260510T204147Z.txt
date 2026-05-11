@@ -1,0 +1,9 @@
+[
+  {
+    "start": 4675.4,
+    "end": 4806.1,
+    "confidence": 0.95,
+    "reason": "Multiple platform-inserted ads including Colgate, Skinny Pop, Viz, and Garnier with explicit product pitches and calls to action",
+    "end_text": "support our national parks at GarnierUSA.com slash NPF"
+  }
+]

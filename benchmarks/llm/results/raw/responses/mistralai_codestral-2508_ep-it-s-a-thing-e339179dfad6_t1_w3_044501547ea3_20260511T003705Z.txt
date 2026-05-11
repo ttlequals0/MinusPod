@@ -1,0 +1,1 @@
+[{"start": 1524.5, "end": 1561.9, "confidence": 0.95, "reason": "Xero sponsor read", "end_text": "Conditions apply"}, {"start": 1565.4, "end": 1602.6, "confidence": 0.95, "reason": "Wrong Turns podcast cross-promotion", "end_text": "Acast.com"}]

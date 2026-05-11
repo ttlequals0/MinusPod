@@ -1,0 +1,16 @@
+[
+  {
+    "start": 0.5,
+    "end": 16.8,
+    "confidence": 0.99,
+    "reason": "Carvana sponsor read",
+    "end_text": "even left my chair"
+  },
+  {
+    "start": 17.7,
+    "end": 30.0,
+    "confidence": 0.99,
+    "reason": "Carvana sponsor read",
+    "end_text": "Pickup fees may apply"
+  }
+]

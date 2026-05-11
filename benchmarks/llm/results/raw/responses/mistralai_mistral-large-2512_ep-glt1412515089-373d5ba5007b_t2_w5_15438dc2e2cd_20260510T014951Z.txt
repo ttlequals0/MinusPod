@@ -1,0 +1,16 @@
+[
+    {
+        "start": 2208.3,
+        "end": 2237.0,
+        "confidence": 0.99,
+        "reason": "Blinds.com host-read sponsor segment with promotional language, call to action ('get up to 45% off site-wide'), and brand-specific offer",
+        "end_text": "free professional measure at Blinds.com"
+    },
+    {
+        "start": 2374.9,
+        "end": 2375.6,
+        "confidence": 0.8,
+        "reason": "Partial network-inserted ad (cut off) with promotional language ('Click here to see me try the world's loudest...'). Likely continues in next window.",
+        "end_text": "world's loudest..."
+    }
+]

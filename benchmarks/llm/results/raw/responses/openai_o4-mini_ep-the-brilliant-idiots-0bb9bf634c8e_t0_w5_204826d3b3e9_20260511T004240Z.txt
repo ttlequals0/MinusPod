@@ -1,0 +1,1 @@
+{"start":2324.6,"end":2381.0,"confidence":0.95,"reason":"BlueChew Gold sponsor read","end_text":"sponsoring the podcast"}

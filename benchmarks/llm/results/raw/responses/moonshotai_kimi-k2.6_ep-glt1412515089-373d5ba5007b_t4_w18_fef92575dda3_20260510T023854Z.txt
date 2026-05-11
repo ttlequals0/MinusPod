@@ -1,0 +1,1 @@
+ {"start": 7916.6, "end": 7937.1, "confidence": 0.95, "reason": "YouTube outro 'Thank you for watching' with potential embedded sponsor card or end-screen promotion, distinct from show content", "end_text": "Thank you for watching."}

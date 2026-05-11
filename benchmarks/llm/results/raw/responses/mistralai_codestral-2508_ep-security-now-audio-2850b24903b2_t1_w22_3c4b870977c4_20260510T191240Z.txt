@@ -1,0 +1,1 @@
+[{"start": 9259.3, "end": 9290.5, "confidence": 0.95, "reason": "Leo Laporte promotes This Week in Tech", "end_text": "This Week in Tech from the TWiT Network. Thank you."}, {"start": 9312.9, "end": 9374.4, "confidence": 0.95, "reason": "Mint Mobile sponsor read", "end_text": "See full terms at mintmobile.com."}]

@@ -1,0 +1,1 @@
+[{"start": 161.0, "end": 161.37, "confidence": 0.99, "reason": "Platform-inserted Perplexity promotion with URL", "end_text": "pplx.ai/rogan"}]

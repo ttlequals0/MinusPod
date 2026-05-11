@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2560.1,
+    "end": 2693.0,
+    "confidence": 0.98,
+    "reason": "Host-read Meter sponsorship with product pitch and vanity URL",
+    "end_text": "meter.com. security now book a demo"
+  }
+]

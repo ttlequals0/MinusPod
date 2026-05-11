@@ -1,0 +1,1 @@
+{"start": 490.9, "end": 511.5, "confidence": 0.95, "reason": "Host-read promotion for 'All Memes Necessary' segment", "end_text": "all memes necessary. 2026 complex list came out"}

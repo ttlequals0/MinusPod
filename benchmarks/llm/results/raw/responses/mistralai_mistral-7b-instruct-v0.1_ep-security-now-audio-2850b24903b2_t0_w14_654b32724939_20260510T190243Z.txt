@@ -1,0 +1,25 @@
+ [6483.8s - 6503.5s] Ad segment:
+
+Steve: And now, a word from our sponsor, Cisco. With Cisco's security solutions, you can protect your organization from advanced threats. Cisco's Talos Intelligence team provides threat intelligence and research to help you stay one step ahead of cybercriminals. Visit Cisco.com to learn more.
+
+[6503.5s - 6521.3s] Content:
+
+Steve: ...the use of the prompt API by JavaScript running in the browser. This is saying that the use of the prompt API by JavaScript running in the browser is subject to the acceptable use policy of the API. Now, this is a very interesting development. It's not just that Google is sneaking a massive 4.7GB AI model into Chrome, but they're also trying to control how that AI model is used.
+
+[6521.3s - 6547.3s] Content:
+
+Steve: Mozilla is objecting to this, and they've raised some valid concerns. One of the concerns is that this could be used to facilitate misleading claims related to governmental or democratic processes. So, for example, a website could use this API to display a fake news article or a fake poll result, and it would be very difficult for users to distinguish that from a legitimate news article or a legitimate poll result.
+
+[6547.3s - 6563.5s] Transition:
+
+Steve: Let's take a break and hear from our sponsor, CrowdStrike. CrowdStrike offers endpoint protection that goes beyond traditional antivirus. Their Falcon platform uses artificial intelligence and machine learning to detect and respond to advanced threats in real time. Visit CrowdStrike.com to learn more.
+
+[6563.5s - 6581.2s] Content (continues in next):
+
+Steve: ...the use of the prompt API by JavaScript running in the browser is subject to the acceptable use policy of the API. This is a very interesting development. It's not just that Google is sneaking a massive 4.7GB AI model into Chrome, but they're also trying to control how that AI model is used. Mozilla is objecting to this, and they've raised some valid concerns. One of the concerns is that this could be used to facilitate misleading claims related to governmental or democratic processes. So, for example, a website could use this API to display a fake news article or a fake poll result, and it would be very difficult for users to distinguish that from a legitimate news article or a legitimate poll result.
+
+[6581.2s - 6600.0s] Content:
+
+Steve: Now, let's get back to our discussion about Google's proposed web browser API and Mozilla's objections.
+
+[6600.0s - end] No ads found.

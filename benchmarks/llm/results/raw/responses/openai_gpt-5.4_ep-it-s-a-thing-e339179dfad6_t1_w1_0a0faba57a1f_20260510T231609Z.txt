@@ -1,0 +1,1 @@
+{"start": 1030.8, "end": 1030.8, "confidence": 0.0, "reason": "No promotional language or sponsor segment detected in this window", "end_text": ""}

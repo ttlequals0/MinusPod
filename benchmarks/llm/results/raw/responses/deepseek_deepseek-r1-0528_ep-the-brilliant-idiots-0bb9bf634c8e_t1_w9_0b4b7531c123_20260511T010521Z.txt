@@ -1,0 +1,9 @@
+[
+  {
+    "start": 4323.9,
+    "end": 4334.1,
+    "confidence": 0.7,
+    "reason": "Host-read ad for Jess Hilarious' book 'Til Death Do We Parent'",
+    "end_text": "head to All Love Racquet Club"
+  }
+]

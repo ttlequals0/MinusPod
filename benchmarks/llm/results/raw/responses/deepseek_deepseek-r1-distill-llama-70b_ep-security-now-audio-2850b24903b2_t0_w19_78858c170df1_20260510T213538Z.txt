@@ -1,0 +1,7 @@
+{
+  "transcript": "Alright, so I've been using this new browser extension called Honey for a while now, and it's been a game-changer for my online shopping. I mean, it automatically applies coupon codes at checkout, which has saved me so much money. Plus, it's super easy to use—just install it and let it do its thing. I've already earned a bunch of cashback, and I can't recommend it enough. If you shop online frequently, you've got to check out Honey. It's a must-have tool for anyone looking to save time and money. And as a listener of this podcast, you can get an exclusive deal by signing up through our link. So, what are you waiting for? Give Honey a try today!",
+  "start": 133.0,
+  "end": 143.0,
+  "window_start": 133.0,
+  "window_end": 143.0
+}

@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I've been thinking a lot about AI and security. It's fascinating how AI can be both a tool and a target. On one hand, AI can help us detect threats more efficiently, but on the other hand, it can also be used by attackers to create more sophisticated phishing campaigns or even automate certain attacks. It's a double-edged sword, really. I wonder how this balance will play out in the future. Maybe we'll see more AI-driven security solutions, but then again, that might just escalate the arms race between defenders and attackers. It's something to keep an eye on for sure.",
+  "start_timestamp": 1860.0,
+  "end_timestamp": 1890.0
+}

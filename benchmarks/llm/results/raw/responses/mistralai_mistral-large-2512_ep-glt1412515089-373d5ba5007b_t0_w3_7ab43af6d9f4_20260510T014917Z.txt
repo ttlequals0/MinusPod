@@ -1,0 +1,9 @@
+[
+    {
+        "start": 1267.2,
+        "end": 1270.2,
+        "confidence": 0.95,
+        "reason": "Perplexity platform-inserted ad at the end of the provided segment (pre-roll or mid-roll placement). Promotional language for Perplexity app with URL (pplx.ai/rogan) and call to action ('Download the app or ask Perplexity anything').",
+        "end_text": "podcastchoices.com/adchoices"
+    }
+]

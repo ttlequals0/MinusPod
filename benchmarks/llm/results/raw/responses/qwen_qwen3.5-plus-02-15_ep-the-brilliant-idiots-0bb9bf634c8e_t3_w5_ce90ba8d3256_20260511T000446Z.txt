@@ -1,0 +1,1 @@
+[{"start": 2324.6, "end": 2450.0, "confidence": 0.98, "reason": "Blue Chew and ZipRecruiter sponsor read", "end_text": "Meet your match on ZipRecruiter."}]

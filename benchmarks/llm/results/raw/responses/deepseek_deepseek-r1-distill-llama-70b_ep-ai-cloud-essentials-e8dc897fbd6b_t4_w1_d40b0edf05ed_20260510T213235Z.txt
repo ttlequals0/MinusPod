@@ -1,0 +1,7 @@
+{
+  "start": 476.3,
+  "end": 504.0,
+  "confidence": 0.8,
+  "reason": "Monolith and I, I think we took a very different route to all of the other startups and even big engineering companies in this industry because we were too early for the simulation space. We basically gave up on simulations and instead focused on testing, which very different idea. You basically say, hey, look, everyone, we've tried to simulate what happens with this chassis or in this crash test. It didn't work. The reality was more complex than any simulation that we can really run. So we're just going to go and have to test this anyway. And so we came up with this counterintuitive notion that simulations are good, but they will never be as good as the real world. And so instead of running simulations, why don't we directly include AI into the real world, learn from real physical data, real physical prototypes?",
+  "end_text": "real physical prototypes?"
+}

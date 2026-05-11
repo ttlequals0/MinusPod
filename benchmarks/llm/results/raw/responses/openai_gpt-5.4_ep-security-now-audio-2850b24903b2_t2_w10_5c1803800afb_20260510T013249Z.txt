@@ -1,0 +1,1 @@
+{"start":4265.2,"end":4465.7,"confidence":0.99,"reason":"Bitwarden host-read sponsor segment introduced by break transition and featuring product pitch plus URL call to action (bitwarden.com/twit)","end_text":"for supporting. Security Now. Okay."}

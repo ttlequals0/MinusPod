@@ -1,0 +1,1 @@
+{"transcript": [{"start": 3780.0, "end": 4380.0, "ad_segments": []}], "ads_found": false}

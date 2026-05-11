@@ -1,0 +1,1 @@
+[{"start": 1307.0, "end": 1333.4, "confidence": 0.98, "reason": "Mint Mobile host-read promotion", "end_text": "delivered on the nation's largest 5G network"}, {"start": 1439.2, "end": 1440.0, "confidence": 0.95, "reason": "Mint Mobile continued promotion", "end_text": "I mean it"}]

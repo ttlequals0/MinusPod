@@ -1,0 +1,8 @@
+
+{
+	"start": 4334.7,
+	"end": 4361.4,
+	"confidence": 1,
+	"reason": "Promotion of AM Mornings show and All Love Racquet Club event",
+	"end_text": "See you guys there. Peace."
+}

@@ -1,0 +1,9 @@
+[
+    {
+        "start": 7607.7,
+        "end": 7797.9,
+        "confidence": 0.98,
+        "reason": "Trusted Tech sponsor read with promotional language, URL (trustedtech.team/securitynow365), and call to action",
+        "end_text": "trustedtech.team securitynow365"
+    }
+]

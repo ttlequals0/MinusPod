@@ -1,0 +1,1 @@
+[{"start": 4324.2, "end": 4334.1, "confidence": 0.95, "reason": "Promotion for All Love Racquet Club event", "end_text": "get your ticket there"} ]

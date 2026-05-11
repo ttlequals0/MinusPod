@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I've been thinking about this whole AI in browsers thing. It's kind of wild how Chrome is integrating these massive AI models. I mean, 4.7GB is huge! But then again, Mozilla is pushing back. I wonder what their approach is going to be. Maybe they're worried about performance or privacy? I should check that out. Anyway, let's take a break and hear from our sponsors. This episode is brought to you by Zscaler. They're a leader in cloud security, helping you secure your digital transformation. Visit zscaler.com/security to learn more. And we're also sponsored by Meter, the smart way to manage your cloud costs. Head over to meter.com/securitynow. Finally, Bitwarden is here, offering the best in password management. Check out bitwarden.com/twit. We'll be right back after this break.",
+  "start": 3600.0,
+  "end": 3660.0
+}

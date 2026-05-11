@@ -1,0 +1,7 @@
+[{
+    "start": 3079.6,
+    "end": 3120.0,
+    "confidence": 0.99,
+    "reason": "Morgan & Morgan host-read ad with URL 'ForThePeople.com/TIM', call to action 'dial Poundlaw', and explicit disclosure",
+    "end_text": "dial Poundlaw. This is"
+}]

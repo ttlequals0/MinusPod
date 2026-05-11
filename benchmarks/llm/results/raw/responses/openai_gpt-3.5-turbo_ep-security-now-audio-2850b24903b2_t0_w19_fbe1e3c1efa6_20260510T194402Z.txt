@@ -1,0 +1,8 @@
+
+{
+	"start": 7959.9,
+	"end": 8007.8,
+	"confidence": 0.98,
+	"reason": "Discussion about Google's AI model in Chrome",
+	"end_text": "JavaScript runtime frameworks, WebASEM, or WebGPU."
+}

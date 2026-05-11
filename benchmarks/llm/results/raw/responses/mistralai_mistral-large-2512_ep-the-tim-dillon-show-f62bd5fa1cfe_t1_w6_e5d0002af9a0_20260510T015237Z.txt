@@ -1,0 +1,16 @@
+[
+    {
+        "start": 3107.1,
+        "end": 3134.3,
+        "confidence": 0.99,
+        "reason": "Morgan & Morgan sponsor read with call to action, URL, and fee structure",
+        "end_text": "ForThePeople.com slash Tim, dial Poundlaw"
+    },
+    {
+        "start": 3134.3,
+        "end": 3140.0,
+        "confidence": 0.95,
+        "reason": "Stash sponsor teaser (partial ad, continues in next window)",
+        "end_text": "Stash is the one"
+    }
+]

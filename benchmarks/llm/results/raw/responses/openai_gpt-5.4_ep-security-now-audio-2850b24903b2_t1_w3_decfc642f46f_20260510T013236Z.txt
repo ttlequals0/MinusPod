@@ -1,0 +1,1 @@
+{"start": 1857.5, "end": 1860.0, "confidence": 0.05, "reason": "No advertisement detected; segment is editorial discussion and truncated at window end", "end_text": "they've got like a greased path."}

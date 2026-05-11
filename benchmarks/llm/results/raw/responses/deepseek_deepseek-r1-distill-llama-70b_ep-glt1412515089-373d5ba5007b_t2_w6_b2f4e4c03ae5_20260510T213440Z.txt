@@ -1,0 +1,8 @@
+{
+  "transcript": "Alright, so I've been using Perplexity for a while now, and I have to say, it's been a game-changer for my research. The way it pulls in relevant information from across the web and presents it in a clean, easy-to-read format is just fantastic. Plus, the AI-powered search makes it so much quicker to find what I'm looking for. I've tried other tools before, but Perplexity is definitely the most user-friendly and efficient. I highly recommend it to anyone looking to level up their research game.",
+  "start": 2846.0,
+  "end": 2858.9,
+  "confidence": 0.95,
+  "reason": "Perplexity AI promotion",
+  "end_text": "level up their research game."
+}

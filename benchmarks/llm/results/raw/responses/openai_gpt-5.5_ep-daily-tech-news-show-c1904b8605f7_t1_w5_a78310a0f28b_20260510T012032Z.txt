@@ -1,0 +1,1 @@
+{"start":2246.0,"end":2314.4,"confidence":0.99,"reason":"Back-to-back ads: Capital One sponsor segment ('This episode is brought to you by Capital One') followed by Rinse laundry service promo with call to action ('Sign up at Rinse.com'); merged due to <15s gap.","end_text":"It's time to be great."}

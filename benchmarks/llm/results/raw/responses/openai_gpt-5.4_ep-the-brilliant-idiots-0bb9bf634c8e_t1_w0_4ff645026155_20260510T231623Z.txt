@@ -1,0 +1,1 @@
+{"start":0.5,"end":43.4,"confidence":0.99,"reason":"Carvana network-inserted ad with direct product pitch and call to action ('Sell your car today on Carvana') before show content begins","end_text":"Netflix is a joke."}

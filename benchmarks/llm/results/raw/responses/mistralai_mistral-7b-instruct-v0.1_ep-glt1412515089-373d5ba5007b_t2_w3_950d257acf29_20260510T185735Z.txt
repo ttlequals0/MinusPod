@@ -1,0 +1,13 @@
+ [1257.4s - 1266.8s]: No advertisement segment detected. The conversation between the hosts does not contain any promotional language.
+
+[1266.8s - 1270.2s]: No advertisement segment detected. The hosts are discussing the podcast's content and making adjustments to the audio settings.
+
+[1292.5s - 1295.0s]: No advertisement segment detected. The hosts are having a conversation about standing up for their beliefs.
+
+[1311.2s - 1847.9s]: No advertisement segment detected. The conversation between the hosts is about the importance of balancing intellect and personality.
+
+[1847.9s - 1860.0s]: Perplexity advertisement segment.
+[1847.9s - 1853.3s]: "Perplexity: Download the app or ask Perplexity anything at https://pplx.ai/rogan."
+[1853.3s - 1859.5s]: "Learn more about your ad choices. Visit podcastchoices.com/adchoices"
+
+This window contains one advertisement segment for Perplexity, which is identified by the promotional language in the transcript. The transition phrase "let's take a break" is not present in this segment, but it is common for hosts to omit this phrase when reading sponsored content. The segment lasts approximately 12 seconds.

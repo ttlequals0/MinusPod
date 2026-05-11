@@ -1,0 +1,1 @@
+{"start": 2208.3, "end": 2237.0, "confidence": 0.99, "reason": "Blinds.com produced advertisement with discount offer, call to action, and URL", "end_text": "free professional measure at Blinds.com"}

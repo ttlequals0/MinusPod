@@ -1,0 +1,1 @@
+[{"start": 7557.6, "end": 7743.9, "confidence": 0.97, "reason": "Trusted Tech sponsor read - Microsoft 365 licensing service promotion with URL trustedtech.team/securitynow365 mentioned in episode description, host transitions 'let's take our final break' and reads ad copy about Microsoft pricing, licensing, and Kevin Turner endorsement", "end_text": "You will be too."}]

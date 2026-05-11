@@ -1,0 +1,79 @@
+[
+  {
+    "start": 1584.6,
+    "end": 1606.1,
+    "confidence": 0.95,
+    "reason": "Transition phrase 'Thank you for watching' followed by sponsor mentions",
+    "end_text": "Thank you for watching"
+  },
+  {
+    "start": 1608.4,
+    "end": 1634.4,
+    "confidence": 0.95,
+    "reason": "Sponsor mentions continue",
+    "end_text": "management guidance"
+  },
+  {
+    "start": 1636.3,
+    "end": 1663.1,
+    "confidence": 0.95,
+    "reason": "Sponsor mentions continue",
+    "end_text": "across all severities"
+  },
+  {
+    "start": 1664.0,
+    "end": 1692.2,
+    "confidence": 0.95,
+    "reason": "Sponsor mentions continue",
+    "end_text": "support teams"
+  },
+  {
+    "start": 1692.8,
+    "end": 1720.3,
+    "confidence": 0.95,
+    "reason": "Sponsor mentions continue",
+    "end_text": "installing the updates"
+  },
+  {
+    "start": 1721.0,
+    "end": 1744.9,
+    "confidence": 0.95,
+    "reason": "Sponsor mentions continue",
+    "end_text": "more information"
+  },
+  {
+    "start": 1745.8,
+    "end": 1772.1,
+    "confidence": 0.95,
+    "reason": "Sponsor mentions continue",
+    "end_text": "operational technology"
+  },
+  {
+    "start": 1773.7,
+    "end": 1801.2,
+    "confidence": 0.95,
+    "reason": "Sponsor mentions continue",
+    "end_text": "should be a priority"
+  },
+  {
+    "start": 1801.7,
+    "end": 1826.9,
+    "confidence": 0.95,
+    "reason": "Sponsor mentions continue",
+    "end_text": "government"
+  },
+  {
+    "start": 1827.5,
+    "end": 1855.8,
+    "confidence": 0.95,
+    "reason": "Sponsor mentions continue",
+    "end_text": "required response"
+  },
+  {
+    "start": 1857.5,
+    "end": 1886.0,
+    "confidence": 0.95,
+    "reason": "Sponsor mentions continue",
+    "end_text": "greased path"
+  }
+]

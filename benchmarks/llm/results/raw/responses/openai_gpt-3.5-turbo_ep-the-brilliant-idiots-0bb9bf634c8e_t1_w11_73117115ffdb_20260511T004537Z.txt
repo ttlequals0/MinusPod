@@ -1,0 +1,7 @@
+{
+	"start": 4602.8,
+	"end": 4630.3,
+	"confidence": 0.95,
+	"reason": "Multiple book orders mentioned",
+	"end_text": "Check out Andrew Schulz - ⁠⁠www.theandrewschulz.com⁠⁠"
+}

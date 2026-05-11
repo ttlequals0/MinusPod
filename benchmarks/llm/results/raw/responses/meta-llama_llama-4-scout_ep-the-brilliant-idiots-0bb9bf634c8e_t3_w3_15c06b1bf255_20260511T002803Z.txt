@@ -1,0 +1,1 @@
+{"start": 1520.3, "end": 1549.6, "confidence": 0.9, "reason": "Potential ad break or content gap", "end_text": "all the time. But when"}

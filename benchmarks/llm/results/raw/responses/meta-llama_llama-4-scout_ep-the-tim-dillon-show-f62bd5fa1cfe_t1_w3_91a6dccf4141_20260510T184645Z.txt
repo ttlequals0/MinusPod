@@ -1,0 +1,16 @@
+{"ads": [
+  {
+    "start": 1439.2,
+    "end": 1488.9,
+    "confidence": 0.98,
+    "reason": "Mint Mobile sponsor read",
+    "end_text": "mintmobile.com"
+  },
+  {
+    "start": 1489.6,
+    "end": 1563.8,
+    "confidence": 0.95,
+    "reason": "Aura Frames sponsor read",
+    "end_text": "AuraFrames.com"
+  }
+]}

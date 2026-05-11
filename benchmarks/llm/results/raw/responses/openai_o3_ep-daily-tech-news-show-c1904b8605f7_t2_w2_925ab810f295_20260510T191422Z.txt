@@ -1,0 +1,1 @@
+{"start": 821.4, "end": 1024.8, "confidence": 0.99, "reason": "Multi-sponsor ad break featuring Capital One, BetterHelp (promo code), Amazon Health AI, Spectrum Business, and Rinse laundry service; begins with 'This episode is brought to you by' and includes multiple calls to action and URLs", "end_text": "get to the briefs"}

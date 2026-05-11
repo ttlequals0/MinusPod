@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I've been thinking about this whole real estate market situation. It's wild how prices just keep going up, right? Let's take a quick break. This episode is brought to you by Mint Mobile. Get 3 months of premium wireless for just $15 a month. That's right, Mint Mobile is here to save you money on your phone bill without sacrificing coverage. Plus, with their 5G network, you'll stay connected wherever you go. So why wait? Switch to Mint Mobile today and start saving those dollars. We'll be right back after this break.",
+  "start": 45.0,
+  "end": 82.0
+}

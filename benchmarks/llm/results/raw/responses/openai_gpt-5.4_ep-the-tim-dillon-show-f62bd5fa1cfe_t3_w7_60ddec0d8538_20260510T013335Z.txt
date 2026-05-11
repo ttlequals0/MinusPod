@@ -1,0 +1,1 @@
+{"start":3079.6,"end":3270.1,"confidence":0.99,"reason":"Continuous host-read ad block with promotional language for Morgan & Morgan, Stash, and NeuroGum including URLs, promo code, pricing/offer language, and explicit disclosure 'This is a paid advertisement'","end_text":"find Neuro at CVS and Amazon"}

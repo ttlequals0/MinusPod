@@ -1,0 +1,7 @@
+{
+  "start": 14.0,
+  "end": 24.0,
+  "confidence": 0.95,
+  "reason": "Mint Mobile sponsor read with promotional language and transition phrases indicating continuation from previous segment.",
+  "end_text": "Mint Mobile"
+}

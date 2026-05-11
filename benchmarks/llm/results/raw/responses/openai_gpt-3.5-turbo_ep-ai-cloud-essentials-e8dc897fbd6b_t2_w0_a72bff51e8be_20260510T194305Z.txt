@@ -1,0 +1,7 @@
+{
+	"start": 58.0,
+	"end": 80.1,
+	"confidence": 1,
+	"reason": "Podcast intro by Core Read",
+	"end_text": "Don't miss this conversation."
+}

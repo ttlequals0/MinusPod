@@ -1,0 +1,1 @@
+{"start": 4533.0, "end": 4719.2, "confidence": 0.8, "reason": "Perplexity ad read by host", "end_text": "you're married, but she told me"}

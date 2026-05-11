@@ -1,0 +1,1 @@
+{"start": 4608.9, "end": 4638.3, "confidence": 0.0, "reason": "no ad detected", "end_text": "the one we're talking about"}

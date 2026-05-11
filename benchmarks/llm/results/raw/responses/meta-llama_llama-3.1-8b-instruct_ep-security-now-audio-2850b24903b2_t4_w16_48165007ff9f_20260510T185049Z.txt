@@ -1,0 +1,7 @@
+{
+  "start": 6699.7,
+   "end": 7320.0,
+   "confidence": 0.95,
+   "reason": "Club TWiT ad",
+   "end_text": "ad-free audio and video feeds"
+}

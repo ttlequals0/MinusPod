@@ -1,0 +1,7 @@
+{
+  "start": 3339.8,
+  "end": 3367.2,
+  "confidence": 0.95,
+  "reason": "Host discussing sponsor",
+  "end_text": "neutral, where women and men both show the effect."
+}

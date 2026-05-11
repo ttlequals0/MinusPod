@@ -1,0 +1,7 @@
+{
+  "start": 446.2,
+  "end": 464.3,
+  "confidence": 0.8,
+  "reason": "Host-read sponsor segment mentioning product promotion for compensation",
+  "end_text": "get a discount"
+}

@@ -1,0 +1,7 @@
+{  
+  "start": 20.90,  
+  "end": 26.74,  
+  "confidence": 0.95,  
+  "reason": "The segment contains a dynamic transition from discussing the human mind to a discussion about the physical experience of childbirth and death, highlighting the concept of 'liminal space' and 'instruction book' for the human mind. The segment also includes a mention of a 'pandemic' and 'Aztec death whistle', which are relevant to the context of the podcast.",  
+  "end_text": "I want to start with, like, how did you begin studying this stuff? So you're involved in neuroscience, you're trying to..."  
+}

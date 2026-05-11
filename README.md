@@ -22,6 +22,7 @@ MinusPod is a self-hosted server that removes ads before you ever hit play. It t
 - [Environment Variables](#environment-variables)
   - [Using Claude Code Wrapper (Max Subscription)](#using-claude-code-wrapper-max-subscription)
 - [Using Ollama (Local or Cloud)](#using-ollama-local-or-cloud)
+  - [Recommended Models](#recommended-models)
 - [Whisper / Transcription](#whisper--transcription)
 - [Using OpenRouter](#using-openrouter)
 - [LLM Pricing](#llm-pricing)
@@ -643,11 +644,31 @@ The `OPENAI_API_KEY` variable is not required for Ollama. Token counts will stil
 
 ### Recommended Models
 
-Models are loaded sequentially, not concurrently -- VRAM requirements are not additive between passes.
-
 > **Note:** Detection quality varies between models and between runs of the same model. LLMs are non-deterministic, so identical inputs can yield different outputs. Expect variation, and treat the recommendations below as starting points rather than guarantees.
 
-#### Pass 1 -- First Pass Detection
+#### Cloud LLMs (benchmark-tested)
+
+These come from the [offline LLM benchmark](benchmarks/llm/) included in this repo. The benchmark runs each candidate model against a corpus of human-verified episodes and scores accuracy (F1 at IoU >= 0.5), JSON compliance, latency, and per-episode cost. Full per-model breakdown (precision, recall, boundary accuracy, calibration, latency tail, token efficiency, cross-model agreement) is in [`benchmarks/llm/results/report.md`](benchmarks/llm/results/report.md). Want to expand the corpus or test more models? See [`benchmarks/llm/CONTRIBUTING.md`](benchmarks/llm/CONTRIBUTING.md).
+
+| Use case | Model | F1 | Cost / episode | Why |
+|---|---|---:|---:|---|
+| Best accuracy at any cost | `x-ai/grok-4.1-fast` (via OpenRouter) | 0.64 | $0.15 | Highest F1 of 32 models. Best F1-per-dollar of any paid model in the sweep (2.7x the next paid pick). Passes the no-ad negative control. |
+| Best Anthropic-direct | `claude-opus-4-7` | 0.59 | $4.10 | Perfect JSON compliance (1.00), perfect no-ad pass, lowest false-positive rate. ~27x more expensive than grok for ~8% less F1; pick this for direct Anthropic billing or the strictest control side. |
+| Free tier (best F1) | `qwen/qwen3.5-plus-02-15` (via OpenRouter) | 0.62 | $0.00 | Highest free-tier F1, rank 2 overall, beating most paid models. Perfect JSON compliance. p50 latency 52s, not for live UX, fine for offline batches. Alibaba's content classifier may reject a small fraction of windows. |
+| Cheap and fast (production) | `google/gemma-4-31b-it` (via OpenRouter) | 0.44 | $0.00 | Free via OpenRouter, p50 latency 1.7s, top-8 F1. JSON compliance 0.84 (16% of windows take a parser-fallback path; the production parser handles this). |
+
+Caveats:
+- Numbers come from a 7-episode corpus (6 ad-bearing, 1 no-ad control), 32 models, 5 trials each, 14,400 total calls. They will refine as the corpus grows.
+- Latency for OpenRouter-routed models reflects routing-layer queueing, not just model compute. Treat it as an availability indicator.
+- F1 uses IoU >= 0.5 against human-verified ad spans. A model with F1 0.5 catches half the ads with the right boundaries; a higher F1 means closer to the truth.
+
+#### Local Ollama Models (by VRAM tier)
+
+Note on benchmarking: the offline benchmark in [`benchmarks/llm/`](benchmarks/llm/) covers cloud-hosted models (OpenRouter, Anthropic direct). Local Ollama runs are not in that sweep -- adding an Ollama provider would let contributors compare local quants apples-to-apples against the cloud numbers. The recommendations below come from author testing, not from a structured benchmark, and should be treated accordingly.
+
+Models are loaded sequentially, not concurrently -- VRAM requirements are not additive between passes.
+
+##### Pass 1 -- First Pass Detection
 
 Hardest task. Contextual reasoning, host-read ads, new sponsors. Use your best model here.
 
@@ -658,9 +679,9 @@ Hardest task. Contextual reasoning, host-read ads, new sponsors. Use your best m
 | 16GB | `qwen3:14b` | Q5_K_M | Higher quality quant; use if you have headroom. |
 | 24GB | `qwen3.5:27b` | Q4_K_M | Strong contextual reasoning. 256K context. |
 | 24GB | `qwen3.5:35b` | Q4_K_M | Best quality under 40GB. 256K context. |
-| 40GB+ | `qwen3.5:122b` | Q4_K_M | In the same tier as Claude Sonnet for this task in author testing. |
+| 40GB+ | `qwen3.5:122b` | Q4_K_M | Author's best local option for hard cases. Not yet measured in the cloud benchmark. |
 
-#### Verification Pass
+##### Verification Pass
 
 Easier task. Looks for remnants in already-cut audio. Speed matters more than raw accuracy.
 
@@ -671,7 +692,7 @@ Easier task. Looks for remnants in already-cut audio. Speed matters more than ra
 | 16GB | `mistral-nemo:12b` | Q4_K_M | Excellent JSON reliability, fast inference. |
 | 24GB | `qwen3:14b` | Q5_K_M | Overkill for verification but uses available VRAM productively. |
 
-#### Chapters
+##### Chapters
 
 Simplest task. Summarization only -- no structured detection. Minimize VRAM usage and latency.
 
@@ -687,46 +708,47 @@ Simplest task. Summarization only -- no structured detection. Minimize VRAM usag
 
 ---
 
-### Accuracy vs. Claude
+### Cloud vs. Local: What Changes
 
-Switching to a local model will reduce detection accuracy. The impact depends on the content and model size.
+The cloud benchmark in [`benchmarks/llm/`](benchmarks/llm/) sets the upper bound on what's achievable on this task: F1 around 0.61 for the best-scoring model on a 5-episode corpus. Even within cloud, Claude Sonnet (F1 0.33) trails Grok-4.1-fast (F1 0.61) by a wide margin, so "Claude" is not a single accuracy ceiling -- the choice of cloud model matters as much as cloud-vs-local.
 
-**What is unaffected:** Audio fingerprinting, text pattern matching, pre/post-roll heuristics, and audio signal enforcement all run without the LLM. These catch a substantial portion of ads regardless of which model is used.
+What is unaffected by the LLM choice: audio fingerprinting, text pattern matching, pre/post-roll heuristics, and audio-signal enforcement all run without the LLM. These catch a substantial portion of ads regardless of which model is used.
 
-**What is affected:** The LLM passes (first pass and verification) handle the hard cases -- host-read ads that blend into content, new sponsors not yet in the pattern database, and ambiguous mid-rolls without explicit promo codes. This is where open-weights models fall short of Claude.
+What the LLM passes handle: host-read ads that blend into content, new sponsors not yet in the pattern database, and ambiguous mid-rolls without explicit promo codes. This is where the cloud-vs-local gap shows up.
 
-| Content Type | Expected Impact |
+| Content type | Cloud-vs-local impact |
 |---|---|
-| Podcasts with standard sponsor reads and promo codes | Minimal -- patterns and fingerprinting cover most of these |
-| Podcasts with heavy host-read / conversational ad integrations | Noticeable -- these require strong contextual reasoning |
-| New sponsors not yet in the pattern database | Moderate -- depends heavily on model capability |
+| Standard sponsor reads with promo codes / vanity URLs | Minimal -- patterns and fingerprinting cover most of these without the LLM |
+| Heavy host-read or conversational ad integrations | Noticeable -- requires strong contextual reasoning |
+| Network-inserted brand-tagline ads (no promo code, no URL) | Moderate -- the cloud benchmark shows even frontier models miss roughly a third of these, so don't expect local to outperform |
+| New sponsors not in the pattern database | Moderate -- depends heavily on model capability |
 
-As a rough guide: a capable model like `qwen3:14b` will perform well on most podcasts. The gap becomes more apparent on shows where hosts weave sponsor content naturally into conversation without clear transitions.
+Rough guide: a capable local model like `qwen3:14b` handles standard sponsor reads cleanly. The gap to cloud-frontier becomes apparent on shows that weave sponsor content into conversation without clear transitions. To measure the gap on your own content, capture the episode (see [`benchmarks/llm/`](benchmarks/llm/)) and compare predictions against your verified ground truth.
 
 ---
 
 ### JSON Reliability Risks
 
-MinusPod's ad detection pipeline requires models to return structured JSON. The Anthropic API enforces this reliably. With Ollama, enforcement is model-dependent and failures are more likely.
+MinusPod's ad detection pipeline requires models to return structured JSON. The Anthropic API enforces this reliably. With Ollama or any open-weights serving, enforcement is model-dependent and failures are more likely.
 
-**How failures manifest:**
+Failure modes:
 
-- **Malformed JSON** -- Missing brackets, trailing commas, or unquoted keys. The parser has multiple fallback strategies (direct parse, markdown code block extraction, regex scan) but structurally broken JSON will fall through all of them.
-- **Truncated output** -- Models under memory pressure or processing long transcript windows may cut off mid-response, producing valid-looking but incomplete JSON that fails to parse.
-- **Preamble text** -- Some models prefix their JSON with conversational text ("Sure, here are the ads I found:"). The parser handles this in most cases, but it adds fragility.
+- **Malformed JSON** -- missing brackets, trailing commas, unquoted keys. The parser tries direct parse, then markdown-fence extraction, then regex scan. Structurally broken JSON falls through all three.
+- **Truncated output** -- models under memory pressure or processing long transcript windows can cut off mid-response, leaving valid-looking but incomplete JSON.
+- **Preamble text** -- some models prefix their JSON with conversational text ("Sure, here are the ads I found:"). The parser usually strips this, but it adds fragility.
 
-**When a window fails to parse, those ads are silently missed.** There is no error surfaced to the UI -- the episode will process normally but with gaps in detection coverage.
+When a window fails to parse, those ads are silently missed. No UI error; the episode processes normally with gaps in detection coverage.
 
-**How to reduce this risk:**
+Even cloud models vary on this dimension. The benchmark report shows JSON compliance from 0.53 (verbose reasoning models) to 1.00 (Mistral pair, Qwen, Claude Opus). Claude Haiku 4.5 scores 0.60 because it wraps every response in markdown code fences -- the parser recovers, but the fallback path is slower and more brittle. See the JSON compliance chart in [`benchmarks/llm/results/report.md`](benchmarks/llm/results/report.md).
+
+Reducing the risk for local runs:
 
 - Use a model of at least 7B parameters
-- Prefer the Qwen3 or Mistral model families, which have strong JSON compliance
-- Avoid running other GPU workloads concurrently -- memory pressure increases truncation risk
-- Check processing logs for parse failures if detection quality seems lower than expected
+- Prefer Qwen3 or Mistral families (consistently high JSON compliance in author testing)
+- Don't run other GPU workloads concurrently -- memory pressure increases truncation risk
+- Watch the `extraction_method` field in processing logs
 
-**How to check for failures:**
-
-Look for `json_parse_failed` or `extraction_method` entries in the application logs. A healthy run will show `json_array_direct` as the extraction method. Fallback methods (`markdown_code_block`, regex variants) indicate the model isn't returning clean JSON and you should consider upgrading to a larger model.
+Healthy run signal: `extraction_method` reads `json_array_direct` for most calls. Fallback methods (`markdown_code_block`, `regex_*`) mean the model isn't returning clean JSON. Frequent fallback in production means you should upgrade the model.
 
 ## Whisper / Transcription
 
@@ -1263,7 +1285,7 @@ The `replace.mp3` file will be inserted at each ad break. Keep it short (1-3 sec
 
 This tool is for personal use only. Only use it with podcasts you have permission to modify or where such modification is permitted under applicable laws. Respect content creators and their terms of service.
 
-**LLM accuracy notice:** Most testing and development has been done with Anthropic Claude models. Detection accuracy may vary when using other LLM providers (Ollama, OpenRouter with non-Claude models, OpenAI-compatible endpoints). See the [Accuracy vs. Claude](#accuracy-vs-claude) section for details.
+**LLM accuracy notice:** Detection accuracy varies significantly between providers and models. The [offline benchmark](benchmarks/llm/) measured 14 cloud models at F1 0.04 to 0.61 on a 5-episode corpus, with the top-scoring model not being a Claude variant. Local Ollama runs are not yet in the benchmark. See [Cloud vs. Local: What Changes](#cloud-vs-local-what-changes) and the [latest report](benchmarks/llm/results/report.md) for details.
 
 ## License
 

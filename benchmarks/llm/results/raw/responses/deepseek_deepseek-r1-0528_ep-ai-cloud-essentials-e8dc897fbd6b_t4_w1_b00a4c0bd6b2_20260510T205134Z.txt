@@ -1,0 +1,23 @@
+[
+  {
+    "start": 415.2,
+    "end": 438.2,
+    "confidence": 0.95,
+    "reason": "Host transition to ad break",
+    "end_text": "and people have"
+  },
+  {
+    "start": 438.5,
+    "end": 446.5,
+    "confidence": 0.95,
+    "reason": "Sponsor mention: Athletic Greens",
+    "end_text": "unify all of this"
+  },
+  {
+    "start": 447.0,
+    "end": 475.6,
+    "confidence": 0.95,
+    "reason": "Promo code and URL",
+    "end_text": "athleticgreens.com/podcast"
+  }
+]

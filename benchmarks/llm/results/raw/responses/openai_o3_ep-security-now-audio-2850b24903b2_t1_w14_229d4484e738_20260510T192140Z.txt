@@ -1,0 +1,1 @@
+{"error":"No ad content found in the provided transcript window."}

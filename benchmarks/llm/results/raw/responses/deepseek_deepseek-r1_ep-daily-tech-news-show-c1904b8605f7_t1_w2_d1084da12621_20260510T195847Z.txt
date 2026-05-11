@@ -1,0 +1,9 @@
+[
+  {
+    "start": 821.4,
+    "end": 1018.9,
+    "confidence": 0.98,
+    "reason": "Multiple consecutive ads: Capital One, BetterHelp, Amazon Health AI, Spectrum Business, Rinse",
+    "end_text": "schedule at rinse.com. Rinse."
+  }
+]

@@ -1,0 +1,9 @@
+[
+    {
+        "start": 2268.0,
+        "end": 2285.1,
+        "confidence": 0.92,
+        "reason": "Black Effect Podcast Network promotion with call to action (mention of Black Effect Podcast Festival and network partnership)",
+        "end_text": "group chat. You got the call."
+    }
+]

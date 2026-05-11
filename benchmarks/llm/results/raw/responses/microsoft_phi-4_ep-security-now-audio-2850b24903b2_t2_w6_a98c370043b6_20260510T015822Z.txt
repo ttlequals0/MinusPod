@@ -1,0 +1,60 @@
+{  
+  "ad_segments": [  
+    {  
+      "start": 25.05,  
+      "end": 25.31,  
+      "confidence": 0.95,  
+      "reason": "Sponsor segment with transition phrase 'security now book a demo'",  
+      "end_text": "back to steve"  
+    },  
+    {  
+      "start": 25.32,  
+      "end": 26.58,  
+      "confidence": 0.95,  
+      "reason": "Sponsor segment with transition phrase 'but the assistant director of technology for web school of Knoxville said this'",  
+      "end_text": "we go with security"  
+    },  
+    {  
+      "start": 26.58,  
+      "end": 26.94,  
+      "confidence": 0.95,  
+      "reason": "Sponsor segment with transition phrase 'so the news late last week'",  
+      "end_text": "so the news late last week"  
+    },  
+    {  
+      "start": 26.94,  
+      "end": 27.22,  
+      "confidence": 0.95,  
+      "reason": "Sponsor segment with transition phrase 'but the news late last week'",  
+      "end_text": "but the news late last week"  
+    },  
+    {  
+      "start": 27.23,  
+      "end": 27.33,  
+      "confidence": 0.95,  
+      "reason": "Sponsor segment with transition phrase 'but the news late last week'",  
+      "end_text": "but the news late last week"  
+    },  
+    {  
+      "start": 27.34,  
+      "end": 27.60,  
+      "confidence": 0.95,  
+      "reason": "Sponsor segment with transition phrase 'but the news late last week'",  
+      "end_text": "but the news late last week"  
+    },  
+    {  
+      "start": 27.61,  
+      "end": 27.88,  
+      "confidence": 0.95,  
+      "reason": "Sponsor segment with transition phrase 'but the news late last week'",  
+      "end_text": "but the news late last week"  
+    },  
+    {  
+      "start": 27.88,  
+      "end": 28.05,  
+      "confidence": 0.95,  
+      "reason": "Sponsor segment with transition phrase 'but the news late last week'",  
+      "end_text": "but the news late last week"  
+    }  
+  ]  
+}

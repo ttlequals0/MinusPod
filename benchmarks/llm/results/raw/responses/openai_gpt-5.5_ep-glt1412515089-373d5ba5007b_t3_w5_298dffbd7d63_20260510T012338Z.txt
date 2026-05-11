@@ -1,0 +1,1 @@
+{"start":2208.3,"end":2237.2,"confidence":0.98,"reason":"Network-inserted Blinds.com ad with promotional pitch, discount offer, free professional measure, and disclaimer","end_text":"rules and restrictions apply"}

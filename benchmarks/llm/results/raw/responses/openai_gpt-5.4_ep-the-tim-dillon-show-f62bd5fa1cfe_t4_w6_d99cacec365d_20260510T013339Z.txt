@@ -1,0 +1,1 @@
+{"start":3079.6,"end":3134.3,"confidence":0.99,"reason":"Morgan & Morgan sponsor read with promotional claims, URL, CTA, and explicit paid advertisement disclosure; continues in next segment after transition to Stash","end_text":"Stash is the one. Stash is the one."}

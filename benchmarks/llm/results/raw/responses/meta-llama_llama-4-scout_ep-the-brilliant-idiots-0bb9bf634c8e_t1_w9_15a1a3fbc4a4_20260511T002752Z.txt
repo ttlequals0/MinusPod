@@ -1,0 +1,7 @@
+{ 
+"start": 4059.4, 
+"end": 4077.5, 
+"confidence": 0.95, 
+"reason": "Host-read sponsor segment", 
+"end_text": "Lil P got to eat"
+}

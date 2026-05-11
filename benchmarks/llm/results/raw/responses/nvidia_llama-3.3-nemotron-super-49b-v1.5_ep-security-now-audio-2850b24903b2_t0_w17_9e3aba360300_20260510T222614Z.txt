@@ -1,0 +1,9 @@
+[
+  {
+    "start": 7633.7,
+    "end": 7740.0,
+    "confidence": 0.95,
+    "reason": "Trusted Tech sponsor read, continues in next",
+    "end_text": "and no one could do it better than Trusted Tech."
+  }
+]

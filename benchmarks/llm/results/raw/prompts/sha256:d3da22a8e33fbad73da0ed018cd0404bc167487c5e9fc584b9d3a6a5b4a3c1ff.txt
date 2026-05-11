@@ -1,0 +1,59 @@
+Podcast: security-now-audio
+Episode: SN 1077: A Browser AI API? - End of Bug Bounties?
+
+
+Episode description: <p>Google is sneaking a massive 4.7GB AI model into Chrome, and Mozilla is fighting back as the future of browsers threatens to turn into an AI arms race. Find out what's really happening behind this push and why it's setting off alarm bells across the web.</p><ul> 
+<li>Hackers AI-code a portal, forget to add authentication.</li> 
+<li>The UK's NCSC issues a Mythos warning. Where's CISA?</li> 
+<li>Another (of many) Linux local privilege escalations.</li> 
+<li>AI may be spelling the end of bug bounties.</li> 
+<li>Anthropic releases "Claude Security" mini-Mythos.</li> 
+<li>ChatGPT gets very serious about login security.</li> 
+<li>Syncthing's SyncTrayzor v1 abandoned; v2 created.</li> 
+<li>Google drops an AI API into Chrome; Mozilla objects</li></ul> 
+<p>Show Notes - <a href="https://www.grc.com/sn/SN-1077-Notes.pdf">https://www.grc.com/sn/SN-1077-Notes.pdf</a></p> 
+<p><strong>Hosts:</strong> <a href="https://twit.tv/people/steve-gibson">Steve Gibson</a> and <a href="https://twit.tv/people/leo-laporte">Leo Laporte</a></p> 
+<p>Download or subscribe to <em>Security Now</em> at <a href="https://twit.tv/shows/security-now">https://twit.tv/shows/security-now</a>.</p> 
+<p>You can submit a question to <em>Security Now</em> at the <a href="https://www.grc.com/feedback.htm" target="_blank">GRC Feedback Page</a>.</p> 
+<p>For 16kbps versions, transcripts, and notes (including fixes), visit Steve's site: <a href="https://www.grc.com/securitynow.htm" target="_blank">grc.com</a>, also the home of the best disk maintenance and recovery utility ever written <a href="https://www.grc.com/sr/spinrite.htm" target="_blank">Spinrite 6</a>.</p> 
+<p><strong>Join Club TWiT for Ad-Free Podcasts!</strong><br /> 
+Support what you love and get ad-free audio <em>and</em> video feeds, a members-only Discord, and exclusive content. Join today: <a href="https://twit.tv/clubtwit" rel="payment">https://twit.tv/clubtwit</a></p>
+<p><strong>Sponsors:</strong><ul>
+<li><a href="http://zscaler.com/security" rel="sponsored" target="_blank">zscaler.com/security</a></li>
+<li><a href="http://meter.com/securitynow" rel="sponsored" target="_blank">meter.com/securitynow</a></li>
+<li><a href="http://bitwarden.com/twit" rel="sponsored" target="_blank">bitwarden.com/twit</a></li>
+<li><a href="http://hoxhunt.com/securitynow" rel="sponsored" target="_blank">hoxhunt.com/securitynow</a></li>
+<li><a href="http://trustedtech.team/securitynow365" rel="sponsored" target="_blank">trustedtech.team/securitynow365</a></li>
+</ul></p>
+
+Transcript:
+[1664.0s - 1692.2s] Where automatic secure hot patching is available, that is, patching that does not involve service disruption, this should be enabled as a priority. Okay, well, that's, you know, not hard to imagine as the first. Where automatic updates are available, including for embedded devices, this should be enabled to reduce the workload on support teams. So, yeah, turn on automatic updates and go for it. And third,
+[1692.8s - 1720.3s] Where neither of the above are available, organizations will need to ensure that processes and risk appetites support frequent and scaled updating, noting the operational tradeoffs around disruption and safety-critical systems. A risk-prioritized approach, such as the stakeholder-specific vulnerability categorization system, can be used to prioritize installing the updates.
+[1721.0s - 1744.9s] And then they continue, however, should a critical vulnerability be under active exploitation, especially when affecting an internet-facing system, then it is essential to accelerate the update process. Organizations can refer to the NCSC's new guidance on responding to active exploitation of vulnerabilities for more information. To summarize,
+[1745.8s - 1772.1s] You should put in place a policy to update by default, where you always apply software updates as soon as possible, and ideally, automatically. This should be at the core of your update management process, but we recognize it may not apply in some instances, such as for safety-critical systems or operational technology. Patching alone won't address the systemic problems that my...
+[1773.7s - 1801.2s] writes, My previous blogs have addressed. I've appealed to technology producers and vendors to ensure systemic technical security debt is minimized by including where appropriate memory safety and containment technologies. Similarly, for consumers and operators, a focus on cybersecurity fundamentals to raise resilience and to reduce the impact of breaches should be a priority.
+[1801.7s - 1826.9s] This includes adopting and fully implementing cyber essentials or the cyber assessment framework for organizations operating essential services such as energy, healthcare, transport, digital infrastructure, and government. Finally, prepare for the patch wave now. In conclusion, the NCSC advise all organizations irrespective of size
+[1827.5s - 1855.8s] To plan and prepare for the vulnerability patch wave, a good start is by reading the NCSC's updated vulnerability management guidance. For larger organizations, we also recommend working to gain assurance from your supply chains, both commercial and open source, so that they're prepared to navigate any required response. One thing that occurred to me as I was going through this is that
+[1857.5s - 1886.0s] In the name of preparedness, and this certainly applies to everybody in the UK and out, this notion of gaining assurance from your supply chains, I would say make sure that the providers of the equipment that you have on the edge, which are under support, which can obtain updates, make sure they've got like a greased path.
+[1886.8s - 1901.8s] Thank you for watching.
+[1905.2s - 1928.8s] Given what we expect to have happening here over the next couple months, make sure that the communications inbound from the vendors that you are depending upon to have the most recent code running can get to you. And largely, what I just shared from the NCSC, you know, it's a restating of what we already know, right?
+[1929.6s - 1957.4s] At the same time, for many of the CIOs and CSOs and IT heads in organizations throughout the UK where this has reign, a clear statement and posting such as this can provide the cover and the backup they may need to succeed in getting their organizations and the other C-suite executives to take this seriously, to understand what is probably
+[1958.0s - 1986.5s] And as I was seeing this note from the UK's NCSC, I realized that I hadn't seen anything from our own CISA in the US. And that struck me as odd since the CISA we've all come to know would normally have been shouting about this from the mountaintops. So I went digging to see whether maybe I had missed that statement, which
+[1986.8s - 2013.8s] It seemed clear CISA should have made in the wake of the mythos revelations. I found a report published two weeks ago on April 21st by Axios, and it exactly addresses the question, where's CISA? The reporting was posted as a scoop titled, Scoop, CISA Lacks Access to Anthropics Mythos.
+[2014.6s - 2035.5s] And Axios explained, writing, The Cybersecurity and Infrastructure Security Agency, you know, CISA, does not have access to Anthropic's powerful Mythos preview model. Even though some other government agencies are using it, two sources tell Axios. This matters.
+[2036.1s - 2061.2s] because the country's top cyber defense agency tasked with helping to secure everything from banks to power plants is on the outside looking in at a time when the industries it works with are deeply concerned about AI-powered cyber attacks overwhelming their defenses. Anthropic decided against a public release of Mythos
+[2061.8s - 2086.9s] This is Axios bringing less informed readers up to speed. Anthropic decided against a public release of Mythos due to its unprecedented ability to quickly discover and exploit security vulnerabilities. Instead, Anthropic provided it to more than 40 companies and organizations who are now testing it and working to shore up their systems. CISA is not on that list.
+[2087.6s - 2109.3s] Earlier this month, an Anthropic official told Axios the company had briefed CISA and the Commerce Department on Mythos' capabilities. The Commerce Department's Center for AI Standards and Innovation has reportedly been testing Mythos, so they have it. The NSA is also among
+[2109.8s - 2138.0s] The organizations using Mythos, despite the Department of Defense, which oversees the agency, having declared Anthropic is a supply chain risk, unquote. It's unclear if the ongoing turmoil within the agency during the second Trump administration played any role in the agency not moving more swiftly to secure access. Spokespeople for CISA and Anthropic both declined.
+[2138.6s - 2162.9s] Any comment for this reporting by Axios? They wrote, the Trump administration has spent the last year, as we know, reducing capacity at CISA. Instead of opting to give more policy influence to the White House's national, instead of that, they have opted to give more policy influence to the White House's national cyber director.
+[2163.6s - 2190.1s] and pushing some programs out to the state and local level. So trying to, you know, distribute this instead of having it as centralized as it had been under CISA. CISA's acting director, a guy named Nick Anderson, told lawmakers last week that the agency's resources are, quote, more limited than I would like, unquote, he said. Trump has proposed cutting as much as $707 million.
+[2191.1s - 2200.2s] More from the agency's budget in the upcoming fiscal year. CISA has already lost more than a third of its workforce and millions of dollars in funding.
+[2201.1s - 2226.3s] National Cyber Director Sean Carencross is among the Trump officials negotiating broader civilian agency access to Mythos. The Treasury Department has also been negotiating access. Sources tell Axios that other organizations with access to Mythos have predominantly been using it to find exploitable security vulnerabilities within their own networks and software.
+[2226.9s - 2250.7s] Security teams at critical infrastructure organizations have often looked to CISA to share threat intelligence across their sectors and determine how to prioritize their security strategies. And as we know, those critical infrastructure organizations have very much depended upon CISA, but also on that blanket
+[2258.8s - 2270.2s] So, I hadn't heard about this acting CISA director, Nick Anderson, so I checked him out, and he appears to be imminently
+[2270.7s - 2288.1s] Thank you for watching.
+
+=== WINDOW 5/23: 28.0-38.0 minutes ===
+- Use absolute timestamps from transcript (as shown in brackets)
+- If an ad starts before this window, use the first timestamp with note "continues from previous"
+- If an ad extends past this window, use 2280.0 with note "continues in next"

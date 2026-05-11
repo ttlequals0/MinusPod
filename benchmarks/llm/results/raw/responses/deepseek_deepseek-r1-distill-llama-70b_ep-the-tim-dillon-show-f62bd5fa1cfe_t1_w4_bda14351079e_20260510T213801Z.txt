@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I've been thinking about this whole Hantavirus cruise situation. It's wild how one little virus can shut down an entire ship. I mean, can you imagine being stuck on a boat with a bunch of infected people? It's like a real-life horror movie. And then, you know, the iPad babies thing. It's crazy how kids are glued to screens these days. I was talking to a friend the other day, and their toddler can navigate an iPad better than they can speak. It's like, what's the world coming to? Anyway, let's take a break. This episode is brought to you by Mint Mobile. Get 3 months of premium wireless for just $15 a month. That's right, Mint Mobile is the smart choice for frugal folks who want great coverage without breaking the bank. Plus, their customer service is top-notch. So why wait? Switch to Mint Mobile today and start saving those dollars. And as a listener of this show, you can get an exclusive deal by visiting mintmobile.com/TIMDILLON. That's mintmobile.com/TIMDILLON. Alright, back to our conversation about the Hantavirus cruise and those iPad babies. It's a wild world we're living in, folks.",
+  "start": 2280.0,
+  "end": 2310.0
+}

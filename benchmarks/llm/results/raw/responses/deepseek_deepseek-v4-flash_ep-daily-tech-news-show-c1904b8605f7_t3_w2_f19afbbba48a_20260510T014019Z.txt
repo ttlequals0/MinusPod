@@ -1,0 +1,32 @@
+{
+  "ads": [
+    {
+      "start": 821.4,
+      "end": 857.6,
+      "confidence": 0.99,
+      "reason": "Capital One sponsor read with product pitch for Chat Concierge, followed by transition to BetterHelp ad",
+      "end_text": "A BetterHelp ad. Hold on. One second. I just need to..."
+    },
+    {
+      "start": 862.2,
+      "end": 910.1,
+      "confidence": 0.99,
+      "reason": "BetterHelp sponsor read with promo code and Amazon Health AI ad with product pitch",
+      "end_text": "Healthcare just got less painful."
+    },
+    {
+      "start": 912.2,
+      "end": 990.3,
+      "confidence": 0.99,
+      "reason": "Spectrum Business sponsor read with promotional language and URL, followed by Rinse ad transition",
+      "end_text": "before your plate is already full. That's not just a time suck."
+    },
+    {
+      "start": 990.6,
+      "end": 1021.1,
+      "confidence": 0.99,
+      "reason": "Rinse laundry service sponsor read with promotional language and URL",
+      "end_text": "It's time to be great."
+    }
+  ]
+}

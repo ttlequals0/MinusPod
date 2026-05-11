@@ -1,0 +1,1 @@
+[{"start": 6368.2, "end": 6394.8, "confidence": 1.0, "reason": "Perplexity sponsor integration mentioning 'our AI sponsor' and product capability", "end_text": "past, present, and potential future"}]

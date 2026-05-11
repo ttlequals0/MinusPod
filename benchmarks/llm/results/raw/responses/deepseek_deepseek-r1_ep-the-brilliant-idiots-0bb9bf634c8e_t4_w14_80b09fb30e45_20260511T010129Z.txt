@@ -1,0 +1,7 @@
+[{
+  "start": 6390.2,
+  "end": 6445.0,
+  "confidence": 0.98,
+  "reason": "BlueChew sponsor read with explicit product mentions and host banter",
+  "end_text": "Bluetooth. You a liar"
+}]

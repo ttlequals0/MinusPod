@@ -1,0 +1,8 @@
+
+{
+	"start": 7633.7,
+	"end": 7661.5,
+	"confidence": 0.95,
+	"reason": "Trusted Tech sponsor read",
+	"end_text": "tools your team doesn't use, or worse, I guess, missing critical security features you thought you had."
+}

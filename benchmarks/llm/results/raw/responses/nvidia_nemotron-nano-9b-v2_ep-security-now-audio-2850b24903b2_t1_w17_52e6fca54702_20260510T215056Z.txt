@@ -1,0 +1,1 @@
+[{"start": 7633.7, "end": 7743.9, "confidence": 0.98, "reason": "Trusted Tech sponsorship with promotional URLs and licensing pitch", "end_text": "trustedtech.team/securitynow365"}]

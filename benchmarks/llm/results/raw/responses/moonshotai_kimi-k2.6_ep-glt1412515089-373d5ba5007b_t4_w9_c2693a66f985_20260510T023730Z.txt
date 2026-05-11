@@ -1,0 +1,1 @@
+ {"start": 3761.9, "end": 4379.8, "confidence": 0.0, "reason": "No promotional content detected in transcript window", "end_text": "it's a beautiful sky"}

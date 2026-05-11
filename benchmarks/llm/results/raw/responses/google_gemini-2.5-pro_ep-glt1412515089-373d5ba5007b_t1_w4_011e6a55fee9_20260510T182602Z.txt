@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2208.3,
+    "end": 2237.2,
+    "confidence": 1.0,
+    "reason": "Produced ad for Blinds.com with a discount offer and URL.",
+    "end_text": "rules and restrictions apply"
+  }
+]

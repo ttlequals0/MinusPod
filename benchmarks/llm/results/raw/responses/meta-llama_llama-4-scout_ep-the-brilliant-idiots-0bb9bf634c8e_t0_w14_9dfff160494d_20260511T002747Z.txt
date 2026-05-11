@@ -1,0 +1,11 @@
+{
+"ads": [
+    {
+      "start": 6390.2,
+      "end": 6445.0,
+      "confidence": 0.9,
+      "reason": "Sponsor segment with promotional language",
+      "end_text": "Let's do some Asking Idiots"
+    }
+  ]
+}

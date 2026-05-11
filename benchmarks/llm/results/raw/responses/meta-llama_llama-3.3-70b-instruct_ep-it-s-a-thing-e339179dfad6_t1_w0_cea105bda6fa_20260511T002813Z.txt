@@ -1,0 +1,1 @@
+{"start": 1.6, "end": 7.0, "confidence": 0.98, "reason": "Acast platform-inserted ad", "end_text": "best podcasts"}

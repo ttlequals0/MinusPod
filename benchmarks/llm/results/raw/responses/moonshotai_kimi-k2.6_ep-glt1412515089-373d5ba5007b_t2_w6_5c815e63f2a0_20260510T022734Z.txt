@@ -1,0 +1,1 @@
+ {"start": 2510.5, "end": 3120.9, "confidence": 0.0, "reason": "No promotional content, sponsor reads, or platform-inserted ads detected in transcript window. Content consists of continuous interview conversation.", "end_text": "hi, my name's Julia"}

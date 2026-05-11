@@ -1,0 +1,16 @@
+[
+  {
+    "start": 4323.9,
+    "end": 4334.1,
+    "confidence": 0.95,
+    "reason": "Host read ad for Jess Elias' book and All Love Racquet Club event",
+    "end_text": "All Love Racquet Club"
+  },
+  {
+    "start": 4334.7,
+    "end": 4339.0,
+    "confidence": 0.95,
+    "reason": "Host read ad for AM Mornings show",
+    "end_text": "AM Mornings on YouTube"
+  }
+]

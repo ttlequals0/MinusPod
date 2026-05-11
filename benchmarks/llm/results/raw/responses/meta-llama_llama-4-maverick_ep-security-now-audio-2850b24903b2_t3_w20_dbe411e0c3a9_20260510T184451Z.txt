@@ -1,0 +1,1 @@
+{"start": 8861.4, "end": 8948.8, "confidence": 0.0, "reason": "No ads found in the given transcript window", "end_text": "Large, large commercial interests, and there's no one to push back on this."}

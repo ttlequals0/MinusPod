@@ -1,0 +1,1 @@
+{"start": 6284.0, "end": 6907.2, "confidence": 0.0, "reason": "No promotional content, sponsor mentions, or ad transitions detected in this window. Entire segment is editorial discussion of browser AI APIs.", "end_text": "generic LLM that the user has provided"}

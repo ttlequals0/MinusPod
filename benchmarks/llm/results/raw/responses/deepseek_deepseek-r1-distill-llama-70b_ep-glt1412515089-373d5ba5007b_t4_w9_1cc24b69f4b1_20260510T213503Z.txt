@@ -1,0 +1,7 @@
+{
+  "start": 3761.9,
+  "end": 3786.9,
+  "confidence": 0.8,
+  "reason": "Host discussing sponsor content",
+  "end_text": "instant knowledge."
+}

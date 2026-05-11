@@ -1,0 +1,1 @@
+ {"start": 4608.9, "end": 5231.8, "confidence": 0.0, "reason": "No promotional content, sponsor mentions, URLs, promo codes, or calls to action found in transcript segment", "end_text": "could have been from her"}

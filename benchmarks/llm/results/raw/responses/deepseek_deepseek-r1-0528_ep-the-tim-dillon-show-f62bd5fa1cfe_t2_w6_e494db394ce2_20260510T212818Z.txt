@@ -1,0 +1,9 @@
+[
+  {
+    "start": 3079.6,
+    "end": 3105.5,
+    "confidence": 0.99,
+    "reason": "Morgan & Morgan sponsor read with call to action and explicit paid advertisement statement",
+    "end_text": "a paid advertisement"
+  }
+]

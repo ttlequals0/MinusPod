@@ -1,0 +1,9 @@
+[
+    {
+        "start": 1439.2,
+        "end": 1465.2,
+        "confidence": 0.99,
+        "reason": "Mint Mobile host-read sponsor segment with promotional language, call to action, and brand endorsement",
+        "end_text": "nation's largest 5G network."
+    }
+]

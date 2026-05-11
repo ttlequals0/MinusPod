@@ -1,0 +1,1 @@
+{"start": 1524.5, "end": 1602.6, "confidence": 0.99, "reason": "Contains a Xero host-read ad, a network-inserted Acast promo, and a cross-promotion for the 'Wrong Turns' podcast.", "end_text": "Acast.com."}

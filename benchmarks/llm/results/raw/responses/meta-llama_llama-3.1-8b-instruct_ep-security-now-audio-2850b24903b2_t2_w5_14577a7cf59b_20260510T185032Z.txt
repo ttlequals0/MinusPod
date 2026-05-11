@@ -1,0 +1,16 @@
+[
+{
+  "start": 2560.1,
+   "end": 2585.5,
+   "confidence": 0.95,
+   "reason": "Meter sponsor read",
+   "end_text": "Meter, built for the bandwidth demands"
+},
+{
+   "start": 2586.0,
+   "end": 2700.0,
+   "confidence": 0.95,
+   "reason": "Meter sponsor read continues in next",
+   "end_text": "Meter, built for the bandwidth demands"
+}
+]

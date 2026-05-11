@@ -1,0 +1,9 @@
+[
+  {
+    "start": 58.0,
+    "end": 80.1,
+    "confidence": 0.95,
+    "reason": "Host-read sponsorship for CoreWeave (Core Read) at the beginning of the episode",
+    "end_text": "kick things off with"
+  }
+]

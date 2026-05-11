@@ -1,0 +1,1 @@
+[{"start": 7556.5, "end": 7740.0, "confidence": 0.97, "reason": "Ad break transition and Trusted Tech sponsor read for Microsoft 365 management", "end_text": "He was impressed. You will be too"}]

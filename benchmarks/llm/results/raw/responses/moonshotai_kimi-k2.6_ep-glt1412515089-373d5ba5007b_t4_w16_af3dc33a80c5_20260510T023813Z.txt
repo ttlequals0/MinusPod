@@ -1,0 +1,1 @@
+{"start": 6706.4, "end": 7323.7, "confidence": 0.0, "reason": "No promotional content detected in transcript window", "end_text": "observer effect"}

@@ -1,0 +1,9 @@
+[
+    {
+        "start": 4230.9,
+        "end": 4396.1,
+        "confidence": 0.99,
+        "reason": "Bitwarden sponsor read with promotional language, vanity URL (bitwarden.com/twit), and product pitches (Agent Access SDK, passkey login, Vault health alerts). Includes transition phrase 'This episode of Security Now is brought to you by Bitwarden'.",
+        "end_text": "securely unlocking devices at the OS level."
+    }
+]

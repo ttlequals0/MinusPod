@@ -1,0 +1,1 @@
+{"start": 58.0, "end": 80.1, "confidence": 0.9, "reason": "Sponsor mention: 'brought to you by Core Read' (CoreWeave) in show intro", "end_text": "Let's kick things off with"}

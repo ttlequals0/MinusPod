@@ -1,0 +1,7 @@
+{
+  "start": 4600.8,
+  "end": 5220.0,
+  "confidence": 0.95,
+  "reason": "Anthropic Claude Security promotional segment, continues in next",
+  "end_text": "connected tools and workflows. For some people"
+}

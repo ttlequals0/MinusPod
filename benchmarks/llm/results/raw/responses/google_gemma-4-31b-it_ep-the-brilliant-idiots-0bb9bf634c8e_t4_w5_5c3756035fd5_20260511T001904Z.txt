@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 2324.6,
+      "end": 2450.0,
+      "confidence": 1.0,
+      "reason": "Back-to-back sponsor reads for BlueChew and ZipRecruiter including promo codes and URLs",
+      "end_text": "match on ZipRecruiter"
+    }
+  ]
+}

@@ -1,0 +1,5 @@
+[
+
+[{"start": 5546.3, "end": 5596.3, "confidence": 0.98, "reason": "Netflix sponsor read with promotional language", "end_text": "only on Netflix."}]
+
+]

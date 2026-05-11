@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 539.2,
+    "end": 652.8,
+    "confidence": 0.95,
+    "reason": "Two network-inserted retail ads: 'In the Gray' movie promotion (Guy Ritchie film) and Skechers slip-ins shoe product ad with promo URL",
+    "end_text": "only at Skechers.com"
+  }
+]
+```

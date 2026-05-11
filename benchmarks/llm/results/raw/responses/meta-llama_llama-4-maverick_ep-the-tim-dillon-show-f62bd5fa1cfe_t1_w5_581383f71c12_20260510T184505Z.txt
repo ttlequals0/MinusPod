@@ -1,0 +1,1 @@
+{"start": 2085.5, "end": 2700.0, "confidence": 0.0, "reason": "No ads detected in the given window", "end_text": "I'm not an expert. I'm not a parent. But that's what it's going to be. And we should feel bad for parents. I like this article that says parents shouldn't really have to raise their kids. They should be able to just give them iPads for the entire day."}

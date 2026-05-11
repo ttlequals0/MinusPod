@@ -1,0 +1,1 @@
+{"start":7606.9,"end":7740.0,"confidence":0.99,"reason":"Host-read Trusted Tech sponsor segment begins with break transition and includes promotional copy, product pitch for Microsoft 365 licensing help, and sponsor name repetition; continues in next window","end_text":"You will be too."}

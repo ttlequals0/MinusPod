@@ -1,0 +1,1 @@
+[{"start": 2208.3, "end": 2237.0, "confidence": 0.97, "reason": "Blinds.com host-read sponsor segment with product pitch, discount offer (45% off), and call to action", "end_text": "free professional measure at Blinds.com"}]

@@ -1,0 +1,1 @@
+{"start": 4602.8, "end": 4686.3, "confidence": 0.0, "reason": "not an ad", "end_text": "the first episode and then E"}

@@ -1,0 +1,16 @@
+[
+    {
+        "start": 6390.2,
+        "end": 6396.7,
+        "confidence": 0.95,
+        "reason": "Host transition phrase 'Let's pay some bills and do some asking idiots' followed by a clear break, indicating a sponsor segment likely follows (though not fully captured in this window).",
+        "end_text": "do some asking idiots, man"
+    },
+    {
+        "start": 6861.6,
+        "end": 6900.0,
+        "confidence": 0.9,
+        "reason": "Platform-inserted ad for 'megaphone.fm' mentioned in the episode description and transcript footer ('Learn more about your ad choices. Visit megaphone.fm/adchoices'). This is a network-inserted ad, though the exact segment is truncated in this window.",
+        "end_text": "continues in next"
+    }
+]

@@ -1,0 +1,1 @@
+[{"start": 2505.7, "end": 3141.4, "confidence": 0.85, "reason": "Multiple book promotions and network cross-promotions", "end_text": "Will.i.am"}]

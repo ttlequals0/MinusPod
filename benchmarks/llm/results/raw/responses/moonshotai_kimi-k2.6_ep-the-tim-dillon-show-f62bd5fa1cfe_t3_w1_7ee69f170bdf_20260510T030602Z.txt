@@ -1,0 +1,1 @@
+{"start": 401.8, "end": 1043.5, "confidence": 0.0, "reason": "No promotional content, sponsor mentions, URLs, promo codes, or transition phrases detected in transcript window. All content is host editorial discussion.", "end_text": "incentivized and encouraged"}

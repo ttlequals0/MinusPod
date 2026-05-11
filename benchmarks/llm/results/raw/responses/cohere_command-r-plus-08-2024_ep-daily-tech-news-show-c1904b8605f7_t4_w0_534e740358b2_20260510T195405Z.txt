@@ -1,0 +1,39 @@
+{
+  "ads": [
+    {
+      "start": 0.0,
+      "end": 10.0,
+      "confidence": 0.99,
+      "reason": "Capital One sponsor read",
+      "end_text": "tech team isn't just talking about multi-agentic AI. They already deployed one."
+    },
+    {
+      "start": 23.6,
+      "end": 33.6,
+      "confidence": 0.98,
+      "reason": "Xero sponsor read",
+      "end_text": "conditions apply. As a woman entrepreneur, you know that every connection counts"
+    },
+    {
+      "start": 52.5,
+      "end": 72.1,
+      "confidence": 0.95,
+      "reason": "Spectrum Business sponsor read",
+      "end_text": "you can stay connected to customers, employees, and vendors without having to worry."
+    },
+    {
+      "start": 124.0,
+      "end": 127.1,
+      "confidence": 0.95,
+      "reason": "Warby Parker sponsor read",
+      "end_text": "That's why Warby Parker is a one-stop shop for all your vision needs."
+    },
+    {
+      "start": 127.1,
+      "end": 152.9,
+      "confidence": 0.95,
+      "reason": "Warby Parker sponsor read",
+      "end_text": "warbyparker.com today. That's warbyparker.com."
+    }
+  ]
+}

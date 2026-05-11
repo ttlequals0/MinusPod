@@ -1,0 +1,7 @@
+{
+  "start": 4765.2,
+  "end": 4789.7,
+  "confidence": 0.95,
+  "reason": "Host discusses the beach ball idea with participants, which is part of the episode content, not an ad.",
+  "end_text": "he said, I was on a different timeline."
+}

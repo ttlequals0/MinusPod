@@ -1,0 +1,1 @@
+{"start": 7916.6, "end": 7936.3, "confidence": 0.95, "reason": "Hosting platform post-roll ad: 'Thank you for watching.' is a sign-off, followed by a gap. The episode description includes Perplexity sponsorship and ad choice link.", "end_text": "Thank you for watching."}

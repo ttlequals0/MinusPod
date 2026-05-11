@@ -1,0 +1,1 @@
+[{"start": 4002.7, "end": 4029.6, "confidence": 0.98, "reason": "Sponsor promotions for Mint Mobile, Aura Frames, Morgan & Morgan, Stash, and Neuro Gum with promo codes and URLs", "end_text": "Continue."}]

@@ -1,0 +1,9 @@
+[
+    {
+        "start": 3879.8,
+        "end": 3890.3,
+        "confidence": 0.0,
+        "reason": "Silence/gap with no promotional content",
+        "end_text": "Thank you for watching."
+    }
+]

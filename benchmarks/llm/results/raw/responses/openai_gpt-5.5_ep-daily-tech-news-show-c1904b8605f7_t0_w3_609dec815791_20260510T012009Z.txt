@@ -1,0 +1,1 @@
+{ "start": 1742.3, "end": 1799.6, "confidence": 0.99, "reason": "Merged ad break: Capital One sponsor read followed by Lemonada Media/Good Things cross-promo; promotional phrases include 'brought to you by Capital One' and 'Tune in to Good Things from Lemonada Media'", "end_text": "six-part Thrive series" }

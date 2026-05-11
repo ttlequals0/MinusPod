@@ -1,0 +1,7 @@
+{
+  "start": 6699.7,
+  "end": 7321.9,
+  "confidence": 0.0,
+  "reason": "No promotional language detected. This is a discussion of Google's AI API proposal for Chrome, with critical analysis by the host. No sponsor names, URLs, promo codes, or calls to action present.",
+  "end_text": "an eloquent hamster is going to respond"
+}

@@ -1,0 +1,7 @@
+{
+  "start": 8976.2,
+  "end": 9000.0,
+  "confidence": 0.95,
+  "reason": "Club TWiT promotion with call to action",
+  "end_text": "only player in the internet"
+}

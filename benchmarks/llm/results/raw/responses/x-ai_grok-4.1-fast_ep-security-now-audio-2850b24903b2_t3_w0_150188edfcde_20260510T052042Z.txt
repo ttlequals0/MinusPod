@@ -1,0 +1,1 @@
+{"start":16.7,"end":84.9,"confidence":1.0,"reason":"OutSystems sponsor read with promo URL and TWiT tagline","end_text":"This is Twit."}

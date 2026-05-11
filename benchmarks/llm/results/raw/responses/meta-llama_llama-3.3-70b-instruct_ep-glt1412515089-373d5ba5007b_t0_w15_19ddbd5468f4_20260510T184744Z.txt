@@ -1,0 +1,1 @@
+{"start": 6395.6, "end": 6414.8, "confidence": 0.8, "reason": "Perplexity sponsor mention", "end_text": "that's going to happen"}

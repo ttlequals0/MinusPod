@@ -1,0 +1,7 @@
+{
+  "start": 2286.3,
+  "end": 2286.3,
+  "confidence": 0.0,
+  "reason": "No advertisement segments found in this transcript window.",
+  "end_text": ""
+}

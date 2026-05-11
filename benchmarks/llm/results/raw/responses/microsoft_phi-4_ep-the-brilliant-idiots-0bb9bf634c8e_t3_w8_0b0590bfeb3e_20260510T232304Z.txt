@@ -1,0 +1,7 @@
+{
+  "start": 33.54,
+  "end": 37.46,
+  "confidence": 0.95,
+  "reason": "The segment discusses the debate around Elliott Wilson's ranking on the list, highlighting his contributions and the context of his work. It mentions his interviews and the impact of his work on the hip-hop community, which aligns with the promotional language.",
+  "end_text": "correct the record on a lot of these"
+}

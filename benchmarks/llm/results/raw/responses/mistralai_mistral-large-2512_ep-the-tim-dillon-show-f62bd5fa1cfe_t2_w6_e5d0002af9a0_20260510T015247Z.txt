@@ -1,0 +1,16 @@
+[
+    {
+        "start": 3107.1,
+        "end": 3134.3,
+        "confidence": 0.99,
+        "reason": "Morgan & Morgan host-read sponsor segment with promotional language, vanity URL (ForThePeople.com/Tim), and call to action (dial Poundlaw)",
+        "end_text": "ForThePeople.com slash Tim, dial Poundlaw"
+    },
+    {
+        "start": 3134.3,
+        "end": 3134.3,
+        "confidence": 0.95,
+        "reason": "Partial ad segment for Stash detected at window end; likely continues in next segment",
+        "end_text": "Stash is the one"
+    }
+]

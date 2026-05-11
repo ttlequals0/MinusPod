@@ -1,0 +1,18 @@
+{
+  "ads": [
+    {
+      "start": 1735.3,
+      "end": 1771.5,
+      "confidence": 0.98,
+      "reason": "Host-read Capital One sponsorship with product pitch and brand tagline",
+      "end_text": "technology at Capital One."
+    },
+    {
+      "start": 1772.6,
+      "end": 1799.6,
+      "confidence": 0.95,
+      "reason": "Network-inserted Lemonada Media promo for 'Good Things' podcast",
+      "end_text": "hear the six-part Thrive series."
+    }
+  ]
+}

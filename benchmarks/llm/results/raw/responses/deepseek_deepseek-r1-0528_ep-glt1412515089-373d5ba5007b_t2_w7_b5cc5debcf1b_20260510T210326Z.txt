@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 3430.8,
+      "end": 3432.2,
+      "confidence": 0.95,
+      "reason": "Perplexity sponsorship mention with URL",
+      "end_text": "Visit podcastchoices.com/adchoices"
+    }
+  ]
+}

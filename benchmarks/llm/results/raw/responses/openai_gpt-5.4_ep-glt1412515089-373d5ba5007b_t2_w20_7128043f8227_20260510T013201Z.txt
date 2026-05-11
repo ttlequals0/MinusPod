@@ -1,0 +1,1 @@
+{"start": 8405.6, "end": 9008.6, "confidence": 0.01, "reason": "No advertisement content detected; episode discussion and organic mention of book only", "end_text": "They hire me on the spot. Then,"}

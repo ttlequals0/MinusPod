@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I've been thinking about this a lot. Let's take a break and talk about something that's really important for all of us. You know, security is a top priority, and that's why I want to tell you about Zscaler. They're a leader in cloud security, and their platform is all about zero trust. It's a game-changer. With Zscaler, you can secure your entire cloud environment with ease. Their solutions are top-notch, and they're trusted by some of the biggest names out there. So, if you're looking to level up your security, check out Zscaler. Visit zscaler.com/security to learn more. That's zscaler.com/security. Alright, back to the show.",
+  "start": 3540.0,
+  "end": 3560.0
+}

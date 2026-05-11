@@ -1,0 +1,1 @@
+{"start": 4296.0, "end": 4334.7, "confidence": 0.95, "reason": "Jess Hilarious book promotion and tennis event announcement", "end_text": "All Love Racquet Club"}

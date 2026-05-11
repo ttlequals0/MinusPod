@@ -1,0 +1,23 @@
+[
+  {
+    "start": 9259.3,
+    "end": 9290.5,
+    "confidence": 0.95,
+    "reason": "Cross-promotion for another podcast on the same network, 'This Week in Tech'.",
+    "end_text": "Network. Thank you."
+  },
+  {
+    "start": 9312.9,
+    "end": 9315.5,
+    "confidence": 0.8,
+    "reason": "Short, network-inserted brand tagline ad, likely for Citizens Bank.",
+    "end_text": "for citizens back."
+  },
+  {
+    "start": 9344.4,
+    "end": 9374.4,
+    "confidence": 1.0,
+    "reason": "Pre-recorded ad for Mint Mobile featuring celebrity spokesperson Ryan Reynolds, a specific offer, and a vanity URL.",
+    "end_text": "at mintmobile.com."
+  }
+]

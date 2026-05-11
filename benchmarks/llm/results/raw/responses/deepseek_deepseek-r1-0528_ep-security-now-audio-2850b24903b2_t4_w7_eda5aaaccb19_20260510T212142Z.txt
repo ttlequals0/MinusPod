@@ -1,0 +1,23 @@
+[
+  {
+    "start": 3278.7,
+    "end": 3305.2,
+    "confidence": 0.95,
+    "reason": "Host-read sponsor segment for Akito",
+    "end_text": "the math for that is wrong, unquote."
+  },
+  {
+    "start": 3358.6,
+    "end": 3376.2,
+    "confidence": 0.9,
+    "reason": "Transition phrase and thank you message",
+    "end_text": "Thank you for watching."
+  },
+  {
+    "start": 3410.7,
+    "end": 3438.3,
+    "confidence": 0.95,
+    "reason": "Promotion of Akito's own solution",
+    "end_text": "include proofs of concepts of exploits."
+  }
+]

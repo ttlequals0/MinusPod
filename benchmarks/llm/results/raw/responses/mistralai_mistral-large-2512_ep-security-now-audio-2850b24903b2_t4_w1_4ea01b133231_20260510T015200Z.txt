@@ -1,0 +1,16 @@
+[
+    {
+        "start": 445.6,
+        "end": 572.1,
+        "confidence": 0.99,
+        "reason": "Zscaler sponsor read with promotional language, call to action (zscaler.com/security), and testimonial from Zuora's Director of Security.",
+        "end_text": "zscaler.com slash security."
+    },
+    {
+        "start": 1009.1,
+        "end": 1020.0,
+        "confidence": 0.95,
+        "reason": "Partial ad segment at end of window; likely continues in next segment (Bitwarden, Meter, HoxHunt, or TrustedTech.team sponsor based on episode sponsors list).",
+        "end_text": "continues in next"
+    }
+]

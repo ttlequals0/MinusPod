@@ -1,0 +1,72 @@
+[
+{
+  "start": 2505.3,
+   "end": 2531.8,
+   "confidence": 0.95,
+   "reason": "Meter sponsor read",
+   "end_text": "incremental disclosure here"
+},
+{
+   "start": 2532.3,
+   "end": 2558.9,
+   "confidence": 0.95,
+   "reason": "Meter sponsor read",
+   "end_text": "incremental disclosure here"
+},
+{
+   "start": 2560.1,
+   "end": 2585.5,
+   "confidence": 0.95,
+   "reason": "Meter sponsor read",
+   "end_text": "incremental disclosure here"
+},
+{
+   "start": 2586.0,
+   "end": 2608.5,
+   "confidence": 0.95,
+   "reason": "Meter sponsor read",
+   "end_text": "incremental disclosure here"
+},
+{
+   "start": 2609.8,
+   "end": 2632.1,
+   "confidence": 0.95,
+   "reason": "Meter sponsor read",
+   "end_text": "incremental disclosure here"
+},
+{
+   "start": 2632.8,
+   "end": 2658.0,
+   "confidence": 0.95,
+   "reason": "Meter sponsor read",
+   "end_text": "incremental disclosure here"
+},
+{
+   "start": 2658.7,
+   "end": 2664.9,
+   "confidence": 0.95,
+   "reason": "Meter sponsor read",
+   "end_text": "incremental disclosure here"
+},
+{
+   "start": 2658.6,
+   "end": 2687.4,
+   "confidence": 0.95,
+   "reason": "Meter sponsor read",
+   "end_text": "incremental disclosure here"
+},
+{
+   "start": 2687.7,
+   "end": 2693.0,
+   "confidence": 0.95,
+   "reason": "Meter sponsor read",
+   "end_text": "incremental disclosure here"
+},
+{
+   "start": 2560.1,
+   "end": 3120.0,
+   "confidence": 0.95,
+   "reason": "Meter sponsor read continues in next",
+   "end_text": "incremental disclosure here"
+}
+]

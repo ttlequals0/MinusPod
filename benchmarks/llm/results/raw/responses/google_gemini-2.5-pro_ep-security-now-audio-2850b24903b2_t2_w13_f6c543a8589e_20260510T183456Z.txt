@@ -1,0 +1,9 @@
+[
+  {
+    "start": 5975.6,
+    "end": 6083.5,
+    "confidence": 0.98,
+    "reason": "Host-read ad for Hoxhunt, which is a listed sponsor. The segment begins with a transition to a break and contains clear promotional language.",
+    "end_text": "just like the bad guys."
+  }
+]

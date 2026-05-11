@@ -1,0 +1,32 @@
+{  
+  "ad_segments": [  
+    {  
+      "start": 822.9,  
+      "end": 850.7,  
+      "confidence": 0.95,  
+      "reason": "Rich discusses the resurgence of retro tech, including coffee shops and digital typewriters, which is promotional content for retro tech products.",  
+      "end_text": "right? I think that's a good thing."  
+    },  
+    {  
+      "start": 851.2,  
+      "end": 877.8,  
+      "confidence": 0.90,  
+      "reason": "Rich mentions specific retro tech products like vinyl record players and digital typewriters, indicating a promotional segment.",  
+      "end_text": "it's a record player, but it's a record player."  
+    },  
+    {  
+      "start": 978.0,  
+      "end": 1006.3,  
+      "confidence": 0.85,  
+      "reason": "Rich discusses the cultural appeal of retro tech products, which is promotional content for these products.",  
+      "end_text": "it's just soup is good coffee, apparently."  
+    },  
+    {  
+      "start": 10194.0,  
+      "end": 1029.0,  
+      "confidence": 0.80,  
+      "reason": "Rich describes the experience of being approached by salespeople in stores, which is promotional content for retail experiences related to retro tech products.",  
+      "end_text": "I don't know if they trialed this, but I definitely had people asking to switch my ISP in."  
+    }  
+  ]  
+}

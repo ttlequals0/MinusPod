@@ -1,0 +1,1 @@
+{"start":0.0,"end":28.1,"confidence":0.95,"reason":"Colgate brand ad promoting Colgate Women's Games and tagline 'your smile is your strength' before show intro","end_text":"your smile is your strength"}

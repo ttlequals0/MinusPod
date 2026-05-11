@@ -1,0 +1,7 @@
+{
+  "start": 3079.6,
+  "end": 3120.0,
+  "confidence": 0.99,
+  "reason": "Morgan & Morgan sponsor read with promotional claims and call to action; ad break continues in next window",
+  "end_text": "full and fair compensation"
+}

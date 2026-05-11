@@ -1,0 +1,1 @@
+ {"start": 3430.8, "end": 3446.1, "confidence": 0.85, "reason": "Silence/content gap with no promotional language", "end_text": "And..."}

@@ -1,0 +1,11 @@
+{
+  "ad_segments": [
+    {
+      "start": 5546.3,
+      "end": 5596.3,
+      "confidence": 0.98,
+      "reason": "Netflix promotional segment for 'Remarkably Bright Creatures'",
+      "end_text": "only on Netflix."
+    }
+  ]
+}

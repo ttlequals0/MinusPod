@@ -1,0 +1,1 @@
+[{"start": 0.0, "end": 28.1, "confidence": 0.98, "reason": "Colgate pre-roll advertisement", "end_text": "series for girls and women."}]

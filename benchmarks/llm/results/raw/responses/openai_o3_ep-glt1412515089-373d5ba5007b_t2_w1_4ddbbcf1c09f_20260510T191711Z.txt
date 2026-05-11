@@ -1,0 +1,1 @@
+{"start": 539.2, "end": 652.8, "confidence": 0.97, "reason": "In the Gray film and Skechers slip-ins host-read sponsor segment", "end_text": "only at Skechers.com"}

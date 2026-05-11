@@ -1,0 +1,25 @@
+```json
+[
+  {
+    "start": 1524.5,
+    "end": 1561.9,
+    "confidence": 0.95,
+    "reason": "Xero sponsor read with product pitch and call to action (search XERO for free trial)",
+    "end_text": "search XERO for your free trial"
+  },
+  {
+    "start": 1561.9,
+    "end": 1592.5,
+    "confidence": 0.92,
+    "reason": "Acast network-inserted cross-promotion for Wrong Turns podcast with host Jameeda Jamil and guest list",
+    "end_text": "where dignity goes to die"
+  },
+  {
+    "start": 1592.5,
+    "end": 1602.6,
+    "confidence": 0.98,
+    "reason": "Acast platform tagline ad (Acast helps creators launch, grow, and monetize their podcasts everywhere)",
+    "end_text": "Acast.com"
+  }
+]
+```

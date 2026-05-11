@@ -1,0 +1,5 @@
+[
+
+[2560.1, 2585.5, 0.98, "Meter network infrastructure sponsor segment", "built for performance and scalability."]
+
+]

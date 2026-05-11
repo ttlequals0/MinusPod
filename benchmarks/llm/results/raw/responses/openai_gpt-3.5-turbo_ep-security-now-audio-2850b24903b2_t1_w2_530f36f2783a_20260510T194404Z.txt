@@ -1,0 +1,8 @@
+
+{
+	"start": 828.9,
+	"end": 902.2,
+	"confidence": 0.95,
+	"reason": "Discussion about Cursor AI data leak and security implications",
+	"end_text": "So."
+}

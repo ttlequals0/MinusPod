@@ -1,0 +1,1 @@
+[{"start": 821.4, "end": 1020.0, "confidence": 0.98, "reason": "Capital One, BetterHelp, Amazon Health AI, Spectrum Business, Rinse sponsor reads merged. Ad continues past window limit.", "end_text": "It's time to be great."}]

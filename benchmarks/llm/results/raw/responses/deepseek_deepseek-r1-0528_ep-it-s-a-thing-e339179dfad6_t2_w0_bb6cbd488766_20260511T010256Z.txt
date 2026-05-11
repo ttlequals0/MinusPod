@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1.6,
+    "end": 77.2,
+    "confidence": 0.99,
+    "reason": "Platform-inserted ads: Acast self-promotion and cross-promotions for Wrong Turns and Formative podcasts",
+    "end_text": "leaders of tomorrow"
+  }
+]

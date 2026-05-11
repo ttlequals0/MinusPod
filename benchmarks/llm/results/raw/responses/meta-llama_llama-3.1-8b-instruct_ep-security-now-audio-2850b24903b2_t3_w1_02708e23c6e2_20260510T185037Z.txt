@@ -1,0 +1,51 @@
+[
+{
+  "start": 417.2,
+   "end": 594.4,
+   "confidence": 0.95,
+   "reason": "Zscaler Zero Trust Plus AI sponsor read",
+   "end_text": "zscaler.com slash security"
+},
+{
+   "start": 469.0,
+   "end": 487.8,
+   "confidence": 0.98,
+   "reason": "Zscaler Zero Trust Plus AI sponsor read",
+   "end_text": "Zscaler Zero Trust Plus AI"
+},
+{
+   "start": 488.4,
+   "end": 516.0,
+   "confidence": 0.98,
+   "reason": "Zscaler Zero Trust Plus AI sponsor read",
+   "end_text": "Zscaler Zero Trust Plus AI"
+},
+{
+   "start": 516.6,
+   "end": 525.1,
+   "confidence": 0.95,
+   "reason": "Zscaler Zero Trust Plus AI sponsor read",
+   "end_text": "Zscaler Zero Trust Plus AI"
+},
+{
+   "start": 525.7,
+   "end": 552.5,
+   "confidence": 0.98,
+   "reason": "Zscaler Zero Trust Plus AI sponsor read",
+   "end_text": "Zscaler Zero Trust Plus AI"
+},
+{
+   "start": 552.9,
+   "end": 572.1,
+   "confidence": 0.98,
+   "reason": "Zscaler Zero Trust Plus AI sponsor read",
+   "end_text": "zscaler.com slash security"
+},
+{
+   "start": 575.3,
+   "end": 594.4,
+   "confidence": 0.95,
+   "reason": "Zscaler Zero Trust Plus AI sponsor read",
+   "end_text": "zscaler.com slash security"
+}
+]

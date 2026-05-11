@@ -1,0 +1,191 @@
+[
+{
+  "start": 401.8,
+   "end": 430.7,
+   "confidence": 0.95,
+   "reason": "No ad content detected",
+   "end_text": "I don't think it matters"
+},
+{
+   "start": 431.9,
+   "end": 445.9,
+   "confidence": 0.95,
+   "reason": "No ad content detected",
+   "end_text": "shut the fuck up"
+},
+{
+   "start": 447.4,
+   "end": 473.9,
+   "confidence": 0.95,
+   "reason": "No ad content detected",
+   "end_text": "pre-pandemic"
+},
+{
+   "start": 474.7,
+   "end": 496.0,
+   "confidence": 0.95,
+   "reason": "No ad content detected",
+   "end_text": "watching other people"
+},
+{
+   "start": 497.4,
+   "end": 506.0,
+   "confidence": 0.95,
+   "reason": "No ad content detected",
+   "end_text": "I think that era"
+},
+{
+   "start": 507.2,
+   "end": 534.0,
+   "confidence": 0.95,
+   "reason": "No ad content detected",
+   "end_text": "we've had enough"
+},
+{
+   "start": 535.2,
+   "end": 561.5,
+   "confidence": 0.95,
+   "reason": "No ad content detected",
+   "end_text": "walk around in the six-inch"
+},
+{
+   "start": 562.8,
+   "end": 585.7,
+   "confidence": 0.95,
+   "reason": "No ad content detected",
+   "end_text": "it was still nice"
+},
+{
+   "start": 587.5,
+   "end": 612.8,
+   "confidence": 0.95,
+   "reason": "No ad content detected",
+   "end_text": "I read this article"
+},
+{
+   "start": 613.5,
+   "end": 624.6,
+   "confidence": 0.95,
+   "reason": "No ad content detected",
+   "end_text": "it might have been"
+},
+{
+   "start": 626.6,
+   "end": 653.2,
+   "confidence": 0.95,
+   "reason": "No ad content detected",
+   "end_text": "you're going to perform"
+},
+{
+   "start": 654.0,
+   "end": 682.0,
+   "confidence": 0.95,
+   "reason": "No ad content detected",
+   "end_text": "you'd have an avatar"
+},
+{
+   "start": 683.4,
+   "end": 710.5,
+   "confidence": 0.95,
+   "reason": "No ad content detected",
+   "end_text": "the concept, the proof"
+},
+{
+   "start": 711.2,
+   "end": 735.1,
+   "confidence": 0.95,
+   "reason": "No ad content detected",
+   "end_text": "I knew people who flipped"
+},
+{
+   "start": 736.7,
+   "end": 752.2,
+   "confidence": 0.95,
+   "reason": "No ad content detected",
+   "end_text": "it's a way to show"
+},
+{
+   "start": 753.1,
+   "end": 781.8,
+   "confidence": 0.95,
+   "reason": "No ad content detected",
+   "end_text": "it's all good"
+},
+{
+   "start": 783.2,
+   "end": 813.5,
+   "confidence": 0.95,
+   "reason": "No ad content detected",
+   "end_text": "in 10 years or sooner"
+},
+{
+   "start": 815.0,
+   "end": 840.1,
+   "confidence": 0.95,
+   "reason": "No ad content detected",
+   "end_text": "he disturbs me"
+},
+{
+   "start": 840.7,
+   "end": 852.2,
+   "confidence": 0.95,
+   "reason": "No ad content detected",
+   "end_text": "white men suck"
+},
+{
+   "start": 854.8,
+   "end": 879.8,
+   "confidence": 0.95,
+   "reason": "No ad content detected",
+   "end_text": "he desperately wants"
+},
+{
+   "start": 881.2,
+   "end": 908.3,
+   "confidence": 0.95,
+   "reason": "No ad content detected",
+   "end_text": "Do you know what they are"
+},
+{
+   "start": 909.0,
+   "end": 930.2,
+   "confidence": 0.95,
+   "reason": "No ad content detected",
+   "end_text": "whatever it is"
+},
+{
+   "start": 931.8,
+   "end": 957.5,
+   "confidence": 0.95,
+   "reason": "No ad content detected",
+   "end_text": "he feels like someone"
+},
+{
+   "start": 963.8,
+   "end": 965.2,
+   "confidence": 0.95,
+   "reason": "No ad content detected",
+   "end_text": "All right, perfect"
+},
+{
+   "start": 969.4,
+   "end": 995.0,
+   "confidence": 0.95,
+   "reason": "No ad content detected",
+   "end_text": "just to give you"
+},
+{
+   "start": 995.5,
+   "end": 1014.0,
+   "confidence": 0.95,
+   "reason": "No ad content detected",
+   "end_text": "even Yahoo and AOL"
+},
+{
+   "start": 1015.8,
+   "end": 1043.5,
+   "confidence": 0.95,
+   "reason": "No ad content detected",
+   "end_text": "it has incentivized"
+}
+]

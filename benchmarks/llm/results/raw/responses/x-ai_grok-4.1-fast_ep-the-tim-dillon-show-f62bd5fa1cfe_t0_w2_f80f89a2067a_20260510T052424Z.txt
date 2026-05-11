@@ -1,0 +1,1 @@
+{"start":1439.2,"end":1465.2,"confidence":0.98,"reason":"Mint Mobile host-read sponsor segment with product pitch (plans, high-speed data, 5G network), listed episode sponsor","end_text":"nation's largest 5G network."}

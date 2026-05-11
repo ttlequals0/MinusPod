@@ -1,0 +1,1 @@
+[{"start": 488.4, "end": 572.1, "confidence": 0.98, "reason": "Zscaler Zero Trust Plus AI promotion", "end_text": "zscaler.com/security"}]

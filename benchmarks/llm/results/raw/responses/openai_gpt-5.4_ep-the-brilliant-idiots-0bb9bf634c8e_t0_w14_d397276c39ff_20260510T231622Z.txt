@@ -1,0 +1,1 @@
+{"start":6390.2,"end":6390.2,"confidence":0.22,"reason":"Transition phrase 'Let's pay some bills' suggests an ad break, but no promotional sponsor language appears in this window; not enough transcript evidence to confirm an ad","end_text":"do some asking idiots, man."}

@@ -1,0 +1,61 @@
+Podcast: security-now-audio
+Episode: SN 1077: A Browser AI API? - End of Bug Bounties?
+
+
+Episode description: <p>Google is sneaking a massive 4.7GB AI model into Chrome, and Mozilla is fighting back as the future of browsers threatens to turn into an AI arms race. Find out what's really happening behind this push and why it's setting off alarm bells across the web.</p><ul> 
+<li>Hackers AI-code a portal, forget to add authentication.</li> 
+<li>The UK's NCSC issues a Mythos warning. Where's CISA?</li> 
+<li>Another (of many) Linux local privilege escalations.</li> 
+<li>AI may be spelling the end of bug bounties.</li> 
+<li>Anthropic releases "Claude Security" mini-Mythos.</li> 
+<li>ChatGPT gets very serious about login security.</li> 
+<li>Syncthing's SyncTrayzor v1 abandoned; v2 created.</li> 
+<li>Google drops an AI API into Chrome; Mozilla objects</li></ul> 
+<p>Show Notes - <a href="https://www.grc.com/sn/SN-1077-Notes.pdf">https://www.grc.com/sn/SN-1077-Notes.pdf</a></p> 
+<p><strong>Hosts:</strong> <a href="https://twit.tv/people/steve-gibson">Steve Gibson</a> and <a href="https://twit.tv/people/leo-laporte">Leo Laporte</a></p> 
+<p>Download or subscribe to <em>Security Now</em> at <a href="https://twit.tv/shows/security-now">https://twit.tv/shows/security-now</a>.</p> 
+<p>You can submit a question to <em>Security Now</em> at the <a href="https://www.grc.com/feedback.htm" target="_blank">GRC Feedback Page</a>.</p> 
+<p>For 16kbps versions, transcripts, and notes (including fixes), visit Steve's site: <a href="https://www.grc.com/securitynow.htm" target="_blank">grc.com</a>, also the home of the best disk maintenance and recovery utility ever written <a href="https://www.grc.com/sr/spinrite.htm" target="_blank">Spinrite 6</a>.</p> 
+<p><strong>Join Club TWiT for Ad-Free Podcasts!</strong><br /> 
+Support what you love and get ad-free audio <em>and</em> video feeds, a members-only Discord, and exclusive content. Join today: <a href="https://twit.tv/clubtwit" rel="payment">https://twit.tv/clubtwit</a></p>
+<p><strong>Sponsors:</strong><ul>
+<li><a href="http://zscaler.com/security" rel="sponsored" target="_blank">zscaler.com/security</a></li>
+<li><a href="http://meter.com/securitynow" rel="sponsored" target="_blank">meter.com/securitynow</a></li>
+<li><a href="http://bitwarden.com/twit" rel="sponsored" target="_blank">bitwarden.com/twit</a></li>
+<li><a href="http://hoxhunt.com/securitynow" rel="sponsored" target="_blank">hoxhunt.com/securitynow</a></li>
+<li><a href="http://trustedtech.team/securitynow365" rel="sponsored" target="_blank">trustedtech.team/securitynow365</a></li>
+</ul></p>
+
+Transcript:
+[7959.9s - 7986.5s] It provides a way to send natural language instructions to Google's Gemini Nano model, which is small enough to be downloaded for local inference through Chrome. However, writes the register, it's not small. Google recommends having 22 gigabytes of space available, although the Nano V3 Nano model
+[7986.9s - 8007.8s] for desktop use is 4.27 gigabytes. Web developers already have a variety of ways to interact with AI models. They could use cloud service APIs to communicate with hosted models, or they can access local models through technologies like JavaScript runtime frameworks, WebASEM, or WebGPU.
+[8008.5s - 8025.2s] Various vendors like OpenAI and Perplexity have shipped browsers that embed access to remotely hosted AI models. Mozilla itself is testing an AI-based smart window in Firefox and is developing tools for AI model scaffolding.
+[8025.7s - 8053.0s] The prompt API aims to make it easier to run local inference in a way that takes advantage of browser security mechanisms to produce faster response times to allow offline usage and to provide more cost-effective ways to integrate AI services. For example, providing a free AI fallback if users lack a paid API key. Okay, so that's interesting.
+[8053.4s - 8080.2s] That suggests that Google wants us to register our LLM AI provider accounts with our browser so that random websites we visit will be able to submit their prompts to our AI account. This brings to mind the famous rhetorical question, what could possibly go wrong? The register continues, Mozilla's concern
+[8080.7s - 8105.3s] As articulated by Archibald, has to do with what the prompt API means for the web, not to mention Google's justification for deployment. First, he worries that Google's own nano model will become the default and that developers will standardize on it in an effort to make the non-deterministic responses of an AI model more predictable.
+[8106.0s - 8133.8s] That tendency, he argues, will create pressure for Apple and Mozilla to license Nano for the sake of a common user experience. Perhaps more significantly, Archibald notes that using the prompt API requires agreeing to Google's generative AI prohibited uses policy, which prohibits activities that are not necessarily illegal, like generating disturbing content.
+[8135.2s - 8153.6s] I'll just pause to say, who determines what content is disturbing? There is nothing that attorneys love more than ambiguous language in contractual agreements. It's a built-in full employment guarantee. The register quotes Jake saying,
+[8154.2s - 8170.1s] This seems like a bad direction for an API on the web platform and sets a worrying precedent for more APIs that have browser-specific rules around their usage. Amen to that. Anyway, the register continues.
+[8172.4s - 8199.8s] Archibald argues that Google misrepresented demand for the API by cherry-picking a few social media posts and calling that a groundswell of developer support. Jake posted, quote, The intent to ship on BlinkDev states web developers as strongly positive and links to the explainer for evidence.
+[8200.5s - 8220.8s] The evidence provided there does not seem to fit the claim." In an email, Archibald told the register that the question is whether the prompt API is good for the web, and Mozilla doesn't believe it is. Jake said, quote, the core problem is interoperability.
+[8221.4s - 8249.1s] Prompts are tightly coupled to models. Developers will inevitably tune to the quirks and policies of whatever model they're building against. That's how you end up with model-specific code paths, which is the browser compatibility problem all over again. The terms and conditions issue is part of that. If using a web API means accepting a specific vendor's content policy,
+[8250.0s - 8271.9s] Especially one that goes beyond the law, you're not really building for an open platform anymore, unquote. And just to pause, what he means is, remember those days where JavaScript had to determine which browser it was in, and then would do this code for IE, that code for Firefox, this code for Safari, and that code for Chrome?
+[8273.0s - 8294.2s] Those were not good days. Anyway, the register says, with regard to Google's exaggeration of developer enthusiasm, Archibald said, there are definitely devs interested in AI capabilities, but Google failed to provide evidence of that. The signal is polarized, not strongly positive.
+[8294.9s - 8307.8s] But either way, developer demand alone does not meet the bar. The question is whether the API can work across implementations without tying the platform to one vendor's model.
+[8308.6s - 8336.8s] Google did not immediately respond to request for comment. However, on Thursday, Rick Byers, the Google Chrome engineer responsible for shipping the Prompt API, chimed into the GitHub discussion to acknowledge the concerns articulated by Archibald. To his credit, he wrote, quote, As one of the Blink API owner approvers for shipping this in Chromium,
+[8337.1s - 8359.7s] I admit that I share the concerns here in Mozilla's standards position. Where I differ is in preferring paths that promote experimentation, learning from mistakes, and competition to those which err on the side of stalling innovation out of fear of what might happen."
+[8362.2s - 8380.1s] That's a perfectly articulated response to the more cautious, we should wait a bit to see what happens stance. The Register concludes their piece by writing, buyers asked the web community to help collect evidence of harm to advance the discussion, pointing
+[8380.6s - 8408.1s] To the debate over other controversial web technologies like encrypted media extensions, remember EME, he suggested the outcome has not been as desired as was predicted. But focusing on data so far has not done much for Google's cause. According to a report created in February that compares the performance of Chrome with Gemini Nano and Edge with Fi4 Mini Instruct,
+[8408.4s - 8433.4s] Using the prompt API, these models do not provide very good results. The report says, quote, for generative tasks, composition, tag generation, etc., 24.29% edges and 15.17% of Chrome's responses failed to complete the task at all.
+[8433.9s - 8461.6s] This is in reference to a rubric that defines failure as a score of two or less on a scale of one to five. For classification tasks, 29.58% of edges and 23.93% of Chrome's responses did not label or categorize input correctly. So it's often also wrong. They finished with the report's conclusions, noting, in terms of groundedness and accuracy,
+[8462.5s - 8488.8s] Edge failed, which is to say hallucinated, 17% of the time, while Chrome failed 6% of the time. Is that good for the web? You could ask Chrome, but you might not get a reliable answer. And that's how the register signs off. Burn. Burn. So where does this leave us? I guess it leaves me more happy than ever that I've stuck with Mozilla.
+[8490.5s - 8496.9s] I look at what Google now presents us on a page of search results.
+[8498.3s - 8524.9s] And it becomes clear that we're the product. I search for something specific and sponsored. Instead of what I ask for, I get sponsored interception advertisements that are promoted to the top of the page and are presented before the result that I'm seeking that I need to weigh down past a bunch of YouTube video links that I have zero interest in.
+[8525.6s - 8548.6s] Okay, now in fairness, Google's not alone in doing this. Apple has similarly succumbed in their app store. The thing I'm looking for is never first any longer. Even when I search for it by name and spell it correctly, what's first is what someone paid them to show me first in the hope that I wouldn't notice or wasn't sure what it was that I wanted. And on the Google side,
+[8549.1s - 8572.8s] In return for tolerating a bunch of advertising, we do receive a ton of services at no charge. You know, I author these show notes every week in Google Docs for free. And, you know, the catch-all junk email account I maintain over at Gmail is similarly valuable. All of that means a lot. So, thank you, Google. But all of that seems fundamentally different to me.
+[8573.3s - 8599.9s] from intermixing the design and establishment of crucial web standards with a single company's commercial interests. Yes, Google has succeeded in leveraging their position as the winner of internet search into the winner of the web browser wars. I get it. As I use the internet daily, I am more or less continually being offered the opportunity.
+
+=== WINDOW 20/23: 133.0-143.0 minutes ===
+- Use absolute timestamps from transcript (as shown in brackets)
+- If an ad starts before this window, use the first timestamp with note "continues from previous"
+- If an ad extends past this window, use 8580.0 with note "continues in next"

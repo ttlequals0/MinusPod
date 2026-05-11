@@ -1,0 +1,7 @@
+[{
+  "start": 7173.7,
+  "end": 7196.8,
+  "confidence": 1.0,
+  "reason": "Host-read Netflix promotion with explicit 'brought to you by' introduction and product pitch",
+  "end_text": "only on Netflix"
+}]

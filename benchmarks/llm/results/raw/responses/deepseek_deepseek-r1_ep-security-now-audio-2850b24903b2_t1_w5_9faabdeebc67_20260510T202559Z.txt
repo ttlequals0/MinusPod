@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2560.1,
+    "end": 2693.0,
+    "confidence": 1.0,
+    "reason": "Host-read sponsor segment for Meter with product pitch and call to action",
+    "end_text": "book a demo okay meter"
+  }
+]

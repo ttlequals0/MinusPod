@@ -1,0 +1,1 @@
+{"start": 1668.7, "end": 2286.3, "confidence": 0.0, "reason": "No promotional content found in transcript segment. Content is editorial discussion about Facebook, aging, and screen time.", "end_text": "there's nothing you can do about it. I'm sorry."}

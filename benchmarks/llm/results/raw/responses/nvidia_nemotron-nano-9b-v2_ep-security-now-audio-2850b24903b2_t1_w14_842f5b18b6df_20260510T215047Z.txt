@@ -1,0 +1,1 @@
+[{"start": 6045.5, "end": 6162.9, "confidence": 0.98, "reason": "Hawkshunt security training promotion", "end_text": "hawkshunt.com security now"}, {"start": 6162.9, "end": 6208.0, "confidence": 0.95, "reason": "Club TWiT ad-free membership promotion", "end_text": "clubtwit"}]

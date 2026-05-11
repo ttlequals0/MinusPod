@@ -1,0 +1,7 @@
+{
+  "start": 4.190,
+  "end": 4.263,
+  "confidence": 0.95,
+  "reason": "Mint Mobile network-embedded ad with promotional language and URL.",
+  "end_text": "the most common side effects that may be experienced while using Viz include eye irritation, temporary dim or dark vision, headaches, and eye redness."
+}

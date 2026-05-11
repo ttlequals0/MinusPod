@@ -1,0 +1,1 @@
+{"start":1718.3,"end":1799.6,"confidence":0.95,"reason":"Host DTNS merch promotion followed by Capital One sponsor read and Lemonada Media cross-promo within one continuous ad break","end_text":"six-part Thrive series"}

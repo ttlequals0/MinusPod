@@ -1,0 +1,184 @@
+[
+  {
+    "start": 5037.8,
+    "end": 5062.7,
+    "confidence": 0.95,
+    "reason": "Discussion of Anthropic's Claude Security and Mythos without promotional content",
+    "end_text": "Mythos would. Mythos may"
+  },
+  {
+    "start": 5063.1,
+    "end": 5071.5,
+    "confidence": 0.95,
+    "reason": "Continuation of Anthropic discussion",
+    "end_text": "predictable evolution on Anthropic's"
+  },
+  {
+    "start": 5073.5,
+    "end": 5101.6,
+    "confidence": 0.95,
+    "reason": "Personal experience with AI models without ads",
+    "end_text": "repositories. I mean, that"
+  },
+  {
+    "start": 5102.2,
+    "end": 5127.9,
+    "confidence": 0.95,
+    "reason": "Further discussion of AI security audits",
+    "end_text": "corrections there, too. You"
+  },
+  {
+    "start": 5129.4,
+    "end": 5157.8,
+    "confidence": 0.95,
+    "reason": "Description of scheduled scans in development",
+    "end_text": "significant has been found."
+  },
+  {
+    "start": 5158.3,
+    "end": 5173.6,
+    "confidence": 0.95,
+    "reason": "Introduction of OpenAI's Advanced Account Security",
+    "end_text": "now, Leo. Designed for"
+  },
+  {
+    "start": 5174.0,
+    "end": 5202.4,
+    "confidence": 0.95,
+    "reason": "Details of Advanced Account Security features",
+    "end_text": "easier to activate in"
+  },
+  {
+    "start": 5202.8,
+    "end": 5223.6,
+    "confidence": 0.95,
+    "reason": "Explanation of personal and professional stakes",
+    "end_text": "sensitive personal and professional"
+  },
+  {
+    "start": 5224.0,
+    "end": 5251.8,
+    "confidence": 0.95,
+    "reason": "Target users and cybersecurity action plan",
+    "end_text": "right for them. At the"
+  },
+  {
+    "start": 5252.1,
+    "end": 5277.0,
+    "confidence": 0.95,
+    "reason": "Emphasis on user responsibility in security",
+    "end_text": "for account recovery. And"
+  },
+  {
+    "start": 5277.7,
+    "end": 5301.9,
+    "confidence": 0.95,
+    "reason": "Technical details of Advanced Account Security",
+    "end_text": "through that login. So"
+  },
+  {
+    "start": 5296.0,
+    "end": 5317.8,
+    "confidence": 0.95,
+    "reason": "Overlap with previous segment, discussing login methods",
+    "end_text": "password-based login? Gone."
+  },
+  {
+    "start": 5319.3,
+    "end": 5339.4,
+    "confidence": 0.95,
+    "reason": "Transition to account recovery security",
+    "end_text": "or physical security key."
+  },
+  {
+    "start": 5339.9,
+    "end": 5365.2,
+    "confidence": 0.95,
+    "reason": "Risks of email/SMS recovery and mitigation",
+    "end_text": "stronger recovery methods. Backup"
+  },
+  {
+    "start": 5365.8,
+    "end": 5392.9,
+    "confidence": 0.95,
+    "reason": "Restrictions on account recovery assistance",
+    "end_text": "much more responsibility. They're"
+  },
+  {
+    "start": 5393.8,
+    "end": 5418.5,
+    "confidence": 0.95,
+    "reason": "Benefits of removing email/SMS recovery",
+    "end_text": "attacks will be thwarted."
+  },
+  {
+    "start": 5419.3,
+    "end": 5444.9,
+    "confidence": 0.95,
+    "reason": "Additional security enhancements by OpenAI",
+    "end_text": "two additional security enhancements,"
+  },
+  {
+    "start": 5446.3,
+    "end": 5468.8,
+    "confidence": 0.95,
+    "reason": "Session management and alerts",
+    "end_text": "devices they're signed into."
+  },
+  {
+    "start": 5469.7,
+    "end": 5489.5,
+    "confidence": 0.95,
+    "reason": "Automatic training exclusion for sensitive info",
+    "end_text": "train our models. They"
+  },
+  {
+    "start": 5491.1,
+    "end": 5515.4,
+    "confidence": 0.95,
+    "reason": "Partnership with Yubico for security keys",
+    "end_text": "offer our users preferred"
+  },
+  {
+    "start": 5516.0,
+    "end": 5539.6,
+    "confidence": 0.95,
+    "reason": "Description of YubiKey products",
+    "end_text": "touch the little gold"
+  },
+  {
+    "start": 5542.4,
+    "end": 5555.7,
+    "confidence": 0.95,
+    "reason": "Details of YubiKey models",
+    "end_text": "laptop and mobile devices."
+  },
+  {
+    "start": 5556.6,
+    "end": 5578.4,
+    "confidence": 0.95,
+    "reason": "Availability of security key bundle",
+    "end_text": "software-based pass keys. I"
+  },
+  {
+    "start": 5580.1,
+    "end": 5608.1,
+    "confidence": 0.95,
+    "reason": "Personal experience switching AI models",
+    "end_text": "share it with my wife,"
+  },
+  {
+    "start": 5608.9,
+    "end": 5631.0,
+    "confidence": 0.95,
+    "reason": "Positive feedback on enhanced security features",
+    "end_text": "highly sensitive dialogues that"
+  },
+  {
+    "start": 5631.5,
+    "end": 5649.4,
+    "confidence": 0.95,
+    "reason": "Importance of controlling AI conversation history",
+    "end_text": "very clear. === WINDOW"
+  }
+]

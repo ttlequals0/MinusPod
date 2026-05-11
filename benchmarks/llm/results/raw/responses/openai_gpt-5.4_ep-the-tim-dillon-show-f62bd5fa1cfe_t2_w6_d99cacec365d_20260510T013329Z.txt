@@ -1,0 +1,1 @@
+{"start":3079.6,"end":3134.3,"confidence":0.99,"reason":"Morgan & Morgan host-read paid advertisement with promotional claims, CTA, vanity URL, and disclosure; continues in next segment into Stash","end_text":"Stash is the one."}

@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 444.6,
+      "end": 572.1,
+      "confidence": 0.99,
+      "reason": "Zscaler sponsor read with promotional language, testimonial, and URL",
+      "end_text": "zscaler.com slash security"
+    }
+  ]
+}

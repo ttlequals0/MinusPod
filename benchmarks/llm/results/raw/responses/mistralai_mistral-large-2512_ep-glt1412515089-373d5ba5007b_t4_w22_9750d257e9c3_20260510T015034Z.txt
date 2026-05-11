@@ -1,0 +1,9 @@
+[
+    {
+        "start": 9238.0,
+        "end": 9238.0,
+        "confidence": 0.0,
+        "reason": "Perplexity mention at the start of the transcript is a platform-inserted ad (promotional URL and call to action). Partial ad, continues from previous segment.",
+        "end_text": "podcastchoices.com/adchoices"
+    }
+]

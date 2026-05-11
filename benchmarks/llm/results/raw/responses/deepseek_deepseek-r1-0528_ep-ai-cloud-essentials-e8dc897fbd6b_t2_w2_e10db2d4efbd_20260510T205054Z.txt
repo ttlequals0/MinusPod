@@ -1,0 +1,9 @@
+[
+  {
+    "start": 814.4,
+    "end": 984.2,
+    "confidence": 0.0,
+    "reason": "No promotional content detected",
+    "end_text": "stay tuned for more. Thank you."
+  }
+]

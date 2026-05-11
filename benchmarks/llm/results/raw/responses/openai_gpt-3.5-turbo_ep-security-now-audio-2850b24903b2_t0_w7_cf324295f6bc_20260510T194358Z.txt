@@ -1,0 +1,7 @@
+{
+	"start": 3382.8,
+	"end": 3410.7,
+	"confidence": 0.95,
+	"reason": "Ad read for Aikido",
+	"end_text": "We are seeing this play out in practice."
+}

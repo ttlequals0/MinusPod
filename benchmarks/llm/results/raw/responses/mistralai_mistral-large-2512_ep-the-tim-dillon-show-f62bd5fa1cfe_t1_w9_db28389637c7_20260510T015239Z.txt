@@ -1,0 +1,9 @@
+[
+    {
+        "start": 4378.5,
+        "end": 4380.0,
+        "confidence": 0.0,
+        "reason": "partial segment at window end with no promotional content detected; no ad identified",
+        "end_text": "got to look like an accident"
+    }
+]

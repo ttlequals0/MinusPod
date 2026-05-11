@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 5975.6,
+      "end": 6083.5,
+      "confidence": 0.98,
+      "reason": "Host-read ad break: transition 'Let's take a timeout' and 'We'll take a little break' followed by Hoxhunt sponsor read with promotional language (empowers employees, personalized gamified micro-training, simulations in Slack and Teams)",
+      "end_text": "just like the bad guys"
+    }
+  ]
+}

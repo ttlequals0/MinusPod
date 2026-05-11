@@ -1,0 +1,7 @@
+{
+  "start": 3803.3,
+  "end": 3822.8,
+  "confidence": 0.95,
+  "reason": "Host transitions to sponsor read with promotional language for Mint Mobile",
+  "end_text": "TIMDILLON To Get 3 Months Of Premium Wireless for $15 bucks a month!"
+}

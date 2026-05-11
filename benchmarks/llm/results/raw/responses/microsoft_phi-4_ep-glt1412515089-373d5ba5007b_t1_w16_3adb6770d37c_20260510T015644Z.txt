@@ -1,0 +1,11 @@
+{  
+  "segments": [  
+    {  
+      "start": 112.0,  
+      "end": 122.0,  
+      "confidence": 0.95,  
+      "reason": "The segment contains a detailed explanation of the double slit experiment, including the concept of retrocausality and the observer's influence on reality, which is indicative of a promotional segment discussing scientific concepts and experiments.",  
+      "end_text": "So if you do an experiment, you can see how the future influences the past."  
+    }  
+  ]  
+}

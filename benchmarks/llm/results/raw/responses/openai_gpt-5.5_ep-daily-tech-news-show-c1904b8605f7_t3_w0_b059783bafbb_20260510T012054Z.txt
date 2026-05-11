@@ -1,0 +1,1 @@
+{"start":0.0,"end":100.9,"confidence":0.99,"reason":"Pre-roll ad block promoting Capital One, Xero, and Spectrum Business with product pitches and CTA ('search XERO for your free trial'); Spectrum ad appears cut off at '100%'.","end_text":"support with 100%"}

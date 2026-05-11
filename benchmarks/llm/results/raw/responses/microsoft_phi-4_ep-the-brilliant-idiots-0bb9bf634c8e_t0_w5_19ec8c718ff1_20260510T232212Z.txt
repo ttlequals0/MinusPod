@@ -1,0 +1,32 @@
+[
+
+{
+  "start": 2353.9,
+  "end": 2380.3,
+  "confidence": 0.98,
+  "reason": "Blue Chew Gold product pitch with promo code",
+  "end_text": "you want them"
+},
+{
+  "start": 2381.0,
+  "end": 2404.4,
+  "confidence": 0.98,
+  "reason": "Blue Chew Gold product pitch with promo code and call to action",
+  "end_text": "trophy husband"
+},
+{
+  "start": 2404.7,
+  "end": 2414.8,
+  "confidence": 0.95,
+  "reason": "ZipRecruiter sponsorship mention",
+  "end_text": "sponsoring the"
+},
+{
+  "start": 2415.0,
+  "end": 2443.8,
+  "confidence": 0.98,
+  "reason": "ZipRecruiter sponsorship pitch with promo code",
+  "end_text": "ZipRecruiter.com"
+}
+
+]

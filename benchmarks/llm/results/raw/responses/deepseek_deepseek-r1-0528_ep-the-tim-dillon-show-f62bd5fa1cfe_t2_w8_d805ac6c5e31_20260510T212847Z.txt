@@ -1,0 +1,9 @@
+[
+  {
+    "start": 3360.3,
+    "end": 3975.9,
+    "confidence": 0.0,
+    "reason": "No promotional content detected in transcript segment",
+    "end_text": "created by aliens"
+  }
+]

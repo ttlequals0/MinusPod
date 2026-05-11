@@ -1,0 +1,7 @@
+{
+  "start": 3309.1,
+  "end": 3329.8,
+  "confidence": 0.95,
+  "reason": "Sponsor mention: Black Effect Network",
+  "end_text": "in real life, yeah. Are you two? I'm dead ass. Oh yeah, you said Nyla and, yeah, they are. When did they find that out?"
+}

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2208.3,
+    "end": 2237.2,
+    "confidence": 0.98,
+    "reason": "Network-inserted ad for Blinds.com with a promotional offer.",
+    "end_text": "rules and restrictions apply"
+  }
+]

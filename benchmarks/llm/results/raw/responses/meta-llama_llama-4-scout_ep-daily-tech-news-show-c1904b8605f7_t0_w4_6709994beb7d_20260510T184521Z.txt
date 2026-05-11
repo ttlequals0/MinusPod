@@ -1,0 +1,23 @@
+ads": [ 
+  {
+    "start": 1742.3, 
+    "end": 1771.5, 
+    "confidence": 0.98, 
+    "reason": "Capital One sponsor read", 
+    "end_text": "technology at Capital One"
+  }, 
+  {
+    "start": 2246.0, 
+    "end": 2275.3, 
+    "confidence": 0.98, 
+    "reason": "Capital One sponsor read continues from previous", 
+    "end_text": "technology at Capital One"
+  },
+  {
+    "start": 2276.2, 
+    "end": 2301.6, 
+    "confidence": 0.90, 
+    "reason": "Rethinking Podcast ad", 
+    "end_text": "rethink your routine"
+  }
+]}

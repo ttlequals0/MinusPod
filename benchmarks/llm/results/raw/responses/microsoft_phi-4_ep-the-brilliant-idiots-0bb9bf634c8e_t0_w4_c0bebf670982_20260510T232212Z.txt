@@ -1,0 +1,11 @@
+{
+  "segments": [
+    {
+      "start": 28.0,
+      "end": 38.0,
+      "confidence": 0.95,
+      "reason": "The segment contains a transition phrase indicating a continuation of a previous ad, and it includes promotional language.",
+      "end_text": "Budden and EFN don't need a guest."
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+[{"start": 8405.6, "end": 8492.8, "confidence": 0.9, "reason": "Content gap between segments", "end_text": "thinking about what you're going to say"} ]

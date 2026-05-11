@@ -1,0 +1,9 @@
+[
+    {
+        "start": 7607.7,
+        "end": 7797.4,
+        "confidence": 0.99,
+        "reason": "Trusted Tech sponsor read with promotional language, URL (trustedtech.team/securitynow365), call to action, and pricing urgency ('before July 1st'). Includes transition phrase 'let's take our final break' and return to content.",
+        "end_text": "trustedtech.team securitynow365"
+    }
+]

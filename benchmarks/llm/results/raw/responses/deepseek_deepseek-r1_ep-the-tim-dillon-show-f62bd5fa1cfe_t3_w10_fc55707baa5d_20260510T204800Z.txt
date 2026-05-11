@@ -1,0 +1,46 @@
+{
+  "ad_segments": [
+    {
+      "start": 4646.2,
+      "end": 4674.6,
+      "confidence": 0.95,
+      "reason": "Colgate Women's Games ad",
+      "end_text": "but my smile is a reminder that I'm resilient"
+    },
+    {
+      "start": 4675.4,
+      "end": 4697.4,
+      "confidence": 0.95,
+      "reason": "Colgate Women's Games ad",
+      "end_text": "your smile is your strength"
+    },
+    {
+      "start": 4705.5,
+      "end": 4733.9,
+      "confidence": 0.95,
+      "reason": "Skinny Pop popcorn ad",
+      "end_text": "Skinny Pop just makes sense"
+    },
+    {
+      "start": 4734.3,
+      "end": 4763.1,
+      "confidence": 0.95,
+      "reason": "Colgate Women's Games ad",
+      "end_text": "your smile is your strength"
+    },
+    {
+      "start": 4766.5,
+      "end": 4787.9,
+      "confidence": 0.95,
+      "reason": "Viz prescription eye drop ad",
+      "end_text": "learn if Viz is right for you"
+    },
+    {
+      "start": 4788.6,
+      "end": 4806.1,
+      "confidence": 0.95,
+      "reason": "Garnier and National Park Foundation ad",
+      "end_text": "support our national parks"
+    }
+  ]
+}

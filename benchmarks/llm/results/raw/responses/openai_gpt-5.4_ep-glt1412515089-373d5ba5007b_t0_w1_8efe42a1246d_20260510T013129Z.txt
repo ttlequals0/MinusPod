@@ -1,0 +1,1 @@
+{"start":539.2,"end":652.8,"confidence":0.99,"reason":"Back-to-back ad break with promotional reads for the film \"In the Gray\" and Skechers, including sponsor language, product pitch, release date, and call to action to visit Skechers.com","end_text":"That's only at Skechers.com."}

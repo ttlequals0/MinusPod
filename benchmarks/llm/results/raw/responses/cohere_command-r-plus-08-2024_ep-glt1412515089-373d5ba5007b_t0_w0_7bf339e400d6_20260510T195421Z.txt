@@ -1,0 +1,11 @@
+{
+ "ads": [
+  {
+    "start": 539.2,
+    "end": 595.4,
+    "confidence": 0.95,
+    "reason": "In the Gray and Skechers host-read ads",
+    "end_text": "and they come in so many colors and sizes."
+  }
+ ]
+}

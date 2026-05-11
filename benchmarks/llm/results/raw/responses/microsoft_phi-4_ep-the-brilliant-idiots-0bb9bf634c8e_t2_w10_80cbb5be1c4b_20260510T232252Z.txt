@@ -1,0 +1,30 @@
+{
+  "window": {
+  "start": 4.175,
+  "end": 4.8,
+  "segments": [
+    {
+      "start": 4.175,
+      "end": 4.202,
+      "confidence": 0.95,
+      "reason": "Transition to a live call-in segment with promotional language.",
+      "end_text": "catch somebody's eye contact"
+    },
+    {
+      "start": 4.334,
+      "end": 4.466,
+      "confidence": 0.98,
+      "reason": "Host mentions a show with celebrities, indicating a promotional segment.",
+      "end_text": "you feel a lot of pressure in terms of your own outfit"
+    },
+    {
+      "start": 4.466,
+      "end": 4.473,
+      "confidence": 0.99,
+      "reason": "Host discusses the pressure of being seen at the Met Gala, indicating promotional content.",
+      "end_text": "you should take advantage of everything"
+    }
+  ]
+} 
+
+  	}

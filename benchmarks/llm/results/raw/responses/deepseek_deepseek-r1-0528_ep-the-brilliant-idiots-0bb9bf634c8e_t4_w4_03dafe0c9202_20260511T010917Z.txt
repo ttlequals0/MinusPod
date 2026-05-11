@@ -1,0 +1,191 @@
+[
+  {
+    "start": 1659.8,
+    "end": 1684.4,
+    "confidence": 0.95,
+    "reason": "Cardi B and Met Gala discussion",
+    "end_text": "fucking hip-hop. I think"
+  },
+  {
+    "start": 1684.6,
+    "end": 1706.6,
+    "confidence": 0.95,
+    "reason": "Breakfast Club and hip-hop journalism",
+    "end_text": "hip hop journalist."
+  },
+  {
+    "start": 1707.4,
+    "end": 1733.2,
+    "confidence": 0.95,
+    "reason": "Angie Martinez and Breakfast Club",
+    "end_text": "black people. Breakfast Club"
+  },
+  {
+    "start": 1733.8,
+    "end": 1760.5,
+    "confidence": 0.95,
+    "reason": "Interview history with rappers",
+    "end_text": "interviewed Eminem. But"
+  },
+  {
+    "start": 1761.0,
+    "end": 1788.5,
+    "confidence": 0.95,
+    "reason": "Hip-hop platform growth",
+    "end_text": "accredited and this"
+  },
+  {
+    "start": 1789.1,
+    "end": 1796.7,
+    "confidence": 0.95,
+    "reason": "Hip-hop journalist identity",
+    "end_text": "listen."
+  },
+  {
+    "start": 1797.0,
+    "end": 1825.7,
+    "confidence": 0.95,
+    "reason": "Rob Markman as hip-hop journalist",
+    "end_text": "certain things."
+  },
+  {
+    "start": 1825.9,
+    "end": 1842.1,
+    "confidence": 0.95,
+    "reason": "Nelson George and Sway",
+    "end_text": "talking, but Nelson"
+  },
+  {
+    "start": 1842.8,
+    "end": 1867.6,
+    "confidence": 0.95,
+    "reason": "Fab Five Freddy and Sway",
+    "end_text": "true hip-hop journalism."
+  },
+  {
+    "start": 1868.3,
+    "end": 1891.3,
+    "confidence": 0.95,
+    "reason": "Hip-hop journalism platforms",
+    "end_text": "100%. Absolutely."
+  },
+  {
+    "start": 1891.8,
+    "end": 1917.9,
+    "confidence": 0.95,
+    "reason": "Shift in hip-hop media",
+    "end_text": "like that no more."
+  },
+  {
+    "start": 1918.5,
+    "end": 1945.9,
+    "confidence": 0.95,
+    "reason": "Writing vs. talking in journalism",
+    "end_text": "years and years."
+  },
+  {
+    "start": 1946.5,
+    "end": 1967.3,
+    "confidence": 0.95,
+    "reason": "Charlamagne's writing history",
+    "end_text": "mean and and"
+  },
+  {
+    "start": 1967.6,
+    "end": 1990.3,
+    "confidence": 0.95,
+    "reason": "Substack discussion",
+    "end_text": "mixture sometimes, but"
+  },
+  {
+    "start": 1990.7,
+    "end": 2008.8,
+    "confidence": 0.95,
+    "reason": "Substack engagement",
+    "end_text": "platform. People love"
+  },
+  {
+    "start": 2009.1,
+    "end": 2037.3,
+    "confidence": 0.95,
+    "reason": "Complex list inclusion of writers",
+    "end_text": "the podcast."
+  },
+  {
+    "start": 2037.8,
+    "end": 2054.8,
+    "confidence": 0.95,
+    "reason": "Lauren and Fantano rankings",
+    "end_text": "Shannon Sharp, 24."
+  },
+  {
+    "start": 2055.7,
+    "end": 2084.2,
+    "confidence": 0.95,
+    "reason": "Shannon Sharpe's qualifications",
+    "end_text": "sense, though. I"
+  },
+  {
+    "start": 2084.9,
+    "end": 2110.9,
+    "confidence": 0.95,
+    "reason": "Kevin Gates and G Herbo interviews",
+    "end_text": "chops it up with"
+  },
+  {
+    "start": 2113.1,
+    "end": 2140.2,
+    "confidence": 0.95,
+    "reason": "Community ranking discussion",
+    "end_text": "at number two."
+  },
+  {
+    "start": 2140.5,
+    "end": 2159.2,
+    "confidence": 0.95,
+    "reason": "Charlamagne's appreciation for lists",
+    "end_text": "grateful. All right,"
+  },
+  {
+    "start": 2159.5,
+    "end": 2185.4,
+    "confidence": 0.95,
+    "reason": "Rob and Wayno rankings",
+    "end_text": "Drink Champs. Drink"
+  },
+  {
+    "start": 2185.7,
+    "end": 2198.0,
+    "confidence": 0.95,
+    "reason": "Drink Champs consistency",
+    "end_text": "for granted. Drink"
+  },
+  {
+    "start": 2199.6,
+    "end": 2219.0,
+    "confidence": 0.95,
+    "reason": "Drink Champs decade celebration",
+    "end_text": "point. But I"
+  },
+  {
+    "start": 2219.4,
+    "end": 2246.2,
+    "confidence": 0.95,
+    "reason": "Guest-reliant shows",
+    "end_text": "guest. Right."
+  },
+  {
+    "start": 2246.4,
+    "end": 2267.7,
+    "confidence": 0.95,
+    "reason": "Nori's entertainment value",
+    "end_text": "world. When I"
+  },
+  {
+    "start": 2268.0,
+    "end": 2285.1,
+    "confidence": 0.95,
+    "reason": "Nori at Black Effect Podcast Festival",
+    "end_text": "he talked about."
+  }
+]

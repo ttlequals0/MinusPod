@@ -1,0 +1,9 @@
+{"ad_segments": [
+  {
+    "start": 2208.3,
+    "end": 2237.0,
+    "confidence": 0.98,
+    "reason": "Blinds.com sponsor read",
+    "end_text": "Blinds.com"
+  }
+]}

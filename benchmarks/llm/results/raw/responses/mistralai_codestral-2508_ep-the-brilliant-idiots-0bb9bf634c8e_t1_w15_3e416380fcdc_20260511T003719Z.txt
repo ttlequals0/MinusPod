@@ -1,0 +1,1 @@
+[{"start": 6286.5, "end": 6900.0, "confidence": 0.95, "reason": "Continues from previous window. No ads found in this window.", "end_text": "because..."}]

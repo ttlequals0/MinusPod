@@ -1,0 +1,25 @@
+{  
+  "segments": [  
+    {  
+      "start": 8.405,  
+      "end": 8.409,  
+      "confidence": 0.98,  
+      "reason": "Host mentions a book title and author, indicating a sponsored segment.",  
+      "end_text": "I mean, most people that I've talked to that are singers."  
+    },  
+    {  
+      "start": 8.412,  
+      "end": 8.463,  
+      "confidence": 0.95,  
+      "reason": "Host discusses the book's impact on students, suggesting a promotional segment.",  
+      "end_text": "I don't know why I'm writing words on a page with this weird story about a guy who hears walls start talking."  
+    },  
+    {  
+      "start": 8.686,  
+      "end": 8.710,  
+      "confidence": 0.95,  
+      "reason": "Host discusses the book's unique impact on students and the discovery process, indicating a promotional segment.",  
+      "end_text": "I ended up starting a support group for people who had these experiences."  
+    }  
+  ]  
+}

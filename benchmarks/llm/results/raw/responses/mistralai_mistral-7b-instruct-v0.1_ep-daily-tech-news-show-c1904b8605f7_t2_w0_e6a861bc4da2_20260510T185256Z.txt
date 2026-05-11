@@ -1,0 +1,23 @@
+ [0.0s-23.1s] Ad segment:
+This episode is brought to you by Capital One. Capital One's tech team isn't just talking about multi-agentic AI. They already deployed one. It's called Chat Concierge and it's simplifying car shopping. Using self-reflection and layered reasoning with live API checks, it doesn't just help buyers find a car they love. It helps schedule a test drive, get pre-approved for financing, and this is going to shift that momentum. Is that recoverable? Is that something, you know, like, it's still too early to say. (continues in next)
+
+=== WINDOW 2/6: 10.1-20.0 minutes ===
+[]
+
+=== WINDOW 3/6: 20.1-30.0 minutes ===
+[]
+
+=== WINDOW 4/6: 30.1-40.0 minutes ===
+[]
+
+=== WINDOW 5/6: 40.1-50.0 minutes ===
+[]
+
+=== WINDOW 6/6: 50.1-60.0 minutes ===
+[555.3s-565.5s] Nintendo not the only one facing this as well, right? Also in the news, Sony announced its earnings, revealing during the earnings call that PlayStation 5 sales fell roughly 46% year over year. (not an ad)
+
+=== FINAL ANALYSIS ===
+[0.0s-23.1s] Ad segment:
+This episode is brought to you by Capital One. Capital One's tech team isn't just talking about multi-agentic AI. They already deployed one. It's called Chat Concierge and it's simplifying car shopping. Using self-reflection and layered reasoning with live API checks, it doesn't just help buyers find a car they love. It helps schedule a test drive, get pre-approved for financing, and this is going to shift that momentum. Is that recoverable? Is that something, you know, like, it's still too early to say. (continues in next)
+
+[555.3s-565.5s] (Note: This second ad segment is incomplete as it is cut off before the transition phrase "let's take a break" or a call to action is mentioned. However, based on the promotional language, it is an advertisement for Capital One's Chat Concierge service.)

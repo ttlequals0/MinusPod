@@ -1,0 +1,1 @@
+{"start":4675.4,"end":4697.4,"confidence":0.95,"reason":"Colgate Women's Games sponsor read","end_text":"your smile is your strength"}

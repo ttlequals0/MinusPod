@@ -1,0 +1,7 @@
+{
+  "start": 8976.2,
+  "end": 9000.0,
+  "confidence": 0.95,
+  "reason": "Zscaler sponsor read, continues in next",
+  "end_text": "the only player in the internet"
+}

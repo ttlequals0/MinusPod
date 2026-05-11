@@ -1,0 +1,1 @@
+{"start": 858.0, "end": 1452.5, "confidence": 0.0, "reason": "No promotional content detected in transcript window", "end_text": "people have this desire"}

@@ -1,0 +1,1 @@
+{"start": 3354.0, "end": 3380.1, "confidence": 0.01, "reason": "no promotional language", "end_text": "put them on there. Who else we got?"}

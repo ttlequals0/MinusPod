@@ -1,0 +1,1 @@
+{"start": 3774.5, "end": 4378.5, "confidence": 0.01, "reason": "No advertisement detected in this window; discussion is editorial comedy/news commentary about a hantavirus cruise ship with no sponsor, promo code, URL, or product pitch", "end_text": "look like an accident"}

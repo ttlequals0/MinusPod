@@ -1,0 +1,7 @@
+{
+  "start": 675.0,
+  "end": 693.2,
+  "confidence": 0.95,
+  "reason": "Promotion of SOUP shots",
+  "end_text": "a little pickup."
+}

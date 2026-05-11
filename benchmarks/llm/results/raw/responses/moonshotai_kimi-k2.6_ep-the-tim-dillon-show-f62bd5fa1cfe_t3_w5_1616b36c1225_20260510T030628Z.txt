@@ -1,0 +1,1 @@
+{"start": 2085.5, "end": 2699.0, "confidence": 0.0, "reason": "No promotional content detected in window", "end_text": "give them iPads for the entire day"}

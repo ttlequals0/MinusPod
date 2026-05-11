@@ -1,0 +1,1 @@
+{"start": 4059.4, "end": 4077.5, "confidence": 0.8, "reason": "host-read transition to pay bills", "end_text": "Lil P got to eat"}

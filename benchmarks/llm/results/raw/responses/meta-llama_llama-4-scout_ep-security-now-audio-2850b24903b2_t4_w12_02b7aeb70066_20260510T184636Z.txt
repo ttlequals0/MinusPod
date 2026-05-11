@@ -1,0 +1,7 @@
+{
+"start": 0.0,
+  "end": 5649.4,
+  "confidence": 1.0,
+  "reason": "No ads found in this transcript window",
+  "end_text": ""
+}

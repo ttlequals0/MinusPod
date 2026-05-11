@@ -1,0 +1,7 @@
+{
+	"start": 1668.7,
+	"end": 1700.3,
+	"confidence": 0.98,
+	"reason": "Mint Mobile sponsor read",
+	"end_text": "To Get 3 Months Of Premium Wireless for $15 bucks a month!"
+}

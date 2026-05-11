@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2532.3,
+    "end": 2693.0,
+    "confidence": 0.99,
+    "reason": "Host-read ad for Meter, identified by the transition 'break time', sponsor name, product pitch, and vanity URL 'meter.com/securitynow'.",
+    "end_text": "all right now back to steve"
+  }
+]

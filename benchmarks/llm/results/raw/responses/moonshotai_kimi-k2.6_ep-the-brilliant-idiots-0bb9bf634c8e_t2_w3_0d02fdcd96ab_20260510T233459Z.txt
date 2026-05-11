@@ -1,0 +1,1 @@
+{"start": 1250.2, "end": 1867.6, "confidence": 0.95, "reason": "Continuation of conversation about Complex list, hip-hop media, and podcasting; no promotional language, sponsor names, URLs, or calls to action present", "end_text": "Elliott Wilson in that category, too."}

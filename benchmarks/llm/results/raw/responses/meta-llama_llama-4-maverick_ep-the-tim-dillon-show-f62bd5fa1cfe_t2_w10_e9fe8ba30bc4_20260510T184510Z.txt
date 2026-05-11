@@ -1,0 +1,1 @@
+{"start": 4646.2, "end": 4697.4, "confidence": 0.95, "reason": "Colgate Women's Games network-inserted brand tagline ad", "end_text": "Colgate, your smile is your strength"}

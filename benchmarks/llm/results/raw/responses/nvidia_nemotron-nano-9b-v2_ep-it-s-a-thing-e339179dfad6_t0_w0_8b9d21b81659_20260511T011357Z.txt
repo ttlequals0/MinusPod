@@ -1,0 +1,1 @@
+[{"start": 1.6, "end": 7.0, "confidence": 0.95, "reason": "Acast platform-inserted ad", "end_text": "we recommend"}, {"start": 10.4, "end": 37.6, "confidence": 0.93, "reason": "Acast platform-inserted ad", "end_text": "Acast.com"}, {"start": 52.4, "end": 77.2, "confidence": 0.92, "reason": "Acast platform-inserted ad", "end_text": "Acast.com"}]

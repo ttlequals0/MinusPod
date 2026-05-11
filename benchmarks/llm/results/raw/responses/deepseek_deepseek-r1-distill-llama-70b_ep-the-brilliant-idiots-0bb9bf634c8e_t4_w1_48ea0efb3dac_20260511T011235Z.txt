@@ -1,0 +1,7 @@
+{
+  "start": 446.2,
+  "end": 464.3,
+  "confidence": 0.8,
+  "reason": "Check people's addresses if they're not from a certain place in the family. What? Weddings are expensive because of the amount of people that come. Yeah, but, and he has a big family. But, and honestly, we've been to two weddings already in Philly with his family, so honestly, if we do that same venue, we should get a discount. Your baby shower was fun as shit.",
+  "end_text": "fun as shit."
+}

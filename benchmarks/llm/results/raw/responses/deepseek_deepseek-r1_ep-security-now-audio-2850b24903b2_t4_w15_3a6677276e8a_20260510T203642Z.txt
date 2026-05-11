@@ -1,0 +1,7 @@
+{
+  "start": 6884.7,
+  "end": 6907.2,
+  "confidence": 0.95,
+  "reason": "Host discussing the benefits and drawbacks of Google's proposed prompt API, but no explicit promotional content or sponsor mentions found. The segment is editorial content, not an ad.",
+  "end_text": "interacting with. They're just using a generic LLM that the user has provided to their browser."
+}

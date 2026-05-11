@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1.6,
+    "end": 77.2,
+    "confidence": 0.99,
+    "reason": "Platform-inserted Acast ads: Acast promo, Wrong Turns podcast, Formative podcast",
+    "end_text": "by the leaders of tomorrow"
+  }
+]

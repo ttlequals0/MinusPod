@@ -1,0 +1,1 @@
+[{"start": 2586.0, "end": 2687.7, "confidence": 0.95, "reason": "Meter network sponsorship with promotional URL and call to action", "end_text": "meter.com security now book a demo"}]

@@ -1,0 +1,1 @@
+{"start": 5019.7, "end": 5044.2, "confidence": 0.0, "reason": "not an ad", "end_text": "with each other except for Wu-Tang concerts?"}

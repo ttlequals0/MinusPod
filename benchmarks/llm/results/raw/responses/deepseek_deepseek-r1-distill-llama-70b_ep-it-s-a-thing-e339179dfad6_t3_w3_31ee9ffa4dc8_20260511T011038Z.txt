@@ -1,0 +1,8 @@
+{
+  "transcript": "Alright, so I've been trying to get into this whole \"for me\" thing. It's everywhere now, right? Like, every time someone has an opinion, they have to qualify it with \"for me\" or \"in my opinion\". I'm starting to think it's just a way to avoid getting into arguments or something. But hey, maybe it's a good thing because it makes people more aware of their own biases. I don't know, maybe I'm just overthinking it. Anyway, let's take a break and hear from our sponsors.",
+  "start": 1303.6,
+  "end": 1329.3,
+  "confidence": 0.8,
+  "reason": "Host transition to sponsors with 'let's take a break'",
+  "end_text": "hear from our sponsors"
+}

@@ -1,0 +1,7 @@
+{
+  "start": 1255.9,
+  "end": 1268.8,
+  "confidence": 0.0,
+  "reason": "No promotional content found. This is a continuation of discussion about AI and OAuth, not an ad.",
+  "end_text": "Thank you for watching."
+}

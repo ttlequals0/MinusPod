@@ -1,0 +1,1 @@
+{"error":"The provided content includes context beyond the specified task boundaries. Please give me a clear starting point for extracting advertisement segments."}

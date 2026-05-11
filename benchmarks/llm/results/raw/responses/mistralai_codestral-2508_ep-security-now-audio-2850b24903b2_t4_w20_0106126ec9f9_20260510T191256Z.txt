@@ -1,0 +1,1 @@
+[{"start": 8976.2, "end": 9004.0, "confidence": 0.95, "reason": "Club TWiT ad read", "end_text": "this is one of the reasons"}]

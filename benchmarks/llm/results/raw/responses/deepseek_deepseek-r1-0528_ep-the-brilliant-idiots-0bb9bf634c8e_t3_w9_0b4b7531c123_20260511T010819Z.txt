@@ -1,0 +1,9 @@
+[
+    {
+        "start": 4323.9,
+        "end": 4361.4,
+        "confidence": 0.95,
+        "reason": "Host-read promotions for Jess Hilarious' book 'Til Death Do We Parent', All Love Racquet Club tennis event, and Lauren LaRosa's AM Mornings show with explicit calls to action",
+        "end_text": "there. Peace."
+    }
+]

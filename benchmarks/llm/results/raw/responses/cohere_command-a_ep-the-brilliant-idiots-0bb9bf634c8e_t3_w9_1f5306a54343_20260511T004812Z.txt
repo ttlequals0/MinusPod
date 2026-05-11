@@ -1,0 +1,1 @@
+{"start": 4059.4, "end": 4380.0, "confidence": 0.95, "reason": "Host-read promotion of multiple products and events, including Jess Elias' book, a tennis event, and a new show 'AM Mornings'", "end_text": "beautiful and you're a black journalist. And I respect you and I love you for this. And by the way, your outfit is..."}

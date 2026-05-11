@@ -1,0 +1,7 @@
+[{
+	"start": 7159.2,
+	"end": 7168.9,
+	"confidence": 0.9,
+	"reason": "Brilliant Idiots podcast promotion",
+	"end_text": "Brilliant Idiots podcast"
+}]

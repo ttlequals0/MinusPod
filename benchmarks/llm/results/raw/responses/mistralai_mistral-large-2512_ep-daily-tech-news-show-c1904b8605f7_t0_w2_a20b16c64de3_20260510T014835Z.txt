@@ -1,0 +1,37 @@
+[
+    {
+        "start": 821.4,
+        "end": 844.7,
+        "confidence": 0.99,
+        "reason": "Capital One sponsor read with product pitch and brand tagline",
+        "end_text": "technology at Capital One."
+    },
+    {
+        "start": 845.2,
+        "end": 889.7,
+        "confidence": 0.98,
+        "reason": "BetterHelp sponsor read with promotional language and vanity URL (betterhelp.com/slash random podcast)",
+        "end_text": "your first month of online therapy."
+    },
+    {
+        "start": 890.6,
+        "end": 910.1,
+        "confidence": 0.97,
+        "reason": "Amazon Health AI network-inserted ad with product pitch and symptom-based call to action",
+        "end_text": "got less painful."
+    },
+    {
+        "start": 912.2,
+        "end": 961.5,
+        "confidence": 0.98,
+        "reason": "Spectrum Business sponsor read with promotional language, vanity URL (spectrum.com/slash business), and call to action",
+        "end_text": "get started. Restrictions apply."
+    },
+    {
+        "start": 990.6,
+        "end": 1021.1,
+        "confidence": 0.99,
+        "reason": "Rinse cross-promotion ad with product pitch, vanity URL (rinse.com), and tagline",
+        "end_text": "It's time to be great."
+    }
+]

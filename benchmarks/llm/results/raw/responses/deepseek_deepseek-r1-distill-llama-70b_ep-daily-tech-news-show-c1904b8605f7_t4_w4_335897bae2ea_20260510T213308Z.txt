@@ -1,0 +1,7 @@
+{
+  "transcript": "...",
+  "window_start": 28.0,
+  "window_end": 38.0,
+  "episode_start": 0.0,
+  "episode_end": 2301.6
+}

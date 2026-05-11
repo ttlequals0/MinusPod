@@ -1,0 +1,1 @@
+[{"start": 2586.0, "end": 2687.7, "confidence": 0.95, "reason": "Meter network sponsorship pitch", "end_text": "security now book a demo okay meter"}]

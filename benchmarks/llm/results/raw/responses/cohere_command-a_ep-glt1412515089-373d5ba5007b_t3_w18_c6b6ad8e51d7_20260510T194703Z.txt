@@ -1,0 +1,1 @@
+{"start": 7544.3, "end": 7569.6, "confidence": 0.0, "reason": "No promotional content or ad markers present", "end_text": "just fine with quantum computation. So it's more like..."}

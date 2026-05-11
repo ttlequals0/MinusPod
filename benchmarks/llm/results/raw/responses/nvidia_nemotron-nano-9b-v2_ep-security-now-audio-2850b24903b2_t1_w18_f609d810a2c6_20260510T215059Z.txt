@@ -1,0 +1,1 @@
+[{"start": 7633.7, "end": 7797.4, "confidence": 0.98, "reason": "Trusted Tech Microsoft 365 licensing promotion", "end_text": "submit a form to get in contact with Trusted Tech's Microsoft Licensing Engineers"}]

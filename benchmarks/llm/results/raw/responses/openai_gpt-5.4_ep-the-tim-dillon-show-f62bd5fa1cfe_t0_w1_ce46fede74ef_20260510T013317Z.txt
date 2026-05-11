@@ -1,0 +1,1 @@
+{"start": 931.8, "end": 995.0, "confidence": 0.58, "reason": "Possible embedded Meta/Metaverse promotional video clip with product-pitch language like 'Imagine you put on your glasses or headset' and 'in your home space'; partial segment and mixed with host commentary", "end_text": "a refresher course of what the metaverse was"}

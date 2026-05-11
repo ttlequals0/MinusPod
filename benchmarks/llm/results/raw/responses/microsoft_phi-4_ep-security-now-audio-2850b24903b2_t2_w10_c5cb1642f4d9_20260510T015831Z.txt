@@ -1,0 +1,7 @@
+{
+  "start": 4.1948,
+  "end": 4.3966,
+  "confidence": 0.98,
+  "reason": "Bitwarden is introduced as a sponsor with specific details about their product and its features.",
+  "end_text": "It comes with scheduled and targeted scans."
+}

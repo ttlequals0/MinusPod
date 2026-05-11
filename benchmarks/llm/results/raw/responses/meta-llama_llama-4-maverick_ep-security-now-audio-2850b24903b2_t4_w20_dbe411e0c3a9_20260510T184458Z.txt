@@ -1,0 +1,1 @@
+{"start": 8861.4, "end": 8948.8, "confidence": 0.0, "reason": "No ads found in this window", "end_text": "Google can and clearly they do"}

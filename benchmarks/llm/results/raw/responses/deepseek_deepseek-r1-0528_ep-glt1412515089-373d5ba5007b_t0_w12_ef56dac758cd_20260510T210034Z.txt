@@ -1,0 +1,7 @@
+{
+  "start": 5568.3,
+  "end": 5596.3,
+  "confidence": 0.95,
+  "reason": "Netflix promotion for 'Remarkably Bright Creatures' with call to action 'only on Netflix'",
+  "end_text": "only on Netflix"
+}

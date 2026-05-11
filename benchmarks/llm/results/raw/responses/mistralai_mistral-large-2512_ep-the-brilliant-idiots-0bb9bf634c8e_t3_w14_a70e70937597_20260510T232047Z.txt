@@ -1,0 +1,23 @@
+[
+    {
+        "start": 6390.2,
+        "end": 6396.7,
+        "confidence": 0.98,
+        "reason": "Host transition phrase 'Let's pay some bills and do some asking idiots, man.' followed by promotional language for sponsor reads (common ad transition). Likely ad break start, but no explicit sponsor mentioned in this window.",
+        "end_text": "do some asking idiots, man."
+    },
+    {
+        "start": 6396.7,
+        "end": 6445.0,
+        "confidence": 0.95,
+        "reason": "Platform-inserted ad for 'Blue Chew' (promotional language: 'pre-diabetic', 'Bluetooth'). Hosts discuss the product in a sponsored context, though no explicit promo code/URL is visible in this window. Ad continues from previous segment.",
+        "end_text": "was giving Bluetooth."
+    },
+    {
+        "start": 6471.0,
+        "end": 6480.0,
+        "confidence": 0.9,
+        "reason": "Partial ad segment likely continues in next window. Hosts abruptly shift to 'Asking Idiots' (recurring sponsored segment), but no explicit sponsor is named here. Ad likely extends beyond this window.",
+        "end_text": "continues in next"
+    }
+]

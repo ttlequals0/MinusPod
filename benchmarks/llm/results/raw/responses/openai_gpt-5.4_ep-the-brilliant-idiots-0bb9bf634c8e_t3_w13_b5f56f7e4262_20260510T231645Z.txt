@@ -1,0 +1,1 @@
+{"start": 5701.0, "end": 5815.9, "confidence": 0.89, "reason": "Discussion of Met Gala sponsorship by Jeff Bezos/Amazon includes explicit promotional framing? No direct ad markers; actually editorial content, not an ad", "end_text": "Amazon was a corporate sponsor, too, of the Met Gala"}

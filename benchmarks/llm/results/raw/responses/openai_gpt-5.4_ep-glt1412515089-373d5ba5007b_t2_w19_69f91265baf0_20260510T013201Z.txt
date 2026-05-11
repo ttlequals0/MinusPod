@@ -1,0 +1,1 @@
+{"start": 8215.0, "end": 8218.9, "confidence": 0.93, "reason": "Produced promo/credit segment: 'Transcript by Rev.com' explicitly promotes Rev.com transcription service", "end_text": "Transcript by Rev.com."}

@@ -1,0 +1,9 @@
+[
+    {
+        "start": 7633.7,
+        "end": 7740.0,
+        "confidence": 0.98,
+        "reason": "Trusted Tech sponsorship read with Microsoft 365 licensing pitch and testimonial",
+        "end_text": "differentiates you in the marketplace"
+    }
+]

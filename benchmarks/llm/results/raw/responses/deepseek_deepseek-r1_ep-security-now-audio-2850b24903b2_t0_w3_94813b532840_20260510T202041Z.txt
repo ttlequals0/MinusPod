@@ -1,0 +1,4 @@
+{
+  "reason": "The provided transcript segment does not contain any promotional content or ad markers. The discussion is about cybersecurity topics and the UK NCSC's guidance, with no sponsor mentions, URLs, or calls to action.",
+  "ad_segments": []
+}

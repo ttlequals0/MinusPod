@@ -1,0 +1,9 @@
+[
+  {
+    "start": 4059.4,
+    "end": 4077.5,
+    "confidence": 0.95,
+    "reason": "Transition to ad break with 'Let's pay some bills' and repeated calls to action for Lil P",
+    "end_text": "cheese steaks and tasty cakes"
+  }
+]

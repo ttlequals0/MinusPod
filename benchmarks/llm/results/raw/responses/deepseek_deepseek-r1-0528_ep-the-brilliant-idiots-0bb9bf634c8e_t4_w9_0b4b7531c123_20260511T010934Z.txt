@@ -1,0 +1,9 @@
+[
+  {
+    "start": 4059.4,
+    "end": 4083.9,
+    "confidence": 0.95,
+    "reason": "Ad break transition with gap indicating potential unrecorded ads, followed by return to show",
+    "end_text": "get back to this show"
+  }
+]

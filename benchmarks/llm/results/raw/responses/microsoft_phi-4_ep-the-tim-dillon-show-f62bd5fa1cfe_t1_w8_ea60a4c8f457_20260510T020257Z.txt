@@ -1,0 +1,7 @@
+{
+  "start": 33.60,
+  "end": 39.60,
+  "confidence": 0.95,
+  "reason": "The segment contains promotional language and a call to action, suggesting a sponsorship segment related to the Hantavirus outbreak on a cruise ship.",
+  "end_text": "I guess this is literally the last thing I'll ever do."
+}

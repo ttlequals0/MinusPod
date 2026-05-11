@@ -1,0 +1,9 @@
+[
+  {
+    "start": 7173.7,
+    "end": 7196.8,
+    "confidence": 0.99,
+    "reason": "Post-roll host-read ad for a Netflix show, introduced with 'This episode is brought to you by...'.",
+    "end_text": "playing only on Netflix."
+  }
+]

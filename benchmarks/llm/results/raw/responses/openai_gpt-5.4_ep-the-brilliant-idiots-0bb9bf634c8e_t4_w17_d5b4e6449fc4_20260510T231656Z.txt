@@ -1,0 +1,1 @@
+{"start": 7173.7, "end": 7196.8, "confidence": 0.99, "reason": "Netflix Remarkably Bright Creatures promotional ad with explicit sponsor language ('This episode is brought to you by')", "end_text": "now playing only on Netflix"}

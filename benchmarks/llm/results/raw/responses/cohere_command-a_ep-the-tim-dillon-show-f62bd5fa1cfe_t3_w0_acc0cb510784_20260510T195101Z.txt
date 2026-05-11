@@ -1,0 +1,1 @@
+{"start": 0.0, "end": 27.7, "confidence": 0.95, "reason": "Colgate brand promotion", "end_text": "track and field series for girls and women."}

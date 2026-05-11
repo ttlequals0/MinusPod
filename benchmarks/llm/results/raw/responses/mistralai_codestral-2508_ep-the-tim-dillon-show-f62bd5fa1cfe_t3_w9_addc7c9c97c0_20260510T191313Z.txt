@@ -1,0 +1,1 @@
+[{"start": 3774.5, "end": 4380.0, "confidence": 0.95, "reason": "Hantavirus cruise discussion continues in next window", "end_text": "continues in next"}]

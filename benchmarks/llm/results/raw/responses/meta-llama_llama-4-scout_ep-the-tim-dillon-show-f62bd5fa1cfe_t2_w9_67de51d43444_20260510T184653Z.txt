@@ -1,0 +1,11 @@
+{ 
+  "ads": [
+    {
+      "start": 63.0,
+      "end": 73.0,
+      "confidence": 0.95,
+      "reason": "Mint Mobile sponsor read",
+      "end_text": "TIMDILLON"
+    }
+  ]
+}

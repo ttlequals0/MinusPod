@@ -1,0 +1,1 @@
+{"start": 4675.4, "end": 4705.5, "confidence": 0.95, "reason": "Colgate brand tagline ad", "end_text": "Colgate, your smile is your strength."}

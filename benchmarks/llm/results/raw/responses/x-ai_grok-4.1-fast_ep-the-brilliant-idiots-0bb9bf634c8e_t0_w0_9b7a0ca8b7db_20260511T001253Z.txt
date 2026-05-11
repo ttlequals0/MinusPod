@@ -1,0 +1,1 @@
+{"start":0.5,"end":17.7,"confidence":1.0,"reason":"Carvana pre-roll platform-inserted ad with promotional pitch and call to action","end_text":"Sell your car today on Carvana. Pickup fees may apply."}

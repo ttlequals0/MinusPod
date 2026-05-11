@@ -1,0 +1,9 @@
+[
+    {
+        "start": 4265.2,
+        "end": 4465.7,
+        "confidence": 0.98,
+        "reason": "Bitwarden sponsor segment with product features and bitwarden.com/twit URL",
+        "end_text": "bitwarden.com slash twit"
+    }
+]

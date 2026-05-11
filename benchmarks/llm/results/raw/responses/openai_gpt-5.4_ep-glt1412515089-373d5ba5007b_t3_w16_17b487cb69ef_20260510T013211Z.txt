@@ -1,0 +1,1 @@
+{"start":7320.0,"end":7320.0,"confidence":0.0,"reason":"No promotional language or sponsor content in this window","end_text":""}

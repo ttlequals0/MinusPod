@@ -1,0 +1,16 @@
+[
+    {
+        "start": 1340.8,
+        "end": 1363.7,
+        "confidence": 0.95,
+        "reason": "Host-read sponsor mention for Meter with promotional language and vanity URL (meter.com/securitynow). Transition includes call to action and sponsor branding.",
+        "end_text": "I'm not trying to do an Apple Wallet."
+    },
+    {
+        "start": 1377.5,
+        "end": 1440.0,
+        "confidence": 0.98,
+        "reason": "Host-read sponsor segment for Bitwarden (bitwarden.com/twit) and Hoxhunt (hoxhunt.com/securitynow) with promotional language, vanity URLs, and calls to action. Segment continues past this window.",
+        "end_text": "decades of technical debt."
+    }
+]

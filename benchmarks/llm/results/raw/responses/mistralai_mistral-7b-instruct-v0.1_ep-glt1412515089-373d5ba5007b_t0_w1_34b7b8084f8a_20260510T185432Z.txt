@@ -1,0 +1,7 @@
+ [1009.9s - 1019.7s] Perplexity: "Learn more about your ad choices. Visit podcastchoices.com/adchoices" (Advertisement for PodcastOne's AdChoice service)
+[1019.7s - 1142.3s] Julia Mossbridge: "But if you, like, read about me, I'm, like, far right somehow or another, which is probably weird. I know, it's interesting. I'm now independent. I'm officially independent, because I'm like, screw it. Yeah. I don't, I do think most people are in the center, and I think we need to get clarity." (Host discussion)
+[1142.3s - 1152.1s] Perplexity: "Download the app or ask Perplexity anything at https://pplx.ai/rogan." (Advertisement for Perplexity)
+
+Ad Segments:
+[1009.9s - 1019.7s] Podcastchoices.com/adchoices
+[1142.3s - 1152.1s] https://pplx.ai/rogan

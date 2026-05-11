@@ -1,0 +1,37 @@
+[
+    {
+        "start": 821.4,
+        "end": 857.6,
+        "confidence": 0.99,
+        "reason": "Capital One sponsor read with promotional language, product pitch (Chat Concierge), and brand tagline",
+        "end_text": "technology at Capital One"
+    },
+    {
+        "start": 862.2,
+        "end": 889.7,
+        "confidence": 0.99,
+        "reason": "BetterHelp sponsor read with promotional language, vanity URL (betterhelp.com/slash random podcast), and call to action",
+        "end_text": "online therapy"
+    },
+    {
+        "start": 890.6,
+        "end": 910.1,
+        "confidence": 0.98,
+        "reason": "Amazon Health AI network-inserted ad with promotional language and product pitch (virtual care 24-7)",
+        "end_text": "less painful"
+    },
+    {
+        "start": 912.2,
+        "end": 990.3,
+        "confidence": 0.99,
+        "reason": "Spectrum Business sponsor read with promotional language, vanity URL (spectrum.com/slash business), and call to action",
+        "end_text": "spectrum.com slash business today to get started"
+    },
+    {
+        "start": 990.6,
+        "end": 1021.1,
+        "confidence": 0.99,
+        "reason": "Rinse cross-promotion ad with promotional language, vanity URL (rinse.com), and call to action",
+        "end_text": "time to be great"
+    }
+]

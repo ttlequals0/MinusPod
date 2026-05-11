@@ -1,0 +1,7 @@
+{
+  "start": 4375.6,
+  "end": 4379.8,
+  "confidence": 0.95,
+  "reason": "Host-read sponsor segment mentioning Perplexity",
+  "end_text": "beautiful sky"
+}

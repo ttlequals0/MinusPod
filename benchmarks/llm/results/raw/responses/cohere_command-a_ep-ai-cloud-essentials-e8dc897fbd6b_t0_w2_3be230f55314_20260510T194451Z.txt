@@ -1,0 +1,7 @@
+{
+  "start": 903.1,
+  "end": 984.2,
+  "confidence": 0.0,
+  "reason": "No ads detected in this window",
+  "end_text": "stay tuned for more. Thank you."
+}

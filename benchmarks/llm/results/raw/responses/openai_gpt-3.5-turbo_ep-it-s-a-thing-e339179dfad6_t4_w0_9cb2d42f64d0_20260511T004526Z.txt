@@ -1,0 +1,7 @@
+{
+	"start": 1.6,
+	"end": 37.6,
+	"confidence": 1,
+	"reason": "Promotion of the podcast 'Wrong Turns' by Jameela Jamil",
+	"end_text": "Wrong Turns, where dignity goes to die."
+}

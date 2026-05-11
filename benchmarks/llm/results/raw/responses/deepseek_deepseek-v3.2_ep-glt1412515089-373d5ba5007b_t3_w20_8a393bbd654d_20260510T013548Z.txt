@@ -1,0 +1,1 @@
+{"start": 8405.6, "end": 9008.6, "confidence": 0.0, "reason": "No promotional content found in transcript segment. The text contains only conversational content about creativity, writing, and personal experiences.", "end_text": "Lockheed Martin for an interview"}

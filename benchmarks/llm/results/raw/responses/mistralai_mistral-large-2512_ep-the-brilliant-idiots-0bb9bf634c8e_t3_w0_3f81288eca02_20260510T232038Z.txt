@@ -1,0 +1,16 @@
+[
+    {
+        "start": 0.5,
+        "end": 43.4,
+        "confidence": 0.99,
+        "reason": "Carvana host-read ad with promotional language, call to action ('Sell your car today on Carvana'), and brand endorsement",
+        "end_text": "Pickup fees may apply."
+    },
+    {
+        "start": 593.9,
+        "end": 600.0,
+        "confidence": 0.85,
+        "reason": "Partial ad detection: 'Learn more about your ad choices. Visit megaphone.fm/adchoices' platform-inserted ad continues in next window",
+        "end_text": "continues in next"
+    }
+]

@@ -1,0 +1,1 @@
+{"start":5546.3,"end":5596.3,"confidence":0.98,"reason":"Netflix promotional ad for 'Remarkably Bright Creatures' with explicit sponsor language ('This episode is brought to you by Netflix') and product pitch ('now playing, only on Netflix'); ad ends when show content resumes with 'Yeah. Right.'","end_text":"now playing, only on Netflix. Yeah. Right."}

@@ -1,0 +1,1 @@
+{"start": 8218.9, "end": 8242.2, "confidence": 0.95, "reason": "Hosting platform post-roll ad: 'Transcript by Rev.com' and likely a platform tagline", "end_text": "Transcript by Rev.com."}

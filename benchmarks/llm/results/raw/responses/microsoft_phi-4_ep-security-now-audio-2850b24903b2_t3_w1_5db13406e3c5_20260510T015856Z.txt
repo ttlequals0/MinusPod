@@ -1,0 +1,34 @@
+[
+
+[
+  {
+    "start": 469.0,
+    "end": 516.0,
+    "confidence": 0.98,
+    "reason": "Zscaler sponsor read with promotional language",
+    "end_text": "attacks and AI-powered phishing attacks"
+  },
+  {
+    "start": 516.6,
+    "end": 525.1,
+    "confidence": 0.95,
+    "reason": "Continuation of Zscaler sponsor read with testimonial",
+    "end_text": "security concerns when it comes"
+  },
+  {
+    "start": 525.7,
+    "end": 552.5,
+    "confidence": 0.97,
+    "reason": "Continuation of Zscaler sponsor read with testimonial",
+    "end_text": "LLM models, etc. Thank you"
+  },
+  {
+    "start": 552.9,
+    "end": 572.1,
+    "confidence": 0.98,
+    "reason": "Zscaler sponsor read with call to action",
+    "end_text": "security. That's zscaler.com slash security"
+  }
+]
+
+]

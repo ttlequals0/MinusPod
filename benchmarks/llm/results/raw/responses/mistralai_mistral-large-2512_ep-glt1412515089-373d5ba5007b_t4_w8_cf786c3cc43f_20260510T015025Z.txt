@@ -1,0 +1,9 @@
+[
+    {
+        "start": 3340.0,
+        "end": 3342.2,
+        "confidence": 0.95,
+        "reason": "Perplexity sponsor mention with call-to-action URL (pplx.ai/rogan) and platform-inserted ad choices notice",
+        "end_text": "podcastchoices.com/adchoices"
+    }
+]

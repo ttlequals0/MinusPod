@@ -1,0 +1,1 @@
+{"start": 7109.4, "end": 7124.3, "confidence": 0.0, "reason": "No ad detected in this window", "end_text": "exactly, but we're going to charge ahead"}

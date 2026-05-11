@@ -1,0 +1,7 @@
+{
+    "start": 398.7,
+    "end": 1006.3,
+    "confidence": 0.95,
+    "reason": "Host-read sponsor segments for Athletic Greens, Shopify, and BetterHelp with promo codes and URLs",
+    "end_text": "athleticgreens.com/podcast"
+  }

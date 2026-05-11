@@ -1,0 +1,1 @@
+[{"start": 539.2, "end": 652.8, "confidence": 0.98, "reason": "Host-read sponsor segments for 'In the Gray' movie and Skechers footwear", "end_text": "That's only at Skechers.com"}]

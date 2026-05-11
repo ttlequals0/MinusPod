@@ -1,0 +1,7 @@
+{
+  "start": 969.4,
+  "end": 995.0,
+  "confidence": 0.95,
+  "reason": "Host transition to break with 'All right, perfect.'",
+  "end_text": "Right? Okay, so, all right, perfect."
+}

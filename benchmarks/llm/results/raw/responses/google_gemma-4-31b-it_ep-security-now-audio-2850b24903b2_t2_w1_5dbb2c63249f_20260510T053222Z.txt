@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 417.2,
+      "end": 572.1,
+      "confidence": 1.0,
+      "reason": "Zscaler sponsor read including transition and call to action",
+      "end_text": "zscaler.com slash security"
+    }
+  ]
+}

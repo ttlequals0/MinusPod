@@ -1,0 +1,7 @@
+{
+  "start": 7131.4,
+  "end": 7155.5,
+  "confidence": 0.8,
+  "reason": "Host mentions their new company",
+  "end_text": "the photons were able to predict the future."
+}

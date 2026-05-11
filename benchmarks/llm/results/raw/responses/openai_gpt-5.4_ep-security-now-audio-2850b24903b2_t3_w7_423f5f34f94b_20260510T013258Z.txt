@@ -1,0 +1,1 @@
+{"start": 3411.7, "end": 3438.3, "confidence": 0.52, "reason": "Self-promotional mention of Aikido's own AI pen testing capabilities within editorial discussion, but lacks clear sponsor framing, CTA, URL, or ad transition", "end_text": "reports, which, in the case of Mythos"}

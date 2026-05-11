@@ -1,0 +1,39 @@
+{
+  "ads": [
+    {
+      "start": 4646.2,
+      "end": 4697.4,
+      "confidence": 0.98,
+      "reason": "Colgate Women's Games sponsored segment with promotional language and brand tagline",
+      "end_text": "your smile is your strength"
+    },
+    {
+      "start": 4705.5,
+      "end": 4733.9,
+      "confidence": 0.98,
+      "reason": "Skinny Pop popcorn network-inserted brand ad with product description",
+      "end_text": "Perfectly salted. Skinny Pop"
+    },
+    {
+      "start": 4734.3,
+      "end": 4763.1,
+      "confidence": 0.98,
+      "reason": "Colgate Women's Games second ad segment with brand tagline",
+      "end_text": "your smile is your strength"
+    },
+    {
+      "start": 4766.5,
+      "end": 4787.9,
+      "confidence": 0.98,
+      "reason": "Viz prescription eye drop ad with product pitch and call to action",
+      "end_text": "Learn more at Viz.com"
+    },
+    {
+      "start": 4787.9,
+      "end": 4806.1,
+      "confidence": 0.95,
+      "reason": "Garnier National Park Foundation partnership ad with call to action",
+      "end_text": "GarnierUSA.com slash NPF"
+    }
+  ]
+}

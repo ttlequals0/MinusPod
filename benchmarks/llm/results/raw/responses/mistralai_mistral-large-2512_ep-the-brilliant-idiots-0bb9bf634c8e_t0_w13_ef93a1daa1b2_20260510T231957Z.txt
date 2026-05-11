@@ -1,0 +1,16 @@
+[
+    {
+        "start": 5789.0,
+        "end": 5815.9,
+        "confidence": 0.7,
+        "reason": "Mention of Amazon as a corporate sponsor of the Met Gala, including specific dollar amounts and promotional context (e.g., 'he donated at least $10 million to sponsor the gala'). While not a traditional ad read, this segment includes promotional language tied to a major brand's sponsorship.",
+        "end_text": "subscribe to Amazon, you know, Prime."
+    },
+    {
+        "start": 5949.1,
+        "end": 5989.3,
+        "confidence": 0.6,
+        "reason": "Extended discussion of Elon Musk, X (Twitter), and Tesla with critical framing, but includes repeated references to platform-specific actions (e.g., 'X to amplify MAGA', 'hundreds of thousands of federal workers out of jobs because of Doge'). While not a direct ad, the segment functions as a platform-inserted critique with promotional undertones for X/Twitter.",
+        "end_text": "Because of Doge. Yeah, I remember that."
+    }
+]

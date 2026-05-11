@@ -1,0 +1,7 @@
+{
+  "start": 4602.8,
+  "end": 4629.9,
+  "confidence": 0.95,
+  "reason": "Host-read sponsor segment for Athletic Greens",
+  "end_text": "festival. Every time that hair is fully shaved and he got sneakers on, he get real new."
+}

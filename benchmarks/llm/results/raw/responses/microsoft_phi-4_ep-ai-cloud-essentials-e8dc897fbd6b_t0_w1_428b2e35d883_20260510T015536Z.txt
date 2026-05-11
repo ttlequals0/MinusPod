@@ -1,0 +1,7 @@
+{
+  "start": 415.2,
+  "end": 963.9,
+  "confidence": 0.95,
+  "reason": "The episode discusses AI-powered engineering and its applications in various industries, highlighting the transition from traditional simulations to real-world testing and learning. It covers insights into automotive and manufacturing sectors, and mentions advancements in robotics and AI models.",
+  "end_text": "Thank you everyone for joining us for this episode. We had a fantastic conversation with Richard."
+}

@@ -1,0 +1,1 @@
+{"start": 3774.5, "end": 3802.7, "confidence": 0.0, "reason": "No promotional content detected in this segment. Contains show content about Hantavirus cruise ship.", "end_text": "and I get it."}

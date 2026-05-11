@@ -1,0 +1,16 @@
+[
+  {
+    "start": 1270.2,
+    "end": 1292.5,
+    "confidence": 0.95,
+    "reason": "Host interrupts conversation to address technical staff, indicating a potential transition point",
+    "end_text": "thing right there"
+  },
+  {
+    "start": 1295.0,
+    "end": 1311.2,
+    "confidence": 0.9,
+    "reason": "Conversation shifts abruptly to unrelated topic (political running) after technical interruption",
+    "end_text": "Julia? How dare you"
+  }
+]

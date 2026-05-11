@@ -1,0 +1,1 @@
+{"start":2246.0,"end":2314.4,"confidence":0.97,"reason":"Capital One sponsor read and Rinse promotional ad in same break","end_text":"time to be great"}

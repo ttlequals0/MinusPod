@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1381.0,
+    "end": 1381.4,
+    "confidence": 0.95,
+    "reason": "Host promotes Big Bank podcast and Black Effect Network",
+    "end_text": "Black Effect podcast network"
+  }
+]

@@ -1,0 +1,16 @@
+{"ads": [
+  {
+    "start": 1742.3,
+    "end": 1771.5,
+    "confidence": 0.98,
+    "reason": "Capital One sponsor read",
+    "end_text": "technology at Capital One"
+  },
+  {
+    "start": 1772.6,
+    "end": 1799.6,
+    "confidence": 0.95,
+    "reason": "Lemonada Media promo",
+    "end_text": "Thrive series"
+  }
+]}

@@ -1,0 +1,7 @@
+{
+  "start": 1257.4,
+  "end": 1860.0,
+  "confidence": 0.0,
+  "reason": "No promotional language, sponsor names, URLs, promo codes, or calls to action found in this transcript segment. The content is a natural conversation about insecurity, listening, and intellectual dominance.",
+  "end_text": "ignoring the personality is kind of like..."
+}

@@ -1,0 +1,7 @@
+{
+  "start": 9655.2,
+  "end": 9920.6,
+  "confidence": 0.0,
+  "reason": "No promotional language, sponsor names, URLs, promo codes, or calls to action found. The transcript contains only editorial conversation about the guest's work and book.",
+  "end_text": "Bye, everybody. Bye."
+}

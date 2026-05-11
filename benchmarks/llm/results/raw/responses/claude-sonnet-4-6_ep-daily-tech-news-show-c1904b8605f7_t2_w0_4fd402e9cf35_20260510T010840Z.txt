@@ -1,0 +1,1 @@
+[{"start": 0.0, "end": 152.9, "confidence": 0.98, "reason": "Multiple platform-inserted ads: Capital One tech/AI ad, Xero accounting platform ad, Spectrum Business internet ad, and Warby Parker eyewear ad - all with promotional language, calls to action, and URLs", "end_text": "visit warbyparker.com today"}]

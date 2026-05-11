@@ -1,0 +1,1 @@
+{"start":1742.3,"end":1771.5,"confidence":1.0,"reason":"Capital One sponsor read with 'This episode is brought to you by Capital One' transition and product pitch","end_text":"technology at Capital One."}

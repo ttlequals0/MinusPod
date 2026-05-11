@@ -1,0 +1,1 @@
+{"start": 796.9, "end": 816.3, "confidence": 0.4, "reason": "Transition phrase 'Let's take time to thank' before sponsor segment", "end_text": "yep, yep, yep, yep. Thank you."}

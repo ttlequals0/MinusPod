@@ -1,0 +1,16 @@
+[
+    {
+        "start": 5516.0,
+        "end": 5578.4,
+        "confidence": 0.98,
+        "reason": "Yubico sponsor read with promotional language, partnership announcement, and product pitch (YubiKey C Nano and YubiKey C NFC). Includes call to action for preferred pricing and security key adoption.",
+        "end_text": "adopt stronger phishing-resistant account protection."
+    },
+    {
+        "start": 5580.1,
+        "end": 5608.1,
+        "confidence": 0.95,
+        "reason": "Host-read ad for ChatGPT's Advanced Account Security features, including passkeys and security keys, with promotional language about industry adoption and security benefits. Mentions sponsor-linked settings access.",
+        "end_text": "settings dialog now has many new features."
+    }
+]

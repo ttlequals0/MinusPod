@@ -1,0 +1,7 @@
+{
+  "start": 1524.5,
+  "end": 1534.1,
+  "confidence": 0.95,
+  "reason": "Xero accounting platform ad with promotional language and call to action",
+  "end_text": "Conditions apply."
+}

@@ -1,0 +1,1 @@
+{"start": 3761.9, "end": 3786.9, "confidence": 0.0, "reason": "No promotional content", "end_text": "sort of dampen down"}

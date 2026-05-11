@@ -1,0 +1,7 @@
+{
+	"start": 838.3,
+	"end": 1108.8,
+	"confidence": 1,
+	"reason": "Multiple sponsor mentions",
+	"end_text": "Check out Andrew Schulz - ⁠⁠www.theandrewschulz.com⁠⁠"
+}

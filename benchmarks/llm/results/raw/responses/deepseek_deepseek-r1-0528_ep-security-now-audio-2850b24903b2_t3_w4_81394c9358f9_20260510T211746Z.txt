@@ -1,0 +1,23 @@
+[
+  {
+    "start": 1901.8,
+    "end": 1905.2,
+    "confidence": 0.95,
+    "reason": "Transition break with 'Thank you for watching' and silence",
+    "end_text": "Thank you for watching"
+  },
+  {
+    "start": 2200.2,
+    "end": 2201.1,
+    "confidence": 0.95,
+    "reason": "Transition break with funding loss statement",
+    "end_text": "funding"
+  },
+  {
+    "start": 2288.1,
+    "end": 2288.1,
+    "confidence": 0.95,
+    "reason": "End of segment with 'Thank you for watching'",
+    "end_text": "Thank you for watching"
+  }
+]

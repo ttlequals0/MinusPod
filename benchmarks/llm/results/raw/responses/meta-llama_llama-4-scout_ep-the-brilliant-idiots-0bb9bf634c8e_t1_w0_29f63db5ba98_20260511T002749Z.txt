@@ -1,0 +1,7 @@
+{ 
+  "start": 17.7, 
+  "end": 43.4, 
+  "confidence": 0.98, 
+  "reason": "Carvana sponsor read", 
+  "end_text": "sell your car today"
+}

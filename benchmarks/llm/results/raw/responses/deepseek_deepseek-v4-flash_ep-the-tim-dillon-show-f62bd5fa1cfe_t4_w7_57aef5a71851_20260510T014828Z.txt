@@ -1,0 +1,25 @@
+{
+  "ads": [
+    {
+      "start": 3079.6,
+      "end": 3134.3,
+      "confidence": 0.99,
+      "reason": "Morgan & Morgan personal injury law firm sponsor read with promo URL and phone number",
+      "end_text": "dial Poundlaw. That's ForThePeople.com slash Tim, dial Poundlaw"
+    },
+    {
+      "start": 3135.6,
+      "end": 3208.0,
+      "confidence": 0.99,
+      "reason": "Stash investing app sponsor read with Market Mood feature and URL",
+      "end_text": "stash.com slash mood"
+    },
+    {
+      "start": 3209.1,
+      "end": 3270.1,
+      "confidence": 0.99,
+      "reason": "NeuroGum sponsor read with promo code TIM and 20% off offer",
+      "end_text": "code TIM for 20% off your first order"
+    }
+  ]
+}

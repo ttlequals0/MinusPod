@@ -1,0 +1,7 @@
+{
+  "start": 4675.4,
+  "end": 4806.1,
+  "confidence": 0.98,
+  "reason": "Multiple network-inserted ads including Colgate, Skinny Pop, Viz, and Garnier",
+  "end_text": "support our national parks at GarnierUSA.com slash NPF"
+}

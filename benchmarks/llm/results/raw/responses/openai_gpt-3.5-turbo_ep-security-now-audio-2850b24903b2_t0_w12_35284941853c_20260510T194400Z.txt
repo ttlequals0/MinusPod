@@ -1,0 +1,7 @@
+{
+	"start": 5640.0,
+	"end": 5668.0,
+	"confidence": 0.95,
+	"reason": "Multiple sponsor mentions",
+	"end_text": "more people can adopt stronger phishing-resistant account protection."
+}

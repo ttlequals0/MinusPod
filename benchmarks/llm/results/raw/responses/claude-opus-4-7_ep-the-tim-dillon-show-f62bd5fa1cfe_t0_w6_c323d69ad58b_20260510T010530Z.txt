@@ -1,0 +1,1 @@
+[{"start": 3079.6, "end": 3134.3, "confidence": 0.98, "reason": "Morgan & Morgan personal injury law firm sponsor read", "end_text": "This is a paid advertisement"}]

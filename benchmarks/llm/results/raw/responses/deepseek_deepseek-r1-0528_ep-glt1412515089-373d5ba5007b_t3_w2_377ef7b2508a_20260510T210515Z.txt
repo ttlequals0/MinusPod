@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1123.6,
+    "end": 1152.0,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Perplexity",
+    "end_text": "at https://pplx.ai/rogan"
+  }
+]

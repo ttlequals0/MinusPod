@@ -1,0 +1,1 @@
+{"result":[{"start":3079.6,"end":3270.1,"confidence":0.98,"reason":"Back-to-back host-read ads for Morgan & Morgan, Stash, and NeuroGum with promo URLs and codes","end_text":"CVS and Amazon"}]}

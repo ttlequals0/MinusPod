@@ -1,0 +1,1 @@
+{"start":6706.4,"end":7323.7,"confidence":0.0,"reason":"continues from previous","end_text":"So with the double slit experiment."}

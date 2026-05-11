@@ -1,0 +1,1 @@
+[4194.8, 4201.6, 0.95, "Bitwarden sponsor read", "This episode of Security Now is brought to you by Bitwarden, the trusted leader in password, passkey, and secrets management." ]

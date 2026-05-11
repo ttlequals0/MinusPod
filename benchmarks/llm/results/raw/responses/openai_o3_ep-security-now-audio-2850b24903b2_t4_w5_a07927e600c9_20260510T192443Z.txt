@@ -1,0 +1,1 @@
+{"start": 2532.3, "end": 2693.0, "confidence": 0.97, "reason": "Meter sponsor host-read segment including break transition, product pitch, and call to action", "end_text": "book a demo okay meter"}

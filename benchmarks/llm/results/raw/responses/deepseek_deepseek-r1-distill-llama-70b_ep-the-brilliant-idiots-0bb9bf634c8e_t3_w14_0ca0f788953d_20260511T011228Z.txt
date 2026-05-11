@@ -1,0 +1,7 @@
+{
+  "start": 6396.7,
+  "end": 6445.0,
+  "confidence": 0.95,
+  "reason": "Host-read sponsor segment promoting Blue Chew",
+  "end_text": "Bluetooth. You a liar. Stop talking."
+}

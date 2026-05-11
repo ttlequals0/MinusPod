@@ -1,0 +1,37 @@
+[
+    {
+        "start": 821.4,
+        "end": 857.6,
+        "confidence": 0.99,
+        "reason": "Capital One sponsor read with product pitch, deployment details, and brand tagline",
+        "end_text": "That's technology at Capital One."
+    },
+    {
+        "start": 862.2,
+        "end": 889.7,
+        "confidence": 0.99,
+        "reason": "BetterHelp sponsor read with promotional language, URL, and discount offer",
+        "end_text": "betterhelp.com slash random podcast"
+    },
+    {
+        "start": 890.6,
+        "end": 910.1,
+        "confidence": 0.98,
+        "reason": "Amazon Health AI network-inserted ad with product pitch and call to action",
+        "end_text": "Healthcare just got less painful."
+    },
+    {
+        "start": 912.2,
+        "end": 961.5,
+        "confidence": 0.99,
+        "reason": "Spectrum Business sponsor read with product pitch, URL, and promotional guarantees",
+        "end_text": "spectrum.com slash business today"
+    },
+    {
+        "start": 990.6,
+        "end": 1021.1,
+        "confidence": 0.99,
+        "reason": "Rinse cross-promotion ad with product pitch, URL, and call to action",
+        "end_text": "It's time to be great."
+    }
+]

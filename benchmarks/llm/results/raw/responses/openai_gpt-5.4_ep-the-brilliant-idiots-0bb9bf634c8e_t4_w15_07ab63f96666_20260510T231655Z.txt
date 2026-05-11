@@ -1,0 +1,1 @@
+{"start": 6390.2, "end": 6390.2, "confidence": 0.61, "reason": "Ad break transition phrase only: 'Let's pay some bills' but no actual promotional sponsor copy appears in this window; likely incomplete/continues outside window", "end_text": "some asking idiots, man."}

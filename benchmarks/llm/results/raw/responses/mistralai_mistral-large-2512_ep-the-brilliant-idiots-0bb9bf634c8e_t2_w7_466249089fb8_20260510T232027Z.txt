@@ -1,0 +1,9 @@
+[
+    {
+        "start": 3539.3,
+        "end": 3540.0,
+        "confidence": 0.9,
+        "reason": "Platform-inserted ad break detected at end of window with 'Learn more about your ad choices. Visit megaphone.fm/adchoices' (continues in next)",
+        "end_text": "adchoices"
+    }
+]

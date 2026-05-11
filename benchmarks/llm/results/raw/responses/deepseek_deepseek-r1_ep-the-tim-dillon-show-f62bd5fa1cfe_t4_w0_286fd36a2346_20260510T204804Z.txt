@@ -1,0 +1,7 @@
+[{
+    "start": 0.0,
+    "end": 27.7,
+    "confidence": 0.95,
+    "reason": "Colgate Women's Games sponsor read with brand mention and product pitch",
+    "end_text": "your smile is your strength"
+}]

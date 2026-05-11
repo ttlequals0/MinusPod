@@ -1,0 +1,1 @@
+{"start": 4608.9, "end": 4638.3, "confidence": 0.0, "reason": "No promotional content detected in this segment. Contains only show content about the experiment and participants.", "end_text": "we're talking about? Yeah, great."}

@@ -1,0 +1,7 @@
+{
+  "start": 6365.0,
+  "end": 6390.2,
+  "confidence": 0.85,
+  "reason": "Network-inserted retail brand mention (Walmart, Lowe's, McDonald's, Target) with promotional context",
+  "end_text": "come on, y'all"
+}

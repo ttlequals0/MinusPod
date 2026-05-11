@@ -1,0 +1,7 @@
+{
+  "start": 6390.2,
+  "end": 6396.7,
+  "confidence": 0.95,
+  "reason": "Host says 'Let's pay some bills and do some asking idiots, man' — a clear transition into an ad break (sponsor segment). The ad content is not fully present in this window, but the transition is unmistakable.",
+  "end_text": "do some asking idiots, man"
+}

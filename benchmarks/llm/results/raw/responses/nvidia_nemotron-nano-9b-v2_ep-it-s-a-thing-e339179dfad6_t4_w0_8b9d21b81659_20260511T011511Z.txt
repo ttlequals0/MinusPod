@@ -1,0 +1,1 @@
+[{"start": 1.6, "end": 77.2, "confidence": 0.95, "reason": "Acast platform-inserted ad", "end_text": "Acast.com"}}]

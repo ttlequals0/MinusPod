@@ -1,0 +1,7 @@
+{
+  "start": 3635.9,
+  "end": 3649.7,
+  "confidence": 0.95,
+  "reason": "Host-read ad for Elliot Wilson's twins, with promotional language about his personal life and health, and a call to action to pay attention to his content.",
+  "end_text": "how crazy you are"
+}

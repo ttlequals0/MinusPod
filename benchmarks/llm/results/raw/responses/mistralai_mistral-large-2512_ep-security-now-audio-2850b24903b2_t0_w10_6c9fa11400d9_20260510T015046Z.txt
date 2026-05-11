@@ -1,0 +1,9 @@
+[
+    {
+        "start": 4230.9,
+        "end": 4465.7,
+        "confidence": 0.99,
+        "reason": "Bitwarden sponsor read with promotional language, URLs (bitwarden.com/twit), product pitches (Agent Access SDK, passkey login, Bitwarden Lite), and calls to action (free trial, individual user sign-up). Includes transition phrase 'This episode of Security Now is brought to you by Bitwarden'.",
+        "end_text": "bitwarden.com slash twit."
+    }
+]

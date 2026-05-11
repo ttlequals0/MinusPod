@@ -12,7 +12,9 @@ from datetime import datetime, timezone
 from typing import List, Dict, Optional
 
 import requests
-from bs4 import BeautifulSoup
+# bs4 is lazy-imported inside fetch_pricepertoken_pricing to keep this module's
+# import-time graph minimal for consumers that only need fetch_litellm_pricing
+# (e.g. the offline benchmark in benchmarks/llm/).
 
 from config import (
     get_pricing_source,
@@ -115,6 +117,7 @@ def fetch_pricepertoken_pricing(url: str) -> List[Dict]:
     except (SSRFError, requests.RequestException) as exc:
         raise ConnectionError(f"Failed to fetch pricing from {url}: {exc}") from exc
 
+    from bs4 import BeautifulSoup
     soup = BeautifulSoup(resp.text, 'html.parser')
 
     results = []

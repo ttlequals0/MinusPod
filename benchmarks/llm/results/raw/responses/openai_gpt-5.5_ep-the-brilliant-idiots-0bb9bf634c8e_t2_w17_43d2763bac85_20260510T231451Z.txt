@@ -1,0 +1,1 @@
+{"start":7173.7,"end":7196.8,"confidence":0.99,"reason":"Post-roll promotional ad for Netflix's Remarkably Bright Creatures with product pitch and callout 'now playing only on Netflix'","end_text":"now playing only on Netflix"}

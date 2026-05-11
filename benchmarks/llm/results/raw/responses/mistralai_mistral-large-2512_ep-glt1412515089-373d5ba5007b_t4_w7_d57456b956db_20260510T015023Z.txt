@@ -1,0 +1,9 @@
+[
+    {
+        "start": 3432.2,
+        "end": 3446.1,
+        "confidence": 0.95,
+        "reason": "Platform-inserted ad for Perplexity, including promotional URL (pplx.ai/rogan) and call to action ('Download the app or ask Perplexity anything'). Transition phrase omitted due to partial window, but ad content is clear.",
+        "end_text": "podcastchoices.com/adchoices"
+    }
+]

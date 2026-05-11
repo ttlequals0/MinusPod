@@ -1,0 +1,16 @@
+[
+  {
+    "start": 3360.0,
+    "end": 3376.2,
+    "confidence": 0.95,
+    "reason": "Host-read sponsor transition",
+    "end_text": "Thank you for watching"
+  },
+  {
+    "start": 3879.8,
+    "end": 3880.0,
+    "confidence": 0.95,
+    "reason": "Host-read sponsor transition",
+    "end_text": "Thank you for watching"
+  }
+]

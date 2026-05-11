@@ -1,0 +1,1 @@
+{"start": 1.6, "end": 77.2, "confidence": 0.96, "reason": "Platform-inserted Acast promo and cross-promotions for podcasts 'Wrong Turns' and 'Formative'", "end_text": "leaders of tomorrow."}

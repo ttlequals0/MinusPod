@@ -1,0 +1,7 @@
+{
+  "start": 133.0,
+  "end": 143.0,
+  "confidence": 0.95,
+  "reason": "The segment discusses the introduction of Google's AI model into Chrome and the concerns raised by Mozilla regarding the implications for web standards and interoperability. It highlights the debate over the potential monopolization of AI capabilities in web browsers and the impact on developer practices and content policies.",
+  "end_text": "The segment concludes with a discussion on the implications of Google's AI model integration into Chrome, emphasizing the concerns about web standards and content policies."
+}

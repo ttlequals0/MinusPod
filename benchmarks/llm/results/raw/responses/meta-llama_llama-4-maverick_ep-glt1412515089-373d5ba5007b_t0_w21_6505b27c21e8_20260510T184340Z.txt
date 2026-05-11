@@ -1,0 +1,1 @@
+{"start": 8797.7, "end": 8797.7, "confidence": 0.0, "reason": "no ads in transcript", "end_text": ""}

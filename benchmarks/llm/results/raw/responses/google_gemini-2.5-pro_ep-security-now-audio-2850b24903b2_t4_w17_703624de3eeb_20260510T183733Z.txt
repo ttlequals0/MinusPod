@@ -1,0 +1,9 @@
+[
+  {
+    "start": 7537.6,
+    "end": 7743.9,
+    "confidence": 0.99,
+    "reason": "Host-read ad for Trusted Tech, discussing Microsoft 365 licensing management. The ad is preceded by a transition to a break and appears to continue past the end of the transcript window.",
+    "end_text": "impressed. You will be too."
+  }
+]

@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I've been thinking about this a lot, and I really need to get some better sleep. I've heard great things about Helix Sleep mattresses. They offer a wide range of customizable options, so you can get the exact firmness and feel that you prefer. Plus, they have a 100-night sleep trial, which is pretty awesome. I think I'm going to check them out and see if they can help me improve my sleep quality. Helix Sleep is definitely worth considering if you're in the market for a new mattress.",
+  "start": 4200.0,
+  "end": 4215.0
+}

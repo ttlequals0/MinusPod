@@ -1,0 +1,1 @@
+[{"start": 4057.2, "end": 4083.9, "confidence": 0.85, "reason": "Ad break transition - 'Let's pay some bills' with Taylor gang/Lil P bumper", "end_text": "back to this show"}]

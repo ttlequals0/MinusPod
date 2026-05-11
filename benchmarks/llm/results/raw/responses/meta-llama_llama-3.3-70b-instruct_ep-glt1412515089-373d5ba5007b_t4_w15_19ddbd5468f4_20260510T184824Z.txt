@@ -1,0 +1,1 @@
+{"start": 6298.7, "end": 6324.4, "confidence": 0.0, "reason": "no ad detected", "end_text": "of it you know if your physiology is changing"}

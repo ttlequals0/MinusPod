@@ -1,0 +1,1 @@
+{"start": 2208.3, "end": 2237.0, "confidence": 0.99, "reason": "Blinds.com ad", "end_text": "at Blinds.com"}

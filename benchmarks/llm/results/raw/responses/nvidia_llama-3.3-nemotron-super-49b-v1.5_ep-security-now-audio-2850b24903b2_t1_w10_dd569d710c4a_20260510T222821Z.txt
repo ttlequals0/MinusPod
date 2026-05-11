@@ -1,0 +1,1 @@
+[{"start": 4265.2, "end": 4466.8, "confidence": 0.98, "reason": "Bitwarden sponsor read with promo URL and product pitch", "end_text": "bitwarden.com/twit"}]

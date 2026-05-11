@@ -1,0 +1,1 @@
+{"start": 3079.6, "end": 3270.1, "confidence": 1.0, "reason": "Back-to-back sponsor reads for Morgan & Morgan, Stash, and NeuroGum", "end_text": "20% off your first order"}

@@ -1,0 +1,7 @@
+{
+  "start": 4296.0,
+  "end": 4361.4,
+  "confidence": 0.72,
+  "reason": "Host self-promotional plug block with explicit calls to action for Jess Hilarious' book, All Love Racquet Club event, and AM Mornings ('make sure you go pick up', 'head to', 'check out my new show'). No clear paid sponsor marker, so confidence is moderate.",
+  "end_text": "See you guys there. Peace."
+}

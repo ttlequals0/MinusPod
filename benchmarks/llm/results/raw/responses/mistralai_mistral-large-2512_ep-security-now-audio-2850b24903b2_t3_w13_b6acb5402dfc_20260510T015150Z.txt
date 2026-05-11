@@ -1,0 +1,37 @@
+[
+    {
+        "start": 6016.6,
+        "end": 6083.5,
+        "confidence": 0.99,
+        "reason": "Host-read sponsor segment for HoxHunt with promotional language, call to action, and transition phrase 'We'll take a little break. We'll talk about this and more in just a bit. You're watching Security Now with Steve Gibson. But first, this word.'",
+        "end_text": "just like the bad guys."
+    },
+    {
+        "start": 6102.3,
+        "end": 6160.5,
+        "confidence": 0.98,
+        "reason": "Network-inserted sponsor read for Zscaler with promotional language, vanity URL (zscaler.com/securitynow), and distinct ad structure.",
+        "end_text": "zscaler.com/securitynow."
+    },
+    {
+        "start": 6161.2,
+        "end": 6220.4,
+        "confidence": 0.98,
+        "reason": "Network-inserted sponsor read for Meter with promotional language, vanity URL (meter.com/securitynow), and distinct ad structure.",
+        "end_text": "meter.com/securitynow."
+    },
+    {
+        "start": 6221.1,
+        "end": 6280.3,
+        "confidence": 0.98,
+        "reason": "Network-inserted sponsor read for Bitwarden with promotional language, vanity URL (bitwarden.com/twit), and distinct ad structure.",
+        "end_text": "bitwarden.com/twit."
+    },
+    {
+        "start": 6281.0,
+        "end": 6340.2,
+        "confidence": 0.98,
+        "reason": "Network-inserted sponsor read for Trusted Tech Team with promotional language, vanity URL (trustedtech.team/securitynow365), and distinct ad structure.",
+        "end_text": "trustedtech.team/securitynow365."
+    }
+]

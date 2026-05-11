@@ -1,0 +1,1 @@
+{"start": 983.0, "end": 1009.1, "confidence": 0.9, "reason": "End-of-segment marker and potential ad break", "end_text": "Thank you for watching."}

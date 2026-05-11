@@ -1,0 +1,16 @@
+[
+    {
+        "start": 4871.2,
+        "end": 4896.0,
+        "confidence": 0.85,
+        "reason": "Promotion of sponsor books with order links (The Black Family Who Built America, Uncommon Favor, Get Honest or Die Lying) and network cross-promotion (Black Effect Network URL).",
+        "end_text": "culturally, I've always been so like"
+    },
+    {
+        "start": 4922.6,
+        "end": 4944.8,
+        "confidence": 0.9,
+        "reason": "Platform-inserted ad for 'Learn more about your ad choices. Visit megaphone.fm/adchoices' (network-inserted retail ad).",
+        "end_text": "absorb the culture of things"
+    }
+]

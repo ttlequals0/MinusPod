@@ -1,0 +1,16 @@
+[
+    {
+        "start": 1905.2,
+        "end": 1928.8,
+        "confidence": 0.9,
+        "reason": "Promotional mention of SpinRite, a product sold by the host (Steve Gibson). While not a third-party sponsor, this is a self-promotion for a paid product with a clear call to action (implicit in the context of the show's history).",
+        "end_text": "most recent code running can get to you."
+    },
+    {
+        "start": 2270.7,
+        "end": 2280.0,
+        "confidence": 0.95,
+        "reason": "Partial ad segment for Club TWiT, promoting ad-free podcasts and membership benefits. Continues in next window (end truncated). Transition phrase and promotional language ('Join Club TWiT for Ad-Free Podcasts! Support what you love...') with a call to action (URL).",
+        "end_text": "continues in next"
+    }
+]

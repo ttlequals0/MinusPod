@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 3962.9,
+    "end": 3980.0,
+    "confidence": 0.92,
+    "reason": "Perplexity app sponsor read with URL and call to action",
+    "end_text": "pplx.ai/rogan"
+  }
+]
+```

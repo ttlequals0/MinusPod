@@ -1,0 +1,18 @@
+```json
+[
+  {
+    "start": 9259.3,
+    "end": 9290.5,
+    "confidence": 0.75,
+    "reason": "Host-read cross-promotion for This Week in Tech show on TWiT Network. While organic in tone, this is a network promotion segment with call to action to subscribe.",
+    "end_text": "TWiT Network. Thank you."
+  },
+  {
+    "start": 9344.4,
+    "end": 9374.4,
+    "confidence": 0.98,
+    "reason": "Mint Mobile sponsor read by Ryan Reynolds with promo URL (mintmobile.com/switch) and pricing details ($15/month plan, $45 upfront for 3 months)",
+    "end_text": "See full terms at mintmobile.com."
+  }
+]
+```

@@ -1,0 +1,9 @@
+[
+    {
+        "start": 4378.5,
+        "end": 4380.0,
+        "confidence": 0.95,
+        "reason": "Partial ad segment for Mint Mobile detected at the end of the window, continues in next segment. Promotional URL (mintmobile.com/TIMDILLON) and sponsor mention in episode description.",
+        "end_text": "continues in next"
+    }
+]

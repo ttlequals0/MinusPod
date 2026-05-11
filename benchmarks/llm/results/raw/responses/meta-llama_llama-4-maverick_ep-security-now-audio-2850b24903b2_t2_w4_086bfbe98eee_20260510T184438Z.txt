@@ -1,0 +1,1 @@
+{"start": 1901.8, "end": 1928.8, "confidence": 0.1, "reason": "organic content, not an ad", "end_text": "to have the most recent code running"}

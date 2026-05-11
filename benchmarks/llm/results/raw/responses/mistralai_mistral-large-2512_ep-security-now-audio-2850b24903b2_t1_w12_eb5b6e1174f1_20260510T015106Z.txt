@@ -1,0 +1,16 @@
+[
+    {
+        "start": 5516.0,
+        "end": 5578.4,
+        "confidence": 0.98,
+        "reason": "Yubico sponsor partnership with promotional language, product pitch, and call to action (preferred pricing, bundle offer, and mention of security settings). Includes transition into ad content.",
+        "end_text": "adopt stronger phishing-resistant account protection."
+    },
+    {
+        "start": 5580.1,
+        "end": 5608.1,
+        "confidence": 0.95,
+        "reason": "Platform-inserted sponsor read for Bitwarden (high-confidence sponsor). Promotional language about switching to Claude and ChatGPT security settings, but no explicit ad markers. However, the episode sponsors list includes Bitwarden, and this segment aligns with typical host-read ad placement.",
+        "end_text": "dialog now has many new features."
+    }
+]

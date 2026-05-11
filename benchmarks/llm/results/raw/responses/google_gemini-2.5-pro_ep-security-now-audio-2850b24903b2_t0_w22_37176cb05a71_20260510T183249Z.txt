@@ -1,0 +1,16 @@
+[
+  {
+    "start": 9259.3,
+    "end": 9290.5,
+    "confidence": 0.95,
+    "reason": "A post-roll cross-promotion for another podcast on the same network, 'This Week in Tech'.",
+    "end_text": "the TWiT Network. Thank you."
+  },
+  {
+    "start": 9344.4,
+    "end": 9374.4,
+    "confidence": 1.0,
+    "reason": "A dynamically inserted ad for Mint Mobile, featuring Ryan Reynolds and a vanity URL.",
+    "end_text": "terms at mintmobile.com."
+  }
+]

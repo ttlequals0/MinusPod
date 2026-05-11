@@ -1,0 +1,9 @@
+[
+    {
+        "start": 6890.0,
+        "end": 6900.0,
+        "confidence": 0.0,
+        "reason": "No ad detected in this window. Transcript contains only editorial content about browser AI APIs.",
+        "end_text": "provided to their browser."
+    }
+]

@@ -1,0 +1,12 @@
+[
+
+[{"start": 4265.2, "end": 4291.9, "confidence": 0.98, "reason": "Bitwarden sponsor read with promotional language and call to action", "end_text": "fix issues on the spot."},  
+{"start": 4292.6, "end": 4344.8, "confidence": 0.98, "reason": "Bitwarden sponsor read with detailed product features and benefits", "end_text": "modern development environments."},  
+{"start": 4345.4, "end": 4370.4, "confidence": 0.98, "reason": "Bitwarden sponsor read emphasizing security features", "end_text": "vault data."},  
+{"start": 4371.2, "end": 4396.1, "confidence": 0.98, "reason": "Bitwarden sponsor read introducing Agent Access SDK", "end_text": "any password manager anywhere."},  
+{"start": 4396.6, "end": 4409.4, "confidence": 0.98, "reason": "Bitwarden sponsor read about passkey login feature", "end_text": "credential management."},  
+{"start": 4410.6, "end": 4437.4, "confidence": 0.98, "reason": "Bitwarden sponsor read about Windows Hello integration", "end_text": "enter your password again."},  
+{"start": 4438.1, "end": 4465.7, "confidence": 0.98, "reason": "Bitwarden sponsor read about Bitwarden Lite and security standards", "end_text": "CCPA. ISO 27001-2002."},  
+{"start": 4466.8, "end": 4486.3, "confidence": 0.98, "reason": "Bitwarden sponsor read with call to action and URL", "end_text": "twit. That's bitwarden.com slash twit."}]
+
+]

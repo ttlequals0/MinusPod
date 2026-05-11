@@ -1,0 +1,9 @@
+[
+    {
+        "start": 2324.6,
+        "end": 2450.0,
+        "confidence": 0.99,
+        "reason": "BlueChew Gold sponsor read with promotional language, promo code 'Idiots', and call to action (BlueChew.com). Followed by ZipRecruiter sponsor read with URL (ZipRecruiter.com/idiots) and promotional messaging.",
+        "end_text": "Meet your match on ZipRecruiter."
+    }
+]

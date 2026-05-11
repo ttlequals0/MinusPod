@@ -1,0 +1,1 @@
+[{"start": 951.6, "end": 1020.0, "confidence": 0.95, "reason": "Network-inserted brand tagline ad continues in next", "end_text": "Mr. List, you get on all these lists"}]

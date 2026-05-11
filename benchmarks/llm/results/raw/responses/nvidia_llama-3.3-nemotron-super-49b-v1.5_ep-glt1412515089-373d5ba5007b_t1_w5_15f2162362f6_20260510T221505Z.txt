@@ -1,0 +1,9 @@
+[
+    {
+        "start": 2208.3,
+        "end": 2237.0,
+        "confidence": 0.95,
+        "reason": "Blinds.com sponsor read with promotional language, discount offer, and call to action",
+        "end_text": "at Blinds.com"
+    }
+]

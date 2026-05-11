@@ -1,0 +1,7 @@
+{
+  "start": 4194.8,
+   "end": 4380.0,
+   "confidence": 0.95,
+   "reason": "Bitwarden sponsor read",
+   "end_text": "anywhere password manager"
+}

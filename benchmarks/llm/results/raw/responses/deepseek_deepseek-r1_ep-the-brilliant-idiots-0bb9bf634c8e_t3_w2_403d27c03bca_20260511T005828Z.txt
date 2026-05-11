@@ -1,0 +1,1 @@
+[{"start": 1381.4, "end": 1407.9, "confidence": 0.95, "reason": "Promotion of Big Bank podcast and Black Effect Network shows", "end_text": "Black Effect podcast network"}]

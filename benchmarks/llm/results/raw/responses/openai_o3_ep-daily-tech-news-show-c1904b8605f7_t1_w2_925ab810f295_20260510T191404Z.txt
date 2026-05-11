@@ -1,0 +1,1 @@
+{"error": "No advertisement segments found within the provided transcript window."}

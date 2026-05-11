@@ -1,0 +1,7 @@
+{
+	"start": 4683.7,
+	"end": 4716.7,
+	"confidence": 0.95,
+	"reason": "Perplexity app promotion",
+	"end_text": "She knows you're married, but she told me not to tell you."
+}

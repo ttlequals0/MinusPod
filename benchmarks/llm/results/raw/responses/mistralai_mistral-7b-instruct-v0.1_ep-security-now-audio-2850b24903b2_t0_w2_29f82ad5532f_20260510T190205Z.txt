@@ -1,0 +1,11 @@
+ Ad Segment:
+[1383.9s - 1405.0s] This segment contains an advertisement for the UK's NCSC (National Cybersecurity Centre) and their warning about preparing for a wave of patches. The host reads the warning verbatim, and it includes promotional language, making it an ad.
+
+Transition phrase: "Allie Whitehouse, the Chief Technology Officer for the UK's NCSC, their national cybersecurity center, issued a clear warning at the government level."
+
+Ad Content: "Organizations must act now to prepare for a wave of patches that will address decades of technical debt."
+
+Therefore, the ad segment is:
+[1383.9s - 1405.0s] "Allie Whitehouse, the Chief Technology Officer for the UK's NCSC, their national cybersecurity center, issued a clear warning at the government level. Organizations must act now to prepare for a wave of patches that will address decades of technical debt."
+
+Note: This ad continues from the previous window.

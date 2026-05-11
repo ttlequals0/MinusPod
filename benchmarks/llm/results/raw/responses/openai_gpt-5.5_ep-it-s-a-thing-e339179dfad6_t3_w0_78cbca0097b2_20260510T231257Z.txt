@@ -1,0 +1,7 @@
+{
+  "start": 1.6,
+  "end": 77.2,
+  "confidence": 0.99,
+  "reason": "Platform-inserted Acast promotional segment and cross-promotions for other podcasts Wrong Turns and Formative, with calls to listen and Acast.com mention",
+  "end_text": "leaders of tomorrow"
+}

@@ -1,0 +1,7 @@
+{
+  "start": 17.58,
+  "end": 18.66,
+  "confidence": 0.95,
+  "reason": "The host discusses the impact of technology on older people, highlighting the negative effects of social media on their mental health and well-being.",
+  "end_text": "They're becoming... truly, like, psychotic? We're inducing psychosis."
+}

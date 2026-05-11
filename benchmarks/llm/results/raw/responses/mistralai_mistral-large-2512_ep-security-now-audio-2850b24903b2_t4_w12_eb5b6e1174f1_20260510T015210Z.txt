@@ -1,0 +1,16 @@
+[
+    {
+        "start": 5516.0,
+        "end": 5578.4,
+        "confidence": 0.98,
+        "reason": "Yubico sponsor read with promotional language, product pitch, and partnership announcement. Includes call to action (preferred pricing bundle) and product details (YubiKey C Nano, YubiKey C NFC).",
+        "end_text": "use across laptops and mobile devices."
+    },
+    {
+        "start": 5580.1,
+        "end": 5640.0,
+        "confidence": 0.95,
+        "reason": "Continued discussion of ChatGPT's Advanced Account Security features, but transitions into host-read sponsor mentions for the episode's listed sponsors (zscaler.com/security, meter.com/securitynow, bitwarden.com/twit, hoxhunt.com/securitynow, trustedtech.team/securitynow365). Partial ad segment, continues in next window.",
+        "end_text": "continues in next"
+    }
+]

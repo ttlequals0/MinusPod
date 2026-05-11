@@ -1,0 +1,7 @@
+{
+  "start": 5443.4,
+  "end": 5471.1,
+  "confidence": 0.85,
+  "reason": "Potential ad segment with promotional language for 'Get Honest or Die Lying Why Small Talk Sucks' by Charlamagne Tha God",
+  "end_text": "what's going on?"
+}

@@ -1,0 +1,16 @@
+[
+    {
+        "start": 1359.1,
+        "end": 1381.4,
+        "confidence": 0.95,
+        "reason": "Promotion of the Black Effect podcast network with a call to action to listen to specific shows (Big Bank podcast and Big Facts podcast).",
+        "end_text": "Black Effect podcast network."
+    },
+    {
+        "start": 1575.8,
+        "end": 1605.1,
+        "confidence": 0.9,
+        "reason": "Promotion of Loren Lorosa's own podcast ('on the latest with Lorna Rosa') and indirect endorsement of Breakfast Club, which is part of the show's network.",
+        "end_text": "on the latest with Lorna Rosa."
+    }
+]

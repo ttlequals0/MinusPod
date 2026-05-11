@@ -1,0 +1,9 @@
+[
+    {
+        "start": 2268.0,
+        "end": 2285.1,
+        "confidence": 0.95,
+        "reason": "Network promo for Black Effect Podcast Network and Drink Champs, including call to action for Black Effect Podcast Festival and cross-promotion of network shows",
+        "end_text": "Black Effect Podcast Festival"
+    }
+]

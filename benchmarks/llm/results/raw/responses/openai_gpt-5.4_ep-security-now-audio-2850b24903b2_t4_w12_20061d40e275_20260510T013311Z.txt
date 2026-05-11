@@ -1,0 +1,1 @@
+{"start":5491.1,"end":5578.4,"confidence":0.93,"reason":"OpenAI/Yubico promotional segment with product pitch and offer language: 'partnered with Yubico... to offer our users preferred pricing' on YubiKey bundle","end_text":"use software-based pass keys."}

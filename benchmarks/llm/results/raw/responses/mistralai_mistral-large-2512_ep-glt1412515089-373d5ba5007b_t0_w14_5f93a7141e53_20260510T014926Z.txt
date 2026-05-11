@@ -1,0 +1,9 @@
+[
+    {
+        "start": 6084.9,
+        "end": 6087.4,
+        "confidence": 0.99,
+        "reason": "Perplexity platform-inserted ad with vanity URL (pplx.ai/rogan) and call to action",
+        "end_text": "podcastchoices.com/adchoices"
+    }
+]

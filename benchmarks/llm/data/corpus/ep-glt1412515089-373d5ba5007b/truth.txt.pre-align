@@ -1,0 +1,29 @@
+# Pre-populated from MinusPod production ad markers.
+# Verify each ad: check boundaries, confirm text matches transcript.
+# Use the no-ads marker (uncomment) if this episode has no ads:
+# # Verified: no ads in this episode.
+
+# Lines starting with '#' are ignored. To accept a rejected block,
+# remove the '# ' prefix from its start/end/text lines.
+
+start: 8:59.20
+end:   10:52.80
+text:  This episode is brought to you by In the Gray, written and directed by Guy Ritchie, my man, I love that dude. This blockbuster stars Jake Gyllenhaal, Henry Cavill, and Aza Gonzalez as elite operatives with questionable morals. When billions get stolen, these are the pros that steal it back, turning an impossible heist into an all-hands-on-deck operation with plenty of action. In a world of black and white, they operate. Only in theaters May 15th. Rated R, under 17, requires accompanying parent or adult guardian. This episode is brought to you by Skechers. Today, life is all about convenience. And do you know what the ultimate convenience is? Hands-free Skechers slip-ins. They're so easy. You've probably seen the ads. You just step in, and they're on. with no bending down. Well, they work just as advertised. You tie the laces once and you never have to tie them again. It's the perfect fit. Just step in and go. It's a life hack for putting on your footwear. And not only are Skechers slip-ins convenient, they're also very comfortable. At Skechers, comfort is a technology. They take comfort that seriously. Plus, they're stylish and they come in so many colors and sizes. You can get slip-ins and casual and dress footwear, sandals, sneakers, and more. Plus, how about this for convenience? They're even machine washable. Pop them in the washing machine and they come out looking like new. So if you like convenience and so much more, you've got to try Skechers slip-ins. You'll wish your shoes were this easy. Check out Skechers.com for the biggest selection in the world plus all the hard-to-find styles. That's only at Skechers.com.
+---
+# auto-rejected: no ad signals (brought-to-you-by / .com / promo code)
+start: 36:48.30
+end:   37:17.00
+text:  The right window treatments change everything. Your sleep, your privacy, the way every room looks and feels. At Blinds.com, we've spent 30 years making it surprisingly simple to get exactly what your home needs. We've covered over 25 million windows and have 50,000 five-star reviews to prove we deliver. Whether you DIY it or want a pro to handle everything from measure to install, we have you covered. Real design professionals, free samples, zero pressure. Right now, get up to 45% off site-wide, plus get a free professional measure at Blinds.com.
+---
+start: 1:32:26.30
+end:   1:33:12.00
+text:  This episode is brought to you by Netflix's remarkably bright creatures. What if a Pacific octopus held the key to a mystery that could heal your heart? Well, that's Tova's reality, an elderly widow working at an aquarium. Tova forms an unlikely friendship with the curmudgeonly Marcellus, whose remarkable intelligence leads her to a life-changing discovery. Remarkably Bright Creatures is now playing, only on Netflix. Yeah. Right. So we, we're trying to differentiate so we could exist in this consciousness, in this form, in this reality. And we think that this is it. This is it. This is lockdown. This is the box.
+---
+start: 1:46:08.20
+end:   1:46:34.80
+text:  What does that word? Anthroposophy. What does that word? What does it mean? Yeah, what does that mean? I don't know. I don't get what anthroposophy. There's all these anthroposophists and they're related to the Waldorf people, but I don't totally understand it. It's Perplexity, our AI sponsor, trying to flex. Oh, okay, cool. That's what it's doing. It's flexing on us, showing us how smart it is. They're described as non-physical compendium of all universal events, thoughts, words, emotions, and intents spanning past, present, and potential future.
+---
+# rejected by production
+# start: 2:45:20.64
+# end:   2:45:34.73
+# text:  (transcript unavailable for this range)

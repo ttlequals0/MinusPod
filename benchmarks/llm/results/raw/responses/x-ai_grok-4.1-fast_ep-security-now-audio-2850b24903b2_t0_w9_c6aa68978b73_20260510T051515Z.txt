@@ -1,0 +1,1 @@
+{"start":4204.1,"end":4380.0,"confidence":0.98,"reason":"Bitwarden host-read sponsor with transition 'take a little break' and 'right after this'; bitwarden.com/twit promo, features pitch; continues in next window","end_text":"passkey login for Windows 11"}

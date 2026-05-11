@@ -1,0 +1,1 @@
+[{"start": 1742.3, "end": 1765.6, "confidence": 0.98, "reason": "Capital One Chat Concierge promotion", "end_text": "trade-in value."}, {"start": 2269.8, "end": 2280.0, "confidence": 0.95, "reason": "Capital One Chat Concierge promotion (continues in next)", "end_text": "trade-in value."}]

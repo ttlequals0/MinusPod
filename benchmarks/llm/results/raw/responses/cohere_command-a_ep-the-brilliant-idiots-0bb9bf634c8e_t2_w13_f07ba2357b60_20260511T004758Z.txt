@@ -1,0 +1,7 @@
+{
+  "start": 5760.0,
+  "end": 5815.9,
+  "confidence": 0.95,
+  "reason": "Amazon and Washington Post mention with promotional context",
+  "end_text": "Amazon Studios, MGM Studios, which Amazon bought"
+}

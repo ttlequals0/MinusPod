@@ -1,0 +1,23 @@
+[
+  {
+    "start": 3079.6,
+    "end": 3134.3,
+    "confidence": 0.98,
+    "reason": "Morgan & Morgan sponsor read with call to action (ForThePeople.com/TIM) and paid advertisement statement",
+    "end_text": "dial Poundlaw. This is a paid advertisement."
+  },
+  {
+    "start": 3135.6,
+    "end": 3208.0,
+    "confidence": 0.98,
+    "reason": "Stash sponsor read promoting Market Mood with URL stash.com/mood and disclaimer",
+    "end_text": "Investing involves risk."
+  },
+  {
+    "start": 3209.1,
+    "end": 3270.1,
+    "confidence": 0.98,
+    "reason": "NeuroGum sponsor read with promo code TIM for 20% off and product benefits",
+    "end_text": "CVS and Amazon."
+  }
+]

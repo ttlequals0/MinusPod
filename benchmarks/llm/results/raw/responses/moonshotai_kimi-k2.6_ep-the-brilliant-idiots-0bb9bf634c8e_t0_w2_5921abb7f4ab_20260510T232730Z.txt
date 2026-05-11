@@ -1,0 +1,1 @@
+{"start":838.3,"end":1466.2,"confidence":0.0,"reason":"No promotional content, sponsor names, URLs, promo codes, or ad transitions found in transcript window","end_text":"N/A"}

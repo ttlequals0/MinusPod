@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2558.9,
+    "end": 2693.0,
+    "confidence": 0.98,
+    "reason": "Host-read Meter sponsor segment with transition ('break time') and call to action (meter.com/securitynow)",
+    "end_text": "now back to steve"
+  }
+]

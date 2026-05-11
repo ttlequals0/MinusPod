@@ -1,0 +1,1 @@
+{"start": 3339.8, "end": 3367.2, "confidence": 0.0, "reason": "Not an ad, part of the conversation", "end_text": "da-da-da-da"}

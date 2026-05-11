@@ -1,0 +1,7 @@
+[{
+    "start": 3079.6,
+    "end": 3270.1,
+    "confidence": 1.0,
+    "reason": "Host-read ads for Morgan & Morgan, Stash, and NeuroGum with URLs, promo codes, and calls to action",
+    "end_text": "at CVS and Amazon"
+}]

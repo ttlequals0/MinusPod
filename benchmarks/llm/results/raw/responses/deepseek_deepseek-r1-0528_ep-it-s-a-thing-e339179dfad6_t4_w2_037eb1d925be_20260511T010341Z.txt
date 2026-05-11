@@ -1,0 +1,30 @@
+[
+  {
+    "start": 1044.8,
+    "end": 1061.5,
+    "confidence": 0.95,
+    "reason": "Host-read ad for 'espresso shot style soup' product promotion",
+    "end_text": "it's soup. It's soup."
+  },
+  {
+    "start": 1081.8,
+    "end": 1096.3,
+    "confidence": 0.92,
+    "reason": "Host-read ad for listener feedback platform 'It's A Thing.me'",
+    "end_text": "milk. Have any of you"
+  },
+  {
+    "start": 1193.4,
+    "end": 1213.3,
+    "confidence": 0.91,
+    "reason": "Host-read ad for cybersecurity service mentioning 'MFA bombing'",
+    "end_text": "rhymes with Looking.com"
+  },
+  {
+    "start": 1371.3,
+    "end": 1398.3,
+    "confidence": 0.93,
+    "reason": "Host-read ad for Blanco Tequila during shoutouts segment",
+    "end_text": "review of Blanco Tequilas"
+  }
+]

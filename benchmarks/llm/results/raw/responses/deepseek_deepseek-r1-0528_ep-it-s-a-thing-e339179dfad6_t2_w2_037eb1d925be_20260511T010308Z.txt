@@ -1,0 +1,7 @@
+{
+  "start": 1044.8,
+  "end": 1061.5,
+  "confidence": 0.95,
+  "reason": "Host-read ad for 'It's a Thing' feedback mechanism with vanity URL",
+  "end_text": "It's a Thing.me"
+}

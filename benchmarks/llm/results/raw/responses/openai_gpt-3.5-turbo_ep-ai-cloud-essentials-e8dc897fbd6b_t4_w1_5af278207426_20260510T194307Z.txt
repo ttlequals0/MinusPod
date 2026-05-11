@@ -1,0 +1,7 @@
+{
+	"start": 903.1,
+	"end": 927.0,
+	"confidence": 1.0,
+	"reason": "Host discussing parting advice for viewers",
+	"end_text": "what's next that they should do after this?"
+}

@@ -1,0 +1,1 @@
+{"start":1524.5,"end":1602.6,"confidence":0.98,"reason":"Xero sponsor read with free trial CTA, followed by Acast platform promo, Wrong Turns podcast cross-promotion, and Acast outro","end_text":"their podcasts everywhere. Acast.com."}

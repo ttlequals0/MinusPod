@@ -1,0 +1,7 @@
+{
+  "start": 4646.2,
+  "end": 4806.1,
+  "confidence": 0.99,
+  "reason": "Multiple network-inserted ads: Colgate Women's Games (two segments), Skinny Pop, Viz eye drops, Garnier National Park Foundation partnership. All are promotional segments with brand names, product pitches, and calls to action.",
+  "end_text": "GarnierUSA.com slash NPF"
+}

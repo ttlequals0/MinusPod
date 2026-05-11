@@ -1,0 +1,9 @@
+[
+  {
+    "start": 9750.4,
+    "end": 9781.0,
+    "confidence": 0.95,
+    "reason": "Guest promotes own nonprofit project Applied Love Labs and timemachine.love URL",
+    "end_text": "app they built"
+  }
+]

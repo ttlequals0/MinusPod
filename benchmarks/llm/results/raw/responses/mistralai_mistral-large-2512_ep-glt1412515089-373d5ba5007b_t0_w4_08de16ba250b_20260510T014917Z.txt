@@ -1,0 +1,9 @@
+[
+    {
+        "start": 2208.3,
+        "end": 2262.0,
+        "confidence": 0.99,
+        "reason": "Blinds.com host-read sponsor segment with promotional language, call to action, discount offer, and vanity URL (Blinds.com). Includes transition into ad content and explicit mention of services, free samples, and site-wide discount.",
+        "end_text": "rules and restrictions apply"
+    }
+]

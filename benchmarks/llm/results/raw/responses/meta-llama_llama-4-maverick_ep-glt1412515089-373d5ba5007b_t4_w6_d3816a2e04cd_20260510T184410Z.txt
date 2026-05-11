@@ -1,0 +1,1 @@
+{"start": 2805.1, "end": 3120.9, "confidence": 0.0, "reason": "No ads found in the given transcript window", "end_text": "hi, my name's Julia, and I was thinking of going into this field, and I think precognition is real, and he's like, oh, okay."}

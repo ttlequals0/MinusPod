@@ -1,0 +1,1 @@
+{"ads": [{"start": 539.2, "end": 595.4, "confidence": 0.99, "reason": "Sponsor read for 'In the Gray' movie", "end_text": "accompanying parent or adult guardian"}, {"start": 568.4, "end": 624.5, "confidence": 0.99, "reason": "Sponsor read for Skechers slip-ins", "end_text": "sandals, sneakers,"}]}

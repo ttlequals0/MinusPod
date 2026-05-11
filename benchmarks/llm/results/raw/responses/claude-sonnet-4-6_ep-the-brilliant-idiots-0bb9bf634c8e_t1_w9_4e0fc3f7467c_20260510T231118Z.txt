@@ -1,0 +1,13 @@
+Looking at the transcript segment, I need to identify any advertisement segments.
+
+Around [4057.2s], Charlamagne says "Let's pay some bills, Chris" - this is a transition to an ad break. Then at [4059.4s] there's discussion about paying bills, followed by a gap, then at [4083.9s] the show resumes with "All right, let's get back to this show."
+
+The segment from [4059.4s - 4083.9s] appears to be an ad break (the bills being paid), but there's no promotional language visible in the transcript - just the transition and return. The actual ad content isn't captured in the transcript.
+
+Then at [4323.9s - 4334.1s], Lauren mentions Jess Elias' book "Tell Death Do We Parent" and an All Love Racquet Club tennis event, and at [4334.7s - 4361.4s] she promotes her show "AM Mornings." These are host-read promotional segments with specific calls to action (Instagram, YouTube, dates, locations).
+
+The book mention and event/show promotion by Lauren constitutes a church announcements/promotional segment, but these appear to be organic self-promotion by the guest/host rather than paid sponsorships.
+
+The "pay some bills" break at [4057.2s] is a clear ad transition, but the actual ad content isn't in the transcript window.
+
+[]

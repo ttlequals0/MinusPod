@@ -1,0 +1,1 @@
+{"start": 1002.8, "end": 1020.0, "confidence": 0.01, "reason": "no ads found in this window", "end_text": "different Twitter pages that put out things and information"}

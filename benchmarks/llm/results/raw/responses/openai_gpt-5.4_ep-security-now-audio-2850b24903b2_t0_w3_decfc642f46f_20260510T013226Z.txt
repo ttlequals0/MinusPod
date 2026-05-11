@@ -1,0 +1,1 @@
+{"start": 1281.3, "end": 1302.3, "confidence": 0.08, "reason": "No clear promotional language or sponsor markers in this window; discussion content only", "end_text": "look for those low risk"}

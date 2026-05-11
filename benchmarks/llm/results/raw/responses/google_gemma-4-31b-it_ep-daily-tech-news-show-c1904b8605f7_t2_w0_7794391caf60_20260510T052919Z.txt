@@ -1,0 +1,1 @@
+{"start": 0.0, "end": 152.9, "confidence": 0.99, "reason": "Multiple back-to-back sponsor reads for Capital One, Xero, Spectrum Business, and Warby Parker", "end_text": "visit warbyparker.com today. That's warbyparker.com."}

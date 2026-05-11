@@ -1,0 +1,1 @@
+{"response":[{"start":1742.3,"end":1803.6,"confidence":0.97,"reason":"Capital One sponsor read followed by Lemonada Media podcast cross-promo","end_text":"six-part Thrive series."}]}

@@ -1,0 +1,1 @@
+{"start":1886.8,"end":1901.8,"confidence":0.97,"reason":"platform-inserted promo/outro phrase 'Thank you for watching' interrupts content; partial ad segment continues from previous/into next window","end_text":"Thank you for watching."}

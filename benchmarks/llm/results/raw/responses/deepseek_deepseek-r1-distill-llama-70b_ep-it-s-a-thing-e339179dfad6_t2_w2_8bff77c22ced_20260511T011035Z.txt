@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I've been seeing these European license plates everywhere, and honestly, it's a bit confusing. I mean, they all look kind of similar, but I guess each country has its own thing going on. I should probably look into that more. Anyway, moving on to something more interesting—have you guys tried that new SOUP espresso shot? It's supposed to be a game-changer for coffee lovers. I found it through this link: [link]. Let's take a quick break.",
+  "start": 45.0,
+  "end": 60.0
+}

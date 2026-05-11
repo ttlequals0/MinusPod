@@ -1,0 +1,1 @@
+{"start": 3354.0, "end": 3380.1, "confidence": 0.0, "reason": "not an ad", "end_text": "put them on there. Who else we got?"}

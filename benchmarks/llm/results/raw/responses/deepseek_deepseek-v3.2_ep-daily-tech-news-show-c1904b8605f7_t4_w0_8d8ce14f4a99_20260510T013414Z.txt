@@ -1,0 +1,6 @@
+{
+  "start": 0.0,
+  "end": 23.0,
+  "confidence": 0.95,
+  "reason": "Capital One sponsor read", "end_text": "capital one.com/podcast"
+}

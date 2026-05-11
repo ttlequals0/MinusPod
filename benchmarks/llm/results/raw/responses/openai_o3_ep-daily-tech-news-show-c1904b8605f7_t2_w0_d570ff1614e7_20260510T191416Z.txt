@@ -1,0 +1,1 @@
+{"start":0.0,"end":160.6,"confidence":0.98,"reason":"Capital One, Xero, Spectrum Business and Warby Parker sponsor pitches with promo URLs, free trial calls to action and transitional host line before show content resumes","end_text":"Daily Tech News for"}

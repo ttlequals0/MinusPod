@@ -1,0 +1,7 @@
+{
+  "start": 5975.6,
+  "end": 6083.5,
+  "confidence": 0.98,
+  "reason": "Host-read sponsor segment for Hoxhunt with promotional language, transition phrase 'Let's take a timeout' and 'We'll take a little break'",
+  "end_text": "personalized to each employee, just like the bad guys"
+}

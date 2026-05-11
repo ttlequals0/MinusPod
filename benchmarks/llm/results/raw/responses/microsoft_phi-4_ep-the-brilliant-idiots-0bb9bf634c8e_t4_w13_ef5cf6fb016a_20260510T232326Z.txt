@@ -1,0 +1,5 @@
+[
+
+[{"start": 5443.4, "end": 6060.0, "confidence": 0.95, "reason": "Sponsor segment with multiple product promotions and calls to action", "end_text": "question the Democratic Party"}]
+
+]

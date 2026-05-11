@@ -1,0 +1,10 @@
+ Based on the provided transcript, there is an advertisement segment in the given window. The segment starts at around 5202.8 seconds and ends at around 5223.6 seconds. The advertisement is for ChatGPT's advanced account security.
+
+The promotional language in the transcript includes "Designed for people at increased risk of digital attacks, as well as for those who want the strongest account protections available." and "It brings together a set of heightened security measures that help safeguard against account takeover."
+
+Therefore, the advertisement segment is:
+
+[5202.8s - 5223.6s]
+People are turning to AI for deeply personal questions and increasingly high-stakes work. Over time, a chat GPT account can hold sensitive personal and professional context and sit at the center of connected tools and workflows. For some people, the convenience and power of AI make it an essential part of their digital lives. But with that convenience comes risk. That's why we're excited to announce the availability of advanced account security for ChatGPT. Designed for people at increased risk of digital attacks, as well as for those who want the strongest account protections available. It brings together a set of heightened security measures that help safeguard against account takeover, while making those protections easier to activate in one place. Once enrolled, advanced account security protects users in Codex as well. They wrote, "ChatGPT is an essential part of my digital life, and I want to make sure it's secure. Advanced account security gives me peace of mind."
+
+Note: This advertisement segment continues from the previous window.

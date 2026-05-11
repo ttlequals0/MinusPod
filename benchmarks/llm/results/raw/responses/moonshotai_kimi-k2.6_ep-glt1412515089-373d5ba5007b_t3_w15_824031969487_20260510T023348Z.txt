@@ -1,0 +1,1 @@
+{"start": 6368.2, "end": 6394.8, "confidence": 0.75, "reason": "Perplexity sponsor acknowledgment ('our AI sponsor') integrated into show content; no CTA/URL in audio but explicit sponsor identification", "end_text": "past present and potential future"}

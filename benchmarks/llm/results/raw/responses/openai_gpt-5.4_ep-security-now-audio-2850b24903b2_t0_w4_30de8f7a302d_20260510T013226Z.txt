@@ -1,0 +1,1 @@
+{"start": 1886.8, "end": 1901.8, "confidence": 0.94, "reason": "Platform-inserted promo/tagline segment with promotional phrase 'Thank you for watching,' appearing as a non-editorial interruption; partial ad in this window", "end_text": "Thank you for watching."}

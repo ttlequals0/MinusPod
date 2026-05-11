@@ -1,0 +1,1 @@
+{"type": "function", "name": "ad_segments", "parameters": {"ad_segments": "[]"}}

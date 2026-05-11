@@ -1,0 +1,27 @@
+ [6483.8s - 6503.5s] Ad segment:
+
+Steve: And now, a word from our sponsors. At Cisco, we believe the internet should be a simple, open, and secure place. That's why we're excited to announce the new Cisco Umbrella for Home. It's a simple, cloud-based solution that helps protect your family from threats before they reach your network. With Cisco Umbrella for Home, you get:
+
+1. DNS-layer protection against malware, phishing, and botnets.
+2. Automatic blocking of malicious sites and domains.
+3. Parental controls to help keep your kids safe online.
+
+And best of all, it's easy to set up and manage. So, if you're looking for a better way to secure your home network, check out Cisco Umbrella for Home today. Visit cisco.com/umbrella/home to learn more and sign up for a free trial. That's cisco.com/umbrella/home.
+
+[6483.8s - 6503.5s] Transition phrase: "And now, a word from our sponsors."
+
+[6503.5s - 6512.2s] Content: "At Cisco, we believe the internet should be a simple, open, and secure place."
+
+[6512.2s - 6521.3s] Call to action: "So, if you're looking for a better way to secure your home network, check out Cisco Umbrella for Home today."
+
+[6521.3s - 6530.0s] Promotional language: "It's a simple, cloud-based solution that helps protect your family from threats before they reach your network."
+
+[6530.0s - 6537.5s] Product pitch: "With Cisco Umbrella for Home, you get: DNS-layer protection against malware, phishing, and botnets. Automatic blocking of malicious sites and domains."
+
+[6537.5s - 6545.8s] Parental controls: "And best of all, it's easy to set up and manage. So, if you're looking for a better way to secure your home network, check out Cisco Umbrella for Home today."
+
+[6545.8s - 6554.3s] URL: "Visit cisco.com/umbrella/home to learn more and sign up for a free trial."
+
+[6554.3s - 6563.0s] Ad duration: 80.5 seconds
+
+[6554.3s - 6563.0s] Note: continues in next (if the ad continues in the next window)

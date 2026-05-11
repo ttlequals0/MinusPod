@@ -1,0 +1,1 @@
+{"start": 7320.0, "end": 7320.0, "confidence": 0.0, "reason": "No ads detected in this transcript segment. The content is a continuous scientific discussion about the double-slit experiment and retrocausality.", "end_text": "No ads detected"}

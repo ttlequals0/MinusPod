@@ -1,0 +1,7 @@
+{
+  "start": 539.2,
+  "end": 624.5,
+  "confidence": 0.98,
+  "reason": "Host-read ads for 'In the Gray' movie and Skechers slip-ins, including promotional language, release dates, product features, and brand names",
+  "end_text": "sneakers"
+}

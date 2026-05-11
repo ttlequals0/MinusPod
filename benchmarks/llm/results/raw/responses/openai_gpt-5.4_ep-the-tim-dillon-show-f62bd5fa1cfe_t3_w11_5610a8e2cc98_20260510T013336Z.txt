@@ -1,0 +1,1 @@
+{"start":4646.2,"end":4806.1,"confidence":0.99,"reason":"Series of network-inserted brand ads: Colgate Women's Games, Skinny Pop, Viz, and Garnier/National Park Foundation promotional copy with taglines and calls to learn more; starts mid-ad and continues from previous window","end_text":"support our national parks at GarnierUSA.com slash NPF."}

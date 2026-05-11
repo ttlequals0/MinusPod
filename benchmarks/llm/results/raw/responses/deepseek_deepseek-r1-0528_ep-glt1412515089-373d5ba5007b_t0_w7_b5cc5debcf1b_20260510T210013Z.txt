@@ -1,0 +1,7 @@
+{
+  "start": 2924.1,
+  "end": 3540.5,
+  "confidence": 0.0,
+  "reason": "No ads detected in this segment",
+  "end_text": "Is it a guy? Yeah, it's like a general."
+}

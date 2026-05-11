@@ -1,0 +1,1 @@
+{"start": 1524.5, "end": 1602.6, "confidence": 0.98, "reason": "Xero sponsor read and Acast network promo", "end_text": "Acast.com"}

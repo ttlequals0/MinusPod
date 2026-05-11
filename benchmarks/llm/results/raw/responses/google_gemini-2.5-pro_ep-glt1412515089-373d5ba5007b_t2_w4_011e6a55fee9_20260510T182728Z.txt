@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2208.3,
+    "end": 2237.0,
+    "confidence": 1.0,
+    "reason": "This is a network-inserted ad for Blinds.com, which includes a specific promotional offer and a call to action to visit the website.",
+    "end_text": "measure at Blinds.com."
+  }
+]

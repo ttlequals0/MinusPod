@@ -1,0 +1,9 @@
+[
+    {
+        "start": 8580.0,
+        "end": 8580.0,
+        "confidence": 0.0,
+        "reason": "Partial ad segment at window boundary; no promotional content detected in this window. Continues in next.",
+        "end_text": "opportunity."
+    }
+]

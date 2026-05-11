@@ -1,0 +1,1 @@
+[{"start": 4646.2, "end": 4806.1, "confidence": 0.97, "reason": "Multiple back-to-back network-inserted ads: Colgate Women's Games, Skinny Pop, Colgate again, Vuity (Viz) eye drops, Garnier/National Park Foundation", "end_text": "GarnierUSA.com slash NPF"}]

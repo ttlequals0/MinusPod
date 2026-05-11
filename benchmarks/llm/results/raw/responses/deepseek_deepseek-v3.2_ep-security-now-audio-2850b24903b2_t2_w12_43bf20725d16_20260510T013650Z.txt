@@ -1,0 +1,1 @@
+{"start": 5640.0, "end": 5640.0, "confidence": 0.0, "reason": "No ad content found in this transcript segment. The provided window (84.0-94.0 minutes / 5040-5640s) contains only show content.", "end_text": "No ad content"}

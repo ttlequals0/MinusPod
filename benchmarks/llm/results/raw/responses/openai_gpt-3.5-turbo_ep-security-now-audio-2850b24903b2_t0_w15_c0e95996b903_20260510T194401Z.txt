@@ -1,0 +1,7 @@
+{
+	"start": 6284.0,
+	"end": 6699.7,
+	"confidence": 1,
+	"reason": "Zscaler, Meter, Bitwarden, HoxHunt, Trusted Tech Team sponsor mentions",
+	"end_text": "whereas paid users use a more powerful API-based model. Okay, I'll just interrupt here to note that"
+}

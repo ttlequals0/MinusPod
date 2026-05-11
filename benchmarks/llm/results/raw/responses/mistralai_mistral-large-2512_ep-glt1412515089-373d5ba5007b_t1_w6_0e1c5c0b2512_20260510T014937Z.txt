@@ -1,0 +1,9 @@
+[
+    {
+        "start": 2702.6,
+        "end": 2716.5,
+        "confidence": 0.95,
+        "reason": "Perplexity platform-inserted ad at the start of the transcript window (promotional URL and call to action)",
+        "end_text": "podcastchoices.com/adchoices"
+    }
+]

@@ -1,0 +1,10 @@
+ Ad segments:
+
+[1817.9s - 1835.0s] Mint Mobile (continues from previous)
+[1835.1s - 1860.0s] Aura Frames
+
+Explanation:
+
+The first ad segment starts at 1817.9 seconds (approximately 20.2 minutes) and continues until 1835.0 seconds (approximately 21.2 minutes). This ad is for Mint Mobile, and it was started in the previous window.
+
+The second ad segment starts at 1835.1 seconds (approximately 21.2 minutes and 1 second) and continues until 1860.0 seconds (approximately 22.6 minutes). This ad is for Aura Frames, and it is a new ad within this window.

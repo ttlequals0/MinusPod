@@ -1,0 +1,3 @@
+ Based on the provided transcript and detection rules, there is no clear advertisement segment within the given window (21.0-31.0 minutes). The content in this window primarily consists of discussion about Apple's potential new features and Whoop's new plans. There are no promotional language or calls to action that indicate an advertisement.
+
+Therefore, the output should be an empty list: []

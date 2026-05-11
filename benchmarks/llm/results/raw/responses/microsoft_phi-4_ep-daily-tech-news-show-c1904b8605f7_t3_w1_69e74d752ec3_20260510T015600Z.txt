@@ -1,0 +1,69 @@
+[
+
+[
+  {
+    "start": 821.4,
+    "end": 844.7,
+    "confidence": 0.98,
+    "reason": "Capital One sponsor read with product pitch",
+    "end_text": "technology at Capital One"
+  },
+  {
+    "start": 845.2,
+    "end": 857.6,
+    "confidence": 0.95,
+    "reason": "BetterHelp sponsor read with promo code",
+    "end_text": "first month of online therapy"
+  },
+  {
+    "start": 862.2,
+    "end": 889.7,
+    "confidence": 0.95,
+    "reason": "Amazon Health AI sponsor read with product pitch",
+    "end_text": "less painful"
+  },
+  {
+    "start": 890.6,
+    "end": 910.1,
+    "confidence": 0.95,
+    "reason": "Amazon Health AI continuation with product pitch",
+    "end_text": "too embarrassing"
+  },
+  {
+    "start": 912.2,
+    "end": 933.7,
+    "confidence": 0.98,
+    "reason": "Spectrum Business sponsor read with product pitch",
+    "end_text": "stay connected"
+  },
+  {
+    "start": 934.1,
+    "end": 961.5,
+    "confidence": 0.98,
+    "reason": "Spectrum Business continuation with product pitch",
+    "end_text": "US-based customer service"
+  },
+  {
+    "start": 961.9,
+    "end": 990.3,
+    "confidence": 0.98,
+    "reason": "Spectrum Business continuation with product pitch",
+    "end_text": "trust Spectrum Business"
+  },
+  {
+    "start": 990.6,
+    "end": 1018.9,
+    "confidence": 0.95,
+    "reason": "Rinse sponsor read with product pitch",
+    "end_text": "start imagining"
+  },
+  {
+    "start": 1019.4,
+    "end": 1020.0,
+    "confidence": 0.90,
+    "reason": "Rinse tagline continuation",
+    "end_text": "It's time to be great"
+  }
+]
+
+]

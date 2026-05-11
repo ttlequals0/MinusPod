@@ -1,0 +1,27 @@
+ [6483.8s - 6503.5s] Ad segment:
+
+Steve: And now, a word from our sponsors. At Cisco, we believe the internet should be a simple, open, and secure place. That's why we're excited to announce the new Cisco Umbrella for Home. It's a simple, cloud-based solution that helps protect your family from threats before they reach your network. With Cisco Umbrella for Home, you get:
+
+1. DNS-layer protection against malware, phishing, and botnets.
+2. Automatic blocking of malicious sites and domains.
+3. Parental controls to help keep your kids safe online.
+
+And best of all, it's easy to set up and manage. So, if you're looking for a better way to secure your home network, check out Cisco Umbrella for Home today. Visit cisco.com/umbrella/home to learn more and sign up for a free trial. That's cisco.com/umbrella/home.
+
+[6503.5s - 6505.3s] Transition:
+
+Steve: Let's take a break and hear from our sponsors.
+
+[6505.3s - 6522.5s] Silence
+
+[6522.5s - 6548.5s] Content
+
+[6548.5s - 6550.8s] Transition:
+
+Steve: And we're back. Now, let's discuss...
+
+[6550.8s - 6553.2s] Silence
+
+[6553.2s - end] Content
+
+Ad segments: [6483.8s - 6503.5s] (continues from previous) [6503.5s - 6522.5s] (continues in next)

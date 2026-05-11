@@ -1,0 +1,25 @@
+{
+"ads": [
+    {
+      "start": 1524.5,
+      "end": 1561.9,
+      "confidence": 0.98,
+      "reason": "Xero sponsor read",
+      "end_text": "What a life"
+    },
+    {
+      "start": 1565.4,
+      "end": 1592.5,
+      "confidence": 0.95,
+      "reason": "Acast network promo for Wrong Turns podcast",
+      "end_text": "Wrong Turns, where dignity goes to die"
+    },
+    {
+      "start": 1595.5,
+      "end": 1602.6,
+      "confidence": 0.90,
+      "reason": "Acast platform promo",
+      "end_text": "Acast.com"
+    }
+  ]
+}

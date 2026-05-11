@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1718.3,
+    "end": 1799.6,
+    "confidence": 0.99,
+    "reason": "A multi-part ad break including a host-read promo for the DTNS store, a produced ad for Capital One, and a cross-promotion for the 'Good Things from Lemonada Media' podcast.",
+    "end_text": "the six-part Thrive series."
+  }
+]

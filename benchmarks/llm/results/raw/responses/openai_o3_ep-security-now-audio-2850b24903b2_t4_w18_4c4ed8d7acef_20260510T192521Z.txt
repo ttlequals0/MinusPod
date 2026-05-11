@@ -1,0 +1,1 @@
+{"start": 7607.7, "end": 7797.4, "confidence": 0.97, "reason": "Trusted Tech Microsoft 365 licensing sponsor read, host-read ad following break transition", "end_text": "Now, back to Steve."}

@@ -1,0 +1,170 @@
+[
+{
+  "start": 2924.1,
+   "end": 2950.4,
+   "confidence": 0.0,
+   "reason": "Episode content",
+   "end_text": "all his circuits would fry"
+},
+{
+   "start": 2952.3,
+   "end": 2979.6,
+   "confidence": 0.0,
+   "reason": "Episode content",
+   "end_text": "it couldn't exist"
+},
+{
+   "start": 2980.1,
+   "end": 2999.1,
+   "confidence": 0.0,
+   "reason": "Episode content",
+   "end_text": "crap even though"
+},
+{
+   "start": 3002.8,
+   "end": 3028.5,
+   "confidence": 0.0,
+   "reason": "Episode content",
+   "end_text": "academic train right"
+},
+{
+   "start": 3031.0,
+   "end": 3058.9,
+   "confidence": 0.0,
+   "reason": "Episode content",
+   "end_text": "how it works"
+},
+{
+   "start": 3059.4,
+   "end": 3086.4,
+   "confidence": 0.0,
+   "reason": "Episode content",
+   "end_text": "it couldn't have happened"
+},
+{
+   "start": 3087.2,
+   "end": 3095.8,
+   "confidence": 0.0,
+   "reason": "Episode content",
+   "end_text": "using the scientific method"
+},
+{
+   "start": 3096.7,
+   "end": 3120.9,
+   "confidence": 0.0,
+   "reason": "Episode content",
+   "end_text": "going into this field"
+},
+{
+   "start": 3122.4,
+   "end": 3148.2,
+   "confidence": 0.0,
+   "reason": "Episode content",
+   "end_text": "start to investigate it"
+},
+{
+   "start": 3150.8,
+   "end": 3175.0,
+   "confidence": 0.0,
+   "reason": "Episode content",
+   "end_text": "trying to understand it"
+},
+{
+   "start": 3175.8,
+   "end": 3197.3,
+   "confidence": 0.0,
+   "reason": "Episode content",
+   "end_text": "when just before you get"
+},
+{
+   "start": 3198.0,
+   "end": 3225.5,
+   "confidence": 0.0,
+   "reason": "Episode content",
+   "end_text": "so I saw that it was real"
+},
+{
+   "start": 3251.9,
+   "end": 3279.7,
+   "confidence": 0.0,
+   "reason": "Episode content",
+   "end_text": "predicts essentially a random"
+},
+{
+   "start": 3280.5,
+   "end": 3292.1,
+   "confidence": 0.0,
+   "reason": "Episode content",
+   "end_text": "maybe three times as likely"
+},
+{
+   "start": 3293.0,
+   "end": 3313.5,
+   "confidence": 0.0,
+   "reason": "Episode content",
+   "end_text": "the importance of winning"
+},
+{
+   "start": 3314.0,
+   "end": 3338.9,
+   "confidence": 0.0,
+   "reason": "Episode content",
+   "end_text": "you will get kicked out"
+},
+{
+   "start": 3339.8,
+   "end": 3367.2,
+   "confidence": 0.0,
+   "reason": "Episode content",
+   "end_text": "where women and men both show"
+},
+{
+   "start": 3368.0,
+   "end": 3390.5,
+   "confidence": 0.0,
+   "reason": "Episode content",
+   "end_text": "it doesn't matter so much"
+},
+{
+   "start": 3392.4,
+   "end": 3418.9,
+   "confidence": 0.0,
+   "reason": "Episode content",
+   "end_text": "or do you think it's something"
+},
+{
+   "start": 3430.8,
+   "end": 3432.2,
+   "confidence": 0.0,
+   "reason": "Episode content",
+   "end_text": "And..."
+},
+{
+   "start": 3446.1,
+   "end": 3474.3,
+   "confidence": 0.0,
+   "reason": "Episode content",
+   "end_text": "what is language"
+},
+{
+   "start": 3474.7,
+   "end": 3503.2,
+   "confidence": 0.0,
+   "reason": "Episode content",
+   "end_text": "or form and some of it's"
+},
+{
+   "start": 3503.6,
+   "end": 3528.8,
+   "confidence": 0.0,
+   "reason": "Episode content",
+   "end_text": "what was going on in your head"
+},
+{
+   "start": 3529.2,
+   "end": 3540.5,
+   "confidence": 0.0,
+   "reason": "Episode content",
+   "end_text": "like your dad"
+}
+]

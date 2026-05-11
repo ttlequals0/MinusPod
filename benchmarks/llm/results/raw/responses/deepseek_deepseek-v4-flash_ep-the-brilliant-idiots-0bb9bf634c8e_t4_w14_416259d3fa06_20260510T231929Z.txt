@@ -1,0 +1,7 @@
+{
+  "start": 6390.2,
+  "end": 6396.7,
+  "confidence": 0.95,
+  "reason": "Host-read sponsor transition: 'Let's pay some bills and do some asking idiots, man.' This is a transition into an ad break, though the actual sponsor pitch is not present in this window. The phrase 'pay some bills' is a common podcast ad break transition.",
+  "end_text": "do some asking idiots, man"
+}

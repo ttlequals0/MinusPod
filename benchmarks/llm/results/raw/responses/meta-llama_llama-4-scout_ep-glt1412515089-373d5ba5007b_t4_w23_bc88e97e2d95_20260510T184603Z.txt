@@ -1,0 +1,7 @@
+{
+"start": 0.0,
+  "end": 161.0,
+  "confidence": 1.0,
+  "reason": "platform pre-roll ad",
+  "end_text": "visit podcastchoices.com/adchoices"
+}

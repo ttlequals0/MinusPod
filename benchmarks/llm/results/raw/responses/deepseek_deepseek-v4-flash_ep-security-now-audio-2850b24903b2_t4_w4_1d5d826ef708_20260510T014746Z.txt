@@ -1,0 +1,7 @@
+{
+  "start": 1664.0,
+  "end": 2288.1,
+  "confidence": 0.0,
+  "reason": "No promotional language, sponsor names, URLs, promo codes, or calls to action found in this transcript window. The content is entirely editorial discussion of NCSC guidance, CISA access to Anthropic's Mythos, and related security topics.",
+  "end_text": "Thank you for watching."
+}

@@ -1,0 +1,9 @@
+ads": [ 
+  {
+    "start": 539.2, 
+    "end": 595.4, 
+    "confidence": 0.98, 
+    "reason": "In the Gray and Skechers sponsor reads", 
+    "end_text": "Skechers.com"
+  }
+]}

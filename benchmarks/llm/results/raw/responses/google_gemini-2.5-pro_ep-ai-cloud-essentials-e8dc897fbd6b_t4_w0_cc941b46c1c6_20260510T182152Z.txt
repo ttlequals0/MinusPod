@@ -1,0 +1,9 @@
+[
+  {
+    "start": 58.0,
+    "end": 80.1,
+    "confidence": 0.9,
+    "reason": "The host opens the show with an integrated sponsorship credit, stating the podcast is 'brought to you by Core Read' (likely CoreWeave).",
+    "end_text": "kick things off with..."
+  }
+]

@@ -1,0 +1,1 @@
+{"start": 3358.6, "end": 3376.2, "confidence": 0.3, "reason": "Non-promotional outro phrase 'Thank you for watching' with no sponsor pitch, product mention, or CTA in transcript", "end_text": "Thank you for watching."}

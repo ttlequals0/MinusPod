@@ -1,0 +1,8 @@
+
+{
+	"start": 7173.7,
+	"end": 7196.8,
+	"confidence": 0.95,
+	"reason": "Netflix's Remarkably Bright Creatures ad read",
+	"end_text": "Remarkably Bright Creatures is now playing only on Netflix."
+}

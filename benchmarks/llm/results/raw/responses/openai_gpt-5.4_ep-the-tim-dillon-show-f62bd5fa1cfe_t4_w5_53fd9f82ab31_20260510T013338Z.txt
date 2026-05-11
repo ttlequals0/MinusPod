@@ -1,0 +1,1 @@
+{"start": 2085.5, "end": 2699.0, "confidence": 0.01, "reason": "No promotional language or sponsor read; this is show content discussing children, screens, and GLP-1s", "end_text": "them iPads for the entire day."}

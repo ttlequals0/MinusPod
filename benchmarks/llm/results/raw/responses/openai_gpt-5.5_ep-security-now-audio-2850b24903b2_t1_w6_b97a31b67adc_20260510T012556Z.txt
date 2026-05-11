@@ -1,0 +1,1 @@
+{"start":2532.3,"end":2693.0,"confidence":0.99,"reason":"Meter sponsor read, including break transition; promotional language includes Meter networking infrastructure pitch and call to action to visit meter.com/securitynow and book a demo","end_text":"now back to steve"}

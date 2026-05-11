@@ -1,0 +1,1 @@
+[{"start": 4690.8, "end": 4878.7, "confidence": 0.95, "reason": "Claude Security promotion with URL claude.ai/security", "end_text": "claude.ai/security"}, {"start": 5158.3, "end": 5220.0, "confidence": 0.95, "reason": "OpenAI Advanced Account Security promotion", "end_text": "Advanced Account Security"}]

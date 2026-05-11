@@ -1,0 +1,1 @@
+[{"start": 4646.2, "end": 4806.1, "confidence": 0.98, "reason": "Network-inserted brand ads (Colgate, Skinny Pop, Viz, Garnier) with gaps < 15s", "end_text": "parks at GarnierUSA.com slash NPF"}]

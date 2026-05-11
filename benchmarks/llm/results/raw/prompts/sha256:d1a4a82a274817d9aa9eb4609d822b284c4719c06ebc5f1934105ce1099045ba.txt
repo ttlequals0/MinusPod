@@ -1,0 +1,60 @@
+Podcast: security-now-audio
+Episode: SN 1077: A Browser AI API? - End of Bug Bounties?
+
+
+Episode description: <p>Google is sneaking a massive 4.7GB AI model into Chrome, and Mozilla is fighting back as the future of browsers threatens to turn into an AI arms race. Find out what's really happening behind this push and why it's setting off alarm bells across the web.</p><ul> 
+<li>Hackers AI-code a portal, forget to add authentication.</li> 
+<li>The UK's NCSC issues a Mythos warning. Where's CISA?</li> 
+<li>Another (of many) Linux local privilege escalations.</li> 
+<li>AI may be spelling the end of bug bounties.</li> 
+<li>Anthropic releases "Claude Security" mini-Mythos.</li> 
+<li>ChatGPT gets very serious about login security.</li> 
+<li>Syncthing's SyncTrayzor v1 abandoned; v2 created.</li> 
+<li>Google drops an AI API into Chrome; Mozilla objects</li></ul> 
+<p>Show Notes - <a href="https://www.grc.com/sn/SN-1077-Notes.pdf">https://www.grc.com/sn/SN-1077-Notes.pdf</a></p> 
+<p><strong>Hosts:</strong> <a href="https://twit.tv/people/steve-gibson">Steve Gibson</a> and <a href="https://twit.tv/people/leo-laporte">Leo Laporte</a></p> 
+<p>Download or subscribe to <em>Security Now</em> at <a href="https://twit.tv/shows/security-now">https://twit.tv/shows/security-now</a>.</p> 
+<p>You can submit a question to <em>Security Now</em> at the <a href="https://www.grc.com/feedback.htm" target="_blank">GRC Feedback Page</a>.</p> 
+<p>For 16kbps versions, transcripts, and notes (including fixes), visit Steve's site: <a href="https://www.grc.com/securitynow.htm" target="_blank">grc.com</a>, also the home of the best disk maintenance and recovery utility ever written <a href="https://www.grc.com/sr/spinrite.htm" target="_blank">Spinrite 6</a>.</p> 
+<p><strong>Join Club TWiT for Ad-Free Podcasts!</strong><br /> 
+Support what you love and get ad-free audio <em>and</em> video feeds, a members-only Discord, and exclusive content. Join today: <a href="https://twit.tv/clubtwit" rel="payment">https://twit.tv/clubtwit</a></p>
+<p><strong>Sponsors:</strong><ul>
+<li><a href="http://zscaler.com/security" rel="sponsored" target="_blank">zscaler.com/security</a></li>
+<li><a href="http://meter.com/securitynow" rel="sponsored" target="_blank">meter.com/securitynow</a></li>
+<li><a href="http://bitwarden.com/twit" rel="sponsored" target="_blank">bitwarden.com/twit</a></li>
+<li><a href="http://hoxhunt.com/securitynow" rel="sponsored" target="_blank">hoxhunt.com/securitynow</a></li>
+<li><a href="http://trustedtech.team/securitynow365" rel="sponsored" target="_blank">trustedtech.team/securitynow365</a></li>
+</ul></p>
+
+Transcript:
+[4600.8s - 4627.0s] posted about this. They said, Claude Security, which is what they're calling it, Claude Security is now available in public beta to Claude Enterprise customers. AI cybersecurity capabilities are advancing fast. Today's models are already highly effective at finding flaws in software code. The next generation will be more capable still and will be particularly effective at autonomously exploiting these flaws.
+[4627.6s - 4638.7s] Now is the time for organizations to act to improve their security, preparing for a world in which working software exploits are much easier to discover.
+[4639.7s - 4661.1s] Recently, we made Clawed Mythos Preview, which can match or surpass even elite human experts at both finding and exploiting software vulnerabilities, available to a number of partners as part of Project Glasswing. But our cybersecurity efforts go beyond Glasswing. With Clawed Security,
+[4661.9s - 4683.1s] Thank you for watching.
+[4690.8s - 4715.6s] Previously known as Clawed Code Security has already been tested by hundreds of organizations of all sizes in limited research preview, helping teams scan their code bases for vulnerabilities and generate targeted patches. Their feedback has shaped today's release, which makes Clawed Security available to all enterprise customers. It comes with scheduled and targeted scans.
+[4716.4s - 4742.4s] Easier integration into audit systems and improved tracking of triaged findings. No API integration or custom agent build is required. If your organization uses Claude, you can start scanning today. Opus 4.7's capabilities are also being brought to cyber defenders through Claude's integration into software tools that many enterprises already use.
+[4743.0s - 4769.2s] Our technology partners, including CrowdStrike, Microsoft Security, Palo Alto Networks, SentinelOne, Trend AI, and Wiz, are embedding Opus 4.7 into their tools. In addition, services partners like Accenture, BCG, Deloitte, Infosys, and PwC are now helping organizations deploy cloud integrated security solutions.
+[4770.3s - 4797.4s] We're entering a pivotal time for cybersecurity. AI is compressing the timeline between vulnerability discovery and exploitation. We believe the right response is to make sure defenders have access to frontier capabilities in the ways most accessible to them through Claude directly and through our partners. Claude security can be accessed directly from the Claude.ai sidebar.
+[4797.9s - 4816.0s] or at claude.ai slash security. To begin, select one of your repositories or scope to a specific directory or branch. Then start a scan. While scanning, Claude reasons about code much like a security researcher.
+[4816.6s - 4844.5s] Rather than finding vulnerabilities by searching for known patterns, Claude seeks to understand how components interact across files and modules, traces data flows, and reads the source code. Once complete, Claude provides a detailed explanation of each of its findings, including its confidence that the vulnerability is real, how severe it is, its likely impact, and how it can be reproduced.
+[4844.8s - 4854.2s] It also generates instructions for a targeted patch, which users can open in clawed code on the web to work through the fix in context.
+[4854.9s - 4878.7s] It just sounds fantastic. Over the past two months, we've refined Claude's security in line with what we learned from its use in production across hundreds of enterprises. Specifically, we've seen that detection quality is paramount. Teams have told us that high confidence findings are what really accelerate security work.
+[4879.1s - 4906.3s] Claude Security's multi-stage validation pipeline independently examines each finding before it reaches an analyst, which drives down false positives, and Claude attaches a confidence rating to every result. This means that the signal that reaches the team is worth acting on. Time from scan to fix is the metric that matters. Early users
+[4906.9s - 4935.1s] pointed to this consistently with several teams going from scan to applied patch in a single sitting, where instead of days of back and forth between security and engineering teams, teams want ongoing coverage, not one-off audits. We've added the option to schedule scans so teams can set a regular cadence around reviewing and acting on findings. With this release,
+[4935.6s - 4961.8s] We've also added the ability to target a scan at a particular directory within a repository, dismiss findings with documented reasons so that future reviewers can trust prior triage decisions, export findings as CSV or markdown for existing tracking and audit systems, and send scan results to Slack, Jira, or other tools via webhooks. Okay.
+[4962.6s - 4978.4s] Given the wind-up we've seen from Mythos over the past month, and the way they describe this, I cannot imagine why any organization whose software might contain
+[4980.8s - 5008.2s] External exploitable vulnerabilities or bugs would not be jumping on this with all possible speed. As I noted a few weeks back, an organization's own internal software is only closed source to the outside world. To the organization, their own source code is wide open, and there is now an emerging tool that stands a good chance.
+[5008.8s - 5015.7s] Thank you for watching.
+[5037.8s - 5062.7s] That if Mythos is even better at finding bugs, there's still benefit from running this Mythos Junior, you know, Cloud Security, over your code base to see if it's able to find something. Certainly, if it can, Mythos would. Mythos may be available in the future. Well, we presume it will be at some point. But you have this now. So...
+[5063.1s - 5071.5s] I think this is, you know, maybe in retrospect, a predictable evolution on Anthropic's part.
+[5073.5s - 5101.6s] But certainly welcome. I do this anyway. I mean, I don't have Mythos or anything like it. I just have the regular, you know, Claude Opus 47 and ChatGPT 5.5. And I always say, in fact, I often have ChatGPT check Claude's work and Claude check ChatGPT's work. And I frequently say, let's do a security audit on these repositories. I mean, that by itself is useful. I found all sorts of stuff. I've also had security audits on my systems.
+[5102.2s - 5127.9s] And it's found errors and corrections there, too. You know, just the regular models are useful. I can't wait to see how Mythos does. Yeah, and I think from what they've said, what this adds is the ability, for example, to schedule scans so that your engineering software development team, they're just working along, and then periodically,
+[5129.4s - 5157.8s] The code base is given a scan and a check to see if anything significant has been found. That's a great idea. I think that's brilliant. Okay, so OpenAI announced that they've decided, I was very impressed by this, I'll just say ahead of time, to make account login security a selling point. They're posting
+[5158.3s - 5173.6s] was titled Introducing Advanced Account Security. And they explain, today we're introducing Advanced Account Security, a new opt-in setting for ChatGPT accounts. And you've got it now, Leo.
+[5174.0s - 5202.4s] Designed for people at increased risk of digital attacks, as well as for those who want the strongest account protections available. It brings together a set of heightened security measures that help safeguard against account takeover, while making those protections easier to activate in one place. Once enrolled, advanced account security protects users in Codex as well. They wrote,
+[5202.8s - 5223.6s] People are turning to AI for deeply personal questions and increasingly high-stakes work. Over time, a chat GPT account can hold sensitive personal and professional context and sit at the center of connected tools and workflows. For some people,
+
+=== WINDOW 12/23: 77.0-87.0 minutes ===
+- Use absolute timestamps from transcript (as shown in brackets)
+- If an ad starts before this window, use the first timestamp with note "continues from previous"
+- If an ad extends past this window, use 5220.0 with note "continues in next"

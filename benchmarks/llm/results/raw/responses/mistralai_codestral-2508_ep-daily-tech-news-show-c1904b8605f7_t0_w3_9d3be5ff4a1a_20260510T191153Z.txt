@@ -1,0 +1,1 @@
+[{"start": 1718.3, "end": 1799.6, "confidence": 0.98, "reason": "Capital One sponsor read", "end_text": "technology at Capital One"}, {"start": 1799.6, "end": 1829.8, "confidence": 0.95, "reason": "Good Things from Lemonada Media network-inserted brand tagline ad", "end_text": "to hear the six-part Thrive series"}]

@@ -1,0 +1,16 @@
+[
+  {
+    "start": 539.2,
+    "end": 568.3,
+    "confidence": 0.98,
+    "reason": "Host-read ad for 'In the Gray' movie",
+    "end_text": "operation with plenty of action"
+  },
+  {
+    "start": 568.4,
+    "end": 600.0,
+    "confidence": 0.99,
+    "reason": "Host-read Skechers ad continuing beyond window",
+    "end_text": "casual and dress footwear, sandals, sneakers"
+  }
+]

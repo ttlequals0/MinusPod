@@ -1,0 +1,1 @@
+{ "start": 105.0, "end": 115.0, "confidence": 0.0, "reason": "No ads detected in this window", "end_text": "no ads detected" }

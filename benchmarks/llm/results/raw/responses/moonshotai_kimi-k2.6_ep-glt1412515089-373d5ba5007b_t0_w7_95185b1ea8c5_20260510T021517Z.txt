@@ -1,0 +1,1 @@
+{"start":2924.1,"end":2950.4,"confidence":0.0,"reason":"No promotional content detected in this window","end_text":"plenty of evidence"}

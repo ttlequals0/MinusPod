@@ -1,0 +1,10 @@
+ Ad segments:
+
+[1269.5s - 1280.9s] This is a sponsored segment for Xero. The hosts promote Xero and its free trial, and mention the condition "Conditions apply." This meets the definition of an ad as it contains promotional language for a specific product and a call to action.
+
+[1595.5s - 1602.6s] This is a host-read advertisement for Acast. The hosts promote Acast and its services for creators, and mention the website "Acast.com." This meets the definition of an ad as it is a paid promotion for a company.
+
+Therefore, the transcript contains two advertisement segments:
+
+1. [1269.5s - 1280.9s] Xero
+2. [1595.5s - 1602.6s] Acast.

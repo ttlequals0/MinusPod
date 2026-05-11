@@ -1,0 +1,1 @@
+{"start": 1255.9, "end": 1268.8, "confidence": 0.95, "reason": "Platform-inserted post-roll or transition: 'Thank you for watching' with no show content or promotional language, likely end of video stream segment", "end_text": "Thank you for watching."}

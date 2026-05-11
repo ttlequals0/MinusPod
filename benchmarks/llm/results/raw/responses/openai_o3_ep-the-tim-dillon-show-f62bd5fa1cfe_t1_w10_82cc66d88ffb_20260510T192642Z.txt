@@ -1,0 +1,1 @@
+{"start": 4646.2, "end": 4806.1, "confidence": 0.97, "reason": "Cluster of network-inserted ads for Colgate Women’s Games, Skinny Pop, Viz eye drops, and Garnier National Park Foundation", "end_text": "GarnierUSA.com slash NPF"}

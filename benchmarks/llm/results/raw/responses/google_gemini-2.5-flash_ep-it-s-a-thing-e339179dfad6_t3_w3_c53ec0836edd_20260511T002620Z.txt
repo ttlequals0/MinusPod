@@ -1,0 +1,30 @@
+[
+  {
+    "start": 1524.5,
+    "end": 1561.9,
+    "confidence": 0.98,
+    "reason": "Xero sponsor read",
+    "end_text": "search XERO for your free trial. Conditions apply."
+  },
+  {
+    "start": 1561.9,
+    "end": 1565.4,
+    "confidence": 0.99,
+    "reason": "Acast platform ad",
+    "end_text": "Acast powers the world's best podcasts. Here's a show that we recommend."
+  },
+  {
+    "start": 1565.4,
+    "end": 1592.5,
+    "confidence": 0.98,
+    "reason": "Podcast cross-promotion (Wrong Turns)",
+    "end_text": "So listen wherever you get your podcasts, Wrong Turns, where dignity goes to die."
+  },
+  {
+    "start": 1595.5,
+    "end": 1602.6,
+    "confidence": 0.99,
+    "reason": "Acast platform ad",
+    "end_text": "Acast helps creators launch, grow, and monetize their podcasts everywhere. Acast.com."
+  }
+]

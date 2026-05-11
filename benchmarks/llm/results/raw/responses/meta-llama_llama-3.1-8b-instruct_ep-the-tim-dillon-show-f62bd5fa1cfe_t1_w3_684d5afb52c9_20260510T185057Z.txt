@@ -1,0 +1,44 @@
+[
+{
+  "start": 1439.2,
+   "end": 1465.2,
+   "confidence": 0.95,
+   "reason": "Mint Mobile sponsor read",
+   "end_text": "get three months of premium"
+},
+{
+   "start": 1466.3,
+   "end": 1512.6,
+   "confidence": 0.98,
+   "reason": "Mint Mobile sponsor read",
+   "end_text": "mintmobile.com slash Tim"
+},
+{
+   "start": 1514.6,
+   "end": 1563.8,
+   "confidence": 0.95,
+   "reason": "Aura Frames sponsor read",
+   "end_text": "AuraFrames.com slash Tim"
+},
+{
+   "start": 1607.4,
+   "end": 1629.5,
+   "confidence": 0.95,
+   "reason": "Colgate sponsor read",
+   "end_text": "your smile is your strength"
+},
+{
+   "start": 1637.6,
+   "end": 1665.9,
+   "confidence": 0.95,
+   "reason": "Skinny Pop sponsor read",
+   "end_text": "Skinny Pop"
+},
+{
+   "start": 1668.7,
+   "end": 1688.4,
+   "confidence": 0.95,
+   "reason": "Skinny Pop sponsor read",
+   "end_text": "Skinny Pop"
+}
+]

@@ -1,0 +1,198 @@
+[
+{
+  "start": 3774.5,
+   "end": 3802.7,
+   "confidence": 0.95,
+   "reason": "Intro and setup for the episode",
+   "end_text": "Hantavirus cruise ship"
+},
+{
+   "start": 3803.3,
+   "end": 3822.8,
+   "confidence": 0.95,
+   "reason": "Host's commentary on the Hantavirus cruise ship",
+   "end_text": "sad, and it's horrible"
+},
+{
+   "start": 3824.1,
+   "end": 3842.1,
+   "confidence": 0.95,
+   "reason": "Host's commentary on the Hantavirus cruise ship",
+   "end_text": "very dangerous outbreak"
+},
+{
+   "start": 3843.2,
+   "end": 3870.8,
+   "confidence": 0.95,
+   "reason": "Host's commentary on the Hantavirus cruise ship",
+   "end_text": "unnecessary risk"
+},
+{
+   "start": 3879.5,
+   "end": 3882.3,
+   "confidence": 0.95,
+   "reason": "Host's commentary on the Hantavirus cruise ship",
+   "end_text": "Selflessly"
+},
+{
+   "start": 3883.6,
+   "end": 3908.5,
+   "confidence": 0.95,
+   "reason": "Host's commentary on the Hantavirus cruise ship",
+   "end_text": "Trump administration"
+},
+{
+   "start": 3911.2,
+   "end": 3935.8,
+   "confidence": 0.95,
+   "reason": "Host's commentary on the Hantavirus cruise ship",
+   "end_text": "AI"
+},
+{
+   "start": 3936.9,
+   "end": 3949.4,
+   "confidence": 0.95,
+   "reason": "Host's commentary on the Hantavirus cruise ship",
+   "end_text": "plank"
+},
+{
+   "start": 3950.7,
+   "end": 3975.9,
+   "confidence": 0.95,
+   "reason": "Host's commentary on the Hantavirus cruise ship",
+   "end_text": "aliens created all of us"
+},
+{
+   "start": 3976.7,
+   "end": 3983.6,
+   "confidence": 0.95,
+   "reason": "Host's commentary on the Hantavirus cruise ship",
+   "end_text": "agree with our government"
+},
+{
+   "start": 3976.8,
+   "end": 4002.7,
+   "confidence": 0.95,
+   "reason": "Host's commentary on the Hantavirus cruise ship",
+   "end_text": "spending and the economy"
+},
+{
+   "start": 4003.4,
+   "end": 4029.6,
+   "confidence": 0.95,
+   "reason": "Host's commentary on the Hantavirus cruise ship",
+   "end_text": "people waiting for us at home"
+},
+{
+   "start": 4032.6,
+   "end": 4057.4,
+   "confidence": 0.95,
+   "reason": "Host's commentary on the Hantavirus cruise ship",
+   "end_text": "get home"
+},
+{
+   "start": 4059.6,
+   "end": 4089.0,
+   "confidence": 0.95,
+   "reason": "Host's commentary on the Hantavirus cruise ship",
+   "end_text": "hantavirus"
+},
+{
+   "start": 4090.4,
+   "end": 4122.0,
+   "confidence": 0.95,
+   "reason": "Host's commentary on the Hantavirus cruise ship",
+   "end_text": "hantavirus"
+},
+{
+   "start": 4125.3,
+   "end": 4140.4,
+   "confidence": 0.95,
+   "reason": "Host's commentary on the Hantavirus cruise ship",
+   "end_text": "Honda virus"
+},
+{
+   "start": 4142.3,
+   "end": 4169.2,
+   "confidence": 0.95,
+   "reason": "Host's commentary on the Hantavirus cruise ship",
+   "end_text": "hantavirus"
+},
+{
+   "start": 4170.1,
+   "end": 4188.7,
+   "confidence": 0.95,
+   "reason": "Host's commentary on the Hantavirus cruise ship",
+   "end_text": "hantavirus"
+},
+{
+   "start": 4190.9,
+   "end": 4209.3,
+   "confidence": 0.95,
+   "reason": "Host's commentary on the Hantavirus cruise ship",
+   "end_text": "hantavirus"
+},
+{
+   "start": 4212.0,
+   "end": 4221.6,
+   "confidence": 0.95,
+   "reason": "Host's commentary on the Hantavirus cruise ship",
+   "end_text": "hantavirus"
+},
+{
+   "start": 4223.7,
+   "end": 4246.5,
+   "confidence": 0.95,
+   "reason": "Host's commentary on the Hantavirus cruise ship",
+   "end_text": "Northwest Africa"
+},
+{
+   "start": 4246.9,
+   "end": 4263.4,
+   "confidence": 0.95,
+   "reason": "Host's commentary on the Hantavirus cruise ship",
+   "end_text": "World Health Organization"
+},
+{
+   "start": 4264.1,
+   "end": 4289.1,
+   "confidence": 0.95,
+   "reason": "Host's commentary on the Hantavirus cruise ship",
+   "end_text": "hantavirus"
+},
+{
+   "start": 4289.7,
+   "end": 4317.6,
+   "confidence": 0.95,
+   "reason": "Host's commentary on the Hantavirus cruise ship",
+   "end_text": "hantavirus"
+},
+{
+   "start": 4318.8,
+   "end": 4342.0,
+   "confidence": 0.95,
+   "reason": "Host's commentary on the Hantavirus cruise ship",
+   "end_text": "hantavirus"
+},
+{
+   "start": 4344.5,
+   "end": 4363.3,
+   "confidence": 0.95,
+   "reason": "Host's commentary on the Hantavirus cruise ship",
+   "end_text": "hantavirus"
+},
+{
+   "start": 4364.5,
+   "end": 4378.5,
+   "confidence": 0.95,
+   "reason": "Host's commentary on the Hantavirus cruise ship",
+   "end_text": "hantavirus"
+},
+{
+   "start": 63.0,
+   "end": 73.0,
+   "confidence": 0.95,
+   "reason": "No ads found in this window",
+   "end_text": "no ads"
+}
+]

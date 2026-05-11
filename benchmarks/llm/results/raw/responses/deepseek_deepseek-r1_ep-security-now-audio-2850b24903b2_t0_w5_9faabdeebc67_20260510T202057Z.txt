@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2558.9,
+    "end": 2693.0,
+    "confidence": 0.99,
+    "reason": "Meter sponsor read with break transition and call to action (meter.com/securitynow)",
+    "end_text": "all right now back to steve"
+  }
+]

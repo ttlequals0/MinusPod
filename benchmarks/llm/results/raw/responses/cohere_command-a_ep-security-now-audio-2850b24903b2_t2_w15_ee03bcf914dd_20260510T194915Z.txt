@@ -1,0 +1,7 @@
+{
+  "start": 6305.2,
+  "end": 6900.0,
+  "confidence": 0.95,
+  "reason": "Discussion of Google's AI API in Chrome, not an ad",
+  "end_text": "provided to their browser"
+}

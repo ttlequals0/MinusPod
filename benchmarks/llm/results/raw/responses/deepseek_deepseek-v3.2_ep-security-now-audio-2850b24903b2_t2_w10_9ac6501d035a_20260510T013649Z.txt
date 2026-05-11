@@ -1,0 +1,1 @@
+[{"start": 4204.1, "end": 4465.7, "confidence": 0.99, "reason": "Host-read ad break for Bitwarden with transition, product pitch, and call to action (bitwarden.com/twit)", "end_text": "bitwarden.com slash twit"}]

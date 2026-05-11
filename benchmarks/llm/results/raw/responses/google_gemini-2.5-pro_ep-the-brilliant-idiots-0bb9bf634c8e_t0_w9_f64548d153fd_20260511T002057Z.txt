@@ -1,0 +1,16 @@
+[
+  {
+    "start": 4057.2,
+    "end": 4107.1,
+    "confidence": 0.9,
+    "reason": "Host-read ad break transition followed by a 'Church announcements' segment promoting the guest's podcast and YouTube channel.",
+    "end_text": "Friday at 6 a.m."
+  },
+  {
+    "start": 4296.0,
+    "end": 4361.4,
+    "confidence": 0.95,
+    "reason": "Host-read promotional block for a book (Jess Hilarious), an event (All Love Racquet Club), and another show (AM Mornings).",
+    "end_text": "See you guys there. Peace."
+  }
+]

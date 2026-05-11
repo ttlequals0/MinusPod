@@ -1,0 +1,9 @@
+[
+    {
+        "start": 7633.1,
+        "end": 7743.9,
+        "confidence": 0.98,
+        "reason": "Trusted Tech sponsorship read discussing Microsoft 365 licensing costs and services",
+        "end_text": "differentiates you in the marketplace"
+    }
+]

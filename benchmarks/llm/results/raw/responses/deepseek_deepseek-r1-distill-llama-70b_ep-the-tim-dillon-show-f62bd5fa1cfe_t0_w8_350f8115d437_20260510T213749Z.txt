@@ -1,0 +1,14 @@
+{
+  "transcript": "Alright, so I've been thinking about this a lot, and I really believe that everyone should check out this amazing new app called 'FocusFlow'. It's been a game-changer for my productivity. Not only does it help me stay organized, but it also has these incredible features that just make my life so much easier. I mean, where was this app when I was in college? Anyway, I think you all should give it a shot. It's available for both iOS and Android, and you can get it by going to focusflow.app/podcast. Trust me, you won't regret it. Let's take a quick break.",
+  "detection_rules": {
+    "host_read": true,
+    "promo_code": "No promo code mentioned",
+    "url": "focusflow.app/podcast",
+    "call_to_action": "give it a shot",
+    "transition": "Let's take a quick break"
+  },
+  "ad_start": 45.0,
+  "ad_end": 82.0,
+  "confidence": 0.98,
+  "reason": "Host-read sponsor segment promoting FocusFlow app with URL and call to action"
+}

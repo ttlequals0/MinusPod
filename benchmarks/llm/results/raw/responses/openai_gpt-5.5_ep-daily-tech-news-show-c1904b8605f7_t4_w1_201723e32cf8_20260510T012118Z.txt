@@ -1,0 +1,1 @@
+{"start":821.4,"end":1020.0,"confidence":0.99,"reason":"Multiple contiguous ad reads/network ads: Capital One, BetterHelp, Amazon Health AI, Spectrum Business, and Rinse; continues in next window","end_text":"It's time to be great"}

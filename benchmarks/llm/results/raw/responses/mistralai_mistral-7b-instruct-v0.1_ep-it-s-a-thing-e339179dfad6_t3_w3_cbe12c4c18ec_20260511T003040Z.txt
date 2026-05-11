@@ -1,0 +1,4 @@
+ Ad segments:
+
+[1269.5s - 1280.9s] "ACAST powers the world's best podcasts. Here's a show that we recommend... XERO for your free trial. Conditions apply." (continues from previous)
+[1595.5s - 1602.6s] "I'm Jameeda Jamil, and guests on my new podcast, Wrong Turns, share their most mortifying and hilarious disaster stories... Acast helps creators launch, grow, and monetize their podcasts everywhere." (continues in next)

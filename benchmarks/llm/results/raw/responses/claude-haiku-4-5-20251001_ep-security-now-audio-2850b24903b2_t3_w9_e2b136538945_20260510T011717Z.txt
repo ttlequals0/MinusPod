@@ -1,0 +1,18 @@
+```json
+[
+  {
+    "start": 4204.1,
+    "end": 4264.3,
+    "confidence": 0.92,
+    "reason": "Host transition to break and show information segment. Leo says 'You want to take a little break? I do.' followed by show details (air times, platforms, where to watch), then 'We'll have more Security Now right after this.' This is the transition into the ad break.",
+    "end_text": "Security Now right after this"
+  },
+  {
+    "start": 4265.2,
+    "end": 4396.1,
+    "confidence": 0.98,
+    "reason": "Bitwarden sponsor read. Clear sponsor identification: 'This episode of Security Now is brought to you by Bitwarden'. Detailed product pitch covering password management, Access Intelligence, Vault health alerts, new Agent Access SDK, passkey login for Windows 11, with emphasis on security features and open-source approach.",
+    "end_text": "unlocking devices at the OS level"
+  }
+]
+```

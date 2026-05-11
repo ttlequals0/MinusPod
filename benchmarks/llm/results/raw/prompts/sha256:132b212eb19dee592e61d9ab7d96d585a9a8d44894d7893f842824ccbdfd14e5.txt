@@ -1,0 +1,61 @@
+Podcast: security-now-audio
+Episode: SN 1077: A Browser AI API? - End of Bug Bounties?
+
+
+Episode description: <p>Google is sneaking a massive 4.7GB AI model into Chrome, and Mozilla is fighting back as the future of browsers threatens to turn into an AI arms race. Find out what's really happening behind this push and why it's setting off alarm bells across the web.</p><ul> 
+<li>Hackers AI-code a portal, forget to add authentication.</li> 
+<li>The UK's NCSC issues a Mythos warning. Where's CISA?</li> 
+<li>Another (of many) Linux local privilege escalations.</li> 
+<li>AI may be spelling the end of bug bounties.</li> 
+<li>Anthropic releases "Claude Security" mini-Mythos.</li> 
+<li>ChatGPT gets very serious about login security.</li> 
+<li>Syncthing's SyncTrayzor v1 abandoned; v2 created.</li> 
+<li>Google drops an AI API into Chrome; Mozilla objects</li></ul> 
+<p>Show Notes - <a href="https://www.grc.com/sn/SN-1077-Notes.pdf">https://www.grc.com/sn/SN-1077-Notes.pdf</a></p> 
+<p><strong>Hosts:</strong> <a href="https://twit.tv/people/steve-gibson">Steve Gibson</a> and <a href="https://twit.tv/people/leo-laporte">Leo Laporte</a></p> 
+<p>Download or subscribe to <em>Security Now</em> at <a href="https://twit.tv/shows/security-now">https://twit.tv/shows/security-now</a>.</p> 
+<p>You can submit a question to <em>Security Now</em> at the <a href="https://www.grc.com/feedback.htm" target="_blank">GRC Feedback Page</a>.</p> 
+<p>For 16kbps versions, transcripts, and notes (including fixes), visit Steve's site: <a href="https://www.grc.com/securitynow.htm" target="_blank">grc.com</a>, also the home of the best disk maintenance and recovery utility ever written <a href="https://www.grc.com/sr/spinrite.htm" target="_blank">Spinrite 6</a>.</p> 
+<p><strong>Join Club TWiT for Ad-Free Podcasts!</strong><br /> 
+Support what you love and get ad-free audio <em>and</em> video feeds, a members-only Discord, and exclusive content. Join today: <a href="https://twit.tv/clubtwit" rel="payment">https://twit.tv/clubtwit</a></p>
+<p><strong>Sponsors:</strong><ul>
+<li><a href="http://zscaler.com/security" rel="sponsored" target="_blank">zscaler.com/security</a></li>
+<li><a href="http://meter.com/securitynow" rel="sponsored" target="_blank">meter.com/securitynow</a></li>
+<li><a href="http://bitwarden.com/twit" rel="sponsored" target="_blank">bitwarden.com/twit</a></li>
+<li><a href="http://hoxhunt.com/securitynow" rel="sponsored" target="_blank">hoxhunt.com/securitynow</a></li>
+<li><a href="http://trustedtech.team/securitynow365" rel="sponsored" target="_blank">trustedtech.team/securitynow365</a></li>
+</ul></p>
+
+Transcript:
+[0.0s - 15.7s] It's Cybersecurity Now. Steve Gibson is here. He is armed with the knowledge that Google is now downloading 4.7 gigabytes when you download Chrome. What is it? A local AI model. Steve talks about its implications next on Security Now.
+[16.7s - 41.5s] This episode is brought to you by OutSystems, a leading AI development platform for the enterprise. Organizations all over the world are creating custom apps and AI agents on the OutSystems platform, and with good reason. Build, run, and govern apps and agents on one unified platform. Innovate at the speed of AI without compromising quality or control. Trusted by thousands of enterprises worldwide for mission-critical apps.
+[41.9s - 68.0s] Teams of any size and technical depth can use OutSystems to build, deploy, and manage AI apps and agents quickly and effectively, without compromising reliability and security. With OutSystems, you can accelerate ideas from concept to completion. It's the leading AI development platform that's unified, agile, and enterprise proven, allowing you to build your agentic future with AI solutions deeply integrated into your architecture.
+[68.6s - 84.9s] OutSystems. Build your agentic future. Learn more at OutSystems.com slash twit. That's OutSystems.com slash twit. Podcasts you love. From people you trust. This is Twit.
+[88.9s - 116.9s] This is Security Now with Steve Gibson. Episode 1077, recorded Tuesday, May 5th, 2026. A browser AI API? It's time for Security Now. Yes, it's Tuesday. Yes, I am not in my studio. I am in beautiful Hawaii, the big island. But that doesn't mean I'm not going to get Steve Gibson on the horn and talk about security because I know you need your fix. Hello, Mr. G.
+[117.7s - 142.0s] You know, Leo, you look a little more tan than you did last time we saw you. I am. See, my hand is light, but my face is a little dark. Do my ties increase skin pigmentation? Maybe that's what it is. Maybe that's what it is. Yeah, we were on vacation, but I can't, you know, I still want to do the shows. And so I've set up, if you could only see this cookie set up, I am outside.
+[142.7s - 163.6s] on the lanai we hear the uh the exotic birds tweeting in the back there are some exotic birds there's minor birds there's uh house sparrows and there's a bird that looks like a little chicken uh called a falacon i can't remember the name of it but uh chicken bird chicken bird and it's very noisy so you'll know if it decides
+[164.1s - 188.7s] But the sparrows are very aggressive. They might think I have something to give them, so they might be coming up here and sitting on my shoulder. Well, it all adds to the ambiance that we have with you and Lisa in the big island. It's so beautiful. Have you been to Hawaii, Steve? Oh, yeah. I had the second half of my honeymoon in Hawaii. I love Hawaii. I do. So, what's coming up on Security Now this week?
+[189.0s - 216.3s] So, episode 1077. It's funny, every so often I think about 1077, which sort of puts the infamous 999 into context. Now it's been a while. Actually, it's been 77 whiles. So, there were two main topics which were contesting to win the coveted title.
+[216.8s - 244.2s] of the podcast this week. Google's arguably premature move to build AI into Chrome ended up winning because Mozilla has said, not so fast. But we've got a lot of good things to talk about. It turns out that some hackers used AI to code up a portal.
+[244.8s - 269.9s] For credit card, stolen credit card verification, they forgot to ask it to add authentication. Whoops. Also, the UK's security group, the NCSC, has issued their own mythos warning, which caused me to wonder, where is CISA? Why haven't we heard anything from CISA?
+[270.5s - 295.4s] We're going to touch on that. We've got another of many recent Linux local privilege escalations. This one is bad and it's affected Linux for years. And yes, AI found it. Also, some interesting commentary about the ground shifting under AI and vulnerability research.
+[296.6s - 302.4s] It's looking like it may spell the end of bug bounties, and why that...
+[302.7s - 304.6s] It's probably the right thing to have happen.
+[330.9s - 352.1s] to sort of bundle sync thing into a nice little applet for Windows, but there's a replacement for it. And then we're going to talk about how Google has sort of surprised everyone by just saying, we think it's time that we add AI support in JavaScript.
+[353.6s - 380.8s] Lots of fun things to talk about, and of course, a great picture of the week. So, yeah. Oh, and there are a couple things that happened just now. Just so that our listeners know that I'm aware of the fact that DigiCert suffered a major breach, which allowed 30 EV code signing certificates to get minted behind their back. Oh, that's not good. And used. However, their...
+[381.5s - 389.6s] Disclosure is being called a reference, a state of the art, this is the way you do it. If you're going to say,
+[390.4s - 416.1s] What happened? If you're going to share with the industry your post-mortem. So they just updated it 10 minutes ago, so it's still a little bit in flux. We'll take a look at what they had to say, things that went right, things that went wrong, and what they learned. It ended up being a social hack. A malicious screensaver, of all things, got into two of their tech support member PCs.
+[417.2s - 444.6s] And it wasn't detected due to a CrowdStrike endpoint security misconfiguration. So, anyway, I'm all up to speed on it, but I just didn't have a chance to, well, actually, we're still learning a lot, and it's still in flux, so we'll have good coverage of that next week. I just wanted to let everybody know that I was aware of that. So, we'll take our first break, we'll look at the picture of the week, and then we'll get into all this. It really just shows you how anybody is vulnerable to this.
+[445.6s - 467.9s] And as you said, when we were at the Threat Locker, Zero Trust World, the threat's coming from inside the house. A network engineer who put a screensaver on his system and suddenly you're compromised. That's terrible. All right, well, I'm not going to do the commercials from here in Hawaii. I'm on vacation. So I'm going to let Leo and Petaluma take this one and then we'll be back with the picture of the week right after this. The white-skinned Leo, yes.
+[469.0s - 487.8s] This episode of Security Now brought to you by Zscaler, the world's largest cloud security platform. You know, the potential rewards of AI are too great to ignore, but so are the risks. Loss of sensitive data and attacks against enterprise managed AI. Generative AI increases opportunities for threat actors.
+[488.4s - 516.0s] Helping them to rapidly create phishing lures and write malicious code, automate data extraction. There were 1.3 million instances of social security numbers leaked to AI applications. It's time for a modern approach with Zscaler's Zero Trust Plus AI. It removes your attack surface, secures your data everywhere, safeguards your use of public and private AI, and protects against ransomware and AI-powered phishing attacks. Don't believe me?
+[516.6s - 525.1s] Check out what Siva, the Director of Security and Infrastructure at Zuora says about using Zscaler Watch. AI provides tremendous opportunities, but
+[525.7s - 552.5s] It also brings tremendous security concerns when it comes to data privacy and data security. The benefit of Zscaler with ZIA rolled out for us right now is giving us the insights of how our employees are using various Gen-AI tools. So ability to monitor the activity, make sure that what we consider confidential and sensitive information according to, you know, company's data classification does not get fed into the public LLM models, etc. Thank you, Siva.
+[552.9s - 572.1s] With zero trust plus AI, you can thrive in the AI era. You can stay ahead of the competition. You can remain resilient even as threats and risks evolve. Learn more at zscaler.com slash security. That's zscaler.com slash security. Now back to Steve and Security Now. Thank you, Leo.
+[575.3s - 594.4s] you know just to explain behind the scenes we weren't sure this was going to work at all and so we thought well i better pre-record the commercials in case i don't know micah had to jump in or something uh and i brought a starlink mini and all sorts of backup stuff and it turned out wow who knew in hawaii they've got cable modems high speed internet
+[595.0s - 622.1s] I didn't need to bring anything. I'm just... So, it isn't a complete proof of concept of your ability to roam through, like, anywhere on the globe and use Starlink. Not yet. Not yet. I probably should, though, you know, set it up. We have this nice lawn behind us. There's plenty. It's perfect space for the Starlink. So, I probably should just set it up before I go home and make sure that I can do that. But, you know, everybody... Could double as a birdbath, couldn't it?
+
+=== WINDOW 1/23: 0.0-10.0 minutes ===
+- Use absolute timestamps from transcript (as shown in brackets)
+- If an ad starts before this window, use the first timestamp with note "continues from previous"
+- If an ad extends past this window, use 600.0 with note "continues in next"

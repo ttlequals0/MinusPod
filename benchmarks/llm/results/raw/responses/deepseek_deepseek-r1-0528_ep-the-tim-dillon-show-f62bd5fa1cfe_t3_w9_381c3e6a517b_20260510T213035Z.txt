@@ -1,0 +1,9 @@
+[
+    {
+        "start": 3774.5,
+        "end": 4378.5,
+        "confidence": 0.0,
+        "reason": "No ad content detected; entire segment is editorial content about Hantavirus cruise ship",
+        "end_text": "accident. Everyone on that"
+    }
+]

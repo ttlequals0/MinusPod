@@ -1,0 +1,1 @@
+{"start": 8405.6, "end": 8409.5, "confidence": 0.0, "reason": "Not an ad, part of the conversation", "end_text": "I mean, most people that I've talked to that are singers."}

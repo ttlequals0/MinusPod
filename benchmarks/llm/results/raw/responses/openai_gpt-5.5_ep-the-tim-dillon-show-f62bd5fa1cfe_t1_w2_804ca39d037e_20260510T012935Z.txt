@@ -1,0 +1,1 @@
+{"start":1439.2,"end":1440.0,"confidence":0.99,"reason":"Mint Mobile sponsor read; promotional language includes 'Mint Mobile,' 'start saving money,' and cell phone plan pitch; continues in next window","end_text":"continues in next"}

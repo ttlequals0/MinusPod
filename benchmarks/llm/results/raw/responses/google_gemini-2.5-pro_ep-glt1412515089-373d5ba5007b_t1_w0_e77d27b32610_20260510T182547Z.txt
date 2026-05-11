@@ -1,0 +1,9 @@
+[
+  {
+    "start": 539.2,
+    "end": 624.5,
+    "confidence": 0.98,
+    "reason": "Host-read ads for the movie 'In the Gray' and Skechers.",
+    "end_text": "sandals, sneakers,"
+  }
+]

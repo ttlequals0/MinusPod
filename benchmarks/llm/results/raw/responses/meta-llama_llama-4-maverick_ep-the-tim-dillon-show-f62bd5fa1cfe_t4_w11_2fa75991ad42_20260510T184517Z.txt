@@ -1,0 +1,1 @@
+{"start": 4675.4, "end": 4733.9, "confidence": 0.95, "reason": "Network-inserted brand tagline ad for Skinny Pop", "end_text": "Skinny Pop just makes sense."}

@@ -1,0 +1,7 @@
+{
+  "start": 398.7,
+  "end": 822.6,
+  "confidence": 0.95,
+  "reason": "Host-read ad for Athletic Greens with promo code and URL",
+  "end_text": "athleticgreens.com/podcast"
+}

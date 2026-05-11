@@ -1,0 +1,5 @@
+[
+
+[{"start": 7959.9, "end": 8580.0, "confidence": 0.95, "reason": "Sponsor segment with multiple product promotions", "end_text": "web browser wars."}]
+
+]

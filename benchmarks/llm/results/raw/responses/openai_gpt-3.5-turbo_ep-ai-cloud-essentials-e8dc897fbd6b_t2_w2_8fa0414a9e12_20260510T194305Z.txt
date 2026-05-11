@@ -1,0 +1,7 @@
+{
+	"start": 984.2,
+	"end": 984.2,
+	"confidence": 1,
+	"reason": "End of episode",
+	"end_text": "Thank you."
+}

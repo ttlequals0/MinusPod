@@ -1,0 +1,1 @@
+{"start": 7916.6, "end": 7936.3, "confidence": 0.95, "reason": "Platform-inserted ad: 'Thank you for watching.' is a typical YouTube sign-off, followed by a gap, indicating a pre-roll or post-roll ad break inserted by the hosting platform.", "end_text": "Thank you for watching."}

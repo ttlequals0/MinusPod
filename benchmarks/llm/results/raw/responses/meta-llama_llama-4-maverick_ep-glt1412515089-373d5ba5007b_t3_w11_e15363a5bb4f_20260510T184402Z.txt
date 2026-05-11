@@ -1,0 +1,1 @@
+{"start": 5191.4, "end": 5220.0, "confidence": 0.9, "reason": "Perplexity ad read by host", "end_text": "podcastchoices.com/adchoices"}

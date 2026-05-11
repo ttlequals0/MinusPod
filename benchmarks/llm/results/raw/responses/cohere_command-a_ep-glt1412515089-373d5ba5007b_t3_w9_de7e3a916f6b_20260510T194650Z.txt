@@ -1,0 +1,1 @@
+{"start": 3761.9, "end": 3786.9, "confidence": 0.0, "reason": "Not an ad, regular show content", "end_text": "sort of dampen down, as you say, and I agree with you that there's this, there's a trade-off there. You dampen down the sort of instant knowledge."}

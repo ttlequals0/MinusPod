@@ -1,0 +1,1 @@
+{"start": 4296.0, "end": 4334.7, "confidence": 0.9, "reason": "Host-read ad for Jess Elias' book and All Love Racquet Club event", "end_text": "All Love Racquet Club"}

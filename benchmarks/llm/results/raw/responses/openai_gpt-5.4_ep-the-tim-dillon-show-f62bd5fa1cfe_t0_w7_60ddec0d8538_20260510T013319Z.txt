@@ -1,0 +1,1 @@
+{"start":3079.6,"end":3270.1,"confidence":0.99,"reason":"Continuous ad block with host-read sponsor ads for Morgan & Morgan, Stash, and Neuro Gum, including promotional claims, URLs, promo code TIM, and explicit 'paid advertisement' language","end_text":"find Neuro at CVS and Amazon"}

@@ -1,0 +1,1 @@
+[{"start": 6045.5, "end": 6179.0, "confidence": 0.99, "reason": "Hawks Hunt security training platform promotion", "end_text": "Now back to our discussion of Chrome and AI on Security Now, Steve"}]

@@ -1,0 +1,1 @@
+{"start": 822.9, "end": 1449.3, "confidence": 0.0, "reason": "No promotional language, sponsor mentions, URLs, promo codes, or platform-inserted ads detected in transcript window", "end_text": "Jake Woods, a sprightly"}

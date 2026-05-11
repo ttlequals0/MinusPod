@@ -1,0 +1,7 @@
+{
+  "start": 14.0,
+  "end": 24.0,
+  "confidence": 0.85,
+  "reason": "The segment discusses the ranking of hip-hop artists and mentions specific artists like John Casarelli and John Caramanica, which are part of the hip-hop media list. The segment includes promotional language and references to the hip-hop culture, indicating it is an advertisement.",
+  "end_text": "They have really good conversations."
+}

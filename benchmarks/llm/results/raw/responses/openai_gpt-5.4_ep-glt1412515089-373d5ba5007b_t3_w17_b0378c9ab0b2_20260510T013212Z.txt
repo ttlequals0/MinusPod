@@ -1,0 +1,1 @@
+{"start": 7131.4, "end": 7155.5, "confidence": 0.01, "reason": "No advertisement content detected in this window", "end_text": "with water on the bottom."}

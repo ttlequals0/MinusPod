@@ -1,0 +1,30 @@
+[
+  {
+    "start": 9075.4,
+    "end": 9130.0,
+    "confidence": 0.95,
+    "reason": "Host-read promotion for the host's own commercial product, Spinrite, with a direct call to action.",
+    "end_text": "get it now for sure"
+  },
+  {
+    "start": 9259.3,
+    "end": 9290.5,
+    "confidence": 0.9,
+    "reason": "Produced cross-promotion for the 'This Week in Tech' podcast on the TWiT network.",
+    "end_text": "Network. Thank you."
+  },
+  {
+    "start": 9312.9,
+    "end": 9315.5,
+    "confidence": 0.85,
+    "reason": "Short, network-inserted brand tagline ad, likely for Citizens Bank.",
+    "end_text": "for citizens back."
+  },
+  {
+    "start": 9344.4,
+    "end": 9374.4,
+    "confidence": 0.99,
+    "reason": "Ad for Mint Mobile, featuring Ryan Reynolds, with a specific URL.",
+    "end_text": "at mintmobile.com."
+  }
+]

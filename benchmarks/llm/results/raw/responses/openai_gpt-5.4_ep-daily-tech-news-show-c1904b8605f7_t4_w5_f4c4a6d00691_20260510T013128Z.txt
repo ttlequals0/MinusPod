@@ -1,0 +1,1 @@
+{"start":2246.0,"end":2275.3,"confidence":0.99,"reason":"Capital One platform-inserted ad with explicit sponsor language and product pitch ('This episode is brought to you by Capital One')","end_text":"That's technology at Capital One."}

@@ -1,0 +1,1 @@
+{"start":4646.2,"end":4800.0,"confidence":0.99,"reason":"Merged network-inserted ad break including Colgate Women's Games, SkinnyPop, Viz prescription eye drops, and Garnier/National Park Foundation; continues in next window","end_text":"continues in next"}

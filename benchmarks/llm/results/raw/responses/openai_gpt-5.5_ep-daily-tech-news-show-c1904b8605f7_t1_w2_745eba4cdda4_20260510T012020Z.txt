@@ -1,0 +1,1 @@
+{"start":821.4,"end":1021.1,"confidence":0.99,"reason":"Merged ad break with promotional spots for Capital One, BetterHelp, Amazon Health AI, Spectrum Business, and Rinse; includes sponsor names, product pitches, URLs/calls to action such as betterhelp.com/randompodcast, spectrum.com/business, and rinse.com.","end_text":"It's time to be great."}

@@ -1,0 +1,1 @@
+{"start": 6016.6, "end": 6162.3, "confidence": 1.0, "reason": "HoxHunt sponsor read", "end_text": "back to our discussion of Chrome and"}

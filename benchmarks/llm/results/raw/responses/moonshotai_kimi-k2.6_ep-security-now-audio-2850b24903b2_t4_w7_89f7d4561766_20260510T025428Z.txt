@@ -1,0 +1,1 @@
+{"start": 2936.4, "end": 2961.9, "confidence": 0.95, "reason": "Platform-inserted outro/sign-off segment with no promotional content", "end_text": "Thank you for watching."}

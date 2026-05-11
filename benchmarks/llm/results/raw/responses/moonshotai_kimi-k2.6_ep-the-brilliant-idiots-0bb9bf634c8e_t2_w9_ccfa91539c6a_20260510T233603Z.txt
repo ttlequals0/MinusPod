@@ -1,0 +1,1 @@
+{"start":4296.0,"end":4323.9,"confidence":0.72,"reason":"Host-read promotion for Jess Hilarious book 'Til Death Do We Parent' with explicit CTA ('make sure you go pick up', 'available everywhere', 'You buy books now'); embedded in transcript block with mixed conversational content but aligns with sponsored pre-order listed in show notes","end_text":"You buy books now"}

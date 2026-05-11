@@ -1,0 +1,1 @@
+{"start":2558.9,"end":2693.0,"confidence":0.99,"reason":"Host-read Meter sponsor ad introduced by 'break time' and promoted with product pitch and CTA 'meter.com/security now book a demo'","end_text":"security now book a demo"}

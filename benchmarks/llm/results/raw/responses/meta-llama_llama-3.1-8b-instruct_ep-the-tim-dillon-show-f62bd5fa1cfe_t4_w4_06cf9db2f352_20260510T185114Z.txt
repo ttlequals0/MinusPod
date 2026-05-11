@@ -1,0 +1,7 @@
+{
+  "start": 1668.7,
+   "end": 2286.3,
+   "confidence": 0.95,
+   "reason": "Mint Mobile, Aura Frames, Morgan & Morgan, Stash, Neuro Gum sponsor reads",
+   "end_text": "online. They only need"
+}

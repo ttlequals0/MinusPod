@@ -1,0 +1,1 @@
+{"start": 3079.6, "end": 3134.3, "confidence": 1.0, "reason": "Morgan & Morgan sponsor read with URL and call to action", "end_text": "let them know I sent you"}

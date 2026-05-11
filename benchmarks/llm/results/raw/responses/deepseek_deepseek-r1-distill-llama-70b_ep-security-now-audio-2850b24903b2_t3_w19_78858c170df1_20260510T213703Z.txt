@@ -1,0 +1,7 @@
+{
+  "transcript": "Alright, so I've been using this new AI tool that's supposed to make my work easier. It's called [Claude](https://anthropic.com/claude/). I've heard a lot about it, but I'm not sure how it really helps. Let me try to figure this out. First, I'll go to their website and see what they offer. Hmm, they have different pricing plans. I wonder which one is best for me. Maybe I should read some reviews or ask for recommendations. Oh, wait, the host mentioned it in the podcast. That must mean it's good. I'll give it a try. Okay, so I've signed up. Now, how do I integrate it into my workflow? I'm a bit confused about the features. Maybe I should watch some tutorials or check their support page. I hope this doesn't take too much time. I need something efficient. Alright, let's see if this actually makes a difference in my productivity.",
+  "start": 133.0,
+  "end": 143.0,
+  "window_start": 133.0,
+  "window_end": 143.0
+}

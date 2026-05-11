@@ -1,0 +1,1 @@
+{"start": 2532.3, "end": 2693.0, "confidence": 0.99, "reason": "Meter sponsor read", "end_text": "meter all right now back to steve"}

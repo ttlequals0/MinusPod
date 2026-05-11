@@ -1,0 +1,1 @@
+{"start": 2246.0, "end": 2276.2, "confidence": 0.98, "reason": "Capital One sponsor read", "end_text": "at Capital One."}

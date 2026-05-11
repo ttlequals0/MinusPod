@@ -1,0 +1,1 @@
+{"start": 3976.8, "end": 4002.7, "confidence": 0.95, "reason": "Host-read sponsor segment for Martin's potato rolls with call to action about summer spending and economy repair through buying burgers and dogs", "end_text": "buying Martin's potato rolls, burgers, dogs, etc. You know how it is, a couple of vacations. Anyway, let's watch his statement."}

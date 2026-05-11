@@ -1,0 +1,1 @@
+{"start": 2924.1, "end": 3540.5, "confidence": 0.0, "reason": "no ads found in transcript", "end_text": "general"}

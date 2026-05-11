@@ -1,0 +1,8 @@
+ Ad Segment 1:
+[1435.5-1438.8] Sponsor Brilliant Idiots: <https://public.liveread.io/media-kit/brilliant-idiots>
+[1439.0-1466.2] Discussion about Tank and J. Valentine podcast and how the interview with DJ Akademics would have been received there, but this is not an ad. However, the mention of the Brilliant Idiots podcast as a comparison is a promotional reference to the sponsor segment at the beginning.
+
+Therefore, the ad segment is:
+[1435.5-1438.8] Sponsor Brilliant Idiots: <https://public.liveread.io/media-kit/brilliant-idiots>
+
+Note: The discussion about Tank and J. Valentine podcast does not constitute an ad as it is not a paid promotion and does not contain any promotional language.

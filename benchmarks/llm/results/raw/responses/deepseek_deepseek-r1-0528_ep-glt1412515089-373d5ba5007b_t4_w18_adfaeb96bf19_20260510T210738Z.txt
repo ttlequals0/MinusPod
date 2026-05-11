@@ -1,0 +1,16 @@
+[
+  {
+    "start": 7936.3,
+    "end": 7963.4,
+    "confidence": 0.95,
+    "reason": "Host-read sponsor segment for Perplexity with URL mention",
+    "end_text": "experiences all the time"
+  },
+  {
+    "start": 8118.6,
+    "end": 8146.7,
+    "confidence": 0.9,
+    "reason": "Promotional mention of American Deep Tech investment fund",
+    "end_text": "or these kind of principles"
+  }
+]

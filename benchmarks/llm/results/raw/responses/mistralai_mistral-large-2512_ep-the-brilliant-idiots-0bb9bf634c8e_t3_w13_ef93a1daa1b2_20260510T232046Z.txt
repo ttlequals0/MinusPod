@@ -1,0 +1,9 @@
+[
+    {
+        "start": 5531.1,
+        "end": 5558.5,
+        "confidence": 0.3,
+        "reason": "Organic discussion of interracial pairings, no promotional language detected",
+        "end_text": "especially in large cities."
+    }
+]

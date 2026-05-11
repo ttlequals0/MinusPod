@@ -1,0 +1,7 @@
+{
+  "start": 4307.7,
+  "end": 4379.8,
+  "confidence": 0.95,
+  "reason": "The non-verbal autistic student, using telepathy, communicated with Maria Welch through a letter board, indicating a controlled and intentional interaction. The student spelled 'ready' and 'beautiful sky', demonstrating awareness of the stimuli without direct visual or auditory cues, which aligns with the hypothesis of psychic abilities being influenced by the left frontal area.",
+  "end_text": "he says, it's a beautiful sky"
+}

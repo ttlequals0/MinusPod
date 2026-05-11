@@ -1,0 +1,1 @@
+{"start":5203.3,"end":5231.8,"confidence":0.72,"reason":"Partial ad-like insertion in metadata for Perplexity with URL/call to action appears outside transcript body; no promotional transcript segment found in this window","end_text":"that could have been from her."}

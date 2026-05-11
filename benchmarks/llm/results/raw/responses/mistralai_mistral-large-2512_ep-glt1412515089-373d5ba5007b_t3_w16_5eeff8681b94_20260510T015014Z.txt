@@ -1,0 +1,16 @@
+[
+    {
+        "start": 6807.0,
+        "end": 6808.0,
+        "confidence": 0.0,
+        "reason": "Mention of 'Peeves and buttheads' is not promotional; no ad detected.",
+        "end_text": "Peeves and buttheads."
+    },
+    {
+        "start": 7319.4,
+        "end": 7320.0,
+        "confidence": 0.9,
+        "reason": "Platform-inserted ad for Perplexity (promotional URL and call to action at episode end). Partial segment; continues in next window.",
+        "end_text": "podcastchoices.com/adchoices"
+    }
+]

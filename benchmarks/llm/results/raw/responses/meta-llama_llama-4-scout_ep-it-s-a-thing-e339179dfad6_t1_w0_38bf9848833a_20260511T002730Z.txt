@@ -1,0 +1,25 @@
+{ 
+  "ads": [
+    {
+      "start": 1.6,
+      "end": 7.0,
+      "confidence": 0.99,
+      "reason": "Acast powers the world's best podcasts",
+      "end_text": "Acast.com"
+    },
+    {
+      "start": 10.4,
+      "end": 51.9,
+      "confidence": 0.99,
+      "reason": "Acast helps creators launch, grow, and monetize their podcasts",
+      "end_text": "Acast.com"
+    },
+    {
+      "start": 40.8,
+      "end": 77.2,
+      "confidence": 0.99,
+      "reason": "Formative podcast promotion",
+      "end_text": "Formative podcast"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+[
+    {
+        "start": 0.0,
+        "end": 27.7,
+        "confidence": 0.98,
+        "reason": "Colgate Women's Games sponsor read with promotional language and brand tagline ('Colgate, your smile is your strength')",
+        "end_text": "strength. Ladies and gentlemen"
+    }
+]

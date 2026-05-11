@@ -1,0 +1,1 @@
+{"start":9741.1,"end":9840.0,"confidence":0.71,"reason":"Guest promotes her nonprofit/app with direct call to action \"go to timemachine.love\" and pitches the product; partial segment continues in next window","end_text":"caused"}

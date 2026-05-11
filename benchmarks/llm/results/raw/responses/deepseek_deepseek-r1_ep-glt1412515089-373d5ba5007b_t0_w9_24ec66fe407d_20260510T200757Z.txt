@@ -1,0 +1,11 @@
+{
+  "analysis": [
+    {
+      "start": 3761.9,
+      "end": 4380.0,
+      "confidence": 0.95,
+      "reason": "No ad segments detected in this transcript window. The content is a continuous conversation about cognitive neuroscience, non-speaking autistic individuals, and telepathy experiments without any promotional language, sponsor mentions, or ad transitions.",
+      "end_text": "experiments without any"
+    }
+  ]
+}

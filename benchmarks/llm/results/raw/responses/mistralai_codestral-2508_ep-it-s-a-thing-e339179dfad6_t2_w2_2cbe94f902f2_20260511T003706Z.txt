@@ -1,0 +1,1 @@
+[{"start": 1061.8, "end": 1183.4, "confidence": 0.95, "reason": "Retail network-inserted ads for Lowe's, Home Depot, Walmart, Target, and grocery store solar panel installation", "end_text": "We shouldn't allow it"} ]

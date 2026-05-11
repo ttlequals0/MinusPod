@@ -1,0 +1,9 @@
+[
+  {
+    "start": 4646.2,
+    "end": 4806.1,
+    "confidence": 1.0,
+    "reason": "Multiple dynamically inserted ads: Colgate (2 segments), Skinny Pop, Viz, Garnier",
+    "end_text": "at GarnierUSA.com slash NPF"
+  }
+]

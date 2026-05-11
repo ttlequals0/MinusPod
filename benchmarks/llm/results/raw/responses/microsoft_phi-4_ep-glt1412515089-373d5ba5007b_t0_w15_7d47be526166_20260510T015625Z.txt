@@ -1,0 +1,7 @@
+{
+  "start": 6.2987,
+  "end": 6.3244,
+  "confidence": 0.95,
+  "reason": "The segment discusses the concept of accessing information from the future, which aligns with the theme of precognition and the Akashic Records, indicating a high confidence in identifying this as an advertisement.",
+  "end_text": "It's non-local in space."
+}

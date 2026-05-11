@@ -1,0 +1,16 @@
+[
+    {
+        "start": 5975.6,
+        "end": 6162.3,
+        "confidence": 0.99,
+        "reason": "HoxHunt sponsor read with promotional language, call to action (hoxhunt.com/securitynow), and transition phrase 'Let's take a timeout before we get to the subject'",
+        "end_text": "making the switch to Hawkshunt."
+    },
+    {
+        "start": 6179.0,
+        "end": 6189.1,
+        "confidence": 0.95,
+        "reason": "Short network-inserted ad with distinct audio and promotional tone ('Thank you for watching') likely a platform-inserted segment",
+        "end_text": "Thank you for watching."
+    }
+]

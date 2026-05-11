@@ -1,0 +1,7 @@
+[{
+    "start": 1002.8,
+    "end": 1030.8,
+    "confidence": 0.98,
+    "reason": "Multiple product promotions with order links/calls to action including books, networks, and platform ad choices",
+    "end_text": "Visit megaphone.fm/adchoices"
+}]

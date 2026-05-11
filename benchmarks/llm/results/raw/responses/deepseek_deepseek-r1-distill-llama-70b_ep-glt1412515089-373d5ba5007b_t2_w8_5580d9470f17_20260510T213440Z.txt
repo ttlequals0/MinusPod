@@ -1,0 +1,7 @@
+{
+  "start": 3339.8,
+  "end": 3367.2,
+  "confidence": 0.95,
+  "reason": "Host-read sponsor segment for Perplexity",
+  "end_text": "https://pplx.ai/rogan."
+}

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2659.4,
+    "end": 2688.1,
+    "confidence": 0.95,
+    "reason": "Mention of Midroll ad company in conversation context, but not an actual ad read",
+    "end_text": "they didn't get it"
+  }
+]

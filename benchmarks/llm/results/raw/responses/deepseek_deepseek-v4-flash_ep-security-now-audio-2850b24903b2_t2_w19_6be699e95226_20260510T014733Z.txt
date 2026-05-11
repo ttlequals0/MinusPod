@@ -1,0 +1,7 @@
+{
+  "start": 7959.9,
+  "end": 8580.0,
+  "confidence": 0.0,
+  "reason": "No promotional language, sponsor names, URLs, promo codes, or calls to action found. This is editorial discussion about Google's Prompt API and Mozilla's concerns.",
+  "end_text": "being offered the opportunity"
+}

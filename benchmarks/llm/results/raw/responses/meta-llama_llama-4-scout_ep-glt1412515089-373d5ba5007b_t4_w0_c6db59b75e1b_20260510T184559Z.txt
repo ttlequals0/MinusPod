@@ -1,0 +1,16 @@
+{"ads": [
+  {
+    "start": 539.2,
+    "end": 595.4,
+    "confidence": 0.98,
+    "reason": "In the Gray movie promotion",
+    "end_text": "only in theaters"
+  },
+  {
+    "start": 568.4,
+    "end": 624.5,
+    "confidence": 0.98,
+    "reason": "Skechers slip-ins promotion",
+    "end_text": "stylish and they come"
+  }
+]}

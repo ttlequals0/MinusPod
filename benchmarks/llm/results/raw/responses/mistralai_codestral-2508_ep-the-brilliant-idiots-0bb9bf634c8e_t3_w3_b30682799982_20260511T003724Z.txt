@@ -1,0 +1,1 @@
+[{"start": 1250.2, "end": 1867.6, "confidence": 0.95, "reason": "Product promotions and podcast network cross-promotions", "end_text": "Elliott Wilson, too"}]

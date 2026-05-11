@@ -1,0 +1,30 @@
+{"ads": [
+    {
+        "start": 4674.6,
+        "end": 4733.9,
+        "confidence": 0.98,
+        "reason": "Colgate sponsor read",
+        "end_text": "your smile is your strength"
+    },
+    {
+        "start": 4733.9,
+        "end": 4763.1,
+        "confidence": 0.98,
+        "reason": "Skinny Pop sponsor read",
+        "end_text": "Skinny Pop"
+    },
+    {
+        "start": 4766.5,
+        "end": 4787.9,
+        "confidence": 0.98,
+        "reason": "Colgate sponsor read",
+        "end_text": "your smile is your strength"
+    },
+    {
+        "start": 4787.9,
+        "end": 4806.1,
+        "confidence": 0.98,
+        "reason": "Viz and Garnier sponsor reads",
+        "end_text": "GarnierUSA.com slash NPF"
+    }
+]}

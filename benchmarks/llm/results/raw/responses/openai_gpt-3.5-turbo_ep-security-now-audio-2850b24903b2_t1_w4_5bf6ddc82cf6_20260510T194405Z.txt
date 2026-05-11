@@ -1,0 +1,7 @@
+{
+	"start": 1905.2,
+	"end": 1928.8,
+	"confidence": 1,
+	"reason": "Zscaler sponsor mention",
+	"end_text": "Thank you for watching."
+}

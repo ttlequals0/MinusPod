@@ -1,0 +1,1 @@
+[{"start": 1742.3, "end": 1829.8, "confidence": 0.97, "reason": "Capital One ad followed by Lemonada Media 'Good Things' podcast cross-promotion", "end_text": "good to know"}]

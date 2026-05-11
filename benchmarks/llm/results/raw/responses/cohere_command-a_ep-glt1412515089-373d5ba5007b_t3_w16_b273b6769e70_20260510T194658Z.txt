@@ -1,0 +1,7 @@
+{
+  "start": 6706.4,
+  "end": 6732.9,
+  "confidence": 0.95,
+  "reason": "Perplexity sponsor mention with URL",
+  "end_text": "bosonic particle."
+}

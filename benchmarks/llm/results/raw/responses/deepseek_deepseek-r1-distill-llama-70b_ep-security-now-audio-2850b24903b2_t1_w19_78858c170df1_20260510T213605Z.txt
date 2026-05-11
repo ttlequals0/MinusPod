@@ -1,0 +1,7 @@
+{
+  "start": 8490.5,
+  "end": 8599.9,
+  "confidence": 0.95,
+  "reason": "Host discussing Google's advertising practices and the impact on users, which includes promotional content for Google's services.",
+  "end_text": "continually being offered the opportunity"
+}

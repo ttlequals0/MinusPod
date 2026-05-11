@@ -1,0 +1,37 @@
+[
+    {
+        "start": 4675.4,
+        "end": 4697.4,
+        "confidence": 0.98,
+        "reason": "Colgate Women's Games network-inserted brand tagline ad with promotional language and product positioning",
+        "end_text": "Colgate, your smile is your strength."
+    },
+    {
+        "start": 4705.5,
+        "end": 4733.9,
+        "confidence": 0.98,
+        "reason": "Skinny Pop network-inserted brand tagline ad with concentrated marketing copy and product pitch",
+        "end_text": "Deliciously popped, perfectly salted. Skinny Pop."
+    },
+    {
+        "start": 4734.3,
+        "end": 4763.1,
+        "confidence": 0.98,
+        "reason": "Colgate Women's Games network-inserted ad with promotional language and call to action",
+        "end_text": "Colgate, your smile is your strength."
+    },
+    {
+        "start": 4766.5,
+        "end": 4787.9,
+        "confidence": 0.98,
+        "reason": "Viz prescription eye drop network-inserted ad with product pitch, side effects disclosure, and call to action",
+        "end_text": "Learn more at Viz.com."
+    },
+    {
+        "start": 4788.6,
+        "end": 4806.1,
+        "confidence": 0.98,
+        "reason": "Garnier network-inserted ad promoting partnership with National Park Foundation and call to action",
+        "end_text": "GarnierUSA.com slash NPF."
+    }
+]

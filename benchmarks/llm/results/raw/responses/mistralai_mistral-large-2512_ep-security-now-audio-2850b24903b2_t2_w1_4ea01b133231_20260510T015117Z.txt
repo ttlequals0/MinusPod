@@ -1,0 +1,16 @@
+[
+    {
+        "start": 445.6,
+        "end": 572.1,
+        "confidence": 0.99,
+        "reason": "Zscaler sponsor read with promotional language, vanity URL (zscaler.com/security), and customer testimonial. Includes transition phrase 'This episode of Security Now brought to you by'.",
+        "end_text": "zscaler.com slash security."
+    },
+    {
+        "start": 1009.1,
+        "end": 1020.0,
+        "confidence": 0.95,
+        "reason": "Partial ad segment at end of window. Likely continuation of a sponsor read (Meter, Bitwarden, Hoxhunt, or TrustedTech) based on episode sponsors list, but transcript cuts off. Marked as 'continues in next'.",
+        "end_text": "are integral to the cyber crime infrastructure."
+    }
+]

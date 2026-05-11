@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I've been thinking about this a lot, and I really believe that everyone should check out this amazing new app called 'FocusFlow'. It's been a game-changer for my productivity. I mean, the way it helps you stay on task and avoid distractions is incredible. Plus, with the promo code 'TIM15', you can get 15% off your first month. That's a steal if you ask me. So, if you want to boost your efficiency and get more done in less time, head over to focusflow.com. Trust me, your future self will thank you.",
+  "start": 45.0,
+  "end": 82.0
+}

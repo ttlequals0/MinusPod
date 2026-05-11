@@ -1,0 +1,1 @@
+{"start":6390.2,"end":6390.2,"confidence":0.36,"reason":"Possible ad break transition only: host says \"Let's pay some bills,\" but no actual sponsor or promotional copy appears in this window; likely incomplete/continues outside window","end_text":"do some asking idiots, man"}
