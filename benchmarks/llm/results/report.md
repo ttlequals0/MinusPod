@@ -1064,37 +1064,37 @@ One subsection per episode in the corpus, showing how every model performed on t
 
 | Model | Result | FP count |
 |-------|--------|----------|
-| `google/gemini-2.5-flash` | PASS | 0 |
-| `meta-llama/llama-4-scout` | PASS | 0 |
+| `cohere/command-r-plus-08-2024` | PASS | 0 |
 | `mistralai/codestral-2508` | PASS | 0 |
-| `claude-opus-4-7` | PASS | 0 |
-| `claude-sonnet-4-6` | PASS | 0 |
 | `mistralai/mistral-medium-3.1` | PASS | 0 |
-| `nvidia/llama-3.3-nemotron-super-49b-v1.5` | PASS | 0 |
+| `mistralai/mistral-large-2512` | PASS | 0 |
 | `openai/o3` | PASS | 0 |
-| `deepseek/deepseek-v3.2` | PASS | 0 |
+| `nvidia/llama-3.3-nemotron-super-49b-v1.5` | PASS | 0 |
 | `x-ai/grok-4.1-fast` | PASS | 0 |
-| `meta-llama/llama-3.3-70b-instruct` | PASS | 0 |
 | `openai/o4-mini` | PASS | 0 |
+| `meta-llama/llama-4-scout` | PASS | 0 |
+| `mistralai/mistral-7b-instruct-v0.1` | PASS | 0 |
+| `claude-haiku-4-5-20251001` | PASS | 0 |
+| `claude-opus-4-7` | PASS | 0 |
+| `meta-llama/llama-3.3-70b-instruct` | PASS | 0 |
+| `google/gemini-2.5-flash` | PASS | 0 |
+| `claude-sonnet-4-6` | PASS | 0 |
+| `deepseek/deepseek-v3.2` | PASS | 0 |
 | `meta-llama/llama-3.1-8b-instruct` | PASS | 0 |
 | `qwen/qwen3.5-plus-02-15` | PASS | 0 |
-| `mistralai/mistral-large-2512` | PASS | 0 |
-| `claude-haiku-4-5-20251001` | PASS | 0 |
-| `cohere/command-r-plus-08-2024` | PASS | 0 |
-| `mistralai/mistral-7b-instruct-v0.1` | PASS | 0 |
-| `openai/gpt-5.4` | FAIL | 1 |
 | `moonshotai/kimi-k2.6` | FAIL | 1 |
 | `openai/gpt-5.5` | FAIL | 1 |
-| `deepseek/deepseek-r1` | FAIL | 1 |
-| `nvidia/nemotron-nano-9b-v2` | FAIL | 1 |
 | `meta-llama/llama-4-maverick` | FAIL | 1 |
-| `google/gemini-2.5-pro` | FAIL | 1 |
 | `google/gemma-4-31b-it` | FAIL | 1 |
 | `deepseek/deepseek-v4-flash` | FAIL | 1 |
+| `openai/gpt-5.4` | FAIL | 1 |
+| `nvidia/nemotron-nano-9b-v2` | FAIL | 1 |
+| `google/gemini-2.5-pro` | FAIL | 1 |
+| `deepseek/deepseek-r1` | FAIL | 1 |
 | `deepseek/deepseek-r1-distill-llama-70b` | FAIL | 2 |
-| `openai/gpt-3.5-turbo` | FAIL | 3 |
-| `cohere/command-a` | FAIL | 3 |
 | `microsoft/phi-4` | FAIL | 3 |
+| `cohere/command-a` | FAIL | 3 |
+| `openai/gpt-3.5-turbo` | FAIL | 3 |
 | `deepseek/deepseek-r1-0528` | FAIL | 27 |
 
 #### `ep-daily-tech-news-show-c1904b8605f7`: Switch 2 Prices Rise, Forecast Drops - DTNS 5265
@@ -1135,8 +1135,8 @@ One subsection per episode in the corpus, showing how every model performed on t
 | `openai/o4-mini` | 0.067 | 0.149 |
 | `microsoft/phi-4` | 0.056 | 0.077 |
 | `meta-llama/llama-3.1-8b-instruct` | 0.029 | 0.064 |
-| `meta-llama/llama-3.3-70b-instruct` | 0.000 | 0.000 |
 | `mistralai/mistral-7b-instruct-v0.1` | 0.000 | 0.000 |
+| `meta-llama/llama-3.3-70b-instruct` | 0.000 | 0.000 |
 
 #### `ep-glt1412515089-373d5ba5007b`: #2496 - Julia Mossbridge
 
@@ -1187,38 +1187,38 @@ One subsection per episode in the corpus, showing how every model performed on t
 
 | Model | F1 | F1 stdev |
 |-------|----|----------|
-| `claude-opus-4-7` | 0.667 | 0.000 |
-| `x-ai/grok-4.1-fast` | 0.667 | 0.000 |
 | `openai/gpt-5.5` | 0.667 | 0.000 |
-| `qwen/qwen3.5-plus-02-15` | 0.667 | 0.000 |
+| `x-ai/grok-4.1-fast` | 0.667 | 0.000 |
+| `claude-opus-4-7` | 0.667 | 0.000 |
 | `google/gemini-2.5-pro` | 0.667 | 0.000 |
+| `qwen/qwen3.5-plus-02-15` | 0.667 | 0.000 |
 | `openai/gpt-5.4` | 0.613 | 0.119 |
 | `google/gemma-4-31b-it` | 0.467 | 0.274 |
 | `deepseek/deepseek-r1-0528` | 0.404 | 0.281 |
+| `cohere/command-a` | 0.400 | 0.000 |
 | `deepseek/deepseek-v3.2` | 0.400 | 0.548 |
 | `meta-llama/llama-3.1-8b-instruct` | 0.400 | 0.548 |
-| `cohere/command-a` | 0.400 | 0.000 |
 | `deepseek/deepseek-v4-flash` | 0.337 | 0.239 |
 | `openai/o3` | 0.333 | 0.471 |
 | `deepseek/deepseek-r1` | 0.313 | 0.301 |
 | `nvidia/llama-3.3-nemotron-super-49b-v1.5` | 0.233 | 0.325 |
 | `moonshotai/kimi-k2.6` | 0.200 | 0.274 |
-| `google/gemini-2.5-flash` | 0.000 | 0.000 |
-| `meta-llama/llama-4-scout` | 0.000 | 0.000 |
-| `mistralai/codestral-2508` | 0.000 | 0.000 |
-| `openai/gpt-3.5-turbo` | 0.000 | 0.000 |
-| `claude-sonnet-4-6` | 0.000 | 0.000 |
-| `mistralai/mistral-medium-3.1` | 0.000 | 0.000 |
-| `meta-llama/llama-3.3-70b-instruct` | 0.000 | 0.000 |
-| `openai/o4-mini` | 0.000 | 0.000 |
-| `deepseek/deepseek-r1-distill-llama-70b` | 0.000 | 0.000 |
-| `mistralai/mistral-large-2512` | 0.000 | 0.000 |
-| `nvidia/nemotron-nano-9b-v2` | 0.000 | 0.000 |
-| `claude-haiku-4-5-20251001` | 0.000 | 0.000 |
 | `cohere/command-r-plus-08-2024` | 0.000 | 0.000 |
+| `mistralai/codestral-2508` | 0.000 | 0.000 |
+| `mistralai/mistral-medium-3.1` | 0.000 | 0.000 |
+| `deepseek/deepseek-r1-distill-llama-70b` | 0.000 | 0.000 |
 | `microsoft/phi-4` | 0.000 | 0.000 |
+| `mistralai/mistral-large-2512` | 0.000 | 0.000 |
 | `meta-llama/llama-4-maverick` | 0.000 | 0.000 |
+| `openai/o4-mini` | 0.000 | 0.000 |
+| `meta-llama/llama-4-scout` | 0.000 | 0.000 |
 | `mistralai/mistral-7b-instruct-v0.1` | 0.000 | 0.000 |
+| `openai/gpt-3.5-turbo` | 0.000 | 0.000 |
+| `claude-haiku-4-5-20251001` | 0.000 | 0.000 |
+| `nvidia/nemotron-nano-9b-v2` | 0.000 | 0.000 |
+| `meta-llama/llama-3.3-70b-instruct` | 0.000 | 0.000 |
+| `google/gemini-2.5-flash` | 0.000 | 0.000 |
+| `claude-sonnet-4-6` | 0.000 | 0.000 |
 
 #### `ep-security-now-audio-2850b24903b2`: SN 1077: A Browser AI API? - End of Bug Bounties?
 
@@ -1298,9 +1298,9 @@ One subsection per episode in the corpus, showing how every model performed on t
 | `google/gemini-2.5-flash` | 0.125 | 0.000 |
 | `deepseek/deepseek-v3.2` | 0.100 | 0.224 |
 | `microsoft/phi-4` | 0.067 | 0.092 |
-| `meta-llama/llama-3.1-8b-instruct` | 0.000 | 0.000 |
 | `cohere/command-r-plus-08-2024` | 0.000 | 0.000 |
 | `mistralai/mistral-7b-instruct-v0.1` | 0.000 | 0.000 |
+| `meta-llama/llama-3.1-8b-instruct` | 0.000 | 0.000 |
 
 #### `ep-the-tim-dillon-show-f62bd5fa1cfe`: 495 - Hantavirus Cruise & iPad Babies
 
@@ -1330,8 +1330,8 @@ One subsection per episode in the corpus, showing how every model performed on t
 | `nvidia/llama-3.3-nemotron-super-49b-v1.5` | 0.171 | 0.125 |
 | `meta-llama/llama-4-maverick` | 0.167 | 0.000 |
 | `deepseek/deepseek-r1-distill-llama-70b` | 0.163 | 0.159 |
-| `google/gemini-2.5-flash` | 0.154 | 0.000 |
 | `claude-haiku-4-5-20251001` | 0.154 | 0.000 |
+| `google/gemini-2.5-flash` | 0.154 | 0.000 |
 | `openai/gpt-3.5-turbo` | 0.125 | 0.000 |
 | `microsoft/phi-4` | 0.079 | 0.072 |
 | `deepseek/deepseek-v3.2` | 0.057 | 0.079 |
@@ -1350,31 +1350,31 @@ How each model's responses were actually parsed. Columns are extraction methods,
 
 | Model | bracket_fallback | json_array_direct | json_object_ads_key | json_object_no_ads | json_object_segments_key | json_object_single_ad | json_object_single_ad_truncated | json_object_window_segments | markdown_code_block | parse_failure | regex_json_array |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| `google/gemini-2.5-flash` | 0 | 450 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `mistralai/codestral-2508` | 0 | 450 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `openai/gpt-3.5-turbo` | 0 | 0 | 0 | 4 | 0 | 446 | 0 | 0 | 0 | 0 | 0 |
-| `claude-opus-4-7` | 0 | 448 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 2 |
-| `claude-sonnet-4-6` | 0 | 413 | 0 | 0 | 0 | 0 | 0 | 0 | 27 | 0 | 10 |
-| `mistralai/mistral-medium-3.1` | 0 | 450 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `deepseek/deepseek-v3.2` | 0 | 355 | 4 | 0 | 0 | 91 | 0 | 0 | 0 | 0 | 0 |
-| `openai/gpt-5.4` | 0 | 0 | 0 | 134 | 0 | 316 | 0 | 0 | 0 | 0 | 0 |
-| `qwen/qwen3.5-plus-02-15` | 0 | 450 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `mistralai/mistral-large-2512` | 0 | 450 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `cohere/command-a` | 0 | 0 | 0 | 3 | 0 | 447 | 0 | 0 | 0 | 0 | 0 |
-| `claude-haiku-4-5-20251001` | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 450 | 0 | 0 |
 | `cohere/command-r-plus-08-2024` | 0 | 0 | 10 | 395 | 0 | 45 | 0 | 0 | 0 | 0 | 0 |
+| `mistralai/codestral-2508` | 0 | 450 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `mistralai/mistral-medium-3.1` | 0 | 450 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `mistralai/mistral-large-2512` | 0 | 450 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `meta-llama/llama-4-maverick` | 0 | 0 | 0 | 93 | 0 | 357 | 0 | 0 | 0 | 0 | 0 |
 | `google/gemma-4-31b-it` | 0 | 0 | 278 | 72 | 0 | 99 | 1 | 0 | 0 | 0 | 0 |
-| `meta-llama/llama-4-scout` | 23 | 3 | 318 | 44 | 0 | 58 | 0 | 0 | 0 | 1 | 3 |
+| `cohere/command-a` | 0 | 0 | 0 | 3 | 0 | 447 | 0 | 0 | 0 | 0 | 0 |
+| `openai/gpt-3.5-turbo` | 0 | 0 | 0 | 4 | 0 | 446 | 0 | 0 | 0 | 0 | 0 |
+| `openai/gpt-5.4` | 0 | 0 | 0 | 134 | 0 | 316 | 0 | 0 | 0 | 0 | 0 |
+| `claude-haiku-4-5-20251001` | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 450 | 0 | 0 |
+| `claude-opus-4-7` | 0 | 448 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 2 |
+| `google/gemini-2.5-flash` | 0 | 450 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `claude-sonnet-4-6` | 0 | 413 | 0 | 0 | 0 | 0 | 0 | 0 | 27 | 0 | 10 |
+| `deepseek/deepseek-v3.2` | 0 | 355 | 4 | 0 | 0 | 91 | 0 | 0 | 0 | 0 | 0 |
+| `qwen/qwen3.5-plus-02-15` | 0 | 450 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `openai/gpt-5.5` | 0 | 0 | 0 | 258 | 0 | 191 | 0 | 0 | 0 | 1 | 0 |
 | `x-ai/grok-4.1-fast` | 0 | 0 | 0 | 259 | 0 | 190 | 0 | 0 | 0 | 1 | 0 |
+| `meta-llama/llama-4-scout` | 23 | 3 | 318 | 44 | 0 | 58 | 0 | 0 | 0 | 1 | 3 |
 | `meta-llama/llama-3.3-70b-instruct` | 0 | 101 | 0 | 118 | 0 | 229 | 0 | 0 | 0 | 1 | 1 |
 | `meta-llama/llama-3.1-8b-instruct` | 0 | 242 | 0 | 52 | 0 | 155 | 0 | 0 | 0 | 1 | 0 |
-| `openai/gpt-5.5` | 0 | 0 | 0 | 258 | 0 | 191 | 0 | 0 | 0 | 1 | 0 |
 | `google/gemini-2.5-pro` | 0 | 429 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 19 |
-| `openai/o3` | 0 | 0 | 12 | 341 | 6 | 87 | 0 | 0 | 0 | 4 | 0 |
 | `deepseek/deepseek-r1-distill-llama-70b` | 0 | 14 | 15 | 32 | 0 | 385 | 0 | 0 | 0 | 4 | 0 |
-| `deepseek/deepseek-r1` | 0 | 390 | 2 | 12 | 3 | 28 | 0 | 0 | 7 | 6 | 2 |
+| `openai/o3` | 0 | 0 | 12 | 341 | 6 | 87 | 0 | 0 | 0 | 4 | 0 |
 | `microsoft/phi-4` | 0 | 209 | 21 | 19 | 11 | 181 | 0 | 2 | 0 | 6 | 1 |
+| `deepseek/deepseek-r1` | 0 | 390 | 2 | 12 | 3 | 28 | 0 | 0 | 7 | 6 | 2 |
 | `deepseek/deepseek-v4-flash` | 0 | 13 | 303 | 2 | 0 | 119 | 0 | 0 | 0 | 13 | 0 |
 | `nvidia/nemotron-nano-9b-v2` | 0 | 394 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 46 | 10 |
 | `deepseek/deepseek-r1-0528` | 0 | 354 | 23 | 3 | 0 | 21 | 0 | 0 | 1 | 48 | 0 |
@@ -1623,7 +1623,7 @@ The `initial_prompt` carries a sponsor vocabulary so Whisper produces consistent
 
 ## Run Metadata
 
-- Report generated: 2026-05-11T16:48:44Z
+- Report generated: 2026-05-11T16:53:29Z
 - Unique work units (current state, last-write-wins after retries): 14400
 - Raw rows in calls.jsonl: 14416 (16 superseded by later retries; kept for audit)
 - Successful: 14400

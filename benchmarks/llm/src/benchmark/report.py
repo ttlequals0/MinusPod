@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 import statistics
 from collections import Counter, defaultdict
@@ -805,10 +806,10 @@ def _seed_sponsors() -> list[dict] | None:
     available (e.g. running outside a MinusPod checkout)."""
     try:
         from utils.constants import SEED_SPONSORS  # type: ignore[import-not-found]
-        entries = [s for s in SEED_SPONSORS if isinstance(s, dict) and s.get("name")]
-        return sorted(entries, key=lambda s: s["name"].lower())
-    except Exception:
+    except ImportError:
         return None
+    entries = [s for s in SEED_SPONSORS if isinstance(s, dict) and s.get("name")]
+    return sorted(entries, key=lambda s: s["name"].lower())
 
 
 def _sponsor_aliases() -> dict | None:
@@ -818,9 +819,9 @@ def _sponsor_aliases() -> dict | None:
     Returns None if the import fails."""
     try:
         from utils.constants import SPONSOR_ALIASES  # type: ignore[import-not-found]
-        return dict(SPONSOR_ALIASES)
-    except Exception:
+    except ImportError:
         return None
+    return dict(SPONSOR_ALIASES)
 
 
 def _render_transcript_source() -> str:
@@ -900,18 +901,11 @@ def _build_toc(body: str) -> str:
     Skips H3+ to keep the ToC scannable. Anchors follow GitHub's slug rules
     so the same Markdown renders correctly on GitHub and in the IDE preview."""
     lines = ["## Table of Contents", ""]
-    seen: dict[str, int] = {}
     for raw in body.split("\n"):
         if not raw.startswith("## ") or raw.startswith("## Table of Contents"):
             continue
         title = raw[3:].strip()
-        anchor = _md_anchor(title)
-        if anchor in seen:
-            seen[anchor] += 1
-            anchor = f"{anchor}-{seen[anchor]}"
-        else:
-            seen[anchor] = 0
-        lines.append(f"- [{title}](#{anchor})")
+        lines.append(f"- [{title}](#{_md_anchor(title)})")
     return "\n".join(lines)
 
 
@@ -922,7 +916,6 @@ def _render_multi_column_table(items: list[tuple], *, headers: list[str], num_co
     (column-major), then left-to-right across groups. Pads the last group with
     empty cells when the count doesn't divide evenly.
     """
-    import math
     rows_per_col = math.ceil(len(items) / num_cols) if items else 0
     cell_count = len(headers) * num_cols
     header_row = "| " + " | ".join(headers * num_cols) + " |"
