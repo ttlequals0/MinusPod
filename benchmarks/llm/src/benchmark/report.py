@@ -876,14 +876,36 @@ def _render_transcript_source() -> str:
             "Applied post-transcription to normalize Whisper output toward the canonical sponsor name. "
             "Distinct from the `aliases` column above, which lists intentional alternative spellings "
             "(e.g. `AG1` vs `Athletic Greens`); the entries below are mostly Whisper mishearings "
-            "(e.g. `a firm` -> `Affirm`, `xerox` -> `Xero`).",
+            "(e.g. `a firm` -> `Affirm`, `xerox` -> `Xero`). Laid out in three side-by-side pairs, "
+            "read top-to-bottom in each column.",
             "",
-            "| Heard as | Normalized to |",
-            "|---|---|",
         ]
-        for heard, canonical in sorted(aliases_map.items(), key=lambda kv: kv[0].lower()):
-            lines.append(f"| `{heard}` | {canonical} |")
+        lines.extend(_render_alias_columns(aliases_map, num_cols=3))
     return "\n".join(lines)
+
+
+def _render_alias_columns(aliases_map: dict, *, num_cols: int) -> list[str]:
+    """Render the (heard-as, normalized-to) mapping as a wide Markdown table
+    with `num_cols` side-by-side column-pairs, read top-to-bottom per column.
+    Pads the last column with empty cells when the count doesn't divide evenly.
+    """
+    import math
+    items = sorted(aliases_map.items(), key=lambda kv: kv[0].lower())
+    rows_per_col = math.ceil(len(items) / num_cols) if items else 0
+    header = "| " + " | ".join(["Heard as", "Normalized to"] * num_cols) + " |"
+    sep = "|" + "|".join(["---"] * (num_cols * 2)) + "|"
+    out = [header, sep]
+    for r in range(rows_per_col):
+        cells: list[str] = []
+        for c in range(num_cols):
+            idx = c * rows_per_col + r
+            if idx < len(items):
+                heard, canonical = items[idx]
+                cells.extend([f"`{heard}`", canonical])
+            else:
+                cells.extend(["", ""])
+        out.append("| " + " | ".join(cells) + " |")
+    return out
 
 
 def _render_run_metadata(

@@ -1044,37 +1044,37 @@ One subsection per episode in the corpus, showing how every model performed on t
 
 | Model | Result | FP count |
 |-------|--------|----------|
-| `meta-llama/llama-3.3-70b-instruct` | PASS | 0 |
-| `mistralai/mistral-medium-3.1` | PASS | 0 |
-| `nvidia/llama-3.3-nemotron-super-49b-v1.5` | PASS | 0 |
-| `x-ai/grok-4.1-fast` | PASS | 0 |
 | `qwen/qwen3.5-plus-02-15` | PASS | 0 |
-| `openai/o4-mini` | PASS | 0 |
-| `claude-opus-4-7` | PASS | 0 |
-| `google/gemini-2.5-flash` | PASS | 0 |
-| `deepseek/deepseek-v3.2` | PASS | 0 |
-| `mistralai/codestral-2508` | PASS | 0 |
-| `meta-llama/llama-4-scout` | PASS | 0 |
-| `openai/o3` | PASS | 0 |
-| `mistralai/mistral-large-2512` | PASS | 0 |
-| `cohere/command-r-plus-08-2024` | PASS | 0 |
-| `meta-llama/llama-3.1-8b-instruct` | PASS | 0 |
-| `claude-haiku-4-5-20251001` | PASS | 0 |
+| `meta-llama/llama-3.3-70b-instruct` | PASS | 0 |
 | `claude-sonnet-4-6` | PASS | 0 |
+| `meta-llama/llama-3.1-8b-instruct` | PASS | 0 |
+| `deepseek/deepseek-v3.2` | PASS | 0 |
 | `mistralai/mistral-7b-instruct-v0.1` | PASS | 0 |
-| `nvidia/nemotron-nano-9b-v2` | FAIL | 1 |
-| `google/gemma-4-31b-it` | FAIL | 1 |
+| `meta-llama/llama-4-scout` | PASS | 0 |
+| `mistralai/mistral-large-2512` | PASS | 0 |
+| `x-ai/grok-4.1-fast` | PASS | 0 |
+| `claude-opus-4-7` | PASS | 0 |
+| `mistralai/codestral-2508` | PASS | 0 |
+| `openai/o4-mini` | PASS | 0 |
+| `mistralai/mistral-medium-3.1` | PASS | 0 |
+| `claude-haiku-4-5-20251001` | PASS | 0 |
+| `nvidia/llama-3.3-nemotron-super-49b-v1.5` | PASS | 0 |
+| `openai/o3` | PASS | 0 |
+| `cohere/command-r-plus-08-2024` | PASS | 0 |
+| `google/gemini-2.5-flash` | PASS | 0 |
 | `google/gemini-2.5-pro` | FAIL | 1 |
 | `meta-llama/llama-4-maverick` | FAIL | 1 |
-| `deepseek/deepseek-r1` | FAIL | 1 |
-| `openai/gpt-5.5` | FAIL | 1 |
-| `moonshotai/kimi-k2.6` | FAIL | 1 |
 | `deepseek/deepseek-v4-flash` | FAIL | 1 |
+| `moonshotai/kimi-k2.6` | FAIL | 1 |
+| `google/gemma-4-31b-it` | FAIL | 1 |
 | `openai/gpt-5.4` | FAIL | 1 |
+| `deepseek/deepseek-r1` | FAIL | 1 |
+| `nvidia/nemotron-nano-9b-v2` | FAIL | 1 |
+| `openai/gpt-5.5` | FAIL | 1 |
 | `deepseek/deepseek-r1-distill-llama-70b` | FAIL | 2 |
 | `microsoft/phi-4` | FAIL | 3 |
-| `cohere/command-a` | FAIL | 3 |
 | `openai/gpt-3.5-turbo` | FAIL | 3 |
+| `cohere/command-a` | FAIL | 3 |
 | `deepseek/deepseek-r1-0528` | FAIL | 27 |
 
 #### `ep-daily-tech-news-show-c1904b8605f7`: Switch 2 Prices Rise, Forecast Drops - DTNS 5265
@@ -1156,8 +1156,8 @@ One subsection per episode in the corpus, showing how every model performed on t
 | `meta-llama/llama-3.1-8b-instruct` | 0.183 | 0.109 |
 | `openai/o4-mini` | 0.080 | 0.179 |
 | `microsoft/phi-4` | 0.000 | 0.000 |
-| `cohere/command-r-plus-08-2024` | 0.000 | 0.000 |
 | `mistralai/mistral-7b-instruct-v0.1` | 0.000 | 0.000 |
+| `cohere/command-r-plus-08-2024` | 0.000 | 0.000 |
 
 #### `ep-it-s-a-thing-e339179dfad6`: SOUP shots - It's a Thing 418
 
@@ -1167,38 +1167,38 @@ One subsection per episode in the corpus, showing how every model performed on t
 
 | Model | F1 | F1 stdev |
 |-------|----|----------|
-| `x-ai/grok-4.1-fast` | 0.667 | 0.000 |
 | `qwen/qwen3.5-plus-02-15` | 0.667 | 0.000 |
-| `claude-opus-4-7` | 0.667 | 0.000 |
 | `google/gemini-2.5-pro` | 0.667 | 0.000 |
+| `x-ai/grok-4.1-fast` | 0.667 | 0.000 |
+| `claude-opus-4-7` | 0.667 | 0.000 |
 | `openai/gpt-5.5` | 0.667 | 0.000 |
 | `openai/gpt-5.4` | 0.613 | 0.119 |
 | `google/gemma-4-31b-it` | 0.467 | 0.274 |
 | `deepseek/deepseek-r1-0528` | 0.404 | 0.281 |
-| `cohere/command-a` | 0.400 | 0.000 |
-| `deepseek/deepseek-v3.2` | 0.400 | 0.548 |
 | `meta-llama/llama-3.1-8b-instruct` | 0.400 | 0.548 |
+| `deepseek/deepseek-v3.2` | 0.400 | 0.548 |
+| `cohere/command-a` | 0.400 | 0.000 |
 | `deepseek/deepseek-v4-flash` | 0.337 | 0.239 |
 | `openai/o3` | 0.333 | 0.471 |
 | `deepseek/deepseek-r1` | 0.313 | 0.301 |
 | `nvidia/llama-3.3-nemotron-super-49b-v1.5` | 0.233 | 0.325 |
 | `moonshotai/kimi-k2.6` | 0.200 | 0.274 |
-| `meta-llama/llama-3.3-70b-instruct` | 0.000 | 0.000 |
-| `mistralai/mistral-medium-3.1` | 0.000 | 0.000 |
-| `openai/o4-mini` | 0.000 | 0.000 |
-| `nvidia/nemotron-nano-9b-v2` | 0.000 | 0.000 |
 | `microsoft/phi-4` | 0.000 | 0.000 |
-| `google/gemini-2.5-flash` | 0.000 | 0.000 |
-| `deepseek/deepseek-r1-distill-llama-70b` | 0.000 | 0.000 |
-| `mistralai/codestral-2508` | 0.000 | 0.000 |
-| `meta-llama/llama-4-scout` | 0.000 | 0.000 |
 | `meta-llama/llama-4-maverick` | 0.000 | 0.000 |
-| `mistralai/mistral-large-2512` | 0.000 | 0.000 |
-| `cohere/command-r-plus-08-2024` | 0.000 | 0.000 |
-| `claude-haiku-4-5-20251001` | 0.000 | 0.000 |
+| `meta-llama/llama-3.3-70b-instruct` | 0.000 | 0.000 |
 | `claude-sonnet-4-6` | 0.000 | 0.000 |
 | `mistralai/mistral-7b-instruct-v0.1` | 0.000 | 0.000 |
+| `meta-llama/llama-4-scout` | 0.000 | 0.000 |
+| `mistralai/mistral-large-2512` | 0.000 | 0.000 |
 | `openai/gpt-3.5-turbo` | 0.000 | 0.000 |
+| `mistralai/codestral-2508` | 0.000 | 0.000 |
+| `openai/o4-mini` | 0.000 | 0.000 |
+| `mistralai/mistral-medium-3.1` | 0.000 | 0.000 |
+| `deepseek/deepseek-r1-distill-llama-70b` | 0.000 | 0.000 |
+| `claude-haiku-4-5-20251001` | 0.000 | 0.000 |
+| `nvidia/nemotron-nano-9b-v2` | 0.000 | 0.000 |
+| `cohere/command-r-plus-08-2024` | 0.000 | 0.000 |
+| `google/gemini-2.5-flash` | 0.000 | 0.000 |
 
 #### `ep-security-now-audio-2850b24903b2`: SN 1077: A Browser AI API? - End of Bug Bounties?
 
@@ -1220,8 +1220,8 @@ One subsection per episode in the corpus, showing how every model performed on t
 | `claude-sonnet-4-6` | 0.516 | 0.014 |
 | `meta-llama/llama-3.3-70b-instruct` | 0.512 | 0.035 |
 | `openai/gpt-5.5` | 0.505 | 0.047 |
-| `google/gemma-4-31b-it` | 0.496 | 0.021 |
 | `meta-llama/llama-4-maverick` | 0.496 | 0.021 |
+| `google/gemma-4-31b-it` | 0.496 | 0.021 |
 | `openai/gpt-5.4` | 0.495 | 0.022 |
 | `qwen/qwen3.5-plus-02-15` | 0.476 | 0.000 |
 | `deepseek/deepseek-v4-flash` | 0.465 | 0.046 |
@@ -1278,9 +1278,9 @@ One subsection per episode in the corpus, showing how every model performed on t
 | `google/gemini-2.5-flash` | 0.125 | 0.000 |
 | `deepseek/deepseek-v3.2` | 0.100 | 0.224 |
 | `microsoft/phi-4` | 0.067 | 0.092 |
-| `cohere/command-r-plus-08-2024` | 0.000 | 0.000 |
 | `meta-llama/llama-3.1-8b-instruct` | 0.000 | 0.000 |
 | `mistralai/mistral-7b-instruct-v0.1` | 0.000 | 0.000 |
+| `cohere/command-r-plus-08-2024` | 0.000 | 0.000 |
 
 #### `ep-the-tim-dillon-show-f62bd5fa1cfe`: 495 - Hantavirus Cruise & iPad Babies
 
@@ -1310,8 +1310,8 @@ One subsection per episode in the corpus, showing how every model performed on t
 | `nvidia/llama-3.3-nemotron-super-49b-v1.5` | 0.171 | 0.125 |
 | `meta-llama/llama-4-maverick` | 0.167 | 0.000 |
 | `deepseek/deepseek-r1-distill-llama-70b` | 0.163 | 0.159 |
-| `google/gemini-2.5-flash` | 0.154 | 0.000 |
 | `claude-haiku-4-5-20251001` | 0.154 | 0.000 |
+| `google/gemini-2.5-flash` | 0.154 | 0.000 |
 | `openai/gpt-3.5-turbo` | 0.125 | 0.000 |
 | `microsoft/phi-4` | 0.079 | 0.072 |
 | `deepseek/deepseek-v3.2` | 0.057 | 0.079 |
@@ -1320,8 +1320,8 @@ One subsection per episode in the corpus, showing how every model performed on t
 | `meta-llama/llama-3.1-8b-instruct` | 0.049 | 0.019 |
 | `nvidia/nemotron-nano-9b-v2` | 0.044 | 0.061 |
 | `mistralai/mistral-large-2512` | 0.044 | 0.025 |
-| `openai/o4-mini` | 0.000 | 0.000 |
 | `mistralai/mistral-7b-instruct-v0.1` | 0.000 | 0.000 |
+| `openai/o4-mini` | 0.000 | 0.000 |
 
 
 ### Parser stress test
@@ -1330,25 +1330,25 @@ How each model's responses were actually parsed. Columns are extraction methods,
 
 | Model | bracket_fallback | json_array_direct | json_object_ads_key | json_object_no_ads | json_object_segments_key | json_object_single_ad | json_object_single_ad_truncated | json_object_window_segments | markdown_code_block | parse_failure | regex_json_array |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| `mistralai/mistral-medium-3.1` | 0 | 450 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `qwen/qwen3.5-plus-02-15` | 0 | 450 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `claude-opus-4-7` | 0 | 448 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 2 |
-| `cohere/command-a` | 0 | 0 | 0 | 3 | 0 | 447 | 0 | 0 | 0 | 0 | 0 |
-| `google/gemini-2.5-flash` | 0 | 450 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `google/gemma-4-31b-it` | 0 | 0 | 278 | 72 | 0 | 99 | 1 | 0 | 0 | 0 | 0 |
-| `deepseek/deepseek-v3.2` | 0 | 355 | 4 | 0 | 0 | 91 | 0 | 0 | 0 | 0 | 0 |
-| `mistralai/codestral-2508` | 0 | 450 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `meta-llama/llama-4-maverick` | 0 | 0 | 0 | 93 | 0 | 357 | 0 | 0 | 0 | 0 | 0 |
-| `mistralai/mistral-large-2512` | 0 | 450 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `cohere/command-r-plus-08-2024` | 0 | 0 | 10 | 395 | 0 | 45 | 0 | 0 | 0 | 0 | 0 |
-| `claude-haiku-4-5-20251001` | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 450 | 0 | 0 |
 | `claude-sonnet-4-6` | 0 | 413 | 0 | 0 | 0 | 0 | 0 | 0 | 27 | 0 | 10 |
+| `deepseek/deepseek-v3.2` | 0 | 355 | 4 | 0 | 0 | 91 | 0 | 0 | 0 | 0 | 0 |
+| `google/gemma-4-31b-it` | 0 | 0 | 278 | 72 | 0 | 99 | 1 | 0 | 0 | 0 | 0 |
+| `mistralai/mistral-large-2512` | 0 | 450 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `openai/gpt-3.5-turbo` | 0 | 0 | 0 | 4 | 0 | 446 | 0 | 0 | 0 | 0 | 0 |
+| `claude-opus-4-7` | 0 | 448 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 2 |
+| `mistralai/codestral-2508` | 0 | 450 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `openai/gpt-5.4` | 0 | 0 | 0 | 134 | 0 | 316 | 0 | 0 | 0 | 0 | 0 |
+| `mistralai/mistral-medium-3.1` | 0 | 450 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `claude-haiku-4-5-20251001` | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 450 | 0 | 0 |
+| `cohere/command-a` | 0 | 0 | 0 | 3 | 0 | 447 | 0 | 0 | 0 | 0 | 0 |
+| `cohere/command-r-plus-08-2024` | 0 | 0 | 10 | 395 | 0 | 45 | 0 | 0 | 0 | 0 | 0 |
+| `google/gemini-2.5-flash` | 0 | 450 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `meta-llama/llama-3.3-70b-instruct` | 0 | 101 | 0 | 118 | 0 | 229 | 0 | 0 | 0 | 1 | 1 |
-| `x-ai/grok-4.1-fast` | 0 | 0 | 0 | 259 | 0 | 190 | 0 | 0 | 0 | 1 | 0 |
-| `meta-llama/llama-4-scout` | 23 | 3 | 318 | 44 | 0 | 58 | 0 | 0 | 0 | 1 | 3 |
 | `meta-llama/llama-3.1-8b-instruct` | 0 | 242 | 0 | 52 | 0 | 155 | 0 | 0 | 0 | 1 | 0 |
+| `meta-llama/llama-4-scout` | 23 | 3 | 318 | 44 | 0 | 58 | 0 | 0 | 0 | 1 | 3 |
+| `x-ai/grok-4.1-fast` | 0 | 0 | 0 | 259 | 0 | 190 | 0 | 0 | 0 | 1 | 0 |
 | `openai/gpt-5.5` | 0 | 0 | 0 | 258 | 0 | 191 | 0 | 0 | 0 | 1 | 0 |
 | `google/gemini-2.5-pro` | 0 | 429 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 2 | 19 |
 | `deepseek/deepseek-r1-distill-llama-70b` | 0 | 14 | 15 | 32 | 0 | 385 | 0 | 0 | 0 | 4 | 0 |
@@ -1665,188 +1665,72 @@ The `initial_prompt` carries a sponsor vocabulary so Whisper produces consistent
 | Zoom | - | tech_software_saas |
 | Zscaler | - | tech |
 
-**Mishearing corrections** (174 entries, from `src/utils/constants.py` `SPONSOR_ALIASES`). Applied post-transcription to normalize Whisper output toward the canonical sponsor name. Distinct from the `aliases` column above, which lists intentional alternative spellings (e.g. `AG1` vs `Athletic Greens`); the entries below are mostly Whisper mishearings (e.g. `a firm` -> `Affirm`, `xerox` -> `Xero`).
+**Mishearing corrections** (174 entries, from `src/utils/constants.py` `SPONSOR_ALIASES`). Applied post-transcription to normalize Whisper output toward the canonical sponsor name. Distinct from the `aliases` column above, which lists intentional alternative spellings (e.g. `AG1` vs `Athletic Greens`); the entries below are mostly Whisper mishearings (e.g. `a firm` -> `Affirm`, `xerox` -> `Xero`). Laid out in three side-by-side pairs, read top-to-bottom in each column.
 
-| Heard as | Normalized to |
-|---|---|
-| `1 password` | 1Password |
-| `8 sleep` | Eight Sleep |
-| `8-sleep` | Eight Sleep |
-| `a firm` | Affirm |
-| `a g one` | Athletic Greens |
-| `ag 1` | Athletic Greens |
-| `ag one` | Athletic Greens |
-| `ag1` | Athletic Greens |
-| `athlean x` | Athlean-X |
-| `athlean-x` | Athlean-X |
-| `athletic greens one` | Athletic Greens |
-| `athleticgreens` | Athletic Greens |
-| `bet mgm` | BetMGM |
-| `bet-mgm` | BetMGM |
-| `better help` | BetterHelp |
-| `better-help` | BetterHelp |
-| `birch box` | Birchbox |
-| `birch-box` | Birchbox |
-| `bit warden` | Bitwarden |
-| `bit-warden` | Bitwarden |
-| `blueapron` | Blue Apron |
-| `brecks` | Brex |
-| `butcher box` | Butcher Box |
-| `butcher-box` | Butcher Box |
-| `butcherbox` | Butcher Box |
-| `car max` | CarMax |
-| `car-max` | CarMax |
-| `cloud flare` | Cloudflare |
-| `cloud-flare` | Cloudflare |
-| `co pilot` | GitHub Copilot |
-| `co-pilot` | GitHub Copilot |
-| `copilot` | GitHub Copilot |
-| `creditkarma` | Credit Karma |
-| `delete me` | DeleteMe |
-| `delete-me` | DeleteMe |
-| `dollarshaveclub` | Dollar Shave Club |
-| `door dash` | DoorDash |
-| `door-dash` | DoorDash |
-| `draft kings` | DraftKings |
-| `draft-kings` | DraftKings |
-| `eight-sleep` | Eight Sleep |
-| `eightsleep` | Eight Sleep |
-| `element` | LMNT |
-| `every plate` | EveryPlate |
-| `every-plate` | EveryPlate |
-| `express vpn` | ExpressVPN |
-| `express-vpn` | ExpressVPN |
-| `fab fit fun` | FabFitFun |
-| `fab-fit-fun` | FabFitFun |
-| `fan duel` | FanDuel |
-| `fan-duel` | FanDuel |
-| `game time` | Gametime |
-| `game-time` | Gametime |
-| `gametime` | Gametime |
-| `github-copilot` | GitHub Copilot |
-| `go puff` | Gopuff |
-| `go-puff` | Gopuff |
-| `good rx` | GoodRx |
-| `good-rx` | GoodRx |
-| `green chef` | Green Chef |
-| `green-chef` | Green Chef |
-| `greenchef` | Green Chef |
-| `grub hub` | Grubhub |
-| `grub-hub` | Grubhub |
-| `harrys` | Harry's |
-| `head space` | Headspace |
-| `head-space` | Headspace |
-| `hello fresh` | HelloFresh |
-| `hello-fresh` | HelloFresh |
-| `him's` | Hims |
-| `hims & hers` | Hims & Hers |
-| `hims and hers` | Hims & Hers |
-| `honey love` | Honeylove |
-| `honey-love` | Honeylove |
-| `honeylove` | Honeylove |
-| `hub spot` | HubSpot |
-| `hub-spot` | HubSpot |
-| `hubs pot` | HubSpot |
-| `imperfect foods` | Imperfect Foods |
-| `imperfectfoods` | Imperfect Foods |
-| `insta cart` | Instacart |
-| `insta-cart` | Instacart |
-| `l m n t` | LMNT |
-| `legal zoom` | LegalZoom |
-| `legal-zoom` | LegalZoom |
-| `legalzoom` | LegalZoom |
-| `liquid i v` | Liquid IV |
-| `liquid i.v.` | Liquid IV |
-| `liquid iv` | Liquid IV |
-| `liquidiv` | Liquid IV |
-| `magic mind` | Magic Mind |
-| `magic spoon` | Magic Spoon |
-| `magicmind` | Magic Mind |
-| `magicspoon` | Magic Spoon |
-| `master class` | MasterClass |
-| `master-class` | MasterClass |
-| `mercury bank` | Mercury |
-| `mercury-bank` | Mercury |
-| `mint mobile` | Mint Mobile |
-| `mint-mobile` | Mint Mobile |
-| `mintmobile` | Mint Mobile |
-| `monarch money` | Monarch Money |
-| `monarch-money` | Monarch Money |
-| `monarchmoney` | Monarch Money |
-| `my protein` | Myprotein |
-| `my ro` | Miro |
-| `myprotein` | Myprotein |
-| `net suite` | NetSuite |
-| `net-suite` | NetSuite |
-| `nord vpn` | NordVPN |
-| `nord-vpn` | NordVPN |
-| `one password` | 1Password |
-| `one skin` | OneSkin |
-| `one-password` | 1Password |
-| `one-skin` | OneSkin |
-| `p ninety x` | P90X |
-| `patron` | Patreon |
-| `pay tree on` | Patreon |
-| `perplexity ai` | Perplexity |
-| `perplexity-ai` | Perplexity |
-| `policy genius` | PolicyGenius |
-| `policy-genius` | PolicyGenius |
-| `pyura` | Pura |
-| `ray con` | Raycon |
-| `ray-con` | Raycon |
-| `re tool` | Retool |
-| `ro gain` | Rogaine |
-| `ro-gaine` | Rogaine |
-| `rocket money` | Rocket Money |
-| `rocket-money` | Rocket Money |
-| `rocketlawyer` | Rocket Lawyer |
-| `rocketmoney` | Rocket Money |
-| `rocketmortgage` | Rocket Mortgage |
-| `seat geek` | SeatGeek |
-| `seat-geek` | SeatGeek |
-| `shop a fly` | Shopify |
-| `shop fly` | Shopify |
-| `shop ify` | Shopify |
-| `simpli safe` | SimpliSafe |
-| `simpli-safe` | SimpliSafe |
-| `simply safe` | SimpliSafe |
-| `sky scanner` | Skyscanner |
-| `sky-scanner` | Skyscanner |
-| `so fi` | SoFi |
-| `so-fi` | SoFi |
-| `square space` | Squarespace |
-| `square-space` | Squarespace |
-| `stamp dot com` | Stamps.com |
-| `stitch fix` | Stitch Fix |
-| `stitch-fix` | Stitch Fix |
-| `stitchfix` | Stitch Fix |
-| `stub hub` | StubHub |
-| `stub-hub` | StubHub |
-| `sub stack` | Substack |
-| `sub-stack` | Substack |
-| `thrive market` | Thrive Market |
-| `thrivemarket` | Thrive Market |
-| `transparent labs` | Transparent Labs |
-| `transparentlabs` | Transparent Labs |
-| `uber eats` | Uber Eats |
-| `uber-eats` | Uber Eats |
-| `ubereats` | Uber Eats |
-| `ver cell` | Vercel |
-| `ver sel` | Vercel |
-| `wealth front` | Wealthfront |
-| `wealth-front` | Wealthfront |
-| `woop` | Whoop |
-| `xerox` | Xero |
-| `zero` | Xero |
-| `zip recruiter` | ZipRecruiter |
-| `zip-recruiter` | ZipRecruiter |
-| `zoc doc` | ZocDoc |
-| `zoc-doc` | ZocDoc |
-| `zock doc` | ZocDoc |
+| Heard as | Normalized to | Heard as | Normalized to | Heard as | Normalized to |
+|---|---|---|---|---|---|
+| `1 password` | 1Password | `good-rx` | GoodRx | `patron` | Patreon |
+| `8 sleep` | Eight Sleep | `green chef` | Green Chef | `pay tree on` | Patreon |
+| `8-sleep` | Eight Sleep | `green-chef` | Green Chef | `perplexity ai` | Perplexity |
+| `a firm` | Affirm | `greenchef` | Green Chef | `perplexity-ai` | Perplexity |
+| `a g one` | Athletic Greens | `grub hub` | Grubhub | `policy genius` | PolicyGenius |
+| `ag 1` | Athletic Greens | `grub-hub` | Grubhub | `policy-genius` | PolicyGenius |
+| `ag one` | Athletic Greens | `harrys` | Harry's | `pyura` | Pura |
+| `ag1` | Athletic Greens | `head space` | Headspace | `ray con` | Raycon |
+| `athlean x` | Athlean-X | `head-space` | Headspace | `ray-con` | Raycon |
+| `athlean-x` | Athlean-X | `hello fresh` | HelloFresh | `re tool` | Retool |
+| `athletic greens one` | Athletic Greens | `hello-fresh` | HelloFresh | `ro gain` | Rogaine |
+| `athleticgreens` | Athletic Greens | `him's` | Hims | `ro-gaine` | Rogaine |
+| `bet mgm` | BetMGM | `hims & hers` | Hims & Hers | `rocket money` | Rocket Money |
+| `bet-mgm` | BetMGM | `hims and hers` | Hims & Hers | `rocket-money` | Rocket Money |
+| `better help` | BetterHelp | `honey love` | Honeylove | `rocketlawyer` | Rocket Lawyer |
+| `better-help` | BetterHelp | `honey-love` | Honeylove | `rocketmoney` | Rocket Money |
+| `birch box` | Birchbox | `honeylove` | Honeylove | `rocketmortgage` | Rocket Mortgage |
+| `birch-box` | Birchbox | `hub spot` | HubSpot | `seat geek` | SeatGeek |
+| `bit warden` | Bitwarden | `hub-spot` | HubSpot | `seat-geek` | SeatGeek |
+| `bit-warden` | Bitwarden | `hubs pot` | HubSpot | `shop a fly` | Shopify |
+| `blueapron` | Blue Apron | `imperfect foods` | Imperfect Foods | `shop fly` | Shopify |
+| `brecks` | Brex | `imperfectfoods` | Imperfect Foods | `shop ify` | Shopify |
+| `butcher box` | Butcher Box | `insta cart` | Instacart | `simpli safe` | SimpliSafe |
+| `butcher-box` | Butcher Box | `insta-cart` | Instacart | `simpli-safe` | SimpliSafe |
+| `butcherbox` | Butcher Box | `l m n t` | LMNT | `simply safe` | SimpliSafe |
+| `car max` | CarMax | `legal zoom` | LegalZoom | `sky scanner` | Skyscanner |
+| `car-max` | CarMax | `legal-zoom` | LegalZoom | `sky-scanner` | Skyscanner |
+| `cloud flare` | Cloudflare | `legalzoom` | LegalZoom | `so fi` | SoFi |
+| `cloud-flare` | Cloudflare | `liquid i v` | Liquid IV | `so-fi` | SoFi |
+| `co pilot` | GitHub Copilot | `liquid i.v.` | Liquid IV | `square space` | Squarespace |
+| `co-pilot` | GitHub Copilot | `liquid iv` | Liquid IV | `square-space` | Squarespace |
+| `copilot` | GitHub Copilot | `liquidiv` | Liquid IV | `stamp dot com` | Stamps.com |
+| `creditkarma` | Credit Karma | `magic mind` | Magic Mind | `stitch fix` | Stitch Fix |
+| `delete me` | DeleteMe | `magic spoon` | Magic Spoon | `stitch-fix` | Stitch Fix |
+| `delete-me` | DeleteMe | `magicmind` | Magic Mind | `stitchfix` | Stitch Fix |
+| `dollarshaveclub` | Dollar Shave Club | `magicspoon` | Magic Spoon | `stub hub` | StubHub |
+| `door dash` | DoorDash | `master class` | MasterClass | `stub-hub` | StubHub |
+| `door-dash` | DoorDash | `master-class` | MasterClass | `sub stack` | Substack |
+| `draft kings` | DraftKings | `mercury bank` | Mercury | `sub-stack` | Substack |
+| `draft-kings` | DraftKings | `mercury-bank` | Mercury | `thrive market` | Thrive Market |
+| `eight-sleep` | Eight Sleep | `mint mobile` | Mint Mobile | `thrivemarket` | Thrive Market |
+| `eightsleep` | Eight Sleep | `mint-mobile` | Mint Mobile | `transparent labs` | Transparent Labs |
+| `element` | LMNT | `mintmobile` | Mint Mobile | `transparentlabs` | Transparent Labs |
+| `every plate` | EveryPlate | `monarch money` | Monarch Money | `uber eats` | Uber Eats |
+| `every-plate` | EveryPlate | `monarch-money` | Monarch Money | `uber-eats` | Uber Eats |
+| `express vpn` | ExpressVPN | `monarchmoney` | Monarch Money | `ubereats` | Uber Eats |
+| `express-vpn` | ExpressVPN | `my protein` | Myprotein | `ver cell` | Vercel |
+| `fab fit fun` | FabFitFun | `my ro` | Miro | `ver sel` | Vercel |
+| `fab-fit-fun` | FabFitFun | `myprotein` | Myprotein | `wealth front` | Wealthfront |
+| `fan duel` | FanDuel | `net suite` | NetSuite | `wealth-front` | Wealthfront |
+| `fan-duel` | FanDuel | `net-suite` | NetSuite | `woop` | Whoop |
+| `game time` | Gametime | `nord vpn` | NordVPN | `xerox` | Xero |
+| `game-time` | Gametime | `nord-vpn` | NordVPN | `zero` | Xero |
+| `gametime` | Gametime | `one password` | 1Password | `zip recruiter` | ZipRecruiter |
+| `github-copilot` | GitHub Copilot | `one skin` | OneSkin | `zip-recruiter` | ZipRecruiter |
+| `go puff` | Gopuff | `one-password` | 1Password | `zoc doc` | ZocDoc |
+| `go-puff` | Gopuff | `one-skin` | OneSkin | `zoc-doc` | ZocDoc |
+| `good rx` | GoodRx | `p ninety x` | P90X | `zock doc` | ZocDoc |
 
 ### Run Metadata
 
-- Report generated: 2026-05-11T16:41:25Z
+- Report generated: 2026-05-11T16:43:25Z
 - Unique work units (current state, last-write-wins after retries): 14400
 - Raw rows in calls.jsonl: 14416 (16 superseded by later retries; kept for audit)
 - Successful: 14400
