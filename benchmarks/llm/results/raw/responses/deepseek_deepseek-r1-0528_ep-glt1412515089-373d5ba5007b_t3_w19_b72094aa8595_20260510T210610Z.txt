@@ -1,0 +1,9 @@
+[
+  {
+    "start": 8218.9,
+    "end": 8242.2,
+    "confidence": 0.95,
+    "reason": "Hosting platform insertion: 'Transcript by Rev.com'",
+    "end_text": "Transcript by Rev.com"
+  }
+]

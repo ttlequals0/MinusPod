@@ -1,0 +1,1 @@
+{"start":1524.5,"end":1561.9,"confidence":0.98,"reason":"Xero sponsor read","end_text":"show that we recommend"}

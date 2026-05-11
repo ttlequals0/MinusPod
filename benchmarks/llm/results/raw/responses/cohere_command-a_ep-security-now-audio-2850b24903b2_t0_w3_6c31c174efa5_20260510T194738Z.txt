@@ -1,0 +1,7 @@
+{
+  "start": 1255.9,
+  "end": 1281.3,
+  "confidence": 0.95,
+  "reason": "Zscaler sponsor read",
+  "end_text": "watching."
+}

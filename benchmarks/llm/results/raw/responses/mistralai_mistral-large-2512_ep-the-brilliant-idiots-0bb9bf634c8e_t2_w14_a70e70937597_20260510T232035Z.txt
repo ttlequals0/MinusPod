@@ -1,0 +1,16 @@
+[
+    {
+        "start": 6390.2,
+        "end": 6396.7,
+        "confidence": 0.95,
+        "reason": "Host transition phrase 'Let's pay some bills and do some asking idiots, man.' followed by promotional language for sponsor reads (common ad break structure). Likely ad segment begins here, though no explicit sponsor name in this window.",
+        "end_text": "do some asking idiots, man."
+    },
+    {
+        "start": 6445.0,
+        "end": 6480.0,
+        "confidence": 0.98,
+        "reason": "Platform-inserted ad for 'Learn more about your ad choices. Visit megaphone.fm/adchoices' (detected in transcript header). This is a hosting platform promotional insertion, not organic content. Continues in next window.",
+        "end_text": "continues in next"
+    }
+]

@@ -1,0 +1,37 @@
+[
+  {
+    "start": 4646.2,
+    "end": 4697.4,
+    "confidence": 0.98,
+    "reason": "Produced Colgate Women's Games ad with brand messaging and tagline",
+    "end_text": "your smile is your strength"
+  },
+  {
+    "start": 4705.5,
+    "end": 4733.9,
+    "confidence": 0.98,
+    "reason": "Skinny Pop product ad with ingredient claims and branding",
+    "end_text": "perfectly salted. Skinny Pop"
+  },
+  {
+    "start": 4734.3,
+    "end": 4763.1,
+    "confidence": 0.98,
+    "reason": "Second Colgate Women's Games ad repeating program details",
+    "end_text": "put more smiles out into the world"
+  },
+  {
+    "start": 4766.5,
+    "end": 4787.9,
+    "confidence": 0.98,
+    "reason": "Viz prescription eye drops medical ad with side effects and URL",
+    "end_text": "learn if Viz is right for you"
+  },
+  {
+    "start": 4788.6,
+    "end": 4806.1,
+    "confidence": 0.98,
+    "reason": "Garnier National Park Foundation partnership ad with call-to-action URL",
+    "end_text": "support our national parks"
+  }
+]

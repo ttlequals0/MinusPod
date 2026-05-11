@@ -1,0 +1,16 @@
+[
+  {
+    "start": 539.2,
+    "end": 568.3,
+    "confidence": 0.98,
+    "reason": "Host-read ad for 'In the Gray' movie with release date and rating",
+    "end_text": "they operate. Only in theaters"
+  },
+  {
+    "start": 568.4,
+    "end": 652.8,
+    "confidence": 0.99,
+    "reason": "Host-read Skechers ad with product features, website call-to-action, and machine-washable claim",
+    "end_text": "only at Skechers.com"
+  }
+]

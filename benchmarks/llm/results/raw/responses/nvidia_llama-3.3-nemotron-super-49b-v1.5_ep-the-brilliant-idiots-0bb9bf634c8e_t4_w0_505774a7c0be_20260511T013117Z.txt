@@ -1,0 +1,1 @@
+[{"start": 0.5, "end": 16.8, "confidence": 0.98, "reason": "Carvana host-read sponsorship with promotional language and call to action", "end_text": "Pickup fees may apply."}]

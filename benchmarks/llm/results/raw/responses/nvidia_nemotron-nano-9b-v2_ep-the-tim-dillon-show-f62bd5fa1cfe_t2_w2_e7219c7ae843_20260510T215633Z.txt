@@ -1,0 +1,1 @@
+[{"start": 1307.0, "end": 1440.0, "confidence": 0.95, "reason": "Mint Mobile promotion", "end_text": "5G network"}]

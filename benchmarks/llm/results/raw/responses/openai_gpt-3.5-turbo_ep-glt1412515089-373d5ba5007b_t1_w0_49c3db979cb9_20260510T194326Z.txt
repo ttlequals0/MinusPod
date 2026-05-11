@@ -1,0 +1,8 @@
+
+{
+	"start": 539.2,
+	"end": 568.3,
+	"confidence": 0.95,
+	"reason": "In the Gray movie sponsor read",
+	"end_text": "they operate."
+}

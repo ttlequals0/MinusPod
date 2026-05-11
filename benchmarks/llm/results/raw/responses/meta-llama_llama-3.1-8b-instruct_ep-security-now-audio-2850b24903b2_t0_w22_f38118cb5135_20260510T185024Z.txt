@@ -1,0 +1,1 @@
+{ "start": 9237.9, "end": 9258.6, "confidence": 0.95, "reason": "Host sign-off", "end_text": "Have a great week." }

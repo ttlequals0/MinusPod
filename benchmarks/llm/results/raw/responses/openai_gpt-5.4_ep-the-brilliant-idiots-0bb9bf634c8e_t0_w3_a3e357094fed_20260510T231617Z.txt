@@ -1,0 +1,1 @@
+{"start":1842.8,"end":1867.6,"confidence":0.91,"reason":"Organic discussion of hip-hop journalists (Sway, Fab Five Freddy, Shaheem Reed, Elliott Wilson); no sponsor, product pitch, promo code, URL, or call to action present","end_text":"Elliott Wilson in that category, too."}

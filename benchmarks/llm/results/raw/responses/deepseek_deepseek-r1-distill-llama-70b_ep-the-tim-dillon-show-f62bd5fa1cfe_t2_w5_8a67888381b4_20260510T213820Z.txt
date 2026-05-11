@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I've been thinking about this whole Hantavirus cruise ship situation. It's wild how one little virus can shut down an entire ship. I mean, can you imagine being stuck on a boat with a bunch of sick people? It's like a real-life horror movie. And then, you know, the iPad babies thing? That's another level. Babies glued to screens all day. It's like, what's the future going to look like? Are we just going to have a generation of kids who can't even have a conversation without a screen in front of them? It's scary, man. But hey, at least they'll be entertained, right? I guess that's the trade-off. Anyway, let's take a break and we'll be right back after this.",
+  "start": 35.0,
+  "end": 45.0
+}

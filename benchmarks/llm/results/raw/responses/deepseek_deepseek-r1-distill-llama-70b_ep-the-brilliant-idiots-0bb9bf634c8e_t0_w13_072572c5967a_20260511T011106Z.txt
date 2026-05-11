@@ -1,0 +1,7 @@
+{
+  "start": 5702.4,
+  "end": 5730.3,
+  "confidence": 0.95,
+  "reason": "Met Gala sponsorship mention",
+  "end_text": "vying for the next position. Huh. We're at war."
+}

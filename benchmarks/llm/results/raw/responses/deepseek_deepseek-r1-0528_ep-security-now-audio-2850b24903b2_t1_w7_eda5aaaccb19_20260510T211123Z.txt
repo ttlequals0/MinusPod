@@ -1,0 +1,16 @@
+[
+  {
+    "start": 2936.4,
+    "end": 2961.9,
+    "confidence": 0.9,
+    "reason": "Host sign-off and transition to ad break",
+    "end_text": "Thank you for watching."
+  },
+  {
+    "start": 3376.2,
+    "end": 3382.8,
+    "confidence": 0.9,
+    "reason": "Host sign-off and transition to ad break",
+    "end_text": "Thank you for watching."
+  }
+]

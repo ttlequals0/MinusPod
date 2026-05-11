@@ -1,0 +1,11 @@
+Looking at the transcript segment, I need to identify any advertisement segments.
+
+Around [4057.2s], Charlamagne says "Let's pay some bills, Chris" - this is a transition to an ad break. Then at [4059.4s] there's discussion about paying bills, but the actual ad content isn't visible in the transcript (there's a gap between 4059.4s and 4083.9s where the ad likely played).
+
+At [4083.9s], the show resumes with "All right, let's get back to this show."
+
+Later, around [4323.9s - 4334.1s], Lauren LaRosa promotes Jess Hilarious' book "Til Death Do We Parent" and her tennis event with All Love Racquet Club, and her show "AM Mornings" - these appear to be host-read promotional segments/church announcements rather than paid sponsor ads. These are organic mentions of their own projects and a guest's book, which falls under the "host organically mentioning" category.
+
+The gap between [4059.4s] and [4083.9s] suggests an ad break occurred, but there's no promotional transcript content visible to confirm specific sponsors.
+
+[]

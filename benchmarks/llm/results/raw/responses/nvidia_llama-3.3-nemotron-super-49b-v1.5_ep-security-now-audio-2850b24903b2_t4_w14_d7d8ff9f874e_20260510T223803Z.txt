@@ -1,0 +1,9 @@
+[
+    {
+        "start": 6045.5,
+        "end": 6162.3,
+        "confidence": 0.95,
+        "reason": "Hoxhunt sponsor read (misspelled as Hawkshunt in transcript)",
+        "end_text": "hawkshunt.com security now"
+    }
+]

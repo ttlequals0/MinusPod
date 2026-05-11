@@ -1,0 +1,184 @@
+[
+{
+  "start": 5037.8,
+   "end": 5062.7,
+   "confidence": 0.0,
+   "reason": "no ad content",
+   "end_text": "So..."
+},
+{
+   "start": 5063.1,
+   "end": 5071.5,
+   "confidence": 0.0,
+   "reason": "no ad content",
+   "end_text": "a predictable evolution"
+},
+{
+   "start": 5073.5,
+   "end": 5101.6,
+   "confidence": 0.0,
+   "reason": "no ad content",
+   "end_text": "I mean, that by itself is useful"
+},
+{
+   "start": 5102.2,
+   "end": 5127.9,
+   "confidence": 0.0,
+   "reason": "no ad content",
+   "end_text": "Yeah, and I think from what they've said"
+},
+{
+   "start": 5129.4,
+   "end": 5157.8,
+   "confidence": 0.0,
+   "reason": "no ad content",
+   "end_text": "That's a great idea"
+},
+{
+   "start": 5158.3,
+   "end": 5173.6,
+   "confidence": 0.0,
+   "reason": "no ad content",
+   "end_text": "I'll just say ahead of time"
+},
+{
+   "start": 5174.0,
+   "end": 5202.4,
+   "confidence": 0.0,
+   "reason": "no ad content",
+   "end_text": "And you've got it now, Leo"
+},
+{
+   "start": 5202.8,
+   "end": 5223.6,
+   "confidence": 0.0,
+   "reason": "no ad content",
+   "end_text": "People are turning to AI for deeply personal questions"
+},
+{
+   "start": 5224.0,
+   "end": 5251.8,
+   "confidence": 0.0,
+   "reason": "no ad content",
+   "end_text": "Like journalists, elected officials, political dissidents"
+},
+{
+   "start": 5252.1,
+   "end": 5277.0,
+   "confidence": 0.0,
+   "reason": "no ad content",
+   "end_text": "At the same time, we want to ensure users understand"
+},
+{
+   "start": 5277.7,
+   "end": 5301.9,
+   "confidence": 0.0,
+   "reason": "no ad content",
+   "end_text": "Titan account recovery, reduce exposure from compromised sessions"
+},
+{
+   "start": 5296.0,
+   "end": 5317.8,
+   "confidence": 0.0,
+   "reason": "no ad content",
+   "end_text": "Protection applies to both ChatGPT and Codex accounts"
+},
+{
+   "start": 5319.3,
+   "end": 5339.4,
+   "confidence": 0.0,
+   "reason": "no ad content",
+   "end_text": "Helping make phishing resistance sign in the default"
+},
+{
+   "start": 5339.9,
+   "end": 5365.2,
+   "confidence": 0.0,
+   "reason": "no ad content",
+   "end_text": "We know that, right?"
+},
+{
+   "start": 5365.8,
+   "end": 5392.9,
+   "confidence": 0.0,
+   "reason": "no ad content",
+   "end_text": "Backup pass keys, security keys, and recovery keys"
+},
+{
+   "start": 5393.8,
+   "end": 5418.5,
+   "confidence": 0.0,
+   "reason": "no ad content",
+   "end_text": "They're saying, we can't help you because you don't want bad guys"
+},
+{
+   "start": 5419.3,
+   "end": 5444.9,
+   "confidence": 0.0,
+   "reason": "no ad content",
+   "end_text": "for the security they claim to want and to cherish"
+},
+{
+   "start": 5446.3,
+   "end": 5468.8,
+   "confidence": 0.0,
+   "reason": "no ad content",
+   "end_text": "Users also receive alerts when there's a login to their account"
+},
+{
+   "start": 5469.7,
+   "end": 5489.5,
+   "confidence": 0.0,
+   "reason": "no ad content",
+   "end_text": "Conversations from those accounts will not be used to train our models"
+},
+{
+   "start": 5491.1,
+   "end": 5515.4,
+   "confidence": 0.0,
+   "reason": "no ad content",
+   "end_text": "Using physical security keys, such as Yuba keys"
+},
+{
+   "start": 5516.0,
+   "end": 5539.6,
+   "confidence": 0.0,
+   "reason": "no ad content",
+   "end_text": "on a customized bundle of the best-in-class security keys"
+},
+{
+   "start": 5542.4,
+   "end": 5555.7,
+   "confidence": 0.0,
+   "reason": "no ad content",
+   "end_text": "Head of it in order to authenticate"
+},
+{
+   "start": 5556.6,
+   "end": 5578.4,
+   "confidence": 0.0,
+   "reason": "no ad content",
+   "end_text": "We're launching this partnership as part of Advanced Account Security"
+},
+{
+   "start": 5580.1,
+   "end": 5608.1,
+   "confidence": 0.0,
+   "reason": "no ad content",
+   "end_text": "Users will also be able to use other FIDO-compliant security key"
+},
+{
+   "start": 5608.9,
+   "end": 5631.0,
+   "confidence": 0.0,
+   "reason": "no ad content",
+   "end_text": "Now has many new features"
+},
+{
+   "start": 5631.5,
+   "end": 5649.4,
+   "confidence": 0.0,
+   "reason": "no ad content",
+   "end_text": "Which Claude recently made explicitly clear"
+}
+]

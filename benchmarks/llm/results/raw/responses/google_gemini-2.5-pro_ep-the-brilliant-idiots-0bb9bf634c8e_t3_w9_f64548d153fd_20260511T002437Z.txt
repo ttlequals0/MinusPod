@@ -1,0 +1,9 @@
+[
+  {
+    "start": 4057.2,
+    "end": 4361.4,
+    "confidence": 0.95,
+    "reason": "A promotional block framed as 'paying bills' and 'church announcements', featuring host-read promotions for various books, events, and other shows.",
+    "end_text": "See you guys there. Peace."
+  }
+]

@@ -1,0 +1,7 @@
+{
+  "start": 29.38,
+  "end": 30.11,
+  "confidence": 0.95,
+  "reason": "The segment contains promotional language for DJ Head and Gina Views, highlighting their achievements and collaborations in the hip-hop industry. It mentions their work and partnerships, which are typical characteristics of an advertisement.",
+  "end_text": "I'm not going to knock Elliot. It's hard. I'm not a hater."
+}

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 7584.4,
+    "end": 7797.4,
+    "confidence": 1.0,
+    "reason": "Trusted Tech sponsor read for Microsoft 365 licensing consultation with call to action trustedtech.team/securitynow365",
+    "end_text": "securitynow365 Now, back to Steve"
+  }
+]

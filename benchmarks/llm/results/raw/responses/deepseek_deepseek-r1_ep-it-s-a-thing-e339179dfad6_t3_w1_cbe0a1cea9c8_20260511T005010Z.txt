@@ -1,0 +1,7 @@
+{
+    "start": 398.7,
+    "end": 422.6,
+    "confidence": 0.95,
+    "reason": "Host mentions 'feedback at itsathing.me' and encourages listener interaction, which is part of the show content",
+    "end_text": "is this a thing? We need to know."
+  }

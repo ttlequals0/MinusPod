@@ -1,0 +1,1 @@
+{"0":{"start":4646.2,"end":4806.1,"confidence":0.97,"reason":"Network-inserted ad pod with Colgate, Skinny Pop, Viz, and Garnier promotional copy","end_text":"GarnierUSA.com slash NPF"}}

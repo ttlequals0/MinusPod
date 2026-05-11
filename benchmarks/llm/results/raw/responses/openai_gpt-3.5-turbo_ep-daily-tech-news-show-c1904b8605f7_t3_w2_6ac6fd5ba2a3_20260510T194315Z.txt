@@ -1,0 +1,8 @@
+
+{
+	"start": 821.4,
+	"end": 844.7,
+	"confidence": 0.95,
+	"reason": "Capital One sponsor read",
+	"end_text": "estimate trade-in value."
+}

@@ -1,0 +1,7 @@
+{
+  "start": 4059.4,
+  "end": 4083.9,
+  "confidence": 0.95,
+  "reason": "Host transition to ad break with 'Let's pay some bills' and sponsor mentions including Lil P references",
+  "end_text": "all goddamn day, okay?"
+}

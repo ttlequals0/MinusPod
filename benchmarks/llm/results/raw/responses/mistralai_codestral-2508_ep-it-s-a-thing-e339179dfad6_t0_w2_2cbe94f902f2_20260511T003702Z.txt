@@ -1,0 +1,1 @@
+[{"start": 1061.8, "end": 1154.5, "confidence": 0.95, "reason": "Damon's retail thing segment promoting Lowe's, Home Depot, and Walmart", "end_text": "I do not spend a lot of time inside"} ]

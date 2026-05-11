@@ -1,0 +1,9 @@
+[
+  {
+    "start": 6390.2,
+    "end": 6445.0,
+    "confidence": 0.9,
+    "reason": "Host transition to ad break with 'Let's pay some bills' followed by Blue Chew mention and banter, but lacks explicit promotional content",
+    "end_text": "start lying. For no"
+  }
+]

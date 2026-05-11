@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I've been thinking about this a lot, and I really believe that Shopify is the way to go for any business looking to expand their online presence. Not only does it offer a user-friendly interface, but it also provides a wide range of customizable templates that can really make your store stand out. Plus, with Shopify's reliable customer support, you can rest assured that any issues you have will be addressed promptly. If you're serious about growing your business, I highly recommend checking out Shopify. They have a free trial, so you can try it out without any commitment. Visit Shopify.com/podcast to get started today.",
+  "start": 3600.0,
+  "end": 3620.0
+}

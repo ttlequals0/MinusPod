@@ -1,0 +1,30 @@
+[
+{
+  "start": 4675.4,
+   "end": 4697.4,
+   "confidence": 0.95,
+   "reason": "Colgate Women's Games sponsor read",
+   "end_text": "your strength"
+},
+{
+   "start": 4705.5,
+   "end": 4733.9,
+   "confidence": 0.95,
+   "reason": "Skinny Pop sponsor read",
+   "end_text": "Skinny Pop"
+},
+{
+   "start": 4766.5,
+   "end": 4787.9,
+   "confidence": 0.95,
+   "reason": "Viz sponsor read",
+   "end_text": "Viz.com"
+},
+{
+   "start": 4788.6,
+   "end": 4806.1,
+   "confidence": 0.95,
+   "reason": "Garnier sponsor read",
+   "end_text": "GarnierUSA.com slash NPF"
+}
+]

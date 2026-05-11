@@ -1,0 +1,7 @@
+{
+  "start": 3413.1,
+  "end": 3430.3,
+  "confidence": 0.95,
+  "reason": "Underground Sound network-inserted brand tagline ad",
+  "end_text": "very super viral stream rap. The kids are outside. They might mosh pit a little bit. Like it's a..."
+}

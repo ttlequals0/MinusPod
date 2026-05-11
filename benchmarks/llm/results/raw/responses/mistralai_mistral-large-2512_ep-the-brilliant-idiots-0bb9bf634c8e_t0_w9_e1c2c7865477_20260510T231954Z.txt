@@ -1,0 +1,30 @@
+[
+    {
+        "start": 4057.2,
+        "end": 4083.9,
+        "confidence": 0.98,
+        "reason": "Host-read sponsor segment with promotional language ('Let's pay some bills, Chris', 'Lil P got to eat', 'Taylor gang' branding)",
+        "end_text": "Lil P can't just eat"
+    },
+    {
+        "start": 4324.2,
+        "end": 4334.1,
+        "confidence": 0.95,
+        "reason": "Promotion of Jess Hilarious' book and All Love Racquet Club event with call to action ('go pick up', 'head to All Love Racquet Club on Instagram')",
+        "end_text": "All Love Racquet Club"
+    },
+    {
+        "start": 4334.7,
+        "end": 4361.4,
+        "confidence": 0.97,
+        "reason": "Promotion of host's own show 'AM Mornings' with specific scheduling details and call to action ('Head over to AM Mornings on YouTube')",
+        "end_text": "See you guys there"
+    },
+    {
+        "start": 4380.0,
+        "end": 4380.0,
+        "confidence": 0.9,
+        "reason": "Platform-inserted ad likely continues in next segment (megaphone.fm/adchoices mentioned in episode description)",
+        "end_text": "continues in next"
+    }
+]

@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I've been thinking a lot about quantum computing and how it's going to change the world. But honestly, it's pretty overwhelming with all the information out there. I wish there was a way to make sense of it all without getting lost in the weeds. Maybe I should check out some resources or find a community that can help me understand better.",
+  "start_timestamp": 7740.0,
+  "end_timestamp": 7756.0
+}

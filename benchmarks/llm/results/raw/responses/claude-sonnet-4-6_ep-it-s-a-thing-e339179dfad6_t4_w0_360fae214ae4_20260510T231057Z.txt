@@ -1,0 +1,1 @@
+[{"start": 1.6, "end": 77.2, "confidence": 0.97, "reason": "Acast platform-inserted promotional segments: first promoting 'Wrong Turns' podcast with Jameela Jamil, then Acast self-promotion, then cross-promotion for 'Formative' podcast", "end_text": "leaders of today are interviewed by the leaders of tomorrow"}]

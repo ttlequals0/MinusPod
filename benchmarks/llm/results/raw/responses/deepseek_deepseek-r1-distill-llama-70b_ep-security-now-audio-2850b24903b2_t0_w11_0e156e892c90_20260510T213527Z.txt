@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I've been using this new AI tool for my work, and it's been a game-changer. But I'm a bit concerned about security. Let me think about how to approach this. Hmm, maybe I should look into some security solutions. I've heard of a few companies that offer AI security tools. Oh, right, Zscaler comes to mind. They have some great products for securing AI models. I should check them out. Also, I remember hearing about Bitwarden for password management. That could be useful too. Maybe I'll go to their websites and see what they offer. Zscaler.com/security and Bitwarden.com/twit. I think those are the URLs. I'll make sure to visit them and improve my security setup.",
+  "start": 4600.8,
+  "end": 5223.6
+}

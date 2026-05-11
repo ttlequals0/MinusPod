@@ -1,0 +1,7 @@
+{
+	"start": 3960.0,
+	"end": 3962.9,
+	"confidence": 0.9,
+	"reason": "Perplexity app promotion",
+	"end_text": "So it's just sitting there."
+}

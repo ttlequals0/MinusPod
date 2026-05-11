@@ -1,0 +1,1 @@
+[{"start": 4292.6, "end": 4396.1, "confidence": 0.98, "reason": "Bitwarden sponsor read", "end_text": "securely unlocking devices at the OS level"}]

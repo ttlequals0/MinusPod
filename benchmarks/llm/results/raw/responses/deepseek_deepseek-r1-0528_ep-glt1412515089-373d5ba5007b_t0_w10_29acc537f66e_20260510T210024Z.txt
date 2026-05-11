@@ -1,0 +1,9 @@
+[
+  {
+    "start": 4525.1,
+    "end": 4800.0,
+    "confidence": 0.9,
+    "reason": "Host sign-off and potential ad insertion point with gap in transcript",
+    "end_text": "continues in next"
+  }
+]

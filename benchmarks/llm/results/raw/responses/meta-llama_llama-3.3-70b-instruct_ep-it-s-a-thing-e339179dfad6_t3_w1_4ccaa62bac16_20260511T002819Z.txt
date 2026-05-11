@@ -1,0 +1,1 @@
+{"start": 675.0, "end": 719.8, "confidence": 0.8, "reason": "SOUP shots promotion", "end_text": "type out what you were writing"}

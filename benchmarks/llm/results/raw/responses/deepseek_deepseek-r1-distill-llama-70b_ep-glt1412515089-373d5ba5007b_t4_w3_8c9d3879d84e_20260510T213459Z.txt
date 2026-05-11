@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I've been using Perplexity for a while now, and I have to say, it's been a game-changer for my research. The way it pulls in relevant information from across the web and presents it in a clean, easy-to-read interface is just fantastic. I mean, where was this when I was in college? It would have saved me so much time. But, you know, better late than never. I've recommended it to all my friends and even some colleagues at work. They all love it just as much as I do. The AI is surprisingly accurate, and the sources it provides are top-notch. I can't imagine going back to my old methods now. Perplexity has definitely become an essential tool in my workflow.",
+  "start": 1860.0,
+  "end": 1890.0
+}

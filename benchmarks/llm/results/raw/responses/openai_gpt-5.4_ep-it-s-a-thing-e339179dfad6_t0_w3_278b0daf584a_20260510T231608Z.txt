@@ -1,0 +1,1 @@
+{"start":1524.5,"end":1602.6,"confidence":0.99,"reason":"Back-to-back Acast-inserted ads: Xero small business accounting ad, then Acast cross-promo for the podcast Wrong Turns, ending with Acast platform promo","end_text":"podcasts everywhere. Acast.com."}

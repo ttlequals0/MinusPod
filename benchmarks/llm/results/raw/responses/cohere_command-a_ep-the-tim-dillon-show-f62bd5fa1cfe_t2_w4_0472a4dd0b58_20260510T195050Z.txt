@@ -1,0 +1,1 @@
+{"start": 1668.7, "end": 1691.5, "confidence": 0.0, "reason": "No promotional content detected", "end_text": "25 to 34 years old."}

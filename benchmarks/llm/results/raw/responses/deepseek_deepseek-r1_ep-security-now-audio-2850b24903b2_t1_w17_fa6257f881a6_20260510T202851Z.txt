@@ -1,0 +1,12 @@
+[{"start": 7633.1, "end": 7743.9, "confidence": 0.98, "reason": "Trusted Tech sponsor read with Microsoft 365 licensing pitch and Kevin Turner endorsement", "end_text": "differentiates you in the marketplace"}]
+```json
+[
+  {
+    "start": 7633.1,
+    "end": 7743.9,
+    "confidence": 0.98,
+    "reason": "Trusted Tech sponsor read with Microsoft 365 licensing pitch, July 1 price hike warning, and Kevin Turner endorsement",
+    "end_text": "differentiates you in the marketplace"
+  }
+]
+```

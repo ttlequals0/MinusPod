@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I've been thinking about this whole AI in browsers thing. It's kind of crazy how much is changing so fast. Let me take a quick break here. This episode is brought to you by Zscaler. Their security solutions are top-notch and really make a difference. Check out Zscaler.com/security for more info. And we're back.",
+  "start": 7107.8,
+  "end": 7124.3
+}

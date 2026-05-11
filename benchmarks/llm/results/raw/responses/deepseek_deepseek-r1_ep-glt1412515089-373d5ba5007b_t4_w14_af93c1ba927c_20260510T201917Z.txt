@@ -1,0 +1,7 @@
+[{
+    "start": 6394.8,
+    "end": 6414.8,
+    "confidence": 0.95,
+    "reason": "Explicit Perplexity sponsorship mention ('our AI sponsor') with product capability pitch",
+    "end_text": "minute or whatever it is"
+}]

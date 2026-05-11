@@ -1,0 +1,1 @@
+[{"start": 4258.6, "end": 4380.0, "confidence": 0.98, "reason": "Bitwarden sponsor read with transition phrase, continues in next window", "end_text": "login for Windows 11"}]

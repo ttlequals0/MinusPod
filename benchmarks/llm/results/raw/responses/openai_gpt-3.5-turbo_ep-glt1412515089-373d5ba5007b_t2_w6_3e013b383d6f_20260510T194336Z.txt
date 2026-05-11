@@ -1,0 +1,7 @@
+{
+	"start": 3002.8,
+	"end": 3095.8,
+	"confidence": 0.95,
+	"reason": "Perplexity app promotion",
+	"end_text": "I called him up and I said, hi, my name's Julia, and I was thinking of going into this field, and I think precognition is real, and he's like, oh, okay."
+}

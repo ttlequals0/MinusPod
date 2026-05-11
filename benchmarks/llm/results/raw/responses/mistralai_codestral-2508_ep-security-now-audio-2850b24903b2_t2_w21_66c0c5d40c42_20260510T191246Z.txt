@@ -1,0 +1,1 @@
+[{"start": 9259.3, "end": 9290.5, "confidence": 0.95, "reason": "This Week in Tech network-inserted brand tagline ad", "end_text": "This Week in Tech from the TWiT Network"} , {"start": 9344.4, "end": 9374.4, "confidence": 0.95, "reason": "Mint Mobile sponsor read", "end_text": "See full terms at mintmobile.com"}]

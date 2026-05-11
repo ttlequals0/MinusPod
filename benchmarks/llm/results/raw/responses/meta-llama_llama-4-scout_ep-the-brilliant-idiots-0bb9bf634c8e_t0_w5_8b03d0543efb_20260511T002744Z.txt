@@ -1,0 +1,18 @@
+{
+"ads": [
+    {
+      "start": 2324.6,
+      "end": 2381.0,
+      "confidence": 0.98,
+      "reason": "Bluetooth Gold sponsor read",
+      "end_text": "get bricked up out here"
+    },
+    {
+      "start": 2381.0,
+      "end": 2443.9,
+      "confidence": 0.98,
+      "reason": "ZipRecruiter sponsor read",
+      "end_text": "meet your match on ZipRecruiter"
+    }
+  ]
+}

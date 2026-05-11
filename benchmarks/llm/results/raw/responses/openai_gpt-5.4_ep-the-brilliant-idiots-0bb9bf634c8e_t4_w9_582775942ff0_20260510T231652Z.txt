@@ -1,0 +1,7 @@
+{
+  "start": 4057.2,
+  "end": 4083.9,
+  "confidence": 0.52,
+  "reason": "Possible ad break transition with explicit billing language ('Let's pay some bills', 'we got to pay some bills') but promotional copy is not present in this window; likely incomplete/continues across omitted section",
+  "end_text": "All right, let's get back to this show"
+}

@@ -1,0 +1,1 @@
+{"start": 0.5, "end": 43.4, "confidence": 0.98, "reason": "Carvana pre-roll advertisement with produced voicemail-style pitch and tagline", "end_text": "Pickup fees may apply"}

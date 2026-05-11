@@ -1,0 +1,1 @@
+{"start": 1250.2, "end": 1867.6, "confidence": 0.0, "reason": "No promotional content, sponsor names, URLs, promo codes, or calls to action detected in transcript window", "end_text": "Elliott Wilson in that category, too."}

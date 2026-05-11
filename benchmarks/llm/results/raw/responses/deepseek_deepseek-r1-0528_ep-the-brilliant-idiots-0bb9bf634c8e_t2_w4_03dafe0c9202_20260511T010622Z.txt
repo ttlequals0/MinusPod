@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2199.6,
+    "end": 2246.2,
+    "confidence": 0.95,
+    "reason": "Mention of Drink Champs and Black Effect Podcast Network as part of the conversation, but no promotional language or call to action",
+    "end_text": "guest-reliant. Okay, okay, okay."
+  }
+]

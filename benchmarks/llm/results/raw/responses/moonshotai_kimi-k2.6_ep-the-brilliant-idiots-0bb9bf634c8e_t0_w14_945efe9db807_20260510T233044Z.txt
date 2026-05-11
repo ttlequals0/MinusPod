@@ -1,0 +1,1 @@
+{"start":6390.2,"end":6396.7,"confidence":0.6,"reason":"Host says 'Let's pay some bills' suggesting transition to ads, but no promotional content in transcript and gap is only 6.5 seconds","end_text":"do some asking idiots, man."}

@@ -1,0 +1,7 @@
+{
+	"start": 2505.7,
+	"end": 2522.4,
+	"confidence": 1,
+	"reason": "Podcast sponsor mentions",
+	"end_text": "did they not want to?"
+}

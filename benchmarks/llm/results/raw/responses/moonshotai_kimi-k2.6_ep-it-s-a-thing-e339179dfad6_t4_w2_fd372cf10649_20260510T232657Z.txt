@@ -1,0 +1,1 @@
+ {"start": 822.9, "end": 850.7, "confidence": 0.95, "reason": "Show content - discussion of coffee shops and soup", "end_text": "Well, my last one is kind of an umbrella one"}

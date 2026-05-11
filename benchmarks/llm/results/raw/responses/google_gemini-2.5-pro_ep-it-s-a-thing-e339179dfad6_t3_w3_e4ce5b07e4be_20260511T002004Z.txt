@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1524.5,
+    "end": 1602.6,
+    "confidence": 0.99,
+    "reason": "A block of platform-inserted ads for Xero, the podcast 'Wrong Turns', and the Acast platform.",
+    "end_text": "everywhere. Acast.com."
+  }
+]

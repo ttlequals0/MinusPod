@@ -1,0 +1,7 @@
+{
+  "start": 58.0,
+  "end": 600.0,
+  "confidence": 0.95,
+  "reason": "Core Read sponsor mention in episode introduction",
+  "end_text": "what does it really do. Like learning faster with fewer data points from real physical..."
+}

@@ -1,0 +1,16 @@
+[
+    {
+        "start": 5789.0,
+        "end": 5815.9,
+        "confidence": 0.7,
+        "reason": "Mention of Amazon as a corporate sponsor of the Met Gala, which could imply a promotional context, but lacks explicit ad language. Low confidence due to lack of direct call to action or promotional phrasing.",
+        "end_text": "subscribe to Amazon, you know, Prime."
+    },
+    {
+        "start": 5949.1,
+        "end": 6060.2,
+        "confidence": 0.3,
+        "reason": "Discussion of political figures and platforms (e.g., X, Tesla, Elon Musk) without promotional language or calls to action. Not an ad.",
+        "end_text": "as a battleground state."
+    }
+]

@@ -1,0 +1,25 @@
+{
+  "ads": [
+    {
+      "start": 1524.5,
+      "end": 1561.9,
+      "confidence": 0.98,
+      "reason": "Xero sponsored segment with promotional language and call to action",
+      "end_text": "search XERO for your free trial"
+    },
+    {
+      "start": 1561.9,
+      "end": 1592.5,
+      "confidence": 0.95,
+      "reason": "Acast platform promo for 'Wrong Turns' podcast",
+      "end_text": "where dignity goes to die"
+    },
+    {
+      "start": 1595.5,
+      "end": 1602.6,
+      "confidence": 0.95,
+      "reason": "Acast platform tagline ad",
+      "end_text": "monetize their podcasts everywhere. Acast.com"
+    }
+  ]
+}

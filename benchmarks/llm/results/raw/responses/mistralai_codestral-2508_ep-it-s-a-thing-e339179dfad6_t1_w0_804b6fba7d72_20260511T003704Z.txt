@@ -1,0 +1,1 @@
+[{"start": 0.0, "end": 37.6, "confidence": 0.95, "reason": "Acast powers the world's best podcasts", "end_text": "Wrong Turns, where dignity goes to die"} ]

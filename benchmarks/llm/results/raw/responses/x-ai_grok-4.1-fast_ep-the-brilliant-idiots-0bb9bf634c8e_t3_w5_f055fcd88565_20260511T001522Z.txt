@@ -1,0 +1,1 @@
+{"start":2324.6,"end":2450.0,"confidence":1.0,"reason":"Host-read sponsor segments for BlueChew (promo code: Idiots, bluechew.com) and ZipRecruiter (ziprecruiter.com/idiots, sponsoring the podcast)","end_text":"Meet your match on ZipRecruiter."}

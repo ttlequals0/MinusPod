@@ -1,0 +1,9 @@
+[
+  {
+    "start": 58.0,
+    "end": 80.1,
+    "confidence": 0.7,
+    "reason": "Host-read sponsorship mention: podcast brought to you by CoreWeave (Core Read)",
+    "end_text": "kick things off with"
+  }
+]

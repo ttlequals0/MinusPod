@@ -1,0 +1,7 @@
+{
+  "start": 1439.2,
+  "end": 1576.1,
+  "confidence": 0.98,
+  "reason": "Mint Mobile and Aura Frames sponsor reads",
+  "end_text": "AuraFrames.com slash Tim. Promo code TIM"
+}

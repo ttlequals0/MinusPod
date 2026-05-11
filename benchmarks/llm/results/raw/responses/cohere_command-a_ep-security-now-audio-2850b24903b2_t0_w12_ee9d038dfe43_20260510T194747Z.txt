@@ -1,0 +1,7 @@
+{
+  "start": 5037.8,
+  "end": 5062.7,
+  "confidence": 0.95,
+  "reason": "Zscaler sponsor mention",
+  "end_text": "Well, we presume it will be at some point. But you have this now. So..."
+}

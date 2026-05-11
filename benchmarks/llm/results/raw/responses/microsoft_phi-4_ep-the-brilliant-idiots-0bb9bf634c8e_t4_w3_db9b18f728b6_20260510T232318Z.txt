@@ -1,0 +1,7 @@
+{
+  "start": 12.50,
+  "end": 12.71,
+  "confidence": 0.95,
+  "reason": "The segment discusses the ranking of hip-hop media personalities, mentioning specific names like Joe Budden and J. Valentine, indicating a promotional discussion about their placement in a list.",
+  "end_text": "I don't recognize them by name. One of the top music writers in the country."
+}

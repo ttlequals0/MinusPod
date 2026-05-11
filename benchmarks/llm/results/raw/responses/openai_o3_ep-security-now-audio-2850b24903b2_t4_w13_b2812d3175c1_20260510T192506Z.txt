@@ -1,0 +1,1 @@
+{"start": 5946.7, "end": 6083.5, "confidence": 0.97, "reason": "Host says \"Let's take a timeout\" then begins sponsor read: \"This episode of Security Now brought to you by Hawks Hunt\" with promotional language and product pitch; ad continues beyond this window.", "end_text": "just like the bad guys"}

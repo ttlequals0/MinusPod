@@ -1,0 +1,1 @@
+[{"start": 2155.2, "end": 2171.6, "confidence": 0.95, "reason": "Patreon sponsorship call to action", "end_text": "See you next time"}, {"start": 2222.4, "end": 2301.6, "confidence": 0.98, "reason": "Capital One product promotion", "end_text": "That's technology at Capital One"}]

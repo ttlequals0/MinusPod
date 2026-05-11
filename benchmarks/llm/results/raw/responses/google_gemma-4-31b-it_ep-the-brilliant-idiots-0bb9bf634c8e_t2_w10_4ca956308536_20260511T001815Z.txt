@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 4318.0,
+      "end": 4361.4,
+      "confidence": 0.98,
+      "reason": "Host-read promotions for Jess Hilarious' book, All Love Racquet Club event, and the host's own show 'AM Mornings'",
+      "end_text": "See you guys there. Peace."
+    }
+  ]
+}

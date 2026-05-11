@@ -1,0 +1,7 @@
+{
+  "start": 1413.5,
+  "end": 1440.0,
+  "confidence": 0.95,
+  "reason": "Zscaler sponsor read, continues in next",
+  "end_text": "technical debt"
+}

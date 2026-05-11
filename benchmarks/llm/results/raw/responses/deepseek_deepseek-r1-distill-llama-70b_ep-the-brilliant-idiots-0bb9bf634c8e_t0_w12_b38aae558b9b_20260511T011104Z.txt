@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so let's take a break. This episode is brought to you by BetterHelp. If you're feeling overwhelmed, BetterHelp offers convenient, affordable, and private online counseling. Anytime, anywhere. Take the first step today. Visit BetterHelp.com/Idiots. That's BetterHelp.com/Idiots. We'll be right back.",
+  "start": 5044.2,
+  "end": 5055.0
+}

@@ -1,0 +1,7 @@
+{
+  "start": 16.7,
+  "end": 88.9,
+  "confidence": 0.95,
+  "reason": "OutSystems sponsor read",
+  "end_text": "This is Twit."
+}

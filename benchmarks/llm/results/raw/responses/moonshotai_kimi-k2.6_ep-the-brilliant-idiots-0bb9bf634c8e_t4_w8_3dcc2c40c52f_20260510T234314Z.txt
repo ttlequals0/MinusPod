@@ -1,0 +1,1 @@
+{"start":3354.0,"end":3983.9,"confidence":0.0,"reason":"No promotional content, sponsor reads, or platform-inserted ads detected in transcript. All content is organic editorial discussion of Complex's hip hop media list.","end_text":"N/A"}

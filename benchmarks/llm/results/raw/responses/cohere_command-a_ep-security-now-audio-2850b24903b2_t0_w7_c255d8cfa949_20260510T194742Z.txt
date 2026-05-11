@@ -1,0 +1,7 @@
+{
+  "start": 3251.5,
+  "end": 3278.7,
+  "confidence": 0.95,
+  "reason": "Zscaler sponsor mention",
+  "end_text": "maintainer reality and recently halted bug bounty payments"
+}

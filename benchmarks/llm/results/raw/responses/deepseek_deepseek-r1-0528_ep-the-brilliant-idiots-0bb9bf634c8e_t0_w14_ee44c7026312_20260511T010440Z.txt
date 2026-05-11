@@ -1,0 +1,16 @@
+[
+  {
+    "start": 6390.2,
+    "end": 6419.1,
+    "confidence": 0.95,
+    "reason": "Transition to ad break with 'Let's pay some bills' followed by Blue Chew mention",
+    "end_text": "was pre-diabetic. Why was you giving her Blue Chew?"
+  },
+  {
+    "start": 6419.4,
+    "end": 6445.0,
+    "confidence": 0.9,
+    "reason": "Continued Blue Chew reference and transition to Asking Idiots segment",
+    "end_text": "hosting the 2026 BET Awards. Can't wait to see that."
+  }
+]

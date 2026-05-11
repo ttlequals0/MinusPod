@@ -1,0 +1,191 @@
+[
+{
+  "start": 0.0,
+   "end": 0.0,
+   "confidence": 0.0,
+   "reason": "No ads found in this episode",
+   "end_text": ""
+},
+{
+   "start": 8380.6,
+   "end": 8408.1,
+   "confidence": 0.0,
+   "reason": "Not an ad, discussion about Chrome and Gemini Nano",
+   "end_text": "Chrome and Gemini Nano"
+},
+{
+   "start": 8408.4,
+   "end": 8433.4,
+   "confidence": 0.0,
+   "reason": "Not an ad, discussion about Chrome and Edge",
+   "end_text": "Chrome and Edge"
+},
+{
+   "start": 8433.9,
+   "end": 8461.6,
+   "confidence": 0.0,
+   "reason": "Not an ad, discussion about Chrome and Edge",
+   "end_text": "Chrome and Edge"
+},
+{
+   "start": 8462.5,
+   "end": 8488.8,
+   "confidence": 0.0,
+   "reason": "Not an ad, discussion about Chrome and Edge",
+   "end_text": "Chrome and Edge"
+},
+{
+   "start": 8490.5,
+   "end": 8496.9,
+   "confidence": 0.0,
+   "reason": "Not an ad, discussion about Google and Mozilla",
+   "end_text": "Google and Mozilla"
+},
+{
+   "start": 8498.3,
+   "end": 8524.9,
+   "confidence": 0.0,
+   "reason": "Not an ad, discussion about Google and Mozilla",
+   "end_text": "Google and Mozilla"
+},
+{
+   "start": 8525.6,
+   "end": 8548.6,
+   "confidence": 0.0,
+   "reason": "Not an ad, discussion about Google and Mozilla",
+   "end_text": "Google and Mozilla"
+},
+{
+   "start": 8549.1,
+   "end": 8572.8,
+   "confidence": 0.0,
+   "reason": "Not an ad, discussion about Google and Mozilla",
+   "end_text": "Google and Mozilla"
+},
+{
+   "start": 8573.3,
+   "end": 8599.9,
+   "confidence": 0.0,
+   "reason": "Not an ad, discussion about Google and Mozilla",
+   "end_text": "Google and Mozilla"
+},
+{
+   "start": 8600.8,
+   "end": 8618.6,
+   "confidence": 0.0,
+   "reason": "Not an ad, discussion about Google and Mozilla",
+   "end_text": "Google and Mozilla"
+},
+{
+   "start": 8619.6,
+   "end": 8644.8,
+   "confidence": 0.0,
+   "reason": "Not an ad, discussion about Google and Mozilla",
+   "end_text": "Google and Mozilla"
+},
+{
+   "start": 8646.0,
+   "end": 8667.9,
+   "confidence": 0.0,
+   "reason": "Not an ad, discussion about Google and Mozilla",
+   "end_text": "Google and Mozilla"
+},
+{
+   "start": 8668.9,
+   "end": 8694.0,
+   "confidence": 0.0,
+   "reason": "Not an ad, discussion about Google and Mozilla",
+   "end_text": "Google and Mozilla"
+},
+{
+   "start": 8694.9,
+   "end": 8720.1,
+   "confidence": 0.0,
+   "reason": "Not an ad, discussion about Google and Mozilla",
+   "end_text": "Google and Mozilla"
+},
+{
+   "start": 8720.5,
+   "end": 8744.9,
+   "confidence": 0.0,
+   "reason": "Not an ad, discussion about Google and Mozilla",
+   "end_text": "Google and Mozilla"
+},
+{
+   "start": 8745.1,
+   "end": 8759.7,
+   "confidence": 0.0,
+   "reason": "Not an ad, discussion about Google and Mozilla",
+   "end_text": "Google and Mozilla"
+},
+{
+   "start": 8760.1,
+   "end": 8776.3,
+   "confidence": 0.0,
+   "reason": "Not an ad, discussion about Google and Mozilla",
+   "end_text": "Google and Mozilla"
+},
+{
+   "start": 8778.0,
+   "end": 8805.8,
+   "confidence": 0.0,
+   "reason": "Not an ad, discussion about Google and Mozilla",
+   "end_text": "Google and Mozilla"
+},
+{
+   "start": 8810.5,
+   "end": 8811.6,
+   "confidence": 0.0,
+   "reason": "Not an ad, discussion about Google and Mozilla",
+   "end_text": "Google and Mozilla"
+},
+{
+   "start": 8813.1,
+   "end": 8840.3,
+   "confidence": 0.0,
+   "reason": "Not an ad, discussion about Google and Mozilla",
+   "end_text": "Google and Mozilla"
+},
+{
+   "start": 8861.4,
+   "end": 8863.9,
+   "confidence": 0.0,
+   "reason": "Not an ad, discussion about Google and Mozilla",
+   "end_text": "Google and Mozilla"
+},
+{
+   "start": 8864.6,
+   "end": 8891.9,
+   "confidence": 0.0,
+   "reason": "Not an ad, discussion about Google and Mozilla",
+   "end_text": "Google and Mozilla"
+},
+{
+   "start": 8892.5,
+   "end": 8919.3,
+   "confidence": 0.0,
+   "reason": "Not an ad, discussion about Google and Mozilla",
+   "end_text": "Google and Mozilla"
+},
+{
+   "start": 8920.9,
+   "end": 8948.8,
+   "confidence": 0.0,
+   "reason": "Not an ad, discussion about Google and Mozilla",
+   "end_text": "Google and Mozilla"
+},
+{
+   "start": 8949.2,
+   "end": 8975.3,
+   "confidence": 0.0,
+   "reason": "Not an ad, discussion about Google and Mozilla",
+   "end_text": "Google and Mozilla"
+},
+{
+   "start": 8976.2,
+   "end": 9004.0,
+   "confidence": 0.0,
+   "reason": "Not an ad, discussion about Google and Mozilla",
+   "end_text": "Google and Mozilla"
+}
+]

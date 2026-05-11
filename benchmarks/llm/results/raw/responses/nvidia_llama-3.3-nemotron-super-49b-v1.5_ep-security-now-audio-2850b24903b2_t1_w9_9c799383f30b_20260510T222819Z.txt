@@ -1,0 +1,1 @@
+[{"start":4265.2,"end":4380.0,"confidence":0.95,"reason":"Bitwarden sponsor read","end_text":"OS level."}]

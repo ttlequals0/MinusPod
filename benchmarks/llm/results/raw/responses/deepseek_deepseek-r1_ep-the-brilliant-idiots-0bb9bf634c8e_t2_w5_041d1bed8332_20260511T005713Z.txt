@@ -1,0 +1,16 @@
+[
+  {
+    "start": 2324.6,
+    "end": 2404.4,
+    "confidence": 0.98,
+    "reason": "BlueChew host-read ad with product claims, URL, and promo code",
+    "end_text": "sponsoring the podcast"
+  },
+  {
+    "start": 2404.7,
+    "end": 2450.0,
+    "confidence": 0.98,
+    "reason": "ZipRecruiter host-read ad with URL, claims, and call-to-action",
+    "end_text": "ZipRecruiter.com slash idiots"
+  }
+]

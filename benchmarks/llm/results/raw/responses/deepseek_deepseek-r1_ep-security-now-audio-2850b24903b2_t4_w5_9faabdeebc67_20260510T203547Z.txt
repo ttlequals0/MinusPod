@@ -1,0 +1,7 @@
+[{
+    "start": 2560.1,
+    "end": 2687.7,
+    "confidence": 0.98,
+    "reason": "Host-read Meter sponsor segment with product features, testimonial, and vanity URL",
+    "end_text": "meter.com security now"
+}]

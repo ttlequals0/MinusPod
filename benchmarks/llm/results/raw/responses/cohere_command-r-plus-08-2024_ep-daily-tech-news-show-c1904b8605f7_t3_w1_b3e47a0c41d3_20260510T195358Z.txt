@@ -1,0 +1,1 @@
+{"start": 821.4, "end": 1020.0, "confidence": 0.99, "reason": "Capital One, BetterHelp, Amazon Health AI, Spectrum Business, Rinse sponsor reads", "end_text": "rinse.com. Rinse."}

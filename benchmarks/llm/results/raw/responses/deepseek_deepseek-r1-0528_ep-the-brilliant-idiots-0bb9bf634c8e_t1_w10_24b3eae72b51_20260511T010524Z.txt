@@ -1,0 +1,9 @@
+[
+  {
+    "start": 4323.9,
+    "end": 4361.4,
+    "confidence": 0.95,
+    "reason": "Host-read ads: Jess Elias' book 'Til Death Do We Parent', All Love Racquet Club event, and AM Mornings show promotion",
+    "end_text": "See you guys there. Peace"
+  }
+]

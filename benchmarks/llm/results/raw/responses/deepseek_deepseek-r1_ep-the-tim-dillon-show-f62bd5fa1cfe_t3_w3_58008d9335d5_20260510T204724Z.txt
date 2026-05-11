@@ -1,0 +1,30 @@
+[
+  {
+    "start": 1439.2,
+    "end": 1488.9,
+    "confidence": 0.98,
+    "reason": "Mint Mobile host-read ad with URL and pricing details",
+    "end_text": "mintmobile.com slash Tim Dillon"
+  },
+  {
+    "start": 1489.6,
+    "end": 1576.1,
+    "confidence": 0.98,
+    "reason": "Aura Frames host-read ad with promo code and URL",
+    "end_text": "AuraFrames.com slash Tim"
+  },
+  {
+    "start": 1578.3,
+    "end": 1629.5,
+    "confidence": 0.95,
+    "reason": "Colgate network-inserted brand tagline ad",
+    "end_text": "your smile is your strength"
+  },
+  {
+    "start": 1637.6,
+    "end": 1665.9,
+    "confidence": 0.95,
+    "reason": "Skinny Pop network-inserted brand tagline ad",
+    "end_text": "Skinny Pop just makes sense"
+  }
+]

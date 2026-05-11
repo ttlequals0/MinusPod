@@ -1,0 +1,18 @@
+```json
+[
+  {
+    "start": 4323.9,
+    "end": 4334.1,
+    "confidence": 0.92,
+    "reason": "Host-read book promotion for Jess Hilarious' 'Til Death Do We Parent' with call to action to purchase, followed by tennis event promotion for All Love Racquet Club",
+    "end_text": "All Love Racquet Club"
+  },
+  {
+    "start": 4334.7,
+    "end": 4361.4,
+    "confidence": 0.88,
+    "reason": "Host-read promotion for AM Mornings show on YouTube with call to action and specific air time (Sundays at 11 a.m.)",
+    "end_text": "See you guys there. Peace"
+  }
+]
+```

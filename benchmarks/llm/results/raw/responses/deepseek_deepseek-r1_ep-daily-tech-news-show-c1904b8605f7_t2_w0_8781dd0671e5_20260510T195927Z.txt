@@ -1,0 +1,16 @@
+[
+  {
+    "start": 0.0,
+    "end": 100.9,
+    "confidence": 0.98,
+    "reason": "Capital One, XERO, and Spectrum Business sponsor reads with product pitches and calls to action",
+    "end_text": "services when you can bundle. With Spectrum business, you get more than just internet. You get support with 100%"
+  },
+  {
+    "start": 124.0,
+    "end": 152.9,
+    "confidence": 0.99,
+    "reason": "Warby Parker ad with product endorsement, store/URL call-to-action, and vision insurance mention",
+    "end_text": "visit warbyparker.com today. That's warbyparker.com."
+  }
+]

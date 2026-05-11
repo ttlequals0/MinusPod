@@ -1,0 +1,7 @@
+{
+  "start": 46.30,
+  "end": 47.14,
+  "confidence": 0.95,
+  "reason": "The segment contains promotional language discussing the interest in celebrity news and the hustle required to be part of the TMZ industry, highlighting the host's interest in celebrity culture.",
+  "end_text": "I don't want to date an Asian guy or a white guy. I tried to date one white guy only because..."
+}

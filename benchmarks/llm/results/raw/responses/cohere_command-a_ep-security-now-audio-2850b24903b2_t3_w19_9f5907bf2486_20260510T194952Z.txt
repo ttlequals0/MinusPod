@@ -1,0 +1,7 @@
+{
+  "start": 8490.5,
+  "end": 8580.0,
+  "confidence": 0.95,
+  "reason": "Google services and search results discussion with implicit criticism of ad practices, continues in next",
+  "end_text": "opportunity"
+}

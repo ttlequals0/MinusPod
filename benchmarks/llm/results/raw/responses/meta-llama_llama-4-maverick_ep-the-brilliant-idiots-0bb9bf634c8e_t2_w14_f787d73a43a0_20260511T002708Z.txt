@@ -1,0 +1,1 @@
+{"type": "function", "name": "ad_identification", "parameters": {"transcript": "the-brilliant-idiots", "timestamps": "[5871.4s - 6499.6s]"}}

@@ -1,0 +1,7 @@
+{
+  "start": 4296.0,
+  "end": 4361.4,
+  "confidence": 0.71,
+  "reason": "Host promotional segment with calls to action for Jess Hilarious' book, All Love Racquet Club event, and AM Mornings show; promotional language includes 'make sure you go pick up', 'head to All Love Racquet Club on Instagram and get your ticket there', and 'Head over to AM Mornings on YouTube'",
+  "end_text": "Head over to AM Mornings on YouTube"
+}

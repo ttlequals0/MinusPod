@@ -1,0 +1,16 @@
+[
+  {
+    "start": 1718.3,
+    "end": 1735.3,
+    "confidence": 0.95,
+    "reason": "Host promoting DTNS merchandise store with explicit call to action",
+    "end_text": "support the show"
+  },
+  {
+    "start": 1742.3,
+    "end": 1771.5,
+    "confidence": 0.98,
+    "reason": "Explicit Capital One sponsorship segment with product features",
+    "end_text": "technology at Capital One"
+  }
+]

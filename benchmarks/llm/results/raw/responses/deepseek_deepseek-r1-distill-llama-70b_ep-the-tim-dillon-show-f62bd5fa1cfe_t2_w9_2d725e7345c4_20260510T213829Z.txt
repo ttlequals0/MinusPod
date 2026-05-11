@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I've been thinking about this a lot, and I really need to get some better sleep. I've heard great things about Helix Sleep mattresses. They're supposed to be super comfortable and customizable. I think I'm going to check them out. Maybe I'll use that promo code they mentioned earlier for a discount. Yeah, that sounds like a good plan. I could really use a better night's sleep.",
+  "start": 4200.0,
+  "end": 4215.0
+}

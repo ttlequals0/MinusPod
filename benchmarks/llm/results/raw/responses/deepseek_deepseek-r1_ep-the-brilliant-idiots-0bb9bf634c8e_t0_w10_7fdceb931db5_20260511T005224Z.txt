@@ -1,0 +1,7 @@
+[{
+    "start": 4324.2,
+    "end": 4341.1,
+    "confidence": 0.98,
+    "reason": "Host-read promotions for Jess Hilarious' book, tennis event, and AM Mornings show",
+    "end_text": "AM Mornings on YouTube"
+}]

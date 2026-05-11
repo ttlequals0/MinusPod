@@ -1,0 +1,1 @@
+{"start": 1257.4, "end": 1267.2, "confidence": 0.0, "reason": "Not an ad, regular show content", "end_text": "all different"}

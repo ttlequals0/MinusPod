@@ -1,0 +1,7 @@
+{
+	"start": 5640.0,
+	"end": 5678.4,
+	"confidence": 1.0,
+	"reason": "Multiple sponsor mentions",
+	"end_text": "more people can adopt stronger phishing-resistant account protection. Users will also be able to use other FIDO-compliant security key or use software-based pass keys."
+}

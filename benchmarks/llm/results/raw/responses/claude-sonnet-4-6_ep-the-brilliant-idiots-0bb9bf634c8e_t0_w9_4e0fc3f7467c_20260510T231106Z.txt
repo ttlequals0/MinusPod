@@ -1,0 +1,13 @@
+Looking at the transcript window (3778.7s - 4386.8s), I need to identify ad segments.
+
+The key transition occurs at [4057.2s] when Charlamagne says "Let's pay some bills, Chris" — a clear transition into an ad break. Then at [4059.4s] there's "What we got, Taylor gang? Pull up some bills, Taylor. We got to pay some bills because Lil P got to eat." This is the ad break transition.
+
+At [4083.9s] the show resumes with "All right, let's get back to this show."
+
+The ad break itself appears to be between [4057.2s] and [4083.9s], but the transcript doesn't show any actual sponsor content — just the transition phrases and then a return to content. There's no promotional language, sponsor names, URLs, or promo codes visible in the transcript during that gap.
+
+Later, Lauren LaRosa does her "church announcements" which include promoting her own YouTube channel (Lauren LaRosa TV), mentioning Jess Hilarious' book, and her AM Mornings show and tennis event. These are organic self-promotions by the host/guest during the show's regular segment, not paid sponsor reads.
+
+The gap at [4057.2s - 4083.9s] is a production gap (actual ads played but not transcribed). Without promotional transcript content visible, I cannot flag it as an ad per the rules.
+
+[]

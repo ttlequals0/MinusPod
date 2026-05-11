@@ -1,0 +1,9 @@
+[
+  {
+    "start": 6390.2,
+    "end": 6445.0,
+    "confidence": 0.95,
+    "reason": "Host-read ad for BlueChew, integrated into conversational banter following the transition 'Let's pay some bills'.",
+    "end_text": "Okay, Asking Idiots."
+  }
+]

@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I've been thinking about this a lot. Let's take a break. This episode is brought to you by Mint Mobile. Get 3 months of premium wireless for just $15 a month. That's right, folks, Mint Mobile is here to save you money on your phone bill without sacrificing coverage. Plus, with their 5G network, you'll stay connected wherever you go. And as a listener of this show, you can get an exclusive deal by going to mintmobile.com/TIMDILLON. Don't miss out on this amazing offer. We'll be right back after this break.",
+  "start": 2085.5,
+  "end": 2108.1
+}

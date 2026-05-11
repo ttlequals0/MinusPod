@@ -1,0 +1,1 @@
+{"start":6365.0,"end":6390.2,"confidence":0.85,"reason":"Transition phrase 'Let's pay some bills' indicates ad break start, but no promotional copy present in transcript; likely un-transcribed host-read or inserted spot","end_text":"do some asking idiots, man"}

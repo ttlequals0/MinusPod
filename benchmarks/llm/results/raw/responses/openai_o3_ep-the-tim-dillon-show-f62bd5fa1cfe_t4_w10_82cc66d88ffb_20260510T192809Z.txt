@@ -1,0 +1,1 @@
+{"error":"The provided segment lacks a clear transition phrase such as \"let's take a break,\" and therefore does not meet the advertisement criteria defined in the detection rules. No advertisement segments were detected within this transcript window."}

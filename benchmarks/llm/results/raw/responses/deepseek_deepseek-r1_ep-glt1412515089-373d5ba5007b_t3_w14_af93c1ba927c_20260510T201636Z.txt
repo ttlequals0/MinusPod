@@ -1,0 +1,7 @@
+[{
+  "start": 6368.2,
+  "end": 6394.8,
+  "confidence": 0.95,
+  "reason": "Perplexity sponsor integration with promotional language ('our AI sponsor') and product demonstration",
+  "end_text": "past, present, and potential future"
+}]

@@ -1,0 +1,1 @@
+[{"start": 3382.8, "end": 3410.7, "confidence": 0.95, "reason": "Bitwarden and Club TWiT sponsorship promotion", "end_text": "Join today: twit.tv/clubtwit"}]

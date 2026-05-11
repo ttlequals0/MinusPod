@@ -1,0 +1,3 @@
+[
+    {"start": 6045.5, "end": 6060.0, "confidence": 0.95, "reason": "Hawkshunt (Hoxhunt) sponsor read", "end_text": "Hawkshunt empowers your employees to spot and stop advanced phishing attacks"}
+]

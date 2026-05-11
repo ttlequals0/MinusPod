@@ -1,0 +1,1 @@
+{"error":"We do not have enough information to identify ads. Please provide full transcript with timestamps."}

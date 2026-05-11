@@ -1,0 +1,1 @@
+{ "start": 4602.8, "end": 4602.8, "confidence": 0.0, "reason": "no ad content", "end_text": "She was going to bring out" }

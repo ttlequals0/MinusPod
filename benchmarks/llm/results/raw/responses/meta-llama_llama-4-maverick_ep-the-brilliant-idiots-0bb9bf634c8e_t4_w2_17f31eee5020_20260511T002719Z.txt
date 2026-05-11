@@ -1,0 +1,1 @@
+{"type": "Function", "name": "detect_ads", "parameters": {"transcript": "provided_transcript", "start_time": 838.3, "end_time": 1466.2}}

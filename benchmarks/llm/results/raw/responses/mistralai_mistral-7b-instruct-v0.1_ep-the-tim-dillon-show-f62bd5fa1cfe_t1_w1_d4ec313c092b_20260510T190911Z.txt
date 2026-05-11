@@ -1,0 +1,17 @@
+ Ad segments:
+
+1. [995.5s - 1014.0s]: Mint Mobile
+- Transition phrase: "Go To <https://mintmobile.com/TIMDILLON> To Get 3 Months Of Premium Wireless for $15 bucks a month!"
+- Promotional language: "3 Months Of Premium Wireless for $15 bucks a month"
+
+2. [1015.8s - 1043.5s]: Morgan & Morgan
+- Transition phrase: "Facebook's now settling lawsuits with people because it's now proven that Meta's algorithm has, you know, driven people, I think, to kill themselves and stuff. I think that's what's going on, like, that the algorithm has focused on negativity and it has incentivized and encouraged"
+- Continues in next: Yes
+
+Ad segments (continued from previous):
+
+3. [1043.5s - 1073.5s]: Morgan & Morgan
+- Transition phrase: "If you or someone you know has been affected by Facebook's algorithm, contact Morgan & Morgan for a free consultation."
+- Promotional language: "If you or someone you know has been affected by Facebook's algorithm, contact Morgan & Morgan for a free consultation."
+
+Total ad duration: Approximately 1 minute and 48 seconds.

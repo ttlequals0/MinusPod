@@ -1,0 +1,170 @@
+[
+{
+  "start": 4194.8,
+   "end": 4201.6,
+   "confidence": 0.95,
+   "reason": "Transition phrase and topic change",
+   "end_text": "It won't nearly be as much for money"
+},
+{
+   "start": 4258.6,
+   "end": 4264.3,
+   "confidence": 0.95,
+   "reason": "Transition phrase and topic change",
+   "end_text": "GRC.com or our site"
+},
+{
+   "start": 4265.2,
+   "end": 4291.9,
+   "confidence": 0.98,
+   "reason": "Bitwarden sponsor read",
+   "end_text": "turning one of the most common causes of breaches into something visible"
+},
+{
+   "start": 4292.6,
+   "end": 4315.7,
+   "confidence": 0.98,
+   "reason": "Bitwarden sponsor read",
+   "end_text": "without exposing sensitive data"
+},
+{
+   "start": 4316.5,
+   "end": 4344.8,
+   "confidence": 0.98,
+   "reason": "Bitwarden sponsor read",
+   "end_text": "enforce secure, human-approved, and scoped credential access"
+},
+{
+   "start": 4345.4,
+   "end": 4370.4,
+   "confidence": 0.98,
+   "reason": "Bitwarden sponsor read",
+   "end_text": "for teams that leverage AI agents in their workflow"
+},
+{
+   "start": 4371.2,
+   "end": 4396.1,
+   "confidence": 0.98,
+   "reason": "Bitwarden sponsor read",
+   "end_text": "making credential management across devices more seamless than ever"
+},
+{
+   "start": 4396.6,
+   "end": 4409.4,
+   "confidence": 0.98,
+   "reason": "Bitwarden sponsor read",
+   "end_text": "with Windows Hello"
+},
+{
+   "start": 4410.6,
+   "end": 4437.4,
+   "confidence": 0.98,
+   "reason": "Bitwarden sponsor read",
+   "end_text": "it's GPL licensed, you can look at it yourself"
+},
+{
+   "start": 4438.1,
+   "end": 4465.7,
+   "confidence": 0.98,
+   "reason": "Bitwarden sponsor read",
+   "end_text": "get started today with Bitwarden's free trial"
+},
+{
+   "start": 4466.8,
+   "end": 4486.3,
+   "confidence": 0.95,
+   "reason": "Transition phrase and topic change",
+   "end_text": "Yeah, I thought that was really interesting"
+},
+{
+   "start": 4506.0,
+   "end": 4533.9,
+   "confidence": 0.95,
+   "reason": "Transition phrase and topic change",
+   "end_text": "Well, that's one thing I don't think Netscape could have anticipated"
+},
+{
+   "start": 4534.3,
+   "end": 4552.7,
+   "confidence": 0.95,
+   "reason": "Transition phrase and topic change",
+   "end_text": "There's another category of people who are out of work"
+},
+{
+   "start": 4553.5,
+   "end": 4574.9,
+   "confidence": 0.95,
+   "reason": "Transition phrase and topic change",
+   "end_text": "Exactly. Yeah. Okay, so we can add"
+},
+{
+   "start": 4576.2,
+   "end": 4600.0,
+   "confidence": 0.95,
+   "reason": "Transition phrase and topic change",
+   "end_text": "Well, it's apropos of the changes being wrought to AI vulnerability discovery"
+},
+{
+   "start": 4600.8,
+   "end": 4627.0,
+   "confidence": 0.98,
+   "reason": "Anthropic sponsor read",
+   "end_text": "The next generation will be more capable still"
+},
+{
+   "start": 4627.6,
+   "end": 4638.7,
+   "confidence": 0.98,
+   "reason": "Anthropic sponsor read",
+   "end_text": "preparing for a world in which working software exploits are much easier to discover"
+},
+{
+   "start": 4639.7,
+   "end": 4661.1,
+   "confidence": 0.98,
+   "reason": "Anthropic sponsor read",
+   "end_text": "But our cybersecurity efforts go beyond Glasswing"
+},
+{
+   "start": 4661.9,
+   "end": 4683.1,
+   "confidence": 0.98,
+   "reason": "Anthropic sponsor read",
+   "end_text": "Thank you for watching"
+},
+{
+   "start": 4690.8,
+   "end": 4715.6,
+   "confidence": 0.98,
+   "reason": "Anthropic sponsor read",
+   "end_text": "If your organization uses Claude, you can start scanning today"
+},
+{
+   "start": 4716.4,
+   "end": 4742.4,
+   "confidence": 0.98,
+   "reason": "Anthropic sponsor read",
+   "end_text": "Easier integration into audit systems and improved tracking of triaged findings"
+},
+{
+   "start": 4743.0,
+   "end": 4769.2,
+   "confidence": 0.98,
+   "reason": "Anthropic sponsor read",
+   "end_text": "Our technology partners, including CrowdStrike, Microsoft Security"
+},
+{
+   "start": 4770.3,
+   "end": 4797.4,
+   "confidence": 0.98,
+   "reason": "Anthropic sponsor read",
+   "end_text": "We're entering a pivotal time for cybersecurity"
+},
+{
+   "start": 4797.9,
+   "end": 4816.0,
+   "confidence": 0.98,
+   "reason": "Anthropic sponsor read",
+   "end_text": "or at claude.ai slash security"
+}
+]

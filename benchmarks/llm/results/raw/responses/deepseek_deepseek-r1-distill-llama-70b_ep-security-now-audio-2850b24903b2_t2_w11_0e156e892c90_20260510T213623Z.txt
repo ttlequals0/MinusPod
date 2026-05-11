@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I've been using this new tool called Spinrite for my disk maintenance. It's been a game-changer for keeping my drives healthy. I really can't recommend it enough. Let's take a quick break.",
+  "start": 4600.8,
+  "end": 4627.0
+}

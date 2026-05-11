@@ -1,0 +1,5 @@
+[
+
+-1.0, 1.0, "No ads detected in this window. The segment contains regular conversation and a platform-inserted ad at the end, which is not part of the show content."
+
+]

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 821.4,
+    "end": 1020.0,
+    "confidence": 1.0,
+    "reason": "Multiple ads: Capital One, BetterHelp, Amazon Health AI, Spectrum Business, Rinse (continues in next window)",
+    "end_text": "It's time to"
+  }
+]

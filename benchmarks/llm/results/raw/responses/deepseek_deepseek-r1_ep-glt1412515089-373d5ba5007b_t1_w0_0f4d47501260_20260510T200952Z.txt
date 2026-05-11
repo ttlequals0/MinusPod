@@ -1,0 +1,16 @@
+[
+  {
+    "start": 539.2,
+    "end": 568.3,
+    "confidence": 0.99,
+    "reason": "Host-read movie promotion for 'In the Gray' with release date and rating",
+    "end_text": "parent or adult guardian"
+  },
+  {
+    "start": 568.4,
+    "end": 600.0,
+    "confidence": 0.99,
+    "reason": "Host-read ad for Skechers slip-ins shoes with product features and benefits (continues in next window)",
+    "end_text": "so many colors and sizes"
+  }
+]

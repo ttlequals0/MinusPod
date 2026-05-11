@@ -1,0 +1,9 @@
+[
+    {
+        "start": 3539.3,
+        "end": 3540.0,
+        "confidence": 0.9,
+        "reason": "Platform-inserted ad detected via 'Learn more about your ad choices. Visit megaphone.fm/adchoices' at the end of the provided transcript window. This is a standard platform ad marker, continues in next segment.",
+        "end_text": "adchoices"
+    }
+]

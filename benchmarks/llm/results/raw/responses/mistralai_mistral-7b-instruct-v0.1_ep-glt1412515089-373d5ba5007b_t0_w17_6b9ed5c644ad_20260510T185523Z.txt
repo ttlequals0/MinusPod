@@ -1,0 +1,4 @@
+ Perplexity advertisement: [7131.4s - 7155.5s]
+"Perplexity: Download the app or ask Perplexity anything at <https://pplx.ai/rogan>. Learn more about your ad choices. Visit podcastchoices.com/adchoices"
+
+This segment meets all the detection rules for an advertisement. The host is directly promoting the Perplexity app and providing a call to action for listeners to download it. The transition phrase "learn more about your ad choices" is also present. The segment lasts approximately 24 seconds, which is within the typical length for an ad break.

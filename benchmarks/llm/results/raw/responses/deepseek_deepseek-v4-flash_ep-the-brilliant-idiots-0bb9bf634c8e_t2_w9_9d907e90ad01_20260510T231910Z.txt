@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 4057.2,
+      "end": 4077.5,
+      "confidence": 0.95,
+      "reason": "Host-read ad break transition: 'Let's pay some bills' and 'Pull up some bills' with sponsor mention 'Lil P' (likely a sponsor or inside reference for a paid segment)",
+      "end_text": "tasty cakes all goddamn day, okay?"
+    }
+  ]
+}

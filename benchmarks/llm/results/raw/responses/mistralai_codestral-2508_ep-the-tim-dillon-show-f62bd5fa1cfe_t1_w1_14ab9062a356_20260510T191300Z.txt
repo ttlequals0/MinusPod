@@ -1,0 +1,1 @@
+[{"start": 969.4, "end": 1020.0, "confidence": 0.95, "reason": "Meta dying sponsor read", "end_text": "Meta's algorithm has focused on negativity"}]

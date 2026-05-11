@@ -1,0 +1,8 @@
+
+{
+	"start": 3890.3,
+	"end": 3915.5,
+	"confidence": 0.95,
+	"reason": "Zscaler sponsor mention",
+	"end_text": "ways increase load on already constrained teams. So in a strange way, the system has not been relieved. It's been refined."
+}

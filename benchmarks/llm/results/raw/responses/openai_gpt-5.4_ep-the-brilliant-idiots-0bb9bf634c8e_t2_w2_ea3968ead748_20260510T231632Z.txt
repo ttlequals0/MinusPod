@@ -1,0 +1,1 @@
+{"start": 1359.1, "end": 1381.4, "confidence": 0.69, "reason": "Host-read self/network promotion with call to action: 'make sure you listen to the Big Bank podcast and the Big Facts podcast on the Black Effect podcast network'", "end_text": "the Black Effect podcast network"}

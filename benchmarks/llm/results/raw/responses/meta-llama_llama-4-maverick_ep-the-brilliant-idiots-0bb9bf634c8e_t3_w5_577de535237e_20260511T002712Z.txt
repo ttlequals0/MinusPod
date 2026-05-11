@@ -1,0 +1,1 @@
+{"start": 2324.6, "end": 2450.0, "confidence": 0.98, "reason": "BlueChew and ZipRecruiter sponsor reads", "end_text": "ZipRecruiter.com slash idiots"}

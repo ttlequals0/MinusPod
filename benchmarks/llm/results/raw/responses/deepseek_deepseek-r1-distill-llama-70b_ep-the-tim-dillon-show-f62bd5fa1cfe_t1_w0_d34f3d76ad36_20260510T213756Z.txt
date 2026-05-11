@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I've been thinking about this a lot, and I really believe that everyone should check out this amazing new app called 'FocusFlow'. It's been a game-changer for my productivity. Not only does it help me stay organized, but it also has these incredible features that just make my life easier. I mean, the UI is so clean and intuitive, it's almost like having a personal assistant in my pocket. And the best part? It's completely free to download. So, if you're struggling with staying focused or managing your time, I highly recommend giving FocusFlow a try. Trust me, you won't regret it. Plus, as a listener of this show, you can get 20% off your premium subscription by using the code 'FOCUS20' at checkout. That's FocusFlow.com, your key to unlocking peak productivity.",
+  "start": 120.5,
+  "end": 156.2
+}

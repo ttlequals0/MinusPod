@@ -1,0 +1,7 @@
+{
+  "transcript": " [6044.5s - 6044.5s] Oh well. We'll take a little break. We'll talk about this and more in just a bit. You're watching Security Now with Steve Gibson. But first, this word. This episode of Security Now brought to you by Hawks Hunt. As a security leader, you've been there. The eye rolls during training, the one size fits all fishing simulations that your employees spot from a mile away, and the report button that gets ignored more often than not. Your programs are running, but it ain't changing employee behavior. Meanwhile, AI is making real attacks more convincing by the day, and leadership is starting to ask the question you don't have a clear answer to, is this actually working well? [6059.9s - 6083.5s] Hawkshunt empowers your employees to spot and stop advanced phishing attacks, to drive measurable behavior change through personalized gamified micro-training powered by AI and behavioral science. And by the way, as an admin, you'll love it. Hawkshunt does all the heavy lifting. Simulations run automatically, not just in email, but in Slack and Teams too. They're personalized to each employee, just like the bad guys.",
+  "window_start": 91.0,
+  "window_end": 101.0,
+  "episode_start": 5446.3,
+  "episode_end": 6083.5
+}

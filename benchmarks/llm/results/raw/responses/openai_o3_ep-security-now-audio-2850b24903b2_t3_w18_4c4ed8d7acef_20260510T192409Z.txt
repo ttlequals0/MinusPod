@@ -1,0 +1,6 @@
+{"error":"According to window context 'use absolute timestamps from transcript' and use the first timestamp for the ad start. The start is 7607.7? Wait, the timestamp provided in transcript is [7607.7s - 7633.1s], so the start is 7607.7. Double-check earlier: The host says 'All right. Well, let's take our final break.' at [7606.9? Actually 7607.7?]. should capture from 7606.9? Let's check the earlier line: [7604?]. Provide start 7606.9 if earlier lines show '7606.9?' This confusion. We'll use 7607.7 as safe. Provide JSON array only. End at 7797.4. Provide confidence. Provide end_text 'trustedtech.team securitynow365' Review: last part of ad: 'trustedtech.team securitynow365 Now, back to Steve.' So last 4 words of ad before editorial: "
+
+  									   
+
+
+ 		   	, "confidence":0.97,"reason":"Host-read sponsor segment for Trusted Tech with promo URL, begins with “let’s take our final break” and ends before show content resumes","end_text":"trustedtech.team securitynow365"}

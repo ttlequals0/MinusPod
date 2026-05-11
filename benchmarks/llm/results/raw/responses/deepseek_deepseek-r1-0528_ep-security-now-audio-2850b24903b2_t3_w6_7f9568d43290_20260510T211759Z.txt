@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2532.3,
+    "end": 2693.0,
+    "confidence": 1.0,
+    "reason": "Host-read Meter advertisement with break transition, product pitch, and call to action (meter.com/securitynow)",
+    "end_text": "now back to steve"
+  }
+]

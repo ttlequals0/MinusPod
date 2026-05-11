@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I've been using this new browser extension called Honey for a while now, and I have to say, it's been a game-changer for online shopping. It automatically applies coupon codes at checkout, which has saved me a bunch of money. Plus, it gives me cashback on certain purchases. I mean, it's not a lot, but it adds up over time. The best part is that it's completely free to use, and it doesn't slow down my browser at all. I've tried other extensions before, but Honey is definitely the most user-friendly and effective one I've come across. If you're into online shopping, I highly recommend giving it a try. It's available for Chrome, Firefox, and Edge, so no matter what browser you use, you can take advantage of the savings. Just head over to joinhoney.com and sign up. It only takes a couple of minutes, and you'll start saving right away. Plus, if you use my referral link, you'll get a bonus cashback on your first purchase. That's joinhoney.com. Check it out!",
+  "start": 828.9,
+  "end": 850.2
+}

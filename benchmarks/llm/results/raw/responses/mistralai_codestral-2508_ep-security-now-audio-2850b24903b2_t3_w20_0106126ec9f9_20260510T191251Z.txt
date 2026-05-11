@@ -1,0 +1,1 @@
+[{"start": 8861.4, "end": 8975.3, "confidence": 0.95, "reason": "zscaler.com/security, meter.com/securitynow, bitwarden.com/twit, hoxhunt.com/securitynow, trustedtech.team/securitynow365 sponsor reads", "end_text": "trustedtech.team/securitynow365"} ]

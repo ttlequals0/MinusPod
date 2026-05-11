@@ -1,0 +1,1 @@
+{"start": 6396.7, "end": 6446.1, "confidence": 0.8, "reason": "Mention of Blue Chew, a known sponsor product, in a non-organic context", "end_text": "What else we got to do"}

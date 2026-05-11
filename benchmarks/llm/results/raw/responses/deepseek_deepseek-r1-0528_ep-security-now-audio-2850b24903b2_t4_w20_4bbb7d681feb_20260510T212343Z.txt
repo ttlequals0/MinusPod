@@ -1,0 +1,9 @@
+[
+  {
+    "start": 8380.6,
+    "end": 9004.0,
+    "confidence": 0.0,
+    "reason": "No promotional content detected in transcript segment",
+    "end_text": "the internet,"
+  }
+]

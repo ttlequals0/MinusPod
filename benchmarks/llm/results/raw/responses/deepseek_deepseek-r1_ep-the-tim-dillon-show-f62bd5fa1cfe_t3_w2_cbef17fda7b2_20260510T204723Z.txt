@@ -1,0 +1,7 @@
+[{
+  "start": 1439.2,
+  "end": 1440.0,
+  "confidence": 0.95,
+  "reason": "Mint Mobile host-read sponsorship continues into next segment",
+  "end_text": "continues in next"
+}]

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 8215.0,
+    "end": 8218.9,
+    "confidence": 0.95,
+    "reason": "Transcript credit (Rev.com) - not an ad",
+    "end_text": "Transcript by Rev.com"
+  }
+]

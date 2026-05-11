@@ -1,0 +1,1 @@
+{"start": 1.6, "end": 77.2, "confidence": 0.99, "reason": "Acast platform-inserted ad for Wrong Turns podcast and Formative podcast", "end_text": "Formative, the podcast where the leaders of today are interviewed by the leaders of tomorrow"}

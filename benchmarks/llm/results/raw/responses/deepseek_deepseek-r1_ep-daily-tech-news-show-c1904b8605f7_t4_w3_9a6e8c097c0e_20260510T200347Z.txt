@@ -1,0 +1,23 @@
+[
+  {
+    "start": 1735.3,
+    "end": 1742.3,
+    "confidence": 0.95,
+    "reason": "Host promoting DTNS merchandise store with URL (DailyTechNewsShow.com/store)",
+    "end_text": "support the show, there you go."
+  },
+  {
+    "start": 1742.3,
+    "end": 1771.5,
+    "confidence": 0.98,
+    "reason": "Capital One sponsor read with product features (Chat Concierge) and branding",
+    "end_text": "technology at Capital One."
+  },
+  {
+    "start": 1772.6,
+    "end": 1799.6,
+    "confidence": 0.97,
+    "reason": "Lemonada Media cross-promotion ad for 'Good Things' podcast series",
+    "end_text": "bachelor's next year."
+  }
+]

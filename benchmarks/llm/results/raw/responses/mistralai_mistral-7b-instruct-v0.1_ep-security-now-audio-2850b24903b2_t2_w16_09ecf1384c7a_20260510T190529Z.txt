@@ -1,0 +1,7 @@
+ [112.0s - 113.0s] (continues from previous) Let's take a break and hear a message from our sponsor, Cisco. [<https://www.cisco.com/>] Cisco Secure is the industry-leading cybersecurity platform designed to protect your business. With advanced threat intelligence and proven security solutions, Cisco Secure helps you stay one step ahead of cyber threats. Protect your business with Cisco Secure.
+
+[113.0s - 114.0s] (continues from previous) And now, back to Security Now!
+
+[114.0s - 115.0s] (continues in next) [7320.0s] Let's take a break and hear a message from our sponsor, Datadog. [<https://www.datadoghq.com/>] Datadog is the monitoring platform for cloud-scale applications. With Datadog, you can monitor all your services, databases, and third-party applications in one place. Get started with a free trial today.
+
+[115.0s - 122.0s] In this segment, the hosts discuss various examples of large language models and their outputs. There are no advertisement segments within this window.

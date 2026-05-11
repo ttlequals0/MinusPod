@@ -1,0 +1,7 @@
+{
+	"start": 5220.0,
+	"end": 5245.0,
+	"confidence": 0.95,
+	"reason": "Claude Security sponsor read",
+	"end_text": "connected tools and workflows. For some people,"
+}

@@ -1,0 +1,1 @@
+{"start": 7584.4, "end": 7816.6, "confidence": 0.98, "reason": "Trusted Tech sponsor read with promo URLs and calls to action", "end_text": "Now, back to Steve."}

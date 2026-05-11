@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2311.7,
+    "end": 2450.0,
+    "confidence": 1.0,
+    "reason": "BlueChew Gold and ZipRecruiter host-read sponsor segments with promo codes (Idiots), URLs (BlueChew.com, ZipRecruiter.com/idiots), and product pitches",
+    "end_text": "ZipRecruiter.com slash idiots"
+  }
+]

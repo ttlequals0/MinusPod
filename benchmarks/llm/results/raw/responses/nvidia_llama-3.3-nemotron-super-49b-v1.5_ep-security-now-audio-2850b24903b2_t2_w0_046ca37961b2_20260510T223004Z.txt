@@ -1,0 +1,4 @@
+[
+    {"start": 16.7, "end": 84.9, "confidence": 0.98, "reason": "OutSystems sponsor read", "end_text": "This is Twit."},
+    {"start": 469.0, "end": 572.1, "confidence": 0.95, "reason": "Zscaler sponsor read", "end_text": "Thank you, Leo."}
+]

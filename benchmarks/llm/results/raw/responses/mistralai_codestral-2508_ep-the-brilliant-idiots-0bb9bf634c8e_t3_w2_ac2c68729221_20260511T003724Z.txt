@@ -1,0 +1,1 @@
+[{"start": 1439.0, "end": 1466.2, "confidence": 0.95, "reason": "Sponsor read for Jess Hilarious, 2Chainz, Cheryl McKissack Daniel, Dawn Staley, Charlamagne Tha God, Andrew Schulz, and Black Effect Network", "end_text": "Black Effect podcast network"}]

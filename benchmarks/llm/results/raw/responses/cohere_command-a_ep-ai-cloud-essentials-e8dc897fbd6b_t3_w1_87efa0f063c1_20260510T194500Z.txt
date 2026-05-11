@@ -1,0 +1,7 @@
+{
+  "start": 700.5,
+  "end": 716.2,
+  "confidence": 0.95,
+  "reason": "NVIDIA brand mention with promotional context about autonomous car capabilities",
+  "end_text": "turn left because there's a cyclist on the road there"
+}

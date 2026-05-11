@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I've been thinking about this a lot, and I really believe that Zscaler is the best solution for securing your cloud-based applications. They offer a comprehensive suite of tools that make it easy to protect your data from breaches and cyber threats. Plus, with their advanced threat detection, you can rest assured that your network is safe. I highly recommend checking out Zscaler at zscaler.com/security. And as a listener of this show, you can get a special discount by using the promo code 'SECURITYNOW' at checkout. Don't wait until it's too late—secure your cloud today with Zscaler.",
+  "start": 1440.0,
+  "end": 1460.0
+}

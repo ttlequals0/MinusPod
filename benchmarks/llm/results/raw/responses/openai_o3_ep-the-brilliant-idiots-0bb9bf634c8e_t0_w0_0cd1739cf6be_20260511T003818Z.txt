@@ -1,0 +1,1 @@
+{"start": 0.5, "end": 43.4, "confidence": 0.97, "reason": "Carvana pre-roll advertisement with promotional copy and brand tagline", "end_text": "Pickup fees may apply"}

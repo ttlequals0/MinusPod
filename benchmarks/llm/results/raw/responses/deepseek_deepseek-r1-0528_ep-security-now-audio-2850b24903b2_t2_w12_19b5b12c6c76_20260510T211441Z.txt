@@ -1,0 +1,9 @@
+[
+  {
+    "start": 5037.8,
+    "end": 5640.0,
+    "confidence": 0.95,
+    "reason": "Host-read sponsor segments for Zscaler, Meter, Bitwarden, Hoxhunt, Trusted Tech Team",
+    "end_text": "trustedtech.team/securitynow365"
+  }
+]

@@ -1,0 +1,1 @@
+{"start": 539.2, "end": 652.8, "confidence": 0.97, "reason": "Back-to-back sponsor reads promoting the movie 'In the Gray' and Skechers slip-ins with calls to action and sponsor phrasing 'This episode is brought to you by'", "end_text": "only at Skechers.com."}

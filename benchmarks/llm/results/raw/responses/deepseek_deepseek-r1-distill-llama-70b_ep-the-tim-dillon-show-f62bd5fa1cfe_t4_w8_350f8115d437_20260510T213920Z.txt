@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I've been thinking about this a lot, and I really think that Shopify is the way to go for any small business looking to expand their online presence. It's so user-friendly and has all the tools you need to manage your store effectively. Plus, with their 24/7 customer support, you can get help whenever you need it. I've heard great things from other entrepreneurs who've made the switch, and I'm confident it can do the same for you. Let's take a break.",
+  "start": 3600.0,
+  "end": 3630.0
+}

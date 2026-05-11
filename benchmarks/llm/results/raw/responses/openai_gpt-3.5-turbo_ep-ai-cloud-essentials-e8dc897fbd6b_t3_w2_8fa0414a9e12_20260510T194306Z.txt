@@ -1,0 +1,7 @@
+{
+	"start": 984.2,
+	"end": 1008.0,
+	"confidence": 0.95,
+	"reason": "Podcast closing remarks",
+	"end_text": "stay tuned for more. Thank you."
+}

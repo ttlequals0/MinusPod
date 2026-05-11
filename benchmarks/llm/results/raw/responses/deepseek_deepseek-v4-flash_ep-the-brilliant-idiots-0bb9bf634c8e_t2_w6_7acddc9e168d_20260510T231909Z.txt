@@ -1,0 +1,1 @@
+{"start": 2505.7, "end": 3120.0, "confidence": 0.0, "reason": "No promotional language, sponsor names, URLs, promo codes, or calls to action found in this transcript window. The content is a discussion about hip hop media, podcasters, and artists with no ad segments.", "end_text": "He's with Will.i.am."}

@@ -1,0 +1,1 @@
+[{"start": 5158.3, "end": 5223.6, "confidence": 0.95, "reason": "ChatGPT Advanced Account Security announcement", "end_text": "For some people"}]

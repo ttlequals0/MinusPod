@@ -1,0 +1,16 @@
+[
+    {
+        "start": 2659.4,
+        "end": 2666.0,
+        "confidence": 0.95,
+        "reason": "Mid-roll ad transition with explicit mention of 'shout out to the mid-roll' and promotional context for sponsorship.",
+        "end_text": "years ago and this"
+    },
+    {
+        "start": 3119.0,
+        "end": 3120.0,
+        "confidence": 0.85,
+        "reason": "Platform-inserted ad likely begins (partial detection; 'Learn more about your ad choices' is a Megaphone.fm standard ad-choice disclaimer). Continues in next window.",
+        "end_text": "ad choices. Visit"
+    }
+]

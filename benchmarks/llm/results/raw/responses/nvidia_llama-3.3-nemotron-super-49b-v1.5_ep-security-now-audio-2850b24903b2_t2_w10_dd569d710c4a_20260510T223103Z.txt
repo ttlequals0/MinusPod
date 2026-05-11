@@ -1,0 +1,1 @@
+[{"start": 4265.2, "end": 4465.7, "confidence": 0.98, "reason": "Bitwarden sponsor read with promotional language, URL (bitwarden.com/twit), and transition phrases", "end_text": "Back to Steve."}]

@@ -1,0 +1,7 @@
+{
+  "start": 2938.5,
+  "end": 3540.0,
+  "confidence": 0.0,
+  "reason": "No promotional language, sponsor names, URLs, promo codes, or calls to action found. The entire segment is editorial discussion about hip-hop media personalities.",
+  "end_text": "I would probably have put him 35, though."
+}

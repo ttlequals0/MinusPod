@@ -1,0 +1,1 @@
+{"start": 7131.4, "end": 7155.5, "confidence": 0.0, "reason": "Not an ad, no promotional language", "end_text": "how deep it is"}

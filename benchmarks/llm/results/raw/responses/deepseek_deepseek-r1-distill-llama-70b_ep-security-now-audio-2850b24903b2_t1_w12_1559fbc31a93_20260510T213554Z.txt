@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I've been using this AI model called Claude. It's been a game-changer for my work. But I just found out that they're introducing something called Claude Security. I'm not exactly sure what that is, but it sounds important. Let me check their website... Oh, it's a new feature that helps secure my interactions with the AI. That makes sense, especially with all the sensitive stuff I discuss. I wonder how it compares to other security tools I've used before. Maybe I should look into it more to see if it's worth the investment.",
+  "start": 5037.8,
+  "end": 5062.7
+}

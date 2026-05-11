@@ -1,0 +1,16 @@
+[
+  {
+    "start": 9259.3,
+    "end": 9290.5,
+    "confidence": 0.95,
+    "reason": "Cross-promotion for This Week in Tech on TWiT network",
+    "end_text": "the TWiT Network"
+  },
+  {
+    "start": 9344.4,
+    "end": 9374.4,
+    "confidence": 0.98,
+    "reason": "Mint Mobile ad with Ryan Reynolds, including terms (ad extends beyond window end)",
+    "end_text": "at mintmobile.com"
+  }
+]

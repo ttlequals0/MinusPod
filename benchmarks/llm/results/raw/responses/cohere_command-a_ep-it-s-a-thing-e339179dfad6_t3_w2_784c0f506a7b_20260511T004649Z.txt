@@ -1,0 +1,7 @@
+{
+  "start": 1371.3,
+  "end": 1372.9,
+  "confidence": 0.95,
+  "reason": "Host-read sponsor segment with promotional language",
+  "end_text": "i'm i'm not against it and i think it is a thing for sure 100 all right let's get to the shout outs crafted by you rich"
+}

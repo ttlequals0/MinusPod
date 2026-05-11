@@ -1,0 +1,1 @@
+{"start": 4296.0, "end": 4361.4, "confidence": 0.95, "reason": "Host-read ad for Jess Hilarious' book and Charlamagne's tennis event", "end_text": "get your ticket there"}

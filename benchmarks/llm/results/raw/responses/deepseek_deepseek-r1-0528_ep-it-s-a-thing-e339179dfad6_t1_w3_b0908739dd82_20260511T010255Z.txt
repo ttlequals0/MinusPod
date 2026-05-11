@@ -1,0 +1,7 @@
+{
+  "start": 1524.5,
+  "end": 1602.6,
+  "confidence": 0.95,
+  "reason": "Xero ad followed by Acast platform promotion and Wrong Turns podcast ad",
+  "end_text": "Acast.com."
+}

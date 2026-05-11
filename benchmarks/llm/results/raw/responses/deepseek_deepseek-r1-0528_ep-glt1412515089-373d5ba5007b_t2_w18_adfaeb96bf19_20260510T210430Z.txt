@@ -1,0 +1,16 @@
+[
+  {
+    "start": 7936.3,
+    "end": 7963.4,
+    "confidence": 0.95,
+    "reason": "Perplexity sponsorship mention with URL",
+    "end_text": "at https://pplx.ai/rogan"
+  },
+  {
+    "start": 7993.9,
+    "end": 8021.5,
+    "confidence": 0.9,
+    "reason": "PodcastChoices ad choices call to action",
+    "end_text": "podcastchoices.com/adchoices"
+  }
+]

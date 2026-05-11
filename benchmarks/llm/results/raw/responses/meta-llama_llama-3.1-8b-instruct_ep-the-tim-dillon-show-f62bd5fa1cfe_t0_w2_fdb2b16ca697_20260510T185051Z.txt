@@ -1,0 +1,1 @@
+{ "start": 815.0, "end": 840.1, "confidence": 0.95, "reason": "Mention of sponsor (Mint Mobile) in the context of a discussion", "end_text": "Mint Mobile and I mean it" }

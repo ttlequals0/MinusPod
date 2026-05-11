@@ -1,0 +1,4 @@
+[{"start": 1524.5, "end": 1534.1, "confidence": 0.9, "reason": "Xero ad", "end_text": "free trial"}, 
+{"start": 1535.2, "end": 1561.9, "confidence": 0.9, "reason": "Xero ad continuation", "end_text": "What a life"}, 
+{"start": 1565.4, "end": 1592.5, "confidence": 0.95, "reason": "Wrong Turns podcast promo", "end_text": "die"}, 
+{"start": 1595.5, "end": 1602.6, "confidence": 0.9, "reason": "Acast platform promo", "end_text": "Acast.com"}]

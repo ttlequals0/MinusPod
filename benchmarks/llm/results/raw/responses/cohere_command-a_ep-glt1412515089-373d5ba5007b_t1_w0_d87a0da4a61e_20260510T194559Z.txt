@@ -1,0 +1,7 @@
+{
+  "start": 539.2,
+  "end": 600.0,
+  "confidence": 0.98,
+  "reason": "In the Gray and Skechers sponsor reads",
+  "end_text": "sneakers,"
+}

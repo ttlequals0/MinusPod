@@ -1,0 +1,7 @@
+{
+  "start": 6390.2,
+  "end": 6390.2,
+  "confidence": 0.95,
+  "reason": "Host transition to ad break with 'Let's pay some bills and do some Asking Idiots, man.'",
+  "end_text": "Asking Idiots, man."
+}

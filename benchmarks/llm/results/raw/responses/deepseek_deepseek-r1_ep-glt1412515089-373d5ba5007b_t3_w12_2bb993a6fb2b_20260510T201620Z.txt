@@ -1,0 +1,7 @@
+[{
+    "start": 5546.3,
+    "end": 5596.3,
+    "confidence": 1.0,
+    "reason": "Netflix show promotion with 'brought to you by' transition and call to action",
+    "end_text": "only on Netflix"
+}]

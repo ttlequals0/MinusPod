@@ -1,0 +1,1 @@
+{"start": 2505.7, "end": 2522.4, "confidence": 0.0, "reason": "not an ad, discussing podcast history", "end_text": "early."}

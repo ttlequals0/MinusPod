@@ -1,0 +1,7 @@
+{
+	"start": 5443.4,
+	"end": 5446.9,
+	"confidence": 1,
+	"reason": "Sponsor mention - Brilliant Idiots",
+	"end_text": "trying to get you."
+}

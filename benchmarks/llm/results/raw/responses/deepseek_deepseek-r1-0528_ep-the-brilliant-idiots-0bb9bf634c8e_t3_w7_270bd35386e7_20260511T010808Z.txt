@@ -1,0 +1,184 @@
+[
+  {
+    "start": 2938.5,
+    "end": 2959.5,
+    "confidence": 0.95,
+    "reason": "Discussion of DJ Head and Gina Views, including personal background and professional achievements",
+    "end_text": "Let me tell you how"
+  },
+  {
+    "start": 2960.4,
+    "end": 2985.9,
+    "confidence": 0.95,
+    "reason": "Continuation of DJ Head's background and his role in the Kendrick Lamar Drake situation",
+    "end_text": "the reality of it"
+  },
+  {
+    "start": 2986.3,
+    "end": 3011.6,
+    "confidence": 0.95,
+    "reason": "Discussion of DJ Head's platform and collaboration with Gina",
+    "end_text": "other people. Like,"
+  },
+  {
+    "start": 3011.9,
+    "end": 3028.0,
+    "confidence": 0.95,
+    "reason": "Praise for DJ Head's character and the fruits of his labor",
+    "end_text": "the fruits of his"
+  },
+  {
+    "start": 3028.8,
+    "end": 3056.4,
+    "confidence": 0.95,
+    "reason": "Historical context of DJ Head's career in West Coast radio",
+    "end_text": "the young West Coast"
+  },
+  {
+    "start": 3056.8,
+    "end": 3082.3,
+    "confidence": 0.95,
+    "reason": "Further discussion of DJ Head's foundation and impact",
+    "end_text": "foundation that was"
+  },
+  {
+    "start": 3082.9,
+    "end": 3111.3,
+    "confidence": 0.95,
+    "reason": "Discussion of DJ Head's intelligence and tech interests",
+    "end_text": "tech and all this"
+  },
+  {
+    "start": 3111.6,
+    "end": 3141.4,
+    "confidence": 0.95,
+    "reason": "DJ Head's involvement in tech and association with Will.i.am",
+    "end_text": "couple hundred million"
+  },
+  {
+    "start": 3141.8,
+    "end": 3150.8,
+    "confidence": 0.95,
+    "reason": "Mention of DJ Head's company FYI and key points",
+    "end_text": "the name of the"
+  },
+  {
+    "start": 3152.3,
+    "end": 3180.6,
+    "confidence": 0.95,
+    "reason": "DJ Head's career moves and Gina Views' role",
+    "end_text": "rock with me. And"
+  },
+  {
+    "start": 3180.9,
+    "end": 3205.4,
+    "confidence": 0.95,
+    "reason": "Personal anecdotes about Gina Views and her work ethic",
+    "end_text": "she get up and"
+  },
+  {
+    "start": 3205.8,
+    "end": 3218.9,
+    "confidence": 0.95,
+    "reason": "Gina Views' fashion line and hustle",
+    "end_text": "she does so much"
+  },
+  {
+    "start": 3219.3,
+    "end": 3237.4,
+    "confidence": 0.95,
+    "reason": "Appreciation for Gina Views' consistency and branding",
+    "end_text": "consistent with it"
+  },
+  {
+    "start": 3238.1,
+    "end": 3262.0,
+    "confidence": 0.95,
+    "reason": "Gina Views' authenticity and personality",
+    "end_text": "in real life. Gina"
+  },
+  {
+    "start": 3262.7,
+    "end": 3289.9,
+    "confidence": 0.95,
+    "reason": "Reflection on the early stages of careers in hip-hop media",
+    "end_text": "where people are"
+  },
+  {
+    "start": 3290.1,
+    "end": 3308.8,
+    "confidence": 0.95,
+    "reason": "Gina Views' knowledge and role in hip-hop journalism",
+    "end_text": "journalist conversation,"
+  },
+  {
+    "start": 3309.1,
+    "end": 3329.8,
+    "confidence": 0.95,
+    "reason": "Comparison of Gina Views and Nyla Simone",
+    "end_text": "bar, history, you"
+  },
+  {
+    "start": 3330.8,
+    "end": 3353.5,
+    "confidence": 0.95,
+    "reason": "Family connection between Gina Views and Nyla Simone",
+    "end_text": "festival. Wow. I"
+  },
+  {
+    "start": 3354.0,
+    "end": 3380.1,
+    "confidence": 0.95,
+    "reason": "Gina Views' consistency on and off air",
+    "end_text": "camera. I love"
+  },
+  {
+    "start": 3380.7,
+    "end": 3403.5,
+    "confidence": 0.95,
+    "reason": "Discussion of Underground Sound and its role in hip-hop",
+    "end_text": "meme-driven edge. Meme-driven"
+  },
+  {
+    "start": 3413.1,
+    "end": 3430.3,
+    "confidence": 0.95,
+    "reason": "Description of Underground Sound's audience and impact",
+    "end_text": "super viral stream"
+  },
+  {
+    "start": 3430.6,
+    "end": 3449.0,
+    "confidence": 0.95,
+    "reason": "Personal acknowledgment of Underground Sound",
+    "end_text": "heard of Underground"
+  },
+  {
+    "start": 3450.4,
+    "end": 3463.5,
+    "confidence": 0.95,
+    "reason": "Debate about Elliott Wilson's placement on the list",
+    "end_text": "health things. Oh,"
+  },
+  {
+    "start": 3467.6,
+    "end": 3491.2,
+    "confidence": 0.95,
+    "reason": "Elliott Wilson's health and personal life updates",
+    "end_text": "twins. They said"
+  },
+  {
+    "start": 3494.7,
+    "end": 3519.7,
+    "confidence": 0.95,
+    "reason": "Humor about Elliott Wilson's appearance and interviews",
+    "end_text": "how you feel right"
+  },
+  {
+    "start": 3521.2,
+    "end": 3539.3,
+    "confidence": 0.95,
+    "reason": "Reflection on Elliott Wilson's relevance and list placement",
+    "end_text": "put him 35, though"
+  }
+]

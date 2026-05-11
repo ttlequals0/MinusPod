@@ -1,0 +1,7 @@
+{
+  "start": 1664.0,
+  "end": 2288.1,
+  "confidence": 0.95,
+  "reason": "No promotional content detected in the provided transcript segment. The entire text discusses cybersecurity topics, NCSC guidance, and CISA's situation without any sponsor mentions, URLs, or calls to action.",
+  "end_text": "Thank you for watching."
+}

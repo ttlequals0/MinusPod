@@ -1,0 +1,7 @@
+[{
+    "start": 6395.6,
+    "end": 6414.8,
+    "confidence": 0.95,
+    "reason": "Host-read Perplexity sponsorship mention during content discussion",
+    "end_text": "showing us how smart it is"
+}]

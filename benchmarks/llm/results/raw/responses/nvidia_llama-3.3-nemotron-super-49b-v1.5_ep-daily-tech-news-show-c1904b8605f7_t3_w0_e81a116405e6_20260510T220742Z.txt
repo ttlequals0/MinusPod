@@ -1,0 +1,6 @@
+[
+    {"start": 0.0, "end": 23.1, "confidence": 0.98, "reason": "Capital One sponsor read", "end_text": "trade-in value."},
+    {"start": 23.6, "end": 52.3, "confidence": 0.95, "reason": "Xero (Zero) sponsor read", "end_text": "Conditions apply."},
+    {"start": 52.5, "end": 100.9, "confidence": 0.95, "reason": "Spectrum Business sponsor read", "end_text": "100%"},
+    {"start": 127.1, "end": 152.9, "confidence": 0.95, "reason": "Warby Parker sponsor read", "end_text": "warbyparker.com."}
+]

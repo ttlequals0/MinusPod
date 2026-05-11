@@ -1,0 +1,1 @@
+{"start": 445.6, "end": 572.1, "confidence": 0.98, "reason": "Host-read Zscaler sponsor segment with promo URL and call to action", "end_text": "Thank you, Leo."}

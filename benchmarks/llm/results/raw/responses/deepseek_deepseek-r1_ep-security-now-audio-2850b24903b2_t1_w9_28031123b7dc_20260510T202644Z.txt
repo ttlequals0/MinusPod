@@ -1,0 +1,9 @@
+[
+  {
+    "start": 4258.6,
+    "end": 4380.0,
+    "confidence": 1.0,
+    "reason": "Bitwarden sponsor read, continues in next",
+    "end_text": "securely unlocking devices"
+  }
+]

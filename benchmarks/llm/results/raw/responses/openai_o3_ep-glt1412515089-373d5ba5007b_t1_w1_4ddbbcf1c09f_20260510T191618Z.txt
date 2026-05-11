@@ -1,0 +1,1 @@
+{"start":539.2,"end":653.1,"confidence":0.97,"reason":"Film 'In the Gray' and Skechers slip-ins sponsor reads with promotional language, release date, and URL","end_text":"only at Skechers.com"}

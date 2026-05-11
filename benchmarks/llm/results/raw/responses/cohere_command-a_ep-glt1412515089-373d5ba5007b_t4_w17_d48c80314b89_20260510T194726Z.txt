@@ -1,0 +1,1 @@
+{"start": 7131.4, "end": 7155.5, "confidence": 0.0, "reason": "Not an ad, guest discussing their company", "end_text": "photons were able to predict the future. Yeah. Well, if you think of a box, okay, so think of a really deep well. Let's think of a well with water on the bottom."}

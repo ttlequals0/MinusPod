@@ -1,0 +1,16 @@
+[
+    {
+        "start": 5789.0,
+        "end": 5815.9,
+        "confidence": 0.7,
+        "reason": "Mention of Amazon as a corporate sponsor of the Met Gala with promotional context (e.g., 'sponsor', 'donated at least $10 million'). While not a traditional ad read, this segment includes promotional language for Amazon's involvement in the event.",
+        "end_text": "subscribe to Amazon, you know, Prime."
+    },
+    {
+        "start": 6060.0,
+        "end": 6060.0,
+        "confidence": 0.3,
+        "reason": "Partial ad segment at window boundary. The episode description lists multiple sponsor links (e.g., 'Sponsor Brilliant Idiots', 'Check out all the podcast on Charlamagne's Black Effect Network'), but no explicit ad reads or promotional language for these sponsors appear in this transcript window. No actionable ad detected.",
+        "end_text": "as a battleground state."
+    }
+]

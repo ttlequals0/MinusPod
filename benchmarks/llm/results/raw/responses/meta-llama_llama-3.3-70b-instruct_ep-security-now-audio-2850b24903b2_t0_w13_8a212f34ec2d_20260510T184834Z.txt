@@ -1,0 +1,1 @@
+{"start": 6044.5, "end": 6083.5, "confidence": 0.99, "reason": "Hawks Hunt sponsor read", "end_text": "behavioral science"}

@@ -1,0 +1,1 @@
+[{"start": 2910.2, "end": 3082.9, "confidence": 0.95, "reason": "Network-inserted brand tagline ads for Jess Hilarious, 2Chainz, The Black Family Who Built America, Uncommon Favor, Get Honest or Die Lying, Andrew Schulz, AlexxMedia, AM Mornings", "end_text": "Head deserves?"}]

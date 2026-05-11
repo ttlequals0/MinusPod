@@ -1,0 +1,16 @@
+[
+  {
+    "start": 2246.0,
+    "end": 2275.3,
+    "confidence": 1.0,
+    "reason": "Capital One sponsor read with product pitch and branding",
+    "end_text": "technology at Capital One"
+  },
+  {
+    "start": 2276.2,
+    "end": 2314.4,
+    "confidence": 1.0,
+    "reason": "Rinse sponsor read with call to action (Sign up at Rinse.com)",
+    "end_text": "It's time to be great"
+  }
+]

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2520.0,
+    "end": 3120.0,
+    "confidence": 0.95,
+    "reason": "Host-read sponsor segment promoting various books and podcasts",
+    "end_text": "Check out AlexxMedia"
+  }
+]

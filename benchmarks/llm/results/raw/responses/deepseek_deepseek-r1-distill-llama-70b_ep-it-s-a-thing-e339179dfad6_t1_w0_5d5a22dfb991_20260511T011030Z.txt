@@ -1,0 +1,7 @@
+{
+  "start": 1.6,
+  "end": 7.0,
+  "confidence": 0.95,
+  "reason": "Acast platform pre-roll ad",
+  "end_text": "best podcasts. Here's a show that we recommend."
+}

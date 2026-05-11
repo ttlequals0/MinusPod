@@ -1,0 +1,16 @@
+[
+  {
+    "start": 1901.8,
+    "end": 1905.2,
+    "confidence": 0.95,
+    "reason": "Transition break with 'Thank you for watching' indicating possible ad insertion point",
+    "end_text": "Thank you for watching"
+  },
+  {
+    "start": 2250.7,
+    "end": 2258.8,
+    "confidence": 0.95,
+    "reason": "Content gap between cybersecurity discussion and next topic",
+    "end_text": "depended upon CISA"
+  }
+]

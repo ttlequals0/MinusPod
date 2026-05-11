@@ -1,0 +1,7 @@
+{
+  "start": 7173.7,
+  "end": 7196.8,
+  "confidence": 0.99,
+  "reason": "Netflix sponsor read for 'Remarkably Bright Creatures' with explicit 'This episode is brought to you by' and 'now playing only on Netflix' promotional language",
+  "end_text": "only on Netflix"
+}

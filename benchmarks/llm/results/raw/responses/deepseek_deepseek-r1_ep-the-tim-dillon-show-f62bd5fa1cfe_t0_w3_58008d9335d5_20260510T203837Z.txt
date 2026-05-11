@@ -1,0 +1,30 @@
+[
+  {
+    "start": 1439.2,
+    "end": 1489.6,
+    "confidence": 0.98,
+    "reason": "Host-read Mint Mobile sponsor segment with URL mintmobile.com/TIMDILLON and $15/month offer",
+    "end_text": "see Mint Mobile for details"
+  },
+  {
+    "start": 1489.6,
+    "end": 1564.4,
+    "confidence": 0.98,
+    "reason": "Host-read Aura Frames sponsor segment with URL AuraFrames.com and promo code TIM",
+    "end_text": "Promo code TIM"
+  },
+  {
+    "start": 1578.3,
+    "end": 1629.5,
+    "confidence": 0.95,
+    "reason": "Network-inserted Colgate brand ad with track series promotion",
+    "end_text": "your smile is your strength"
+  },
+  {
+    "start": 1637.6,
+    "end": 1668.7,
+    "confidence": 0.95,
+    "reason": "Network-inserted Skinny Pop brand ad with product description",
+    "end_text": "Skinny Pop just makes sense"
+  }
+]

@@ -1,0 +1,7 @@
+{
+  "start": 2246.0,
+  "end": 2314.4,
+  "confidence": 0.95,
+  "reason": "Capital One and Rinse.com ads",
+  "end_text": "Rinse. It's time to be great."
+}

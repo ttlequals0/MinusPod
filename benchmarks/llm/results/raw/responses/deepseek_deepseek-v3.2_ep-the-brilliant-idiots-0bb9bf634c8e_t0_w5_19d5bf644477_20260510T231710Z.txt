@@ -1,0 +1,1 @@
+[{"start": 2324.6, "end": 2450.0, "confidence": 0.99, "reason": "Host-read ad for BlueChew Gold with promo code 'Idiots' and URL, followed by host-read ad for ZipRecruiter with promo URL 'ZipRecruiter.com slash idiots'", "end_text": "ZipRecruiter.com slash idiots"}]

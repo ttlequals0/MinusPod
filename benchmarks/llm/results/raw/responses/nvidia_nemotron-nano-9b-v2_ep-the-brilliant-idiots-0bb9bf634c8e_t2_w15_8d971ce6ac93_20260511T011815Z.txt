@@ -1,0 +1,1 @@
+[{"start": 6889.9, "end": 6905.8, "confidence": 0.95, "reason": "Sponsor link promotion", "end_text": "Wait a little bit longer"}}]

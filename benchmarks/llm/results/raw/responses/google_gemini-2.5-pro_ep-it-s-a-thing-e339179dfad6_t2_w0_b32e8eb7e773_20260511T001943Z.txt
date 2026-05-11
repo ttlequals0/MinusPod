@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1.6,
+    "end": 77.2,
+    "confidence": 1.0,
+    "reason": "Acast platform pre-roll ad block, including cross-promotions for the podcasts 'Wrong Turns' and 'Formative'.",
+    "end_text": "by the leaders of tomorrow."
+  }
+]

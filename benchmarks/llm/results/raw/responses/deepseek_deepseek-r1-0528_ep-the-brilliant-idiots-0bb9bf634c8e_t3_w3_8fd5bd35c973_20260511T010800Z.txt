@@ -1,0 +1,9 @@
+[
+    {
+        "start": 1250.2,
+        "end": 1860.0,
+        "confidence": 0.0,
+        "reason": "No ad content detected; entire segment is editorial conversation about Complex list and hip-hop media personalities",
+        "end_text": "true hip-hop journalism"
+    }
+]

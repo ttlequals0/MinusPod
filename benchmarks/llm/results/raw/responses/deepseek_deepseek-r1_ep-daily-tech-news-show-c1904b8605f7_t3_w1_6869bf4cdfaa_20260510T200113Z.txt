@@ -1,0 +1,7 @@
+[{
+    "start": 821.4,
+    "end": 1019.4,
+    "confidence": 0.99,
+    "reason": "Multiple consecutive ads: Capital One host-read, BetterHelp with promo code, Amazon Health AI produced spot, Spectrum Business with URL, Rinse with vanity URL",
+    "end_text": "Schedule at rinse.com. Rinse."
+}]

@@ -1,0 +1,16 @@
+{"ads": [
+    {
+        "start": 2324.6,
+        "end": 2381.0,
+        "confidence": 0.98,
+        "reason": "BlueChew Gold sponsor read",
+        "end_text": "Salute to ZipRecruiter"
+    },
+    {
+        "start": 2381.0,
+        "end": 2443.8,
+        "confidence": 0.98,
+        "reason": "ZipRecruiter sponsor read",
+        "end_text": "Meet your match on ZipRecruiter"
+    }
+]}

@@ -1,0 +1,7 @@
+{
+    "start": 2924.1,
+    "end": 3540.5,
+    "confidence": 0.95,
+    "reason": "No ad segments detected in the provided transcript. The content appears to be continuous conversation between host and guest without any promotional language, sponsor names, URLs, promo codes, or calls to action.",
+    "end_text": "Is it a guy? Yeah, it's like a general."
+}

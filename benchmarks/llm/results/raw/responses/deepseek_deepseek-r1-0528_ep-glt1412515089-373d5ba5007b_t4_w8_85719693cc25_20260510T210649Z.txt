@@ -1,0 +1,16 @@
+[
+  {
+    "start": 3339.8,
+    "end": 3367.2,
+    "confidence": 0.95,
+    "reason": "Host-read sponsor segment for Perplexity",
+    "end_text": "ask Perplexity anything at"
+  },
+  {
+    "start": 3706.6,
+    "end": 3735.2,
+    "confidence": 0.9,
+    "reason": "Host-read sponsor segment for podcastchoices.com",
+    "end_text": "Visit podcastchoices.com/adchoices"
+  }
+]

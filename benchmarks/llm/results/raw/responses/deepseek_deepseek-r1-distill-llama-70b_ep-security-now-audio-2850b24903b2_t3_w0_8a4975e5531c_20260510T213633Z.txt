@@ -1,0 +1,7 @@
+{
+  "start": 16.7,
+  "end": 84.9,
+  "confidence": 0.95,
+  "reason": "OutSystems sponsor read with promo URL",
+  "end_text": "OutSystems.com/twit. Podcasts you love. From people you trust. This is Twit."
+}

@@ -1,0 +1,7 @@
+{
+	"start": 2085.5,
+	"end": 2313.3,
+	"confidence": 0.95,
+	"reason": "Multiple sponsor mentions - Mint Mobile, Aura Frames, Morgan & Morgan, Stash, Neuro Gum",
+	"end_text": "GLP-1s for toddlers. So usually here's the way it works. Your two-year-old eats a chicken nugget and shits it out and wants another chicken nugget."
+}

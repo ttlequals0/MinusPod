@@ -1,0 +1,1 @@
+[{"start": 2560.1, "end": 2693.0, "confidence": 0.99, "reason": "Host-read ad for Meter with product pitch, customer testimonial, and vanity URL", "end_text": "meter.com. security now book"}]

@@ -1,0 +1,1 @@
+{"start":2938.5,"end":2959.5,"confidence":0.0,"reason":"No promotional content detected in transcript","end_text":"[]"}

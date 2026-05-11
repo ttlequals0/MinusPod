@@ -1,0 +1,16 @@
+[
+    {
+        "start": 6390.2,
+        "end": 6446.1,
+        "confidence": 0.95,
+        "reason": "Host transition to sponsor reads with 'Let's pay some bills and do some asking idiots' followed by multiple book promotions with pre-order/order links (Jess Hilarious, 2Chainz, Cheryl McKissack Daniel, Dawn Staley, Charlamagne Tha God). These are compensated promotions.",
+        "end_text": "Okay, Asking Idiots."
+    },
+    {
+        "start": 6446.1,
+        "end": 6471.0,
+        "confidence": 0.98,
+        "reason": "Promotion for Charlamagne's 'Black Effect Network' with explicit URL (blackeffect.com) and call to action ('Check out all the podcast on Charlamagne's Black Effect Network'). Network cross-promotion is an ad.",
+        "end_text": "blackeffect.com"
+    }
+]

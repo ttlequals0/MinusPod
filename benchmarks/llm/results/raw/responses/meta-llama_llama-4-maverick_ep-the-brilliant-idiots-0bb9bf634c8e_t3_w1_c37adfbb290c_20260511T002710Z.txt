@@ -1,0 +1,1 @@
+{"start": 951.6, "end": 972.9, "confidence": 0.7, "reason": "Partial detection, possible short ad or transition", "end_text": "y'all ain't never watch a video"}

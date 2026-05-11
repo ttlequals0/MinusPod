@@ -1,0 +1,8 @@
+{
+  "transcript": "Hey, it's Adam Grant from Ted's Rethinking Podcast. We often think about productivity as doing more, but what if the real breakthrough is doing less? There's a cognitive cost to chores like laundry, a mental load that depletes your attention and patience. Rinse isn't just a laundry service, it's a way to rethink your routine. By combining a seamless digital interface with high quality garment care, from dry cleaning to hang dry, they remove the friction of a relentless task.",
+  "start": 2276.2,
+  "end": 2301.6,
+  "confidence": 0.95,
+  "reason": "Rinse laundry service ad",
+  "end_text": "relentless task."
+}

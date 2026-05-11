@@ -1,0 +1,1 @@
+[{"start": 0.0, "end": 9.3, "confidence": 0.98, "reason": "Joe Rogan Podcast network-inserted brand tagline ad", "end_text": "Joe Rogan Podcast by night, all day"}]

@@ -1,0 +1,1 @@
+[{"start": 2237.2, "end": 2262.0, "confidence": 0.95, "reason": "Blinds.com product promotion", "end_text": "zero pressure. Right now, get up to 45% off site-wide..."}]

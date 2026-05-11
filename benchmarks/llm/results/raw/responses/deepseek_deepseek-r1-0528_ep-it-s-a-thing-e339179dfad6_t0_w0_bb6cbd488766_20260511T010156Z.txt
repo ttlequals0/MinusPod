@@ -1,0 +1,1 @@
+[{"start": 1.6, "end": 77.2, "confidence": 0.95, "reason": "Acast platform-inserted ad break promoting Acast hosting service and cross-promoting podcasts Wrong Turns and Formative", "end_text": "leaders of tomorrow"}]

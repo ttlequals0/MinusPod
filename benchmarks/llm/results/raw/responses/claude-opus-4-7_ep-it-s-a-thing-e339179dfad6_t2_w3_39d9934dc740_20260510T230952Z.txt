@@ -1,0 +1,1 @@
+[{"start":1524.5,"end":1602.6,"confidence":0.98,"reason":"Xero ad, Acast cross-promo for Wrong Turns podcast, and Acast platform promo","end_text":"podcasts everywhere. Acast.com"}]

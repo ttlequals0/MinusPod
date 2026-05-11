@@ -1,0 +1,1 @@
+{"start": 4646.2, "end": 4674.6, "confidence": 0.9, "reason": "Colgate ad", "end_text": "your strength"}

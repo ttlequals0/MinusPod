@@ -1,0 +1,1 @@
+{ "start": 6699.7, "end": 6725.5, "confidence": 0.0, "reason": "no ad content", "end_text": "for example, allowing" }

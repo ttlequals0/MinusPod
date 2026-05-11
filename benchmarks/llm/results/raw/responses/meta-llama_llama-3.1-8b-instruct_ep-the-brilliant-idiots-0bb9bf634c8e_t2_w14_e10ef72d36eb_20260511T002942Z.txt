@@ -1,0 +1,1 @@
+{ "start": 5871.4, "end": 6480.0, "confidence": 0.95, "reason": "No explicit ads found, but the transcript contains a mention of a sponsor link at the beginning", "end_text": "public.liveread.io/media-kit/brilliant-idiots" }

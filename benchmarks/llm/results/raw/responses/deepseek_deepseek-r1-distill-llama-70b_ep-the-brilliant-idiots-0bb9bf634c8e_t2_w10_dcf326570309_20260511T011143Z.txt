@@ -1,0 +1,7 @@
+{
+  "start": 4324.2,
+  "end": 4334.1,
+  "confidence": 0.95,
+  "reason": "Promotion of All Love Racquet Club event with specific details and call to action",
+  "end_text": "get your ticket there"
+}

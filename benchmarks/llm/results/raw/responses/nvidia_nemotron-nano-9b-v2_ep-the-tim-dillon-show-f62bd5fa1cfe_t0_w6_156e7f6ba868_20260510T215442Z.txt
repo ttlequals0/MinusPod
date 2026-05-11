@@ -1,0 +1,1 @@
+[{"start": 2737.4, "end": 2764.2, "confidence": 0.95, "reason": "Morgan & Morgan promotion", "end_text": "ForThePeople.com slash Tim"}]

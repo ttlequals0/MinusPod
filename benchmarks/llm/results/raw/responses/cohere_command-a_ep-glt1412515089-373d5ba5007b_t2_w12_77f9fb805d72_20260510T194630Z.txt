@@ -1,0 +1,1 @@
+{"start": 5546.3, "end": 5596.3, "confidence": 0.95, "reason": "Netflix's Remarkably Bright Creatures brand tagline ad", "end_text": "only on Netflix. Yeah. Right. So we, we're trying to differentiate so we could exist in this consciousness, in this form, in this reality. And we think that this is it. This is it. This is lockdown. This is the box."}

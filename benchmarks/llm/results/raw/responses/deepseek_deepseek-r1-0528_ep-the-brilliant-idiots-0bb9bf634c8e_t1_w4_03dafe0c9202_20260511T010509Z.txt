@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1680.0,
+    "end": 2280.0,
+    "confidence": 0.0,
+    "reason": "No promotional content detected in transcript segment",
+    "end_text": "conversation about hip-hop media"
+  }
+]

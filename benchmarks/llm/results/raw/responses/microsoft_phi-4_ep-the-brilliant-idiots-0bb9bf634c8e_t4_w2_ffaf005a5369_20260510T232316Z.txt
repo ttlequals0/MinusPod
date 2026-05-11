@@ -1,0 +1,7 @@
+{
+  "start": 14.0,
+  "end": 24.0,
+  "confidence": 0.85,
+  "reason": "The segment discusses the ranking of hip-hop artists and mentions specific artists like John Casarelli and John Caramanica, indicating a focus on hip-hop culture. The segment includes promotional language and mentions of artists, which aligns with the detection rules for ads.",
+  "end_text": "Drewski, hip-hop? I mean, culture. Hip-hop adjacent? I'm not against them being on the list. I don't know about as high because I feel like..."
+}

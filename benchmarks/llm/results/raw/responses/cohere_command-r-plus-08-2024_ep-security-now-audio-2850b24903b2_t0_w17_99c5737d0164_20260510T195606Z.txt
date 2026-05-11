@@ -1,0 +1,1 @@
+{"start": 7558.3, "end": 7740.0, "confidence": 0.99, "reason": "Trusted Tech sponsor read", "end_text": "Microsoft environment through their certified support services."}

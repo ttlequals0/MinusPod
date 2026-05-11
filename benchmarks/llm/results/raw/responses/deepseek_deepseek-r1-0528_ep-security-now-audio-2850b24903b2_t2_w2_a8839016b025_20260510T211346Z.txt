@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1405.0,
+    "end": 1441.5,
+    "confidence": 0.0,
+    "reason": "No promotional content found; segment discusses UK NCSC warning",
+    "end_text": "decades of technical debt"
+  }
+]

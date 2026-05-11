@@ -1,0 +1,7 @@
+{
+  "start": 8490.5,
+  "end": 8580.0,
+  "confidence": 0.95,
+  "reason": "Host discusses Google's search result manipulation and advertising practices, which could be seen as a critique of Google's commercial interests. However, this is not a traditional ad segment. It is a continuation of the show's content discussing Google's practices and their impact on web standards and user experience.",
+  "end_text": "the opportunity."
+}

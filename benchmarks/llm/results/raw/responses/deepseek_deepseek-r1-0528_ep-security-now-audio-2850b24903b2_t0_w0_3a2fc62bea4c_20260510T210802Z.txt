@@ -1,0 +1,16 @@
+[
+  {
+    "start": 16.7,
+    "end": 84.9,
+    "confidence": 1.0,
+    "reason": "OutSystems sponsor read and TWiT network promo",
+    "end_text": "OutSystems.com slash twit"
+  },
+  {
+    "start": 469.0,
+    "end": 572.1,
+    "confidence": 1.0,
+    "reason": "Zscaler sponsor read",
+    "end_text": "Thank you, Leo"
+  }
+]

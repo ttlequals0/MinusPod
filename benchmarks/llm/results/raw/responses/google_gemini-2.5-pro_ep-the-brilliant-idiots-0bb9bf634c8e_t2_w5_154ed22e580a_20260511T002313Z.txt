@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2323.4,
+    "end": 2450.0,
+    "confidence": 1.0,
+    "reason": "A host-read ad block for BlueChew followed immediately by an ad for ZipRecruiter. Both include sponsor names, URLs, and promo codes.",
+    "end_text": "match on ZipRecruiter."
+  }
+]

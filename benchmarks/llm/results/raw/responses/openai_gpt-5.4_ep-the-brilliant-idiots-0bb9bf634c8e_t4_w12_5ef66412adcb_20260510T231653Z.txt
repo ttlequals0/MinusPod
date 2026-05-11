@@ -1,0 +1,1 @@
+{"start":5020.0,"end":5640.0,"confidence":0.01,"reason":"No promotional language, sponsor names, URLs, promo codes, or calls to action in this window","end_text":"I don't, I don't."}

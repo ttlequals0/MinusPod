@@ -1,0 +1,1 @@
+{"start":2311.7,"end":2450.0,"confidence":0.99,"reason":"BlueChew Gold and ZipRecruiter sponsor reads with promotional claims, promo code Idiots, URLs BlueChew.com and ZipRecruiter.com/idiots; includes transition shout 'Bluetooth!' before ad copy","end_text":"Meet your match on ZipRecruiter"}

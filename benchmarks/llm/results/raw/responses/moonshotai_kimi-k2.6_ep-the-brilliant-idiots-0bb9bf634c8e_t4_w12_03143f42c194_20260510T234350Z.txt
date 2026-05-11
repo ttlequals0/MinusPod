@@ -1,0 +1,1 @@
+{"start":5019.7,"end":5646.8,"confidence":0.0,"reason":"No promotional language, sponsor names, URLs, promo codes, or calls to action found in transcript. Entire window contains show content discussion.","end_text":"I don't."}

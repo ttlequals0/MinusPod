@@ -1,0 +1,7 @@
+{
+  "start": 2324.6,
+  "end": 2404.4,
+  "confidence": 0.95,
+  "reason": "BlueChew Gold sponsor read with promo code",
+  "end_text": "BlueChew.com for more details and important safety information."
+}

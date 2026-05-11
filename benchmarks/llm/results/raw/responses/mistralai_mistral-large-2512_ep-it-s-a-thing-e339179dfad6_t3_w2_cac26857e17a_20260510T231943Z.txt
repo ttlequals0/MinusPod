@@ -1,0 +1,9 @@
+[
+    {
+        "start": 1371.3,
+        "end": 1372.9,
+        "confidence": 0.95,
+        "reason": "Platform-inserted ad transition phrase 'let's get to the shout outs' followed by promotional language for Acast (hosting platform) in episode description metadata. The episode footer contains 'Hosted on Acast' with a privacy link, which is a platform-inserted ad.",
+        "end_text": "crafted by you rich"
+    }
+]

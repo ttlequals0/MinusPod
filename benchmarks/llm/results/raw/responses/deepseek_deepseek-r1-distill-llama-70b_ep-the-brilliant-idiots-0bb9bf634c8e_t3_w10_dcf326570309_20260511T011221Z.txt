@@ -1,0 +1,7 @@
+{
+  "start": 4324.2,
+  "end": 4334.1,
+  "confidence": 0.95,
+  "reason": "Host promoting his tennis event and another show",
+  "end_text": "Head over to AM Mornings on YouTube"
+}

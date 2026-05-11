@@ -1,0 +1,1 @@
+{"start": 0.0, "end": 152.9, "confidence": 0.97, "reason": "Pre-roll ad block with host-read sponsors Capital One, Xero, Spectrum Business, and Warby Parker, containing promo language, URLs, and calls to action", "end_text": "That's warbyparker.com."}

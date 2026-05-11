@@ -1,0 +1,9 @@
+[
+    {
+        "start": 4324.2,
+        "end": 4361.4,
+        "confidence": 0.95,
+        "reason": "Host promotes Jess Hilarious' book, All Love Racquet Club event, and AM Mornings show",
+        "end_text": "AM Mornings on YouTube"
+    }
+]

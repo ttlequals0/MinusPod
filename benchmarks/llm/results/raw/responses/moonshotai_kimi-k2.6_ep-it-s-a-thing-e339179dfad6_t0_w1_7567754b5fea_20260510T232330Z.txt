@@ -1,0 +1,4 @@
+{
+  "transcript_analysis": "No advertisements detected in the provided transcript window. The content consists entirely of conversational material between hosts covering topics including European license plates, indoor water parks (Great Wolf Lodge, Kalahari), coffee 'soup shots,' and retro tech. There are no sponsor mentions, promo codes, URLs, calls to action, platform-inserted tags ('Hosted on Acast'), network promos, or brand tagline spots present in the transcript text.",
+  "ads": []
+}

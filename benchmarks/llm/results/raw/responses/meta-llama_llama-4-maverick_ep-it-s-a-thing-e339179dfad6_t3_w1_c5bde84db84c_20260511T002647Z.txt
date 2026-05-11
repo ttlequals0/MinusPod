@@ -1,0 +1,1 @@
+{"start": 613.7, "end": 675.0, "confidence": 0.8, "reason": "Sponsor read for SOUP shots", "end_text": "you could get yourself a little soup shot"}

@@ -1,0 +1,1 @@
+[{"start": 1123.6, "end": 1152.0, "confidence": 0.95, "reason": "Perplexity promotion with URL", "end_text": "so on."}]

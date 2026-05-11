@@ -1,0 +1,7 @@
+[
+    {"start": 821.4, "end": 844.7, "confidence": 0.98, "reason": "Capital One sponsor read", "end_text": "technology at Capital One"},
+    {"start": 845.2, "end": 889.7, "confidence": 0.95, "reason": "BetterHelp sponsor read", "end_text": "betterhelp.com slash random podcast"},
+    {"start": 890.6, "end": 910.1, "confidence": 0.9, "reason": "Amazon Health AI promotional ad", "end_text": "Healthcare just got less painful."},
+    {"start": 912.2, "end": 961.5, "confidence": 0.9, "reason": "Spectrum Business promotional ad", "end_text": "Visit spectrum.com slash business today to get started."},
+    {"start": 961.9, "end": 990.3, "confidence": 0.9, "reason": "Rinse service promotional ad", "end_text": "Schedule at rinse.com. Rinse."}
+]

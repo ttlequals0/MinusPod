@@ -1,0 +1,1 @@
+[{"start": 0.0, "end": 0.5, "confidence": 0.95, "reason": "Sponsor Brilliant Idiots link", "end_text": "public.liveread.io/media-kit"}, {"start": 0.5, "end": 16.8, "confidence": 0.98, "reason": "Carvana car selling promotion", "end_text": "Sell your car today on Carvana"}]

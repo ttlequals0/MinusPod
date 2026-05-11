@@ -1,0 +1,7 @@
+{
+  "start": 5443.4,
+  "end": 6060.2,
+  "confidence": 0.0,
+  "reason": "No promotional language, sponsor names, URLs, promo codes, or calls to action found in this transcript segment. The content is editorial discussion about interracial dating statistics, Met Gala criticism, and political commentary.",
+  "end_text": "even the"
+}

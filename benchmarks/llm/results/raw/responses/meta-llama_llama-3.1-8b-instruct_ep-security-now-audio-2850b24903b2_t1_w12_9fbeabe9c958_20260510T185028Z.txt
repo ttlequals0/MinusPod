@@ -1,0 +1,7 @@
+{
+  "start": 84.0,
+   "end": 94.0,
+   "confidence": 0.95,
+   "reason": "Club TWiT ad",
+   "end_text": "Join Club TWiT"
+}

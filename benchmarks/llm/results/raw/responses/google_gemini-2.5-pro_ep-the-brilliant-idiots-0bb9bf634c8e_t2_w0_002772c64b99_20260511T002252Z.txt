@@ -1,0 +1,9 @@
+[
+  {
+    "start": 0.5,
+    "end": 43.4,
+    "confidence": 0.98,
+    "reason": "This is a produced, network-inserted ad for Carvana, a known podcast advertiser. It features a testimonial format and a clear call to action.",
+    "end_text": "Carvana. Pickup fees may apply."
+  }
+]

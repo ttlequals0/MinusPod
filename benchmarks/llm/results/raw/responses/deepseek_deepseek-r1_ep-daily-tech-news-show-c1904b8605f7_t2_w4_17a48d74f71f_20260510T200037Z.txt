@@ -1,0 +1,30 @@
+[
+  {
+    "start": 1718.3,
+    "end": 1735.3,
+    "confidence": 0.97,
+    "reason": "Host promoting DTNS merchandise store with URL and call-to-action",
+    "end_text": "support the show"
+  },
+  {
+    "start": 1742.3,
+    "end": 1771.5,
+    "confidence": 0.99,
+    "reason": "Capital One sponsor read with product features and branding",
+    "end_text": "technology at Capital One"
+  },
+  {
+    "start": 1772.6,
+    "end": 1799.6,
+    "confidence": 0.96,
+    "reason": "Cross-promotion for Lemonada Media's 'Thrive' podcast series with explicit call-to-action",
+    "end_text": "tune in to Good Things"
+  },
+  {
+    "start": 2246.0,
+    "end": 2275.3,
+    "confidence": 0.99,
+    "reason": "Repeated Capital One sponsor read (likely dynamic insertion) with identical promotional content",
+    "end_text": "technology at Capital One"
+  }
+]

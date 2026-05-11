@@ -1,0 +1,30 @@
+[
+  {
+    "start": 1255.9,
+    "end": 1268.8,
+    "confidence": 0.95,
+    "reason": "Host transition phrase indicating break",
+    "end_text": "Thank you for watching."
+  },
+  {
+    "start": 1302.7,
+    "end": 1314.1,
+    "confidence": 0.9,
+    "reason": "Silence gap without promotional content",
+    "end_text": "and many more."
+  },
+  {
+    "start": 1340.8,
+    "end": 1347.8,
+    "confidence": 0.85,
+    "reason": "Content gap without ad markers",
+    "end_text": "an Apple Wallet."
+  },
+  {
+    "start": 1584.6,
+    "end": 1606.1,
+    "confidence": 0.95,
+    "reason": "Host transition phrase indicating break",
+    "end_text": "Thank you for watching."
+  }
+]

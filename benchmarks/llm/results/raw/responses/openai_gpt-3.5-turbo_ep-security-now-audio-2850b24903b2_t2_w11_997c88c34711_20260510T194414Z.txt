@@ -1,0 +1,8 @@
+{
+	"start": 5220.0,
+	"end": 5245.0,
+	"confidence": 0.95,
+	"reason": "Sponsorship ad read",
+	"end_text": "For some people,"
+	}
+	

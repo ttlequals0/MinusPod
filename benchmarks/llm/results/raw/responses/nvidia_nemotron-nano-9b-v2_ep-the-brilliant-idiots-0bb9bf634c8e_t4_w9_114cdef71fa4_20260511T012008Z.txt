@@ -1,0 +1,1 @@
+[{"start": 3780.0, "end": 3806.4, "confidence": 0.95, "reason": "Sponsor promotion with URLs (Brilliant Idiots, Jess Hilarious, 2Chainz, etc.)", "end_text": "blackeffect.com"}}

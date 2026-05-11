@@ -1,0 +1,1 @@
+{"start": 4265.2, "end": 4486.3, "confidence": 0.99, "reason": "Bitwarden sponsor read", "end_text": "bitwarden.com slash twit. That's bitwarden.com slash twit. We thank them so much for supporting. Security Now. Okay. No more singing. Back to Steve."}

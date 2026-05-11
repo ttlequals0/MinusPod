@@ -1,0 +1,1 @@
+{"start": 1524.5, "end": 1561.9, "confidence": 0.99, "reason": "Host-read Xero sponsor segment with product pitch and call to action (search XERO for your free trial)", "end_text": "search XERO for your free trial. Conditions apply."}

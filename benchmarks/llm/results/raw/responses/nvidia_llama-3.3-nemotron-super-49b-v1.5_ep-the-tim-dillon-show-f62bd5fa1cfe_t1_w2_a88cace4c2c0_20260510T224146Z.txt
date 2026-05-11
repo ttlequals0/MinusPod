@@ -1,0 +1,1 @@
+[{"start": 1439.2, "end": 1440.0, "confidence": 0.95, "reason": "Mint Mobile sponsor read continues in next segment", "end_text": "we have Mint Mobile"}]

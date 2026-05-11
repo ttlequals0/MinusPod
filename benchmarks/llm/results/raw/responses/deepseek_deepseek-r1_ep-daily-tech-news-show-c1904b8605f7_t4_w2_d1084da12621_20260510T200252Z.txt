@@ -1,0 +1,16 @@
+[
+  {
+    "start": 840.0,
+    "end": 844.7,
+    "confidence": 0.99,
+    "reason": "Capital One sponsor read (partial, started before window)",
+    "end_text": "estimate trade-in value"
+  },
+  {
+    "start": 862.2,
+    "end": 1021.1,
+    "confidence": 1.0,
+    "reason": "Ad block: BetterHelp, Amazon Health AI, Spectrum Business, Rinse laundry service, and podcast cross-promo",
+    "end_text": "It's time to be great"
+  }
+]

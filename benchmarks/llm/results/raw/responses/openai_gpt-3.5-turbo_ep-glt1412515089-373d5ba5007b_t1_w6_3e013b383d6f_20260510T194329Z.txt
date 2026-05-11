@@ -1,0 +1,7 @@
+{
+	"start": 3002.8,
+	"end": 3095.8,
+	"confidence": 1,
+	"reason": "Perplexity app promotion",
+	"end_text": "especially scientists, because very few people call scientists. So, I called up Dean Radin. I had read some of his work from the Institute of Nautic Sciences. I called him up and I said, hi, my name's Julia, and I was thinking of going into this field, and I think precognition is real, and he's like, oh, okay."
+}

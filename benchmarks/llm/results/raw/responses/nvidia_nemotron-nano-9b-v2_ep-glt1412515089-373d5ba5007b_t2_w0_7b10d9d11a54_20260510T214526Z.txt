@@ -1,0 +1,1 @@
+[{"start": 595.8, "end": 624.5, "confidence": 0.95, "reason": "Skechers product promotion", "end_text": "sneakers, sandals, sneakers"}]

@@ -1,0 +1,7 @@
+{
+  "start": 539.2,
+  "end": 624.5,
+  "confidence": 0.95,
+  "reason": "Skechers and In the Gray movie sponsor reads",
+  "end_text": "casual and dress footwear, sandals, sneakers,"
+}

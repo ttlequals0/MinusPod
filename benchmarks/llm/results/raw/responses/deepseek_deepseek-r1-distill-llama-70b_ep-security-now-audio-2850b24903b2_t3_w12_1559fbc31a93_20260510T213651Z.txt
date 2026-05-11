@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I've been using this AI model called Claude. It's been a game-changer for my work. But I just found out that Anthropic is releasing something called Claude Security. Hmm, that sounds interesting. I wonder how it compares to what I'm using now. Maybe I should check it out. Let me think about this more after the break. Let's take a break.",
+  "start": 5037.8,
+  "end": 5062.7
+}

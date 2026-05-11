@@ -1,0 +1,7 @@
+{
+  "start": 7.135,
+  "end": 7.1968,
+  "confidence": 0.95,
+  "reason": "Netflix's Remarkably Bright Creatures network-inserted brand tagline ad",
+  "end_text": "play only on Netflix"
+}

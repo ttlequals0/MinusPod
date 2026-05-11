@@ -1,0 +1,1 @@
+[{"start": 8741.7, "end": 8767.7, "confidence": 0.95, "reason": "Network-inserted brand tagline ad", "end_text": "and still feel the surveillance"} ]

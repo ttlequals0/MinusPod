@@ -1,0 +1,8 @@
+
+{
+	"start": 4766.5,
+	"end": 4787.9,
+	"confidence": 0.95,
+	"reason": "Viz prescription eye drop ad",
+	"end_text": "National Park Foundation"
+}

@@ -1,0 +1,1 @@
+{"start": 3079.6, "end": 3134.3, "confidence": 0.94, "reason": "Morgan & Morgan sponsor read with URL, promo phrase 'ForThePeople.com slash Tim' and phone shortcut, followed immediately by Stash sponsor intro, indicating an ad break", "end_text": "Stash is the one."}

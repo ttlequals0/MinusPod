@@ -1,0 +1,12 @@
+ Ad Segment:
+[1383.9s - 1405.0s] This segment contains an advertisement for the UK's NCSC (National Cybersecurity Centre) and their warning about a wave of patches. Although the host is not explicitly reading a sponsor message, the content is promotional in nature and serves to raise awareness about the NCSC and their warning. This qualifies as an advertisement.
+
+Transcription:
+"Allie Whitehouse, the Chief Technology Officer for the UK's NCSC, their national cybersecurity center, issued a clear warning at the level of the government. Ollie's warning posting was titled, Preparing for a Vulnerability Patch Wave. And it carried the tagline, Organizations must act now to prepare for a wave of patches that will address decades of technical debt."
+
+Ad Transcript Analysis:
+- Sponsor: UK's NCSC (National Cybersecurity Centre)
+- Promotional Language: "clear warning at the level of the government," "Organizations must act now," "wave of patches that will address decades of technical debt"
+- Call to Action: "Organizations must act now"
+
+Therefore, the advertisement segment starts at 1383.9 seconds and lasts until 1405.0 seconds.

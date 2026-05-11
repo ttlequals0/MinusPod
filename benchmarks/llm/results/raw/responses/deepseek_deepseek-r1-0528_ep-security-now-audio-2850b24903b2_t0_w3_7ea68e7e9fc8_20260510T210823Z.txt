@@ -1,0 +1,18 @@
+{
+  "ads": [
+    {
+      "start": 1255.9,
+      "end": 1268.8,
+      "confidence": 0.95,
+      "reason": "Host-read transition phrase 'Thank you for watching' indicating ad break start",
+      "end_text": "Thank you for watching."
+    },
+    {
+      "start": 1584.6,
+      "end": 1606.1,
+      "confidence": 0.95,
+      "reason": "Host-read transition phrase 'Thank you for watching' indicating ad break start",
+      "end_text": "Thank you for watching."
+    }
+  ]
+}

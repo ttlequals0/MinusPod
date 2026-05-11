@@ -1,0 +1,9 @@
+[
+  {
+    "start": 7173.7,
+    "end": 7196.8,
+    "confidence": 1.0,
+    "reason": "Netflix promotion with explicit ad transition 'This episode is brought to you by' and product pitch",
+    "end_text": "now playing only on Netflix"
+  }
+]

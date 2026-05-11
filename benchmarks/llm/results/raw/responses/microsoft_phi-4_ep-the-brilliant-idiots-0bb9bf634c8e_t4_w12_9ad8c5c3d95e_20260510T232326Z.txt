@@ -1,0 +1,7 @@
+{
+  "start": 50.19,
+  "end": 52.18,
+  "confidence": 0.95,
+  "reason": "The segment contains promotional language discussing the interracial couple rankings and the discussion about dating preferences, which is indicative of a sponsor segment.",
+  "end_text": "I'm not saying it. I'm really asking why."
+}

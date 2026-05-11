@@ -1,0 +1,9 @@
+[
+  {
+    "start": 6395.6,
+    "end": 6414.8,
+    "confidence": 0.95,
+    "reason": "Perplexity sponsor mention",
+    "end_text": "potential future."
+  }
+]

@@ -1,0 +1,1 @@
+{"start": 398.7, "end": 1030.8, "confidence": 0.01, "reason": "No advertisement segments detected in this transcript window; content is editorial discussion only, and the 'Hosted on Acast' note appears only in the episode description, not the transcript window.", "end_text": "need it to look retro."}

@@ -1,0 +1,1 @@
+[{"start": 5019.7, "end": 5044.2, "confidence": 0.98, "reason": "Host-read sponsor segment for Brilliant Idiots with URL promotion", "end_text": "brilliant-idiots"}}]

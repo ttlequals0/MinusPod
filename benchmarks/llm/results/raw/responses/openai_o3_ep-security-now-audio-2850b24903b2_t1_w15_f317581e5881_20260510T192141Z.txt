@@ -1,0 +1,1 @@
+{"error":"No transcript inside the current window contains any promotional language, sponsor mentions, or ad-transition cues. Therefore, no advertisement segments are identified in this portion of the episode."}

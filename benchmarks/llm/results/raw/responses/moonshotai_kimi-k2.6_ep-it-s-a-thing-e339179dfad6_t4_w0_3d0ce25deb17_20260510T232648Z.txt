@@ -1,0 +1,1 @@
+{"start": 1.6, "end": 77.2, "confidence": 0.98, "reason": "Acast platform pre-roll with cross-promotion for 'Wrong Turns' podcast and 'Formative' podcast", "end_text": "leaders of tomorrow"}

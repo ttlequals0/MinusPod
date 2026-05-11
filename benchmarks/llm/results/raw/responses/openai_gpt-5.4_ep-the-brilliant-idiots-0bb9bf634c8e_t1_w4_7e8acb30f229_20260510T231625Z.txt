@@ -1,0 +1,1 @@
+{"start": 2185.4, "end": 2198.0, "confidence": 0.72, "reason": "brief network/self-promo mention for Drink Champs partnering with the Black Effect Podcast Network, but embedded in show discussion rather than a clear ad read", "end_text": "celebrating a decade now?"}

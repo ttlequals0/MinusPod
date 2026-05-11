@@ -1,0 +1,5 @@
+{
+  "transcript": "...",
+  "window_start": 42.0,
+  "window_end": 52.0
+}

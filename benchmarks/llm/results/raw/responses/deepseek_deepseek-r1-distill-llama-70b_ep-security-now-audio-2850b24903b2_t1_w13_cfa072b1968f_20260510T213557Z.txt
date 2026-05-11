@@ -1,0 +1,7 @@
+{
+  "start": 6044.5,
+  "end": 6083.5,
+  "confidence": 0.95,
+  "reason": "Hawks Hunt sponsor read",
+  "end_text": "the bad guys."
+}

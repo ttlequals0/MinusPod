@@ -1,0 +1,3 @@
+ Ad segment:
+[4770.3s - 4816.0s]
+This is a sponsored segment for Claude Security. The hosts are promoting Claude Security, a new AI-powered security tool, and providing instructions on how to access it. The language used is clearly promotional, and the URL claude.ai/security is mentioned as a call to action. This segment meets all the detection rules for an advertisement.

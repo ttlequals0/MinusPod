@@ -1,0 +1,1 @@
+{ "start": 858.0, "end": 877.8, "confidence": 0.0, "reason": "no ad content", "end_text": "and and I had to learn" }

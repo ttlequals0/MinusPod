@@ -1,0 +1,4 @@
+{
+  "detected_ads": [],
+  "reasoning": "The transcript contains no promotional language, sponsor reads, URLs, promo codes, or calls to action. The phrase \"Let's pay some bills\" appears at 6390.2s as a transition, but the subsequent content is organic show banter without product pitches. Brand names mentioned (X, Tesla, Amazon, H&M, Target, Blue Chew, etc.) are all part of genuine editorial discussion, not compensated promotion. There are no platform-inserted ads, network promos, or cross-promotions present in the transcript text."
+}

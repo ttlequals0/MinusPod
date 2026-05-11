@@ -1,0 +1,7 @@
+{
+	"start": 1.6,
+	"end": 77.2,
+	"confidence": 1,
+	"reason": "Promotion of the podcast 'Wrong Turns' hosted by Jameela Jamil",
+	"end_text": "the podcast where the leaders of today are interviewed by the leaders of tomorrow."
+}

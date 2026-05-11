@@ -1,0 +1,184 @@
+[
+  {
+    "start": 4620.0,
+    "end": 4629.9,
+    "confidence": 0.95,
+    "reason": "Segment continues from previous window without ad content",
+    "end_text": "festival, okay? And by"
+  },
+  {
+    "start": 4630.3,
+    "end": 4657.3,
+    "confidence": 0.95,
+    "reason": "Conversation about Met Gala and personal style",
+    "end_text": "humble with the clothes"
+  },
+  {
+    "start": 4658.3,
+    "end": 4686.3,
+    "confidence": 0.95,
+    "reason": "Discussion of Zuri Hall's Met Gala appearance",
+    "end_text": "focus on the work"
+  },
+  {
+    "start": 4687.5,
+    "end": 4713.9,
+    "confidence": 0.95,
+    "reason": "Personal history with Zuri Hall and E! News",
+    "end_text": "become a part of"
+  },
+  {
+    "start": 4714.4,
+    "end": 4739.1,
+    "confidence": 0.95,
+    "reason": "Rejection experiences and TMZ hiring",
+    "end_text": "why did TMZ take"
+  },
+  {
+    "start": 4739.7,
+    "end": 4766.0,
+    "confidence": 0.95,
+    "reason": "Lauren's TMZ application process",
+    "end_text": "asking for things"
+  },
+  {
+    "start": 4766.4,
+    "end": 4774.2,
+    "confidence": 0.95,
+    "reason": "Clarification on TMZ bus operations",
+    "end_text": "seeing things?"
+  },
+  {
+    "start": 4775.1,
+    "end": 4802.7,
+    "confidence": 0.95,
+    "reason": "Celebrity interview experiences at TMZ",
+    "end_text": "knowing what people wanted"
+  },
+  {
+    "start": 4802.9,
+    "end": 4827.7,
+    "confidence": 0.95,
+    "reason": "Clarification about TMZ bus and Lauren's interest",
+    "end_text": "in celebrity news?"
+  },
+  {
+    "start": 4828.7,
+    "end": 4847.9,
+    "confidence": 0.95,
+    "reason": "Lauren's interest in celebrity culture",
+    "end_text": "nosy as fuck?"
+  },
+  {
+    "start": 4849.1,
+    "end": 4871.2,
+    "confidence": 0.95,
+    "reason": "Cultural fascination with TV and glamour",
+    "end_text": "but..."
+  },
+  {
+    "start": 4872.1,
+    "end": 4896.0,
+    "confidence": 0.95,
+    "reason": "Discussion of interviewing Maya and celebrity awe",
+    "end_text": "part of your..."
+  },
+  {
+    "start": 4896.7,
+    "end": 4922.3,
+    "confidence": 0.95,
+    "reason": "Lauren's cultural absorption and radio fascination",
+    "end_text": "absorb the culture"
+  },
+  {
+    "start": 4922.6,
+    "end": 4944.8,
+    "confidence": 0.95,
+    "reason": "Maya's appearance and Taraji's Met Gala comments",
+    "end_text": "slammed the Met Gala"
+  },
+  {
+    "start": 4945.9,
+    "end": 4970.2,
+    "confidence": 0.95,
+    "reason": "Interracial couple rankings introduction",
+    "end_text": "interracial couple rankings"
+  },
+  {
+    "start": 4971.2,
+    "end": 4991.8,
+    "confidence": 0.95,
+    "reason": "U.S. Census interracial couple data",
+    "end_text": "Number three."
+  },
+  {
+    "start": 4992.3,
+    "end": 5019.4,
+    "confidence": 0.95,
+    "reason": "Continuation of interracial couple rankings",
+    "end_text": "woman number six"
+  },
+  {
+    "start": 5019.7,
+    "end": 5044.2,
+    "confidence": 0.95,
+    "reason": "Discussion of specific interracial pairings",
+    "end_text": "black man asian woman"
+  },
+  {
+    "start": 5044.9,
+    "end": 5071.0,
+    "confidence": 0.95,
+    "reason": "Personal anecdotes about interracial relationships",
+    "end_text": "she's not white"
+  },
+  {
+    "start": 5071.4,
+    "end": 5088.2,
+    "confidence": 0.95,
+    "reason": "Demographics of Asian population in America",
+    "end_text": "Close to 8%"
+  },
+  {
+    "start": 5088.8,
+    "end": 5114.9,
+    "confidence": 0.95,
+    "reason": "Prevalence of interracial couples in different settings",
+    "end_text": "Especially in the South"
+  },
+  {
+    "start": 5141.8,
+    "end": 5144.2,
+    "confidence": 0.95,
+    "reason": "Comment about personal dating preferences",
+    "end_text": "white fetish though"
+  },
+  {
+    "start": 5144.5,
+    "end": 5171.4,
+    "confidence": 0.95,
+    "reason": "Discussion of Chet Hanks and Travis Kelce",
+    "end_text": "talking like Safari"
+  },
+  {
+    "start": 5172.1,
+    "end": 5192.4,
+    "confidence": 0.95,
+    "reason": "Opinions on Chet Hanks' persona",
+    "end_text": "wasn't your vibe"
+  },
+  {
+    "start": 5192.9,
+    "end": 5218.9,
+    "confidence": 0.95,
+    "reason": "Lauren's dating history and preferences",
+    "end_text": "I tried to date"
+  },
+  {
+    "start": 5219.2,
+    "end": 5220.0,
+    "confidence": 0.95,
+    "reason": "Segment continues into next window",
+    "end_text": "he was like, show"
+  }
+]

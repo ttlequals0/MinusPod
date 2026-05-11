@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2324.6,
+    "end": 2450.0,
+    "confidence": 0.98,
+    "reason": "Host-read ads for BlueChew Gold (ED medication) and ZipRecruiter (hiring platform) including URLs, promo codes, and product claims",
+    "end_text": "ZipRecruiter.com slash idiots"
+  }
+]

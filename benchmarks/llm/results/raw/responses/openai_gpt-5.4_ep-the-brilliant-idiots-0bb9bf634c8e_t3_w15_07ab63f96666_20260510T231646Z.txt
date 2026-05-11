@@ -1,0 +1,1 @@
+{"start":6390.2,"end":6445.0,"confidence":0.71,"reason":"Host-read ad break transition with sponsor mention 'Let's pay some bills' and BlueChew discussion appears to be a partial/incomplete sponsor segment continuing in this window","end_text":"Okay, Asking Idiots."}

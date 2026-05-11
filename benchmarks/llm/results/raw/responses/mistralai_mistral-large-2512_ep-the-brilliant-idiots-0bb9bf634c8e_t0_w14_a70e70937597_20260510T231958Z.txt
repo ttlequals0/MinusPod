@@ -1,0 +1,16 @@
+[
+    {
+        "start": 6390.2,
+        "end": 6396.7,
+        "confidence": 0.95,
+        "reason": "Host transition phrase 'Let's pay some bills and do some asking idiots' followed by promotional sponsor reads for books and other media (e.g., Jess Hilarious, 2Chainz, Dawn Staley, Charlamagne Tha God's book, Andrew Schulz, Black Effect Network). These are host-read ads with explicit calls to action (pre-order, order links).",
+        "end_text": "do some asking idiots, man"
+    },
+    {
+        "start": 6396.7,
+        "end": 6445.0,
+        "confidence": 0.98,
+        "reason": "Multiple host-read sponsor segments promoting books, podcasts, and media with direct calls to action (e.g., 'Pre Order', 'Order Link', 'www.theandrewschulz.com', 'https://blackeffect.com'). Includes transition phrase and promotional language for compensation.",
+        "end_text": "start lying. For no reason"
+    }
+]

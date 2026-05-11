@@ -1,0 +1,7 @@
+{
+  "start": 858.0,
+  "end": 877.8,
+  "confidence": 0.0,
+  "reason": "No ad markers present",
+  "end_text": "mainstream"
+}

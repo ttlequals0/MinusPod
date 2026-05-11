@@ -1,0 +1,7 @@
+{
+  "start": 6782.9,
+  "end": 6807.9,
+  "confidence": 0.95,
+  "reason": "Host transition to ad with 'Let's take a break' phrase",
+  "end_text": "the other end of the tube."
+}

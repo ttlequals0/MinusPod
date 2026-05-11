@@ -1,0 +1,7 @@
+{
+  "start": 8976.2,
+  "end": 9000.0,
+  "confidence": 0.95,
+  "reason": "Bitwarden sponsor mention with URL",
+  "end_text": "WebRTC and the WebRTC implementation it uses"
+}

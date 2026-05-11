@@ -1,0 +1,6 @@
+ [91.0-101.0 minutes]
+
+Ad segment:
+[6059.9s - 6083.5s] "Hawkshunt empowers your employees to spot and stop advanced phishing attacks, to drive measurable behavior change through personalized gamified micro-training powered by AI and behavioral science. And by the way, as an admin, you'll love it. Hawkshunt does all the heavy lifting. Simulations run automatically, not just in email, but in Slack and Teams too. They're personalized to each employee, just like the bad guys."
+
+This is a host-read sponsor segment, where the host is promoting Hawkshunt for compensation. The transcript contains promotional language ("empowers your employees," "personalized gamified micro-training," "heavy lifting," "simulations run automatically," "personalized to each employee"). The transition phrase "And by the way" indicates the start of the ad segment. The ad lasts approximately 83.6 seconds, which is within the typical length for an ad break. Therefore, this segment is an ad.

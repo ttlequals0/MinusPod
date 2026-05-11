@@ -1,0 +1,16 @@
+[
+  {
+    "start": 16.7,
+    "end": 84.9,
+    "confidence": 0.98,
+    "reason": "OutSystems sponsor read with repeated URL call-to-action",
+    "end_text": "OutSystems.com slash twit"
+  },
+  {
+    "start": 469.0,
+    "end": 572.1,
+    "confidence": 0.98,
+    "reason": "Zscaler Zero Trust Plus AI promotion with stats and vanity URL",
+    "end_text": "zscaler.com slash security"
+  }
+]

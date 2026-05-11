@@ -1,0 +1,1 @@
+[{"start": 4002.7, "end": 4029.6, "confidence": 0.95, "reason": "Sponsor segment with Mint Mobile, Aura Frames, Morgan & Morgan, Stash, and Neuro Gum promotions", "end_text": "Use Code TIM"}}]

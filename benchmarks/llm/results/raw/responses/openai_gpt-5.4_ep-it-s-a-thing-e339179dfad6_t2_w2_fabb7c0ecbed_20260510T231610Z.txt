@@ -1,0 +1,1 @@
+{"start": 1371.3, "end": 1449.3, "confidence": 0.58, "reason": "Possible Acast member-support/premium shout-out segment beginning with 'let's get to the shout outs'; no explicit sponsor, URL, or promo language in this window, so likely not an ad", "end_text": "Jake Woods, a sprightly,"}

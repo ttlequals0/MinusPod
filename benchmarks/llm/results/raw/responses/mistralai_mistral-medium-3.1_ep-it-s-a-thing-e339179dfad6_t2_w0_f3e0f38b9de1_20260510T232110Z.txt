@@ -1,0 +1,30 @@
+[
+    {
+        "start": 1.6,
+        "end": 7.0,
+        "confidence": 0.95,
+        "reason": "Acast platform-inserted promo",
+        "end_text": "show that we recommend"
+    },
+    {
+        "start": 10.4,
+        "end": 37.6,
+        "confidence": 0.98,
+        "reason": "Acast network-inserted cross-promotion for Wrong Turns podcast",
+        "end_text": "where dignity goes to die"
+    },
+    {
+        "start": 40.8,
+        "end": 51.9,
+        "confidence": 0.95,
+        "reason": "Acast platform-inserted promo",
+        "end_text": "Acast.com"
+    },
+    {
+        "start": 52.4,
+        "end": 77.2,
+        "confidence": 0.98,
+        "reason": "Acast network-inserted cross-promotion for Formative podcast",
+        "end_text": "leaders of tomorrow"
+    }
+]

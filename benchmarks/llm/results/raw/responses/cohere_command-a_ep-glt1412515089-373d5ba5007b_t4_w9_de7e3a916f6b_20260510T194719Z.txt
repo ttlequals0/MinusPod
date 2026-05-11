@@ -1,0 +1,1 @@
+{"start": 3761.9, "end": 3786.9, "confidence": 0.0, "reason": "Not an ad, continuation of show content", "end_text": "having this experience and that's going on"}

@@ -1,0 +1,16 @@
+[
+    {
+        "start": 0.5,
+        "end": 43.4,
+        "confidence": 0.99,
+        "reason": "Carvana host-read ad with promotional language, call to action ('Sell your car today on Carvana'), and brand endorsement ('So good, you'll want to leave a voicemail about it')",
+        "end_text": "Pickup fees may apply."
+    },
+    {
+        "start": 593.9,
+        "end": 600.0,
+        "confidence": 0.85,
+        "reason": "Partial network/platform-inserted ad likely continues in next window (megaphone.fm/adchoices reference in episode description suggests platform-inserted ads)",
+        "end_text": "trudging trying to figure out"
+    }
+]

@@ -1,0 +1,1 @@
+[{"start": 4324.2, "end": 4380.0, "confidence": 0.95, "reason": "AM Mornings podcast promotion", "end_text": "AM Mornings on YouTube. See you guys there."}]

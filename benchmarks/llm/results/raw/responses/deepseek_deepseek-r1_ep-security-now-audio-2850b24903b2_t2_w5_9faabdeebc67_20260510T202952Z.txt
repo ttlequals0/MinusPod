@@ -1,0 +1,9 @@
+[
+    {
+        "start": 2560.1,
+        "end": 2693.0,
+        "confidence": 0.98,
+        "reason": "Meter network infrastructure sponsor read with transition phrase and demo call-to-action",
+        "end_text": "meter.com security now"
+    }
+]

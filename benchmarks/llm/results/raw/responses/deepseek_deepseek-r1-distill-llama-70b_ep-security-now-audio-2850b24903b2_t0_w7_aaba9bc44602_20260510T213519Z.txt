@@ -1,0 +1,7 @@
+{
+  "start": 3382.8,
+  "end": 3410.7,
+  "confidence": 0.95,
+  "reason": "Zscaler sponsor read",
+  "end_text": "security.zscaler.com"
+}

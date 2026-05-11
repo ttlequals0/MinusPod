@@ -1,0 +1,8 @@
+
+{
+	"start": 6045.5,
+	"end": 6179.0,
+	"confidence": 0.98,
+	"reason": "HoxHunt sponsor read",
+	"end_text": "AI on Security Now, Steve. Yeah, so it turns out, and this is actually exactly on point for this nano LLM, Google is planning to define"
+}

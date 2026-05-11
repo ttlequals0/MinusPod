@@ -1,0 +1,7 @@
+{
+  "start": 8380.6,
+  "end": 9004.0,
+  "confidence": 0.95,
+  "reason": "Host-read sponsor segments for Zscaler, Meter, Bitwarden, HoxHunt, Trusted Tech Team",
+  "end_text": "Trusted Tech Team"
+}

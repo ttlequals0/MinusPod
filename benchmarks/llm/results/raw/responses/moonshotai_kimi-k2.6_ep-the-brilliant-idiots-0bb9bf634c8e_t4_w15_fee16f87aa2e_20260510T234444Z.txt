@@ -1,0 +1,1 @@
+{"start": 6365.0, "end": 6390.2, "confidence": 0.3, "reason": "Host says 'Let's pay some bills' which may indicate transition to ad, but no promotional copy present in transcript", "end_text": "do some asking idiots, man"}

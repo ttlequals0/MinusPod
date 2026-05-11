@@ -1,0 +1,1 @@
+ {"start": 822.9, "end": 1449.3, "confidence": 0.0, "reason": "No promotional language, sponsor names, URLs, promo codes, or calls to action detected in this window. Content consists of organic discussion about retro tech, retail experiences, email security, linguistic trends, and tequila review headers as shoutouts.", "end_text": "Jake Woods, a sprightly"}

@@ -1,0 +1,1 @@
+{"start":539.2,"end":624.5,"confidence":0.97,"reason":"Back-to-back host-read ads for film 'In the Gray' and Skechers slip-ins","end_text":"sandals, sneakers,"}

@@ -1,0 +1,7 @@
+{
+  "transcript": "Alright, so I've been thinking about this whole situation with the cruise ship and the Hantavirus outbreak. It's wild how something like that can just happen out of nowhere. I mean, you're on a vacation, trying to relax, and then suddenly there's a virus spreading like crazy. It's like something out of a movie. But hey, at least they have those little quarantine cabins, right? I guess that's better than being stuck in a tiny room with a bunch of other sick people. Anyway, let's take a break and hear from our sponsors.",
+  "start": 2700.4,
+  "end": 2709.4,
+  "window_start": 2520.0,
+  "window_end": 3120.0
+}

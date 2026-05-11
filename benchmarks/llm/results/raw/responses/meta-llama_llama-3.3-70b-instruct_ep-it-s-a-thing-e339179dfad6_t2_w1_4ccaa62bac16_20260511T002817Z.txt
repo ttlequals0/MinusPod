@@ -1,0 +1,1 @@
+{"start": 0.0, "end": 4.0, "confidence": 0.99, "reason": "Acast platform-inserted ad", "end_text": "acast.com/privacy"}

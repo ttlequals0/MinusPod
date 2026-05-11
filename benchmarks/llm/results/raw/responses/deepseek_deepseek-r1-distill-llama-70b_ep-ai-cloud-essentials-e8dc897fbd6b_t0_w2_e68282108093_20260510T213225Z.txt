@@ -1,0 +1,7 @@
+{
+  "start": 879.6,
+  "end": 902.7,
+  "confidence": 0.8,
+  "reason": "Host transition to wrap up and parting advice",
+  "end_text": "right now and come up with, you know, your parting advice, share your parting advice to the viewers."
+}

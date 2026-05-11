@@ -1,0 +1,9 @@
+[
+  {
+    "start": 7607.7,
+    "end": 7743.9,
+    "confidence": 0.99,
+    "reason": "Trusted Tech sponsor read for Microsoft 365 licensing optimization, continues in next window",
+    "end_text": "You will be too."
+  }
+]

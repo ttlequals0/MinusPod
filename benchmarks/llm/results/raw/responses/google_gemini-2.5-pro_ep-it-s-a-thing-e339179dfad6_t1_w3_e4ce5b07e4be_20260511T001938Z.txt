@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1524.5,
+    "end": 1602.6,
+    "confidence": 1.0,
+    "reason": "Post-roll ad block containing ads for Xero, the 'Wrong Turns' podcast, and the Acast platform.",
+    "end_text": "podcasts everywhere. Acast.com."
+  }
+]

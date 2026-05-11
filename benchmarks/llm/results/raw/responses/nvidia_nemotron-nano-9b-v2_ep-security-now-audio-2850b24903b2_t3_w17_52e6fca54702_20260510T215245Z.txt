@@ -1,0 +1,1 @@
+[{"start": 7633.7, "end": 7740.0, "confidence": 0.98, "reason": "Host-read Trusted Tech sponsorship", "end_text": "trustedtech.team/securitynow365"}]

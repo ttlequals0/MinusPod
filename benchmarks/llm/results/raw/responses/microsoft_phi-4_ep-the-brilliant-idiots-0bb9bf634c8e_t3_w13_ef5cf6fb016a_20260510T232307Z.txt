@@ -1,0 +1,7 @@
+{
+  "start": 5.443,
+  "end": 5.990,
+  "confidence": 0.98,
+  "reason": "Sponsor segment discussing the impact of Jeff Bezos's support for Trump and the implications for platforms like X and Instagram, highlighting the debate around unintentional support for Trump.",
+  "end_text": "Killer Mike and Kamala Harris's conversation on Zooms about the door-knocking strategy in Georgia."
+}

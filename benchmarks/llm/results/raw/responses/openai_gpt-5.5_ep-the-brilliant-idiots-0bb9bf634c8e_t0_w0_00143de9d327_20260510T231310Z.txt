@@ -1,0 +1,1 @@
+{"start":0.5,"end":43.4,"confidence":0.98,"reason":"Carvana pre-roll ad with promotional voicemail-style pitch, call to action 'Sell your car today on Carvana,' and fee disclaimer; show content resumes in same timestamp block after the ad.","end_text":"Pickup fees may apply"}

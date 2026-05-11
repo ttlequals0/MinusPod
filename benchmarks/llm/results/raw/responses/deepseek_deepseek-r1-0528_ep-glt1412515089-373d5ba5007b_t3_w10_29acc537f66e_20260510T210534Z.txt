@@ -1,0 +1,64 @@
+[
+  {
+    "start": 4525.1,
+    "end": 4560.5,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Perplexity with URL",
+    "end_text": "response right away"
+  },
+  {
+    "start": 4562.7,
+    "end": 4605.6,
+    "confidence": 0.9,
+    "reason": "Host-read ad for Perplexity with URL",
+    "end_text": "go up. Yeah"
+  },
+  {
+    "start": 4608.9,
+    "end": 4638.3,
+    "reason": "Host-read ad for Perplexity with URL",
+    "end_text": "talking about? Yeah"
+  },
+  {
+    "start": 4641.3,
+    "end": 4667.7,
+    "confidence": 0.9,
+    "reason": "Host-read ad for Perplexity with URL",
+    "end_text": "hard to hear"
+  },
+  {
+    "start": 4683.7,
+    "end": 4716.7,
+    "confidence": 0.9,
+    "reason": "Host-read ad for Perplexity with URL",
+    "end_text": "married, but she"
+  },
+  {
+    "start": 4719.2,
+    "end": 4733.9,
+    "confidence": 0.9,
+    "reason": "Host-read ad for Perplexity with URL",
+    "end_text": "helpful to do"
+  },
+  {
+    "start": 4738.7,
+    "end": 4764.7,
+    "confidence": 0.9,
+    "reason": "Host-read ad for Perplexity with URL",
+    "end_text": "says sender. What"
+  },
+  {
+    "start": 4765.2,
+    "end": 4789.7,
+    "confidence": 0.9,
+    "reason": "Host-read ad for Perplexity with URL",
+    "end_text": "saying? He was"
+  },
+  {
+    "start": 4790.1,
+    "end": 4819.0,
+    "confidence": 0.9,
+    "reason": "Host-read ad for Perplexity with URL",
+    "end_text": "telepathy work better"
+  }
+]

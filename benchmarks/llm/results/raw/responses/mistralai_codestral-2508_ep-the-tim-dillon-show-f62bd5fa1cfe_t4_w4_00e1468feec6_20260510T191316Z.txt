@@ -1,0 +1,1 @@
+[{"start": 2276.7, "end": 2286.3, "confidence": 0.95, "reason": "Host's personal promotion for his other show", "end_text": "I'm sorry."}]

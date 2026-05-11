@@ -1,0 +1,7 @@
+{
+  "start": 58.71,
+  "end": 60.82,
+  "confidence": 0.95,
+  "reason": "The segment discusses the impact of identity politics on Kamala Harris's campaign and mentions platforms like TMZ and The View, which are relevant to media and political discussions.",
+  "end_text": "Big brother, big sister, auntie. I'm just talking about like people that I look to."
+}

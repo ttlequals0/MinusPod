@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I've been thinking about this a lot, and I really believe that having an AI API in the browser is a game-changer. But I'm not sure if I'm ready to jump on the bandwagon just yet. Let me take a break and think about this some more. [pause] This episode is brought to you by Zscaler. Are you concerned about your online security? Zscaler's cloud-based platform protects your data from cyber threats. Visit zscaler.com/security to learn more. [pause] And we're back. So, as I was saying, the implications of integrating AI into browsers are significant. It's not just about convenience; it's about control and monetization. I need to consider both the benefits and the potential risks. [pause] This episode is also sponsored by Meter. Meter provides comprehensive cybersecurity solutions for businesses of all sizes. Check out meter.com/securitynow for more information. [pause] Okay, I think I've got a clearer picture now. Let's dive deeper into the topic.",
+  "start": 105.0,
+  "end": 115.0
+}

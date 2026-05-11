@@ -1,0 +1,11 @@
+{
+  "ad_segments": [
+    {
+      "start": 0.0,
+      "end": 10.0,
+      "confidence": 0.95,
+      "reason": "No promotional language detected in this segment.",
+      "end_text": "No ad detected in this segment."
+    }
+  ]
+}

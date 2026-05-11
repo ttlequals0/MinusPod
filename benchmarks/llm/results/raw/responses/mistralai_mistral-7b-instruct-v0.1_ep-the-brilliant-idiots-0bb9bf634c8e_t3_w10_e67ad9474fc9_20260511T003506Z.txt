@@ -1,0 +1,7 @@
+ Ad Segment 1:
+[4735.1s - 4775.1s]
+Sponsor: Brilliant Idiots (Host-read)
+Promotional Language: "Sponsor Brilliant Idiots: <https://public.liveread.io/media-kit/brilliant-idiots>"
+Transition Phrase: N/A (This is a host-read sponsor segment and does not include a transition phrase like "let's take a break")
+
+This segment is an advertisement for the Brilliant Idiots podcast itself. The host is promoting the show and providing a link for listeners to access more information.

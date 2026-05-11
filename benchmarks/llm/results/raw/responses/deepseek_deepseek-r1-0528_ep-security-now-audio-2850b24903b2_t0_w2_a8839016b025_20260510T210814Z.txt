@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 1009.1,
+      "end": 1441.5,
+      "confidence": 0.95,
+      "reason": "Host-read sponsor segments for Zscaler, Meter, Bitwarden, HoxHunt, and Trusted Tech Team as listed in episode description",
+      "end_text": "decades of technical debt"
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+{"start": 2085.5, "end": 2108.1, "confidence": 0.0, "reason": "not an ad", "end_text": "for eight hours a day. Here's why that's good. Are you ready? Here's why it's good. If we're going to live like this, we got to start them young. They got to be, listen."}

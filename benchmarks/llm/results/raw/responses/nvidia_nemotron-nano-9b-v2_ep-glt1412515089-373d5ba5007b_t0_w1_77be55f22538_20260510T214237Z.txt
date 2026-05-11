@@ -1,0 +1,2 @@
+[{"start": 568.4, "end": 624.5, "confidence": 0.95, "reason": "In the Gray and Skechers host-read sponsors", "end_text": "Skechers.com"}]  
+[{"start": 907.9, "end": 934.1, "confidence":

@@ -1,0 +1,1 @@
+[{"start": 3079.6, "end": 3120.0, "confidence": 0.95, "reason": "Morgan & Morgan sponsor read with URL and promo code", "end_text": "This is a paid advertisement."}]

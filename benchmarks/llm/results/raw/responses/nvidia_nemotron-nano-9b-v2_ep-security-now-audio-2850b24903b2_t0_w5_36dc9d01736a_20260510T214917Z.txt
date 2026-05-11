@@ -1,0 +1,1 @@
+[{"start": 2586.0, "end": 2693.0, "confidence": 0.98, "reason": "Meter network sponsor read", "end_text": "book a demo"}]

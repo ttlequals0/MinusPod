@@ -1,0 +1,1 @@
+[{"start": 951.6, "end": 1030.8, "confidence": 0.95, "reason": "Platform-inserted ad segment with multiple sponsor mentions", "end_text": "different Twitter pages that put out things and information"}]

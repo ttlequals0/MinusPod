@@ -1,0 +1,1 @@
+{"start":2652.2,"end":2688.1,"confidence":0.2,"reason":"Not an advertisement; 'shout out to the mid-roll' is discussed conversationally with no sponsor, promo code, URL, or call to action","end_text":"of course they're going to be good podcasts"}

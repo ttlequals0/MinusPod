@@ -1,0 +1,1 @@
+[{"start": 7173.7, "end": 7196.8, "confidence": 0.98, "reason": "Host-read sponsor segment with Netflix promotion and multiple sponsor links/pre-orders", "end_text": "Visit megaphone.fm/adchoices"}]

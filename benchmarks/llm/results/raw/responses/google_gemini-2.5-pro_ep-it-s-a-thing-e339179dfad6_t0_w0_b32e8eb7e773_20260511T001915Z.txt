@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1.6,
+    "end": 77.2,
+    "confidence": 0.99,
+    "reason": "Acast platform pre-roll and cross-promotions for the 'Wrong Turns' and 'Formative' podcasts.",
+    "end_text": "by the leaders of tomorrow."
+  }
+]

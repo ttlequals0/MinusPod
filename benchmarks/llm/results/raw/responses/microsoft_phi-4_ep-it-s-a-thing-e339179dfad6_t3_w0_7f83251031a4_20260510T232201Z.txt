@@ -1,0 +1,15 @@
+{
+  "window": {
+  "start": 0.0,
+  "end": 10.0,
+  "ad_segments": [
+    {
+      "start": 1.6,
+      "end": 7.0,
+      "confidence": 0.95,
+      "reason": "Acast powers the world's best podcasts. Here's a show that we recommend.",
+      "end_text": "Here's a show that we recommend."
+    }
+  ]
+}  
+}

@@ -1,0 +1,1 @@
+{"start": 425.7, "end": 445.4, "confidence": 0.94, "reason": "Discussion of Great Wolf Water Park uses brand/product promotion language for a chain and its appeal to kids", "end_text": "probably mostly birthday parties"}

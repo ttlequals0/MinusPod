@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I've been thinking about this a lot. Let's take a break and talk about something that's really important for all of us. You know, security is a top priority, and that's why I'm excited to tell you about our sponsor, Zscaler. They're a leader in cloud security, and their solutions are top-notch. Whether you're working from home or managing a large enterprise, Zscaler has the tools you need to stay safe online. Their platform is all about zero trust, which is crucial in today's digital landscape. So, if you want to protect your data and ensure your network is secure, check out Zscaler. Visit their website at zscaler.com/security. That's zscaler.com/security. Alright, back to our main topic.",
+  "start": 3382.8,
+  "end": 3410.7
+}

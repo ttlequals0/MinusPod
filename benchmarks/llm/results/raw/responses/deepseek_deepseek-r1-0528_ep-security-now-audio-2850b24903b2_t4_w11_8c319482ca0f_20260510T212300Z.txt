@@ -1,0 +1,30 @@
+[
+  {
+    "start": 4600.8,
+    "end": 5015.7,
+    "confidence": 0.95,
+    "reason": "Anthropic's Claude Security product discussion with promotional language and URLs",
+    "end_text": "found something. Certainly, if"
+  },
+  {
+    "start": 5037.8,
+    "end": 5071.5,
+    "confidence": 0.95,
+    "reason": "Continued discussion of Claude Security benefits and future availability",
+    "end_text": "part. But certainly welcome."
+  },
+  {
+    "start": 5073.5,
+    "end": 5127.9,
+    "confidence": 0.95,
+    "reason": "Host endorsing security audits using AI models including Claude and ChatGPT",
+    "end_text": "systems. And it's found"
+  },
+  {
+    "start": 5129.4,
+    "end": 5220.0,
+    "confidence": 0.95,
+    "reason": "OpenAI account security feature announcement with promotional language",
+    "end_text": "workflows. For some people,"
+  }
+]

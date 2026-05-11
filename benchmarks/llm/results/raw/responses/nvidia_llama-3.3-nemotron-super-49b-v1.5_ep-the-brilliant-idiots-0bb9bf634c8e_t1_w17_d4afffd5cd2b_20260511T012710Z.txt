@@ -1,0 +1,9 @@
+[
+  {
+    "start": 7173.7,
+    "end": 7194.0,
+    "confidence": 0.95,
+    "reason": "Netflix's Remarkably Bright Creatures sponsor read (continues in next segment)",
+    "end_text": "now playing only on Netflix"
+  }
+]

@@ -1,0 +1,1 @@
+{"start":2185.4,"end":2198.0,"confidence":0.88,"reason":"Host-read network promotion mentioning Drink Champs partnering with the Black Effect Podcast Network","end_text":"celebrating a decade now?"}

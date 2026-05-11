@@ -1,0 +1,1 @@
+[{"start": 6016.6, "end": 6083.5, "confidence": 0.95, "reason": "Hoxhunt sponsor read with product pitch and call to action", "end_text": "just like the bad guys"}]

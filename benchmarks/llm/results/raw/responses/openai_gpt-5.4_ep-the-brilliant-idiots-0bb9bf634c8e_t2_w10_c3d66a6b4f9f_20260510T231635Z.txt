@@ -1,0 +1,7 @@
+{
+  "start": 4296.0,
+  "end": 4361.4,
+  "confidence": 0.78,
+  "reason": "Host promotional plug block for Jess Hilarious's book, All Love Racquet Club event, and AM Mornings with explicit calls to action ('make sure you go pick up', 'head to ...', 'Head over to AM Mornings on YouTube')",
+  "end_text": "Head over to AM Mornings on YouTube"
+}

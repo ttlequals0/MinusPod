@@ -1,0 +1,1 @@
+[{"start": 7607.7, "end": 7797.9, "confidence": 0.98, "reason": "Trusted Tech Microsoft 365 licensing promotion", "end_text": "Now, back to Steve"}]

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 6390.2,
+    "end": 6445.0,
+    "confidence": 0.95,
+    "reason": "Transition to ad break ('Let's pay some bills') followed by Asking Idiots segment which includes show promotions",
+    "end_text": "Shout out to Drewski"
+  }
+]

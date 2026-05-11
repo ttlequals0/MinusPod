@@ -1,0 +1,9 @@
+[
+  {
+    "start": 6390.2,
+    "end": 6396.7,
+    "confidence": 0.95,
+    "reason": "Transition to ad break with 'Let's pay some bills' but no ad content in transcript",
+    "end_text": "do some asking idiots"
+  }
+]

@@ -1,0 +1,7 @@
+{
+  "start": 675.0,
+  "end": 719.8,
+  "confidence": 0.85,
+  "reason": "Promotional mention of soup shots as a product with specific attributes and usage context",
+  "end_text": "give you a little pickup. Oh, like a bouillon? No, this is a coffee soup."
+}

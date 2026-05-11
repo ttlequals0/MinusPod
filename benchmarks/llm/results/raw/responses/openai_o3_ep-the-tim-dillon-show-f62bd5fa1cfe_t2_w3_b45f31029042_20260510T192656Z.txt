@@ -1,0 +1,1 @@
+{"start": 1439.2, "end": 1665.9, "confidence": 0.97, "reason": "Back-to-back sponsor reads: Mint Mobile, Aura Frames, plus network-inserted Colgate and Skinny Pop ads with promo URLs, codes, and marketing copy", "end_text": "perfectly salted. Skinny Pop."}

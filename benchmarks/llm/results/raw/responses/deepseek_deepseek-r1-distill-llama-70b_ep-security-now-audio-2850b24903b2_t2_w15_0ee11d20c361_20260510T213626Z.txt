@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I've been using this new browser extension called Honey for a while now, and I must say, it's been a game-changer for my online shopping. I was skeptical at first, but it really does find those coupon codes for me automatically. It's saved me so much time and money. I highly recommend giving it a try if you haven't already. The best part is, it's completely free to use. Just head over to joinhoney.com to get started. Trust me, your wallet will thank you later.",
+  "start": 105.0,
+  "end": 110.0
+}

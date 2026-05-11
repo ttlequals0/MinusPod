@@ -1,0 +1,7 @@
+{
+  "start": 7607.7,
+  "end": 7771.7,
+  "confidence": 0.95,
+  "reason": "Trusted Tech sponsor read",
+  "end_text": "securitynow365 Now, back to Steve."
+}

@@ -1,0 +1,32 @@
+{
+  "segments": [
+    {
+      "start": 1584.6,
+      "end": 1606.1,
+      "confidence": 0.95,
+      "reason": "Host-read sponsor transition with 'Thank you for watching' and potential ad break",
+      "end_text": "Thank you for watching"
+    },
+    {
+      "start": 1608.4,
+      "end": 1772.1,
+      "confidence": 0.98,
+      "reason": "NCSC guidance content, not an ad",
+      "end_text": "process, but we"
+    },
+    {
+      "start": 1773.7,
+      "end": 1855.8,
+      "confidence": 0.98,
+      "reason": "Continued NCSC guidance, no promotional content",
+      "end_text": "required response"
+    },
+    {
+      "start": 1857.5,
+      "end": 1886.0,
+      "confidence": 0.98,
+      "reason": "Host commentary on NCSC advice, not an ad",
+      "end_text": "greased path"
+    }
+  ]
+}

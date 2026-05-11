@@ -1,0 +1,9 @@
+[
+  {
+    "start": 9750.4,
+    "end": 9780.4,
+    "confidence": 0.95,
+    "reason": "Guest promoting own project timemachine.love and Applied Love Labs",
+    "end_text": "Enter your time machine"
+  }
+]

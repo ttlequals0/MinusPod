@@ -1,0 +1,7 @@
+{
+  "start": 25.05,
+  "end": 25.20,
+  "confidence": 0.95,
+  "reason": "DJ Head is discussed as a significant figure in hip hop, with mentions of his influence and collaborations with other artists. The segment highlights his contributions and potential for future growth, indicating a promotional focus.",
+  "end_text": "DJ Head is a significant figure in hip hop, with discussions highlighting his influence and collaborations, suggesting a promotional segment."
+}

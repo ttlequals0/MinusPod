@@ -1,0 +1,1 @@
+{"error": "We can not see entire transcript window 1/18 or enough transcript to evaluate ads."}

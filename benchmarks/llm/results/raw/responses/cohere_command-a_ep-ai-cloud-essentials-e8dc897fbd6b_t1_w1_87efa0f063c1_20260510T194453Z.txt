@@ -1,0 +1,7 @@
+{
+  "start": 700.5,
+  "end": 716.2,
+  "confidence": 0.95,
+  "reason": "NVIDIA brand mention in promotional context",
+  "end_text": "through releases like NVIDIA, Alpameo"
+}

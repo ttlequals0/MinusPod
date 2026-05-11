@@ -1,0 +1,8 @@
+
+{
+	"start": 821.4,
+	"end": 990.3,
+	"confidence": 0.95,
+	"reason": "Capital One, BetterHelp, Amazon Health AI, Spectrum Business, Rinse podcast ad reads",
+	"end_text": "Service is not available in all areas. Hi, I'm Nick Martell from the Best One Yet podcast."
+}

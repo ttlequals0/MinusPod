@@ -1,0 +1,1 @@
+{"start": 0, "end": 1, "confidence": 0.99, "reason": "Placeholder ad segment for testing", "end_text": "test test test"}

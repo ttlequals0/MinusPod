@@ -1,0 +1,1 @@
+{"start":393.1,"end":422.5,"confidence":0.0,"reason":"No promotional content detected in this window.","end_text":"Philly? It's not."}

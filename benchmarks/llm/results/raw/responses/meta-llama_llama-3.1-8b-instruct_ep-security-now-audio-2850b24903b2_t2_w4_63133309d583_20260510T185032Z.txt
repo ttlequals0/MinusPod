@@ -1,0 +1,7 @@
+{
+  "start": 0.0,
+   "end": 2280.0,
+   "confidence": 0.95,
+   "reason": "Multiple ads detected",
+   "end_text": "Thank you for watching"
+}

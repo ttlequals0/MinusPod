@@ -1,0 +1,1 @@
+{"start": 6396.7, "end": 6446.1, "confidence": 0.8, "reason": "Potential ad read or host mention of product (Blue Chew)", "end_text": "What else we got to do?"}

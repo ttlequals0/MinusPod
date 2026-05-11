@@ -1,0 +1,7 @@
+{
+  "start": 6396.7,
+  "end": 6445.0,
+  "confidence": 0.95,
+  "reason": "Host-read sponsor segment with promo code and URL",
+  "end_text": "athleticgreens.com/podcast"
+}

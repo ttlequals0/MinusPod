@@ -1,0 +1,23 @@
+[
+{
+  "start": 3358.6,
+   "end": 3376.2,
+   "confidence": 0.0,
+   "reason": "Not an ad, host closing the episode",
+   "end_text": "Thank you for watching"
+},
+{
+   "start": 3890.3,
+   "end": 3915.5,
+   "confidence": 0.0,
+   "reason": "Not an ad, host closing the episode",
+   "end_text": "ways increase load on already constrained teams"
+},
+{
+   "start": 3960.0,
+   "end": 3960.0,
+   "confidence": 0.0,
+   "reason": "Not an ad, episode continues in next window",
+   "end_text": ""
+}
+]

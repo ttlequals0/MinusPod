@@ -1,0 +1,1 @@
+[{"start": 1794.9, "end": 1876.9, "confidence": 0.95, "reason": "Platform-inserted ad segment with promotional language", "end_text": "like putting all of the emphasis on the intellect itself and ignoring the personality is kind of like"}]

@@ -1,0 +1,7 @@
+{
+  "start": 6.286,
+  "end": 6.710,
+  "confidence": 0.95,
+  "reason": "The segment contains promotional language discussing the ranking of pop stars, specifically mentioning Justin Bieber and other artists like Britney Spears and NSYNC. It includes a call to action by discussing the criteria for ranking pop stars and mentions the influence of social media on pop stars, which aligns with the detection rules for ads.",
+  "end_text": "I would go back to giving birth."
+}

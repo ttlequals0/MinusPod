@@ -1,0 +1,1 @@
+[{"start": 1766.0, "end": 1799.6, "confidence": 0.98, "reason": "Capital One Chat Concierge promotion", "end_text": "technology at Capital One"}, {"start": 2269.8, "end": 2280.0, "confidence": 0.85, "reason": "Cross-promotion for Ted's Rethinking Podcast", "end_text": "Rethinking Podcast"}]

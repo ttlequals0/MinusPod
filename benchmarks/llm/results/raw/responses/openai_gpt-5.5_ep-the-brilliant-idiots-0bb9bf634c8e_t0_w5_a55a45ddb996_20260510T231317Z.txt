@@ -1,0 +1,1 @@
+{"start":2311.7,"end":2450.0,"confidence":0.99,"reason":"Host-read sponsor break for BlueChew Gold followed immediately by ZipRecruiter, with promo code Idiots and URL ZipRecruiter.com/idiots","end_text":"your match on ZipRecruiter"}

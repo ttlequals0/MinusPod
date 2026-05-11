@@ -1,0 +1,1 @@
+{"start":0.5,"end":43.4,"confidence":0.98,"reason":"Carvana pre-roll ad with promotional language: 'give it a whirl,' 'Sell your car today on Carvana,' and 'Pickup fees may apply.'","end_text":"Pickup fees may apply"}

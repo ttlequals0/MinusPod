@@ -1,0 +1,9 @@
+ Ad Segment:
+
+[56.0] Sponsor Brilliant Idiots: <https://public.liveread.io/media-kit/brilliant-idiots> [continues from previous]
+
+[65.5] Let's take a break and hear from our sponsors. [<https://public.liveread.io/media-kit/brilliant-idiots> continues in next]
+
+[66.0] [End of episode]
+
+Note: The transcript does not provide enough context to determine if any guest mentions or topic transitions are ads. However, the two sponsor segments identified above meet the detection rules for ads.

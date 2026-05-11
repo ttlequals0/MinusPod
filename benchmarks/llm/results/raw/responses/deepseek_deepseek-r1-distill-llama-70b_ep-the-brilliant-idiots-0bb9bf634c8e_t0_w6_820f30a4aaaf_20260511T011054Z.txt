@@ -1,0 +1,7 @@
+{
+  "start": 2652.2,
+  "end": 2666.0,
+  "confidence": 0.95,
+  "reason": "Host-read sponsor segment mentioning 'mid-roll'",
+  "end_text": "with this because I was like rappers at their essence are just good fucking talkers"
+}

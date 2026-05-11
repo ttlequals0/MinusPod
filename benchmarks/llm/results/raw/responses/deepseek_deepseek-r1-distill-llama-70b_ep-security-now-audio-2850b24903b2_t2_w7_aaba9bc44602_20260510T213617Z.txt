@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I've been using this new tool called Bitwarden for my password management. It's been a game-changer. I mean, it's open-source, which I love because I can see how it's built and know that it's transparent. Plus, it's cross-platform, so I can use it on all my devices. The best part is that it's really affordable compared to some of the other options out there. I've already recommended it to all my friends and family. If you're looking for a reliable password manager, I highly suggest giving Bitwarden a try. You can check them out at bitwarden.com/twit. That's bitwarden.com/twit.",
+  "start": 3540.0,
+  "end": 3560.0
+}

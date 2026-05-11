@@ -1,0 +1,9 @@
+[
+  {
+    "start": 6390.2,
+    "end": 6445.0,
+    "confidence": 0.9,
+    "reason": "Host-read ad for BlueChew, framed as banter, which begins with the transition 'Let's pay some bills' and explicitly mentions the sponsor's name.",
+    "end_text": "Okay, Asking Idiots."
+  }
+]

@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I've been using this new AI tool for my work, and it's been a game-changer. But I'm a bit concerned about security. I mean, how do I know my data is safe? Let's take a break and hear from our sponsors. This episode is brought to you by Zscaler. Their security solutions are top-notch and trusted by enterprises worldwide. Visit zscaler.com/security to learn more. And we're back. So, as I was saying, encryption is key when it comes to protecting sensitive information. Another sponsor we have is Meter. They offer comprehensive cybersecurity tools that make it easy to monitor and protect your network. Check out meter.com/securitynow for more details. This episode is also brought to you by Bitwarden, the secure password manager that's both open-source and user-friendly. Visit bitwarden.com/twit to get started. And finally, HoxHunt helps train your team to recognize phishing attacks. Head over to hoxhunt.com/securitynow to improve your organization's security posture. Alright, let's dive back into the topic.",
+  "start": 77.0,
+  "end": 87.0
+}

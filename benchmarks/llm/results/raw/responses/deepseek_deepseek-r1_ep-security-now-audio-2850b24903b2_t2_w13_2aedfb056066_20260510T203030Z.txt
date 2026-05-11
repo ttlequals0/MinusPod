@@ -1,0 +1,7 @@
+{
+    "start": 6044.5,
+    "end": 6083.5,
+    "confidence": 0.98,
+    "reason": "Hoxhunt sponsor read",
+    "end_text": "Slack and Teams too. They're personalized to each employee, just like the bad guys."
+  }

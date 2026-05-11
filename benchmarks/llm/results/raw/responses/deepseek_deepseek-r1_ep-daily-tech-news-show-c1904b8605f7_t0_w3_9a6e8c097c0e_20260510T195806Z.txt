@@ -1,0 +1,13 @@
+[{
+    "start": 1742.3,
+    "end": 1771.5,
+    "confidence": 0.99,
+    "reason": "Explicit Capital One sponsor read with product pitch and brand tagline",
+    "end_text": "technology at Capital One"
+}, {
+    "start": 1772.6,
+    "end": 1799.6,
+    "confidence": 0.98,
+    "reason": "Lemonada Media podcast promotion with call to action",
+    "end_text": "hear the six-part Thrive series"
+}]

@@ -1,0 +1,1 @@
+{"start": 0.0, "end": 27.7, "confidence": 0.9, "reason": "Colgate Women's Games sponsor read", "end_text": "the world, Colgate"}

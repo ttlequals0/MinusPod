@@ -1,0 +1,7 @@
+{
+  "start": 1659.8,
+  "end": 2285.1,
+  "confidence": 0.0,
+  "reason": "No promotional language, sponsor names, URLs, promo codes, or calls to action found in this transcript segment. The content is a discussion about hip-hop journalism, media lists, and podcasting.",
+  "end_text": "everything he talked about"
+}

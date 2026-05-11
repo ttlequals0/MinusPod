@@ -1,0 +1,23 @@
+[  
+  {  
+    "start": 1.6,  
+    "end": 7.0,  
+    "confidence": 0.95,  
+    "reason": "Acast network-inserted ad promoting podcasts",  
+    "end_text": "podcasts. Here's a show"  
+  },  
+  {  
+    "start": 10.4,  
+    "end": 37.6,  
+    "confidence": 0.95,  
+    "reason": "Acast network-inserted ad for Wrong Turns podcast",  
+    "end_text": "dignity goes to die."  
+  },  
+  {  
+    "start": 40.8,  
+    "end": 51.9,  
+    "confidence": 0.95,  
+    "reason": "Acast network-inserted ad for Formative podcast",  
+    "end_text": "tomorrow."  
+  }  
+]

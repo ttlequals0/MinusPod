@@ -1,0 +1,7 @@
+{
+  "start": 4765.2,
+  "end": 4789.7,
+  "confidence": 0.95,
+  "reason": "Host discussing the slamming of a beach ball as a method for telepathy trials, which is part of the episode's content.",
+  "end_text": "he was on a different timeline."
+}

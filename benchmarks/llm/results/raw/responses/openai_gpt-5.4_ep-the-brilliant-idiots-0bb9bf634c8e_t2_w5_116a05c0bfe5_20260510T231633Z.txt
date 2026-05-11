@@ -1,0 +1,1 @@
+{"start":2324.6,"end":2450.0,"confidence":0.99,"reason":"Back-to-back host-read ads for BlueChew Gold and ZipRecruiter with promo code/URL and sponsor thank-yous","end_text":"Meet your match on ZipRecruiter."}

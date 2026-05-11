@@ -1,0 +1,7 @@
+[{
+    "start": 58.0,
+    "end": 80.1,
+    "confidence": 0.95,
+    "reason": "Explicit host-read sponsorship mention ('brought to you by Core Read')",
+    "end_text": "by Core Read"
+}]

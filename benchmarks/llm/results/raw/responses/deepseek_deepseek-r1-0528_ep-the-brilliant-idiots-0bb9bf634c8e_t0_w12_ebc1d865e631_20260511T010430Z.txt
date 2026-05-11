@@ -1,0 +1,51 @@
+[
+    {
+        "start": 5494.9,
+        "end": 5501.6,
+        "confidence": 0.95,
+        "reason": "Transition phrase 'Let me see' followed by sponsor mention",
+        "end_text": "Taylor? No, go down"
+    },
+    {
+        "start": 5502.0,
+        "end": 5530.4,
+        "confidence": 0.95,
+        "reason": "Sponsor mention of interracial pairing statistics",
+        "end_text": "Latino woman, also very common"
+    },
+    {
+        "start": 5531.1,
+        "end": 5558.5,
+        "confidence": 0.95,
+        "reason": "Continued sponsor discussion",
+        "end_text": "white dads and Asian moms"
+    },
+    {
+        "start": 5559.0,
+        "end": 5565.9,
+        "confidence": 0.95,
+        "reason": "Sponsor mention of debate online",
+        "end_text": "professional agent to pull"
+    },
+    {
+        "start": 5567.2,
+        "end": 5590.0,
+        "confidence": 0.95,
+        "reason": "Sponsor discussion of stereotypes",
+        "end_text": "y'all foot first"
+    },
+    {
+        "start": 5592.6,
+        "end": 5620.2,
+        "confidence": 0.95,
+        "reason": "Continued sponsor content",
+        "end_text": "y'all sneakers and y'all foot first"
+    },
+    {
+        "start": 5626.9,
+        "end": 5646.8,
+        "confidence": 0.95,
+        "reason": "Sponsor discussion of stereotypes",
+        "end_text": "I don't, I don't"
+    }
+]

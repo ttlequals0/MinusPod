@@ -1,0 +1,7 @@
+{
+  "start": 3339.8,
+  "end": 3962.9,
+  "confidence": 0.95,
+  "reason": "Perplexity AI promotion",
+  "end_text": "https://pplx.ai/rogan."
+}

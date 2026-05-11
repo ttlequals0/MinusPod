@@ -1,0 +1,9 @@
+[
+    {
+        "start": 2324.6,
+        "end": 2450.0,
+        "confidence": 0.99,
+        "reason": "BlueChew and ZipRecruiter sponsor reads with promotional language, URLs, and promo codes (e.g., 'promo code Idiots', 'ZipRecruiter.com/slash/idiots'). Includes transition and call-to-action phrases.",
+        "end_text": "Meet your match on ZipRecruiter."
+    }
+]

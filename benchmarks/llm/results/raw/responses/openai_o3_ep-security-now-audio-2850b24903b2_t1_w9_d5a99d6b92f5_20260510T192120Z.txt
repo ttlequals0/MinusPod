@@ -1,0 +1,1 @@
+{"start": 4258.6, "end": 4396.1, "confidence": 0.95, "reason": "Bitwarden sponsor read with transition phrase 'right after this'", "end_text": "securely unlocking devices at"}

@@ -1,0 +1,7 @@
+{
+  "start": 539.2,
+  "end": 652.8,
+  "confidence": 0.95,
+  "reason": "Skechers and In the Gray movie sponsor reads",
+  "end_text": "Check out Skechers.com for the biggest selection in the world plus all the hard-to-find styles."
+}

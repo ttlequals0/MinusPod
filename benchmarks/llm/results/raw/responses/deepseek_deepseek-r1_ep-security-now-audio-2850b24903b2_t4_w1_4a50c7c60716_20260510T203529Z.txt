@@ -1,0 +1,9 @@
+[
+  {
+    "start": 469.0,
+    "end": 572.1,
+    "confidence": 0.98,
+    "reason": "Zscaler sponsor read with product benefits and URL call-to-action",
+    "end_text": "zscaler.com slash security"
+  }
+]

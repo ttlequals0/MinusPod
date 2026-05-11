@@ -1,0 +1,1 @@
+{"start":7537.6,"end":7743.9,"confidence":0.97,"reason":"Host says 'let's take our final break' then delivers sponsor read for Trusted Tech with promotional language and call to action","end_text":"differentiates you in the marketplace"}

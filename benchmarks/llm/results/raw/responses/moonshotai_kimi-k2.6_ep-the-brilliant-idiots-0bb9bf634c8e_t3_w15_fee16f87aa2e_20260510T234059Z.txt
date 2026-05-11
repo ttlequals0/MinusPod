@@ -1,0 +1,2 @@
+{ "start": 6365.0, "end": 6390.2, "confidence": 0.85, "reason": "Host transition 'Let's pay some bills' indicates ad break start, but no promotional transcript content found in window; partial transition only", "end_text": "asking idiots, man" }
+

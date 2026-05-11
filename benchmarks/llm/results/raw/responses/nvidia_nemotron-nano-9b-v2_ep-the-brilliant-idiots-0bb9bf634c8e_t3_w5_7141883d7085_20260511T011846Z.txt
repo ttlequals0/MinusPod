@@ -1,0 +1,1 @@
+[{"start": 2353.9, "end": 2404.4, "confidence": 0.98, "reason": "Blue Chew Gold sponsor read", "end_text": "Bluetooth.com for more details"}, {"start": 2404.7, "end": 2479.7, "confidence": 0.97, "reason": "ZipRecruiter sponsor read", "end_text": "ZipRecruiter.com/slash idiots"}]

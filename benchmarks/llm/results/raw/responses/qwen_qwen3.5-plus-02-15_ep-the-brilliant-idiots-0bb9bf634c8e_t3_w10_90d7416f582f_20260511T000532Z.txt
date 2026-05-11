@@ -1,0 +1,1 @@
+[{"start": 4296.0, "end": 4361.4, "confidence": 0.9, "reason": "Host-read promotional segment for Jess Hilarious book, All Love Racquet Club event, and AM Mornings show", "end_text": "See you guys there. Peace."}]

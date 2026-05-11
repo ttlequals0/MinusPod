@@ -1,0 +1,7 @@
+{
+  "start": 8490.5,
+  "end": 8580.0,
+  "confidence": 0.95,
+  "reason": "Host discusses Google's search result manipulation and advertising practices, which could be interpreted as a critique of Google's commercial interests. However, this is not a traditional ad segment. It is an editorial commentary on Google's business model and its impact on user experience. The mention of Google Docs and Gmail is not promotional but rather a contextual example of the services provided by Google.",
+  "end_text": "the opportunity"
+}

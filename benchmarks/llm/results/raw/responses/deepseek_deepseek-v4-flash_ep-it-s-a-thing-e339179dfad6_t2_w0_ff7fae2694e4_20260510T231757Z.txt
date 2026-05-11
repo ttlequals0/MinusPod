@@ -1,0 +1,18 @@
+{
+  "ads": [
+    {
+      "start": 1.6,
+      "end": 51.9,
+      "confidence": 0.99,
+      "reason": "Acast platform pre-roll ad promoting Wrong Turns podcast, followed by Acast tagline",
+      "end_text": "monetize their podcasts everywhere. Acast.com"
+    },
+    {
+      "start": 52.4,
+      "end": 77.2,
+      "confidence": 0.99,
+      "reason": "Acast network cross-promotion for Formative podcast",
+      "end_text": "interviewed by the leaders of tomorrow"
+    }
+  ]
+}

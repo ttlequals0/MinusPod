@@ -1,0 +1,23 @@
+[
+    {
+        "start": 4324.2,
+        "end": 4334.1,
+        "confidence": 0.98,
+        "reason": "Host-read ad for Jess Hilarious' book 'Tell Death Do We Parent' with call to action ('pick up... available everywhere') and All Love Racquet Club event promotion with Instagram mention",
+        "end_text": "All Love Racquet Club"
+    },
+    {
+        "start": 4334.7,
+        "end": 4361.4,
+        "confidence": 0.99,
+        "reason": "Host-read ad for Charlamagne's new show 'AM Mornings' with call to action ('Head over to AM Mornings on YouTube') and transition phrase ('Let's listen to this moment')",
+        "end_text": "See you guys there. Peace"
+    },
+    {
+        "start": 4774.2,
+        "end": 4802.7,
+        "confidence": 0.3,
+        "reason": "Partial segment at window end - promotional language not detected in this snippet (guest discussing career, not an ad)",
+        "end_text": "like..."
+    }
+]

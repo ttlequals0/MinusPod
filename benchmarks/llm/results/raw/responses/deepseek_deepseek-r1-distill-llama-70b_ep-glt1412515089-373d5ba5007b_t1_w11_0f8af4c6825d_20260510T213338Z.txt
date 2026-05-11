@@ -1,0 +1,7 @@
+{
+  "start": 4765.2,
+  "end": 4789.7,
+  "confidence": 0.95,
+  "reason": "Host discussing the beach ball idea",
+  "end_text": "he had just failed a telepathy trial and he said, I was on a different timeline. And we said, so how can we get you on this timeline? And he said, he made up this idea of slamming a beach ball."
+}

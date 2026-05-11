@@ -1,0 +1,37 @@
+[
+{
+  "start": 539.2,
+   "end": 568.3,
+   "confidence": 0.95,
+   "reason": "In the Gray movie promotion",
+   "end_text": "an all-hands-on-deck operation"
+},
+{
+   "start": 568.4,
+   "end": 595.4,
+   "confidence": 0.95,
+   "reason": "Skechers promotion",
+   "end_text": "Skechers.com for the biggest selection"
+},
+{
+   "start": 595.8,
+   "end": 624.5,
+   "confidence": 0.95,
+   "reason": "Skechers promotion",
+   "end_text": "Skechers.com for the biggest selection"
+},
+{
+   "start": 624.6,
+   "end": 652.8,
+   "confidence": 0.95,
+   "reason": "Skechers promotion",
+   "end_text": "Skechers.com for the biggest selection"
+},
+{
+   "start": 653.1,
+   "end": 681.8,
+   "confidence": 0.95,
+   "reason": "Skechers promotion",
+   "end_text": "Skechers.com for the biggest selection"
+}
+]

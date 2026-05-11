@@ -1,0 +1,1 @@
+[{"start": 4324.2, "end": 4386.8, "confidence": 0.95, "reason": "AM Mornings sponsor read", "end_text": "your outfit is..."}]

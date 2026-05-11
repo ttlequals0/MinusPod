@@ -1,0 +1,1 @@
+{"start": 7173.7, "end": 7196.8, "confidence": 0.99, "reason": "Netflix's Remarkably Bright Creatures sponsor read", "end_text": "only on Netflix"}

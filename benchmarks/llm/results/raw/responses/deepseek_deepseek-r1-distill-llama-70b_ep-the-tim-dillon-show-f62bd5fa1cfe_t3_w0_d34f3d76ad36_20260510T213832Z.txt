@@ -1,0 +1,5 @@
+{
+  "transcript": "I tell myself, it's not about comparing, but then I start wondering, what can they lift? Are they adding more weight to their barbell than I am? And suddenly, I'm not training. Then I realize, my journey is not theirs. I've earned every step, so I smile. My smile is the shape resilience takes to keep me moving. To put more smiles out into the world, Colgate has supported female athletes for over 50 years with the Colgate Women's Games, the nation's longest-running indoor track and field series for girls and women. [28.1s - 51.6s] Colgate, your smile is your strength. Ladies and gentlemen, welcome to the Tim Dillon Show. Thank you all for coming out to my show at the Netflix is a Joke Festival in Los Angeles at the Wiltern Theater where I interviewed the cast of Selling Sunset dressed as John Wayne Gacy and it was a great moment for everyone.",
+  "start": 0.0,
+  "end": 51.6
+}

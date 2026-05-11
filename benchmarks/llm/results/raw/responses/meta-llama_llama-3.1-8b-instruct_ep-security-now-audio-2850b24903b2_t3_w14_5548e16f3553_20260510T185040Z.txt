@@ -1,0 +1,16 @@
+[
+{
+  "start": 5864.0,
+   "end": 5889.5,
+   "confidence": 0.95,
+   "reason": "Sync Tracer Version 2 recommendation",
+   "end_text": "Sync Tracer Version 2"
+},
+{
+   "start": 6045.5,
+   "end": 6480.0,
+   "confidence": 0.98,
+   "reason": "Hawks Hunt sponsor read",
+   "end_text": "hawkshunt.com security now"
+}
+]

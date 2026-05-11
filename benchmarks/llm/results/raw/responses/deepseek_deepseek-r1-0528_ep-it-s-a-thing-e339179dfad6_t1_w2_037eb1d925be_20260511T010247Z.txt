@@ -1,0 +1,7 @@
+{
+  "start": 1044.8,
+  "end": 1061.5,
+  "confidence": 0.95,
+  "reason": "Host-read ad for the podcast's feedback mechanism with call to action",
+  "end_text": "It's A Thing.me is where we get your things."
+}

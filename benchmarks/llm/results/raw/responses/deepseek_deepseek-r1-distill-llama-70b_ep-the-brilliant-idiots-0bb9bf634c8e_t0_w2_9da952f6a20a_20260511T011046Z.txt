@@ -1,0 +1,4 @@
+{
+  "transcript": "Alright, so let's take a break. This episode is brought to you by BetterHelp. If you're feeling overwhelmed, BetterHelp can connect you with a licensed therapist who can help you navigate life's challenges. Visit BetterHelp.com/Idiots or use the code IDIOTS15 at checkout to get 15% off your first month. We'll be right back.",
+  "timestamp": "1440.0s"
+}

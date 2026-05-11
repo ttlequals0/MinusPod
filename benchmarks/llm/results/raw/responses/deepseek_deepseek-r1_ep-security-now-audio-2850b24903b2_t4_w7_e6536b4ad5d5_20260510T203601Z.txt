@@ -1,0 +1,7 @@
+{
+  "start": 3376.2,
+  "end": 3382.8,
+  "confidence": 0.95,
+  "reason": "Transition phrase 'Thank you for watching' followed by sponsor links in description",
+  "end_text": "Thank you for watching"
+}

@@ -1,0 +1,1 @@
+{"start":1.6,"end":77.2,"confidence":0.99,"reason":"Acast platform-inserted promo block: Acast pre-roll plus cross-promotions for podcasts Wrong Turns and Formative with explicit promotional language ('Acast powers', 'Here's a show that we recommend', 'listen wherever you get your podcasts', 'Go to your favorite podcast app right now')","end_text":"the leaders of tomorrow"}

@@ -1,0 +1,8 @@
+
+{
+	"start": 7959.9,
+	"end": 8199.8,
+	"confidence": 0.95,
+	"reason": "Discussion about Google's AI API in Chrome and Mozilla's objections",
+	"end_text": "the register continues."
+}

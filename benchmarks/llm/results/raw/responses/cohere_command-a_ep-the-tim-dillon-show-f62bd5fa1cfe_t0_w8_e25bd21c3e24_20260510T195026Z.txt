@@ -1,0 +1,1 @@
+{"start": 3360.3, "end": 3365.0, "confidence": 0.95, "reason": "Mint Mobile sponsor read, continues from previous", "end_text": "for $15 bucks a month!"}

@@ -1,0 +1,13 @@
+ Ad segments:
+
+1. [3513.7s - 3541.2s]: Mint Mobile
+- Transition phrase: "Sponsors:"
+- Promotional language: "Go To <https://mintmobile.com/TIMDILLON> To Get 3 Months Of Premium Wireless for $15 bucks a month!"
+
+2. [3541.2s - 3555.3s]: Aura Frames
+- Transition phrase: "Aura Frames"
+- Promotional language: "Exclusive $25-off Carver Mat at <https://on.auraframes.com/TIM>. Promo Code TIM"
+
+3. [3555.3s - 3590.0s]: Morgan & Morgan
+- Transition phrase: "Let's take a break"
+- Promotional language: "Got to <https://forthepeople.com> for a free consultation." (implied)

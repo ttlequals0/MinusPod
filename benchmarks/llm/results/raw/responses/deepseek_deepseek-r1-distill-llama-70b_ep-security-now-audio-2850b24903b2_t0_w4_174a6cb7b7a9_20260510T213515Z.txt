@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I've been thinking about this whole AI thing in browsers. It's kind of wild how Google is integrating this massive AI model into Chrome. I mean, 4.7GB is huge! And Mozilla is pushing back, which makes me wonder where this is all headed. Is it going to be an AI arms race in the browser space? That could get messy. I'm curious about the implications for security and performance. On one hand, AI could help with things like phishing detection or optimizing how the browser runs. On the other hand, adding such a large model might introduce new vulnerabilities or slow things down. I also read that Mozilla is concerned about this, so I'm thinking they might have some valid points about maintaining user control and privacy. It's interesting how this could change the way we browse the web. I wonder if other browsers will follow suit or if they'll take a different approach. Maybe there's a middle ground where AI is used but in a way that doesn't compromise on the things that matter most to users. I'm looking forward to seeing how this plays out and what the security community has to say about it.",
+  "start": 1664.0,
+  "end": 2288.1
+}

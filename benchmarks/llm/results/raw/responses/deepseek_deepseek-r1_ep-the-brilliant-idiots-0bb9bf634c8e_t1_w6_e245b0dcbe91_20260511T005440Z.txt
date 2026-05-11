@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2652.2,
+    "end": 2666.0,
+    "confidence": 0.95,
+    "reason": "Host-read sponsorship mention of Midroll advertising platform",
+    "end_text": "this is more so"
+  }
+]

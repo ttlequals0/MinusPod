@@ -1,0 +1,30 @@
+[
+    {
+        "start": 1718.3,
+        "end": 1735.3,
+        "confidence": 0.98,
+        "reason": "Host-read promotion for DTNS store with URL and call to action",
+        "end_text": "support the show, there you go"
+    },
+    {
+        "start": 1742.3,
+        "end": 1771.5,
+        "confidence": 0.99,
+        "reason": "Capital One sponsor read with product features and brand tagline",
+        "end_text": "technology at Capital One"
+    },
+    {
+        "start": 1772.6,
+        "end": 1799.6,
+        "confidence": 0.97,
+        "reason": "Lemonada Media cross-promotion with call to action ('tune in')",
+        "end_text": "hear the six-part Thrive series"
+    },
+    {
+        "start": 2246.0,
+        "end": 2275.3,
+        "confidence": 0.99,
+        "reason": "Repeated Capital One sponsor read with identical promotional content",
+        "end_text": "technology at Capital One"
+    }
+]

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2246.0,
+    "end": 2314.4,
+    "confidence": 1.0,
+    "reason": "Capital One and Rinse ads",
+    "end_text": "It's time to be great."
+  }
+]

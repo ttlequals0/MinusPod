@@ -1,0 +1,7 @@
+{
+  "start": 20.84,
+  "end": 23.11,
+  "confidence": 0.95,
+  "reason": "The segment contains promotional language for ZipRecruiter, including a call to action and a mention of a special deal for listeners.",
+  "end_text": "Meet your match on ZipRecruiter.com"
+}

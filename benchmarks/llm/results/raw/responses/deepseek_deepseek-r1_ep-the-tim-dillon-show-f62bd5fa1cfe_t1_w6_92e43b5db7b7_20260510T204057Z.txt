@@ -1,0 +1,16 @@
+[
+  {
+    "start": 3079.6,
+    "end": 3105.5,
+    "confidence": 1.0,
+    "reason": "Morgan & Morgan sponsor read with call to action (ForThePeople.com/TIM, Poundlaw)",
+    "end_text": "advertisement. Stash is the one"
+  },
+  {
+    "start": 3107.1,
+    "end": 3120.0,
+    "confidence": 1.0,
+    "reason": "Stash sponsor read (partial segment, continues in next window)",
+    "end_text": "Stash is the one"
+  }
+]

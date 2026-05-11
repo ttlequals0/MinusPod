@@ -1,0 +1,9 @@
+[
+  {
+    "start": 6390.2,
+    "end": 6396.7,
+    "confidence": 0.95,
+    "reason": "Host transition to ad break ('Let's pay some bills') followed by 6.5s gap - likely edited ad insertion",
+    "end_text": "pay some bills"
+  }
+]

@@ -1,0 +1,1 @@
+{"output":[{"start":539.2,"end":652.8,"confidence":0.98,"reason":"Back-to-back sponsor reads: film promo for “In the Gray” followed immediately by Skechers slip-ins pitch","end_text":"only at Skechers.com."}]}

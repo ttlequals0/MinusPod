@@ -1,0 +1,8 @@
+
+{
+	"start": 393.1,
+	"end": 422.5,
+	"confidence": 0.95,
+	"reason": "Multiple book orders mentioned",
+	"end_text": "Learn more about your ad choices. Visit megaphone.fm/adchoices"
+}

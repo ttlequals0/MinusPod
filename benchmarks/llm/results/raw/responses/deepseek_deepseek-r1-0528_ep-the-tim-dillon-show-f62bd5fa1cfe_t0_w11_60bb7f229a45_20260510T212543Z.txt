@@ -1,0 +1,16 @@
+[
+  {
+    "start": 4646.2,
+    "end": 4674.6,
+    "confidence": 1.0,
+    "reason": "Colgate brand ad: promoting Women's Games and product association",
+    "end_text": "your smile is your strength"
+  },
+  {
+    "start": 4705.5,
+    "end": 4806.1,
+    "confidence": 1.0,
+    "reason": "Merged dynamically inserted ad break: Skinny Pop, Colgate, Viz, Garnier",
+    "end_text": "at GarnierUSA.com slash NPF"
+  }
+]

@@ -1,0 +1,1 @@
+{ "start": 1668.7, "end": 2286.3, "confidence": 0.95, "reason": "No explicit ads, but discussion of Facebook, social media, and screen time for children", "end_text": "they're on peptides" }

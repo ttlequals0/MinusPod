@@ -1,0 +1,3 @@
+ Ad segment: [4788.6-4806.1]
+
+Reasoning: This segment contains promotional language for Garnier and the National Park Foundation. The transcript explicitly states "Garnier's support of the National Park Foundation's Service Corps program" and provides a call to action to learn how to help support the national parks at GarnierUSA.com/NPF. This meets the detection rules for an advertisement segment.

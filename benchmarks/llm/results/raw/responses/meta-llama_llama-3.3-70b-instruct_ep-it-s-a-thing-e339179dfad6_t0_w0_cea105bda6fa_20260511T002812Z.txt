@@ -1,0 +1,4 @@
+[{"start": 1.6, "end": 7.0, "confidence": 0.95, "reason": "Acast platform pre-roll ad", "end_text": "best podcasts"}, 
+{"start": 10.4, "end": 37.6, "confidence": 0.98, "reason": "Wrong Turns podcast cross-promotion", "end_text": "dignity goes to die"}, 
+{"start": 40.8, "end": 51.9, "confidence": 0.95, "reason": "Acast platform ad", "end_text": "Acast.com"}, 
+{"start": 52.4, "end": 77.2, "confidence": 0.98, "reason": "Formative podcast cross-promotion", "end_text": "of tomorrow"}]

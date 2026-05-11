@@ -1,0 +1,1 @@
+[{"start": 3107.1, "end": 3120.0, "confidence": 0.95, "reason": "Morgan & Morgan network-inserted ad", "end_text": "Morgan & Morgan!"}]

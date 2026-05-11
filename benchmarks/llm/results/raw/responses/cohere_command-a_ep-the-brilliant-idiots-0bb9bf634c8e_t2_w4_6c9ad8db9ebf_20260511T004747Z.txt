@@ -1,0 +1,1 @@
+{"start": 1733.8, "end": 1760.5, "confidence": 0.95, "reason": "Black Effect Podcast Network promo", "end_text": "interviewed Kendrick a couple of times"}

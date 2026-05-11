@@ -1,0 +1,7 @@
+{
+  "start": 5443.4,
+  "end": 5471.1,
+  "confidence": 0.85,
+  "reason": "Host-read promotion for Jess Hilarious' book 'Til Death Do We Parent'",
+  "end_text": "What? A little. Depends on the family. Yeah, maybe my grandfather."
+}

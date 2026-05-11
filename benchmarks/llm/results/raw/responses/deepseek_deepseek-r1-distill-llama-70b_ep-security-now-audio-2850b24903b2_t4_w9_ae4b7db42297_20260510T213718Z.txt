@@ -1,0 +1,25 @@
+{
+  "transcript": "...",
+  "sponsors": [
+    {
+      "name": "Bitwarden",
+      "url": "https://bitwarden.com/twit"
+    },
+    {
+      "name": "Meter",
+      "url": "https://meter.com/securitynow"
+    },
+    {
+      "name": "HoxHunt",
+      "url": "https://hoxhunt.com/securitynow"
+    },
+    {
+      "name": "Trusted Tech Team",
+      "url": "https://trustedtech.team/securitynow365"
+    },
+    {
+      "name": "Zscaler",
+      "url": "https://zscaler.com/security"
+    }
+  ]
+}

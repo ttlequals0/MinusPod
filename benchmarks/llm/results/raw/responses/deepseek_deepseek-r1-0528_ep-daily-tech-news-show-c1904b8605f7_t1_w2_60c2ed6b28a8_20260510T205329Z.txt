@@ -1,0 +1,6 @@
+[
+  {
+    "start": 840.0,
+    "end": 1021.1,
+    "confidence": 0.99,
+    "reason": "Ad break with multiple sponsors: Capital One (continues from previous), BetterHelp, Amazon Health AI, Spectrum

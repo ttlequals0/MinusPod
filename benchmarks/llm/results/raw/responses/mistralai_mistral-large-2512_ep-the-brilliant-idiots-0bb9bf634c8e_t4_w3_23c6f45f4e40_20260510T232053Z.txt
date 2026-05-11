@@ -1,0 +1,16 @@
+[
+    {
+        "start": 1359.1,
+        "end": 1381.4,
+        "confidence": 0.95,
+        "reason": "Promotion of Black Effect Podcast Network with specific show mentions (Big Bank podcast, Big Facts podcast) and call to action to listen.",
+        "end_text": "Black Effect podcast network."
+    },
+    {
+        "start": 1733.8,
+        "end": 1760.5,
+        "confidence": 0.85,
+        "reason": "Host mentions Breakfast Club's longevity and influence, which could be interpreted as organic promotion, but the context is more editorial. No clear ad markers.",
+        "end_text": "this year. I've interviewed"
+    }
+]

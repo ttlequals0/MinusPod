@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1439.2,
+    "end": 1440.0,
+    "confidence": 0.95,
+    "reason": "Mint Mobile sponsor read (partial, continues beyond window)",
+    "end_text": "I've always talked about Mint"
+  }
+]

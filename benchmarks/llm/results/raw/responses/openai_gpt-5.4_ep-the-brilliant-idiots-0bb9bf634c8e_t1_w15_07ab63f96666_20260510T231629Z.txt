@@ -1,0 +1,1 @@
+{"start":6390.2,"end":6445.0,"confidence":0.89,"reason":"Host-read ad break transition with sponsor mention 'Blue Chew' included in banter; starts at 'Let's pay some bills' and ends when show resumes with 'Asking Idiots'. Partial/incomplete ad in this window.","end_text":"Okay, Asking Idiots."}

@@ -1,0 +1,8 @@
+[{"start": 3354.0, "end": 3380.1, "confidence": 0.95, "reason": "Sponsor Brilliant Idiots", "end_text": "brilliant-idiots"}]  
+[{"start": 3380.7, "end": 3403.5, "confidence": 0.92, "reason": "Jess Hilarious pre-order promotion", "end_text": "Pre Order"}]  
+[{"start": 3403.5, "end": 3426.0, "confidence": 0.90, "reason": "2Chainz pre-order promotion", "end_text": "Pre Order"}]  
+[{"start": 3426.0, "end": 3450.4, "confidence": 0.88, "reason": "The Black Family Who Built America order link", "end_text": "Order Link"}]  
+[{"start": 3450.4, "end": 3473.0, "confidence": 0.85, "reason": "Uncommon Favor - Dawn Staley order link", "end_text": "Order Link"}]  
+[{"start": 3473.0, "end": 3496.5, "confidence": 0.83, "reason": "Get Honest or Die Lying order link", "end_text": "Order Link"}]  
+[{"start": 3496.5, "end": 3521.2, "confidence": 0.80, "reason": "Andrew Schulz website promotion", "end_text": "theandrewschulz.com"}]  
+[{"start": 3521.2, "end": 3540.9, "confidence": 0.78, "reason": "Black Effect Network promotion", "end_text": "blackeffect.com"}]

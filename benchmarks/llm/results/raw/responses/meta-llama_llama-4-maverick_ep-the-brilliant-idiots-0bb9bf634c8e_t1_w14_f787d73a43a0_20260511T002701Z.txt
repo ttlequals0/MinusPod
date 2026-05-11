@@ -1,0 +1,1 @@
+{"type": "function", "name": "analyze_transcript", "parameters": {"transcript": "the provided transcript"}}

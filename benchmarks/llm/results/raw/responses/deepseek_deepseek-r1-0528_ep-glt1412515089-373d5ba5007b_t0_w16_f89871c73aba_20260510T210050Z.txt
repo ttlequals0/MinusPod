@@ -1,0 +1,9 @@
+[
+  {
+    "start": 6706.4,
+    "end": 7323.7,
+    "confidence": 0.0,
+    "reason": "No promotional content found",
+    "end_text": "double slit experiment"
+  }
+]

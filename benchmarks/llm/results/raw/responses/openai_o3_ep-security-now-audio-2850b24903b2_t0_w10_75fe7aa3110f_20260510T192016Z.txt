@@ -1,0 +1,1 @@
+{"start": 4204.1, "end": 4465.7, "confidence": 0.96, "reason": "Bitwarden sponsor read with URL and promotional language following break transition", "end_text": "No more singing. Back to Steve"}

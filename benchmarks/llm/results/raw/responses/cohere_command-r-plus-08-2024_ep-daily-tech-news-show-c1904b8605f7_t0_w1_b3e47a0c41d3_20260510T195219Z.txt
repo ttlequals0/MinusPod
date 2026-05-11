@@ -1,0 +1,53 @@
+{
+  "ads": [
+    {
+      "start": 821.4,
+      "end": 857.6,
+      "confidence": 0.99,
+      "reason": "Capital One sponsor read",
+      "end_text": "betterhelp.com slash random podcast for 10% off your first month of online therapy."
+    },
+    {
+      "start": 862.2,
+      "end": 889.7,
+      "confidence": 0.99,
+      "reason": "BetterHelp sponsor read",
+      "end_text": "Amazon Health AI presents painful thoughts. I, um, I can't stop scratching my downtown."
+    },
+    {
+      "start": 890.6,
+      "end": 910.1,
+      "confidence": 0.99,
+      "reason": "Amazon Health AI sponsor read",
+      "end_text": "There's no question too embarrassing for Amazon Health AI. Chat your symptoms and get virtual care 24-7. Healthcare just got less painful."
+    },
+    {
+      "start": 912.2,
+      "end": 933.7,
+      "confidence": 0.99,
+      "reason": "Spectrum Business sponsor read",
+      "end_text": "We know flexibility matters. That's why select Spectrum business packages come with a three-year price guarantee, so you can focus on running your business."
+    },
+    {
+      "start": 934.1,
+      "end": 961.5,
+      "confidence": 0.99,
+      "reason": "Spectrum Business sponsor read",
+      "end_text": "Join millions of business owners like you across America who trust Spectrum Business for reliability, speed, and support. Visit spectrum.com slash business today to get started. Restrictions apply. Service is not available in all areas."
+    },
+    {
+      "start": 961.9,
+      "end": 990.3,
+      "confidence": 0.99,
+      "reason": "Rinse sponsor read",
+      "end_text": "Schedule at rinse.com. Rinse."
+    },
+    {
+      "start": 990.6,
+      "end": 1018.9,
+      "confidence": 0.99,
+      "reason": "Rinse sponsor read",
+      "end_text": "So stop managing the mundane and start imagining the possibilities. Schedule at rinse.com. Rinse."
+    }
+  ]
+}

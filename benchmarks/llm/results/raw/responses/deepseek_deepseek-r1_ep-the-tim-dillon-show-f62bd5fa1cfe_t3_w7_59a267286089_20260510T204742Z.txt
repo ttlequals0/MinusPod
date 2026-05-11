@@ -1,0 +1,23 @@
+[
+  {
+    "start": 3079.6,
+    "end": 3134.3,
+    "confidence": 0.99,
+    "reason": "Morgan & Morgan sponsor read with URL 'ForThePeople.com/slash Tim' and call to action 'dial Poundlaw'",
+    "end_text": "dial Poundlaw. Let them know"
+  },
+  {
+    "start": 3135.6,
+    "end": 3208.0,
+    "confidence": 0.99,
+    "reason": "Stash investing app promotion with URL 'stash.com/slash mood' and claims about Market Mood feature",
+    "end_text": "involves risk."
+  },
+  {
+    "start": 3209.1,
+    "end": 3270.1,
+    "confidence": 0.99,
+    "reason": "NeuroGum endorsement with promo code 'TIM' and URL 'NeuroGum.com', including product benefits",
+    "end_text": "CVS and Amazon."
+  }
+]

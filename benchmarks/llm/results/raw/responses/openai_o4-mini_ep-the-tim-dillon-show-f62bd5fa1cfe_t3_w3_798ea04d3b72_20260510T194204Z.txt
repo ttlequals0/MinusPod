@@ -1,0 +1,1 @@
+{"start":1439.2,"end":1512.6,"confidence":0.98,"reason":"Mint Mobile sponsor read","end_text":"That's mintmobile.com."}

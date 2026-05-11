@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I've been thinking about this a lot, and I really believe that everyone should check out this amazing new app called FocusFlow. It's been a game-changer for my productivity. Not only does it help me stay organized, but it also has these incredible features that make task management so much easier. I've tried a bunch of different apps before, but nothing compares to FocusFlow. Plus, right now, they're offering a special promotion just for our listeners. If you sign up in the next week, you'll get 50% off your first month. That's a fantastic deal you don't want to miss out on. So, head on over to focusflow.com/podcast and take advantage of this offer before it's gone. Trust me, your productivity will thank you.",
+  "start": 2916.8,
+  "end": 2944.0
+}

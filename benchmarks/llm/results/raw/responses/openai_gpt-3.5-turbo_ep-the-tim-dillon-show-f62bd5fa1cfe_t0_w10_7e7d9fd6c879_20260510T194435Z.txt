@@ -1,0 +1,8 @@
+
+{
+	"start": 4675.4,
+	"end": 4697.4,
+	"confidence": 0.95,
+	"reason": "Colgate Women's Games sponsor ad",
+	"end_text": "Colgate, your smile is your strength."
+}

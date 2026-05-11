@@ -1,0 +1,8 @@
+
+{
+	"start": 7607.7,
+	"end": 7633.1,
+	"confidence": 0.98,
+	"reason": "Trusted Tech sponsor read",
+	"end_text": "Security Now with Steve Gibson. More in a moment."
+}

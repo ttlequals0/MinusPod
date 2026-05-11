@@ -1,0 +1,61 @@
+Podcast: security-now-audio
+Episode: SN 1077: A Browser AI API? - End of Bug Bounties?
+
+
+Episode description: <p>Google is sneaking a massive 4.7GB AI model into Chrome, and Mozilla is fighting back as the future of browsers threatens to turn into an AI arms race. Find out what's really happening behind this push and why it's setting off alarm bells across the web.</p><ul> 
+<li>Hackers AI-code a portal, forget to add authentication.</li> 
+<li>The UK's NCSC issues a Mythos warning. Where's CISA?</li> 
+<li>Another (of many) Linux local privilege escalations.</li> 
+<li>AI may be spelling the end of bug bounties.</li> 
+<li>Anthropic releases "Claude Security" mini-Mythos.</li> 
+<li>ChatGPT gets very serious about login security.</li> 
+<li>Syncthing's SyncTrayzor v1 abandoned; v2 created.</li> 
+<li>Google drops an AI API into Chrome; Mozilla objects</li></ul> 
+<p>Show Notes - <a href="https://www.grc.com/sn/SN-1077-Notes.pdf">https://www.grc.com/sn/SN-1077-Notes.pdf</a></p> 
+<p><strong>Hosts:</strong> <a href="https://twit.tv/people/steve-gibson">Steve Gibson</a> and <a href="https://twit.tv/people/leo-laporte">Leo Laporte</a></p> 
+<p>Download or subscribe to <em>Security Now</em> at <a href="https://twit.tv/shows/security-now">https://twit.tv/shows/security-now</a>.</p> 
+<p>You can submit a question to <em>Security Now</em> at the <a href="https://www.grc.com/feedback.htm" target="_blank">GRC Feedback Page</a>.</p> 
+<p>For 16kbps versions, transcripts, and notes (including fixes), visit Steve's site: <a href="https://www.grc.com/securitynow.htm" target="_blank">grc.com</a>, also the home of the best disk maintenance and recovery utility ever written <a href="https://www.grc.com/sr/spinrite.htm" target="_blank">Spinrite 6</a>.</p> 
+<p><strong>Join Club TWiT for Ad-Free Podcasts!</strong><br /> 
+Support what you love and get ad-free audio <em>and</em> video feeds, a members-only Discord, and exclusive content. Join today: <a href="https://twit.tv/clubtwit" rel="payment">https://twit.tv/clubtwit</a></p>
+<p><strong>Sponsors:</strong><ul>
+<li><a href="http://zscaler.com/security" rel="sponsored" target="_blank">zscaler.com/security</a></li>
+<li><a href="http://meter.com/securitynow" rel="sponsored" target="_blank">meter.com/securitynow</a></li>
+<li><a href="http://bitwarden.com/twit" rel="sponsored" target="_blank">bitwarden.com/twit</a></li>
+<li><a href="http://hoxhunt.com/securitynow" rel="sponsored" target="_blank">hoxhunt.com/securitynow</a></li>
+<li><a href="http://trustedtech.team/securitynow365" rel="sponsored" target="_blank">trustedtech.team/securitynow365</a></li>
+</ul></p>
+
+Transcript:
+[4194.8s - 4201.6s] You know, bugs are discovered. It won't nearly be as much for money moving forward as it has been in the past, Leo.
+[4204.1s - 4230.5s] Okay. You want to take a little break? I do. All right. And then we're going to look at a new product from Anthropic, which we might call Mini Mythos. Mythos Lite. Or Mythos Lite or Mythos Junior or something. Yes. And it's available to all Claude Enterprise users now. Okay. Oh, cool. You're watching Security Now. Mr. Steve Gibson. We do this show every...
+[4230.9s - 4258.2s] Tuesday right after Mac break weekly that's about 1 30 pacific 4 30 eastern 20 30 utc uh and you can watch it live if you really want the freshest version of it our club members get to watch in the club twit discord but there's also of course uh tick not tick tock x.com facebook linkedin twitch youtube and kick so pick your platform watch us live or get it after the fact on steve's site
+[4258.6s - 4264.3s] GRC.com or our site, twit.tv slash SN. We'll have more Security Now right after this.
+[4265.2s - 4291.9s] This episode of Security Now is brought to you by Bitwarden, the trusted leader in password, passkey, and secrets management. With over 10 million users across 180 countries and more than 50,000 businesses, Bitwarden is consistently ranked number one in user satisfaction by G2 and Software Reviews. With Bitwarden Access Intelligence, organizations can identify weak, reused, or exposed credentials and take action immediately.
+[4292.6s - 4315.7s] While Vault health alerts and password coaching surface risks to individual users in real time and guide them to fix issues on the spot, turning one of the most common causes of breaches into something visible, prioritized, and fixable. And now, Bitwarden is introducing the new Agent Access SDK, a powerful way for developers and teams to securely integrate controlled credential access into applications.
+[4316.5s - 4344.8s] Automation Workflows, and AI Agents. It enables programmatic, just-in-time access to vault stored credentials without exposing sensitive data, supporting secure use within modern development environments. Now, this release does not incorporate, very important, does not incorporate any AI functionality into the Bitwarden solution, and maybe even more importantly, does not grant AI systems persistent or unrestricted access to your vault data.
+[4345.4s - 4370.4s] The point of the Agent Access SDK is it's a separate, open-source development toolkit designed to enforce secure, human-approved, and scoped credential access for teams that leverage AI agents in their workflow. It's available now in an alpha phase, early days yet, for testing, but they want everybody to use it, not just every Bitwarden customer, but everybody using any password manager anywhere.
+[4371.2s - 4396.1s] The Agent Access SDK introduces a secure framework for how agents request, receive, and use credentials, helping define a model for safe credential interaction in agent-driven systems. And I love Bitwarden because they're giving it away. Any password company that wants to use it can use it. It's open. Bitwarden now enables passkey login, I love this, for Windows 11, securely unlocking devices at the OS level.
+[4396.6s - 4409.4s] Of course, they have to work with Microsoft on this to provide native passkey support. This will extend SSO to automatically log users into more apps, making credential management across devices more seamless than ever. And it works with Windows Hello.
+[4410.6s - 4437.4s] Imagine never having to enter your password again. For those who want a lightweight option, Bitwarden Lite offers a self-hosted password manager designed for home labs, personal projects, or quick deployments with minimal overhead. And don't worry, Bitwarden's open source code, besides the fact that it's on GitHub, it's GPL licensed, you can look at it yourself, it's also regularly audited by third-party experts. It meets all the standards, SOC 2, Type 2, GDPR, HIPAA, CCPA.
+[4438.1s - 4465.7s] ISO 27001-2002. Of course, it is absolutely secure. Get started today with Bitwarden's free trial of a Teams or Enterprise plan, or get started for free across all devices as an individual user at bitwarden.com slash twit. That's bitwarden.com slash twit. We thank them so much for supporting. Security Now. Okay. No more singing. Back to Steve.
+[4466.8s - 4486.3s] Yeah, I thought that was really interesting that the first bug bounty was 31 years ago. That's remarkable. That is really amazing. Yeah, it's a program that has worked, but to me, it really makes sense if we have, I mean, finding bugs and contributing, you know, giving back.
+[4486.8s - 4497.5s] Thank you for watching.
+[4506.0s - 4533.9s] TotalSense. Well, that's one thing I don't think Netscape could have anticipated 31 years ago that AI would suddenly be finding all these flaws. Well, and for the intervening 30 years, it's been fabulously successful. It's worked really well. Millions and millions of dollars have been paid out to, you know, authentic bugs and vulnerabilities that have been found. So the systems are working. Now we have AI able to pick up that burden and carry it forward.
+[4534.3s - 4552.7s] There's another category of people who are out of work, bug bounty finders. Well, that's true. It's probably not a career path. Although, if you are expert in running AI discovery, then you've got a new way to make some money. Well, actually, that's a good point. That Linux copy fail flaw.
+[4553.5s - 4574.9s] They found it not with the AI solely, but because a very smart security researcher pointed the AI at a specific direction and said, Hey, I wonder if this is a problem. And then the AI was able to go a little step further. So it was really a partnership. Exactly. Yeah. Okay, so we can add
+[4576.2s - 4600.0s] Well, it's apropos of the changes being wrought to AI vulnerability discovery that we have Anthropic's announcement late last week of Claude Security, which is now entering public beta for their enterprise customers. We could think of it as Mythos Junior, and that's sort of how they're casting it. Here's what Anthropic
+[4600.8s - 4627.0s] posted about this. They said, Claude Security, which is what they're calling it, Claude Security is now available in public beta to Claude Enterprise customers. AI cybersecurity capabilities are advancing fast. Today's models are already highly effective at finding flaws in software code. The next generation will be more capable still and will be particularly effective at autonomously exploiting these flaws.
+[4627.6s - 4638.7s] Now is the time for organizations to act to improve their security, preparing for a world in which working software exploits are much easier to discover.
+[4639.7s - 4661.1s] Recently, we made Clawed Mythos Preview, which can match or surpass even elite human experts at both finding and exploiting software vulnerabilities, available to a number of partners as part of Project Glasswing. But our cybersecurity efforts go beyond Glasswing. With Clawed Security,
+[4661.9s - 4683.1s] Thank you for watching.
+[4690.8s - 4715.6s] Previously known as Clawed Code Security has already been tested by hundreds of organizations of all sizes in limited research preview, helping teams scan their code bases for vulnerabilities and generate targeted patches. Their feedback has shaped today's release, which makes Clawed Security available to all enterprise customers. It comes with scheduled and targeted scans.
+[4716.4s - 4742.4s] Easier integration into audit systems and improved tracking of triaged findings. No API integration or custom agent build is required. If your organization uses Claude, you can start scanning today. Opus 4.7's capabilities are also being brought to cyber defenders through Claude's integration into software tools that many enterprises already use.
+[4743.0s - 4769.2s] Our technology partners, including CrowdStrike, Microsoft Security, Palo Alto Networks, SentinelOne, Trend AI, and Wiz, are embedding Opus 4.7 into their tools. In addition, services partners like Accenture, BCG, Deloitte, Infosys, and PwC are now helping organizations deploy cloud integrated security solutions.
+[4770.3s - 4797.4s] We're entering a pivotal time for cybersecurity. AI is compressing the timeline between vulnerability discovery and exploitation. We believe the right response is to make sure defenders have access to frontier capabilities in the ways most accessible to them through Claude directly and through our partners. Claude security can be accessed directly from the Claude.ai sidebar.
+[4797.9s - 4816.0s] or at claude.ai slash security. To begin, select one of your repositories or scope to a specific directory or branch. Then start a scan. While scanning, Claude reasons about code much like a security researcher.
+
+=== WINDOW 11/23: 70.0-80.0 minutes ===
+- Use absolute timestamps from transcript (as shown in brackets)
+- If an ad starts before this window, use the first timestamp with note "continues from previous"
+- If an ad extends past this window, use 4800.0 with note "continues in next"

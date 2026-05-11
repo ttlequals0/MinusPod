@@ -1,0 +1,7 @@
+{
+  "start": 821.4,
+  "end": 1020.0,
+  "confidence": 0.98,
+  "reason": "Multiple sponsor reads and network-inserted ads",
+  "end_text": "It's time to be great."
+}

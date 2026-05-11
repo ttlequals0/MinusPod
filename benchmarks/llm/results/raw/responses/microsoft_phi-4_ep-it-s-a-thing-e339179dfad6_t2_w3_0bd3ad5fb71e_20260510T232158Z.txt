@@ -1,0 +1,7 @@
+{
+  "start": 12.42,
+  "end": 16.02,
+  "confidence": 0.95,
+  "reason": "Sponsored segment with promotional language for Acast and Xero, including calls to action and links.",
+  "end_text": "Acast powers the world's best podcasts"
+}

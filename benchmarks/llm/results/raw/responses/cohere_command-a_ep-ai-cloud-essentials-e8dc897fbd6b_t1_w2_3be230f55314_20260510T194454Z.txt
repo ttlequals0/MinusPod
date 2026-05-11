@@ -1,0 +1,7 @@
+{
+  "start": 903.1,
+  "end": 927.0,
+  "confidence": 0.95,
+  "reason": "SpaceX mention is a brand name but not promotional",
+  "end_text": "iterate from this"
+}

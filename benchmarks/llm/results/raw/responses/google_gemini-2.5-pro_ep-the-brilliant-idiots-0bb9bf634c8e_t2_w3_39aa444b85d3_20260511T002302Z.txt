@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1359.1,
+    "end": 1381.4,
+    "confidence": 0.9,
+    "reason": "Host-read promotion for the 'Big Bank' and 'Big Facts' podcasts on the Black Effect network, including a direct call to action.",
+    "end_text": "Cam, of course, know him."
+  }
+]

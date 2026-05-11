@@ -1,0 +1,7 @@
+{
+  "start": 675.0,
+  "end": 693.2,
+  "confidence": 0.95,
+  "reason": "Host discusses SOUP shots, a coffee product, with promotional language",
+  "end_text": "a little pickup."
+}

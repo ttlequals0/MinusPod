@@ -1,0 +1,1 @@
+{ "start": 4175.0, "end": 4202.0, "confidence": 0.0, "reason": "normal conversation", "end_text": "I get it, I get it" }

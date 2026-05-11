@@ -1,0 +1,1 @@
+[{"start": 0.0, "end": 71.6, "confidence": 0.98, "reason": "Capital One and XERO sponsor read", "end_text": "free trial"}, {"start": 72.1, "end": 100.9, "confidence": 0.97, "reason": "Spectrum Business sponsor read", "end_text": "100% support"}, {"start": 127.1, "end": 152.9, "confidence": 0.99, "reason": "Warby Parker sponsor read", "end_text": "warbyparker.com today"}]

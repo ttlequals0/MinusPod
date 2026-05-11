@@ -1,0 +1,1 @@
+[{"start": 4324.2, "end": 4361.4, "confidence": 0.95, "reason": "Charlamagne Tha God promotes his show AM Mornings", "end_text": "AM Mornings on YouTube"}]

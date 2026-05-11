@@ -1,0 +1,7 @@
+{  
+  "start": 112.0,  
+  "end": 119.9,  
+  "confidence": 0.95,  
+  "reason": "The segment contains a network-embedded advertisement for Netflix's Remarkably Bright Creatures, which is a polished segment with promotional language and a clear call to action, indicating it is an advertisement.",  
+  "end_text": "Remarkably Bright Creatures is now playing only on Netflix."  
+}

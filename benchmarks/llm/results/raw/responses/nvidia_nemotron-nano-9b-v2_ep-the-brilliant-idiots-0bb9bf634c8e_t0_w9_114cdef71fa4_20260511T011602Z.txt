@@ -1,0 +1,3 @@
+[{"start": 3778.7, "end": 4380.0, "confidence": 0.95, "reason": "Brilliant Idiots sponsor segment with URL promotion", "end_text": "AM Mornings on YouTube"}] 
+
+Note: The sponsor segment begins at 3778.7s (start of the window) and continues beyond 4380.0s (end of the window). The URL "https://public.liveread.io/media-kit/brilliant-idiots" is explicitly promotional.

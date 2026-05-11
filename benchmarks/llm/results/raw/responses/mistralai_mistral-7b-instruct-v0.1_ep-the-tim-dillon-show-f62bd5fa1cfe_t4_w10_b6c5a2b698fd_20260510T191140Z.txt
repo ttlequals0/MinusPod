@@ -1,0 +1,15 @@
+ Ad segments:
+
+[4788.6s - 4806.1s] Mint Mobile advertisement:
+Let's take a break and check out Mint Mobile. Go to mintmobile.com/TIMDILLON to get 3 months of premium wireless for just $15 a month! That's a great deal. Mint Mobile, your wireless provider.
+
+[4806.1s - 4831.5s] Aura Frames advertisement:
+Now, let's check out Aura Frames. Exclusive $25-off Carver Mat at on.auraframes.com/TIM. Use promo code TIM. Aura Frames, the digital picture frame that lets you display your favorite memories in a whole new way.
+
+[4831.5s - 4845.0s] Morgan & Morgan advertisement:
+Next up, Morgan & Morgan. If you're dealing with eye issues, they can help. Go to forthepeople.com/TIMDILLON for a free consultation. Morgan & Morgan, fighting for you.
+
+[4845.0s - 4860.0s] Garnier advertisement:
+Lastly, let's talk about Garnier. Their support of the National Park Foundation's Service Corps program is enabling young adults and veterans to help care for and enhance our national parks. Explore Garnier's partnership with the National Park Foundation and learn how you can help support our national parks at GarnierUSA.com/NPF.
+
+Note: The last advertisement segment starts within the window but may extend into the next window.

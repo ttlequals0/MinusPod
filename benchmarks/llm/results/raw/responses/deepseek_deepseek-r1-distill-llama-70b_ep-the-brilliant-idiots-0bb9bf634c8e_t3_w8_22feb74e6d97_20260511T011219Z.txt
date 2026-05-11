@@ -1,0 +1,7 @@
+{
+  "start": 3675.1,
+  "end": 3677.5,
+  "confidence": 0.95,
+  "reason": "Alphonso Pierre sponsor segment",
+  "end_text": "Alphonso Pierre"
+}

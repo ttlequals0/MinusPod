@@ -1,0 +1,7 @@
+ [112.0s - 113.0s] (continues from previous) Let's take a break and hear a message from our sponsor, Cisco. [<https://www.cisco.com/>] Cisco Secure is the industry-leading cybersecurity platform designed to protect your organization from advanced threats. With Cisco Secure, you can detect and respond to threats in real-time, secure your network, and protect your endpoints. Try it now and get a free trial.
+
+[113.0s - 114.0s] (continues from previous) And we're back.
+
+[114.0s - 115.0s] (continues in next) Now, let's discuss the Google Chrome AI model and Mozilla's objections. But first, let's take a quick break and hear a message from our sponsor, Datadog. [<https://www.datadoghq.com/>] Datadog is the monitoring platform for cloud-scale applications. With Datadog, you can monitor your entire technology stack, from apps to infrastructure and network, all on a single platform. Try it now and get a free trial.
+
+[115.0s - 116.0s] And we're back. Let's dive into the Google Chrome AI model controversy.

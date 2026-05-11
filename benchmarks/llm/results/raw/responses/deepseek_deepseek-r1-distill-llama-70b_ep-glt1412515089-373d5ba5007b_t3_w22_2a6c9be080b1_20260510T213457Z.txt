@@ -1,0 +1,7 @@
+{
+  "start": 9741.1,
+  "end": 9785.8,
+  "confidence": 0.95,
+  "reason": "Promotion of Applied Love Labs and their time machine app",
+  "end_text": "and it says it's going into your time machine and then later it comes out and you hear yourself and it has a In the future."
+}

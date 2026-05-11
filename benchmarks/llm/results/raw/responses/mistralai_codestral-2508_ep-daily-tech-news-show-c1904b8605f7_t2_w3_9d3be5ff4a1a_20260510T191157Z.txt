@@ -1,0 +1,1 @@
+[{"start": 1718.3, "end": 1860.0, "confidence": 0.95, "reason": "DTNS store promotion and Capital One sponsor read", "end_text": "technology at Capital One"}]

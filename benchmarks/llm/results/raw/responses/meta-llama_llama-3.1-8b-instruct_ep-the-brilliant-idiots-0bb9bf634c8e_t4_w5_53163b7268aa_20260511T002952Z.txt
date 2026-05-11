@@ -1,0 +1,1 @@
+{ "start": 2084.9, "end": 2700.0, "confidence": 0.95, "reason": "BlueChew Gold ad read", "end_text": "BlueChew.com for more details" }

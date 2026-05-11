@@ -1,0 +1,1 @@
+{"start":3649.7,"end":3675.1,"confidence":0.6,"reason":"25-second silence gap with no transcript content; possible incomplete ad detection but no promotional language present to confirm","end_text":"continues in next"}

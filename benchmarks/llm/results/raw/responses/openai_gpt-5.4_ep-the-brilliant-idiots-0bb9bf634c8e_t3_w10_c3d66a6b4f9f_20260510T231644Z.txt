@@ -1,0 +1,7 @@
+{
+  "start": 4296.0,
+  "end": 4361.4,
+  "confidence": 0.72,
+  "reason": "Host promotional segment with calls to action for Jess Hilarious' book, All Love Racquet Club event, and Loren's AM Mornings show ('make sure you go pick up', 'head to', 'check out my new show') before returning to show content.",
+  "end_text": "See you guys there. Peace."
+}

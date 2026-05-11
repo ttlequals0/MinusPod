@@ -1,0 +1,7 @@
+[{
+    "start": 6390.2,
+    "end": 6445.0,
+    "confidence": 0.95,
+    "reason": "BlueChew sponsor integration with product discussion and endorsement cues",
+    "end_text": "somebody that was pre-diabetic"
+}]

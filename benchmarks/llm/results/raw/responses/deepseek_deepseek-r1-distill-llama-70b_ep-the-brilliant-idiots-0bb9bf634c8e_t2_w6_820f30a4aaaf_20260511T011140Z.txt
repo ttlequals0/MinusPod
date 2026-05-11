@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so let's take a break. This episode is brought to you by BetterHelp. If you're feeling overwhelmed, BetterHelp offers convenient and affordable online counseling. Visit BetterHelp.com/Idiots to get 10% off your first month. Alright, back to the show.",
+  "start": 2652.2,
+  "end": 2666.0
+}

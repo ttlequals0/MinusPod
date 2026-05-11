@@ -1,0 +1,1 @@
+{"start": 6365.0, "end": 6390.2, "confidence": 0.95, "reason": "Pepsi, Citigroup, Ford, Goldman Sachs brand mention network-inserted ad", "end_text": "like Goldman Sachs, like, come on, y'all."}

@@ -1,0 +1,7 @@
+{
+	"start": 2208.3,
+	"end": 2237.0,
+	"confidence": 1,
+	"reason": "Blinds.com sponsor read",
+	"end_text": "get up to 45% off site-wide, plus get a free professional measure at Blinds.com."
+}

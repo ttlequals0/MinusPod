@@ -1,0 +1,16 @@
+[
+    {
+        "start": 6390.2,
+        "end": 6446.1,
+        "confidence": 0.95,
+        "reason": "Host-read transition to sponsor reads with promotional language for multiple books and platforms (e.g., 'Get Honest or Die Lying', 'www.theandrewschulz.com', 'Black Effect Network'). Includes calls to action like 'Order Link' and 'Pre Order'.",
+        "end_text": "Okay, Asking Idiots."
+    },
+    {
+        "start": 6446.1,
+        "end": 6471.0,
+        "confidence": 0.98,
+        "reason": "Platform-inserted ad for Megaphone.fm with call to action ('Learn more about your ad choices. Visit megaphone.fm/adchoices').",
+        "end_text": "megaphone.fm/adchoices"
+    }
+]

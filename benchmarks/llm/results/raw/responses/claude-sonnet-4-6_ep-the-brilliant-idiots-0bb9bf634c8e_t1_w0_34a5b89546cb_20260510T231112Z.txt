@@ -1,0 +1,1 @@
+[{"start": 0.5, "end": 43.4, "confidence": 0.97, "reason": "Carvana host-read/produced ad segment with voicemail narrative, call to action 'Sell your car today on Carvana', and disclaimer 'Pickup fees may apply'", "end_text": "Sell your car today on Carvana"}]

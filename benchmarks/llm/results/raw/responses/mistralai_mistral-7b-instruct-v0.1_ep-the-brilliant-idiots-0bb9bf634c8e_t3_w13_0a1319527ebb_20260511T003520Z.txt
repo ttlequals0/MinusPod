@@ -1,0 +1,15 @@
+ Ad Segment 1:
+[6010.6s - 6037.5s]
+Promotional language: "Pre Order"
+Product/Service: Til Death Do We Parent by Jess Hilarious, The Voice in my head is God by 2Chainz
+Sponsor: N/A
+Transition phrase: N/A
+
+Ad Segment 2:
+[6038.0s - 6060.2s]
+Promotional language: "Order Link"
+Product/Service: The Black Family Who Built America by Cheryl McKissack Daniel, Uncommon Favor by Dawn Staley
+Sponsor: N/A
+Transition phrase: N/A
+
+This window contains two advertisement segments. The first one starts at 6010.6 seconds and lasts for 26.9 seconds, promoting the pre-order of Til Death Do We Parent by Jess Hilarious and The Voice in my head is God by 2Chainz. The second advertisement segment starts at 6038.0 seconds and lasts for 22.2 seconds, promoting the order of The Black Family Who Built America by Cheryl McKissack Daniel and Uncommon Favor by Dawn Staley. Both segments lack a clear transition phrase like "let's take a break" but contain promotional language and calls to action.

@@ -1,0 +1,13 @@
+{
+  "analysis": {
+    "ad_segments": [
+      {
+        "start": 6390.2,
+        "end": 6445.0,
+        "confidence": 0.95,
+        "reason": "Host mentions 'Blue Chew' as a product with promotional context, likely a sponsor read",
+        "end_text": "giving her Blue Chew"
+      }
+    ]
+  }
+}

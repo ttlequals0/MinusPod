@@ -1,0 +1,7 @@
+{
+  "start": 1876.9,
+  "end": 1876.9,
+  "confidence": 0.0,
+  "reason": "No ad content detected in transcript segment",
+  "end_text": ""
+}

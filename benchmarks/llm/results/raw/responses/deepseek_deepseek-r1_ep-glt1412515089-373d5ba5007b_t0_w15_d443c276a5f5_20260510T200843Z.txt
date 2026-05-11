@@ -1,0 +1,7 @@
+[{
+    "start": 6368.2,
+    "end": 6394.8,
+    "confidence": 0.98,
+    "reason": "Host-read Perplexity sponsorship with promotional language ('our AI sponsor', 'flexing on us')",
+    "end_text": "potential future. Explore more at FreshField"
+}]

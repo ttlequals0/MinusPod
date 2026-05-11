@@ -1,0 +1,21 @@
+[
+  {
+    "start": 1524.5,
+    "end": 1535.2,
+    "confidence": 0.95,
+    "reason": "Xero sponsor read with call to action",
+    "end_text": "free trial. Conditions apply."
+  },
+  {
+    "start": 1535.2,
+    "end": 1561.9,
+    "confidence": 0.95,
+    "reason": "Acast platform-inserted promo",
+    "end_text": "show that we recommend"
+  },
+  {
+    "start": 1565.4,
+    "end": 1592.5,
+    "confidence": 0.95,
+    "reason": "Cross-promotion for Wrong Turns podcast",
+    "

@@ -1,0 +1,1 @@
+{"start": 7607.7, "end": 7743.9, "confidence": 0.96, "reason": "Host-read Trusted Tech sponsor segment with promotional language and call to action", "end_text": "you in the marketplace"}

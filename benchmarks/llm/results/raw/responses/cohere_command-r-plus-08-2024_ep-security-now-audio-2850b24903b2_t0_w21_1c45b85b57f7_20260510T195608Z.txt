@@ -1,0 +1,18 @@
+{
+  "ads": [
+    {
+      "start": 9312.9,
+      "end": 9315.5,
+      "confidence": 0.9,
+      "reason": "Fit for your ambition, for citizens back. - network-inserted brand tagline ad",
+      "end_text": "for citizens back."
+    },
+    {
+      "start": 9344.4,
+      "end": 9374.4,
+      "confidence": 0.95,
+      "reason": "Mint Mobile host-read sponsor segment",
+      "end_text": "See full terms at mintmobile.com."
+    }
+  ]
+}

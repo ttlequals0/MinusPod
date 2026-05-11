@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I've been using this AI model called Claude. It's been a game-changer for my work. But I just found out that Anthropic is releasing something called Claude Security. I need to figure out if this is worth switching to. Let me check out their website. Hmm, the features look impressive. They mention it's a mini-Mythos model, which I think is their more advanced version. But I'm not sure if it's necessary for my use case. I'll have to compare the pricing and see if the added security benefits justify the cost. Maybe I should also look into what other users are saying about it. Oh, wait, the episode description mentioned something about this. I should probably listen to that part again to get more insights.",
+  "start": 84.0,
+  "end": 94.0
+}

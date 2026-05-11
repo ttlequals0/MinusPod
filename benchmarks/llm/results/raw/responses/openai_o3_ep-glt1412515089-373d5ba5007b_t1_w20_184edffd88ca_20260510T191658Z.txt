@@ -1,0 +1,1 @@
+{"error": "You must return an array. No additional keys like 'error' allowed."}

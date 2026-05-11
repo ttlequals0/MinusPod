@@ -1,0 +1,1 @@
+{"error":"We are chatgpt not allowed formatting? Wait they said Output: [{{ ... }}]. They want JSON array. We must output JSON array only. We must include each object within array. So final output: [ { ... } ]."}

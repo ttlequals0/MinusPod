@@ -1,0 +1,198 @@
+[
+{
+  "start": 815.0,
+   "end": 840.1,
+   "confidence": 0.95,
+   "reason": "No ad detected",
+   "end_text": "guttural level"
+},
+{
+   "start": 840.7,
+   "end": 852.2,
+   "confidence": 0.95,
+   "reason": "No ad detected",
+   "end_text": "super yacht"
+},
+{
+   "start": 854.8,
+   "end": 879.8,
+   "confidence": 0.95,
+   "reason": "No ad detected",
+   "end_text": "super yacht"
+},
+{
+   "start": 881.2,
+   "end": 908.3,
+   "confidence": 0.95,
+   "reason": "No ad detected",
+   "end_text": "disgusting"
+},
+{
+   "start": 909.0,
+   "end": 930.2,
+   "confidence": 0.95,
+   "reason": "No ad detected",
+   "end_text": "human being"
+},
+{
+   "start": 931.8,
+   "end": 957.5,
+   "confidence": 0.95,
+   "reason": "No ad detected",
+   "end_text": "human being"
+},
+{
+   "start": 963.8,
+   "end": 965.2,
+   "confidence": 0.95,
+   "reason": "No ad detected",
+   "end_text": "what's up"
+},
+{
+   "start": 969.4,
+   "end": 995.0,
+   "confidence": 0.95,
+   "reason": "No ad detected",
+   "end_text": "space right"
+},
+{
+   "start": 995.5,
+   "end": 1014.0,
+   "confidence": 0.95,
+   "reason": "No ad detected",
+   "end_text": "Facebook dies"
+},
+{
+   "start": 1015.8,
+   "end": 1043.5,
+   "confidence": 0.95,
+   "reason": "No ad detected",
+   "end_text": "serious psychological conditions"
+},
+{
+   "start": 1045.0,
+   "end": 1070.9,
+   "confidence": 0.95,
+   "reason": "No ad detected",
+   "end_text": "serious psychological conditions"
+},
+{
+   "start": 1071.8,
+   "end": 1097.8,
+   "confidence": 0.95,
+   "reason": "No ad detected",
+   "end_text": "serious psychological conditions"
+},
+{
+   "start": 1098.8,
+   "end": 1125.0,
+   "confidence": 0.95,
+   "reason": "No ad detected",
+   "end_text": "tens of billions of dollars"
+},
+{
+   "start": 1126.0,
+   "end": 1154.0,
+   "confidence": 0.95,
+   "reason": "No ad detected",
+   "end_text": "misinformation campaigns"
+},
+{
+   "start": 1154.9,
+   "end": 1180.2,
+   "confidence": 0.95,
+   "reason": "No ad detected",
+   "end_text": "petard"
+},
+{
+   "start": 1181.5,
+   "end": 1204.2,
+   "confidence": 0.95,
+   "reason": "No ad detected",
+   "end_text": "inspirational content"
+},
+{
+   "start": 1208.0,
+   "end": 1235.8,
+   "confidence": 0.95,
+   "reason": "No ad detected",
+   "end_text": "inspirational content"
+},
+{
+   "start": 1237.0,
+   "end": 1255.4,
+   "confidence": 0.95,
+   "reason": "No ad detected",
+   "end_text": "social media presence"
+},
+{
+   "start": 1257.3,
+   "end": 1279.0,
+   "confidence": 0.95,
+   "reason": "No ad detected",
+   "end_text": "social media presence"
+},
+{
+   "start": 1280.4,
+   "end": 1304.5,
+   "confidence": 0.95,
+   "reason": "No ad detected",
+   "end_text": "digital world"
+},
+{
+   "start": 1307.0,
+   "end": 1333.4,
+   "confidence": 0.95,
+   "reason": "No ad detected",
+   "end_text": "digital world"
+},
+{
+   "start": 1334.3,
+   "end": 1347.6,
+   "confidence": 0.95,
+   "reason": "No ad detected",
+   "end_text": "digital world"
+},
+{
+   "start": 1347.1,
+   "end": 1375.6,
+   "confidence": 0.95,
+   "reason": "No ad detected",
+   "end_text": "digital world"
+},
+{
+   "start": 1376.8,
+   "end": 1389.5,
+   "confidence": 0.95,
+   "reason": "No ad detected",
+   "end_text": "digital world"
+},
+{
+   "start": 1390.9,
+   "end": 1412.8,
+   "confidence": 0.95,
+   "reason": "No ad detected",
+   "end_text": "digital world"
+},
+{
+   "start": 1414.2,
+   "end": 1436.3,
+   "confidence": 0.95,
+   "reason": "No ad detected",
+   "end_text": "digital world"
+},
+{
+   "start": 1439.2,
+   "end": 1465.2,
+   "confidence": 0.95,
+   "reason": "No ad detected",
+   "end_text": "digital world"
+},
+{
+   "start": 1440.0,
+   "end": 1440.0,
+   "confidence": 0.95,
+   "reason": "continues in next",
+   "end_text": "digital world"
+}
+]

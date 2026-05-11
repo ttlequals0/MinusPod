@@ -1,0 +1,1 @@
+{"start": 5443.4, "end": 5443.4, "confidence": 0.0, "reason": "no ad detected", "end_text": "Meet the family"}

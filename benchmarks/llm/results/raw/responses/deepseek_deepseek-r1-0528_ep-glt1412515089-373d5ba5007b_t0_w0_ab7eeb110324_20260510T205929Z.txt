@@ -1,0 +1,7 @@
+[{
+    "start": 539.2,
+    "end": 600.0,
+    "confidence": 0.98,
+    "reason": "Host-read ads for 'In the Gray' movie and Skechers slip-ins with explicit sponsorship markers and product pitches",
+    "end_text": "casual and dress footwear, sandals, sneakers"
+}]

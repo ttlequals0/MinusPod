@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I've been thinking about this a lot, and I really believe that everyone should check out this amazing new app called 'FocusFlow'. It's been a game-changer for my productivity. Not only does it help me stay organized, but it also has these incredible features that just make my life easier. I mean, the UI is so clean and intuitive, and the customer support is top-notch. Plus, right now, they're offering a special promotion just for our listeners. If you sign up in the next week, you'll get 20% off your first year. That's a fantastic deal. And as a listener of this show, you can use the promo code 'TIM15' at checkout to receive an additional 15% off. So, don't wait—head over to focusflow.com/podcast right now and start optimizing your workflow. Your future self will thank you. Let's take a quick break and then we'll get back to the episode.",
+  "start": 3600.0,
+  "end": 3660.0
+}

@@ -1,0 +1,1 @@
+{"start": 2652.2, "end": 2688.1, "confidence": 0.8, "reason": "Transition to mid-roll ad mention", "end_text": "NBA players right like this"}

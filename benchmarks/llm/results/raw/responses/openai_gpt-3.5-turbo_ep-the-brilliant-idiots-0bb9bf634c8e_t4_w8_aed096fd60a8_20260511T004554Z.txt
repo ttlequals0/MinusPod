@@ -1,0 +1,7 @@
+{
+	"start": 3354.0,
+	"end": 3360.0,
+	"confidence": 1,
+	"reason": "Sponsorship mention for Brilliant Idiots",
+	"end_text": "on there. Who else we got?"
+}

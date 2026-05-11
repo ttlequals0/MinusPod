@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 2208.3,
+      "end": 2237.0,
+      "confidence": 0.99,
+      "reason": "Blinds.com host-read ad with promotional language, discount offer, and URL",
+      "end_text": "free professional measure at Blinds.com"
+    }
+  ]
+}

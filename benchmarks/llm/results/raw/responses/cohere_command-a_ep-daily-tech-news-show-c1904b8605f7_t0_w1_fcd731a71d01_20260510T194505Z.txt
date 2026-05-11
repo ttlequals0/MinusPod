@@ -1,0 +1,7 @@
+{
+  "start": 821.4,
+  "end": 1020.0,
+  "confidence": 0.98,
+  "reason": "Multiple sponsor ads including Capital One, BetterHelp, Amazon Health AI, Spectrum Business, and Rinse",
+  "end_text": "It's time to be great"
+}

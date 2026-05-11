@@ -1,0 +1,9 @@
+[
+  {
+    "start": 4265.2,
+    "end": 4465.7,
+    "confidence": 0.99,
+    "reason": "Bitwarden sponsor read with detailed product features and call to action",
+    "end_text": "Back to Steve"
+  }
+]

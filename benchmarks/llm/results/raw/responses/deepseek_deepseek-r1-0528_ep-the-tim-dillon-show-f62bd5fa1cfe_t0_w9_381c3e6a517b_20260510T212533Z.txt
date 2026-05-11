@@ -1,0 +1,191 @@
+[
+  {
+    "start": 3774.5,
+    "end": 3802.7,
+    "confidence": 0.95,
+    "reason": "Host discussing Hantavirus cruise ship situation with promotional tone for the show",
+    "end_text": "Hantavirus, friend of the show"
+  },
+  {
+    "start": 3803.3,
+    "end": 3822.8,
+    "confidence": 0.95,
+    "reason": "Host promoting live show dates and merchandise",
+    "end_text": "Live Dates 🎟 https://punchup.live/TimDillon"
+  },
+  {
+    "start": 3824.1,
+    "end": 3842.1,
+    "confidence": 0.95,
+    "reason": "Host discussing Hantavirus outbreak and promoting government action",
+    "end_text": "unnecessary risk to human civilization"
+  },
+  {
+    "start": 3843.2,
+    "end": 3870.8,
+    "confidence": 0.95,
+    "reason": "Host promoting selfless act for the greater good",
+    "end_text": "Love you, dad. But let's see what he actually says"
+  },
+  {
+    "start": 3879.5,
+    "end": 3882.3,
+    "confidence": 0.95,
+    "reason": "Host emphasizing selflessness",
+    "end_text": "Selflessly. Selflessly"
+  },
+  {
+    "start": 3883.6,
+    "end": 3908.5,
+    "confidence": 0.95,
+    "reason": "Host promoting pirate plank solution and joking about political figures",
+    "end_text": "J.D. Vance, stop telling people you don't like me"
+  },
+  {
+    "start": 3911.2,
+    "end": 3935.8,
+    "confidence": 0.95,
+    "reason": "Host promoting plank walking for AI concerns",
+    "end_text": "Who's doing that? They have a plank"
+  },
+  {
+    "start": 3936.9,
+    "end": 3949.4,
+    "confidence": 0.95,
+    "reason": "Host reminiscing about pirate stuff and promoting dramatic last words",
+    "end_text": "say something like, hi, I, this sucks"
+  },
+  {
+    "start": 3950.7,
+    "end": 3975.9,
+    "confidence": 0.95,
+    "reason": "Host promoting government conspiracy theories and self-sacrifice",
+    "end_text": "last thing I'll ever do"
+  },
+  {
+    "start": 3976.7,
+    "end": 3983.6,
+    "confidence": 0.95,
+    "reason": "Host agreeing with government decision to eliminate risk",
+    "end_text": "unnecessary risk"
+  },
+  {
+    "start": 3976.8,
+    "end": 4002.7,
+    "confidence": 0.95,
+    "reason": "Host promoting economic recovery through consumer spending",
+    "end_text": "burgers, dogs, etc"
+  },
+  {
+    "start": 4003.4,
+    "end": 4029.6,
+    "confidence": 0.95,
+    "reason": "Host mocking passenger statement and promoting insensitivity as maturity",
+    "end_text": "you're a child if you think it is"
+  },
+  {
+    "start": 4032.6,
+    "end": 4057.4,
+    "confidence": 0.95,
+    "reason": "Host criticizing passenger's non-statement and promoting self-preservation",
+    "end_text": "What does this statement even mean?"
+  },
+  {
+    "start": 4059.6,
+    "end": 4089.0,
+    "confidence": 0.95,
+    "reason": "Host promoting avoidance of Hantavirus and personal appearance",
+    "end_text": "I don't want hantavirus"
+  },
+  {
+    "start": 4090.4,
+    "end": 4122.0,
+    "confidence": 0.95,
+    "reason": "Host promoting extreme solution of killing everyone on the boat",
+    "end_text": "I'm willing to kill everyone on this boat"
+  },
+  {
+    "start": 4125.3,
+    "end": 4140.4,
+    "confidence": 0.95,
+    "reason": "Host questioning passenger statements and promoting screen addiction critique",
+    "end_text": "stop with the screens no matter what"
+  },
+  {
+    "start": 4142.3,
+    "end": 4169.2,
+    "confidence": 0.95,
+    "reason": "Host promoting personal desires and reiterating Hantavirus avoidance",
+    "end_text": "I don't want hantavirus"
+  },
+  {
+    "start": 4170.1,
+    "end": 4188.7,
+    "confidence": 0.95,
+    "reason": "Host blaming passenger for choosing the cruise and promoting personal responsibility",
+    "end_text": "You chose to get on this boat"
+  },
+  {
+    "start": 4190.9,
+    "end": 4209.3,
+    "confidence": 0.95,
+    "reason": "Host promoting fair hearing for boat passengers while expressing concern",
+    "end_text": "I feel bad for people with hantavirus"
+  },
+  {
+    "start": 4212.0,
+    "end": 4221.6,
+    "confidence": 0.95,
+    "reason": "Host comparing situation to Flight 93 and promoting action",
+    "end_text": "We got to make up something"
+  },
+  {
+    "start": 4223.7,
+    "end": 4246.5,
+    "confidence": 0.95,
+    "reason": "Host promoting caution based on passenger appearance",
+    "end_text": "Don't let him off. He looks real pale"
+  },
+  {
+    "start": 4246.9,
+    "end": 4263.4,
+    "confidence": 0.95,
+    "reason": "Host quoting captain's announcement and promoting odd feeling as intuition",
+    "end_text": "recorded the moments the captain announced"
+  },
+  {
+    "start": 4264.1,
+    "end": 4289.1,
+    "confidence": 0.95,
+    "reason": "Host promoting WHO confirmation and contact tracing",
+    "end_text": "In rare instances, it can spread"
+  },
+  {
+    "start": 4289.7,
+    "end": 4317.6,
+    "confidence": 0.95,
+    "reason": "Host promoting expert opinion on Hantavirus spread and travel concerns",
+    "end_text": "Not easy to spread, but still a big fear"
+  },
+  {
+    "start": 4318.8,
+    "end": 4342.0,
+    "confidence": 0.95,
+    "reason": "Host rejecting health ministry plan and promoting elimination of infected",
+    "end_text": "No, no, no, no, no, they won't"
+  },
+  {
+    "start": 4344.5,
+    "end": 4363.3,
+    "confidence": 0.95,
+    "reason": "Host promoting covert elimination of infected individuals",
+    "end_text": "killed in a Jason Bourne-style fashion"
+  },
+  {
+    "start": 4364.5,
+    "end": 4378.5,
+    "confidence": 0.95,
+    "reason": "Host promoting quick and covert disposal of infected individuals",
+    "end_text": "it's got to look like an accident"
+  }
+]

@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I've been thinking a lot about the future of work and how it's changing. I mean, with AI and automation taking over so many jobs, it's kind of scary to think about what we'll do next. But then I remember that every time there's a major shift in technology, new industries and opportunities emerge. So maybe this time won't be any different. Let's take a break and hear from our sponsors.",
+  "start_timestamp": 3600.0,
+  "end_timestamp": 3630.0
+}

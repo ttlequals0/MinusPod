@@ -1,0 +1,1 @@
+{"start": 821.4, "end": 1021.1, "confidence": 0.97, "reason": "Sponsor block containing Capital One, BetterHelp, Amazon Health AI, Spectrum Business, and Rinse ads", "end_text": "time to be great"}

@@ -1,0 +1,1 @@
+[{"start": 2208.3, "end": 2294.1, "confidence": 0.95, "reason": "Blinds.com network-inserted brand tagline ad", "end_text": "Blinds.com"}]

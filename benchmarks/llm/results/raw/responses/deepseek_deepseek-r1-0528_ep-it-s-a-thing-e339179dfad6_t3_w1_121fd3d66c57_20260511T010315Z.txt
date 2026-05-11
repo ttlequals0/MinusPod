@@ -1,0 +1,9 @@
+[
+  {
+    "start": 398.7,
+    "end": 1030.8,
+    "confidence": 0.0,
+    "reason": "No promotional content detected",
+    "end_text": "look retro"
+  }
+]

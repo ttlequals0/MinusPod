@@ -1,0 +1,1 @@
+[{"start": 3774.5, "end": 3960.0, "confidence": 0.95, "reason": "continues in next", "end_text": "Facebook. There was an article that there was no God"}]

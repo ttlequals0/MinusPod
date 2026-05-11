@@ -1,0 +1,11 @@
+{
+"ads": [
+    {
+      "start": 4296.0,
+      "end": 4334.1,
+      "confidence": 0.98,
+      "reason": "Charlamagne tha God promoting his own projects and shows",
+      "end_text": "AM Mornings on YouTube"
+    }
+  ]
+}
