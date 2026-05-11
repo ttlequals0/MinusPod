@@ -1,0 +1,16 @@
+# Pre-populated from MinusPod production ad markers.
+# Verify each ad: check boundaries, confirm text matches transcript.
+# Use the no-ads marker (uncomment) if this episode has no ads:
+# # Verified: no ads in this episode.
+
+# Lines starting with '#' are ignored. To accept a rejected block,
+# remove the '# ' prefix from its start/end/text lines.
+
+# auto-rejected: no ad signals (brought-to-you-by / .com / promo code)
+# start: 0:00.00
+# end:   1:27.05
+# text:  Acast powers the world's best podcasts. Here's a show that we recommend. What if you laughed all through your commute? Or if you heard the funniest story while at the gym? Well, now you can. I'm Jameeda Jamil, and guests on my new podcast, Wrong Turns, share their most mortifying and hilarious disaster stories. I'm talking people like Mae Martin, Bob the Drag Queen, Katherine Ryan, Jake Johnson, Margaret Cho, Simon Pegg, Penn Badgley, and so many more. So listen wherever you get your podcasts, Wrong Turns, where dignity goes to die. Acast helps creators launch, grow, and monetize their podcasts everywhere. Acast.com. If you like this podcast, we think you might also like Formative. the award-winning series where New York City middle schoolers interview a wide variety of successful grownups asking bold, thoughtful questions that spark real conversations. Go to your favorite podcast app right now to listen to brand new episodes and an archive of 100 previous episodes of Formative, the podcast where the leaders of today are interviewed by the leaders of tomorrow.
+---
+start: 25:24.46
+end:   26:42.60
+text:  Business is booming, but you know what really helped? Xero, the accounting platform for small businesses. I used to think unpaid bills were just part of it. But batch payments? Wow. Automated accounts payable? Even better. All in one place? That's a big one. And I can keep track from my phone while I get the job done. No bills in sight. What a life. Do right by yourself and your business and search XERO for your free trial. Conditions apply. ACAST powers the world's best podcasts. Here's a show that we recommend. What if you laughed all through your commute? Or if you heard the funniest story while at the gym? Well, now you can. I'm Jameeda Jamil, and guests on my new podcast, Wrong Turns, share their most mortifying and hilarious disaster stories. I'm talking people like Mae Martin, Bob the Drag Queen, Katherine Ryan, Jake Johnson, Margaret Cho, Simon Pegg, Penn Badgley, and so many more. So listen wherever you get your podcasts, Wrong Turns, where dignity goes to die. Acast helps creators launch, grow, and monetize their podcasts everywhere. Acast.com.

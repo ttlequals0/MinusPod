@@ -2,18 +2,35 @@
 from __future__ import annotations
 
 import json
+import re
 import statistics
-from collections import defaultdict
+from collections import Counter, defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable
+
+from utils.time import utc_now_iso
 
 from . import metrics, pricing
 from .corpus import Episode
 from .storage import read_jsonl
 
 DEFAULT_IOU_THRESHOLD = 0.5
+
+# Confidence bins used by the calibration heatmap. (lo, hi) half-open, plus a
+# parallel label list. Keep these aligned.
+CALIBRATION_BINS: tuple[tuple[float, float], ...] = (
+    (0.0, 0.7), (0.7, 0.9), (0.9, 0.95), (0.95, 0.99), (0.99, 1.001),
+)
+CALIBRATION_BIN_LABELS = ("0.00-0.70", "0.70-0.90", "0.90-0.95", "0.95-0.99", "0.99+")
+
+# Trial-to-trial F1 stdev thresholds: <STABLE green, <WOBBLY orange, else red.
+F1_STDEV_STABLE = 0.02
+F1_STDEV_WOBBLY = 0.05
+
+# HTTP 5xx detector for the failures classifier. Matches "500", "502", etc.
+# but not arbitrary substrings like "5 minutes".
+_SERVER_5XX_RE = re.compile(r"\b5\d{2}\b")
 IOU_THRESHOLDS = (0.3, 0.5, 0.7)
 
 
@@ -50,7 +67,6 @@ class ModelStats:
     no_ad_pass: dict[str, bool] = field(default_factory=dict)
     no_ad_fp_count: dict[str, int] = field(default_factory=dict)
     total_episode_cost: float = 0.0
-    cost_per_tp: float | None = None
     p50_call_latency_ms: float = 0.0
     p90_call_latency_ms: float = 0.0
     p95_call_latency_ms: float = 0.0
@@ -63,7 +79,16 @@ class ModelStats:
     extra_key_names: set[str] = field(default_factory=set)
     output_tokens_total: int = 0
     detected_ads_total: int = 0
-    tokens_per_detected_ad: float | None = None
+    avg_f1: float = 0.0
+    mean_f1_stdev: float = 0.0
+
+    @property
+    def cost_per_tp(self) -> float | None:
+        return self.total_episode_cost / self.tp_total if self.tp_total > 0 else None
+
+    @property
+    def tokens_per_detected_ad(self) -> float | None:
+        return self.output_tokens_total / self.detected_ads_total if self.detected_ads_total > 0 else None
 
 
 def _dedup_last_write_wins(calls: list[dict]) -> list[dict]:
@@ -165,9 +190,6 @@ class _Extras:
     agreement: dict[tuple[str, int], dict[str, int]]    # (episode, window_idx) -> {model: n_predicted_ads}
     detection_buckets: dict[str, dict[str, dict[str, list[bool]]]]
     # detection_buckets[model][bucket_kind][bucket_label] -> list of bool (was each truth-ad in this bucket detected?)
-    output_tokens_per_model: dict[str, int]
-    detected_ads_per_model: dict[str, int]
-    response_times_per_model: dict[str, list[int]]
 
 
 def _aggregate(
@@ -263,28 +285,23 @@ def _aggregate(
             duration = float(ep.metadata.duration) if getattr(ep.metadata, "duration", None) else 0.0
             matched_truth_idxs = {m.truth_index for m in r.matches}
             for ti, ad in enumerate(ep.truth.ads):
-                length = ad.end - ad.start
-                length_bucket = "short (<30s)" if length < 30 else "medium (30-90s)" if length < 90 else "long (>=90s)"
-                if duration > 0:
-                    rel = ad.start / duration
-                    pos_bucket = "pre-roll (<10%)" if rel < 0.10 else "post-roll (>90%)" if rel > 0.90 else "mid-roll (10-90%)"
-                else:
-                    pos_bucket = "unknown"
                 hit = ti in matched_truth_idxs
-                detection_buckets[model]["length"][length_bucket].append(hit)
-                detection_buckets[model]["position"][pos_bucket].append(hit)
+                detection_buckets[model]["length"][_length_bucket(ad.end - ad.start)].append(hit)
+                detection_buckets[model]["position"][_position_bucket(ad.start, duration)].append(hit)
         stats.trial_costs.append(_recompute_total_cost(records, pricing_snapshot))
         stats.trial_response_times.append(sum(r.get("response_time_ms", 0) for r in records))
 
+    me_by_model: dict[str, list[tuple[str, ModelEpisodeStats]]] = defaultdict(list)
+    for (m, ep_id), s in me.items():
+        me_by_model[m].append((ep_id, s))
+
     out: dict[str, ModelStats] = {}
-    models_seen: set[str] = {model for (model, _) in me} | set(response_times_per_model)
+    models_seen: set[str] = set(me_by_model) | set(response_times_per_model)
     for model in models_seen:
         ms = ModelStats(model=model)
         all_start_maes: list[float] = []
         all_end_maes: list[float] = []
-        for (m, ep_id), s in me.items():
-            if m != model:
-                continue
+        for ep_id, s in me_by_model[model]:
             if s.trial_f1s:
                 ms.f1_per_episode[ep_id] = statistics.fmean(s.trial_f1s)
                 ms.f1_stdev_per_episode[ep_id] = metrics.trial_stdev(s.trial_f1s)
@@ -305,8 +322,6 @@ def _aggregate(
         if all_start_maes:
             ms.boundary_start_mae = statistics.fmean(all_start_maes)
             ms.boundary_end_mae = statistics.fmean(all_end_maes)
-        if ms.tp_total > 0:
-            ms.cost_per_tp = ms.total_episode_cost / ms.tp_total
         rts = sorted(response_times_per_model[model])
         if rts:
             ms.p50_call_latency_ms = _percentile(rts, 50)
@@ -323,26 +338,27 @@ def _aggregate(
         ms.extra_key_names = extra_keys_per_model[model]
         ms.output_tokens_total = output_tokens_per_model[model]
         ms.detected_ads_total = detected_ads_per_model[model]
-        if ms.detected_ads_total > 0:
-            ms.tokens_per_detected_ad = ms.output_tokens_total / ms.detected_ads_total
+        f1s = list(ms.f1_per_episode.values())
+        ms.avg_f1 = statistics.fmean(f1s) if f1s else 0.0
+        stdevs = list(ms.f1_stdev_per_episode.values())
+        ms.mean_f1_stdev = statistics.fmean(stdevs) if stdevs else 0.0
         out[model] = ms
     extras = _Extras(
         calibration=dict(calibration),
         agreement=dict(agreement),
         detection_buckets={k: {b: dict(buckets) for b, buckets in v.items()} for k, v in detection_buckets.items()},
-        output_tokens_per_model=dict(output_tokens_per_model),
-        detected_ads_per_model=dict(detected_ads_per_model),
-        response_times_per_model=dict(response_times_per_model),
     )
     return out, extras
 
 
 def _recompute_total_cost(records: list[dict], snap: pricing.PricingSnapshot) -> float:
+    if not records:
+        return 0.0
+    price = snap.lookup(records[0]["model"])
+    if price is None:
+        return 0.0
     total = 0.0
     for r in records:
-        price = snap.lookup(r["model"])
-        if price is None:
-            continue
         _, _, cost = pricing.cost_usd(price, input_tokens=int(r.get("input_tokens", 0)), output_tokens=int(r.get("output_tokens", 0)))
         total += cost
     return total
@@ -354,6 +370,25 @@ def _start(ad: dict) -> float:
 
 def _end(ad: dict) -> float:
     return float(ad.get("end", ad.get("end_time", 0.0)))
+
+
+def _length_bucket(seconds: float) -> str:
+    if seconds < 30:
+        return "short (<30s)"
+    if seconds < 90:
+        return "medium (30-90s)"
+    return "long (>=90s)"
+
+
+def _position_bucket(start: float, duration: float) -> str:
+    if duration <= 0:
+        return "unknown"
+    rel = start / duration
+    if rel < 0.10:
+        return "pre-roll (<10%)"
+    if rel > 0.90:
+        return "post-roll (>90%)"
+    return "mid-roll (10-90%)"
 
 
 def _percentile(sorted_values: list[int], p: int) -> float:
@@ -485,7 +520,6 @@ def _render_failures(calls: list[dict]) -> str:
             "No call errors observed across this run. Every (model, episode, trial, window) tuple returned a parseable response.\n"
         )
 
-    # Classify each error message into a coarse bucket so the per-bucket call-out is meaningful.
     def bucket(msg: str) -> str:
         m = msg.lower()
         if "data_inspection_failed" in m or "inappropriate content" in m: return "Provider content moderation rejection"
@@ -494,11 +528,14 @@ def _render_failures(calls: list[dict]) -> str:
         if "404" in m: return "Unknown model (404)"
         if "temperature" in m and "deprecated" in m: return "Deprecated parameter (`temperature`)"
         if "401" in m or "unauthor" in m: return "Auth failure"
-        if "5" in m[:5] and "00" in m[:8]: return "Server-side 5xx"
+        if _SERVER_5XX_RE.search(m): return "Server-side 5xx"
         return "Other"
 
     by_bucket: dict[str, list[dict]] = defaultdict(list)
     by_model: dict[str, int] = defaultdict(int)
+    calls_by_model: dict[str, int] = defaultdict(int)
+    for r in calls:
+        calls_by_model[r["model"]] += 1
     for r in errors:
         err = r.get("error", {})
         msg = (err.get("message") if isinstance(err, dict) else str(err)) or ""
@@ -532,7 +569,7 @@ def _render_failures(calls: list[dict]) -> str:
         "|---|---:|---:|",
     ]
     for m in sorted(by_model, key=lambda k: -by_model[k]):
-        total = sum(1 for r in calls if r["model"] == m)
+        total = calls_by_model[m]
         lines.append(f"| `{m}` | {by_model[m]} | {by_model[m]}/{total} ({by_model[m] * 100.0 / total:.1f}%) |")
 
     lines += [
@@ -745,7 +782,7 @@ def _render_run_metadata(
     lines = [
         "### Run Metadata",
         "",
-        f"- Report generated: {datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')}",
+        f"- Report generated: {utc_now_iso()}",
         f"- Unique work units (current state, last-write-wins after retries): {total_calls}",
     ]
     if raw_calls is not None and len(raw_calls) != total_calls:
@@ -763,8 +800,7 @@ def _render_run_metadata(
 
 
 def _avg_f1(stats: ModelStats) -> float:
-    values = list(stats.f1_per_episode.values())
-    return statistics.fmean(values) if values else 0.0
+    return stats.avg_f1
 
 
 def _render_pareto(stats: dict[str, ModelStats], path: Path) -> None:
@@ -946,8 +982,8 @@ def _render_calibration_table(calibration: dict[str, list[tuple[float, bool]]]) 
     Reveals overconfident models (e.g., phi-4 reports ~0.95 confidence on
     detections that are wrong nearly all the time).
     """
-    bins = [(0.0, 0.7), (0.7, 0.9), (0.9, 0.95), (0.95, 0.99), (0.99, 1.001)]
-    bin_labels = ["0.00-0.70", "0.70-0.90", "0.90-0.95", "0.95-0.99", "0.99+"]
+    bins = CALIBRATION_BINS
+    bin_labels = CALIBRATION_BIN_LABELS
     lines = [
         "## Confidence calibration",
         "",
@@ -1051,7 +1087,7 @@ def _render_cross_model_agreement(
     if not agreement:
         return ""
     n_models = len(stats)
-    bins = collections_Counter()
+    bins = Counter()
     for (_, _), per_model in agreement.items():
         n_voted = sum(1 for v in per_model.values() if v > 0)
         bins[n_voted] += 1
@@ -1209,8 +1245,8 @@ def _render_calibration_chart(
     import matplotlib.pyplot as plt
     import numpy as np
 
-    bins = [(0.0, 0.7), (0.7, 0.9), (0.9, 0.95), (0.95, 0.99), (0.99, 1.001)]
-    bin_labels = ["0.00-0.70", "0.70-0.90", "0.90-0.95", "0.95-0.99", "0.99+"]
+    bins = CALIBRATION_BINS
+    bin_labels = CALIBRATION_BIN_LABELS
     bin_midpoints = [(lo + min(hi, 1.0)) / 2 for lo, hi in bins]
 
     # Build the (model, bin) matrices: actual hit rate, sample count, calibration error.
@@ -1567,15 +1603,15 @@ def _render_trial_variance_chart(stats: dict[str, ModelStats], path: Path) -> No
     rows.sort(key=lambda t: t[1])
     labels = [r[0].model for r in rows]
     values = [r[1] for r in rows]
-    colors = ["#2ca02c" if v < 0.02 else "#f0a020" if v < 0.05 else "#d62728" for v in values]
+    colors = ["#2ca02c" if v < F1_STDEV_STABLE else "#f0a020" if v < F1_STDEV_WOBBLY else "#d62728" for v in values]
 
     fig, ax = plt.subplots(figsize=(11, max(5, 0.40 * len(rows))))
     bars = ax.barh(labels, values, color=colors, edgecolor="black", linewidth=0.4)
     for bar, v in zip(bars, values):
         ax.text(v + max(values) * 0.01, bar.get_y() + bar.get_height() / 2,
                 f"{v:.4f}", va="center", fontsize=8)
-    ax.axvline(0.02, color="gray", linestyle=":", linewidth=0.8, alpha=0.7)
-    ax.axvline(0.05, color="gray", linestyle=":", linewidth=0.8, alpha=0.7)
+    ax.axvline(F1_STDEV_STABLE, color="gray", linestyle=":", linewidth=0.8, alpha=0.7)
+    ax.axvline(F1_STDEV_WOBBLY, color="gray", linestyle=":", linewidth=0.8, alpha=0.7)
     ax.set_xlabel("Mean F1 stdev across episodes (lower is more deterministic at temp=0)", fontsize=10)
     ax.set_title("Trial-to-trial F1 variance per model", fontsize=11, fontweight="bold")
     ax.grid(True, axis="x", alpha=0.3)
@@ -1694,6 +1730,3 @@ def _render_parser_stress_chart(stats: dict[str, ModelStats], path: Path) -> Non
     plt.close(fig)
 
 
-# Local alias to avoid importing collections at module top-level just for one Counter.
-import collections as _collections  # noqa: E402
-collections_Counter = _collections.Counter

@@ -22,6 +22,8 @@ from pathlib import Path
 
 from rapidfuzz import fuzz
 
+from utils.time import parse_timestamp as _parse_ts
+
 NO_ADS_MARKER_RE = re.compile(r"^#\s*Verified:\s*no ads", re.IGNORECASE)
 LABEL_RE = re.compile(r"^(start|end|text)\s*:\s*(.*)$", re.IGNORECASE)
 
@@ -188,15 +190,7 @@ def _parse_block(block: list[tuple[int, str]]) -> Ad:
 
 
 def parse_timestamp(value: str, *, line: int | None = None) -> float:
-    parts = value.split(":")
     try:
-        nums = [float(p) for p in parts]
+        return _parse_ts(value)
     except ValueError:
         raise TruthParseError(f"invalid timestamp {value!r}", line=line)
-    if len(nums) == 1:
-        return nums[0]
-    if len(nums) == 2:
-        return nums[0] * 60 + nums[1]
-    if len(nums) == 3:
-        return nums[0] * 3600 + nums[1] * 60 + nums[2]
-    raise TruthParseError(f"invalid timestamp {value!r}", line=line)

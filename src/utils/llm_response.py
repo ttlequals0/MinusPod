@@ -150,7 +150,55 @@ def extract_json_ads_array(
                 f"(length={len(json_str)}, start={json_str[:50]!r}, end={json_str[-50:]!r})"
             )
 
+    salvaged = _salvage_truncated_single_ad(response_text)
+    if salvaged is not None:
+        logger.info(
+            f"[{slug}:{episode_id}] Salvaged truncated single-ad JSON "
+            f"(model hit max_tokens mid-response)"
+        )
+        return [salvaged], "json_object_single_ad_truncated"
+
     return None, None
+
+
+_TRUNC_NUMERIC_RE = re.compile(r'"(\w+)"\s*:\s*(-?\d+(?:\.\d+)?)')
+_TRUNC_STRING_RE = re.compile(r'"(\w+)"\s*:\s*"([^"]{0,500})')
+
+
+def _salvage_truncated_single_ad(response_text: str) -> Optional[dict]:
+    """Recover a usable ad dict from a response that started as a single-ad
+    JSON object but ran out of token budget mid-response.
+
+    Observed in the offline benchmark with models that emit verbose ``reason``
+    fields and hit ``max_tokens`` before closing the object (Microsoft phi-4
+    was the canonical case). The four upstream strategies all bail because
+    the JSON is structurally invalid: no closing brace, often an unclosed
+    string literal at the very end. We regex-extract the numeric fields and
+    optionally the partial reason, then return the dict only if both ``start``
+    and ``end`` were recovered. Without those two, downstream IoU matching
+    can't do anything with the row, so we'd rather report no-ad than fabricate.
+    """
+    text = response_text.lstrip()
+    if not text.startswith("{"):
+        return None
+    fields: dict = {}
+    for m in _TRUNC_NUMERIC_RE.finditer(text):
+        key, raw = m.group(1), m.group(2)
+        if key in ("start", "end", "confidence", "start_time", "end_time",
+                  "start_seconds", "end_seconds"):
+            try:
+                fields[key] = float(raw)
+            except ValueError:
+                continue
+    for m in _TRUNC_STRING_RE.finditer(text):
+        key, val = m.group(1), m.group(2)
+        if key in ("reason", "sponsor", "advertiser", "end_text", "description"):
+            fields.setdefault(key, val)
+    start_ok = "start" in fields or "start_time" in fields or "start_seconds" in fields
+    end_ok = "end" in fields or "end_time" in fields or "end_seconds" in fields
+    if start_ok and end_ok:
+        return fields
+    return None
 
 
 def find_first_dict_with_key(obj, key: str) -> Optional[dict]:

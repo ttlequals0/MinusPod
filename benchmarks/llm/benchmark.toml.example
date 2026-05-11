@@ -49,6 +49,11 @@ temperature = 0.0
 timeout_seconds = 180
 max_retries = 3
 response_format = "json_object"
+# max_tokens defaults to MinusPod's AD_DETECTION_MAX_TOKENS (4096) so the
+# benchmark matches production by default. Override here if you want to give
+# reasoning models more headroom for the benchmark only. The AD_DETECTION_MAX_TOKENS
+# env var still controls production; this setting is benchmark-only.
+# max_tokens = 8192
 max_concurrent_calls = 8
 max_concurrent_per_provider = 4
 

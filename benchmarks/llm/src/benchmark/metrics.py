@@ -144,11 +144,27 @@ class SchemaViolations:
 
 
 REQUIRED_AD_KEYS = ("start", "end")
+
+
+def _production_known_keys() -> tuple[str, ...]:
+    """Mirror the production parser's known-field set so the benchmark's
+    schema_audit doesn't penalize models for emitting fields the live app accepts.
+    """
+    extras: set[str] = set()
+    try:
+        from utils.constants import STRUCTURAL_FIELDS, SPONSOR_PRIORITY_FIELDS  # type: ignore[import-not-found]
+        extras |= {k.lower() for k in STRUCTURAL_FIELDS}
+        extras |= {k.lower() for k in SPONSOR_PRIORITY_FIELDS}
+    except Exception:
+        pass
+    return tuple(extras)
+
+
 KNOWN_OPTIONAL_KEYS = (
     "confidence", "reason", "advertiser", "description",
     "continues_from_previous", "continues_in_next",
     "start_time", "end_time", "text",
-)
+) + _production_known_keys()
 
 
 def schema_audit(parsed_ads: list[dict]) -> SchemaViolations:

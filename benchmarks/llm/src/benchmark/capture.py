@@ -9,6 +9,8 @@ from pathlib import Path
 
 import httpx
 
+from utils.time import format_time
+
 from .auth import Session
 from .corpus import (
     CorpusError,
@@ -271,15 +273,9 @@ def _format_ad_block(marker: dict, segments: list[dict], *, commented: bool) -> 
     text = " ".join(s.get("text", "").strip() for s in covering).strip() or "(transcript unavailable for this range)"
     prefix = "# " if commented else ""
     return [
-        f"{prefix}start: {_format_time(start)}",
-        f"{prefix}end:   {_format_time(end)}",
+        f"{prefix}start: {format_time(start)}",
+        f"{prefix}end:   {format_time(end)}",
         f"{prefix}text:  {text}",
     ]
 
 
-def _format_time(t: float) -> str:
-    hours, rem = divmod(t, 3600)
-    minutes, seconds = divmod(rem, 60)
-    if hours >= 1:
-        return f"{int(hours)}:{int(minutes):02d}:{seconds:05.2f}"
-    return f"{int(minutes)}:{seconds:05.2f}"

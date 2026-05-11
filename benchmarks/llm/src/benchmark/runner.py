@@ -4,10 +4,12 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterable
+
+from utils.time import utc_now_iso
 
 from . import llm, parsing, pricing
 from .config import BenchmarkConfig
@@ -205,7 +207,7 @@ async def run(
                     system_prompt=system_prompt,
                     user_prompt=user_prompt,
                     temperature=cfg.run.temperature,
-                    max_tokens=4096,
+                    max_tokens=cfg.run.max_tokens,
                     timeout=cfg.run.timeout_seconds,
                     response_format=cfg.run.response_format,
                     max_retries=cfg.run.max_retries,
@@ -239,7 +241,7 @@ async def run(
             record = {
                 "schema_version": SCHEMA_VERSION,
                 "call_id": call_id,
-                "timestamp": _utc_now(),
+                "timestamp": utc_now_iso(),
                 "model": unit.model_id,
                 "provider_config": unit.provider_name,
                 "underlying_provider": underlying_provider,
@@ -261,7 +263,7 @@ async def run(
                 "extraction_method": extraction_method,
                 "compliance_score": comp,
                 "parsed_ads": parsed_ads,
-                "schema_violations": _violations_dict(violations),
+                "schema_violations": asdict(violations),
                 "windows_stale": False,
                 "error": error_payload,
             }
@@ -328,22 +330,8 @@ def _parse_response(text: str) -> tuple[list[dict], str | None]:
     return list(parsed), method
 
 
-def _violations_dict(v) -> dict:
-    return {
-        "missing_required": v.missing_required,
-        "wrong_type": v.wrong_type,
-        "extra_keys": v.extra_keys,
-        "out_of_range": v.out_of_range,
-        "extra_key_names": v.extra_key_names,
-    }
-
-
 def _call_id(unit: WorkUnit, prompt_hash: str) -> str:
     safe_model = unit.model_id.replace("/", "_").replace(":", "_")
     short_hash = prompt_hash.split(":", 1)[-1][:12]
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     return f"{safe_model}_{unit.episode_id}_t{unit.trial}_w{unit.window_index}_{short_hash}_{ts}"
-
-
-def _utc_now() -> str:
-    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")

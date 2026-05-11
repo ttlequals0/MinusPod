@@ -79,9 +79,10 @@ def test_call_id_is_deterministic_shape():
 
 
 def test_violations_dict_round_trip():
+    from dataclasses import asdict
     from benchmark.metrics import schema_audit
     v = schema_audit([{"start": 0, "end": 10, "extra1": "x"}])
-    d = runner._violations_dict(v)
+    d = asdict(v)
     assert d["extra_keys"] == 1
     assert d["extra_key_names"] == ["extra1"]
 

@@ -190,3 +190,47 @@ def test_ad_detector_reexports_legacy_names():
         [{'start': 1}],
         'json_array_direct',
     )
+
+
+def test_salvage_truncated_single_ad_recovers_start_end():
+    """Models that hit max_tokens mid-`reason` field leave structurally-invalid
+    JSON. The salvage strategy regex-extracts numeric fields and returns a
+    usable single-ad dict when both start and end were captured before
+    truncation.
+    """
+    from utils.llm_response import extract_json_ads_array
+    text = (
+        '{\n'
+        '  "start": 66.99,\n'
+        '  "end": 67.25,\n'
+        '  "confidence": 0.95,\n'
+        '  "reason": "Long preamble about the model thinking very carefully'  # truncated, no closing quote / brace
+    )
+    ads, method = extract_json_ads_array(text)
+    assert method == "json_object_single_ad_truncated"
+    assert ads is not None and len(ads) == 1
+    assert ads[0]["start"] == 66.99
+    assert ads[0]["end"] == 67.25
+    assert ads[0]["confidence"] == 0.95
+
+
+def test_salvage_truncated_returns_none_without_start_or_end():
+    """If the truncation happened before start/end were emitted, the dict
+    is unusable; salvage must decline rather than fabricate.
+    """
+    from utils.llm_response import extract_json_ads_array
+    text = '{"reason": "I think there might be an ad here'
+    ads, method = extract_json_ads_array(text)
+    assert ads is None and method is None
+
+
+def test_salvage_skips_when_text_starts_with_bracket():
+    """Truncated array responses go through bracket_fallback / regex_json_array
+    already. The single-ad salvage is single-object-only by design.
+    """
+    from utils.llm_response import extract_json_ads_array
+    text = '[{"start": 10, "end": 20'
+    ads, method = extract_json_ads_array(text)
+    # Should NOT come back as json_object_single_ad_truncated. The earlier
+    # strategies will either parse partially or return None; either is fine.
+    assert method != "json_object_single_ad_truncated"

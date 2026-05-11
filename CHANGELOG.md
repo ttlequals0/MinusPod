@@ -6,6 +6,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.7] - 2026-05-10
+
+### Added
+
+- LLM parser strategy 4: salvage a single-ad dict from responses that ran out of token budget mid-output. Triggered after the existing four strategies fail on structurally invalid JSON (no closing brace, unclosed string). Regex-extracts the numeric fields (`start`, `end`, `confidence`, `*_time`, `*_seconds`) and partial string fields (`reason`, `sponsor`, `advertiser`, `end_text`, `description`), returning the dict only when both `start` and `end` were recovered. Observed on Microsoft phi-4 in the offline benchmark; production hits this when a model emits a verbose `reason` field and saturates `AD_DETECTION_MAX_TOKENS`. Extraction method label: `json_object_single_ad_truncated`.
+
+### Changed
+
+- Benchmark `max_tokens` is now config-driven via `[run].max_tokens` in `benchmark.toml`, defaulting to production's `AD_DETECTION_MAX_TOKENS` so the benchmark matches the live app's budget by default. Reasoning models that need more headroom can override locally without touching production config.
+- Benchmark `schema_audit` now imports production's `STRUCTURAL_FIELDS` and `SPONSOR_PRIORITY_FIELDS` to stop flagging fields the live parser already accepts (`end_text`, `sponsor`, etc.) as `extra_keys`. Prior runs reported ~9,898 spurious violations on those two field names alone.
+- Benchmark code-quality cleanup: removed local duplicates of `parse_timestamp` and `format_time` in favor of `utils.time`; replaced hand-rolled `_violations_dict` with `dataclasses.asdict`; converted derived `ModelStats` fields (`cost_per_tp`, `tokens_per_detected_ad`) to `@property`; precomputed per-model indexes in `_aggregate` and per-model call counts in `_render_failures`; cached `avg_f1` and `mean_f1_stdev` on `ModelStats`; tightened the HTTP-5xx error classifier to use `\b5\d{2}\b` instead of fragile substring matching; extracted `_length_bucket` and `_position_bucket` helpers from inline ternaries.
+
 ## [2.1.6] - 2026-05-09
 
 ### Changed

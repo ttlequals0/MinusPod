@@ -8,9 +8,9 @@ from benchmark.capture import (
     _build_truth_template,
     _classify_marker,
     _format_ad_block,
-    _format_time,
     parse_episode_url,
 )
+from utils.time import format_time
 
 
 def test_parse_episode_url():
@@ -36,7 +36,7 @@ def test_parse_episode_url_invalid():
     (3661.5, "1:01:01.50"),
 ])
 def test_format_time(seconds, expected):
-    assert _format_time(seconds) == expected
+    assert format_time(seconds) == expected
 
 
 def test_truth_template_with_markers():

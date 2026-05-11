@@ -30,6 +30,15 @@ class ModelConfig:
     deprecated: bool = False
 
 
+def _default_max_tokens() -> int:
+    """Default the benchmark's max_tokens to production's AD_DETECTION_MAX_TOKENS."""
+    try:
+        from config import AD_DETECTION_MAX_TOKENS  # type: ignore[import-not-found]
+        return int(AD_DETECTION_MAX_TOKENS)
+    except Exception:
+        return 4096
+
+
 @dataclass(frozen=True)
 class RunConfig:
     trials: int = 5
@@ -37,6 +46,7 @@ class RunConfig:
     timeout_seconds: int = 180
     max_retries: int = 3
     response_format: str = "json_object"
+    max_tokens: int = 4096  # actual default resolved at parse time via _default_max_tokens()
     max_concurrent_calls: int = 8
     max_concurrent_per_provider: int = 4
 
@@ -117,6 +127,7 @@ def _parse(raw: dict[str, Any], base_dir: Path) -> BenchmarkConfig:
         timeout_seconds=int(run_raw.get("timeout_seconds", 180)),
         max_retries=int(run_raw.get("max_retries", 3)),
         response_format=str(run_raw.get("response_format", "json_object")),
+        max_tokens=int(run_raw.get("max_tokens", _default_max_tokens())),
         max_concurrent_calls=int(run_raw.get("max_concurrent_calls", 8)),
         max_concurrent_per_provider=int(run_raw.get("max_concurrent_per_provider", 4)),
     )
