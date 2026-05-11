@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Benchmark `schema_audit` now imports production's `STRUCTURAL_FIELDS` and `SPONSOR_PRIORITY_FIELDS` to stop flagging fields the live parser already accepts (`end_text`, `sponsor`, etc.) as `extra_keys`. Prior runs reported ~9,898 spurious violations on those two field names alone.
 - Benchmark code-quality cleanup: removed local duplicates of `parse_timestamp` and `format_time` in favor of `utils.time`; replaced hand-rolled `_violations_dict` with `dataclasses.asdict`; converted derived `ModelStats` fields (`cost_per_tp`, `tokens_per_detected_ad`) to `@property`; precomputed per-model indexes in `_aggregate` and per-model call counts in `_render_failures`; cached `avg_f1` and `mean_f1_stdev` on `ModelStats`; tightened the HTTP-5xx error classifier to use `\b5\d{2}\b` instead of fragile substring matching; extracted `_length_bucket` and `_position_bucket` helpers from inline ternaries.
 
+### Security
+
+- **Accepted CVE (no fix available)**: CVE-2026-31431 in `linux-libc-dev` (HIGH). The package provides kernel ABI headers from the ubuntu 24.04 base; it is used only at build time and not loaded at runtime. There is no upstream patch as of release. Both `2.1.7` and `2.1.7-cpu` images carry the same finding; it goes away when ubuntu publishes the fixed kernel-headers package.
+
 ### Dependencies
 
 - bump anthropic 0.97.0 -> 0.100.0
