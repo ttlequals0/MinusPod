@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.1.9] - 2026-05-11
+
+### Fixed
+
+- **PWA still blank on iOS after 2.1.8**. The 2.1.8 router migration was correct, but 2.1.8 also shipped React error #527 ("two React instances, version mismatch") because Dependabot PR #210 bumped `react` 19.2.5 -> 19.2.6 without also bumping `react-dom`. The 2.1.8 bundle ended up with `react@19.2.6` + `react-dom@19.2.5`, which throws on app init. Fix bumps `react-dom` to `^19.2.6` so both packages move together. Verified the rebuilt 2.1.9 bundle contains only the `19.2.6` version string.
+
 ## [2.1.8] - 2026-05-11
 
 ### Security
