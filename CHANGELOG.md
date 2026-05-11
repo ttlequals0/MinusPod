@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.1.8] - 2026-05-11
 
+### Security
+
+- Bump `urllib3` 2.6.3 -> 2.7.0 to clear CVE-2026-44431 and CVE-2026-44432 (both HIGH). Pulled in as a transitive of `requests`. Pinned in `requirements.in` so future `pip-compile` runs don't drift back.
+
 ### Fixed
 
 - **iOS PWA blank screen on 2.1.7**. The 2.1.7 bump of `react-router-dom` 6.30.3 -> 7.15.0 broke `<BrowserRouter basename="/ui">` initialization under iOS WKWebView. Desktop browsers rendered fine; the installed iOS PWA loaded the bundle but rendered an empty `<div id="root">`. Fix migrates `frontend/src/App.tsx` from the v6 `<BrowserRouter>` + `<Routes>` + `<Route>` shape to v7's `createBrowserRouter([...], { basename: "/ui" })` + `<RouterProvider>` data-router shape. All page hooks (`useNavigate`, `useParams`, `useLocation`, `useSearchParams`, `Outlet`, `Link`, `Navigate`) are unchanged between v6 and v7, so no call sites were touched.
