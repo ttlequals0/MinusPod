@@ -199,8 +199,18 @@ export function AdEditor({
     }
   };
 
+  // The key forces a clean remount whenever the mode flips or the
+  // user switches between detected ads. Without this, the modal's
+  // internal useState hooks (adStart, adEnd, peaks, wavesurfer ref,
+  // etc.) retain values from the prior view and bleed across the
+  // mode change, which manifested as "two stacked editors" in 2.2.5.
+  const modalKey = internalCreateMode
+    ? 'create'
+    : `review-${item.start.toFixed(3)}-${item.end.toFixed(3)}`;
+
   return (
     <AdReviewModal
+      key={modalKey}
       item={item}
       mode={internalCreateMode ? 'create' : 'review'}
       onClose={handleClose}

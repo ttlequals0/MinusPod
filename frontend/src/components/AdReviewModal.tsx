@@ -418,7 +418,10 @@ function AdReviewModal({
     const t = setTimeout(() => {
       getTranscriptSpan(item.podcastSlug, item.episodeId, adStart, adEnd)
         .then((res) => {
-          setTextTemplateInput((prev) => (prev.length === 0 ? res.text : prev));
+          // Always overwrite so the field tracks the current bounds.
+          // The text template is meant to be derived from the window;
+          // manual edits get clobbered on the next pin move by design.
+          setTextTemplateInput(res.text);
         })
         .catch(() => {});
     }, 250);
@@ -985,25 +988,30 @@ function AdReviewModal({
         {/* Window controls + reset */}
         {/* Window header strip. ±1m buttons removed per the 2.2.0 plan;
             the keyboard (`,` / `.`) handler still expands/shrinks the
-            window, and pin drag controls the ad boundaries themselves. */}
+            window, and pin drag controls the ad boundaries themselves.
+            Window time labels prefixed so they're not a bare pair of
+            numbers floating in the chrome. */}
         <div className="px-4 sm:px-6 pt-3 sm:pt-4 flex items-center justify-between gap-3 flex-wrap text-xs text-muted-foreground tabular-nums">
-          <span>{formatTime(windowStart)}</span>
-          <label className="flex items-center gap-1.5 cursor-pointer select-none">
-            <input
-              type="checkbox"
-              checked={playWhileDrag}
-              onChange={(e) => {
-                setPlayWhileDrag(e.target.checked);
-                savePlayWhileDragging(e.target.checked);
-              }}
-              className="accent-primary"
-            />
-            <span>Play audio while dragging pin</span>
-          </label>
-          <button type="button" onClick={resetView}
-            className={`px-2 py-1 rounded ${ghostBtn}`}
-            title="Reset waveform window + ad bounds to defaults">↻ Reset</button>
-          <span>{formatTime(effectiveWindowEnd)}</span>
+          <span>
+            Window: {formatTime(windowStart)} – {formatTime(effectiveWindowEnd)}
+          </span>
+          <div className="flex items-center gap-3 flex-wrap">
+            <label className="flex items-center gap-1.5 cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={playWhileDrag}
+                onChange={(e) => {
+                  setPlayWhileDrag(e.target.checked);
+                  savePlayWhileDragging(e.target.checked);
+                }}
+                className="accent-primary"
+              />
+              <span>Play audio while dragging pin</span>
+            </label>
+            <button type="button" onClick={resetView}
+              className={`px-2 py-1 rounded ${ghostBtn}`}
+              title="Reset waveform window + ad bounds to defaults">↻ Reset</button>
+          </div>
         </div>
 
         {/* Waveform + pin overlay */}

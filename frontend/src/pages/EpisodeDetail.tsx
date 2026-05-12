@@ -176,10 +176,15 @@ function EpisodeDetail() {
     return formatStorage(mb);
   };
 
-  // Helper to find correction for an ad marker
+  // Helper to find correction for an ad marker. 'create' corrections
+  // have original_bounds=null (there is no original — it's a net-new
+  // marker); guard the dereference so iterating the corrections list
+  // doesn't crash after a create save.
   const getAdCorrection = (start: number, end: number) => {
     return episode?.corrections?.find(c =>
-      c.original_bounds.start === start && c.original_bounds.end === end
+      c.original_bounds &&
+      c.original_bounds.start === start &&
+      c.original_bounds.end === end
     );
   };
 

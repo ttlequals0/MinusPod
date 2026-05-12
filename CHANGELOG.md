@@ -6,6 +6,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.6] - 2026-05-12
+
+### Fixed
+
+- **Crash after `Save & Next` on a create-ad submission.** `getAdCorrection` at `EpisodeDetail.tsx:180` dereferenced `c.original_bounds.start` for every correction in the list. `'create'` corrections legitimately have `original_bounds=null` (no original bounds for a brand-new marker), so the first one to land after the new correction posted crashed the page with `TypeError: Cannot read properties of null (reading 'start')`. Added a null guard on the find predicate.
+- **Transcript text now refreshes when the user moves a pin in create mode.** Dropped the "only when empty" guard on the `/transcript-span` auto-fill effect. The text template is meant to be derived from the current window, so the fetch now always overwrites the field; manual edits get clobbered when the user drags a pin (acceptable trade-off — see follow-up note in plan).
+- **`+ Add new ad` from a review-mode modal no longer bleeds review state into the create form.** AdEditor now sets a `key` prop on `<AdReviewModal>` that changes on mode flip and on ad switching, forcing React to remount the modal so all `useState` hooks re-initialize from the `defaults` useMemo cleanly.
+
+### Changed
+
+- Window-times row in the modal header now reads `Window: 0:00.0 – 4:02.1` instead of two unlabeled numbers flanking the checkbox + Reset button.
+
 ## [2.2.5] - 2026-05-12
 
 ### Changed / Fixed
