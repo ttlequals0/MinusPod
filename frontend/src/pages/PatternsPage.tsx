@@ -6,6 +6,7 @@ import PatternDetailModal from '../components/PatternDetailModal';
 import LoadingSpinner from '../components/LoadingSpinner';
 
 type ScopeFilter = 'all' | 'global' | 'network' | 'podcast';
+type OriginFilter = 'all' | 'auto' | 'user';
 type SortDirection = 'asc' | 'desc';
 
 function SortHeader({
@@ -40,6 +41,7 @@ function SortHeader({
 
 function PatternsPage() {
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>('all');
+  const [originFilter, setOriginFilter] = useState<OriginFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showInactive, setShowInactive] = useState(false);
   const [selectedPattern, setSelectedPattern] = useState<AdPattern | null>(null);
@@ -88,6 +90,8 @@ function PatternsPage() {
   }, [patterns, searchParams, setSearchParams]);
 
   const filteredPatterns = patterns?.filter(pattern => {
+    if (originFilter === 'user' && pattern.created_by !== 'user') return false;
+    if (originFilter === 'auto' && pattern.created_by === 'user') return false;
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       return (
@@ -259,6 +263,23 @@ function PatternsPage() {
             </select>
           </div>
 
+          {/* Origin filter */}
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-muted-foreground">Origin:</label>
+            <select
+              value={originFilter}
+              onChange={(e) => {
+                setOriginFilter(e.target.value as OriginFilter);
+                setPage(1);
+              }}
+              className="px-3 py-1.5 text-sm bg-secondary border border-border rounded"
+            >
+              <option value="all">All</option>
+              <option value="auto">Auto</option>
+              <option value="user">Manual</option>
+            </select>
+          </div>
+
           {/* Search */}
           <div className="flex-1 min-w-[200px]">
             <input
@@ -301,6 +322,11 @@ function PatternsPage() {
               <span className="text-xs font-mono text-muted-foreground">#{pattern.id}</span>
               <div className="flex items-center gap-2">
                 {getScopeBadge(pattern)}
+                {pattern.created_by === 'user' && (
+                  <span className="px-2 py-0.5 text-xs rounded bg-amber-500/20 text-amber-600 dark:text-amber-400">
+                    Manual
+                  </span>
+                )}
                 {getStatusBadge(pattern.is_active)}
               </div>
             </div>
@@ -371,7 +397,14 @@ function PatternsPage() {
                     #{pattern.id}
                   </td>
                   <td className="px-4 py-3 overflow-hidden">
-                    {getScopeBadge(pattern)}
+                    <div className="flex items-center gap-1">
+                      {getScopeBadge(pattern)}
+                      {pattern.created_by === 'user' && (
+                        <span className="px-2 py-0.5 text-xs rounded bg-amber-500/20 text-amber-600 dark:text-amber-400">
+                          Manual
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td className="px-4 py-3 overflow-hidden">
                     <div className="text-sm font-medium text-foreground truncate">

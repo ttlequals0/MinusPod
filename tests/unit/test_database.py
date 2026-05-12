@@ -177,10 +177,11 @@ class TestAdPatternOperations:
 
     def test_create_ad_pattern(self, temp_db):
         """Create and retrieve ad pattern."""
+        sponsor_id = temp_db.create_known_sponsor(name='BetterHelp')
         pattern_id = temp_db.create_ad_pattern(
             scope='global',
             text_template='brought to you by {sponsor}',
-            sponsor='BetterHelp'
+            sponsor_id=sponsor_id
         )
 
         assert pattern_id is not None
@@ -191,19 +192,22 @@ class TestAdPatternOperations:
         slug = 'pattern-podcast'
         podcast_id = temp_db.create_podcast(slug, 'https://example.com/feed.xml', 'Pattern Test')
 
+        sponsor_id = temp_db.create_known_sponsor(name='CustomSponsor')
         pattern_id = temp_db.create_ad_pattern(
             scope='podcast',
             podcast_id=slug,
             text_template='This show is sponsored by {sponsor}',
-            sponsor='CustomSponsor'
+            sponsor_id=sponsor_id
         )
 
         assert pattern_id is not None
 
     def test_list_ad_patterns(self, temp_db):
         """List all ad patterns."""
-        temp_db.create_ad_pattern(scope='global', sponsor='SponsorA')
-        temp_db.create_ad_pattern(scope='global', sponsor='SponsorB')
+        a_id = temp_db.create_known_sponsor(name='SponsorA')
+        b_id = temp_db.create_known_sponsor(name='SponsorB')
+        temp_db.create_ad_pattern(scope='global', sponsor_id=a_id)
+        temp_db.create_ad_pattern(scope='global', sponsor_id=b_id)
 
         patterns = temp_db.get_ad_patterns()
 
@@ -224,7 +228,7 @@ class TestPatternDuration:
 
     def test_update_pattern_duration_first_sample(self, temp_db):
         """First duration sample: NULL -> value, duration_samples 0 -> 1."""
-        pattern_id = temp_db.create_ad_pattern(scope='global', sponsor='TestSponsor')
+        pattern_id = temp_db.create_ad_pattern(scope='global')
 
         row = self._get_duration_fields(temp_db, pattern_id)
         assert row['avg_duration'] is None
@@ -238,7 +242,7 @@ class TestPatternDuration:
 
     def test_update_pattern_duration_running_average(self, temp_db):
         """Subsequent samples update as running average."""
-        pattern_id = temp_db.create_ad_pattern(scope='global', sponsor='TestSponsor')
+        pattern_id = temp_db.create_ad_pattern(scope='global')
 
         temp_db.update_pattern_duration(pattern_id, 60.0)
         temp_db.update_pattern_duration(pattern_id, 80.0)
@@ -250,7 +254,7 @@ class TestPatternDuration:
 
     def test_update_pattern_duration_increments_samples(self, temp_db):
         """duration_samples increments with each update."""
-        pattern_id = temp_db.create_ad_pattern(scope='global', sponsor='TestSponsor')
+        pattern_id = temp_db.create_ad_pattern(scope='global')
 
         for i in range(5):
             temp_db.update_pattern_duration(pattern_id, 60.0)
@@ -261,7 +265,7 @@ class TestPatternDuration:
     def test_create_ad_pattern_with_duration(self, temp_db):
         """Creating a pattern with duration sets avg_duration and duration_samples=1."""
         pattern_id = temp_db.create_ad_pattern(
-            scope='global', sponsor='DurationSponsor', duration=45.5
+            scope='global', duration=45.5
         )
 
         row = self._get_duration_fields(temp_db, pattern_id)
@@ -270,7 +274,7 @@ class TestPatternDuration:
 
     def test_create_ad_pattern_without_duration(self, temp_db):
         """Creating a pattern without duration leaves avg_duration NULL, samples=0."""
-        pattern_id = temp_db.create_ad_pattern(scope='global', sponsor='NoDuration')
+        pattern_id = temp_db.create_ad_pattern(scope='global')
 
         row = self._get_duration_fields(temp_db, pattern_id)
         assert row['avg_duration'] is None

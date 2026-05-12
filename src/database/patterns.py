@@ -14,11 +14,14 @@ class PatternMixin:
         """Get ad patterns with optional filtering. Includes podcast_name when available."""
         conn = self.get_connection()
 
-        # Join with podcasts to get podcast name (podcast_id stores slugs since v0.1.194)
+        # Join with podcasts for podcast name + known_sponsors for sponsor name
+        # (podcast_id stores slugs since v0.1.194; sponsor moved to FK in v2.2.0)
         query = """
-            SELECT ap.*, p.title as podcast_name, p.slug as podcast_slug
+            SELECT ap.*, ks.name AS sponsor,
+                   p.title as podcast_name, p.slug as podcast_slug
             FROM ad_patterns ap
             LEFT JOIN podcasts p ON ap.podcast_id = p.slug
+            LEFT JOIN known_sponsors ks ON ap.sponsor_id = ks.id
             WHERE 1=1
         """
         params = []
@@ -60,8 +63,10 @@ class PatternMixin:
         """
         conn = self.get_connection()
         cursor = conn.execute(
-            "SELECT DISTINCT lower(sponsor) AS s FROM ad_patterns "
-            "WHERE is_active = 1 AND sponsor IS NOT NULL"
+            """SELECT DISTINCT LOWER(ks.name) AS s
+               FROM ad_patterns ap
+               JOIN known_sponsors ks ON ap.sponsor_id = ks.id
+               WHERE ap.is_active = 1"""
         )
         return {row['s'] for row in cursor.fetchall() if row['s']}
 
@@ -69,9 +74,11 @@ class PatternMixin:
         """Get a single ad pattern by ID with podcast info."""
         conn = self.get_connection()
         cursor = conn.execute(
-            """SELECT ap.*, p.title as podcast_name, p.slug as podcast_slug
+            """SELECT ap.*, ks.name AS sponsor,
+                      p.title as podcast_name, p.slug as podcast_slug
                FROM ad_patterns ap
                LEFT JOIN podcasts p ON ap.podcast_id = p.slug
+               LEFT JOIN known_sponsors ks ON ap.sponsor_id = ks.id
                WHERE ap.id = ?""",
             (pattern_id,)
         )
@@ -83,36 +90,44 @@ class PatternMixin:
         conn = self.get_connection()
         if podcast_id:
             cursor = conn.execute(
-                "SELECT * FROM ad_patterns WHERE text_template = ? AND podcast_id = ?",
+                """SELECT ap.*, ks.name AS sponsor
+                   FROM ad_patterns ap
+                   LEFT JOIN known_sponsors ks ON ap.sponsor_id = ks.id
+                   WHERE ap.text_template = ? AND ap.podcast_id = ?""",
                 (text_template, podcast_id)
             )
         else:
             cursor = conn.execute(
-                "SELECT * FROM ad_patterns WHERE text_template = ? AND podcast_id IS NULL",
+                """SELECT ap.*, ks.name AS sponsor
+                   FROM ad_patterns ap
+                   LEFT JOIN known_sponsors ks ON ap.sponsor_id = ks.id
+                   WHERE ap.text_template = ? AND ap.podcast_id IS NULL""",
                 (text_template,)
             )
         row = cursor.fetchone()
         return dict(row) if row else None
 
     def create_ad_pattern(self, scope: str, text_template: str = None,
-                          sponsor: str = None, podcast_id: str = None,
+                          sponsor_id: int = None, podcast_id: str = None,
                           network_id: str = None, dai_platform: str = None,
                           intro_variants: List[str] = None,
                           outro_variants: List[str] = None,
                           created_from_episode_id: str = None,
-                          duration: float = None) -> int:
+                          duration: float = None,
+                          created_by: str = 'auto') -> int:
         """Create a new ad pattern. Returns pattern ID."""
         conn = self.get_connection()
         cursor = conn.execute(
             """INSERT INTO ad_patterns
-               (scope, text_template, sponsor, podcast_id, network_id, dai_platform,
+               (scope, text_template, sponsor_id, podcast_id, network_id, dai_platform,
                 intro_variants, outro_variants, created_from_episode_id,
-                avg_duration, duration_samples)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (scope, text_template, sponsor, podcast_id, network_id, dai_platform,
+                avg_duration, duration_samples, created_by)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (scope, text_template, sponsor_id, podcast_id, network_id, dai_platform,
              json.dumps(intro_variants or []), json.dumps(outro_variants or []),
              created_from_episode_id,
-             duration, 1 if duration is not None else 0)
+             duration, 1 if duration is not None else 0,
+             created_by)
         )
         conn.commit()
         return cursor.lastrowid
@@ -124,10 +139,10 @@ class PatternMixin:
         fields = []
         values = []
         for key, value in kwargs.items():
-            if key in ('scope', 'text_template', 'sponsor', 'podcast_id', 'network_id',
+            if key in ('scope', 'text_template', 'sponsor_id', 'podcast_id', 'network_id',
                        'dai_platform', 'confirmation_count', 'false_positive_count',
                        'last_matched_at', 'is_active', 'disabled_at', 'disabled_reason',
-                       'avg_duration', 'duration_samples'):
+                       'avg_duration', 'duration_samples', 'created_by'):
                 fields.append(f"{key} = ?")
                 values.append(value)
             elif key in ('intro_variants', 'outro_variants'):
@@ -196,18 +211,19 @@ class PatternMixin:
     def create_pattern_correction(self, correction_type: str, pattern_id: int = None,
                                    episode_id: str = None, podcast_title: str = None,
                                    episode_title: str = None, original_bounds: Dict = None,
-                                   corrected_bounds: Dict = None, text_snippet: str = None) -> int:
+                                   corrected_bounds: Dict = None, text_snippet: str = None,
+                                   sponsor_id: int = None) -> int:
         """Create a pattern correction record. Returns correction ID."""
         conn = self.get_connection()
         cursor = conn.execute(
             """INSERT INTO pattern_corrections
                (pattern_id, episode_id, podcast_title, episode_title, correction_type,
-                original_bounds, corrected_bounds, text_snippet)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                original_bounds, corrected_bounds, text_snippet, sponsor_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (pattern_id, episode_id, podcast_title, episode_title, correction_type,
              json.dumps(original_bounds) if original_bounds else None,
              json.dumps(corrected_bounds) if corrected_bounds else None,
-             text_snippet)
+             text_snippet, sponsor_id)
         )
         conn.commit()
         return cursor.lastrowid

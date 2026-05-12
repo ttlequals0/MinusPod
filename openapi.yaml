@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.1.9
+  version: 2.2.0
   contact:
     name: MinusPod
   license:
@@ -786,6 +786,91 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /feeds/{slug}/episodes/{episode_id}/peaks:
+    get:
+      tags:
+        - Episodes
+      summary: Waveform peaks for an episode window
+      description: |
+        Returns ffmpeg-derived waveform peaks for the requested window of an
+        episode's retained original audio. Drives the wavesurfer.js view in
+        the new ad editor (2.2.0+). The server auto-coarsens the resolution
+        for very long windows so the JSON payload stays bounded; the response
+        echoes the effective resolution actually used.
+      operationId: getEpisodePeaks
+      parameters:
+        - $ref: '#/components/parameters/slug'
+        - $ref: '#/components/parameters/episode_id'
+        - in: query
+          name: start
+          schema: { type: number }
+          description: Window start in seconds (default 0)
+        - in: query
+          name: end
+          schema: { type: number }
+          description: Window end in seconds (default = full duration)
+        - in: query
+          name: resolution_ms
+          schema: { type: integer }
+          description: Requested peak bucket width in ms (default 50, range 1-1000)
+      responses:
+        '200':
+          description: Peaks payload
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  episodeId: { type: string }
+                  start: { type: number }
+                  end: { type: number, nullable: true }
+                  resolutionMs: { type: integer }
+                  peaks:
+                    type: array
+                    items: { type: number }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /feeds/{slug}/episodes/{episode_id}/transcript-span:
+    get:
+      tags:
+        - Episodes
+      summary: Transcript text for a [start, end] window
+      description: |
+        Returns the transcript text that spans the requested window of an
+        episode. Used by the AdEditor create mode to auto-populate the
+        text_template field when the user marks a new ad.
+      operationId: getEpisodeTranscriptSpan
+      parameters:
+        - $ref: '#/components/parameters/slug'
+        - $ref: '#/components/parameters/episode_id'
+        - in: query
+          name: start
+          required: true
+          schema: { type: number }
+        - in: query
+          name: end
+          required: true
+          schema: { type: number }
+      responses:
+        '200':
+          description: Transcript span
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  episodeId: { type: string }
+                  start: { type: number }
+                  end: { type: number }
+                  text: { type: string }
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   /episodes/{slug}/{episode_id}/reprocess:
     post:
       tags:
@@ -1106,6 +1191,9 @@ paths:
           using TF-IDF similarity matching (threshold: 0.75)
         - adjust: Correct ad boundaries. Also creates patterns from the adjusted boundaries
           (like confirm), ensuring accurate pattern text is learned from the corrected segment
+        - create (2.2.0+): Mark a brand-new ad on an episode the detector missed. Top-level
+          start/end/sponsor/text_template required (no original_ad). Creates a new
+          pattern with created_by='user' and a pattern_corrections row of type 'create'.
       operationId: submitCorrections
       parameters:
         - $ref: '#/components/parameters/slug'

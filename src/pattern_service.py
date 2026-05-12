@@ -21,6 +21,7 @@ from config import (
 )
 from text_pattern_matcher import TextPatternMatcher
 from utils.constants import canonical_sponsor
+from sponsor_normalize import get_or_create_known_sponsor
 
 logger = logging.getLogger('podcast.patterns')
 
@@ -397,10 +398,15 @@ class PatternService:
                     best_confirmation = conf
 
             # Create merged pattern
+            merged_sponsor_name = list(sponsors)[0] if len(sponsors) == 1 else None
+            merged_sponsor_id = (
+                get_or_create_known_sponsor(self.db, merged_sponsor_name)
+                if merged_sponsor_name else None
+            )
             merged_id = self.db.create_ad_pattern(
                 scope=target_scope,
                 text_template=best_template,
-                sponsor=list(sponsors)[0] if len(sponsors) == 1 else None,
+                sponsor_id=merged_sponsor_id,
                 intro_variants=list(all_intros),
                 outro_variants=list(all_outros)
             )
@@ -679,10 +685,11 @@ class PatternService:
             )
 
             # Create new global pattern
+            sponsor_id = get_or_create_known_sponsor(self.db, sponsor)
             global_id = self.db.create_ad_pattern(
                 scope='global',
                 text_template=best_pattern.get('text_template'),
-                sponsor=sponsor,
+                sponsor_id=sponsor_id,
                 intro_variants=best_pattern.get('intro_variants', []),
                 outro_variants=best_pattern.get('outro_variants', [])
             )

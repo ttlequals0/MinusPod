@@ -6,6 +6,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2026-05-12
+
+### Added
+
+- **Create-new-ad workflow.** Mark an ad on any episode the detector missed, directly from `EpisodeDetail`. Submits via the new `'create'` correction type on `POST /api/v1/episodes/<slug>/<episode_id>/corrections`. The new marker is inserted into `ad_markers_json` (sorted by start), a new `ad_patterns` row is created with `created_by='user'`, and a `pattern_corrections` row of type `'create'` is recorded for cross-episode learning.
+- **Waveform-based ad editor.** Replaces the prior plain `<audio>` + nudge-button `AdEditor` with a wavesurfer.js v7 editor. Draggable green/red pin handles, orange playhead with 1x-20x zoom, transport bar (SkipBack / Rewind10s / Play / Forward10s / SkipForward / Stop), live INSIDE AD / OUTSIDE AD indicator, mouse-wheel zoom, keyboard hotkeys (Space / C / R / S / arrows). Mobile layout drops keyboard hotkey hints and uses touch-only controls.
+- `GET /feeds/<slug>/episodes/<episode_id>/peaks?start=&end=&resolution_ms=` returns ffmpeg-derived waveform peaks for a window. Auto-coarsens the resolution for very long windows so the JSON payload stays under ~600 KB. Drives the new editor.
+- `GET /feeds/<slug>/episodes/<episode_id>/transcript-span?start=&end=` returns the transcript text spanning a window. Used by create mode to auto-populate the new pattern's `text_template`.
+- `Accept-Ranges: bytes` advertised on `serve_original_audio` so the wavesurfer player can seek without re-downloading.
+- Manual badge + Origin filter (All / Auto / Manual) on `PatternsPage` for patterns where `created_by = 'user'`.
+
+### Changed
+
+- **Sponsor normalization via FK.** `ad_patterns.sponsor` (free-text column) replaced with `ad_patterns.sponsor_id INTEGER REFERENCES known_sponsors(id)`. `pattern_corrections.sponsor_id` added (same FK target). All sponsor writes across `pattern_service`, `text_pattern_matcher`, `database/maintenance`, `api/patterns`, and the `PUT /patterns/<id>` endpoint now flow through a single sanitization chokepoint (`src/sponsor_normalize.get_or_create_known_sponsor`). Read paths JOIN `known_sponsors` and alias `name AS sponsor` so consumers don't change.
+- `pattern_corrections.correction_type` CHECK extended to include `'auto_promotion'` (latent bug; the auto-promotion writer at `pattern_service.py:708` was writing a value the constraint rejected) and `'create'`.
+
+### Migration
+
+- One-shot migration in `_run_schema_migrations` adds the new columns, deduplicates case-variant rows in `known_sponsors` (lowest id wins), snapshots the old `ad_patterns.sponsor` text into a backup table, backfills `sponsor_id`, verifies (`PRAGMA foreign_key_check` clean + row-count parity vs the snapshot), then drops the old text column and recreates `pattern_corrections` with the extended CHECK. Each step is idempotent. On verification failure, destructive steps abort and the new columns plus backup table remain in place so the user can re-run on the next restart.
+
 ## [2.1.9] - 2026-05-11
 
 ### Fixed

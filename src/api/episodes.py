@@ -9,7 +9,7 @@ from flask import request, send_file, abort
 
 from api import (
     api, limiter, log_request, json_response, error_response,
-    get_database, get_storage,
+    get_database, get_storage, extract_transcript_segment,
 )
 from utils.episode_paths import episode_public_url
 from utils.text import parse_transcript_segments
@@ -283,7 +283,130 @@ def serve_original_audio(slug, episode_id):
     path = storage.get_original_path(slug, episode_id)
     if not path.exists():
         return error_response('Original audio file missing', 404)
-    return send_file(path, mimetype='audio/mpeg', conditional=True)
+    response = send_file(path, mimetype='audio/mpeg', conditional=True)
+    # Advertise byte-range support so the wavesurfer-based AdEditor can seek
+    # without re-downloading the file. Without this header some clients
+    # download serially and refuse to seek past the buffered tail.
+    response.headers['Accept-Ranges'] = 'bytes'
+    return response
+
+
+@api.route('/feeds/<slug>/episodes/<episode_id>/peaks', methods=['GET'])
+@log_request
+def get_episode_peaks(slug, episode_id):
+    """Return waveform peaks for the requested window of an episode.
+
+    Query params:
+        start    (float, default 0)         - window start in seconds
+        end      (float, default duration)  - window end in seconds
+        resolution_ms (int, default 50)     - peak bucket width
+
+    Used by the AdEditor's wavesurfer view to render a waveform scoped to
+    the current ad selection plus a user-selectable context window.
+    """
+    if not is_valid_episode_id(episode_id):
+        abort(400)
+    db = get_database()
+    storage = get_storage()
+    episode = db.get_episode(slug, episode_id)
+    if not episode or not episode.get('original_file'):
+        return error_response('Original audio not retained for this episode', 404)
+    path = storage.get_original_path(slug, episode_id)
+    if not path.exists():
+        return error_response('Original audio file missing', 404)
+
+    def _f(name, default=None):
+        raw = request.args.get(name)
+        if raw is None or raw == '':
+            return default
+        try:
+            return float(raw)
+        except ValueError:
+            abort(400, description=f"{name} must be a number")
+
+    def _i(name, default):
+        raw = request.args.get(name)
+        if raw is None or raw == '':
+            return default
+        try:
+            return int(raw)
+        except ValueError:
+            abort(400, description=f"{name} must be an integer")
+
+    start_seconds = _f('start', 0.0) or 0.0
+    end_seconds = _f('end')
+    resolution_ms = _i('resolution_ms', 50)
+
+    from audio_peaks import compute_peaks, PeaksError
+    try:
+        peaks, effective_resolution_ms = compute_peaks(
+            path,
+            start_seconds=start_seconds,
+            end_seconds=end_seconds,
+            resolution_ms=resolution_ms,
+        )
+    except PeaksError as e:
+        return error_response(str(e), 400)
+
+    return json_response({
+        'episodeId': episode_id,
+        'start': start_seconds,
+        'end': end_seconds,
+        # Echo the *effective* resolution. Server auto-coarsens for very
+        # long windows so the JSON payload stays bounded; callers should
+        # render based on this value, not the one they requested.
+        'resolutionMs': effective_resolution_ms,
+        'peaks': peaks,
+    })
+
+
+@api.route('/feeds/<slug>/episodes/<episode_id>/transcript-span', methods=['GET'])
+@log_request
+def get_episode_transcript_span(slug, episode_id):
+    """Return the transcript text spanning a [start, end] window.
+
+    Used by the AdEditor create mode to auto-populate the text_template
+    field from the currently selected window of the episode's VTT.
+    """
+    if not is_valid_episode_id(episode_id):
+        abort(400)
+    db = get_database()
+    episode = db.get_episode(slug, episode_id)
+    if not episode:
+        return error_response('Episode not found', 404)
+
+    def _f(name, default=None):
+        raw = request.args.get(name)
+        if raw is None or raw == '':
+            return default
+        try:
+            return float(raw)
+        except ValueError:
+            abort(400, description=f"{name} must be a number")
+
+    start_seconds = _f('start', 0.0) or 0.0
+    end_seconds = _f('end')
+    if end_seconds is None:
+        return error_response('end is required', 400)
+    if start_seconds < 0 or end_seconds <= start_seconds:
+        return error_response('require 0 <= start < end', 400)
+    duration = episode.get('original_duration') or 0
+    if duration and end_seconds > duration + 1:
+        return error_response(
+            f'end ({end_seconds}) exceeds episode duration ({duration})', 400
+        )
+
+    transcript = db.get_transcript_for_timestamps(slug, episode_id)
+    if not transcript:
+        return error_response('Transcript not available for this episode', 404)
+
+    text = extract_transcript_segment(transcript, start_seconds, end_seconds)
+    return json_response({
+        'episodeId': episode_id,
+        'start': start_seconds,
+        'end': end_seconds,
+        'text': text or '',
+    })
 
 
 @api.route('/feeds/<slug>/episodes/<episode_id>/reprocess', methods=['POST'])

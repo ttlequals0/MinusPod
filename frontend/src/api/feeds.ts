@@ -1,6 +1,48 @@
 import { apiRequest, buildQueryString, csrfHeaders } from './client';
 import { Feed, Episode, EpisodeDetail, BulkActionResult } from './types';
 
+
+export interface PeaksResponse {
+  episodeId: string;
+  start: number;
+  end: number | null;
+  resolutionMs: number;
+  peaks: number[];
+}
+
+export async function getEpisodePeaks(
+  slug: string,
+  episodeId: string,
+  start: number,
+  end: number,
+  resolutionMs = 50,
+): Promise<PeaksResponse> {
+  const qs = buildQueryString({ start, end, resolution_ms: resolutionMs });
+  return apiRequest<PeaksResponse>(
+    `/feeds/${slug}/episodes/${episodeId}/peaks${qs}`,
+  );
+}
+
+
+export interface TranscriptSpanResponse {
+  episodeId: string;
+  start: number;
+  end: number;
+  text: string;
+}
+
+export async function getTranscriptSpan(
+  slug: string,
+  episodeId: string,
+  start: number,
+  end: number,
+): Promise<TranscriptSpanResponse> {
+  const qs = buildQueryString({ start, end });
+  return apiRequest<TranscriptSpanResponse>(
+    `/feeds/${slug}/episodes/${episodeId}/transcript-span${qs}`,
+  );
+}
+
 export async function getFeeds(): Promise<Feed[]> {
   const response = await apiRequest<{ feeds: Feed[] }>('/feeds');
   return response.feeds;

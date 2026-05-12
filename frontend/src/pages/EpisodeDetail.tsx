@@ -28,6 +28,7 @@ type SaveStatus = 'idle' | 'saving' | 'success' | 'error';
 function EpisodeDetail() {
   const { slug, episodeId } = useParams<{ slug: string; episodeId: string }>();
   const [showEditor, setShowEditor] = useState(false);
+  const [createModeRequested, setCreateModeRequested] = useState(false);
   const [jumpToTime, setJumpToTime] = useState<number | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [showReprocessMenu, setShowReprocessMenu] = useState(false);
@@ -72,20 +73,34 @@ function EpisodeDetail() {
 
   // Mutation for submitting ad corrections
   const correctionMutation = useMutation({
-    mutationFn: (correction: AdCorrection) =>
-      submitCorrection(slug!, episodeId!, {
+    mutationFn: (correction: AdCorrection) => {
+      if (correction.type === 'create') {
+        return submitCorrection(slug!, episodeId!, {
+          type: 'create',
+          start: correction.start,
+          end: correction.end,
+          sponsor: correction.sponsor,
+          text_template: correction.text_template,
+          scope: correction.scope,
+          reason: correction.reason,
+        });
+      }
+      const oa = correction.originalAd!;
+      return submitCorrection(slug!, episodeId!, {
         type: correction.type,
         original_ad: {
-          start: correction.originalAd.start,
-          end: correction.originalAd.end,
-          pattern_id: correction.originalAd.pattern_id,
-          confidence: correction.originalAd.confidence,
-          reason: correction.originalAd.reason,
-          sponsor: correction.originalAd.sponsor,
+          start: oa.start,
+          end: oa.end,
+          pattern_id: oa.pattern_id,
+          confidence: oa.confidence,
+          reason: oa.reason,
+          sponsor: oa.sponsor,
         },
         adjusted_start: correction.adjustedStart,
         adjusted_end: correction.adjustedEnd,
-      }),
+        sponsor: correction.sponsor,
+      });
+    },
     onMutate: () => {
       setSaveStatus('saving');
     },
@@ -326,6 +341,45 @@ function EpisodeDetail() {
         )}
       </div>
 
+      {/* "Add new ad" entry when the LLM found nothing (or before edit). */}
+      {episode.status === 'completed' && episode.transcript &&
+       (!episode.adMarkers || episode.adMarkers.length === 0) && (
+        <div className="bg-card rounded-lg border border-border p-6 mb-6">
+          {showEditor && createModeRequested ? (
+            <AdEditor
+              detectedAds={[]}
+              audioDuration={episode.originalDuration ?? 0}
+              onCorrection={handleCorrection}
+              onClose={() => {
+                setShowEditor(false);
+                setCreateModeRequested(false);
+              }}
+              saveStatus={saveStatus}
+              createMode={true}
+            />
+          ) : (
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-foreground">No ads detected</h2>
+                <p className="text-sm text-muted-foreground">
+                  Spotted an ad the detector missed? Mark it manually so the pattern matcher learns it.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setSavedScrollY(window.scrollY);
+                  setCreateModeRequested(true);
+                  setShowEditor(true);
+                }}
+                className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+              >
+                + Add new ad
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {episode.adMarkers && episode.adMarkers.length > 0 && (
         <div className="bg-card rounded-lg border border-border p-6 mb-6">
           <div className="mb-4">
@@ -340,6 +394,7 @@ function EpisodeDetail() {
                     if (!showEditor) {
                       setSavedScrollY(window.scrollY);
                     }
+                    setCreateModeRequested(false);
                     setShowEditor(!showEditor);
                   }}
                   className="flex items-center gap-2 px-3 py-1.5 text-sm bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 transition-colors"
@@ -420,6 +475,7 @@ function EpisodeDetail() {
                 onCorrection={handleCorrection}
                 onClose={() => {
                   setShowEditor(false);
+                  setCreateModeRequested(false);
                   if (savedScrollY !== null) {
                     setTimeout(() => window.scrollTo(0, savedScrollY), 0);
                     setSavedScrollY(null);
@@ -429,6 +485,7 @@ function EpisodeDetail() {
                 saveStatus={saveStatus}
                 selectedAdIndex={editorSelectedAdIndex}
                 onSelectedAdIndexChange={setEditorSelectedAdIndex}
+                createMode={createModeRequested}
               />
             </div>
           )}
