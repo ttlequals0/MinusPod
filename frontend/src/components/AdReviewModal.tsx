@@ -6,6 +6,8 @@ import {
 import WaveSurfer from 'wavesurfer.js';
 import RegionsPlugin from 'wavesurfer.js/dist/plugins/regions.esm.js';
 import { getEpisodePeaks, getTranscriptSpan } from '../api/feeds';
+import { getSponsors } from '../api/sponsors';
+import { SponsorInput, type SponsorOption } from './ad-editor/SponsorInput';
 
 // Shape used by the per-episode AdEditor: enough to render the waveform
 // editor for a single detected ad and submit a correction back. Matches
@@ -345,6 +347,23 @@ function AdReviewModal({
   const positionBeforePinDragRef = useRef<number | null>(null);
   const [sponsorInput, setSponsorInput] = useState(item.sponsor ?? '');
   const [showSponsorPrompt, setShowSponsorPrompt] = useState(!item.sponsor);
+  // Sponsor catalog, fetched once on mount, used by the SponsorInput
+  // combobox in create mode.
+  const [sponsorOptions, setSponsorOptions] = useState<SponsorOption[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    getSponsors()
+      .then((list) => {
+        if (cancelled) return;
+        setSponsorOptions(
+          list.map((s: { id: number; name: string }) => ({ id: s.id, name: s.name }))
+        );
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   // Create-mode only: a text template the user can edit before submit.
   // Left empty here so the host can wire a transcript-span fetch into it.
   const [textTemplateInput, setTextTemplateInput] = useState('');
@@ -901,7 +920,20 @@ function AdReviewModal({
   // ------------------------------------------------------------------
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-sm p-4" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-sm p-4"
+      onMouseDown={(e) => {
+        // Only close when the bare backdrop is the actual mousedown target.
+        // Anything inside the modal panel (inputs, buttons, listbox items
+        // from a child popup, etc.) gets ignored here without needing a
+        // child stopPropagation. In create mode we never auto-close on
+        // backdrop click — the user is in the middle of data entry and
+        // an accidental tap would lose everything.
+        if (e.target !== e.currentTarget) return;
+        if (mode === 'create') return;
+        onClose();
+      }}
+    >
       <div
         className="bg-card rounded-lg border border-border w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl"
         onClick={(e) => e.stopPropagation()}
@@ -1269,12 +1301,13 @@ function AdReviewModal({
           <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-border bg-secondary/30 space-y-3">
             <label className="block text-sm font-medium text-foreground">
               Sponsor name
-              <input
-                type="text" value={sponsorInput}
-                onChange={(e) => setSponsorInput(e.target.value)}
-                placeholder="e.g. BetterHelp, Squarespace, Progressive"
-                className="mt-1 w-full px-3 py-1.5 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring text-sm"
-              />
+              <div className="mt-1">
+                <SponsorInput
+                  value={sponsorInput}
+                  onChange={setSponsorInput}
+                  sponsors={sponsorOptions}
+                />
+              </div>
             </label>
             <label className="block text-sm font-medium text-foreground">
               Text template

@@ -497,9 +497,21 @@ function EpisodeDetail() {
                     <span className={`px-1.5 py-0.5 text-xs rounded font-medium ${
                       segment.detection_stage === 'verification'
                         ? 'bg-purple-500/20 text-purple-600 dark:text-purple-400'
-                        : 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
+                        : segment.detection_stage === 'manual'
+                          ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400'
+                          : 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
                     }`}>
-                      {segment.detection_stage === 'verification' ? 'Pass 2' : 'Pass 1'}
+                      {segment.detection_stage === 'verification' ? 'Pass 2'
+                        : segment.detection_stage === 'manual' ? 'Manual'
+                        : 'Pass 1'}
+                    </span>
+                  )}
+                  {segment.sponsor && (
+                    <span
+                      className="px-1.5 py-0.5 text-xs rounded font-medium bg-muted text-muted-foreground"
+                      title="Sponsor"
+                    >
+                      {segment.sponsor}
                     </span>
                   )}
                   {segment.reviewer_verdict === 'confirmed' && (

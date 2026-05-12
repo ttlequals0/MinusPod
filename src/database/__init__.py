@@ -274,6 +274,21 @@ class Database(SchemaMixin, PodcastMixin, EpisodeMixin, SettingsMixin,
         # Run migration if needed
         self._migrate_from_json()
 
+        try:
+            conn = self.get_connection()
+            ap_count = conn.execute(
+                "SELECT COUNT(*) FROM ad_patterns WHERE is_active = 1"
+            ).fetchone()[0]
+            ks_count = conn.execute(
+                "SELECT COUNT(*) FROM known_sponsors WHERE is_active = 1"
+            ).fetchone()[0]
+            logger.info(
+                f"Pattern catalog: ad_patterns active={ap_count}, "
+                f"known_sponsors active={ks_count}"
+            )
+        except Exception as e:
+            logger.warning(f"Pattern catalog count failed: {e}")
+
     def get_connection(self) -> sqlite3.Connection:
         """Get thread-local database connection.
 

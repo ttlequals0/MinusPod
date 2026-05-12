@@ -324,6 +324,10 @@ class TextPatternMatcher:
         # Refine boundaries using intro/outro phrases
         matches = self._refine_boundaries(matches, segments, applicable_patterns)
 
+        logger.info(
+            f"Stage 2 (text pattern) considered {len(applicable_patterns)} patterns "
+            f"(of {len(self._patterns)} loaded), matched {len(matches)}"
+        )
         return matches
 
     def _filter_patterns_by_scope(

@@ -459,11 +459,20 @@ def _submit_correction_create(db, slug, episode_id, data):
             markers = json.loads(raw_markers)
         except (TypeError, ValueError):
             markers = []
+    # If the user left "Reason" blank, synthesize one so the EpisodeDetail
+    # page row has something to render (it shows segment.reason for the
+    # description line). Without this, manual markers appear as just a
+    # time range + Manual badge with no sponsor or context visible.
+    synthesized_reason = (
+        reason.strip()
+        if reason and reason.strip()
+        else f"{canonical_sponsor_name}: manually added ad"
+    )
     new_marker = {
         'start': start,
         'end': end,
         'sponsor': canonical_sponsor_name,
-        'reason': reason,
+        'reason': synthesized_reason,
         'confidence': 1.0,
         'detection_stage': 'manual',
         'pattern_id': None,

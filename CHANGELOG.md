@@ -6,6 +6,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.7] - 2026-05-12
+
+### Added
+
+- **Real sponsor autocomplete in create mode.** New `SponsorInput` combobox component renders the dropdown inside the React tree so a suggestion click stays within the modal panel (the old `<datalist>` browser-native popup escaped the modal and dismissed the editor). Includes a `+ Add new: <typed>` option when no exact match.
+- `Zyn` sponsor seed with `Zin` / `Zinn` aliases (Whisper mishears).
+
+### Changed / Fixed
+
+- **Manually-created ads now display sponsor + reason on the page row.** Backend synthesizes a `<sponsor>: manually added ad` reason when the user leaves Reason blank; frontend adds a sponsor chip alongside the time range and a `Manual` (amber) detection-stage badge.
+- **Modal can no longer be dismissed accidentally.** Backdrop close switched to `onMouseDown` with an `e.target === e.currentTarget` guard, so only clicks on the bare backdrop area trigger close. In create mode, backdrop close is disabled entirely — the user must use Cancel or X to dismiss a form they're filling out.
+- **Diagnostic logs for reprocess.** Stage 2 (text pattern) now logs `considered N patterns, matched M`. Database init logs `Pattern catalog: ad_patterns active=N, known_sponsors active=M`. Lets us distinguish "Stage 2 had 0 patterns to consider" from "Stage 2 considered many but matched 0" from "Claude returned 0".
+
+### PWA
+
+- `skipWaiting: true` + `clientsClaim: true` on the Workbox config. New deploys take over open tabs on next page load instead of waiting for all tabs to close.
+
 ## [2.2.6] - 2026-05-12
 
 ### Fixed

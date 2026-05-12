@@ -626,6 +626,7 @@ SEED_SPONSORS = [
     {"name": "Kayak", "aliases": [], "category": "travel_hospitality"},
     {"name": "Skyscanner", "aliases": [], "category": "travel_hospitality"},
     {"name": "Vrbo", "aliases": [], "category": "travel_hospitality"},
+    {"name": "Zyn", "aliases": ["ZYN", "Zin", "Zinn"], "category": "tobacco_nicotine"},
 ]
 
 # Seed data for normalizations (Whisper transcription fixes)
