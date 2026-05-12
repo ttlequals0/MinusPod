@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import WaveSurfer from 'wavesurfer.js';
 import RegionsPlugin from 'wavesurfer.js/dist/plugins/regions.esm.js';
-import { getEpisodePeaks } from '../api/feeds';
+import { getEpisodePeaks, getTranscriptSpan } from '../api/feeds';
 
 // Shape used by the per-episode AdEditor: enough to render the waveform
 // editor for a single detected ad and submit a correction back. Matches
@@ -31,6 +31,16 @@ export interface AdReviewSubmit {
   sponsor?: string;
 }
 
+export interface AdCreateSubmit {
+  kind: 'create';
+  start: number;
+  end: number;
+  sponsor: string;
+  textTemplate: string;
+  scope: 'podcast' | 'global';
+  reason: string;
+}
+
 interface Props {
   item: AdReviewItem;
   onClose: () => void;
@@ -41,6 +51,25 @@ interface Props {
   onSkip: () => void;
   // Hides the "& Next" button text when there's no queue.
   hasNext?: boolean;
+  // Audio mode: 'processed' plays the post-cut file, 'original' plays the
+  // retained pre-cut file. Original is forced in create mode (you can't
+  // mark a new ad on already-cut audio).
+  audioMode?: 'processed' | 'original';
+  onAudioModeChange?: (m: 'processed' | 'original') => void;
+  hasOriginal?: boolean;
+  processedAudioUrl?: string;
+  // Optional: total episode duration so create mode can default
+  // end-of-selection to the end of the file.
+  episodeDuration?: number;
+  // 'review' (default) is the existing flow. 'create' switches into
+  // net-new-ad mode against the original audio: empty boundaries,
+  // editable sponsor + text_template fields, and a different submit
+  // signature via onCreate.
+  mode?: 'review' | 'create';
+  onCreate?: (s: AdCreateSubmit) => void;
+  // Optional: surface a "+ Add new ad" entry inside the modal so the
+  // user can switch into create mode without closing the modal first.
+  onAddNew?: () => void;
 }
 
 const CONTEXT_SECONDS = 30;
@@ -222,7 +251,12 @@ function Pin({
 
 // ----------------------------------------------------------------------
 
-function AdReviewModal({ item, onClose, onSubmit, onSkip, hasNext = false }: Props) {
+function AdReviewModal({
+  item, onClose, onSubmit, onSkip, hasNext = false,
+  audioMode = 'original', onAudioModeChange, hasOriginal = true,
+  processedAudioUrl, episodeDuration,
+  mode = 'review', onCreate, onAddNew,
+}: Props) {
   const containerRef = useRef<HTMLDivElement>(null);   // waveform host
   const overlayRef = useRef<HTMLDivElement>(null);     // relative wrapper around waveform + pins
   const scrollContainerRef = useRef<HTMLDivElement>(null); // overflow-x-auto wrapper
@@ -233,7 +267,18 @@ function AdReviewModal({ item, onClose, onSubmit, onSkip, hasNext = false }: Pro
   const adRegionRef = useRef<ReturnType<RegionsPlugin['addRegion']> | null>(null);
 
   // Defaults derived from the original detection — used by Reset.
+  // Create mode has no detection; default to a window at episode start.
   const defaults = useMemo(() => {
+    if (mode === 'create') {
+      const fullDuration = Math.max(0, episodeDuration ?? 0);
+      const initialEnd = Math.min(DEFAULT_MAX_WINDOW_SECONDS, fullDuration || DEFAULT_MAX_WINDOW_SECONDS);
+      return {
+        windowStart: 0,
+        windowEnd: initialEnd,
+        adStart: 0,
+        adEnd: Math.min(60, initialEnd),
+      };
+    }
     const windowStart = Math.max(0, item.start - CONTEXT_SECONDS);
     const naturalEnd = item.end + CONTEXT_SECONDS;
     const cappedEnd = windowStart + DEFAULT_MAX_WINDOW_SECONDS;
@@ -247,7 +292,7 @@ function AdReviewModal({ item, onClose, onSubmit, onSkip, hasNext = false }: Pro
       adStart: (item.correctedBounds ?? item).start,
       adEnd: (item.correctedBounds ?? item).end,
     };
-  }, [item.start, item.end, item.correctedBounds]);
+  }, [mode, episodeDuration, item.start, item.end, item.correctedBounds]);
 
   const [windowStart, setWindowStart] = useState(defaults.windowStart);
   const [windowEnd, setWindowEnd] = useState(defaults.windowEnd);
@@ -278,8 +323,19 @@ function AdReviewModal({ item, onClose, onSubmit, onSkip, hasNext = false }: Pro
   const positionBeforePinDragRef = useRef<number | null>(null);
   const [sponsorInput, setSponsorInput] = useState(item.sponsor ?? '');
   const [showSponsorPrompt, setShowSponsorPrompt] = useState(!item.sponsor);
+  // Create-mode only: a text template the user can edit before submit.
+  // Left empty here so the host can wire a transcript-span fetch into it.
+  const [textTemplateInput, setTextTemplateInput] = useState('');
+  const [scopeInput, setScopeInput] = useState<'podcast' | 'global'>('podcast');
+  const [reasonInput, setReasonInput] = useState('');
 
-  const audioUrl = `/api/v1/feeds/${item.podcastSlug}/episodes/${item.episodeId}/original.mp3`;
+  // Create mode is always against original audio (you can't mark a new ad
+  // on already-cut audio). Review mode honors the parent's audioMode.
+  const effectiveAudioMode = mode === 'create' ? 'original' : audioMode;
+  const audioUrl =
+    effectiveAudioMode === 'original' || !processedAudioUrl
+      ? `/api/v1/feeds/${item.podcastSlug}/episodes/${item.episodeId}/original.mp3`
+      : processedAudioUrl;
   // The user-requested window. May extend past the actual end of the file
   // for post-roll ads — ffmpeg silently truncates and returns fewer peaks.
   const requestedWindowDuration = useMemo(
@@ -329,6 +385,23 @@ function AdReviewModal({ item, onClose, onSubmit, onSkip, hasNext = false }: Pro
       cancelled = true;
     };
   }, [item.podcastSlug, item.episodeId, windowStart, windowEnd, resetTick]);
+
+  // ------------------------------------------------------------------
+  // Create mode only: auto-populate text template from the transcript
+  // span the user has selected. Debounced; only fills when empty so we
+  // don't clobber edits.
+  useEffect(() => {
+    if (mode !== 'create') return;
+    if (!(adStart >= 0 && adEnd > adStart)) return;
+    const t = setTimeout(() => {
+      getTranscriptSpan(item.podcastSlug, item.episodeId, adStart, adEnd)
+        .then((res) => {
+          setTextTemplateInput((prev) => (prev.length === 0 ? res.text : prev));
+        })
+        .catch(() => {});
+    }, 250);
+    return () => clearTimeout(t);
+  }, [mode, item.podcastSlug, item.episodeId, adStart, adEnd]);
 
   // ------------------------------------------------------------------
   // Mount wavesurfer when peaks/window arrive. Region is decorative —
@@ -773,27 +846,73 @@ function AdReviewModal({ item, onClose, onSubmit, onSkip, hasNext = false }: Pro
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="px-6 py-4 border-b border-border flex items-start justify-between gap-4">
+        <div className="px-6 py-4 border-b border-border flex items-start justify-between gap-3 flex-wrap">
           <div className="min-w-0 flex-1">
             <h2 className="text-lg font-semibold text-foreground truncate">
-              Detected ad
+              {mode === 'create' ? 'Add new ad' : 'Detected ad'}
             </h2>
-            <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-              <span>Stage: {item.detectionStage ?? '—'}</span>
-              {item.confidence !== null && <span>Confidence: {Math.round(item.confidence * 100)}%</span>}
-              {item.patternId !== null && <span>Pattern #{item.patternId}</span>}
-              {item.reason && <span className="italic truncate max-w-md" title={item.reason}>{item.reason}</span>}
-            </div>
+            {mode === 'review' && (
+              <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                <span>Stage: {item.detectionStage ?? '-'}</span>
+                {item.confidence !== null && <span>Confidence: {Math.round(item.confidence * 100)}%</span>}
+                {item.patternId !== null && <span>Pattern #{item.patternId}</span>}
+                {item.reason && <span className="italic truncate max-w-md" title={item.reason}>{item.reason}</span>}
+              </div>
+            )}
           </div>
-          <button
-            onClick={onClose}
-            className="p-1 rounded text-muted-foreground transition-colors hover:text-foreground hover:bg-accent"
-            aria-label="Close"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Processed / Original toggle. Hidden in create mode (always original). */}
+            {mode === 'review' && onAudioModeChange && (
+              <div className="inline-flex rounded-md border border-input overflow-hidden" role="group">
+                <button
+                  type="button"
+                  onClick={() => onAudioModeChange('processed')}
+                  className={`px-2 py-1 text-xs transition-colors ${
+                    audioMode === 'processed'
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-background text-muted-foreground hover:bg-secondary'
+                  }`}
+                  title="Play the post-cut audio"
+                >
+                  Processed
+                </button>
+                <button
+                  type="button"
+                  disabled={!hasOriginal}
+                  onClick={() => onAudioModeChange('original')}
+                  className={`px-2 py-1 text-xs transition-colors ${
+                    audioMode === 'original' && hasOriginal
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-background text-muted-foreground hover:bg-secondary'
+                  } ${!hasOriginal ? 'opacity-40 cursor-not-allowed' : ''}`}
+                  title={hasOriginal
+                    ? 'Play the pre-cut audio at the ads original timestamps'
+                    : 'Original audio not retained for this episode'}
+                >
+                  Original
+                </button>
+              </div>
+            )}
+            {/* + Add new ad — only in review mode, only when host wires it. */}
+            {mode === 'review' && onAddNew && (
+              <button
+                type="button"
+                onClick={onAddNew}
+                className="px-2 py-1 text-xs rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+              >
+                + Add new ad
+              </button>
+            )}
+            <button
+              onClick={onClose}
+              className="p-1 rounded text-muted-foreground transition-colors hover:text-foreground hover:bg-accent"
+              aria-label="Close"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         {/* Window controls + reset */}
@@ -1048,13 +1167,54 @@ function AdReviewModal({ item, onClose, onSubmit, onSkip, hasNext = false }: Pro
           </div>
         </div>
 
-        {/* Sponsor prompt */}
-        {showSponsorPrompt ? (
+        {/* Sponsor prompt + (in create mode) text-template + scope */}
+        {mode === 'create' ? (
+          <div className="px-6 py-4 border-t border-border bg-secondary/30 space-y-3">
+            <label className="block text-sm font-medium text-foreground">
+              Sponsor name
+              <input
+                type="text" value={sponsorInput}
+                onChange={(e) => setSponsorInput(e.target.value)}
+                placeholder="e.g. BetterHelp, Squarespace, Progressive"
+                className="mt-1 w-full px-3 py-1.5 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring text-sm"
+              />
+            </label>
+            <label className="block text-sm font-medium text-foreground">
+              Text template
+              <span className="ml-2 text-xs font-normal text-muted-foreground">
+                (auto-populated from the transcript; edit before save)
+              </span>
+              <textarea
+                value={textTemplateInput}
+                onChange={(e) => setTextTemplateInput(e.target.value)}
+                rows={4}
+                className="mt-1 w-full px-3 py-1.5 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring text-xs font-mono"
+              />
+              <div className={`text-xs mt-1 ${textTemplateInput.trim().length < 50 ? 'text-destructive' : 'text-muted-foreground'}`}>
+                {textTemplateInput.trim().length} / 50 chars min
+              </div>
+            </label>
+            <label className="block text-sm">
+              <span className="block mb-1 text-muted-foreground">Reason (optional)</span>
+              <input
+                type="text" value={reasonInput}
+                onChange={(e) => setReasonInput(e.target.value)}
+                placeholder="Why this is an ad"
+                className="w-full px-3 py-1.5 rounded border border-border bg-background text-foreground text-sm"
+              />
+            </label>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" checked={scopeInput === 'global'}
+                onChange={(e) => setScopeInput(e.target.checked ? 'global' : 'podcast')} />
+              <span>Apply across all podcasts (global pattern)</span>
+            </label>
+          </div>
+        ) : showSponsorPrompt ? (
           <div className="px-6 py-4 border-t border-border bg-secondary/30">
             <label htmlFor="sponsor" className="block text-sm font-medium text-foreground mb-1">
               Sponsor name
               <span className="ml-2 text-xs font-normal text-muted-foreground">
-                (so this confirmation can train Stage 2 — leave blank to skip pattern creation)
+                (so this confirmation can train Stage 2 - leave blank to skip pattern creation)
               </span>
             </label>
             <input
@@ -1074,32 +1234,71 @@ function AdReviewModal({ item, onClose, onSubmit, onSkip, hasNext = false }: Pro
 
         {/* Action bar */}
         <div className="px-6 py-4 border-t border-border bg-secondary/40 flex items-center justify-between gap-3 flex-wrap">
-          <div className="text-xs text-muted-foreground">
-            {boundariesMoved
-              ? 'Confirm will save adjusted boundaries.'
-              : 'Confirm will record this ad as-detected.'}
-          </div>
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={onSkip} disabled={isBusy}
-              className={`px-4 py-1.5 rounded-lg ${ghostBtn} text-sm`}
-              title={hasNext ? 'Skip and advance to the next ad (S)' : 'Skip (S)'}>
-              {hasNext ? 'Skip & Next' : 'Skip'}
-            </button>
-            <button type="button" onClick={handleReject} disabled={isBusy}
-              className={`px-4 py-1.5 rounded-lg ${destructiveBtn} text-sm`}
-              title="Mark as not an ad (R)">
-              {isBusy ? 'Saving…' : (hasNext ? 'Reject & Next' : 'Reject')}
-            </button>
-            <button type="button" onClick={handleConfirm} disabled={isBusy}
-              className={`px-4 py-1.5 rounded-lg ${primaryBtn} text-sm`}
-              title="Save changes (C)">
-              {isBusy
-                ? 'Saving…'
-                : boundariesMoved
-                  ? (hasNext ? 'Save adjustment & next' : 'Save adjustment')
-                  : (hasNext ? 'Confirm & next' : 'Confirm')}
-            </button>
-          </div>
+          {mode === 'create' ? (
+            <>
+              <div className="text-xs text-muted-foreground">
+                Save creates a new ad pattern tagged as `created_by=user`.
+              </div>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={onClose} disabled={isBusy}
+                  className={`px-4 py-1.5 rounded-lg ${ghostBtn} text-sm`}>
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  disabled={
+                    isBusy ||
+                    !sponsorInput.trim() ||
+                    textTemplateInput.trim().length < 50 ||
+                    !(adStart >= 0 && adEnd > adStart)
+                  }
+                  onClick={() => {
+                    if (!onCreate) return;
+                    onCreate({
+                      kind: 'create',
+                      start: adStart,
+                      end: adEnd,
+                      sponsor: sponsorInput.trim(),
+                      textTemplate: textTemplateInput.trim(),
+                      scope: scopeInput,
+                      reason: reasonInput,
+                    });
+                  }}
+                  className={`px-4 py-1.5 rounded-lg ${primaryBtn} text-sm`}>
+                  {isBusy ? 'Saving...' : 'Save'}
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="text-xs text-muted-foreground">
+                {boundariesMoved
+                  ? 'Confirm will save adjusted boundaries.'
+                  : 'Confirm will record this ad as-detected.'}
+              </div>
+              <div className="flex items-center gap-2">
+                <button type="button" onClick={onSkip} disabled={isBusy}
+                  className={`px-4 py-1.5 rounded-lg ${ghostBtn} text-sm`}
+                  title={hasNext ? 'Skip and advance to the next ad (S)' : 'Skip (S)'}>
+                  {hasNext ? 'Skip & Next' : 'Skip'}
+                </button>
+                <button type="button" onClick={handleReject} disabled={isBusy}
+                  className={`px-4 py-1.5 rounded-lg ${destructiveBtn} text-sm`}
+                  title="Mark as not an ad (R)">
+                  {isBusy ? 'Saving...' : (hasNext ? 'Reject & Next' : 'Reject')}
+                </button>
+                <button type="button" onClick={handleConfirm} disabled={isBusy}
+                  className={`px-4 py-1.5 rounded-lg ${primaryBtn} text-sm`}
+                  title="Save changes (C)">
+                  {isBusy
+                    ? 'Saving...'
+                    : boundariesMoved
+                      ? (hasNext ? 'Save adjustment & next' : 'Save adjustment')
+                      : (hasNext ? 'Confirm & next' : 'Confirm')}
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

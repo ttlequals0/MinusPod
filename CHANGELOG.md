@@ -6,6 +6,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.1] - 2026-05-12
+
+### Fixed
+
+- **`+ Add new ad` was hidden behind the editor modal.** On 2.2.0 the button only existed on the page chrome behind the wavesurfer modal, so once you opened the editor you had no way to reach create mode. Moved into the modal header alongside the close button.
+- **Processed / Original audio toggle was hidden behind the modal.** Same root cause. Moved the toggle into the modal header. Original is forced (and the toggle hidden) when the editor is in create mode, since you cannot mark a new ad against already-cut audio.
+- **Create mode now uses the same waveform editor.** The 2.2.0 create flow used a plain form with numeric start/end fields. 2.2.1 reuses `AdReviewModal` so the user can drag the start/end pins on the actual waveform, with the text template auto-populated from `/transcript-span` and editable inline.
+
 ## [2.2.0] - 2026-05-12
 
 ### Added
