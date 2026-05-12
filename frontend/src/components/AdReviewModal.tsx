@@ -845,13 +845,15 @@ function AdReviewModal({
         className="bg-card rounded-lg border border-border w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header — title + actions on top row, detection metadata below. */}
-        <div className="px-6 py-4 border-b border-border space-y-2">
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <h2 className="text-lg font-semibold text-foreground truncate min-w-0 flex-1">
+        {/* Header — action chrome up top (always fits a single row on
+            mobile), title visible only at sm:+ where there's room, and
+            the detection metadata wraps onto its own line below. */}
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-border space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="hidden sm:block text-lg font-semibold text-foreground truncate min-w-0">
               {mode === 'create' ? 'Add new ad' : 'Detected ad'}
             </h2>
-            <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-1.5 sm:gap-2 ml-auto">
               {/* Processed / Original toggle. Hidden in create mode (always original). */}
               {mode === 'review' && onAudioModeChange && (
                 <div className="inline-flex rounded-md border border-input overflow-hidden" role="group">
@@ -884,14 +886,19 @@ function AdReviewModal({
                   </button>
                 </div>
               )}
-              {/* + Add new ad — only in review mode, only when host wires it. */}
+              {/* + Add new ad. Icon-only on mobile, full label on sm:+. */}
               {mode === 'review' && onAddNew && (
                 <button
                   type="button"
                   onClick={onAddNew}
-                  className="px-2 py-1 text-xs rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                  aria-label="Add new ad"
+                  title="Add new ad"
+                  className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
                 >
-                  + Add new ad
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  <span className="hidden sm:inline">Add new ad</span>
                 </button>
               )}
               <button
@@ -905,10 +912,10 @@ function AdReviewModal({
               </button>
             </div>
           </div>
-          {/* Detection metadata sits on its own row below the action chrome,
+          {/* Detection metadata sits on its own row below the action chrome
               so it can't push the toggle/close into a wrap on narrow screens. */}
           {mode === 'review' && (
-            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+            <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
               <span>Stage: {item.detectionStage ?? '-'}</span>
               {item.confidence !== null && <span>Confidence: {Math.round(item.confidence * 100)}%</span>}
               {item.patternId !== null && <span>Pattern #{item.patternId}</span>}
@@ -1171,7 +1178,7 @@ function AdReviewModal({
 
         {/* Sponsor prompt + (in create mode) text-template + scope */}
         {mode === 'create' ? (
-          <div className="px-6 py-4 border-t border-border bg-secondary/30 space-y-3">
+          <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-border bg-secondary/30 space-y-3">
             <label className="block text-sm font-medium text-foreground">
               Sponsor name
               <input
@@ -1212,7 +1219,7 @@ function AdReviewModal({
             </label>
           </div>
         ) : showSponsorPrompt ? (
-          <div className="px-6 py-4 border-t border-border bg-secondary/30">
+          <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-border bg-secondary/30">
             <label htmlFor="sponsor" className="block text-sm font-medium text-foreground mb-1">
               Sponsor name
               <span className="ml-2 text-xs font-normal text-muted-foreground">
@@ -1235,7 +1242,7 @@ function AdReviewModal({
         )}
 
         {/* Action bar */}
-        <div className="px-6 py-4 border-t border-border bg-secondary/40 flex items-center justify-between gap-3 flex-wrap">
+        <div className="px-4 sm:px-6 py-3 sm:py-4 border-t border-border bg-secondary/40 flex items-center justify-between gap-2 sm:gap-3 flex-wrap">
           {mode === 'create' ? (
             <>
               <div className="text-xs text-muted-foreground">
@@ -1278,27 +1285,31 @@ function AdReviewModal({
                   ? 'Confirm will save adjusted boundaries.'
                   : 'Confirm will record this ad as-detected.'}
               </div>
-              {/* Equal-width buttons. flex-1 plus basis-0 forces each one
-                  to claim the same horizontal slot regardless of label
-                  length, so "Save & next" no longer towers over its
-                  siblings on narrow viewports. h-9 locks vertical size. */}
-              <div className="flex items-stretch gap-2 w-full sm:w-auto">
+              {/* Equal-width buttons across viewports. Short labels
+                  on mobile (so 3 fit on a 320-360px viewport), full
+                  "& Next" labels on sm: where there's room. */}
+              <div className="flex items-stretch gap-1.5 sm:gap-2 w-full sm:w-auto">
                 <button type="button" onClick={onSkip} disabled={isBusy}
-                  className={`flex-1 sm:flex-none sm:min-w-[7rem] basis-0 h-9 px-4 rounded-lg ${ghostBtn} text-sm text-center whitespace-nowrap`}
+                  className={`flex-1 sm:flex-none sm:min-w-[7rem] basis-0 h-9 px-2 sm:px-4 rounded-lg ${ghostBtn} text-sm text-center whitespace-nowrap`}
                   title={hasNext ? 'Skip and advance to the next ad (S)' : 'Skip (S)'}>
-                  {hasNext ? 'Skip & Next' : 'Skip'}
+                  <span className="sm:hidden">Skip</span>
+                  <span className="hidden sm:inline">{hasNext ? 'Skip & Next' : 'Skip'}</span>
                 </button>
                 <button type="button" onClick={handleReject} disabled={isBusy}
-                  className={`flex-1 sm:flex-none sm:min-w-[7rem] basis-0 h-9 px-4 rounded-lg ${destructiveBtn} text-sm text-center whitespace-nowrap`}
+                  className={`flex-1 sm:flex-none sm:min-w-[7rem] basis-0 h-9 px-2 sm:px-4 rounded-lg ${destructiveBtn} text-sm text-center whitespace-nowrap`}
                   title="Mark as not an ad (R)">
-                  {isBusy ? 'Saving...' : (hasNext ? 'Reject & Next' : 'Reject')}
+                  {isBusy ? '...' : (<>
+                    <span className="sm:hidden">Reject</span>
+                    <span className="hidden sm:inline">{hasNext ? 'Reject & Next' : 'Reject'}</span>
+                  </>)}
                 </button>
                 <button type="button" onClick={handleConfirm} disabled={isBusy}
-                  className={`flex-1 sm:flex-none sm:min-w-[7rem] basis-0 h-9 px-4 rounded-lg ${primaryBtn} text-sm text-center whitespace-nowrap`}
+                  className={`flex-1 sm:flex-none sm:min-w-[7rem] basis-0 h-9 px-2 sm:px-4 rounded-lg ${primaryBtn} text-sm text-center whitespace-nowrap`}
                   title="Save changes (C)">
-                  {isBusy
-                    ? 'Saving...'
-                    : hasNext ? 'Save & Next' : 'Save'}
+                  {isBusy ? '...' : (<>
+                    <span className="sm:hidden">Save</span>
+                    <span className="hidden sm:inline">{hasNext ? 'Save & Next' : 'Save'}</span>
+                  </>)}
                 </button>
               </div>
             </>

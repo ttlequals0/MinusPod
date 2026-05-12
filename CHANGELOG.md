@@ -6,6 +6,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.3] - 2026-05-12
+
+### Fixed
+
+- **Modal header truncated the title to `D.`** on narrow viewports. The `h2` had `flex-1 truncate` next to a flex-row of action chips, so when the chips occupied most of the width the title compressed to its first letter. The title is now `hidden sm:block` (the metadata row below already identifies the editor; the title is decorative on mobile), and the chrome no longer fights for space.
+- **`+ Add new ad` button wrapped to a second row on mobile.** It is now icon-only on the default breakpoint (`+` plus screen-reader label) and gains the `Add new ad` text on `sm:` and up.
+- **Bottom action bar overflowed.** Skip / Reject / Save buttons now show short labels on mobile (`Skip`, `Reject`, `Save`) and the full `& Next` suffix only on `sm:` and up, with tighter gaps + padding so all three fit on a 360px viewport.
+- Reduced horizontal padding on the modal chrome (`px-4` mobile / `px-6` desktop) to give the waveform and action bar more usable width on phones.
+
 ## [2.2.2] - 2026-05-12
 
 ### Changed
