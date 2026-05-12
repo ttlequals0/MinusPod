@@ -84,9 +84,26 @@ const WINDOW_STEP_SECONDS = 60;
 // of detail to see speech vs. silence at any reasonable zoom level, and
 // shaves the JSON payload + canvas-render cost on first mount roughly 4×.
 const PEAK_RESOLUTION_MS = 100;
-const MIN_WINDOW_PAD = 10;
 const MIN_AD_DURATION = 1.0;
 const PLAY_WHILE_DRAG_KEY = 'minuspod.adInbox.playWhileDragging';
+
+// Parse user-entered timestamp text. Accepts either `MM:SS[.s]` (or
+// `H:MM:SS[.s]`) or a raw seconds value like `139.4`. Returns null on
+// any invalid input so callers can keep the prior boundary.
+function parseTimeInput(s: string): number | null {
+  const t = s.trim();
+  if (!t) return null;
+  if (t.includes(':')) {
+    const parts = t.split(':');
+    if (parts.length < 2 || parts.length > 3) return null;
+    const nums = parts.map(Number);
+    if (nums.some((n) => !Number.isFinite(n) || n < 0)) return null;
+    if (parts.length === 2) return nums[0] * 60 + nums[1];
+    return nums[0] * 3600 + nums[1] * 60 + nums[2];
+  }
+  const n = Number(t);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+}
 
 function formatTime(seconds: number): string {
   if (!Number.isFinite(seconds)) return '0:00';
@@ -298,6 +315,11 @@ function AdReviewModal({
   const [windowEnd, setWindowEnd] = useState(defaults.windowEnd);
   const [adStart, setAdStart] = useState(defaults.adStart);
   const [adEnd, setAdEnd] = useState(defaults.adEnd);
+  // String mirror of the timestamp inputs. Lets the user type partial
+  // values (`0:3`) without each keystroke being clobbered by a parent
+  // numeric update. Commits to adStart/adEnd on blur or Enter.
+  const [startInput, setStartInput] = useState(() => formatTime(defaults.adStart));
+  const [endInput, setEndInput] = useState(() => formatTime(defaults.adEnd));
 
   const [peaks, setPeaks] = useState<number[] | null>(null);
   // Resolution actually used by the server. May be coarser than requested
@@ -697,13 +719,10 @@ function AdReviewModal({
   };
 
   // ------------------------------------------------------------------
-  // Window expand / shrink / reset.
+  // Window expand / reset. Shrink is keyboard-only via `,`/`.`; the
+  // shrink helpers were only wired to the removed +/-1m buttons.
   const expandBack = () => setWindowStart((s) => Math.max(0, s - WINDOW_STEP_SECONDS));
   const expandForward = () => setWindowEnd((e) => e + WINDOW_STEP_SECONDS);
-  const shrinkBack = () =>
-    setWindowStart((s) => Math.min(adStart - MIN_WINDOW_PAD, s + WINDOW_STEP_SECONDS));
-  const shrinkForward = () =>
-    setWindowEnd((e) => Math.max(adEnd + MIN_WINDOW_PAD, e - WINDOW_STEP_SECONDS));
   const resetView = () => {
     setWindowStart(defaults.windowStart);
     setWindowEnd(defaults.windowEnd);
@@ -758,6 +777,45 @@ function AdReviewModal({
   // Submission — the host owns the actual API call (so it can also
   // refresh the surrounding episode view, navigate, etc.); we just emit.
   const [isBusy, setIsBusy] = useState(false);
+
+  // Mirror adStart/adEnd into the input strings whenever the boundaries
+  // change from a source OTHER than user typing (pin drag, reset,
+  // keyboard nudge). Skip when an input is focused so we don't fight
+  // the user's keystrokes.
+  const startInputRef = useRef<HTMLInputElement | null>(null);
+  const endInputRef = useRef<HTMLInputElement | null>(null);
+  useEffect(() => {
+    if (document.activeElement !== startInputRef.current) {
+      setStartInput(formatTime(adStart));
+    }
+  }, [adStart]);
+  useEffect(() => {
+    if (document.activeElement !== endInputRef.current) {
+      setEndInput(formatTime(adEnd));
+    }
+  }, [adEnd]);
+
+  const commitStartInput = () => {
+    const parsed = parseTimeInput(startInput);
+    if (parsed === null) {
+      setStartInput(formatTime(adStart));
+      return;
+    }
+    const clamped = Math.max(0, Math.min(parsed, adEnd - MIN_AD_DURATION));
+    setAdStart(clamped);
+    setStartInput(formatTime(clamped));
+  };
+  const commitEndInput = () => {
+    const parsed = parseTimeInput(endInput);
+    if (parsed === null) {
+      setEndInput(formatTime(adEnd));
+      return;
+    }
+    const maxAllowed = episodeDuration ?? Number.POSITIVE_INFINITY;
+    const clamped = Math.max(adStart + MIN_AD_DURATION, Math.min(parsed, maxAllowed));
+    setAdEnd(clamped);
+    setEndInput(formatTime(clamped));
+  };
 
   const boundariesMoved =
     Math.abs(adStart - item.start) > 0.05 || Math.abs(adEnd - item.end) > 0.05;
@@ -840,7 +898,7 @@ function AdReviewModal({
   // ------------------------------------------------------------------
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-sm p-4" onClick={onClose}>
       <div
         className="bg-card rounded-lg border border-border w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl"
         onClick={(e) => e.stopPropagation()}
@@ -925,44 +983,27 @@ function AdReviewModal({
         </div>
 
         {/* Window controls + reset */}
-        <div className="px-6 pt-4 flex items-center justify-between gap-2 flex-wrap text-xs text-muted-foreground tabular-nums">
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={expandBack}
-              className={`px-2 py-1 rounded ${ghostBtn}`}
-              title="Expand window 1 min earlier ( , )">« +1m</button>
-            <button type="button" onClick={shrinkBack}
-              disabled={windowStart >= adStart - MIN_WINDOW_PAD - WINDOW_STEP_SECONDS}
-              className={`px-2 py-1 rounded ${ghostBtn}`}
-              title="Shrink window from the left">» −1m</button>
-            <span className="ml-2">{formatTime(windowStart)}</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="flex items-center gap-1.5 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={playWhileDrag}
-                onChange={(e) => {
-                  setPlayWhileDrag(e.target.checked);
-                  savePlayWhileDragging(e.target.checked);
-                }}
-                className="accent-primary"
-              />
-              <span>Play audio while dragging pin</span>
-            </label>
-            <button type="button" onClick={resetView}
-              className={`px-2 py-1 rounded ${ghostBtn}`}
-              title="Reset waveform window + ad bounds to defaults">↻ Reset</button>
-          </div>
-          <div className="flex items-center gap-2">
-            <span>{formatTime(effectiveWindowEnd)}</span>
-            <button type="button" onClick={shrinkForward}
-              disabled={windowEnd <= adEnd + MIN_WINDOW_PAD + WINDOW_STEP_SECONDS}
-              className={`ml-2 px-2 py-1 rounded ${ghostBtn}`}
-              title="Shrink window from the right">« −1m</button>
-            <button type="button" onClick={expandForward}
-              className={`px-2 py-1 rounded ${ghostBtn}`}
-              title="Expand window 1 min later ( . )">+1m »</button>
-          </div>
+        {/* Window header strip. ±1m buttons removed per the 2.2.0 plan;
+            the keyboard (`,` / `.`) handler still expands/shrinks the
+            window, and pin drag controls the ad boundaries themselves. */}
+        <div className="px-4 sm:px-6 pt-3 sm:pt-4 flex items-center justify-between gap-3 flex-wrap text-xs text-muted-foreground tabular-nums">
+          <span>{formatTime(windowStart)}</span>
+          <label className="flex items-center gap-1.5 cursor-pointer select-none">
+            <input
+              type="checkbox"
+              checked={playWhileDrag}
+              onChange={(e) => {
+                setPlayWhileDrag(e.target.checked);
+                savePlayWhileDragging(e.target.checked);
+              }}
+              className="accent-primary"
+            />
+            <span>Play audio while dragging pin</span>
+          </label>
+          <button type="button" onClick={resetView}
+            className={`px-2 py-1 rounded ${ghostBtn}`}
+            title="Reset waveform window + ad bounds to defaults">↻ Reset</button>
+          <span>{formatTime(effectiveWindowEnd)}</span>
         </div>
 
         {/* Waveform + pin overlay */}
@@ -1098,15 +1139,54 @@ function AdReviewModal({
             <span className="tabular-nums w-10 text-right">{zoom.toFixed(1)}×</span>
           </div>
 
-          {/* Boundaries readout */}
-          <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-muted-foreground tabular-nums">
-            <span>
-              Selection:{' '}
-              <span className="text-emerald-500 font-medium">{formatTime(adStart)}</span>{' '}
-              –{' '}
-              <span className="text-rose-500 font-medium">{formatTime(adEnd)}</span>{' '}
-              <span className="text-xs">({Math.round((adEnd - adStart) * 10) / 10}s)</span>
-            </span>
+          {/* Boundaries readout. The two timestamps are editable inputs
+              (M:SS, MM:SS, H:MM:SS, or raw seconds) that commit to the
+              ad boundaries on blur or Enter. The pin handles still
+              update them live during drag. */}
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-muted-foreground tabular-nums">
+            <span>Selection:</span>
+            <input
+              ref={startInputRef}
+              type="text"
+              inputMode="decimal"
+              value={startInput}
+              aria-label="Selection start time"
+              onChange={(e) => setStartInput(e.target.value)}
+              onBlur={commitStartInput}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  (e.target as HTMLInputElement).blur();
+                } else if (e.key === 'Escape') {
+                  e.preventDefault();
+                  setStartInput(formatTime(adStart));
+                  (e.target as HTMLInputElement).blur();
+                }
+              }}
+              className="w-20 px-1.5 py-0.5 rounded border border-border bg-background text-emerald-500 font-medium text-center tabular-nums focus:outline-hidden focus:ring-2 focus:ring-ring"
+            />
+            <span>-</span>
+            <input
+              ref={endInputRef}
+              type="text"
+              inputMode="decimal"
+              value={endInput}
+              aria-label="Selection end time"
+              onChange={(e) => setEndInput(e.target.value)}
+              onBlur={commitEndInput}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  (e.target as HTMLInputElement).blur();
+                } else if (e.key === 'Escape') {
+                  e.preventDefault();
+                  setEndInput(formatTime(adEnd));
+                  (e.target as HTMLInputElement).blur();
+                }
+              }}
+              className="w-20 px-1.5 py-0.5 rounded border border-border bg-background text-rose-500 font-medium text-center tabular-nums focus:outline-hidden focus:ring-2 focus:ring-ring"
+            />
+            <span className="text-xs">({Math.round((adEnd - adStart) * 10) / 10}s)</span>
             {boundariesMoved && (
               <span className="text-xs text-amber-500">
                 (originally {formatTime(item.start)} – {formatTime(item.end)})

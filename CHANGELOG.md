@@ -6,6 +6,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.5] - 2026-05-12
+
+### Changed / Fixed
+
+- **Editable selection timestamps.** The Selection readout was static text on 2.2.0-2.2.4 even though the original plan called for editable inputs. The green start time and red end time are now controlled inputs that accept `MM:SS[.s]`, `H:MM:SS[.s]`, or raw seconds. Commit on blur or Enter, revert on Escape, clamped to `[0, episode_duration]` with `start + 1s <= end`. Pin drag still updates them live.
+- **Dropped the `+/-1m` window-extent buttons from the modal header.** They were a verbatim lift from PR #204 and the original 2.2.0 plan explicitly dropped them. The keyboard shortcuts `,` and `.` still expand the window; the pin handles still set the ad boundaries. The strip now shows only the window time labels, the `Play audio while dragging pin` checkbox, and the Reset button.
+- **`+ Add new ad` from the page header now flips an already-open editor into create mode.** Re-added the `useEffect` that syncs the internal `createMode` state when the prop changes (was removed in 2.2.1 to satisfy `react-hooks/set-state-in-effect`; the lint is wrong here, so the rule is disabled on that one line with a comment explaining why).
+- **Modal backdrop now hides the page chrome.** Swapped `bg-black/50` for `bg-background/95 backdrop-blur-sm` so the underlying `Detected Ads` list no longer shows through when the editor is open.
+
 ## [2.2.4] - 2026-05-12
 
 ### Fixed

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import AdReviewModal, { AdReviewItem, AdReviewSubmit, AdCreateSubmit } from './AdReviewModal';
 
@@ -82,10 +82,15 @@ export function AdEditor({
   };
 
   // Initialized from the prop; flipped internally when the user clicks
-  // the "+ Add new ad" button inside review mode. The parent remounts
-  // the editor (showEditor false -> true) whenever it wants to force
-  // create mode, so we don't mirror prop changes after mount.
+  // the "+ Add new ad" button inside review mode. The sync useEffect
+  // re-applies the prop whenever it changes so the page-header
+  // "+ Add new ad" can flip a mounted editor from review -> create
+  // (the editor was already open in review when the user clicked).
   const [internalCreateMode, setInternalCreateMode] = useState(createMode);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setInternalCreateMode(createMode);
+  }, [createMode]);
 
   const safeIndex =
     detectedAds.length > 0
