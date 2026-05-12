@@ -305,9 +305,15 @@ function AdReviewModal({ item, onClose, onSubmit, onSkip, hasNext = false }: Pro
   );
 
   // ------------------------------------------------------------------
-  // Fetch peaks whenever window changes.
+  // Fetch peaks whenever window changes. The setState pair here clears
+  // stale data before the new fetch lands so the waveform can't show
+  // peaks from the previous window for a frame. React 19's strict
+  // set-state-in-effect rule fires here; the pattern is correct
+  // because we're synchronizing UI state with an in-flight external
+  // fetch.
   useEffect(() => {
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setPeaksError(null);
     setPeaks(null);
     getEpisodePeaks(item.podcastSlug, item.episodeId, windowStart, windowEnd, PEAK_RESOLUTION_MS)

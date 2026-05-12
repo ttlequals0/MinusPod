@@ -76,10 +76,11 @@ export function AdEditor({
     else setInternalIndex(i);
   };
 
+  // Initialized from the prop; toggled internally when the user clicks the
+  // "+ Add new ad" button inside review mode. The parent always
+  // remounts (showEditor false -> true) when it wants to force create
+  // mode, so we don't need to mirror prop changes after mount.
   const [internalCreateMode, setInternalCreateMode] = useState(createMode);
-  useEffect(() => {
-    setInternalCreateMode(createMode);
-  }, [createMode]);
 
   if (internalCreateMode) {
     return (
