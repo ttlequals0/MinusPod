@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.4] - 2026-05-12
+
+### Fixed
+
+- **`Detected Ads (N)` header buttons no longer wrap on mobile.** `Edit Ads` and `+ Add new ad` are now icon-only on the default breakpoint (with `aria-label` + `title` for accessibility) and pick up their text labels at `sm:` and up. Tighter `px-2` + `gap-1.5` + `text-xs` keep everything on a single row even when the count goes into double digits.
+
 ## [2.2.3] - 2026-05-12
 
 ### Fixed
