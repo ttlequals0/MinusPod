@@ -389,22 +389,34 @@ function EpisodeDetail() {
                 Detected Ads ({episode.adMarkers.length})
               </h2>
               {episode.status === 'completed' && episode.transcript && (
-                <button
-                  onClick={() => {
-                    if (!showEditor) {
-                      setSavedScrollY(window.scrollY);
-                    }
-                    setCreateModeRequested(false);
-                    setShowEditor(!showEditor);
-                  }}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 transition-colors"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
-                  {showEditor ? 'Hide Editor' : 'Edit Ads'}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      if (!showEditor) {
+                        setSavedScrollY(window.scrollY);
+                      }
+                      setCreateModeRequested(false);
+                      setShowEditor(!showEditor);
+                    }}
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 transition-colors"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    {showEditor ? 'Hide Editor' : 'Edit Ads'}
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (!showEditor) setSavedScrollY(window.scrollY);
+                      setCreateModeRequested(true);
+                      setShowEditor(true);
+                    }}
+                    className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+                  >
+                    + Add new ad
+                  </button>
+                </div>
               )}
             </div>
             {/* Row 2: Detection stage info + time saved */}

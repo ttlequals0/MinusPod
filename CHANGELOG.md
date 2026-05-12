@@ -6,6 +6,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.2] - 2026-05-12
+
+### Changed
+
+- **`+ Add new ad` now also lives on the `Detected Ads` page header** next to `Edit Ads`, so users can jump straight into create mode without first opening review mode.
+- **Modal header restructured.** Stage / Confidence / Pattern / Reason chips now sit on their own row below the title and the Processed/Original/Add-new/Close action chrome, which kept the chrome from wrapping awkwardly on narrow screens.
+- **Action bar buttons are equal-width and same-height** (`flex-1 basis-0 h-9` on mobile, fixed min-width on desktop). The `Save & Next` label no longer wraps to three lines and tower over its siblings.
+- **Renamed the primary action label** from `Save adjustment & next` to `Save & Next` (and `Save adjustment` to `Save` when there is no queue).
+
 ## [2.2.1] - 2026-05-12
 
 ### Fixed

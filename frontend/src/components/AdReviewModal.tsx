@@ -845,74 +845,76 @@ function AdReviewModal({
         className="bg-card rounded-lg border border-border w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-border flex items-start justify-between gap-3 flex-wrap">
-          <div className="min-w-0 flex-1">
-            <h2 className="text-lg font-semibold text-foreground truncate">
+        {/* Header — title + actions on top row, detection metadata below. */}
+        <div className="px-6 py-4 border-b border-border space-y-2">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <h2 className="text-lg font-semibold text-foreground truncate min-w-0 flex-1">
               {mode === 'create' ? 'Add new ad' : 'Detected ad'}
             </h2>
-            {mode === 'review' && (
-              <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                <span>Stage: {item.detectionStage ?? '-'}</span>
-                {item.confidence !== null && <span>Confidence: {Math.round(item.confidence * 100)}%</span>}
-                {item.patternId !== null && <span>Pattern #{item.patternId}</span>}
-                {item.reason && <span className="italic truncate max-w-md" title={item.reason}>{item.reason}</span>}
-              </div>
-            )}
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Processed / Original toggle. Hidden in create mode (always original). */}
-            {mode === 'review' && onAudioModeChange && (
-              <div className="inline-flex rounded-md border border-input overflow-hidden" role="group">
+            <div className="flex items-center gap-2 flex-wrap">
+              {/* Processed / Original toggle. Hidden in create mode (always original). */}
+              {mode === 'review' && onAudioModeChange && (
+                <div className="inline-flex rounded-md border border-input overflow-hidden" role="group">
+                  <button
+                    type="button"
+                    onClick={() => onAudioModeChange('processed')}
+                    className={`px-2 py-1 text-xs transition-colors ${
+                      audioMode === 'processed'
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-background text-muted-foreground hover:bg-secondary'
+                    }`}
+                    title="Play the post-cut audio"
+                  >
+                    Processed
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!hasOriginal}
+                    onClick={() => onAudioModeChange('original')}
+                    className={`px-2 py-1 text-xs transition-colors ${
+                      audioMode === 'original' && hasOriginal
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-background text-muted-foreground hover:bg-secondary'
+                    } ${!hasOriginal ? 'opacity-40 cursor-not-allowed' : ''}`}
+                    title={hasOriginal
+                      ? 'Play the pre-cut audio at the ads original timestamps'
+                      : 'Original audio not retained for this episode'}
+                  >
+                    Original
+                  </button>
+                </div>
+              )}
+              {/* + Add new ad — only in review mode, only when host wires it. */}
+              {mode === 'review' && onAddNew && (
                 <button
                   type="button"
-                  onClick={() => onAudioModeChange('processed')}
-                  className={`px-2 py-1 text-xs transition-colors ${
-                    audioMode === 'processed'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-background text-muted-foreground hover:bg-secondary'
-                  }`}
-                  title="Play the post-cut audio"
+                  onClick={onAddNew}
+                  className="px-2 py-1 text-xs rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
                 >
-                  Processed
+                  + Add new ad
                 </button>
-                <button
-                  type="button"
-                  disabled={!hasOriginal}
-                  onClick={() => onAudioModeChange('original')}
-                  className={`px-2 py-1 text-xs transition-colors ${
-                    audioMode === 'original' && hasOriginal
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-background text-muted-foreground hover:bg-secondary'
-                  } ${!hasOriginal ? 'opacity-40 cursor-not-allowed' : ''}`}
-                  title={hasOriginal
-                    ? 'Play the pre-cut audio at the ads original timestamps'
-                    : 'Original audio not retained for this episode'}
-                >
-                  Original
-                </button>
-              </div>
-            )}
-            {/* + Add new ad — only in review mode, only when host wires it. */}
-            {mode === 'review' && onAddNew && (
+              )}
               <button
-                type="button"
-                onClick={onAddNew}
-                className="px-2 py-1 text-xs rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors"
+                onClick={onClose}
+                className="p-1 rounded text-muted-foreground transition-colors hover:text-foreground hover:bg-accent"
+                aria-label="Close"
               >
-                + Add new ad
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
               </button>
-            )}
-            <button
-              onClick={onClose}
-              className="p-1 rounded text-muted-foreground transition-colors hover:text-foreground hover:bg-accent"
-              aria-label="Close"
-            >
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
+            </div>
           </div>
+          {/* Detection metadata sits on its own row below the action chrome,
+              so it can't push the toggle/close into a wrap on narrow screens. */}
+          {mode === 'review' && (
+            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+              <span>Stage: {item.detectionStage ?? '-'}</span>
+              {item.confidence !== null && <span>Confidence: {Math.round(item.confidence * 100)}%</span>}
+              {item.patternId !== null && <span>Pattern #{item.patternId}</span>}
+              {item.reason && <span className="italic truncate max-w-full" title={item.reason}>{item.reason}</span>}
+            </div>
+          )}
         </div>
 
         {/* Window controls + reset */}
@@ -1276,25 +1278,27 @@ function AdReviewModal({
                   ? 'Confirm will save adjusted boundaries.'
                   : 'Confirm will record this ad as-detected.'}
               </div>
-              <div className="flex items-center gap-2">
+              {/* Equal-width buttons. flex-1 plus basis-0 forces each one
+                  to claim the same horizontal slot regardless of label
+                  length, so "Save & next" no longer towers over its
+                  siblings on narrow viewports. h-9 locks vertical size. */}
+              <div className="flex items-stretch gap-2 w-full sm:w-auto">
                 <button type="button" onClick={onSkip} disabled={isBusy}
-                  className={`px-4 py-1.5 rounded-lg ${ghostBtn} text-sm`}
+                  className={`flex-1 sm:flex-none sm:min-w-[7rem] basis-0 h-9 px-4 rounded-lg ${ghostBtn} text-sm text-center whitespace-nowrap`}
                   title={hasNext ? 'Skip and advance to the next ad (S)' : 'Skip (S)'}>
                   {hasNext ? 'Skip & Next' : 'Skip'}
                 </button>
                 <button type="button" onClick={handleReject} disabled={isBusy}
-                  className={`px-4 py-1.5 rounded-lg ${destructiveBtn} text-sm`}
+                  className={`flex-1 sm:flex-none sm:min-w-[7rem] basis-0 h-9 px-4 rounded-lg ${destructiveBtn} text-sm text-center whitespace-nowrap`}
                   title="Mark as not an ad (R)">
                   {isBusy ? 'Saving...' : (hasNext ? 'Reject & Next' : 'Reject')}
                 </button>
                 <button type="button" onClick={handleConfirm} disabled={isBusy}
-                  className={`px-4 py-1.5 rounded-lg ${primaryBtn} text-sm`}
+                  className={`flex-1 sm:flex-none sm:min-w-[7rem] basis-0 h-9 px-4 rounded-lg ${primaryBtn} text-sm text-center whitespace-nowrap`}
                   title="Save changes (C)">
                   {isBusy
                     ? 'Saving...'
-                    : boundariesMoved
-                      ? (hasNext ? 'Save adjustment & next' : 'Save adjustment')
-                      : (hasNext ? 'Confirm & next' : 'Confirm')}
+                    : hasNext ? 'Save & Next' : 'Save'}
                 </button>
               </div>
             </>
