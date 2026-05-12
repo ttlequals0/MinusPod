@@ -302,13 +302,17 @@ The **Original Transcript** panel on the Episode Detail page shows the full pre-
 
 ### Ad Editor
 
-The ad editor lets you review and adjust ad detections in the browser. The layout is mobile-first since that's where most reviewing happens.
+Review and adjust ad detections in the browser. 2.2.0 switches the editor to a wavesurfer.js waveform: drag the green start and red end pins to set the boundaries, with an orange playhead, 1x to 20x zoom (slider or mouse wheel), and a transport bar (skip back, rewind 10s, play, forward 10s, skip forward, stop).
 
-Each ad shows why it was flagged, confidence percentage, and detection stage. You can adjust start/end boundaries with per-second steppers, navigate between ads by timestamp, and play audio inline (auto-seeks to ad start when switching). Boundary adjustments and actions trigger haptic feedback on mobile.
+Each ad shows why it was flagged, the confidence percentage, and the detection stage. The selection readout shows the current bounds plus the originals if you've moved a pin. An INSIDE AD badge lights up when the playhead sits between the pins.
 
-On mobile, start/end controls stack full-width with a bottom sheet for playback and prev/next navigation. Action row: Not Ad, Reset, Confirm, Save.
+On mobile the layout stacks vertically and the keyboard hint footer goes away; everything is touch-driven from there.
 
-On desktop, keyboard shortcuts are available: `Space` play/pause, `J/K` nudge end, `Shift+J/K` nudge start, `C` confirm, `X` reject, `Esc` reset. Start/end controls sit inline with keyboard hints.
+On desktop you get `Space` for play/pause, arrow keys to nudge the focused pin, mouse wheel to zoom in or out anchored on the cursor, and `C` / `R` / `S` to confirm / reject / skip.
+
+### Adding a New Ad
+
+If the detector missed one, click `+ Add new ad` from the episode page. The editor opens in create mode: enter start and end timestamps, pick a sponsor from the autocomplete or type a new one, and the text template auto-populates from the transcript span between your bounds. Submitting creates a new pattern with `created_by='user'` and writes a `'create'` correction so the pattern matcher learns it for future episodes. The Patterns page tags manually created patterns with a `Manual` badge and adds an Origin filter (All / Auto / Manual).
 
 ### Screenshots
 
