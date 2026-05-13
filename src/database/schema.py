@@ -1230,6 +1230,13 @@ class SchemaMixin:
         # 2.2.10: clear sponsor_id on patterns the 2.2.7 alias backfill mislabeled as Zyn.
         self._cleanup_zyn_cascade(conn)
 
+        # 2.2.11: clear sponsor='Zyn' on ad markers (stored as JSON in
+        # episode_details.ad_markers_json) whose detected transcript window
+        # does not contain the canonical brand. The per-marker sponsor was
+        # frozen at detection time, so the 2.2.10 pattern cleanup alone
+        # doesn't update what the editor displays for already-detected ads.
+        self._cleanup_zyn_ad_markers(conn)
+
     def _cleanup_zyn_cascade(self, conn):
         try:
             zyn_row = conn.execute(
@@ -1260,6 +1267,65 @@ class SchemaMixin:
                 )
         except Exception as e:
             logger.warning(f"Migration: Zyn cascade cleanup failed: {e}")
+
+    def _cleanup_zyn_ad_markers(self, conn):
+        try:
+            from utils.text import extract_text_in_range
+        except Exception as e:
+            logger.warning(f"Migration: ad-marker Zyn cleanup skipped (import failed): {e}")
+            return
+        try:
+            rows = conn.execute(
+                "SELECT episode_id, ad_markers_json, original_transcript_text "
+                "FROM episode_details "
+                "WHERE ad_markers_json IS NOT NULL AND ad_markers_json LIKE '%Zyn%'"
+            ).fetchall()
+            markers_cleared = 0
+            episodes_touched = 0
+            for row in rows:
+                try:
+                    markers = json.loads(row['ad_markers_json'])
+                except (json.JSONDecodeError, TypeError):
+                    continue
+                if not isinstance(markers, list):
+                    continue
+                transcript = row['original_transcript_text'] or ''
+                changed = False
+                for marker in markers:
+                    if not isinstance(marker, dict):
+                        continue
+                    sponsor = (marker.get('sponsor') or '').strip()
+                    if sponsor.lower() != 'zyn':
+                        continue
+                    start = marker.get('start')
+                    end = marker.get('end')
+                    if not (isinstance(start, (int, float)) and isinstance(end, (int, float))):
+                        continue
+                    window_text = extract_text_in_range(transcript, float(start), float(end))
+                    if re.search(r'\bZyn\b', window_text, re.IGNORECASE):
+                        continue
+                    marker['sponsor'] = None
+                    reason = marker.get('reason') or ''
+                    if 'Zyn' in reason:
+                        marker['reason'] = (
+                            re.sub(r'^\s*Zyn[:\s]*', '', reason).strip() or None
+                        )
+                    markers_cleared += 1
+                    changed = True
+                if changed:
+                    conn.execute(
+                        "UPDATE episode_details SET ad_markers_json = ? WHERE episode_id = ?",
+                        (json.dumps(markers), row['episode_id'])
+                    )
+                    episodes_touched += 1
+            if markers_cleared:
+                conn.commit()
+                logger.info(
+                    f"Migration: cleared sponsor='Zyn' on {markers_cleared} ad markers "
+                    f"across {episodes_touched} episodes whose detected text does not contain 'Zyn'"
+                )
+        except Exception as e:
+            logger.warning(f"Migration: ad-marker Zyn cleanup failed: {e}")
 
     def _migrate_sponsor_fk(self, conn):
         """v2.2.0: Migrate ad_patterns.sponsor TEXT to sponsor_id FK.
