@@ -82,6 +82,10 @@ interface Props {
 // always expand via the +1m buttons or wheel-zoom in.
 const DEFAULT_MAX_WINDOW_SECONDS = 360;
 const WINDOW_STEP_SECONDS = 60;
+// Padding on each side of a detected ad's pins when the modal opens in
+// review mode. Small enough to show boundary detail; user can expand via
+// wheel-zoom, the +1m buttons, or by typing far-away timestamps.
+const CONTEXT_SECONDS = 30;
 // 100ms buckets — 4× fewer peaks than the prior 50ms default. Still plenty
 // of detail to see speech vs. silence at any reasonable zoom level, and
 // shaves the JSON payload + canvas-render cost on first mount roughly 4×.
@@ -297,14 +301,17 @@ function AdReviewModal({
   const overlayRef = useRef<HTMLDivElement>(null);     // relative wrapper around waveform + pins
   const scrollContainerRef = useRef<HTMLDivElement>(null); // overflow-x-auto wrapper
   const cursorRef = useRef<HTMLDivElement>(null);      // playhead, position-updated from RAF
+  const scrubberRef = useRef<HTMLDivElement>(null);    // full-episode play scrubber
   const audioRef = useRef<HTMLAudioElement>(null);
   const wsRef = useRef<WaveSurfer | null>(null);
   const regionsRef = useRef<ReturnType<typeof RegionsPlugin.create> | null>(null);
   const adRegionRef = useRef<ReturnType<RegionsPlugin['addRegion']> | null>(null);
 
   // Defaults derived from the original detection — used by Reset.
-  // Window spans the entire episode at default zoom so pins are always in
-  // view regardless of where the ad sits. User can zoom in for fine work.
+  // Create mode defaults to the entire episode so the user can pin any
+  // moment without zooming/scrolling. Review mode centers on the detected
+  // ad with a small context margin so boundary detail is visible at fit
+  // zoom; the user can still zoom out or expand by typing distant times.
   const defaults = useMemo(() => {
     const fullDuration = Math.max(0, episodeDuration ?? 0);
     const safeEnd = fullDuration > 0 ? fullDuration : DEFAULT_MAX_WINDOW_SECONDS;
@@ -316,9 +323,12 @@ function AdReviewModal({
         adEnd: Math.min(60, safeEnd),
       };
     }
+    const windowStart = Math.max(0, item.start - CONTEXT_SECONDS);
+    const naturalEnd = item.end + CONTEXT_SECONDS;
+    const cappedEnd = windowStart + DEFAULT_MAX_WINDOW_SECONDS;
     return {
-      windowStart: 0,
-      windowEnd: safeEnd,
+      windowStart,
+      windowEnd: Math.min(naturalEnd, cappedEnd, safeEnd),
       adStart: (item.correctedBounds ?? item).start,
       adEnd: (item.correctedBounds ?? item).end,
     };
@@ -715,6 +725,49 @@ function AdReviewModal({
     setIsPlaying(false);
   };
 
+  // Full-episode scrubber: click/drag to seek anywhere in the audio,
+  // independent of the waveform window. Uses pointer events so a single
+  // handler covers mouse, touch, and stylus.
+  const onScrubberPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    const el = scrubberRef.current;
+    const audio = audioRef.current;
+    const dur = episodeDuration ?? audio?.duration ?? 0;
+    if (!el || !audio || !dur) return;
+    e.preventDefault();
+    el.setPointerCapture(e.pointerId);
+    const seekFrom = (clientX: number) => {
+      const rect = el.getBoundingClientRect();
+      const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+      audio.currentTime = ratio * dur;
+    };
+    seekFrom(e.clientX);
+    // rAF-throttle moves: pointermove fires at input-device rate (often
+    // >100Hz on trackpads). Without this we'd issue a seek per event,
+    // which on remote/HLS audio stalls the media element.
+    let pendingX: number | null = null;
+    let raf = 0;
+    const flush = () => {
+      raf = 0;
+      if (pendingX !== null) {
+        seekFrom(pendingX);
+        pendingX = null;
+      }
+    };
+    const onMove = (ev: PointerEvent) => {
+      pendingX = ev.clientX;
+      if (!raf) raf = requestAnimationFrame(flush);
+    };
+    const onUp = () => {
+      if (raf) cancelAnimationFrame(raf);
+      el.removeEventListener('pointermove', onMove);
+      el.removeEventListener('pointerup', onUp);
+      el.removeEventListener('pointercancel', onUp);
+    };
+    el.addEventListener('pointermove', onMove);
+    el.addEventListener('pointerup', onUp);
+    el.addEventListener('pointercancel', onUp);
+  };
+
   // ------------------------------------------------------------------
   // Pin drag → optional audio scrub. Plays a tiny preview at the pin's
   // current time so the user can hear what they're aligning to.
@@ -847,6 +900,20 @@ function AdReviewModal({
     }
   };
 
+  // If a just-committed pin lands outside the visible window (common when
+  // typing a far-away timestamp in review mode where the default window is
+  // ~6 minutes centered on the ad), grow the window to include it plus a
+  // small context margin. Peaks re-fetch + waveform re-render are wired to
+  // windowStart/windowEnd, so this lights up automatically.
+  const expandWindowToInclude = (time: number) => {
+    if (time >= windowStart && time <= windowEnd) return;
+    const maxAllowed = episodeDuration ?? Number.POSITIVE_INFINITY;
+    const newStart = Math.max(0, Math.min(windowStart, time - CONTEXT_SECONDS));
+    const newEnd = Math.min(maxAllowed, Math.max(windowEnd, time + CONTEXT_SECONDS));
+    setWindowStart(newStart);
+    setWindowEnd(newEnd);
+  };
+
   const commitStartInput = () => {
     const parsed = parseTimeInput(startInput);
     if (parsed === null) {
@@ -860,6 +927,7 @@ function AdReviewModal({
     const clamped = Math.max(0, Math.min(parsed, maxAllowed));
     setAdStart(clamped);
     setStartInput(formatTime(clamped));
+    expandWindowToInclude(clamped);
     scrollPinIntoView(clamped);
   };
   const commitEndInput = () => {
@@ -872,6 +940,7 @@ function AdReviewModal({
     const clamped = Math.max(0, Math.min(parsed, maxAllowed));
     setAdEnd(clamped);
     setEndInput(formatTime(clamped));
+    expandWindowToInclude(clamped);
     scrollPinIntoView(clamped);
   };
 
@@ -1227,6 +1296,62 @@ function AdReviewModal({
             </button>
             <span className="tabular-nums w-10 text-right">{zoom.toFixed(1)}×</span>
           </div>
+
+          {/* Full-episode scrubber: dim band = visible waveform window,
+              bright fill = playback progress. */}
+          {(() => {
+            const epDur = episodeDuration ?? 0;
+            const pct = (t: number) => (epDur > 0 ? (t / epDur) * 100 : 0);
+            const onScrubberKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+              const audio = audioRef.current;
+              if (!audio || !epDur) return;
+              const step = e.shiftKey ? 10 : 5;
+              let next = audio.currentTime;
+              if (e.key === 'ArrowLeft') next = Math.max(0, audio.currentTime - step);
+              else if (e.key === 'ArrowRight') next = Math.min(epDur, audio.currentTime + step);
+              else if (e.key === 'Home') next = 0;
+              else if (e.key === 'End') next = epDur;
+              else return;
+              e.preventDefault();
+              audio.currentTime = next;
+            };
+            return (
+              <div className="mt-2 flex items-center gap-2 text-xs tabular-nums text-muted-foreground">
+                <span className="w-12 text-right shrink-0">{formatTime(currentTime)}</span>
+                <div
+                  ref={scrubberRef}
+                  role="slider"
+                  aria-label="Episode progress"
+                  aria-valuemin={0}
+                  aria-valuemax={epDur}
+                  aria-valuenow={currentTime}
+                  tabIndex={0}
+                  onPointerDown={onScrubberPointerDown}
+                  onKeyDown={onScrubberKeyDown}
+                  className="relative flex-1 h-2 rounded-full bg-secondary/70 cursor-pointer touch-none focus:outline-hidden focus:ring-2 focus:ring-ring"
+                >
+                  {episodeDuration ? (
+                    <>
+                      <div
+                        aria-hidden="true"
+                        className="absolute inset-y-0 rounded-full bg-primary/25 pointer-events-none"
+                        style={{
+                          left: `${pct(windowStart)}%`,
+                          width: `${pct(windowEnd - windowStart)}%`,
+                        }}
+                      />
+                      <div
+                        aria-hidden="true"
+                        className="absolute inset-y-0 left-0 rounded-full bg-foreground/70 pointer-events-none"
+                        style={{ width: `${pct(currentTime)}%` }}
+                      />
+                    </>
+                  ) : null}
+                </div>
+                <span className="w-12 text-left shrink-0">{formatTime(epDur)}</span>
+              </div>
+            );
+          })()}
 
           {/* Boundaries readout. The two timestamps are editable inputs
               (M:SS, MM:SS, H:MM:SS, or raw seconds) that commit to the

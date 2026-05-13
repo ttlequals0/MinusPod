@@ -6,6 +6,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.2] - 2026-05-13
+
+### Changed
+
+- **Edit Ads now defaults to a small window around the detected ad again** (±30s context, capped at 360s). 2.3.1 made every open default to the full episode, which lost the boundary-detail view that made review-mode useful in the first place. Create-new-ad still defaults to the full episode. If the user types a far-away timestamp in review mode, the window auto-expands to include the new pin.
+
+### Added
+
+- **Full-episode play scrubber** under the zoom slider. Click or drag anywhere on the bar to jump to that point in the audio, regardless of how the waveform is zoomed. Two overlapping fills: a dim band shows the slice currently rendered in the waveform; a brighter fill tracks playback. Keyboard: Arrow keys seek ±5s, Shift+Arrow ±10s, Home/End jump to ends. Pointer move is rAF-coalesced so dragging doesn't thrash the audio element.
+
 ## [2.3.1] - 2026-05-13
 
 ### Fixed
