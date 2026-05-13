@@ -194,6 +194,7 @@ async def run(
             input_tokens = output_tokens = 0
             json_format_used = "n/a"
             underlying_provider = unit.provider_name
+            stop_reason: str | None = None
             parsed_ads: list[dict] = []
             extraction_method: str | None = None
             comp = 0.0
@@ -217,6 +218,7 @@ async def run(
                 output_tokens = resp.output_tokens
                 json_format_used = resp.json_format_used
                 underlying_provider = resp.underlying_provider
+                stop_reason = resp.stop_reason
             except Exception as e:
                 error_payload = sanitize_error(e)
 
@@ -258,6 +260,16 @@ async def run(
                 "total_cost_usd_at_runtime": round(total_cost, 6),
                 "pricing_snapshot_id_at_runtime": pricing_snapshot.captured_at,
                 "json_format_used": json_format_used,
+                "stop_reason": stop_reason,
+                # Provider-normalized truncation flag. The Anthropic SDK uses
+                # 'max_tokens'; OpenAI-compatible SDKs use 'length'. A True
+                # here means the model ran out of budget mid-response.
+                "truncated": stop_reason in ("length", "max_tokens"),
+                # Cheap "verbose model" signal: did this call's output exceed
+                # the legacy 1024-token reviewer cap. Useful for spotting
+                # chatty models (phi-4, some Gemini variants) that won't fit
+                # under a tight max_tokens budget even when not truncated.
+                "over_1024_tokens": (output_tokens or 0) > 1024,
                 "response_path": str(response_path.relative_to(paths.calls_jsonl.parent)) if response_path else None,
                 "prompt_path": f"prompts/{ph}.txt",
                 "extraction_method": extraction_method,

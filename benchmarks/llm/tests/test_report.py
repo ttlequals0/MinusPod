@@ -58,6 +58,43 @@ def test_render_with_one_call(tmp_path, minimal_cfg, make_episode, pricing_snaps
     assert "Run Metadata" in text
 
 
+def test_per_model_detail_reports_verbosity_and_truncation(tmp_path, minimal_cfg, make_episode, pricing_snapshot):
+    """Per-model detail surfaces the over-1024, truncated, and salvaged counts
+    so verbose/instruction-resistant models (phi-4, Gemini variants) are
+    visible at a glance.
+    """
+    ep = make_episode(n_windows=1)
+    calls = tmp_path / "calls.jsonl"
+    append_jsonl(calls, {
+        **CALL_RECORD_TEMPLATE, "call_id": "c1", "model": "verbose-model",
+        "parsed_ads": [{"start_time": 0.0, "end_time": 30.0}],
+        "output_tokens": 1500, "truncated": False, "over_1024_tokens": True,
+    })
+    append_jsonl(calls, {
+        **CALL_RECORD_TEMPLATE, "call_id": "c2", "model": "verbose-model",
+        "trial": 1,
+        "parsed_ads": [{"start_time": 0.0, "end_time": 30.0}],
+        "output_tokens": 4096, "stop_reason": "max_tokens",
+        "truncated": True, "over_1024_tokens": True,
+        "extraction_method": "json_object_single_ad_truncated",
+    })
+    out = tmp_path / "report.md"
+    report.render(
+        cfg=minimal_cfg, episodes=[ep],
+        calls_path=calls, episode_results_path=tmp_path / "ep.jsonl",
+        pricing_snapshot=pricing_snapshot,
+        output_path=out, assets_dir=tmp_path / "assets",
+    )
+    text = out.read_text()
+    assert "over 1024 output tokens" in text
+    assert "hit max_tokens" in text
+    assert "salvaged from truncated JSON" in text
+    # Both calls exceeded 1024 -> 2/2 (100.0%)
+    assert "2/2 calls over 1024 output tokens (100.0%)" in text
+    # One truncated -> "1 hit max_tokens (50.0%)"
+    assert "1 hit max_tokens (50.0%)" in text
+
+
 def test_render_handles_no_ad_episode(tmp_path, minimal_cfg, make_episode, pricing_snapshot):
     ep = make_episode(n_windows=1, no_ad=True)
     calls = tmp_path / "calls.jsonl"

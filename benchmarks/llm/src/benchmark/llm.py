@@ -10,7 +10,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Optional
 
 from .config import ProviderConfig, secret
 
@@ -29,6 +29,11 @@ class LLMResponse:
     output_tokens: int
     json_format_used: str  # "native" | "prompt_injection"
     underlying_provider: str
+    # Anthropic: "end_turn" | "max_tokens" | "stop_sequence" | "tool_use" | None
+    # OpenAI-compatible: "stop" | "length" | "content_filter" | "tool_calls" | None
+    # Used by the benchmark to flag chatty models that hit max_tokens; None when
+    # the provider didn't surface the value.
+    stop_reason: Optional[str] = None
 
 
 class LLMTransientError(RuntimeError):
@@ -135,6 +140,7 @@ async def _call_anthropic(
         output_tokens=msg.usage.output_tokens,
         json_format_used="prompt_injection",
         underlying_provider="Anthropic",
+        stop_reason=getattr(msg, "stop_reason", None),
     )
 
 
@@ -224,6 +230,7 @@ async def _call_openai_compatible(
         output_tokens=getattr(usage, "completion_tokens", 0),
         json_format_used=json_format_used,
         underlying_provider=underlying,
+        stop_reason=getattr(choice, "finish_reason", None),
     )
 
 
