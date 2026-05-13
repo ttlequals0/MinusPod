@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.3] - 2026-05-13
+
+### Changed
+
+- **Made the play scrubber actually look like a scrubber.** 2.3.2 shipped a thin tan rectangle that didn't read as interactive. Now: bordered track, primary-color playback fill, a circular thumb at the playhead position (scales on hover/focus), taller bar (`h-3`) for easier click/touch targeting, window indicator demoted to a muted gray band so it doesn't compete with the playback fill.
+
 ## [2.3.2] - 2026-05-13
 
 ### Changed

@@ -1328,13 +1328,13 @@ function AdReviewModal({
                   tabIndex={0}
                   onPointerDown={onScrubberPointerDown}
                   onKeyDown={onScrubberKeyDown}
-                  className="relative flex-1 h-2 rounded-full bg-secondary/70 cursor-pointer touch-none focus:outline-hidden focus:ring-2 focus:ring-ring"
+                  className="group relative flex-1 h-3 rounded-full bg-background border border-border cursor-pointer touch-none focus:outline-hidden focus:ring-2 focus:ring-ring"
                 >
                   {episodeDuration ? (
                     <>
                       <div
                         aria-hidden="true"
-                        className="absolute inset-y-0 rounded-full bg-primary/25 pointer-events-none"
+                        className="absolute inset-y-0 bg-muted-foreground/25 pointer-events-none"
                         style={{
                           left: `${pct(windowStart)}%`,
                           width: `${pct(windowEnd - windowStart)}%`,
@@ -1342,8 +1342,13 @@ function AdReviewModal({
                       />
                       <div
                         aria-hidden="true"
-                        className="absolute inset-y-0 left-0 rounded-full bg-foreground/70 pointer-events-none"
+                        className="absolute inset-y-0 left-0 rounded-l-full bg-primary pointer-events-none"
                         style={{ width: `${pct(currentTime)}%` }}
+                      />
+                      <div
+                        aria-hidden="true"
+                        className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full bg-primary ring-2 ring-background shadow-sm pointer-events-none group-hover:scale-110 group-focus:scale-110 transition-transform"
+                        style={{ left: `${pct(currentTime)}%` }}
                       />
                     </>
                   ) : null}
