@@ -663,11 +663,7 @@ function AdReviewModal({
     const audio = audioRef.current;
     if (!audio) return;
     const seek = () => {
-      const target = Math.max(0, adStart - 2);
-      // Don't fight the user if they've already moved the playhead.
-      if (audio.currentTime < 0.1) {
-        audio.currentTime = target;
-      }
+      audio.currentTime = Math.max(0, adStart - 2);
     };
     if (audio.readyState >= 1 /* HAVE_METADATA */) {
       seek();
@@ -676,7 +672,7 @@ function AdReviewModal({
       return () => audio.removeEventListener('loadedmetadata', seek);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [item.podcastSlug, item.episodeId, item.start, item.end, resetTick]);
+  }, [item.podcastSlug, item.episodeId, item.start, item.end, resetTick, audioUrl]);
 
   // ------------------------------------------------------------------
   // Audio playback.
@@ -684,9 +680,13 @@ function AdReviewModal({
     const audio = audioRef.current;
     if (!audio) return;
     if (audio.paused) {
-      // Don't snap the playhead — let the user listen anywhere they want.
-      // Use the SkipBack button (or J / J on the ad start pin) to return
-      // to the ad start.
+      // Safety net: if the cursor is parked at episode origin (or otherwise
+      // far before the visible window), snap to the ad start before playing
+      // so the user doesn't hear the episode intro on the first Play. A
+      // deliberate scrub inside or near the window is preserved.
+      if (mode === 'review' && adStart > 1 && audio.currentTime < adStart - 5) {
+        audio.currentTime = Math.max(0, adStart - 2);
+      }
       audio.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
     } else {
       audio.pause();

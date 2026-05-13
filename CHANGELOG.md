@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.9] - 2026-05-13
+
+### Fixed
+
+- **Playback starts at the ad, not at episode origin.** When the user clicked Play on a review-mode editor for a mid-roll or post-roll ad, audio was starting at `0:00` because of a race between the `loadedmetadata` seed and the user's Play click. `togglePlay` now snaps the cursor to `adStart - 2` if the cursor is parked far before the visible window. The seed effect's stale `currentTime < 0.1` guard is removed (the togglePlay safety net handles the race) and `audioUrl` is added to the seed effect's deps so toggling Processed ↔ Original re-seeds the cursor.
+
 ## [2.2.8] - 2026-05-13
 
 ### Fixed
