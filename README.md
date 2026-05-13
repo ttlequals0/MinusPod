@@ -2,7 +2,7 @@
   <img src="frontend/public/logo.png" alt="MinusPod" width="400" />
 </p>
 
-MinusPod is a self-hosted server that removes ads before you ever hit play. It transcribes episodes with Whisper, uses an LLM to detect and cut ad segments, and gets smarter over time by building cross-episode ad patterns and learning from your corrections. Bring your own LLM: Claude, Ollama, OpenRouter, or any OpenAI-compatible provider.
+MinusPod is a self-hosted server that removes ads before you ever hit play. It transcribes episodes with Whisper, uses an LLM to detect and cut ad segments, and builds cross-episode ad patterns from your corrections so repeat sponsors get caught without re-asking the LLM. Bring your own LLM: Claude, Ollama, OpenRouter, or any OpenAI-compatible provider.
 
 ## Table of Contents
 
@@ -302,7 +302,7 @@ The **Original Transcript** panel on the Episode Detail page shows the full pre-
 
 ### Ad Editor
 
-Review and adjust ad detections in the browser. 2.2.0 switches the editor to a wavesurfer.js waveform: drag the green start and red end pins to set the boundaries, with an orange playhead, 1x to 20x zoom (slider or mouse wheel), and a transport bar (skip back, rewind 10s, play, forward 10s, skip forward, stop).
+Review and adjust ad detections in the browser. 2.2.0 switches the editor to a wavesurfer.js waveform: drag the green start and red end pins to set boundaries, with an orange playhead, 1x to 20x zoom (slider or mouse wheel), and a transport bar (skip back, rewind 10s, play, forward 10s, skip forward, stop). 2.3.1-2.3.4 added a playback speed dropdown (0.5x to 2x) next to the play button and a full-episode scrubber under the zoom slider so you can jump anywhere in the audio regardless of how the waveform is zoomed. The scrubber shows a muted gray band for the slice currently visible in the waveform, a primary-color fill tracking playback, and a thumb at the current position. Click or drag to seek; Arrow keys nudge by 5s (Shift = 10s), Home/End jump to ends. Edit Ads opens centered on the detected ad with ~30s of context; Add new ad opens with the entire episode visible. Typing a time outside the current waveform window auto-expands the window to include the pin. The Selection text inputs clamp only to episode bounds; cross-field validation (Start before End, at least 1s) happens on Save with a red border and an inline error if invalid.
 
 Each ad shows why it was flagged, the confidence percentage, and the detection stage. The selection readout shows the current bounds plus the originals if you've moved a pin. An INSIDE AD badge lights up when the playhead sits between the pins. Playback auto-seeks to ~2 seconds before the ad start when you open or switch ads, so you land in context instead of at the beginning of the episode.
 
@@ -421,7 +421,7 @@ Every tunable has a matching env var (`DETECTION_TEMPERATURE`, `VERIFICATION_MAX
 
 #### Ollama context window
 
-Ollama truncates prompts that exceed its context window without telling you. The default is often 2048 tokens — too small for a full-transcript pass, and detection fails silently. When the active provider is Ollama, Settings exposes a **Context window (num_ctx)** field; set it to your model's trained context (8192 or higher on most modern models). Env-var alias: `OLLAMA_NUM_CTX`.
+Ollama truncates prompts that exceed its context window without telling you. The default is often 2048 tokens, too small for a full-transcript pass, and detection fails silently. When the active provider is Ollama, Settings exposes a **Context window (num_ctx)** field; set it to your model's trained context (8192 or higher on most modern models). Env-var alias: `OLLAMA_NUM_CTX`.
 
 ### VAD Gap Detector (advanced)
 
