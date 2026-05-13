@@ -539,7 +539,8 @@ Grouped by how often you'll touch them. **Standard** is what a typical deploymen
 |----------|---------|-------------|
 | `PROCESSING_SOFT_TIMEOUT` | `3600` | Seconds before a stuck job is auto-cleared. Seeds fresh installs; runtime value lives in Settings > Transcription. |
 | `PROCESSING_HARD_TIMEOUT` | `7200` | Seconds before the processing lock is force-released. Must exceed the soft timeout. |
-| `AD_DETECTION_MAX_TOKENS` | `2000` | Max tokens for LLM ad detection responses. |
+| `AD_DETECTION_MAX_TOKENS` | `4096` | Max tokens for LLM ad detection responses. |
+| `REVIEW_MAX_TOKENS` | `4096` | Max tokens for the opt-in ad reviewer's per-ad JSON response. |
 | `MINUSPOD_MAX_ARTWORK_BYTES` | `5242880` (5 MB) | Cap on podcast artwork download size. Clamped to `[65536, 52428800]`. |
 | `MINUSPOD_MAX_RSS_BYTES` | `209715200` (200 MB) | Cap on RSS response body size. Floor is 1 MB. |
 | `RATE_LIMIT_STORAGE_URI` | `memory://` | Flask-limiter storage backend. Default is per-worker; set to `redis://host:6379` + run a Redis sidecar for exact declared limits across workers. |
