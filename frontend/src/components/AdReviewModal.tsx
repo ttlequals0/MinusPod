@@ -332,7 +332,7 @@ function AdReviewModal({
       adStart: (item.correctedBounds ?? item).start,
       adEnd: (item.correctedBounds ?? item).end,
     };
-  }, [mode, episodeDuration, item.start, item.end, item.correctedBounds]);
+  }, [mode, episodeDuration, item]);
 
   const [windowStart, setWindowStart] = useState(defaults.windowStart);
   const [windowEnd, setWindowEnd] = useState(defaults.windowEnd);
@@ -1306,7 +1306,7 @@ function AdReviewModal({
               const audio = audioRef.current;
               if (!audio || !epDur) return;
               const step = e.shiftKey ? 10 : 5;
-              let next = audio.currentTime;
+              let next: number;
               if (e.key === 'ArrowLeft') next = Math.max(0, audio.currentTime - step);
               else if (e.key === 'ArrowRight') next = Math.min(epDur, audio.currentTime + step);
               else if (e.key === 'Home') next = 0;
