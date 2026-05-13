@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.2.11] - 2026-05-13
 
+### Changed
+
+- `REVIEW_MAX_TOKENS` raised from 1024 to 4096 and made env-overridable via `REVIEW_MAX_TOKENS`, matching the `AD_DETECTION_MAX_TOKENS` default and override path. The single-ad LLM response cap is now consistent with the broader detection cap; smaller models with chatty JSON envelopes were occasionally getting truncated at 1024.
+
 ### Fixed
 
 - **Zyn cascade cleanup extended to per-marker frozen data.** 2.2.10 cleaned up `ad_patterns.sponsor_id`, but the editor reads each ad's sponsor from `episode_details.ad_markers_json` where the value was frozen at detection time. Episodes detected during the 2.2.7-2.2.9 window kept showing `Zyn` after the 2.2.10 deploy. Added a one-shot startup migration that scans every episode's `ad_markers_json`, finds markers with `sponsor='Zyn'`, extracts the actual transcript text for the marker's `[start, end]` window via `extract_text_in_range`, and clears `sponsor` (plus strips `Zyn` from the `reason` string) when the canonical brand is not present in the window. Idempotent and conservative: only markers whose detected audio does NOT contain Zyn are touched.

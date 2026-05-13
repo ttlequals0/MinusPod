@@ -1,5 +1,6 @@
 """Opt-in LLM ad reviewer."""
 import logging
+import os
 import time
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Literal, Optional, Tuple
@@ -23,7 +24,7 @@ RESURRECT_BAND_WIDTH = 0.20
 
 # Per-ad LLM response is small (one JSON object). Cap so an unbounded model
 # response cannot eat a whole detection budget.
-REVIEW_MAX_TOKENS = 1024
+REVIEW_MAX_TOKENS = int(os.environ.get('REVIEW_MAX_TOKENS', '4096'))
 
 # Tolerance for treating a returned ad as "boundaries unchanged". Floats
 # that differ from the input by less than this are treated as confirmed
