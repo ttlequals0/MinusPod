@@ -179,6 +179,11 @@ def _salvage_truncated_single_ad(response_text: str) -> Optional[dict]:
     can't do anything with the row, so we'd rather report no-ad than fabricate.
     """
     text = response_text.lstrip()
+    # Reviewer + detector prompts return an array of ad verdicts; truncation
+    # lands inside the first object. Strip the array wrapper so the salvage
+    # regex passes can recover start/end/reason from the partial body.
+    if text.startswith("["):
+        text = text[1:].lstrip()
     if not text.startswith("{"):
         return None
     fields: dict = {}

@@ -224,13 +224,25 @@ def test_salvage_truncated_returns_none_without_start_or_end():
     assert ads is None and method is None
 
 
-def test_salvage_skips_when_text_starts_with_bracket():
-    """Truncated array responses go through bracket_fallback / regex_json_array
-    already. The single-ad salvage is single-object-only by design.
+def test_salvage_recovers_array_wrapped_truncation():
+    """Reviewer and detector responses come back as `[{...}]`. When the model
+    runs out of token budget mid-first-object the array wrapper is still
+    present at the head. Salvage strips the leading `[` and recovers start
+    and end from the partial body. Without this, the call falls open
+    (reviewer) or returns no ads for the window (detector). Regression for
+    issue #221 (Gemini truncation in the opt-in reviewer pass).
     """
     from utils.llm_response import extract_json_ads_array
-    text = '[{"start": 10, "end": 20'
+    text = (
+        '[{\n'
+        '  "start": 1320.4,\n'
+        '  "end": 1514.02,\n'
+        '  "confidence": 0.92,\n'
+        '  "reason": "Sponsored by Babbel: learn a language in just 10 minutes a day, with bite-sized lessons designed by real teachers'
+    )
     ads, method = extract_json_ads_array(text)
-    # Should NOT come back as json_object_single_ad_truncated. The earlier
-    # strategies will either parse partially or return None; either is fine.
-    assert method != "json_object_single_ad_truncated"
+    assert method == "json_object_single_ad_truncated"
+    assert ads is not None and len(ads) == 1
+    assert ads[0]["start"] == 1320.4
+    assert ads[0]["end"] == 1514.02
+    assert ads[0]["confidence"] == 0.92
