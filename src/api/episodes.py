@@ -530,6 +530,7 @@ def regenerate_chapters(slug, episode_id):
                 episode_description=episode_description,
                 podcast_name=podcast_name,
                 episode_title=episode_title,
+                episode_id=episode_id,
             )
         finally:
             token_totals = get_episode_token_totals()

@@ -143,6 +143,45 @@ def get_settings():
     vad_gap_mid = _db_float('vad_gap_mid_min_seconds', default_vad_gap_mid)
     vad_gap_tail = _db_float('vad_gap_tail_min_seconds', default_vad_gap_tail)
 
+    # Per-stage LLM tunables: resolved value (env > DB > default) and env-override status.
+    from config import (
+        get_stage_tunable, stage_tunable_env_override,
+        STAGE_TUNABLE_DEFAULTS, STAGE_TUNABLE_PAYLOAD_KEYS,
+    )
+
+    def _tu(db_key):
+        # Reuse the already-loaded settings dict so we don't trigger 21 extra
+        # DB reads from get_stage_tunable's lazy import path.
+        return {
+            'value': get_stage_tunable(db_key, settings=settings),
+            'isDefault': _setting_is_default(settings, db_key),
+            'envOverride': stage_tunable_env_override(db_key),
+        }
+
+    tunables_payload = {
+        'detectionTemperature':        _tu('detection_temperature'),
+        'detectionMaxTokens':          _tu('detection_max_tokens'),
+        'detectionReasoningBudget':    _tu('detection_reasoning_budget'),
+        'detectionReasoningLevel':     _tu('detection_reasoning_level'),
+        'verificationTemperature':     _tu('verification_temperature'),
+        'verificationMaxTokens':       _tu('verification_max_tokens'),
+        'verificationReasoningBudget': _tu('verification_reasoning_budget'),
+        'verificationReasoningLevel':  _tu('verification_reasoning_level'),
+        'reviewerTemperature':         _tu('reviewer_temperature'),
+        'reviewerMaxTokens':           _tu('reviewer_max_tokens'),
+        'reviewerReasoningBudget':     _tu('reviewer_reasoning_budget'),
+        'reviewerReasoningLevel':      _tu('reviewer_reasoning_level'),
+        'chapterBoundaryTemperature':  _tu('chapter_boundary_temperature'),
+        'chapterBoundaryMaxTokens':    _tu('chapter_boundary_max_tokens'),
+        'chapterBoundaryReasoningBudget': _tu('chapter_boundary_reasoning_budget'),
+        'chapterBoundaryReasoningLevel':  _tu('chapter_boundary_reasoning_level'),
+        'chapterTitleTemperature':     _tu('chapter_title_temperature'),
+        'chapterTitleMaxTokens':       _tu('chapter_title_max_tokens'),
+        'chapterTitleReasoningBudget': _tu('chapter_title_reasoning_budget'),
+        'chapterTitleReasoningLevel':  _tu('chapter_title_reasoning_level'),
+        'ollamaNumCtx':                _tu('ollama_num_ctx'),
+    }
+
     enable_ad_review_raw = _setting_value(settings, 'enable_ad_review', 'false')
     enable_ad_review = str(enable_ad_review_raw).strip().lower() == 'true'
     review_model = _setting_value(settings, 'review_model', 'same_as_pass')
@@ -189,6 +228,11 @@ def get_settings():
         'vadGapTailMinSeconds': _sv('vad_gap_tail_min_seconds', vad_gap_tail),
         'apiKeyConfigured': api_key_configured,
         'retentionDays': int(db.get_setting('retention_days') or '30'),
+        'stageTunables': tunables_payload,
+        'stageTunableDefaults': {
+            payload_key: STAGE_TUNABLE_DEFAULTS[db_key]
+            for payload_key, db_key, _ in STAGE_TUNABLE_PAYLOAD_KEYS
+        },
         'defaults': {
             'systemPrompt': DEFAULT_SYSTEM_PROMPT,
             'verificationPrompt': DEFAULT_VERIFICATION_PROMPT,
@@ -479,7 +523,112 @@ def update_ad_detection_settings():
             return error_response('provider_crypto_unavailable', 409)
         logger.info("Updated Podcast Index API secret")
 
+    # Per-stage LLM tunables (21 fields). Provider-aware reasoning split keeps
+    # Anthropic's numeric budget separate from the other providers' enum.
+    tunable_err = _apply_stage_tunables(db, data)
+    if tunable_err is not None:
+        return tunable_err
+
     return json_response({'message': 'Settings updated'})
+
+
+def _effective_provider_after_update(data):
+    """Return the provider the user is settling on, considering an inline change.
+
+    Reads the DB directly (not via the cached helper) so a same-request
+    provider change is honored without waiting for the 5-second TTL.
+    """
+    candidate = data.get('llmProvider')
+    if candidate:
+        return candidate.lower()
+    db = get_database()
+    stored = db.get_setting('llm_provider')
+    if stored:
+        return stored.lower()
+    return os.environ.get('LLM_PROVIDER', 'anthropic').lower()
+
+
+def _apply_stage_tunables(db, data):
+    """Validate and persist per-stage tunable fields from the request payload.
+
+    Returns a Flask response on validation failure (400), or None on success.
+    """
+    from config import (
+        STAGE_TUNABLE_PAYLOAD_KEYS,
+        STAGE_TUNABLE_RANGES, STAGE_TUNABLE_REASONING_LEVELS,
+    )
+
+    # Coercion + provider-gating per kind. Each tuple is
+    # (coerce_callable, error_message, provider_required, store_callable).
+    # provider_required: 'anthropic' / 'not_anthropic' / 'ollama' / None.
+    def _coerce_int(raw):  return int(raw)
+    def _coerce_float(raw): return float(raw)
+    def _coerce_level(raw):
+        n = str(raw).strip().lower()
+        if n not in STAGE_TUNABLE_REASONING_LEVELS:
+            raise ValueError(f"must be one of: {', '.join(sorted(STAGE_TUNABLE_REASONING_LEVELS))}")
+        return n
+
+    KIND_RULES = {
+        # kind:        (coerce,        type_msg,       provider_gate,    range_checked)
+        'float':       (_coerce_float, 'a number',     None,             True),
+        'int':         (_coerce_int,   'an integer',   None,             True),
+        'budget':      (_coerce_int,   'an integer',   'anthropic',      True),
+        'level':       (_coerce_level, None,           'not_anthropic',  False),
+        'ollama_ctx':  (_coerce_int,   'an integer',   'ollama',         True),
+    }
+
+    provider = None  # Lazy-resolve only when a provider-gated field is present.
+
+    def _check_provider_gate(gate, payload_key):
+        nonlocal provider
+        if gate is None:
+            return None
+        if provider is None:
+            provider = _effective_provider_after_update(data)
+        if gate == 'anthropic' and provider != 'anthropic':
+            return f'{payload_key} is only valid when llmProvider is anthropic'
+        if gate == 'not_anthropic' and provider == 'anthropic':
+            return f'{payload_key} is not valid when llmProvider is anthropic'
+        if gate == 'ollama' and provider != 'ollama':
+            return f'{payload_key} is only valid when llmProvider is ollama'
+        return None
+
+    for payload_key, db_key, kind in STAGE_TUNABLE_PAYLOAD_KEYS:
+        if payload_key not in data:
+            continue
+        raw = data[payload_key]
+
+        if raw is None or (isinstance(raw, str) and raw.strip() == ""):
+            db.set_setting(db_key, "", is_default=True)
+            logger.info(f"Cleared {db_key}")
+            continue
+
+        coerce, type_msg, gate, range_checked = KIND_RULES[kind]
+
+        gate_err = _check_provider_gate(gate, payload_key)
+        if gate_err is not None:
+            return json_response({'error': gate_err}, 400)
+
+        try:
+            v = coerce(raw)
+        except (TypeError, ValueError) as e:
+            if type_msg is not None:
+                msg = f'{payload_key} must be {type_msg}'
+            else:
+                msg = f'{payload_key} {e}'
+            return json_response({'error': msg}, 400)
+
+        if range_checked:
+            lo, hi = STAGE_TUNABLE_RANGES[db_key]
+            if not (lo <= v <= hi):
+                return json_response(
+                    {'error': f'{payload_key} must be between {lo} and {hi}'}, 400
+                )
+
+        db.set_setting(db_key, str(v), is_default=False)
+        logger.info(f"Updated {db_key} to: {v!r}")
+    return None
 
 
 @api.route('/settings/ad-detection/reset', methods=['POST'])

@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.2.12
+  version: 2.3.4
   contact:
     name: MinusPod
   license:
@@ -2868,6 +2868,87 @@ paths:
                 openrouterApiKey:
                   type: string
                   description: API key for OpenRouter (only used when provider is openrouter)
+                detectionTemperature:
+                  type: number
+                  description: Temperature (0.0-2.0) for the first-pass ad detection LLM call.
+                  example: 0.0
+                detectionMaxTokens:
+                  type: integer
+                  description: Maximum response tokens (128-32768) for first-pass ad detection.
+                  example: 4096
+                detectionReasoningBudget:
+                  type: integer
+                  nullable: true
+                  description: Anthropic extended-thinking token budget (1024-65536). Only valid when llmProvider is anthropic.
+                detectionReasoningLevel:
+                  type: string
+                  nullable: true
+                  enum: [none, low, medium, high]
+                  description: Reasoning effort level for non-Anthropic providers. Rejected when llmProvider is anthropic.
+                verificationTemperature:
+                  type: number
+                  description: Temperature (0.0-2.0) for the verification (pass 2) LLM call.
+                verificationMaxTokens:
+                  type: integer
+                  description: Maximum response tokens (128-32768) for the verification pass.
+                verificationReasoningBudget:
+                  type: integer
+                  nullable: true
+                  description: Anthropic-only reasoning budget for verification pass.
+                verificationReasoningLevel:
+                  type: string
+                  nullable: true
+                  enum: [none, low, medium, high]
+                  description: Reasoning effort level for verification pass (non-Anthropic).
+                reviewerTemperature:
+                  type: number
+                  description: Temperature (0.0-2.0) for both reviewer passes.
+                reviewerMaxTokens:
+                  type: integer
+                  description: Maximum response tokens (128-32768) for the reviewer.
+                reviewerReasoningBudget:
+                  type: integer
+                  nullable: true
+                  description: Anthropic-only reasoning budget for the reviewer.
+                reviewerReasoningLevel:
+                  type: string
+                  nullable: true
+                  enum: [none, low, medium, high]
+                  description: Reasoning effort level for the reviewer (non-Anthropic).
+                chapterBoundaryTemperature:
+                  type: number
+                  description: Temperature (0.0-2.0) for chapter boundary detection.
+                chapterBoundaryMaxTokens:
+                  type: integer
+                  description: Maximum response tokens (128-32768) for chapter boundary detection.
+                chapterBoundaryReasoningBudget:
+                  type: integer
+                  nullable: true
+                  description: Anthropic-only reasoning budget for chapter boundary detection.
+                chapterBoundaryReasoningLevel:
+                  type: string
+                  nullable: true
+                  enum: [none, low, medium, high]
+                  description: Reasoning effort level for chapter boundary detection (non-Anthropic).
+                chapterTitleTemperature:
+                  type: number
+                  description: Temperature (0.0-2.0) for chapter title generation.
+                chapterTitleMaxTokens:
+                  type: integer
+                  description: Maximum response tokens (128-32768) for chapter title generation.
+                chapterTitleReasoningBudget:
+                  type: integer
+                  nullable: true
+                  description: Anthropic-only reasoning budget for chapter title generation.
+                chapterTitleReasoningLevel:
+                  type: string
+                  nullable: true
+                  enum: [none, low, medium, high]
+                  description: Reasoning effort level for chapter title generation (non-Anthropic).
+                ollamaNumCtx:
+                  type: integer
+                  nullable: true
+                  description: Ollama context window in tokens (512-131072). Only valid when llmProvider is ollama.
       responses:
         '200':
           description: Settings updated
@@ -4370,6 +4451,29 @@ components:
         retentionDays:
           type: integer
           description: Days to retain processed audio files. 0 = disabled.
+        stageTunables:
+          type: object
+          description: |
+            Per-stage LLM tunables (temperature, max_tokens, reasoning) and
+            global Ollama context window. Each field carries the resolved
+            value (env > DB > default), an isDefault flag, and the name of
+            any environment variable that is overriding the stored value.
+          additionalProperties:
+            type: object
+            properties:
+              value:
+                description: Resolved value (env > DB > default). Type depends on field; nullable for reasoning budgets/levels and ollamaNumCtx.
+                nullable: true
+              isDefault:
+                type: boolean
+              envOverride:
+                type: string
+                nullable: true
+                description: Environment variable currently overriding this setting (read-only in the UI), or null.
+        stageTunableDefaults:
+          type: object
+          description: Built-in defaults for each stage tunable, used as fallback when a provider rejects a user value.
+          additionalProperties: true
         defaults:
           type: object
           properties:

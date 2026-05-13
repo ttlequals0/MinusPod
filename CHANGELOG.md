@@ -6,6 +6,60 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.4] - 2026-05-13
+
+### Fixed
+
+- **Jump button opened the wrong ad.** The button only set the audio seek position; the modal still rendered whichever ad was at `editorSelectedAdIndex` (defaulting to 0). The fix passes the row's index alongside the seek time. As a regression guard, `modalKey` in `AdEditor` now also includes `selectedAdIndex`, so the modal remounts when the index changes.
+
+## [2.3.3] - 2026-05-13
+
+### Changed
+
+- **Made the play scrubber actually look like a scrubber.** 2.3.2 shipped a thin tan rectangle that didn't read as interactive. Now: bordered track, primary-color playback fill, a circular thumb at the playhead position (scales on hover/focus), taller bar (`h-3`) for easier click/touch targeting, window indicator demoted to a muted gray band so it doesn't compete with the playback fill.
+
+## [2.3.2] - 2026-05-13
+
+### Changed
+
+- **Edit Ads now defaults to a small window around the detected ad again** (±30s context, capped at 360s). 2.3.1 made every open default to the full episode, which lost the boundary-detail view that made review-mode useful in the first place. Create-new-ad still defaults to the full episode. If the user types a far-away timestamp in review mode, the window auto-expands to include the new pin.
+
+### Added
+
+- **Full-episode play scrubber** under the zoom slider. Click or drag anywhere on the bar to jump to that point in the audio, regardless of how the waveform is zoomed. Two overlapping fills: a dim band shows the slice currently rendered in the waveform; a brighter fill tracks playback. Keyboard: Arrow keys seek ±5s, Shift+Arrow ±10s, Home/End jump to ends. Pointer move is rAF-coalesced so dragging doesn't thrash the audio element.
+
+## [2.3.1] - 2026-05-13
+
+### Fixed
+
+- **Ad editor waveform defaulted to a 6-minute view**, so on long episodes the pins jumped off-screen the moment you typed real timestamps. Default now spans the full episode. When zoomed in, typing a time outside the viewport scrolls the wavesurfer to bring the pin into view.
+- **Time inputs auto-reset on blur** when Start > End, blocking you from typing Start=34:50 then End=37:20. Each input now clamps only to `[0, episodeDuration]`. Cross-field validation moves to Save: invalid selection disables Save, reds the inputs, and shows an inline error.
+- **No playback speed control** in the ad editor. Added a 0.5×–2× dropdown next to the play button.
+
+### Changed
+
+- Trimmed the helper text on the "LLM Tunables (per stage)" Settings section.
+
+## [2.3.0] - 2026-05-13
+
+### Added
+
+- **Per-stage LLM tunables (#222).** Temperature, max_tokens, and reasoning controls per pass: ad detection (pass 1), reviewer, verification (pass 2), chapter boundary detection, and chapter title generation. The reviewer uses one set of values across both of its invocations. Reasoning is provider-aware — Anthropic takes a numeric token budget (1024-65536) that maps to the `thinking` block; OpenAI, OpenRouter, and Ollama take an effort enum (`none`, `low`, `medium`, `high`). Budget and level live in separate DB keys so a value set on one provider survives switching to another and back.
+- **4xx fallback on rejected tunables.** When the provider returns 4xx because the user's values don't fit the model, the call is logged at WARNING and retried once with built-in defaults. The flag is keyed by `(episode_id, pass_name)` so parallel episodes don't share state. It clears at the start of the next pass.
+- **Ollama context window (`OLLAMA_NUM_CTX`).** Ollama defaults to a small context (often 2048) and silently drops prompt text that doesn't fit, so ad detection fails with no visible error. Setting this to the model's trained context limit (8192+) avoids that.
+- Env vars for every tunable; setting one makes the matching control read-only in Settings with a note pointing at the variable. Full list in `.env.example`.
+- OpenAPI: 21 new fields on the `/settings/ad-detection` PUT payload and the Settings GET response.
+
+### Changed
+
+- Settings key `ad_detection_max_tokens` is migrated to `detection_max_tokens` on first startup. The old `AD_DETECTION_MAX_TOKENS` env var still works as an alias for `DETECTION_MAX_TOKENS`.
+
+### Internal
+
+- New module `src/llm_capabilities.py` for per-pass fallback state, the defaults registry, and provider-aware reasoning translation. Pulled out of `llm_client.py` so the client stays focused on the SDK plumbing.
+- `LLMClient.messages_create` gains `reasoning_effort`, `episode_id`, and `pass_name`. Both `AnthropicClient` and `OpenAICompatibleClient` handle the fallback retry inline (the request shapes differ enough that sharing the body is more confusing than helpful).
+- Stage modules (`ad_detector`, `ad_reviewer`, `chapters_generator`) call `config.get_stage_tunable` at request time so a Settings UI change takes effect on the next episode without restarting the worker.
+
 ## [2.2.12] - 2026-05-13
 
 ### Fixed

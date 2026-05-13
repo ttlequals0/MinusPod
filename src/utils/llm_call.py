@@ -2,7 +2,7 @@
 import logging
 import random
 import time
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
 from llm_client import (
     is_retryable_error,
@@ -33,6 +33,8 @@ def call_llm_for_window(
     episode_id: Optional[str],
     window_label: str,
     temperature: float = 0.0,
+    reasoning_effort: Optional[Union[int, str]] = None,
+    pass_name: Optional[str] = None,
 ) -> Tuple[Optional[object], Optional[Exception]]:
     """Call LLM with primary retry + per-window fallback retry.
 
@@ -47,6 +49,9 @@ def call_llm_for_window(
         messages=[{"role": "user", "content": prompt}],
         timeout=llm_timeout,
         response_format={"type": "json_object"},
+        reasoning_effort=reasoning_effort,
+        episode_id=episode_id,
+        pass_name=pass_name,
     )
     response = None
     last_error = None

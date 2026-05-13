@@ -1230,6 +1230,12 @@ class SchemaMixin:
         # 2.2.10: clear sponsor_id on patterns the 2.2.7 alias backfill mislabeled as Zyn.
         self._cleanup_zyn_cascade(conn)
 
+        # Per-stage LLM tunables: rename ad_detection_max_tokens -> detection_max_tokens.
+        try:
+            self._migrate_ad_detection_max_tokens(conn)
+        except Exception as e:
+            logger.warning(f"ad_detection_max_tokens migration failed: {e}")
+
         # 2.2.11: clear sponsor='Zyn' on ad markers (stored as JSON in
         # episode_details.ad_markers_json) whose detected transcript window
         # does not contain the canonical brand. The per-marker sponsor was
@@ -1267,6 +1273,41 @@ class SchemaMixin:
                 )
         except Exception as e:
             logger.warning(f"Migration: Zyn cascade cleanup failed: {e}")
+
+    def _migrate_ad_detection_max_tokens(self, conn):
+        """Rename ad_detection_max_tokens -> detection_max_tokens.
+
+        Idempotent: if the new key already exists, the old value is dropped
+        rather than overwriting the new one. If only the old exists, its value
+        is copied first. Either way, the old key is cleaned up.
+        """
+        cursor = conn.execute(
+            "SELECT value, is_default FROM settings WHERE key = ?",
+            ('ad_detection_max_tokens',),
+        )
+        row = cursor.fetchone()
+        if row is None:
+            return
+        old_value, old_is_default = row[0], row[1]
+        inserted = conn.execute(
+            "INSERT INTO settings (key, value, is_default) VALUES (?, ?, ?) "
+            "ON CONFLICT(key) DO NOTHING",
+            ('detection_max_tokens', old_value, old_is_default),
+        )
+        conn.execute(
+            "DELETE FROM settings WHERE key = ?",
+            ('ad_detection_max_tokens',),
+        )
+        conn.commit()
+        if inserted.rowcount:
+            logger.info(
+                "Migrated settings key ad_detection_max_tokens -> detection_max_tokens"
+            )
+        else:
+            logger.info(
+                "Dropped legacy settings key ad_detection_max_tokens "
+                "(detection_max_tokens already present)"
+            )
 
     def _cleanup_zyn_ad_markers(self, conn):
         try:

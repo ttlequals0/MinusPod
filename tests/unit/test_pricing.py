@@ -463,7 +463,8 @@ class TestCallLlmForWindowRetry:
             response, error = detector._call_llm_for_window(
                 model="test-model", system_prompt="test", prompt="test",
                 max_retries=1, llm_timeout=10, slug="test", episode_id="ep1",
-                window_label="Window 1"
+                window_label="Window 1",
+                pass_name="ad_detection_pass_1",
             )
 
         assert response is None
@@ -492,7 +493,8 @@ class TestCallLlmForWindowRetry:
             response, error = detector._call_llm_for_window(
                 model="test-model", system_prompt="test", prompt="test",
                 max_retries=1, llm_timeout=10, slug="test", episode_id="ep1",
-                window_label="Window 1"
+                window_label="Window 1",
+                pass_name="ad_detection_pass_1",
             )
 
         assert response is success_response

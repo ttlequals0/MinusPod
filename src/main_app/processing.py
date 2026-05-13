@@ -14,6 +14,11 @@ from ad_reviewer import (
 )
 from cancel import ProcessingCancelled, _check_cancel, _cancel_events, _cancel_events_lock
 from config import MIN_CUT_CONFIDENCE, MAX_EPISODE_RETRIES
+from llm_capabilities import (
+    PASS_AD_DETECTION_1, PASS_AD_DETECTION_2,
+    PASS_CHAPTER_GENERATION, PASS_REVIEWER_1, PASS_REVIEWER_2,
+    clear_fallback,
+)
 from llm_client import is_retryable_error, is_llm_api_error, start_episode_token_tracking, get_episode_token_totals
 from utils.episode_paths import episode_relative_path
 from utils.gpu import get_available_memory_gb, clear_gpu_memory
@@ -295,6 +300,7 @@ def _detect_ads_first_pass(slug, episode_id, segments, audio_path,
     """
     db, storage, _, ad_detector, _, _, _, status_service, _, _ = _get_components()
     status_service.update_job_stage("pass1:detecting", 50)
+    clear_fallback(episode_id, PASS_AD_DETECTION_1)
     ad_result = ad_detector.process_transcript(
         segments, podcast_name, episode_title, slug, episode_id, episode_description,
         audio_path=audio_path,
@@ -507,6 +513,7 @@ def _apply_pass2_reviewer(slug, episode_id, podcast_name, episode_title,
     coords; supporting it would require a per-pass-1-cut timestamp map.
     """
     db, _, _, ad_detector, _, _, _, status_service, _, _ = _get_components()
+    clear_fallback(episode_id, PASS_REVIEWER_2)
 
     if not _ad_review_enabled(db):
         return
@@ -660,6 +667,7 @@ def _run_ad_reviewer(slug, episode_id, podcast_id, ads_to_remove,
     original lists. Skips entirely when ``enable_ad_review`` is false.
     """
     db, storage, _, ad_detector, _, _, _, status_service, _, _ = _get_components()
+    clear_fallback(episode_id, PASS_REVIEWER_1 if pass_num == 1 else PASS_REVIEWER_2)
 
     if not _ad_review_enabled(db):
         return ads_to_remove, all_ads_with_validation
@@ -756,6 +764,7 @@ def _run_verification_pass(slug, episode_id, processed_path, ads_to_remove,
     db, _, _, ad_detector, _, audio_analyzer, _, _, pattern_service, _ = _get_components()
     verification_count = 0
     v_ads_for_ui = []
+    clear_fallback(episode_id, PASS_AD_DETECTION_2)
 
     try:
         from verification_pass import VerificationPass
@@ -927,12 +936,14 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
         chapters_enabled = db.get_setting('chapters_enabled')
         if chapters_enabled is None or chapters_enabled.lower() == 'true':
             chapters_gen = ChaptersGenerator()
+            clear_fallback(episode_id, PASS_CHAPTER_GENERATION)
             chapters = chapters_gen.generate_chapters(
                 segments,
                 episode_description=episode_description,
                 ads_removed=all_cuts,
                 podcast_name=podcast_name,
                 episode_title=episode_title,
+                episode_id=episode_id,
             )
             if chapters and chapters.get('chapters'):
                 storage.save_chapters_json(slug, episode_id, chapters)

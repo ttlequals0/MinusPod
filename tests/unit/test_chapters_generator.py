@@ -350,3 +350,47 @@ class TestTopicDetectionTemperature:
         )
         assert stub.calls, 'LLM must have been called'
         assert stub.calls[-1]['temperature'] == TOPIC_DETECTION_TEMPERATURE
+
+
+class TestChapterTunablesAreConfigDriven:
+    """Verify chapters_generator reads from per-stage config, not the legacy
+    literals/constants. Pin this so a future refactor can't silently put
+    `temperature=0.3` back in place.
+    """
+
+    def test_boundary_temperature_reads_from_config(self, monkeypatch):
+        from llm_client import _clear_provider_cache
+        _clear_provider_cache()
+        monkeypatch.setenv('CHAPTER_BOUNDARY_TEMPERATURE', '0.05')
+
+        gen, stub = _make_generator_with_stub(canned_text='')
+        gen._detect_topic_boundaries(
+            transcript='[00:00] x', start_time=0.0, end_time=1800.0, num_splits=3,
+        )
+        _clear_provider_cache()
+        assert stub.calls[-1]['temperature'] == 0.05
+
+    def test_title_temperature_reads_from_config(self, monkeypatch):
+        from llm_client import _clear_provider_cache
+        _clear_provider_cache()
+        monkeypatch.setenv('CHAPTER_TITLE_TEMPERATURE', '0.9')
+
+        gen, stub = _make_generator_with_stub(canned_text='Title One')
+        gen._call_claude_for_titles(
+            chapter_requests=[{'index': 0, 'excerpt': 'hello', 'position': 'start'}],
+            podcast_name='p', episode_title='e',
+        )
+        _clear_provider_cache()
+        assert stub.calls[-1]['temperature'] == 0.9
+
+    def test_boundary_max_tokens_reads_from_config(self, monkeypatch):
+        from llm_client import _clear_provider_cache
+        _clear_provider_cache()
+        monkeypatch.setenv('CHAPTER_BOUNDARY_MAX_TOKENS', '512')
+
+        gen, stub = _make_generator_with_stub(canned_text='')
+        gen._detect_topic_boundaries(
+            transcript='[00:00] x', start_time=0.0, end_time=1800.0, num_splits=3,
+        )
+        _clear_provider_cache()
+        assert stub.calls[-1]['max_tokens'] == 512
