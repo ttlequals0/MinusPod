@@ -26,7 +26,7 @@ import threading
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Optional, Any, Union
 
 from utils.circuit_breaker import CircuitBreaker, CircuitBreakerOpen
 from utils.rate_limit import parse_retry_after
@@ -47,6 +47,13 @@ from config import (
     PROVIDER_OPENAI_COMPATIBLE,
     PROVIDER_OLLAMA,
     PROVIDERS_NON_ANTHROPIC,
+)
+from llm_capabilities import (
+    get_pass_defaults,
+    is_fallback_eligible_error,
+    is_fallback_set,
+    set_fallback,
+    translate_reasoning_effort,
 )
 
 logger = logging.getLogger(__name__)
@@ -261,6 +268,50 @@ def get_effective_ollama_api_key() -> Optional[str]:
     return os.environ.get('OLLAMA_API_KEY')
 
 
+def _apply_pass_fallback(
+    episode_id: Optional[str],
+    pass_name: Optional[str],
+    max_tokens: int,
+    temperature: float,
+    reasoning_effort: Optional[Union[int, str]],
+):
+    """If the pass already tripped its fallback flag, swap in defaults."""
+    if pass_name and is_fallback_set(episode_id, pass_name):
+        defaults = get_pass_defaults(pass_name)
+        return defaults.max_tokens, defaults.temperature, defaults.reasoning_effort
+    return max_tokens, temperature, reasoning_effort
+
+
+def _should_fallback_retry(
+    error: Exception,
+    episode_id: Optional[str],
+    pass_name: Optional[str],
+) -> bool:
+    """True for a first 4xx (non-429) in a tracked pass -- caller retries once with defaults."""
+    if not pass_name:
+        return False
+    if is_fallback_set(episode_id, pass_name):
+        return False
+    return is_fallback_eligible_error(error)
+
+
+def _log_fallback(
+    provider_label: str,
+    episode_id: Optional[str],
+    pass_name: Optional[str],
+    model: str,
+    max_tokens: int,
+    temperature: float,
+    reasoning_effort: Optional[Union[int, str]],
+    error: Exception,
+) -> None:
+    logger.warning(
+        f"[{episode_id}:{pass_name}] {provider_label} rejected user tunables "
+        f"(model={model}, max_tokens={max_tokens}, temperature={temperature}, "
+        f"reasoning_effort={reasoning_effort!r}): {error}. Retrying with defaults."
+    )
+
+
 class LLMClient(ABC):
     """Abstract base class for LLM clients."""
 
@@ -327,7 +378,10 @@ class LLMClient(ABC):
         messages: List[Dict],
         temperature: float = 0.0,
         timeout: float = 120.0,
-        response_format: Optional[Dict[str, str]] = None
+        response_format: Optional[Dict[str, str]] = None,
+        reasoning_effort: Optional[Union[int, str]] = None,
+        episode_id: Optional[str] = None,
+        pass_name: Optional[str] = None,
     ) -> LLMResponse:
         """Send a completion request (synchronous).
 
@@ -340,6 +394,15 @@ class LLMClient(ABC):
             timeout: Request timeout in seconds
             response_format: Optional format specification (e.g., {"type": "json_object"})
                            Used by OpenAI-compatible APIs to enforce JSON output
+            reasoning_effort: Provider-aware reasoning control. Integer token budget
+                for Anthropic (extended thinking), string enum ("none"|"low"|"medium"|"high")
+                for other providers, or None to omit reasoning configuration.
+            episode_id: Episode identifier for per-pass fallback flag scoping.
+            pass_name: Pass identifier (e.g. "ad_detection_pass_1") for per-pass
+                fallback flag scoping. When both episode_id and pass_name are set,
+                a 4xx from the provider sets a fallback flag and the call is retried
+                with built-in defaults; remaining calls in the same pass use the
+                defaults too. Cleared explicitly by the orchestrator between passes.
 
         Returns:
             LLMResponse with content, model, and usage info
@@ -389,7 +452,10 @@ class AnthropicClient(LLMClient):
         messages: List[Dict],
         temperature: float = 0.0,
         timeout: float = 120.0,
-        response_format: Optional[Dict[str, str]] = None
+        response_format: Optional[Dict[str, str]] = None,
+        reasoning_effort: Optional[Union[int, str]] = None,
+        episode_id: Optional[str] = None,
+        pass_name: Optional[str] = None,
     ) -> LLMResponse:
         self._check_circuit_breaker()
         self._ensure_client()
@@ -402,29 +468,67 @@ class AnthropicClient(LLMClient):
                 effective_system = system + _JSON_FORMAT_SYSTEM_INSTRUCTION
                 logger.debug("Added JSON format instructions to system prompt")
 
-        self._log_messages("Anthropic", effective_system, messages, model, temperature, max_tokens)
+        # If a previous call in this pass already tripped the fallback flag,
+        # use the built-in defaults from llm_capabilities instead of user values.
+        eff_max, eff_temp, eff_reasoning = _apply_pass_fallback(
+            episode_id, pass_name, max_tokens, temperature, reasoning_effort
+        )
+
+        self._log_messages("Anthropic", effective_system, messages, model, eff_temp, eff_max)
+
+        request_kwargs = dict(
+            model=model,
+            max_tokens=eff_max,
+            temperature=eff_temp,
+            system=effective_system,
+            messages=messages,
+            timeout=timeout,
+        )
+        request_kwargs.update(translate_reasoning_effort(PROVIDER_ANTHROPIC, eff_reasoning))
 
         try:
-            response = self._client.messages.create(
-                model=model,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                system=effective_system,
-                messages=messages,
-                timeout=timeout
-            )
+            response = self._client.messages.create(**request_kwargs)
         except Exception as e:
             # 429 is throttling, not a provider failure -- don't trip the breaker.
-            if not is_rate_limit_error(e):
+            # 4xx tunable rejections also skip the breaker: they're user-config
+            # errors, not provider outages, and we're about to retry with defaults.
+            will_fallback = _should_fallback_retry(e, episode_id, pass_name)
+            if not is_rate_limit_error(e) and not will_fallback:
                 self._record_circuit_breaker(success=False)
-            raise
+            if will_fallback:
+                _log_fallback("Anthropic", episode_id, pass_name, model,
+                              max_tokens, temperature, reasoning_effort, e)
+                set_fallback(episode_id, pass_name)
+                defaults = get_pass_defaults(pass_name)
+                eff_max = defaults.max_tokens
+                eff_temp = defaults.temperature
+                eff_reasoning = defaults.reasoning_effort
+                request_kwargs = dict(
+                    model=model,
+                    max_tokens=eff_max,
+                    temperature=eff_temp,
+                    system=effective_system,
+                    messages=messages,
+                    timeout=timeout,
+                )
+                request_kwargs.update(
+                    translate_reasoning_effort(PROVIDER_ANTHROPIC, eff_reasoning)
+                )
+                try:
+                    response = self._client.messages.create(**request_kwargs)
+                except Exception as e2:
+                    if not is_rate_limit_error(e2):
+                        self._record_circuit_breaker(success=False)
+                    raise
+            else:
+                raise
 
         self._record_circuit_breaker(success=True)
 
         content = (response.content[0].text or "") if response.content else ""
 
         self._warn_if_truncated(
-            getattr(response, 'stop_reason', None), max_tokens, model
+            getattr(response, 'stop_reason', None), eff_max, model
         )
 
         llm_response = LLMResponse(
@@ -543,36 +647,52 @@ class OpenAICompatibleClient(LLMClient):
         messages: List[Dict],
         temperature: float = 0.0,
         timeout: float = 120.0,
-        response_format: Optional[Dict[str, str]] = None
+        response_format: Optional[Dict[str, str]] = None,
+        reasoning_effort: Optional[Union[int, str]] = None,
+        episode_id: Optional[str] = None,
+        pass_name: Optional[str] = None,
     ) -> LLMResponse:
         self._check_circuit_breaker()
         self._ensure_client()
 
         all_messages = [{"role": "system", "content": system}] + messages
 
-        self._log_messages("OpenAI", system, messages, model, temperature, max_tokens)
+        eff_max, eff_temp, eff_reasoning = _apply_pass_fallback(
+            episode_id, pass_name, max_tokens, temperature, reasoning_effort
+        )
+
+        self._log_messages("OpenAI", system, messages, model, eff_temp, eff_max)
 
         # Newer OpenAI models require max_completion_tokens instead of max_tokens.
         # Try cached param first, fallback on error.
         cached_param = self._token_param_cache.get(model)
         token_param = cached_param or "max_completion_tokens"
 
-        kwargs = {
-            "model": model,
-            token_param: max_tokens,
-            "temperature": temperature,
-            "messages": all_messages,
-            "timeout": timeout
-        }
+        # Provider detection picks the right reasoning shape (OpenRouter vs
+        # OpenAI-native vs Ollama). get_effective_provider() reads DB+env.
+        active_provider = get_effective_provider()
 
-        if response_format:
-            if self._get_json_format_supported() is False:
-                # Endpoint doesn't support json_object -- inject via prompt instead
-                if response_format.get('type') == 'json_object' and '<output_format>' not in system:
-                    all_messages[0] = {**all_messages[0], "content": system + _JSON_FORMAT_SYSTEM_INSTRUCTION}
-                    logger.debug("Endpoint lacks json_object support; using prompt injection fallback")
-            else:
-                kwargs["response_format"] = response_format
+        def _build_kwargs(tok, tmp, reasoning):
+            kw = {
+                "model": model,
+                token_param: tok,
+                "temperature": tmp,
+                "messages": all_messages,
+                "timeout": timeout,
+            }
+            if response_format:
+                if self._get_json_format_supported() is False:
+                    if response_format.get('type') == 'json_object' and '<output_format>' not in system:
+                        all_messages[0] = {**all_messages[0], "content": system + _JSON_FORMAT_SYSTEM_INSTRUCTION}
+                        logger.debug("Endpoint lacks json_object support; using prompt injection fallback")
+                else:
+                    kw["response_format"] = response_format
+            reasoning_kwargs = translate_reasoning_effort(active_provider, reasoning)
+            # extra_body merges if a caller already supplied one; we don't, so direct update is fine.
+            kw.update(reasoning_kwargs)
+            return kw
+
+        kwargs = _build_kwargs(eff_max, eff_temp, eff_reasoning)
 
         try:
             if cached_param is not None:
@@ -580,9 +700,31 @@ class OpenAICompatibleClient(LLMClient):
             else:
                 response = self._call_with_token_param_fallback(model, kwargs, token_param)
         except Exception as e:
-            if not is_rate_limit_error(e):
+            # 429 / 4xx-tunable-rejections both skip the breaker -- one is
+            # throttling, the other is a user-config retry that's about to fire.
+            will_fallback = _should_fallback_retry(e, episode_id, pass_name)
+            if not is_rate_limit_error(e) and not will_fallback:
                 self._record_circuit_breaker(success=False)
-            raise
+            if will_fallback:
+                _log_fallback("OpenAI", episode_id, pass_name, model,
+                              max_tokens, temperature, reasoning_effort, e)
+                set_fallback(episode_id, pass_name)
+                defaults = get_pass_defaults(pass_name)
+                eff_max = defaults.max_tokens
+                eff_temp = defaults.temperature
+                eff_reasoning = defaults.reasoning_effort
+                kwargs = _build_kwargs(eff_max, eff_temp, eff_reasoning)
+                try:
+                    if cached_param is not None:
+                        response = self._client.chat.completions.create(**kwargs)
+                    else:
+                        response = self._call_with_token_param_fallback(model, kwargs, token_param)
+                except Exception as e2:
+                    if not is_rate_limit_error(e2):
+                        self._record_circuit_breaker(success=False)
+                    raise
+            else:
+                raise
 
         self._record_circuit_breaker(success=True)
 
@@ -596,7 +738,7 @@ class OpenAICompatibleClient(LLMClient):
         content = (response.choices[0].message.content or "") if response.choices else ""
 
         finish_reason = getattr(response.choices[0], 'finish_reason', None) if response.choices else None
-        self._warn_if_truncated(finish_reason, max_tokens, model)
+        self._warn_if_truncated(finish_reason, eff_max, model)
 
         llm_response = LLMResponse(
             content=content,

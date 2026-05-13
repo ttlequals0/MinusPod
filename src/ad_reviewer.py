@@ -5,7 +5,9 @@ import time
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Literal, Optional, Tuple
 
+from config import resolve_stage_tunables
 from database import DEFAULT_REVIEW_PROMPT, DEFAULT_RESURRECT_PROMPT
+from llm_capabilities import PASS_REVIEWER_1, PASS_REVIEWER_2
 from llm_client import get_llm_max_retries, get_llm_timeout
 from utils.llm_call import call_llm_for_window
 from utils.llm_response import extract_json_ads_array
@@ -22,9 +24,6 @@ logger = logging.getLogger(__name__)
 # (e.g. threshold 0.80 -> resurrection eligible if 0.60 <= confidence < 0.80).
 RESURRECT_BAND_WIDTH = 0.20
 
-# Per-ad LLM response is small (one JSON object). Cap so an unbounded model
-# response cannot eat a whole detection budget.
-REVIEW_MAX_TOKENS = int(os.environ.get('REVIEW_MAX_TOKENS', '4096'))
 
 # Tolerance for treating a returned ad as "boundaries unchanged". Floats
 # that differ from the input by less than this are treated as confirmed
@@ -228,6 +227,9 @@ class AdReviewer:
         episode_id = episode_meta.get("episode_id")
         window_label = f"reviewer-pass{pass_num}-{pool}"
 
+        pass_name = PASS_REVIEWER_1 if pass_num == 1 else PASS_REVIEWER_2
+        max_tokens, temperature, reasoning = resolve_stage_tunables('reviewer')
+
         t0 = time.monotonic()
         response, error = call_llm_for_window(
             llm_client=self._llm_client,
@@ -236,10 +238,13 @@ class AdReviewer:
             prompt=user_prompt,
             llm_timeout=get_llm_timeout(),
             max_retries=get_llm_max_retries(),
-            max_tokens=REVIEW_MAX_TOKENS,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            reasoning_effort=reasoning,
             slug=slug,
             episode_id=episode_id,
             window_label=window_label,
+            pass_name=pass_name,
         )
         latency_ms = int((time.monotonic() - t0) * 1000)
 

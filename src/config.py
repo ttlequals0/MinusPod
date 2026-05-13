@@ -4,9 +4,13 @@ All magic numbers and thresholds should be defined here
 for easy tuning and consistency across the codebase.
 """
 import ipaddress
+import logging
 import os
 import re
+from typing import Any, Optional
 from urllib.parse import urlparse
+
+_tunable_logger = logging.getLogger(__name__)
 
 # ============================================================
 # Confidence Thresholds (0.0 - 1.0 scale)
@@ -388,3 +392,237 @@ def get_pricing_source(provider: str, base_url: str = '') -> dict:
         pass
 
     return {'type': 'unknown', 'domain': domain}
+
+
+# ============================================================
+# Per-Stage LLM Tunables (env > DB > default)
+# ============================================================
+# 5 stages * 4 keys + 1 global Ollama key. Reasoning is split into a numeric
+# token budget (Anthropic, extended thinking) and a string-enum effort level
+# (OpenAI/OpenRouter/Ollama); only the key matching the active provider is read.
+# Stage code reads via get_stage_tunable() at call time so Settings UI changes
+# take effect without restart. Out-of-range values log a WARNING and the default
+# is returned -- the system keeps running.
+
+STAGE_TUNABLE_DEFAULTS = {
+    # ad detection (pass 1)
+    'detection_temperature': 0.0,
+    'detection_max_tokens': 4096,
+    'detection_reasoning_budget': None,
+    'detection_reasoning_level': None,
+    # verification (ad detection pass 2)
+    'verification_temperature': 0.0,
+    'verification_max_tokens': 4096,
+    'verification_reasoning_budget': None,
+    'verification_reasoning_level': None,
+    # reviewer (applies to both reviewer pass 1 and reviewer pass 2)
+    'reviewer_temperature': 0.0,
+    'reviewer_max_tokens': 4096,
+    'reviewer_reasoning_budget': None,
+    'reviewer_reasoning_level': None,
+    # chapter generation: boundary detection
+    'chapter_boundary_temperature': 0.1,
+    'chapter_boundary_max_tokens': 300,
+    'chapter_boundary_reasoning_budget': None,
+    'chapter_boundary_reasoning_level': None,
+    # chapter generation: title generation
+    'chapter_title_temperature': 0.3,
+    'chapter_title_max_tokens': 500,
+    'chapter_title_reasoning_budget': None,
+    'chapter_title_reasoning_level': None,
+    # ollama context window (provider-scoped, not per-stage)
+    'ollama_num_ctx': None,
+}
+
+STAGE_TUNABLE_ENV_VARS = {key: key.upper() for key in STAGE_TUNABLE_DEFAULTS}
+
+# Legacy env-var aliases for backward compatibility.
+STAGE_TUNABLE_ENV_ALIASES = {
+    'detection_max_tokens': 'AD_DETECTION_MAX_TOKENS',
+    'reviewer_max_tokens': 'REVIEW_MAX_TOKENS',
+}
+
+STAGE_TUNABLE_RANGES = {
+    # temperatures
+    'detection_temperature': (0.0, 2.0),
+    'verification_temperature': (0.0, 2.0),
+    'reviewer_temperature': (0.0, 2.0),
+    'chapter_boundary_temperature': (0.0, 2.0),
+    'chapter_title_temperature': (0.0, 2.0),
+    # max_tokens
+    'detection_max_tokens': (128, 32768),
+    'verification_max_tokens': (128, 32768),
+    'reviewer_max_tokens': (128, 32768),
+    'chapter_boundary_max_tokens': (128, 32768),
+    'chapter_title_max_tokens': (128, 32768),
+    # reasoning_budget (Anthropic extended thinking)
+    'detection_reasoning_budget': (1024, 65536),
+    'verification_reasoning_budget': (1024, 65536),
+    'reviewer_reasoning_budget': (1024, 65536),
+    'chapter_boundary_reasoning_budget': (1024, 65536),
+    'chapter_title_reasoning_budget': (1024, 65536),
+    # ollama context window
+    'ollama_num_ctx': (512, 131072),
+}
+
+STAGE_TUNABLE_REASONING_LEVELS = {"none", "low", "medium", "high"}
+
+
+def _coerce_tunable(key: str, raw: Any, source_label: str) -> Optional[Any]:
+    """Coerce a stored or env value to int/float/enum. Returns None on bad value
+    (caller treats None as 'use default')."""
+    if raw is None:
+        return None
+    raw_str = str(raw).strip()
+    if raw_str == "":
+        return None
+
+    if key.endswith('_reasoning_level'):
+        normalized = raw_str.lower()
+        if normalized in STAGE_TUNABLE_REASONING_LEVELS:
+            return normalized
+        _tunable_logger.warning(
+            f"{source_label}={raw!r} is not a valid reasoning level; using default"
+        )
+        return None
+
+    range_ = STAGE_TUNABLE_RANGES.get(key)
+    if key.endswith('_temperature'):
+        try:
+            v: Any = float(raw_str)
+        except ValueError:
+            _tunable_logger.warning(f"{source_label}={raw!r} is not numeric; using default")
+            return None
+    else:
+        try:
+            v = int(raw_str)
+        except ValueError:
+            _tunable_logger.warning(f"{source_label}={raw!r} is not an integer; using default")
+            return None
+
+    if range_ is not None:
+        lo, hi = range_
+        if not (lo <= v <= hi):
+            _tunable_logger.warning(
+                f"{source_label}={v} is out of range [{lo}, {hi}]; using default"
+            )
+            return None
+    return v
+
+
+def get_stage_tunable(key: str, settings: Optional[dict] = None) -> Any:
+    """Resolve env > DB > default for a per-stage tunable.
+
+    Out-of-range or malformed values produce a WARNING and the default is
+    returned, never an exception, so a bad value in the DB never blocks
+    processing.
+
+    Args:
+        key: Tunable key.
+        settings: Pre-loaded {key: {'value', 'is_default'}} dict from
+            db.get_all_settings(). When supplied, skips the DB read -- used
+            by the Settings GET handler to resolve all tunables off the
+            single query it already issues. When omitted, the lookup hits
+            the shared 5s TTL cache in llm_client so per-window calls during
+            episode processing don't issue a fresh SQLite read each pass.
+    """
+    if key not in STAGE_TUNABLE_DEFAULTS:
+        raise KeyError(f"Unknown stage tunable: {key!r}")
+    default = STAGE_TUNABLE_DEFAULTS[key]
+
+    env_name = STAGE_TUNABLE_ENV_VARS[key]
+    env_val = os.environ.get(env_name)
+    used_env = env_name
+    if env_val is None:
+        alias = STAGE_TUNABLE_ENV_ALIASES.get(key)
+        if alias:
+            env_val = os.environ.get(alias)
+            if env_val is not None:
+                used_env = alias
+    if env_val is not None and env_val.strip() != "":
+        coerced = _coerce_tunable(key, env_val, used_env)
+        return coerced if coerced is not None else default
+
+    # DB lookup. Caller-supplied dict takes precedence; otherwise use the
+    # shared TTL cache so stage code calling this on every window doesn't
+    # hammer SQLite. 5s TTL still propagates Settings UI changes promptly.
+    db_val: Optional[str] = None
+    if settings is not None:
+        entry = settings.get(key)
+        if isinstance(entry, dict):
+            db_val = entry.get('value')
+        else:
+            db_val = entry
+    else:
+        try:
+            from llm_client import _get_cached_setting
+            db_val = _get_cached_setting(key)
+        except Exception:
+            db_val = None
+
+    if db_val is not None and str(db_val).strip() != "":
+        coerced = _coerce_tunable(key, db_val, f"settings[{key}]")
+        return coerced if coerced is not None else default
+
+    return default
+
+
+def stage_tunable_env_override(key: str) -> Optional[str]:
+    """Return the active env-var name that's overriding this key, or None.
+
+    The Settings UI consults this to render env-overridden controls read-only.
+    """
+    if key not in STAGE_TUNABLE_DEFAULTS:
+        return None
+    env_name = STAGE_TUNABLE_ENV_VARS[key]
+    if os.environ.get(env_name):
+        return env_name
+    alias = STAGE_TUNABLE_ENV_ALIASES.get(key)
+    if alias and os.environ.get(alias):
+        return alias
+    return None
+
+
+# Public mapping: payload key (camelCase) + DB key (snake_case) + kind tag used
+# by the settings API to dispatch validation. Single source of truth; api/settings
+# imports this rather than maintaining a parallel list.
+STAGE_TUNABLE_PAYLOAD_KEYS = (
+    ('detectionTemperature',           'detection_temperature',           'float'),
+    ('detectionMaxTokens',             'detection_max_tokens',            'int'),
+    ('detectionReasoningBudget',       'detection_reasoning_budget',      'budget'),
+    ('detectionReasoningLevel',        'detection_reasoning_level',       'level'),
+    ('verificationTemperature',        'verification_temperature',        'float'),
+    ('verificationMaxTokens',          'verification_max_tokens',         'int'),
+    ('verificationReasoningBudget',    'verification_reasoning_budget',   'budget'),
+    ('verificationReasoningLevel',     'verification_reasoning_level',    'level'),
+    ('reviewerTemperature',            'reviewer_temperature',            'float'),
+    ('reviewerMaxTokens',              'reviewer_max_tokens',             'int'),
+    ('reviewerReasoningBudget',        'reviewer_reasoning_budget',       'budget'),
+    ('reviewerReasoningLevel',         'reviewer_reasoning_level',        'level'),
+    ('chapterBoundaryTemperature',     'chapter_boundary_temperature',    'float'),
+    ('chapterBoundaryMaxTokens',       'chapter_boundary_max_tokens',     'int'),
+    ('chapterBoundaryReasoningBudget', 'chapter_boundary_reasoning_budget', 'budget'),
+    ('chapterBoundaryReasoningLevel',  'chapter_boundary_reasoning_level',  'level'),
+    ('chapterTitleTemperature',        'chapter_title_temperature',       'float'),
+    ('chapterTitleMaxTokens',          'chapter_title_max_tokens',        'int'),
+    ('chapterTitleReasoningBudget',    'chapter_title_reasoning_budget',  'budget'),
+    ('chapterTitleReasoningLevel',     'chapter_title_reasoning_level',   'level'),
+    ('ollamaNumCtx',                   'ollama_num_ctx',                  'ollama_ctx'),
+)
+
+
+def resolve_stage_tunables(prefix: str, settings: Optional[dict] = None):
+    """Read (max_tokens, temperature, reasoning) for a stage prefix.
+
+    Reasoning picks the right key based on the active provider: numeric budget
+    for Anthropic, string-enum level for everyone else. Stage modules call this
+    once at LLM-call time; the underlying DB reads are cached.
+    """
+    from llm_client import get_effective_provider  # lazy: llm_client imports config
+    max_tokens = get_stage_tunable(f'{prefix}_max_tokens', settings=settings)
+    temperature = get_stage_tunable(f'{prefix}_temperature', settings=settings)
+    if get_effective_provider() == PROVIDER_ANTHROPIC:
+        reasoning = get_stage_tunable(f'{prefix}_reasoning_budget', settings=settings)
+    else:
+        reasoning = get_stage_tunable(f'{prefix}_reasoning_level', settings=settings)
+    return max_tokens, temperature, reasoning

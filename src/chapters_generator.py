@@ -4,8 +4,10 @@ import re
 from typing import List, Dict, Optional, Tuple
 
 from config import DEFAULT_CHAPTERS_MODEL as _DEFAULT_CHAPTERS_MODEL
+from config import resolve_stage_tunables
 from utils.time import parse_timestamp, adjust_timestamp
 from utils.text import extract_text_from_segments
+from llm_capabilities import PASS_CHAPTER_GENERATION
 from llm_client import (
     get_llm_client, get_api_key, LLMClient,
     APIError, RateLimitError,
@@ -113,6 +115,7 @@ class ChaptersGenerator:
         """
         self.api_key = api_key or get_api_key()
         self._llm_client_override: Optional[LLMClient] = None
+        self._episode_id: Optional[str] = None
 
     @property
     def _llm_client(self) -> Optional[LLMClient]:
@@ -218,13 +221,17 @@ Transcript:
 {transcript}"""
 
         try:
+            max_tokens, temperature, reasoning = resolve_stage_tunables('chapter_boundary')
             response = self._llm_client.messages_create(
                 model=get_chapters_model(),
-                max_tokens=300,
+                max_tokens=max_tokens,
                 system="",
-                temperature=TOPIC_DETECTION_TEMPERATURE,
+                temperature=temperature,
                 messages=[{"role": "user", "content": prompt}],
-                timeout=get_llm_timeout()
+                timeout=get_llm_timeout(),
+                reasoning_effort=reasoning,
+                episode_id=self._episode_id,
+                pass_name=PASS_CHAPTER_GENERATION,
             )
 
             result_text = response.content.strip()
@@ -372,13 +379,17 @@ Transcript:
         prompt = "\n".join(prompt_parts)
 
         try:
+            max_tokens, temperature, reasoning = resolve_stage_tunables('chapter_title')
             response = self._llm_client.messages_create(
                 model=get_chapters_model(),
-                max_tokens=500,
+                max_tokens=max_tokens,
                 system="",
-                temperature=0.3,
+                temperature=temperature,
                 messages=[{"role": "user", "content": prompt}],
-                timeout=get_llm_timeout()
+                timeout=get_llm_timeout(),
+                reasoning_effort=reasoning,
+                episode_id=self._episode_id,
+                pass_name=PASS_CHAPTER_GENERATION,
             )
 
             response_text = response.content.strip()
@@ -488,6 +499,7 @@ Transcript:
         ads_removed: List[Dict] = None,
         podcast_name: str = "Unknown",
         episode_title: str = "Unknown",
+        episode_id: Optional[str] = None,
     ) -> Dict:
         """Generate Podcasting 2.0 chapters from transcript segments.
 
@@ -511,6 +523,7 @@ Transcript:
             {'version': '1.2.0', 'chapters': [{'startTime', 'title'}, ...]}
         """
         logger.info(f"Generating chapters for '{episode_title}'")
+        self._episode_id = episode_id
 
         if not segments:
             return {'version': '1.2.0', 'chapters': []}

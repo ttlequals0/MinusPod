@@ -28,8 +28,9 @@ from config import (
     MIN_KEYWORD_LENGTH, MIN_UNCOVERED_TAIL_DURATION,
     PATTERN_CORRECTION_OVERLAP_THRESHOLD,
     DEFAULT_AD_DETECTION_MODEL,
-    AD_DETECTION_MAX_TOKENS
+    resolve_stage_tunables,
 )
+from llm_capabilities import PASS_AD_DETECTION_1, PASS_AD_DETECTION_2
 from utils.constants import (
     INVALID_SPONSOR_VALUES, STRUCTURAL_FIELDS,
     SPONSOR_PRIORITY_FIELDS, SPONSOR_PATTERN_KEYWORDS,
@@ -1566,8 +1567,22 @@ class AdDetector:
         return USER_PROMPT_TEMPLATE
 
     def _call_llm_for_window(self, *, model, system_prompt, prompt, llm_timeout,
-                              max_retries, slug, episode_id, window_label):
-        """Thin wrapper over the shared utils.llm_call.call_llm_for_window."""
+                              max_retries, slug, episode_id, window_label, pass_name):
+        """Thin wrapper over utils.llm_call.call_llm_for_window with per-stage tunables.
+
+        ``pass_name`` selects which config keys (DETECTION_* vs VERIFICATION_*) supply
+        the temperature/max_tokens/reasoning values, and is forwarded to the LLM
+        client for per-pass fallback flag scoping.
+        """
+        if pass_name == PASS_AD_DETECTION_1:
+            prefix = 'detection'
+        elif pass_name == PASS_AD_DETECTION_2:
+            prefix = 'verification'
+        else:
+            raise ValueError(f"Unknown pass_name for ad_detector: {pass_name!r}")
+
+        max_tokens, temperature, reasoning = resolve_stage_tunables(prefix)
+
         return call_llm_for_window(
             llm_client=self._llm_client,
             model=model,
@@ -1575,10 +1590,13 @@ class AdDetector:
             prompt=prompt,
             llm_timeout=llm_timeout,
             max_retries=max_retries,
-            max_tokens=AD_DETECTION_MAX_TOKENS,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            reasoning_effort=reasoning,
             slug=slug,
             episode_id=episode_id,
             window_label=window_label,
+            pass_name=pass_name,
         )
 
 
@@ -1695,7 +1713,8 @@ class AdDetector:
                     model=model, system_prompt=system_prompt, prompt=prompt,
                     llm_timeout=llm_timeout, max_retries=max_retries,
                     slug=slug, episode_id=episode_id,
-                    window_label=f"Window {i+1}"
+                    window_label=f"Window {i+1}",
+                    pass_name=PASS_AD_DETECTION_1,
                 )
                 if response is None:
                     failed_windows += 1
@@ -2490,7 +2509,8 @@ class AdDetector:
                     model=model, system_prompt=system_prompt, prompt=prompt,
                     llm_timeout=llm_timeout, max_retries=max_retries,
                     slug=slug, episode_id=episode_id,
-                    window_label=f"Verification Window {i+1}"
+                    window_label=f"Verification Window {i+1}",
+                    pass_name=PASS_AD_DETECTION_2,
                 )
                 if response is None:
                     failed_windows += 1

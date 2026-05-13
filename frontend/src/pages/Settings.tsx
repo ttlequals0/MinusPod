@@ -25,6 +25,7 @@ import {
   type ProvidersResponse,
 } from '../api/providers';
 import AIModelsSection from './settings/AIModelsSection';
+import StageTunablesSection from './settings/StageTunablesSection';
 import TranscriptionSection from './settings/TranscriptionSection';
 import AudioSection from './settings/AudioSection';
 import AdDetectionSection from './settings/AdDetectionSection';
@@ -326,6 +327,15 @@ function Settings() {
     },
   });
 
+  // Per-stage tunables save immediately rather than waiting for the global Save
+  // button: each field is independent and users tweak them iteratively.
+  const tunableMutation = useMutation({
+    mutationFn: (payload: UpdateSettingsPayload) => updateSettings(payload),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
+    },
+  });
+
   const refreshModelsMutation = useMutation({
     mutationFn: refreshModels,
     onSuccess: () => {
@@ -437,6 +447,8 @@ function Settings() {
         onProviderKeySave={handleProviderKeySave}
         onProviderKeyClear={handleProviderKeyClear}
         onProviderKeyTest={handleProviderKeyTest}
+        ollamaNumCtx={settings?.stageTunables?.ollamaNumCtx}
+        onOllamaNumCtxUpdate={(payload) => tunableMutation.mutate(payload)}
       />
 
       <AIModelsSection
@@ -451,6 +463,15 @@ function Settings() {
         onRefresh={() => refreshModelsMutation.mutate()}
         refreshIsPending={refreshModelsMutation.isPending}
       />
+
+      {settings?.stageTunables && settings?.stageTunableDefaults && (
+        <StageTunablesSection
+          tunables={settings.stageTunables}
+          defaults={settings.stageTunableDefaults}
+          llmProvider={llmProvider}
+          onUpdate={(payload) => tunableMutation.mutate(payload)}
+        />
+      )}
 
       <TranscriptionSection
         whisperModel={whisperModel}

@@ -6,6 +6,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Per-stage LLM tunables (#222).** Temperature, max_tokens, and reasoning controls per pass: ad detection (pass 1), reviewer, verification (pass 2), chapter boundary detection, and chapter title generation. The reviewer uses one set of values across both of its invocations. Reasoning is provider-aware — Anthropic takes a numeric token budget (1024-65536) that maps to the `thinking` block; OpenAI, OpenRouter, and Ollama take an effort enum (`none`, `low`, `medium`, `high`). Budget and level live in separate DB keys so a value set on one provider survives switching to another and back.
+- **4xx fallback on rejected tunables.** When the provider returns 4xx because the user's values don't fit the model, the call is logged at WARNING and retried once with built-in defaults. The flag is keyed by `(episode_id, pass_name)` so parallel episodes don't share state. It clears at the start of the next pass.
+- **Ollama context window (`OLLAMA_NUM_CTX`).** Ollama defaults to a small context (often 2048) and silently drops prompt text that doesn't fit, so ad detection fails with no visible error. Setting this to the model's trained context limit (8192+) avoids that.
+- Env vars for every tunable; setting one makes the matching control read-only in Settings with a note pointing at the variable. Full list in `.env.example`.
+- OpenAPI: 21 new fields on the `/settings/ad-detection` PUT payload and the Settings GET response.
+
+### Changed
+
+- Settings key `ad_detection_max_tokens` is migrated to `detection_max_tokens` on first startup. The old `AD_DETECTION_MAX_TOKENS` env var still works as an alias for `DETECTION_MAX_TOKENS`.
+
+### Internal
+
+- New module `src/llm_capabilities.py` for per-pass fallback state, the defaults registry, and provider-aware reasoning translation. Pulled out of `llm_client.py` so the client stays focused on the SDK plumbing.
+- `LLMClient.messages_create` gains `reasoning_effort`, `episode_id`, and `pass_name`. Both `AnthropicClient` and `OpenAICompatibleClient` handle the fallback retry inline (the request shapes differ enough that sharing the body is more confusing than helpful).
+- Stage modules (`ad_detector`, `ad_reviewer`, `chapters_generator`) call `config.get_stage_tunable` at request time so a Settings UI change takes effect on the next episode without restarting the worker.
+
 ## [2.2.12] - 2026-05-13
 
 ### Fixed

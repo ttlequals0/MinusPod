@@ -1,4 +1,5 @@
-import type { LlmProvider } from '../../api/types';
+import { useEffect, useRef, useState } from 'react';
+import type { LlmProvider, StageTunables, UpdateSettingsPayload } from '../../api/types';
 import { LLM_PROVIDERS } from '../../api/types';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import ProviderKeyField from './ProviderKeyField';
@@ -13,6 +14,8 @@ interface LLMProviderSectionProps {
   onProviderKeySave: (provider: ProviderName, apiKey: string) => Promise<void>;
   onProviderKeyClear: (provider: ProviderName) => Promise<void>;
   onProviderKeyTest: (provider: ProviderName) => Promise<ProviderTestResult>;
+  ollamaNumCtx?: StageTunables['ollamaNumCtx'];
+  onOllamaNumCtxUpdate?: (payload: UpdateSettingsPayload) => void;
 }
 
 const NONE_STATUS: ProviderStatus = { configured: false, source: 'none' };
@@ -42,6 +45,8 @@ function LLMProviderSection({
   onProviderKeySave,
   onProviderKeyClear,
   onProviderKeyTest,
+  ollamaNumCtx,
+  onOllamaNumCtxUpdate,
 }: LLMProviderSectionProps) {
   const keyProvider = keyProviderFor(llmProvider);
   const status = keyProvider && providersState ? providersState[keyProvider] : NONE_STATUS;
@@ -101,8 +106,74 @@ function LLMProviderSection({
             onTest={onProviderKeyTest}
           />
         )}
+
+        {llmProvider === LLM_PROVIDERS.OLLAMA && ollamaNumCtx && onOllamaNumCtxUpdate && (
+          <OllamaNumCtxField
+            entry={ollamaNumCtx}
+            onUpdate={onOllamaNumCtxUpdate}
+          />
+        )}
       </div>
     </CollapsibleSection>
+  );
+}
+
+// Saves on blur or Enter -- one mutation per committed edit, not per keystroke.
+function OllamaNumCtxField({
+  entry,
+  onUpdate,
+}: {
+  entry: StageTunables['ollamaNumCtx'];
+  onUpdate: (payload: UpdateSettingsPayload) => void;
+}) {
+  const upstream = (entry.value as number | null) ?? null;
+  const [draft, setDraft] = useState(upstream === null ? '' : String(upstream));
+  const inputRef = useRef<HTMLInputElement | null>(null);
+
+  // Skip re-syncing upstream into the draft while the user is mid-edit; a
+  // TanStack Query background refetch would otherwise overwrite typed input.
+  useEffect(() => {
+    if (inputRef.current && document.activeElement === inputRef.current) {
+      return;
+    }
+    setDraft(upstream === null ? '' : String(upstream));
+  }, [upstream]);
+
+  const commit = () => {
+    const parsed = draft === '' ? null : parseInt(draft, 10);
+    const normalized = parsed !== null && !Number.isFinite(parsed) ? null : parsed;
+    if (normalized === upstream) return;
+    onUpdate({ ollamaNumCtx: normalized });
+  };
+
+  return (
+    <div>
+      <label htmlFor="ollamaNumCtx" className="block text-sm font-medium text-foreground mb-2">
+        Context window (num_ctx)
+      </label>
+      <input
+        ref={inputRef}
+        type="number"
+        id="ollamaNumCtx"
+        min={512}
+        max={131072}
+        step={512}
+        placeholder="Leave blank to use the model default (often 2048)"
+        value={draft}
+        disabled={!!entry.envOverride}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+        }}
+        className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground placeholder:text-muted-foreground focus:outline-hidden focus:ring-2 focus:ring-ring text-sm disabled:opacity-60"
+      />
+      <p className="mt-1 text-sm text-muted-foreground">
+        {entry.envOverride
+          ? `Set by ${entry.envOverride}; edit your environment to change.`
+          : "Ollama drops anything past its context window without telling you. The default (often 2048) cuts off ad detection halfway. Set this to the model's trained context limit (8192 or higher on most modern models)."}
+      </p>
+    </div>
   );
 }
 
