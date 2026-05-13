@@ -87,7 +87,7 @@ export function SponsorInput({ value, onChange, sponsors, placeholder }: Props) 
       {open && (filtered.length > 0 || (!exactMatch && trimmed.length > 0)) && (
         <ul
           role="listbox"
-          className="absolute z-10 mt-1 w-full max-h-64 overflow-auto rounded-md border border-border bg-popover shadow-md text-sm"
+          className="absolute z-20 mt-1 w-full max-h-64 overflow-auto rounded-md border border-border bg-card shadow-lg text-sm"
         >
           {filtered.map((s) => (
             <li

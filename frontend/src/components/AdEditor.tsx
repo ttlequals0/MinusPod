@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import AdReviewModal, { AdReviewItem, AdReviewSubmit, AdCreateSubmit } from './AdReviewModal';
 
@@ -82,15 +82,24 @@ export function AdEditor({
   };
 
   // Initialized from the prop; flipped internally when the user clicks
-  // the "+ Add new ad" button inside review mode. The sync useEffect
-  // re-applies the prop whenever it changes so the page-header
-  // "+ Add new ad" can flip a mounted editor from review -> create
-  // (the editor was already open in review when the user clicked).
+  // the in-modal "+ Add new ad" button. The sync useEffect below only
+  // syncs FALSE -> TRUE so the parent can re-open create mode on an
+  // already-mounted editor, but a user-initiated close (Cancel) does
+  // not get clobbered by the parent's prop on the next render. This
+  // was the source of the "modal won't close" flicker before 2.2.8.
   const [internalCreateMode, setInternalCreateMode] = useState(createMode);
+  const prevCreateModePropRef = useRef(createMode);
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setInternalCreateMode(createMode);
+    if (!prevCreateModePropRef.current && createMode) {
+      setInternalCreateMode(true);
+    }
+    prevCreateModePropRef.current = createMode;
   }, [createMode]);
+
+  // Tracks whether create mode was reached from review (via the
+  // in-modal "+ Add new ad" button) so handleClose can decide between
+  // "return to review" and "close the editor entirely".
+  const cameFromReviewRef = useRef(false);
 
   const safeIndex =
     detectedAds.length > 0
@@ -191,10 +200,23 @@ export function AdEditor({
     }
   };
 
+  const handleAddNew = () => {
+    if (!internalCreateMode) {
+      cameFromReviewRef.current = true;
+    }
+    setInternalCreateMode(true);
+  };
+
   const handleClose = () => {
-    if (internalCreateMode && detectedAds.length > 0) {
+    if (
+      internalCreateMode &&
+      cameFromReviewRef.current &&
+      detectedAds.length > 0
+    ) {
+      cameFromReviewRef.current = false;
       setInternalCreateMode(false);
     } else {
+      cameFromReviewRef.current = false;
       onClose?.();
     }
   };
@@ -219,7 +241,7 @@ export function AdEditor({
       onSkip={handleSkip}
       hasNext={safeIndex < detectedAds.length - 1}
       onAddNew={detectedAds.length > 0 && !internalCreateMode
-        ? () => setInternalCreateMode(true)
+        ? handleAddNew
         : undefined}
       audioMode={audioMode}
       onAudioModeChange={onAudioModeChange}

@@ -6,6 +6,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.8] - 2026-05-13
+
+### Fixed
+
+- **Closing the new-ad modal no longer "leaves a second popup behind".** The 2.2.6 sync useEffect was overriding the user's Cancel — `handleClose` set `internalCreateMode = false`, the modal flipped to review for a frame, then the effect re-imposed `createMode = true` from the parent prop and flipped it back to create. The user perceived this as a stacked review modal appearing under the create form. `handleClose` now tracks whether create mode was entered via the in-modal `+ Add new ad` (returns to review) vs the page-header button (closes entirely). The sync useEffect is now one-way: it only flips into create mode on a fresh prop transition, never overrides an internal close.
+- **Sponsor autocomplete dropdown now has an opaque background.** Swapped `bg-popover` (`--popover` was never defined in the theme, so it resolved to transparent) for `bg-card`, plus `z-20` and `shadow-lg` so the dropdown reads as a popover above the form fields.
+- **Waveform colors follow the active theme.** Wavesurfer's `waveColor` and `progressColor` are now read from the `--muted-foreground` and `--primary` CSS variables at mount time, so switching themes (Slate, Dracula, Catppuccin, Nord, etc.) updates the waveform palette on next open.
+
 ## [2.2.7] - 2026-05-12
 
 ### Added

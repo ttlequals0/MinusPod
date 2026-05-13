@@ -116,6 +116,22 @@ function formatTime(seconds: number): string {
   return `${sign}${m}:${s.toFixed(1).padStart(4, '0')}`;
 }
 
+// Read the current theme's wave + progress colors from the CSS vars
+// that already drive the rest of the UI, so the waveform shifts with
+// the active theme instead of staying fixed at slate/cyan.
+function getThemeWaveformColors(): { waveColor: string; progressColor: string } {
+  if (typeof window === 'undefined') {
+    return { waveColor: '#64748b', progressColor: '#22d3ee' };
+  }
+  const cs = getComputedStyle(document.documentElement);
+  const muted = cs.getPropertyValue('--muted-foreground').trim();
+  const primary = cs.getPropertyValue('--primary').trim();
+  return {
+    waveColor: muted ? `hsl(${muted})` : '#64748b',
+    progressColor: primary ? `hsl(${primary})` : '#22d3ee',
+  };
+}
+
 function loadPlayWhileDragging(): boolean {
   try {
     return localStorage.getItem(PLAY_WHILE_DRAG_KEY) === '1';
@@ -461,8 +477,7 @@ function AdReviewModal({
       container: containerRef.current,
       peaks: [peaks],
       duration: windowDuration,
-      waveColor: '#64748b',
-      progressColor: '#22d3ee',
+      ...getThemeWaveformColors(),
       cursorColor: 'transparent',  // we render our own playhead — see <Cursor /> below
       barWidth: 2,
       barGap: 1,
