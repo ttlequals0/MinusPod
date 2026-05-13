@@ -3,6 +3,7 @@ import sqlite3
 import logging
 import json
 import os
+import re
 import time
 from pathlib import Path
 from typing import Dict, List
@@ -1225,6 +1226,40 @@ class SchemaMixin:
             self._migrate_sponsor_fk(conn)
         except Exception as e:
             logger.error(f"Sponsor FK migration failed: {e}")
+
+        # 2.2.10: clear sponsor_id on patterns the 2.2.7 alias backfill mislabeled as Zyn.
+        self._cleanup_zyn_cascade(conn)
+
+    def _cleanup_zyn_cascade(self, conn):
+        try:
+            zyn_row = conn.execute(
+                "SELECT id FROM known_sponsors WHERE LOWER(name) = 'zyn'"
+            ).fetchone()
+            if not zyn_row:
+                return
+            zyn_id = zyn_row['id']
+            rows = conn.execute(
+                "SELECT id, text_template FROM ad_patterns "
+                "WHERE sponsor_id = ? AND text_template IS NOT NULL",
+                (zyn_id,)
+            ).fetchall()
+            ids_to_clear = [
+                row['id'] for row in rows
+                if not re.search(r'\bZyn\b', row['text_template'] or '', re.IGNORECASE)
+            ]
+            if ids_to_clear:
+                placeholders = ','.join('?' * len(ids_to_clear))
+                conn.execute(
+                    f"UPDATE ad_patterns SET sponsor_id = NULL WHERE id IN ({placeholders})",
+                    ids_to_clear
+                )
+                conn.commit()
+                logger.info(
+                    f"Migration: cleared sponsor_id on {len(ids_to_clear)} "
+                    f"patterns whose text does not contain 'Zyn'"
+                )
+        except Exception as e:
+            logger.warning(f"Migration: Zyn cascade cleanup failed: {e}")
 
     def _migrate_sponsor_fk(self, conn):
         """v2.2.0: Migrate ad_patterns.sponsor TEXT to sponsor_id FK.

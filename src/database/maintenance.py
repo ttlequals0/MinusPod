@@ -1,6 +1,7 @@
 """Maintenance and cleanup mixin for MinusPod database."""
 import json
 import logging
+import re
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Tuple
@@ -375,6 +376,13 @@ class MaintenanceMixin:
         for pattern in patterns:
             sponsor = SponsorService.extract_sponsor_from_text(pattern['text_template'])
             if not sponsor:
+                continue
+            # Require the canonical sponsor name (not just an alias) to
+            # appear as a whole word in the text. Alias-only matches caused
+            # the 2.2.7 Zyn cascade where every transcript containing
+            # 'Zinn' (Howard Zinn etc.) got relabeled as the Zyn brand.
+            if not re.search(r'\b' + re.escape(sponsor) + r'\b',
+                             pattern['text_template'], re.IGNORECASE):
                 continue
             sponsor_id = get_or_create_known_sponsor(self, sponsor)
             if sponsor_id is None:

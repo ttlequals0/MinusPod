@@ -6,6 +6,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.10] - 2026-05-13
+
+### Fixed
+
+- **Sponsor name no longer falsely resolves to Zyn on unrelated ads.** The 2.2.7 Zyn seed added `Zin` and `Zinn` as aliases. The startup `extract_sponsors_for_patterns` backfill matched those aliases against every ad pattern's transcript and overwrote `sponsor_id` to the Zyn row whenever it found a word-boundary hit, including transcripts that mention Howard Zinn or unrelated brand mentions. The result was that every ad opened in the editor showed "Zyn" as the sponsor. Three changes:
+  - Drop the `Zin` alias from the Zyn seed; keep `ZYN` and `Zinn`.
+  - The pattern-level sponsor backfill now requires the canonical sponsor name (not just an alias) to appear as a whole word in the text before writing `sponsor_id`. Aliases on their own are no longer enough confidence for an automatic write.
+  - One-shot startup migration clears `sponsor_id` on every pattern currently pointing at the Zyn row whose `text_template` does not contain `Zyn` as a whole word. Idempotent: only fires for the contaminated rows, only clears when the canonical brand is absent.
+
 ## [2.2.9] - 2026-05-13
 
 ### Fixed
