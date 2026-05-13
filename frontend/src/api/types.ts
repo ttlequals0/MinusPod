@@ -80,7 +80,7 @@ export interface AdSegment {
   confidence: number;
   reason?: string;
   sponsor?: string;
-  detection_stage?: 'first_pass' | 'claude' | 'fingerprint' | 'text_pattern' | 'language' | 'verification';
+  detection_stage?: 'first_pass' | 'claude' | 'fingerprint' | 'text_pattern' | 'language' | 'verification' | 'manual';
   validation?: AdValidation;
   // Ad reviewer (issue #197) -- populated only when the reviewer ran on this ad.
   reviewer_verdict?: 'confirmed' | 'adjust' | 'reject' | 'resurrect' | 'failure';

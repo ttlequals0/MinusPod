@@ -28,6 +28,7 @@ type SaveStatus = 'idle' | 'saving' | 'success' | 'error';
 function EpisodeDetail() {
   const { slug, episodeId } = useParams<{ slug: string; episodeId: string }>();
   const [showEditor, setShowEditor] = useState(false);
+  const [createModeRequested, setCreateModeRequested] = useState(false);
   const [jumpToTime, setJumpToTime] = useState<number | null>(null);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [showReprocessMenu, setShowReprocessMenu] = useState(false);
@@ -72,20 +73,34 @@ function EpisodeDetail() {
 
   // Mutation for submitting ad corrections
   const correctionMutation = useMutation({
-    mutationFn: (correction: AdCorrection) =>
-      submitCorrection(slug!, episodeId!, {
+    mutationFn: (correction: AdCorrection) => {
+      if (correction.type === 'create') {
+        return submitCorrection(slug!, episodeId!, {
+          type: 'create',
+          start: correction.start,
+          end: correction.end,
+          sponsor: correction.sponsor,
+          text_template: correction.text_template,
+          scope: correction.scope,
+          reason: correction.reason,
+        });
+      }
+      const oa = correction.originalAd!;
+      return submitCorrection(slug!, episodeId!, {
         type: correction.type,
         original_ad: {
-          start: correction.originalAd.start,
-          end: correction.originalAd.end,
-          pattern_id: correction.originalAd.pattern_id,
-          confidence: correction.originalAd.confidence,
-          reason: correction.originalAd.reason,
-          sponsor: correction.originalAd.sponsor,
+          start: oa.start,
+          end: oa.end,
+          pattern_id: oa.pattern_id,
+          confidence: oa.confidence,
+          reason: oa.reason,
+          sponsor: oa.sponsor,
         },
         adjusted_start: correction.adjustedStart,
         adjusted_end: correction.adjustedEnd,
-      }),
+        sponsor: correction.sponsor,
+      });
+    },
     onMutate: () => {
       setSaveStatus('saving');
     },
@@ -161,10 +176,15 @@ function EpisodeDetail() {
     return formatStorage(mb);
   };
 
-  // Helper to find correction for an ad marker
+  // Helper to find correction for an ad marker. 'create' corrections
+  // have original_bounds=null (there is no original — it's a net-new
+  // marker); guard the dereference so iterating the corrections list
+  // doesn't crash after a create save.
   const getAdCorrection = (start: number, end: number) => {
     return episode?.corrections?.find(c =>
-      c.original_bounds.start === start && c.original_bounds.end === end
+      c.original_bounds &&
+      c.original_bounds.start === start &&
+      c.original_bounds.end === end
     );
   };
 
@@ -326,6 +346,45 @@ function EpisodeDetail() {
         )}
       </div>
 
+      {/* "Add new ad" entry when the LLM found nothing (or before edit). */}
+      {episode.status === 'completed' && episode.transcript &&
+       (!episode.adMarkers || episode.adMarkers.length === 0) && (
+        <div className="bg-card rounded-lg border border-border p-6 mb-6">
+          {showEditor && createModeRequested ? (
+            <AdEditor
+              detectedAds={[]}
+              audioDuration={episode.originalDuration ?? 0}
+              onCorrection={handleCorrection}
+              onClose={() => {
+                setShowEditor(false);
+                setCreateModeRequested(false);
+              }}
+              saveStatus={saveStatus}
+              createMode={true}
+            />
+          ) : (
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-foreground">No ads detected</h2>
+                <p className="text-sm text-muted-foreground">
+                  Spotted an ad the detector missed? Mark it manually so the pattern matcher learns it.
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setSavedScrollY(window.scrollY);
+                  setCreateModeRequested(true);
+                  setShowEditor(true);
+                }}
+                className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+              >
+                + Add new ad
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       {episode.adMarkers && episode.adMarkers.length > 0 && (
         <div className="bg-card rounded-lg border border-border p-6 mb-6">
           <div className="mb-4">
@@ -335,21 +394,41 @@ function EpisodeDetail() {
                 Detected Ads ({episode.adMarkers.length})
               </h2>
               {episode.status === 'completed' && episode.transcript && (
-                <button
-                  onClick={() => {
-                    if (!showEditor) {
-                      setSavedScrollY(window.scrollY);
-                    }
-                    setShowEditor(!showEditor);
-                  }}
-                  className="flex items-center gap-2 px-3 py-1.5 text-sm bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 transition-colors"
-                >
-                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                      d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
-                  {showEditor ? 'Hide Editor' : 'Edit Ads'}
-                </button>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    onClick={() => {
+                      if (!showEditor) {
+                        setSavedScrollY(window.scrollY);
+                      }
+                      setCreateModeRequested(false);
+                      setShowEditor(!showEditor);
+                    }}
+                    aria-label={showEditor ? 'Hide editor' : 'Edit ads'}
+                    title={showEditor ? 'Hide editor' : 'Edit ads'}
+                    className="inline-flex items-center gap-1.5 px-2 sm:px-3 py-1.5 text-xs sm:text-sm bg-secondary text-secondary-foreground rounded-md hover:bg-secondary/80 transition-colors whitespace-nowrap"
+                  >
+                    <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                        d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                    </svg>
+                    <span className="hidden sm:inline">{showEditor ? 'Hide Editor' : 'Edit Ads'}</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      if (!showEditor) setSavedScrollY(window.scrollY);
+                      setCreateModeRequested(true);
+                      setShowEditor(true);
+                    }}
+                    aria-label="Add new ad"
+                    title="Add new ad"
+                    className="inline-flex items-center gap-1.5 px-2 sm:px-3 py-1.5 text-xs sm:text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors whitespace-nowrap"
+                  >
+                    <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                    <span className="hidden sm:inline">Add new ad</span>
+                  </button>
+                </div>
               )}
             </div>
             {/* Row 2: Detection stage info + time saved */}
@@ -367,59 +446,26 @@ function EpisodeDetail() {
             )}
           </div>
 
-          {/* AdEditor for reviewing/editing ad detections */}
+          {/* AdEditor for reviewing/editing ad detections. The
+              Processed/Original toggle and the "+ Add new ad" button
+              now live INSIDE the modal header, so they remain reachable
+              once the editor is open. */}
           {showEditor && episode.status === 'completed' && (
             <div className="mb-4" ref={editorRef}>
-              <div className="mb-3 flex items-center gap-3 text-sm">
-                <span className="text-muted-foreground">Review mode:</span>
-                <div className="inline-flex rounded-md border border-input overflow-hidden" role="group">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setReviewMode('processed');
-                      localStorage.setItem('ad-editor-review-mode', 'processed');
-                    }}
-                    className={`px-3 py-1 transition-colors ${
-                      reviewMode === 'processed'
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-background text-muted-foreground hover:bg-secondary'
-                    }`}
-                  >
-                    Processed
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!episode.hasOriginalAudio}
-                    onClick={() => {
-                      setReviewMode('original');
-                      localStorage.setItem('ad-editor-review-mode', 'original');
-                    }}
-                    title={
-                      episode.hasOriginalAudio
-                        ? 'Play the pre-cut audio to hear exactly what was removed'
-                        : 'Retain original audio is off in settings, or this episode was processed before the feature existed. Reprocess the episode to capture the original.'
-                    }
-                    className={`px-3 py-1 border-l border-input transition-colors ${
-                      reviewMode === 'original' && episode.hasOriginalAudio
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-background text-muted-foreground hover:bg-secondary'
-                    } disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-background`}
-                  >
-                    Original
-                  </button>
-                </div>
-              </div>
               <AdEditor
                 detectedAds={detectedAds}
                 audioDuration={episode.originalDuration ?? 0}
-                audioUrl={
-                  reviewMode === 'original' && episode.hasOriginalAudio && episode.originalAudioUrl
-                    ? episode.originalAudioUrl
-                    : `/episodes/${slug}/${episode.id}.mp3`
-                }
+                audioUrl={`/episodes/${slug}/${episode.id}.mp3`}
+                audioMode={reviewMode}
+                hasOriginal={!!episode.hasOriginalAudio}
+                onAudioModeChange={(m) => {
+                  setReviewMode(m);
+                  localStorage.setItem('ad-editor-review-mode', m);
+                }}
                 onCorrection={handleCorrection}
                 onClose={() => {
                   setShowEditor(false);
+                  setCreateModeRequested(false);
                   if (savedScrollY !== null) {
                     setTimeout(() => window.scrollTo(0, savedScrollY), 0);
                     setSavedScrollY(null);
@@ -429,6 +475,7 @@ function EpisodeDetail() {
                 saveStatus={saveStatus}
                 selectedAdIndex={editorSelectedAdIndex}
                 onSelectedAdIndexChange={setEditorSelectedAdIndex}
+                createMode={createModeRequested}
               />
             </div>
           )}
@@ -450,9 +497,21 @@ function EpisodeDetail() {
                     <span className={`px-1.5 py-0.5 text-xs rounded font-medium ${
                       segment.detection_stage === 'verification'
                         ? 'bg-purple-500/20 text-purple-600 dark:text-purple-400'
-                        : 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
+                        : segment.detection_stage === 'manual'
+                          ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400'
+                          : 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
                     }`}>
-                      {segment.detection_stage === 'verification' ? 'Pass 2' : 'Pass 1'}
+                      {segment.detection_stage === 'verification' ? 'Pass 2'
+                        : segment.detection_stage === 'manual' ? 'Manual'
+                        : 'Pass 1'}
+                    </span>
+                  )}
+                  {segment.sponsor && (
+                    <span
+                      className="px-1.5 py-0.5 text-xs rounded font-medium bg-muted text-muted-foreground"
+                      title="Sponsor"
+                    >
+                      {segment.sponsor}
                     </span>
                   )}
                   {segment.reviewer_verdict === 'confirmed' && (

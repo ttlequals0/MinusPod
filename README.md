@@ -302,13 +302,21 @@ The **Original Transcript** panel on the Episode Detail page shows the full pre-
 
 ### Ad Editor
 
-The ad editor lets you review and adjust ad detections in the browser. The layout is mobile-first since that's where most reviewing happens.
+Review and adjust ad detections in the browser. 2.2.0 switches the editor to a wavesurfer.js waveform: drag the green start and red end pins to set the boundaries, with an orange playhead, 1x to 20x zoom (slider or mouse wheel), and a transport bar (skip back, rewind 10s, play, forward 10s, skip forward, stop).
 
-Each ad shows why it was flagged, confidence percentage, and detection stage. You can adjust start/end boundaries with per-second steppers, navigate between ads by timestamp, and play audio inline (auto-seeks to ad start when switching). Boundary adjustments and actions trigger haptic feedback on mobile.
+Each ad shows why it was flagged, the confidence percentage, and the detection stage. The selection readout shows the current bounds plus the originals if you've moved a pin. An INSIDE AD badge lights up when the playhead sits between the pins. Playback auto-seeks to ~2 seconds before the ad start when you open or switch ads, so you land in context instead of at the beginning of the episode.
 
-On mobile, start/end controls stack full-width with a bottom sheet for playback and prev/next navigation. Action row: Not Ad, Reset, Confirm, Save.
+A header row above the waveform lets you toggle Processed / Original (separate from the page-level toggle - this one applies to what plays in the editor) and jump straight into create mode with `+ Add new ad`. Waveform colors follow the active theme; the dark theme uses the same muted/primary palette as the rest of the UI so the pins and playhead stay readable on both backgrounds.
 
-On desktop, keyboard shortcuts are available: `Space` play/pause, `J/K` nudge end, `Shift+J/K` nudge start, `C` confirm, `X` reject, `Esc` reset. Start/end controls sit inline with keyboard hints.
+Sponsor is a real autocomplete combobox seeded from the known-sponsor catalog plus any sponsors you've used recently on this podcast. Typing filters the list; clicking a row fills the field. You can also just type a new name and submit.
+
+On mobile the layout stacks vertically and the keyboard hint footer goes away; everything is touch-driven from there.
+
+On desktop you get `Space` for play/pause, arrow keys to nudge the focused pin, mouse wheel to zoom in or out anchored on the cursor, and `C` / `R` / `S` to confirm / reject / skip. Clicking the dimmed backdrop closes the editor in review mode; backdrop-close is disabled in create mode so you don't lose an in-progress entry by clicking outside.
+
+### Adding a New Ad
+
+If the detector missed one, click `+ Add new ad` from the episode page header or from the same button inside the editor modal. The editor opens in create mode against the original (pre-cut) audio so you hear exactly what the listener would have heard: enter start and end timestamps or drag the pins on the waveform, pick a sponsor from the autocomplete or type a new one, and the text template auto-populates from the transcript span between your bounds. Submitting creates a new pattern with `created_by='user'` and writes a `'create'` correction so the pattern matcher picks it up on future episodes. The Patterns page tags manually created patterns with a `Manual` badge and adds an Origin filter (All / Auto / Manual).
 
 ### Screenshots
 
@@ -535,7 +543,8 @@ Grouped by how often you'll touch them. **Standard** is what a typical deploymen
 |----------|---------|-------------|
 | `PROCESSING_SOFT_TIMEOUT` | `3600` | Seconds before a stuck job is auto-cleared. Seeds fresh installs; runtime value lives in Settings > Transcription. |
 | `PROCESSING_HARD_TIMEOUT` | `7200` | Seconds before the processing lock is force-released. Must exceed the soft timeout. |
-| `AD_DETECTION_MAX_TOKENS` | `2000` | Max tokens for LLM ad detection responses. |
+| `AD_DETECTION_MAX_TOKENS` | `4096` | Max tokens for LLM ad detection responses. |
+| `REVIEW_MAX_TOKENS` | `4096` | Max tokens for the opt-in ad reviewer's per-ad JSON response. |
 | `MINUSPOD_MAX_ARTWORK_BYTES` | `5242880` (5 MB) | Cap on podcast artwork download size. Clamped to `[65536, 52428800]`. |
 | `MINUSPOD_MAX_RSS_BYTES` | `209715200` (200 MB) | Cap on RSS response body size. Floor is 1 MB. |
 | `RATE_LIMIT_STORAGE_URI` | `memory://` | Flask-limiter storage backend. Default is per-worker; set to `redis://host:6379` + run a Redis sidecar for exact declared limits across workers. |

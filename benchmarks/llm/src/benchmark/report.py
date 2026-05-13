@@ -80,6 +80,14 @@ class ModelStats:
     extra_key_names: set[str] = field(default_factory=set)
     output_tokens_total: int = 0
     detected_ads_total: int = 0
+    # Verbosity / truncation telemetry. Useful for spotting models that
+    # don't follow "respond with valid JSON only" and emit chatty `reason`
+    # fields (phi-4, some Gemini variants). `call_count` is the denominator
+    # for the three percentages computed at render time.
+    call_count: int = 0
+    truncated_count: int = 0
+    over_1024_count: int = 0
+    salvaged_count: int = 0
     avg_f1: float = 0.0
     mean_f1_stdev: float = 0.0
 
@@ -213,6 +221,9 @@ def _aggregate(
 
     output_tokens_per_model: dict[str, int] = defaultdict(int)
     detected_ads_per_model: dict[str, int] = defaultdict(int)
+    call_count_per_model: dict[str, int] = defaultdict(int)
+    truncated_per_model: dict[str, int] = defaultdict(int)
+    over_1024_per_model: dict[str, int] = defaultdict(int)
     calibration: dict[str, list[tuple[float, bool]]] = defaultdict(list)
     agreement: dict[tuple[str, int], dict[str, int]] = defaultdict(lambda: defaultdict(int))
     detection_buckets: dict[str, dict[str, dict[str, list[bool]]]] = defaultdict(
@@ -235,7 +246,17 @@ def _aggregate(
         schema_totals_per_model[rec["model"]] += int(sv.get("missing_required", 0)) + int(sv.get("wrong_type", 0)) + int(sv.get("extra_keys", 0)) + int(sv.get("out_of_range", 0))
         for k in sv.get("extra_key_names") or []:
             extra_keys_per_model[rec["model"]].add(k)
-        output_tokens_per_model[rec["model"]] += int(rec.get("output_tokens", 0))
+        out_toks = int(rec.get("output_tokens", 0))
+        output_tokens_per_model[rec["model"]] += out_toks
+        call_count_per_model[rec["model"]] += 1
+        if rec.get("truncated"):
+            truncated_per_model[rec["model"]] += 1
+        # over_1024 has an explicit flag on new records and falls back to a
+        # direct comparison on output_tokens for historical records collected
+        # before the flag existed. Truncated has no fallback: stop_reason
+        # was never captured pre-flag, so we accept 0% on legacy data.
+        if rec.get("over_1024_tokens") or out_toks > 1024:
+            over_1024_per_model[rec["model"]] += 1
         ads = rec.get("parsed_ads") or []
         detected_ads_per_model[rec["model"]] += len(ads)
         # Cross-model agreement: count predictions per (episode, window) per model
@@ -341,6 +362,10 @@ def _aggregate(
         ms.extra_key_names = extra_keys_per_model[model]
         ms.output_tokens_total = output_tokens_per_model[model]
         ms.detected_ads_total = detected_ads_per_model[model]
+        ms.call_count = call_count_per_model[model]
+        ms.truncated_count = truncated_per_model[model]
+        ms.over_1024_count = over_1024_per_model[model]
+        ms.salvaged_count = method_counts[model].get("json_object_single_ad_truncated", 0)
         f1s = list(ms.f1_per_episode.values())
         ms.avg_f1 = statistics.fmean(f1s) if f1s else 0.0
         stdevs = list(ms.f1_stdev_per_episode.values())
@@ -671,7 +696,7 @@ def _render_per_model_detail(stats: dict[str, ModelStats]) -> str:
     lines = [
         "### Per-Model Detail",
         "",
-        "Full per-model profile: F1 averaged across episodes, total cost per episode at current pricing, p50 / p95 latency, JSON compliance, parse-failure rate, and the distribution of extraction methods the parser had to use. The `Extraction methods` list shows how often each route was hit. `json_array_direct` is the cleanest; the rest are recovery paths. Ordered by F1 descending so the best performers appear first.",
+        "Full per-model profile: F1 averaged across episodes, total cost per episode at current pricing, p50 / p95 latency, JSON compliance, parse-failure rate, the distribution of extraction methods the parser had to use, and verbosity / truncation telemetry. The `Extraction methods` list shows how often each route was hit. `json_array_direct` is the cleanest; the rest are recovery paths. The verbosity row flags models that emit long `reason` fields or run out of token budget mid-response. Ordered by F1 descending so the best performers appear first.",
         "",
     ]
     for s in sorted(stats.values(), key=lambda s: _avg_f1(s), reverse=True):
@@ -684,6 +709,15 @@ def _render_per_model_detail(stats: dict[str, ModelStats]) -> str:
         if s.extraction_method_counts:
             counts = ", ".join(f"`{k}`: {v}" for k, v in sorted(s.extraction_method_counts.items()))
             lines.append(f"- Extraction methods: {counts}")
+        if s.call_count:
+            verbose_pct = 100.0 * s.over_1024_count / s.call_count
+            truncated_pct = 100.0 * s.truncated_count / s.call_count
+            salvaged_pct = 100.0 * s.salvaged_count / s.call_count
+            lines.append(
+                f"- Verbosity: {s.over_1024_count}/{s.call_count} calls over 1024 output tokens ({verbose_pct:.1f}%); "
+                f"{s.truncated_count} hit max_tokens ({truncated_pct:.1f}%); "
+                f"{s.salvaged_count} salvaged from truncated JSON ({salvaged_pct:.1f}%)"
+            )
         if s.schema_violations_total:
             lines.append(f"- Schema violations: {s.schema_violations_total}")
         if s.extra_key_names:

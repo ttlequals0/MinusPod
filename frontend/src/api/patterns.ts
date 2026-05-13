@@ -20,11 +20,12 @@ export interface AdPattern {
   is_active: boolean;
   disabled_at: string | null;
   disabled_reason: string | null;
+  created_by?: string | null;
 }
 
 export interface PatternCorrection {
-  type: 'confirm' | 'reject' | 'adjust';
-  original_ad: {
+  type: 'confirm' | 'reject' | 'adjust' | 'create';
+  original_ad?: {
     start: number;
     end: number;
     pattern_id?: number;
@@ -35,6 +36,13 @@ export interface PatternCorrection {
   adjusted_start?: number;
   adjusted_end?: number;
   notes?: string;
+  // 'create' type fields
+  start?: number;
+  end?: number;
+  sponsor?: string;
+  text_template?: string;
+  scope?: 'podcast' | 'global';
+  reason?: string;
 }
 
 // Pattern Stats

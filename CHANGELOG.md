@@ -6,6 +6,135 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.12] - 2026-05-13
+
+### Fixed
+
+- **Truncated LLM responses now salvage usable ad verdicts instead of failing open (#221).** `extract_json_ads_array` already calls `_salvage_truncated_single_ad` as a final fallback when a model runs out of token budget mid-response, but the salvage helper required the body to start with `{`. Both the detector and the opt-in reviewer prompt for an array of ad verdicts, so truncation lands inside the first object with `[` at the head, and the salvage path was being skipped. The helper now strips a leading `[` before its `startswith('{')` guard, letting the existing regex recover `start`/`end`/`reason` from the partial body. Benefits both code paths (detector and reviewer) via the shared helper.
+
+## [2.2.11] - 2026-05-13
+
+### Changed
+
+- `REVIEW_MAX_TOKENS` raised from 1024 to 4096 and made env-overridable via `REVIEW_MAX_TOKENS`, matching the `AD_DETECTION_MAX_TOKENS` default and override path. The single-ad LLM response cap is now consistent with the broader detection cap; smaller models with chatty JSON envelopes were occasionally getting truncated at 1024.
+
+### Fixed
+
+- **Zyn cascade cleanup extended to per-marker frozen data.** 2.2.10 cleaned up `ad_patterns.sponsor_id`, but the editor reads each ad's sponsor from `episode_details.ad_markers_json` where the value was frozen at detection time. Episodes detected during the 2.2.7-2.2.9 window kept showing `Zyn` after the 2.2.10 deploy. Added a one-shot startup migration that scans every episode's `ad_markers_json`, finds markers with `sponsor='Zyn'`, extracts the actual transcript text for the marker's `[start, end]` window via `extract_text_in_range`, and clears `sponsor` (plus strips `Zyn` from the `reason` string) when the canonical brand is not present in the window. Idempotent and conservative: only markers whose detected audio does NOT contain Zyn are touched.
+
+## [2.2.10] - 2026-05-13
+
+### Fixed
+
+- **Sponsor name no longer falsely resolves to Zyn on unrelated ads.** The 2.2.7 Zyn seed added `Zin` and `Zinn` as aliases. The startup `extract_sponsors_for_patterns` backfill matched those aliases against every ad pattern's transcript and overwrote `sponsor_id` to the Zyn row whenever it found a word-boundary hit, including transcripts that mention Howard Zinn or unrelated brand mentions. The result was that every ad opened in the editor showed "Zyn" as the sponsor. Three changes:
+  - Drop the `Zin` alias from the Zyn seed; keep `ZYN` and `Zinn`.
+  - The pattern-level sponsor backfill now requires the canonical sponsor name (not just an alias) to appear as a whole word in the text before writing `sponsor_id`. Aliases on their own are no longer enough confidence for an automatic write.
+  - One-shot startup migration clears `sponsor_id` on every pattern currently pointing at the Zyn row whose `text_template` does not contain `Zyn` as a whole word. Idempotent: only fires for the contaminated rows, only clears when the canonical brand is absent.
+
+## [2.2.9] - 2026-05-13
+
+### Fixed
+
+- **Playback starts at the ad, not at episode origin.** When the user clicked Play on a review-mode editor for a mid-roll or post-roll ad, audio was starting at `0:00` because of a race between the `loadedmetadata` seed and the user's Play click. `togglePlay` now snaps the cursor to `adStart - 2` if the cursor is parked far before the visible window. The seed effect's stale `currentTime < 0.1` guard is removed (the togglePlay safety net handles the race) and `audioUrl` is added to the seed effect's deps so toggling Processed ↔ Original re-seeds the cursor.
+
+## [2.2.8] - 2026-05-13
+
+### Fixed
+
+- **Closing the new-ad modal no longer "leaves a second popup behind".** The 2.2.6 sync useEffect was overriding the user's Cancel — `handleClose` set `internalCreateMode = false`, the modal flipped to review for a frame, then the effect re-imposed `createMode = true` from the parent prop and flipped it back to create. The user perceived this as a stacked review modal appearing under the create form. `handleClose` now tracks whether create mode was entered via the in-modal `+ Add new ad` (returns to review) vs the page-header button (closes entirely). The sync useEffect is now one-way: it only flips into create mode on a fresh prop transition, never overrides an internal close.
+- **Sponsor autocomplete dropdown now has an opaque background.** Swapped `bg-popover` (`--popover` was never defined in the theme, so it resolved to transparent) for `bg-card`, plus `z-20` and `shadow-lg` so the dropdown reads as a popover above the form fields.
+- **Waveform colors follow the active theme.** Wavesurfer's `waveColor` and `progressColor` are now read from the `--muted-foreground` and `--primary` CSS variables at mount time, so switching themes (Slate, Dracula, Catppuccin, Nord, etc.) updates the waveform palette on next open.
+
+## [2.2.7] - 2026-05-12
+
+### Added
+
+- **Real sponsor autocomplete in create mode.** New `SponsorInput` combobox component renders the dropdown inside the React tree so a suggestion click stays within the modal panel (the old `<datalist>` browser-native popup escaped the modal and dismissed the editor). Includes a `+ Add new: <typed>` option when no exact match.
+- `Zyn` sponsor seed with `Zin` / `Zinn` aliases (Whisper mishears).
+
+### Changed / Fixed
+
+- **Manually-created ads now display sponsor + reason on the page row.** Backend synthesizes a `<sponsor>: manually added ad` reason when the user leaves Reason blank; frontend adds a sponsor chip alongside the time range and a `Manual` (amber) detection-stage badge.
+- **Modal can no longer be dismissed accidentally.** Backdrop close switched to `onMouseDown` with an `e.target === e.currentTarget` guard, so only clicks on the bare backdrop area trigger close. In create mode, backdrop close is disabled entirely — the user must use Cancel or X to dismiss a form they're filling out.
+- **Diagnostic logs for reprocess.** Stage 2 (text pattern) now logs `considered N patterns, matched M`. Database init logs `Pattern catalog: ad_patterns active=N, known_sponsors active=M`. Lets us distinguish "Stage 2 had 0 patterns to consider" from "Stage 2 considered many but matched 0" from "Claude returned 0".
+
+### PWA
+
+- `skipWaiting: true` + `clientsClaim: true` on the Workbox config. New deploys take over open tabs on next page load instead of waiting for all tabs to close.
+
+## [2.2.6] - 2026-05-12
+
+### Fixed
+
+- **Crash after `Save & Next` on a create-ad submission.** `getAdCorrection` at `EpisodeDetail.tsx:180` dereferenced `c.original_bounds.start` for every correction in the list. `'create'` corrections legitimately have `original_bounds=null` (no original bounds for a brand-new marker), so the first one to land after the new correction posted crashed the page with `TypeError: Cannot read properties of null (reading 'start')`. Added a null guard on the find predicate.
+- **Transcript text now refreshes when the user moves a pin in create mode.** Dropped the "only when empty" guard on the `/transcript-span` auto-fill effect. The text template is meant to be derived from the current window, so the fetch now always overwrites the field; manual edits get clobbered when the user drags a pin (acceptable trade-off — see follow-up note in plan).
+- **`+ Add new ad` from a review-mode modal no longer bleeds review state into the create form.** AdEditor now sets a `key` prop on `<AdReviewModal>` that changes on mode flip and on ad switching, forcing React to remount the modal so all `useState` hooks re-initialize from the `defaults` useMemo cleanly.
+
+### Changed
+
+- Window-times row in the modal header now reads `Window: 0:00.0 – 4:02.1` instead of two unlabeled numbers flanking the checkbox + Reset button.
+
+## [2.2.5] - 2026-05-12
+
+### Changed / Fixed
+
+- **Editable selection timestamps.** The Selection readout was static text on 2.2.0-2.2.4 even though the original plan called for editable inputs. The green start time and red end time are now controlled inputs that accept `MM:SS[.s]`, `H:MM:SS[.s]`, or raw seconds. Commit on blur or Enter, revert on Escape, clamped to `[0, episode_duration]` with `start + 1s <= end`. Pin drag still updates them live.
+- **Dropped the `+/-1m` window-extent buttons from the modal header.** They were a verbatim lift from PR #204 and the original 2.2.0 plan explicitly dropped them. The keyboard shortcuts `,` and `.` still expand the window; the pin handles still set the ad boundaries. The strip now shows only the window time labels, the `Play audio while dragging pin` checkbox, and the Reset button.
+- **`+ Add new ad` from the page header now flips an already-open editor into create mode.** Re-added the `useEffect` that syncs the internal `createMode` state when the prop changes (was removed in 2.2.1 to satisfy `react-hooks/set-state-in-effect`; the lint is wrong here, so the rule is disabled on that one line with a comment explaining why).
+- **Modal backdrop now hides the page chrome.** Swapped `bg-black/50` for `bg-background/95 backdrop-blur-sm` so the underlying `Detected Ads` list no longer shows through when the editor is open.
+
+## [2.2.4] - 2026-05-12
+
+### Fixed
+
+- **`Detected Ads (N)` header buttons no longer wrap on mobile.** `Edit Ads` and `+ Add new ad` are now icon-only on the default breakpoint (with `aria-label` + `title` for accessibility) and pick up their text labels at `sm:` and up. Tighter `px-2` + `gap-1.5` + `text-xs` keep everything on a single row even when the count goes into double digits.
+
+## [2.2.3] - 2026-05-12
+
+### Fixed
+
+- **Modal header truncated the title to `D.`** on narrow viewports. The `h2` had `flex-1 truncate` next to a flex-row of action chips, so when the chips occupied most of the width the title compressed to its first letter. The title is now `hidden sm:block` (the metadata row below already identifies the editor; the title is decorative on mobile), and the chrome no longer fights for space.
+- **`+ Add new ad` button wrapped to a second row on mobile.** It is now icon-only on the default breakpoint (`+` plus screen-reader label) and gains the `Add new ad` text on `sm:` and up.
+- **Bottom action bar overflowed.** Skip / Reject / Save buttons now show short labels on mobile (`Skip`, `Reject`, `Save`) and the full `& Next` suffix only on `sm:` and up, with tighter gaps + padding so all three fit on a 360px viewport.
+- Reduced horizontal padding on the modal chrome (`px-4` mobile / `px-6` desktop) to give the waveform and action bar more usable width on phones.
+
+## [2.2.2] - 2026-05-12
+
+### Changed
+
+- **`+ Add new ad` now also lives on the `Detected Ads` page header** next to `Edit Ads`, so users can jump straight into create mode without first opening review mode.
+- **Modal header restructured.** Stage / Confidence / Pattern / Reason chips now sit on their own row below the title and the Processed/Original/Add-new/Close action chrome, which kept the chrome from wrapping awkwardly on narrow screens.
+- **Action bar buttons are equal-width and same-height** (`flex-1 basis-0 h-9` on mobile, fixed min-width on desktop). The `Save & Next` label no longer wraps to three lines and tower over its siblings.
+- **Renamed the primary action label** from `Save adjustment & next` to `Save & Next` (and `Save adjustment` to `Save` when there is no queue).
+
+## [2.2.1] - 2026-05-12
+
+### Fixed
+
+- **`+ Add new ad` was hidden behind the editor modal.** On 2.2.0 the button only existed on the page chrome behind the wavesurfer modal, so once you opened the editor you had no way to reach create mode. Moved into the modal header alongside the close button.
+- **Processed / Original audio toggle was hidden behind the modal.** Same root cause. Moved the toggle into the modal header. Original is forced (and the toggle hidden) when the editor is in create mode, since you cannot mark a new ad against already-cut audio.
+- **Create mode now uses the same waveform editor.** The 2.2.0 create flow used a plain form with numeric start/end fields. 2.2.1 reuses `AdReviewModal` so the user can drag the start/end pins on the actual waveform, with the text template auto-populated from `/transcript-span` and editable inline.
+
+## [2.2.0] - 2026-05-12
+
+### Added
+
+- **Create-new-ad workflow.** Mark an ad on any episode the detector missed, directly from `EpisodeDetail`. Submits via the new `'create'` correction type on `POST /api/v1/episodes/<slug>/<episode_id>/corrections`. The new marker is inserted into `ad_markers_json` (sorted by start), a new `ad_patterns` row is created with `created_by='user'`, and a `pattern_corrections` row of type `'create'` is recorded for cross-episode learning.
+- **Waveform-based ad editor.** Replaces the prior plain `<audio>` + nudge-button `AdEditor` with a wavesurfer.js v7 editor. Draggable green/red pin handles, orange playhead with 1x-20x zoom, transport bar (SkipBack / Rewind10s / Play / Forward10s / SkipForward / Stop), live INSIDE AD / OUTSIDE AD indicator, mouse-wheel zoom, keyboard hotkeys (Space / C / R / S / arrows). Mobile layout drops keyboard hotkey hints and uses touch-only controls.
+- `GET /feeds/<slug>/episodes/<episode_id>/peaks?start=&end=&resolution_ms=` returns ffmpeg-derived waveform peaks for a window. Auto-coarsens the resolution for very long windows so the JSON payload stays under ~600 KB. Drives the new editor.
+- `GET /feeds/<slug>/episodes/<episode_id>/transcript-span?start=&end=` returns the transcript text spanning a window. Used by create mode to auto-populate the new pattern's `text_template`.
+- `Accept-Ranges: bytes` advertised on `serve_original_audio` so the wavesurfer player can seek without re-downloading.
+- Manual badge + Origin filter (All / Auto / Manual) on `PatternsPage` for patterns where `created_by = 'user'`.
+
+### Changed
+
+- **Sponsor normalization via FK.** `ad_patterns.sponsor` (free-text column) replaced with `ad_patterns.sponsor_id INTEGER REFERENCES known_sponsors(id)`. `pattern_corrections.sponsor_id` added (same FK target). All sponsor writes across `pattern_service`, `text_pattern_matcher`, `database/maintenance`, `api/patterns`, and the `PUT /patterns/<id>` endpoint now flow through a single sanitization chokepoint (`src/sponsor_normalize.get_or_create_known_sponsor`). Read paths JOIN `known_sponsors` and alias `name AS sponsor` so consumers don't change.
+- `pattern_corrections.correction_type` CHECK extended to include `'auto_promotion'` (latent bug; the auto-promotion writer at `pattern_service.py:708` was writing a value the constraint rejected) and `'create'`.
+
+### Migration
+
+- One-shot migration in `_run_schema_migrations` adds the new columns, deduplicates case-variant rows in `known_sponsors` (lowest id wins), snapshots the old `ad_patterns.sponsor` text into a backup table, backfills `sponsor_id`, verifies (`PRAGMA foreign_key_check` clean + row-count parity vs the snapshot), then drops the old text column and recreates `pattern_corrections` with the extended CHECK. Each step is idempotent. On verification failure, destructive steps abort and the new columns plus backup table remain in place so the user can re-run on the next restart.
+
 ## [2.1.9] - 2026-05-11
 
 ### Fixed

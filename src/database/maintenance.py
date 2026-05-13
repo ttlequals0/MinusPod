@@ -1,6 +1,7 @@
 """Maintenance and cleanup mixin for MinusPod database."""
 import json
 import logging
+import re
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Tuple
@@ -192,10 +193,12 @@ class MaintenanceMixin:
 
             # Find the pattern with most confirmations to keep
             patterns_cursor = conn.execute(
-                f'''SELECT id, sponsor, confirmation_count, false_positive_count
-                    FROM ad_patterns
-                    WHERE id IN ({','.join('?' * len(all_ids))})
-                    ORDER BY confirmation_count DESC, id ASC''',
+                f'''SELECT ap.id, ap.sponsor_id, ks.name AS sponsor,
+                          ap.confirmation_count, ap.false_positive_count
+                    FROM ad_patterns ap
+                    LEFT JOIN known_sponsors ks ON ap.sponsor_id = ks.id
+                    WHERE ap.id IN ({','.join('?' * len(all_ids))})
+                    ORDER BY ap.confirmation_count DESC, ap.id ASC''',
                 all_ids
             )
             patterns = patterns_cursor.fetchall()
@@ -213,19 +216,19 @@ class MaintenanceMixin:
             total_false_positives = sum(p['false_positive_count'] for p in patterns)
 
             # If the keeper has no sponsor, try to use one from duplicates
-            final_sponsor = keep_pattern['sponsor']
-            if not final_sponsor:
+            final_sponsor_id = keep_pattern['sponsor_id']
+            if final_sponsor_id is None:
                 for p in patterns[1:]:
-                    if p['sponsor']:
-                        final_sponsor = p['sponsor']
+                    if p['sponsor_id']:
+                        final_sponsor_id = p['sponsor_id']
                         break
 
             # Update the kept pattern with merged stats
             conn.execute(
                 '''UPDATE ad_patterns
-                   SET confirmation_count = ?, false_positive_count = ?, sponsor = ?
+                   SET confirmation_count = ?, false_positive_count = ?, sponsor_id = ?
                    WHERE id = ?''',
-                [total_confirmations, total_false_positives, final_sponsor, keep_id]
+                [total_confirmations, total_false_positives, final_sponsor_id, keep_id]
             )
 
             # Update corrections to point to the kept pattern
@@ -358,6 +361,7 @@ class MaintenanceMixin:
 
         Returns count of patterns updated."""
         from sponsor_service import SponsorService
+        from sponsor_normalize import get_or_create_known_sponsor
 
         conn = self.get_connection()
         updated_count = 0
@@ -365,19 +369,30 @@ class MaintenanceMixin:
         # Find patterns without sponsors
         cursor = conn.execute('''
             SELECT id, text_template FROM ad_patterns
-            WHERE sponsor IS NULL AND text_template IS NOT NULL
+            WHERE sponsor_id IS NULL AND text_template IS NOT NULL
         ''')
         patterns = cursor.fetchall()
 
         for pattern in patterns:
             sponsor = SponsorService.extract_sponsor_from_text(pattern['text_template'])
-            if sponsor:
-                conn.execute(
-                    'UPDATE ad_patterns SET sponsor = ? WHERE id = ?',
-                    (sponsor, pattern['id'])
-                )
-                updated_count += 1
-                logger.info(f"Extracted sponsor '{sponsor}' for pattern {pattern['id']}")
+            if not sponsor:
+                continue
+            # Require the canonical sponsor name (not just an alias) to
+            # appear as a whole word in the text. Alias-only matches caused
+            # the 2.2.7 Zyn cascade where every transcript containing
+            # 'Zinn' (Howard Zinn etc.) got relabeled as the Zyn brand.
+            if not re.search(r'\b' + re.escape(sponsor) + r'\b',
+                             pattern['text_template'], re.IGNORECASE):
+                continue
+            sponsor_id = get_or_create_known_sponsor(self, sponsor)
+            if sponsor_id is None:
+                continue
+            conn.execute(
+                'UPDATE ad_patterns SET sponsor_id = ? WHERE id = ?',
+                (sponsor_id, pattern['id'])
+            )
+            updated_count += 1
+            logger.info(f"Extracted sponsor '{sponsor}' for pattern {pattern['id']}")
 
         conn.commit()
         if updated_count > 0:

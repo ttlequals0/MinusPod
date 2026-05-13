@@ -1,15 +1,35 @@
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { useTranscriptKeyboard } from '../hooks/useTranscriptKeyboard';
-import {
-  AdHeader,
-  AdSelector,
-  ReasonPanel,
-  AudioPlayer,
-  BoundaryControls,
-  ActionButtons,
-  MobileAudioSheet,
-} from './ad-editor';
-import type { DetectedAd, AdCorrection, SaveStatus } from './ad-editor';
+import { useEffect, useRef, useState } from 'react';
+import { useParams } from 'react-router-dom';
+import AdReviewModal, { AdReviewItem, AdReviewSubmit, AdCreateSubmit } from './AdReviewModal';
+
+// Save status for visual feedback
+export type SaveStatus = 'idle' | 'saving' | 'success' | 'error';
+
+export interface DetectedAd {
+  start: number;
+  end: number;
+  confidence: number;
+  reason: string;
+  sponsor?: string;
+  pattern_id?: number;
+  detection_stage?: string;
+  scope?: string;
+  network_id?: string;
+}
+
+export interface AdCorrection {
+  type: 'confirm' | 'reject' | 'adjust' | 'create';
+  originalAd?: DetectedAd;
+  adjustedStart?: number;
+  adjustedEnd?: number;
+  sponsor?: string;
+  // create-only fields
+  start?: number;
+  end?: number;
+  text_template?: string;
+  scope?: 'podcast' | 'global';
+  reason?: string;
+}
 
 interface AdEditorProps {
   detectedAds: DetectedAd[];
@@ -21,10 +41,23 @@ interface AdEditorProps {
   saveStatus?: SaveStatus;
   selectedAdIndex?: number;
   onSelectedAdIndexChange?: (index: number) => void;
+  // When true, the editor opens directly in 'create' mode for marking a
+  // net-new ad on this episode (instead of reviewing detected ads).
+  createMode?: boolean;
+  // Episode-level audio-mode toggle. The waveform editor honors this for
+  // review mode and forces 'original' in create mode.
+  audioMode?: 'processed' | 'original';
+  onAudioModeChange?: (m: 'processed' | 'original') => void;
+  hasOriginal?: boolean;
 }
 
-// Re-export types for consumers
-export type { AdCorrection };
+// Re-export for consumers
+export type { AdReviewItem };
+
+const ADD_BUTTON_BTN =
+  'px-3 py-1.5 rounded-lg bg-primary text-primary-foreground text-sm transition-colors hover:bg-primary/90';
+const GHOST_BTN =
+  'text-muted-foreground transition-colors hover:text-foreground hover:bg-accent';
 
 export function AdEditor({
   detectedAds,
@@ -32,423 +65,190 @@ export function AdEditor({
   audioUrl,
   onCorrection,
   onClose,
-  initialSeekTime,
-  saveStatus = 'idle',
   selectedAdIndex: externalSelectedAdIndex,
   onSelectedAdIndexChange,
+  createMode = false,
+  audioMode = 'original',
+  onAudioModeChange,
+  hasOriginal = true,
 }: AdEditorProps) {
-  // Use controlled state if external index is provided, otherwise use internal state
-  const [internalSelectedAdIndex, setInternalSelectedAdIndex] = useState(0);
-  const selectedAdIndex = externalSelectedAdIndex ?? internalSelectedAdIndex;
+  const { slug = '', episodeId = '' } = useParams<{ slug: string; episodeId: string }>();
 
-  // Ref to always have current selectedAdIndex for callbacks (avoids stale closures)
-  const selectedAdIndexRef = useRef(selectedAdIndex);
+  const [internalIndex, setInternalIndex] = useState(0);
+  const selectedAdIndex = externalSelectedAdIndex ?? internalIndex;
+  const setSelectedAdIndex = (i: number) => {
+    if (onSelectedAdIndexChange) onSelectedAdIndexChange(i);
+    else setInternalIndex(i);
+  };
+
+  // Initialized from the prop; flipped internally when the user clicks
+  // the in-modal "+ Add new ad" button. The sync useEffect below only
+  // syncs FALSE -> TRUE so the parent can re-open create mode on an
+  // already-mounted editor, but a user-initiated close (Cancel) does
+  // not get clobbered by the parent's prop on the next render. This
+  // was the source of the "modal won't close" flicker before 2.2.8.
+  const [internalCreateMode, setInternalCreateMode] = useState(createMode);
+  const prevCreateModePropRef = useRef(createMode);
   useEffect(() => {
-    selectedAdIndexRef.current = selectedAdIndex;
-  }, [selectedAdIndex]);
-
-  const setSelectedAdIndex = useCallback((index: number) => {
-    if (onSelectedAdIndexChange) {
-      onSelectedAdIndexChange(index);
-    } else {
-      setInternalSelectedAdIndex(index);
+    if (!prevCreateModePropRef.current && createMode) {
+      setInternalCreateMode(true);
     }
-  }, [onSelectedAdIndexChange]);
+    prevCreateModePropRef.current = createMode;
+  }, [createMode]);
 
-  const [adjustedStart, setAdjustedStart] = useState(0);
-  const [adjustedEnd, setAdjustedEnd] = useState(0);
-  const [startAdjustment, setStartAdjustment] = useState(0);
-  const [endAdjustment, setEndAdjustment] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [audioSheetExpanded, setAudioSheetExpanded] = useState(false);
-  const [isDraggingProgress, setIsDraggingProgress] = useState(false);
-  const [preserveSeekPosition, setPreserveSeekPosition] = useState(false);
-  const seekingFromJumpRef = useRef(false);
-  const audioRef = useRef<HTMLAudioElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const progressBarRef = useRef<HTMLDivElement>(null);
+  // Tracks whether create mode was reached from review (via the
+  // in-modal "+ Add new ad" button) so handleClose can decide between
+  // "return to review" and "close the editor entirely".
+  const cameFromReviewRef = useRef(false);
 
-  // Haptic feedback helper
-  const triggerHaptic = useCallback((style: 'light' | 'medium' | 'heavy' = 'light') => {
-    if ('vibrate' in navigator) {
-      navigator.vibrate(style === 'light' ? 10 : style === 'medium' ? 20 : 30);
-    }
-  }, []);
+  const safeIndex =
+    detectedAds.length > 0
+      ? Math.max(0, Math.min(selectedAdIndex, detectedAds.length - 1))
+      : 0;
+  const ad = detectedAds[safeIndex];
 
-  const NUDGE_AMOUNT = 0.5;
-  const selectedAd = detectedAds[selectedAdIndex];
-
-  // Initialize adjusted bounds when ad changes (during-render compare).
-  const [lastSelectedAd, setLastSelectedAd] = useState(selectedAd);
-  if (selectedAd !== lastSelectedAd) {
-    setLastSelectedAd(selectedAd);
-    if (selectedAd) {
-      setAdjustedStart(selectedAd.start);
-      setAdjustedEnd(selectedAd.end);
-      setStartAdjustment(0);
-      setEndAdjustment(0);
-    }
-  }
-
-  // Seek audio when ad changes - DOM side effect stays in useEffect.
-  useEffect(() => {
-    if (selectedAd && audioRef.current && !seekingFromJumpRef.current) {
-      audioRef.current.currentTime = selectedAd.start;
-    }
-    seekingFromJumpRef.current = false;
-  }, [selectedAd]);
-
-  // Update current time from audio
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    const handleTimeUpdate = () => setCurrentTime(audio.currentTime);
-    const handlePlay = () => setIsPlaying(true);
-    const handlePause = () => setIsPlaying(false);
-
-    audio.addEventListener('timeupdate', handleTimeUpdate);
-    audio.addEventListener('play', handlePlay);
-    audio.addEventListener('pause', handlePause);
-
-    return () => {
-      audio.removeEventListener('timeupdate', handleTimeUpdate);
-      audio.removeEventListener('play', handlePlay);
-      audio.removeEventListener('pause', handlePause);
-    };
-  }, []);
-
-  // Handle initial seek time (from Jump button). Effect rather than during-
-  // render because we also write a transient ref and seek the audio element.
-  useEffect(() => {
-    if (initialSeekTime !== undefined && audioRef.current) {
-      const adIndex = detectedAds.findIndex(
-        (ad) => Math.abs(initialSeekTime - ad.start) < 0.5 ||
-                (initialSeekTime > ad.start && initialSeekTime <= ad.end)
-      );
-      if (adIndex !== -1) {
-        seekingFromJumpRef.current = true;
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        setSelectedAdIndex(adIndex);
+  // In create mode the modal needs a placeholder item; the actual marker
+  // bounds come from adStart/adEnd inside the modal.
+  const item: AdReviewItem = internalCreateMode || !ad
+    ? {
+        podcastSlug: slug,
+        episodeId,
+        start: 0,
+        end: Math.min(60, audioDuration),
+        sponsor: null,
+        reason: null,
+        confidence: null,
+        detectionStage: 'manual',
+        patternId: null,
+        correctedBounds: null,
       }
-      audioRef.current.currentTime = initialSeekTime;
-      setPreserveSeekPosition(true);
-    }
-  }, [initialSeekTime, detectedAds, setSelectedAdIndex]);
+    : {
+        podcastSlug: slug,
+        episodeId,
+        start: ad.start,
+        end: ad.end,
+        sponsor: ad.sponsor ?? null,
+        reason: ad.reason ?? null,
+        confidence: ad.confidence,
+        detectionStage: ad.detection_stage ?? null,
+        patternId: ad.pattern_id ?? null,
+        correctedBounds: null,
+      };
 
-  // Auto-focus container when editor opens for keyboard shortcuts
-  useEffect(() => {
-    if (containerRef.current) {
-      containerRef.current.focus();
-    }
-  }, []);
-
-  // Handle ad selection with haptic feedback
-  const handleAdSelect = useCallback((index: number) => {
-    setSelectedAdIndex(index);
-    triggerHaptic('light');
-  }, [triggerHaptic, setSelectedAdIndex]);
-
-  // Navigate to previous/next ad (for swipe gestures)
-  const goToPreviousAd = useCallback(() => {
-    const currentIndex = selectedAdIndexRef.current;
-    if (currentIndex > 0) {
-      handleAdSelect(currentIndex - 1);
-    }
-  }, [handleAdSelect]);
-
-  const goToNextAd = useCallback(() => {
-    const currentIndex = selectedAdIndexRef.current;
-    if (currentIndex < detectedAds.length - 1) {
-      handleAdSelect(currentIndex + 1);
-    }
-  }, [detectedAds.length, handleAdSelect]);
-
-  const handlePlayPause = useCallback(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    if (isPlaying) {
-      audio.pause();
-    } else {
-      if (!preserveSeekPosition && (currentTime < adjustedStart || currentTime > adjustedEnd)) {
-        audio.currentTime = adjustedStart;
-      }
-      setPreserveSeekPosition(false);
-      audio.play();
-    }
-  }, [isPlaying, currentTime, adjustedStart, adjustedEnd, preserveSeekPosition]);
-
-  const handleNudgeEndForward = useCallback(() => {
-    setAdjustedEnd((prev) => Math.min(prev + NUDGE_AMOUNT, audioDuration || prev));
-    triggerHaptic('light');
-  }, [audioDuration, triggerHaptic]);
-
-  const handleNudgeEndBackward = useCallback(() => {
-    setAdjustedEnd((prev) => Math.max(prev - NUDGE_AMOUNT, adjustedStart + 1));
-    triggerHaptic('light');
-  }, [adjustedStart, triggerHaptic]);
-
-  const handleNudgeStartForward = useCallback(() => {
-    setAdjustedStart((prev) => Math.min(prev + NUDGE_AMOUNT, adjustedEnd - 1));
-    triggerHaptic('light');
-  }, [adjustedEnd, triggerHaptic]);
-
-  const handleNudgeStartBackward = useCallback(() => {
-    setAdjustedStart((prev) => Math.max(prev - NUDGE_AMOUNT, 0));
-    triggerHaptic('light');
-  }, [triggerHaptic]);
-
-  const handleSave = useCallback(() => {
-    if (!selectedAd || saveStatus === 'saving') return;
-
-    triggerHaptic('medium');
-    const hasChanges =
-      adjustedStart !== selectedAd.start || adjustedEnd !== selectedAd.end;
-
-    onCorrection({
-      type: hasChanges ? 'adjust' : 'confirm',
-      originalAd: selectedAd,
-      adjustedStart: hasChanges ? adjustedStart : undefined,
-      adjustedEnd: hasChanges ? adjustedEnd : undefined,
-    });
-
-    if (selectedAdIndex < detectedAds.length - 1) {
-      setSelectedAdIndex(selectedAdIndex + 1);
-    }
-  }, [selectedAd, adjustedStart, adjustedEnd, onCorrection, selectedAdIndex, detectedAds.length, saveStatus, triggerHaptic, setSelectedAdIndex]);
-
-  const handleReset = useCallback(() => {
-    if (selectedAd) {
-      setAdjustedStart(selectedAd.start);
-      setAdjustedEnd(selectedAd.end);
-    }
-  }, [selectedAd]);
-
-  const handleConfirm = useCallback(() => {
-    if (!selectedAd || saveStatus === 'saving') return;
-    triggerHaptic('medium');
-    onCorrection({
-      type: 'confirm',
-      originalAd: selectedAd,
-    });
-    if (selectedAdIndex < detectedAds.length - 1) {
-      setSelectedAdIndex(selectedAdIndex + 1);
-    }
-  }, [selectedAd, onCorrection, selectedAdIndex, detectedAds.length, saveStatus, triggerHaptic, setSelectedAdIndex]);
-
-  const handleReject = useCallback(() => {
-    if (!selectedAd || saveStatus === 'saving') return;
-    triggerHaptic('heavy');
-    onCorrection({
-      type: 'reject',
-      originalAd: selectedAd,
-    });
-    if (selectedAdIndex < detectedAds.length - 1) {
-      setSelectedAdIndex(selectedAdIndex + 1);
-    }
-  }, [selectedAd, onCorrection, selectedAdIndex, detectedAds.length, saveStatus, triggerHaptic, setSelectedAdIndex]);
-
-  // Set up keyboard shortcuts
-  useTranscriptKeyboard({
-    onPlayPause: handlePlayPause,
-    onNudgeEndForward: handleNudgeEndForward,
-    onNudgeEndBackward: handleNudgeEndBackward,
-    onNudgeStartForward: handleNudgeStartForward,
-    onNudgeStartBackward: handleNudgeStartBackward,
-    onSave: handleSave,
-    onReset: handleReset,
-    onConfirm: handleConfirm,
-    onReject: handleReject,
-  });
-
-  const seekTo = (time: number) => {
-    if (audioRef.current) {
-      audioRef.current.currentTime = time;
-    }
-  };
-
-  const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const clickX = e.clientX - rect.left;
-    const percentage = clickX / rect.width;
-    const duration = audioDuration || 1;
-    seekTo(percentage * duration);
-  };
-
-  const handleProgressDragStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
-    setIsDraggingProgress(true);
-    triggerHaptic('light');
-    const rect = e.currentTarget.getBoundingClientRect();
-    const touchX = e.touches[0].clientX - rect.left;
-    const percentage = Math.max(0, Math.min(1, touchX / rect.width));
-    const duration = audioDuration || 1;
-    seekTo(percentage * duration);
-  }, [audioDuration, triggerHaptic]);
-
-  const handleProgressDrag = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
-    if (!isDraggingProgress) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    const touchX = e.touches[0].clientX - rect.left;
-    const percentage = Math.max(0, Math.min(1, touchX / rect.width));
-    const duration = audioDuration || 1;
-    seekTo(percentage * duration);
-  }, [isDraggingProgress, audioDuration]);
-
-  const handleProgressDragEnd = useCallback(() => {
-    setIsDraggingProgress(false);
-  }, []);
-
-  // Boundary adjustment handlers (unified for all variants)
-  const handleStartAdjustmentChange = useCallback((newAdj: number) => {
-    setStartAdjustment(newAdj);
-    const newStart = Math.max(0, (selectedAd?.start || 0) + newAdj);
-    setAdjustedStart(newStart);
-  }, [selectedAd]);
-
-  const handleEndAdjustmentChange = useCallback((newAdj: number) => {
-    setEndAdjustment(newAdj);
-    const maxEnd = audioDuration || 9999;
-    const newEnd = Math.min(maxEnd, (selectedAd?.end || 0) + newAdj);
-    setAdjustedEnd(newEnd);
-  }, [selectedAd, audioDuration]);
-
-  // Button text helpers
-  const getSaveButtonText = () => {
-    switch (saveStatus) {
-      case 'saving': return 'Saving...';
-      case 'success': return 'Saved!';
-      case 'error': return 'Error!';
-      default: return 'Save Adjusted';
-    }
-  };
-
-  const getConfirmButtonText = () => {
-    switch (saveStatus) {
-      case 'saving': return 'Saving...';
-      case 'success': return 'Saved!';
-      case 'error': return 'Error!';
-      default: return 'Confirm';
-    }
-  };
-
-  const getRejectButtonText = () => {
-    switch (saveStatus) {
-      case 'saving': return 'Saving...';
-      case 'success': return 'Saved!';
-      case 'error': return 'Error!';
-      default: return 'Not an Ad';
-    }
-  };
-
-  if (!selectedAd) {
+  if (!internalCreateMode && detectedAds.length === 0) {
     return (
-      <div className="p-4 text-center text-muted-foreground">
-        No ads to review
+      <div className="bg-card rounded-lg border border-border p-6 text-center">
+        <p className="text-muted-foreground mb-4">No ads detected on this episode.</p>
+        <button
+          type="button"
+          className={ADD_BUTTON_BTN}
+          onClick={() => setInternalCreateMode(true)}
+        >
+          + Add new ad
+        </button>
+        {onClose && (
+          <button
+            type="button"
+            onClick={onClose}
+            className={`ml-2 px-3 py-1.5 rounded-lg ${GHOST_BTN} text-sm`}
+          >
+            Close
+          </button>
+        )}
       </div>
     );
   }
 
+  const handleReviewSubmit = (s: AdReviewSubmit) => {
+    if (s.kind === 'confirm') {
+      onCorrection({ type: 'confirm', originalAd: ad, sponsor: s.sponsor });
+    } else if (s.kind === 'reject') {
+      onCorrection({ type: 'reject', originalAd: ad });
+    } else {
+      onCorrection({
+        type: 'adjust',
+        originalAd: ad,
+        adjustedStart: s.adjustedStart,
+        adjustedEnd: s.adjustedEnd,
+        sponsor: s.sponsor,
+      });
+    }
+    if (safeIndex < detectedAds.length - 1) {
+      setSelectedAdIndex(safeIndex + 1);
+    }
+  };
+
+  const handleCreateSubmit = (s: AdCreateSubmit) => {
+    onCorrection({
+      type: 'create',
+      start: s.start,
+      end: s.end,
+      sponsor: s.sponsor,
+      text_template: s.textTemplate,
+      scope: s.scope,
+      reason: s.reason,
+    });
+    setInternalCreateMode(false);
+    if (detectedAds.length === 0) onClose?.();
+  };
+
+  const handleSkip = () => {
+    if (safeIndex < detectedAds.length - 1) {
+      setSelectedAdIndex(safeIndex + 1);
+    } else {
+      onClose?.();
+    }
+  };
+
+  const handleAddNew = () => {
+    if (!internalCreateMode) {
+      cameFromReviewRef.current = true;
+    }
+    setInternalCreateMode(true);
+  };
+
+  const handleClose = () => {
+    if (
+      internalCreateMode &&
+      cameFromReviewRef.current &&
+      detectedAds.length > 0
+    ) {
+      cameFromReviewRef.current = false;
+      setInternalCreateMode(false);
+    } else {
+      cameFromReviewRef.current = false;
+      onClose?.();
+    }
+  };
+
+  // The key forces a clean remount whenever the mode flips or the
+  // user switches between detected ads. Without this, the modal's
+  // internal useState hooks (adStart, adEnd, peaks, wavesurfer ref,
+  // etc.) retain values from the prior view and bleed across the
+  // mode change, which manifested as "two stacked editors" in 2.2.5.
+  const modalKey = internalCreateMode
+    ? 'create'
+    : `review-${item.start.toFixed(3)}-${item.end.toFixed(3)}`;
+
   return (
-    <div
-      ref={containerRef}
-      tabIndex={0}
-      className="flex flex-col max-h-[85dvh] sm:max-h-[80vh] bg-card rounded-lg border border-border outline-hidden focus:ring-2 focus:ring-primary/50 overflow-hidden"
-    >
-      {/* TOP: Header + Ad Selector */}
-      <div className="bg-card shrink-0">
-        <AdHeader
-          selectedAdIndex={selectedAdIndex}
-          totalAds={detectedAds.length}
-          selectedAd={selectedAd}
-          onClose={onClose}
-        />
-        <AdSelector
-          detectedAds={detectedAds}
-          selectedAdIndex={selectedAdIndex}
-          onAdSelect={handleAdSelect}
-        />
-      </div>
-
-      {/* Reason panel */}
-      <ReasonPanel selectedAd={selectedAd} />
-
-      {/* Desktop bottom bar */}
-      <div className="hidden sm:block bg-card border-t border-border shrink-0">
-        {audioUrl && (
-          <AudioPlayer
-            audioUrl={audioUrl}
-            audioRef={audioRef}
-            isPlaying={isPlaying}
-            currentTime={currentTime}
-            audioDuration={audioDuration}
-            onPlayPause={handlePlayPause}
-            onProgressClick={handleProgressClick}
-          />
-        )}
-
-        <BoundaryControls
-          variant="desktop"
-          selectedAd={selectedAd}
-          adjustedStart={adjustedStart}
-          adjustedEnd={adjustedEnd}
-          startAdjustment={startAdjustment}
-          endAdjustment={endAdjustment}
-          onStartAdjustmentChange={handleStartAdjustmentChange}
-          onEndAdjustmentChange={handleEndAdjustmentChange}
-          triggerHaptic={() => triggerHaptic()}
-        />
-
-        <ActionButtons
-          variant="desktop"
-          saveStatus={saveStatus}
-          onSave={handleSave}
-          onConfirm={handleConfirm}
-          onReject={handleReject}
-          onReset={handleReset}
-          getSaveButtonText={getSaveButtonText}
-          getConfirmButtonText={getConfirmButtonText}
-          getRejectButtonText={getRejectButtonText}
-        />
-      </div>
-
-      {/* Mobile: Bottom sheet audio player */}
-      <MobileAudioSheet
-        audioUrl={audioUrl}
-        audioRef={audioRef}
-        isPlaying={isPlaying}
-        currentTime={currentTime}
-        audioDuration={audioDuration}
-        adjustedStart={adjustedStart}
-        adjustedEnd={adjustedEnd}
-        startAdjustment={startAdjustment}
-        endAdjustment={endAdjustment}
-        selectedAd={selectedAd}
-        saveStatus={saveStatus}
-        audioSheetExpanded={audioSheetExpanded}
-        isDraggingProgress={isDraggingProgress}
-        progressBarRef={progressBarRef}
-        onToggleExpanded={() => setAudioSheetExpanded(!audioSheetExpanded)}
-        onPlayPause={handlePlayPause}
-        onProgressClick={handleProgressClick}
-        onProgressDragStart={handleProgressDragStart}
-        onProgressDrag={handleProgressDrag}
-        onProgressDragEnd={handleProgressDragEnd}
-        onStartAdjustmentChange={handleStartAdjustmentChange}
-        onEndAdjustmentChange={handleEndAdjustmentChange}
-        triggerHaptic={() => triggerHaptic()}
-        onSave={handleSave}
-        onConfirm={handleConfirm}
-        onReject={handleReject}
-        onReset={handleReset}
-        onGoToPreviousAd={goToPreviousAd}
-        onGoToNextAd={goToNextAd}
-        getSaveButtonText={getSaveButtonText}
-        getConfirmButtonText={getConfirmButtonText}
-        getRejectButtonText={getRejectButtonText}
-      />
-    </div>
+    <AdReviewModal
+      key={modalKey}
+      item={item}
+      mode={internalCreateMode ? 'create' : 'review'}
+      onClose={handleClose}
+      onSubmit={handleReviewSubmit}
+      onCreate={handleCreateSubmit}
+      onSkip={handleSkip}
+      hasNext={safeIndex < detectedAds.length - 1}
+      onAddNew={detectedAds.length > 0 && !internalCreateMode
+        ? handleAddNew
+        : undefined}
+      audioMode={audioMode}
+      onAudioModeChange={onAudioModeChange}
+      hasOriginal={hasOriginal}
+      processedAudioUrl={audioUrl}
+      episodeDuration={audioDuration}
+    />
   );
 }
 

@@ -27,9 +27,10 @@ class FingerprintMixin:
         """Get all audio fingerprints with sponsor names from ad_patterns (single JOIN)."""
         conn = self.get_connection()
         cursor = conn.execute(
-            """SELECT af.pattern_id, af.fingerprint, af.duration, ap.sponsor
+            """SELECT af.pattern_id, af.fingerprint, af.duration, ks.name AS sponsor
                FROM audio_fingerprints af
-               LEFT JOIN ad_patterns ap ON af.pattern_id = ap.id"""
+               LEFT JOIN ad_patterns ap ON af.pattern_id = ap.id
+               LEFT JOIN known_sponsors ks ON ap.sponsor_id = ks.id"""
         )
         return [dict(row) for row in cursor.fetchall()]
 

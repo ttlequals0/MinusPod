@@ -13,6 +13,7 @@ import json
 
 from config import DEFAULT_AD_DURATION_ESTIMATE
 from utils.text import extract_text_from_segments
+from sponsor_normalize import get_or_create_known_sponsor
 from utils.constants import INVALID_SPONSOR_VALUES
 
 logger = logging.getLogger('podcast.textmatch')
@@ -323,6 +324,10 @@ class TextPatternMatcher:
         # Refine boundaries using intro/outro phrases
         matches = self._refine_boundaries(matches, segments, applicable_patterns)
 
+        logger.info(
+            f"Stage 2 (text pattern) considered {len(applicable_patterns)} patterns "
+            f"(of {len(self._patterns)} loaded), matched {len(matches)}"
+        )
         return matches
 
     def _filter_patterns_by_scope(
@@ -871,12 +876,15 @@ class TextPatternMatcher:
                 return None
 
         try:
+            sponsor_id = (
+                get_or_create_known_sponsor(self.db, sponsor) if sponsor else None
+            )
             pattern_id = self.db.create_ad_pattern(
                 scope=scope,
                 text_template=ad_text,
                 intro_variants=json.dumps([intro]) if intro else "[]",
                 outro_variants=json.dumps([outro]) if outro else "[]",
-                sponsor=sponsor,
+                sponsor_id=sponsor_id,
                 podcast_id=podcast_id,
                 network_id=network_id,
                 created_from_episode_id=episode_id,
@@ -1011,12 +1019,15 @@ class TextPatternMatcher:
             outro = _extract_outro_phrase(segment)
 
             try:
+                split_sponsor_id = (
+                    get_or_create_known_sponsor(self.db, sponsor) if sponsor else None
+                )
                 new_id = self.db.create_ad_pattern(
                     scope=pattern.get('scope', 'podcast'),
                     text_template=segment,
                     intro_variants=json.dumps([intro]) if intro else "[]",
                     outro_variants=json.dumps([outro]) if outro else "[]",
-                    sponsor=sponsor,
+                    sponsor_id=split_sponsor_id,
                     podcast_id=pattern.get('podcast_id'),
                     network_id=pattern.get('network_id'),
                     created_from_episode_id=pattern.get('created_from_episode_id')

@@ -3,6 +3,7 @@ import sqlite3
 import logging
 import json
 import os
+import re
 import time
 from pathlib import Path
 from typing import Dict, List
@@ -117,7 +118,7 @@ CREATE TABLE IF NOT EXISTS ad_patterns (
     text_template TEXT,
     intro_variants TEXT DEFAULT '[]',
     outro_variants TEXT DEFAULT '[]',
-    sponsor TEXT,
+    sponsor_id INTEGER REFERENCES known_sponsors(id),
     confirmation_count INTEGER DEFAULT 0,
     false_positive_count INTEGER DEFAULT 0,
     last_matched_at TEXT,
@@ -127,7 +128,8 @@ CREATE TABLE IF NOT EXISTS ad_patterns (
     disabled_at TEXT,
     disabled_reason TEXT,
     avg_duration REAL,
-    duration_samples INTEGER DEFAULT 0
+    duration_samples INTEGER DEFAULT 0,
+    created_by TEXT DEFAULT 'auto'
 );
 
 -- pattern_corrections table (user corrections; conflicting entries cleaned up on reversal)
@@ -137,11 +139,15 @@ CREATE TABLE IF NOT EXISTS pattern_corrections (
     episode_id TEXT,
     podcast_title TEXT,
     episode_title TEXT,
-    correction_type TEXT NOT NULL CHECK(correction_type IN ('false_positive', 'boundary_adjustment', 'confirm', 'promotion')),
+    correction_type TEXT NOT NULL CHECK(correction_type IN (
+        'false_positive', 'boundary_adjustment', 'confirm',
+        'promotion', 'auto_promotion', 'create'
+    )),
     original_bounds TEXT,
     corrected_bounds TEXT,
     text_snippet TEXT,
-    created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+    created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    sponsor_id INTEGER REFERENCES known_sponsors(id)
 );
 
 -- audio_fingerprints table (Chromaprint hashes for DAI-inserted ads)
@@ -229,7 +235,7 @@ CREATE INDEX IF NOT EXISTS idx_episodes_created_at ON episodes(created_at);
 CREATE INDEX IF NOT EXISTS idx_episode_details_episode_id ON episode_details(episode_id);
 
 -- Cross-episode training indexes (indexes on new columns created in migrations)
-CREATE INDEX IF NOT EXISTS idx_patterns_sponsor ON ad_patterns(sponsor) WHERE is_active = 1;
+CREATE INDEX IF NOT EXISTS idx_patterns_sponsor_id ON ad_patterns(sponsor_id) WHERE is_active = 1;
 CREATE INDEX IF NOT EXISTS idx_fingerprints_pattern ON audio_fingerprints(pattern_id);
 CREATE INDEX IF NOT EXISTS idx_corrections_pattern ON pattern_corrections(pattern_id);
 CREATE INDEX IF NOT EXISTS idx_sponsors_name ON known_sponsors(name) WHERE is_active = 1;
@@ -350,7 +356,7 @@ class SchemaMixin:
                 text_template TEXT,
                 intro_variants TEXT DEFAULT '[]',
                 outro_variants TEXT DEFAULT '[]',
-                sponsor TEXT,
+                sponsor_id INTEGER REFERENCES known_sponsors(id),
                 confirmation_count INTEGER DEFAULT 0,
                 false_positive_count INTEGER DEFAULT 0,
                 last_matched_at TEXT,
@@ -358,7 +364,8 @@ class SchemaMixin:
                 created_from_episode_id TEXT,
                 is_active INTEGER DEFAULT 1,
                 disabled_at TEXT,
-                disabled_reason TEXT
+                disabled_reason TEXT,
+                created_by TEXT DEFAULT 'auto'
             )
         """)
 
@@ -381,11 +388,15 @@ class SchemaMixin:
                 episode_id TEXT,
                 podcast_title TEXT,
                 episode_title TEXT,
-                correction_type TEXT NOT NULL CHECK(correction_type IN ('false_positive', 'boundary_adjustment', 'confirm', 'promotion')),
+                correction_type TEXT NOT NULL CHECK(correction_type IN (
+                    'false_positive', 'boundary_adjustment', 'confirm',
+                    'promotion', 'auto_promotion', 'create'
+                )),
                 original_bounds TEXT,
                 corrected_bounds TEXT,
                 text_snippet TEXT,
-                created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+                created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                sponsor_id INTEGER REFERENCES known_sponsors(id)
             )
         """)
 
@@ -1206,6 +1217,365 @@ class SchemaMixin:
             self._migrate_user_prompts_to_placeholders(conn)
         except Exception as e:
             logger.warning(f"Migration failed for ad reviewer settings: {e}")
+
+        # v2.2.0: Migrate ad_patterns.sponsor TEXT to sponsor_id FK against
+        # known_sponsors; add ad_patterns.created_by; add
+        # pattern_corrections.sponsor_id; extend pattern_corrections CHECK
+        # constraint to include 'auto_promotion' and 'create'.
+        try:
+            self._migrate_sponsor_fk(conn)
+        except Exception as e:
+            logger.error(f"Sponsor FK migration failed: {e}")
+
+        # 2.2.10: clear sponsor_id on patterns the 2.2.7 alias backfill mislabeled as Zyn.
+        self._cleanup_zyn_cascade(conn)
+
+        # 2.2.11: clear sponsor='Zyn' on ad markers (stored as JSON in
+        # episode_details.ad_markers_json) whose detected transcript window
+        # does not contain the canonical brand. The per-marker sponsor was
+        # frozen at detection time, so the 2.2.10 pattern cleanup alone
+        # doesn't update what the editor displays for already-detected ads.
+        self._cleanup_zyn_ad_markers(conn)
+
+    def _cleanup_zyn_cascade(self, conn):
+        try:
+            zyn_row = conn.execute(
+                "SELECT id FROM known_sponsors WHERE LOWER(name) = 'zyn'"
+            ).fetchone()
+            if not zyn_row:
+                return
+            zyn_id = zyn_row['id']
+            rows = conn.execute(
+                "SELECT id, text_template FROM ad_patterns "
+                "WHERE sponsor_id = ? AND text_template IS NOT NULL",
+                (zyn_id,)
+            ).fetchall()
+            ids_to_clear = [
+                row['id'] for row in rows
+                if not re.search(r'\bZyn\b', row['text_template'] or '', re.IGNORECASE)
+            ]
+            if ids_to_clear:
+                placeholders = ','.join('?' * len(ids_to_clear))
+                conn.execute(
+                    f"UPDATE ad_patterns SET sponsor_id = NULL WHERE id IN ({placeholders})",
+                    ids_to_clear
+                )
+                conn.commit()
+                logger.info(
+                    f"Migration: cleared sponsor_id on {len(ids_to_clear)} "
+                    f"patterns whose text does not contain 'Zyn'"
+                )
+        except Exception as e:
+            logger.warning(f"Migration: Zyn cascade cleanup failed: {e}")
+
+    def _cleanup_zyn_ad_markers(self, conn):
+        try:
+            from utils.text import extract_text_in_range
+        except Exception as e:
+            logger.warning(f"Migration: ad-marker Zyn cleanup skipped (import failed): {e}")
+            return
+        try:
+            rows = conn.execute(
+                "SELECT episode_id, ad_markers_json, original_transcript_text "
+                "FROM episode_details "
+                "WHERE ad_markers_json IS NOT NULL AND ad_markers_json LIKE '%Zyn%'"
+            ).fetchall()
+            markers_cleared = 0
+            episodes_touched = 0
+            for row in rows:
+                try:
+                    markers = json.loads(row['ad_markers_json'])
+                except (json.JSONDecodeError, TypeError):
+                    continue
+                if not isinstance(markers, list):
+                    continue
+                transcript = row['original_transcript_text'] or ''
+                changed = False
+                for marker in markers:
+                    if not isinstance(marker, dict):
+                        continue
+                    sponsor = (marker.get('sponsor') or '').strip()
+                    if sponsor.lower() != 'zyn':
+                        continue
+                    start = marker.get('start')
+                    end = marker.get('end')
+                    if not (isinstance(start, (int, float)) and isinstance(end, (int, float))):
+                        continue
+                    window_text = extract_text_in_range(transcript, float(start), float(end))
+                    if re.search(r'\bZyn\b', window_text, re.IGNORECASE):
+                        continue
+                    marker['sponsor'] = None
+                    reason = marker.get('reason') or ''
+                    if 'Zyn' in reason:
+                        marker['reason'] = (
+                            re.sub(r'^\s*Zyn[:\s]*', '', reason).strip() or None
+                        )
+                    markers_cleared += 1
+                    changed = True
+                if changed:
+                    conn.execute(
+                        "UPDATE episode_details SET ad_markers_json = ? WHERE episode_id = ?",
+                        (json.dumps(markers), row['episode_id'])
+                    )
+                    episodes_touched += 1
+            if markers_cleared:
+                conn.commit()
+                logger.info(
+                    f"Migration: cleared sponsor='Zyn' on {markers_cleared} ad markers "
+                    f"across {episodes_touched} episodes whose detected text does not contain 'Zyn'"
+                )
+        except Exception as e:
+            logger.warning(f"Migration: ad-marker Zyn cleanup failed: {e}")
+
+    def _migrate_sponsor_fk(self, conn):
+        """v2.2.0: Migrate ad_patterns.sponsor TEXT to sponsor_id FK.
+
+        Steps, each idempotent:
+          1. Add `ad_patterns.sponsor_id`, `ad_patterns.created_by`,
+             `pattern_corrections.sponsor_id`.
+          2. Dedup `known_sponsors` rows whose names differ only by case
+             (keep lowest id).
+          3. Snapshot `ad_patterns.sponsor` to a backup table.
+          4. Backfill `ad_patterns.sponsor_id` via sponsor_normalize.
+          5. Backfill `pattern_corrections.sponsor_id` from the joined
+             ad_pattern row.
+          6. Verify: `PRAGMA foreign_key_check` empty, and backfill row
+             count matches the snapshot.
+          7. Drop `ad_patterns.sponsor` via table-recreation.
+          8. Recreate `pattern_corrections` with extended CHECK constraint.
+          9. Drop the backup table.
+
+        If step 6 fails, destructive steps 7-9 are skipped. The new columns
+        and the backup table remain in place so the migration can be retried
+        on next startup with no data loss.
+        """
+        from sponsor_normalize import get_or_create_known_sponsor
+
+        # 1. Add new columns (idempotent)
+        ap_cols = self._get_table_columns(conn, 'ad_patterns')
+        self._add_column_if_missing(
+            conn, 'ad_patterns', 'sponsor_id',
+            'INTEGER REFERENCES known_sponsors(id)', ap_cols
+        )
+        self._add_column_if_missing(
+            conn, 'ad_patterns', 'created_by',
+            "TEXT DEFAULT 'auto'", ap_cols
+        )
+        pc_cols = self._get_table_columns(conn, 'pattern_corrections')
+        self._add_column_if_missing(
+            conn, 'pattern_corrections', 'sponsor_id',
+            'INTEGER REFERENCES known_sponsors(id)', pc_cols
+        )
+
+        # If the old text column is already gone, the destructive part of
+        # the migration ran on a previous startup. Nothing to do.
+        ap_cols = self._get_table_columns(conn, 'ad_patterns')
+        if 'sponsor' not in ap_cols:
+            return
+
+        # 2. Dedup case-variant known_sponsors rows (lowest id wins)
+        dupe_groups = conn.execute(
+            """SELECT LOWER(name) AS lname, MIN(id) AS keep_id, COUNT(*) AS n
+               FROM known_sponsors GROUP BY LOWER(name) HAVING n > 1"""
+        ).fetchall()
+        for row in dupe_groups:
+            conn.execute(
+                "DELETE FROM known_sponsors WHERE LOWER(name) = ? AND id <> ?",
+                (row['lname'], row['keep_id'])
+            )
+        if dupe_groups:
+            logger.info(
+                f"Sponsor FK migration: deduped {len(dupe_groups)} "
+                f"case-variant sponsor groups in known_sponsors"
+            )
+
+        # 3. Snapshot ad_patterns.sponsor before any destructive op
+        backup_exists = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+            ('_migration_backup_ad_patterns_sponsor',)
+        ).fetchone() is not None
+        current_nonnull = conn.execute(
+            "SELECT COUNT(*) AS n FROM ad_patterns WHERE sponsor IS NOT NULL"
+        ).fetchone()['n']
+        if backup_exists:
+            backup_n = conn.execute(
+                "SELECT COUNT(*) AS n FROM _migration_backup_ad_patterns_sponsor"
+            ).fetchone()['n']
+            if backup_n != current_nonnull:
+                logger.warning(
+                    f"Sponsor FK migration: stale backup table "
+                    f"(rows={backup_n}, live={current_nonnull}); recreating"
+                )
+                conn.execute("DROP TABLE _migration_backup_ad_patterns_sponsor")
+                backup_exists = False
+        if not backup_exists:
+            conn.execute(
+                """CREATE TABLE _migration_backup_ad_patterns_sponsor AS
+                   SELECT id, sponsor FROM ad_patterns WHERE sponsor IS NOT NULL"""
+            )
+        snapshot_n = conn.execute(
+            "SELECT COUNT(*) AS n FROM _migration_backup_ad_patterns_sponsor"
+        ).fetchone()['n']
+
+        # 4. Backfill ad_patterns.sponsor_id
+        rows = conn.execute(
+            """SELECT id, sponsor FROM ad_patterns
+               WHERE sponsor IS NOT NULL AND sponsor_id IS NULL"""
+        ).fetchall()
+        for row in rows:
+            sid = get_or_create_known_sponsor(self, row['sponsor'])
+            if sid is None:
+                logger.warning(
+                    f"Sponsor FK migration: could not resolve sponsor "
+                    f"{row['sponsor']!r} for ad_patterns.id={row['id']}; "
+                    f"leaving sponsor_id NULL"
+                )
+                continue
+            conn.execute(
+                "UPDATE ad_patterns SET sponsor_id = ? WHERE id = ?",
+                (sid, row['id'])
+            )
+
+        # 5. Backfill pattern_corrections.sponsor_id from the joined pattern row
+        conn.execute(
+            """UPDATE pattern_corrections SET sponsor_id = (
+                   SELECT sponsor_id FROM ad_patterns
+                   WHERE ad_patterns.id = pattern_corrections.pattern_id
+               )
+               WHERE pattern_id IS NOT NULL AND sponsor_id IS NULL"""
+        )
+        conn.commit()
+
+        # 6. Verify
+        fk_violations = conn.execute(
+            "PRAGMA foreign_key_check(ad_patterns)"
+        ).fetchall()
+        fk_violations_pc = conn.execute(
+            "PRAGMA foreign_key_check(pattern_corrections)"
+        ).fetchall()
+        if fk_violations or fk_violations_pc:
+            logger.error(
+                f"Sponsor FK migration: foreign_key_check failed; "
+                f"ad_patterns violations={[dict(r) for r in fk_violations][:10]}, "
+                f"pattern_corrections violations={[dict(r) for r in fk_violations_pc][:10]}; "
+                f"aborting destructive steps. Re-run on next startup."
+            )
+            return
+        backfilled_n = conn.execute(
+            "SELECT COUNT(*) AS n FROM ad_patterns WHERE sponsor_id IS NOT NULL"
+        ).fetchone()['n']
+        if backfilled_n != snapshot_n:
+            unresolved = conn.execute(
+                """SELECT b.id, b.sponsor FROM _migration_backup_ad_patterns_sponsor b
+                   LEFT JOIN ad_patterns ap ON ap.id = b.id
+                   WHERE ap.sponsor_id IS NULL LIMIT 10"""
+            ).fetchall()
+            logger.error(
+                f"Sponsor FK migration: backfill parity failed "
+                f"(expected {snapshot_n}, got {backfilled_n}); "
+                f"first unresolved rows: {[dict(r) for r in unresolved]}; "
+                f"aborting destructive steps. Re-run on next startup."
+            )
+            return
+
+        # 7-9. Destructive: recreate both tables, drop backup
+        try:
+            conn.execute("PRAGMA foreign_keys = OFF")
+
+            # Drop the now-stale text-sponsor index before rebuilding the table
+            conn.execute("DROP INDEX IF EXISTS idx_patterns_sponsor")
+
+            # 7. Recreate ad_patterns without `sponsor` text column
+            old_ap_cols = [
+                r['name'] for r in conn.execute("PRAGMA table_info(ad_patterns)").fetchall()
+            ]
+            conn.execute("""
+                CREATE TABLE ad_patterns_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    scope TEXT NOT NULL CHECK(scope IN ('global', 'network', 'podcast')),
+                    network_id TEXT,
+                    podcast_id TEXT,
+                    dai_platform TEXT,
+                    text_template TEXT,
+                    intro_variants TEXT DEFAULT '[]',
+                    outro_variants TEXT DEFAULT '[]',
+                    sponsor_id INTEGER REFERENCES known_sponsors(id),
+                    confirmation_count INTEGER DEFAULT 0,
+                    false_positive_count INTEGER DEFAULT 0,
+                    last_matched_at TEXT,
+                    created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                    created_from_episode_id TEXT,
+                    is_active INTEGER DEFAULT 1,
+                    disabled_at TEXT,
+                    disabled_reason TEXT,
+                    avg_duration REAL,
+                    duration_samples INTEGER DEFAULT 0,
+                    created_by TEXT DEFAULT 'auto'
+                )
+            """)
+            new_ap_cols = [
+                r['name'] for r in conn.execute("PRAGMA table_info(ad_patterns_new)").fetchall()
+            ]
+            common_ap = [c for c in old_ap_cols if c in new_ap_cols]
+            cols_str = ', '.join(common_ap)
+            conn.execute(
+                f"INSERT INTO ad_patterns_new ({cols_str}) SELECT {cols_str} FROM ad_patterns"
+            )
+            conn.execute("DROP TABLE ad_patterns")
+            conn.execute("ALTER TABLE ad_patterns_new RENAME TO ad_patterns")
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_patterns_sponsor_id "
+                "ON ad_patterns(sponsor_id) WHERE is_active = 1"
+            )
+
+            # 8. Recreate pattern_corrections with extended CHECK + sponsor_id FK
+            old_pc_cols = [
+                r['name'] for r in conn.execute("PRAGMA table_info(pattern_corrections)").fetchall()
+            ]
+            conn.execute("""
+                CREATE TABLE pattern_corrections_new (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    pattern_id INTEGER,
+                    episode_id TEXT,
+                    podcast_title TEXT,
+                    episode_title TEXT,
+                    correction_type TEXT NOT NULL CHECK(correction_type IN (
+                        'false_positive', 'boundary_adjustment', 'confirm',
+                        'promotion', 'auto_promotion', 'create'
+                    )),
+                    original_bounds TEXT,
+                    corrected_bounds TEXT,
+                    text_snippet TEXT,
+                    created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                    sponsor_id INTEGER REFERENCES known_sponsors(id)
+                )
+            """)
+            new_pc_cols = [
+                r['name'] for r in conn.execute("PRAGMA table_info(pattern_corrections_new)").fetchall()
+            ]
+            common_pc = [c for c in old_pc_cols if c in new_pc_cols]
+            cols_str = ', '.join(common_pc)
+            conn.execute(
+                f"INSERT INTO pattern_corrections_new ({cols_str}) "
+                f"SELECT {cols_str} FROM pattern_corrections"
+            )
+            conn.execute("DROP TABLE pattern_corrections")
+            conn.execute("ALTER TABLE pattern_corrections_new RENAME TO pattern_corrections")
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_corrections_type "
+                "ON pattern_corrections(correction_type)"
+            )
+
+            # 9. Drop the backup table; we're done
+            conn.execute("DROP TABLE _migration_backup_ad_patterns_sponsor")
+
+            conn.commit()
+            logger.info(
+                f"Sponsor FK migration: completed (migrated {snapshot_n} rows; "
+                f"dropped ad_patterns.sponsor; extended pattern_corrections CHECK)"
+            )
+        finally:
+            conn.execute("PRAGMA foreign_keys = ON")
 
     def _cleanup_contaminated_patterns(self):
         """Delete patterns with text_template > 3500 chars (contaminated).

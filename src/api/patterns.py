@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from utils.time import utc_now_iso, parse_iso_datetime
+from sponsor_normalize import get_or_create_known_sponsor
 
 from flask import request
 
@@ -268,11 +269,22 @@ def update_pattern(pattern_id):
     if not pattern:
         return error_response('Pattern not found', 404)
 
-    # Allowed fields
+    # Allowed fields. Clients still pass `sponsor` (text); we resolve to
+    # sponsor_id via the helper so all sponsor writes flow through one place.
     allowed = {'text_template', 'sponsor', 'intro_variants', 'outro_variants',
                'is_active', 'disabled_reason', 'scope'}
 
     updates = {k: v for k, v in data.items() if k in allowed}
+
+    if 'sponsor' in updates:
+        sponsor_text = updates.pop('sponsor')
+        if sponsor_text:
+            sponsor_id = get_or_create_known_sponsor(db, sponsor_text)
+            if sponsor_id is None:
+                return error_response('Invalid sponsor name', 400)
+            updates['sponsor_id'] = sponsor_id
+        else:
+            updates['sponsor_id'] = None
 
     if updates:
         db.update_ad_pattern(pattern_id, **updates)
@@ -395,6 +407,124 @@ def merge_patterns():
         return error_response('Merge failed', 500)
 
 
+def _submit_correction_create(db, slug, episode_id, data):
+    """Handle a `create` correction: user marked a brand-new ad on an
+    episode the detector missed. Writes a marker to episode_details and
+    creates a new ad_pattern with created_by='user'.
+    """
+    start = data.get('start')
+    end = data.get('end')
+    sponsor_text = (data.get('sponsor') or '').strip()
+    text_template = (data.get('text_template') or '').strip()
+    reason = data.get('reason') or ''
+    scope = data.get('scope') or 'podcast'
+
+    if start is None or end is None:
+        return error_response('Missing start/end', 400)
+    try:
+        start = float(start)
+        end = float(end)
+    except (TypeError, ValueError):
+        return error_response('start and end must be numbers', 400)
+    if not (start >= 0 and end > start):
+        return error_response('require 0 <= start < end', 400)
+    if not sponsor_text:
+        return error_response('Sponsor is required', 400)
+    if len(text_template) < 50:
+        return error_response('text_template must be at least 50 characters', 400)
+    if scope not in ('podcast', 'global'):
+        return error_response("scope must be 'podcast' or 'global'", 400)
+
+    episode = db.get_episode(slug, episode_id)
+    if not episode:
+        return error_response('Episode not found', 404)
+    duration = episode.get('original_duration') or 0
+    if duration and end > duration + 1:
+        return error_response(
+            f'end ({end}) exceeds episode duration ({duration})', 400
+        )
+
+    sponsor_id = get_or_create_known_sponsor(db, sponsor_text)
+    if sponsor_id is None:
+        return error_response('Invalid sponsor name', 400)
+    sponsor_row = db.get_known_sponsor_by_id(sponsor_id)
+    canonical_sponsor_name = sponsor_row['name'] if sponsor_row else sponsor_text
+
+    # Read existing markers, insert new marker (with pattern_id placeholder),
+    # sort by start.
+    markers = []
+    raw_markers = episode.get('ad_markers_json')
+    if raw_markers:
+        try:
+            markers = json.loads(raw_markers)
+        except (TypeError, ValueError):
+            markers = []
+    # If the user left "Reason" blank, synthesize one so the EpisodeDetail
+    # page row has something to render (it shows segment.reason for the
+    # description line). Without this, manual markers appear as just a
+    # time range + Manual badge with no sponsor or context visible.
+    synthesized_reason = (
+        reason.strip()
+        if reason and reason.strip()
+        else f"{canonical_sponsor_name}: manually added ad"
+    )
+    new_marker = {
+        'start': start,
+        'end': end,
+        'sponsor': canonical_sponsor_name,
+        'reason': synthesized_reason,
+        'confidence': 1.0,
+        'detection_stage': 'manual',
+        'pattern_id': None,
+    }
+    markers.append(new_marker)
+    markers.sort(key=lambda m: m.get('start', 0))
+
+    # Create the pattern; figure out podcast scope params from the episode row.
+    podcast_id_str = episode.get('slug') if scope == 'podcast' else None
+    network_id = episode.get('network_id') if scope == 'global' else None
+    new_pattern_id = db.create_ad_pattern(
+        scope=scope,
+        text_template=text_template,
+        sponsor_id=sponsor_id,
+        podcast_id=podcast_id_str,
+        network_id=network_id,
+        created_from_episode_id=episode_id,
+        duration=end - start,
+        created_by='user',
+    )
+
+    # Stamp the new pattern_id onto the just-inserted marker, then persist.
+    for m in markers:
+        if (m.get('start') == start and m.get('end') == end
+                and m.get('detection_stage') == 'manual'
+                and m.get('pattern_id') is None):
+            m['pattern_id'] = new_pattern_id
+            break
+    db.save_episode_details(slug, episode_id, ad_markers=markers)
+
+    db.create_pattern_correction(
+        correction_type='create',
+        pattern_id=new_pattern_id,
+        episode_id=episode_id,
+        original_bounds=None,
+        corrected_bounds={'start': start, 'end': end},
+        text_snippet=text_template[:500],
+        sponsor_id=sponsor_id,
+    )
+
+    logger.info(
+        f"CORRECTION: type=create, episode={slug}/{episode_id}, "
+        f"pattern_id={new_pattern_id}, sponsor='{canonical_sponsor_name}', "
+        f"start={start}, end={end}, scope={scope}"
+    )
+    return json_response({
+        'message': 'New ad marker created',
+        'pattern_id': new_pattern_id,
+        'sponsor': canonical_sponsor_name,
+    })
+
+
 @api.route('/episodes/<slug>/<episode_id>/corrections', methods=['POST'])
 @log_request
 def submit_correction(slug, episode_id):
@@ -404,6 +534,7 @@ def submit_correction(slug, episode_id):
     - confirm: Ad detection is correct (increases confirmation_count)
     - reject: Not actually an ad (increases false_positive_count)
     - adjust: Correct ad but with adjusted boundaries
+    - create: User marks a brand-new ad on an episode the detector missed
     """
     db = get_database()
 
@@ -412,8 +543,18 @@ def submit_correction(slug, episode_id):
         return error_response('No data provided', 400)
 
     correction_type = data.get('type')
-    if correction_type not in ('confirm', 'reject', 'adjust'):
+    if correction_type not in ('confirm', 'reject', 'adjust', 'create'):
         return error_response('Invalid correction type', 400)
+
+    # Get pattern service for recording corrections
+    from pattern_service import PatternService
+    pattern_service = PatternService(db)
+
+    # 'create' marks a brand-new ad on an episode the LLM missed. Boundaries
+    # and metadata are top-level, not under `original_ad`. Branch out early
+    # so the existing review-flow validation below stays simple.
+    if correction_type == 'create':
+        return _submit_correction_create(db, slug, episode_id, data)
 
     original_ad = data.get('original_ad', {})
     original_start = original_ad.get('start')
@@ -422,10 +563,6 @@ def submit_correction(slug, episode_id):
 
     if original_start is None or original_end is None:
         return error_response('Missing original ad boundaries', 400)
-
-    # Get pattern service for recording corrections
-    from pattern_service import PatternService
-    pattern_service = PatternService(db)
 
     if correction_type == 'confirm':
         logger.info(f"CORRECTION: type=confirm, episode={slug}/{episode_id}, pattern_id={pattern_id}, start={original_start}, end={original_end}")
@@ -463,11 +600,12 @@ def submit_correction(slug, episode_id):
 
                         # Only create pattern if sponsor is known
                         if sponsor:
+                            sponsor_id = get_or_create_known_sponsor(db, sponsor)
                             new_pattern_id = db.create_ad_pattern(
                                 scope='podcast',
                                 podcast_id=podcast_id_str,
                                 text_template=ad_text,
-                                sponsor=sponsor,
+                                sponsor_id=sponsor_id,
                                 intro_variants=[ad_text[:200]] if len(ad_text) > 200 else [ad_text],
                                 outro_variants=[ad_text[-150:]] if len(ad_text) > 150 else [],
                                 created_from_episode_id=episode_id
@@ -571,11 +709,12 @@ def submit_correction(slug, episode_id):
                     sponsor = extract_sponsor_from_text(adjusted_text)
 
                 if sponsor:
+                    sponsor_id = get_or_create_known_sponsor(db, sponsor)
                     new_pattern_id = db.create_ad_pattern(
                         scope='podcast',
                         podcast_id=podcast_id_str,
                         text_template=adjusted_text,
-                        sponsor=sponsor,
+                        sponsor_id=sponsor_id,
                         intro_variants=[adjusted_text[:200]] if len(adjusted_text) > 200 else [adjusted_text],
                         outro_variants=[adjusted_text[-150:]] if len(adjusted_text) > 150 else [],
                         created_from_episode_id=episode_id
@@ -744,11 +883,16 @@ def import_patterns():
                     skipped_count += 1
                     continue
                 if mode in ('merge', 'replace'):
+                    pd_sponsor = pattern_data.get('sponsor')
+                    pd_sponsor_id = (
+                        get_or_create_known_sponsor(db, pd_sponsor)
+                        if pd_sponsor else None
+                    )
                     updates = {
                         'text_template': pattern_data.get('text_template'),
                         'intro_variants': pattern_data.get('intro_variants'),
                         'outro_variants': pattern_data.get('outro_variants'),
-                        'sponsor': pattern_data.get('sponsor'),
+                        'sponsor_id': pd_sponsor_id,
                     }
                     updates = {k: v for k, v in updates.items() if v is not None}
                     if updates:
@@ -758,10 +902,14 @@ def import_patterns():
                         skipped_count += 1
                     continue
 
+            bulk_sponsor = pattern_data.get('sponsor')
+            bulk_sponsor_id = (
+                get_or_create_known_sponsor(db, bulk_sponsor) if bulk_sponsor else None
+            )
             db.create_ad_pattern(
                 scope=pattern_data.get('scope'),
                 text_template=pattern_data.get('text_template'),
-                sponsor=pattern_data.get('sponsor'),
+                sponsor_id=bulk_sponsor_id,
                 podcast_id=pattern_data.get('podcast_id'),
                 network_id=pattern_data.get('network_id'),
                 dai_platform=pattern_data.get('dai_platform'),

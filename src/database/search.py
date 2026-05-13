@@ -60,9 +60,10 @@ class SearchMixin:
 
         # Index patterns
         cursor = conn.execute("""
-            SELECT id, text_template, sponsor, scope
-            FROM ad_patterns
-            WHERE is_active = 1
+            SELECT ap.id, ap.text_template, ks.name AS sponsor, ap.scope
+            FROM ad_patterns ap
+            LEFT JOIN known_sponsors ks ON ap.sponsor_id = ks.id
+            WHERE ap.is_active = 1
         """)
         for row in cursor:
             conn.execute("""
