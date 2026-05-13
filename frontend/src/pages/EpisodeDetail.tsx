@@ -121,13 +121,16 @@ function EpisodeDetail() {
     correctionMutation.mutate(correction);
   };
 
-  // Jump to a specific ad in the editor
-  const handleJumpToAd = (startTime: number) => {
+  // Jump to a specific ad in the editor. Sets BOTH selected index (so the
+  // modal renders the right ad) and seek time (so audio playback lands at
+  // the ad's start). Without the index, the modal stays on whichever ad
+  // was last selected (defaulting to 0 on first open).
+  const handleJumpToAd = (adIndex: number, startTime: number) => {
+    setEditorSelectedAdIndex(adIndex);
     setJumpToTime(startTime);
     if (!showEditor) {
       setShowEditor(true);
     }
-    // Scroll to editor
     setTimeout(() => {
       editorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }, 100);
@@ -536,7 +539,7 @@ function EpisodeDetail() {
                   )}
                   {episode.transcript && (
                     <button
-                      onClick={() => handleJumpToAd(segment.start)}
+                      onClick={() => handleJumpToAd(index, segment.start)}
                       className="px-3 py-1.5 sm:px-2 sm:py-0.5 text-xs bg-primary/10 text-primary rounded hover:bg-primary/20 active:bg-primary/30 transition-colors touch-manipulation min-h-[36px] sm:min-h-0"
                       title="Jump to this ad in editor"
                     >
