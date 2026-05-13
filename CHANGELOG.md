@@ -6,6 +6,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.3.1] - 2026-05-13
+
+### Fixed
+
+- **Ad editor waveform defaulted to a 6-minute view**, so on long episodes the pins jumped off-screen the moment you typed real timestamps. Default now spans the full episode. When zoomed in, typing a time outside the viewport scrolls the wavesurfer to bring the pin into view.
+- **Time inputs auto-reset on blur** when Start > End, blocking you from typing Start=34:50 then End=37:20. Each input now clamps only to `[0, episodeDuration]`. Cross-field validation moves to Save: invalid selection disables Save, reds the inputs, and shows an inline error.
+- **No playback speed control** in the ad editor. Added a 0.5×–2× dropdown next to the play button.
+
+### Changed
+
+- Trimmed the helper text on the "LLM Tunables (per stage)" Settings section.
+
 ## [2.3.0] - 2026-05-13
 
 ### Added

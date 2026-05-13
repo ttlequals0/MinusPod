@@ -31,7 +31,7 @@ const STAGES: StageBlock[] = [
     maxTokensKey: 'detectionMaxTokens',
     budgetKey: 'detectionReasoningBudget',
     levelKey: 'detectionReasoningLevel',
-    description: 'First scan of the full transcript. Keep temperature low so boundaries reproduce.',
+    description: 'First scan of the full transcript.',
   },
   {
     label: 'Verification (Ad Detection Pass 2)',
@@ -39,7 +39,7 @@ const STAGES: StageBlock[] = [
     maxTokensKey: 'verificationMaxTokens',
     budgetKey: 'verificationReasoningBudget',
     levelKey: 'verificationReasoningLevel',
-    description: 'Second scan against the processed audio to catch anything pass 1 missed.',
+    description: 'Second scan against processed audio.',
   },
   {
     label: 'Reviewer (Pass 1 and Pass 2)',
@@ -47,7 +47,7 @@ const STAGES: StageBlock[] = [
     maxTokensKey: 'reviewerMaxTokens',
     budgetKey: 'reviewerReasoningBudget',
     levelKey: 'reviewerReasoningLevel',
-    description: 'Optional confirm/reject pass on detected ads. Both reviewer invocations share these values.',
+    description: 'Optional confirm/reject pass on detected ads.',
   },
   {
     label: 'Chapter Boundary Detection',
@@ -55,7 +55,7 @@ const STAGES: StageBlock[] = [
     maxTokensKey: 'chapterBoundaryMaxTokens',
     budgetKey: 'chapterBoundaryReasoningBudget',
     levelKey: 'chapterBoundaryReasoningLevel',
-    description: 'Finds topic transitions. Low temperature so re-runs land on the same boundaries.',
+    description: 'Finds topic transitions.',
   },
   {
     label: 'Chapter Title Generation',
@@ -63,7 +63,7 @@ const STAGES: StageBlock[] = [
     maxTokensKey: 'chapterTitleMaxTokens',
     budgetKey: 'chapterTitleReasoningBudget',
     levelKey: 'chapterTitleReasoningLevel',
-    description: 'Writes the title for each chapter. A bit of temperature here helps phrasing.',
+    description: 'Writes titles for each chapter.',
   },
 ];
 
@@ -205,7 +205,7 @@ function StageBlockEditor({
           <p className="mt-1 text-xs text-muted-foreground">
             {tempEnv
               ? `Set by ${tempEnv}; edit your environment to change.`
-              : '0.0 is fully reproducible. Anything above ~0.3 starts to introduce variation between runs.'}
+              : '0.0 = deterministic. Higher = more variation.'}
           </p>
         </div>
 
@@ -232,7 +232,7 @@ function StageBlockEditor({
           <p className="mt-1 text-xs text-muted-foreground">
             {maxEnv
               ? `Set by ${maxEnv}; edit your environment to change.`
-              : 'Cap on response length. Too low and the model gets cut off mid-JSON; too high mostly costs tokens.'}
+              : 'Response cap. Too low cuts off mid-JSON.'}
           </p>
         </div>
       </div>
@@ -263,7 +263,7 @@ function StageBlockEditor({
             <p className="mt-1 text-xs text-muted-foreground">
               {budgetEnv
                 ? `Set by ${budgetEnv}; edit your environment to change.`
-                : 'Token budget for Anthropic extended thinking (1024 - 65536). Leave blank to skip the thinking block entirely.'}
+                : 'Anthropic thinking budget (1024-65536). Blank = off.'}
             </p>
           </>
         ) : (
@@ -288,7 +288,7 @@ function StageBlockEditor({
             <p className="mt-1 text-xs text-muted-foreground">
               {levelEnv
                 ? `Set by ${levelEnv}; edit your environment to change.`
-                : 'How hard the model thinks before answering. Higher costs more latency; useful on smaller models where output quality is shaky.'}
+                : 'How hard the model thinks. Higher = slower but better.'}
             </p>
           </>
         )}
@@ -306,11 +306,7 @@ function StageTunablesSection({
   return (
     <CollapsibleSection title="LLM Tunables (per stage)">
       <p className="text-sm text-muted-foreground mb-3">
-        Per-pass temperature, response size, and reasoning controls. Defaults match what
-        the code used before this feature, so leaving everything alone preserves the old
-        behavior. Changes apply on the next episode &mdash; no restart. If a provider rejects
-        a value, the call falls back to the default for the rest of that pass and the
-        rejection lands in the logs.
+        Temperature, max tokens, and reasoning per pass. Applies on the next episode.
       </p>
       <div className="space-y-3">
         {STAGES.map((block) => (

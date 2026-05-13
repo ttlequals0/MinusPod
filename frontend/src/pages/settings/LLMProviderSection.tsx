@@ -158,7 +158,7 @@ function OllamaNumCtxField({
         min={512}
         max={131072}
         step={512}
-        placeholder="Leave blank to use the model default (often 2048)"
+        placeholder="Blank = model default"
         value={draft}
         disabled={!!entry.envOverride}
         onChange={(e) => setDraft(e.target.value)}
@@ -171,7 +171,7 @@ function OllamaNumCtxField({
       <p className="mt-1 text-sm text-muted-foreground">
         {entry.envOverride
           ? `Set by ${entry.envOverride}; edit your environment to change.`
-          : "Ollama drops anything past its context window without telling you. The default (often 2048) cuts off ad detection halfway. Set this to the model's trained context limit (8192 or higher on most modern models)."}
+          : "Ollama default (often 2048) silently truncates long prompts. Set to your model's context limit (8192+)."}
       </p>
     </div>
   );
