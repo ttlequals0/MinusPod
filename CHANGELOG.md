@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.12] - 2026-05-13
+
+### Fixed
+
+- **Truncated LLM responses now salvage usable ad verdicts instead of failing open (#221).** `extract_json_ads_array` already calls `_salvage_truncated_single_ad` as a final fallback when a model runs out of token budget mid-response, but the salvage helper required the body to start with `{`. Both the detector and the opt-in reviewer prompt for an array of ad verdicts, so truncation lands inside the first object with `[` at the head, and the salvage path was being skipped. The helper now strips a leading `[` before its `startswith('{')` guard, letting the existing regex recover `start`/`end`/`reason` from the partial body. Benefits both code paths (detector and reviewer) via the shared helper.
+
 ## [2.2.11] - 2026-05-13
 
 ### Changed
