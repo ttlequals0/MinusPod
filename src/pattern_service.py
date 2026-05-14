@@ -812,3 +812,132 @@ class PatternService:
         if getattr(self, '_text_pattern_matcher', None) is None:
             self._text_pattern_matcher = TextPatternMatcher(db=self.db)
         return self._text_pattern_matcher
+
+    def rewrite_pattern_from_bounds(
+        self,
+        pattern_id: int,
+        transcript: str,
+        new_start: float,
+        new_end: float,
+    ) -> bool:
+        """Rewrite an existing pattern's text_template and variants.
+
+        Re-extracts the transcript text between [new_start, new_end] and
+        replaces the pattern's text_template / intro_variants / outro_variants
+        with values derived from the new bounds. Mirrors the construction
+        logic used when a fresh pattern is created from confirm/adjust input.
+
+        Only effective when:
+        - The pattern exists and source is 'local'.
+        - The extracted text is at least 50 chars.
+
+        Community patterns are never auto-rewritten by this method.
+
+        Returns True when the pattern was changed; False otherwise.
+        """
+        from api import extract_transcript_segment
+
+        if not self.db or not transcript:
+            return False
+
+        pattern = self.db.get_ad_pattern_by_id(pattern_id)
+        if not pattern:
+            logger.warning(f"rewrite_pattern_from_bounds: pattern {pattern_id} not found")
+            return False
+        if (pattern.get('source') or 'local') != 'local':
+            logger.info(
+                f"rewrite_pattern_from_bounds: skipping non-local pattern "
+                f"{pattern_id} (source={pattern.get('source')})"
+            )
+            return False
+
+        new_text = extract_transcript_segment(transcript, new_start, new_end) or ''
+        if len(new_text) < 50:
+            logger.info(
+                f"rewrite_pattern_from_bounds: pattern {pattern_id} new text "
+                f"is too short ({len(new_text)} chars); skipping rewrite"
+            )
+            return False
+
+        intro = [new_text[:200]] if len(new_text) > 200 else [new_text]
+        outro = [new_text[-150:]] if len(new_text) > 150 else []
+
+        self.db.update_ad_pattern(
+            pattern_id,
+            text_template=new_text,
+            intro_variants=intro,
+            outro_variants=outro,
+        )
+        logger.info(
+            f"rewrite_pattern_from_bounds: pattern {pattern_id} rewritten "
+            f"to {len(new_text)} chars from new bounds "
+            f"[{new_start:.1f}, {new_end:.1f}]"
+        )
+        # Invalidate the cached matcher so it reloads on next match call.
+        self._text_pattern_matcher = None
+        return True
+
+    def import_community_pattern(self, data: Dict) -> int:
+        """Insert or update an ad pattern carrying a community_id.
+
+        New community_id -> INSERT with source='community', protected_from_sync=0.
+        Existing community_id with higher `version` -> UPDATE in place,
+        unless the row has `protected_from_sync = 1` (then skip).
+
+        Returns the pattern id (new or existing). Raises ValueError when
+        required fields are missing.
+        """
+        if not self.db:
+            raise ValueError("import_community_pattern requires a database")
+
+        required = ('community_id', 'text_template', 'sponsor', 'scope')
+        missing = [k for k in required if not data.get(k)]
+        if missing:
+            raise ValueError(f"import_community_pattern: missing fields {missing}")
+
+        community_id = data['community_id']
+        version = int(data.get('version') or 1)
+
+        sponsor_name = data['sponsor']
+        sponsor_id = get_or_create_known_sponsor(self.db, sponsor_name)
+
+        existing = self.db.find_pattern_by_community_id(community_id)
+        if existing:
+            if existing.get('protected_from_sync'):
+                logger.info(
+                    f"import_community_pattern: community_id={community_id} "
+                    f"is protected; skipping"
+                )
+                return existing['id']
+            if version <= int(existing.get('version') or 1):
+                # Same or older version — no-op.
+                return existing['id']
+
+            self.db.update_ad_pattern(
+                existing['id'],
+                text_template=data['text_template'],
+                intro_variants=data.get('intro_variants') or [],
+                outro_variants=data.get('outro_variants') or [],
+                sponsor_id=sponsor_id,
+                version=version,
+                submitted_app_version=data.get('submitted_app_version'),
+            )
+            return existing['id']
+
+        pattern_id = self.db.create_ad_pattern(
+            scope=data['scope'],
+            text_template=data['text_template'],
+            sponsor_id=sponsor_id,
+            podcast_id=data.get('podcast_id'),
+            network_id=data.get('network_id'),
+            dai_platform=data.get('dai_platform'),
+            intro_variants=data.get('intro_variants') or [],
+            outro_variants=data.get('outro_variants') or [],
+            created_by='community',
+            source='community',
+            community_id=community_id,
+            version=version,
+            submitted_app_version=data.get('submitted_app_version'),
+            protected_from_sync=0,
+        )
+        return pattern_id

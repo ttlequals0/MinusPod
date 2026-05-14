@@ -174,6 +174,20 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
                 update_kwargs['last_modified_header'] = new_last_modified
             db.update_podcast(slug, **update_kwargs)
 
+            # Map iTunes categories to MinusPod vocabulary tags, then refresh the
+            # RSS layer of the podcast's tags. set_podcast_tags also folds in
+            # episode-level tags and the user_tags layer.
+            try:
+                from utils.community_tags import map_itunes_category
+                raw_cats = rss_parser.extract_podcast_categories(parsed_feed)
+                rss_tags = sorted({
+                    tag for cat in raw_cats
+                    if (tag := map_itunes_category(cat))
+                })
+                db.set_podcast_tags(slug, rss_tags=rss_tags)
+            except Exception as e:
+                refresh_logger.warning(f"[{slug}] iTunes category mapping failed: {e}")
+
             # Detect DAI platform and network from feed metadata
             feed_author = parsed_feed.feed.get('author', '')
             network_info = pattern_service.update_podcast_metadata(

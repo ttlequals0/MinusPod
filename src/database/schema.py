@@ -33,6 +33,8 @@ CREATE TABLE IF NOT EXISTS podcasts (
     skip_second_pass INTEGER DEFAULT 0,
     max_episodes INTEGER,
     only_expose_processed_episodes INTEGER,
+    tags TEXT NOT NULL DEFAULT '[]',
+    user_tags TEXT NOT NULL DEFAULT '[]',
     created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
@@ -60,6 +62,7 @@ CREATE TABLE IF NOT EXISTS episodes (
     ad_detection_status TEXT DEFAULT NULL CHECK(ad_detection_status IN (NULL, 'success', 'failed')),
     artwork_url TEXT,
     episode_number INTEGER,
+    tags TEXT NOT NULL DEFAULT '[]',
     created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
     FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE,
@@ -129,7 +132,12 @@ CREATE TABLE IF NOT EXISTS ad_patterns (
     disabled_reason TEXT,
     avg_duration REAL,
     duration_samples INTEGER DEFAULT 0,
-    created_by TEXT DEFAULT 'auto'
+    created_by TEXT DEFAULT 'auto',
+    source TEXT NOT NULL DEFAULT 'local' CHECK(source IN ('local', 'community', 'imported')),
+    community_id TEXT,
+    version INTEGER NOT NULL DEFAULT 1,
+    submitted_app_version TEXT,
+    protected_from_sync INTEGER NOT NULL DEFAULT 0
 );
 
 -- pattern_corrections table (user corrections; conflicting entries cleaned up on reversal)
@@ -167,6 +175,7 @@ CREATE TABLE IF NOT EXISTS known_sponsors (
     category TEXT,
     common_ctas TEXT DEFAULT '[]',
     is_active INTEGER DEFAULT 1,
+    tags TEXT NOT NULL DEFAULT '[]',
     created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
 );
 
@@ -236,6 +245,8 @@ CREATE INDEX IF NOT EXISTS idx_episode_details_episode_id ON episode_details(epi
 
 -- Cross-episode training indexes (indexes on new columns created in migrations)
 CREATE INDEX IF NOT EXISTS idx_patterns_sponsor_id ON ad_patterns(sponsor_id) WHERE is_active = 1;
+CREATE INDEX IF NOT EXISTS idx_patterns_source ON ad_patterns(source, is_active);
+CREATE INDEX IF NOT EXISTS idx_patterns_community_id ON ad_patterns(community_id) WHERE community_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_fingerprints_pattern ON audio_fingerprints(pattern_id);
 CREATE INDEX IF NOT EXISTS idx_corrections_pattern ON pattern_corrections(pattern_id);
 CREATE INDEX IF NOT EXISTS idx_sponsors_name ON known_sponsors(name) WHERE is_active = 1;
@@ -680,6 +691,53 @@ class SchemaMixin:
         ap_cols = self._get_table_columns(conn, 'ad_patterns')
         self._add_column_if_missing(conn, 'ad_patterns', 'avg_duration', 'REAL', ap_cols)
         self._add_column_if_missing(conn, 'ad_patterns', 'duration_samples', 'INTEGER DEFAULT 0', ap_cols)
+
+        # Community-pattern columns (2.4.0). source is a CHECK column but
+        # SQLite allows ADD COLUMN with DEFAULT — the CHECK is enforced via
+        # the SCHEMA_SQL CREATE TABLE; existing rows default to 'local'.
+        ap_cols = self._get_table_columns(conn, 'ad_patterns')
+        self._add_column_if_missing(conn, 'ad_patterns', 'source', "TEXT NOT NULL DEFAULT 'local'", ap_cols)
+        self._add_column_if_missing(conn, 'ad_patterns', 'community_id', 'TEXT', ap_cols)
+        self._add_column_if_missing(conn, 'ad_patterns', 'version', 'INTEGER NOT NULL DEFAULT 1', ap_cols)
+        self._add_column_if_missing(conn, 'ad_patterns', 'submitted_app_version', 'TEXT', ap_cols)
+        self._add_column_if_missing(
+            conn, 'ad_patterns', 'protected_from_sync',
+            'INTEGER NOT NULL DEFAULT 0', ap_cols,
+        )
+
+        # Indexes for source filtering and community_id lookup (idempotent)
+        try:
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_patterns_source "
+                "ON ad_patterns(source, is_active)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_patterns_community_id "
+                "ON ad_patterns(community_id) WHERE community_id IS NOT NULL"
+            )
+            conn.commit()
+        except Exception as e:
+            logger.warning(f"Community pattern index creation: {e}")
+
+        # known_sponsors.tags (2.4.0)
+        ks_cols = self._get_table_columns(conn, 'known_sponsors')
+        self._add_column_if_missing(conn, 'known_sponsors', 'tags', "TEXT NOT NULL DEFAULT '[]'", ks_cols)
+
+        # podcasts.tags and podcasts.user_tags (2.4.0)
+        pod_cols = self._get_table_columns(conn, 'podcasts')
+        self._add_column_if_missing(conn, 'podcasts', 'tags', "TEXT NOT NULL DEFAULT '[]'", pod_cols)
+        self._add_column_if_missing(conn, 'podcasts', 'user_tags', "TEXT NOT NULL DEFAULT '[]'", pod_cols)
+
+        # episodes.tags (2.4.0)
+        ep_cols = self._get_table_columns(conn, 'episodes')
+        self._add_column_if_missing(conn, 'episodes', 'tags', "TEXT NOT NULL DEFAULT '[]'", ep_cols)
+
+        # Sponsor seed reseed: CSV is authoritative.
+        # UPDATE on name match (preserves id for FK), INSERT new, soft-delete orphans.
+        try:
+            self._reseed_known_sponsors(conn)
+        except Exception as e:
+            logger.error(f"Sponsor reseed failed: {e}")
 
         # Migration: Update episodes status CHECK constraint to include 'permanently_failed'
         # SQLite doesn't support ALTER TABLE to modify constraints, so we recreate the table
@@ -1242,6 +1300,87 @@ class SchemaMixin:
         # frozen at detection time, so the 2.2.10 pattern cleanup alone
         # doesn't update what the editor displays for already-detected ads.
         self._cleanup_zyn_ad_markers(conn)
+
+    def _reseed_known_sponsors(self, conn):
+        """Apply the authoritative sponsor seed list (src/seed_data/sponsors_final.csv).
+
+        UPDATE on name match (case-insensitive) to preserve `id` for any
+        existing ad_patterns.sponsor_id foreign keys. INSERT new rows.
+        Soft-delete (is_active=0) any existing sponsor whose name is not in
+        the CSV. Idempotent: re-running yields the same end state.
+
+        Stamps a settings flag (`sponsor_seed_revision`) on success so we
+        only do meaningful work once per app version that ships a new seed.
+        """
+        from utils.community_tags import sponsor_seed
+
+        # Bump this when the seed CSV is replaced so the migration re-runs.
+        SEED_REVISION = '2.4.0'
+        try:
+            current = conn.execute(
+                "SELECT value FROM settings WHERE key = 'sponsor_seed_revision'"
+            ).fetchone()
+            if current and current['value'] == SEED_REVISION:
+                return
+        except Exception:
+            # Settings table may not exist yet on a fresh-create path; carry on.
+            pass
+
+        seed = sponsor_seed()
+        seed_names_lower = {row['name'].lower() for row in seed}
+
+        # Build existing-name -> id map (case-insensitive)
+        existing = conn.execute(
+            "SELECT id, name FROM known_sponsors"
+        ).fetchall()
+        existing_by_lower = {row['name'].lower(): row['id'] for row in existing}
+
+        updated = 0
+        inserted = 0
+        for row in seed:
+            name = row['name']
+            aliases_json = json.dumps(row['aliases'])
+            tags_json = json.dumps(row['tags'])
+            existing_id = existing_by_lower.get(name.lower())
+            if existing_id is not None:
+                conn.execute(
+                    "UPDATE known_sponsors SET aliases = ?, tags = ?, is_active = 1 "
+                    "WHERE id = ?",
+                    (aliases_json, tags_json, existing_id),
+                )
+                updated += 1
+            else:
+                conn.execute(
+                    "INSERT INTO known_sponsors (name, aliases, tags, is_active) "
+                    "VALUES (?, ?, ?, 1)",
+                    (name, aliases_json, tags_json),
+                )
+                inserted += 1
+
+        # Soft-delete orphans: existing sponsors not present in the seed.
+        orphans = [
+            row_id for lower, row_id in existing_by_lower.items()
+            if lower not in seed_names_lower
+        ]
+        deactivated = 0
+        for row_id in orphans:
+            conn.execute(
+                "UPDATE known_sponsors SET is_active = 0 WHERE id = ?",
+                (row_id,),
+            )
+            deactivated += 1
+
+        # Record the revision so this migration is a no-op next boot.
+        conn.execute(
+            "INSERT INTO settings (key, value, is_default) VALUES (?, ?, 0) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            ('sponsor_seed_revision', SEED_REVISION),
+        )
+        conn.commit()
+        logger.info(
+            f"Migration: sponsor seed v{SEED_REVISION} applied "
+            f"({inserted} inserted, {updated} updated, {deactivated} deactivated)"
+        )
 
     def _cleanup_zyn_cascade(self, conn):
         try:

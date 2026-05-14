@@ -1156,3 +1156,102 @@ def test_webhook(webhook_id):
             'success': False,
             'message': 'webhook test failed; see server logs for details',
         })
+
+
+# ========== Ad Reviewer settings ==========
+
+@api.route('/settings/reviewer', methods=['GET'])
+@log_request
+def get_reviewer_settings():
+    """Return the ad-reviewer auto-update settings."""
+    db = get_database()
+    return json_response({
+        'updatePatternsFromReviewerAdjustments': db.get_setting_bool(
+            'update_patterns_from_reviewer_adjustments', default=True
+        ),
+        'minTrimThreshold': db.get_setting_float('min_trim_threshold', default=20.0),
+    })
+
+
+@api.route('/settings/reviewer', methods=['PUT'])
+@log_request
+def update_reviewer_settings():
+    """Update the ad-reviewer auto-update settings.
+
+    Body: {updatePatternsFromReviewerAdjustments: bool, minTrimThreshold: float}
+    """
+    db = get_database()
+    data = request.get_json() or {}
+    if 'updatePatternsFromReviewerAdjustments' in data:
+        v = bool(data['updatePatternsFromReviewerAdjustments'])
+        db.set_setting('update_patterns_from_reviewer_adjustments', 'true' if v else 'false')
+    if 'minTrimThreshold' in data:
+        try:
+            v = float(data['minTrimThreshold'])
+        except (TypeError, ValueError):
+            return error_response('minTrimThreshold must be a number', 400)
+        if v <= 0 or v > 120:
+            return error_response('minTrimThreshold must be between 1 and 120', 400)
+        db.set_setting('min_trim_threshold', str(v))
+    return get_reviewer_settings()
+
+
+# ========== Community-pattern sync settings ==========
+
+@api.route('/settings/community-sync', methods=['GET'])
+@log_request
+def get_community_sync_settings():
+    """Return the community-pattern sync settings."""
+    from community_sync import DEFAULT_CRON
+    db = get_database()
+    return json_response({
+        'enabled': db.get_setting_bool('community_sync_enabled', default=False),
+        'cron': db.get_setting('community_sync_cron') or DEFAULT_CRON,
+        'lastRun': db.get_setting('community_sync_last_run') or None,
+        'lastError': db.get_setting('community_sync_last_error') or None,
+        'manifestVersion': db.get_setting('community_sync_manifest_version') or None,
+        'lastSummary': db.get_setting('community_sync_last_summary') or None,
+    })
+
+
+@api.route('/settings/community-sync', methods=['PUT'])
+@log_request
+def update_community_sync_settings():
+    """Update community-pattern sync settings.
+
+    Body: {enabled?: bool, cron?: str}. Cron expression is validated.
+    """
+    from utils.cron import is_valid_expression
+    db = get_database()
+    data = request.get_json() or {}
+    if 'enabled' in data:
+        db.set_setting('community_sync_enabled', 'true' if bool(data['enabled']) else 'false')
+    if 'cron' in data:
+        cron = (data['cron'] or '').strip()
+        if not is_valid_expression(cron):
+            return error_response(f'invalid cron expression: {cron}', 400)
+        db.set_setting('community_sync_cron', cron)
+    return get_community_sync_settings()
+
+
+# ========== Community-pattern sync triggers ==========
+
+@api.route('/community-patterns/sync', methods=['POST'])
+@limiter.limit('6/hour')
+@log_request
+def trigger_community_pattern_sync():
+    """Force a sync now. Rate-limited to 6 calls per hour."""
+    from community_sync import sync_now
+    db = get_database()
+    try:
+        summary = sync_now(db)
+    except Exception as e:
+        return error_response({'message': 'Sync failed', 'reason': str(e)}, 502)
+    return json_response(summary)
+
+
+@api.route('/community-patterns/sync-status', methods=['GET'])
+@log_request
+def community_pattern_sync_status():
+    """Return last-sync metadata."""
+    return get_community_sync_settings()

@@ -15,6 +15,7 @@ from config import DEFAULT_AD_DURATION_ESTIMATE
 from utils.text import extract_text_from_segments
 from sponsor_normalize import get_or_create_known_sponsor
 from utils.constants import INVALID_SPONSOR_VALUES
+from utils.community_tags import UNIVERSAL_TAG
 
 logger = logging.getLogger('podcast.textmatch')
 
@@ -131,6 +132,8 @@ class AdPattern:
     podcast_id: Optional[str] = None
     network_id: Optional[str] = None
     avg_duration: Optional[float] = None
+    sponsor_id: Optional[int] = None
+    source: str = 'local'  # "local", "community", "imported"
 
 
 class TextPatternMatcher:
@@ -158,6 +161,8 @@ class TextPatternMatcher:
         self._patterns: List[AdPattern] = []
         self._pattern_buckets = {}
         self._initialized = False
+        # sponsor_id -> set of tags; populated alongside _load_patterns.
+        self._sponsor_tags: Dict[int, set] = {}
 
     def _ensure_initialized(self):
         """Lazy initialization of TF-IDF vectorizer."""
@@ -217,8 +222,18 @@ class TextPatternMatcher:
                     scope=p.get('scope', 'podcast'),
                     podcast_id=p.get('podcast_id'),
                     network_id=p.get('network_id'),
-                    avg_duration=p.get('avg_duration')
+                    avg_duration=p.get('avg_duration'),
+                    sponsor_id=p.get('sponsor_id'),
+                    source=p.get('source') or 'local',
                 ))
+
+            # Cache sponsor_id -> tags for matcher eligibility checks.
+            try:
+                tags_map = self.db.get_sponsor_tags_map()
+                self._sponsor_tags = {sid: set(tags) for sid, tags in tags_map.items()}
+            except Exception as e:
+                logger.warning(f"Could not load sponsor tags map: {e}")
+                self._sponsor_tags = {}
 
             # Build TF-IDF vectors for pattern templates
             if self._patterns:
@@ -266,7 +281,8 @@ class TextPatternMatcher:
         self,
         segments: List[Dict],
         podcast_id: str = None,
-        network_id: str = None
+        network_id: str = None,
+        podcast_tags: Optional[set] = None,
     ) -> List[TextMatch]:
         """
         Search transcript segments for known ad patterns.
@@ -275,6 +291,10 @@ class TextPatternMatcher:
             segments: List of transcript segments with 'start', 'end', 'text'
             podcast_id: Optional podcast ID for scope filtering
             network_id: Optional network ID for scope filtering
+            podcast_tags: Optional set of tag strings for this podcast.
+                Community patterns are filtered out when their sponsor tags
+                share no overlap with the podcast tags (unless the sponsor
+                or podcast has no tags, or the sponsor carries 'universal').
 
         Returns:
             List of TextMatch objects for found ads
@@ -298,9 +318,9 @@ class TextPatternMatcher:
         if len(full_text.strip()) < MIN_TEXT_LENGTH:
             return []
 
-        # Filter patterns by scope
+        # Filter patterns by scope (+ tag eligibility for community patterns)
         applicable_patterns = self._filter_patterns_by_scope(
-            podcast_id, network_id
+            podcast_id, network_id, podcast_tags
         )
 
         if not applicable_patterns:
@@ -333,28 +353,54 @@ class TextPatternMatcher:
     def _filter_patterns_by_scope(
         self,
         podcast_id: str = None,
-        network_id: str = None
+        network_id: str = None,
+        podcast_tags: Optional[set] = None,
     ) -> List[AdPattern]:
-        """Filter patterns by scope hierarchy.
+        """Filter patterns by scope hierarchy and (for community) tag eligibility.
 
-        Global patterns apply to all podcasts.
-        Network patterns apply to podcasts in the same network.
-        Podcast patterns apply only to the specific podcast.
+        Scope rules:
+        - Global patterns apply to all podcasts.
+        - Network patterns apply to podcasts in the same network.
+        - Podcast patterns apply only to the specific podcast.
+
+        Tag eligibility (community patterns only):
+        - Sponsor with 'universal' tag matches everything.
+        - Overlap between sponsor tags and podcast tags matches.
+        - Either side empty -> match (fallback).
+        Local and imported patterns bypass the tag check entirely.
         """
-        applicable = []
+        applicable: List[AdPattern] = []
+        podcast_tag_set = set(podcast_tags) if podcast_tags else set()
 
         for pattern in self._patterns:
+            # Scope gate
             if pattern.scope == 'global':
-                # Global patterns always apply
-                applicable.append(pattern)
+                pass
             elif pattern.scope == 'network':
-                # Network patterns require matching network_id
-                if network_id and pattern.network_id == network_id:
-                    applicable.append(pattern)
+                if not (network_id and pattern.network_id == network_id):
+                    continue
             elif pattern.scope == 'podcast':
-                # Podcast patterns require matching podcast_id
-                if podcast_id and pattern.podcast_id == podcast_id:
+                if not (podcast_id and pattern.podcast_id == podcast_id):
+                    continue
+            else:
+                continue
+
+            # Tag eligibility (community patterns only)
+            if pattern.source == 'community':
+                sponsor_tags = self._sponsor_tags.get(pattern.sponsor_id, set())
+                if UNIVERSAL_TAG in sponsor_tags:
                     applicable.append(pattern)
+                    continue
+                if not sponsor_tags or not podcast_tag_set:
+                    applicable.append(pattern)
+                    continue
+                if sponsor_tags & podcast_tag_set:
+                    applicable.append(pattern)
+                    continue
+                # No overlap -> drop this community pattern
+                continue
+
+            applicable.append(pattern)
 
         return applicable
 

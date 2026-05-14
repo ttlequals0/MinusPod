@@ -177,7 +177,10 @@ class TestAdPatternOperations:
 
     def test_create_ad_pattern(self, temp_db):
         """Create and retrieve ad pattern."""
-        sponsor_id = temp_db.create_known_sponsor(name='BetterHelp')
+        # BetterHelp is preloaded by the v2.4.0 migration; reuse it instead of
+        # re-inserting (which would trip the UNIQUE constraint).
+        sponsor = temp_db.get_known_sponsor_by_name('BetterHelp')
+        sponsor_id = sponsor['id'] if sponsor else temp_db.create_known_sponsor(name='BetterHelp')
         pattern_id = temp_db.create_ad_pattern(
             scope='global',
             text_template='brought to you by {sponsor}',

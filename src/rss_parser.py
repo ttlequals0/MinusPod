@@ -317,6 +317,59 @@ class RSSParser:
             return feed.itunes_image.get('href')
         return None
 
+    @staticmethod
+    def extract_podcast_categories(parsed_feed) -> List[str]:
+        """Extract iTunes category strings (top-level + subcategory) from a parsed feed.
+
+        Returns the raw category labels exactly as they appear in the feed.
+        Callers map them through `utils.community_tags.map_itunes_category`.
+        """
+        if not parsed_feed or not parsed_feed.feed:
+            return []
+        labels: List[str] = []
+        feed = parsed_feed.feed
+        # feedparser exposes RSS-level categories on .tags as a list of dicts.
+        tags = feed.get('tags', []) if hasattr(feed, 'get') else getattr(feed, 'tags', [])
+        for t in tags or []:
+            label = None
+            if isinstance(t, dict):
+                label = t.get('term') or t.get('label')
+            else:
+                label = getattr(t, 'term', None) or getattr(t, 'label', None)
+            if label and isinstance(label, str):
+                labels.append(label.strip())
+        # Dedup while preserving order.
+        seen = set()
+        out: List[str] = []
+        for lab in labels:
+            if lab not in seen:
+                seen.add(lab)
+                out.append(lab)
+        return out
+
+    @staticmethod
+    def extract_episode_categories(entry) -> List[str]:
+        """Extract iTunes category strings from a single feedparser entry."""
+        if entry is None:
+            return []
+        tags = entry.get('tags', []) if hasattr(entry, 'get') else getattr(entry, 'tags', [])
+        labels: List[str] = []
+        for t in tags or []:
+            label = None
+            if isinstance(t, dict):
+                label = t.get('term') or t.get('label')
+            else:
+                label = getattr(t, 'term', None) or getattr(t, 'label', None)
+            if label and isinstance(label, str):
+                labels.append(label.strip())
+        seen = set()
+        out: List[str] = []
+        for lab in labels:
+            if lab not in seen:
+                seen.add(lab)
+                out.append(lab)
+        return out
+
     def generate_episode_id(self, episode_url: str, guid: str = None) -> str:
         """Generate consistent episode ID from GUID or URL.
 
@@ -666,6 +719,20 @@ class RSSParser:
                     except (ValueError, TypeError):
                         pass
 
+                # Map per-episode iTunes categories to vocabulary tags.
+                ep_tags: List[str] = []
+                try:
+                    from utils.community_tags import map_itunes_category
+                    raw_cats = self.extract_episode_categories(entry)
+                    seen = set()
+                    for cat in raw_cats:
+                        tag = map_itunes_category(cat)
+                        if tag and tag not in seen:
+                            seen.add(tag)
+                            ep_tags.append(tag)
+                except Exception as e:
+                    logger.warning(f"Episode iTunes category mapping failed: {e}")
+
                 episodes.append({
                     'id': self.generate_episode_id(episode_url, entry.get('id', '')),
                     'url': episode_url,
@@ -674,6 +741,7 @@ class RSSParser:
                     'description': self._get_episode_description(entry),
                     'artwork_url': artwork_url,
                     'episode_number': episode_number,
+                    'tags': ep_tags,
                 })
 
         # De-duplicate episodes (keep latest when multiple versions exist)

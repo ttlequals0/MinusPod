@@ -8,8 +8,13 @@ def _rebuild_pre_migration_shape(conn):
     """Rebuild `ad_patterns` and `pattern_corrections` in the v2.1.x shape so
     we can exercise the migration end-to-end. Assumes the post-migration
     tables have just been created by the normal Database init.
+
+    The v2.4.0 seed migration preloads 255 sponsors; we clear them here so
+    tests can stage their own sponsor case-variants without colliding on the
+    UNIQUE name constraint.
     """
     conn.execute("PRAGMA foreign_keys = OFF")
+    conn.execute("DELETE FROM known_sponsors")
     conn.execute("DROP TABLE IF EXISTS ad_patterns")
     conn.execute("DROP TABLE IF EXISTS pattern_corrections")
     conn.execute("DROP TABLE IF EXISTS _migration_backup_ad_patterns_sponsor")

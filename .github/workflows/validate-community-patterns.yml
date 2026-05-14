@@ -1,0 +1,85 @@
+name: Community Pattern Validation
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'patterns/community/**'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  validate:
+    name: Validate community pattern submissions
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2
+
+      - name: List changed JSON files under patterns/community/
+        id: changed
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -e
+          changed=$(git diff --diff-filter=AM --name-only "$BASE_SHA" "$HEAD_SHA" \
+            | grep -E '^patterns/community/.+\.json$' \
+            | grep -v 'patterns/community/index.json' \
+            | tr '\n' ' ' || true)
+          echo "files=$changed" >> "$GITHUB_OUTPUT"
+          echo "Changed files: $changed"
+
+      - name: Setup Python
+        if: steps.changed.outputs.files != ''
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+          cache: pip
+
+      - name: Install lightweight deps
+        if: steps.changed.outputs.files != ''
+        run: |
+          python -m pip install --upgrade pip
+          # The validator imports only stdlib + utils/community_tags, which
+          # itself uses stdlib only. No requirements.txt install required.
+
+      - name: Run validator
+        if: steps.changed.outputs.files != ''
+        id: validate
+        env:
+          PYTHONPATH: src
+          CHANGED_FILES: ${{ steps.changed.outputs.files }}
+        run: |
+          set +e
+          python -m tools.community_pattern_validator \
+            --pr-files $CHANGED_FILES \
+            --comment-output /tmp/comment.md \
+            --status-output /tmp/status.txt
+          echo "exit=$?" >> "$GITHUB_OUTPUT"
+
+      - name: Post results comment
+        if: always() && steps.changed.outputs.files != ''
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const fs = require('fs');
+            const path = '/tmp/comment.md';
+            if (!fs.existsSync(path)) return;
+            const body = fs.readFileSync(path, 'utf8');
+            await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body,
+            });
+
+      - name: Fail job on rejection
+        if: steps.changed.outputs.files != '' && steps.validate.outputs.exit != '0'
+        run: |
+          echo "Community pattern validation rejected one or more files."
+          exit 1

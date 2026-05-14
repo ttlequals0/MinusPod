@@ -18,11 +18,15 @@ logger = logging.getLogger('podcast.api')
 @api.route('/sponsors', methods=['GET'])
 @log_request
 def list_sponsors():
-    """List all known sponsors."""
+    """List all known sponsors. Optional ?tag=<tag> filter."""
     service = get_sponsor_service()
     include_inactive = request.args.get('include_inactive', 'false').lower() == 'true'
+    tag = request.args.get('tag')
 
-    sponsors = service.db.get_known_sponsors(active_only=not include_inactive)
+    if tag:
+        sponsors = service.db.get_sponsors_by_tag(tag, active_only=not include_inactive)
+    else:
+        sponsors = service.db.get_known_sponsors(active_only=not include_inactive)
 
     # Parse JSON fields
     result = []
@@ -40,9 +44,39 @@ def list_sponsors():
                 sponsor_data['common_ctas'] = json.loads(sponsor_data['common_ctas'])
             except json.JSONDecodeError:
                 sponsor_data['common_ctas'] = []
+        # Parse tags from JSON string
+        if isinstance(sponsor_data.get('tags'), str):
+            try:
+                sponsor_data['tags'] = json.loads(sponsor_data['tags'])
+            except json.JSONDecodeError:
+                sponsor_data['tags'] = []
         result.append(sponsor_data)
 
     return json_response({'sponsors': result})
+
+
+@api.route('/sponsors/<int:sponsor_id>/tags', methods=['PUT'])
+@log_request
+def update_sponsor_tags(sponsor_id):
+    """Update a sponsor's tags. Body: {tags: ['tag1', ...]}.
+
+    Each tag is validated against VALID_TAGS (which includes 'universal').
+    """
+    from utils.community_tags import valid_tags
+    service = get_sponsor_service()
+    sponsor = service.db.get_known_sponsor_by_id(sponsor_id)
+    if not sponsor:
+        return error_response('Sponsor not found', 404)
+    data = request.get_json() or {}
+    tags = data.get('tags')
+    if not isinstance(tags, list):
+        return error_response('tags must be a list of strings', 400)
+    vt = valid_tags()
+    bad = [t for t in tags if t not in vt]
+    if bad:
+        return error_response(f'unknown tags: {", ".join(bad)}', 400)
+    service.db.update_known_sponsor(sponsor_id, tags=tags)
+    return json_response({'sponsor_id': sponsor_id, 'tags': tags})
 
 
 @api.route('/sponsors', methods=['POST'])

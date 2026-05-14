@@ -301,12 +301,23 @@ def _detect_ads_first_pass(slug, episode_id, segments, audio_path,
     db, storage, _, ad_detector, _, _, _, status_service, _, _ = _get_components()
     status_service.update_job_stage("pass1:detecting", 50)
     clear_fallback(episode_id, PASS_AD_DETECTION_1)
+    # Load podcast tags once for the matcher's community-pattern eligibility check.
+    podcast_tags = None
+    try:
+        podcast_row = db.get_podcast_by_slug(slug)
+        if podcast_row and podcast_row.get('tags'):
+            import json as _json
+            podcast_tags = set(_json.loads(podcast_row['tags']))
+    except Exception:
+        podcast_tags = None
+
     ad_result = ad_detector.process_transcript(
         segments, podcast_name, episode_title, slug, episode_id, episode_description,
         audio_path=audio_path,
         podcast_id=slug,
         skip_patterns=skip_patterns,
         podcast_description=podcast_description,
+        podcast_tags=podcast_tags,
         progress_callback=progress_callback,
         audio_analysis=audio_analysis_result,
         cancel_event=cancel_event

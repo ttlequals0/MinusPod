@@ -6,6 +6,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.0] - 2026-05-14
+
+### Added
+
+- **Community ad patterns.** Patterns can now be shared via the `patterns/community/` directory in the GitHub repository. A new "Submit to community" button on each local pattern row runs an export pipeline (quality gates, PII strip, sponsor classification, metadata strip) and opens a prefilled GitHub PR. A new GitHub Action validates incoming PRs against the same gates and a three-tier dedupe (95%+ duplicate, 75–95% variant, <75% distinct) before the maintainer reviews them.
+- **49-tag vocabulary + tagging system.** Sponsors and podcasts now carry tags from a 48-entry vocabulary (`src/seed_data/tag_vocabulary.csv`) plus a special `universal` flag for sponsors with broad appeal. Community patterns only enter the text-matching loop when their sponsor's tags overlap the podcast's tags, when the sponsor is `universal`, or when either side has no tags. Local patterns bypass tag filtering entirely.
+- **Authoritative sponsor seed.** A new schema migration loads 255 sponsors (with aliases and tags) from `src/seed_data/sponsors_final.csv`. Migration semantics: UPDATE on name match (preserves `ad_patterns.sponsor_id` FKs), INSERT new, soft-delete (`is_active=0`) any pre-existing sponsor whose name is not in the seed.
+- **Auto-pull / sync.** Optional opt-in: when enabled, the server polls `https://raw.githubusercontent.com/ttlequals0/MinusPod/main/patterns/community/index.json` on a configurable cron (default Sunday 3am UTC) and applies INSERT / UPDATE / DELETE against community patterns. The new "Protect from sync" toggle on each community pattern row pins it so a future manifest can't overwrite or delete it.
+- **Reviewer-trim auto-rewrite.** When a reviewer narrows an ad's bounds by more than the configurable trim threshold (default 20 s), the local pattern's `text_template` and intro/outro variants are re-extracted from the new transcript bounds. Off by default for community patterns; toggleable in the new **Ad Reviewer** settings panel.
+- **iTunes category parsing.** RSS feed refresh now extracts `<itunes:category>` at both podcast and episode level and maps it through `src/seed_data/itunes_category_map.json` to the vocabulary tags above.
+- **API additions** under `/api/v1/`: `POST /patterns/bulk-delete`, `POST /patterns/bulk-disable` (both guarded by `confirm: true` + `expected_count`), `POST /patterns/{id}/submit-to-community`, `POST | DELETE /patterns/{id}/protect`, `GET | PUT /feeds/{slug}/tags`, `PUT /sponsors/{id}/tags`, `GET | PUT /settings/reviewer`, `GET | PUT /settings/community-sync`, `POST /community-patterns/sync`, `GET /community-patterns/sync-status`. Documented in `openapi.yaml` (now at version 2.4.0).
+- **Frontend additions.** Patterns page gains an Import/Export header pair, a Source filter (Local / Community / Imported), a community badge on each community-sourced row, per-row Submit-to-community / Protect-from-sync buttons, and a last-synced indicator with manual refresh. Settings page gains two new sections: **Ad Reviewer** (toggle + threshold) and **Community Patterns** (enable, cron, Sync Now, last-sync display).
+- **GitHub workflow + path labeler** for community PRs (`.github/workflows/validate-community-patterns.yml`, `.github/labeler.yml`). Validator is also a CLI: `python -m tools.community_pattern_validator --pr-files X.json Y.json --comment-output /tmp/comment.md`.
+
+### Changed
+
+- `known_sponsors`, `podcasts`, `episodes` now carry a JSON `tags` column; `ad_patterns` carries `source`, `community_id`, `version`, `submitted_app_version`, `protected_from_sync`. Migration is additive and idempotent.
+- Editing a community pattern in the UI now auto-sets `protected_from_sync=1` so the next sync run doesn't clobber the edit.
+
 ## [2.3.4] - 2026-05-13
 
 ### Fixed

@@ -33,6 +33,8 @@ import GlobalDefaultsSection from './settings/GlobalDefaultsSection';
 import Podcasting20Section from './settings/Podcasting20Section';
 import PromptsSection from './settings/PromptsSection';
 import ExperimentsSection from './settings/ExperimentsSection';
+import AdReviewerSection from './settings/AdReviewerSection';
+import CommunityPatternsSection from './settings/CommunityPatternsSection';
 import { formatModelLabel } from './settings/settingsUtils';
 
 function SettingsGroupHeader({ title }: { title: string }) {
@@ -519,6 +521,10 @@ function Settings() {
         onResetPrompts={() => resetPromptsMutation.mutate()}
         resetIsPending={resetPromptsMutation.isPending}
       />
+
+      <AdReviewerSection />
+
+      <CommunityPatternsSection />
 
       <SettingsGroupHeader title="Experiments" />
 

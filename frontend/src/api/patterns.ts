@@ -21,6 +21,11 @@ export interface AdPattern {
   disabled_at: string | null;
   disabled_reason: string | null;
   created_by?: string | null;
+  source?: 'local' | 'community' | 'imported';
+  community_id?: string | null;
+  version?: number;
+  submitted_app_version?: string | null;
+  protected_from_sync?: number;
 }
 
 export interface PatternCorrection {
@@ -92,12 +97,14 @@ export async function getPatterns(params?: {
   podcast_id?: string;
   network_id?: string;
   active?: boolean;
+  source?: 'local' | 'community' | 'imported';
 }): Promise<AdPattern[]> {
   const qs = buildQueryString({
     scope: params?.scope,
     podcast_id: params?.podcast_id,
     network_id: params?.network_id,
     active: params?.active,
+    source: params?.source,
   });
 
   const response = await apiRequest<{ patterns: AdPattern[] }>(`/patterns${qs}`);
@@ -143,4 +150,56 @@ export async function submitCorrection(
     method: 'POST',
     body: correction,
   });
+}
+
+// Bulk + community-pattern API
+
+export interface BulkPatternResult {
+  deleted?: number;
+  disabled?: number;
+  ids: number[];
+}
+
+export async function bulkDeletePatterns(args: {
+  ids?: number[];
+  source?: 'local' | 'community' | 'imported';
+  expected_count: number;
+}): Promise<BulkPatternResult> {
+  return apiRequest<BulkPatternResult>(`/patterns/bulk-delete`, {
+    method: 'POST',
+    body: { ...args, confirm: true },
+  });
+}
+
+export async function bulkDisablePatterns(args: {
+  ids?: number[];
+  source?: 'local' | 'community' | 'imported';
+  expected_count: number;
+}): Promise<BulkPatternResult> {
+  return apiRequest<BulkPatternResult>(`/patterns/bulk-disable`, {
+    method: 'POST',
+    body: { ...args, confirm: true },
+  });
+}
+
+export interface CommunityExportResult {
+  payload: Record<string, unknown>;
+  filename: string;
+  pr_url: string;
+  too_large: boolean;
+  sponsor_match: 'exact' | 'alias' | 'fuzzy' | 'unknown';
+}
+
+export async function submitPatternToCommunity(id: number): Promise<CommunityExportResult> {
+  return apiRequest<CommunityExportResult>(`/patterns/${id}/submit-to-community`, {
+    method: 'POST',
+  });
+}
+
+export async function protectPattern(id: number): Promise<void> {
+  await apiRequest(`/patterns/${id}/protect`, { method: 'POST' });
+}
+
+export async function unprotectPattern(id: number): Promise<void> {
+  await apiRequest(`/patterns/${id}/protect`, { method: 'DELETE' });
 }

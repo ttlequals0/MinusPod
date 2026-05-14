@@ -33,6 +33,33 @@ class SettingsMixin:
         row = cursor.fetchone()
         return row['value'] if row else None
 
+    def get_setting_bool(self, key: str, default: bool = False) -> bool:
+        """Get a setting as bool. 'true'/'1'/'yes' -> True (case-insensitive)."""
+        v = self.get_setting(key)
+        if v is None:
+            return default
+        return str(v).strip().lower() in ('true', '1', 'yes', 'on')
+
+    def get_setting_float(self, key: str, default: float = 0.0) -> float:
+        """Get a setting as float, returning `default` on missing/invalid values."""
+        v = self.get_setting(key)
+        if v is None:
+            return default
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return default
+
+    def get_setting_int(self, key: str, default: int = 0) -> int:
+        """Get a setting as int, returning `default` on missing/invalid values."""
+        v = self.get_setting(key)
+        if v is None:
+            return default
+        try:
+            return int(float(v))
+        except (TypeError, ValueError):
+            return default
+
     def get_all_settings(self) -> Dict[str, Any]:
         """Get all settings as a dictionary."""
         conn = self.get_connection()

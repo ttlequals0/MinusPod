@@ -38,13 +38,15 @@ class SponsorMixin:
         return dict(row) if row else None
 
     def create_known_sponsor(self, name: str, aliases: List[str] = None,
-                              category: str = None, common_ctas: List[str] = None) -> int:
+                              category: str = None, common_ctas: List[str] = None,
+                              tags: List[str] = None) -> int:
         """Create a known sponsor. Returns sponsor ID."""
         conn = self.get_connection()
         cursor = conn.execute(
-            """INSERT INTO known_sponsors (name, aliases, category, common_ctas)
-               VALUES (?, ?, ?, ?)""",
-            (name, json.dumps(aliases or []), category, json.dumps(common_ctas or []))
+            """INSERT INTO known_sponsors (name, aliases, category, common_ctas, tags)
+               VALUES (?, ?, ?, ?, ?)""",
+            (name, json.dumps(aliases or []), category,
+             json.dumps(common_ctas or []), json.dumps(tags or []))
         )
         conn.commit()
         return cursor.lastrowid
@@ -59,7 +61,7 @@ class SponsorMixin:
             if key in ('name', 'category', 'is_active'):
                 fields.append(f"{key} = ?")
                 values.append(value)
-            elif key in ('aliases', 'common_ctas'):
+            elif key in ('aliases', 'common_ctas', 'tags'):
                 fields.append(f"{key} = ?")
                 values.append(json.dumps(value) if isinstance(value, list) else value)
 
@@ -73,6 +75,23 @@ class SponsorMixin:
         )
         conn.commit()
         return True
+
+    def get_sponsors_by_tag(self, tag: str, active_only: bool = True) -> List[Dict]:
+        """Return sponsors whose tags JSON array contains the given tag.
+
+        SQLite json_each is used to avoid loading every row into Python.
+        """
+        conn = self.get_connection()
+        query = (
+            "SELECT s.* FROM known_sponsors s, json_each(s.tags) j "
+            "WHERE j.value = ?"
+        )
+        params: List = [tag]
+        if active_only:
+            query += " AND s.is_active = 1"
+        query += " ORDER BY s.name"
+        cursor = conn.execute(query, params)
+        return [dict(row) for row in cursor.fetchall()]
 
     def delete_known_sponsor(self, sponsor_id: int) -> bool:
         """Delete a known sponsor (or set inactive)."""

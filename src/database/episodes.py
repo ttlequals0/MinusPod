@@ -206,6 +206,11 @@ class EpisodeMixin:
                                'published_at', 'episode_number'):
                         fields.append(f"{key} = ?")
                         values.append(value)
+                    elif key == 'tags':
+                        fields.append("tags = ?")
+                        values.append(
+                            json.dumps(value) if isinstance(value, list) else value
+                        )
 
                 if fields:
                     fields.append("updated_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now')")
@@ -673,19 +678,21 @@ class EpisodeMixin:
                         )
                     continue  # Skip - episode already exists with different GUID
 
+            tags_json = json.dumps(ep.get('tags') or [])
             try:
                 cursor = conn.execute(
                     """INSERT INTO episodes
                        (podcast_id, episode_id, original_url, title, description,
-                        artwork_url, episode_number, published_at, status)
-                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'discovered')
+                        artwork_url, episode_number, published_at, tags, status)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'discovered')
                        ON CONFLICT(podcast_id, episode_id) DO UPDATE SET
                         episode_number = COALESCE(excluded.episode_number, episodes.episode_number),
                         published_at = COALESCE(excluded.published_at, episodes.published_at),
                         original_url = COALESCE(episodes.original_url, excluded.original_url),
                         title = CASE WHEN COALESCE(episodes.title, '') = '' THEN excluded.title ELSE episodes.title END,
                         description = CASE WHEN COALESCE(episodes.description, '') = '' THEN excluded.description ELSE episodes.description END,
-                        artwork_url = COALESCE(episodes.artwork_url, excluded.artwork_url)""",
+                        artwork_url = COALESCE(episodes.artwork_url, excluded.artwork_url),
+                        tags = CASE WHEN COALESCE(episodes.tags, '[]') = '[]' THEN excluded.tags ELSE episodes.tags END""",
                     (
                         podcast_id,
                         ep['id'],
@@ -695,6 +702,7 @@ class EpisodeMixin:
                         ep.get('artwork_url'),
                         ep.get('episode_number'),
                         iso_published,
+                        tags_json,
                     )
                 )
                 if cursor.rowcount > 0:

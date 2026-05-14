@@ -24,19 +24,29 @@ logger = logging.getLogger('podcast.api')
 @api.route('/patterns', methods=['GET'])
 @log_request
 def list_patterns():
-    """List all ad patterns with optional filtering."""
+    """List all ad patterns with optional filtering.
+
+    Query params:
+      scope, podcast_id, network_id, active (bool, default true),
+      source (one of 'local', 'community', 'imported')
+    """
+    from utils.community_tags import PATTERN_SOURCES
     db = get_database()
 
     scope = request.args.get('scope')
     podcast_id = request.args.get('podcast_id')
     network_id = request.args.get('network_id')
     active_only = request.args.get('active', 'true').lower() == 'true'
+    source = request.args.get('source')
+    if source and source not in PATTERN_SOURCES:
+        source = None  # ignore garbage values rather than 400; preserves prior behavior
 
     patterns = db.get_ad_patterns(
         scope=scope,
         podcast_id=podcast_id,
         network_id=network_id,
-        active_only=active_only
+        active_only=active_only,
+        source=source,
     )
 
     return json_response({'patterns': patterns})
@@ -287,6 +297,11 @@ def update_pattern(pattern_id):
             updates['sponsor_id'] = None
 
     if updates:
+        # Auto-protect community patterns from being clobbered by the next
+        # auto-sync when the user edits them in the UI.
+        from utils.community_tags import PATTERN_SOURCE_COMMUNITY, PATTERN_SOURCE_LOCAL
+        if (pattern.get('source') or PATTERN_SOURCE_LOCAL) == PATTERN_SOURCE_COMMUNITY:
+            updates.setdefault('protected_from_sync', 1)
         db.update_ad_pattern(pattern_id, **updates)
         return json_response({'message': 'Pattern updated'})
 
@@ -688,6 +703,37 @@ def submit_correction(slug, episode_id):
             pattern_service = PatternService(db)
             pattern_service.record_pattern_match(pattern_id, episode_id)
             logger.info(f"Recorded adjustment as confirmation for pattern {pattern_id}")
+
+            # Reviewer-trim auto-update: when the reviewer narrows the bounds
+            # by at least `min_trim_threshold` seconds AND settings allow it,
+            # rewrite the pattern's text_template/variants from the new bounds.
+            # Community patterns are never auto-rewritten (handled in
+            # pattern_service.rewrite_pattern_from_bounds).
+            try:
+                narrowed = (
+                    adjusted_start >= original_start
+                    and adjusted_end <= original_end
+                )
+                trim_seconds = (
+                    (adjusted_start - original_start) + (original_end - adjusted_end)
+                )
+                enabled = db.get_setting_bool(
+                    'update_patterns_from_reviewer_adjustments', default=True
+                )
+                threshold = db.get_setting_float(
+                    'min_trim_threshold', default=20.0
+                )
+                if enabled and narrowed and trim_seconds >= threshold and transcript:
+                    rewritten = pattern_service.rewrite_pattern_from_bounds(
+                        pattern_id, transcript, adjusted_start, adjusted_end
+                    )
+                    if rewritten:
+                        logger.info(
+                            f"Pattern {pattern_id} auto-trimmed by {trim_seconds:.1f}s "
+                            f"(threshold={threshold:.1f}s)"
+                        )
+            except Exception as e:
+                logger.warning(f"Reviewer-trim auto-update failed for pattern {pattern_id}: {e}")
         elif adjusted_text and len(adjusted_text) >= 50:
             # No pattern exists - create one from adjusted boundaries (like confirm does)
             podcast = db.get_podcast_by_slug(slug)
@@ -999,3 +1045,110 @@ def backfill_false_positive_texts():
         'updated': updated,
         'skipped': skipped
     })
+
+
+# ========== Bulk operations + community ==========
+
+def _resolve_bulk_target(db, data: dict, active_only_for_source: bool):
+    """Shared validation for bulk-delete + bulk-disable.
+
+    Returns (ids, error_response). ids is None when error_response is set.
+    """
+    from utils.community_tags import PATTERN_SOURCES
+    if not data.get('confirm'):
+        return None, error_response('confirm: true is required', 400)
+    expected = data.get('expected_count')
+    if expected is None:
+        return None, error_response('expected_count is required', 400)
+
+    ids = data.get('ids')
+    source = data.get('source')
+    if ids and not isinstance(ids, list):
+        return None, error_response('ids must be a list of integers', 400)
+    if not ids and source not in PATTERN_SOURCES:
+        return None, error_response('Provide either ids or a valid source', 400)
+
+    if not ids:
+        rows = db.get_patterns_by_source(source, active_only=active_only_for_source)
+        ids = [int(r['id']) for r in rows]
+
+    if len(ids) != int(expected):
+        return None, error_response(
+            f'expected_count mismatch (expected {expected}, matched {len(ids)})',
+            400,
+        )
+    return ids, None
+
+
+@api.route('/patterns/bulk-delete', methods=['POST'])
+@log_request
+def bulk_delete_patterns():
+    """Hard-delete patterns. Body: {ids?, source?, confirm: true, expected_count: N}.
+
+    Either `ids` or `source` must be provided. `expected_count` MUST match
+    the actual number of matched rows or the call is rejected with 400 —
+    this is the fat-finger guard from the plan.
+    """
+    db = get_database()
+    ids, err = _resolve_bulk_target(db, request.get_json() or {}, active_only_for_source=False)
+    if err is not None:
+        return err
+    deleted = db.bulk_delete_patterns(ids)
+    return json_response({'deleted': deleted, 'ids': ids})
+
+
+@api.route('/patterns/bulk-disable', methods=['POST'])
+@log_request
+def bulk_disable_patterns():
+    """Mark patterns is_active=0. Same shape and guards as bulk-delete."""
+    db = get_database()
+    ids, err = _resolve_bulk_target(db, request.get_json() or {}, active_only_for_source=True)
+    if err is not None:
+        return err
+    disabled = db.bulk_disable_patterns(ids)
+    return json_response({'disabled': disabled, 'ids': ids})
+
+
+@api.route('/patterns/<int:pattern_id>/submit-to-community', methods=['POST'])
+@log_request
+def submit_pattern_to_community(pattern_id: int):
+    """Run the community export pipeline for a single local pattern.
+
+    Returns the JSON payload + a prefilled GitHub PR URL. When the encoded
+    URL would exceed the GitHub limit (`too_large=True`), the frontend
+    falls back to offering the payload as a downloadable file.
+    """
+    from community_export import run_export_pipeline, ExportError
+    db = get_database()
+    try:
+        result = run_export_pipeline(pattern_id, db)
+    except ExportError as e:
+        return error_response({'message': 'Export failed', 'reasons': e.reasons}, 400)
+    return json_response(result)
+
+
+@api.route('/patterns/<int:pattern_id>/protect', methods=['POST'])
+@log_request
+def protect_pattern(pattern_id: int):
+    """Set protected_from_sync=1 on a community pattern."""
+    from utils.community_tags import PATTERN_SOURCE_COMMUNITY, PATTERN_SOURCE_LOCAL
+    db = get_database()
+    pattern = db.get_ad_pattern_by_id(pattern_id)
+    if not pattern:
+        return error_response('pattern not found', 404)
+    if (pattern.get('source') or PATTERN_SOURCE_LOCAL) != PATTERN_SOURCE_COMMUNITY:
+        return error_response('only community patterns can be protected', 400)
+    db.set_pattern_protected(pattern_id, True)
+    return json_response({'pattern_id': pattern_id, 'protected_from_sync': 1})
+
+
+@api.route('/patterns/<int:pattern_id>/protect', methods=['DELETE'])
+@log_request
+def unprotect_pattern(pattern_id: int):
+    """Set protected_from_sync=0 on a community pattern."""
+    db = get_database()
+    pattern = db.get_ad_pattern_by_id(pattern_id)
+    if not pattern:
+        return error_response('pattern not found', 404)
+    db.set_pattern_protected(pattern_id, False)
+    return json_response({'pattern_id': pattern_id, 'protected_from_sync': 0})
