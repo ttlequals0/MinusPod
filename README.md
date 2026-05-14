@@ -16,7 +16,7 @@ MinusPod is a self-hosted server that removes ads before you ever hit play. It t
   - [Screenshots](#screenshots)
 - [Configuration](#configuration)
 - [Experiments](#experiments)
-- [Community ad patterns](#community-ad-patterns)
+- [Community Patterns (Optional)](#community-patterns-optional)
 - [Finding Podcast RSS Feeds](#finding-podcast-rss-feeds)
 - [Usage](#usage)
   - [Audiobookshelf](#audiobookshelf)
@@ -488,17 +488,39 @@ Detection, verification, and reviewer prompts use explicit placeholder substitut
 
 If you customized your system or verification prompt before this release, the upgrade automatically appends `{sponsor_database}` to your prompt so behavior is preserved. The migration is idempotent and runs once.
 
-## Community ad patterns
+## Community Patterns (Optional)
 
-Starting in 2.4.0, MinusPod can share its accumulated ad-pattern library across instances. The maintainer curates a list under `patterns/community/` in this repository; any instance can opt in, pull the manifest on a schedule, and benefit from coverage built up by other users — without giving up its local edits.
+MinusPod can share and receive ad patterns from a community-maintained seed list. Patterns describe recognized ad reads (sponsor scripts, host-read pre-rolls, etc.) so new MinusPod instances skip the LLM detection step for ads that have already been identified elsewhere.
 
-The full vocabulary lives at `src/seed_data/tag_vocabulary.csv` (48 podcast-genre and sponsor-industry tags), plus a special `universal` flag for sponsors that advertise broadly regardless of genre. Both sponsors and podcasts carry a tag list. A community pattern only enters the matching loop when its sponsor and the podcast share at least one tag, when the sponsor carries `universal`, or when either side has no tags yet (the fallback covers fresh installs before iTunes categories have been imported).
+The feature is **opt-in** and **off by default**. When enabled, your MinusPod instance pulls a manifest of community patterns from this repo on a schedule you control. You can also submit your own patterns back to the community via the in-app **Submit to community** button.
 
-To pull the community list, open Settings → Community Patterns, flip the master toggle, and either click **Sync now** or wait for the schedule to fire (default Sunday 3am UTC). The page reports the last-sync timestamp, the manifest version, and a breakdown of inserts / updates / deletes / skips. Editing any community pattern in the UI automatically marks it as "protected from sync" so a later manifest can't overwrite or delete it; the same flag can be toggled by hand from the pattern row.
+### What you get when enabled
 
-To contribute a pattern back, open the Patterns page, hit **Submit to community** on a local pattern that's seen at least one confirmation, and approve the prefilled GitHub PR. The export pipeline runs locally first: it enforces length and duration bounds, strips PII (consumer-domain emails, non-toll-free phone numbers), validates that the sponsor name appears in the pattern text, rejects patterns that contain another sponsor's name, and re-classifies the sponsor against the seed list. PRs with `patterns/community/**` changes trigger a GitHub Action that runs the same gates plus a three-tier dedupe against existing patterns — duplicates (≥95% canonical similarity) get a red check, variants (75–95%) get a green check with a suggested merge, and distinct patterns sail through to human review.
+- Faster ad detection for sponsors other MinusPod users have already identified
+- New patterns appear automatically as the community contributes them
+- Local patterns you build stay private unless you choose to submit them
 
-The 255-sponsor seed list (`src/seed_data/sponsors_final.csv`) is authoritative as of the v2.4.0 migration: on upgrade, the existing `known_sponsors` table is reconciled against the CSV by name (case-insensitive). Matches keep their `id` so any `ad_patterns.sponsor_id` foreign keys remain intact; orphans get soft-deleted (`is_active=0`) rather than dropped.
+### What you control
+
+- **Sync schedule** — cron expression in Settings (default: weekly, Sunday 3am)
+- **Manual sync** — "Sync now" button in Settings
+- **Per-pattern protection** — pin any community pattern with **Protect from sync** to prevent automatic updates or deletion
+- **Disable at any time** — flipping the toggle stops sync; existing community patterns remain unless you delete them
+
+### What is shared if you submit
+
+Submitting a pattern is a separate action (per-pattern button) and never automatic. Before submission, the app:
+
+- Strips local identifiers (which podcast, which network, your match counts, your timestamps)
+- Strips PII from pattern text (consumer email addresses, non-toll-free phone numbers)
+- Validates the pattern meets quality thresholds
+- Generates a JSON file and opens a prefilled GitHub PR in your browser
+
+You retain everything locally. Submission is a copy, not a move.
+
+### Full details
+
+See [`patterns/README.md`](patterns/README.md) for the technical reference (sync mechanics, file formats, tag vocabulary) and [`patterns/CONTRIBUTING.md`](patterns/CONTRIBUTING.md) for what happens when you submit a pattern.
 
 ## Finding Podcast RSS Feeds
 

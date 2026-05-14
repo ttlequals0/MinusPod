@@ -274,7 +274,19 @@ def _load_existing_patterns(community_dir: Path) -> List[Dict[str, Any]]:
 
 
 def render_markdown_comment(results: List[ValidationResult]) -> str:
-    """Render a single Markdown comment for the PR summarizing all results."""
+    """Render a single Markdown comment for the PR summarizing all results.
+
+    Each section links back to the relevant part of `patterns/CONTRIBUTING.md`
+    so submitters can self-serve on what failed and why.
+    """
+    contributing = '../blob/main/patterns/CONTRIBUTING.md'
+    quality_link = f'[Quality checks]({contributing}#quality-checks-before-submission)'
+    dedupe_link = f'[Dedupe]({contributing}#dedupe)'
+    sponsor_link = (
+        '[How to add a sponsor to the seed list]'
+        '(../blob/main/patterns/README.md#how-to-add-a-sponsor-to-the-seed-list)'
+    )
+
     lines: List[str] = ['## Community pattern validation', '']
     rejected = [r for r in results if r.status == 'reject']
     warned = [r for r in results if r.status == 'warn']
@@ -282,6 +294,8 @@ def render_markdown_comment(results: List[ValidationResult]) -> str:
 
     if rejected:
         lines.append(f'### Rejected ({len(rejected)})')
+        lines.append(f'See {quality_link} and {dedupe_link} for what each gate enforces.')
+        lines.append('')
         for r in rejected:
             lines.append(f'- `{r.path}` (sponsor: {r.sponsor})')
             for e in r.errors:
@@ -289,6 +303,11 @@ def render_markdown_comment(results: List[ValidationResult]) -> str:
         lines.append('')
     if warned:
         lines.append(f'### Warnings ({len(warned)})')
+        lines.append(
+            f'Variant suggestions ({dedupe_link}) and unknown-sponsor flags '
+            f'({sponsor_link}) are advisory — the maintainer decides during review.'
+        )
+        lines.append('')
         for r in warned:
             lines.append(f'- `{r.path}` (sponsor: {r.sponsor})')
             for w in r.warnings:
@@ -308,6 +327,12 @@ def render_markdown_comment(results: List[ValidationResult]) -> str:
 
     if not (rejected or warned):
         lines.append('Validation passed. Ready for review.')
+
+    lines.append('')
+    lines.append(
+        f'_See [`patterns/CONTRIBUTING.md`]({contributing}) for the full '
+        f'submission guide._'
+    )
     return '\n'.join(lines).rstrip() + '\n'
 
 

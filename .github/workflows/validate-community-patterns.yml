@@ -52,11 +52,10 @@ jobs:
         if: steps.changed.outputs.files != ''
         id: validate
         env:
-          PYTHONPATH: src
           CHANGED_FILES: ${{ steps.changed.outputs.files }}
         run: |
           set +e
-          python -m tools.community_pattern_validator \
+          python -m src.tools.community_pattern_validator \
             --pr-files $CHANGED_FILES \
             --comment-output /tmp/comment.md \
             --status-output /tmp/status.txt
