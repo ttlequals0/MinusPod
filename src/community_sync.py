@@ -99,10 +99,13 @@ def apply_manifest(db, manifest: Dict[str, Any]) -> Dict[str, int]:
 
     for community_id, data, manifest_version in valid_entries:
         existing = existing_by_cid.get(community_id)
-        # Stamp version from manifest entry (overrides any in data)
+        # Stamp version from manifest entry. The manifest's per-entry
+        # version is authoritative — overwrite anything carried in the
+        # inner `data` dict so version-gating in import_community_pattern
+        # compares the manifest's number, not the payload's stale one.
         data_with_version = dict(data)
         data_with_version['community_id'] = community_id
-        data_with_version.setdefault('version', manifest_version)
+        data_with_version['version'] = manifest_version
         try:
             if existing is None:
                 pattern_service.import_community_pattern(data_with_version)

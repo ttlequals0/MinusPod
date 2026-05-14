@@ -376,7 +376,12 @@ class SchemaMixin:
                 is_active INTEGER DEFAULT 1,
                 disabled_at TEXT,
                 disabled_reason TEXT,
-                created_by TEXT DEFAULT 'auto'
+                created_by TEXT DEFAULT 'auto',
+                source TEXT NOT NULL DEFAULT 'local' CHECK(source IN ('local', 'community', 'imported')),
+                community_id TEXT,
+                version INTEGER NOT NULL DEFAULT 1,
+                submitted_app_version TEXT,
+                protected_from_sync INTEGER NOT NULL DEFAULT 0
             )
         """)
 
@@ -411,7 +416,7 @@ class SchemaMixin:
             )
         """)
 
-        # Create known_sponsors table if not exists
+        # Create known_sponsors table if not exists (must match SCHEMA_SQL exactly)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS known_sponsors (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -420,6 +425,7 @@ class SchemaMixin:
                 category TEXT,
                 common_ctas TEXT DEFAULT '[]',
                 is_active INTEGER DEFAULT 1,
+                tags TEXT NOT NULL DEFAULT '[]',
                 created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
             )
         """)
@@ -732,12 +738,13 @@ class SchemaMixin:
         ep_cols = self._get_table_columns(conn, 'episodes')
         self._add_column_if_missing(conn, 'episodes', 'tags', "TEXT NOT NULL DEFAULT '[]'", ep_cols)
 
-        # Sponsor seed reseed: CSV is authoritative.
-        # UPDATE on name match (preserves id for FK), INSERT new, soft-delete orphans.
-        try:
-            self._reseed_known_sponsors(conn)
-        except Exception as e:
-            logger.error(f"Sponsor reseed failed: {e}")
+        # Sponsor seed reseed lives at the END of this migration block, AFTER
+        # `_migrate_sponsor_fk` and the Zyn cleanups (see below). Running it
+        # before those would mean a v2.1.x -> 2.4.0 jump touches case-variant
+        # sponsor rows BEFORE the FK migration's case-variant dedup, and the
+        # row we tagged could be the one the dedup keeps OR drops depending
+        # on which case happened to be lowest-id. By deferring, the reseed
+        # always operates on the canonical post-FK-migration state.
 
         # Migration: Update episodes status CHECK constraint to include 'permanently_failed'
         # SQLite doesn't support ALTER TABLE to modify constraints, so we recreate the table
@@ -1300,6 +1307,17 @@ class SchemaMixin:
         # frozen at detection time, so the 2.2.10 pattern cleanup alone
         # doesn't update what the editor displays for already-detected ads.
         self._cleanup_zyn_ad_markers(conn)
+
+        # Sponsor seed reseed (2.4.0): CSV is authoritative. Runs LAST so
+        # `_migrate_sponsor_fk` has already deduped case-variants from
+        # legacy v2.1.x rows; the reseed then operates on the canonical
+        # post-FK-migration state. UPDATE on name match preserves `id` for
+        # any existing `ad_patterns.sponsor_id` foreign keys; orphans are
+        # soft-deleted (is_active=0) rather than dropped.
+        try:
+            self._reseed_known_sponsors(conn)
+        except Exception as e:
+            logger.error(f"Sponsor reseed failed: {e}")
 
     def _reseed_known_sponsors(self, conn):
         """Apply the authoritative sponsor seed list (src/seed_data/sponsors_final.csv).
