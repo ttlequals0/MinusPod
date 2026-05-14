@@ -1053,26 +1053,34 @@ def _resolve_bulk_target(db, data: dict, active_only_for_source: bool):
     """Shared validation for bulk-delete + bulk-disable.
 
     Returns (ids, error_response). ids is None when error_response is set.
+    All user-supplied fields are coerced to their expected types before
+    being reflected in any response or used in a SQL query.
     """
     from utils.community_tags import PATTERN_SOURCES
     if not data.get('confirm'):
         return None, error_response('confirm: true is required', 400)
-    expected = data.get('expected_count')
-    if expected is None:
-        return None, error_response('expected_count is required', 400)
+    try:
+        expected = int(data['expected_count'])
+    except (KeyError, TypeError, ValueError):
+        return None, error_response('expected_count must be an integer', 400)
 
-    ids = data.get('ids')
+    raw_ids = data.get('ids')
     source = data.get('source')
-    if ids and not isinstance(ids, list):
+    if raw_ids is not None and not isinstance(raw_ids, list):
         return None, error_response('ids must be a list of integers', 400)
-    if not ids and source not in PATTERN_SOURCES:
+    if not raw_ids and source not in PATTERN_SOURCES:
         return None, error_response('Provide either ids or a valid source', 400)
 
-    if not ids:
+    if raw_ids:
+        try:
+            ids = [int(x) for x in raw_ids]
+        except (TypeError, ValueError):
+            return None, error_response('ids must contain only integers', 400)
+    else:
         rows = db.get_patterns_by_source(source, active_only=active_only_for_source)
         ids = [int(r['id']) for r in rows]
 
-    if len(ids) != int(expected):
+    if len(ids) != expected:
         return None, error_response(
             f'expected_count mismatch (expected {expected}, matched {len(ids)})',
             400,
