@@ -793,14 +793,25 @@ def export_patterns():
     Query params:
     - include_disabled: Include disabled patterns (default: false)
     - include_corrections: Include correction history (default: false)
+    - ids: Optional comma-separated pattern ids. If set, only those rows
+      are exported (intersected with the include_disabled filter).
     """
     db = get_database()
 
     include_disabled = request.args.get('include_disabled', 'false').lower() == 'true'
     include_corrections = request.args.get('include_corrections', 'false').lower() == 'true'
+    ids_param = request.args.get('ids')
 
     # Get patterns
     patterns = db.get_ad_patterns(active_only=not include_disabled)
+
+    if ids_param:
+        try:
+            wanted = {int(x) for x in ids_param.split(',') if x.strip()}
+        except ValueError:
+            return error_response('ids must be a comma-separated list of integers', 400)
+        if wanted:
+            patterns = [p for p in patterns if int(p['id']) in wanted]
 
     # Build export data
     export_data = {

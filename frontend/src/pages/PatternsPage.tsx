@@ -12,6 +12,7 @@ import PatternDetailModal from '../components/PatternDetailModal';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { CommunityBadge } from '../components/CommunityBadge';
 import { PatternImportDialog } from '../components/PatternImportDialog';
+import { PatternExportDialog } from '../components/PatternExportDialog';
 
 type ScopeFilter = 'all' | 'global' | 'network' | 'podcast';
 type OriginFilter = 'all' | 'auto' | 'user';
@@ -59,6 +60,7 @@ function PatternsPage() {
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [page, setPage] = useState(1);
   const [importOpen, setImportOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const limit = 20;
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -282,19 +284,24 @@ function PatternsPage() {
           >
             Import
           </button>
-          <a
+          <button
+            type="button"
+            onClick={() => setExportOpen(true)}
             className="px-3 py-1.5 rounded border border-border hover:bg-accent transition-colors"
-            href="/api/v1/patterns/export?include_disabled=true&include_corrections=true"
-            download="minuspod-patterns.json"
           >
             Export
-          </a>
+          </button>
         </div>
       </div>
       <PatternImportDialog
         open={importOpen}
         onClose={() => setImportOpen(false)}
         onComplete={() => refetch()}
+      />
+      <PatternExportDialog
+        open={exportOpen}
+        patterns={sortedPatterns || []}
+        onClose={() => setExportOpen(false)}
       />
 
       {/* Stats Summary */}
@@ -506,14 +513,15 @@ function PatternsPage() {
         <div className="overflow-x-auto">
           <table className="w-full table-fixed divide-y divide-border">
             <colgroup>
-              <col className="w-[5%]" />
-              <col className="w-[18%]" />
-              <col className="w-[30%]" />
-              <col className="w-[8%]" />
-              <col className="w-[8%]" />
-              <col className="w-[12%]" />
-              <col className="w-[12%]" />
+              <col className="w-[4%]" />
+              <col className="w-[16%]" />
+              <col className="w-[26%]" />
               <col className="w-[7%]" />
+              <col className="w-[7%]" />
+              <col className="w-[11%]" />
+              <col className="w-[11%]" />
+              <col className="w-[7%]" />
+              <col className="w-[11%]" />
             </colgroup>
             <thead className="bg-muted/50">
               <tr>
@@ -526,6 +534,9 @@ function PatternsPage() {
                 <SortHeader field="last_matched_at" label="Last Matched" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <th className="px-2 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Status
+                </th>
+                <th className="px-2 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Actions
                 </th>
               </tr>
             </thead>
@@ -589,11 +600,31 @@ function PatternsPage() {
                   <td className="px-2 py-3 whitespace-nowrap">
                     {getStatusBadge(pattern.is_active)}
                   </td>
+                  <td className="px-2 py-3 whitespace-nowrap text-xs">
+                    {pattern.source === 'local' && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); handleSubmitToCommunity(pattern); }}
+                        className="px-2 py-1 rounded border border-border hover:bg-accent whitespace-nowrap"
+                      >
+                        Submit
+                      </button>
+                    )}
+                    {pattern.source === 'community' && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); handleToggleProtect(pattern); }}
+                        className="px-2 py-1 rounded border border-border hover:bg-accent whitespace-nowrap"
+                      >
+                        {pattern.protected_from_sync ? 'Unprotect' : 'Protect'}
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
               {paginatedPatterns?.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
                     No patterns found
                   </td>
                 </tr>
