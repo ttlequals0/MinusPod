@@ -6,6 +6,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.2] - 2026-05-14
+
+### Fixed
+
+- **Reviewer-trim now actually trims** instead of rebuilding the template from one episode's transcription. `rewrite_pattern_from_bounds` takes the original AND new bounds, computes the head/tail transcript slices, and splices them out of the existing `text_template` only when they appear at its start/end. The earlier behavior (Operation 2 "full replace within threshold") was a misnomer — it fit the template to a single episode and risked breaking matches on episodes that had captured the cleaner version. `intro_variants` / `outro_variants` get the same prefix/suffix trim so they stay aligned. Returns False when neither head nor tail slice matches the existing template, leaving the pattern untouched.
+- **`community_sync.apply_manifest` now reads `manifest['vocabulary_version']`.** When the manifest carries a vocabulary newer than the app's, the sync writes a warning to the log and a `vocabulary_warning` field into `community_sync_last_summary` so the operator can spot a stale image. Non-integer values are caught and logged cleanly instead of crashing the sync.
+- **Hardcoded `ttlequals0/MinusPod` is now a single constant.** `GITHUB_REPO` and `COMMUNITY_MANIFEST_URL` live in `src/utils/community_tags.py`; the export pipeline and sync job both import from there. One source of truth for the upstream identity.
+- **`MANIFEST_VERSION` and `VOCABULARY_VERSION` moved out of `src/tools/generate_manifest.py`** (a build-time CLI) into `src/utils/community_tags.py` next to the vocabulary loader. Both the generator and the sync job import from there. Removes a wrong-direction runtime → build-time layering import.
+- **`pattern_service.py` no longer imports from `api/`.** Switched the transcript helper to `from utils.text import extract_text_in_range` directly. Service layer importing from API layer was the wrong dependency direction and would have become a circular import.
+
+### Added
+
+- **`.github/workflows/labeler.yml`** wiring `actions/labeler@v5` to apply `.github/labeler.yml` on PRs. The path-glob for `pattern` existed since 2.4.0 but nothing invoked it — community-pattern PRs will now get the label automatically.
+
 ## [2.4.1] - 2026-05-14
 
 ### Added
