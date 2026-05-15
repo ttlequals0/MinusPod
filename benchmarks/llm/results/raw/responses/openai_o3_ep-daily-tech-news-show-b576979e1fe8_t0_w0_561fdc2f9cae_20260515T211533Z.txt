@@ -1,0 +1,1 @@
+{"start": 0.0, "end": 112.1, "confidence": 0.98, "reason": "Clustered pre-roll ads: Capital One, Every Brilliant Thing Broadway, AllTrails app, Zyn Nicotine Pouches (with nicotine disclaimer); continuous ad block before show intro", "end_text": "Nicotine is an addictive chemical."}

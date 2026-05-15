@@ -1,0 +1,7 @@
+{
+  "start": 2931.2,
+  "end": 2957.1,
+  "confidence": 0.8,
+  "reason": "Host-read sponsor segment mentioning Buick",
+  "end_text": "relieved to move out of that building, Adam, I don't know about you."
+}

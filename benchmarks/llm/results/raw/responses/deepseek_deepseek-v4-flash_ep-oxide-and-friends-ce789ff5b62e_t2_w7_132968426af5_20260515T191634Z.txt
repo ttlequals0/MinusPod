@@ -1,0 +1,7 @@
+{
+  "start": 2931.2,
+  "end": 3556.0,
+  "confidence": 0.0,
+  "reason": "No promotional language, sponsor names, URLs, promo codes, or calls to action found in this transcript segment. The content is a technical discussion about mechanical engineering, manufacturing, and 3D printing vs. injection molding.",
+  "end_text": "direction that I want to?"
+}

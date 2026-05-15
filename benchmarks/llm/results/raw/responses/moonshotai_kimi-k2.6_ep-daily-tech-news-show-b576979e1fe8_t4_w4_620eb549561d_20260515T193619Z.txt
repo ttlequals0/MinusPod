@@ -1,0 +1,1 @@
+{"start": 2015.9, "end": 2073.2, "confidence": 0.99, "reason": "Host-read Capital One sponsorship ('This episode is brought to you by Capital One') followed by Lemonada Media podcast cross-promotion ('Tune in to Good Things from Lemonada Media') with <2s gap", "end_text": "six-part Thrive series"}

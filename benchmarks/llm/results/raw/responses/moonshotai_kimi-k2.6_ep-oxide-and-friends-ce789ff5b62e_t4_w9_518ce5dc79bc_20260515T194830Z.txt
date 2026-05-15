@@ -1,0 +1,1 @@
+{"start": 3850.7, "end": 4380.0, "confidence": 0.85, "reason": "Discussion of Oxide's manufacturing costs, 3D printing vs injection molding, thermoforming, and clear air shrouds. Entirely organic technical content, no promotional language or sponsors detected.", "end_text": "make these fabricatable"}

@@ -1,0 +1,1 @@
+{"start": 4800.0, "end": 4800.0, "confidence": 0.0, "reason": "No ads detected in this transcript segment. The content is a continuous technical discussion about mechanical engineering and manufacturing processes.", "end_text": ""}

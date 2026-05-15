@@ -1,0 +1,4 @@
+[
+    {"start": 3428.1, "end": 3456.1, "confidence": 0.95, "reason": "Arizona State University sponsored ad with promotional language and URL", "end_text": "That's a degree better."},
+    {"start": 3456.7, "end": 3486.2, "confidence": 0.95, "reason": "University of Michigan sponsored ad with promotional language and URL", "end_text": "See more solutions at umich.edu."}
+]

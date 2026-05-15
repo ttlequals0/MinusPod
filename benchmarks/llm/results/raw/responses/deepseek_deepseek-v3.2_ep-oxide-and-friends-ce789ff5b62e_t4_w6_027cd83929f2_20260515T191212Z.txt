@@ -1,0 +1,1 @@
+{"start": 2520.0, "end": 3115.1, "confidence": 0.0, "reason": "No promotional content detected. Entire segment is technical discussion about rack design, structural analysis, and testing.", "end_text": "cubbies can be pulled out and analyzed to see where the potential"}

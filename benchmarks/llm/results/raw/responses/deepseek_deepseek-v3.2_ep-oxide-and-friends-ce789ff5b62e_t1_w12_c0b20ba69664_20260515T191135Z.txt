@@ -1,0 +1,1 @@
+{"start": 5036.2, "end": 5069.8, "confidence": 0.0, "reason": "No promotional content detected in transcript segment. Content is show conclusion and sign-off.", "end_text": "we will see you all next time."}

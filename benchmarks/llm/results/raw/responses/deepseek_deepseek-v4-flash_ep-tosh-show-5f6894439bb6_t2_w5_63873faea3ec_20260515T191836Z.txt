@@ -1,0 +1,1 @@
+[{"start": 2412.8, "end": 2484.9, "confidence": 0.98, "reason": "HealthCast by Stony Brook Medicine promo and PC Richard & Son Aseema lease to own ad", "end_text": "dot HTML for details"}]

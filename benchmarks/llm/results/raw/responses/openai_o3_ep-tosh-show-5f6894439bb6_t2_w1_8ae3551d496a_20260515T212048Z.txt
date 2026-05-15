@@ -1,0 +1,1 @@
+{"start": 524.1, "end": 654.3, "confidence": 0.97, "reason": "Host says 'We'll be right back', then Thrive Cosmetics sponsor read with URL/promo code, followed by network-inserted ads for Mattress Warehouse and PC Richard & Son including promotional taglines and lease offer disclaimers.", "end_text": "slash Asima dot HTML for details"}

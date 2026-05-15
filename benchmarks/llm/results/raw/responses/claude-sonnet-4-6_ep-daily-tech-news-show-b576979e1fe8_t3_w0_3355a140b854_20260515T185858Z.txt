@@ -1,0 +1,32 @@
+```json
+[
+  {
+    "start": 0.0,
+    "end": 29.1,
+    "confidence": 0.97,
+    "reason": "Capital One technology/AI sponsor read with promotional language about Chat Concierge product",
+    "end_text": "technology at Capital One"
+  },
+  {
+    "start": 29.4,
+    "end": 58.3,
+    "confidence": 0.95,
+    "reason": "Network-inserted ad for 'Every Brilliant Thing' Broadway show with call to action to visit website and buy tickets",
+    "end_text": "Visit Every Brilliant Thing"
+  },
+  {
+    "start": 59.2,
+    "end": 73.6,
+    "confidence": 0.92,
+    "reason": "AllTrails app promotion with call to action to download the free app",
+    "end_text": "and find your outside"
+  },
+  {
+    "start": 74.8,
+    "end": 104.3,
+    "confidence": 0.97,
+    "reason": "Zyn Nicotine Pouches sponsor ad with product pitch, brand positioning as America's number one nicotine pouch brand, and call to action to find in stores; includes required nicotine disclaimer",
+    "end_text": "Nicotine is an addictive chemical"
+  }
+]
+```

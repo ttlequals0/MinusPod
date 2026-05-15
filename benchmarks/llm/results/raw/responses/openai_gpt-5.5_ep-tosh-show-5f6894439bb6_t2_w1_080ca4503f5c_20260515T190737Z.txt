@@ -1,0 +1,1 @@
+{"start":524.1,"end":654.3,"confidence":0.98,"reason":"Ad break after transition, including Thrive Cosmetics promo with URL/discount, Mattress Warehouse tagline, and PC Richard & Son/Acima lease-to-own promotion with terms and URL","end_text":"dot HTML for details"}

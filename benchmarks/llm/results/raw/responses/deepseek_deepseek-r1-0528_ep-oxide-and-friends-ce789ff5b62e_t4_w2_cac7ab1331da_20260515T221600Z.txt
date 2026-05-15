@@ -1,0 +1,16 @@
+[
+  {
+    "start": 1273.0,
+    "end": 1275.4,
+    "confidence": 0.95,
+    "reason": "Transition to a break for sponsor message",
+    "end_text": "grab that."
+  },
+  {
+    "start": 1309.5,
+    "end": 1310.7,
+    "confidence": 0.95,
+    "reason": "Transition back from break",
+    "end_text": "two people"
+  }
+]

@@ -1,0 +1,1 @@
+[{"start": 821.4, "end": 1021.1, "confidence": 0.95, "reason": "Multiple consecutive sponsor reads (Capital One, BetterHelp, Amazon Health AI, Spectrum Business, Rinse) with <15s gaps", "end_text": "It's time to be great."}]

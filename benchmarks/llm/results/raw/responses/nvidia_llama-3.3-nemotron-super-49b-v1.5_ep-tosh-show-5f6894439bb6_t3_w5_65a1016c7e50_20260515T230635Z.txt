@@ -1,0 +1,4 @@
+[
+    {"start": 2412.8, "end": 2427.6, "confidence": 0.95, "reason": "HealthCast by Stony Brook Medicine sponsor read", "end_text": "health.stonybrookmedicine.edu slash podcasts"},
+    {"start": 2428.9, "end": 2484.9, "confidence": 0.98, "reason": "PC Richard & Son Aseema Lease to Own sponsor read", "end_text": "for details"}
+]

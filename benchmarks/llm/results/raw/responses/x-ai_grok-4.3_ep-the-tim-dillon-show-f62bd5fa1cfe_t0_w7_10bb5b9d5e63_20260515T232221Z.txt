@@ -1,0 +1,3 @@
+[
+  {"start": 3079.6, "end": 3270.1, "confidence": 0.98, "reason": "Consecutive host-read sponsor segments for Morgan & Morgan, Stash, Neuro Gum", "end_text": "at CVS and Amazon"}
+]

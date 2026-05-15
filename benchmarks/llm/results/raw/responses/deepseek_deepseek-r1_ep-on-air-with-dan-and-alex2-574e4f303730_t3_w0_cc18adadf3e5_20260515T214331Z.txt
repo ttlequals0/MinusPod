@@ -1,0 +1,16 @@
+[
+  {
+    "start": 0.0,
+    "end": 30.3,
+    "confidence": 0.95,
+    "reason": "HEX analytics platform promotion with call-to-action",
+    "end_text": "customers at Hex.ai"
+  },
+  {
+    "start": 30.9,
+    "end": 59.8,
+    "confidence": 0.95,
+    "reason": "PickOCNY.com tourism promotion with explicit call-to-action",
+    "end_text": "at PickOCNY.com"
+  }
+]

@@ -1,0 +1,1 @@
+{"start": 1836.9, "end": 1861.3, "confidence": 0.97, "reason": "Mint Mobile host-read sponsor ad with promotional language about saving money and switching wireless carriers", "end_text": "overpaying for wireless, are you fed up with crazy high bills?"}

@@ -1,0 +1,1 @@
+{"start":3219.8,"end":3529.5,"confidence":0.01,"reason":"not an ad; no promotional language, sponsor mention, URL, promo code, or call to action","end_text":"quantity is that or is this"}

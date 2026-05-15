@@ -1,0 +1,7 @@
+{
+  "start": 0.0,
+   "end": 10.0,
+   "confidence": 0.95,
+   "reason": "HEX.ai sponsor read",
+   "end_text": "trusted context in one platform"
+}

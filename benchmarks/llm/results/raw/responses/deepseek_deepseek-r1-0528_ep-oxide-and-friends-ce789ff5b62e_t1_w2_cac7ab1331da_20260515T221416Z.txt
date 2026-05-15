@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1273.0,
+    "end": 1275.4,
+    "confidence": 0.95,
+    "reason": "Transition to chapter art reference",
+    "end_text": "grab that."
+  }
+]

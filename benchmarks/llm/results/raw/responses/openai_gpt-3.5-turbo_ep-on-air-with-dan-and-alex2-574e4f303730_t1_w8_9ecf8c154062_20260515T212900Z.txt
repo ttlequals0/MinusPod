@@ -1,0 +1,7 @@
+{
+	"start": 3428.1,
+	"end": 3457.8,
+	"confidence": 0.95,
+	"reason": "University of Michigan sponsor mention",
+	"end_text": "That's a degree better."
+}

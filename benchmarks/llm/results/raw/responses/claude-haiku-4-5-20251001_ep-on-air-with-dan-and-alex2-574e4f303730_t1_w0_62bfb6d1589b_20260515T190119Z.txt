@@ -1,0 +1,18 @@
+```json
+[
+  {
+    "start": 0.0,
+    "end": 30.3,
+    "confidence": 0.95,
+    "reason": "HEX analytics platform sponsor read with product pitch and URL",
+    "end_text": "customers at Hex.ai"
+  },
+  {
+    "start": 30.9,
+    "end": 59.8,
+    "confidence": 0.92,
+    "reason": "PickOCNY.com travel destination network-inserted ad with URL and call to action",
+    "end_text": "at PickOCNY.com"
+  }
+]
+```

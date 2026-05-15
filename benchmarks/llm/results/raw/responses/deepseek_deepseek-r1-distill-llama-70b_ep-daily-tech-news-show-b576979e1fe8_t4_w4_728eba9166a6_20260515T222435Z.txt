@@ -1,0 +1,8 @@
+{
+  "transcript": "Alright, so I've been thinking about this a lot. Let's take a break. This episode is brought to you by Shopify. Shopify is the all-in-one commerce platform that helps you start, run, and grow your business. With Shopify, you can create an online store, manage your inventory, and process payments all in one place. Whether you're a small business owner or a large enterprise, Shopify has the tools you need to succeed. So why wait? Start your free trial today and see how Shopify can help you take your business to the next level. Visit shopify.com/podcast to get started. Alright, back to the show.",
+  "start": 2015.9,
+  "end": 2073.2,
+  "confidence": 0.95,
+  "reason": "Shopify sponsor read",
+  "end_text": "shopify.com/podcast"
+}

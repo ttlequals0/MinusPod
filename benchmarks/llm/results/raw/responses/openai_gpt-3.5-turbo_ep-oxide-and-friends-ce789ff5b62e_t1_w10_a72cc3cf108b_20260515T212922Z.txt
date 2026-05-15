@@ -1,0 +1,7 @@
+{
+	"start": 4752.4,
+	"end": 4775.0,
+	"confidence": 0.95,
+	"reason": "Discussion about rivets and welding process",
+	"end_text": "We do not build these in a seismic zone, and that is good."
+}

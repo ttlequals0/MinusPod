@@ -1,0 +1,1 @@
+[{"start": 619.0, "end": 784.6, "confidence": 0.98, "reason": "Ad break with Parloa, Capital One, AllTrails, Zinn Nicotine, and Lemonada Media promotions", "end_text": "hear the six-part Thrive series"}]

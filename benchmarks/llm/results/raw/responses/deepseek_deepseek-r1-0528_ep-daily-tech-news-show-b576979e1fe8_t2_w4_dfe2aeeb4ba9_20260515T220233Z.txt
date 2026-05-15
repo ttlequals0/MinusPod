@@ -1,0 +1,7 @@
+{
+  "start": 2015.9,
+  "end": 2045.2,
+  "confidence": 0.95,
+  "reason": "Capital One sponsor read with product pitch and branding",
+  "end_text": "That's technology at Capital One."
+}

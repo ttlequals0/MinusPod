@@ -1,0 +1,4 @@
+[
+  {"start": 537.5, "end": 567.0, "confidence": 0.98, "reason": "Thrive Cosmetics sponsor read with promo code", "end_text": "slash shine26."},
+  {"start": 594.7, "end": 654.3, "confidence": 0.95, "reason": "PC Richard & Son / Asima lease-to-own ad", "end_text": "for details."}
+]

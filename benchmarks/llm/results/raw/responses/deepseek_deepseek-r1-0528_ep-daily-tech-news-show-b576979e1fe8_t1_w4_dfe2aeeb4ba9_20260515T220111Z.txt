@@ -1,0 +1,16 @@
+[
+  {
+    "start": 2015.9,
+    "end": 2045.2,
+    "confidence": 0.99,
+    "reason": "Capital One sponsor read promoting Chat Concierge AI for car shopping",
+    "end_text": "technology at Capital One"
+  },
+  {
+    "start": 2046.3,
+    "end": 2073.2,
+    "confidence": 0.99,
+    "reason": "Cross-promotion for Lemonada Media's podcast 'Good Things' and Thrive series",
+    "end_text": "hear the six-part Thrive series"
+  }
+]

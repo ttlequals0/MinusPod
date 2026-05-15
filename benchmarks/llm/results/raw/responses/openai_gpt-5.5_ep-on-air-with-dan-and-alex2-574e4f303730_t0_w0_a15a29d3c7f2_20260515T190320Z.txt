@@ -1,0 +1,1 @@
+{"start":0.0,"end":59.8,"confidence":0.99,"reason":"Pre-roll ad block with promotional spots for Hex.ai analytics platform and PickOCNY.com tourism getaway; includes product pitches and calls to action/URLs","end_text":"state of mind at PickOCNY.com"}

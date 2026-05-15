@@ -1,0 +1,1 @@
+{"start": 1662.9, "end": 2279.3, "confidence": 1.0, "reason": "No advertisement content found in transcript window; all content is editorial discussion about airline alcohol policies and Riyadh Air operations", "end_text": "there really is no point in me spending"}

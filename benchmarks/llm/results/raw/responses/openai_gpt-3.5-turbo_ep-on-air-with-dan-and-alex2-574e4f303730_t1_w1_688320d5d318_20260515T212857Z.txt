@@ -1,0 +1,7 @@
+{
+	"start": 524.6,
+	"end": 550.1,
+	"confidence": 1,
+	"reason": "Transition to main news topics",
+	"end_text": "Yeah, yeah. Well, look, let's get down to business and what is on the agenda for today's episode, including a debate that's stemming far across aviation."
+}

@@ -1,0 +1,17 @@
+[
+  {
+    "start": 0.0,
+    "end": 22.1,
+    "confidence": 1.0,
+    "reason": "Progressive Insurance host-read ad",
+    "end_text": "Not available in all states."
+  },
+  {
+    "start": 29.8,
+    "end": 58.1,
+    "confidence": 1.0,
+    "reason": "Whole Foods Market promotional ad",
+    "end_text": "mom with Whole Foods Market"
+  },
+  {
+    "start": 

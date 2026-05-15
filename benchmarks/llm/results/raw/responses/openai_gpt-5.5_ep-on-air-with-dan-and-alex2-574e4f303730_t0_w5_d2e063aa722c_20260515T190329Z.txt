@@ -1,0 +1,1 @@
+{"start":2609.5,"end":2634.3,"confidence":0.64,"reason":"Partial/malformed inserted sponsor/ad keyword segment with promotional terms and sponsor names including 'promo code,' 'discount code,' 'sponsored by,' Athletic Greens, BetterHelp, Squarespace, ZipRecruiter, Raycon, Manscaped, and Stamps.com.","end_text":"Raycon, Manscaped, Stamps.com"}

@@ -1,0 +1,1 @@
+{"start": 420.0, "end": 1020.0, "confidence": 0.95, "reason": "No promotional content, sponsor reads, or platform-inserted segments detected in this window. Continuous editorial discussion about airline branding.", "end_text": "Riviera Airlines Group flight from Bergen to Helsinki"}

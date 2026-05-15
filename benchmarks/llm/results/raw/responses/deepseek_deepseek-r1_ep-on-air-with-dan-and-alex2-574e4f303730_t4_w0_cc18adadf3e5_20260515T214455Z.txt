@@ -1,0 +1,9 @@
+[
+  {
+    "start": 0.0,
+    "end": 59.8,
+    "confidence": 0.95,
+    "reason": "Platform-inserted ads for HEX analytics and Orange County tourism with explicit URLs and calls to action",
+    "end_text": "Find your fresh state of mind at PickOCNY.com"
+  }
+]

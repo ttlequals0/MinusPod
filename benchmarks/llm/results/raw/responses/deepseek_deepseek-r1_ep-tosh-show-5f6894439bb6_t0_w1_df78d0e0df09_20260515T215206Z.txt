@@ -1,0 +1,16 @@
+[
+  {
+    "start": 537.5,
+    "end": 567.0,
+    "confidence": 0.95,
+    "reason": "Thrive Cosmetics host-read ad with promo code and URL",
+    "end_text": "dot com slash shine26"
+  },
+  {
+    "start": 594.7,
+    "end": 654.3,
+    "confidence": 0.9,
+    "reason": "Network-inserted retail ads cluster (Mattress Warehouse, PC Richard & Son, Asima lease terms)",
+    "end_text": "HTML for details"
+  }
+]

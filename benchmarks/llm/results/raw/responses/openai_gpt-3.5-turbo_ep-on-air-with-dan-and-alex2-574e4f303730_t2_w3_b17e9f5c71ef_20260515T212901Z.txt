@@ -1,0 +1,7 @@
+{
+	"start": 1246.0,
+	"end": 1274.5,
+	"confidence": 1.0,
+	"reason": "Discussion about Ryanair and alcohol bans",
+	"end_text": "available in Sweden, Norway, and Denmark. They don't do a very good job at marketing it, yeah. No."
+}

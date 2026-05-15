@@ -1,0 +1,1 @@
+{"error": "Expected a JSON array ([]) or an array of advertisement segment objects, but got an object instead."}

@@ -1,0 +1,1 @@
+[{"start": 600.0, "end": 600.0, "confidence": 0.95, "reason": "Platform-inserted advertising inquiries link", "end_text": "https://redcircle.com/brands"}, {"start": 600.0, "end": 600.0, "confidence": 0.95, "reason": "Platform-inserted privacy and opt-out link", "end_text": "https://redcircle.com/privacy"}]

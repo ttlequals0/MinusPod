@@ -1,0 +1,1 @@
+[{"start":636.8,"end":776.6,"confidence":0.98,"reason":"Multiple sponsor ads: Parloa, Capital One, AllTrails, Zinn, Lemonada","end_text":"the six-part Thrive series"}]

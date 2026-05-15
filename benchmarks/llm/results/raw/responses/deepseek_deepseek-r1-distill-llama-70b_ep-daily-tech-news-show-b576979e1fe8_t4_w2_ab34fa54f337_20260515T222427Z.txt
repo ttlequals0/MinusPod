@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I've been thinking about this new Motorola Razr Fold. It's supposed to be a noble competitor to the Samsung Galaxy Z Fold 7. I mean, I've seen the specs, and it looks pretty impressive. The design is sleek, and the foldable screen is something I've been wanting to try out. But I'm not sure if it's worth the investment. Let me think through this.",
+  "start_timestamp": 866.6,
+  "end_timestamp": 1463.3
+}

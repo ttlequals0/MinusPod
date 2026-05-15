@@ -1,0 +1,1 @@
+{"error":"The provided transcript snippet did not include any ad-like promotional content. So based on the segment from timestamps 1233.7s to 1870.3s, no advertisement segments can be identified."}

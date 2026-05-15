@@ -1,0 +1,30 @@
+[
+  {
+    "start": 0.0,
+    "end": 22.1,
+    "confidence": 0.98,
+    "reason": "Progressive Insurance host-read ad with URL",
+    "end_text": "not available in all states"
+  },
+  {
+    "start": 29.8,
+    "end": 58.1,
+    "confidence": 0.95,
+    "reason": "Whole Foods Market network-inserted retail ad",
+    "end_text": "celebrate mom with Whole Foods Market"
+  },
+  {
+    "start": 537.5,
+    "end": 567.0,
+    "confidence": 0.97,
+    "reason": "Thrive Cosmetics ad with promo code shine26 and URL",
+    "end_text": "thrivecosmetics.com slash shine26"
+  },
+  {
+    "start": 594.7,
+    "end": 597.3,
+    "confidence": 0.90,
+    "reason": "Mattress Warehouse brand tagline ad",
+    "end_text": "Only at Mattress Warehouse"
+  }
+]

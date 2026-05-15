@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 1836.9,
+      "end": 1861.3,
+      "confidence": 0.98,
+      "reason": "Mint Mobile sponsor read with promotional language about saving money and switching carriers",
+      "end_text": "fed up with crazy high bills"
+    }
+  ]
+}

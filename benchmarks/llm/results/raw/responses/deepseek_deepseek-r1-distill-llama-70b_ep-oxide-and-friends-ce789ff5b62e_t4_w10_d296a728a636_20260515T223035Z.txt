@@ -1,0 +1,7 @@
+{
+  "start": 4193.9,
+  "end": 4802.4,
+  "confidence": 0.95,
+  "reason": "No ads detected in this window. The conversation is focused on mechanical engineering challenges and manufacturing processes.",
+  "end_text": "well. Yeah, right. Yeah."
+}

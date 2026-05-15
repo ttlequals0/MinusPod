@@ -1,0 +1,1 @@
+{"start": 1233.7, "end": 1860.0, "confidence": 0.99, "reason": "Transcript contains only editorial discussion about mechanical engineering and manufacturing processes with no promotional content, sponsor mentions, or ads detected", "end_text": "manufacturability of the rack"}

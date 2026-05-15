@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1837.5,
+    "end": 1999.5,
+    "confidence": 0.95,
+    "reason": "Mint Mobile, Mattress Warehouse, and PC Richard & Son sponsor reads in a single ad break",
+    "end_text": "for details."
+  }
+]

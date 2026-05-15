@@ -1,0 +1,1 @@
+{"start":2015.9,"end":2073.2,"confidence":0.99,"reason":"Post-roll ad block: Capital One sponsor read with promotional AI/auto-shopping pitch, followed by Lemonada Media cross-promo for Good Things podcast; second promo may continue beyond transcript window","end_text":"six-part Thrive series."}

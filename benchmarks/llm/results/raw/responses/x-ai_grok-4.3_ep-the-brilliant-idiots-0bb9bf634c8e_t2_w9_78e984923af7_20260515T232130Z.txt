@@ -1,0 +1,3 @@
+[
+  {"start": 4057.2, "end": 4083.9, "confidence": 0.75, "reason": "Host transition to pay bills indicating ad break", "end_text": "let's get back to this show"}
+]

@@ -1,0 +1,4 @@
+[
+  {"start": 1.6, "end": 37.6, "confidence": 0.98, "reason": "Acast platform cross-promo for Wrong Turns podcast", "end_text": "dignity goes to die"},
+  {"start": 40.8, "end": 77.2, "confidence": 0.98, "reason": "Acast platform cross-promo for Formative podcast", "end_text": "leaders of tomorrow"}
+]

@@ -1,0 +1,3 @@
+[
+  {"start": 636.8, "end": 776.6, "confidence": 0.95, "reason": "Multiple consecutive sponsor reads (Parloa, Capital One, AllTrails, Zinn, Lemonada cross-promo)", "end_text": "six-part Thrive series."}
+]

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1836.9,
+    "end": 1999.5,
+    "confidence": 0.98,
+    "reason": "Mint Mobile sponsor read followed by Mattress Warehouse and PC Richard network-inserted ads",
+    "end_text": "dot HTML for details"
+  }
+]

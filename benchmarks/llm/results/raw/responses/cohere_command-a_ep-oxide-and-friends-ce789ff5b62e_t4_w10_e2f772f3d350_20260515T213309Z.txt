@@ -1,0 +1,7 @@
+{
+  "start": 4723.8,
+  "end": 4727.4,
+  "confidence": 0.0,
+  "reason": "No promotional content found in this window",
+  "end_text": "welding station."
+}

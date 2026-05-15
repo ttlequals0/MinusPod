@@ -1,0 +1,16 @@
+{"ads": [
+  {
+    "start": 537.5,
+    "end": 566.6,
+    "confidence": 0.98,
+    "reason": "Thrive Cosmetics sponsor read",
+    "end_text": "shine26"
+  },
+  {
+    "start": 594.7,
+    "end": 629.9,
+    "confidence": 0.95,
+    "reason": "PC Richard & Son lease to own ad",
+    "end_text": "PCRichard.com"
+  }
+]}

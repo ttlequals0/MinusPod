@@ -1,0 +1,4 @@
+{
+  "transcript": "Alright, so I'm trying to figure out if there are any ads in this podcast transcript. Let me go through it step by step. First, I'll read through the entire transcript to understand the context. It's a discussion about mechanical engineering challenges in building a rack-scale computer. The hosts and guests are talking about bolts, manufacturing processes, structural analysis, and testing procedures. They mention specific technical terms and share personal anecdotes related to engineering. I don't see any product names, URLs, promo codes, or calls to action, which are typical indicators of ads. The conversation seems focused on the topic without any promotional language. Therefore, I don't think there are any advertisement segments in this part of the transcript.",
+  "ads": []
+}

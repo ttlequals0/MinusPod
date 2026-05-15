@@ -1,0 +1,16 @@
+[
+    {
+        "start": 2412.8,
+        "end": 2427.6,
+        "confidence": 0.99,
+        "reason": "HealthCast by Stony Brook Medicine sponsor read with URL and call to action",
+        "end_text": "health.stonybrookmedicine.edu slash podcasts"
+    },
+    {
+        "start": 2428.9,
+        "end": 2484.9,
+        "confidence": 0.99,
+        "reason": "PC Richard & Son network-inserted retail ad with promotional language, lease program details, and brand tagline",
+        "end_text": "PCRichard.com slash Asima dot HTML for details"
+    }
+]

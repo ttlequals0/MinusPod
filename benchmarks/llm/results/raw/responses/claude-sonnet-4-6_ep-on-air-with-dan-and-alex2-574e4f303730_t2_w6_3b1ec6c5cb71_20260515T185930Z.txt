@@ -1,0 +1,3 @@
+Looking at the transcript, I notice an anomalous segment around [2609.5s - 2634.3s] that contains a list of sponsor/promo code keywords ("promo code, discount code, sponsored by, Athletic Greens, AG1, BetterHelp, Squarespace, ZipRecruiter, Raycon, Manscaped, Stamps.com") that appears to be a dynamically inserted ad marker or sponsor read segment. This is clearly promotional content listing known podcast sponsors.
+
+[{"start": 2609.5, "end": 2634.3, "confidence": 0.85, "reason": "Dynamically inserted sponsor segment listing multiple known podcast sponsors including Athletic Greens, AG1, BetterHelp, Squarespace, ZipRecruiter, Raycon, Manscaped, Stamps.com with promo code references", "end_text": "Raycon, Manscaped, Stamps.com"}]

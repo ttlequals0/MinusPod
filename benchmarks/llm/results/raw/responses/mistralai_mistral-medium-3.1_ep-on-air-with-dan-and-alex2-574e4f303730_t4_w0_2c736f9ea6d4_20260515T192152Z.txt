@@ -1,0 +1,1 @@
+[{"start": 0.0, "end": 27.2, "confidence": 0.95, "reason": "Hex.ai sponsor read", "end_text": "at Hex.ai"}, {"start": 27.5, "end": 59.8, "confidence": 0.95, "reason": "PickOCNY.com sponsor read", "end_text": "at PickOCNY.com"}]

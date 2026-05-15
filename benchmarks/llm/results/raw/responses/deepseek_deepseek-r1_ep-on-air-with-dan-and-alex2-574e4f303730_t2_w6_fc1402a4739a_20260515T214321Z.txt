@@ -1,0 +1,7 @@
+[{
+  "start": 2609.5,
+  "end": 2634.3,
+  "confidence": 0.85,
+  "reason": "Sponsor list including Athletic Greens, BetterHelp, Squarespace, and other known podcast advertisers with promotional keywords",
+  "end_text": "Manscaped, Stamps.com"
+}]

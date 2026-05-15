@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2412.8,
+    "end": 2484.9,
+    "confidence": 0.99,
+    "reason": "A post-roll ad block containing a cross-promotion for the 'HealthCast by Stony Brook Medicine' podcast and a retail ad for 'PC Richard & Son' and their 'Aseema' lease program.",
+    "end_text": "Asima dot HTML for details."
+  }
+]

@@ -1,0 +1,1 @@
+{"start":537.5,"end":567.0,"confidence":0.98,"reason":"Thrive Cosmetics sponsor read","end_text":"Shine 26."}

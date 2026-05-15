@@ -1,0 +1,1 @@
+{"segments":[{"start":2609.5,"end":2634.3,"confidence":0.55,"reason":"Network-inserted sponsor blurb containing promotional language ('promo code, discount code, sponsored by') and multiple sponsor brand names (Athletic Greens, BetterHelp, Squarespace, etc.)","end_text":"Raycon, Manscaped, Stamps.com"}]}

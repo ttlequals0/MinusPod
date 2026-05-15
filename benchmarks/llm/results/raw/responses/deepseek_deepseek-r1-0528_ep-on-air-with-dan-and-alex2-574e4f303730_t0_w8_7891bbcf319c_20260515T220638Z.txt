@@ -1,0 +1,9 @@
+[
+  {
+    "start": 3428.1,
+    "end": 3486.2,
+    "confidence": 1.0,
+    "reason": "Post-roll ads: Arizona State University (asunline.asu.edu) and University of Michigan (umich.edu)",
+    "end_text": "See more solutions at umich.edu"
+  }
+]

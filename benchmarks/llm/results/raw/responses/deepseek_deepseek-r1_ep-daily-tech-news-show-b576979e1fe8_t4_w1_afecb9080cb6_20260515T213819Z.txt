@@ -1,0 +1,9 @@
+[
+  {
+    "start": 636.8,
+    "end": 776.6,
+    "confidence": 0.97,
+    "reason": "Multiple host-read and platform-inserted ads (Parloa, Capital One, AllTrails, Zinn, Lemonada Media)",
+    "end_text": "Tune in to Good Things from Lemonada Media"
+  }
+]

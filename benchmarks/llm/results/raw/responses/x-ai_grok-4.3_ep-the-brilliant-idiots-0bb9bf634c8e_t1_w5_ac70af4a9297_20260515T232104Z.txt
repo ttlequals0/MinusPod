@@ -1,0 +1,4 @@
+[
+  {"start": 2323.4, "end": 2404.4, "confidence": 0.98, "reason": "BlueChew sponsor read with promo code", "end_text": "sponsoring the podcast"},
+  {"start": 2404.7, "end": 2450.0, "confidence": 0.98, "reason": "ZipRecruiter sponsor read", "end_text": "on ZipRecruiter"}
+]

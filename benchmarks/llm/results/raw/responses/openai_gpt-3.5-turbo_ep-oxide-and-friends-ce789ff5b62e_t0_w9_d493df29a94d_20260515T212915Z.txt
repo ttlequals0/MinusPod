@@ -1,0 +1,7 @@
+{
+	"start": 4341.5,
+	"end": 4361.0,
+	"confidence": 0.95,
+	"reason": "Content transition to ad-like structure",
+	"end_text": "the other day you were demoing the manufacturing process"
+}

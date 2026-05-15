@@ -1,0 +1,1 @@
+[{"start": 2633.6, "end": 2661.6, "confidence": 0.98, "reason": "Sponsored by Athletic Greens, AG1, BetterHelp, Squarespace, ZipRecruiter, Raycon, Manscaped, Stamps.com", "end_text": "Stamps.com"}]

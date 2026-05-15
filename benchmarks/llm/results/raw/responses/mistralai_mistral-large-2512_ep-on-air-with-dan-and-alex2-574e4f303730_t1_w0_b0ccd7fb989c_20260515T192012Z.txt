@@ -1,0 +1,16 @@
+[
+    {
+        "start": 0.0,
+        "end": 30.3,
+        "confidence": 0.99,
+        "reason": "Hex.ai sponsor read with promotional language, call to action, and URL (Hex.ai). Includes transition and product pitch.",
+        "end_text": "1500 other customers at Hex.ai."
+    },
+    {
+        "start": 30.9,
+        "end": 59.8,
+        "confidence": 0.98,
+        "reason": "PickOCNY.com destination promotion with promotional language, activities, and URL (PickOCNY.com). Structured as a travel ad.",
+        "end_text": "Find your fresh state of mind at PickOCNY.com."
+    }
+]

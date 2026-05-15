@@ -1,0 +1,1 @@
+{"start": 2568.1, "end": 2569.1, "confidence": 0.95, "reason": "Host transition phrase 'Let's take this opportunity' leading into ad break", "end_text": "take this opportunity, like,"}

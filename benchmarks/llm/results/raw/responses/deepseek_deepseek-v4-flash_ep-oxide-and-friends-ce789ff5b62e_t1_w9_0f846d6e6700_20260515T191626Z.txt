@@ -1,0 +1,7 @@
+{
+  "start": 4382.8,
+  "end": 4382.8,
+  "confidence": 0.0,
+  "reason": "No promotional content found in this transcript window",
+  "end_text": "fabricatable"
+}

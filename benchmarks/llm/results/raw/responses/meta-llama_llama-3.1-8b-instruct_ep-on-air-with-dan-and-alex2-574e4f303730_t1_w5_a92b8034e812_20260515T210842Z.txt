@@ -1,0 +1,1 @@
+{ "start": 2633.6, "end": 2661.6, "confidence": 0.95, "reason": "Sponsored segment with multiple product names", "end_text": "Squarespace, ZipRecruiter" }

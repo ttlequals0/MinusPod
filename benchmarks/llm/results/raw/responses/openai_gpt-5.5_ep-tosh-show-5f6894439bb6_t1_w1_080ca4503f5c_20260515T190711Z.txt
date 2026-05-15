@@ -1,0 +1,1 @@
+{"start":524.1,"end":654.3,"confidence":0.98,"reason":"Ad break following 'We'll be right back' with promotional spots for Thrive Cosmetics, Mattress Warehouse, and PC Richard & Son/Acima including offer URLs and lease promotion","end_text":"dot HTML for details"}

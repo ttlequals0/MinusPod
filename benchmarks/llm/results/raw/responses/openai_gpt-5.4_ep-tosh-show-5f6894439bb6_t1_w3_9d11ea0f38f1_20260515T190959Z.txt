@@ -1,0 +1,1 @@
+{"start":1836.9,"end":1860.0,"confidence":0.98,"reason":"Mint Mobile sponsor read begins after transition 'We'll be right back' with promotional copy urging listeners to switch and save money; continues in next window","end_text":"fed up with crazy high bills?"}

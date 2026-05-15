@@ -1,0 +1,1 @@
+{"start":1836.9,"end":1860.0,"confidence":0.98,"reason":"Mint Mobile sponsor read","end_text":"high bills?"}

@@ -1,0 +1,10 @@
+Looking at the transcript, I need to identify any advertisement segments. 
+
+At timestamps [2609.5s - 2634.3s], there's a suspicious segment that reads:
+"promo code, discount code, sponsored by, Athletic Greens, AG1, BetterHelp, Squarespace, ZipRecruiter, Raycon, Manscaped, Stamps.com,"
+
+This appears to be a fragment of ad-related content — it contains explicit sponsor names (Athletic Greens, AG1, BetterHelp, Squarespace, ZipRecruiter, Raycon, Manscaped, Stamps.com) and ad-related terms (promo code, discount code, sponsored by). However, this looks like it may be a transcription artifact or a partial/garbled ad segment rather than a clean host-read ad. Regardless, it contains promotional language with known sponsor names and must be flagged.
+
+The segment starts at 2609.5s and ends at 2634.3s.
+
+[{"start": 2609.5, "end": 2634.3, "confidence": 0.72, "reason": "Transcript fragment containing sponsor names (Athletic Greens, AG1, BetterHelp, Squarespace, ZipRecruiter, Raycon, Manscaped, Stamps.com) and ad-related terms (promo code, discount code, sponsored by) — likely a garbled or partially transcribed ad segment", "end_text": "Manscaped, Stamps.com,"}]

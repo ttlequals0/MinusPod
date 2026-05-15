@@ -1,0 +1,31 @@
+{
+  "transcript": "...",
+  "ads": [
+    {
+      "start": 0.0,
+      "end": 22.1,
+      "confidence": 0.95,
+      "reason": "Progressive Insurance ad with call to action",
+      "end_text": "Progressive.com."
+    },
+    {
+      "start": 29.8,
+      "end": 58.1,
+      "confidence": 0.95,
+      "reason": "Whole Foods Market promotion with specific product mentions",
+      "end_text": "Whole Foods Market."
+    },
+    {
+      "start": 566.5,
+      "end": 567.0,
+      "reason": "Shine 26 promo code mention",
+      "end_text": "Shine 26."
+    },
+    {
+      "start": 594.7,
+      "end": 597.3,
+      "reason": "Mattress Warehouse ad",
+      "end_text": "Mattress Warehouse."
+    }
+  ]
+}

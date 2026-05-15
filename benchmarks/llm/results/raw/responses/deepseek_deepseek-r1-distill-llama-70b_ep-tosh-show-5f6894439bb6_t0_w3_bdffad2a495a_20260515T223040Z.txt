@@ -1,0 +1,7 @@
+{
+  "start": 1837.5,
+  "end": 1861.3,
+  "confidence": 0.95,
+  "reason": "Mint Mobile ad with transition phrase 'We'll be right back.'",
+  "end_text": "After years of overpaying for wireless, are you fed up with crazy high bills?"
+}

@@ -1,0 +1,7 @@
+{
+"start": 2226.8,
+"end": 2254.9,
+"confidence": 0.95,
+"reason": "Host-read sponsor segment for Athletic Greens",
+"end_text": "wellness begins. Explore more at FreshField"
+}

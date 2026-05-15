@@ -1,0 +1,32 @@
+{
+"ads": [
+    {
+      "start": 0.0,
+      "end": 29.1,
+      "confidence": 0.98,
+      "reason": "Capital One sponsor read",
+      "end_text": "that's how they stack"
+    },
+    {
+      "start": 29.4,
+      "end": 58.3,
+      "confidence": 0.95,
+      "reason": "Theater ad for Every Brilliant Thing",
+      "end_text": "get tickets to Every Brilliant Thing"
+    },
+    {
+      "start": 59.2,
+      "end": 73.6,
+      "confidence": 0.80,
+      "reason": "AllTrails ad",
+      "end_text": "download the free app today"
+    },
+    {
+      "start": 74.8,
+      "end": 100.2,
+      "confidence": 0.90,
+      "reason": "Zinn Nicotine Pouches ad",
+      "end_text": "find yours in wherever nicotine products are sold"
+    }
+  ]
+}

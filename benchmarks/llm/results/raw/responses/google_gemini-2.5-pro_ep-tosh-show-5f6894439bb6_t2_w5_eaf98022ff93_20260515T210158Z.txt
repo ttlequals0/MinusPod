@@ -1,0 +1,16 @@
+[
+  {
+    "start": 2242.3,
+    "end": 2268.8,
+    "confidence": 0.95,
+    "reason": "Host-read promotion for the show's Patreon, tour dates, and merchandise store.",
+    "end_text": "I know what it is."
+  },
+  {
+    "start": 2412.8,
+    "end": 2484.9,
+    "confidence": 0.99,
+    "reason": "Post-roll ads for HealthCast by Stony Brook Medicine and a lease-to-own program from PC Richard & Son / Aseema.",
+    "end_text": "Asima dot HTML for details."
+  }
+]

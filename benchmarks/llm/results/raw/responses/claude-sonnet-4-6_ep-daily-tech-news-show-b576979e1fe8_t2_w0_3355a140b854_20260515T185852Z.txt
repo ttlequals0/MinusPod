@@ -1,0 +1,32 @@
+```json
+[
+  {
+    "start": 0.0,
+    "end": 29.1,
+    "confidence": 0.97,
+    "reason": "Capital One network-inserted brand ad promoting their AI tech and Chat Concierge product",
+    "end_text": "technology at Capital One"
+  },
+  {
+    "start": 29.4,
+    "end": 58.3,
+    "confidence": 0.95,
+    "reason": "Network-inserted ad for 'Every Brilliant Thing' Broadway show starring Mariska Hargitay, with call to action to visit website",
+    "end_text": "Visit Every Brilliant Thing"
+  },
+  {
+    "start": 59.2,
+    "end": 73.6,
+    "confidence": 0.93,
+    "reason": "Network-inserted ad for AllTrails app with call to action to download",
+    "end_text": "find your outside"
+  },
+  {
+    "start": 74.8,
+    "end": 104.3,
+    "confidence": 0.97,
+    "reason": "Network-inserted ad for Zinn Nicotine Pouches with product pitch and call to action, followed by nicotine disclaimer",
+    "end_text": "Nicotine is an addictive chemical"
+  }
+]
+```

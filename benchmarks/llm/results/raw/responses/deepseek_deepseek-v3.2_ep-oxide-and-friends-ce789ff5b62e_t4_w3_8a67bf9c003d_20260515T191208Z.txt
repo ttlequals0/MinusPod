@@ -1,0 +1,1 @@
+{"start": 1233.7, "end": 1870.3, "confidence": 0.0, "reason": "No promotional content detected in transcript segment. Content is purely technical discussion about mechanical engineering and manufacturing processes.", "end_text": "manufacturability of the rack."}

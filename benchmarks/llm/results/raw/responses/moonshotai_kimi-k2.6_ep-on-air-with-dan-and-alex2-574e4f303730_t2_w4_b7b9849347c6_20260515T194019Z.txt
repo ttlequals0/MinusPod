@@ -1,0 +1,1 @@
+{"start": 1662.9, "end": 2280.0, "confidence": 0.95, "reason": "Entire window is editorial discussion about aviation alcohol policies and Riyadh Air operations; no promotional content, sponsors, URLs, or calls to action detected", "end_text": "no point in me spending"}

@@ -1,0 +1,1 @@
+[{"start": 3265.9, "end": 3418.4, "confidence": 0.95, "reason": "Spirit Airlines crowd-funding campaign", "end_text": "letsbuyspiritaire.com"}, {"start": 3456.7, "end": 3486.2, "confidence": 0.95, "reason": "Arizona State University promotion", "end_text": "asunline.asu.edu"}]

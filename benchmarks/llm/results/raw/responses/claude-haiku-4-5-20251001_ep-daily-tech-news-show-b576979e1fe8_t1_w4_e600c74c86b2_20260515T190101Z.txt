@@ -1,0 +1,18 @@
+```json
+[
+  {
+    "start": 2015.9,
+    "end": 2045.2,
+    "confidence": 0.98,
+    "reason": "Capital One sponsor read with product pitch (Chat Concierge AI for car shopping) and brand tagline",
+    "end_text": "technology at Capital One"
+  },
+  {
+    "start": 2046.3,
+    "end": 2073.2,
+    "confidence": 0.92,
+    "reason": "Lemonada Media network-inserted ad for Good Things podcast series (Thrive series), continues past window",
+    "end_text": "continues in next segment"
+  }
+]
+```

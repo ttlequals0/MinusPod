@@ -1,0 +1,1 @@
+{"start":636.8,"end":782.3,"confidence":0.97,"reason":"Multi-sponsor ad break: Parloa, Capital One, AllTrails, Zinn Nicotine Pouches, and Good Things podcast cross-promo with URLs, sponsor language, and calls to action","end_text":"get to the briefs."}

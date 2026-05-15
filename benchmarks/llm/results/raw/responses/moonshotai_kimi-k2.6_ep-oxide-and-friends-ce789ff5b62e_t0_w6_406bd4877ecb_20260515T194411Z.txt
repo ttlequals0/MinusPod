@@ -1,0 +1,1 @@
+{"start":2520.0,"end":2539.6,"confidence":0.99,"reason":"continues from previous - technical discussion about rack bolt accessibility, part of show content","end_text":"room to turn it. And in going through and kind of"}

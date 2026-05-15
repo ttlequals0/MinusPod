@@ -1,0 +1,1 @@
+{"start": 1246.0, "end": 1880.0, "confidence": 0.0, "reason": "No promotional language, sponsor mentions, or ad markers found in this 21-31 minute window. Content is a conversation about alcohol policies at airports and on flights.", "end_text": "a thousand euros more just because you'll get"}

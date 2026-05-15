@@ -1,0 +1,7 @@
+{
+	"start": 4341.5,
+	"end": 4361.0,
+	"confidence": 0.95,
+	"reason": "Content transition to ad-like structure",
+	"end_text": "Hey Brooks, the other day you were demoing the manufacturing process or some of the changes that you were making in rack model one explicitly to make it easier to fabricate. So I was wondering if you're going to talk about that some. And then I was also wondering about the degree to which we collaborate."
+}

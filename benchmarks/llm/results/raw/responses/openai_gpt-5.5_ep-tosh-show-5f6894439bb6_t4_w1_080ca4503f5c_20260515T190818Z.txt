@@ -1,0 +1,1 @@
+{"start":524.1,"end":654.3,"confidence":0.98,"reason":"Mid-roll ad break introduced by 'We'll be right back' with promotional reads for Thrive Cosmetics, Mattress Warehouse, and PC Richard & Son/Asima including URLs and offers","end_text":"Asima dot HTML for details"}

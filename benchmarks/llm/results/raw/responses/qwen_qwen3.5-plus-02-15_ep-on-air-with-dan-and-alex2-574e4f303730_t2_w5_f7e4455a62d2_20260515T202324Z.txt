@@ -1,0 +1,1 @@
+[{"start": 2609.5, "end": 2634.3, "confidence": 0.95, "reason": "Transcript contains explicit sponsor list and 'sponsored by' phrase (Athletic Greens, BetterHelp, Squarespace, etc.)", "end_text": "Manscaped, Stamps.com,"}]

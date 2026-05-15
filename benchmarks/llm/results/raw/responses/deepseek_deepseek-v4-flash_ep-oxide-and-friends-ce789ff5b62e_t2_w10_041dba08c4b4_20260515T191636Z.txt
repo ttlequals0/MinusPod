@@ -1,0 +1,7 @@
+{
+  "start": 4193.9,
+  "end": 4802.4,
+  "confidence": 0.0,
+  "reason": "No promotional language, sponsor names, URLs, promo codes, or calls to action found. The entire segment is technical discussion about manufacturing design changes (clear shrouds, rivets vs welding) with no ad content.",
+  "end_text": "like start to finish"
+}

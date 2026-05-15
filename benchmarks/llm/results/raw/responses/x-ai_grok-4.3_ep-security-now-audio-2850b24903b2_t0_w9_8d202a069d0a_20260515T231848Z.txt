@@ -1,0 +1,1 @@
+[{"start": 4204.1, "end": 4380.0, "confidence": 0.95, "reason": "Bitwarden sponsor read including break transition", "end_text": "at the OS level"}]

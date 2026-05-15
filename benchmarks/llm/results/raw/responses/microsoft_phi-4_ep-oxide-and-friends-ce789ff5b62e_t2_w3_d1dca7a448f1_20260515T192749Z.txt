@@ -1,0 +1,7 @@
+{  
+  "start": 12.33,  
+  "end": 18.17,  
+  "confidence": 0.95,  
+  "reason": "The segment discusses the mechanical challenges and manufacturing processes related to PEMs, including the comparison of time efficiency and error rates between PEMs and extrude and tap features. It highlights the complexity and reliability of PEMs in manufacturing, indicating a promotional discussion about the benefits and challenges of using PEMs in production.",  
+  "end_text": "someone was asking if we were concerned about the divergence between the rack as we kind of evolved to rack model one and so on"  
+}

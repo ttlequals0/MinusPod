@@ -1,0 +1,4 @@
+ Ad segment:
+[0.0s - 29.1s] This episode is brought to you by Capital One. Capital One's tech team isn't just talking about multi-agentic AI. They already deployed one. It's called Chat Concierge and it's simplifying car shopping. Using self-driving technology like the Z Fold series does, but that's an additional $100 if that's something to woo you over. But like I said, I did get to play around with this a little bit while I was at CES. Granted, it was very early, and it was just kind of popular.
+
+Note: continues from previous.

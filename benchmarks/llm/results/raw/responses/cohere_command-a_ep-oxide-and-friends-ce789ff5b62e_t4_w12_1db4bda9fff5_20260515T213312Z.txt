@@ -1,0 +1,7 @@
+{
+  "start": 5036.2,
+  "end": 5069.8,
+  "confidence": 0.0,
+  "reason": "No promotional content detected",
+  "end_text": "see you all next time"
+}

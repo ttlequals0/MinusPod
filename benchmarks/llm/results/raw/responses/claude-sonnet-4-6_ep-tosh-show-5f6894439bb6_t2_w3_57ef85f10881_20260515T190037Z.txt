@@ -1,0 +1,1 @@
+[{"start": 1836.5, "end": 1861.3, "confidence": 0.97, "reason": "Mint Mobile host-read sponsor segment beginning with transition 'We'll be right back' followed by Mint Mobile pitch about switching wireless carriers", "end_text": "fed up with crazy high bills?"}]

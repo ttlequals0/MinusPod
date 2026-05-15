@@ -1,0 +1,23 @@
+{"ads": [
+    {
+        "start": 1837.5,
+        "end": 1912.2,
+        "confidence": 0.98,
+        "reason": "Mint Mobile sponsor read",
+        "end_text": "mintmobile.com slash tosh"
+    },
+    {
+        "start": 1913.4,
+        "end": 1942.4,
+        "confidence": 0.95,
+        "reason": "Mattress Warehouse ad",
+        "end_text": "only at Mattress Warehouse"
+    },
+    {
+        "start": 1943.2,
+        "end": 1971.6,
+        "confidence": 0.95,
+        "reason": "PC Richard & Son Aseema Lease ad",
+        "end_text": "visit PCRichard.com slash Aseema"
+    }
+]}

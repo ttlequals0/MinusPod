@@ -1,0 +1,7 @@
+{
+  "start": 618.2,
+  "end": 782.3,
+  "confidence": 0.98,
+  "reason": "Multiple sponsor reads: Parloa, Capital One, AllTrails, Zinn Nicotine Pouches, and Lemonada Media's Good Things",
+  "end_text": "Thrive series. There's more we need to know today. Let's get to the briefs."
+}

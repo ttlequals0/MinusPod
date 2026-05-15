@@ -1,0 +1,23 @@
+[
+  {
+    "start": 0.0,
+    "end": 22.1,
+    "confidence": 0.99,
+    "reason": "Progressive Insurance sponsor read",
+    "end_text": "Not available in all states."
+  },
+  {
+    "start": 29.8,
+    "end": 58.1,
+    "confidence": 0.98,
+    "reason": "Whole Foods Market sponsor read",
+    "end_text": "Celebrate mom with Whole Foods Market."
+  },
+  {
+    "start": 537.5,
+    "end": 567.0,
+    "confidence": 0.97,
+    "reason": "Thrive Cosmetics sponsor read",
+    "end_text": "Thrive Cosmetics, C-A-U-S-E-M-E-T-I-C-S dot com slash shine26."
+  }
+]

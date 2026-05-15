@@ -1,0 +1,4 @@
+[
+    {"start": 3428.1, "end": 3456.1, "confidence": 0.95, "reason": "Arizona State University platform-inserted ad with promotional language and URL", "end_text": "Explore more than 350 programs at asunline.asu.edu"},
+    {"start": 3456.7, "end": 3486.2, "confidence": 0.95, "reason": "University of Michigan platform-inserted ad with promotional language and URL", "end_text": "See more solutions at umich.edu"}
+]

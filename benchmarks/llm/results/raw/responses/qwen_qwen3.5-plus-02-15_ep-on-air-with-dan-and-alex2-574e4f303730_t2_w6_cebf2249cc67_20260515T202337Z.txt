@@ -1,0 +1,1 @@
+[{"start": 2609.5, "end": 2634.3, "confidence": 0.85, "reason": "Mid-roll ad break indicated by 'sponsored by' and list of sponsor brands (Athletic Greens, BetterHelp, etc.) interrupting conversation flow; short duration suggests transcript may be summarized or metadata.", "end_text": "Raycon, Manscaped, Stamps.com,"}]

@@ -1,0 +1,7 @@
+{
+  "start": 20.93,
+  "end": 21.37,
+  "confidence": 0.98,
+  "reason": "Elliott helped prove that changing from two bolts to one bolt was acceptable for the rack design, ensuring safety and accessibility.",
+  "end_text": "Elliott helped prove that changing from two bolts to one bolt was acceptable for the rack design."
+}

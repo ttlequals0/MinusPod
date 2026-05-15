@@ -1,0 +1,7 @@
+{
+	"start": 2744.9,
+	"end": 2771.9,
+	"confidence": 0.95,
+	"reason": "Discussion about high stakes analysis and consequences",
+	"end_text": "because, I mean, I'm just worried that the updated calculation is wrong. I know this is just part of being an engineer, but just the consequences feel high."
+}

@@ -1,0 +1,13 @@
+[{
+	"start": 537.5,
+	"end": 567.0,
+	"confidence": 0.98,
+	"reason": "Thrive Cosmetics sponsor read",
+	"end_text": "shine26. Shine 26."
+}, {
+	"start": 594.7,
+	"end": 654.3,
+	"confidence": 0.95,
+	"reason": "Mattress Warehouse and PC Richard & Son ads",
+	"end_text": "Asima dot HTML for details."
+}]

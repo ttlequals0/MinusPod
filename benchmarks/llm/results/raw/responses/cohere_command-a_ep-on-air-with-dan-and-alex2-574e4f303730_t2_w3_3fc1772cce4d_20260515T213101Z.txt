@@ -1,0 +1,7 @@
+{
+  "start": 1853.4,
+  "end": 1860.0,
+  "confidence": 0.0,
+  "reason": "No promotional content found in this window",
+  "end_text": "just because you'll get..."
+}

@@ -1,0 +1,7 @@
+{
+  "start": 5069.8,
+  "end": 5069.8,
+  "confidence": 0.0,
+  "reason": "No promotional content found in this window",
+  "end_text": "see you all next time"
+}

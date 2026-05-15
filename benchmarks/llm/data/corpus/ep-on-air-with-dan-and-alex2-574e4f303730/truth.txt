@@ -1,0 +1,16 @@
+# Pre-populated from MinusPod production ad markers.
+# Verify each ad: check boundaries, confirm text matches transcript.
+# Use the no-ads marker (uncomment) if this episode has no ads:
+# # Verified: no ads in this episode.
+
+# Lines starting with '#' are ignored. To accept a rejected block,
+# remove the '# ' prefix from its start/end/text lines.
+
+
+start: 0:00.00
+end:   0:59.84
+text:  What if your data team could be 10 times more productive? Most teams waste hours switching between fragmented tools, rebuilding the same analyses, and debugging AI chatbot outputs. HEX integrates the whole analytics cycle, deep analysis, self-serve, and trusted context in one platform. The result? Faster insights, higher trust, less tool sprawl. Transform your data team from a dashboard factory to a strategic insights engine. Join teams from Anthropic, Lovable, and 1500 other customers at Hex.ai. Get ready for a getaway that's anything but ordinary. PickOCNY.com. In Orange County, New York, just an hour from New York City, you can sip cider in a treehouse at Angry Orchard, picnic among towering sculptures at Storm King Art Center, or uncover the secrets of Brotherhood Winery, America's oldest winery, hike the trails, raft the Delaware, then kick back, relax, and stay a while. Find your fresh state of mind at PickOCNY.com.
+---
+start: 57:08.14
+end:   58:06.20
+text:  You can't predict the future, but you can prepare for it. Arizona State University is building degrees for what's ahead. Programs designed around emerging fields, taught by faculty whose research is shaping our future, not just teaching about it. It's why we've been ranked number one in innovation for more than a decade. Your future is worth preparing for, and you don't have to prepare alone. Future-proof your career. Explore more than 350 programs at asunline.asu.edu. That's a degree better. If you want to know what a university is for, look to the work. At the University of Michigan, that work looks like physicians destroying cancer with sound instead of scalpels, designers bringing braille into the digital world, and researchers detecting PFAS before they reach your tap. That's what the defining research university is for, serving the public good. For all of us, look to Michigan. See more solutions at umich.edu.

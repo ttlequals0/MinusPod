@@ -1,0 +1,7 @@
+{
+	"start": 3833.0,
+	"end": 3948.1,
+	"confidence": 0.95,
+	"reason": "Discussion about cost trade-off between 3D printing and injection molding",
+	"end_text": "because of the of the complexity of the print"
+}

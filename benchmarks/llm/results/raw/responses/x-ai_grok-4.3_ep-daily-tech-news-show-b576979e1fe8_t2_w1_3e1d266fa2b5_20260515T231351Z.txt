@@ -1,0 +1,9 @@
+[
+  {
+    "start": 636.8,
+    "end": 782.3,
+    "confidence": 0.95,
+    "reason": "Multiple consecutive sponsor reads (Parloa, Capital One, AllTrails, Zinn, Lemonada cross-promo) after listener thank-you transition",
+    "end_text": "Let's get to the briefs."
+  }
+]

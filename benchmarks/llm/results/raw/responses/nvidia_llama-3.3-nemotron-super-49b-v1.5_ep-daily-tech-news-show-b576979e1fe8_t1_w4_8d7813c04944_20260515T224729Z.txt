@@ -1,0 +1,1 @@
+[{"start": 2015.9, "end": 2073.2, "confidence": 0.95, "reason": "Capital One sponsor read followed by Lemonada Media network promo (merged due to <15s gap)", "end_text": "Thrive series."}]

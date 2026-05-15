@@ -1,0 +1,1 @@
+[{"start": 1493.2, "end": 1538.0, "confidence": 0.95, "reason": "Capital One and AllTrails ads", "end_text": "find your outside"}]

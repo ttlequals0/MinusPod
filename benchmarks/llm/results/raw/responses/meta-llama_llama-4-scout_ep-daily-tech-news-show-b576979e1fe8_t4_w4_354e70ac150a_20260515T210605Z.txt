@@ -1,0 +1,9 @@
+{"ad_segments": [
+  {
+    "start": 2015.9,
+    "end": 2073.2,
+    "confidence": 0.98,
+    "reason": "Capital One sponsor read and Good Things from Lemonada Media promo",
+    "end_text": "truly thrive"
+  }
+]}

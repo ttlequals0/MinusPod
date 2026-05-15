@@ -1,0 +1,7 @@
+{
+  "start": 4193.9,
+  "end": 4220.0,
+  "confidence": 0.95,
+  "reason": "Host-read sponsor segment mentioning Game Boy Advance",
+  "end_text": "wellness begins. Explore more at FreshField"
+}

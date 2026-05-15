@@ -1,0 +1,7 @@
+{
+  "start": 2931.2,
+  "end": 3540.0,
+  "confidence": 0.0,
+  "reason": "No promotional content found in this segment",
+  "end_text": "direction that I want to?"
+}

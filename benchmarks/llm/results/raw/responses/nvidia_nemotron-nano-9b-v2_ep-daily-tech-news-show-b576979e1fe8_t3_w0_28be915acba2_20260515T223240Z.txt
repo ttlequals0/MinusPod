@@ -1,0 +1,1 @@
+[{"start": 0.0, "end": 104.3, "confidence": 0.98, "reason": "Capital One host-read ad with product promotion", "end_text": "car shopping"}}[{"start": 0.0, "end": 104.3, "confidence": 0.98, "reason": "Capital One host-read ad with product promotion", "end_text": "car shopping"}]

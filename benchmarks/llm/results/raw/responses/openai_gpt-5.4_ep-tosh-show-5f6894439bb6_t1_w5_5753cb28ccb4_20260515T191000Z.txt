@@ -1,0 +1,1 @@
+{"start": 2412.8, "end": 2484.9, "confidence": 0.99, "reason": "Two back-to-back platform-inserted promotional ads: HealthCast by Stony Brook Medicine with URL and PC Richard & Son/Acima lease-to-own Memorial Day sale pitch; merged into one ad break", "end_text": "slash Asima dot HTML for details"}

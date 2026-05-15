@@ -1,0 +1,1 @@
+{"start": 1139.5, "end": 1168.4, "confidence": 0.91, "reason": "platform-inserted RedCircle ad marker with repeated promotional line 'Advertising Inquiries' and redcircle.com/brands context from episode metadata; partial/incomplete ad in this window", "end_text": "discount code, discount code, discount code"}

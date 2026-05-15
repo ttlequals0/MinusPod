@@ -1,0 +1,1 @@
+[{"start": 0.0, "end": 27.7, "confidence": 0.95, "reason": "Colgate brand advertisement at start", "end_text": "your smile is your strength"}]

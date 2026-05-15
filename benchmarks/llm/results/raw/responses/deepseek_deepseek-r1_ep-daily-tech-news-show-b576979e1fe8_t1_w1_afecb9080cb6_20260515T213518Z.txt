@@ -1,0 +1,9 @@
+[
+  {
+    "start": 619.0,
+    "end": 776.6,
+    "confidence": 0.95,
+    "reason": "Multiple consecutive ads: Parloa sponsorship with URL, Capital One sponsorship, AllTrails promotion, Zinn Nicotine Pouches product pitch, Lemonada Media podcast promo",
+    "end_text": "six-part Thrive series"
+  }
+]

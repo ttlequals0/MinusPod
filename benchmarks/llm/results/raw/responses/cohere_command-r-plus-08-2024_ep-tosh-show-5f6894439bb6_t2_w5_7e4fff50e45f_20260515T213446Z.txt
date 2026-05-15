@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 2427.6,
+      "end": 2484.9,
+      "confidence": 0.99,
+      "reason": "HealthCast by Stony Brook Medicine and PC Richard & Son Aseema Lease to Own program ads",
+      "end_text": "Visit PCRichard.com slash Asima dot HTML for details."
+    }
+  ]
+}

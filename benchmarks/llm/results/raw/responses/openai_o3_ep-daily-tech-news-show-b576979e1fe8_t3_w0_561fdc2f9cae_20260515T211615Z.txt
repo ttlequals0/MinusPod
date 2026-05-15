@@ -1,0 +1,1 @@
+{"start": 0.0, "end": 112.1, "confidence": 0.98, "reason": "Back-to-back platform-inserted ads for Capital One, Every Brilliant Thing, AllTrails, and Zyn nicotine pouches, beginning with \"This episode is brought to you by Capital One\" and ending after the nicotine warning", "end_text": "an addictive chemical."}

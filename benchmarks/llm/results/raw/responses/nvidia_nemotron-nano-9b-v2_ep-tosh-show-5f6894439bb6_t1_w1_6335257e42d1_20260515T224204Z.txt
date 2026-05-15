@@ -1,0 +1,4 @@
+[{"start": 566.5, "end": 567.0, "confidence": 0.95, "reason": "Thrive Cosmetics product promotion", "end_text": "shin26"}}  
+[{"start": 594.7, "end": 597.3, "confidence": 0.95, "reason": "Mattress Warehouse network-inserted tagline ad", "end_text": "Mattress Warehouse"}}  
+[{"start": 617.2, "end": 654.3, "confidence": 0.98, "reason": "Asima lease-to-own appliance promotion", "end_text": "PCRichard.com/Asima"}}  
+[{"start": 971.6, "end": 991.2, "confidence": 0.85, "reason": "Host-promoted shoe website recommendation", "end_text": "good shoes"}]

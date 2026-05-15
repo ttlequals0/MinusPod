@@ -1,0 +1,1 @@
+{"start":3428.1,"end":3457.8,"confidence":0.98,"reason":"Arizona State University network-inserted ad with promotional language and URL 'asunline.asu.edu' after show content ends","end_text":"That's a degree better."}

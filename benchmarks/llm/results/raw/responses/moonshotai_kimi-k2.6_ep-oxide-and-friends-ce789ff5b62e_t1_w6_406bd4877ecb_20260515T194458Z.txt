@@ -1,0 +1,1 @@
+{"start":2721.7,"end":2744.9,"confidence":0.2,"reason":"23-second content gap with no transcript; no promotional language present to flag as advertisement","end_text":"present in the oxide rack."}

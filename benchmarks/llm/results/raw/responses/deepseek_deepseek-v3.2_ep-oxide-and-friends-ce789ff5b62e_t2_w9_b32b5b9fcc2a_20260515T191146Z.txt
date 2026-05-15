@@ -1,0 +1,1 @@
+{"start": 3765.7, "end": 4382.8, "confidence": 0.0, "reason": "No promotional content found in transcript segment. Content is purely technical discussion about mechanical engineering, 3D printing, injection molding, and product design.", "end_text": "to make these fabricatable."}

@@ -1,0 +1,7 @@
+{
+  "start": 2093.6,
+  "end": 2700.0,
+  "confidence": 0.0,
+  "reason": "No promotional language, sponsor names, URLs, promo codes, or calls to action found in this transcript segment. The content is a technical discussion about mechanical engineering challenges, cable safety, and design changes.",
+  "end_text": "does not really move"
+}

@@ -1,0 +1,1 @@
+[{"start": 3428.1, "end": 3486.2, "confidence": 0.98, "reason": "Network-inserted ads for Arizona State University and University of Michigan", "end_text": "solutions at umich.edu"}]

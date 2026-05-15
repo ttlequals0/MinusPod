@@ -1,0 +1,9 @@
+[
+  {
+    "start": 3079.6,
+    "end": 3270.1,
+    "confidence": 0.98,
+    "reason": "Back-to-back host-read sponsor segments for Morgan & Morgan, Stash, and Neuro Gum with promo URLs/codes",
+    "end_text": "find Neuro at CVS and Amazon"
+  }
+]

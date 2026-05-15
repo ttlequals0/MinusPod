@@ -1,0 +1,1 @@
+{"start":0.0,"end":59.8,"confidence":0.99,"reason":"Two back-to-back pre-roll ads: Hex.ai analytics platform promo and Orange County, NY tourism ad (PickOCNY.com)","end_text":"fresh state of mind at PickOCNY.com"}

@@ -1,0 +1,1 @@
+{"start": 1233.7, "end": 1860.0, "confidence": 0.0, "reason": "No promotional language, sponsor names, URLs, promo codes, or calls to action detected. This is a technical discussion about manufacturing processes (sheet metal, PEMs, punch extrude and tap features).", "end_text": "manufacturability of the rack."}

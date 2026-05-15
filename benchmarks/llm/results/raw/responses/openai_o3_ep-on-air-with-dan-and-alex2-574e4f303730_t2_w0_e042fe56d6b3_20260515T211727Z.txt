@@ -1,0 +1,1 @@
+{"segments":[{"start":0.0,"end":59.8,"confidence":0.97,"reason":"Platform pre-roll ads for Hex analytics platform and PickOCNY tourism with promotional language, URLs, and calls to action","end_text":"mind at PickOCNY.com"}]}

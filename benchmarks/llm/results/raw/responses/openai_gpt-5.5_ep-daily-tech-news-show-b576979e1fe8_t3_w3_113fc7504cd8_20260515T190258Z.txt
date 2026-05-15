@@ -1,0 +1,1 @@
+{"start":1493.2,"end":1536.8,"confidence":0.99,"reason":"Capital One sponsor read followed by AllTrails promotional app ad; includes 'This episode is brought to you by Capital One' and 'Download the free app today'","end_text":"and find your outside"}

@@ -1,0 +1,39 @@
+{  
+  "ad_segments": [  
+    {  
+      "start": 20.92,  
+      "end": 21.16,  
+      "confidence": 0.95,  
+      "reason": "Ryanair's hidden agenda and policy discussion about booking through travel agencies, with a focus on the challenges of sharing information due to lack of product availability.",  
+      "end_text": "there really is no point in me spending"  
+    },  
+    {  
+      "start": 23.55,  
+      "end": 24.00,  
+      "confidence": 0.90,  
+      "reason": "Discussion about the premium quality of Riyadh Air's experience and the state of play in the Middle East airline market, with emphasis on the shift in state rhetoric and the impact of ongoing conflict.",  
+      "end_text": "Everything, because it's such a mixed picture right now"  
+    },  
+    {  
+      "start": 24.01,  
+      "end": 24.20,  
+      "confidence": 0.98,  
+      "reason": "Emirates' record profit announcement and bonus for employees, highlighting the financial success and employee benefits.",  
+      "end_text": "Everything, everything, everything"  
+    },  
+    {  
+      "start": 24.54,  
+      "end": 25.08,  
+      "confidence": 0.97,  
+      "reason": "Discussion about the new routes announced by Qatar Airways, including the first Middle East route to Venezuela, and the bonuses given to employees, indicating a significant move in the airline market.",  
+      "end_text": "Very soon and yesterday, a day before, announcing their confirmed launch in July to Bogota and Caracas in Venezuela"  
+    },  
+    {  
+      "start": 25.08,  
+      "end": 25.29,  
+      "confidence": 0.95,  
+      "reason": "Discussion about the local market and the new CEO of Bahrain and Gulf Air, with emphasis on the quiet nature of the market due to the war and the potential for increased noise.",  
+      "end_text": "especially if you open Twitter and you kind of see the algorithm of Kuwaiti Twitter"  
+    }  
+  ]  
+}

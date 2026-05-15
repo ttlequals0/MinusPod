@@ -1,0 +1,1 @@
+{ "start": 0.0, "end": 27.2, "confidence": 0.95, "reason": "Hex.ai sponsor read", "end_text": "1500 other customers" }

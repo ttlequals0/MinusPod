@@ -1,0 +1,7 @@
+[
+  {"start": 4646.2, "end": 4674.6, "confidence": 0.95, "reason": "Colgate Women's Games brand tagline ad", "end_text": "your smile is your strength"},
+  {"start": 4705.5, "end": 4733.9, "confidence": 0.95, "reason": "Skinny Pop popcorn brand tagline ad", "end_text": "Perfectly salted. Skinny Pop"},
+  {"start": 4734.3, "end": 4763.1, "confidence": 0.95, "reason": "Colgate Women's Games brand tagline ad", "end_text": "your smile is your strength"},
+  {"start": 4766.5, "end": 4787.9, "confidence": 0.95, "reason": "Viz eye drop brand tagline ad", "end_text": "Learn more at Viz.com"},
+  {"start": 4788.6, "end": 4806.1, "confidence": 0.95, "reason": "Garnier National Park brand tagline ad", "end_text": "GarnierUSA.com slash NPF"}
+]

@@ -1,0 +1,1 @@
+{"start":0.0,"end":58.1,"confidence":0.99,"reason":"Progressive Insurance and Whole Foods Market pre-roll ads merged due to gap under 15 seconds; includes sponsor names, product pitches, and Progressive.com call to action","end_text":"with Whole Foods Market."}

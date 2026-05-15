@@ -1,0 +1,1 @@
+{"start": 836.1, "end": 1456.2, "confidence": 0.0, "reason": "No promotional content detected in transcript segment. Entire segment is technical discussion about mechanical engineering, manufacturing, and design.", "end_text": "seconds as opposed to minutes and again times times hundreds per rack"}

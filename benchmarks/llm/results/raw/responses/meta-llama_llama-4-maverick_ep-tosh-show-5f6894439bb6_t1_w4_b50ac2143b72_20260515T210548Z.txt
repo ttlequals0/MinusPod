@@ -1,0 +1,1 @@
+{"start": 1837.5, "end": 1972.4, "confidence": 0.98, "reason": "Mint Mobile sponsor read followed by two network-inserted retail ads", "end_text": "Aseema offers lease to own transactions"}

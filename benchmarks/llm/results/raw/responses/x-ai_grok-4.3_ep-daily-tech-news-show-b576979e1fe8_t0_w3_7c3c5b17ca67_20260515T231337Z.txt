@@ -1,0 +1,4 @@
+[
+  {"start": 1493.2, "end": 1516.4, "confidence": 0.99, "reason": "Capital One sponsor read", "end_text": "technology at Capital One"},
+  {"start": 1516.9, "end": 1536.8, "confidence": 0.95, "reason": "AllTrails advertisement", "end_text": "find your outside"}
+]

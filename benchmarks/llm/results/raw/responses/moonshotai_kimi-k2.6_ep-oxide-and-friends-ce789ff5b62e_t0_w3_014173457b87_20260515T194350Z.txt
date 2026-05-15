@@ -1,0 +1,1 @@
+{"start": 1233.7, "end": 1870.3, "confidence": 0.99, "reason": "Technical discussion about sheet metal fabrication and hardware manufacturing at Oxide Computer Company. No promotional language, sponsor names, URLs, promo codes, or ad transitions detected. Entirely organic editorial content.", "end_text": "manufacturability of the rack"}

@@ -1,0 +1,1 @@
+{"start": 4193.9, "end": 4220.0, "confidence": 0.98, "reason": "Discussion about clear airflow shrouds, Game Boy Advance style aesthetics, thermoform parts vs injection molding. Show content about mechanical engineering at Oxide.", "end_text": "see into the sled when they're looking at it."}

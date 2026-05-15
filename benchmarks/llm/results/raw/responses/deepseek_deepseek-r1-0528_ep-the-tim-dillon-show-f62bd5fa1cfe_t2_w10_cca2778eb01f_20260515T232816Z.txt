@@ -1,0 +1,7 @@
+{
+  "start": 4646.2,
+  "end": 4806.1,
+  "confidence": 0.99,
+  "reason": "Multiple consecutive ad segments including Colgate, Skinny Pop, Viz, and Garnier with clear promotional content and calls to action",
+  "end_text": "support our national parks at GarnierUSA.com slash NPF"
+}

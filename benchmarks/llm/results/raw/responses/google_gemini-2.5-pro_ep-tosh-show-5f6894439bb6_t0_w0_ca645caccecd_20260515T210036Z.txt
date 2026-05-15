@@ -1,0 +1,23 @@
+[
+  {
+    "start": 0.0,
+    "end": 58.1,
+    "confidence": 0.98,
+    "reason": "Ad break containing Progressive Insurance and Whole Foods Market ads.",
+    "end_text": "with Whole Foods Market."
+  },
+  {
+    "start": 537.0,
+    "end": 567.0,
+    "confidence": 0.98,
+    "reason": "Thrive Cosmetics sponsor read with promo code.",
+    "end_text": "Shine 26."
+  },
+  {
+    "start": 594.7,
+    "end": 597.3,
+    "confidence": 0.9,
+    "reason": "Partial Mattress Warehouse network-inserted brand tagline ad.",
+    "end_text": "at Mattress Warehouse."
+  }
+]

@@ -1,0 +1,1 @@
+{"start": 618.7, "end": 784.6, "confidence": 0.99, "reason": "Multiple host-read and network-inserted ads: Parloa, Capital One, AllTrails, Zinn, Good Things from Lemonada Media", "end_text": "we need to know today. Let's get to the briefs."}

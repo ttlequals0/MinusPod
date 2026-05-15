@@ -1,0 +1,4 @@
+[
+  {"start": 2246.0, "end": 2275.3, "confidence": 0.98, "reason": "Capital One sponsor read", "end_text": "technology at Capital One"},
+  {"start": 2276.2, "end": 2314.4, "confidence": 0.97, "reason": "Rinse laundry service ad", "end_text": "time to be great"}
+]

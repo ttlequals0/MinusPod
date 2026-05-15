@@ -1,0 +1,46 @@
+{  
+  "ad_segments": [  
+    {  
+      "start": 428.3,  
+      "end": 446.8,  
+      "confidence": 0.95,  
+      "reason": "Jason Howell discusses the Motorola Razr Fold as a competitor to the Galaxy Z Fold 7, highlighting its form factor and potential appeal.",  
+      "end_text": "book style approach"  
+    },  
+    {  
+      "start": 468.2,  
+      "end": 482.6,  
+      "confidence": 0.90,  
+      "reason": "Jason Howell expresses interest in the Motorola Razr Fold's form factor and its potential differentiation from other devices.",  
+      "end_text": "book style"  
+    },  
+    {  
+      "start": 504.0,  
+      "end": 519.5,  
+      "confidence": 0.85,  
+      "reason": "Jason Howell considers the Motorola Razr Fold's form factor as a potential entry point for foldable phones and expresses hope for its success.",  
+      "end_text": "next foldable move"  
+    },  
+    {  
+      "start": 536.8,  
+      "end": 537.1,  
+      "confidence": 0.80,  
+      "reason": "Jason Howell mentions the Motorola Razr Fold's design, comparing it to Polaroid cameras and noting its unique form factor.",  
+      "end_text": "book style"  
+    },  
+    {  
+      "start": 664.6,  
+      "end": 671.5,  
+      "confidence": 0.75,  
+      "reason": "Jason Howell discusses the features of the Motorola Razr Fold, including its app availability and the benefits of its design.",  
+      "end_text": "find your outside"  
+    },  
+    {  
+      "start": 744.8,  
+      "end": 748.3,  
+      "confidence": 0.70,  
+      "reason": "Jason Howell mentions the product contains nicotine, which is not related to the Motorola Razr Fold but is included as a sponsor segment.",  
+      "end_text": "nicotine is an addictive chemical"  
+    }  
+  ]  
+}

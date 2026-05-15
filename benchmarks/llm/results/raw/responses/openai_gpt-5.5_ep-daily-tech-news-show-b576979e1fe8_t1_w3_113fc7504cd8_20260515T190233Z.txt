@@ -1,0 +1,1 @@
+{"start":1493.2,"end":1536.8,"confidence":0.99,"reason":"Sponsor/ad break: Capital One promotional read followed by AllTrails app promotion with call to action to download the free app","end_text":"and find your outside"}

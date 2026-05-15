@@ -1,0 +1,9 @@
+[
+  {
+    "start": 945.1,
+    "end": 969.1,
+    "confidence": 0.95,
+    "reason": "Host promotes a shoe website as a Mother's Day gift, including product pitch and call to action",
+    "end_text": "good shoes."
+  }
+]

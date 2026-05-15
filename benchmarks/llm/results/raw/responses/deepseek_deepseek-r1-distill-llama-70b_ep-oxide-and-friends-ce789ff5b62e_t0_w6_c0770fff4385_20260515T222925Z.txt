@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2595.1,
+    "end": 2622.6,
+    "confidence": 0.8,
+    "reason": "Host transition to break",
+    "end_text": "so we really want to understand what the mechanical consequences were um so elliot how did you model that what what does that look like and brian has actually railed on me for this um for saying that it's not any more complicated than undergraduate statics class oh so they would i personally did not rail on you i was i just wanted i want to be very clear about that the"
+  }
+]

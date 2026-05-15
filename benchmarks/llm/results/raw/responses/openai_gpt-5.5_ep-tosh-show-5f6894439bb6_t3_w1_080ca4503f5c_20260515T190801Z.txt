@@ -1,0 +1,1 @@
+{"start":524.1,"end":654.3,"confidence":0.98,"reason":"Ad break introduced by 'We'll be right back'; includes Thrive Cosmetics promo with URL/offer, Mattress Warehouse tagline, and PC Richard & Son/Azima lease-to-own promotion with URL/details","end_text":"PCRichard.com slash Asima dot HTML for details"}

@@ -1,0 +1,1 @@
+{"start": 1810.3, "end": 1999.5, "confidence": 0.98, "reason": "Mint Mobile sponsor read plus Mattress Warehouse and PC Richard & Son ads", "end_text": "HTML for details."}

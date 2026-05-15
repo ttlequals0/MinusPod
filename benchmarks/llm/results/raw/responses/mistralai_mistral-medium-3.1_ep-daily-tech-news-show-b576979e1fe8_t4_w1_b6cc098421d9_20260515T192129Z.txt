@@ -1,0 +1,30 @@
+[
+    {
+        "start": 636.8,
+        "end": 671.5,
+        "confidence": 0.98,
+        "reason": "Parloa sponsor read",
+        "end_text": "P-A-R-L-O-A dot com"
+    },
+    {
+        "start": 674.0,
+        "end": 717.6,
+        "confidence": 0.95,
+        "reason": "Capital One sponsor read",
+        "end_text": "technology at Capital One"
+    },
+    {
+        "start": 718.8,
+        "end": 744.1,
+        "confidence": 0.97,
+        "reason": "Zinn Nicotine Pouches sponsor read",
+        "end_text": "nicotine products are sold near you"
+    },
+    {
+        "start": 749.6,
+        "end": 776.6,
+        "confidence": 0.9,
+        "reason": "Lemonada Media promo",
+        "end_text": "Good Things from Lemonada Media"
+    }
+]

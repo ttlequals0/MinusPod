@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2609.5,
+    "end": 2634.3,
+    "confidence": 0.9,
+    "reason": "Host mentions common podcast sponsors and promo codes",
+    "end_text": "Stamps.com,"
+  }
+]

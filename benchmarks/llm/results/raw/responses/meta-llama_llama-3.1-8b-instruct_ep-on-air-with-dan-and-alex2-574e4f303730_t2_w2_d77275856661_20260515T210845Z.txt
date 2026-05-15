@@ -1,0 +1,1 @@
+{ "start": 1331.2, "end": 1369.1, "confidence": 0.95, "reason": "Ryanair's CEO O'Leary wants drinking culture associated with their travel to be brought in line with standard UK licensing hours", "end_text": "perfectly normal in the confines of an airport" }

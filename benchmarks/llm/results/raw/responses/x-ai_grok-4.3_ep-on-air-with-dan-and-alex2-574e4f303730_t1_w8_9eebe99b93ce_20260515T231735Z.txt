@@ -1,0 +1,4 @@
+[
+  {"start": 3428.1, "end": 3457.8, "confidence": 0.95, "reason": "Arizona State University produced ad with URL and tagline", "end_text": "That's a degree better."},
+  {"start": 3458.8, "end": 3486.2, "confidence": 0.95, "reason": "University of Michigan produced ad with URL", "end_text": "solutions at umich.edu"}
+]

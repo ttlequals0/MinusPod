@@ -1,0 +1,1 @@
+{"start": 2609.5, "end": 2700.0, "confidence": 0.95, "reason": "List of sponsor names and promo codes", "end_text": "it's now a bilateral diplomatic state weapon that if there is a significant aircraft order it's not simply the airline CEO present"}

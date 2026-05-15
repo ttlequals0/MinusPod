@@ -1,0 +1,11 @@
+{
+    "segments": [
+        {
+            "start": 2609.5,
+            "end": 2634.3,
+            "confidence": 0.95,
+            "reason": "Host-read sponsor segment listing promo codes and brand names",
+            "end_text": "AG1, BetterHelp, Squarespace, ZipRecruiter, Raycon, Manscaped, Stamps.com"
+        }
+    ]
+}

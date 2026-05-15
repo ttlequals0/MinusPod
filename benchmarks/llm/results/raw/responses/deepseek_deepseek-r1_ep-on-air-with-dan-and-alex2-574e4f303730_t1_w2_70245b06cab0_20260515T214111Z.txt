@@ -1,0 +1,7 @@
+[{
+    "start": 1139.5,
+    "end": 1168.4,
+    "confidence": 0.95,
+    "reason": "Repeated 'discount code' phrases indicating dynamic ad insertion placeholder",
+    "end_text": "discount code, discount code"
+}]

@@ -1,0 +1,1 @@
+{"start":1293.0,"end":1356.0,"confidence":0.22,"reason":"No advertisement detected; transcript contains editorial discussion of Microsoft driver rollback features, not promotional sponsor language","end_text":"carefully over their full lifecycle. So, yeah"}

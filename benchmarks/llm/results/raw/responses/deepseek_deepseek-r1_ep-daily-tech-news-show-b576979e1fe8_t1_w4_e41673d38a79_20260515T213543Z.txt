@@ -1,0 +1,16 @@
+[
+  {
+    "start": 2015.9,
+    "end": 2045.2,
+    "confidence": 0.97,
+    "reason": "Capital One host-read sponsor segment with product features and branding",
+    "end_text": "That's technology at Capital One"
+  },
+  {
+    "start": 2046.3,
+    "end": 2073.2,
+    "confidence": 0.96,
+    "reason": "Lemonada Media network-inserted ad with call to action ('Tune in')",
+    "end_text": "hear the six-part Thrive series"
+  }
+]

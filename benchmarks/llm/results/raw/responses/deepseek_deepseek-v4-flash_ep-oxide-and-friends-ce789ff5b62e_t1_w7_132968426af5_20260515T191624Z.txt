@@ -1,0 +1,7 @@
+{
+  "start": 2931.2,
+  "end": 3540.0,
+  "confidence": 0.0,
+  "reason": "No promotional content found in this transcript window. The discussion is entirely about mechanical engineering topics including HiPot testing, 3D printing vs injection molding, and part design. No sponsor names, URLs, promo codes, calls to action, or network-inserted ads are present.",
+  "end_text": "direction that I want to?"
+}

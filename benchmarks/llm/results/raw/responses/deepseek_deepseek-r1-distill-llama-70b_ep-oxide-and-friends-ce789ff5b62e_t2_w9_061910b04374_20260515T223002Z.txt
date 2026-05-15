@@ -1,0 +1,7 @@
+{
+  "start": 3765.7,
+  "end": 3789.8,
+  "confidence": 0.95,
+  "reason": "Host-read sponsor segment mentioning Oxide",
+  "end_text": "engineered."
+}

@@ -1,0 +1,7 @@
+{
+  "start": 1676.3,
+  "end": 2285.2,
+  "confidence": 0.95,
+  "reason": "Discussion of mechanical engineering challenges and manufacturing improvements at Oxide",
+  "end_text": "sheet metal. So..."
+}

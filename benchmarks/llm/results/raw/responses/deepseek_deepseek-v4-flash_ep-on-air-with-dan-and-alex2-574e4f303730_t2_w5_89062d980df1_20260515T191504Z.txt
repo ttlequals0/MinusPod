@@ -1,0 +1,7 @@
+{
+  "start": 2609.5,
+  "end": 2634.3,
+  "confidence": 0.95,
+  "reason": "Host-read ad segment containing promotional language: 'promo code, discount code, sponsored by, Athletic Greens, AG1, BetterHelp, Squarespace, ZipRecruiter, Raycon, Manscaped, Stamps.com'",
+  "end_text": "Manscaped, Stamps.com"
+}

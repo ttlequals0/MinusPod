@@ -1,0 +1,4 @@
+[
+  {"start": 16.7, "end": 84.9, "confidence": 0.98, "reason": "OutSystems sponsor read", "end_text": "OutSystems.com slash twit"},
+  {"start": 445.6, "end": 572.1, "confidence": 0.97, "reason": "Zscaler sponsor read after break announcement", "end_text": "Security Now. Thank you, Leo"}
+]

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1439.2,
+    "end": 1665.9,
+    "confidence": 0.95,
+    "reason": "consecutive host-read and produced ads for Mint Mobile, Aura Frames, Colgate, Skinny Pop",
+    "end_text": "Skinny Pop."
+  }
+]

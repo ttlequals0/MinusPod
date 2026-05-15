@@ -1,0 +1,9 @@
+{"ads": [ 
+    {
+        "start": 1837.5,
+        "end": 1861.3,
+        "confidence": 0.98,
+        "reason": "Mint Mobile sponsor read",
+        "end_text": "wireless carriers also seemed"
+    }
+] }

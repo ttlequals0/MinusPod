@@ -1,0 +1,1 @@
+{"start":2015.9,"end":2073.2,"confidence":0.98,"reason":"Post-roll ad block: Capital One sponsor read followed by Lemonada Media cross-promo for Good Things; merged because gap is under 15 seconds","end_text":"the six-part Thrive series"}

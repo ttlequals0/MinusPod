@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1246.0,
+    "end": 1879.5,
+    "confidence": 0.0,
+    "reason": "No promotional content detected; entire segment is editorial discussion about Ryanair, alcohol bans, and travel culture",
+    "end_text": "pay a thousand euros more"
+  }
+]

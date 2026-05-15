@@ -1,0 +1,16 @@
+[
+    {
+        "start": 0.0,
+        "end": 30.3,
+        "confidence": 0.99,
+        "reason": "Hex.ai host-read sponsor segment with promotional language, URL, and call to action",
+        "end_text": "Hex.ai."
+    },
+    {
+        "start": 30.9,
+        "end": 59.8,
+        "confidence": 0.98,
+        "reason": "PickOCNY.com destination promotion with promotional language, URL, and activities pitch",
+        "end_text": "your fresh state of mind at PickOCNY.com."
+    }
+]

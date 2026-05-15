@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1837.5,
+    "end": 1999.5,
+    "confidence": 0.99,
+    "reason": "A multi-part ad break beginning with a host-read ad for Mint Mobile, followed by network-style ads for Mattress Warehouse and PC Richard & Son.",
+    "end_text": "Aseema dot HTML for details."
+  }
+]

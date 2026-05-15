@@ -1,0 +1,1 @@
+[{"start": 591.3, "end": 1020.0, "confidence": 0.98, "reason": "Multiple sponsor segments including Parloa, Capital One, AllTrails, Zinn Nicotine Pouches, and Good Things from Lemonada Media", "end_text": "Thrive series"}]

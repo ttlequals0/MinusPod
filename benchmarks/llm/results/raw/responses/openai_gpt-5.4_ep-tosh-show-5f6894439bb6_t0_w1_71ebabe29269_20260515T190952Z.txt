@@ -1,0 +1,1 @@
+{"start":524.1,"end":631.0,"confidence":0.98,"reason":"Ad break begins with transition phrase and includes Thrive Cosmetics sponsor read with URL plus additional retail/lease promotion spots; segment merged due to short gaps","end_text":"family owned and operated for 116 years"}

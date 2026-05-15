@@ -1,0 +1,16 @@
+[
+  {
+    "start": 591.3,
+    "end": 618.7,
+    "confidence": 0.9,
+    "reason": "Host-read thank you to Patreon supporters, which serves as a promotion for the show's listener-funded model.",
+    "end_text": "Adam L., and Philip Less. Thank you."
+  },
+  {
+    "start": 636.8,
+    "end": 776.6,
+    "confidence": 1.0,
+    "reason": "A block of multiple ads for sponsors Parloa, Capital One, AllTrails, Zinn, and a cross-promotion for the podcast 'Good Things from Lemonada Media'.",
+    "end_text": "the six-part Thrive series."
+  }
+]

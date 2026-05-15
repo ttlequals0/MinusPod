@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2015.9,
+    "end": 2073.2,
+    "confidence": 0.99,
+    "reason": "Capital One sponsor read followed by Lemonada Media cross-promotion ad with <15s gap",
+    "end_text": "hear the six-part Thrive series"
+  }
+]

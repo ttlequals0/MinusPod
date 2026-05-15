@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1836.9,
+    "end": 1999.5,
+    "confidence": 0.98,
+    "reason": "Multiple sponsor ads: Mint Mobile, Mattress Warehouse, PC Richard & Son",
+    "end_text": "Aseema dot HTML for details."
+  }
+]

@@ -1,0 +1,6 @@
+[{"start": 566.5, "end": 567.0, "confidence": 0.95, "reason": "Thrive Cosmetics product promotion", "end_text": "shone26"}}[{"start": 566.5, "end": 567.0, "confidence": 0.95, "reason": "Thrive Cosmetics product promotion", "end_text": "shone26"}]  
+
+**Explanation**:  
+- The Thrive Cosmetics segment (566.5s-567.0s) includes promotional language ("amplifying everyday looks," "20% off"), a URL (`thrivecosmetics.com/slash shine26`), and a promo code (`shone26`).  
+- No transition phrase ("let's take a break") is present, but platform-inserted product ads (like Thrive Cosmetics) are explicitly flagged as ads even without traditional ad markers.  
+- Other segments (e.g., Mattress Warehouse, PC Richard & Son) lack clear promotional intent or fall outside the window’s focus on Mother’s Day content.

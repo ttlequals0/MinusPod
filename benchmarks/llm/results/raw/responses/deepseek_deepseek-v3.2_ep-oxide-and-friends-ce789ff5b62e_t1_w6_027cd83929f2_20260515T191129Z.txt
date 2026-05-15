@@ -1,0 +1,1 @@
+{"start": 2520.0, "end": 3120.0, "confidence": 0.0, "reason": "No promotional content found in transcript segment. Content is purely technical discussion about mechanical engineering and rack design.", "end_text": "cabled rack that does not yet have sleds to find issues earlier. And when we find those issues, the cubbies can be pulled out and analyzed to see where the potential"}

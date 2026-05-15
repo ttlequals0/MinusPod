@@ -1,0 +1,11 @@
+{  
+  "window": [  
+    {  
+      "start": 21.0,  
+      "end": 31.0,  
+      "confidence": 0.95,  
+      "reason": "The window covers the segment where the host discusses the Motorola Razr Fold and Microsoft's driver quality initiative, including the introduction of CIDR and the Driver Quality Initiative. The host mentions the nostalgia associated with Windows devices and the automatic rollback feature, which is relevant to the ad content.",  
+      "end_text": "Microsoft announced the Driver Quality Initiative to stop bad drivers before they reach your PC."  
+    }  
+  ]  
+}

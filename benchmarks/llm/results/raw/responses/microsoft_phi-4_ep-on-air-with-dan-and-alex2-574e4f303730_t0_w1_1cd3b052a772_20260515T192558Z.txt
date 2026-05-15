@@ -1,0 +1,7 @@
+{
+  "start": 461.2,
+  "end": 550.1,
+  "confidence": 0.95,
+  "reason": "The segment discusses the potential survival of Wizz Air through the winter, highlighting the strategic decision between Wizz Air and Ryanair, and the implications for travelers. It also touches on the debate regarding the name of the Air France KLM group, which is relevant to the main topic.",
+  "end_text": "Wizz Air will survive the winter, Ryanair or Wizz Air, and the name debate for Air France KLM."
+}

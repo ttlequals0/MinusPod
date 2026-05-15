@@ -1,0 +1,1 @@
+{"start": 524.1, "end": 654.3, "confidence": 0.98, "reason": "Host transition followed by Thrive Cosmetics and PC Richard & Son ads", "end_text": "PCRichard.com slash Asima dot HTML for details"}

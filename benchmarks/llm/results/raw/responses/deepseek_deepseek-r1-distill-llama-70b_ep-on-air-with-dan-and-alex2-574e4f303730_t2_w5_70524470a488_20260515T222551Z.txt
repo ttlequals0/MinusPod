@@ -1,0 +1,6 @@
+{
+  "transcript": "...",
+  "window_start": 35.0,
+  "window_end": 45.0,
+  "ads": []
+}

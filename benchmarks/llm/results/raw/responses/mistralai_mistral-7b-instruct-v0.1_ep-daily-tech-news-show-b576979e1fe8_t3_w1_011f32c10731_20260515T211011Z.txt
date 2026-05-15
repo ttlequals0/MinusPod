@@ -1,0 +1,27 @@
+ [1021.4s - 1033.5s] Ad: Insta360 Go 3S Retro Bundle (continues from previous)
+[1033.5s - 1045.3s] Insta360 launched the Go 3S Retro Bundle. It's a special edition of its compact 4K action camera. This one swaps the standard boxy design with a longer, slimmer design that's meant to give some serious Polaroid nostalgia. It does. It's kind of like that long, slender Polaroid kind of approach. It swaps the flip-out LCD display with a waist-level optical viewfinder. The Go 3S Retro Bundle is available now for $299.99. Visit Insta360.com to learn more and order yours today. Let's take a break and hear from our sponsors.
+
+[1045.3s - 1061.2s] Transition: Let's take a break and hear from our sponsors.
+[1061.2s - 1063.5s] Silence (not an ad)
+
+[1063.5s - 1081.2s] Ad: Acast (starts in this window)
+[1063.5s - 1066.3s] Transition: Let's take a break and hear from our sponsors.
+[1066.3s - 1069.3s] Sound effect: Chiming bells
+[1069.3s - 1072.5s] Voiceover: Today's episode of the Daily Tech News Show is brought to you by Acast.
+[1072.5s - 1075.8s] Voiceover: Acast is the world's leading podcast company, connecting listeners with the shows they love.
+[1075.8s - 1079.1s] Voiceover: With Acast, you can discover new shows, access exclusive content, and enjoy a seamless listening experience.
+[1079.1s - 1081.2s] Voiceover: Visit Acast.com/dtns to learn more and start listening today.
+
+[1081.2s - 1093.5s] Transition: And we're back on the Daily Tech News Show.
+[1093.5s - 1119.8s] The Big 3 US carriers, AT&T, Verizon, and T-Mobile, are banding together to improve satellite connectivity throughout the country. This is a big deal for rural areas and for people who travel frequently. The carriers plan to invest billions of dollars in this project, which could lead to faster internet speeds and better coverage for millions of people. This is a positive move in the direction of better connectivity for all.
+
+[1119.8s - 1135.5s] The Motorola Razr Fold is a noble competitor to the Samsung Galaxy Z Fold 7. The Razr Fold has a more affordable price point and a unique design that sets it apart from the competition. It's a foldable phone that can be used as a regular phone or folded in half to become a compact device. This is a great option for people who want a high-end phone but don't want to pay the premium price for the latest and greatest model. The Razr Fold is definitely worth considering if you're in the market for a new phone.
+
+[1135.5s - 1151.2s] Ad: Airtable (starts in this window, continues in next)
+[1135.5s - 1138.5s] Transition: And that's all the time we have for today. But before we go, let's hear from our sponsor Airtable.
+[1138.5s - 1141.8s] Sound effect: Chiming bells
+[1141.8s - 1144.8s] Voiceover: Today's episode of the Daily Tech News Show is brought to you by Airtable.
+[1144.8s - 1148.1s] Voiceover: Airtable is a powerful database that's easy to use and flexible enough for any workflow.
+[1148.1s - 1151.2s] Voiceover: Sign up for a free account today and join the millions of users who have transformed the way they work with Airtable. Visit Airtable.com/signup to get started. Let's take a break and hear more from our sponsors.
+
+[1151.2s - end] Silence (not an ad)

@@ -1,0 +1,5 @@
+{
+  "transcript": " [2609.5s - 2634.3s] promo code, discount code, sponsored by, Athletic Greens, AG1, BetterHelp, Squarespace, ZipRecruiter, Raycon, Manscaped, Stamps.com, \n[2633.6s - 2661.6s] The bottom line financials that the individuals fill. Since Emirates have announced their financial results, when I walk through the airport and I see or I come across airline sector staff that know me or know us from the podcast and so on, the second or third question is about bonuses. Did you see Emirates, what they've given to the staff? Do you know if other airlines are going to follow suit? Did you see the big profits that Emirates announced and how that was a bonus? Do you think X will, you know, so it's a...",
+  "window_start": 42.0,
+  "window_end": 52.0
+}

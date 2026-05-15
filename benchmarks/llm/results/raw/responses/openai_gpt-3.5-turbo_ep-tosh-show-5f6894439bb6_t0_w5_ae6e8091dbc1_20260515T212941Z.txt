@@ -1,0 +1,7 @@
+{
+	"start": 2412.8,
+	"end": 2427.6,
+	"confidence": 0.95,
+	"reason": "HealthCast by Stony Brook Medicine ad",
+	"end_text": "health.stonybrookmedicine.edu/podcasts"
+}

@@ -1,0 +1,1 @@
+{"start": 2609.5, "end": 2634.3, "confidence": 0.42, "reason": "Dynamic insertion listing multiple sponsor names with promotional language", "end_text": "Raycon, Manscaped, Stamps.com"}

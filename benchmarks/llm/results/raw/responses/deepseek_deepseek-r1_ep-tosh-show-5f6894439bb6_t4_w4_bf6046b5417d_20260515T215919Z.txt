@@ -1,0 +1,23 @@
+[
+  {
+    "start": 1837.5,
+    "end": 1912.2,
+    "confidence": 0.98,
+    "reason": "Mint Mobile host-read ad with URL mintmobile.com/tosh",
+    "end_text": "See Mint Mobile for details"
+  },
+  {
+    "start": 1913.4,
+    "end": 1942.4,
+    "confidence": 0.97,
+    "reason": "Mattress Warehouse network-inserted ad with Memorial Day sale promotion",
+    "end_text": "only at Mattress Warehouse"
+  },
+  {
+    "start": 1943.2,
+    "end": 1999.5,
+    "confidence": 0.97,
+    "reason": "PC Richard & Son network-inserted ad for Aseema Lease program with URL PCRichard.com",
+    "end_text": "visit PCRichard.com slash Aseema"
+  }
+]

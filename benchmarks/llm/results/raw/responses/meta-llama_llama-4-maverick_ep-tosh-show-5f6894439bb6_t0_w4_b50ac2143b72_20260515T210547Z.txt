@@ -1,0 +1,1 @@
+{"start": 1837.5, "end": 1972.4, "confidence": 0.98, "reason": "Mint Mobile and Mattress Warehouse ads", "end_text": "PC Richard & Son."}

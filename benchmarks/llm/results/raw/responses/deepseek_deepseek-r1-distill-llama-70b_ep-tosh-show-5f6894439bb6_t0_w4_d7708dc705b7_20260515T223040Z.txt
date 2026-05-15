@@ -1,0 +1,7 @@
+{
+  "start": 1836.9,
+  "end": 1942.4,
+  "confidence": 0.95,
+  "reason": "Mint Mobile and Mattress Warehouse ads",
+  "end_text": "only at Mattress Warehouse"
+}

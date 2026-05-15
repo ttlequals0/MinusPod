@@ -1,0 +1,7 @@
+{
+  "start": 3344.8,
+  "end": 3370.2,
+  "confidence": 0.95,
+  "reason": "Material thicknesses discussion",
+  "end_text": "of a mold, right? You get a lot of drag."
+}

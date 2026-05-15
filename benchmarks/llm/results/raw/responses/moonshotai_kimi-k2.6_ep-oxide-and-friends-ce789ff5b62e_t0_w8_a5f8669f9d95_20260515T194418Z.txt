@@ -1,0 +1,22 @@
+                         
+  	 	   	 	 	 	 	 	 	 	 
+ 	 		 	 	 	 	 	 	 	 	 
+ 	 			 	 	 	 	 	 	 	 	 
+ 	 				 	 	 	 	 	 	 	 	 
+ 	 					 	 	 	 	 	 	 	 	 
+ 	 						 	 	 	 	 	 	 	 	 
+ 	 							 	 	 	 	 	 	 	 	 
+ 	 								 	 	 	 	 	 	 	 	 
+ 	 									 	 	 	 	 	 	 	 	 
+ 	 										 	 	 	 	 	 	 	 	 
+ 	 											 	 	 	 	 	 	 	 	 
+ 	 												 	 	 	 	 	 	 	 	 
+ 	 													 	 	 	 	 	 	 	 	 
+ 	 														 	 	 	 	 	 	 	 	 
+ 	 															 	 	 	 	 	 	 	 	 
+ 	 																 	 	 	 	 	 	 	 	 
+ 	 																	 {
+"detected_ads": [],
+"reasoning": "The transcript contains a continuous technical discussion about mechanical engineering and manufacturing processes (injection molding vs. 3D printing, SolidWorks CAD tools, transceiver/SSD blanks, EMI/thermal compliance, cost analysis). There are no sponsor names, URLs, promo codes, calls to action, transition phrases ('let's take a break', 'brought to you by'), platform-inserted promos, cross-promotions, network promos, or concentrated brand tagline ads. Brand mentions (e.g., SolidWorks) occur only as organic references within the engineering workflow discussion without any promotional language.",
+"output": []
+}

@@ -1,0 +1,1 @@
+{"start": 0.0, "end": 22.1, "confidence": 0.99, "reason": "Progressive Insurance host-read ad with URL and call to action", "end_text": "Not available in all states."}

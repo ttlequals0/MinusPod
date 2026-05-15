@@ -1,0 +1,7 @@
+{
+"start": 2255.4,
+"end": 2285.2,
+"confidence": 0.95,
+"reason": "Safety issue discussion",
+"end_text": "hole in the sheet metal. So..."
+}

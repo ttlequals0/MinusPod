@@ -1,0 +1,25 @@
+{
+"ads": [
+    {
+      "start": 619.0,
+      "end": 658.8,
+      "confidence": 0.98,
+      "reason": "Parloa sponsor read",
+      "end_text": "parloa.com"
+    },
+    {
+      "start": 664.6,
+      "end": 697.3,
+      "confidence": 0.98,
+      "reason": "Capital One sponsor read",
+      "end_text": "Capital One"
+    },
+    {
+      "start": 718.8,
+      "end": 744.1,
+      "confidence": 0.95,
+      "reason": "Zinn Nicotine Pouches ad",
+      "end_text": "Find your Zinn"
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+[{"start": 2412.8, "end": 2427.6, "confidence": 0.9, "reason": "HealthCast by Stony Brook Medicine sponsor read", "end_text": "slash podcasts"}, {"start": 2428.9, "end": 2484.9, "confidence": 0.95, "reason": "PC Richard & Son lease-to-own program ad", "end_text": "for details."}]

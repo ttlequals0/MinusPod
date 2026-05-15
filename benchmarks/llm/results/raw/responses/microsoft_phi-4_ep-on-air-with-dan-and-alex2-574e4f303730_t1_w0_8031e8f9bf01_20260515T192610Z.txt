@@ -1,0 +1,9 @@
+[  
+  {  
+    "start": 0.0,  
+    "end": 59.8,  
+    "confidence": 0.98,  
+    "reason": "Hex.ai and PickOCNY.com sponsor reads with promotional language",  
+    "end_text": "PickOCNY.com."  
+  }  
+]

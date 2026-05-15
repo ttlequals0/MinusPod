@@ -1,0 +1,7 @@
+{
+	"start": 1440.0,
+	"end": 1449.3,
+	"confidence": 1.0,
+	"reason": "Non-promotional conversation about Mother's Day plans",
+	"end_text": "where they'd be like, which mother here had the son?"
+}

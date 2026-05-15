@@ -1,0 +1,1 @@
+{"start": 2015.9, "end": 2045.2, "confidence": 0.99, "reason": "Capital One sponsor ad with explicit promotional language about Chat Concierge and Capital One technology", "end_text": "technology at Capital One."}

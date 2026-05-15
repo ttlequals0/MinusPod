@@ -1,0 +1,7 @@
+{
+  "start": 1139.5,
+  "end": 1168.4,
+  "confidence": 0.15,
+  "reason": " Repeated 'promo code / discount code' with no brand, URL, or sponsor identified. Context shows it's a comedic bit about Americans talking loudly in airport lounges, not a compensated product promotion. No ad markers detected in window.",
+  "end_text": "discount code, discount code, discount code"
+}

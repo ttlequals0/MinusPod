@@ -1,0 +1,1 @@
+{"start": 5069.8, "end": 5069.8, "confidence": 0.99, "reason": "No advertisement content detected in transcript window. Final segment is organic outro and company hiring mention, not a paid sponsor read.", "end_text": "see you all next time."}

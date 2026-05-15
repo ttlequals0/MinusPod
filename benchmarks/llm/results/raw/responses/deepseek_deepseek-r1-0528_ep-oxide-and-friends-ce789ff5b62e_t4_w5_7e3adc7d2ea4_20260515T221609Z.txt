@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2568.1,
+    "end": 2594.7,
+    "confidence": 0.95,
+    "reason": "Host mentions 'let's take this opportunity' and transitions to discussing design changes, but no explicit ad content found",
+    "end_text": "acceptable change for our rack"
+  }
+]

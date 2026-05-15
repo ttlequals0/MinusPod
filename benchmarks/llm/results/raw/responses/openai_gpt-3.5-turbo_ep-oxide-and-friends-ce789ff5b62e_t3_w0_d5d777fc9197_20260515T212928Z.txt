@@ -1,0 +1,7 @@
+{
+	"start": 0.0,
+	"end": 7.6,
+	"confidence": 1.0,
+	"reason": "Non-ad content",
+	"end_text": "Hello. Hello, hello. Either that or Brian's gotten really good at doing impressions."
+}

@@ -1,0 +1,1 @@
+ {"start": 0.0, "end": 104.3, "confidence": 0.99, "reason": "Merged sponsor block: Capital One, Every Brilliant Thing Broadway, All Trails, and Zinn Nicotine Pouches with required nicotine warning", "end_text": "is an addictive chemical."}

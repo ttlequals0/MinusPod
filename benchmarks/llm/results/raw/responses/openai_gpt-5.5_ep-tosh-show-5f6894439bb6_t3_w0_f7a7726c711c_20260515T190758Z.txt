@@ -1,0 +1,1 @@
+{"start":0.0,"end":58.1,"confidence":0.99,"reason":"Pre-roll ads for Progressive Insurance and Whole Foods Market with sponsor language, product pitches, and URL/call to action","end_text":"with Whole Foods Market"}

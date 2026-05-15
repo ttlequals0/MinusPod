@@ -1,0 +1,7 @@
+{
+  "start": 14.0,
+  "end": 24.0,
+  "confidence": 0.95,
+  "reason": "The segment discusses the European airline group's proposal to ban alcohol sales before flights, highlighting the cultural and operational challenges associated with this policy. It includes a discussion on the impact of such a ban on passengers and crew, emphasizing the need for consistent alcohol policies across airports and airlines.",
+  "end_text": "it also needs to be banned on board"
+}

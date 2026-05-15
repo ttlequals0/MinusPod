@@ -1,0 +1,7 @@
+[{
+  "start": 2609.5,
+  "end": 2634.3,
+  "confidence": 0.98,
+  "reason": "Explicit sponsor list including Athletic Greens, BetterHelp, Squarespace, and other known podcast advertisers",
+  "end_text": "Stamps.com"
+}]

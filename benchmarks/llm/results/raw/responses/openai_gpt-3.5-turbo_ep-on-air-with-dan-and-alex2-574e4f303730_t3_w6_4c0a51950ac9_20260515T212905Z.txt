@@ -1,0 +1,7 @@
+{
+	"start": 2609.5,
+	"end": 2661.6,
+	"confidence": 0.95,
+	"reason": "Multiple sponsor mentions - Athletic Greens, AG1, BetterHelp, Squarespace, ZipRecruiter, Raycon, Manscaped, Stamps.com",
+	"end_text": "Stamps.com"
+}

@@ -1,0 +1,5 @@
+{
+  "transcript": " [2609.5s - 2634.3s] promo code, discount code, sponsored by, Athletic Greens, AG1, BetterHelp, Squarespace, ZipRecruiter, Raycon, Manscaped, Stamps.com,",
+  "window_start": 42.0,
+  "window_end": 52.0
+}

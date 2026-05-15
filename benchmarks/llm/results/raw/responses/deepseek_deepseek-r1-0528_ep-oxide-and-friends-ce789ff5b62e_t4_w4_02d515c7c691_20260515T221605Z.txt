@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1676.3,
+    "end": 2285.2,
+    "confidence": 0.0,
+    "reason": "No promotional content detected",
+    "end_text": "hole in the"
+  }
+]

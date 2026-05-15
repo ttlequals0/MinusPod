@@ -1,0 +1,3 @@
+[
+{"start": 0.5, "end": 43.4, "confidence": 0.95, "reason": "Carvana sponsor read with promo language and CTA", "end_text": "Sell your car today on Carvana"}
+]

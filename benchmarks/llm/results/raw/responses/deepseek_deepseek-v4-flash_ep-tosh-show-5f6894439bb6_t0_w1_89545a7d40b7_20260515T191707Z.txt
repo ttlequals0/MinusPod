@@ -1,0 +1,5 @@
+{"ads": [
+  {"start": 524.1, "end": 567.0, "confidence": 0.97, "reason": "Host-read Thrive Cosmetics ad with promo code and URL", "end_text": "thrivecosmetics.com slash shine26 shine 26"},
+  {"start": 594.7, "end": 597.3, "confidence": 0.90, "reason": "Mattress Warehouse tagline ad (network-inserted short brand spot)", "end_text": "Only at Mattress Warehouse."},
+  {"start": 617.2, "end": 654.3, "confidence": 0.92, "reason": "PC Richard & Son / Asima lease-to-own ad with disclaimers", "end_text": "participating locations only."}
+]}

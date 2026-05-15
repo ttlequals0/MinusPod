@@ -1,0 +1,1 @@
+[{"start": 524.1, "end": 567.0, "confidence": 0.98, "reason": "Thrive Cosmetics sponsor read with transition", "end_text": "dot com slash shine26. Shine 26."}, {"start": 594.7, "end": 654.3, "confidence": 0.97, "reason": "PC Richard & Son and Asima retail ad", "end_text": "Asima dot HTML for details."}]

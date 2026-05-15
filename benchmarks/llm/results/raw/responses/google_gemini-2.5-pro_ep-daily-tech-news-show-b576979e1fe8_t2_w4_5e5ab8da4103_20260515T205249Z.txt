@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2015.9,
+    "end": 2073.2,
+    "confidence": 0.99,
+    "reason": "A network-inserted ad for Capital One, followed by a cross-promotion for the 'Good Things from Lemonada Media' podcast.",
+    "end_text": "the six-part Thrive series."
+  }
+]

@@ -1,0 +1,1 @@
+[{"start": 0.0, "end": 104.3, "confidence": 1.0, "reason": "Multiple consecutive ads: Capital One (tech), Every Brilliant Thing (Broadway show), All Trails (app), Zinn (nicotine pouches) with gaps <15s", "end_text": "Nicotine is an addictive chemical."}]

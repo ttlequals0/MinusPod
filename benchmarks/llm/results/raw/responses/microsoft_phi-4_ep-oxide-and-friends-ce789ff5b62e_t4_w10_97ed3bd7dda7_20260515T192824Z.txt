@@ -1,0 +1,7 @@
+{  
+  "start": 47.23,  
+  "end": 48.00,  
+  "confidence": 0.95,  
+  "reason": "The discussion about the transition from welding to riveting in the manufacturing process of racks is a high-confidence ad segment due to its detailed technical nature and the mention of specific changes and improvements in the process.",  
+  "end_text": "Instead of having to take this rack and like jigger it into this whole contraption, they can just line a piece up, bang bang, slap two rivets in, put the next piece on, bang bang, slap two rivets in. And instead of it being several people taking a lot of time to carefully align all of this, that alignment is built into the geometry of the metal itself. And then once those rivets are in, they can just kind of step back."  
+}

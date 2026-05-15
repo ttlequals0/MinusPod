@@ -1,0 +1,1 @@
+{"start": 618.7, "end": 782.3, "confidence": 0.98, "reason": "Multiple back-to-back sponsor reads including Parloa, Capital One, AllTrails, Zinn, and Lemonada Media", "end_text": "get to the briefs"}

@@ -1,0 +1,1 @@
+[{"start": 1837.5, "end": 1999.5, "confidence": 0.98, "reason": "Ad break: Mint Mobile, Mattress Warehouse, PC Richard & Son", "end_text": "Aseema dot HTML for details"}]

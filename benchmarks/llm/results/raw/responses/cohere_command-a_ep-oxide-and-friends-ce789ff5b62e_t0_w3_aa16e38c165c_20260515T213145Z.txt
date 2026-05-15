@@ -1,0 +1,7 @@
+{
+  "start": 1233.7,
+  "end": 1860.0,
+  "confidence": 0.0,
+  "reason": "No ads detected in this window",
+  "end_text": "manufacturability of the rack."
+}

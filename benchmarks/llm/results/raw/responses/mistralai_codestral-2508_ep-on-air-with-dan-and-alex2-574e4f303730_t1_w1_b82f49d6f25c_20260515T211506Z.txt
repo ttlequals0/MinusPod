@@ -1,0 +1,1 @@
+[{"start": 1006.9, "end": 1028.4, "confidence": 0.95, "reason": "Riviera Group pitch", "end_text": "Riviera Airlines Group flight from Bergen to Helsinki"}]

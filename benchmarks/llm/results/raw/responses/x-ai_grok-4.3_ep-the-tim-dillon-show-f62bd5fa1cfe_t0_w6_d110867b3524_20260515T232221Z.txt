@@ -1,0 +1,3 @@
+[
+  {"start": 3079.6, "end": 3120.0, "confidence": 0.98, "reason": "Morgan & Morgan host-read sponsor segment followed by Stash ad", "end_text": "Stash is the one"}
+]

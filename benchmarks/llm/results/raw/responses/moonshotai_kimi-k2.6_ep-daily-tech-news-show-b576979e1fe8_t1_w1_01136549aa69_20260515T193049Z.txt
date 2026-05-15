@@ -1,0 +1,1 @@
+{"start": 636.8, "end": 776.6, "confidence": 0.98, "reason": "Ad break with multiple sponsors: Parloa AI, Capital One, AllTrails, Zinn Nicotine Pouches, and Lemonada Media podcast cross-promotion", "end_text": "hear the six-part Thrive series"}

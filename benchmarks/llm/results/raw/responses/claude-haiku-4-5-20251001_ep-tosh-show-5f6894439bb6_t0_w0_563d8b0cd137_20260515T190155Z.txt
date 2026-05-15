@@ -1,0 +1,25 @@
+```json
+[
+  {
+    "start": 0.0,
+    "end": 22.1,
+    "confidence": 0.98,
+    "reason": "Progressive Insurance sponsor read with promo URL and disclaimer",
+    "end_text": "Not available in all states"
+  },
+  {
+    "start": 29.8,
+    "end": 58.1,
+    "confidence": 0.95,
+    "reason": "Whole Foods Market network-inserted retail ad with product pitches",
+    "end_text": "Celebrate mom with Whole Foods Market"
+  },
+  {
+    "start": 537.5,
+    "end": 566.6,
+    "confidence": 0.98,
+    "reason": "Thrive Cosmetics sponsor read with promo code and URL",
+    "end_text": "thrivecosmetics.com slash shine26"
+  }
+]
+```

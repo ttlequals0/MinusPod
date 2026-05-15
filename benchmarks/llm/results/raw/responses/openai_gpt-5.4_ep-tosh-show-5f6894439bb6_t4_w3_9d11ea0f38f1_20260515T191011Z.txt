@@ -1,0 +1,1 @@
+{"start": 1810.3, "end": 1860.0, "confidence": 0.99, "reason": "Mint Mobile host-read sponsor segment begins with transition back-to-break phrasing and explicit promotional copy; ad continues in next window", "end_text": "fed up with crazy high bills"}

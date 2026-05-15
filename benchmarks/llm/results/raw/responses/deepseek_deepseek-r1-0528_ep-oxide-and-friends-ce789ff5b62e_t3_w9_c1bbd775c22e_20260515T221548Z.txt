@@ -1,0 +1,9 @@
+[
+  {
+    "start": 3780.0,
+    "end": 4380.0,
+    "confidence": 0.0,
+    "reason": "No promotional content found in transcript segment",
+    "end_text": "manufacturing to make these fabricatable"
+  }
+]

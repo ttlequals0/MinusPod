@@ -1,0 +1,14 @@
+{
+  "transcript": "Alright, so I've been thinking about this a lot, and I really believe that everyone should check out this amazing new app called 'FocusFlow'. It's been a game-changer for my productivity. I mean, the way it helps you stay on track and avoid distractions is incredible. Plus, with the promo code 'FOCUS15', you can get 15% off your first month. Definitely worth trying out. Let's take a quick break and then we'll dive back into the conversation.",
+  "detection_rules": {
+    "host_read": true,
+    "promo_code": true,
+    "transition": "Let's take a quick break",
+    "ad_length": "60-120 seconds"
+  },
+  "start": 45.0,
+  "end": 82.0,
+  "confidence": 0.98,
+  "reason": "Host-read sponsor segment with promo code and transition phrase",
+  "end_text": "athleticgreens.com/podcast"
+}

@@ -1,0 +1,4 @@
+[
+  {"start": 1742.3, "end": 1771.5, "confidence": 0.98, "reason": "Capital One sponsor read", "end_text": "technology at Capital One"},
+  {"start": 1772.6, "end": 1799.6, "confidence": 0.92, "reason": "Cross-promo for Good Things podcast", "end_text": "Thrive series"}
+]

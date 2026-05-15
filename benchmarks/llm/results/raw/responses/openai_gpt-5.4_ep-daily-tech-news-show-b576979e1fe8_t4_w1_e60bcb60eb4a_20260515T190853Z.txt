@@ -1,0 +1,1 @@
+{"start": 636.8, "end": 776.6, "confidence": 0.99, "reason": "Back-to-back inserted ads: Parloa sponsor read, Capital One brand ad, AllTrails app ad, Zinn nicotine ad, and Good Things from Lemonada Media podcast promo", "end_text": "There's more we need to know today"}

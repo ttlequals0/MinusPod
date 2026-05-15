@@ -1,0 +1,1 @@
+{"start":0.0,"end":58.1,"confidence":0.99,"reason":"Pre-roll ad block: Progressive Insurance sponsor read with Progressive.com call to action, followed by Whole Foods Market Mother's Day promotional spot","end_text":"with Whole Foods Market."}

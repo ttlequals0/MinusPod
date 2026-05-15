@@ -1,0 +1,1 @@
+{"start": 1662.9, "end": 1690.2, "confidence": 1.0, "reason": "continues from previous segment within same ad block; host reads for Delta SkyMiles Platinum American Express, Delta SkyMiles Reserve American Express, and Delta SkyMiles Business cards", "end_text": "or a sponsorship package" }

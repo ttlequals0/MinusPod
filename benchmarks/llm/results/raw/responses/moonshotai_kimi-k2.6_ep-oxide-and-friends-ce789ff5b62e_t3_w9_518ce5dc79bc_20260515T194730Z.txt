@@ -1,0 +1,2 @@
+
+        {"start": 3765.7, "end": 4382.8, "confidence": 0.0, "reason": "No advertisement segments detected in this window. The transcript contains only organic technical discussion about mechanical engineering, manufacturing processes, injection molding, and thermoforming with no promotional language, sponsor mentions, calls to action, or platform insertions.", "end_text": "N/A"}

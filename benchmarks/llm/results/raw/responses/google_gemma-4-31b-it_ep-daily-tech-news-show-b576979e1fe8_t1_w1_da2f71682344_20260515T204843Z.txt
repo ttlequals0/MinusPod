@@ -1,0 +1,1 @@
+{"ads": [{"start": 618.7, "end": 782.3, "confidence": 0.99, "reason": "Multiple back-to-back sponsor reads including Parloa, Capital One, AllTrails, Zinn, and Lemonada Media", "end_text": "Let's get to the briefs"}]}

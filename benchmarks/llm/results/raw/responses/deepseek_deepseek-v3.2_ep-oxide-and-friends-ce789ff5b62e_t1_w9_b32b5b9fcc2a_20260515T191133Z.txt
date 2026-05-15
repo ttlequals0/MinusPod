@@ -1,0 +1,1 @@
+{"start": 3765.7, "end": 4382.8, "confidence": 0.0, "reason": "No promotional content found in transcript segment. The entire segment is a technical discussion about mechanical engineering, 3D printing, injection molding, and thermoforming for Oxide's product.", "end_text": "make these fabricatable."}

@@ -1,0 +1,7 @@
+{
+  "start": 29.28,
+  "end": 30.73,
+  "confidence": 0.95,
+  "reason": "Ryanair's attempt to upgrade business class seats on transcontinental routes due to certification issues with lie-flat seats, leading to a configuration with 44 first-class seats. This configuration is seen as a premium air travel solution, offering a better experience for business class passengers compared to economy class.",
+  "end_text": "business class passengers have a better experience than economy class passengers."
+}

@@ -1,0 +1,7 @@
+{
+	"start": 2744.9,
+	"end": 2771.9,
+	"confidence": 0.95,
+	"reason": "Discussion about house renovation and structural analysis",
+	"end_text": "house collapsing on itself"
+}

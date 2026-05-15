@@ -1,0 +1,1 @@
+{"start": 2568.1, "end": 2594.7, "confidence": 0.95, "reason": "Host-read sponsor segment for Athletic Greens (AG1) with promo code and URL", "end_text": "athleticgreens.com/oxide"}

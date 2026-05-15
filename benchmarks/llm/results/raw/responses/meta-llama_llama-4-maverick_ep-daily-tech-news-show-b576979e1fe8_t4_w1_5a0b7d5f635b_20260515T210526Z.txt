@@ -1,0 +1,1 @@
+{"start": 591.3, "end": 748.3, "confidence": 0.98, "reason": "Multiple sponsor reads and product promotions", "end_text": "Nicotine is an addictive chemical."}

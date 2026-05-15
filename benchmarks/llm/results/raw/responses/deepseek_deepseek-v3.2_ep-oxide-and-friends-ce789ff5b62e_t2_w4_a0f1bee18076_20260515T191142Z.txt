@@ -1,0 +1,1 @@
+{"start": 2280.0, "end": 2280.0, "confidence": 0.0, "reason": "No ad content detected in this transcript segment. The conversation is purely technical about mechanical engineering changes and a field failure.", "end_text": ""}

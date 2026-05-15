@@ -1,0 +1,39 @@
+```json
+[
+  {
+    "start": 636.8,
+    "end": 671.5,
+    "confidence": 0.98,
+    "reason": "Parloa AI platform sponsor read with URL",
+    "end_text": "parloa.com. That's P-A-R-L-O-A dot com."
+  },
+  {
+    "start": 674.0,
+    "end": 717.6,
+    "confidence": 0.98,
+    "reason": "Capital One sponsored segment with product pitch and call to action",
+    "end_text": "That's technology at Capital One."
+  },
+  {
+    "start": 717.6,
+    "end": 744.1,
+    "confidence": 0.95,
+    "reason": "AllTrails app promotion with download call to action",
+    "end_text": "Download the free app today and find your outside."
+  },
+  {
+    "start": 744.1,
+    "end": 748.3,
+    "confidence": 0.98,
+    "reason": "Zinn Nicotine Pouches sponsored segment with product pitch and brand positioning",
+    "end_text": "Nicotine is an addictive chemical."
+  },
+  {
+    "start": 749.6,
+    "end": 776.6,
+    "confidence": 0.92,
+    "reason": "Lemonada Media Good Things podcast promotion with series pitch",
+    "end_text": "Tune in to Good Things from Lemonada Media to hear the six-part Thrive series."
+  }
+]
+```

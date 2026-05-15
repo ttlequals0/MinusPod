@@ -1,0 +1,16 @@
+[
+  {
+    "start": 3127.7,
+    "end": 3140.1,
+    "confidence": 0.95,
+    "reason": "Transition to manufacturing discussion with promotional tone",
+    "end_text": "use the M6s, but we can use one M6."
+  },
+  {
+    "start": 3381.6,
+    "end": 3407.3,
+    "confidence": 0.9,
+    "reason": "Discussion of injection molding costs with implied product promotion",
+    "end_text": "more than a cost issue, I assume?"
+  }
+]

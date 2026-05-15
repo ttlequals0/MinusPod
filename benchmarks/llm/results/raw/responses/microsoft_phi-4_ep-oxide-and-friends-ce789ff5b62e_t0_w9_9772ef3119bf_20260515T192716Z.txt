@@ -1,0 +1,18 @@
+{  
+  "ads": [  
+    {  
+      "start": 37.65,  
+      "end": 38.48,  
+      "confidence": 0.95,  
+      "reason": "Discussion of cost and manufacturing challenges related to 3D printing and injection molding, highlighting the transition to thermoforming for cost efficiency.",  
+      "end_text": "It's a lot of money and thermoforming is cheaper at scale."  
+    },  
+    {  
+      "start": 40.32,  
+      "end": 40.86,  
+      "confidence": 0.90,  
+      "reason": "Description of the thermoforming process and its cost benefits, including internal marketing pitch for clear shrouds.",  
+      "end_text": "Thermoforming is cheaper at scale and clear shrouds are aesthetically appealing."  
+    }  
+  ]  
+}

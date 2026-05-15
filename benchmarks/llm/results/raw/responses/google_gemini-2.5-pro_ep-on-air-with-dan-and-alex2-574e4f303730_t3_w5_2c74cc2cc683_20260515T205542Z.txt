@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2609.5,
+    "end": 2634.3,
+    "confidence": 0.85,
+    "reason": "Anomalous transcription containing a list of common podcast sponsors (Athletic Greens, BetterHelp, Squarespace, etc.) and ad-related keywords, indicating a dynamic ad insertion slot.",
+    "end_text": "Raycon, Manscaped, Stamps.com,"
+  }
+]

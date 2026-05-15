@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1493.2,
+    "end": 1536.8,
+    "confidence": 0.98,
+    "reason": "Host-read ads for Capital One (car shopping AI) and AllTrails (trail-finding app) with explicit product pitches and calls to action",
+    "end_text": "find your outside"
+  }
+]

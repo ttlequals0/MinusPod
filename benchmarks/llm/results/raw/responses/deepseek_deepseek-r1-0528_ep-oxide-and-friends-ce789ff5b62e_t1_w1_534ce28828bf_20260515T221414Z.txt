@@ -1,0 +1,9 @@
+[
+  {
+    "start": 411.8,
+    "end": 1019.5,
+    "confidence": 0.0,
+    "reason": "No promotional content detected; entire segment is technical discussion about Oxide's mechanical engineering",
+    "end_text": "manufactured. I mean, I mean,"
+  }
+]

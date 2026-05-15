@@ -1,0 +1,1 @@
+{"start": 411.8, "end": 1019.5, "confidence": 0.0, "reason": "No promotional content found in transcript segment. Entire segment is editorial discussion about mechanical engineering.", "end_text": "the amount of time that you really spend understanding how they're manufactured. I mean, I mean,"}

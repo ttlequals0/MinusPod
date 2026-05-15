@@ -1,0 +1,16 @@
+[
+    {
+        "start": 3428.1,
+        "end": 3457.8,
+        "confidence": 0.98,
+        "reason": "Arizona State University sponsored segment with promotional language, call to action, and vanity URL (asunline.asu.edu)",
+        "end_text": "asunline.asu.edu"
+    },
+    {
+        "start": 3458.8,
+        "end": 3486.2,
+        "confidence": 0.95,
+        "reason": "University of Michigan network-inserted brand tagline ad with concentrated marketing language and institutional promotion (umich.edu)",
+        "end_text": "solutions at umich.edu"
+    }
+]

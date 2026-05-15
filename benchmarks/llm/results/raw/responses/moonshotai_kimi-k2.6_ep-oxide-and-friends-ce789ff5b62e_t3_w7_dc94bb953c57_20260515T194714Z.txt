@@ -1,0 +1,1 @@
+{"start": 2931.2, "end": 3556.0, "confidence": 0.0, "reason": "Technical discussion about mechanical engineering, manufacturing, 3D printing, and injection molding with Oxide team members. No promotional language, sponsor names, URLs, promo codes, or calls to action detected. Entirely organic show content.", "end_text": "pull this part in the direction that I want to"}

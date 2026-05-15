@@ -1,0 +1,3 @@
+[
+  {"start": 7606.9, "end": 7797.4, "confidence": 0.97, "reason": "Trusted Tech sponsor read after break announcement", "end_text": "back to Steve."}
+]

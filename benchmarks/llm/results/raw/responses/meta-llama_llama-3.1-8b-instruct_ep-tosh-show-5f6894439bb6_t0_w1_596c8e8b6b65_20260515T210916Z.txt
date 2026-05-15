@@ -1,0 +1,1 @@
+{ "start": 537.5, "end": 566.6, "confidence": 0.95, "reason": "Thrive Cosmetics sponsor read", "end_text": "your first order" }

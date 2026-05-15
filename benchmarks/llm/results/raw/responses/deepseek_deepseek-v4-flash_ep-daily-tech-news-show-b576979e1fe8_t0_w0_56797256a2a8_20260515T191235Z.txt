@@ -1,0 +1,39 @@
+{
+  "ads": [
+    {
+      "start": 0.0,
+      "end": 29.1,
+      "confidence": 0.99,
+      "reason": "Capital One host-read sponsor ad: mentions Chat Concierge, multi-agentic AI, car shopping features",
+      "end_text": "technology at Capital One."
+    },
+    {
+      "start": 29.4,
+      "end": 58.3,
+      "confidence": 0.99,
+      "reason": "Broadway show ad for 'Every Brilliant Thing' starring Mariska Hargitay, with critical praise and call to action",
+      "end_text": "Visit Every Brilliant Thing."
+    },
+    {
+      "start": 59.2,
+      "end": 73.6,
+      "confidence": 0.95,
+      "reason": "AllTrails app ad: promotional language encouraging outdoor exploration, free app download",
+      "end_text": "find your outside"
+    },
+    {
+      "start": 74.8,
+      "end": 100.2,
+      "confidence": 0.99,
+      "reason": "Zinn Nicotine Pouches ad: product pitch, variety, smoke-free experience, call to action, mention of America's #1 brand",
+      "end_text": "products sold near you."
+    },
+    {
+      "start": 100.8,
+      "end": 104.3,
+      "confidence": 0.85,
+      "reason": "Government-mandated warning about nicotine; part of the Zinn ad segment, though short and non-promotional",
+      "end_text": "Nicotine is an addictive chemical."
+    }
+  ]
+}

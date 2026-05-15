@@ -1,0 +1,1 @@
+{"start":0.0,"end":58.1,"confidence":0.99,"reason":"Two back-to-back inserted ads: Progressive Insurance sponsor read followed by Whole Foods Market Mother's Day promotion","end_text":"Celebrate mom with Whole Foods Market."}

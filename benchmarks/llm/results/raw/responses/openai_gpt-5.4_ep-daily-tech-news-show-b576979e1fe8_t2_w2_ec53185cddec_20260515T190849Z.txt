@@ -1,0 +1,1 @@
+{"start": 1264.1, "end": 1293.0, "confidence": 0.56, "reason": "Possible promotional product discussion for Insta360 Retro Bundle with positive endorsement language ('You got me, Insta360'), but lacks explicit sponsor markers, URL, promo code, or ad transition; likely editorial, so not flagged as ad", "end_text": "kind of retro thing, you know, the thing."}

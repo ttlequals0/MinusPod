@@ -1,0 +1,1 @@
+[{"start": 1493.2, "end": 1563.8, "confidence": 0.95, "reason": "Capital One sponsor read", "end_text": "find your outside"}, {"start": 1718.9, "end": 1743.9, "confidence": 0.95, "reason": "Spotify platform-inserted ad", "end_text": "Yay! This goes into effect later this year"}]

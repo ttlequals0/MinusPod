@@ -1,0 +1,9 @@
+[
+    {
+        "start": 1493.2,
+        "end": 1541.0,
+        "confidence": 0.99,
+        "reason": "Host-read Capital One sponsor segment with promotional language, product pitch (Chat Concierge), and call to action. Includes AllTrails ad with download prompt.",
+        "end_text": "find your outside."
+    }
+]

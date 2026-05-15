@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 1493.2,
+      "end": 1536.8,
+      "confidence": 1.0,
+      "reason": "Sponsor reads for Capital One and AllTrails",
+      "end_text": "find your outside"
+    }
+  ]
+}

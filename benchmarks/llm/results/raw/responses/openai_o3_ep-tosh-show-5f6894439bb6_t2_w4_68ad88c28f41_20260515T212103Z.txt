@@ -1,0 +1,1 @@
+{"start":1810.3,"end":1999.5,"confidence":0.97,"reason":"Host-read Mint Mobile ad with promo URL, followed by Mattress Warehouse and PC Richard & Son Memorial Day sale ads; transition included with 'We'll be right back'","end_text":"dot HTML for details"}

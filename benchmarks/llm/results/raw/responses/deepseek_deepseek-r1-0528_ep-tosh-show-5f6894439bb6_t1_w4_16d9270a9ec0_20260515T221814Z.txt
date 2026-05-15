@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1837.5,
+    "end": 1999.5,
+    "confidence": 0.99,
+    "reason": "Mint Mobile, Mattress Warehouse, and PC Richard & Son ads",
+    "end_text": "Aseema dot HTML for details"
+  }
+]

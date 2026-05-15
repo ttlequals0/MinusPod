@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1837.5,
+    "end": 1860.0,
+    "confidence": 0.98,
+    "reason": "Mint Mobile wireless service promotion with explicit call to action and brand mention",
+    "end_text": "overpaying for wireless, are you fed up with crazy high bills"
+  }
+]

@@ -1,0 +1,7 @@
+{
+	"start": 1246.0,
+	"end": 1274.5,
+	"confidence": 1.0,
+	"reason": "Discussion about Ryanair's hidden agenda and alcohol bans",
+	"end_text": "know exactly what we are talking about."
+}

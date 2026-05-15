@@ -1,0 +1,7 @@
+{
+  "start": 2240.1,
+  "end": 2280.0,
+  "confidence": 0.95,
+  "reason": "Riyadh Air network-inserted brand tagline ad",
+  "end_text": "i mean would you book you should you should do it so that you well if i can't record then there really is no point in me spending"
+}

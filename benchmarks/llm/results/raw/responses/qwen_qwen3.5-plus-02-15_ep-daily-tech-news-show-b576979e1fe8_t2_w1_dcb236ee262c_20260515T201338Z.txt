@@ -1,0 +1,1 @@
+[{"start": 636.8, "end": 776.6, "confidence": 0.98, "reason": "Continuous block of sponsor reads (Parloa, Capital One, AllTrails, Zinn) and network cross-promotion (Lemonada Media)", "end_text": "hear the six-part Thrive series."}]

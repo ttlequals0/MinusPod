@@ -1,0 +1,1 @@
+{"error": "Need to find all ad segments. None found in the provided transcript."}

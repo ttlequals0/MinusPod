@@ -1,0 +1,7 @@
+{
+  "start": 50.36,
+  "end": 50.69,
+  "confidence": 0.95,
+  "reason": "Oxide mechanical engineering team discusses scaling manufacturing challenges, indicating a promotional segment.",
+  "end_text": "next time"
+}

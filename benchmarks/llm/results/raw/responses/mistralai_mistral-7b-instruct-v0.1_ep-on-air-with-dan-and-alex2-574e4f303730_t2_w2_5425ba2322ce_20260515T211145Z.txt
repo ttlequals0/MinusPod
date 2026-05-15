@@ -1,0 +1,7 @@
+ Ad Segment:
+[1415.2s - 1432.8s] This segment contains a discussion about the potential ban of alcohol sales at airports. While the hosts express their opinions on the matter, they also mention that they have never taken a drink before a flight. This segment can be considered an ad for the alcohol industry, as it promotes the idea of consuming alcohol at the airport before flying. The hosts do not explicitly mention a sponsor or product, but the promotional language is present in their discussion of the topic.
+
+Therefore, the ad segment is:
+[1415.2s - 1432.8s] "I have, well, no, I know for a fact I've never taken a drink before a flight. So this is a very unfamiliar world to us, the idea of getting drunk before stepping on a three-hour flight to Spain, for example. I personally think... If you're going to ban it, which I'm totally for, it also needs to be banned on board. It's crazy that the airport would not be allowed to sell it, but then the crew is. I understand that their argument is the crew can control how much they're selling to one person, so people don't go way too far, but I believe the fair thing to do would be all or nothing until a certain time, at least."
+
+Note: This ad segment continues from the previous window.

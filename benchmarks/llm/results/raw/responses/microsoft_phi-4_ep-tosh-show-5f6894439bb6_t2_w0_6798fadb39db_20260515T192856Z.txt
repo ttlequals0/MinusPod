@@ -1,0 +1,12 @@
+{
+  "window": [0.0, 10.0],
+  "segments": [
+    {
+      "start": 0.0,
+      "end": 10.0,
+      "confidence": 0.95,
+      "reason": "The segment starts with a transition phrase indicating a sponsor read, followed by promotional content for Progressive Insurance.",
+      "end_text": "Try it at Progressive.com"
+    }
+  ]
+}

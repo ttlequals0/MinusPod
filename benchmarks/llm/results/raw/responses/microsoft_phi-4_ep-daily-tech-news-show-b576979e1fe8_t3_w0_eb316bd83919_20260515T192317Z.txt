@@ -1,0 +1,30 @@
+[  
+  {  
+    "start": 0.0,  
+    "end": 29.1,  
+    "confidence": 0.98,  
+    "reason": "Capital One sponsor read with product promotion",  
+    "end_text": "technology at Capital One"  
+  },  
+  {  
+    "start": 29.4,  
+    "end": 58.3,  
+    "confidence": 0.95,  
+    "reason": "Mariska Hargitay Broadway show promotion",  
+    "end_text": "Visit Every Brilliant Thing"  
+  },  
+  {  
+    "start": 59.2,  
+    "end": 73.6,  
+    "confidence": 0.97,  
+    "reason": "All Trails app promotion",  
+    "end_text": "find your outside"  
+  },  
+  {  
+    "start": 74.8,  
+    "end": 100.2,  
+    "confidence": 0.98,  
+    "reason": "Zinn Nicotine Pouches product promotion",  
+    "end_text": "near you"  
+  }  
+]

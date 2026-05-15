@@ -1,0 +1,1 @@
+{"start": 411.8, "end": 1020.0, "confidence": 0.0, "reason": "No promotional content detected in transcript segment. Content is purely technical discussion about mechanical engineering and manufacturing at Oxide.", "end_text": "the way you all work is the amount of time that you really spend understanding how they're manufactured. I mean, I mean,"}

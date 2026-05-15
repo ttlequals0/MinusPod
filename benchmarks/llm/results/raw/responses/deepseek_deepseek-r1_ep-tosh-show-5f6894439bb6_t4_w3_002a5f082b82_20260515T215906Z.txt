@@ -1,0 +1,7 @@
+[{
+    "start": 1837.5,
+    "end": 1861.3,
+    "confidence": 0.98,
+    "reason": "Mint Mobile ad read with direct product pitch and comparison to competitors",
+    "end_text": "crazy high bills?"
+}]

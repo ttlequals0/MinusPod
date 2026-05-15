@@ -1,0 +1,1 @@
+[{"start": 1020.0, "end": 1020.0, "confidence": 0.95, "reason": "Platform-inserted advertising links (Redcircle.com)", "end_text": "https://redcircle.com/brands"}}]

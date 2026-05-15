@@ -1,0 +1,4 @@
+{"start": 0.0, "end": 600.0, "confidence": 0.95, "reason": "Show intro and opening conversation between hosts and guests about mechanical engineering backgrounds and podcast impersonations. Purely content, no advertising detected.", "end_text": "shark fin analysis"}
+
+
+

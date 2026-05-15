@@ -1,0 +1,1 @@
+{"error":"I don't have enough information to provide the ad segments. Please provide a complete transcript that contains promotional language, sponsor names, URLs, promo codes, product pitches or calls to action. Otherwise return []"}

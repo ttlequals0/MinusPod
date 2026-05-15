@@ -1,0 +1,9 @@
+[
+  {
+    "start": 3428.1,
+    "end": 3486.2,
+    "confidence": 1.0,
+    "reason": "Network-inserted ads for Arizona State University and University of Michigan with calls to action (asunline.asu.edu, umich.edu)",
+    "end_text": "See more solutions at umich.edu"
+  }
+]

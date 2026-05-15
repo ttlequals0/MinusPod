@@ -1,0 +1,37 @@
+[
+    {
+        "start": 591.3,
+        "end": 619.8,
+        "confidence": 0.85,
+        "reason": "Listener thank you segment with potential promotional undertones",
+        "end_text": "take it take it take it"
+    },
+    {
+        "start": 636.8,
+        "end": 671.5,
+        "confidence": 0.95,
+        "reason": "Parloa sponsor read with promotional language and URL",
+        "end_text": "parloa.com. That's P-A-R-L-O-A dot com"
+    },
+    {
+        "start": 674.0,
+        "end": 717.6,
+        "confidence": 0.98,
+        "reason": "Capital One and AllTrails sponsor reads with promotional language",
+        "end_text": "Download the free app today and find your outside"
+    },
+    {
+        "start": 718.8,
+        "end": 748.3,
+        "confidence": 0.97,
+        "reason": "Zinn Nicotine Pouches ad with promotional language and product details",
+        "end_text": "Nicotine is an addictive chemical"
+    },
+    {
+        "start": 749.6,
+        "end": 776.6,
+        "confidence": 0.9,
+        "reason": "Promotional segment for Lemonada Media's Thrive series",
+        "end_text": "Good Things from Lemonada Media"
+    }
+]

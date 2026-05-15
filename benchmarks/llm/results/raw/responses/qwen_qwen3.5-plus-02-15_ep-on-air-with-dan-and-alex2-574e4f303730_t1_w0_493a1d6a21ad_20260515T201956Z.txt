@@ -1,0 +1,1 @@
+[{"start": 0.0, "end": 59.8, "confidence": 0.98, "reason": "HEX and PickOCNY sponsor reads (merged due to <15s gap)", "end_text": "state of mind at PickOCNY.com"}]

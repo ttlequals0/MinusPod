@@ -1,0 +1,1 @@
+[{"start": 2609.5, "end": 2634.3, "confidence": 0.92, "reason": "Host-read sponsor list with promo code/discount code mentions and brand names", "end_text": "Manscaped, Stamps.com,"}]

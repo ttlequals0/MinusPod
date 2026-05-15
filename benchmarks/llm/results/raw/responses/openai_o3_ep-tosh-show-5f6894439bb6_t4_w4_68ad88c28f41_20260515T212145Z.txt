@@ -1,0 +1,1 @@
+{"start": 1836.9, "end": 1999.5, "confidence": 0.97, "reason": "Mint Mobile host-read sponsor followed by Mattress Warehouse and PC Richard & Son produced ads", "end_text": "Aseema dot HTML for details"}

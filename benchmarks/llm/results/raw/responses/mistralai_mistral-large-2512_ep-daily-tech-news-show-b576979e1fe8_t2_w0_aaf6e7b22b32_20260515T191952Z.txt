@@ -1,0 +1,37 @@
+[
+    {
+        "start": 0.0,
+        "end": 29.1,
+        "confidence": 0.99,
+        "reason": "Capital One host-read ad with promotional language, product pitch (Chat Concierge), and brand tagline",
+        "end_text": "technology at Capital One."
+    },
+    {
+        "start": 29.4,
+        "end": 58.3,
+        "confidence": 0.98,
+        "reason": "Network-inserted ad for 'Every Brilliant Thing' Broadway show with promotional language, calls to action, and ticketing details",
+        "end_text": "Visit Every Brilliant Thing."
+    },
+    {
+        "start": 59.2,
+        "end": 73.6,
+        "confidence": 0.95,
+        "reason": "Network-inserted brand tagline ad for AllTrails with concentrated marketing language and app promotion",
+        "end_text": "explore the outdoors with all trails"
+    },
+    {
+        "start": 74.8,
+        "end": 100.2,
+        "confidence": 0.99,
+        "reason": "Zinn Nicotine Pouches host-read ad with promotional language, product pitch, and call to action",
+        "end_text": "wherever nicotine products are sold near you."
+    },
+    {
+        "start": 100.8,
+        "end": 104.3,
+        "confidence": 0.9,
+        "reason": "Mandatory nicotine warning disclaimer (part of Zinn ad segment)",
+        "end_text": "Nicotine is an addictive chemical."
+    }
+]

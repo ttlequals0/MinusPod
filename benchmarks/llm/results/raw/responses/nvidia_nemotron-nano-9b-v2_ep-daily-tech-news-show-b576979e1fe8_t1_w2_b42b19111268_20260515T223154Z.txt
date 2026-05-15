@@ -1,0 +1,1 @@
+[{"start": 1042.8, "end": 1293.2, "confidence": 0.98, "reason": "Insta360 Go 3S Retro Bundle promotion with URL", "end_text": "acast.com/privacy"}}[]

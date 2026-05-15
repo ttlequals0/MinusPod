@@ -1,0 +1,7 @@
+[{
+    "start": 2609.5,
+    "end": 2634.3,
+    "confidence": 0.95,
+    "reason": "Explicit listing of known podcast sponsors with promotional terms (promo code, discount code, sponsored by) including Athletic Greens, BetterHelp, Squarespace",
+    "end_text": "Manscaped, Stamps.com"
+}]

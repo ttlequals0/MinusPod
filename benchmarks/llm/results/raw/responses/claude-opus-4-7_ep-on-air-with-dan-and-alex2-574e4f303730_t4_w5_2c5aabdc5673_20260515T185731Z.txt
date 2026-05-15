@@ -1,0 +1,1 @@
+[{"start": 2609.5, "end": 2634.3, "confidence": 0.5, "reason": "Possible ad insertion - list of sponsor brand names appearing mid-content (Athletic Greens, BetterHelp, Squarespace, etc.) suggesting DAI injection", "end_text": "Manscaped, Stamps.com"}]

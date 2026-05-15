@@ -1,0 +1,1 @@
+{"start": 3014.9, "end": 3120.0, "confidence": 0.01, "reason": "No advertisement segment detected in this window", "end_text": "where the potential"}

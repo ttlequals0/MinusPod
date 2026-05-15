@@ -1,0 +1,7 @@
+{  
+  "start": 14.0,  
+  "end": 24.0,  
+  "confidence": 0.95,  
+  "reason": "Dynamic sponsor segment with promotional language and product endorsement.",  
+  "end_text": "I don't like talking about medicine. Whoa, that was a lot of talk though. What about..."  
+}

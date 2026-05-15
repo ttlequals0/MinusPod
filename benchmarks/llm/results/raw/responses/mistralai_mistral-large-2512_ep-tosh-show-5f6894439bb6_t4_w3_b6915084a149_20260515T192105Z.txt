@@ -1,0 +1,9 @@
+[
+    {
+        "start": 1837.5,
+        "end": 1860.0,
+        "confidence": 0.99,
+        "reason": "Mint Mobile host-read sponsor ad with promotional language, call to action, and brand pitch",
+        "end_text": "crazy high bills?"
+    }
+]

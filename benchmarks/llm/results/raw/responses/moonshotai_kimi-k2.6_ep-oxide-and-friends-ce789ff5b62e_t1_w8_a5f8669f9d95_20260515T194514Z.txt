@@ -1,0 +1,1 @@
+{"start": 3344.8, "end": 3975.1, "confidence": 0.0, "reason": "No advertisements detected in this window. All content is organic technical discussion between hosts and guests about mechanical engineering, injection molding, and manufacturing at Oxide Computer.", "end_text": "because of the of the complexity of the print"}

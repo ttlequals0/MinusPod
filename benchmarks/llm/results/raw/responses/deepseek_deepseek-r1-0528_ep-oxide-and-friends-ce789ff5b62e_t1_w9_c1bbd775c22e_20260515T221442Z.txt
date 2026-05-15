@@ -1,0 +1,9 @@
+[
+  {
+    "start": 3780.0,
+    "end": 4380.0,
+    "confidence": 0.95,
+    "reason": "No promotional content detected; entire segment is editorial discussion about Oxide's own product design and manufacturing",
+    "end_text": "manufacturing to make these fabricatable"
+  }
+]

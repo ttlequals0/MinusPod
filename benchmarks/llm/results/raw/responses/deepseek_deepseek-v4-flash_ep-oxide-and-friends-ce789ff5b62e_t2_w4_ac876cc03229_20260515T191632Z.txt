@@ -1,0 +1,7 @@
+{
+  "start": 1676.3,
+  "end": 2285.2,
+  "confidence": 0.0,
+  "reason": "No promotional language, sponsor names, URLs, promo codes, or calls to action found. The transcript is a technical discussion about mechanical engineering challenges, PEMs, rack model changes, and a power cable failure incident.",
+  "end_text": "I think as he did, I think..."
+}

@@ -1,0 +1,3 @@
+[
+  {"start": 6044.5, "end": 6060.0, "confidence": 0.95, "reason": "Hoxhunt sponsor read with transition break", "end_text": "just like the bad guys"}
+]

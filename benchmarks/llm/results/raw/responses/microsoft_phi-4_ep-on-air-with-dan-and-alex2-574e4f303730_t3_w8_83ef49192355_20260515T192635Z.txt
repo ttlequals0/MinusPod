@@ -1,0 +1,7 @@
+{
+  "start": 33.35,
+  "end": 34.28,
+  "confidence": 0.95,
+  "reason": "Crowdfunding for Spirit Airlines is discussed as a promotional segment.",
+  "end_text": "See you next week, everyone"
+}

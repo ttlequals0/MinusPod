@@ -1,0 +1,1 @@
+{"start": 2520.0, "end": 3115.1, "confidence": 0.01, "reason": "No advertisement detected; transcript contains editorial discussion of mechanical engineering with no sponsor names, promo language, URLs, or calls to action", "end_text": "where the potential"}

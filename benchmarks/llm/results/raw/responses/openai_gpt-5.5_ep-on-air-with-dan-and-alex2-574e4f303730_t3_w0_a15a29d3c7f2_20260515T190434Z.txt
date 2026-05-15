@@ -1,0 +1,1 @@
+{"start":0.0,"end":59.8,"confidence":0.99,"reason":"Pre-roll ads: HEX analytics platform promotional pitch with call to action 'Join teams...' and Hex.ai URL, followed by Orange County NY tourism ad with PickOCNY.com call to action","end_text":"state of mind at PickOCNY.com"}

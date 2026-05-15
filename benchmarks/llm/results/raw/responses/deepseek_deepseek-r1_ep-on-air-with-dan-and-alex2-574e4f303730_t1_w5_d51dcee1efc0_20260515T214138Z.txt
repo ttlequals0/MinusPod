@@ -1,0 +1,7 @@
+[{
+    "start": 2609.5,
+    "end": 2634.3,
+    "confidence": 0.99,
+    "reason": "Host-read sponsor list with explicit promotional language (promo code, discount code, sponsored by) and known brands (Athletic Greens, AG1, BetterHelp, etc.)",
+    "end_text": "Manscaped, Stamps.com"
+}]

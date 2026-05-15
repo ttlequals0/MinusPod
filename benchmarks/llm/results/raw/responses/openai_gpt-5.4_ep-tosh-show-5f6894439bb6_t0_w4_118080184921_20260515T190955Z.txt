@@ -1,0 +1,1 @@
+{"start":1836.9,"end":1999.5,"confidence":0.99,"reason":"Ad break starts with transition 'We'll be right back' and contains Mint Mobile host-read sponsor plus Mattress Warehouse and PC Richard & Son/Aseema promotional spots with URLs and marketing copy","end_text":"slash Aseema dot HTML for details"}

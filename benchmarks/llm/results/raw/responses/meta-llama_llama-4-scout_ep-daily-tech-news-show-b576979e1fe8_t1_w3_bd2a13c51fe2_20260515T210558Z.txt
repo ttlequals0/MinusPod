@@ -1,0 +1,9 @@
+{"ads": [
+  {
+    "start": 1493.2,
+    "end": 1536.8,
+    "confidence": 0.98,
+    "reason": "Capital One sponsor read",
+    "end_text": "technology at Capital One"
+  }
+]}

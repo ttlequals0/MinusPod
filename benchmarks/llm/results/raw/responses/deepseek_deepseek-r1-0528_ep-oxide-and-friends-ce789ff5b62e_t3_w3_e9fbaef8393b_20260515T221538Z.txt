@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1233.7,
+    "end": 1870.3,
+    "confidence": 0.0,
+    "reason": "No promotional content detected; entire segment is technical discussion about Oxide's own product manufacturing",
+    "end_text": "manufacturability of the rack"
+  }
+]
