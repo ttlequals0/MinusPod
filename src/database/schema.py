@@ -738,13 +738,8 @@ class SchemaMixin:
         ep_cols = self._get_table_columns(conn, 'episodes')
         self._add_column_if_missing(conn, 'episodes', 'tags', "TEXT NOT NULL DEFAULT '[]'", ep_cols)
 
-        # Sponsor seed reseed lives at the END of this migration block, AFTER
-        # `_migrate_sponsor_fk` and the Zyn cleanups (see below). Running it
-        # before those would mean a v2.1.x -> 2.4.0 jump touches case-variant
-        # sponsor rows BEFORE the FK migration's case-variant dedup, and the
-        # row we tagged could be the one the dedup keeps OR drops depending
-        # on which case happened to be lowest-id. By deferring, the reseed
-        # always operates on the canonical post-FK-migration state.
+        # Sponsor reseed runs at the END of this migration (see below), after
+        # `_migrate_sponsor_fk` so it operates on dedup'd rows.
 
         # Migration: Update episodes status CHECK constraint to include 'permanently_failed'
         # SQLite doesn't support ALTER TABLE to modify constraints, so we recreate the table

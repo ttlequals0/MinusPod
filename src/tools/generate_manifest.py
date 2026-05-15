@@ -20,7 +20,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List
 
-# Allow `python -m` style invocation from the repo root.
+# Defensive sys.path bootstrap so `python path/to/script.py` works as well as
+# `python -m src.tools.X` (the workflow-style invocation). When run via -m,
+# tools/__init__.py already did this — the lines below are then a no-op.
 _REPO_SRC = Path(__file__).resolve().parents[1]
 if str(_REPO_SRC) not in sys.path:
     sys.path.insert(0, str(_REPO_SRC))

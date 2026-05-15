@@ -1,5 +1,10 @@
 import { apiRequest, buildQueryString } from './client';
 
+// Mirrors src/utils/community_tags.py:PATTERN_SOURCES so the frontend
+// and backend can't drift on the source-discriminator string spellings.
+export const PATTERN_SOURCES = ['local', 'community', 'imported'] as const;
+export type PatternSource = typeof PATTERN_SOURCES[number];
+
 export interface AdPattern {
   id: number;
   scope: string;
@@ -21,7 +26,7 @@ export interface AdPattern {
   disabled_at: string | null;
   disabled_reason: string | null;
   created_by?: string | null;
-  source?: 'local' | 'community' | 'imported';
+  source?: PatternSource;
   community_id?: string | null;
   version?: number;
   submitted_app_version?: string | null;
@@ -97,7 +102,7 @@ export async function getPatterns(params?: {
   podcast_id?: string;
   network_id?: string;
   active?: boolean;
-  source?: 'local' | 'community' | 'imported';
+  source?: PatternSource;
 }): Promise<AdPattern[]> {
   const qs = buildQueryString({
     scope: params?.scope,

@@ -415,7 +415,6 @@ function FeedDetail() {
         </div>
       </div>
 
-      {/* Feed-level tag editor (community-pattern matching) */}
       {slug && <FeedTagsEditor slug={slug} />}
 
       {/* Episodes header with status filter */}

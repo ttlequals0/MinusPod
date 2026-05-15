@@ -23,7 +23,8 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-# Allow `python -m` style invocation by ensuring repo src/ is on sys.path.
+# Defensive sys.path bootstrap so direct `python path/to/script.py` invocation
+# works as well as `python -m src.tools.X` (the workflow-style invocation).
 _REPO_SRC = Path(__file__).resolve().parents[1]
 if str(_REPO_SRC) not in sys.path:
     sys.path.insert(0, str(_REPO_SRC))

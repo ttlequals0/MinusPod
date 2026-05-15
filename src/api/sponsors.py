@@ -301,43 +301,4 @@ def delete_normalization(norm_id):
     return error_response('Normalization not found', 404)
 
 
-# ========== Tag vocabulary ==========
-
-@api.route('/tags/vocabulary', methods=['GET'])
-@log_request
-def get_tag_vocabulary():
-    """Return the canonical 49-tag vocabulary used by community patterns.
-
-    Shape mirrors `patterns/vocabulary.json` so the frontend can render
-    grouped pickers (genres vs sponsor industries) without re-parsing the CSV.
-    """
-    import csv
-    import os
-    from utils.community_tags import UNIVERSAL_TAG, valid_tags
-
-    csv_path = os.path.join(
-        os.path.dirname(os.path.dirname(__file__)), 'seed_data', 'tag_vocabulary.csv'
-    )
-    genres = []
-    industries = []
-    try:
-        with open(csv_path, 'r', encoding='utf-8') as fh:
-            for row in csv.DictReader(fh):
-                entry = {'tag': row['tag'], 'description': row['description']}
-                if row['category'] == 'podcast_genre':
-                    genres.append(entry)
-                elif row['category'] == 'sponsor_industry':
-                    industries.append(entry)
-    except Exception as e:
-        logger.warning(f"Could not load tag vocabulary CSV: {e}")
-
-    return json_response({
-        'vocabulary_version': 1,
-        'all_tags': sorted(valid_tags()),
-        'podcast_genres': genres,
-        'sponsor_industries': industries,
-        'special_tags': [{
-            'tag': UNIVERSAL_TAG,
-            'description': 'Sponsor advertises broadly across all podcast genres.',
-        }],
-    })
+# Tag vocabulary moved to src/api/tags.py

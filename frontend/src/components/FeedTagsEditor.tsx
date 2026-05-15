@@ -25,7 +25,11 @@ export function FeedTagsEditor({ slug }: Props) {
   const { data: vocab } = useQuery({
     queryKey: ['tagVocabulary'],
     queryFn: getTagVocabulary,
-    staleTime: 60 * 60 * 1000, // 1 hour; vocabulary changes ship with app releases
+    // Vocabulary ships with the app image; a runtime change would require a
+    // restart, which blows the React Query cache anyway. Infinity = one fetch
+    // per page load, no refresh-on-focus.
+    staleTime: Infinity,
+    gcTime: Infinity,
   });
 
   const save = useMutation({

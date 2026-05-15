@@ -42,6 +42,35 @@ def valid_tags() -> FrozenSet[str]:
 
 
 @lru_cache(maxsize=1)
+def vocabulary_payload() -> Dict[str, object]:
+    """Categorized vocabulary view used by patterns/vocabulary.json AND the
+    /api/v1/tags/vocabulary endpoint. Cached because the source CSV ships
+    with the app image and never changes at runtime.
+    """
+    path = os.path.join(_SEED_DIR, 'tag_vocabulary.csv')
+    genres: List[Dict[str, str]] = []
+    industries: List[Dict[str, str]] = []
+    with open(path, 'r', encoding='utf-8') as fh:
+        reader = csv.DictReader(fh)
+        for row in reader:
+            entry = {'tag': row['tag'], 'description': row['description']}
+            if row['category'] == 'podcast_genre':
+                genres.append(entry)
+            elif row['category'] == 'sponsor_industry':
+                industries.append(entry)
+    return {
+        'vocabulary_version': 1,
+        'all_tags': sorted(valid_tags()),
+        'podcast_genres': genres,
+        'sponsor_industries': industries,
+        'special_tags': [{
+            'tag': UNIVERSAL_TAG,
+            'description': 'Sponsor advertises broadly across all podcast genres.',
+        }],
+    }
+
+
+@lru_cache(maxsize=1)
 def itunes_category_map() -> Dict[str, str]:
     """iTunes category string -> vocabulary tag (case-insensitive lookup via .lower()).
 

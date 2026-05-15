@@ -160,8 +160,6 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
 }
 
 export function PatternExportDialog({ open, patterns, onClose }: Props) {
-  // Remount on each open so useState's initializer re-syncs selection with
-  // the current filter. Cheaper than driving prop->state via useEffect.
   if (!open) return null;
   return <PatternExportDialogImpl patterns={patterns} onClose={onClose} />;
 }
