@@ -8,6 +8,7 @@ import DropdownMenu from '../components/DropdownMenu';
 import EpisodeList from '../components/EpisodeList';
 import LoadingSpinner from '../components/LoadingSpinner';
 import TriStateSelect from '../components/TriStateSelect';
+import { FeedTagsEditor } from '../components/FeedTagsEditor';
 import { formatStorage } from './settings/settingsUtils';
 
 function FeedDetail() {
@@ -413,6 +414,9 @@ function FeedDetail() {
           </div>
         </div>
       </div>
+
+      {/* Feed-level tag editor (community-pattern matching) */}
+      {slug && <FeedTagsEditor slug={slug} />}
 
       {/* Episodes header with status filter */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">

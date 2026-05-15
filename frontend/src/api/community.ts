@@ -83,3 +83,20 @@ export async function updateSponsorTags(sponsorId: number, tags: string[]): Prom
     body: { tags },
   });
 }
+
+export interface TagVocabularyEntry {
+  tag: string;
+  description: string;
+}
+
+export interface TagVocabulary {
+  vocabulary_version: number;
+  all_tags: string[];
+  podcast_genres: TagVocabularyEntry[];
+  sponsor_industries: TagVocabularyEntry[];
+  special_tags: TagVocabularyEntry[];
+}
+
+export async function getTagVocabulary(): Promise<TagVocabulary> {
+  return apiRequest<TagVocabulary>('/tags/vocabulary');
+}
