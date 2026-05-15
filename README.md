@@ -694,13 +694,13 @@ These come from the [offline LLM benchmark](benchmarks/llm/) included in this re
 
 | Use case | Model | F1 | Cost / episode | Why |
 |---|---|---:|---:|---|
-| Best accuracy at any cost | `x-ai/grok-4.1-fast` (via OpenRouter) | 0.64 | $0.15 | Highest F1 of 32 models. Best F1-per-dollar of any paid model in the sweep (2.7x the next paid pick). Passes the no-ad negative control. |
-| Best Anthropic-direct | `claude-opus-4-7` | 0.59 | $4.10 | Perfect JSON compliance (1.00), perfect no-ad pass, lowest false-positive rate. ~27x more expensive than grok for ~8% less F1; pick this for direct Anthropic billing or the strictest control side. |
-| Free tier (best F1) | `qwen/qwen3.5-plus-02-15` (via OpenRouter) | 0.62 | $0.00 | Highest free-tier F1, rank 2 overall, beating most paid models. Perfect JSON compliance. p50 latency 52s, not for live UX, fine for offline batches. Alibaba's content classifier may reject a small fraction of windows. |
-| Cheap and fast (production) | `google/gemma-4-31b-it` (via OpenRouter) | 0.44 | $0.00 | Free via OpenRouter, p50 latency 1.7s, top-8 F1. JSON compliance 0.84 (16% of windows take a parser-fallback path; the production parser handles this). |
+| Best accuracy overall | `qwen/qwen3.5-plus-02-15` (via OpenRouter) | 0.649 | $0.00 | Rank 1 of all 32 models, paid or free. Perfect JSON compliance (1.00). p50 latency 49s, not for live UX, fine for offline batches. Alibaba's content classifier may reject a small fraction of windows. |
+| Best accuracy (paid) | `openai/gpt-5.5` | 0.636 | $4.66 | Highest F1 of any paid model. Beats `claude-opus-4-7` on both F1 (0.636 vs 0.618) and cost ($4.66 vs $5.54). JSON compliance 0.87 (the production parser handles the remaining 13% via fallback). |
+| Best Anthropic-direct | `claude-opus-4-7` | 0.618 | $5.54 | Rank 3 overall. Perfect JSON compliance (1.00), perfect no-ad pass, lowest false-positive rate. Pick this for direct Anthropic billing or the strictest control side, knowing gpt-5.5 is cheaper and slightly more accurate. |
+| Cheap and fast (production) | `google/gemma-4-31b-it` (via OpenRouter) | 0.463 | $0.00 | Free via OpenRouter, p50 latency 1.8s, rank 9 F1. JSON compliance 0.86 (14% of windows take a parser-fallback path; the production parser handles this). |
 
 Caveats:
-- Numbers come from a 7-episode corpus (6 ad-bearing, 1 no-ad control), 32 models, 5 trials each, 14,400 total calls. They will refine as the corpus grows.
+- Numbers come from a 7-episode corpus (6 ad-bearing, 1 no-ad control), 32 models tested with 31 active (xAI deprecated `grok-4.1-fast` upstream after the May 10 sweep; `grok-4.3` replaces it at F1 0.489 rank 7), 5 trials each, ~14,400 total calls. They will refine as the corpus grows.
 - Latency for OpenRouter-routed models reflects routing-layer queueing, not just model compute. Treat it as an availability indicator.
 - F1 uses IoU >= 0.5 against human-verified ad spans. A model with F1 0.5 catches half the ads with the right boundaries; a higher F1 means closer to the truth.
 
@@ -752,7 +752,7 @@ Simplest task. Summarization only, no structured detection. Minimize VRAM usage 
 
 ### Cloud vs. Local: What Changes
 
-Best cloud F1 in the [benchmark](benchmarks/llm/) is 0.64 (`x-ai/grok-4.1-fast`) over 32 models on a 7-episode corpus. `claude-sonnet-4-6` scores 0.36 in the same sweep, less than two-thirds of Grok's number, so "use Claude" doesn't fix accuracy by itself. The cloud model you pick matters as much as cloud-vs-local does.
+Best cloud F1 in the [benchmark](benchmarks/llm/) is 0.65 (`qwen/qwen3.5-plus-02-15`, free tier on OpenRouter) over 32 models on a 7-episode corpus. `claude-sonnet-4-6` scores 0.38 in the same sweep, well below the leader, so "use Claude" doesn't fix accuracy by itself. The cloud model you pick matters as much as cloud-vs-local does.
 
 The LLM only sees host-read ads that blend into content, new sponsors not yet in the pattern database, and ambiguous mid-rolls without promo codes or URLs. Everything else (audio fingerprinting, text pattern matching, pre/post-roll heuristics, audio-signal enforcement) runs without an LLM and catches a substantial share of ads regardless of model.
 
@@ -1325,7 +1325,7 @@ The `replace.mp3` file will be inserted at each ad break. Keep it short (1-3 sec
 
 This tool is for personal use only. Only use it with podcasts you have permission to modify or where such modification is permitted under applicable laws. Respect content creators and their terms of service.
 
-**LLM accuracy notice:** Detection accuracy depends heavily on the model. The [offline benchmark](benchmarks/llm/) ran 32 cloud models over a 7-episode corpus and got F1 from 0.00 to 0.64. The top-scoring model is not a Claude variant. Local Ollama runs are not in the benchmark yet. See [Cloud vs. Local: What Changes](#cloud-vs-local-what-changes) and the [latest report](benchmarks/llm/results/report.md) for the full numbers.
+**LLM accuracy notice:** Detection accuracy depends heavily on the model. The [offline benchmark](benchmarks/llm/) ran 32 cloud models over a 7-episode corpus and got F1 from 0.00 to 0.65. The top-scoring model is not a Claude variant. Local Ollama runs are not in the benchmark yet. See [Cloud vs. Local: What Changes](#cloud-vs-local-what-changes) and the [latest report](benchmarks/llm/results/report.md) for the full numbers.
 
 ## License
 
