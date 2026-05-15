@@ -1,4 +1,5 @@
-import { apiRequest, buildQueryString } from './client';
+import { apiRequest, buildQueryString, csrfHeaders, extractErrorMessage } from './client';
+import { downloadBlob } from './history';
 
 // Mirrors src/utils/community_tags.py:PATTERN_SOURCES so the frontend
 // and backend can't drift on the source-discriminator string spellings.
@@ -206,6 +207,52 @@ export async function submitPatternToCommunity(id: number): Promise<CommunityExp
   return apiRequest<CommunityExportResult>(`/patterns/${id}/submit-to-community`, {
     method: 'POST',
   });
+}
+
+export interface BundlePreviewRejection {
+  id: number;
+  sponsor: string | null;
+  reasons: string[];
+}
+
+export interface BundlePreview {
+  ready: number[];
+  rejected: BundlePreviewRejection[];
+  ready_count: number;
+  rejected_count: number;
+  pattern_count: number;
+}
+
+export async function previewExportBundle(ids: number[]): Promise<BundlePreview> {
+  return apiRequest<BundlePreview>('/patterns/preview-export', {
+    method: 'POST',
+    body: { ids },
+  });
+}
+
+// apiRequest assumes JSON responses; the bundle endpoint streams a file,
+// so fall back to a raw fetch. CSRF + error-stringification helpers are
+// reused from client.ts. The actual browser download happens here so
+// callers only deal with the resulting filename.
+export async function downloadCommunityBundle(ids: number[]): Promise<{ filename: string }> {
+  const response = await fetch('/api/v1/patterns/submit-bundle', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...csrfHeaders('POST'),
+    },
+    body: JSON.stringify({ ids }),
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Download failed' }));
+    throw new Error(extractErrorMessage(error, response.status));
+  }
+  const blob = await response.blob();
+  const cd = response.headers.get('Content-Disposition') || '';
+  const match = cd.match(/filename="?([^"]+)"?/);
+  const filename = match?.[1] || 'minuspod-community-submission.json';
+  downloadBlob(blob, filename);
+  return { filename };
 }
 
 export async function protectPattern(id: number): Promise<void> {

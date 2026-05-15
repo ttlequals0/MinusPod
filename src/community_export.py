@@ -31,6 +31,8 @@ from datetime import datetime, timezone
 from typing import Dict, List, Optional, Tuple
 
 from utils.community_tags import (
+    BUNDLE_FORMAT,
+    BUNDLE_VERSION,
     CONSUMER_EMAIL_DOMAINS,
     EMAIL_REGEX,
     GITHUB_REPO,
@@ -325,6 +327,59 @@ def build_pr_url(payload: Dict) -> Tuple[str, str, bool]:
     )
     too_large = len(url.encode('utf-8')) > URL_LENGTH_LIMIT_BYTES
     return url, filename, too_large
+
+
+def _sponsor_name_for(pattern: Dict, sponsors: List[Dict]) -> Optional[str]:
+    sponsor_id = pattern.get('sponsor_id')
+    if sponsor_id is None:
+        return None
+    row = next((s for s in sponsors if s['id'] == sponsor_id), None)
+    return row.get('name') if row else None
+
+
+def build_bundle(pattern_ids: List[int], db) -> Tuple[Dict, List[Dict]]:
+    """Run the export pipeline on each id and produce one bundle JSON.
+
+    Returns (bundle_payload, rejected). `rejected` is a list of
+    `{id, sponsor, reasons:[str]}` for patterns that failed pre-flight.
+    The bundle is the artifact that gets committed under
+    `patterns/community/` and consumed by the PR validator.
+    """
+    sponsors = db.get_known_sponsors(active_only=False)
+    patterns_by_id = db.get_ad_patterns_by_ids(pattern_ids)
+    ready: List[Dict] = []
+    rejected: List[Dict] = []
+    for pid in pattern_ids:
+        pattern = patterns_by_id.get(pid)
+        if not pattern:
+            rejected.append({'id': pid, 'sponsor': None, 'reasons': ['pattern not found']})
+            continue
+        if (pattern.get('source') or 'local') != 'local':
+            rejected.append({
+                'id': pid,
+                'sponsor': _sponsor_name_for(pattern, sponsors),
+                'reasons': [f"pattern source is '{pattern.get('source')}', only 'local' can be submitted"],
+            })
+            continue
+        try:
+            payload = build_export_payload(pattern, sponsors)
+        except ExportError as e:
+            rejected.append({
+                'id': pid,
+                'sponsor': _sponsor_name_for(pattern, sponsors),
+                'reasons': list(e.reasons),
+            })
+            continue
+        ready.append(payload)
+    bundle = {
+        'format': BUNDLE_FORMAT,
+        'bundle_version': BUNDLE_VERSION,
+        'submitted_at': datetime.now(timezone.utc).isoformat(),
+        'submitted_app_version': _app_version(),
+        'pattern_count': len(ready),
+        'patterns': ready,
+    }
+    return bundle, rejected
 
 
 def run_export_pipeline(pattern_id: int, db) -> Dict:

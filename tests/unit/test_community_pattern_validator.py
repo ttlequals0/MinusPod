@@ -9,7 +9,7 @@ from tools.community_pattern_validator import (  # noqa: E402
     dedupe,
     validate_doc,
 )
-from utils.community_tags import sponsor_seed  # noqa: E402
+from utils.community_tags import BUNDLE_FORMAT, sponsor_seed  # noqa: E402
 
 
 def test_canonicalize_strips_stopwords_and_dates():
@@ -178,6 +178,53 @@ def test_validate_doc_accepts_seed_alias_of_declared_sponsor():
     result = validate_doc('a.json', doc, seed, [])
     assert result.status in ('pass', 'warn'), (result.status, result.errors)
     assert not any('multi-sponsor block' in e for e in result.errors)
+
+
+def test_run_accepts_bundle_file(tmp_path, monkeypatch):
+    """A bundle file with `format == 'minuspod-community-submission'`
+    is expanded into N validations, one per pattern in `patterns[]`.
+    Each result path is `<file>#patterns[i]` so the PR comment can
+    point at the failing index."""
+    import tools.community_pattern_validator as v
+    repo_root = tmp_path / 'repo'
+    community = repo_root / 'patterns' / 'community'
+    community.mkdir(parents=True)
+    monkeypatch.setattr(v, '_REPO_SRC', repo_root / 'src')
+    (repo_root / 'src').mkdir()
+
+    bundle = {
+        'format': BUNDLE_FORMAT,
+        'bundle_version': 1,
+        'submitted_at': '2026-05-15T20:00:00Z',
+        'submitted_app_version': '2.4.5',
+        'pattern_count': 2,
+        'patterns': [
+            {
+                'community_id': 'aaaaaaaa-1111-2222-3333-444444444441',
+                'version': 1,
+                'sponsor': 'Squarespace',
+                'submitted_at': '2026-05-15T20:00:00Z',
+                'text_template': 'Squarespace dot com slash show for ten percent off your website today launch confidently!',
+                'sponsor_tags': ['tech'],
+            },
+            {
+                'community_id': 'aaaaaaaa-1111-2222-3333-444444444442',
+                'version': 1,
+                'sponsor': 'BetterHelp',
+                'submitted_at': '2026-05-15T20:00:00Z',
+                'text_template': 'BetterHelp offers convenient affordable online therapy you can do from anywhere right now.',
+                'sponsor_tags': ['mental_health'],
+            },
+        ],
+    }
+    pr_file = community / 'submission-aaaaaaaa.json'
+    pr_file.write_text(__import__('json').dumps(bundle))
+
+    rc = v.run([str(pr_file)], comment_output=str(tmp_path / 'c.md'))
+    comment = (tmp_path / 'c.md').read_text()
+    assert '#patterns[0]' in comment
+    assert '#patterns[1]' in comment
+    assert rc == 0, comment
 
 
 def test_run_excludes_pr_files_from_existing_baseline(tmp_path, monkeypatch):

@@ -31,12 +31,14 @@ if str(_REPO_SRC) not in sys.path:
 
 from community_export import find_foreign_sponsors  # noqa: E402
 from utils.community_tags import (  # noqa: E402
+    BUNDLE_FORMAT,
     CANONICAL_DAYS,
     CANONICAL_MONTHS,
     CANONICAL_RELATIVE_TIME,
     CANONICAL_STOPWORDS,
     DATE_REGEX,
     YEAR_REGEX,
+    iter_bundle_patterns,
     sponsor_seed,
     valid_tags,
 )
@@ -286,8 +288,28 @@ def validate_doc(
     return result
 
 
+def _extract_patterns(path: str, raw: Any) -> List[Tuple[str, Dict[str, Any]]]:
+    """Yield (synthetic_path, pattern_doc) for any payload shape.
+
+    A flat per-pattern file returns ``[(path, raw)]``. A bundle file returns
+    one entry per pattern in the ``patterns`` array, with ``path#patterns[i]``
+    so the PR comment can point at the failing index.
+    """
+    if not isinstance(raw, dict):
+        return []
+    if raw.get('format') == BUNDLE_FORMAT:
+        return [
+            (f'{path}#patterns[{i}]', p)
+            for i, p in enumerate(iter_bundle_patterns(raw))
+        ]
+    return [(path, raw)]
+
+
 def _load_existing_patterns(community_dir: Path) -> List[Dict[str, Any]]:
-    """Load every JSON file in patterns/community/ (recursive) as an existing pattern."""
+    """Load every JSON file in patterns/community/ (recursive) as existing patterns.
+
+    Bundle files contribute every pattern in their ``patterns[]`` array.
+    """
     out: List[Dict[str, Any]] = []
     if not community_dir.exists():
         return out
@@ -296,9 +318,12 @@ def _load_existing_patterns(community_dir: Path) -> List[Dict[str, Any]]:
             continue
         try:
             with p.open('r', encoding='utf-8') as fh:
-                out.append(json.load(fh))
+                raw = json.load(fh)
         except Exception as e:
             logger.warning(f'Could not parse {p}: {e}')
+            continue
+        for _, doc in _extract_patterns(str(p), raw):
+            out.append(doc)
     return out
 
 
@@ -383,11 +408,13 @@ def run(pr_files: List[str], comment_output: Optional[str] = None,
             continue
         try:
             with p.open('r', encoding='utf-8') as fh:
-                cid = json.load(fh).get('community_id')
+                raw = json.load(fh)
         except Exception:
-            cid = None
-        if cid:
-            pr_community_ids.add(cid)
+            continue
+        for _, doc in _extract_patterns(str(p), raw):
+            cid = doc.get('community_id')
+            if cid:
+                pr_community_ids.add(cid)
     if pr_community_ids:
         existing = [e for e in existing if e.get('community_id') not in pr_community_ids]
 
@@ -402,7 +429,7 @@ def run(pr_files: List[str], comment_output: Optional[str] = None,
             continue
         try:
             with p.open('r', encoding='utf-8') as fh:
-                doc = json.load(fh)
+                raw = json.load(fh)
         except Exception as e:
             results.append(ValidationResult(
                 path=path, status='reject',
@@ -411,7 +438,15 @@ def run(pr_files: List[str], comment_output: Optional[str] = None,
             continue
         if p.name == 'index.json':
             continue
-        results.append(validate_doc(path, doc, seed, existing))
+        extracted = _extract_patterns(path, raw)
+        if not extracted:
+            results.append(ValidationResult(
+                path=path, status='reject',
+                errors=['empty submission: no patterns found in file'],
+            ))
+            continue
+        for sub_path, doc in extracted:
+            results.append(validate_doc(sub_path, doc, seed, existing))
 
     markdown = render_markdown_comment(results)
     if comment_output:

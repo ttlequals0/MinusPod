@@ -28,6 +28,30 @@ COMMUNITY_MANIFEST_URL = (
 MANIFEST_VERSION = 1
 VOCABULARY_VERSION = 1
 
+# Community submission bundle: format string + version, used by the export
+# builder (community_export.build_bundle), the PR-side validator, and the
+# manifest generator. Single source of truth so the three modules can't
+# drift on the spelling.
+BUNDLE_FORMAT = 'minuspod-community-submission'
+BUNDLE_VERSION = 1
+
+
+def iter_bundle_patterns(raw):
+    """Yield each pattern dict inside a payload, regardless of shape.
+
+    A flat per-pattern file yields ``raw`` itself. A bundle file (``raw['format']
+    == BUNDLE_FORMAT``) yields each entry in ``raw['patterns']``. Non-dict
+    entries are skipped. Callers add their own indexing or filtering.
+    """
+    if not isinstance(raw, dict):
+        return
+    if raw.get('format') == BUNDLE_FORMAT:
+        for p in raw.get('patterns') or []:
+            if isinstance(p, dict):
+                yield p
+        return
+    yield raw
+
 # ad_patterns.source values. Centralized so API/DB/UI agree on spelling.
 PATTERN_SOURCE_LOCAL = 'local'
 PATTERN_SOURCE_COMMUNITY = 'community'

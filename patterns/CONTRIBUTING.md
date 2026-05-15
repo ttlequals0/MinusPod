@@ -12,7 +12,20 @@ A community pattern is an ad pattern from your local MinusPod instance that you'
 
 ## What gets submitted
 
-When you pick **Submit to community** in the Export dialog, the app builds a JSON file from each selected pattern. The file includes:
+When you pick **Submit to community** in the Export dialog, the app runs quality gates over your selection, lets you preview the ready vs rejected split (with reasons), and downloads one bundle file. The bundle has this shape:
+
+```json
+{
+  "format": "minuspod-community-submission",
+  "bundle_version": 1,
+  "submitted_at": "...",
+  "submitted_app_version": "2.4.5",
+  "pattern_count": N,
+  "patterns": [ /* one entry per pattern that passed quality gates */ ]
+}
+```
+
+Each entry in `patterns[]` includes:
 
 - Pattern text (`text_template`, `intro_variants`, `outro_variants`)
 - Sponsor name and aliases
@@ -23,7 +36,7 @@ When you pick **Submit to community** in the Export dialog, the app builds a JSO
 - Submission timestamp
 - App version that submitted the pattern
 
-The file does not include any data identifying you, your podcasts, or your listening habits.
+The bundle does not include any data identifying you, your podcasts, or your listening habits. The PR-side validator handles bundle files natively (one validation per entry), and the manifest builder flattens them into per-pattern entries in `patterns/community/index.json`, so the maintainer does not have to split them on merge.
 
 -----
 
@@ -77,14 +90,14 @@ When a check fails, the app shows which one and does not generate a submission.
 
 ## What happens after you click submit
 
-1. The app generates the JSON file and a prefilled GitHub URL.
-1. Your browser opens GitHub at "Create new file" with the JSON already filled in.
-1. You click "Propose new file." GitHub forks the repo to your account if needed and opens a pull request.
-1. The repo's GitHub Action runs validation on the PR.
+1. The app runs the quality gates and shows a preview: how many patterns will pass, and the reasons for any rejections.
+1. You confirm; `minuspod-submission-<id>.json` downloads to your machine.
+1. You fork `ttlequals0/MinusPod`, drop the file into `patterns/community/` on a new branch, commit, push, and open a PR. A CLI snippet is shown right after the download.
+1. The GitHub Action validates the bundle (one validation per entry).
 1. A maintainer reviews the PR.
-1. If accepted, your pattern joins the next published manifest and ships to other instances on their next sync.
+1. If accepted, every pattern in the bundle joins the next published manifest and reaches other instances on their next sync.
 
-You do not need git installed. You do not need to configure anything in the app beyond clicking submit.
+You need git installed (or the `gh` CLI) for the last step. The app does not push anything on your behalf.
 
 -----
 

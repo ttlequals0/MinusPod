@@ -27,18 +27,41 @@ _REPO_SRC = Path(__file__).resolve().parents[1]
 if str(_REPO_SRC) not in sys.path:
     sys.path.insert(0, str(_REPO_SRC))
 
-from utils.community_tags import MANIFEST_VERSION, VOCABULARY_VERSION  # noqa: E402, F401
+from utils.community_tags import (  # noqa: E402, F401
+    BUNDLE_FORMAT,
+    MANIFEST_VERSION,
+    VOCABULARY_VERSION,
+    iter_bundle_patterns,
+)
 
 
 def _community_dir() -> Path:
     return _REPO_SRC.parent / 'patterns' / 'community'
 
 
+def _flatten_to_patterns(path: Path, data: Any) -> List[Dict[str, Any]]:
+    """Return per-pattern dicts from a JSON payload. Drops entries missing
+    ``community_id`` with a stderr warning so the manifest stays clean."""
+    if not isinstance(data, dict):
+        print(f'WARN: skipping {path.name}: not a JSON object', file=sys.stderr)
+        return []
+    is_bundle = data.get('format') == BUNDLE_FORMAT
+    out: List[Dict[str, Any]] = []
+    for i, p in enumerate(iter_bundle_patterns(data)):
+        if not p.get('community_id'):
+            label = f'{path.name}#patterns[{i}]' if is_bundle else path.name
+            print(f'WARN: {label}: missing community_id', file=sys.stderr)
+            continue
+        out.append(p)
+    return out
+
+
 def _load_pattern_files(directory: Path) -> List[Dict[str, Any]]:
     """Read every <sponsor>-<uuid>.json in `directory`, excluding index.json.
 
     Returns the parsed pattern dicts sorted by `submitted_at` so the
-    manifest order is deterministic across regenerations.
+    manifest order is deterministic across regenerations. Bundle files
+    are flattened so each contained pattern becomes its own manifest entry.
     """
     patterns: List[Dict[str, Any]] = []
     for path in sorted(directory.glob('*.json')):
@@ -50,13 +73,7 @@ def _load_pattern_files(directory: Path) -> List[Dict[str, Any]]:
         except (json.JSONDecodeError, OSError) as e:
             print(f'WARN: skipping {path.name}: {e}', file=sys.stderr)
             continue
-        if not isinstance(data, dict):
-            print(f'WARN: skipping {path.name}: not a JSON object', file=sys.stderr)
-            continue
-        if not data.get('community_id'):
-            print(f'WARN: skipping {path.name}: missing community_id', file=sys.stderr)
-            continue
-        patterns.append(data)
+        patterns.extend(_flatten_to_patterns(path, data))
     patterns.sort(key=lambda d: (d.get('submitted_at') or '', d.get('community_id') or ''))
     return patterns
 

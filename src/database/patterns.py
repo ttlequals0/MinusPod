@@ -104,6 +104,25 @@ class PatternMixin:
         row = cursor.fetchone()
         return dict(row) if row else None
 
+    def get_ad_patterns_by_ids(self, pattern_ids: List[int]) -> Dict[int, Dict]:
+        """Batch-load ad patterns by id. Returns ``{id: row}`` for every
+        id that exists. Used by `build_bundle` to avoid 200+ single-row
+        SELECTs on the "select all" path."""
+        if not pattern_ids:
+            return {}
+        placeholders = ','.join('?' * len(pattern_ids))
+        conn = self.get_connection()
+        cursor = conn.execute(
+            f"""SELECT ap.*, ks.name AS sponsor,
+                      p.title as podcast_name, p.slug as podcast_slug
+               FROM ad_patterns ap
+               LEFT JOIN podcasts p ON ap.podcast_id = p.slug
+               LEFT JOIN known_sponsors ks ON ap.sponsor_id = ks.id
+               WHERE ap.id IN ({placeholders})""",
+            tuple(pattern_ids),
+        )
+        return {row['id']: dict(row) for row in cursor.fetchall()}
+
     def find_pattern_by_text(self, text_template: str, podcast_id: str = None) -> Optional[Dict]:
         """Find an existing pattern with the same text_template (for deduplication)."""
         conn = self.get_connection()

@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.4.4
+  version: 2.4.5
   contact:
     name: MinusPod
   license:
@@ -3964,6 +3964,104 @@ paths:
           description: Disable summary
         '400':
           description: Validation failure
+
+  /patterns/preview-export:
+    post:
+      summary: Dry-run the community export pipeline for a list of pattern ids
+      description: |
+        Returns which patterns would pass the quality gates and which would
+        be rejected, with per-id reasons. Used by the UI to show a preview
+        before the user builds the actual submission bundle.
+      tags: [Patterns]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ids]
+              properties:
+                ids:
+                  type: array
+                  items: { type: integer }
+                  minItems: 1
+      responses:
+        '200':
+          description: Preview result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ready:
+                    type: array
+                    items: { type: integer }
+                  rejected:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: integer }
+                        sponsor: { type: string, nullable: true }
+                        reasons:
+                          type: array
+                          items: { type: string }
+                  ready_count: { type: integer }
+                  rejected_count: { type: integer }
+                  pattern_count: { type: integer }
+        '400':
+          description: ids list missing or empty
+
+  /patterns/submit-bundle:
+    post:
+      summary: Build a downloadable community-submission bundle
+      description: |
+        Runs the export pipeline on each id and returns a single JSON file
+        (Content-Disposition: attachment) containing every pattern that
+        passed quality gates. The file is the artifact the contributor
+        commits into `patterns/community/` to open one PR for all the
+        selected patterns. The PR-side validator and the manifest builder
+        both handle the bundle format natively, so the maintainer does
+        not need to split it after merge.
+      tags: [Patterns]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ids]
+              properties:
+                ids:
+                  type: array
+                  items: { type: integer }
+                  minItems: 1
+      responses:
+        '200':
+          description: Bundle JSON file (downloaded as attachment)
+          headers:
+            Content-Disposition:
+              schema: { type: string }
+              description: 'attachment; filename="minuspod-submission-XXXX.json"'
+            X-Bundle-Pattern-Count:
+              schema: { type: integer }
+            X-Bundle-Rejected-Count:
+              schema: { type: integer }
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  format: { type: string, example: minuspod-community-submission }
+                  bundle_version: { type: integer }
+                  submitted_at: { type: string, format: date-time }
+                  submitted_app_version: { type: string }
+                  pattern_count: { type: integer }
+                  patterns:
+                    type: array
+                    items: { type: object }
+        '400':
+          description: ids missing, or every pattern failed quality gates
 
   /patterns/{pattern_id}/submit-to-community:
     post:

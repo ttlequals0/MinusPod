@@ -1240,11 +1240,27 @@ def update_community_sync_settings():
 @limiter.limit('6/hour')
 @log_request
 def trigger_community_pattern_sync():
-    """Force a sync now. Rate-limited to 6 calls per hour."""
+    """Force a sync now. Rate-limited to 6 calls per hour.
+
+    A 404 from the upstream manifest URL is expected when the repo hasn't
+    published `patterns/community/index.json` to its default branch yet
+    (e.g. the feature is still on a feature branch). Surface that as a
+    soft 200 with ``status: no_manifest_yet`` rather than a 502, since
+    the local instance is healthy and there's nothing the user can do.
+    """
+    import requests
     from community_sync import sync_now
     db = get_database()
     try:
         summary = sync_now(db)
+    except requests.HTTPError as e:
+        resp = e.response
+        if resp is not None and resp.status_code == 404:
+            return json_response({
+                'status': 'no_manifest_yet',
+                'message': 'Upstream has not published a manifest at this URL yet.',
+            })
+        return error_response({'message': 'Sync failed', 'reason': str(e)}, 502)
     except Exception as e:
         return error_response({'message': 'Sync failed', 'reason': str(e)}, 502)
     return json_response(summary)

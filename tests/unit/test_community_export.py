@@ -7,8 +7,10 @@ import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from community_export import (  # noqa: E402
+    BUNDLE_FORMAT,
     ExportError,
     URL_LENGTH_LIMIT_BYTES,
+    build_bundle,
     build_export_payload,
     build_pr_url,
     strip_pii,
@@ -130,6 +132,54 @@ def test_pr_url_fits_for_typical_pattern():
     assert filename.endswith('.json')
     assert url.startswith('https://github.com/ttlequals0/MinusPod/new/main/patterns/community')
     assert too_large is False
+
+
+class _FakeDB:
+    """Tiny stand-in for the DB facade build_bundle calls."""
+
+    def __init__(self, patterns_by_id, sponsors):
+        self._patterns = patterns_by_id
+        self._sponsors = sponsors
+
+    def get_ad_pattern_by_id(self, pid):
+        return self._patterns.get(pid)
+
+    def get_ad_patterns_by_ids(self, ids):
+        return {pid: self._patterns[pid] for pid in ids if pid in self._patterns}
+
+    def get_known_sponsors(self, active_only=False):
+        if active_only:
+            return [s for s in self._sponsors if s.get('is_active')]
+        return list(self._sponsors)
+
+
+def test_build_bundle_groups_ready_and_rejected():
+    good = _pattern()
+    bad_short = _pattern(text='too short', id=43)
+    db = _FakeDB(
+        patterns_by_id={42: good, 43: bad_short},
+        sponsors=[_sponsor()],
+    )
+    bundle, rejected = build_bundle([42, 43, 999], db)
+    assert bundle['format'] == BUNDLE_FORMAT
+    assert bundle['pattern_count'] == 1
+    assert len(bundle['patterns']) == 1
+    assert bundle['patterns'][0]['sponsor'] == 'Squarespace'
+    assert bundle['patterns'][0]['community_id']
+    rejected_ids = {r['id'] for r in rejected}
+    assert 43 in rejected_ids
+    assert 999 in rejected_ids
+    not_found = next(r for r in rejected if r['id'] == 999)
+    assert 'not found' in not_found['reasons'][0]
+
+
+def test_build_bundle_rejects_community_source():
+    pattern = _pattern(source='community')
+    db = _FakeDB(patterns_by_id={42: pattern}, sponsors=[_sponsor()])
+    bundle, rejected = build_bundle([42], db)
+    assert bundle['pattern_count'] == 0
+    assert rejected[0]['id'] == 42
+    assert 'only \'local\' can be submitted' in rejected[0]['reasons'][0]
 
 
 def test_pr_url_falls_back_when_too_large():

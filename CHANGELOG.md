@@ -6,6 +6,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.5] - 2026-05-15
+
+### Changed
+
+- **Submit-to-community is now a bundle download, not N prefilled PR tabs.** Picking "Submit to community" in the Export dialog opens a preview that lists which patterns will pass quality gates and which will not (with reasons). Confirming downloads a single `minuspod-submission-<id>.json` containing every passing pattern. You open one PR for the whole bundle in your fork. The old per-tab flow fell over at scale: 215 selected -> 8 tabs survived the popup blocker, 20 forced JSON downloads (each over the 7 KB URL limit), 187 silent 400s rendered as `[object Object]`.
+- The PR-side validator and the manifest builder both handle the new bundle format (`format: minuspod-community-submission`) by flattening `patterns[]` into per-pattern validations / manifest entries. Existing per-file submissions still work.
+
+### Added
+
+- `POST /api/v1/patterns/preview-export` returning ready / rejected counts plus per-id rejection reasons.
+- `POST /api/v1/patterns/submit-bundle` returning the downloadable bundle JSON. Includes `X-Bundle-Pattern-Count` and `X-Bundle-Rejected-Count` headers for the UI.
+
+### Fixed
+
+- **`POST /api/v1/community-patterns/sync` no longer returns 502 when the upstream manifest URL doesn't exist yet.** A 404 from `raw.githubusercontent.com` (e.g. the patterns feature is still on a branch and `main` doesn't have `patterns/community/index.json`) now returns 200 with `{status: "no_manifest_yet"}`. Other failures still surface as 502. Caught from the user's console showing six 502s.
+- **`apiRequest` no longer stringifies error response bodies as `[object Object]`.** Backend 4xx responses can be `{error: {message: "...", reasons: [...]}}`; the old throw passed that object verbatim into `new Error(...)`. `extractErrorMessage` now prefers `error.error.message`, falls back to a stringified `error.error`, then the HTTP status. Affects every API call site.
+
 ## [2.4.4] - 2026-05-15
 
 ### Added

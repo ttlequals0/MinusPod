@@ -7,7 +7,7 @@ from typing import Optional
 from utils.time import utc_now_iso, parse_iso_datetime
 from sponsor_normalize import get_or_create_known_sponsor
 
-from flask import request
+from flask import Response, request
 
 from api import (
     api, limiter, log_request, json_response, error_response,
@@ -1128,6 +1128,82 @@ def bulk_disable_patterns():
         return err
     disabled = db.bulk_disable_patterns(ids)
     return json_response({'disabled': disabled, 'ids': ids})
+
+
+def _coerce_int_ids(raw) -> list:
+    """Coerce request body `ids` to a list of ints. Drops bad entries."""
+    if not isinstance(raw, list):
+        return []
+    out = []
+    for v in raw:
+        try:
+            out.append(int(v))
+        except (TypeError, ValueError):
+            continue
+    return out
+
+
+@api.route('/patterns/preview-export', methods=['POST'])
+@log_request
+def preview_export_to_community():
+    """Dry-run: report which of these pattern ids would pass quality gates.
+
+    Body: ``{"ids": [int, ...]}``. Returns
+    ``{ready, rejected, ready_count, rejected_count}`` where ``rejected``
+    is ``[{id, sponsor, reasons:[str]}]``.
+    """
+    from community_export import build_bundle
+    body = request.get_json(silent=True) or {}
+    ids = _coerce_int_ids(body.get('ids'))
+    if not ids:
+        return error_response('ids required (non-empty list of integers)', 400)
+    db = get_database()
+    bundle, rejected = build_bundle(ids, db)
+    rejected_id_set = {r['id'] for r in rejected}
+    ready_ids = [i for i in ids if i not in rejected_id_set]
+    return json_response({
+        'ready': ready_ids,
+        'rejected': rejected,
+        'ready_count': len(ready_ids),
+        'rejected_count': len(rejected),
+        'pattern_count': bundle['pattern_count'],
+    })
+
+
+@api.route('/patterns/submit-bundle', methods=['POST'])
+@log_request
+def submit_bundle_to_community():
+    """Build a single-file community submission bundle for download.
+
+    Body: ``{"ids": [int, ...]}``. Returns ``application/json`` with a
+    ``Content-Disposition: attachment`` header so the browser downloads
+    the file. The bundle is the artifact the user commits into
+    ``patterns/community/`` to open one PR for all selected patterns.
+    """
+    from community_export import build_bundle
+    body = request.get_json(silent=True) or {}
+    ids = _coerce_int_ids(body.get('ids'))
+    if not ids:
+        return error_response('ids required (non-empty list of integers)', 400)
+    db = get_database()
+    bundle, rejected = build_bundle(ids, db)
+    if bundle['pattern_count'] == 0:
+        return error_response({
+            'message': 'No patterns passed quality gates',
+            'rejected': rejected,
+        }, 400)
+    first_cid = bundle['patterns'][0]['community_id']
+    filename = f'minuspod-submission-{first_cid.split("-")[0]}.json'
+    body_text = json.dumps(bundle, indent=2, ensure_ascii=False)
+    return Response(
+        body_text,
+        mimetype='application/json',
+        headers={
+            'Content-Disposition': f'attachment; filename="{filename}"',
+            'X-Bundle-Rejected-Count': str(len(rejected)),
+            'X-Bundle-Pattern-Count': str(bundle['pattern_count']),
+        },
+    )
 
 
 @api.route('/patterns/<int:pattern_id>/submit-to-community', methods=['POST'])
