@@ -12,7 +12,7 @@ A community pattern is an ad pattern from your local MinusPod instance that you'
 
 ## What gets submitted
 
-When you click **Submit to community**, the app builds a JSON file from your pattern. The file includes:
+When you pick **Submit to community** in the Export dialog, the app builds a JSON file from each selected pattern. The file includes:
 
 - Pattern text (`text_template`, `intro_variants`, `outro_variants`)
 - Sponsor name and aliases
@@ -95,6 +95,10 @@ The GitHub Action runs the same quality checks as the in-app submission as a saf
 ### Re-validation
 
 All quality checks run again. If something was missed (or someone hand-edited the JSON), the action catches it.
+
+### Single-pattern check
+
+Each submitted file must describe exactly one ad. The action scans `text_template` for the names (and aliases) of any other seed sponsor; if any match on a word boundary, the PR is rejected with the list of foreign sponsors found. Usually that means a multi-sponsor ad block got pasted in. Trim the text to one sponsor and resubmit. Reviewers should eyeball this too: automation catches obvious stitches but not edge cases like a sponsor that isn't in the seed list yet.
 
 ### Tag validation
 

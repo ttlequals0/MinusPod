@@ -96,6 +96,59 @@ def strip_pii(text: str) -> str:
     return _strip_phones(_strip_emails(text))
 
 
+def _normalize_aliases(value) -> List[str]:
+    """Accept aliases as either a list (CSV-derived seed) or a JSON string
+    (DB rows). Return a plain list of non-empty strings."""
+    if isinstance(value, list):
+        return [str(a) for a in value if a]
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+        except (TypeError, ValueError):
+            return []
+        if isinstance(parsed, list):
+            return [str(a) for a in parsed if a]
+    return []
+
+
+def find_foreign_sponsors(
+    text: str,
+    declared_names_lower: set,
+    sponsors: List[Dict],
+    *,
+    require_active: bool = False,
+) -> List[str]:
+    """Return canonical names of sponsors whose name or any alias appears
+    in `text` on a word boundary, excluding any row whose own name/alias
+    matches `declared_names_lower`. Lookups are case-insensitive.
+
+    `declared_names_lower` should already contain every lowercased name
+    you consider "us" -- the doc's declared sponsor plus its declared
+    aliases. The helper also skips any seed row that shares an
+    alias with the declared sponsor, so passing the canonical name alone
+    is enough when the seed list is authoritative.
+    """
+    if not text:
+        return []
+    text_l = text.lower()
+    foreign: List[str] = []
+    for s in sponsors:
+        if require_active and not s.get('is_active'):
+            continue
+        name = s.get('name') or ''
+        name_l = name.lower()
+        if not name_l:
+            continue
+        candidates = [name_l] + [a.lower() for a in _normalize_aliases(s.get('aliases'))]
+        if any(c in declared_names_lower for c in candidates):
+            continue
+        for c in candidates:
+            if re.search(rf'\b{re.escape(c)}\b', text_l):
+                foreign.append(name)
+                break
+    return foreign
+
+
 def _quality_gates(pattern: Dict, sponsors: List[Dict]) -> List[str]:
     """Run quality gates. Returns a list of failure reasons (empty = pass)."""
     reasons: List[str] = []
@@ -128,16 +181,10 @@ def _quality_gates(pattern: Dict, sponsors: List[Dict]) -> List[str]:
         reasons.append('sponsor not found')
         return reasons
 
-    sponsor_names = [sponsor_row['name']]
-    try:
-        aliases = json.loads(sponsor_row.get('aliases') or '[]')
-        if isinstance(aliases, list):
-            sponsor_names.extend(aliases)
-    except (TypeError, ValueError):
-        pass
+    declared_aliases = _normalize_aliases(sponsor_row.get('aliases'))
+    sponsor_names = [sponsor_row['name']] + declared_aliases
 
     text_lower = text.lower()
-    # Whitespace-bounded, case-insensitive presence test.
     name_present = any(
         re.search(rf'\b{re.escape(n.lower())}\b', text_lower)
         for n in sponsor_names if n
@@ -145,24 +192,8 @@ def _quality_gates(pattern: Dict, sponsors: List[Dict]) -> List[str]:
     if not name_present:
         reasons.append('sponsor name (or any alias) does not appear in text_template')
 
-    # Foreign sponsor presence test: no other sponsor's name should appear.
-    foreign = []
-    for s in sponsors:
-        if s['id'] == sponsor_id or not s.get('is_active'):
-            continue
-        other_names = [s['name']]
-        try:
-            other_aliases = json.loads(s.get('aliases') or '[]')
-            if isinstance(other_aliases, list):
-                other_names.extend(other_aliases)
-        except (TypeError, ValueError):
-            pass
-        for name in other_names:
-            if not name:
-                continue
-            if re.search(rf'\b{re.escape(name.lower())}\b', text_lower):
-                foreign.append(name)
-                break
+    declared_lower = {n.lower() for n in sponsor_names if n}
+    foreign = find_foreign_sponsors(text, declared_lower, sponsors, require_active=True)
     if foreign:
         reasons.append(f'foreign sponsor names appear in text: {", ".join(foreign[:3])}')
 

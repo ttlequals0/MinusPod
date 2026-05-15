@@ -2,7 +2,14 @@ import { apiRequest, buildQueryString } from './client';
 
 // Mirrors src/utils/community_tags.py:PATTERN_SOURCES so the frontend
 // and backend can't drift on the source-discriminator string spellings.
-export const PATTERN_SOURCES = ['local', 'community', 'imported'] as const;
+export const PATTERN_SOURCE_LOCAL = 'local';
+export const PATTERN_SOURCE_COMMUNITY = 'community';
+export const PATTERN_SOURCE_IMPORTED = 'imported';
+export const PATTERN_SOURCES = [
+  PATTERN_SOURCE_LOCAL,
+  PATTERN_SOURCE_COMMUNITY,
+  PATTERN_SOURCE_IMPORTED,
+] as const;
 export type PatternSource = typeof PATTERN_SOURCES[number];
 
 export interface AdPattern {

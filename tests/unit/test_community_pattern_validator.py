@@ -114,3 +114,87 @@ def test_validate_doc_rejects_missing_required():
     result = validate_doc('a.json', doc, seed, [])
     assert result.status == 'reject'
     assert any('required field' in e for e in result.errors)
+
+
+def test_validate_doc_rejects_multi_sponsor_block():
+    """A pattern whose text mentions another seed sponsor by name is a
+    multi-ad stitch and must be rejected."""
+    seed = sponsor_seed()
+    doc = {
+        'community_id': 'abc',
+        'version': 1,
+        'sponsor': 'Squarespace',
+        'submitted_at': '2026-01-01T00:00:00Z',
+        'text_template': (
+            'Build your site on Squarespace. Visit Squarespace dot com slash '
+            'show for ten percent off. This episode is also brought to you by '
+            'BetterHelp, online therapy on your schedule.'
+        ),
+        'sponsor_tags': ['tech'],
+    }
+    result = validate_doc('a.json', doc, seed, [])
+    assert result.status == 'reject'
+    assert any('multi-sponsor block' in e for e in result.errors), result.errors
+
+
+def test_validate_doc_accepts_own_alias_in_text():
+    """A pattern's own sponsor_aliases must not be flagged as foreign."""
+    seed = sponsor_seed()
+    doc = {
+        'community_id': 'abc',
+        'version': 1,
+        'sponsor': 'Athletic Greens',
+        'sponsor_aliases': ['AG1'],
+        'submitted_at': '2026-01-01T00:00:00Z',
+        'text_template': (
+            'Athletic Greens makes AG1, a daily foundational nutrition supplement '
+            'with 75 high quality vitamins, minerals, and whole food sourced ingredients.'
+        ),
+        'sponsor_tags': ['supplements'],
+    }
+    result = validate_doc('a.json', doc, seed, [])
+    assert result.status in ('pass', 'warn'), (result.status, result.errors)
+    assert not any('multi-sponsor block' in e for e in result.errors)
+
+
+def test_validate_doc_accepts_seed_alias_of_declared_sponsor():
+    """If the seed row carries aliases the doc didn't redeclare, mentioning
+    those aliases in the text must still not flag as foreign. The helper
+    skips the declared sponsor's seed row entirely once any of its names
+    matches the declared identity."""
+    seed = sponsor_seed()
+    doc = {
+        'community_id': 'abc',
+        'version': 1,
+        'sponsor': 'Athletic Greens',
+        # NOTE: sponsor_aliases intentionally omitted; rely on seed aliases.
+        'submitted_at': '2026-01-01T00:00:00Z',
+        'text_template': (
+            'Athletic Greens makes AG1, a daily nutrition supplement, and you can '
+            'try AG1 risk free with a 90-day money back guarantee.'
+        ),
+        'sponsor_tags': ['supplements'],
+    }
+    result = validate_doc('a.json', doc, seed, [])
+    assert result.status in ('pass', 'warn'), (result.status, result.errors)
+    assert not any('multi-sponsor block' in e for e in result.errors)
+
+
+def test_validate_doc_accepts_alias_as_declared_sponsor():
+    """Edge case: doc declares an alias as the canonical sponsor. The seed
+    row's actual canonical name appearing in the text must not flag."""
+    seed = sponsor_seed()
+    doc = {
+        'community_id': 'abc',
+        'version': 1,
+        'sponsor': 'AG1',
+        'submitted_at': '2026-01-01T00:00:00Z',
+        'text_template': (
+            'AG1 from Athletic Greens is a daily foundational nutrition supplement '
+            'with vitamins minerals and whole food sourced ingredients you can mix.'
+        ),
+        'sponsor_tags': ['supplements'],
+    }
+    result = validate_doc('a.json', doc, seed, [])
+    assert result.status in ('pass', 'warn'), (result.status, result.errors)
+    assert not any('multi-sponsor block' in e for e in result.errors)

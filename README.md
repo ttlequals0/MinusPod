@@ -492,7 +492,7 @@ If you customized your system or verification prompt before this release, the up
 
 MinusPod can share and receive ad patterns from a community-maintained seed list. Patterns describe recognized ad reads (sponsor scripts, host-read pre-rolls, etc.) so new MinusPod instances skip the LLM detection step for ads that have already been identified elsewhere.
 
-The feature is **opt-in** and **off by default**. When enabled, your MinusPod instance pulls a manifest of community patterns from this repo on a schedule you control. You can also submit your own patterns back to the community via the in-app **Submit to community** button.
+The feature is **opt-in** and **off by default**. When enabled, your MinusPod instance pulls a manifest of community patterns from this repo on a schedule you control. You can also submit your own patterns back via **Submit to community** in the Patterns page Export dialog.
 
 ### What you get when enabled
 
@@ -506,10 +506,11 @@ The feature is **opt-in** and **off by default**. When enabled, your MinusPod in
 - **Manual sync** - "Sync now" button in Settings
 - **Per-pattern protection** - pin any community pattern with **Protect from sync** to prevent automatic updates or deletion
 - **Disable at any time** - flipping the toggle stops sync; existing community patterns remain unless you delete them
+- **Remove all at once** - "Remove all community patterns" in Settings wipes every community pattern (including any you marked Protect from sync). Useful for a clean reset before re-enabling sync.
 
 ### What is shared if you submit
 
-Submitting a pattern is a separate action (per-pattern button) and never automatic. Before submission, the app:
+Submitting a pattern is a separate action you trigger from the Export dialog and never automatic. Before submission, the app:
 
 - Strips local identifiers (which podcast, which network, your match counts, your timestamps)
 - Strips PII from pattern text (consumer email addresses, non-toll-free phone numbers)

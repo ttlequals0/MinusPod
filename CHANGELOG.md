@@ -6,6 +6,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.4] - 2026-05-15
+
+### Added
+
+- **Bulk submit-to-community in the Export dialog.** The per-pattern "Submit to community" buttons on the Patterns page are gone. The Export button now opens one dialog with a destination radio: Download as JSON (the existing flow) or Submit to community (opens one prefilled PR per selected pattern). Patterns whose source is already `community` are filtered out automatically; round-tripping them is pointless.
+- **Remove all community patterns.** Settings -> Community Patterns has a destructive action that wipes every `source='community'` row on this instance, including any you marked Protect from sync. Local and imported patterns are untouched. If sync is enabled, the next tick repopulates from the manifest. API: `DELETE /api/v1/community-patterns/all`, returns `{deleted: N}`.
+- **Single-pattern check in the PR validator.** Community submissions must describe one ad. The validator now rejects a PR if `text_template` mentions any other seed sponsor by name or alias. Closes the gap on the import side; the export side already had the same check. See `patterns/CONTRIBUTING.md`.
+- **Seeded `patterns/community/` with 12 initial patterns** (Capital One, Carvana x2, Instacart, Kayak, Mint Mobile, Monday.com, Progressive, SimpliSafe, Squarespace, ThreatLocker, Zyn). Pulled from a real instance export, cleaned up by hand, now in the published manifest. Earlier instances on this version pick them up on the next sync tick.
+
 ## [2.4.3] - 2026-05-14
 
 ### Fixed

@@ -1,0 +1,22 @@
+{
+  "scope": "podcast",
+  "text_template": "brought to you by Capital One. Capital One's tech team isn't just talking about multi-agentic AI. They already deployed one. It's called Chat Concierge and it's simplifying car shopping. Using self-reflection and layered reasoning with live API checks, it doesn't just help buyers find a car they love. It helps schedule a test drive, get pre-approved for financing, and estimate trade-in value. Advanced, intuitive, and deployed. That's how they stack. That's technology at Capital One.",
+  "intro_variants": [
+    "brought to you by Capital One. Capital One's tech team isn't just talking about multi-agentic AI. They already deployed one. It's called Chat Concierge and it's simplifying car shopping. Using self-reflection and layered reasoning with live API checks, it doesn't just help buyers find a car they love. It helps"
+  ],
+  "outro_variants": [
+    ""
+  ],
+  "avg_duration": null,
+  "sponsor": "Capital One",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "finance",
+    "universal"
+  ],
+  "community_id": "44026a0f-9d7a-4f39-815e-5b12575b8107",
+  "version": 1,
+  "submitted_at": "2026-05-15T13:44:56.481669+00:00",
+  "submitted_app_version": "unknown",
+  "sponsor_match": "exact"
+}

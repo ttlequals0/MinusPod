@@ -309,6 +309,28 @@ class PatternMixin:
         conn.commit()
         return cursor.rowcount > 0
 
+    def delete_all_community_patterns(self) -> int:
+        """Hard-delete every pattern with source='community'. Returns the
+        rowcount. `protected_from_sync` is ignored; the flag guards sync
+        reconciliation, not an explicit operator purge.
+
+        Also deletes audio_fingerprints rows that point at the doomed
+        patterns; the schema does not declare an ON DELETE CASCADE on
+        `pattern_id`, so we clean up explicitly the way
+        `cleanup_service._purge_pattern` does for the single-row case.
+        """
+        conn = self.get_connection()
+        conn.execute(
+            "DELETE FROM audio_fingerprints WHERE pattern_id IN ("
+            "SELECT id FROM ad_patterns WHERE source = 'community'"
+            ")"
+        )
+        cursor = conn.execute(
+            "DELETE FROM ad_patterns WHERE source = 'community'"
+        )
+        conn.commit()
+        return cursor.rowcount
+
     # ========== Pattern Corrections Methods ==========
 
     def create_pattern_correction(self, correction_type: str, pattern_id: int = None,

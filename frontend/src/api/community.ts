@@ -43,6 +43,13 @@ export async function getCommunitySyncStatus(): Promise<CommunitySyncSettings> {
   return apiRequest<CommunitySyncSettings>('/community-patterns/sync-status');
 }
 
+export async function purgeAllCommunityPatterns(): Promise<{ deleted: number }> {
+  return apiRequest<{ deleted: number }>('/community-patterns/all', {
+    method: 'DELETE',
+    body: { confirm: true },
+  });
+}
+
 export interface ReviewerSettings {
   updatePatternsFromReviewerAdjustments: boolean;
   minTrimThreshold: number;

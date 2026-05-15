@@ -1,0 +1,22 @@
+{
+  "scope": "podcast",
+  "text_template": " just sold my car online. Let's go, Grandpa. Wait, you did? Yep, on Carvana. Just put in the license plate, answered a few questions, got an offer in minutes. Easier than setting up that new digital picture frame. You don't say. Yeah, they're even picking it up tomorrow. Talk about fast. Wow, way to go. So, about that picture frame. Ah, forget about it. Until Carvana makes one, I'm not interested.",
+  "intro_variants": [
+    "I just sold my car online. Let's go, Grandpa. Wait, you did? Yep, on Carvana. Just put in the license plate, answered a few questions, got an offer in minutes. Easier than setting up that new digital picture frame. You don't say. Yeah, they're even picking it up tomorrow."
+  ],
+  "outro_variants": [
+    "Yeah, they're even picking it up tomorrow. Talk about fast. Wow, way to go. So, about that picture frame. Ah, forget about it. Until Carvana makes one, I'm not interested."
+  ],
+  "avg_duration": null,
+  "sponsor": "Carvana",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "auto",
+    "universal"
+  ],
+  "community_id": "a934bf9a-ebcc-4d64-b734-b82a6de7f25a",
+  "version": 1,
+  "submitted_at": "2026-05-15T13:44:56.295723+00:00",
+  "submitted_app_version": "unknown",
+  "sponsor_match": "exact"
+}

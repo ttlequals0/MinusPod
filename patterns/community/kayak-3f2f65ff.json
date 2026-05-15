@@ -1,0 +1,22 @@
+{
+  "scope": "podcast",
+  "text_template": "Kayak gets my flight, hotel, and rental car right, so I can tune out travel advice that's just plain wrong. Bro, Skycoin. way better than points never fly during a Scorpio full moon just tell the manager you'll sue instant room upgrade stop taking bad travel advice start comparing hundreds of sites with Kayak and get your trip right Kayak got that right",
+  "intro_variants": [
+    "Kayak gets my flight, hotel, and rental car right, so I can tune out travel advice that's just plain wrong."
+  ],
+  "outro_variants": [
+    "way better than points never fly during a Scorpio full moon just tell the manager you'll sue instant room upgrade stop taking bad travel advice start comparing hundreds of sites with Kayak and get your trip right Kayak got that right"
+  ],
+  "avg_duration": null,
+  "sponsor": "Kayak",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "travel",
+    "universal"
+  ],
+  "community_id": "3f2f65ff-c654-42ca-a724-d6dce1f45881",
+  "version": 1,
+  "submitted_at": "2026-05-15T13:44:56.173447+00:00",
+  "submitted_app_version": "unknown",
+  "sponsor_match": "exact"
+}

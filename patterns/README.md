@@ -138,7 +138,7 @@ API:
 
 ## How to submit a pattern
 
-The recommended path is to use the **Submit to community** button on the patterns page in MinusPod. The app handles JSON generation, PII stripping, quality gates, and opens a prefilled GitHub PR in your browser.
+The recommended path is to open the Export dialog on the Patterns page in MinusPod and pick the **Submit to community** destination. The app generates the JSON, strips PII, runs quality gates, and opens a prefilled GitHub PR per selected pattern.
 
 See `CONTRIBUTING.md` for the full explainer on what gets submitted, what gets stripped, and what the automated checks look for.
 

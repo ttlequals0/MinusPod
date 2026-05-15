@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.4.3
+  version: 2.4.4
   contact:
     name: MinusPod
   license:
@@ -4180,6 +4180,44 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/CommunitySyncSettings' }
+
+  /community-patterns/all:
+    delete:
+      summary: Remove every community pattern on this instance
+      description: |
+        Hard-deletes every row where ``source='community'``. Ignores
+        ``protected_from_sync``; the flag guards sync reconciliation,
+        not an explicit operator purge. Local and imported patterns are
+        untouched. If sync is enabled, the next tick repopulates from
+        the manifest.
+
+        Requires ``{"confirm": true}`` in the body as a fat-finger guard
+        (matches the ``/patterns/bulk-delete`` convention).
+      tags: [CommunityPatterns]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [confirm]
+              properties:
+                confirm:
+                  type: boolean
+                  const: true
+      responses:
+        '200':
+          description: Deletion count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: integer
+                    example: 47
+        '400':
+          description: confirm flag missing or not true
 
 security:
   - sessionCookie: []

@@ -1,0 +1,24 @@
+{
+  "scope": "podcast",
+  "text_template": "This is a Monday.com ad. The same Monday.com helping people worldwide getting work done faster and better. The same Monday.com designed for every team and every industry. The same Monday.com with built-in AI, scaling your work from day one. The same Monday.com that your team will actually love using. The same Monday.com with an easy and intuitive setup. Go to Monday.com and try it for free. Yes. TheSameMonday.com",
+  "intro_variants": [
+    "This is a Monday.com ad. The same Monday.com helping people worldwide getting work done faster and better. The same Monday.com designed for every team and every industry. The same Monday.com with built-in AI, scaling your work from day one. The same Monday.com that your team will actually love using. The"
+  ],
+  "outro_variants": [
+    "one. The same Monday.com that your team will actually love using. The same Monday.com with an easy and intuitive setup. Go to Monday.com and try it for free. Yes. TheSameMonday.com"
+  ],
+  "avg_duration": null,
+  "sponsor": "Monday.com",
+  "sponsor_aliases": [
+    "Monday"
+  ],
+  "sponsor_tags": [
+    "tech",
+    "saas"
+  ],
+  "community_id": "9e83a5f6-097b-4378-8077-b9ccec49b389",
+  "version": 1,
+  "submitted_at": "2026-05-15T13:44:56.533543+00:00",
+  "submitted_app_version": "unknown",
+  "sponsor_match": "exact"
+}

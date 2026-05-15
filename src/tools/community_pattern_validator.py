@@ -29,6 +29,7 @@ _REPO_SRC = Path(__file__).resolve().parents[1]
 if str(_REPO_SRC) not in sys.path:
     sys.path.insert(0, str(_REPO_SRC))
 
+from community_export import find_foreign_sponsors  # noqa: E402
 from utils.community_tags import (  # noqa: E402
     CANONICAL_DAYS,
     CANONICAL_MONTHS,
@@ -161,6 +162,28 @@ def _quality_errors(doc: Dict[str, Any]) -> List[str]:
     return errs
 
 
+def _single_pattern_errors(doc: Dict[str, Any], seed: List[Dict[str, Any]]) -> List[str]:
+    """Reject submissions that stitch multiple ads together.
+
+    Delegates to the shared `find_foreign_sponsors` helper so the import
+    side and export side agree on the rule.
+    """
+    text = doc.get('text_template') or ''
+    declared = (doc.get('sponsor') or '').lower()
+    declared_aliases = {a.lower() for a in (doc.get('sponsor_aliases') or [])}
+    declared_lower = {declared, *declared_aliases} - {''}
+
+    foreign = find_foreign_sponsors(text, declared_lower, seed)
+    if not foreign:
+        return []
+    sample = ', '.join(foreign[:3])
+    more = '' if len(foreign) <= 3 else f' (+{len(foreign) - 3} more)'
+    return [
+        'multi-sponsor block: text mentions other seed sponsors '
+        f'({sample}{more}). Each community pattern must describe ONE ad.'
+    ]
+
+
 def _diff_snippet(incoming: str, existing: str, n: int = 200) -> str:
     """Return a short side-by-side diff snippet capped at `n` chars per side."""
     inc = incoming[:n].replace('\n', ' ')
@@ -222,6 +245,11 @@ def validate_doc(
     quality_errs = _quality_errors(doc)
     if quality_errs:
         result.errors.extend(quality_errs)
+        result.status = 'reject'
+
+    single_errs = _single_pattern_errors(doc, seed)
+    if single_errs:
+        result.errors.extend(single_errs)
         result.status = 'reject'
 
     result.sponsor_match = _classify_sponsor(doc.get('sponsor') or '', seed)

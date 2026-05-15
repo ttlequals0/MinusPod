@@ -1,0 +1,24 @@
+{
+  "scope": "podcast",
+  "text_template": "brought to you by SimpliSafe. The world can be scary sometimes. I mean, take the news for example. It feels like we hear about something outrageous happening Every week. Now, more than ever, it's more important to have a security system for your safety and peace of mind, and SimpliSafe is one of the best options out there, partly because of how proactive it is. It can help stop and prevent crime in real time. AI-powered cameras can detect suspicious activity and alert security agents who can immediately take action. They can speak to intruders, warn them away, flashlights and sirens and and Dispatch Police. With how great a job it does, no long-term contracts and no hidden fees, it's easy to see why SimpliSafe continues to be named best home security systems by U.S. News and World Report. Try it out right now. My listeners can get 50% off a SimpliSafe home security system at simplisafe.com slash . That's 50% off at simplisafe.com slash . There's no safe.",
+  "intro_variants": [
+    "brought to you by SimpliSafe. The world can be scary sometimes. I mean, take the news for example. It feels like we hear about something outrageous happening Every week. Now, more than ever, it's more important to have a security system for your safety and peace of mind, and SimpliSafe"
+  ],
+  "outro_variants": [
+    "Try it out right now. My listeners can get 50% off a SimpliSafe home security system at simplisafe.com slash . That's 50% off at simplisafe.com slash . There's no safe."
+  ],
+  "avg_duration": null,
+  "sponsor": "SimpliSafe",
+  "sponsor_aliases": [
+    "Simpli Safe"
+  ],
+  "sponsor_tags": [
+    "home_security",
+    "universal"
+  ],
+  "community_id": "c114bd7f-39af-4100-826d-e9ed1346d76f",
+  "version": 1,
+  "submitted_at": "2026-05-15T13:44:56.401485+00:00",
+  "submitted_app_version": "unknown",
+  "sponsor_match": "exact"
+}

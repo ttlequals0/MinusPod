@@ -1255,3 +1255,22 @@ def trigger_community_pattern_sync():
 def community_pattern_sync_status():
     """Return last-sync metadata."""
     return get_community_sync_settings()
+
+
+@api.route('/community-patterns/all', methods=['DELETE'])
+@log_request
+def delete_all_community_patterns():
+    """Hard-delete every community pattern on this instance.
+
+    Body must include ``{"confirm": true}`` as a fat-finger guard, matching
+    the ``/patterns/bulk-delete`` convention. The UI provides the confirm
+    step; this endpoint enforces it for any direct API caller too.
+    """
+    payload = request.get_json(silent=True) or {}
+    if payload.get('confirm') is not True:
+        return error_response({
+            'message': 'confirm: true required to purge all community patterns'
+        }, 400)
+    db = get_database()
+    deleted = db.delete_all_community_patterns()
+    return json_response({'deleted': deleted})

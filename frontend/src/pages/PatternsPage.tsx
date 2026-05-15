@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
 import {
   getPatterns, getPatternStats, AdPattern,
-  submitPatternToCommunity, protectPattern, unprotectPattern,
+  protectPattern, unprotectPattern, PATTERN_SOURCE_COMMUNITY,
 } from '../api/patterns';
 import {
   triggerCommunitySync, getCommunitySyncStatus,
@@ -87,29 +87,6 @@ function PatternsPage() {
     } catch (e) {
       // Errors surface via /community-patterns/sync-status lastError.
       console.error('Sync failed', e);
-    }
-  }
-
-  async function handleSubmitToCommunity(pattern: AdPattern) {
-    try {
-      const result = await submitPatternToCommunity(pattern.id);
-      if (result.too_large) {
-        const blob = new Blob([JSON.stringify(result.payload, null, 2)], {
-          type: 'application/json',
-        });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = result.filename;
-        a.click();
-        URL.revokeObjectURL(url);
-        alert('Pattern too large for prefilled PR URL. Downloaded as a file instead — open patterns/community/ and start a PR with this file.');
-      } else {
-        window.open(result.pr_url, '_blank', 'noopener');
-      }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : 'submit failed';
-      alert(`Could not submit to community: ${msg}`);
     }
   }
 
@@ -448,7 +425,7 @@ function PatternsPage() {
                     Manual
                   </span>
                 )}
-                {pattern.source === 'community' && pattern.community_id && (
+                {pattern.source === PATTERN_SOURCE_COMMUNITY && pattern.community_id && (
                   <CommunityBadge
                     communityId={pattern.community_id}
                     version={pattern.version}
@@ -458,26 +435,15 @@ function PatternsPage() {
                 {getStatusBadge(pattern.is_active)}
               </div>
             </div>
-            {(pattern.source === 'local' || pattern.source === 'community') && (
+            {pattern.source === PATTERN_SOURCE_COMMUNITY && (
               <div className="flex items-center gap-2 mb-2">
-                {pattern.source === 'local' && (
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); handleSubmitToCommunity(pattern); }}
-                    className="px-2 py-1 text-xs rounded border border-border hover:bg-accent"
-                  >
-                    Submit to community
-                  </button>
-                )}
-                {pattern.source === 'community' && (
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); handleToggleProtect(pattern); }}
-                    className="px-2 py-1 text-xs rounded border border-border hover:bg-accent"
-                  >
-                    {pattern.protected_from_sync ? 'Unprotect' : 'Protect from sync'}
-                  </button>
-                )}
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); handleToggleProtect(pattern); }}
+                  className="px-2 py-1 text-xs rounded border border-border hover:bg-accent"
+                >
+                  {pattern.protected_from_sync ? 'Unprotect' : 'Protect from sync'}
+                </button>
               </div>
             )}
             <div className="text-sm font-medium text-foreground mb-1">
@@ -558,7 +524,7 @@ function PatternsPage() {
                           Manual
                         </span>
                       )}
-                      {pattern.source === 'community' && pattern.community_id && (
+                      {pattern.source === PATTERN_SOURCE_COMMUNITY && pattern.community_id && (
                         <CommunityBadge
                           communityId={pattern.community_id}
                           version={pattern.version}
@@ -601,16 +567,7 @@ function PatternsPage() {
                     {getStatusBadge(pattern.is_active)}
                   </td>
                   <td className="px-2 py-3 whitespace-nowrap text-xs">
-                    {pattern.source === 'local' && (
-                      <button
-                        type="button"
-                        onClick={(e) => { e.stopPropagation(); handleSubmitToCommunity(pattern); }}
-                        className="px-2 py-1 rounded border border-border hover:bg-accent whitespace-nowrap"
-                      >
-                        Submit
-                      </button>
-                    )}
-                    {pattern.source === 'community' && (
+                    {pattern.source === PATTERN_SOURCE_COMMUNITY && (
                       <button
                         type="button"
                         onClick={(e) => { e.stopPropagation(); handleToggleProtect(pattern); }}
