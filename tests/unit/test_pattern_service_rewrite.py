@@ -152,6 +152,25 @@ def test_import_community_pattern_insert_then_update(db):
     assert 'updated community text' in row['text_template']
 
 
+def test_import_community_pattern_forces_scope_global(db):
+    """A bundle that arrives with scope='podcast' (pre-2.4.7 export) must
+    still land as scope='global' with podcast_id / network_id cleared."""
+    svc = PatternService(db)
+    pid = svc.import_community_pattern({
+        'community_id': 'legacy-podcast-scope',
+        'version': 1,
+        'scope': 'podcast',
+        'sponsor': 'Squarespace',
+        'text_template': 'community pattern text template body for squarespace promo SHOW save ten',
+        'podcast_id': 'should-be-dropped',
+        'network_id': 'should-also-be-dropped',
+    })
+    row = db.get_ad_pattern_by_id(pid)
+    assert row['scope'] == 'global'
+    assert row['podcast_id'] is None
+    assert row['network_id'] is None
+
+
 def test_import_community_pattern_respects_protected(db):
     svc = PatternService(db)
     cid = 'protected-c-001'

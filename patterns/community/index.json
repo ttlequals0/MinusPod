@@ -1,13 +1,13 @@
 {
   "manifest_version": 1,
-  "published_at": "2026-05-15T19:22:57Z",
+  "published_at": "2026-05-15T19:30:18Z",
   "vocabulary_version": 1,
   "patterns": [
     {
       "community_id": "3c348177-fdf5-4f4f-a3de-25f4e65bf591",
       "version": 1,
       "data": {
-        "scope": "podcast",
+        "scope": "global",
         "text_template": "What are you reaching for? If you're a smoker or vaper, you could be reaching for so much more with Zyn Nicotine Pouches. When you reach for Zyn, you're reaching for 10 satisfying varieties and two strengths, for a smoke-free experience that lets you lean in, for chances to break free from your routine, and a unique nationwide community. Whatever you're reaching for, reach for it with America's number one nicotine pouch brand. Find your Zyn wherever nicotine products are sold near you. This product contains nicotine. Nicotine is an addictive chemical. ",
         "intro_variants": [],
         "outro_variants": [],
@@ -59,7 +59,7 @@
       "community_id": "3f2f65ff-c654-42ca-a724-d6dce1f45881",
       "version": 1,
       "data": {
-        "scope": "podcast",
+        "scope": "global",
         "text_template": "Kayak gets my flight, hotel, and rental car right, so I can tune out travel advice that's just plain wrong. Bro, Skycoin. way better than points never fly during a Scorpio full moon just tell the manager you'll sue instant room upgrade stop taking bad travel advice start comparing hundreds of sites with Kayak and get your trip right Kayak got that right",
         "intro_variants": [
           "Kayak gets my flight, hotel, and rental car right, so I can tune out travel advice that's just plain wrong."
@@ -85,7 +85,7 @@
       "community_id": "1c07273d-4e1c-41fd-93dd-0455904ada87",
       "version": 1,
       "data": {
-        "scope": "podcast",
+        "scope": "global",
         "text_template": "\brought to you by Progressive Insurance. Do you ever find yourself playing the budgeting game? Well, with the Name Your Price tool from Progressive, you can find options that fit your budget and potentially lower your bills. Try it at Progressive.com. Progressive casualty insurance company and affiliates. Price and coverage match limited by state law. Not available in all states.",
         "intro_variants": [
           "brought to you by Progressive Insurance. Do you ever find yourself playing the budgeting game?"
@@ -111,7 +111,7 @@
       "community_id": "17b2b4b8-660e-4ab8-96c0-c51a0dc3163d",
       "version": 1,
       "data": {
-        "scope": "podcast",
+        "scope": "global",
         "text_template": "Ryan Reynolds here from Mint Mobile. I don't know if you knew this, but anyone can get the same premium wireless for $15 a month plan that I've been enjoying. It's not just for celebrities. So do like I did and have one of your assistant's assistants switch you to Mint Mobile today. I'm told it's super easy to do at mintmobile.com slash switch. Upfront payment of $45 for three-month plan equivalent to $15 per month required. Intro rate first three months only, then full price plan options available. Taxes and fees extra. See full terms at mintmobile.com.",
         "intro_variants": [
           "Ryan Reynolds here from Mint Mobile. I don't know if you knew this, but anyone can get the same premium wireless for $15 a month plan that I've been enjoying. It's not just for celebrities. So do like I did and have one of your assistant's assistants switch you to"
@@ -139,7 +139,7 @@
       "community_id": "f41cf617-6ad0-4df5-a07a-a4daeb449697",
       "version": 1,
       "data": {
-        "scope": "podcast",
+        "scope": "global",
         "text_template": "Carvana's so easy, just a click and we've got ourselves a car. See? So many cars. That's a click-tastic inventory. And check out the financing options. Payments to fit our budget. I mean, that's... Clickonomics 101. Delivery to our door. Just a hop, skip, and a click away. And... bought. No better feeling than when everything just... clicks. Buy your car today on... Carvana. Delivery fees may apply.",
         "intro_variants": [
           "Carvana's so easy, just a click and we've got ourselves a car. See? So many cars. That's a click-tastic inventory. And check out the financing options. Payments to fit our budget. I mean, that's... Clickonomics 101. Delivery to our door. Just a hop, skip, and a click away. And... bought."
@@ -165,7 +165,7 @@
       "community_id": "a934bf9a-ebcc-4d64-b734-b82a6de7f25a",
       "version": 1,
       "data": {
-        "scope": "podcast",
+        "scope": "global",
         "text_template": " just sold my car online. Let's go, Grandpa. Wait, you did? Yep, on Carvana. Just put in the license plate, answered a few questions, got an offer in minutes. Easier than setting up that new digital picture frame. You don't say. Yeah, they're even picking it up tomorrow. Talk about fast. Wow, way to go. So, about that picture frame. Ah, forget about it. Until Carvana makes one, I'm not interested.",
         "intro_variants": [
           "I just sold my car online. Let's go, Grandpa. Wait, you did? Yep, on Carvana. Just put in the license plate, answered a few questions, got an offer in minutes. Easier than setting up that new digital picture frame. You don't say. Yeah, they're even picking it up tomorrow."
@@ -191,7 +191,7 @@
       "community_id": "b77d02bc-5ccb-465d-8ecc-c0f3c53efa3d",
       "version": 1,
       "data": {
-        "scope": "podcast",
+        "scope": "global",
         "text_template": "We all prefer things a certain way, like groceries. If you want groceries just how you like them, you gotta try Instacart. They have a new preference picker that lets you pick how ripe or unripe you want your bananas. Shoppers can see your preferences up front, helping guide their choices. Because when it comes to groceries, the details matter. Instacart. Get groceries just how you like.",
         "intro_variants": [
           "We all prefer things a certain way, like groceries. If you want groceries just how you like them, you gotta try Instacart. They have a new preference picker that lets you pick how ripe or unripe you want your bananas. Shoppers can see your preferences up front, helping guide their"
@@ -217,7 +217,7 @@
       "community_id": "b052ed12-557d-4cdb-b24a-28d547dbd9bd",
       "version": 1,
       "data": {
-        "scope": "podcast",
+        "scope": "global",
         "text_template": "brought to you by Squarespace. Squarespace makes building and managing your website ridiculously easy. They give you everything you need to showcase what you do and get paid all in one place. And with cutting-edge design tools, anyone can create a custom site that truly fits their brand. Head to squarespace.com slash rogan for a free trial. And when you're ready... Ready to launch? Use the offer code ROGAN to save 10% off your first purchase of a website or domain.",
         "intro_variants": [
           "brought to you by Squarespace. Squarespace makes building and managing your website ridiculously easy. They give you everything you need to showcase what you do and get paid all in one place. And with cutting-edge design tools, anyone can create a custom site that truly fits their brand. Head to"
@@ -247,7 +247,7 @@
       "community_id": "c114bd7f-39af-4100-826d-e9ed1346d76f",
       "version": 1,
       "data": {
-        "scope": "podcast",
+        "scope": "global",
         "text_template": "brought to you by SimpliSafe. The world can be scary sometimes. I mean, take the news for example. It feels like we hear about something outrageous happening Every week. Now, more than ever, it's more important to have a security system for your safety and peace of mind, and SimpliSafe is one of the best options out there, partly because of how proactive it is. It can help stop and prevent crime in real time. AI-powered cameras can detect suspicious activity and alert security agents who can immediately take action. They can speak to intruders, warn them away, flashlights and sirens and and Dispatch Police. With how great a job it does, no long-term contracts and no hidden fees, it's easy to see why SimpliSafe continues to be named best home security systems by U.S. News and World Report. Try it out right now. My listeners can get 50% off a SimpliSafe home security system at simplisafe.com slash . That's 50% off at simplisafe.com slash . There's no safe.",
         "intro_variants": [
           "brought to you by SimpliSafe. The world can be scary sometimes. I mean, take the news for example. It feels like we hear about something outrageous happening Every week. Now, more than ever, it's more important to have a security system for your safety and peace of mind, and SimpliSafe"
@@ -275,7 +275,7 @@
       "community_id": "44026a0f-9d7a-4f39-815e-5b12575b8107",
       "version": 1,
       "data": {
-        "scope": "podcast",
+        "scope": "global",
         "text_template": "brought to you by Capital One. Capital One's tech team isn't just talking about multi-agentic AI. They already deployed one. It's called Chat Concierge and it's simplifying car shopping. Using self-reflection and layered reasoning with live API checks, it doesn't just help buyers find a car they love. It helps schedule a test drive, get pre-approved for financing, and estimate trade-in value. Advanced, intuitive, and deployed. That's how they stack. That's technology at Capital One.",
         "intro_variants": [
           "brought to you by Capital One. Capital One's tech team isn't just talking about multi-agentic AI. They already deployed one. It's called Chat Concierge and it's simplifying car shopping. Using self-reflection and layered reasoning with live API checks, it doesn't just help buyers find a car they love. It helps"
@@ -301,7 +301,7 @@
       "community_id": "9e83a5f6-097b-4378-8077-b9ccec49b389",
       "version": 1,
       "data": {
-        "scope": "podcast",
+        "scope": "global",
         "text_template": "This is a Monday.com ad. The same Monday.com helping people worldwide getting work done faster and better. The same Monday.com designed for every team and every industry. The same Monday.com with built-in AI, scaling your work from day one. The same Monday.com that your team will actually love using. The same Monday.com with an easy and intuitive setup. Go to Monday.com and try it for free. Yes. TheSameMonday.com",
         "intro_variants": [
           "This is a Monday.com ad. The same Monday.com helping people worldwide getting work done faster and better. The same Monday.com designed for every team and every industry. The same Monday.com with built-in AI, scaling your work from day one. The same Monday.com that your team will actually love using. The"

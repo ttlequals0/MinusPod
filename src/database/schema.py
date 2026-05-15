@@ -1325,6 +1325,37 @@ class SchemaMixin:
         except Exception as e:
             logger.error(f"Variant re-encode repair failed: {e}")
 
+        # Pre-2.4.7 community imports preserved the source pattern's scope
+        # (usually 'podcast') without a podcast_id, so they never matched.
+        # Re-stamp every source=community row to scope='global'.
+        try:
+            self._normalize_community_scope(conn)
+        except Exception as e:
+            logger.error(f"Community scope normalize failed: {e}")
+
+    def _normalize_community_scope(self, conn):
+        """Set scope='global' on every source=community pattern; clear
+        podcast_id / network_id since they were stripped on export. Stamped
+        via `community_scope_revision` so this runs once per database."""
+        row = conn.execute(
+            "SELECT value FROM settings WHERE key = 'community_scope_revision'"
+        ).fetchone()
+        if row and row['value'] == '1':
+            return
+        cursor = conn.execute(
+            "UPDATE ad_patterns SET scope = 'global', podcast_id = NULL, "
+            "network_id = NULL WHERE source = 'community' AND "
+            "(scope != 'global' OR podcast_id IS NOT NULL OR network_id IS NOT NULL)"
+        )
+        repaired = cursor.rowcount
+        conn.execute(
+            "INSERT OR REPLACE INTO settings (key, value, updated_at) "
+            "VALUES ('community_scope_revision', '1', strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))"
+        )
+        conn.commit()
+        if repaired:
+            logger.info(f"Normalized scope=global on {repaired} community pattern rows")
+
     def _repair_double_encoded_variants(self, conn):
         """Re-encode any ad_patterns.intro_variants / outro_variants column
         whose stored value parses (via json.loads) to a string rather than
