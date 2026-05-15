@@ -372,6 +372,25 @@ def run(pr_files: List[str], comment_output: Optional[str] = None,
     repo_root = _REPO_SRC.parent
     existing = _load_existing_patterns(repo_root / 'patterns' / 'community')
 
+    # CI checks out the PR branch, so files added in the PR are already on
+    # disk in patterns/community/. Strip them from the "existing" baseline
+    # by community_id, otherwise dedupe sees every new file as a duplicate
+    # of itself with score=1.00.
+    pr_paths = {Path(p).resolve() for p in pr_files}
+    pr_community_ids: set = set()
+    for p in pr_paths:
+        if not p.exists():
+            continue
+        try:
+            with p.open('r', encoding='utf-8') as fh:
+                cid = json.load(fh).get('community_id')
+        except Exception:
+            cid = None
+        if cid:
+            pr_community_ids.add(cid)
+    if pr_community_ids:
+        existing = [e for e in existing if e.get('community_id') not in pr_community_ids]
+
     results: List[ValidationResult] = []
     for path in pr_files:
         p = Path(path)
@@ -390,7 +409,6 @@ def run(pr_files: List[str], comment_output: Optional[str] = None,
                 errors=[f'JSON parse error: {e}'],
             ))
             continue
-        # Skip the manifest file if it gets passed in.
         if p.name == 'index.json':
             continue
         results.append(validate_doc(path, doc, seed, existing))

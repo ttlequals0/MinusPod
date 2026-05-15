@@ -180,6 +180,34 @@ def test_validate_doc_accepts_seed_alias_of_declared_sponsor():
     assert not any('multi-sponsor block' in e for e in result.errors)
 
 
+def test_run_excludes_pr_files_from_existing_baseline(tmp_path, monkeypatch):
+    """CI checks out the PR branch, so files added in the PR are already
+    on disk in patterns/community/. The CLI's `run()` must strip them
+    from the "existing" baseline before deduping, otherwise every new
+    pattern flags as a duplicate of itself with score 1.0."""
+    import tools.community_pattern_validator as v
+    repo_root = tmp_path / 'repo'
+    community = repo_root / 'patterns' / 'community'
+    community.mkdir(parents=True)
+    # Point the validator at our fake repo root.
+    monkeypatch.setattr(v, '_REPO_SRC', repo_root / 'src')
+    (repo_root / 'src').mkdir()
+
+    new_doc = {
+        'community_id': 'aaaaaaaa-1111-2222-3333-444444444444',
+        'version': 1,
+        'sponsor': 'Squarespace',
+        'submitted_at': '2026-01-01T00:00:00Z',
+        'text_template': 'Squarespace dot com slash show for ten percent off your website today launch confidently!',
+        'sponsor_tags': ['tech'],
+    }
+    pr_file = community / 'squarespace-aaaaaaaa.json'
+    pr_file.write_text(__import__('json').dumps(new_doc))
+
+    rc = v.run([str(pr_file)], comment_output=str(tmp_path / 'c.md'))
+    assert rc == 0, (tmp_path / 'c.md').read_text()
+
+
 def test_validate_doc_accepts_alias_as_declared_sponsor():
     """Edge case: doc declares an alias as the canonical sponsor. The seed
     row's actual canonical name appearing in the text must not flag."""
