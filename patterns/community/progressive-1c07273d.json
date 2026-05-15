@@ -1,0 +1,22 @@
+{
+  "scope": "podcast",
+  "text_template": "\brought to you by Progressive Insurance. Do you ever find yourself playing the budgeting game? Well, with the Name Your Price tool from Progressive, you can find options that fit your budget and potentially lower your bills. Try it at Progressive.com. Progressive casualty insurance company and affiliates. Price and coverage match limited by state law. Not available in all states.",
+  "intro_variants": [
+    "brought to you by Progressive Insurance. Do you ever find yourself playing the budgeting game?"
+  ],
+  "outro_variants": [
+    "Price and coverage match limited by state law. Not available in all states."
+  ],
+  "avg_duration": null,
+  "sponsor": "Progressive",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "insurance",
+    "universal"
+  ],
+  "community_id": "1c07273d-4e1c-41fd-93dd-0455904ada87",
+  "version": 1,
+  "submitted_at": "2026-05-15T13:44:56.266967+00:00",
+  "submitted_app_version": "unknown",
+  "sponsor_match": "exact"
+}

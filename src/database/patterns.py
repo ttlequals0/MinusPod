@@ -10,7 +10,8 @@ class PatternMixin:
     """Ad pattern and correction management methods."""
 
     def get_ad_patterns(self, scope: str = None, podcast_id: str = None,
-                        network_id: str = None, active_only: bool = True) -> List[Dict]:
+                        network_id: str = None, active_only: bool = True,
+                        source: str = None) -> List[Dict]:
         """Get ad patterns with optional filtering. Includes podcast_name when available."""
         conn = self.get_connection()
 
@@ -37,11 +38,29 @@ class PatternMixin:
         if network_id:
             query += " AND ap.network_id = ?"
             params.append(network_id)
+        if source:
+            query += " AND ap.source = ?"
+            params.append(source)
 
         query += " ORDER BY ap.created_at DESC"
 
         cursor = conn.execute(query, params)
         return [dict(row) for row in cursor.fetchall()]
+
+    def find_patterns_by_community_ids(self, community_ids: List[str]) -> Dict[str, Dict]:
+        """Batch lookup: return {community_id: pattern_row} for the given ids.
+
+        Avoids the N+1 pattern when applying a manifest.
+        """
+        if not community_ids:
+            return {}
+        conn = self.get_connection()
+        placeholders = ','.join('?' * len(community_ids))
+        cursor = conn.execute(
+            f"SELECT * FROM ad_patterns WHERE community_id IN ({placeholders})",
+            community_ids,
+        )
+        return {row['community_id']: dict(row) for row in cursor.fetchall()}
 
     def active_pattern_exists_for_sponsor(self, sponsor: str) -> bool:
         """Return True if any active ad_patterns row exists for this sponsor (case-insensitive)."""
@@ -85,6 +104,25 @@ class PatternMixin:
         row = cursor.fetchone()
         return dict(row) if row else None
 
+    def get_ad_patterns_by_ids(self, pattern_ids: List[int]) -> Dict[int, Dict]:
+        """Batch-load ad patterns by id. Returns ``{id: row}`` for every
+        id that exists. Used by `build_bundle` to avoid 200+ single-row
+        SELECTs on the "select all" path."""
+        if not pattern_ids:
+            return {}
+        placeholders = ','.join('?' * len(pattern_ids))
+        conn = self.get_connection()
+        cursor = conn.execute(
+            f"""SELECT ap.*, ks.name AS sponsor,
+                      p.title as podcast_name, p.slug as podcast_slug
+               FROM ad_patterns ap
+               LEFT JOIN podcasts p ON ap.podcast_id = p.slug
+               LEFT JOIN known_sponsors ks ON ap.sponsor_id = ks.id
+               WHERE ap.id IN ({placeholders})""",
+            tuple(pattern_ids),
+        )
+        return {row['id']: dict(row) for row in cursor.fetchall()}
+
     def find_pattern_by_text(self, text_template: str, podcast_id: str = None) -> Optional[Dict]:
         """Find an existing pattern with the same text_template (for deduplication)."""
         conn = self.get_connection()
@@ -114,20 +152,27 @@ class PatternMixin:
                           outro_variants: List[str] = None,
                           created_from_episode_id: str = None,
                           duration: float = None,
-                          created_by: str = 'auto') -> int:
+                          created_by: str = 'auto',
+                          source: str = 'local',
+                          community_id: str = None,
+                          version: int = 1,
+                          submitted_app_version: str = None,
+                          protected_from_sync: int = 0) -> int:
         """Create a new ad pattern. Returns pattern ID."""
         conn = self.get_connection()
         cursor = conn.execute(
             """INSERT INTO ad_patterns
                (scope, text_template, sponsor_id, podcast_id, network_id, dai_platform,
                 intro_variants, outro_variants, created_from_episode_id,
-                avg_duration, duration_samples, created_by)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                avg_duration, duration_samples, created_by,
+                source, community_id, version, submitted_app_version, protected_from_sync)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (scope, text_template, sponsor_id, podcast_id, network_id, dai_platform,
              json.dumps(intro_variants or []), json.dumps(outro_variants or []),
              created_from_episode_id,
              duration, 1 if duration is not None else 0,
-             created_by)
+             created_by,
+             source, community_id, version, submitted_app_version, protected_from_sync)
         )
         conn.commit()
         return cursor.lastrowid
@@ -142,7 +187,9 @@ class PatternMixin:
             if key in ('scope', 'text_template', 'sponsor_id', 'podcast_id', 'network_id',
                        'dai_platform', 'confirmation_count', 'false_positive_count',
                        'last_matched_at', 'is_active', 'disabled_at', 'disabled_reason',
-                       'avg_duration', 'duration_samples', 'created_by'):
+                       'avg_duration', 'duration_samples', 'created_by',
+                       'source', 'community_id', 'version', 'submitted_app_version',
+                       'protected_from_sync'):
                 fields.append(f"{key} = ?")
                 values.append(value)
             elif key in ('intro_variants', 'outro_variants'):
@@ -159,6 +206,81 @@ class PatternMixin:
         )
         conn.commit()
         return True
+
+    def find_pattern_by_community_id(self, community_id: str) -> Optional[Dict]:
+        """Find a pattern by its community_id. Returns dict or None."""
+        conn = self.get_connection()
+        cursor = conn.execute(
+            "SELECT * FROM ad_patterns WHERE community_id = ?",
+            (community_id,)
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+    def get_patterns_by_source(self, source: str, active_only: bool = True) -> List[Dict]:
+        """List ad patterns filtered by source ('local'|'community'|'imported')."""
+        conn = self.get_connection()
+        query = "SELECT * FROM ad_patterns WHERE source = ?"
+        params: List = [source]
+        if active_only:
+            query += " AND is_active = 1"
+        query += " ORDER BY id"
+        cursor = conn.execute(query, params)
+        return [dict(row) for row in cursor.fetchall()]
+
+    def set_pattern_protected(self, pattern_id: int, protected: bool) -> bool:
+        """Toggle the protected_from_sync flag on a pattern."""
+        conn = self.get_connection()
+        cursor = conn.execute(
+            "UPDATE ad_patterns SET protected_from_sync = ? WHERE id = ?",
+            (1 if protected else 0, pattern_id),
+        )
+        conn.commit()
+        return cursor.rowcount > 0
+
+    def bulk_delete_patterns(self, ids: List[int]) -> int:
+        """Hard-delete patterns by id. Returns rows deleted."""
+        if not ids:
+            return 0
+        conn = self.get_connection()
+        placeholders = ','.join('?' * len(ids))
+        cursor = conn.execute(
+            f"DELETE FROM ad_patterns WHERE id IN ({placeholders})",
+            ids,
+        )
+        conn.commit()
+        return cursor.rowcount
+
+    def bulk_disable_patterns(self, ids: List[int]) -> int:
+        """Set is_active=0 on patterns by id. Returns rows changed."""
+        if not ids:
+            return 0
+        conn = self.get_connection()
+        placeholders = ','.join('?' * len(ids))
+        cursor = conn.execute(
+            f"UPDATE ad_patterns SET is_active = 0, "
+            f"disabled_at = strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), "
+            f"disabled_reason = COALESCE(disabled_reason, 'bulk-disable') "
+            f"WHERE id IN ({placeholders})",
+            ids,
+        )
+        conn.commit()
+        return cursor.rowcount
+
+    def get_sponsor_tags_map(self) -> Dict[int, List[str]]:
+        """Return {sponsor_id: [tags]} for all active sponsors. Used by matcher."""
+        conn = self.get_connection()
+        cursor = conn.execute(
+            "SELECT id, tags FROM known_sponsors WHERE is_active = 1"
+        )
+        result: Dict[int, List[str]] = {}
+        for row in cursor.fetchall():
+            try:
+                tags = json.loads(row['tags'] or '[]')
+            except (ValueError, TypeError):
+                tags = []
+            result[row['id']] = tags if isinstance(tags, list) else []
+        return result
 
     def increment_pattern_match(self, pattern_id: int):
         """Increment pattern confirmation count and update last_matched_at."""
@@ -205,6 +327,28 @@ class PatternMixin:
         )
         conn.commit()
         return cursor.rowcount > 0
+
+    def delete_all_community_patterns(self) -> int:
+        """Hard-delete every pattern with source='community'. Returns the
+        rowcount. `protected_from_sync` is ignored; the flag guards sync
+        reconciliation, not an explicit operator purge.
+
+        Also deletes audio_fingerprints rows that point at the doomed
+        patterns; the schema does not declare an ON DELETE CASCADE on
+        `pattern_id`, so we clean up explicitly the way
+        `cleanup_service._purge_pattern` does for the single-row case.
+        """
+        conn = self.get_connection()
+        conn.execute(
+            "DELETE FROM audio_fingerprints WHERE pattern_id IN ("
+            "SELECT id FROM ad_patterns WHERE source = 'community'"
+            ")"
+        )
+        cursor = conn.execute(
+            "DELETE FROM ad_patterns WHERE source = 'community'"
+        )
+        conn.commit()
+        return cursor.rowcount
 
     # ========== Pattern Corrections Methods ==========
 

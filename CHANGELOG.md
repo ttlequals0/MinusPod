@@ -6,6 +6,108 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.6] - 2026-05-15
+
+### Fixed
+
+- **intro/outro_variants no longer get double-JSON-encoded on auto-created patterns.** `text_pattern_matcher` was calling `db.create_ad_pattern(intro_variants=json.dumps([intro]))` while the DB layer also `json.dumps`'d its input, so the column stored `'"[\\"text\\"]"'`. Submitting any of those patterns through the community bundle pipeline exploded the value into a list of single characters (the user's first bundle had `intro_variants` of length 196 starting with `['[', '"', 'E', 'm', ...]`). Now the matcher passes a plain list and the DB layer encodes once.
+- **Migration repairs existing rows.** A one-shot `_repair_double_encoded_variants` migration re-encodes any `ad_patterns.intro_variants` / `outro_variants` whose stored value parses to a string (instead of a list) on the first `json.loads`. Idempotent; stamped via the `variant_reencode_revision` setting. Operators on 2.4.5 with broken rows will see them fix themselves on next container start.
+- **Community export pipeline is defensive about the same bug.** `_safe_parse_variants` in `community_export.py` retries the decode when the first parse returns a string, so bundles built from a not-yet-migrated DB still produce clean output.
+
+### Changed
+
+- Dialog CLI snippet now hints `gh pr create --fill --label pattern` so the label gets requested directly. The labeler workflow still applies it automatically on path match; this is belt-and-suspenders.
+
+## [2.4.5] - 2026-05-15
+
+### Changed
+
+- **Submit-to-community is now a bundle download, not N prefilled PR tabs.** Picking "Submit to community" in the Export dialog opens a preview that lists which patterns will pass quality gates and which will not (with reasons). Confirming downloads a single `minuspod-submission-<id>.json` containing every passing pattern. You open one PR for the whole bundle in your fork. The old per-tab flow fell over at scale: 215 selected -> 8 tabs survived the popup blocker, 20 forced JSON downloads (each over the 7 KB URL limit), 187 silent 400s rendered as `[object Object]`.
+- The PR-side validator and the manifest builder both handle the new bundle format (`format: minuspod-community-submission`) by flattening `patterns[]` into per-pattern validations / manifest entries. Existing per-file submissions still work.
+
+### Added
+
+- `POST /api/v1/patterns/preview-export` returning ready / rejected counts plus per-id rejection reasons.
+- `POST /api/v1/patterns/submit-bundle` returning the downloadable bundle JSON. Includes `X-Bundle-Pattern-Count` and `X-Bundle-Rejected-Count` headers for the UI.
+
+### Fixed
+
+- **`POST /api/v1/community-patterns/sync` no longer returns 502 when the upstream manifest URL doesn't exist yet.** A 404 from `raw.githubusercontent.com` (e.g. the patterns feature is still on a branch and `main` doesn't have `patterns/community/index.json`) now returns 200 with `{status: "no_manifest_yet"}`. Other failures still surface as 502. Caught from the user's console showing six 502s.
+- **`apiRequest` no longer stringifies error response bodies as `[object Object]`.** Backend 4xx responses can be `{error: {message: "...", reasons: [...]}}`; the old throw passed that object verbatim into `new Error(...)`. `extractErrorMessage` now prefers `error.error.message`, falls back to a stringified `error.error`, then the HTTP status. Affects every API call site.
+
+## [2.4.4] - 2026-05-15
+
+### Added
+
+- **Bulk submit-to-community in the Export dialog.** The per-pattern "Submit to community" buttons on the Patterns page are gone. The Export button now opens one dialog with a destination radio: Download as JSON (the existing flow) or Submit to community (opens one prefilled PR per selected pattern). Patterns whose source is already `community` are filtered out automatically; round-tripping them is pointless.
+- **Remove all community patterns.** Settings -> Community Patterns has a destructive action that wipes every `source='community'` row on this instance, including any you marked Protect from sync. Local and imported patterns are untouched. If sync is enabled, the next tick repopulates from the manifest. API: `DELETE /api/v1/community-patterns/all`, returns `{deleted: N}`.
+- **Single-pattern check in the PR validator.** Community submissions must describe one ad. The validator now rejects a PR if `text_template` mentions any other seed sponsor by name or alias. Closes the gap on the import side; the export side already had the same check. See `patterns/CONTRIBUTING.md`.
+- **Seeded `patterns/community/` with 12 initial patterns** (Capital One, Carvana x2, Instacart, Kayak, Mint Mobile, Monday.com, Progressive, SimpliSafe, Squarespace, ThreatLocker, Zyn). Pulled from a real instance export, cleaned up by hand, now in the published manifest. Earlier instances on this version pick them up on the next sync tick.
+
+## [2.4.3] - 2026-05-14
+
+### Fixed
+
+- **Fingerprint slow-fallback no longer burns 10 minutes when the audio is bad for fpcalc.** When `_generate_full_fingerprint` fails (e.g. fpcalc rejects an MP3 with "Invalid data found when processing input"), the per-window fallback used to inherit the full 600-second timeout — every window scan also called fpcalc, almost always produced zero new matches, and ate the entire budget before timing out. The fallback now caps at 90 seconds via a new `FALLBACK_SLOW_TIMEOUT` constant. Stage 1 still tries; it just doesn't block Stage 2 + Stage 3 for ten minutes on broken audio. Caught from production logs (cordkillers-only-audio episode that took 14 min on pass 1 alone).
+- **`processing_timeouts._resolve` was silently falling back to env / defaults every refresh tick.** The `from database import get_database` import is invalid — `get_database` lives in the `api` package — and the try/except swallowed the resulting ImportError. Fixed the import path. Effect: user-configured `processing_soft_timeout_seconds` / `processing_hard_timeout_seconds` are now actually read from the DB instead of being silently shadowed by env-var fallbacks.
+- **`community_sync` no longer WARNs every 15 minutes when the manifest URL returns 404.** A 404 is the expected state when upstream hasn't published a manifest yet (e.g., the feature branch hasn't merged to main). Now logged at INFO level with an explanatory message. Non-404 fetch failures still log as WARNING so real problems stay visible.
+- **`set_podcast_tags` short-circuits the episode-aggregation pass when the incoming RSS tags are already covered by the row's union.** Pre-fix: every feed refresh on a 300-episode podcast did one SELECT + 300 JSON parses across all episodes even when nothing was going to change. Now a single subset check before the heavy work. Materially lower SQLite write contention with the queue processor on instances with large feeds.
+
+## [2.4.2] - 2026-05-14
+
+### Fixed
+
+- **Reviewer-trim now actually trims** instead of rebuilding the template from one episode's transcription. `rewrite_pattern_from_bounds` takes the original AND new bounds, computes the head/tail transcript slices, and splices them out of the existing `text_template` only when they appear at its start/end. The earlier behavior (Operation 2 "full replace within threshold") was a misnomer — it fit the template to a single episode and risked breaking matches on episodes that had captured the cleaner version. `intro_variants` / `outro_variants` get the same prefix/suffix trim so they stay aligned. Returns False when neither head nor tail slice matches the existing template, leaving the pattern untouched.
+- **`community_sync.apply_manifest` now reads `manifest['vocabulary_version']`.** When the manifest carries a vocabulary newer than the app's, the sync writes a warning to the log and a `vocabulary_warning` field into `community_sync_last_summary` so the operator can spot a stale image. Non-integer values are caught and logged cleanly instead of crashing the sync.
+- **Hardcoded `ttlequals0/MinusPod` is now a single constant.** `GITHUB_REPO` and `COMMUNITY_MANIFEST_URL` live in `src/utils/community_tags.py`; the export pipeline and sync job both import from there. One source of truth for the upstream identity.
+- **`MANIFEST_VERSION` and `VOCABULARY_VERSION` moved out of `src/tools/generate_manifest.py`** (a build-time CLI) into `src/utils/community_tags.py` next to the vocabulary loader. Both the generator and the sync job import from there. Removes a wrong-direction runtime → build-time layering import.
+- **`pattern_service.py` no longer imports from `api/`.** Switched the transcript helper to `from utils.text import extract_text_in_range` directly. Service layer importing from API layer was the wrong dependency direction and would have become a circular import.
+
+### Added
+
+- **`.github/workflows/labeler.yml`** wiring `actions/labeler@v5` to apply `.github/labeler.yml` on PRs. The path-glob for `pattern` existed since 2.4.0 but nothing invoked it — community-pattern PRs will now get the label automatically.
+
+## [2.4.1] - 2026-05-14
+
+### Added
+
+- **Per-feed tag editor.** New "Tags" card on every feed-detail page. Shows the effective tag set grouped by source (RSS / episode / user), with an "+ Add tag" button that opens a grouped picker of the remaining vocabulary tags. User-added tags carry an inline X to remove them, and saves are auto-applied via `PUT /api/v1/feeds/{slug}/tags`. This was the missing companion UI to the backend endpoint shipped in 2.4.0.
+- **Multi-select pattern export.** The Patterns page **Export** button now opens a dialog with a checkbox per pattern (Select-all, optional include-disabled / include-corrections flags) instead of dumping the whole local pattern DB. `GET /api/v1/patterns/export` gained an `?ids=1,2,3` filter to support this.
+- **Per-row Submit-to-community / Protect-from-sync buttons in the desktop pattern table.** Previously only the mobile card layout had these — desktop reviewers had to switch viewports. New 9th "Actions" column hosts them.
+- **`GET /api/v1/tags/vocabulary`** — returns the canonical 49-tag vocabulary plus per-tag descriptions, grouped into podcast_genres / sponsor_industries / special_tags. Used by the new tag picker.
+
+### Changed
+
+- Tag vocabulary loading is now cached (`utils.community_tags.vocabulary_payload` with `@lru_cache(maxsize=1)`); the CSV is parsed once at process start instead of per request. Frontend cache: `staleTime: Infinity` since vocabulary ships with the app image.
+- `/tags/vocabulary` lives at `src/api/tags.py` (was inline in `sponsors.py`); no behavior change, better discoverability.
+- TypeScript now exports `PATTERN_SOURCES` and `PatternSource` from `frontend/src/api/patterns.ts`, mirroring the Python `PATTERN_SOURCES` frozenset — frontend and backend can no longer drift on source-discriminator spellings.
+
+### Fixed
+
+- **`community_sync.apply_manifest` version stamping**: was using `dict.setdefault('version', manifest_version)` which silently kept a stale `version` carried in the inner `data` dict. Now assigns unconditionally so the manifest's version is authoritative for the `import_community_pattern` version gate.
+- **CodeQL py/reflective-xss in bulk-op endpoints**: hardened `_resolve_bulk_target` so `ids` and `expected_count` are coerced to integers up front. Non-integer payloads return 400 with a clean message instead of being f-stringed into the response body.
+- **Inline CREATE TABLE shape drift**: `_create_new_tables_only` definitions for `ad_patterns` and `known_sponsors` were missing the 2.4.0 columns; brought back into sync with `SCHEMA_SQL`. End state was already correct via the ALTER TABLE migrations, but the "must match SCHEMA_SQL exactly" comment invariant is now true again.
+- **Sponsor reseed migration order**: moved `_reseed_known_sponsors` to run AFTER `_migrate_sponsor_fk` and the Zyn cleanups so it operates on the post-dedup canonical state. Previously a v2.1.x → 2.4.x jump could let dedup discard the freshly-tagged row.
+
+## [2.4.0] - 2026-05-14
+
+### Added
+
+- **Community ad patterns.** Patterns can now be shared via the `patterns/community/` directory in the GitHub repository. A new "Submit to community" button on each local pattern row runs an export pipeline (quality gates, PII strip, sponsor classification, metadata strip) and opens a prefilled GitHub PR. A new GitHub Action validates incoming PRs against the same gates and a three-tier dedupe (95%+ duplicate, 75–95% variant, <75% distinct) before the maintainer reviews them.
+- **49-tag vocabulary + tagging system.** Sponsors and podcasts now carry tags from a 48-entry vocabulary (`src/seed_data/tag_vocabulary.csv`) plus a special `universal` flag for sponsors with broad appeal. Community patterns only enter the text-matching loop when their sponsor's tags overlap the podcast's tags, when the sponsor is `universal`, or when either side has no tags. Local patterns bypass tag filtering entirely.
+- **Authoritative sponsor seed.** A new schema migration loads 255 sponsors (with aliases and tags) from `src/seed_data/sponsors_final.csv`. Migration semantics: UPDATE on name match (preserves `ad_patterns.sponsor_id` FKs), INSERT new, soft-delete (`is_active=0`) any pre-existing sponsor whose name is not in the seed.
+- **Auto-pull / sync.** Optional opt-in: when enabled, the server polls `https://raw.githubusercontent.com/ttlequals0/MinusPod/main/patterns/community/index.json` on a configurable cron (default Sunday 3am UTC) and applies INSERT / UPDATE / DELETE against community patterns. The new "Protect from sync" toggle on each community pattern row pins it so a future manifest can't overwrite or delete it.
+- **Reviewer-trim auto-rewrite.** When a reviewer narrows an ad's bounds by more than the configurable trim threshold (default 20 s), the local pattern's `text_template` and intro/outro variants are re-extracted from the new transcript bounds. Off by default for community patterns; toggleable in the new **Ad Reviewer** settings panel.
+- **iTunes category parsing.** RSS feed refresh now extracts `<itunes:category>` at both podcast and episode level and maps it through `src/seed_data/itunes_category_map.json` to the vocabulary tags above.
+- **API additions** under `/api/v1/`: `POST /patterns/bulk-delete`, `POST /patterns/bulk-disable` (both guarded by `confirm: true` + `expected_count`), `POST /patterns/{id}/submit-to-community`, `POST | DELETE /patterns/{id}/protect`, `GET | PUT /feeds/{slug}/tags`, `PUT /sponsors/{id}/tags`, `GET | PUT /settings/reviewer`, `GET | PUT /settings/community-sync`, `POST /community-patterns/sync`, `GET /community-patterns/sync-status`. Documented in `openapi.yaml` (now at version 2.4.0).
+- **Frontend additions.** Patterns page gains an Import/Export header pair, a Source filter (Local / Community / Imported), a community badge on each community-sourced row, per-row Submit-to-community / Protect-from-sync buttons, and a last-synced indicator with manual refresh. Settings page gains two new sections: **Ad Reviewer** (toggle + threshold) and **Community Patterns** (enable, cron, Sync Now, last-sync display).
+- **GitHub workflow + path labeler** for community PRs (`.github/workflows/validate-community-patterns.yml`, `.github/labeler.yml`). Validator is also a CLI: `python -m tools.community_pattern_validator --pr-files X.json Y.json --comment-output /tmp/comment.md`.
+
+### Changed
+
+- `known_sponsors`, `podcasts`, `episodes` now carry a JSON `tags` column; `ad_patterns` carries `source`, `community_id`, `version`, `submitted_app_version`, `protected_from_sync`. Migration is additive and idempotent.
+- Editing a community pattern in the UI now auto-sets `protected_from_sync=1` so the next sync run doesn't clobber the edit.
+
 ## [2.3.4] - 2026-05-13
 
 ### Fixed

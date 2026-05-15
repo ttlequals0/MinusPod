@@ -1,0 +1,22 @@
+{
+  "scope": "podcast",
+  "text_template": "Carvana's so easy, just a click and we've got ourselves a car. See? So many cars. That's a click-tastic inventory. And check out the financing options. Payments to fit our budget. I mean, that's... Clickonomics 101. Delivery to our door. Just a hop, skip, and a click away. And... bought. No better feeling than when everything just... clicks. Buy your car today on... Carvana. Delivery fees may apply.",
+  "intro_variants": [
+    "Carvana's so easy, just a click and we've got ourselves a car. See? So many cars. That's a click-tastic inventory. And check out the financing options. Payments to fit our budget. I mean, that's... Clickonomics 101. Delivery to our door. Just a hop, skip, and a click away. And... bought."
+  ],
+  "outro_variants": [
+    "our door. Just a hop, skip, and a click away. And... bought. No better feeling than when everything just... clicks. Buy your car today on... Carvana. Delivery fees may apply."
+  ],
+  "avg_duration": null,
+  "sponsor": "Carvana",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "auto",
+    "universal"
+  ],
+  "community_id": "f41cf617-6ad0-4df5-a07a-a4daeb449697",
+  "version": 1,
+  "submitted_at": "2026-05-15T13:44:56.293654+00:00",
+  "submitted_app_version": "unknown",
+  "sponsor_match": "exact"
+}

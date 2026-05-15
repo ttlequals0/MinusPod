@@ -650,3 +650,44 @@ def get_artwork(slug):
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['Content-Security-Policy'] = "default-src 'none'"
     return response
+
+
+# ========== Tag endpoints ==========
+
+@api.route('/feeds/<slug>/tags', methods=['GET'])
+@log_request
+def get_feed_tags(slug):
+    """Return the source breakdown of a podcast's tags.
+
+    Output: {effective: [...], rss: [...], episode: [...], user: [...]}
+    """
+    db = get_database()
+    if not db.get_podcast_by_slug(slug):
+        return error_response('Feed not found', 404)
+    return json_response(db.get_podcast_tags(slug))
+
+
+@api.route('/feeds/<slug>/tags', methods=['PUT'])
+@log_request
+def update_feed_tags(slug):
+    """Update a podcast's user-added tags. Body: {user_tags: ['tag1', ...]}.
+
+    Validates each tag against VALID_TAGS. The denormalized `tags` field
+    on the row is rewritten as the union of (existing rss + new user + episode tags).
+    """
+    from utils.community_tags import valid_tags
+    db = get_database()
+    if not db.get_podcast_by_slug(slug):
+        return error_response('Feed not found', 404)
+    data = request.get_json() or {}
+    user_tags = data.get('user_tags')
+    if not isinstance(user_tags, list):
+        return error_response('user_tags must be a list of strings', 400)
+
+    vt = valid_tags()
+    bad = [t for t in user_tags if t not in vt]
+    if bad:
+        return error_response(f'unknown tags: {", ".join(bad)}', 400)
+
+    db.set_podcast_tags(slug, user_tags=user_tags)
+    return json_response(db.get_podcast_tags(slug))

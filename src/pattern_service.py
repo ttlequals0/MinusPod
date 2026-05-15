@@ -25,6 +25,31 @@ from sponsor_normalize import get_or_create_known_sponsor
 
 logger = logging.getLogger('podcast.patterns')
 
+
+def _splice_prefix(text: str, prefix: str) -> Tuple[str, bool]:
+    """Return (text-without-prefix, applied?). Whitespace- and
+    case-insensitive: a leading space on either side or a case mismatch
+    doesn't block the splice. When `prefix` is empty or doesn't actually
+    start `text`, the original `text` is returned with `applied=False`.
+    """
+    if not prefix:
+        return text, False
+    stripped = text.lstrip()
+    if not stripped.lower().startswith(prefix.lower()):
+        return text, False
+    offset = len(text) - len(stripped)
+    return (text[:offset] + stripped[len(prefix):]).lstrip(), True
+
+
+def _splice_suffix(text: str, suffix: str) -> Tuple[str, bool]:
+    """Mirror of `_splice_prefix` for the tail end."""
+    if not suffix:
+        return text, False
+    stripped = text.rstrip()
+    if not stripped.lower().endswith(suffix.lower()):
+        return text, False
+    return stripped[:-len(suffix)].rstrip(), True
+
 # Known DAI platforms and their RSS signatures
 DAI_PLATFORMS = {
     'megaphone': [
@@ -812,3 +837,167 @@ class PatternService:
         if getattr(self, '_text_pattern_matcher', None) is None:
             self._text_pattern_matcher = TextPatternMatcher(db=self.db)
         return self._text_pattern_matcher
+
+    def rewrite_pattern_from_bounds(
+        self,
+        pattern_id: int,
+        transcript: str,
+        original_start: float,
+        original_end: float,
+        new_start: float,
+        new_end: float,
+    ) -> bool:
+        """Trim a pattern's text_template by the slice that fell outside the new bounds.
+
+        Computes the head slice [original_start, new_start) and tail slice
+        (new_end, original_end] from the transcript, then splices them out of
+        the existing `text_template` if they appear at its start/end. This is
+        Operation 1 from the plan ("trim-only updates") — explicitly NOT a
+        full re-extract from the new bounds, which would fit the template to
+        one episode's transcription and risk breaking matches on episodes
+        that captured the cleaner version.
+
+        intro_variants / outro_variants get the same head/tail prefix/suffix
+        treatment so they stay aligned with the new template.
+
+        Community patterns are never auto-rewritten by this method.
+        Returns True when the pattern was actually changed; False otherwise.
+        """
+        from utils.text import extract_text_in_range
+
+        if not self.db or not transcript:
+            return False
+
+        pattern = self.db.get_ad_pattern_by_id(pattern_id)
+        if not pattern:
+            logger.warning(f"rewrite_pattern_from_bounds: pattern {pattern_id} not found")
+            return False
+        if (pattern.get('source') or 'local') != 'local':
+            logger.info(
+                f"rewrite_pattern_from_bounds: skipping non-local pattern "
+                f"{pattern_id} (source={pattern.get('source')})"
+            )
+            return False
+
+        old_text = pattern.get('text_template') or ''
+        if not old_text:
+            return False
+
+        head_trim = (extract_text_in_range(transcript, original_start, new_start) or '').strip()
+        tail_trim = (extract_text_in_range(transcript, new_end, original_end) or '').strip()
+
+        new_template, head_applied = _splice_prefix(old_text, head_trim)
+        new_template, tail_applied = _splice_suffix(new_template, tail_trim)
+
+        if not (head_applied or tail_applied):
+            logger.info(
+                f"rewrite_pattern_from_bounds: pattern {pattern_id} trim slices "
+                f"do not match the existing template (head={len(head_trim)} "
+                f"chars, tail={len(tail_trim)} chars); skipping rewrite"
+            )
+            return False
+
+        if len(new_template) < 50:
+            logger.info(
+                f"rewrite_pattern_from_bounds: pattern {pattern_id} trimmed "
+                f"template too short ({len(new_template)} chars); skipping rewrite"
+            )
+            return False
+
+        try:
+            intro_variants = json.loads(pattern.get('intro_variants') or '[]') or []
+        except (TypeError, ValueError):
+            intro_variants = []
+        try:
+            outro_variants = json.loads(pattern.get('outro_variants') or '[]') or []
+        except (TypeError, ValueError):
+            outro_variants = []
+
+        # Mirror the head/tail trim onto the variant arrays. Variants that
+        # don't share the trimmed prefix/suffix were independent samples;
+        # leave them alone.
+        if head_applied and head_trim:
+            intro_variants = [_splice_prefix(v, head_trim)[0] for v in intro_variants]
+        if tail_applied and tail_trim:
+            outro_variants = [_splice_suffix(v, tail_trim)[0] for v in outro_variants]
+
+        self.db.update_ad_pattern(
+            pattern_id,
+            text_template=new_template,
+            intro_variants=intro_variants,
+            outro_variants=outro_variants,
+        )
+        logger.info(
+            f"rewrite_pattern_from_bounds: pattern {pattern_id} trimmed "
+            f"(head={len(head_trim) if head_applied else 0} chars, "
+            f"tail={len(tail_trim) if tail_applied else 0} chars); "
+            f"template now {len(new_template)} chars"
+        )
+        # Invalidate the cached matcher so it reloads on next match call.
+        self._text_pattern_matcher = None
+        return True
+
+    def import_community_pattern(self, data: Dict) -> int:
+        """Insert or update an ad pattern carrying a community_id.
+
+        New community_id -> INSERT with source='community', protected_from_sync=0.
+        Existing community_id with higher `version` -> UPDATE in place,
+        unless the row has `protected_from_sync = 1` (then skip).
+
+        Returns the pattern id (new or existing). Raises ValueError when
+        required fields are missing.
+        """
+        if not self.db:
+            raise ValueError("import_community_pattern requires a database")
+
+        required = ('community_id', 'text_template', 'sponsor', 'scope')
+        missing = [k for k in required if not data.get(k)]
+        if missing:
+            raise ValueError(f"import_community_pattern: missing fields {missing}")
+
+        community_id = data['community_id']
+        version = int(data.get('version') or 1)
+
+        sponsor_name = data['sponsor']
+        sponsor_id = get_or_create_known_sponsor(self.db, sponsor_name)
+
+        existing = self.db.find_pattern_by_community_id(community_id)
+        if existing:
+            if existing.get('protected_from_sync'):
+                logger.info(
+                    f"import_community_pattern: community_id={community_id} "
+                    f"is protected; skipping"
+                )
+                return existing['id']
+            if version <= int(existing.get('version') or 1):
+                # Same or older version — no-op.
+                return existing['id']
+
+            self.db.update_ad_pattern(
+                existing['id'],
+                text_template=data['text_template'],
+                intro_variants=data.get('intro_variants') or [],
+                outro_variants=data.get('outro_variants') or [],
+                sponsor_id=sponsor_id,
+                version=version,
+                submitted_app_version=data.get('submitted_app_version'),
+            )
+            return existing['id']
+
+        pattern_id = self.db.create_ad_pattern(
+            scope=data['scope'],
+            text_template=data['text_template'],
+            sponsor_id=sponsor_id,
+            podcast_id=data.get('podcast_id'),
+            network_id=data.get('network_id'),
+            dai_platform=data.get('dai_platform'),
+            intro_variants=data.get('intro_variants') or [],
+            outro_variants=data.get('outro_variants') or [],
+            created_by='community',
+            source='community',
+            community_id=community_id,
+            version=version,
+            submitted_app_version=data.get('submitted_app_version'),
+            protected_from_sync=0,
+        )
+        return pattern_id

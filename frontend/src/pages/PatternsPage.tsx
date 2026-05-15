@@ -1,12 +1,22 @@
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useSearchParams } from 'react-router-dom';
-import { getPatterns, getPatternStats, AdPattern } from '../api/patterns';
+import {
+  getPatterns, getPatternStats, AdPattern,
+  protectPattern, unprotectPattern, PATTERN_SOURCE_COMMUNITY,
+} from '../api/patterns';
+import {
+  triggerCommunitySync, getCommunitySyncStatus,
+} from '../api/community';
 import PatternDetailModal from '../components/PatternDetailModal';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { CommunityBadge } from '../components/CommunityBadge';
+import { PatternImportDialog } from '../components/PatternImportDialog';
+import { PatternExportDialog } from '../components/PatternExportDialog';
 
 type ScopeFilter = 'all' | 'global' | 'network' | 'podcast';
 type OriginFilter = 'all' | 'auto' | 'user';
+type SourceFilter = 'all' | 'local' | 'community' | 'imported';
 type SortDirection = 'asc' | 'desc';
 
 function SortHeader({
@@ -42,22 +52,56 @@ function SortHeader({
 function PatternsPage() {
   const [scopeFilter, setScopeFilter] = useState<ScopeFilter>('all');
   const [originFilter, setOriginFilter] = useState<OriginFilter>('all');
+  const [sourceFilter, setSourceFilter] = useState<SourceFilter>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [showInactive, setShowInactive] = useState(false);
   const [selectedPattern, setSelectedPattern] = useState<AdPattern | null>(null);
   const [sortField, setSortField] = useState<keyof AdPattern>('created_at');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [page, setPage] = useState(1);
+  const [importOpen, setImportOpen] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
   const limit = 20;
   const [searchParams, setSearchParams] = useSearchParams();
 
   const { data: patterns, isLoading, error, refetch } = useQuery({
-    queryKey: ['patterns', scopeFilter, showInactive],
+    queryKey: ['patterns', scopeFilter, showInactive, sourceFilter],
     queryFn: () => getPatterns({
       scope: scopeFilter === 'all' ? undefined : scopeFilter,
       active: showInactive ? undefined : true,
+      source: sourceFilter === 'all' ? undefined : sourceFilter,
     }),
   });
+
+  const { data: syncStatus, refetch: refetchSyncStatus } = useQuery({
+    queryKey: ['communitySyncStatus'],
+    queryFn: getCommunitySyncStatus,
+    refetchInterval: 60_000,
+  });
+
+  async function handleSyncNow() {
+    try {
+      await triggerCommunitySync();
+      refetchSyncStatus();
+      refetch();
+    } catch (e) {
+      // Errors surface via /community-patterns/sync-status lastError.
+      console.error('Sync failed', e);
+    }
+  }
+
+  async function handleToggleProtect(pattern: AdPattern) {
+    try {
+      if (pattern.protected_from_sync) {
+        await unprotectPattern(pattern.id);
+      } else {
+        await protectPattern(pattern.id);
+      }
+      refetch();
+    } catch (e) {
+      console.error('Protect toggle failed', e);
+    }
+  }
 
   const { data: stats } = useQuery({
     queryKey: ['patternStats'],
@@ -196,10 +240,46 @@ function PatternsPage() {
     <div>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <h1 className="text-2xl font-bold text-foreground">Ad Patterns</h1>
-        <div className="text-sm text-muted-foreground">
-          {sortedPatterns?.length || 0} patterns
+        <div className="flex items-center gap-3 text-sm">
+          <span className="text-muted-foreground">
+            {sortedPatterns?.length || 0} patterns
+          </span>
+          {syncStatus?.lastRun && (
+            <button
+              type="button"
+              onClick={handleSyncNow}
+              className="px-2 py-1 rounded text-xs border border-border hover:bg-accent transition-colors"
+              title={syncStatus.lastError ? `Last error: ${syncStatus.lastError}` : 'Sync now'}
+            >
+              ↻ synced {new Date(syncStatus.lastRun).toLocaleString()}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setImportOpen(true)}
+            className="px-3 py-1.5 rounded border border-border hover:bg-accent transition-colors"
+          >
+            Import
+          </button>
+          <button
+            type="button"
+            onClick={() => setExportOpen(true)}
+            className="px-3 py-1.5 rounded border border-border hover:bg-accent transition-colors"
+          >
+            Export
+          </button>
         </div>
       </div>
+      <PatternImportDialog
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onComplete={() => refetch()}
+      />
+      <PatternExportDialog
+        open={exportOpen}
+        patterns={sortedPatterns || []}
+        onClose={() => setExportOpen(false)}
+      />
 
       {/* Stats Summary */}
       {stats && (
@@ -280,6 +360,24 @@ function PatternsPage() {
             </select>
           </div>
 
+          {/* Source filter */}
+          <div className="flex items-center gap-2">
+            <label className="text-sm text-muted-foreground">Source:</label>
+            <select
+              value={sourceFilter}
+              onChange={(e) => {
+                setSourceFilter(e.target.value as SourceFilter);
+                setPage(1);
+              }}
+              className="px-3 py-1.5 text-sm bg-secondary border border-border rounded"
+            >
+              <option value="all">All</option>
+              <option value="local">Local</option>
+              <option value="community">Community</option>
+              <option value="imported">Imported</option>
+            </select>
+          </div>
+
           {/* Search */}
           <div className="flex-1 min-w-[200px]">
             <input
@@ -318,18 +416,36 @@ function PatternsPage() {
             className="bg-card rounded-lg border border-border p-4 cursor-pointer hover:bg-accent/50 transition-colors"
             onClick={() => setSelectedPattern(pattern)}
           >
-            <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
               <span className="text-xs font-mono text-muted-foreground">#{pattern.id}</span>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 {getScopeBadge(pattern)}
                 {pattern.created_by === 'user' && (
                   <span className="px-2 py-0.5 text-xs rounded bg-amber-500/20 text-amber-600 dark:text-amber-400">
                     Manual
                   </span>
                 )}
+                {pattern.source === PATTERN_SOURCE_COMMUNITY && pattern.community_id && (
+                  <CommunityBadge
+                    communityId={pattern.community_id}
+                    version={pattern.version}
+                    protected={!!pattern.protected_from_sync}
+                  />
+                )}
                 {getStatusBadge(pattern.is_active)}
               </div>
             </div>
+            {pattern.source === PATTERN_SOURCE_COMMUNITY && (
+              <div className="flex items-center gap-2 mb-2">
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); handleToggleProtect(pattern); }}
+                  className="px-2 py-1 text-xs rounded border border-border hover:bg-accent"
+                >
+                  {pattern.protected_from_sync ? 'Unprotect' : 'Protect from sync'}
+                </button>
+              </div>
+            )}
             <div className="text-sm font-medium text-foreground mb-1">
               {pattern.sponsor || '(Unknown)'}
             </div>
@@ -363,14 +479,15 @@ function PatternsPage() {
         <div className="overflow-x-auto">
           <table className="w-full table-fixed divide-y divide-border">
             <colgroup>
-              <col className="w-[5%]" />
-              <col className="w-[18%]" />
-              <col className="w-[30%]" />
-              <col className="w-[8%]" />
-              <col className="w-[8%]" />
-              <col className="w-[12%]" />
-              <col className="w-[12%]" />
+              <col className="w-[4%]" />
+              <col className="w-[16%]" />
+              <col className="w-[26%]" />
               <col className="w-[7%]" />
+              <col className="w-[7%]" />
+              <col className="w-[11%]" />
+              <col className="w-[11%]" />
+              <col className="w-[7%]" />
+              <col className="w-[11%]" />
             </colgroup>
             <thead className="bg-muted/50">
               <tr>
@@ -383,6 +500,9 @@ function PatternsPage() {
                 <SortHeader field="last_matched_at" label="Last Matched" sortField={sortField} sortDirection={sortDirection} onSort={handleSort} />
                 <th className="px-2 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
                   Status
+                </th>
+                <th className="px-2 py-3 text-left text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                  Actions
                 </th>
               </tr>
             </thead>
@@ -397,12 +517,19 @@ function PatternsPage() {
                     #{pattern.id}
                   </td>
                   <td className="px-4 py-3 overflow-hidden">
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 flex-wrap">
                       {getScopeBadge(pattern)}
                       {pattern.created_by === 'user' && (
                         <span className="px-2 py-0.5 text-xs rounded bg-amber-500/20 text-amber-600 dark:text-amber-400">
                           Manual
                         </span>
+                      )}
+                      {pattern.source === PATTERN_SOURCE_COMMUNITY && pattern.community_id && (
+                        <CommunityBadge
+                          communityId={pattern.community_id}
+                          version={pattern.version}
+                          protected={!!pattern.protected_from_sync}
+                        />
                       )}
                     </div>
                   </td>
@@ -439,11 +566,22 @@ function PatternsPage() {
                   <td className="px-2 py-3 whitespace-nowrap">
                     {getStatusBadge(pattern.is_active)}
                   </td>
+                  <td className="px-2 py-3 whitespace-nowrap text-xs">
+                    {pattern.source === PATTERN_SOURCE_COMMUNITY && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); handleToggleProtect(pattern); }}
+                        className="px-2 py-1 rounded border border-border hover:bg-accent whitespace-nowrap"
+                      >
+                        {pattern.protected_from_sync ? 'Unprotect' : 'Protect'}
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
               {paginatedPatterns?.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
+                  <td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">
                     No patterns found
                   </td>
                 </tr>

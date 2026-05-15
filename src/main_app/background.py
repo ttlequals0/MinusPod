@@ -59,11 +59,18 @@ def background_rss_refresh():
     """
     from main_app.feeds import refresh_all_feeds
     from pricing_fetcher import refresh_pricing_if_stale
-    _, _, shutdown_event, _, _ = _get_components()
+    from community_sync import community_pattern_sync_tick
+    db, _, shutdown_event, _, _ = _get_components()
     while not shutdown_event.is_set():
         refresh_all_feeds()
         run_cleanup()
         refresh_pricing_if_stale()  # TTL-gated, fetches once per 24h
+        # Community pattern sync — gated by settings.community_sync_enabled
+        # and the cron schedule; safe to call every tick.
+        try:
+            community_pattern_sync_tick(db)
+        except Exception as e:
+            refresh_logger.warning(f"community_pattern_sync_tick failed: {e}")
         # Wait 15 minutes, but allow early exit on shutdown
         shutdown_event.wait(timeout=900)
 

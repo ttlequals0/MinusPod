@@ -1,0 +1,257 @@
+{
+  "vocabulary_version": 1,
+  "description": "Canonical tag list for MinusPod community patterns. Authoritative source is the VALID_TAGS constant + tag_vocabulary.csv in app code. Regenerate this file when the source changes.",
+  "special_tags": [
+    {
+      "tag": "universal",
+      "description": "Sponsor advertises broadly across all podcast genres. Bypasses tag-overlap matching."
+    }
+  ],
+  "podcast_genres": [
+    {
+      "tag": "arts",
+      "description": "Arts, design, fashion, performing/visual arts"
+    },
+    {
+      "tag": "books",
+      "description": "Books, audiobook-targeted shows"
+    },
+    {
+      "tag": "business",
+      "description": "Business, careers, entrepreneurship, investing, management, marketing"
+    },
+    {
+      "tag": "comedy",
+      "description": "Comedy, stand-up, improv"
+    },
+    {
+      "tag": "education",
+      "description": "General education, courses, how-to"
+    },
+    {
+      "tag": "language_learning",
+      "description": "Language learning specifically (Babbel/Rosetta target)"
+    },
+    {
+      "tag": "self_improvement",
+      "description": "Self-improvement, productivity, life advice"
+    },
+    {
+      "tag": "fiction",
+      "description": "Narrative fiction, audio drama"
+    },
+    {
+      "tag": "history",
+      "description": "History, historical analysis"
+    },
+    {
+      "tag": "health",
+      "description": "Health & fitness, alternative health, medicine, nutrition, sexuality"
+    },
+    {
+      "tag": "mental_health",
+      "description": "Mental health, meditation, mindfulness"
+    },
+    {
+      "tag": "kids_family",
+      "description": "Kids, family, parenting, pets"
+    },
+    {
+      "tag": "leisure",
+      "description": "Leisure, crafts, hobbies, home & garden"
+    },
+    {
+      "tag": "gaming",
+      "description": "Video games, board games, gaming culture"
+    },
+    {
+      "tag": "automotive",
+      "description": "Cars, car culture, auto enthusiast"
+    },
+    {
+      "tag": "music",
+      "description": "Music, music commentary, music interviews"
+    },
+    {
+      "tag": "news",
+      "description": "General news, daily news, news commentary, business/tech news"
+    },
+    {
+      "tag": "politics",
+      "description": "Politics, political commentary, government"
+    },
+    {
+      "tag": "religion",
+      "description": "Religion, spirituality, faith"
+    },
+    {
+      "tag": "science",
+      "description": "Science, astronomy, physics, chemistry, life sciences"
+    },
+    {
+      "tag": "society_culture",
+      "description": "Society & culture, documentary, philosophy, relationships"
+    },
+    {
+      "tag": "travel",
+      "description": "Places & travel"
+    },
+    {
+      "tag": "sports",
+      "description": "Sports, all sports subcategories"
+    },
+    {
+      "tag": "technology",
+      "description": "Technology shows specifically"
+    },
+    {
+      "tag": "true_crime",
+      "description": "True crime"
+    },
+    {
+      "tag": "tv_film",
+      "description": "TV & film, after shows, film reviews"
+    }
+  ],
+  "sponsor_industries": [
+    {
+      "tag": "tech",
+      "description": "Software, apps, digital tools (broad)"
+    },
+    {
+      "tag": "saas",
+      "description": "Subscription B2B/B2C software"
+    },
+    {
+      "tag": "vpn",
+      "description": "VPN and privacy networking"
+    },
+    {
+      "tag": "security",
+      "description": "Password managers, identity protection, antivirus"
+    },
+    {
+      "tag": "finance",
+      "description": "Banking, investing, lending, credit"
+    },
+    {
+      "tag": "insurance",
+      "description": "Insurance products (auto, home, life, etc.)"
+    },
+    {
+      "tag": "food",
+      "description": "Restaurants, grocery, delivery"
+    },
+    {
+      "tag": "meal_kit",
+      "description": "Meal kit delivery (HelloFresh, Factor, etc.)"
+    },
+    {
+      "tag": "beverage",
+      "description": "Drinks, alcohol, energy, hydration"
+    },
+    {
+      "tag": "supplements",
+      "description": "Supplements, vitamins, nutrition powders"
+    },
+    {
+      "tag": "apparel",
+      "description": "Clothing, shoes, accessories"
+    },
+    {
+      "tag": "home_goods",
+      "description": "Furniture, decor, home goods (non-mattress)"
+    },
+    {
+      "tag": "mattress",
+      "description": "Mattresses, bedding (Casper, Helix, etc.)"
+    },
+    {
+      "tag": "home_security",
+      "description": "Alarms, cameras, smart locks"
+    },
+    {
+      "tag": "personal_care",
+      "description": "Grooming, skincare, haircare, hygiene"
+    },
+    {
+      "tag": "auto",
+      "description": "Cars, car buying, auto services"
+    },
+    {
+      "tag": "telecom",
+      "description": "Mobile carriers, internet providers"
+    },
+    {
+      "tag": "jobs",
+      "description": "Recruitment, hiring platforms"
+    },
+    {
+      "tag": "streaming",
+      "description": "Streaming services, audiobooks (Audible, Netflix, etc.)"
+    },
+    {
+      "tag": "gambling",
+      "description": "Sportsbooks, casinos, fantasy sports"
+    },
+    {
+      "tag": "nicotine",
+      "description": "Tobacco, vape, nicotine pouches"
+    },
+    {
+      "tag": "dtc",
+      "description": "Direct-to-consumer brand (cross-cutting tag)"
+    }
+  ],
+  "all_tags": [
+    "apparel",
+    "arts",
+    "auto",
+    "automotive",
+    "beverage",
+    "books",
+    "business",
+    "comedy",
+    "dtc",
+    "education",
+    "fiction",
+    "finance",
+    "food",
+    "gambling",
+    "gaming",
+    "health",
+    "history",
+    "home_goods",
+    "home_security",
+    "insurance",
+    "jobs",
+    "kids_family",
+    "language_learning",
+    "leisure",
+    "mattress",
+    "meal_kit",
+    "mental_health",
+    "music",
+    "news",
+    "nicotine",
+    "personal_care",
+    "politics",
+    "religion",
+    "saas",
+    "science",
+    "security",
+    "self_improvement",
+    "society_culture",
+    "sports",
+    "streaming",
+    "supplements",
+    "tech",
+    "technology",
+    "telecom",
+    "travel",
+    "true_crime",
+    "tv_film",
+    "universal",
+    "vpn"
+  ]
+}

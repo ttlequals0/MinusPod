@@ -1812,6 +1812,7 @@ class AdDetector:
                           podcast_id: str = None, network_id: str = None,
                           skip_patterns: bool = False,
                           podcast_description: str = None,
+                          podcast_tags: Optional[set] = None,
                           progress_callback=None,
                           audio_analysis=None,
                           cancel_event=None) -> Dict:
@@ -1928,7 +1929,8 @@ class AdDetector:
                 text_matches = self.text_pattern_matcher.find_matches(
                     segments,
                     podcast_id=podcast_id,
-                    network_id=network_id
+                    network_id=network_id,
+                    podcast_tags=podcast_tags,
                 )
 
                 tp_added = 0

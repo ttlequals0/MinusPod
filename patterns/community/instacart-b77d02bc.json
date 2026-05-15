@@ -1,0 +1,22 @@
+{
+  "scope": "podcast",
+  "text_template": "We all prefer things a certain way, like groceries. If you want groceries just how you like them, you gotta try Instacart. They have a new preference picker that lets you pick how ripe or unripe you want your bananas. Shoppers can see your preferences up front, helping guide their choices. Because when it comes to groceries, the details matter. Instacart. Get groceries just how you like.",
+  "intro_variants": [
+    "We all prefer things a certain way, like groceries. If you want groceries just how you like them, you gotta try Instacart. They have a new preference picker that lets you pick how ripe or unripe you want your bananas. Shoppers can see your preferences up front, helping guide their"
+  ],
+  "outro_variants": [
+    "want your bananas. Shoppers can see your preferences up front, helping guide their choices. Because when it comes to groceries, the details matter. Instacart. Get groceries just how you like."
+  ],
+  "avg_duration": null,
+  "sponsor": "Instacart",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "food",
+    "universal"
+  ],
+  "community_id": "b77d02bc-5ccb-465d-8ecc-c0f3c53efa3d",
+  "version": 1,
+  "submitted_at": "2026-05-15T13:44:56.339888+00:00",
+  "submitted_app_version": "unknown",
+  "sponsor_match": "exact"
+}

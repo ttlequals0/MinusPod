@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.3.4
+  version: 2.4.6
   contact:
     name: MinusPod
   license:
@@ -3908,6 +3908,415 @@ paths:
                     type: integer
                     description: Number of pending items removed
 
+  /patterns/bulk-delete:
+    post:
+      summary: Bulk-delete patterns
+      description: |
+        Hard-delete patterns by id or by source filter. Both `confirm: true`
+        and `expected_count: N` are required; the call is rejected if the
+        actual matched count does not equal `expected_count`.
+      tags: [Patterns]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [confirm, expected_count]
+              properties:
+                ids:
+                  type: array
+                  items: { type: integer }
+                source:
+                  type: string
+                  enum: [local, community, imported]
+                confirm:
+                  type: boolean
+                expected_count:
+                  type: integer
+      responses:
+        '200':
+          description: Deletion summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted: { type: integer }
+                  ids:
+                    type: array
+                    items: { type: integer }
+        '400':
+          description: Validation failure
+
+  /patterns/bulk-disable:
+    post:
+      summary: Bulk-disable patterns
+      description: Same shape as bulk-delete; sets is_active=0 instead.
+      tags: [Patterns]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/BulkPatternOp' }
+      responses:
+        '200':
+          description: Disable summary
+        '400':
+          description: Validation failure
+
+  /patterns/preview-export:
+    post:
+      summary: Dry-run the community export pipeline for a list of pattern ids
+      description: |
+        Returns which patterns would pass the quality gates and which would
+        be rejected, with per-id reasons. Used by the UI to show a preview
+        before the user builds the actual submission bundle.
+      tags: [Patterns]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ids]
+              properties:
+                ids:
+                  type: array
+                  items: { type: integer }
+                  minItems: 1
+      responses:
+        '200':
+          description: Preview result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ready:
+                    type: array
+                    items: { type: integer }
+                  rejected:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: integer }
+                        sponsor: { type: string, nullable: true }
+                        reasons:
+                          type: array
+                          items: { type: string }
+                  ready_count: { type: integer }
+                  rejected_count: { type: integer }
+                  pattern_count: { type: integer }
+        '400':
+          description: ids list missing or empty
+
+  /patterns/submit-bundle:
+    post:
+      summary: Build a downloadable community-submission bundle
+      description: |
+        Runs the export pipeline on each id and returns a single JSON file
+        (Content-Disposition: attachment) containing every pattern that
+        passed quality gates. The file is the artifact the contributor
+        commits into `patterns/community/` to open one PR for all the
+        selected patterns. The PR-side validator and the manifest builder
+        both handle the bundle format natively, so the maintainer does
+        not need to split it after merge.
+      tags: [Patterns]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ids]
+              properties:
+                ids:
+                  type: array
+                  items: { type: integer }
+                  minItems: 1
+      responses:
+        '200':
+          description: Bundle JSON file (downloaded as attachment)
+          headers:
+            Content-Disposition:
+              schema: { type: string }
+              description: 'attachment; filename="minuspod-submission-XXXX.json"'
+            X-Bundle-Pattern-Count:
+              schema: { type: integer }
+            X-Bundle-Rejected-Count:
+              schema: { type: integer }
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  format: { type: string, example: minuspod-community-submission }
+                  bundle_version: { type: integer }
+                  submitted_at: { type: string, format: date-time }
+                  submitted_app_version: { type: string }
+                  pattern_count: { type: integer }
+                  patterns:
+                    type: array
+                    items: { type: object }
+        '400':
+          description: ids missing, or every pattern failed quality gates
+
+  /patterns/{pattern_id}/submit-to-community:
+    post:
+      summary: Submit a local pattern to the community repository
+      description: |
+        Runs the community export pipeline: quality gates, tag validation,
+        PII strip, metadata strip, sponsor classification, and returns a
+        prefilled GitHub PR URL plus the JSON payload. When `too_large` is
+        true the URL exceeds GitHub's limit and the client should offer
+        the JSON file as a download instead.
+      tags: [Patterns]
+      parameters:
+        - in: path
+          name: pattern_id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Export result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  payload: { type: object }
+                  filename: { type: string }
+                  pr_url: { type: string }
+                  too_large: { type: boolean }
+                  sponsor_match:
+                    type: string
+                    enum: [exact, alias, fuzzy, unknown]
+        '400':
+          description: Pattern failed export gates
+
+  /patterns/{pattern_id}/protect:
+    post:
+      summary: Mark a community pattern as protected from sync
+      tags: [Patterns]
+      parameters:
+        - in: path
+          name: pattern_id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Updated protection state
+        '400':
+          description: Pattern is not source=community
+    delete:
+      summary: Clear the protected_from_sync flag on a community pattern
+      tags: [Patterns]
+      parameters:
+        - in: path
+          name: pattern_id
+          required: true
+          schema: { type: integer }
+      responses:
+        '200':
+          description: Updated protection state
+
+  /feeds/{slug}/tags:
+    get:
+      summary: Get a feed's tag breakdown (rss / episode / user / effective)
+      tags: [Feeds]
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Tag breakdown
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  effective: { type: array, items: { type: string } }
+                  rss:       { type: array, items: { type: string } }
+                  episode:   { type: array, items: { type: string } }
+                  user:      { type: array, items: { type: string } }
+        '404':
+          description: Feed not found
+    put:
+      summary: Update a feed's user-added tags
+      tags: [Feeds]
+      parameters:
+        - in: path
+          name: slug
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [user_tags]
+              properties:
+                user_tags:
+                  type: array
+                  items: { type: string }
+      responses:
+        '200':
+          description: Updated tag breakdown
+        '400':
+          description: Unknown or invalid tag(s)
+
+  /sponsors/{sponsor_id}/tags:
+    put:
+      summary: Update a sponsor's tags
+      tags: [Sponsors]
+      parameters:
+        - in: path
+          name: sponsor_id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tags]
+              properties:
+                tags:
+                  type: array
+                  items: { type: string }
+      responses:
+        '200':
+          description: Updated sponsor tags
+        '404':
+          description: Sponsor not found
+
+  /settings/reviewer:
+    get:
+      summary: Read ad-reviewer auto-update settings
+      tags: [Settings]
+      responses:
+        '200':
+          description: Current settings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  updatePatternsFromReviewerAdjustments: { type: boolean }
+                  minTrimThreshold: { type: number }
+    put:
+      summary: Update ad-reviewer auto-update settings
+      tags: [Settings]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                updatePatternsFromReviewerAdjustments: { type: boolean }
+                minTrimThreshold: { type: number, minimum: 1, maximum: 120 }
+      responses:
+        '200':
+          description: Updated settings
+
+  /settings/community-sync:
+    get:
+      summary: Read community-pattern sync settings
+      tags: [Settings]
+      responses:
+        '200':
+          description: Current settings
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CommunitySyncSettings' }
+    put:
+      summary: Update community-pattern sync settings
+      tags: [Settings]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                enabled: { type: boolean }
+                cron: { type: string }
+      responses:
+        '200':
+          description: Updated settings
+
+  /community-patterns/sync:
+    post:
+      summary: Force a community-pattern sync now
+      description: Rate limited to 6/hour.
+      tags: [CommunityPatterns]
+      responses:
+        '200':
+          description: Sync summary
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CommunitySyncSummary' }
+        '429':
+          description: Rate-limited
+        '502':
+          description: Manifest fetch or apply failed
+
+  /community-patterns/sync-status:
+    get:
+      summary: Get community-pattern sync status
+      tags: [CommunityPatterns]
+      responses:
+        '200':
+          description: Status
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CommunitySyncSettings' }
+
+  /community-patterns/all:
+    delete:
+      summary: Remove every community pattern on this instance
+      description: |
+        Hard-deletes every row where ``source='community'``. Ignores
+        ``protected_from_sync``; the flag guards sync reconciliation,
+        not an explicit operator purge. Local and imported patterns are
+        untouched. If sync is enabled, the next tick repopulates from
+        the manifest.
+
+        Requires ``{"confirm": true}`` in the body as a fat-finger guard
+        (matches the ``/patterns/bulk-delete`` convention).
+      tags: [CommunityPatterns]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [confirm]
+              properties:
+                confirm:
+                  type: boolean
+                  const: true
+      responses:
+        '200':
+          description: Deletion count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: integer
+                    example: 47
+        '400':
+          description: confirm flag missing or not true
+
 security:
   - sessionCookie: []
 
@@ -3979,6 +4388,49 @@ components:
         example: 550e8400-e29b-41d4-a716-446655440000
 
   schemas:
+    BulkPatternOp:
+      type: object
+      required: [confirm, expected_count]
+      properties:
+        ids:
+          type: array
+          items: { type: integer }
+        source:
+          type: string
+          enum: [local, community, imported]
+        confirm: { type: boolean }
+        expected_count: { type: integer }
+
+    CommunitySyncSettings:
+      type: object
+      properties:
+        enabled: { type: boolean }
+        cron:    { type: string }
+        lastRun:
+          type: string
+          nullable: true
+        lastError:
+          type: string
+          nullable: true
+        manifestVersion:
+          type: string
+          nullable: true
+        lastSummary:
+          type: string
+          nullable: true
+          description: JSON-encoded summary of the last sync (counts + manifest version)
+
+    CommunitySyncSummary:
+      type: object
+      properties:
+        inserted: { type: integer }
+        updated:  { type: integer }
+        deleted:  { type: integer }
+        skipped:  { type: integer }
+        errors:   { type: integer }
+        manifest_version: { type: string }
+        fetched_at: { type: string }
+
     Feed:
       type: object
       properties:

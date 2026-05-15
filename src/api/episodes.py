@@ -829,9 +829,17 @@ def retry_ad_detection(slug, episode_id):
         from ad_detector import AdDetector
         ad_detector = AdDetector()
         try:
+            # Load podcast tags for community-pattern eligibility.
+            try:
+                _pod_row = db.get_podcast_by_slug(slug)
+                _tags_json = _pod_row.get('tags') if _pod_row else None
+                podcast_tags = set(json.loads(_tags_json)) if _tags_json else None
+            except Exception:
+                podcast_tags = None
             ad_result = ad_detector.process_transcript(
                 segments, podcast_name, episode.get('title', 'Unknown'), slug, episode_id,
-                podcast_id=slug  # Pass slug as podcast_id for pattern matching
+                podcast_id=slug,  # Pass slug as podcast_id for pattern matching
+                podcast_tags=podcast_tags,
             )
         finally:
             token_totals = get_episode_token_totals()

@@ -1,0 +1,2 @@
+pattern:
+  - 'patterns/community/**/*.json'

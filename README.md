@@ -16,6 +16,7 @@ MinusPod is a self-hosted server that removes ads before you ever hit play. It t
   - [Screenshots](#screenshots)
 - [Configuration](#configuration)
 - [Experiments](#experiments)
+- [Community Patterns (Optional)](#community-patterns-optional)
 - [Finding Podcast RSS Feeds](#finding-podcast-rss-feeds)
 - [Usage](#usage)
   - [Audiobookshelf](#audiobookshelf)
@@ -486,6 +487,41 @@ Detection, verification, and reviewer prompts use explicit placeholder substitut
 - `{max_boundary_shift_seconds}` - review prompt only. Substituted with the current `Max boundary shift` setting. The boundary cap is enforced in code regardless of whether the placeholder is in the prompt.
 
 If you customized your system or verification prompt before this release, the upgrade automatically appends `{sponsor_database}` to your prompt so behavior is preserved. The migration is idempotent and runs once.
+
+## Community Patterns (Optional)
+
+MinusPod can share and receive ad patterns from a community-maintained seed list. Patterns describe recognized ad reads (sponsor scripts, host-read pre-rolls, etc.) so new MinusPod instances skip the LLM detection step for ads that have already been identified elsewhere.
+
+The feature is **opt-in** and **off by default**. When enabled, your MinusPod instance pulls a manifest of community patterns from this repo on a schedule you control. To submit your own patterns back, open the Patterns page Export dialog and pick **Submit to community**: the app runs quality gates over your selection, shows what will pass, and downloads a single bundle file. Drop it into your fork of `patterns/community/` and open one PR.
+
+### What you get when enabled
+
+- Faster ad detection for sponsors other MinusPod users have already identified
+- New patterns appear automatically as the community contributes them
+- Local patterns you build stay private unless you choose to submit them
+
+### What you control
+
+- **Sync schedule** - cron expression in Settings (default: weekly, Sunday 3am)
+- **Manual sync** - "Sync now" button in Settings
+- **Per-pattern protection** - pin any community pattern with **Protect from sync** to prevent automatic updates or deletion
+- **Disable at any time** - flipping the toggle stops sync; existing community patterns remain unless you delete them
+- **Remove all at once** - "Remove all community patterns" in Settings wipes every community pattern (including any you marked Protect from sync). Useful for a clean reset before re-enabling sync.
+
+### What is shared if you submit
+
+Submitting a pattern is a separate action you trigger from the Export dialog and never automatic. Before submission, the app:
+
+- Strips local identifiers (which podcast, which network, your match counts, your timestamps)
+- Strips PII from pattern text (consumer email addresses, non-toll-free phone numbers)
+- Validates the pattern meets quality thresholds
+- Generates a JSON file and opens a prefilled GitHub PR in your browser
+
+You retain everything locally. Submission is a copy, not a move.
+
+### Full details
+
+See [`patterns/README.md`](patterns/README.md) for the technical reference (sync mechanics, file formats, tag vocabulary) and [`patterns/CONTRIBUTING.md`](patterns/CONTRIBUTING.md) for what happens when you submit a pattern.
 
 ## Finding Podcast RSS Feeds
 

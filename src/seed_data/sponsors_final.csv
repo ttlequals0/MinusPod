@@ -1,0 +1,256 @@
+name,aliases,tags
+Athletic Greens,AG1|AG One,supplements|health|dtc|universal
+BetterHelp,Better Help,mental_health|health|universal
+Squarespace,Square Space,tech|saas|dtc|universal
+Shopify,,tech|saas|universal
+HelloFresh,Hello Fresh,meal_kit|food|dtc|universal
+NordVPN,Nord VPN,vpn|tech|security|universal
+ExpressVPN,Express VPN,vpn|tech|security|universal
+ZipRecruiter,Zip Recruiter,jobs|universal
+SimpliSafe,Simpli Safe,home_security|universal
+Mint Mobile,MintMobile,telecom|universal
+MasterClass,Master Class,education|universal
+Rocket Money,RocketMoney|Truebill,finance|saas|universal
+DoorDash,Door Dash,food|universal
+HubSpot,Hub Spot,tech|saas
+NetSuite,Net Suite,tech|saas
+Amazon,,tech
+Audible,,streaming|books|universal
+Factor,,meal_kit|food|dtc|universal
+Calm,,mental_health|health|universal
+Headspace,Head Space,mental_health|health|universal
+Indeed,,jobs|universal
+LinkedIn,LinkedIn Jobs,jobs|tech|saas|universal
+Stamps.com,Stamps,tech|saas|universal
+Ring,,home_security|tech|universal
+ADT,,home_security|universal
+Casper,,mattress|dtc|universal
+Helix Sleep,Helix,mattress|dtc|universal
+Purple,,mattress|dtc|universal
+Brooklinen,,home_goods|dtc|universal
+Bombas,,apparel|dtc|universal
+Manscaped,,personal_care|dtc|universal
+Dollar Shave Club,DSC,personal_care|dtc|universal
+Harry's,Harrys,personal_care|dtc|universal
+Quip,,personal_care|health|dtc|universal
+Hims,,health|personal_care|dtc|universal
+Hers,,health|personal_care|dtc|universal
+Roman,,health|personal_care|dtc|universal
+Keeps,,health|personal_care|dtc|universal
+Function of Beauty,,personal_care|health|dtc|universal
+Native,,personal_care|dtc|universal
+Liquid IV,Liquid I.V.,supplements|beverage|health|dtc|universal
+Athletic Brewing,,beverage|dtc
+Magic Spoon,,food|dtc|universal
+Thrive Market,,food|dtc|universal
+Butcher Box,ButcherBox,food|dtc|universal
+Blue Apron,,meal_kit|food|dtc|universal
+Uber Eats,UberEats,food|universal
+Grubhub,Grub Hub,food|universal
+Instacart,,food|universal
+Credit Karma,,finance|universal
+SoFi,,finance|universal
+Acorns,,finance|universal
+Betterment,,finance|universal
+Wealthfront,,finance|universal
+PolicyGenius,Policy Genius,finance|insurance|universal
+Lemonade,,finance|insurance|universal
+State Farm,,insurance|universal
+Progressive,,insurance|universal
+Geico,,insurance|universal
+Liberty Mutual,,insurance|universal
+T-Mobile,TMobile,telecom
+Visible,,telecom|universal
+FanDuel,Fan Duel,gambling|sports|universal
+DraftKings,Draft Kings,gambling|sports|universal
+BetMGM,Bet MGM,gambling|sports|universal
+Toyota,,auto
+Hyundai,,auto
+CarMax,Car Max,auto|universal
+Carvana,,auto|universal
+eBay Motors,,auto|universal
+ZocDoc,Zoc Doc,health|universal
+GoodRx,Good Rx,health|universal
+Care/of,Care of|Careof,supplements|health|dtc|universal
+Ritual,,supplements|health|dtc|universal
+Seed,,supplements|health|dtc|universal
+Monday.com,Monday,tech|saas
+Notion,,tech|saas|universal
+Canva,,tech|saas|universal
+Grammarly,,tech|saas|universal
+Babbel,,education|language_learning|universal
+Rosetta Stone,,education|language_learning|universal
+Blinkist,,education|books|universal
+Raycon,,tech
+Bose,,tech
+MacPaw,CleanMyMac,tech|saas
+Green Chef,GreenChef,meal_kit|food|dtc|universal
+Magic Mind,,beverage|supplements|dtc|universal
+Honeylove,Honey Love,apparel|dtc|universal
+Cozy Earth,,home_goods|dtc|universal
+Quince,,apparel|dtc|universal
+LMNT,Element,supplements|beverage|health|dtc|universal
+Nutrafol,,supplements|health|dtc|universal
+Aura,,tech|security|saas|universal
+OneSkin,One Skin,personal_care|health|dtc|universal
+Incogni,,tech|security|saas|universal
+Gametime,Game Time,sports|universal
+1Password,One Password,tech|security|saas|universal
+Bitwarden,Bit Warden,tech|security|saas|universal
+CacheFly,,tech|saas
+Deel,,tech|saas|jobs
+DeleteMe,Delete Me,tech|security|saas|universal
+Framer,,tech|saas|universal
+Miro,,tech|saas
+Monarch Money,,finance|saas|universal
+OutSystems,,tech|saas
+Spaceship,,tech|saas
+Thinkst Canary,,tech|security|saas
+ThreatLocker,,tech|security|saas
+Vanta,,tech|security|saas
+Veeam,,tech|saas
+Zapier,,tech|saas|universal
+Zscaler,,tech|security|saas
+Capital One,,finance|universal
+Ford,,auto
+WhatsApp,,tech
+Lime,,auto
+Lyft,,auto|universal
+Turo,,auto|universal
+Uber,,auto|universal
+Waymo,,auto
+Gusto,,tech|saas
+Meter,,tech|saas
+PagerDuty,,tech|saas
+Rippling,,tech|saas|jobs
+Splunk,,tech|saas
+Webflow,,tech|saas
+Allbirds,,apparel|dtc|universal
+Alo Yoga,,apparel|dtc
+Birchbox,,personal_care|dtc|universal
+Everlane,,apparel|dtc|universal
+FabFitFun,,apparel|personal_care|dtc|universal
+GOAT,,apparel
+Gopuff,,food|universal
+Lululemon,,apparel
+Outdoor Voices,,apparel|dtc|universal
+Poshmark,,apparel
+Rothy's,,apparel|dtc|universal
+Saatva,,mattress|dtc|universal
+Shein,,apparel
+SKIMS,,apparel|dtc
+Stitch Fix,,apparel|dtc|universal
+StockX,,apparel
+Temu,,apparel
+Ten Thousand,,apparel|dtc
+ThredUp,,apparel
+Vuori,,apparel|dtc|universal
+Warby Parker,,apparel|dtc|universal
+Wayfair,,home_goods
+Affirm,,finance|universal
+Bill.com,,finance|saas
+Brex,,finance|saas
+Chime,,finance|universal
+Coinbase,,finance
+FreshBooks,,finance|saas
+Intuit,,finance|saas
+Klarna,,finance|universal
+Mercury,,finance|saas
+NerdWallet,,finance|universal
+Plaid,,finance|tech|saas
+Public.com,,finance|universal
+QuickBooks,,finance|saas
+Ramp,,finance|saas
+Robinhood,,finance|universal
+Stripe,,finance|tech|saas
+UnitedHealth Group,,health|insurance
+WebBank,,finance
+Xero,,finance|saas
+Alani Nu,,supplements|beverage|health|dtc|universal
+Bloom Nutrition,,supplements|health|dtc|universal
+EveryPlate,,meal_kit|food|dtc|universal
+Huel,,food|supplements|dtc|universal
+Imperfect Foods,,food|dtc|universal
+McDonald's,,food
+OLIPOP,,beverage|dtc
+Poppi,,beverage|dtc
+Starbucks,,beverage|food
+Transparent Labs,,supplements|health|dtc|universal
+Caesars Sportsbook,,gambling|sports|universal
+ESPN Bet,,gambling|sports|universal
+SeatGeek,,sports|universal
+StubHub,,sports|universal
+Pura,,home_goods|home_security|dtc
+LegalZoom,,tech|saas|universal
+Rocket Lawyer,,tech|saas|universal
+Apple TV+,,streaming|tv_film|universal
+Disney+,,streaming|tv_film|universal
+HBO Max,,streaming|tv_film|universal
+iHeartRadio,,streaming|music|universal
+Netflix,,streaming|tv_film|universal
+Paramount+,,streaming|tv_film|universal
+SiriusXM,,streaming|music|universal
+Spotify,,streaming|music|universal
+YouTube,,streaming|tv_film|universal
+YouTube TV,,streaming|tv_film|universal
+Cerebral,,mental_health|health|universal
+Eight Sleep,,health|dtc|universal
+Function Health,,health|universal
+Inside Tracker,,health|supplements|universal
+Joovv,,health|dtc|universal
+Levels,,health|universal
+Momentous,,supplements|health|dtc|universal
+Noom,,health|mental_health|universal
+Ro,,health|personal_care|universal
+Talkspace,,mental_health|health|universal
+Thorne,,supplements|health|dtc|universal
+WHOOP,,health|sports|dtc|universal
+Airtable,,tech|saas
+Anthropic,,tech|saas
+Asana,,tech|saas
+Brilliant,,tech|education|saas|universal
+ClickUp,,tech|saas
+Cloudflare,,tech|security|saas
+CrowdStrike,,tech|security|saas
+Cursor,,tech|saas
+Databricks,,tech|saas
+Datadog,,tech|saas
+DocuSign,,tech|saas
+Duolingo,,tech|education|language_learning|saas|universal
+ElevenLabs,,tech|saas
+Figma,,tech|saas
+GitHub,,tech|saas
+GitHub Copilot,,tech|saas
+Klaviyo,,tech|saas
+Linear,,tech|saas
+Loom,,tech|saas
+Mailchimp,,tech|saas
+Midjourney,,tech|saas
+Okta,,tech|security|saas
+OpenAI,,tech|saas
+Patreon,,tech|saas
+Perplexity,,tech|saas
+Retool,,tech|saas
+Salesforce,,tech|saas
+SendGrid,,tech|saas
+ServiceNow,,tech|saas
+Skillshare,,tech|education|saas|universal
+Slack,,tech|saas
+Snowflake,,tech|saas
+Substack,,tech|saas
+Twilio,,tech|saas
+Vercel,,tech|saas
+Workday,,tech|saas
+Zendesk,,tech|saas
+Zoom,,tech|saas
+AT&T,,telecom
+Comcast,,telecom
+Verizon,,telecom
+Airbnb,,travel|universal
+Booking.com,,travel|universal
+Expedia,,travel|universal
+Hopper,,travel|universal
+Kayak,,travel|universal
+Skyscanner,,travel|universal
+Vrbo,,travel|universal
+Zyn,ZYN|Zinn,nicotine|universal
