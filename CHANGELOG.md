@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [2.4.7] - 2026-05-15
 
+### Changed
+
+- **Detection-note line on the episode page is now prefixed with "Match:"** so it reads as the matcher's rationale instead of looking like a contradicting sponsor when the field carries free-text reviewer notes (e.g. boundary extension that sweeps adjacent ads into one detection, where `reason` ends up describing the tail brand while `sponsor` is the matched pattern's brand).
+
 ### Fixed
 
 - **Community patterns now import with `scope='global'` instead of preserving the source instance's scope.** Pre-2.4.7 the export pipeline copied the source pattern's `scope` (almost always `'podcast'`) into the bundle, and the import pipeline used it verbatim. Since `podcast_id` is stripped on export, the imported row was scope='podcast' with `podcast_id=NULL` and never matched anything. Tag eligibility (`text_pattern_matcher._filter_patterns_by_scope`) is what actually gates community patterns per podcast; the legacy scope column should just be `global`.

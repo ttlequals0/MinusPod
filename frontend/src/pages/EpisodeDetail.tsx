@@ -569,9 +569,14 @@ function EpisodeDetail() {
                     {formatConfidence(segment)}
                   </span>
                 </div>
-                {/* Row 2: Description - full width below badges for better mobile display */}
+                {/* Row 2: Detector's own note about the match. Framed as
+                    a "Match:" label so it doesn't read as a contradicting
+                    sponsor when the field carries reviewer-overwritten
+                    free text (e.g., boundary extension that swept up an
+                    adjacent ad's content). */}
                 {segment.reason && (
                   <p className="text-sm text-muted-foreground mt-2 wrap-break-word">
+                    <span className="font-medium">Match:</span>{' '}
                     <PatternLink reason={segment.reason} />
                   </p>
                 )}
