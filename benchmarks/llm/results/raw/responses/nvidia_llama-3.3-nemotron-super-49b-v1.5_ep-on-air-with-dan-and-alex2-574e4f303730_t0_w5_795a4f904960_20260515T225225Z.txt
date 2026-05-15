@@ -1,0 +1,1 @@
+[{"start":2609.5,"end":2634.3,"confidence":0.75,"reason":"Host-read sponsor mentions without detailed pitch, includes transition 'sponsored by' and list of known sponsors","end_text":"Stamps.com,"}]

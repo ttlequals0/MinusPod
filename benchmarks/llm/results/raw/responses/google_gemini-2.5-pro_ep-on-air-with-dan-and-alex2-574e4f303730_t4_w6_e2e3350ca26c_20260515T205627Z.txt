@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2609.5,
+    "end": 2634.3,
+    "confidence": 0.9,
+    "reason": "A transcribed list of common podcast sponsors and ad-related keywords, likely indicating a dynamically inserted ad or a transcription error over an ad slot.",
+    "end_text": "Raycon, Manscaped, Stamps.com,"
+  }
+]

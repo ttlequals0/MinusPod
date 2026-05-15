@@ -1,0 +1,9 @@
+[
+  {
+    "start": 0.0,
+    "end": 59.8,
+    "confidence": 0.99,
+    "reason": "Hex and PickOCNY ads",
+    "end_text": "at PickOCNY.com"
+  }
+]

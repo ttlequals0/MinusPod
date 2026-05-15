@@ -1,0 +1,16 @@
+[
+  {
+    "start": 0.0,
+    "end": 30.3,
+    "confidence": 0.98,
+    "reason": "This is a pre-roll ad for the data platform HEX, featuring a product pitch and the URL Hex.ai.",
+    "end_text": "customers at Hex.ai."
+  },
+  {
+    "start": 30.9,
+    "end": 59.8,
+    "confidence": 0.98,
+    "reason": "This is a pre-roll ad for Orange County, New York tourism, featuring a call to action and the URL PickOCNY.com.",
+    "end_text": "mind at PickOCNY.com."
+  }
+]

@@ -1,0 +1,1 @@
+{"start":2609.5,"end":2634.3,"confidence":0.62,"reason":"Possible partial dynamically inserted ad/transcript artifact containing explicit ad markers and sponsor names: 'promo code,' 'discount code,' 'sponsored by,' 'Athletic Greens,' 'AG1,' 'BetterHelp,' 'Squarespace,' etc.; show content resumes immediately after","end_text":"Manscaped, Stamps.com"}

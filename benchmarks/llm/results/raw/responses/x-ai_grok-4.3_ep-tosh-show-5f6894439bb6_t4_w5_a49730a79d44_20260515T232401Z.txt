@@ -1,0 +1,3 @@
+[
+  {"start": 2412.8, "end": 2484.9, "confidence": 0.99, "reason": "Network-inserted ads for Stony Brook Medicine HealthCast and PC Richard & Son lease program", "end_text": "PCRichard.com slash Asima dot HTML for details"}
+]

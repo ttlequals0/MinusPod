@@ -1,0 +1,8 @@
+
+{
+	"start": 1331.2,
+	"end": 1347.9,
+	"confidence": 0.95,
+	"reason": "Discussion about Ryanair CEO calling for alcohol bans in airports",
+	"end_text": "to be brought in."
+}

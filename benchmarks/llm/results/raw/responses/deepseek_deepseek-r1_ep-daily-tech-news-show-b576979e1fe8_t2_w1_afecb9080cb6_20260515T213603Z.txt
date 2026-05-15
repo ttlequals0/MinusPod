@@ -1,0 +1,7 @@
+{
+    "start": 619.0,
+    "end": 784.6,
+    "confidence": 0.98,
+    "reason": "Multiple sponsor segments including Parloa, Capital One, AllTrails, Zinn, and Lemonada Media with promotional language and calls to action",
+    "end_text": "tune in to Good Things"
+  }

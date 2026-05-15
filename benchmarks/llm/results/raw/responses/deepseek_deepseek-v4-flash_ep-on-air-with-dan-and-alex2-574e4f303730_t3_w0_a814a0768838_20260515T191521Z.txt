@@ -1,0 +1,18 @@
+{
+  "ads": [
+    {
+      "start": 0.0,
+      "end": 30.3,
+      "confidence": 0.99,
+      "reason": "HEX platform ad with promotional language (10x productivity, join teams from Anthropic, Hex.ai URL)",
+      "end_text": "and 1500 other customers at Hex.ai"
+    },
+    {
+      "start": 30.9,
+      "end": 59.8,
+      "confidence": 0.99,
+      "reason": "Orange County NY tourism ad with promotional language (PickOCNY.com, Angry Orchard, Storm King, Brotherhood Winery)",
+      "end_text": "fresh state of mind at PickOCNY.com"
+    }
+  ]
+}

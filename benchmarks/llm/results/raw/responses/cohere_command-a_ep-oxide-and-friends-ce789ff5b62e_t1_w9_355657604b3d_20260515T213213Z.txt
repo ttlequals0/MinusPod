@@ -1,0 +1,7 @@
+{
+  "start": 3765.7,
+  "end": 4380.0,
+  "confidence": 0.0,
+  "reason": "No promotional content found",
+  "end_text": "fabricatable."
+}

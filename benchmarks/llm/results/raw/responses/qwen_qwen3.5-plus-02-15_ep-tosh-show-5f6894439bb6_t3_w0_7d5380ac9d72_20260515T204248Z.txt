@@ -1,0 +1,16 @@
+[
+  {
+    "start": 0.0,
+    "end": 58.1,
+    "confidence": 1.0,
+    "reason": "Pre-roll ad block featuring Progressive Insurance and Whole Foods Market",
+    "end_text": "Celebrate mom with Whole Foods Market"
+  },
+  {
+    "start": 524.1,
+    "end": 597.3,
+    "confidence": 0.95,
+    "reason": "Mid-roll ad break featuring Thrive Cosmetics and Mattress Warehouse",
+    "end_text": "Only at Mattress Warehouse"
+  }
+]

@@ -1,0 +1,3 @@
+[
+  {"start": 2532.3, "end": 2693.0, "confidence": 0.95, "reason": "Meter sponsor read including break transition", "end_text": "back to steve"}
+]

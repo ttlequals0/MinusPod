@@ -1,0 +1,1 @@
+{"start": 0.0, "end": 22.1, "confidence": 1.0, "reason": "Progressive Insurance pre-roll ad with call to action and URL", "end_text": "Not available in all states."}

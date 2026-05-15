@@ -1,0 +1,1 @@
+{ "start": 1773.7, "end": 1836.9, "confidence": 0.95, "reason": "Mint Mobile network-inserted brand tagline ad", "end_text": "get a real glimpse" }

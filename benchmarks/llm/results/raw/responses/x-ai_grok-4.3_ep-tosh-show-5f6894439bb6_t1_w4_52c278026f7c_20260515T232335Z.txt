@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1837.5,
+    "end": 1999.5,
+    "confidence": 0.95,
+    "reason": "Mint Mobile host-read sponsor segment followed by network-inserted retail ads for Mattress Warehouse and PC Richard & Son",
+    "end_text": "for details."
+  }
+]

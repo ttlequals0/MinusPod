@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1837.5,
+    "end": 1999.5,
+    "confidence": 0.97,
+    "reason": "Ad block with Mint Mobile host-read, Mattress Warehouse network ad, and PC Richard & Son lease program",
+    "end_text": "HTML for details"
+  }
+]

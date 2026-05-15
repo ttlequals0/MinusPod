@@ -1,0 +1,1 @@
+{"start": 4361.7, "end": 4382.8, "confidence": 0.01, "reason": "No advertisement detected in this window", "end_text": "we can actually build it and you can actually pay for it"}

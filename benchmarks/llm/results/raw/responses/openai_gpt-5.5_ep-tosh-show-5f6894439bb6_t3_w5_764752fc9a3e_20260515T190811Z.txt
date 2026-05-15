@@ -1,0 +1,1 @@
+{"start":2412.8,"end":2484.9,"confidence":0.98,"reason":"Post-roll ad block: HealthCast by Stony Brook Medicine promotional podcast/healthcare spot with URL, followed by PC Richard & Son/Aseema Lease to Own retail ad with sale offer and PCRichard.com URL","end_text":"HTML for details."}

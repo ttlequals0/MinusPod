@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I've been thinking about this new Motorola Razr Fold. It's supposed to be a noble competitor to the Samsung Galaxy Z Fold 7. I mean, the design looks pretty sleek, but I'm not sure if it's worth the price tag. Let me take a break and we'll be right back after this.",
+  "start_timestamp": 1203.0,
+  "end_timestamp": 1210.0
+}

@@ -1,0 +1,1 @@
+{"start":3428.1,"end":3486.2,"confidence":0.98,"reason":"Post-roll platform-inserted promotional ads for Arizona State University/ASU Online and University of Michigan, with marketing copy and calls to action including asunline.asu.edu and umich.edu","end_text":"more solutions at umich.edu"}

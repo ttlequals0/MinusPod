@@ -1,0 +1,1 @@
+{"start":0.0,"end":104.3,"confidence":0.99,"reason":"Pre-roll ad pod with promotional spots for Capital One, Every Brilliant Thing on Broadway, AllTrails, and Zyn nicotine pouches; includes calls to action like visit/download/find yours","end_text":"Nicotine is an addictive chemical."}

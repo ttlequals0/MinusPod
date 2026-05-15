@@ -1,0 +1,2 @@
+{ "start": 3765.7, "end": 4382.8, "confidence": 0.99, "reason": "Technical discussion about mechanical engineering, manufacturing processes (injection molding, 3D printing, thermoforming), and product design at Oxide Computer Company. No promotional content, sponsor mentions, or platform-inserted ads detected.", "end_text": "actually pay for it" }
+

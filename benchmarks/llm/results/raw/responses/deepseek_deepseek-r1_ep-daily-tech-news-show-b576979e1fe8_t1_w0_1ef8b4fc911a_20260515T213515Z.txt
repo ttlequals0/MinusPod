@@ -1,0 +1,7 @@
+[{
+    "start": 0.0,
+    "end": 104.3,
+    "confidence": 0.99,
+    "reason": "Multiple consecutive ads: Capital One tech promotion, Every Brilliant Thing Broadway show, All Trails app download call, Zinn Nicotine Pouches product pitch with disclaimer",
+    "end_text": "addictive chemical"
+}]

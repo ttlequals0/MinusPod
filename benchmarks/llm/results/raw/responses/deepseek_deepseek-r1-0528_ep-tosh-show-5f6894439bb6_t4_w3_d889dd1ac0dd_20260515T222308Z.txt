@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1837.5,
+    "end": 1860.0,
+    "confidence": 0.95,
+    "reason": "Mint Mobile host-read advertisement",
+    "end_text": "fed up with crazy high bills"
+  }
+]

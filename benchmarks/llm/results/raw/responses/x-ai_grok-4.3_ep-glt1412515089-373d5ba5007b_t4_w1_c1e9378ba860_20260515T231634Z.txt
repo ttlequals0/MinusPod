@@ -1,0 +1,9 @@
+[
+  {
+    "start": 539.2,
+    "end": 652.8,
+    "confidence": 0.98,
+    "reason": "Consecutive host-read ads for In the Gray movie and Skechers slip-ins with no gap",
+    "end_text": "only at Skechers.com."
+  }
+]

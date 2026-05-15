@@ -1,0 +1,11 @@
+{
+"ads": [
+    {
+      "start": 2609.5,
+      "end": 2634.3,
+      "confidence": 0.98,
+      "reason": "sponsor names and promo code mentioned",
+      "end_text": "Stamps.com"
+    }
+  ]
+}

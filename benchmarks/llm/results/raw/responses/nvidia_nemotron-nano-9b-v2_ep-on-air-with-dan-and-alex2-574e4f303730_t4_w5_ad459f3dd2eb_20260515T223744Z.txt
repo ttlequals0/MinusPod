@@ -1,0 +1,1 @@
+[{"start": 2609.5, "end": 2633.6, "confidence": 0.95, "reason": "Sponsored by Athletic Greens, AG1, etc.", "end_text": "Stamps.com"}]

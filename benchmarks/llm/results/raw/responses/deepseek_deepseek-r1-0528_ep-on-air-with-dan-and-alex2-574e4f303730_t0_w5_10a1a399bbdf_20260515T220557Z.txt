@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2609.5,
+    "end": 2634.3,
+    "confidence": 0.95,
+    "reason": "Host-read sponsor list with explicit promotional terms (promo code, discount code, sponsored by) and multiple known podcast sponsors (Athletic Greens, BetterHelp, Squarespace, etc.)",
+    "end_text": "Stamps.com,"
+  }
+]

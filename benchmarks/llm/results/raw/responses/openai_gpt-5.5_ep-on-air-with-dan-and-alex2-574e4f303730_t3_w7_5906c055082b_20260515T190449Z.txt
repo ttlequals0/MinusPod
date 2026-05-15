@@ -1,0 +1,1 @@
+{"start":3428.1,"end":3486.2,"confidence":0.99,"reason":"Post-roll platform-inserted promotional ads for Arizona State University online programs and University of Michigan, with calls to action and URLs","end_text":"solutions at umich.edu"}

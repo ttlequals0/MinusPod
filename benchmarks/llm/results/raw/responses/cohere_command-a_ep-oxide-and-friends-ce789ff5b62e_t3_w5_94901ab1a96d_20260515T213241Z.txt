@@ -1,0 +1,7 @@
+{
+  "start": 2100.0,
+  "end": 2700.0,
+  "confidence": 0.0,
+  "reason": "No promotional content found in this segment",
+  "end_text": "work every time after that and the analysis that we are justified in doing when we're manufacturing at scale like this even though it is a box that does not really move"
+}

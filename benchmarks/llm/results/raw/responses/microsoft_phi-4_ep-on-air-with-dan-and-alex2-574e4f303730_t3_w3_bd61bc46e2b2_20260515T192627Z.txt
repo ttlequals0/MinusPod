@@ -1,0 +1,7 @@
+{  
+  "start": 12.46,  
+  "end": 18.00,  
+  "confidence": 0.95,  
+  "reason": "Discussion of alcohol policies in airports and airlines, including Ryanair's stance on alcohol sales and the cultural norm of drinking before flights in the UK. The conversation also touches on the need for better legislation regarding flight diversions due to alcohol consumption.",  
+  "end_text": "Ryanair's stance on alcohol sales and the need for better legislation regarding flight diversions due to alcohol consumption."  
+}

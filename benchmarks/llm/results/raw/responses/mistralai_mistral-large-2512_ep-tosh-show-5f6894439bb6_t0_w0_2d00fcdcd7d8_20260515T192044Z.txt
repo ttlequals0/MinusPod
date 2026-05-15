@@ -1,0 +1,30 @@
+[
+    {
+        "start": 0.0,
+        "end": 22.1,
+        "confidence": 0.99,
+        "reason": "Progressive Insurance host-read ad with promotional language, URL, and call to action",
+        "end_text": "Progressive.com. Progressive casualty insurance company and affiliates."
+    },
+    {
+        "start": 29.8,
+        "end": 58.1,
+        "confidence": 0.98,
+        "reason": "Whole Foods Market host-read ad with promotional language, product pitches, and seasonal offers",
+        "end_text": "Celebrate mom with Whole Foods Market."
+    },
+    {
+        "start": 537.5,
+        "end": 567.0,
+        "confidence": 0.99,
+        "reason": "Thrive Cosmetics host-read ad with promotional language, URL, promo code (shine26), and call to action",
+        "end_text": "slash shine26."
+    },
+    {
+        "start": 594.7,
+        "end": 597.3,
+        "confidence": 0.95,
+        "reason": "Mattress Warehouse network-inserted brand tagline ad (short, tonally distinct, promotional language)",
+        "end_text": "Only at Mattress Warehouse."
+    }
+]

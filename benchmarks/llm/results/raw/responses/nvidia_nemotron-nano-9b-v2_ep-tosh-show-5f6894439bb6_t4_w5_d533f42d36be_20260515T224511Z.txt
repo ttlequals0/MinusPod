@@ -1,0 +1,1 @@
+[{"start": 2428.9, "end": 2447.5, "confidence": 0.95, "reason": "HealthCast by Stony Brook Medicine", "end_text": "health.stonybrookmedicine.edu slash podcasts"}, {"start": 2448.0, "end": 2484.9, "confidence": 0.98, "reason": "Aseema Lease to Own program", "end_text": "PCRichard.com slash Asima dot HTML"}]

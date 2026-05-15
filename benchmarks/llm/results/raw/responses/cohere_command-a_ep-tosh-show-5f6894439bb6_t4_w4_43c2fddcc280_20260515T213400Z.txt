@@ -1,0 +1,7 @@
+{
+  "start": 1837.5,
+  "end": 2280.0,
+  "confidence": 0.99,
+  "reason": "Multiple network-inserted retail ads (Mattress Warehouse, PC Richard & Son) and host-read sponsor segment (Mint Mobile) with promo code and URL",
+  "end_text": "Cheers"
+}

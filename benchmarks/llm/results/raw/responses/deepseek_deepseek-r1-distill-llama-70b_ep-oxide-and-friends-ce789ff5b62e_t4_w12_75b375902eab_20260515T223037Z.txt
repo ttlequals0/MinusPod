@@ -1,0 +1,7 @@
+{
+  "start": 5036.2,
+  "end": 5052.8,
+  "confidence": 0.95,
+  "reason": "Host promoting their team expansion and future work",
+  "end_text": "ahead of us as well"
+}

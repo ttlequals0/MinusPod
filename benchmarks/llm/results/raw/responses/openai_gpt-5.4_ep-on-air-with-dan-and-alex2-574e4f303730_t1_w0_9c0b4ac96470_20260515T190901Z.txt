@@ -1,0 +1,1 @@
+{"start":0.0,"end":59.8,"confidence":0.99,"reason":"Two back-to-back produced ads: Hex.ai analytics platform pitch ('Join teams from Anthropic... at Hex.ai') followed by Orange County NY tourism ad ('PickOCNY.com', 'Find your fresh state of mind')","end_text":"fresh state of mind at PickOCNY.com"}

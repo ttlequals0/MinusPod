@@ -1,0 +1,1 @@
+[{"start": 2412.8, "end": 2484.9, "confidence": 0.98, "reason": "HealthCast and PC Richard & Son sponsor ads merged (gap < 15s)", "end_text": "Asima dot HTML for details."}]

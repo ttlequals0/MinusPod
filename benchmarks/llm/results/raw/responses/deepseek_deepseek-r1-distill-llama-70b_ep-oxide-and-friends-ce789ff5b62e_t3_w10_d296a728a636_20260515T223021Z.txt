@@ -1,0 +1,7 @@
+{
+  "start": 4193.9,
+  "end": 4802.4,
+  "confidence": 0.95,
+  "reason": "No ads detected in this window",
+  "end_text": "Dowelpens. Oh, dowelpens. Yeah, okay, yeah. Yeah, right. But this change to, like we're saying, it takes four hours to weld a rack together, like this change took maybe 12 hours of engineering time, like start to finish."
+}

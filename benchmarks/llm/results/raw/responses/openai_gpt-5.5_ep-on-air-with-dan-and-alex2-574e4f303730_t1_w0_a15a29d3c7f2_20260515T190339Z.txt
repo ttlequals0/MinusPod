@@ -1,0 +1,1 @@
+{"start":0.0,"end":59.8,"confidence":0.98,"reason":"Pre-roll ads for HEX analytics platform and Orange County New York tourism; promotional language includes product pitch, customer names, and calls to visit Hex.ai and PickOCNY.com","end_text":"mind at PickOCNY.com"}

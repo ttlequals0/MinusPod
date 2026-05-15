@@ -1,0 +1,1 @@
+{"start":2412.8,"end":2484.9,"confidence":0.99,"reason":"Two back-to-back platform-inserted ads: HealthCast by Stony Brook Medicine with URL and PC Richard & Son/Acima lease-to-own promotion with sales pitch, $1 offer, and website; merged because gap is under 15 seconds","end_text":"PCRichard.com slash Asima dot HTML for details"}

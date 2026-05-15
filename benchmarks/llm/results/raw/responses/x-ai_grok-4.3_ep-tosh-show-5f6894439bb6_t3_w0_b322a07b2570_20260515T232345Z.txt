@@ -1,0 +1,6 @@
+[
+  {"start": 0.0, "end": 22.1, "confidence": 0.99, "reason": "Progressive Insurance host-read sponsor segment", "end_text": "Not available in all states."},
+  {"start": 29.8, "end": 58.1, "confidence": 0.99, "reason": "Whole Foods Market Mother's Day promotional ad", "end_text": "Celebrate mom with Whole Foods Market."},
+  {"start": 537.5, "end": 567.0, "confidence": 0.98, "reason": "Thrive Cosmetics host-read sponsor segment", "end_text": "Shine 26."},
+  {"start": 594.7, "end": 597.3, "confidence": 0.85, "reason": "Mattress Warehouse retail brand tagline ad", "end_text": "Only at Mattress Warehouse."}
+]

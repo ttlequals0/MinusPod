@@ -1,0 +1,7 @@
+{
+  "start": 524.6,
+  "end": 1020.0,
+  "confidence": 0.99,
+  "reason": "No ads detected in this segment. Continuous discussion on airline industry topics without promotional content.",
+  "end_text": "Riviera Airlines Group flight from Bergen to Helsinki."
+}

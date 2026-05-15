@@ -1,0 +1,1 @@
+{"start":2412.8,"end":2484.9,"confidence":0.99,"reason":"Two back-to-back platform-inserted ads merged into one break: HealthCast by Stony Brook Medicine promo with URL, followed by PC Richard & Son/Aseema lease-to-own Memorial Day sale promotion with calls to action and legal copy","end_text":"PCRichard.com slash Asima dot HTML for details"}

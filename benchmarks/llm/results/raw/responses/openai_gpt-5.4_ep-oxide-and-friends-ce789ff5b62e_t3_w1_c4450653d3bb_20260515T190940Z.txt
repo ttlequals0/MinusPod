@@ -1,0 +1,1 @@
+{"start": 977.2, "end": 994.9, "confidence": 0.62, "reason": "Organic discussion includes the word 'pitch' but no sponsor name, URL, promo code, or call to action; not an advertisement", "end_text": "central theme of a lot of the work we're doing is"}

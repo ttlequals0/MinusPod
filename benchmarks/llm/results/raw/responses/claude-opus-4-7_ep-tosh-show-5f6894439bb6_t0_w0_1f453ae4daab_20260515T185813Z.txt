@@ -1,0 +1,1 @@
+[{"start": 0.0, "end": 58.1, "confidence": 0.98, "reason": "Progressive Insurance and Whole Foods Market pre-roll ads", "end_text": "Celebrate mom with Whole Foods Market"}, {"start": 537.0, "end": 597.3, "confidence": 0.95, "reason": "Thrive Cosmetics and Mattress Warehouse ads", "end_text": "Only at Mattress Warehouse"}]

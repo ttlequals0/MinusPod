@@ -1,0 +1,1 @@
+[{"start": 1837.5, "end": 1942.4, "confidence": 0.98, "reason": "Mint Mobile and Mattress Warehouse sponsor reads", "end_text": "Mattress Warehouse."}, {"start": 1943.2, "end": 2008.5, "confidence": 0.98, "reason": "PC Richard & Son sponsor read", "end_text": "PCRichard.com slash Aseema dot HTML for details."}]

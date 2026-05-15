@@ -1,0 +1,7 @@
+{
+  "start": 0.0,
+  "end": 10.0,
+  "confidence": 0.95,
+  "reason": "The segment begins with a transition phrase and introduces a sponsor, Elliott, who joins the host in the order box. It includes promotional language and mentions the sponsor's work, indicating an advertisement.",
+  "end_text": "Elliott joins us in the order box."
+}

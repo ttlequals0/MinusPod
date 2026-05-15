@@ -1,0 +1,16 @@
+[
+    {
+        "start": 537.5,
+        "end": 567.0,
+        "confidence": 0.99,
+        "reason": "Thrive Cosmetics host-read sponsor segment with promotional language, URL, and discount code",
+        "end_text": "slash shine26"
+    },
+    {
+        "start": 594.7,
+        "end": 654.3,
+        "confidence": 0.98,
+        "reason": "Mattress Warehouse and PC Richard & Son network-inserted lease-to-own ad with promotional terms and URLs",
+        "end_text": "for details"
+    }
+]

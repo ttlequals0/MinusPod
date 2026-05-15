@@ -1,0 +1,30 @@
+[
+    {
+        "start": 0.0,
+        "end": 29.1,
+        "confidence": 0.99,
+        "reason": "Capital One sponsor read with promotional language, product pitch (Chat Concierge), and brand tagline",
+        "end_text": "technology at Capital One."
+    },
+    {
+        "start": 29.4,
+        "end": 58.3,
+        "confidence": 0.98,
+        "reason": "Promotional segment for 'Every Brilliant Thing' Broadway play with calls to action (visit website, ticket purchase)",
+        "end_text": "Visit Every Brilliant Thing."
+    },
+    {
+        "start": 59.2,
+        "end": 73.6,
+        "confidence": 0.95,
+        "reason": "AllTrails network-inserted brand tagline ad with promotional language and call to action (download the free app)",
+        "end_text": "find your outside"
+    },
+    {
+        "start": 74.8,
+        "end": 104.3,
+        "confidence": 0.99,
+        "reason": "Zinn Nicotine Pouches sponsor read with promotional language, product pitch, and disclaimer (nicotine warning)",
+        "end_text": "Nicotine is an addictive chemical."
+    }
+]

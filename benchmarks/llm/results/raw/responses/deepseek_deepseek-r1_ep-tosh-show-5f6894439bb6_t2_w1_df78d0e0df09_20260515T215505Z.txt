@@ -1,0 +1,23 @@
+[
+  {
+    "start": 524.1,
+    "end": 567.0,
+    "confidence": 0.95,
+    "reason": "Thrive Causemetics sponsor read with promo code shine26 and URL thrivecosmetics.com/shine26",
+    "end_text": "shine26"
+  },
+  {
+    "start": 594.7,
+    "end": 597.3,
+    "confidence": 0.90,
+    "reason": "Mattress Warehouse brand tagline ad",
+    "end_text": "Mattress Warehouse"
+  },
+  {
+    "start": 617.2,
+    "end": 654.3,
+    "confidence": 0.95,
+    "reason": "PC Richard & Son and Asima lease-to-own ad with URL PCRichard.com/Asima.HTML",
+    "end_text": "for details"
+  }
+]

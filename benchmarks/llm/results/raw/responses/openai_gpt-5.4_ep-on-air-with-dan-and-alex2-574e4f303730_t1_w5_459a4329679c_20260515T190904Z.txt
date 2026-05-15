@@ -1,0 +1,1 @@
+{"start":2609.5,"end":2634.3,"confidence":0.12,"reason":"Transcript contains isolated sponsor-related keywords ('promo code, discount code, sponsored by, Athletic Greens, AG1, BetterHelp...') but no clear promotional copy, call to action, or coherent ad read; likely artifact rather than ad","end_text":"Raycon, Manscaped, Stamps.com,"}

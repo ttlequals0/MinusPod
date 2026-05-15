@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1836.9,
+    "end": 1861.3,
+    "confidence": 0.99,
+    "reason": "Host-read ad for Mint Mobile. The ad appears to continue past the end of the provided transcript window.",
+    "end_text": "fed up with crazy high bills?"
+  }
+]

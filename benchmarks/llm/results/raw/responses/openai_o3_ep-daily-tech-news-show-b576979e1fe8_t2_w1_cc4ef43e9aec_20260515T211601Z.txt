@@ -1,0 +1,1 @@
+{"start":636.8,"end":776.6,"confidence":0.97,"reason":"Cluster of network-inserted ads: Parloa (\"This episode is sponsored by\"), Capital One (\"This episode is brought to you by Capital One\"), AllTrails call-to-action, Zinn Nicotine Pouches promo with disclaimer, and Lemonada Media podcast cross-promo, all contiguous","end_text":"six-part Thrive series"}

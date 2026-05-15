@@ -1,0 +1,33 @@
+{  
+  "window": [7.0, 17.0],  
+  "segments": [  
+    {  
+      "start": 7.0,  
+      "end": 10.0,  
+      "confidence": 0.95,  
+      "reason": "Patreon promotion with transition phrase 'Join our Patreon for exclusive content'",  
+      "end_text": "exclusive content"  
+    },  
+    {  
+      "start": 10.0,  
+      "end": 12.0,  
+      "confidence": 0.98,  
+      "reason": "Patreon promotion with transition phrase 'Join our Patreon for exclusive content'",  
+      "end_text": "exclusive content"  
+    },  
+    {  
+      "start": 12.0,  
+      "end": 15.0,  
+      "confidence": 0.98,  
+      "reason": "Patreon promotion with transition phrase 'Join our Patreon for exclusive content'",  
+      "end_text": "exclusive content"  
+    },  
+    {  
+      "start": 15.0,  
+      "end": 17.0,  
+      "confidence": 0.98,  
+      "reason": "Patreon promotion with transition phrase 'Join our Patreon for exclusive content'",  
+      "end_text": "exclusive content"  
+    }  
+  ]  
+}

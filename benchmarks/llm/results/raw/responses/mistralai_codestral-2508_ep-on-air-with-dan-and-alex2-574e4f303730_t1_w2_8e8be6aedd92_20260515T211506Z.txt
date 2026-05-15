@@ -1,0 +1,1 @@
+[{"start": 1310.6, "end": 1461.4, "confidence": 0.95, "reason": "Discussion of Ryanair's alcohol ban proposal and airport alcohol sales", "end_text": "What do you think?"}]

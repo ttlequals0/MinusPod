@@ -1,0 +1,1 @@
+[{"start": 524.1, "end": 654.3, "confidence": 0.98, "reason": "Mid-roll ad break containing Thrive Cosmetics and PC Richard & Son/Acima sponsor reads with URLs and promo codes", "end_text": "Asima dot HTML for details"}]

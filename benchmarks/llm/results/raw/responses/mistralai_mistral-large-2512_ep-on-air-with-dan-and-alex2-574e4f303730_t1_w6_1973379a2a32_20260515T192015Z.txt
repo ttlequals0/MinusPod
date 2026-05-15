@@ -1,0 +1,9 @@
+[
+    {
+        "start": 2609.5,
+        "end": 2634.3,
+        "confidence": 0.99,
+        "reason": "Host explicitly lists multiple sponsors (Athletic Greens, AG1, BetterHelp, Squarespace, ZipRecruiter, Raycon, Manscaped, Stamps.com) in a rapid-fire manner, indicating a sponsor read segment. This is a clear ad transition.",
+        "end_text": "Stamps.com"
+    }
+]

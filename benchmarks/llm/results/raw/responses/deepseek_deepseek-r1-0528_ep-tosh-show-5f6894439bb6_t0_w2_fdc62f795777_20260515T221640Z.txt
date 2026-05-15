@@ -1,0 +1,7 @@
+{
+  "start": 1227.7,
+  "end": 1255.2,
+  "confidence": 0.95,
+  "reason": "Host mentions Patreon for exclusive content in episode description, but no direct promotion in transcript. However, the segment includes a call to action for Patreon which is promotional.",
+  "end_text": "free so we can talk"
+}

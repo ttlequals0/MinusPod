@@ -1,0 +1,1 @@
+{"start":618.7,"end":776.6,"confidence":0.99,"reason":"Ad break begins after listener thanks and contains multiple sponsor/network ad reads: Parloa with URL parloa.com, Capital One, AllTrails app CTA, Zinn nicotine pouches, and Good Things from Lemonada Media promo; continues from previous timestamp gap","end_text":"hear the six-part Thrive series"}

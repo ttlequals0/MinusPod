@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1493.2,
+    "end": 1536.8,
+    "confidence": 0.99,
+    "reason": "This segment contains two back-to-back ads. The first is for Capital One, introduced with 'This episode is brought to you by...'. The second is for AllTrails, which includes the call to action 'Download the free app today'.",
+    "end_text": "and find your outside."
+  }
+]

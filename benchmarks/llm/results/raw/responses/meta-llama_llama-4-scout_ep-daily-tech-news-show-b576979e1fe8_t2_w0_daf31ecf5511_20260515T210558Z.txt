@@ -1,0 +1,23 @@
+{"ad_segments": [
+  {
+    "start": 0.0,
+    "end": 29.1,
+    "confidence": 0.98,
+    "reason": "Capital One sponsor read",
+    "end_text": "that's technology at Capital One"
+  },
+  {
+    "start": 29.4,
+    "end": 58.3,
+    "confidence": 0.95,
+    "reason": "Theater advertisement for 'Every Brilliant Thing'",
+    "end_text": "getting tickets to Every Brilliant Thing"
+  },
+  {
+    "start": 74.8,
+    "end": 100.2,
+    "confidence": 0.92,
+    "reason": "Zinn Nicotine Pouches advertisement",
+    "end_text": "find yours in wherever nicotine products are sold near you"
+  }
+]}

@@ -1,0 +1,1 @@
+[{"start": 1433.6, "end": 1461.4, "confidence": 0.95, "reason": "Discussion of alcohol bans in airports and on board flights", "end_text": "all or nothing until a certain time"}]

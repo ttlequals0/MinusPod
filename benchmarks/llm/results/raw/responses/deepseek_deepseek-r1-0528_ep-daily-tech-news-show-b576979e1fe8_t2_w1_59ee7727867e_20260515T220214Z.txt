@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 618.7,
+      "end": 748.3,
+      "confidence": 0.98,
+      "reason": "Multiple host-read and network-inserted ads including Parloa, Capital One, AllTrails, Zinn Nicotine Pouches, and Lemonada Media promotion with clear sponsor transitions and calls to action",
+      "end_text": "Nicotine is an addictive chemical."
+    }
+  ]
+}

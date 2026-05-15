@@ -1,0 +1,1 @@
+{"start": 0.0, "end": 59.8, "confidence": 0.97, "reason": "Network-inserted pre-roll ads for Hex.ai and PickOCNY tourism, containing promotional language and URLs", "end_text": "at PickOCNY.com."}

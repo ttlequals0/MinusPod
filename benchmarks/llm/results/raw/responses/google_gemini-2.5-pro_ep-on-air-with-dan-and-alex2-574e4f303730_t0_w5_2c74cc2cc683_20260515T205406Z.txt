@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2609.5,
+    "end": 2634.3,
+    "confidence": 0.9,
+    "reason": "This segment appears to be a transcription artifact from a dynamically inserted ad, as it breaks the flow of conversation and lists numerous common podcast sponsors and ad-related keywords.",
+    "end_text": "Raycon, Manscaped, Stamps.com,"
+  }
+]

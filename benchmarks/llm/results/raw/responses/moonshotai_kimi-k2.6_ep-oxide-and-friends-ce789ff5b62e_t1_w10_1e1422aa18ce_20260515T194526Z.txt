@@ -1,0 +1,1 @@
+{"start": 4193.9, "end": 4802.4, "confidence": 0.98, "reason": "Entirely editorial content - technical discussion about mechanical engineering, manufacturing processes, and product design at Oxide Computer", "end_text": "IKEA furniture comparison, engineering time discussion"}

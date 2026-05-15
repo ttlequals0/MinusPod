@@ -1,0 +1,9 @@
+[
+    {
+        "start": 2609.5,
+        "end": 2661.6,
+        "confidence": 0.99,
+        "reason": "Host-read sponsor list and promotional language (e.g., 'promo code, discount code, sponsored by') followed by a clear transition back to content. Includes high-confidence sponsor names like Athletic Greens, BetterHelp, Squarespace, and others.",
+        "end_text": "the big profits that Emirates announced"
+    }
+]

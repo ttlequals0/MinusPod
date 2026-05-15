@@ -1,0 +1,7 @@
+{
+  "start": 16.68,
+  "end": 20.73,
+  "confidence": 0.95,
+  "reason": "Capital One network-inserted brand tagline ad",
+  "end_text": "Lemonada Media"
+}

@@ -1,0 +1,1 @@
+{"ads":[{"start":2609.5,"end":2634.3,"confidence":0.55,"reason":"Segment lists multiple known podcast sponsors (Athletic Greens, AG1, BetterHelp, Squarespace, ZipRecruiter, Raycon, Manscaped, Stamps.com) in a promotional context, indicating a network-inserted ad tagline","end_text":"Manscaped, Stamps.com"}]}

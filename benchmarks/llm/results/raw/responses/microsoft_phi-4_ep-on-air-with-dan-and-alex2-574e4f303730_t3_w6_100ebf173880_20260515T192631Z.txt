@@ -1,0 +1,7 @@
+{
+  "start": 25.08,
+  "end": 25.28,
+  "confidence": 0.95,
+  "reason": "Ryanair's hidden agenda to increase fares due to limited flights from competitors, leading to significant financial bonuses for staff.",
+  "end_text": "it's not going down well"
+}

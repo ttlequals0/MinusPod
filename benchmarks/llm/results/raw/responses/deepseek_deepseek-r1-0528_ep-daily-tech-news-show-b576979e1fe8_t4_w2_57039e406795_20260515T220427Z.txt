@@ -1,0 +1,9 @@
+[
+  {
+    "start": 866.6,
+    "end": 1463.3,
+    "confidence": 0.0,
+    "reason": "No promotional content detected in transcript",
+    "end_text": "double-edged sword for sure"
+  }
+]

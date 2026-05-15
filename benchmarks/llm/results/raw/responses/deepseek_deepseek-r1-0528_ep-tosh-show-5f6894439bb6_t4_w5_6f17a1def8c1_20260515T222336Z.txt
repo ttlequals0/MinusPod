@@ -1,0 +1,16 @@
+[
+  {
+    "start": 2412.8,
+    "end": 2427.6,
+    "confidence": 0.99,
+    "reason": "HealthCast by Stony Brook Medicine ad with URL promotion",
+    "end_text": "slash podcasts"
+  },
+  {
+    "start": 2428.9,
+    "end": 2484.9,
+    "confidence": 0.99,
+    "reason": "PC Richard & Son Aseema Lease to Own program ad with Memorial Day sale promotion and URL",
+    "end_text": "for details"
+  }
+]

@@ -1,0 +1,14 @@
+# Pre-populated from MinusPod production ad markers.
+# Verify each ad: check boundaries, confirm text matches transcript.
+# Use the no-ads marker (uncomment) if this episode has no ads:
+# # Verified: no ads in this episode.
+
+# No ad markers from production. Edit this file:
+# - if the episode has no ads, uncomment the marker line above
+# - if it does, add blocks below using the format:
+#   start: m:ss
+#   end:   m:ss
+#   text:  the ad text
+#   ---
+
+# Verified: no ads in this episode.

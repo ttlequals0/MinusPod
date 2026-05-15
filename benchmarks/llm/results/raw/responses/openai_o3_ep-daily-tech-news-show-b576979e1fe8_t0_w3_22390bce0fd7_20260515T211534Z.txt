@@ -1,0 +1,1 @@
+{"start":1493.2,"end":1536.8,"confidence":0.97,"reason":"Capital One and AllTrails sponsor reads with promotional language and call-to-action","end_text":"find your outside"}

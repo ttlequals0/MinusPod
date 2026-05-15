@@ -1,0 +1,1 @@
+{"start": 591.3, "end": 619.0, "confidence": 0.8, "reason": "Listener thank you segment, potentially a prelude to an ad or a transition", "end_text": "Thank you."}

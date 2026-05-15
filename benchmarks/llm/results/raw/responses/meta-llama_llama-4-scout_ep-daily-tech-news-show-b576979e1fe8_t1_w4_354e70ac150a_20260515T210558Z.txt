@@ -1,0 +1,11 @@
+{
+"ads": [
+    {
+      "start": 2015.9,
+      "end": 2073.2,
+      "confidence": 0.99,
+      "reason": "Capital One and Lemonada Media sponsor reads",
+      "end_text": "truly thrive"
+    }
+  ]
+}

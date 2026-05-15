@@ -1,0 +1,1 @@
+{ "start": 2092.8, "end": 2092.8, "confidence": 0.0, "reason": "Patreon mention in episode description, not in this segment", "end_text": "" }

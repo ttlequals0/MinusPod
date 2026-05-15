@@ -1,0 +1,9 @@
+[
+  {
+    "start": 3428.1,
+    "end": 3486.2,
+    "confidence": 0.98,
+    "reason": "A post-roll ad block featuring promotional segments for Arizona State University and the University of Michigan, both with clear calls to action and URLs.",
+    "end_text": "solutions at umich.edu."
+  }
+]

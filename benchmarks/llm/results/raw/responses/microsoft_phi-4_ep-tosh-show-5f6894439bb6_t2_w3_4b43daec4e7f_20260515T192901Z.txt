@@ -1,0 +1,6 @@
+{  
+  "window": [  
+    {"start": 21.0, "end": 31.0, "confidence": 0.95, "reason": "Ad starts before window and continues from previous", "end_text": "continue in next"},  
+    {"start": 21.0, "end": 31.0, "confidence": 0.95, "reason": "Ad starts before window and continues from previous", "end_text": "continue in next"}  
+  ]  
+}

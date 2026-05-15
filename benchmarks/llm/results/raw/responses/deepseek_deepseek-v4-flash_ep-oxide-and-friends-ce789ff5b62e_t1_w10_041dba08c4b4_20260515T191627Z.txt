@@ -1,0 +1,7 @@
+{
+  "start": 4193.9,
+  "end": 4802.4,
+  "confidence": 0.0,
+  "reason": "No promotional content found. The transcript is a technical discussion about mechanical engineering, manufacturing processes, and design decisions for a rack-scale computer. No sponsor names, URLs, promo codes, product pitches, or calls to action are present.",
+  "end_text": "like start to finish"
+}

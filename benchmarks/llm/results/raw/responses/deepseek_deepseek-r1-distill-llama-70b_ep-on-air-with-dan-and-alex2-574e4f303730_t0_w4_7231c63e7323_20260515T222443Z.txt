@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I just wanted to take a quick break and let everyone know about an amazing service that I've been using lately. It's called [Brand Name], and it's been a game-changer for my productivity. If you're looking to streamline your workflow and save time, I highly recommend checking them out. You can find more information at [Brand URL]. Plus, as a listener of this podcast, you can get an exclusive discount by using the promo code [Promo Code] at checkout. This is a limited-time offer, so be sure to take advantage of it before it's gone. We'll be right back after this break.",
+  "start": 1800.0,
+  "end": 1820.0
+}

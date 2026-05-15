@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1493.2,
+    "end": 1536.8,
+    "confidence": 1.0,
+    "reason": "Host-read ads for Capital One and AllTrails.",
+    "end_text": "and find your outside."
+  }
+]

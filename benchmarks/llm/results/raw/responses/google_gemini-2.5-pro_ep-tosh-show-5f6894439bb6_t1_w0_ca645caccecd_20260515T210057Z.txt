@@ -1,0 +1,23 @@
+[
+  {
+    "start": 0.0,
+    "end": 58.1,
+    "confidence": 1.0,
+    "reason": "Merged ads for Progressive Insurance and Whole Foods Market.",
+    "end_text": "with Whole Foods Market."
+  },
+  {
+    "start": 524.1,
+    "end": 567.0,
+    "confidence": 1.0,
+    "reason": "Ad for Thrive Cosmetics, including the transition phrase.",
+    "end_text": "Shine 26."
+  },
+  {
+    "start": 594.7,
+    "end": 597.3,
+    "confidence": 0.9,
+    "reason": "Partial ad tagline for Mattress Warehouse.",
+    "end_text": "at Mattress Warehouse."
+  }
+]

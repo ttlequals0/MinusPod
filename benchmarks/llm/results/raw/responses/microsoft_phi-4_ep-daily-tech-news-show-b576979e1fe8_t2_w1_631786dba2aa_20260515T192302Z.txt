@@ -1,0 +1,41 @@
+[
+
+[
+  {
+    "start": 619.0,
+    "end": 658.8,
+    "confidence": 0.98,
+    "reason": "Parloa AI platform sponsor read with promotional language",
+    "end_text": "every interaction"
+  },
+  {
+    "start": 664.6,
+    "end": 697.3,
+    "confidence": 0.98,
+    "reason": "Capital One sponsor read with promotional language",
+    "end_text": "the outdoors"
+  },
+  {
+    "start": 718.8,
+    "end": 744.1,
+    "confidence": 0.98,
+    "reason": "Zinn Nicotine Pouches sponsor read with promotional language",
+    "end_text": "nicotine products"
+  },
+  {
+    "start": 744.8,
+    "end": 748.3,
+    "confidence": 0.95,
+    "reason": "Nicotine warning, part of Zinn Nicotine Pouches ad",
+    "end_text": "chemical."
+  },
+  {
+    "start": 749.6,
+    "end": 776.6,
+    "confidence": 0.98,
+    "reason": "Lemonada Media sponsor read with promotional language",
+    "end_text": "bachelor's"
+  }
+]
+
+]

@@ -1,0 +1,1 @@
+{"start": 5036.2, "end": 5069.8, "confidence": 0.0, "reason": "No promotional language, sponsor names, URLs, promo codes, or calls to action found. The segment is a natural conversation about hiring and a closing remark.", "end_text": "see you all next time"}

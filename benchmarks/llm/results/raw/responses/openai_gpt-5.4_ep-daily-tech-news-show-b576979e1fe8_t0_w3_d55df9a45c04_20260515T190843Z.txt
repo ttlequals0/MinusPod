@@ -1,0 +1,1 @@
+{"start":1493.2,"end":1536.8,"confidence":0.98,"reason":"Capital One sponsor read followed immediately by AllTrails ad copy with calls to action","end_text":"the free app today and find your outside"}

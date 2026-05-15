@@ -1,0 +1,27 @@
+[
+
+[
+  {
+    "start": 537.5,
+    "end": 566.6,
+    "confidence": 0.98,
+    "reason": "Thrive Cosmetics sponsor read with promo code",
+    "end_text": "shine26."
+  },
+  {
+    "start": 594.7,
+    "end": 597.3,
+    "confidence": 0.95,
+    "reason": "Mattress Warehouse network-inserted ad",
+    "end_text": "Mattress Warehouse."
+  },
+  {
+    "start": 617.2,
+    "end": 654.3,
+    "confidence": 0.98,
+    "reason": "PC Richard & Son sponsor read with lease offer details",
+    "end_text": "details."
+  }
+]
+
+]

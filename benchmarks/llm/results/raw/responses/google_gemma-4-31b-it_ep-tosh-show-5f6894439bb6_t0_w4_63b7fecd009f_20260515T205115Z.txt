@@ -1,0 +1,1 @@
+{"start": 1836.9, "end": 1999.5, "confidence": 0.99, "reason": "Multiple ads including Mint Mobile host-read and network-inserted spots for Mattress Warehouse and PC Richard & Son", "end_text": "PCRichard.com slash Aseema dot HTML for details"}

@@ -1,0 +1,1 @@
+[{"start": 0.0, "end": 22.1, "confidence": 0.98, "reason": "Progressive Insurance sponsor read", "end_text": "Potential savings will vary. Not available in all states."}]

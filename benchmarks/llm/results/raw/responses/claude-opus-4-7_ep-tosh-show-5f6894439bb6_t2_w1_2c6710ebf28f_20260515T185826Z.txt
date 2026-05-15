@@ -1,0 +1,1 @@
+[{"start": 537.0, "end": 667.9, "confidence": 0.95, "reason": "Thrive Cosmetics, PC Richard & Son/Asima ad break", "end_text": "Mother's Day song"}]

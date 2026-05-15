@@ -1,0 +1,7 @@
+{
+  "start": 2520.0,
+  "end": 3120.0,
+  "confidence": 0.0,
+  "reason": "No promotional content found in this segment",
+  "end_text": "issues with shorts and insulation. So this was a test that was previously done on a finished rack. We have since moved it to be done on a cabled rack that does not yet have sleds to find issues earlier. And when we find those issues, the cubbies can be pulled out and analyzed to see where the potential"
+}

@@ -1,0 +1,16 @@
+[
+    {
+        "start": 3428.1,
+        "end": 3457.8,
+        "confidence": 0.98,
+        "reason": "Arizona State University network-inserted ad with promotional language, URL, and call to action",
+        "end_text": "asunline.asu.edu. That's a degree better"
+    },
+    {
+        "start": 3458.8,
+        "end": 3486.2,
+        "confidence": 0.98,
+        "reason": "University of Michigan network-inserted ad with promotional language and institutional pitch",
+        "end_text": "solutions at umich.edu"
+    }
+]

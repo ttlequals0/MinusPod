@@ -1,0 +1,9 @@
+[
+    {
+        "start": 1493.2,
+        "end": 1541.0,
+        "confidence": 0.99,
+        "reason": "Capital One sponsor read with promotional language, product pitch (Chat Concierge), and AllTrails call to action ('Download the free app today')",
+        "end_text": "find your outside."
+    }
+]

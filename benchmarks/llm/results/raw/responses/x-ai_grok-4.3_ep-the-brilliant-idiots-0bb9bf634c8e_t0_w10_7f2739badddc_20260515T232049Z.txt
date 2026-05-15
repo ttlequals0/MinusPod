@@ -1,0 +1,9 @@
+[
+  {
+    "start": 4323.7,
+    "end": 4334.1,
+    "confidence": 0.92,
+    "reason": "Host-read promotions for Jess Hilarious book, All Love Racquet Club event, and AM Mornings show with calls to action",
+    "end_text": "See you guys there. Peace."
+  }
+]

@@ -1,0 +1,7 @@
+{
+  "start": 2240.1,
+  "end": 2280.0,
+  "confidence": 0.95,
+  "reason": "Singapore Airlines network-inserted brand mention ad",
+  "end_text": "So this is also a problem. So I wonder if all of this is actually why we haven't heard from Tony Douglas, the CEO of Riyadh Air."
+}

@@ -1,0 +1,1 @@
+[{"start": 822.9, "end": 850.4, "confidence": 0.95, "reason": "Patreon promotion with URL", "end_text": "toshshow"}]

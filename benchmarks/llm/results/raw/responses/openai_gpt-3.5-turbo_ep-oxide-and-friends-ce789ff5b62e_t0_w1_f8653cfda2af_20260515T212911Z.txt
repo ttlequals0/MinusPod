@@ -1,0 +1,7 @@
+{
+	"start": 411.8,
+	"end": 442.1,
+	"confidence": 0.95,
+	"reason": "Host discussing the background and work experience of a team member",
+	"end_text": "your thinking about Oxide?"
+}

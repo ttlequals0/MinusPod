@@ -1,0 +1,7 @@
+{
+  "start": 411.8,
+  "end": 1020.0,
+  "confidence": 0.0,
+  "reason": "No promotional language, sponsor names, URLs, promo codes, or calls to action found. The entire segment is technical discussion about mechanical engineering challenges at Oxide.",
+  "end_text": "the way you all work is the amount of time that you really spend understanding how they're manufactured. I mean, I mean,"
+}

@@ -1,0 +1,3 @@
+[
+  {"start": 1524.5, "end": 1602.6, "confidence": 0.98, "reason": "Xero sponsor read followed by Acast platform promos and cross-promo for Wrong Turns podcast", "end_text": "Acast.com."}
+]

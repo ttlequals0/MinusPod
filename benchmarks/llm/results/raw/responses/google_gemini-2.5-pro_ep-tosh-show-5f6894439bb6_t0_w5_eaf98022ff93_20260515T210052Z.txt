@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2412.8,
+    "end": 2484.9,
+    "confidence": 1.0,
+    "reason": "Post-roll ads for HealthCast by Stony Brook Medicine and a lease-to-own program from PC Richard & Son and Aseema.",
+    "end_text": "dot HTML for details."
+  }
+]

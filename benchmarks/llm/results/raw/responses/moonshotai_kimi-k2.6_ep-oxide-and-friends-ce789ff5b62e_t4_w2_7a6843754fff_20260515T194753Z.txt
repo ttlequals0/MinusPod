@@ -1,0 +1,1 @@
+{"start": 836.1, "end": 1456.2, "confidence": 0.0, "reason": "No promotional content detected in transcript window", "end_text": "times hundreds per rack"}

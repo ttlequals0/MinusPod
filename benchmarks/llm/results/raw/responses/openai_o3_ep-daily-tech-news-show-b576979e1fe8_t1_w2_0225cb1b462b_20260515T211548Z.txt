@@ -1,0 +1,1 @@
+{"error":"No ad markers within provided content. It's editorial product coverage without promotional call-to-action or explicit sponsorship language so not classified as advertisement as per rules."}

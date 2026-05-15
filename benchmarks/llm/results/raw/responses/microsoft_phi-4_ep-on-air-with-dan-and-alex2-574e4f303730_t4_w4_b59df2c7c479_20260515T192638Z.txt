@@ -1,0 +1,7 @@
+{
+  "start": 16.62,
+  "end": 18.00,
+  "confidence": 0.95,
+  "reason": "The segment discusses Ryanair's alcohol policy and the regulatory and cultural challenges faced by airlines in the Middle East, particularly Riyadh Air, which is selling tickets through traditional travel agents despite branding itself as digitally native. This segment highlights the complexities and challenges faced by Riyadh Air, including the inability to launch its product due to the ongoing US-Israel war on Iran and the impact on the Gulf states' finances.",
+  "end_text": "So I wonder if all of this is actually why we haven't heard from Tony Douglas, the CEO of Riyadh Air."
+}

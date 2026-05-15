@@ -1,0 +1,23 @@
+[
+    {
+        "start": 1837.5,
+        "end": 1912.2,
+        "confidence": 0.99,
+        "reason": "Mint Mobile host-read sponsor ad with promo code (mintmobile.com/slash tosh), call to action, and product pitch",
+        "end_text": "mintmobile.com slash tosh"
+    },
+    {
+        "start": 1913.4,
+        "end": 1942.4,
+        "confidence": 0.98,
+        "reason": "Mattress Warehouse network-inserted retail ad with Memorial Day sale promotion, product details, and call to action",
+        "end_text": "only at Mattress Warehouse"
+    },
+    {
+        "start": 1943.2,
+        "end": 1999.5,
+        "confidence": 0.98,
+        "reason": "PC Richard & Son network-inserted retail ad for Aseema Lease to Own program with $1 offer, product details, and legal disclaimers",
+        "end_text": "PCRichard.com slash Aseema dot HTML for details"
+    }
+]

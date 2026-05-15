@@ -1,0 +1,1 @@
+{"start":0.0,"end":58.1,"confidence":0.99,"reason":"Pre-roll ads for Progressive Insurance and Whole Foods Market with promotional language and URL/calls to action; merged because gap is under 15 seconds","end_text":"mom with Whole Foods Market"}

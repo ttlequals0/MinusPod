@@ -1,0 +1,20 @@
+{
+  "transcript": "...",
+  "window_start": 2520.0,
+  "window_end": 3120.0,
+  "detection_rules": {
+    "host_read_sponsor": true,
+    "promo_content": true,
+    "transition_phrase": true,
+    "ad_duration": 60,
+    "no_ads_response": "[]"
+  },
+  "platform_inserted_ads": true,
+  "what_is_not_an_ad": ["silence", "topic transitions", "audio signals", "guest mentions", "host mentions own content"],
+  "ad_boundary_rules": {
+    "start": "transition phrase",
+    "end": "content resumes"
+  },
+  "timestamp_precision": "exact",
+  "output_format": "[{{start: float, end: float, confidence: float, reason: string, end_text: string}}]"
+}

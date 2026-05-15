@@ -1,0 +1,1 @@
+{"start":2412.8,"end":2484.9,"confidence":0.99,"reason":"Post-roll ad block: HealthCast by Stony Brook Medicine promo with URL, followed by PC Richard & Son/Aseema Lease to Own Memorial Day Sale retail ad with pricing offer and URL","end_text":"dot HTML for details"}

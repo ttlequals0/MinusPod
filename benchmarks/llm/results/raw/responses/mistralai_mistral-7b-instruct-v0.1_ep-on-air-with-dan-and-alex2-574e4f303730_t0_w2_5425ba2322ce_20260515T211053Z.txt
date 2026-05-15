@@ -1,0 +1,8 @@
+ Ad Segment:
+[1415.2s - 1432.8s] This segment contains a discussion about the potential ban of alcohol sales at airports. While the hosts express their opinions on the matter, they also mention that they have never taken a drink before a flight. This segment can be considered an ad for the alcohol industry, as it promotes the idea of consuming alcohol before flying and highlights the inconvenience of a ban at the airport. The segment also implies that listeners may want to consume alcohol before their flights, making it a promotional pitch.
+
+Therefore, the ad segment starts at [1415.2s] and lasts until [1432.8s].
+
+Additionally, there are no other advertisement segments in the given window.
+
+[1440.0s, continues in next] If the discussion on alcohol continues in the next window, it should be included as part of the same ad segment.

@@ -1,0 +1,1 @@
+[{"start": 636.8, "end": 776.6, "confidence": 0.98, "reason": "Multiple sponsor reads (Parloa, Capital One, AllTrails, Zinn, Lemonada Media) with gaps < 15 seconds", "end_text": "six-part Thrive series"}]

@@ -1,0 +1,16 @@
+[
+  {
+    "start": 5036.2,
+    "end": 5052.8,
+    "confidence": 0.0,
+    "reason": "No promotional content detected; discussion about team expansion and future work",
+    "end_text": "work ahead of us as well"
+  },
+  {
+    "start": 5055.3,
+    "end": 5069.8,
+    "confidence": 0.0,
+    "reason": "Sign-off and farewell without any promotional content",
+    "end_text": "see you all next time"
+  }
+]

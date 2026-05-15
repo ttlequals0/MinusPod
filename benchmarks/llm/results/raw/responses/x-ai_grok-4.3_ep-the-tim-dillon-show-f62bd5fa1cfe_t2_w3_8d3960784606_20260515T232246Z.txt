@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1439.2,
+    "end": 1665.9,
+    "confidence": 0.95,
+    "reason": "Consecutive host-read and produced sponsor segments (Mint Mobile, Aura Frames, Colgate, Skinny Pop) with gaps under 15s",
+    "end_text": "Deliciously popped, perfectly salted. Skinny Pop."
+  }
+]

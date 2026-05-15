@@ -1,0 +1,1 @@
+{"start": 0.0, "end": 104.3, "confidence": 1.0, "reason": "Sequence of multiple ads: Capital One, Every Brilliant Thing Broadway show, AllTrails, and Zinn Nicotine Pouches.", "end_text": "is an addictive chemical."}

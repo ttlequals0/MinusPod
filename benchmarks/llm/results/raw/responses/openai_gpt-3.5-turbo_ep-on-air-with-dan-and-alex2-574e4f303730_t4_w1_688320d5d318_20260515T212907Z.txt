@@ -1,0 +1,7 @@
+{
+	"start": 1020.0,
+	"end": 1028.4,
+	"confidence": 1.0,
+	"reason": "Discussion about the Riviera Group potentially acquiring a new low-cost airline",
+	"end_text": "Riviera Airlines Group flight from Bergen to Helsinki."
+}

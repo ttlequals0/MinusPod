@@ -1,0 +1,1 @@
+{ "start": 822.9, "end": 850.4, "confidence": 0.0, "reason": "no ad detected", "end_text": "Stouffer's or something" }

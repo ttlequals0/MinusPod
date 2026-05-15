@@ -1,0 +1,1 @@
+{"start":636.8,"end":776.6,"confidence":0.99,"reason":"Multi-ad break with sponsored Parloa read, Capital One ad, AllTrails app promotion, Zyn nicotine pouch ad with warning, and Lemonada Media/Good Things podcast cross-promo","end_text":"six-part Thrive series"}

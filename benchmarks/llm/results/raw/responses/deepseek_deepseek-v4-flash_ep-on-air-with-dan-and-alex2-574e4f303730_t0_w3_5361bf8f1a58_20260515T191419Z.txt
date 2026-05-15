@@ -1,0 +1,7 @@
+{
+  "start": 1246.0,
+  "end": 1884.0,
+  "confidence": 0.99,
+  "reason": "Continued discussion of Ryanair alcohol ban, UK drinking culture, and international comparisons. No ad detected.",
+  "end_text": "pay a thousand euros more just because you'll get..."
+}

@@ -1,0 +1,7 @@
+{
+  "start": 2609.5,
+  "end": 2634.3,
+  "confidence": 1.0,
+  "reason": "Host-read sponsor mention listing multiple brands: promo code, discount code, sponsored by, Athletic Greens, AG1, BetterHelp, Squarespace, ZipRecruiter, Raycon, Manscaped, Stamps.com. This is a clear ad segment with promotional language.",
+  "end_text": "Stamps.com,"
+}

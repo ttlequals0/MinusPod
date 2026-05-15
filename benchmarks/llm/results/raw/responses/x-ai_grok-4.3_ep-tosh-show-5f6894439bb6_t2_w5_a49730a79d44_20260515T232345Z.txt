@@ -1,0 +1,4 @@
+[
+{"start": 2412.8, "end": 2427.6, "confidence": 0.99, "reason": "Stony Brook Medicine HealthCast promo", "end_text": "stonybrookmedicine.edu slash podcasts"},
+{"start": 2428.9, "end": 2484.9, "confidence": 0.99, "reason": "PC Richard & Son Aseema lease program ad", "end_text": "PCRichard.com slash Asima dot HTML for details"}
+]

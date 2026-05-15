@@ -1,0 +1,7 @@
+{
+  "start": 1139.5,
+  "end": 1168.4,
+  "confidence": 0.85,
+  "reason": "Potential promo code mention, but lacks context for a full ad segment",
+  "end_text": "discount code"
+}

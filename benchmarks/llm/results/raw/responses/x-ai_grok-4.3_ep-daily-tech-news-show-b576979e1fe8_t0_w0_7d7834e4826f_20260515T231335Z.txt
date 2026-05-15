@@ -1,0 +1,7 @@
+[
+  {"start": 0.0, "end": 29.1, "confidence": 0.99, "reason": "Capital One sponsor read", "end_text": "technology at Capital One"},
+  {"start": 29.4, "end": 58.3, "confidence": 0.98, "reason": "Broadway show advertisement", "end_text": "Every Brilliant Thing"},
+  {"start": 59.2, "end": 73.6, "confidence": 0.97, "reason": "AllTrails app promotion", "end_text": "find your outside"},
+  {"start": 74.8, "end": 100.2, "confidence": 0.98, "reason": "Zinn Nicotine Pouches ad", "end_text": "sold near you"},
+  {"start": 100.8, "end": 104.3, "confidence": 0.95, "reason": "Nicotine product disclaimer", "end_text": "addictive chemical"}
+]

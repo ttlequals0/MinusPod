@@ -1,0 +1,7 @@
+{
+  "start": 2569.1,
+  "end": 2594.7,
+  "confidence": 0.95,
+  "reason": "Host-read sponsor segment mentioning 'Let's take a break' transition phrase and promoting a product with a URL.",
+  "end_text": "engineering rear comes in."
+}

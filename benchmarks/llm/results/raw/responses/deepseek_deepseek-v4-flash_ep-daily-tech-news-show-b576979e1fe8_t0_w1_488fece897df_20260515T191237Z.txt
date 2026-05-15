@@ -1,0 +1,39 @@
+{
+  "ads": [
+    {
+      "start": 591.3,
+      "end": 619.8,
+      "confidence": 0.95,
+      "reason": "Host-read listener thank you segment (promotional for Patreon/listener support) with transition 'You know what else is awesome?' and thanking supporters by name",
+      "end_text": "Take it, take it, take it, take it."
+    },
+    {
+      "start": 636.8,
+      "end": 671.5,
+      "confidence": 0.99,
+      "reason": "Parloa sponsor read with promotional language, URL, and call to action",
+      "end_text": "See Parloa's AI agents in action at parloa.com. That's P-A-R-L-O-A dot com."
+    },
+    {
+      "start": 674.0,
+      "end": 717.6,
+      "confidence": 0.99,
+      "reason": "Capital One sponsor read with promotional language about Chat Concierge and AllTrails ad (network-inserted brand tagline ad for AllTrails)",
+      "end_text": "Find your outside."
+    },
+    {
+      "start": 718.8,
+      "end": 748.3,
+      "confidence": 0.99,
+      "reason": "Zinn Nicotine Pouches sponsor read with promotional language, product description, and nicotine warning",
+      "end_text": "Nicotine is an addictive chemical."
+    },
+    {
+      "start": 749.6,
+      "end": 776.6,
+      "confidence": 0.95,
+      "reason": "Lemonada Media podcast cross-promotional ad for Good Things/Thrive series with promotional language about young people",
+      "end_text": "hear the six-part Thrive series."
+    }
+  ]
+}

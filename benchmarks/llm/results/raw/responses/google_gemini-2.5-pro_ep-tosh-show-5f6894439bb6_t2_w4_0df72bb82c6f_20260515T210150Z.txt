@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1837.5,
+    "end": 1999.5,
+    "confidence": 0.99,
+    "reason": "A multi-part ad break starting with a host-read for Mint Mobile, followed by network-inserted ads for Mattress Warehouse and PC Richard & Son. The break is preceded by the transition 'We'll be right back.'",
+    "end_text": "Aseema dot HTML for details."
+  }
+]

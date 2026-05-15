@@ -1,0 +1,1 @@
+[{"start": 2609.5, "end": 2634.3, "confidence": 0.4, "reason": "Suspicious keyword list mentioning sponsors (Athletic Greens, BetterHelp, Squarespace, etc.) appears mid-content, possibly a transcription artifact or inserted ad marker", "end_text": "Manscaped, Stamps.com"}]

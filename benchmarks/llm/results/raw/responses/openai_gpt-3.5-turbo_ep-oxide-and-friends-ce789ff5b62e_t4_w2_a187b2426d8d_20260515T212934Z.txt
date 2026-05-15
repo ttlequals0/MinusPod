@@ -1,0 +1,7 @@
+{
+	"start": 836.1,
+	"end": 859.1,
+	"confidence": 1,
+	"reason": "Potential sponsor-related content",
+	"end_text": "experiencing."
+}

@@ -1,0 +1,1 @@
+[{"start": 2609.5, "end": 2634.3, "confidence": 0.85, "reason": "Transcript contains 'sponsored by' and multiple sponsor brand names (Athletic Greens, BetterHelp, etc.) within a conversation gap, indicating a mid-roll ad break despite text appearing to be metadata tags.", "end_text": "Raycon, Manscaped, Stamps.com,"}]

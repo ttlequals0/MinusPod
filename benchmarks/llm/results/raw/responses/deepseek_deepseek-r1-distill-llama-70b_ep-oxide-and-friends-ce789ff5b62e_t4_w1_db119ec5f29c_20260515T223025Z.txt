@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so I've been thinking a lot about mechanical engineering challenges in scaling manufacturing. Let me tell you, it's not easy. But you know what makes it easier? Using the right tools. I want to take a quick break and give a shoutout to our sponsors. This episode is brought to you by Athletic Greens. Their AG1 supplement is a game-changer for staying focused during those long engineering sessions. Plus, with their subscription service, you never run out. Head over to athleticgreens.com/podcast to get started. And as a listener, you can get a special discount—just use the code OXIDE15 at checkout. We'll be right back after this break.",
+  "start": 1020.0,
+  "end": 1050.0
+}

@@ -1,0 +1,1 @@
+[{"start": 3456.7, "end": 3486.2, "confidence": 0.99, "reason": "ASU network-inserted ad promoting university programs", "end_text": "asunline.asu.edu"}]

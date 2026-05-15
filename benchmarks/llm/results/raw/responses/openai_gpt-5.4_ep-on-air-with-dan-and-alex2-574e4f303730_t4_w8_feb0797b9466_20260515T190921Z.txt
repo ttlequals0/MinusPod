@@ -1,0 +1,1 @@
+{"start":3428.1,"end":3486.2,"confidence":0.97,"reason":"Two back-to-back network-inserted university ads: Arizona State University ('Explore more than 350 programs at asunline.asu.edu') followed immediately by University of Michigan ('See more solutions at umich.edu'); merged as one ad break after show sign-off","end_text":"See more solutions at umich.edu."}

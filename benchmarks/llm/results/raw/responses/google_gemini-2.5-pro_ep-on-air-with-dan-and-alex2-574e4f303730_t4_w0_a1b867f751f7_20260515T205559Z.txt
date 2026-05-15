@@ -1,0 +1,9 @@
+[
+  {
+    "start": 0.0,
+    "end": 59.8,
+    "confidence": 0.99,
+    "reason": "This is a pre-roll ad block containing two back-to-back ads for Hex.ai and PickOCNY.com.",
+    "end_text": "state of mind at PickOCNY.com."
+  }
+]

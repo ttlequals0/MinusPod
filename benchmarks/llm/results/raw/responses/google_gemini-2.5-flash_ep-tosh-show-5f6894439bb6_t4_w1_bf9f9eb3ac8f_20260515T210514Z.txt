@@ -1,0 +1,37 @@
+[
+  {
+    "start": 537.5,
+    "end": 567.0,
+    "confidence": 0.98,
+    "reason": "Thrive Cosmetics sponsor read with promo code",
+    "end_text": "Shine 26."
+  },
+  {
+    "start": 594.7,
+    "end": 597.3,
+    "confidence": 0.9,
+    "reason": "Mattress Warehouse brand tagline ad",
+    "end_text": "Mattress Warehouse."
+  },
+  {
+    "start": 617.2,
+    "end": 624.9,
+    "confidence": 0.9,
+    "reason": "PC Richard & Son brand tagline ad",
+    "end_text": "start your lease."
+  },
+  {
+    "start": 625.5,
+    "end": 629.9,
+    "confidence": 0.9,
+    "reason": "PC Richard & Son brand tagline ad",
+    "end_text": "116 years."
+  },
+  {
+    "start": 631.0,
+    "end": 654.3,
+    "confidence": 0.9,
+    "reason": "Asima lease to own ad with URL",
+    "end_text": "HTML for details."
+  }
+]

@@ -1,0 +1,39 @@
+{
+  "ads": [
+    {
+      "start": 591.3,
+      "end": 619.8,
+      "confidence": 0.95,
+      "reason": "Host-read transition to listener thanks and sponsor break setup",
+      "end_text": "Take it, take it, take it, take it."
+    },
+    {
+      "start": 636.8,
+      "end": 671.5,
+      "confidence": 0.99,
+      "reason": "Parloa sponsor read with URL call-to-action",
+      "end_text": "P-A-R-L-O-A dot com."
+    },
+    {
+      "start": 674.0,
+      "end": 717.6,
+      "confidence": 0.99,
+      "reason": "Capital One sponsor segment followed by AllTrails ad",
+      "end_text": "find your outside."
+    },
+    {
+      "start": 718.8,
+      "end": 748.3,
+      "confidence": 0.99,
+      "reason": "Zinn Nicotine Pouches ad with warning",
+      "end_text": "Nicotine is an addictive chemical."
+    },
+    {
+      "start": 749.6,
+      "end": 776.6,
+      "confidence": 0.99,
+      "reason": "Lemonada Media cross-promotion for 'Good Things' podcast",
+      "end_text": "hear the six-part Thrive series."
+    }
+  ]
+}

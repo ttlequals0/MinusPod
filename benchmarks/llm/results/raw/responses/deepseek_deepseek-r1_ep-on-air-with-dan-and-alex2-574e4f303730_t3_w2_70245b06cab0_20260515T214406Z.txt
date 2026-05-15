@@ -1,0 +1,7 @@
+[{
+    "start": 1139.5,
+    "end": 1168.3,
+    "confidence": 0.95,
+    "reason": "Explicit promo code repetition indicating sponsored segment",
+    "end_text": "discount code, discount code"
+}]

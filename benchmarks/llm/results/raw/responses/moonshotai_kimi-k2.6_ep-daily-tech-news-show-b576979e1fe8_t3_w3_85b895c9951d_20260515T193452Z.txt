@@ -1,0 +1,1 @@
+{"start": 1493.2, "end": 1536.8, "confidence": 0.98, "reason": "Capital One sponsor read with product pitch for Chat Concierge AI car shopping tool, followed by AllTrails app promotion with call to action to download", "end_text": "Download the free app today and find your outside"}

@@ -1,0 +1,7 @@
+{
+	"start": 2280.0,
+	"end": 2280.0,
+	"confidence": 0.0,
+	"reason": "No ads found in this window.",
+	"end_text": "continues in next"
+}

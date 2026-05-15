@@ -1,0 +1,1 @@
+[{"start": 2609.5, "end": 2634.3, "confidence": 0.75, "reason": "Segment contains explicit 'sponsored by' declaration and list of known sponsors (Athletic Greens, BetterHelp, etc.), indicating an ad break despite transcript appearing as keyword list", "end_text": "Raycon, Manscaped, Stamps.com"}]

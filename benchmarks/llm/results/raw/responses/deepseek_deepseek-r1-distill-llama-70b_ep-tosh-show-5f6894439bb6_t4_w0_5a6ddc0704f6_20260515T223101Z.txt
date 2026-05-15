@@ -1,0 +1,7 @@
+{
+  "start": 0.0,
+  "end": 22.1,
+  "confidence": 0.95,
+  "reason": "Progressive Insurance ad with call to action",
+  "end_text": "Progressive.com."
+}

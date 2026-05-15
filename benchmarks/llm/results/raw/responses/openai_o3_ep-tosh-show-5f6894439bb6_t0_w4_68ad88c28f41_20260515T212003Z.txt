@@ -1,0 +1,1 @@
+{"start": 1836.9, "end": 1999.5, "confidence": 0.98, "reason": "Host-read Mint Mobile ad followed by network-inserted Mattress Warehouse and PC Richard & Son ads; includes transition phrase", "end_text": "for details"}

@@ -1,0 +1,32 @@
+{
+  "ads": [
+    {
+      "start": 0.0,
+      "end": 29.1,
+      "confidence": 1.00,
+      "reason": "Host-read sponsor ad for Capital One with promotional language (Chat Concierge, AI, car shopping)",
+      "end_text": "technology at Capital One."
+    },
+    {
+      "start": 29.4,
+      "end": 58.3,
+      "confidence": 1.00,
+      "reason": "Host-read or produced ad for Broadway show 'Every Brilliant Thing' starring Mariska Hargitay with ticket call-to-action",
+      "end_text": "Visit Every Brilliant Thing."
+    },
+    {
+      "start": 59.2,
+      "end": 73.6,
+      "confidence": 0.92,
+      "reason": "AllTrails ad with promotional language (download free app, find your outside)",
+      "end_text": "find your outside"
+    },
+    {
+      "start": 74.8,
+      "end": 104.3,
+      "confidence": 1.00,
+      "reason": "Zyn nicotine pouch ad with product pitch, varieties, strengths, and nicotine warning",
+      "end_text": "addictive chemical."
+    }
+  ]
+}

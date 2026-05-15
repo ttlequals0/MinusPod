@@ -1,0 +1,1 @@
+{"start": 414.0, "end": 1028.4, "confidence": 0.0, "reason": "No promotional content found in this window. The entire segment is editorial discussion about airline survival, Air France KLM rebranding, potential group names, and audience engagement. Host mentions asking for listener ideas which is organic content, not an ad.", "end_text": "Volatea, in Spain. This, this Riviera"}

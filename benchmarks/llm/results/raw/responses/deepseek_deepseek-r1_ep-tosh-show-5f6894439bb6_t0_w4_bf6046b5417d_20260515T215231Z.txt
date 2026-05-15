@@ -1,0 +1,23 @@
+[
+  {
+    "start": 1837.5,
+    "end": 1912.2,
+    "confidence": 0.99,
+    "reason": "Mint Mobile host-read ad with URL mintmobile.com/tosh",
+    "end_text": "Mint Mobile for details"
+  },
+  {
+    "start": 1913.4,
+    "end": 1942.4,
+    "confidence": 0.99,
+    "reason": "Mattress Warehouse Memorial Day Sale ad with savings claims",
+    "end_text": "only at Mattress Warehouse"
+  },
+  {
+    "start": 1943.2,
+    "end": 1999.5,
+    "confidence": 0.99,
+    "reason": "PC Richard & Son Aseema Lease to Own ad with $1 offer and URL",
+    "end_text": "HTML for details"
+  }
+]

@@ -1,0 +1,1 @@
+{"start": 2015.9, "end": 2073.2, "confidence": 0.95, "reason": "Capital One sponsor read, continues in next", "end_text": "That's how they stack. That's technology at Capital One."}

@@ -1,0 +1,3 @@
+[
+  {"start": 821.4, "end": 1021.1, "confidence": 0.95, "reason": "Consecutive host-read and produced sponsor segments (Capital One, BetterHelp, Amazon Health AI, Spectrum Business, Rinse)", "end_text": "It's time to be great."}
+]

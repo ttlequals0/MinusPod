@@ -1,0 +1,9 @@
+[
+  {
+    "start": 636.8,
+    "end": 776.6,
+    "confidence": 0.95,
+    "reason": "Multiple ads: Parloa (sponsor read with URL), Capital One (sponsor read), AllTrails (call-to-action), Zinn (product pitch with disclaimer), Lemonada (cross-promotion)",
+    "end_text": "hear the six-part Thrive series"
+  }
+]

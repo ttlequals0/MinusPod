@@ -1,0 +1,25 @@
+{
+  "ads": [
+    {
+      "start": 0.0,
+      "end": 58.3,
+      "confidence": 0.99,
+      "reason": "Capital One tech ad followed by Broadway show promotion for 'Every Brilliant Thing'",
+      "end_text": "Visit Every Brilliant Thing"
+    },
+    {
+      "start": 59.2,
+      "end": 73.6,
+      "confidence": 0.95,
+      "reason": "All Trails app promotion with call to action",
+      "end_text": "find your outside"
+    },
+    {
+      "start": 74.8,
+      "end": 104.3,
+      "reason": "Zinn Nicotine Pouches ad with product claims and mandatory warning",
+      "confidence": 0.99,
+      "end_text": "Nicotine is an addictive chemical"
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+[
+  {
+    "start": 5036.2,
+    "end": 5052.8,
+    "confidence": 0.0,
+    "reason": "Content about manufacturing and team expansion, no promotional language",
+    "end_text": "work ahead of us as well"
+  },
+  {
+    "start": 5055.3,
+    "end": 5069.8,
+    "confidence": 0.0,
+    "reason": "Sign-off and next time mention, no ads",
+    "end_text": "see you all next time"
+  }
+]

@@ -1,0 +1,18 @@
+{
+"ads": [
+    {
+      "start": 619.0,
+      "end": 697.3,
+      "confidence": 0.98,
+      "reason": "Parloa and Capital One sponsor reads",
+      "end_text": "dot com"
+    },
+    {
+      "start": 697.7,
+      "end": 744.1,
+      "confidence": 0.98,
+      "reason": "Capital One and Zinn Nicotine Pouches ads",
+      "end_text": "near you"
+    }
+  ]
+}

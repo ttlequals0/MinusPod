@@ -1,0 +1,32 @@
+```json
+[
+  {
+    "start": 0.0,
+    "end": 29.1,
+    "confidence": 0.98,
+    "reason": "Capital One sponsor read with product pitch (Chat Concierge AI for car shopping)",
+    "end_text": "technology at Capital One"
+  },
+  {
+    "start": 29.4,
+    "end": 58.3,
+    "confidence": 0.95,
+    "reason": "Broadway show advertisement for Every Brilliant Thing with Mariska Hargitay",
+    "end_text": "through June 28th only"
+  },
+  {
+    "start": 59.2,
+    "end": 73.6,
+    "confidence": 0.92,
+    "reason": "AllTrails app promotion with call to action to download free app",
+    "end_text": "find your outside"
+  },
+  {
+    "start": 74.8,
+    "end": 104.3,
+    "confidence": 0.93,
+    "reason": "Zinn Nicotine Pouches sponsor read with product varieties and nicotine warning",
+    "end_text": "is an addictive chemical"
+  }
+]
+```

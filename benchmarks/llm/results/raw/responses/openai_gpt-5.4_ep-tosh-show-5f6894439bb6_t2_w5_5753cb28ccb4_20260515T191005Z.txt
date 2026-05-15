@@ -1,0 +1,1 @@
+{"start": 2412.8, "end": 2484.9, "confidence": 0.99, "reason": "Two back-to-back platform-inserted ads: HealthCast by Stony Brook Medicine promo with URL, followed by PC Richard & Son/Acima lease-to-own promotional spot; merged because contiguous gap <15s", "end_text": "slash Asima dot HTML for details."}

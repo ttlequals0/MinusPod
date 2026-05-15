@@ -1,0 +1,51 @@
+[
+  {
+    "start": 4908.8,
+    "end": 4930.3,
+    "confidence": 0.95,
+    "reason": "Host transition to end of episode and mention of Adam's Little League coaching",
+    "end_text": "Big game. God, that is so exciting."
+  },
+  {
+    "start": 4933.2,
+    "end": 4959.4,
+    "confidence": 0.95,
+    "reason": "Hosts discussing potential future episode about baseball",
+    "end_text": "we're just going to be at a ballgame doing..."
+  },
+  {
+    "start": 4960.7,
+    "end": 4980.5,
+    "confidence": 0.95,
+    "reason": "Hosts joking about subscriber count and future content",
+    "end_text": "That makes sense to me."
+  },
+  {
+    "start": 4981.0,
+    "end": 5008.4,
+    "confidence": 0.95,
+    "reason": "Hosts thanking guests and discussing future episodes",
+    "end_text": "is just not simple."
+  },
+  {
+    "start": 5009.5,
+    "end": 5035.8,
+    "confidence": 0.95,
+    "reason": "Guests responding and mentioning R&D work",
+    "end_text": "on the manufacturing end."
+  },
+  {
+    "start": 5036.2,
+    "end": 5052.8,
+    "confidence": 0.95,
+    "reason": "Host mentioning team expansion and future work",
+    "end_text": "ahead of us as well"
+  },
+  {
+    "start": 5055.3,
+    "end": 5069.8,
+    "confidence": 0.95,
+    "reason": "Closing remarks and sign-off",
+    "end_text": "see you all next time."
+  }
+]

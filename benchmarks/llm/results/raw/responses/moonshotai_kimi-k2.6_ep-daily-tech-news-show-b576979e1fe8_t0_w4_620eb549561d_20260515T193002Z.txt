@@ -1,0 +1,1 @@
+{"start": 2015.9, "end": 2073.2, "confidence": 0.98, "reason": "Capital One host-read sponsor segment followed by Lemonada Media cross-promotion", "end_text": "six-part Thrive series."}

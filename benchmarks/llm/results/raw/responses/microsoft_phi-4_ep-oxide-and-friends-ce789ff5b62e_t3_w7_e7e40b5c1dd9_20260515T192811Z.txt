@@ -1,0 +1,7 @@
+{
+  "start": 29.31,
+  "end": 35.40,
+  "confidence": 0.95,
+  "reason": "The discussion about transitioning from 3D printing to injection molding, including the challenges and considerations involved, is a high-confidence ad segment due to its detailed and technical nature.",
+  "end_text": "The discussion continues into the next window, focusing on the transition from 3D printing to injection molding and the challenges involved."
+}

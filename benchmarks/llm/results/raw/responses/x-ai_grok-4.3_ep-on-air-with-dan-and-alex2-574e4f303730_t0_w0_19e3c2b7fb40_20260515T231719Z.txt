@@ -1,0 +1,4 @@
+[
+  {"start": 0.0, "end": 30.3, "confidence": 0.98, "reason": "Hex.ai sponsor read with product pitch and URL", "end_text": "customers at Hex.ai"},
+  {"start": 30.9, "end": 59.8, "confidence": 0.97, "reason": "PickOCNY.com tourism destination ad with URL and calls to action", "end_text": "at PickOCNY.com"}
+]

@@ -1,0 +1,1 @@
+{"start": 3765.7, "end": 4382.8, "confidence": 0.0, "reason": "No promotional language, sponsor names, URLs, promo codes, or calls to action found in this transcript segment. The content is entirely technical discussion about mechanical engineering, 3D printing, injection molding, and manufacturing processes.", "end_text": "fabricatable."}

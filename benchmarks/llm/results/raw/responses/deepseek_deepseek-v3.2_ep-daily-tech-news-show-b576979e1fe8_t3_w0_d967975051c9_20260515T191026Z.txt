@@ -1,0 +1,1 @@
+{"start": 0.0, "end": 104.3, "confidence": 1.0, "reason": "Multiple network-inserted ads: Capital One, Every Brilliant Thing, AllTrails, Zyn Nicotine Pouches", "end_text": "Nicotine is an addictive chemical."}

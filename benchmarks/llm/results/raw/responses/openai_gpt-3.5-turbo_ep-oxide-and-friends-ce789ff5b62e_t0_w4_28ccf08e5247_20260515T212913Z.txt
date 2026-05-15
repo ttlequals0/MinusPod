@@ -1,0 +1,7 @@
+{
+	"start": 2280.0,
+	"end": 2285.2,
+	"confidence": 0.95,
+	"reason": "Discussion about a mechanical issue and safety aspect of the design",
+	"end_text": "Robert really likes to go end to end. And I think as he did, I think..."
+}

@@ -1,0 +1,1 @@
+{"start": 836.1, "end": 1456.2, "confidence": 1.0, "reason": "No promotional content detected. Entire window contains organic technical discussion about Oxide Computer's mechanical engineering, manufacturing processes, and rack design.", "end_text": "operations in seconds"}

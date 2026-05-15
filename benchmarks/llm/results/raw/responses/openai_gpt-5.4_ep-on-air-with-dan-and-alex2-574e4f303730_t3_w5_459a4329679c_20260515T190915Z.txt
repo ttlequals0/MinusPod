@@ -1,0 +1,1 @@
+{"start":2609.5,"end":2634.3,"confidence":0.99,"reason":"Injected metadata-like sponsor keyword list mentioning promo code/discount code and multiple known sponsors; promotional ad-related content though partial/incomplete in this window","end_text":"Raycon, Manscaped, Stamps.com,"}

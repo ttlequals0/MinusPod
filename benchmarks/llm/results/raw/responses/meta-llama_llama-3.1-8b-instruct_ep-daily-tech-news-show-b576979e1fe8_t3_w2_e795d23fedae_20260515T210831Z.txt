@@ -1,0 +1,1 @@
+{ "start": 866.6, "end": 875.5, "confidence": 0.0, "reason": "no ad content", "end_text": "you don't belong here" }

@@ -1,0 +1,7 @@
+{
+  "start": 591.3,
+  "end": 748.3,
+  "confidence": 0.95,
+  "reason": "Multiple ads: Parloa, Capital One, AllTrails, Zinn Nicotine Pouches, Lemonada Media",
+  "end_text": "This product contains nicotine."
+}

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1493.2,
+    "end": 1536.8,
+    "confidence": 0.95,
+    "reason": "Capital One sponsor read followed immediately by AllTrails promo",
+    "end_text": "find your outside."
+  }
+]

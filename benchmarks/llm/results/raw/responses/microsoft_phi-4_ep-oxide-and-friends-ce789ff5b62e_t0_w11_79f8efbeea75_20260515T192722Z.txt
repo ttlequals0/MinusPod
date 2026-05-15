@@ -1,0 +1,7 @@
+{
+  "start": 77.0,
+  "end": 84.5,
+  "confidence": 0.95,
+  "reason": "The segment discusses the mechanical engineering challenges of scaling manufacturing from a few racks to hundreds, focusing on the structural analysis and design considerations. This is a high-confidence ad due to the detailed discussion of technical challenges and solutions.",
+  "end_text": "And we will see you all next time."
+}

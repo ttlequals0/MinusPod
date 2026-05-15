@@ -1,0 +1,25 @@
+{
+  "ads": [
+    {
+      "start": 591.3,
+      "end": 658.8,
+      "confidence": 0.97,
+      "reason": "Host listener thank you segment transitioning into Parloa sponsor read",
+      "end_text": "to appointment scheduling,"
+    },
+    {
+      "start": 664.6,
+      "end": 748.3,
+      "confidence": 0.98,
+      "reason": "Multiple platform-inserted/network ads: Capital One, AllTrails, Zinn nicotine pouches",
+      "end_text": "nicotine is an addictive chemical"
+    },
+    {
+      "start": 749.6,
+      "end": 784.6,
+      "confidence": 0.95,
+      "reason": "Lemonada Media Thrive series cross-promo ad",
+      "end_text": "get to the briefs"
+    }
+  ]
+}

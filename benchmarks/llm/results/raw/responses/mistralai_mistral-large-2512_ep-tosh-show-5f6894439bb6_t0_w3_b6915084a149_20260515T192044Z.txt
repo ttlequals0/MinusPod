@@ -1,0 +1,9 @@
+[
+    {
+        "start": 1837.5,
+        "end": 1861.3,
+        "confidence": 0.99,
+        "reason": "Mint Mobile sponsor read with promotional language, call to action, and brand endorsement",
+        "end_text": "overpaying for wireless, are you fed up with crazy high bills?"
+    }
+]

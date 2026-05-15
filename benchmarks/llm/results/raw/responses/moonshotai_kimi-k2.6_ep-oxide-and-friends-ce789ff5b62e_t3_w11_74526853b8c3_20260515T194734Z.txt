@@ -1,0 +1,7 @@
+{
+  "start": 5036.2,
+  "end": 5052.8,
+  "confidence": 0.6,
+  "reason": "Job/recruiting pitch for Oxide (hiring mechanical engineers) - organic host mention, not a paid sponsor",
+  "end_text": "exciting work ahead of us as well"
+}

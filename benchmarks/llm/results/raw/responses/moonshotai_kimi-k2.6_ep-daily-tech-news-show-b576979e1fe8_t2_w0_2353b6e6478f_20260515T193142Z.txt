@@ -1,0 +1,1 @@
+ {"start": 0.0, "end": 104.3, "confidence": 0.99, "reason": "Multiple sponsor ads: Capital One, Every Brilliant Thing Broadway show, AllTrails, Zinn Nicotine Pouches with required nicotine disclaimer. These are all promotional segments with product pitches, brand names, and calls to action.", "end_text": "This product contains nicotine. Nicotine is an addictive chemical."}

@@ -1,0 +1,7 @@
+{
+  "start": 4981.0,
+  "end": 5008.4,
+  "confidence": 0.95,
+  "reason": "Host promoting their own Patreon and other shows",
+  "end_text": "we're solving for now? There's simpler solutions, right?"
+}

@@ -1,0 +1,9 @@
+ [0.0-22.1] Progressive Insurance [continues from previous]
+[29.8-58.1] Whole Foods Market
+[537.5-566.6] Thrive Cosmetics ("Shine 26" is a separate call to action but part of the same ad)
+
+Therefore, the advertisement segments in this window are:
+
+[0.0-22.1] Progressive Insurance
+[29.8-58.1] Whole Foods Market
+[537.5-566.6] Thrive Cosmetics

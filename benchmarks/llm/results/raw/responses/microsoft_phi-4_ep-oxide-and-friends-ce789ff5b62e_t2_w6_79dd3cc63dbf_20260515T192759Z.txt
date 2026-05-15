@@ -1,0 +1,7 @@
+{
+  "start": 25.20,
+  "end": 25.39,
+  "confidence": 0.95,
+  "reason": "The segment discusses the mechanical engineering challenges of scaling manufacturing from a few racks to hundreds, highlighting the importance of precision in machine design.",
+  "end_text": "the analysis that we are justified in doing when we're manufacturing at scale"
+}

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1139.5,
+    "end": 1168.4,
+    "confidence": 0.9,
+    "reason": "This segment contains repeated placeholder text ('promo code, discount code') which indicates a slot for a dynamically inserted advertisement.",
+    "end_text": "discount code, discount code"
+  }
+]

@@ -1,0 +1,1 @@
+{"start": 977.2, "end": 994.9, "confidence": 0.62, "reason": "Not an ad; mentions 'the pitch' but no sponsor, promo code, URL, or call to action", "end_text": "a bunch of like really fundamental improvements like"}

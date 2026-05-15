@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1836.9,
+    "end": 1999.5,
+    "confidence": 0.98,
+    "reason": "Ad break with Mint Mobile, Mattress Warehouse, and PC Richard & Son ads",
+    "end_text": "for details."
+  }
+]

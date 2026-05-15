@@ -1,0 +1,1 @@
+[{"start": 6368.2, "end": 6395.0, "confidence": 0.9, "reason": "Host explicitly calls out Perplexity as AI sponsor during conversation", "end_text": "showing us how smart it is"}]

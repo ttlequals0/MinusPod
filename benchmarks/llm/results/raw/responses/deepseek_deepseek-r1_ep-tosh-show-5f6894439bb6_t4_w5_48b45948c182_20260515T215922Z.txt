@@ -1,0 +1,16 @@
+[
+  {
+    "start": 2412.8,
+    "end": 2427.6,
+    "confidence": 0.98,
+    "reason": "Hosting platform-inserted ad for HealthCast by Stony Brook Medicine with explicit URL call-to-action",
+    "end_text": "edu slash podcasts"
+  },
+  {
+    "start": 2428.9,
+    "end": 2484.9,
+    "confidence": 0.99,
+    "reason": "Network-inserted retail ad for PC Richard & Son's Aseema program with promotional offer ($1 start), URL (PCRichard.com), and legal disclaimers",
+    "end_text": "HTML for details"
+  }
+]

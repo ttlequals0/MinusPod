@@ -1,0 +1,7 @@
+{
+  "start": 411.8,
+  "end": 436.8,
+  "confidence": 0.95,
+  "reason": "Host-read sponsor segment mentioning 'Pandora's box' as a metaphor for the product.",
+  "end_text": "It's great."
+}

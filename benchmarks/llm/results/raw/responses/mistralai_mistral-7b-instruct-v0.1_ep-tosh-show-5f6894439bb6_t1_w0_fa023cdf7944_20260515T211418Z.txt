@@ -1,0 +1,5 @@
+ [0.0-22.1] Progressive Insurance [continues from previous]
+[29.8-58.1] Whole Foods Market
+[537.5-566.6] Thrive Cosmetics
+
+This window contains three advertisement segments. The first one, Progressive Insurance, started before the window but continues into it. The second segment is for Whole Foods Market, and the third one is for Thrive Cosmetics.

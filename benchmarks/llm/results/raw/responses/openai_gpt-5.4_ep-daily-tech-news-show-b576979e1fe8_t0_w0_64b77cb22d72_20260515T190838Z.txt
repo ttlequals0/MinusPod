@@ -1,0 +1,1 @@
+{"start":0.0,"end":104.3,"confidence":0.99,"reason":"Cluster of platform-inserted ads: Capital One promo, Every Brilliant Thing Broadway promo, AllTrails app promo, and Zyn nicotine pouch ad with nicotine warning","end_text":"Nicotine is an addictive chemical."}

@@ -1,0 +1,1 @@
+[{"start": 2609.5, "end": 2634.3, "confidence": 0.9, "reason": "Transcript contains explicit sponsor list and 'sponsored by' tag indicating dynamic ad insertion", "end_text": "Raycon, Manscaped, Stamps.com,"}]

@@ -1,0 +1,1 @@
+{"start": 0.0, "end": 59.8, "confidence": 0.98, "reason": "Pre-roll ads for Hex.ai and Orange County NY tourism (PickOCNY.com)", "end_text": "mind at PickOCNY.com."}

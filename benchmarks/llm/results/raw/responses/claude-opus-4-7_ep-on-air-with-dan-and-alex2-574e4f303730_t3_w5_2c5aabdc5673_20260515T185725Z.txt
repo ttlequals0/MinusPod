@@ -1,0 +1,1 @@
+[{"start": 2609.5, "end": 2634.3, "confidence": 0.85, "reason": "Injected ad keywords listing sponsors (Athletic Greens, BetterHelp, Squarespace, etc.)", "end_text": "Manscaped, Stamps.com"}]

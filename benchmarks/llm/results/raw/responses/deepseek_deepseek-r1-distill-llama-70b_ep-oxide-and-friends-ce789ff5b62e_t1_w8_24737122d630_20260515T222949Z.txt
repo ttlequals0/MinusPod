@@ -1,0 +1,7 @@
+{
+  "start": 3344.8,
+  "end": 3370.2,
+  "confidence": 0.95,
+  "reason": "Material discussion about manufacturing challenges",
+  "end_text": "pull that part off."
+}

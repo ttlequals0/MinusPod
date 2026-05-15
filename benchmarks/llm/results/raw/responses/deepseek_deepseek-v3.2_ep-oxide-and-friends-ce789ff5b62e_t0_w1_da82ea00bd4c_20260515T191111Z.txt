@@ -1,0 +1,1 @@
+{"start": 1020.0, "end": 1020.0, "confidence": 0.0, "reason": "No ads detected in this transcript segment. The content is a continuous technical discussion about mechanical engineering and manufacturing at Oxide.", "end_text": "No ads detected"}

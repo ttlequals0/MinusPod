@@ -1,0 +1,1 @@
+{"error":"The input does not appear to include any promotional language indicating advertisement segments. No ads were detected in this transcript window."}

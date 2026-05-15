@@ -1,0 +1,1 @@
+{"start":0.0,"end":59.8,"confidence":0.97,"reason":"Pre-roll ad block featuring HEX.ai productivity platform and PickOCNY.com tourism promotion with URLs and calls to action","end_text":"mind at PickOCNY.com."}

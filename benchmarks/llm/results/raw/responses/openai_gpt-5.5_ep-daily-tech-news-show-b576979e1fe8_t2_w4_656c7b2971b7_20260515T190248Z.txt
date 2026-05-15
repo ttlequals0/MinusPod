@@ -1,0 +1,1 @@
+{"start":2015.9,"end":2073.2,"confidence":0.99,"reason":"Post-roll ads: Capital One sponsor read ('This episode is brought to you by Capital One') followed immediately by Lemonada Media podcast promo ('Tune in to Good Things from Lemonada Media'); merged due to short gap.","end_text":"six-part Thrive series"}

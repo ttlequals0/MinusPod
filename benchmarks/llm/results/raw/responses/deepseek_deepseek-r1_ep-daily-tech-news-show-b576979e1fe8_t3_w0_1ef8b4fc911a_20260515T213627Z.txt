@@ -1,0 +1,9 @@
+[
+  {
+    "start": 0.0,
+    "end": 104.3,
+    "confidence": 0.99,
+    "reason": "Multiple consecutive ads: Capital One, Every Brilliant Thing, AllTrails, Zinn Nicotine Pouches with disclaimer",
+    "end_text": "addictive chemical"
+  }
+]

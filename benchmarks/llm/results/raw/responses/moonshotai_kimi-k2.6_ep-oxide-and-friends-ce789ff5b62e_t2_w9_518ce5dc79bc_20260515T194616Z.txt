@@ -1,0 +1,1 @@
+{"start": 3765.7, "end": 4382.8, "confidence": 1.0, "reason": "Entire window is continuous show content about Oxide mechanical engineering - 3D printing, injection molding, thermoforming, and airflow shrouds. No sponsors, promo codes, URLs, calls to action, platform insertions, or network promos detected.", "end_text": "make these fabricatable"}

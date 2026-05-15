@@ -1,0 +1,18 @@
+```json
+[
+  {
+    "start": 1493.2,
+    "end": 1536.8,
+    "confidence": 0.95,
+    "reason": "Capital One sponsor read with product pitch (Chat Concierge AI for car shopping)",
+    "end_text": "technology at Capital One"
+  },
+  {
+    "start": 1536.9,
+    "end": 1541.0,
+    "confidence": 0.92,
+    "reason": "AllTrails network-inserted brand tagline ad with call to action",
+    "end_text": "Download the free app today"
+  }
+]
+```

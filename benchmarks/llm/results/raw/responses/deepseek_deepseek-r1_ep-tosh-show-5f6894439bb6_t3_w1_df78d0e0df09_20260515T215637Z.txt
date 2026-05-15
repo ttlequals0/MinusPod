@@ -1,0 +1,7 @@
+{
+  "start": 537.5,
+  "end": 567.0,
+  "confidence": 0.98,
+  "reason": "Thrive Cosmetics host-read ad with promo code",
+  "end_text": "dot com slash shine26"
+}

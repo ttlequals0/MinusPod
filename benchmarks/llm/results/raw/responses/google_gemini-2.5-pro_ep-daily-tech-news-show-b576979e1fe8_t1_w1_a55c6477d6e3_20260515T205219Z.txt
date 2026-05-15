@@ -1,0 +1,9 @@
+[
+  {
+    "start": 591.3,
+    "end": 776.6,
+    "confidence": 0.99,
+    "reason": "Host-read transition followed by a series of ads for Parloa, Capital One, AllTrails, Zyn, and a podcast promo for Lemonada Media.",
+    "end_text": "the six-part Thrive series."
+  }
+]

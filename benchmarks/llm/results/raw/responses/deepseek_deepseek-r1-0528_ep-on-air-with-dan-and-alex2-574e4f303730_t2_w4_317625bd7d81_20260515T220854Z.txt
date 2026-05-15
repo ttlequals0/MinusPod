@@ -1,0 +1,37 @@
+[
+  {
+    "start": 1890.3,
+    "end": 1919.0,
+    "confidence": 0.95,
+    "reason": "Transition to Riyadh Air CEO discussion with promotional tone",
+    "end_text": "in a while. Yeah,"
+  },
+  {
+    "start": 1996.9,
+    "end": 2019.0,
+    "confidence": 0.9,
+    "reason": "Promotional mention of Riyadh Air ticket sales",
+    "end_text": "on Oman, the"
+  },
+  {
+    "start": 2044.0,
+    "end": 2069.3,
+    "confidence": 0.85,
+    "reason": "Continued promotion of Riyadh Air services",
+    "end_text": "use it or"
+  },
+  {
+    "start": 2092.0,
+    "end": 2116.8,
+    "confidence": 0.88,
+    "reason": "Detailed discussion of Riyadh Air booking options",
+    "end_text": "families to now"
+  },
+  {
+    "start": 2134.6,
+    "end": 2161.4,
+    "confidence": 0.92,
+    "reason": "Explicit pricing and booking details for Riyadh Air",
+    "end_text": "one-way in business."
+  }
+]

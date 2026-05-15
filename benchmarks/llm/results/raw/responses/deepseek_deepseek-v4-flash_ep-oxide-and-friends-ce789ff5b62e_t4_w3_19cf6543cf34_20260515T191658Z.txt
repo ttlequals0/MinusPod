@@ -1,0 +1,7 @@
+{
+  "start": 1233.7,
+  "end": 1870.3,
+  "confidence": 0.0,
+  "reason": "No promotional language, sponsor names, URLs, promo codes, or calls to action found. The entire segment is technical discussion about manufacturing processes (PEMs, punch extrude and tap features) with no ad content.",
+  "end_text": "manufacturability of the rack"
+}

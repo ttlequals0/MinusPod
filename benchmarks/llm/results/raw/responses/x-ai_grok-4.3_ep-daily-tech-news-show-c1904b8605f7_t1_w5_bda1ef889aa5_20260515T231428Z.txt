@@ -1,0 +1,1 @@
+[{"start": 2246.0, "end": 2314.4, "confidence": 0.98, "reason": "Capital One sponsor read followed by Rinse ad", "end_text": "It's time to be great"}]

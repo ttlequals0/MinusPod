@@ -1,0 +1,16 @@
+{"ad_segments": [
+  {
+    "start": 3428.1,
+    "end": 3456.1,
+    "confidence": 0.98,
+    "reason": "Arizona State University sponsor read",
+    "end_text": "asunline.asu.edu"
+  },
+  {
+    "start": 3458.8,
+    "end": 3486.2,
+    "confidence": 0.98,
+    "reason": "University of Michigan sponsor read",
+    "end_text": "umich.edu"
+  }
+]}

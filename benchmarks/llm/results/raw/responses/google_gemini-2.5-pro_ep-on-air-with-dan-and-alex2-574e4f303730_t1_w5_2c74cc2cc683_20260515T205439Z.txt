@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2609.5,
+    "end": 2634.3,
+    "confidence": 0.99,
+    "reason": "A list of common podcast sponsors and ad-related keywords like 'promo code' and 'sponsored by' were transcribed, indicating a dynamically inserted advertisement.",
+    "end_text": "Raycon, Manscaped, Stamps.com,"
+  }
+]

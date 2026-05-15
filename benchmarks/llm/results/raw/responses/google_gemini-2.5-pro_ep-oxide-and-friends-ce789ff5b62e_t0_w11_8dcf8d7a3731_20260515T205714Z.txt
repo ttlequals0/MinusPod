@@ -1,0 +1,9 @@
+[
+  {
+    "start": 5036.2,
+    "end": 5052.8,
+    "confidence": 0.8,
+    "reason": "Host-read recruitment pitch for Oxide, the company that produces the podcast.",
+    "end_text": "ahead of us as well"
+  }
+]

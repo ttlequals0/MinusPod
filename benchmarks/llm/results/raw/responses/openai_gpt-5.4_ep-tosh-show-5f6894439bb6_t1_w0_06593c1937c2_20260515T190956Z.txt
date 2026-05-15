@@ -1,0 +1,1 @@
+{"start":0.0,"end":58.1,"confidence":0.99,"reason":"Two back-to-back pre-roll ads: Progressive Insurance followed by Whole Foods Market promotional spot","end_text":"Celebrate mom with Whole Foods Market."}

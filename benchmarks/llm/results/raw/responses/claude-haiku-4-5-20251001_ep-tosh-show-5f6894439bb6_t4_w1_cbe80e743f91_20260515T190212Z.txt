@@ -1,0 +1,18 @@
+```json
+[
+  {
+    "start": 537.5,
+    "end": 567.0,
+    "confidence": 0.95,
+    "reason": "Thrive Cosmetics host-read sponsor segment with promo code and URL",
+    "end_text": "thrivecosmetics.com slash shine26"
+  },
+  {
+    "start": 594.7,
+    "end": 654.3,
+    "confidence": 0.92,
+    "reason": "PC Richard & Son lease-to-own network ad with terms and website details",
+    "end_text": "PCRichard.com slash Asima dot HTML"
+  }
+]
+```

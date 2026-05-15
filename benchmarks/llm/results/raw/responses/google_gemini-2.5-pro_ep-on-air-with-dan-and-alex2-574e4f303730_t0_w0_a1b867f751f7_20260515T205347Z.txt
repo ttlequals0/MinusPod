@@ -1,0 +1,9 @@
+[
+  {
+    "start": 0.0,
+    "end": 59.8,
+    "confidence": 0.98,
+    "reason": "Pre-roll ads for HEX and PickOCNY.com, featuring product pitches and URLs.",
+    "end_text": "mind at PickOCNY.com."
+  }
+]

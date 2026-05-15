@@ -1,0 +1,32 @@
+{
+  "ads": [
+    {
+      "start": 0.0,
+      "end": 22.1,
+      "confidence": 0.99,
+      "reason": "Progressive Insurance sponsor read with promo URL and legal disclaimer",
+      "end_text": "Not available in all states."
+    },
+    {
+      "start": 29.8,
+      "end": 58.1,
+      "confidence": 0.99,
+      "reason": "Whole Foods Market Mother's Day ad with product pitches and promotional language",
+      "end_text": "Celebrate mom with Whole Foods Market."
+    },
+    {
+      "start": 537.5,
+      "end": 567.0,
+      "confidence": 0.99,
+      "reason": "Thrive Cosmetics sponsor read with promo code and URL",
+      "end_text": "Shine 26."
+    },
+    {
+      "start": 594.7,
+      "end": 597.3,
+      "confidence": 0.95,
+      "reason": "Mattress Warehouse network-inserted brand tagline ad",
+      "end_text": "Only at Mattress Warehouse."
+    }
+  ]
+}

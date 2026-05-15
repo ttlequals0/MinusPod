@@ -1,0 +1,18 @@
+{
+  "ads": [
+    {
+      "start": 0.0,
+      "end": 30.3,
+      "confidence": 0.98,
+      "reason": "HEX analytics platform sponsor read (hosted by RedCircle, shows ad in description)",
+      "end_text": "other customers at Hex.ai"
+    },
+    {
+      "start": 30.9,
+      "end": 59.8,
+      "confidence": 0.97,
+      "reason": "PickOCNY.com tourism ad (Orange County NY, sponsor read)",
+      "end_text": "at PickOCNY.com"
+    }
+  ]
+}

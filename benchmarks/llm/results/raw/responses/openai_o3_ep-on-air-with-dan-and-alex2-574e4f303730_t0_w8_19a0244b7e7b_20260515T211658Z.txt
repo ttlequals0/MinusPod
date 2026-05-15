@@ -1,0 +1,1 @@
+{"start": 3428.1, "end": 3486.2, "confidence": 0.98, "reason": "Arizona State University and University of Michigan network-inserted ads promoting degree programs with URLs", "end_text": "solutions at umich.edu."}

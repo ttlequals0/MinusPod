@@ -1,0 +1,9 @@
+[
+  {
+    "start": 610.0,
+    "end": 784.6,
+    "confidence": 0.99,
+    "reason": "A series of ads starting with a patron thank-you transition, followed by spots for Parloa, Capital One, AllTrails, Zinn, and a podcast cross-promotion for Lemonada Media, and ending with a transition back to the show.",
+    "end_text": "Let's get to the briefs."
+  }
+]

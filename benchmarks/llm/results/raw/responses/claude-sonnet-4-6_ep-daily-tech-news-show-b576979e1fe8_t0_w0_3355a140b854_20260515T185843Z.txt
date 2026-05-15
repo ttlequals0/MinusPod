@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 0.0,
+    "end": 104.3,
+    "confidence": 0.97,
+    "reason": "Multiple network-inserted ads: Capital One tech/AI promo, Broadway show 'Every Brilliant Thing' promo, AllTrails app promo, and Zyn nicotine pouches ad with nicotine disclaimer",
+    "end_text": "nicotine is an addictive chemical"
+  }
+]
+```

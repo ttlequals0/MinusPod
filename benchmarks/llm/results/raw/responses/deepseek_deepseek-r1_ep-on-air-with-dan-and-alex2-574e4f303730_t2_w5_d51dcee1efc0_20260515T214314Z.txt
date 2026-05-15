@@ -1,0 +1,7 @@
+[{
+    "start": 2609.5,
+    "end": 2634.3,
+    "confidence": 0.98,
+    "reason": "Host-read ad with explicit sponsorship language and multiple known sponsors (Athletic Greens, BetterHelp, etc.)",
+    "end_text": "Manscaped, Stamps.com"
+}]

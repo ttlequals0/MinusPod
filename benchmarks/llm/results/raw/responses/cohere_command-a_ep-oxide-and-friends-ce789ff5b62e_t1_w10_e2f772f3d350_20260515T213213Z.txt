@@ -1,0 +1,7 @@
+{
+  "start": 4727.4,
+  "end": 4752.4,
+  "confidence": 0.0,
+  "reason": "No promotional content detected",
+  "end_text": "and just get another welder if you need to add more capacity to your line versus like tens of thousands of dollars and"
+}

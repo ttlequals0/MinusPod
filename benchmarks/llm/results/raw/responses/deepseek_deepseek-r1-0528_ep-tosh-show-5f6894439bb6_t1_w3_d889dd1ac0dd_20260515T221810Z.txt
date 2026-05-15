@@ -1,0 +1,7 @@
+[{
+    "start": 1837.5,
+    "end": 1860.0,
+    "confidence": 0.99,
+    "reason": "Mint Mobile sponsor read with promotional language and competitor comparison",
+    "end_text": "overpaying for wireless, are you fed up with crazy high bills?"
+}]

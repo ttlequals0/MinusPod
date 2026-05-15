@@ -1,0 +1,7 @@
+{
+	"start": 2280.0,
+	"end": 2285.2,
+	"confidence": 0.95,
+	"reason": "Technical discussion about a mechanical issue",
+	"end_text": "end to end. And I think as he did, I think..."
+}

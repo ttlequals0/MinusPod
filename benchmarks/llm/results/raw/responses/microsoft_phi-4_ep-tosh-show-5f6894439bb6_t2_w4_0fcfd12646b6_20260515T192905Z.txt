@@ -1,0 +1,39 @@
+{  
+  "ads": [  
+    {  
+      "start": 16.63,  
+      "end": 16.87,  
+      "confidence": 0.95,  
+      "reason": "Merchandise promotion for Mother's Day",  
+      "end_text": "PC Richard & Son offers the Aseema Lease to Own program to help you take home the products you love."  
+    },  
+    {  
+      "start": 18.61,  
+      "end": 18.85,  
+      "confidence": 0.98,  
+      "reason": "Promotion of Mint Mobile service with a special offer for Mother's Day",  
+      "end_text": "PC Richard & Son offers the Aseema Lease to Own program to help you take home the products you love."  
+    },  
+    {  
+      "start": 20.08,  
+      "end": 20.36,  
+      "confidence": 0.98,  
+      "reason": "Promotion of PC Richard & Son's Aseema Lease to Own program with special offer details",  
+      "end_text": "PC Richard & Son offers the Aseema Lease to Own program to help you take home the products you love."  
+    },  
+    {  
+      "start": 20.36,  
+      "end": 20.71,  
+      "confidence": 0.98,  
+      "reason": "Promotion of PC Richard & Son's Aseema Lease to Own program with special offer details",  
+      "end_text": "PC Richard & Son offers the Aseema Lease to Own program to help you take home the products you love."  
+    },  
+    {  
+      "start": 20.92,  
+      "end": 20.99,  
+      "confidence": 0.98,  
+      "reason": "Promotion of PC Richard & Son's Aseema Lease to Own program with special offer details",  
+      "end_text": "PC Richard & Son offers the Aseema Lease to Own program to help you take home the products you love."  
+    }  
+  ]  
+}

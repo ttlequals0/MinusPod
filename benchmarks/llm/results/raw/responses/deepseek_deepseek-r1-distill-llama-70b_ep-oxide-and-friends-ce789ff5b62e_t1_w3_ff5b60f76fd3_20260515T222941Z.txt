@@ -1,0 +1,7 @@
+{
+  "start": 1233.7,
+  "end": 1262.5,
+  "confidence": 0.95,
+  "reason": "Discussion about manufacturing challenges with sheet metal",
+  "end_text": "start to finish fabrication process on"
+}

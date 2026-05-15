@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2412.8,
+    "end": 2484.9,
+    "confidence": 0.98,
+    "reason": "HealthCast by Stony Brook Medicine and PC Richard & Son Asima Lease to Own sponsor reads",
+    "end_text": "dot HTML for details"
+  }
+]

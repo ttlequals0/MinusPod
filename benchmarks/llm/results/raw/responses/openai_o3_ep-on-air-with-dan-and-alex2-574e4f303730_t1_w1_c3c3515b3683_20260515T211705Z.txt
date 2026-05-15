@@ -1,0 +1,1 @@
+{"error":"No ad markers were detected in the provided transcript segment. Output must be a JSON array as instructed, not an object."}

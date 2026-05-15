@@ -1,0 +1,5 @@
+[{"start": 566.5, "end": 567.0, "confidence": 0.95, "reason": "Thrive Cosmetics product promotion with URL and promo code", "end_text": "shine26"}}  
+[{"start": 594.7, "end": 597.3, "confidence": 0.95, "reason": "Network-inserted brand tagline ad for Mattress Warehouse", "end_text": "Only at Mattress Warehouse"}}  
+[{"start": 617.2, "end": 654.3, "confidence": 0.95, "reason": "Asima lease-to-own appliance/mattress promotion with terms", "end_text": "PCRichard.com slash Asima dot HTML"}}  
+
+Note: No transition phrases ("Let's take a break") were present in these segments, but they qualify as ads due to explicit promotional content (URLs, promo codes, product pitches) per platform-inserted ad rules.

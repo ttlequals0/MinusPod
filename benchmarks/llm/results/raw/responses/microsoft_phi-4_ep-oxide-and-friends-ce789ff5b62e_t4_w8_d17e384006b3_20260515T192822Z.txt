@@ -1,0 +1,7 @@
+{  
+  "start": 35.92,  
+  "end": 39.21,  
+  "confidence": 0.95,  
+  "reason": "The segment contains a transition phrase 'And so, we're actually going to steal molds for things,' indicating a continuation of the ad from the previous window. The segment discusses the cost and manufacturing process of SSDs, which is promotional content related to the product's scalability and cost-effectiveness.",  
+  "end_text": "It makes sense. One of those parts is hilariously fast payoff."  
+}

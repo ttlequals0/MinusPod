@@ -1,0 +1,7 @@
+{  
+  "start": 21.12,  
+  "end": 24.61,  
+  "confidence": 0.95,  
+  "reason": "Dynamic sponsor read with promotional language and URL mention",  
+  "end_text": "lease to own transactions"  
+}

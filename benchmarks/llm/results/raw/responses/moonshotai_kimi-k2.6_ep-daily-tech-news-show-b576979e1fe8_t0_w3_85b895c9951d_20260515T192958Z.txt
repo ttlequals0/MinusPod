@@ -1,0 +1,1 @@
+{"start": 1493.2, "end": 1536.8, "confidence": 0.99, "reason": "Host-read sponsor segments for Capital One and AllTrails with product pitches and calls to action", "end_text": "find your outside"}

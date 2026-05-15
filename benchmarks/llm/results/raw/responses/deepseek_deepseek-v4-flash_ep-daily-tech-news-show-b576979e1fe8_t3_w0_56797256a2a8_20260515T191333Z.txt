@@ -1,0 +1,7 @@
+{
+  "start": 0.0,
+  "end": 58.3,
+  "confidence": 0.99,
+  "reason": "Host-read ad for Capital One's Chat Concierge, followed by a produced ad for 'Every Brilliant Thing' on Broadway (network/retail ad).",
+  "end_text": "Visit Every Brilliant Thing."
+}

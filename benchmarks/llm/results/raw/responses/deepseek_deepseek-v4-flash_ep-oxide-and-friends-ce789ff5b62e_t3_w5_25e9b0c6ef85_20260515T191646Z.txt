@@ -1,0 +1,7 @@
+{
+  "start": 2093.6,
+  "end": 2700.0,
+  "confidence": 0.0,
+  "reason": "No promotional content detected in this transcript window. The discussion is entirely about mechanical engineering challenges, cable safety, and design improvements.",
+  "end_text": "does not really move"
+}

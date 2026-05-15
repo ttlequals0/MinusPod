@@ -1,0 +1,9 @@
+[
+  {
+    "start": 0.0,
+    "end": 104.3,
+    "confidence": 1.0,
+    "reason": "Multiple host/network ads: Capital One tech team promotion, Every Brilliant Thing Broadway show, AllTrails app download call, Zinn Nicotine Pouches product pitch with disclaimer",
+    "end_text": "an addictive chemical"
+  }
+]

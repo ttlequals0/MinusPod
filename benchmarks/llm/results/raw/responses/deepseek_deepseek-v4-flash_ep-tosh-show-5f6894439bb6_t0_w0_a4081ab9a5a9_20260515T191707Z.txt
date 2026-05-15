@@ -1,0 +1,23 @@
+[
+  {
+    "start": 0.0,
+    "end": 58.8,
+    "confidence": 0.98,
+    "reason": "Progressive Insurance and Whole Foods Market sponsor ads",
+    "end_text": "Celebrate mom with Whole Foods Market."
+  },
+  {
+    "start": 537.0,
+    "end": 567.0,
+    "confidence": 0.95,
+    "reason": "Thrive Cosmetics sponsor ad",
+    "end_text": "Shine 26."
+  },
+  {
+    "start": 594.7,
+    "end": 597.3,
+    "confidence": 0.90,
+    "reason": "Mattress Warehouse network-inserted tagline ad",
+    "end_text": "Only at Mattress Warehouse."
+  }
+]

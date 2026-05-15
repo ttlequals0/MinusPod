@@ -1,0 +1,1 @@
+[{"start": 537.0, "end": 667.9, "confidence": 0.97, "reason": "Ad break: Thrive Cosmetics sponsor read, Mattress Warehouse, and PC Richard & Son/Acima ads", "end_text": "Asima dot HTML for details"}]

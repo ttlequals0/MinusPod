@@ -1,0 +1,9 @@
+[
+  {
+    "start": 0.0,
+    "end": 104.3,
+    "confidence": 1.0,
+    "reason": "Pre-roll ad break containing spots for Capital One, the play \"Every Brilliant Thing\", AllTrails, and Zyn.",
+    "end_text": "is an addictive chemical."
+  }
+]

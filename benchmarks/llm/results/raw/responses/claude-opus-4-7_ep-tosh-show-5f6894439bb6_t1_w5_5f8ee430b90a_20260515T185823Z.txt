@@ -1,0 +1,1 @@
+[{"start": 2412.8, "end": 2484.9, "confidence": 0.97, "reason": "Network-inserted ads for HealthCast by Stony Brook Medicine and PC Richard & Son/Asima lease-to-own", "end_text": "Asima.HTML for details"}]

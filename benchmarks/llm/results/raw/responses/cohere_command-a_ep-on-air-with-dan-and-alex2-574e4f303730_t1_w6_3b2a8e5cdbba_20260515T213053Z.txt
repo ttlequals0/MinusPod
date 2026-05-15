@@ -1,0 +1,1 @@
+{"start": 2609.5, "end": 2634.3, "confidence": 0.95, "reason": "List of sponsors mentioned with promotional language", "end_text": "Stamps.com,"}

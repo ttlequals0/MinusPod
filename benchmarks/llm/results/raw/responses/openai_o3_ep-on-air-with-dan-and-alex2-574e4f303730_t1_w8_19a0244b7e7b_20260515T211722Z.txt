@@ -1,0 +1,11 @@
+{
+  "result": [
+    {
+      "start": 3428.1,
+      "end": 3486.2,
+      "confidence": 0.97,
+      "reason": "Produced post-roll ad block for Arizona State University Online and University of Michigan featuring promotional language and call-to-action URLs",
+      "end_text": "solutions at umich.edu"
+    }
+  ]
+}

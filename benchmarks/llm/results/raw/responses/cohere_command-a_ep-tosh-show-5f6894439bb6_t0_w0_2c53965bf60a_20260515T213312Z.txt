@@ -1,0 +1,7 @@
+{
+  "start": 0.0,
+  "end": 58.1,
+  "confidence": 0.95,
+  "reason": "Progressive Insurance and Whole Foods Market sponsor reads",
+  "end_text": "Celebrate mom with Whole Foods Market"
+}

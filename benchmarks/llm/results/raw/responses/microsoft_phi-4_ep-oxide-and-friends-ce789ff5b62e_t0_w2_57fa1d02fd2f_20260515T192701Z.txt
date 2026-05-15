@@ -1,0 +1,7 @@
+{
+  "start": 14.0,
+  "end": 24.0,
+  "confidence": 0.95,
+  "reason": "The segment contains a detailed discussion about manufacturing processes, specifically focusing on the mechanical engineering challenges of scaling production from a few racks to hundreds. It includes specific examples and technical details about the use of PEMs and the manufacturing process, which aligns with the detection rules for advertisement segments.",
+  "end_text": "It's a real issue because it's someone who's on a manufacturing line. This is a person who's doing this. This is two full-time employees per part."
+}

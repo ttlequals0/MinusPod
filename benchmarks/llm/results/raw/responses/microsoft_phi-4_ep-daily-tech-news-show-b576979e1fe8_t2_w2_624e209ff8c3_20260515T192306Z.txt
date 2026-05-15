@@ -1,0 +1,7 @@
+{
+  "start": 14.0,
+  "end": 24.0,
+  "confidence": 0.95,
+  "reason": "Insta360's Go 3S Retro Bundle is a nostalgic product with a retro design, reminiscent of classic Polaroid cameras. It includes features like a tactile viewfinder, 4K video recording, and a USB-C cable, making it a compact yet high-quality camera. The product is also priced lower than its predecessor, which could appeal to consumers seeking retro-inspired technology at a more affordable price.",
+  "end_text": "It's a cool mix, and I'm into it. I really want one now. Insta360's retro thing hits too much. I love it. I could definitely see some good cases, but automatic rollouts or rollbacks sometimes make people nervous."
+}

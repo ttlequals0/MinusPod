@@ -1,0 +1,7 @@
+[{
+  "start": 636.8,
+  "end": 776.6,
+  "confidence": 1.0,
+  "reason": "Multiple consecutive sponsored segments: Parloa (AI platform), Capital One (banking), AllTrails (app), Zinn (nicotine pouches), Lemonada Media (podcast promotion)",
+  "end_text": "six-part Thrive series"
+}]

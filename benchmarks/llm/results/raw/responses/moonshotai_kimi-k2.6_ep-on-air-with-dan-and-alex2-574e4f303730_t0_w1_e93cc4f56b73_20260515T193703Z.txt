@@ -1,0 +1,1 @@
+{"start": 524.6, "end": 550.1, "confidence": 0.15, "reason": "Possible transition to sponsor read - 'let's get down to business' and 'before' suggests potential ad break, but no promotional content found", "end_text": "What's happening?"}

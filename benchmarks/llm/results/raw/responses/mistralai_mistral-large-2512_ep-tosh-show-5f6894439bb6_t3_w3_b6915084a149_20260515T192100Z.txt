@@ -1,0 +1,9 @@
+[
+    {
+        "start": 1837.5,
+        "end": 1860.0,
+        "confidence": 0.99,
+        "reason": "Mint Mobile sponsor read with promotional language, call to action, and transition phrase ('We'll be right back')",
+        "end_text": "crazy high bills?"
+    }
+]

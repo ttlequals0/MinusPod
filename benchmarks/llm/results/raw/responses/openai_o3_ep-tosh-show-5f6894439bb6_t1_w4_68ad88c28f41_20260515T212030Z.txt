@@ -1,0 +1,1 @@
+{"start": 1836.9, "end": 1999.5, "confidence": 0.97, "reason": "Host-read Mint Mobile sponsor followed by network-inserted Mattress Warehouse and PC Richard & Son ads, introduced by 'We'll be right back' transition", "end_text": "dot HTML for details"}

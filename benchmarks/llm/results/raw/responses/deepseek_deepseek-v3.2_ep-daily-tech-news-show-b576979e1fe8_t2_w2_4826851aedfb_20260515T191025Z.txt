@@ -1,0 +1,1 @@
+{"start": 1463.3, "end": 1463.3, "confidence": 0.0, "reason": "No ad segments detected in this transcript window. The content is continuous editorial discussion about tech news (satellite connectivity, Insta360 camera, Microsoft drivers).", "end_text": "No ad detected"}

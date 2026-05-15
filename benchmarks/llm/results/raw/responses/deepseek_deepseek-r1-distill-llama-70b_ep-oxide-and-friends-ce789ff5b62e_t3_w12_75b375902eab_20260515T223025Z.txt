@@ -1,0 +1,8 @@
+{
+  "transcript": "Alright, so I've been thinking a lot about mechanical engineering challenges in building rack-scale computers. It's fascinating how complex it gets when scaling manufacturing from just a few racks to hundreds. I mean, the logistics alone must be a nightmare. But hey, let's take a break and talk about something that helps me stay focused throughout the day. I've recently come across Athletic Greens, and it's been a game-changer for my daily nutrition. Their AG1 supplement is packed with all the essential vitamins and minerals I need. Plus, it's super convenient—just one scoop in the morning, and I'm good to go. If you're looking to level up your health, I highly recommend checking out Athletic Greens. You can get a free one-year supply of vitamin D and five travel packs when you sign up. Just head over to athleticgreens.com/podcast. That's athleticgreens.com/podcast. Alright, back to our conversation about mechanical engineering."
+  , "start": 5036.2
+  , "end": 5069.8
+  , "confidence": 0.95
+  , "reason": "Athletic Greens sponsor read with promo code and URL"
+  , "end_text": "athleticgreens.com/podcast"
+}

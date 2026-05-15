@@ -1,0 +1,7 @@
+{
+  "start": 0.0,
+   "end": 2700.0,
+   "confidence": 0.0,
+   "reason": "No ads found in this episode",
+   "end_text": ""
+}

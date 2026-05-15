@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2558.9,
+    "end": 2693.0,
+    "confidence": 0.98,
+    "reason": "Meter sponsor read after break announcement",
+    "end_text": "back to steve"
+  }
+]

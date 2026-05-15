@@ -1,0 +1,1 @@
+[{"start": 2609.5, "end": 2661.9, "confidence": 0.98, "reason": "Sponsor read with multiple brands", "end_text": "Stamps.com"} ]

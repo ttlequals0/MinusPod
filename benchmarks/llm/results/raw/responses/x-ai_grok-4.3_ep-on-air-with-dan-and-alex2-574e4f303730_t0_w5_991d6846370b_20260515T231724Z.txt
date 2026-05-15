@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2609.5,
+    "end": 2634.3,
+    "confidence": 0.72,
+    "reason": "Host mentions multiple sponsor names and promo/discount code phrasing",
+    "end_text": "Stamps.com"
+  }
+]

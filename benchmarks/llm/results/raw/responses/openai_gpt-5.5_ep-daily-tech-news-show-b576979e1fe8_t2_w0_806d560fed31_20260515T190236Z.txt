@@ -1,0 +1,1 @@
+{"start":0.0,"end":104.3,"confidence":0.99,"reason":"Merged pre-roll ad block with promotional spots for Capital One, Every Brilliant Thing Broadway tickets, AllTrails app, and Zyn nicotine pouches","end_text":"Nicotine is an addictive chemical."}

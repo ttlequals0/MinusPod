@@ -1,0 +1,7 @@
+{
+  "start": 1264.1,
+  "end": 1293.0,
+  "confidence": 0.95,
+  "reason": "Insta360 product promotion with pricing and features",
+  "end_text": "I love it. I might get one. You got me, Insta360."
+}

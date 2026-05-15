@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1810.3,
+    "end": 1861.3,
+    "confidence": 0.98,
+    "reason": "Host-read ad for Mint Mobile, preceded by the transition phrase \"We'll be right back.\" The ad is partially detected as it continues past the end of the transcript window.",
+    "end_text": "with crazy high bills?"
+  }
+]

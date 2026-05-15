@@ -1,0 +1,7 @@
+{
+	"start": 5055.3,
+	"end": 5069.8,
+	"confidence": 1,
+	"reason": "End of episode banter, no ad detected",
+	"end_text": "Free base over there. And we will see you all next time."
+}

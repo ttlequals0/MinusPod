@@ -1,0 +1,9 @@
+ep_id = "ep-tosh-show-5f6894439bb6"
+podcast_slug = "tosh-show"
+podcast_name = "tosh-show"
+episode_id = "5f6894439bb6"
+title = "My Mom - Emergency Pod"
+duration = 2484.88
+segments_hash = "sha256:0172c67984aa5920c166f8919e7ba8fca06f0286e6b960cf324e1e294672bc64"
+description = "<p>Daniel chats with his mom and wishes her a happy Mother's Day.</p> <p>Join our Patreon for exclusive content: http://patreon.com/toshshow</p>"
+source_url = "https://dts.podtrac.com/redirect.mp3/pscrb.fm/rss/p/traffic.libsyn.com/secure/fe2cd55d-f588-47b9-bab5-47567d90192d/ToshShow_MyMomEmergencyPod.mp3?dest-id=5113270"

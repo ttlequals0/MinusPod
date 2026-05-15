@@ -1,0 +1,1 @@
+[{"start": 524.1, "end": 629.9, "confidence": 0.97, "reason": "Thrive Cosmetics and PC Richard/Asima ads after 'We'll be right back'", "end_text": "operated for 116 years"}]

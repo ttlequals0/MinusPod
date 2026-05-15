@@ -1,0 +1,1 @@
+{"start":1493.2,"end":1536.8,"confidence":0.95,"reason":"Back-to-back ad break with sponsor read for Capital One followed by AllTrails promotional spot; contains explicit ad marker 'This episode is brought to you by Capital One' and CTA 'Download the free app today'","end_text":"the free app today and find your outside"}

@@ -1,0 +1,7 @@
+{
+  "start": 4803.2,
+  "end": 4831.4,
+  "confidence": 0.95,
+  "reason": "Host-read sponsor segment mentioning manufacturing and engineering",
+  "end_text": "because we've got this kind of end-to-end visibility of this thing from when it is born as sheet metal to all the way to hitting the potholes and all the way into a customer data center."
+}

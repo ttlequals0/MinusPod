@@ -1,0 +1,23 @@
+[  
+  {  
+    "start": 0.0,  
+    "end": 22.1,  
+    "confidence": 0.98,  
+    "reason": "Progressive Insurance sponsor read with promotional language and URL",  
+    "end_text": "Progressive.com"  
+  },  
+  {  
+    "start": 29.8,  
+    "end": 58.1,  
+    "confidence": 0.98,  
+    "reason": "Whole Foods Market sponsor read with promotional language",  
+    "end_text": "Whole Foods Market"  
+  },  
+  {  
+    "start": 566.5,  
+    "end": 567.0,  
+    "confidence": 0.95,  
+    "reason": "Thrive Cosmetics network-inserted brand tagline ad with promotional language",  
+    "end_text": "shine26"  
+  }  
+]

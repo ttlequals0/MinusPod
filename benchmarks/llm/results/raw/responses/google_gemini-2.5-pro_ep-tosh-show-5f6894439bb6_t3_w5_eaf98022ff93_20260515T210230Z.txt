@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2412.8,
+    "end": 2484.9,
+    "confidence": 0.98,
+    "reason": "A block of post-roll ads for 'HealthCast by Stony Brook Medicine' and 'PC Richard & Son / Aseema', merged due to a short gap between them.",
+    "end_text": "Asima dot HTML for details."
+  }
+]

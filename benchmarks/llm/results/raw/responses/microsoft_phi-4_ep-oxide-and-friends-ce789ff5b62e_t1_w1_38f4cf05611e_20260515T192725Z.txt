@@ -1,0 +1,53 @@
+{  
+  "ads": [  
+    {  
+      "start": 411.8,  
+      "end": 436.8,  
+      "confidence": 0.95,  
+      "reason": "Host discusses mechanical engineering challenges and background, mentioning specific topics related to manufacturing and engineering challenges.",  
+      "end_text": "Pandora's box"  
+    },  
+    {  
+      "start": 560.9,  
+      "end": 586.1,  
+      "confidence": 0.98,  
+      "reason": "Host discusses the problem of PCIe errors and the importance of correct connections in manufacturing, which is a promotional discussion about engineering challenges.",  
+      "end_text": "PCIe errors"  
+    },  
+    {  
+      "start": 660.8,  
+      "end": 688.2,  
+      "confidence": 0.97,  
+      "reason": "Host discusses tolerance analysis and manufacturing improvements, which is promotional content related to engineering solutions.",  
+      "end_text": "tolerance analysis"  
+    },  
+    {  
+      "start": 706.7,  
+      "end": 733.5,  
+      "confidence": 0.96,  
+      "reason": "Host discusses tightening tolerances and the implications for manufacturing yield, which is promotional content.",  
+      "end_text": "tightening tolerances"  
+    },  
+    {  
+      "start": 734.1,  
+      "end": 754.8,  
+      "confidence": 0.95,  
+      "reason": "Host discusses loosening tolerances to improve manufacturing yield, which is promotional content.",  
+      "end_text": "loosening tolerances"  
+    },  
+    {  
+      "start": 812.8,  
+      "end": 835.4,  
+      "confidence": 0.98,  
+      "reason": "Host discusses simplifying tolerance stackups to improve reliability and reduce manufacturing costs, which is promotional content.",  
+      "end_text": "simplifying tolerance stackups"  
+    },  
+    {  
+      "start": 860.4,  
+      "end": 886.1,  
+      "confidence": 0.97,  
+      "reason": "Host discusses fundamental improvements in manufacturing, which is promotional content.",  
+      "end_text": "fundamental improvements"  
+    }  
+  ]  
+}

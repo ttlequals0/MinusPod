@@ -1,0 +1,4 @@
+[
+{"start": 4646.2, "end": 4674.6, "confidence": 0.95, "reason": "Colgate Women's Games sponsor ad", "end_text": "your smile is your strength"},
+{"start": 4705.5, "end": 4806.1, "confidence": 0.95, "reason": "Skinny Pop, Colgate, Viz and Garnier ads", "end_text": "GarnierUSA.com slash NPF"}
+]

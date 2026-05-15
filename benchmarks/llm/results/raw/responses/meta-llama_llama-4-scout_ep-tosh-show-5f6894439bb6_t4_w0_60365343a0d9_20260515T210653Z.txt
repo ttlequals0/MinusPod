@@ -1,0 +1,25 @@
+{
+"ads": [
+    {
+      "start": 0.0,
+      "end": 22.1,
+      "confidence": 0.98,
+      "reason": "Progressive Insurance sponsor read",
+      "end_text": "Progressive.com"
+    },
+    {
+      "start": 29.8,
+      "end": 58.1,
+      "confidence": 0.95,
+      "reason": "Whole Foods Market promotional segment",
+      "end_text": "Whole Foods Market"
+    },
+    {
+      "start": 537.5,
+      "end": 566.6,
+      "confidence": 0.96,
+      "reason": "Thrive Cosmetics sponsor read",
+      "end_text": "thrivecosmetics.com"
+    }
+  ]
+}

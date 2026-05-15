@@ -1,0 +1,1 @@
+{"start":0.0,"end":104.3,"confidence":0.99,"reason":"Pre-roll ad block with multiple network-inserted ads: Capital One, Every Brilliant Thing, AllTrails, and Zinn Nicotine Pouches; promotional copy and calls to action throughout","end_text":"Nicotine is an addictive chemical."}

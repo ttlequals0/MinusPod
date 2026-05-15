@@ -1,0 +1,1 @@
+{ "start": 636.8, "end": 776.6, "confidence": 0.99, "reason": "Merged ad break with sponsor reads/network ads for Parloa, Capital One, AllTrails, Zyn Nicotine Pouches, and Good Things from Lemonada Media; promotional language includes 'sponsored by,' 'brought to you by,' URLs/calls to action, product pitches, and podcast cross-promo.", "end_text": "six-part Thrive series" }

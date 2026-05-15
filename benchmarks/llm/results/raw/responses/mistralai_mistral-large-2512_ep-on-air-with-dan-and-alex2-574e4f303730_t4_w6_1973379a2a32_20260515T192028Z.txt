@@ -1,0 +1,9 @@
+[
+    {
+        "start": 2609.5,
+        "end": 2661.6,
+        "confidence": 0.99,
+        "reason": "Host-read sponsor list and promotional language (e.g., 'promo code, discount code, sponsored by') followed by explicit mention of known sponsors (Athletic Greens, AG1, BetterHelp, Squarespace, ZipRecruiter, Raycon, Manscaped, Stamps.com). Transition into non-ad content after this segment.",
+        "end_text": "the big profits that Emirates announced"
+    }
+]

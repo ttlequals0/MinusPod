@@ -1,0 +1,1 @@
+[{"start": 539.2, "end": 652.8, "confidence": 0.98, "reason": "Host-read ads for In the Gray movie and Skechers", "end_text": "only at Skechers.com."}]

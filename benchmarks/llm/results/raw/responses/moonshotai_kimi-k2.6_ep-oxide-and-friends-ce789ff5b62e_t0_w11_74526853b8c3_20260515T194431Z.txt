@@ -1,0 +1,2 @@
+{ "start": 4611.9, "end": 5069.8, "confidence": 0.99, "reason": "Show content - no ads detected", "end_text": "see you all next time." }
+

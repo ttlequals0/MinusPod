@@ -1,0 +1,30 @@
+[
+    {
+        "start": 619.0,
+        "end": 671.5,
+        "confidence": 0.99,
+        "reason": "Parloa sponsor read with promotional language, URL, and call to action",
+        "end_text": "parloa.com. That's P-A-R-L-O-A dot com"
+    },
+    {
+        "start": 674.0,
+        "end": 697.3,
+        "confidence": 0.99,
+        "reason": "Capital One sponsor read with product pitch and brand tagline",
+        "end_text": "That's technology at Capital One"
+    },
+    {
+        "start": 697.7,
+        "end": 748.3,
+        "confidence": 0.98,
+        "reason": "AllTrails and Zinn Nicotine Pouches sponsor reads with promotional language, calls to action, and nicotine disclaimer",
+        "end_text": "Nicotine is an addictive chemical"
+    },
+    {
+        "start": 749.6,
+        "end": 776.6,
+        "confidence": 0.95,
+        "reason": "Lemonada Media network-inserted promo for 'Good Things' podcast series with concentrated marketing language",
+        "end_text": "Tune in to Good Things from Lemonada Media"
+    }
+]

@@ -1,0 +1,25 @@
+```json
+[
+  {
+    "start": 1837.5,
+    "end": 1912.2,
+    "confidence": 0.98,
+    "reason": "Mint Mobile sponsor read with promo code and call to action",
+    "end_text": "See Mint Mobile for details"
+  },
+  {
+    "start": 1913.4,
+    "end": 1942.4,
+    "confidence": 0.92,
+    "reason": "Mattress Warehouse network-inserted retail ad for Memorial Day Sale",
+    "end_text": "only at Mattress Warehouse"
+  },
+  {
+    "start": 1943.2,
+    "end": 1999.5,
+    "confidence": 0.92,
+    "reason": "PC Richard & Son network-inserted retail ad with Aseema Lease to Own promotion",
+    "end_text": "for details"
+  }
+]
+```

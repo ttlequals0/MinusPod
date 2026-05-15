@@ -1,0 +1,7 @@
+{
+  "start": 3850.7,
+  "end": 3895.8,
+  "confidence": 0.95,
+  "reason": "Discussion about cost and manufacturing processes, but no promotional language or sponsor mentions.",
+  "end_text": "injection molded part so there's a lot of upfront tooling cost and then very very little cost moving forward"
+}

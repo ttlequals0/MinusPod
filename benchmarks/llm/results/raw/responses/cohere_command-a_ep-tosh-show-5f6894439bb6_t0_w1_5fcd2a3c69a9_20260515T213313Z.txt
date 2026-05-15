@@ -1,0 +1,7 @@
+{
+  "start": 537.5,
+  "end": 567.0,
+  "confidence": 0.95,
+  "reason": "Thrive Cosmetics sponsor read",
+  "end_text": "Thrive Cosmetics, C-A-U-S-E-M-E-T-I-C-S dot com slash shine26."
+}

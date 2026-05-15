@@ -1,0 +1,1 @@
+{"start": 0.0, "end": 59.8, "confidence": 0.97, "reason": "Hex.ai and PickOCNY.com pre-roll sponsor ads", "end_text": "at PickOCNY.com."}

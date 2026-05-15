@@ -1,0 +1,9 @@
+[
+  {
+    "start": 539.2,
+    "end": 652.8,
+    "confidence": 0.98,
+    "reason": "Movie trailer ad for In the Gray followed immediately by Skechers slip-ins host-read ad",
+    "end_text": "at Skechers.com"
+  }
+]

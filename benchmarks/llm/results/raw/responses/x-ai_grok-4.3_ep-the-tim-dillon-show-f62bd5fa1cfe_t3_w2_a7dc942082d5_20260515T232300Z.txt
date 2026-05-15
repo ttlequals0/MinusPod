@@ -1,0 +1,1 @@
+[{"start": 1439.2, "end": 1465.2, "confidence": 0.95, "reason": "Mint Mobile host-read sponsor segment", "end_text": "largest 5G network."}]

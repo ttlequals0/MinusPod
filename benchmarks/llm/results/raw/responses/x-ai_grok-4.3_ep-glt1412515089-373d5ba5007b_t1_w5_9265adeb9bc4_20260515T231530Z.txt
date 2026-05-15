@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2208.3,
+    "end": 2237.2,
+    "confidence": 0.98,
+    "reason": "Blinds.com sponsor read with offer and CTA",
+    "end_text": "measure at Blinds.com"
+  }
+]

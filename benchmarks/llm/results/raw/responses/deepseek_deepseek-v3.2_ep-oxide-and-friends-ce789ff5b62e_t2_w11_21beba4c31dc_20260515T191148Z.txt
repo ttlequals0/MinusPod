@@ -1,0 +1,1 @@
+{"start": 4611.9, "end": 5069.8, "confidence": 0.0, "reason": "No promotional content found in transcript segment. Entire segment is show content discussing mechanical engineering and manufacturing.", "end_text": "we will see you all next time."}

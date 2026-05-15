@@ -1,0 +1,1 @@
+{"start": 0, "end": 0, "confidence": 0, "reason": "No advertisements found in this window. The transcript consists entirely of technical discussion about mechanical engineering, manufacturing processes, and field failures related to Oxide Computer Company's rack hardware.", "end_text": "N/A"}

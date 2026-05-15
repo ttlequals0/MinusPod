@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 2609.5,
+      "end": 2634.3,
+      "confidence": 0.95,
+      "reason": "List of sponsor names and ad keywords (promo code, discount code, sponsored by, Athletic Greens, AG1, BetterHelp, etc.) — clearly an ad segment, though the transcript appears garbled or cut off",
+      "end_text": "Stamps.com,"
+    }
+  ]
+}

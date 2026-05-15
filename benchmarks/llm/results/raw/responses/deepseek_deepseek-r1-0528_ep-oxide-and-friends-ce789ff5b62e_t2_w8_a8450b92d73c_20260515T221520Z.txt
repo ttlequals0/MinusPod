@@ -1,0 +1,9 @@
+[
+  {
+    "start": 3344.8,
+    "end": 3975.1,
+    "confidence": 0.0,
+    "reason": "No promotional content detected; entire segment is technical discussion about Oxide's own products and manufacturing processes",
+    "end_text": "complexity of the print"
+  }
+]

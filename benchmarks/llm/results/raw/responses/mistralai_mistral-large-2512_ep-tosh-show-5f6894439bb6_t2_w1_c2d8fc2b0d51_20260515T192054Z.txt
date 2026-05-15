@@ -1,0 +1,16 @@
+[
+    {
+        "start": 524.1,
+        "end": 567.0,
+        "confidence": 0.99,
+        "reason": "Thrive Cosmetics sponsor read with promotional language, URL, and discount code (shine26). Includes transition phrase 'We'll be right back.'",
+        "end_text": "slash shine26."
+    },
+    {
+        "start": 594.7,
+        "end": 654.3,
+        "confidence": 0.98,
+        "reason": "Mattress Warehouse and PC Richard & Son lease-to-own promotions with brand names, URLs, and promotional offers. Includes legal disclaimers and eligibility details.",
+        "end_text": "for details."
+    }
+]

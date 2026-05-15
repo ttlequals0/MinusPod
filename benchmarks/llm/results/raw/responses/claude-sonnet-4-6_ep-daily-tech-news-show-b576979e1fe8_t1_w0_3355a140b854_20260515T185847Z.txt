@@ -1,0 +1,1 @@
+[{"start": 0.0, "end": 104.3, "confidence": 0.97, "reason": "Multiple network-inserted ads: Capital One tech promo, Broadway show ad, AllTrails app promotion, and Zyn nicotine pouches ad with disclaimer", "end_text": "nicotine is an addictive chemical"}]

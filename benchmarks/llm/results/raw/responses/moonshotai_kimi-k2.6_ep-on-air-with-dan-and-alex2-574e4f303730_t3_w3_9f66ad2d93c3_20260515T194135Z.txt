@@ -1,0 +1,1 @@
+ {"start": 1246.0, "end": 1879.5, "confidence": 0.0, "reason": "No promotional content, sponsor reads, platform insertions, or network promos detected. Entire window contains continuous editorial discussion about aviation topics including airline rebranding, airport alcohol policies, and passenger behavior.", "end_text": "just because you'll get..."}
