@@ -6,6 +6,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.3] - 2026-05-14
+
+### Fixed
+
+- **Fingerprint slow-fallback no longer burns 10 minutes when the audio is bad for fpcalc.** When `_generate_full_fingerprint` fails (e.g. fpcalc rejects an MP3 with "Invalid data found when processing input"), the per-window fallback used to inherit the full 600-second timeout — every window scan also called fpcalc, almost always produced zero new matches, and ate the entire budget before timing out. The fallback now caps at 90 seconds via a new `FALLBACK_SLOW_TIMEOUT` constant. Stage 1 still tries; it just doesn't block Stage 2 + Stage 3 for ten minutes on broken audio. Caught from production logs (cordkillers-only-audio episode that took 14 min on pass 1 alone).
+- **`processing_timeouts._resolve` was silently falling back to env / defaults every refresh tick.** The `from database import get_database` import is invalid — `get_database` lives in the `api` package — and the try/except swallowed the resulting ImportError. Fixed the import path. Effect: user-configured `processing_soft_timeout_seconds` / `processing_hard_timeout_seconds` are now actually read from the DB instead of being silently shadowed by env-var fallbacks.
+- **`community_sync` no longer WARNs every 15 minutes when the manifest URL returns 404.** A 404 is the expected state when upstream hasn't published a manifest yet (e.g., the feature branch hasn't merged to main). Now logged at INFO level with an explanatory message. Non-404 fetch failures still log as WARNING so real problems stay visible.
+- **`set_podcast_tags` short-circuits the episode-aggregation pass when the incoming RSS tags are already covered by the row's union.** Pre-fix: every feed refresh on a 300-episode podcast did one SELECT + 300 JSON parses across all episodes even when nothing was going to change. Now a single subset check before the heavy work. Materially lower SQLite write contention with the queue processor on instances with large feeds.
+
 ## [2.4.2] - 2026-05-14
 
 ### Fixed

@@ -159,6 +159,22 @@ def sync_now(db, manifest_url: str = COMMUNITY_MANIFEST_URL) -> Dict[str, Any]:
     try:
         manifest = _fetch_manifest(manifest_url)
         _validate_manifest(manifest)
+    except requests.HTTPError as e:
+        # 404 = upstream hasn't published a manifest yet (e.g. the feature
+        # branch hasn't been merged to main). Treat as a non-issue; log at
+        # info-level so the every-15-min tick doesn't spam WARN.
+        status = e.response.status_code if e.response is not None else None
+        msg = f'{status} fetching manifest' if status else str(e)
+        db.set_setting('community_sync_last_error', msg)
+        if status == 404:
+            logger.info(
+                f'community_sync: no manifest at {manifest_url} (404). '
+                f'Either upstream has not published one yet or sync is '
+                f'pointed at the wrong URL.'
+            )
+        else:
+            logger.warning(f'community_sync: manifest fetch failed: {msg}')
+        raise
     except Exception as e:
         msg = str(e)
         db.set_setting('community_sync_last_error', msg)

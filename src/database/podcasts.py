@@ -138,9 +138,11 @@ class PodcastMixin:
         denormalized `tags` field is rewritten to the union of (rss_tags, the
         existing user_tags or the override, and all episodes.tags for this podcast).
 
-        Short-circuits the episode aggregation when neither layer is changing
-        the effective union — important because the feed-refresh path calls
-        this every 15 minutes with the same RSS-derived tags.
+        Fast pre-check: when `rss_tags` is provided and is already a subset of
+        the row's current `tags` AND `user_tags` is not changing, skip the
+        episode-aggregation pass entirely. This is the dominant case on the
+        feed-refresh hot path — a 300-episode podcast paid one SELECT + 300
+        JSON parses every 15 minutes for nothing.
         """
         conn = self.get_connection()
         row = conn.execute(
@@ -158,10 +160,22 @@ class PodcastMixin:
         except (ValueError, TypeError):
             current_all = set()
 
+        # Fast path: RSS-only update where the incoming set is already covered
+        # by the existing union and the user layer isn't being touched. The
+        # episode-level aggregation can only grow the union, so if the RSS
+        # tags are already present we know the final union won't shrink.
+        if (
+            user_tags is None
+            and rss_tags is not None
+            and set(rss_tags).issubset(current_all)
+        ):
+            return True
+
         effective_user = list(user_tags) if user_tags is not None else current_user
 
         # Pull episode-level tags. Done as one SELECT + JSON parse per row;
-        # podcasts with hundreds of episodes pay this cost on each refresh.
+        # podcasts with hundreds of episodes pay this cost only when we
+        # actually need to recompute the denormalized union.
         episode_tags: set = set()
         cur = conn.execute(
             "SELECT tags FROM episodes WHERE podcast_id = ?", (row['id'],)
@@ -181,7 +195,6 @@ class PodcastMixin:
 
         union = sorted(set(effective_user) | effective_rss | episode_tags)
         if set(union) == current_all and effective_user == current_user:
-            # No-op: skip the UPDATE to avoid an updated_at churn on every refresh.
             return True
         conn.execute(
             "UPDATE podcasts SET tags = ?, user_tags = ?, "
