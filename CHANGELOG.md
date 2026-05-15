@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.8] - 2026-05-15
+
+### Security
+
+- **Replaced `gosu` with `setpriv` in `entrypoint.sh` and dropped the `gosu` package from both GPU and CPU images.** Clears 50 Go stdlib CVEs (3 CRITICAL, 19 HIGH, 26 MEDIUM, 2 LOW) that Ubuntu 24.04's `gosu 1.17` carries because it was compiled against Go stdlib 1.22.2. `setpriv` ships with `util-linux` in the base image, has no Go runtime, and is the upstream-recommended gosu alternative. The privilege-drop flags match gosu's defaults: `--reuid=minuspod --regid=minuspod --init-groups --inh-caps=-all`. The two remaining torch CVEs (local DoS, LOW + MEDIUM) need a torch 2.6.0 -> 2.8.0 upgrade and are tracked separately.
+
 ## [2.4.7] - 2026-05-15
 
 ### Changed

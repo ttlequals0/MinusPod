@@ -53,8 +53,9 @@ FROM ubuntu:24.04
 
 # Install Python 3.11 from deadsnakes PPA and system dependencies
 # Ubuntu 24.04 ships Python 3.12; we use deadsnakes to keep Python 3.11
-# gosu is used by entrypoint.sh to drop privileges after the root-only
-# chown step that migrates the data volume on first boot.
+# setpriv (from util-linux, present in the base image) is used by
+# entrypoint.sh to drop privileges after the root-only chown step that
+# migrates the data volume on first boot.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     software-properties-common \
     && add-apt-repository ppa:deadsnakes/ppa \
@@ -64,7 +65,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3.11-venv \
     ffmpeg \
     curl \
-    gosu \
     libsndfile1 \
     libchromaprint-tools \
     && apt-get upgrade -y \
@@ -72,7 +72,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
               /usr/lib/python3/dist-packages/PyJWT* \
               /usr/lib/python3/dist-packages/jwt* \
     && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* \
-    && gosu nobody true
+    && setpriv --reuid=nobody --regid=nogroup --init-groups true
 
 # Set python3.11 as default, create venv for all pip installs
 # Venv avoids pip 26+ "uninstall-no-record-file" errors with system packages
@@ -133,7 +133,7 @@ COPY entrypoint.sh /app/
 # Set permissions - use find to recursively set permissions on subdirectories
 # IMPORTANT: glob pattern *.py does NOT match files in subdirectories!
 # Create a non-root minuspod user (UID/GID 1000) that entrypoint.sh drops
-# privileges to via gosu. The container still starts as root so the
+# privileges to via setpriv. The container still starts as root so the
 # entrypoint can chown the data volume on first boot; no app code runs
 # as root. UID/GID are overridable at runtime with APP_UID/APP_GID.
 RUN find ./src -type f -name '*.py' -exec chmod 644 {} \; && \

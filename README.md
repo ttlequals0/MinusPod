@@ -1297,7 +1297,7 @@ All data is stored in the `./data` directory:
 
 ### Container user
 
-Runs as UID 1000 (`minuspod`). First boot chowns the data volume, then drops privileges via `gosu`. Override with `APP_UID` / `APP_GID` if your host volume belongs to a different UID, or bypass entirely with `docker run --user <N>`.
+Runs as UID 1000 (`minuspod`). First boot chowns the data volume, then drops privileges via `setpriv` (from `util-linux`, present in the base image). Override with `APP_UID` / `APP_GID` if your host volume belongs to a different UID, or bypass entirely with `docker run --user <N>`.
 
 ### Database backup sensitivity
 
