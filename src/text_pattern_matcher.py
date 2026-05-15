@@ -928,8 +928,8 @@ class TextPatternMatcher:
             pattern_id = self.db.create_ad_pattern(
                 scope=scope,
                 text_template=ad_text,
-                intro_variants=json.dumps([intro]) if intro else "[]",
-                outro_variants=json.dumps([outro]) if outro else "[]",
+                intro_variants=[intro] if intro else [],
+                outro_variants=[outro] if outro else [],
                 sponsor_id=sponsor_id,
                 podcast_id=podcast_id,
                 network_id=network_id,
@@ -1071,8 +1071,8 @@ class TextPatternMatcher:
                 new_id = self.db.create_ad_pattern(
                     scope=pattern.get('scope', 'podcast'),
                     text_template=segment,
-                    intro_variants=json.dumps([intro]) if intro else "[]",
-                    outro_variants=json.dumps([outro]) if outro else "[]",
+                    intro_variants=[intro] if intro else [],
+                    outro_variants=[outro] if outro else [],
                     sponsor_id=split_sponsor_id,
                     podcast_id=pattern.get('podcast_id'),
                     network_id=pattern.get('network_id'),

@@ -6,6 +6,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.6] - 2026-05-15
+
+### Fixed
+
+- **intro/outro_variants no longer get double-JSON-encoded on auto-created patterns.** `text_pattern_matcher` was calling `db.create_ad_pattern(intro_variants=json.dumps([intro]))` while the DB layer also `json.dumps`'d its input, so the column stored `'"[\\"text\\"]"'`. Submitting any of those patterns through the community bundle pipeline exploded the value into a list of single characters (the user's first bundle had `intro_variants` of length 196 starting with `['[', '"', 'E', 'm', ...]`). Now the matcher passes a plain list and the DB layer encodes once.
+- **Migration repairs existing rows.** A one-shot `_repair_double_encoded_variants` migration re-encodes any `ad_patterns.intro_variants` / `outro_variants` whose stored value parses to a string (instead of a list) on the first `json.loads`. Idempotent; stamped via the `variant_reencode_revision` setting. Operators on 2.4.5 with broken rows will see them fix themselves on next container start.
+- **Community export pipeline is defensive about the same bug.** `_safe_parse_variants` in `community_export.py` retries the decode when the first parse returns a string, so bundles built from a not-yet-migrated DB still produce clean output.
+
+### Changed
+
+- Dialog CLI snippet now hints `gh pr create --fill --label pattern` so the label gets requested directly. The labeler workflow still applies it automatically on path match; this is belt-and-suspenders.
+
 ## [2.4.5] - 2026-05-15
 
 ### Changed

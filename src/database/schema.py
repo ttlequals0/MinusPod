@@ -1314,6 +1314,69 @@ class SchemaMixin:
         except Exception as e:
             logger.error(f"Sponsor reseed failed: {e}")
 
+        # One-shot repair: patterns created before 2.4.6 by
+        # text_pattern_matcher have `intro_variants` / `outro_variants`
+        # double-JSON-encoded (caller json.dumps'd, then create_ad_pattern
+        # json.dumps'd again). The community export pipeline exploded the
+        # result into a list of single characters. Idempotent: rows that
+        # parse to a list on the first decode are skipped.
+        try:
+            self._repair_double_encoded_variants(conn)
+        except Exception as e:
+            logger.error(f"Variant re-encode repair failed: {e}")
+
+    def _repair_double_encoded_variants(self, conn):
+        """Re-encode any ad_patterns.intro_variants / outro_variants column
+        whose stored value parses (via json.loads) to a string rather than
+        a list. Stamps `variant_reencode_revision` so this only runs once
+        per database."""
+        import json
+        cursor = conn.execute(
+            "SELECT value FROM settings WHERE key = 'variant_reencode_revision'"
+        )
+        row = cursor.fetchone()
+        if row and row['value'] == '1':
+            return
+
+        repaired = 0
+        rows = conn.execute(
+            "SELECT id, intro_variants, outro_variants FROM ad_patterns"
+        ).fetchall()
+        for r in rows:
+            updates = {}
+            for col in ('intro_variants', 'outro_variants'):
+                raw = r[col]
+                if not raw:
+                    continue
+                try:
+                    parsed = json.loads(raw)
+                except (TypeError, ValueError):
+                    continue
+                if not isinstance(parsed, str):
+                    continue  # already a list, nothing to do
+                try:
+                    inner = json.loads(parsed)
+                except (TypeError, ValueError):
+                    continue
+                if not isinstance(inner, list):
+                    continue
+                updates[col] = json.dumps(inner)
+            if updates:
+                fields = ', '.join(f'{k} = ?' for k in updates)
+                conn.execute(
+                    f"UPDATE ad_patterns SET {fields} WHERE id = ?",
+                    list(updates.values()) + [r['id']],
+                )
+                repaired += 1
+
+        conn.execute(
+            "INSERT OR REPLACE INTO settings (key, value, updated_at) "
+            "VALUES ('variant_reencode_revision', '1', strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))"
+        )
+        conn.commit()
+        if repaired:
+            logger.info(f"Re-encoded intro/outro_variants on {repaired} ad_patterns rows")
+
     def _reseed_known_sponsors(self, conn):
         """Apply the authoritative sponsor seed list (src/seed_data/sponsors_final.csv).
 

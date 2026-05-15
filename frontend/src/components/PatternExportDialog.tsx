@@ -389,7 +389,7 @@ function CommunityDone({ filename, onClose }: { filename: string; onClose: () =>
     `git add patterns/community/${filename}`,
     'git commit -m "Submit community ad patterns"',
     'git push -u origin community-submission',
-    'gh pr create --fill',
+    'gh pr create --fill --label pattern',
   ].join('\n');
   return (
     <>

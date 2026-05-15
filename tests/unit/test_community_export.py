@@ -173,6 +173,35 @@ def test_build_bundle_groups_ready_and_rejected():
     assert 'not found' in not_found['reasons'][0]
 
 
+def test_build_export_payload_repairs_double_encoded_variants():
+    """Patterns created before 2.4.6 had intro/outro_variants stored as
+    a double-JSON-encoded string. The export pipeline must decode through
+    that and emit a clean list[str], not a list of single characters."""
+    raw_text = 'Go to Squarespace dot com slash show to start your free trial. Save ten percent on your first website with code SHOW. Squarespace gives you the tools to launch any idea.'
+    intros = ['Intro variant one for Squarespace ad.']
+    outros = ['Outro variant for Squarespace ad here.']
+    pattern = _pattern(
+        text=raw_text,
+        # Simulate the production bug: a JSON-encoded string of a
+        # JSON-encoded list. `json.loads` once returns a string; the
+        # defensive helper has to decode again.
+        intro_variants=json.dumps(json.dumps(intros)),
+        outro_variants=json.dumps(json.dumps(outros)),
+    )
+    payload = build_export_payload(pattern, [_sponsor()])
+    assert payload['intro_variants'] == intros
+    assert payload['outro_variants'] == outros
+
+
+def test_build_export_payload_passes_single_encoded_through():
+    """Correctly-encoded patterns must still produce list[str], idempotent."""
+    intros = ['Intro variant one for Squarespace ad.']
+    pattern = _pattern(intro_variants=json.dumps(intros), outro_variants='[]')
+    payload = build_export_payload(pattern, [_sponsor()])
+    assert payload['intro_variants'] == intros
+    assert payload['outro_variants'] == []
+
+
 def test_build_bundle_rejects_community_source():
     pattern = _pattern(source='community')
     db = _FakeDB(patterns_by_id={42: pattern}, sponsors=[_sponsor()])

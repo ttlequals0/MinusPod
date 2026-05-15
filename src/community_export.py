@@ -239,16 +239,37 @@ def _classify_sponsor(sponsor_name: str, sponsors: List[Dict]) -> str:
     return 'unknown'
 
 
+def _safe_parse_variants(value) -> List[str]:
+    """Decode the JSON-encoded intro/outro_variants column into a list[str].
+
+    Older code paths in `text_pattern_matcher.py` pre-encoded the list with
+    `json.dumps` before passing it to `Database.create_ad_pattern`, which
+    `json.dumps`'d it again -- so existing rows in production hold a
+    double-encoded value. `json.loads` once on that returns a string,
+    which the prior comprehension then exploded character by character.
+    Detect that case by trying a second decode when the first returned
+    a string. Idempotent on correctly-encoded rows.
+    """
+    if not value:
+        return []
+    try:
+        parsed = json.loads(value)
+    except (TypeError, ValueError):
+        return []
+    if isinstance(parsed, str):
+        try:
+            parsed = json.loads(parsed)
+        except (TypeError, ValueError):
+            return []
+    if not isinstance(parsed, list):
+        return []
+    return [v for v in parsed if isinstance(v, str)]
+
+
 def _strip_metadata(pattern: Dict, sponsor_row: Dict) -> Dict:
     """Build the export payload, omitting fields the plan lists as stripped."""
-    try:
-        intro_variants = json.loads(pattern.get('intro_variants') or '[]')
-    except (TypeError, ValueError):
-        intro_variants = []
-    try:
-        outro_variants = json.loads(pattern.get('outro_variants') or '[]')
-    except (TypeError, ValueError):
-        outro_variants = []
+    intro_variants = _safe_parse_variants(pattern.get('intro_variants'))
+    outro_variants = _safe_parse_variants(pattern.get('outro_variants'))
     try:
         sponsor_tags = json.loads(sponsor_row.get('tags') or '[]')
     except (TypeError, ValueError):
@@ -258,10 +279,9 @@ def _strip_metadata(pattern: Dict, sponsor_row: Dict) -> Dict:
     except (TypeError, ValueError):
         sponsor_aliases = []
 
-    # Apply PII strip to text_template and variants before serializing.
     text_template = strip_pii(pattern.get('text_template') or '')
-    intro_variants = [strip_pii(v) for v in intro_variants if isinstance(v, str)]
-    outro_variants = [strip_pii(v) for v in outro_variants if isinstance(v, str)]
+    intro_variants = [strip_pii(v) for v in intro_variants]
+    outro_variants = [strip_pii(v) for v in outro_variants]
 
     return {
         'scope': pattern.get('scope') or 'global',
