@@ -1,2 +1,4 @@
 pattern:
-  - 'patterns/community/**/*.json'
+  - changed-files:
+      - any-glob-to-any-file:
+          - 'patterns/community/**/*.json'
