@@ -23,25 +23,35 @@ def db(tmp_path):
     Database._instance = None  # type: ignore[attr-defined]
 
 
+# VTT-style transcript. Sentence-per-segment with gaps between, so the trim
+# windows (head 0..20, tail 90..120) line up with the head / tail segments
+# without partially overlapping the middle ad copy. include_partial=True is
+# the default in extract_text_in_range, so any overlap pulls the segment in.
 TRANSCRIPT = (
-    'Welcome to the show. '
-    'This episode is brought to you by Squarespace. Visit Squarespace dot com '
-    'slash show for a free trial. Use code SHOW for ten percent off. '
-    'Squarespace gives you the tools to launch any idea. '
-    'Now back to our regular programming.'
+    '[00:00:00.000 --> 00:00:05.000] Welcome to the show.\n'
+    '[00:00:30.000 --> 00:00:35.000] This episode is brought to you by Squarespace.\n'
+    '[00:00:40.000 --> 00:00:50.000] Visit Squarespace dot com slash show for a free trial.\n'
+    '[00:00:55.000 --> 00:01:05.000] Use code SHOW for ten percent off your first website.\n'
+    '[00:01:55.000 --> 00:02:00.000] Now back to our regular programming.\n'
 )
 
 
-def _seed_pattern(db, source='local'):
+def _seed_pattern(
+    db,
+    source='local',
+    text_template=None,
+    intro_variants=None,
+    outro_variants=None,
+):
     # The schema migration already seeded Squarespace from sponsors_final.csv.
     sponsor = db.get_known_sponsor_by_name('Squarespace')
     assert sponsor is not None, 'Squarespace should be in the migrated seed list'
     sid = sponsor['id']
     pid = db.create_ad_pattern(
         scope='global',
-        text_template='old text template that is long enough to satisfy any length checks for tests today',
-        intro_variants=['old intro'],
-        outro_variants=['old outro'],
+        text_template=text_template or 'old text template that is long enough to satisfy any length checks for tests today',
+        intro_variants=intro_variants if intro_variants is not None else ['old intro'],
+        outro_variants=outro_variants if outro_variants is not None else ['old outro'],
         sponsor_id=sid,
         source=source,
         community_id='abc-123' if source == 'community' else None,
@@ -49,29 +59,64 @@ def _seed_pattern(db, source='local'):
     return pid, sid
 
 
-def test_rewrite_pattern_from_bounds_updates_local(db, monkeypatch):
-    pid, _ = _seed_pattern(db, source='local')
-    svc = PatternService(db)
-    # Mock the transcript-segment helper used by rewrite to return a fixed window.
-    import api
-    monkeypatch.setattr(
-        api,
-        'extract_transcript_segment',
-        lambda t, s, e: 'This episode is brought to you by Squarespace. Visit Squarespace dot com slash show for a free trial. Use code SHOW for ten percent off.',
+def test_rewrite_trims_head_and_tail_from_existing_template(db):
+    """The trim splices the head/tail transcript slice out of the existing
+    template — it does NOT re-extract a new template from the new bounds."""
+    template = (
+        'Welcome to the show. This episode is brought to you by Squarespace. '
+        'Visit Squarespace dot com slash show for a free trial. Use code SHOW '
+        'for ten percent off your first website. Now back to our regular programming.'
     )
-    changed = svc.rewrite_pattern_from_bounds(pid, TRANSCRIPT, 20.0, 60.0)
+    intro = ['Welcome to the show.']
+    outro = ['Now back to our regular programming.']
+    pid, _ = _seed_pattern(
+        db, text_template=template, intro_variants=intro, outro_variants=outro,
+    )
+    svc = PatternService(db)
+
+    # Reviewer narrowed [0, 120] -> [25, 90]. Head trim (0..25) picks up the
+    # "Welcome to the show." segment; tail trim (90..120) picks up "Now back
+    # to our regular programming." Middle ad copy stays intact.
+    changed = svc.rewrite_pattern_from_bounds(
+        pid, TRANSCRIPT,
+        original_start=0.0, original_end=120.0,
+        new_start=25.0, new_end=90.0,
+    )
     assert changed is True
     p = db.get_ad_pattern_by_id(pid)
+    assert 'Welcome to the show.' not in p['text_template']
+    assert 'Now back to our regular programming.' not in p['text_template']
+    # Middle survives, unchanged from the original template content.
     assert 'Squarespace' in p['text_template']
-    assert 'old text template' not in p['text_template']
+    assert 'Use code SHOW' in p['text_template']
 
 
-def test_rewrite_pattern_skips_community(db, monkeypatch):
+def test_rewrite_returns_false_when_trim_doesnt_match_template(db):
+    """If the head/tail slice from the transcript isn't actually at the
+    start/end of the existing template, the rewrite is a no-op."""
+    pid, _ = _seed_pattern(
+        db,
+        text_template='completely unrelated template that does not begin with welcome or end with regular programming',
+    )
+    svc = PatternService(db)
+    changed = svc.rewrite_pattern_from_bounds(
+        pid, TRANSCRIPT,
+        original_start=0.0, original_end=120.0,
+        new_start=25.0, new_end=90.0,
+    )
+    assert changed is False
+    p = db.get_ad_pattern_by_id(pid)
+    assert p['text_template'].startswith('completely unrelated')
+
+
+def test_rewrite_pattern_skips_community(db):
     pid, _ = _seed_pattern(db, source='community')
     svc = PatternService(db)
-    import api
-    monkeypatch.setattr(api, 'extract_transcript_segment', lambda *a, **k: 'new text long enough to be valid')
-    changed = svc.rewrite_pattern_from_bounds(pid, TRANSCRIPT, 0.0, 30.0)
+    changed = svc.rewrite_pattern_from_bounds(
+        pid, TRANSCRIPT,
+        original_start=0.0, original_end=120.0,
+        new_start=25.0, new_end=90.0,
+    )
     assert changed is False
     p = db.get_ad_pattern_by_id(pid)
     assert p['text_template'].startswith('old text template')

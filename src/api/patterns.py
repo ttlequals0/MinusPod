@@ -725,7 +725,9 @@ def submit_correction(slug, episode_id):
                 )
                 if enabled and narrowed and trim_seconds >= threshold and transcript:
                     rewritten = pattern_service.rewrite_pattern_from_bounds(
-                        pattern_id, transcript, adjusted_start, adjusted_end
+                        pattern_id, transcript,
+                        original_start, original_end,
+                        adjusted_start, adjusted_end,
                     )
                     if rewritten:
                         logger.info(

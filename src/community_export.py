@@ -33,6 +33,7 @@ from typing import Dict, List, Optional, Tuple
 from utils.community_tags import (
     CONSUMER_EMAIL_DOMAINS,
     EMAIL_REGEX,
+    GITHUB_REPO,
     PHONE_REGEX,
     is_tollfree,
     valid_tags,
@@ -45,7 +46,6 @@ MAX_TEXT_LEN = 3500
 MAX_DURATION_SECONDS = 120
 URL_LENGTH_LIMIT_BYTES = 7 * 1024  # 7 KB
 
-GITHUB_REPO = 'ttlequals0/MinusPod'
 PR_URL_TEMPLATE = (
     'https://github.com/{repo}/new/main/patterns/community'
     '?filename={filename}&value={value}'

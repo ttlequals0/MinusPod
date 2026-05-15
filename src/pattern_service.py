@@ -25,6 +25,31 @@ from sponsor_normalize import get_or_create_known_sponsor
 
 logger = logging.getLogger('podcast.patterns')
 
+
+def _splice_prefix(text: str, prefix: str) -> Tuple[str, bool]:
+    """Return (text-without-prefix, applied?). Whitespace- and
+    case-insensitive: a leading space on either side or a case mismatch
+    doesn't block the splice. When `prefix` is empty or doesn't actually
+    start `text`, the original `text` is returned with `applied=False`.
+    """
+    if not prefix:
+        return text, False
+    stripped = text.lstrip()
+    if not stripped.lower().startswith(prefix.lower()):
+        return text, False
+    offset = len(text) - len(stripped)
+    return (text[:offset] + stripped[len(prefix):]).lstrip(), True
+
+
+def _splice_suffix(text: str, suffix: str) -> Tuple[str, bool]:
+    """Mirror of `_splice_prefix` for the tail end."""
+    if not suffix:
+        return text, False
+    stripped = text.rstrip()
+    if not stripped.lower().endswith(suffix.lower()):
+        return text, False
+    return stripped[:-len(suffix)].rstrip(), True
+
 # Known DAI platforms and their RSS signatures
 DAI_PLATFORMS = {
     'megaphone': [
@@ -817,25 +842,28 @@ class PatternService:
         self,
         pattern_id: int,
         transcript: str,
+        original_start: float,
+        original_end: float,
         new_start: float,
         new_end: float,
     ) -> bool:
-        """Rewrite an existing pattern's text_template and variants.
+        """Trim a pattern's text_template by the slice that fell outside the new bounds.
 
-        Re-extracts the transcript text between [new_start, new_end] and
-        replaces the pattern's text_template / intro_variants / outro_variants
-        with values derived from the new bounds. Mirrors the construction
-        logic used when a fresh pattern is created from confirm/adjust input.
+        Computes the head slice [original_start, new_start) and tail slice
+        (new_end, original_end] from the transcript, then splices them out of
+        the existing `text_template` if they appear at its start/end. This is
+        Operation 1 from the plan ("trim-only updates") — explicitly NOT a
+        full re-extract from the new bounds, which would fit the template to
+        one episode's transcription and risk breaking matches on episodes
+        that captured the cleaner version.
 
-        Only effective when:
-        - The pattern exists and source is 'local'.
-        - The extracted text is at least 50 chars.
+        intro_variants / outro_variants get the same head/tail prefix/suffix
+        treatment so they stay aligned with the new template.
 
         Community patterns are never auto-rewritten by this method.
-
-        Returns True when the pattern was changed; False otherwise.
+        Returns True when the pattern was actually changed; False otherwise.
         """
-        from api import extract_transcript_segment
+        from utils.text import extract_text_in_range
 
         if not self.db or not transcript:
             return False
@@ -851,27 +879,59 @@ class PatternService:
             )
             return False
 
-        new_text = extract_transcript_segment(transcript, new_start, new_end) or ''
-        if len(new_text) < 50:
+        old_text = pattern.get('text_template') or ''
+        if not old_text:
+            return False
+
+        head_trim = (extract_text_in_range(transcript, original_start, new_start) or '').strip()
+        tail_trim = (extract_text_in_range(transcript, new_end, original_end) or '').strip()
+
+        new_template, head_applied = _splice_prefix(old_text, head_trim)
+        new_template, tail_applied = _splice_suffix(new_template, tail_trim)
+
+        if not (head_applied or tail_applied):
             logger.info(
-                f"rewrite_pattern_from_bounds: pattern {pattern_id} new text "
-                f"is too short ({len(new_text)} chars); skipping rewrite"
+                f"rewrite_pattern_from_bounds: pattern {pattern_id} trim slices "
+                f"do not match the existing template (head={len(head_trim)} "
+                f"chars, tail={len(tail_trim)} chars); skipping rewrite"
             )
             return False
 
-        intro = [new_text[:200]] if len(new_text) > 200 else [new_text]
-        outro = [new_text[-150:]] if len(new_text) > 150 else []
+        if len(new_template) < 50:
+            logger.info(
+                f"rewrite_pattern_from_bounds: pattern {pattern_id} trimmed "
+                f"template too short ({len(new_template)} chars); skipping rewrite"
+            )
+            return False
+
+        try:
+            intro_variants = json.loads(pattern.get('intro_variants') or '[]') or []
+        except (TypeError, ValueError):
+            intro_variants = []
+        try:
+            outro_variants = json.loads(pattern.get('outro_variants') or '[]') or []
+        except (TypeError, ValueError):
+            outro_variants = []
+
+        # Mirror the head/tail trim onto the variant arrays. Variants that
+        # don't share the trimmed prefix/suffix were independent samples;
+        # leave them alone.
+        if head_applied and head_trim:
+            intro_variants = [_splice_prefix(v, head_trim)[0] for v in intro_variants]
+        if tail_applied and tail_trim:
+            outro_variants = [_splice_suffix(v, tail_trim)[0] for v in outro_variants]
 
         self.db.update_ad_pattern(
             pattern_id,
-            text_template=new_text,
-            intro_variants=intro,
-            outro_variants=outro,
+            text_template=new_template,
+            intro_variants=intro_variants,
+            outro_variants=outro_variants,
         )
         logger.info(
-            f"rewrite_pattern_from_bounds: pattern {pattern_id} rewritten "
-            f"to {len(new_text)} chars from new bounds "
-            f"[{new_start:.1f}, {new_end:.1f}]"
+            f"rewrite_pattern_from_bounds: pattern {pattern_id} trimmed "
+            f"(head={len(head_trim) if head_applied else 0} chars, "
+            f"tail={len(tail_trim) if tail_applied else 0} chars); "
+            f"template now {len(new_template)} chars"
         )
         # Invalidate the cached matcher so it reloads on next match call.
         self._text_pattern_matcher = None

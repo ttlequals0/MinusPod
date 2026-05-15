@@ -12,6 +12,22 @@ _SEED_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'seed_data'
 
 UNIVERSAL_TAG = 'universal'
 
+# Single source of truth for the upstream MinusPod repo identity. Used by
+# both the export pipeline's prefilled-PR URL builder and the sync job's
+# manifest fetch URL.
+GITHUB_REPO = 'ttlequals0/MinusPod'
+COMMUNITY_MANIFEST_URL = (
+    f'https://raw.githubusercontent.com/{GITHUB_REPO}/main/patterns/community/index.json'
+)
+
+# Schema versions. MANIFEST_VERSION bumps when the manifest envelope shape
+# changes; VOCABULARY_VERSION bumps when the tag list is added to / removed
+# from. Both ship with the app image; this module is the single owner — the
+# manifest generator and the sync job both import these constants, not their
+# own copies.
+MANIFEST_VERSION = 1
+VOCABULARY_VERSION = 1
+
 # ad_patterns.source values. Centralized so API/DB/UI agree on spelling.
 PATTERN_SOURCE_LOCAL = 'local'
 PATTERN_SOURCE_COMMUNITY = 'community'
@@ -59,7 +75,7 @@ def vocabulary_payload() -> Dict[str, object]:
             elif row['category'] == 'sponsor_industry':
                 industries.append(entry)
     return {
-        'vocabulary_version': 1,
+        'vocabulary_version': VOCABULARY_VERSION,
         'all_tags': sorted(valid_tags()),
         'podcast_genres': genres,
         'sponsor_industries': industries,

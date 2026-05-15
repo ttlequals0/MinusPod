@@ -27,8 +27,7 @@ _REPO_SRC = Path(__file__).resolve().parents[1]
 if str(_REPO_SRC) not in sys.path:
     sys.path.insert(0, str(_REPO_SRC))
 
-MANIFEST_VERSION = 1
-VOCABULARY_VERSION = 1
+from utils.community_tags import MANIFEST_VERSION, VOCABULARY_VERSION  # noqa: E402, F401
 
 
 def _community_dir() -> Path:

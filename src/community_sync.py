@@ -21,15 +21,11 @@ from typing import Any, Dict, Optional
 
 import requests
 
+from utils.community_tags import COMMUNITY_MANIFEST_URL, VOCABULARY_VERSION
 from utils.cron import is_due
 from utils.time import parse_iso_datetime, utc_now_iso
 
 logger = logging.getLogger('podcast.community_sync')
-
-MANIFEST_URL = (
-    'https://raw.githubusercontent.com/ttlequals0/MinusPod/'
-    'main/patterns/community/index.json'
-)
 HTTP_TIMEOUT = 20
 DEFAULT_CRON = '0 3 * * 0'  # Sunday 3am UTC
 
@@ -50,7 +46,7 @@ def _parse_iso(value: Optional[str]) -> Optional[datetime]:
     return dt
 
 
-def _fetch_manifest(url: str = MANIFEST_URL) -> Dict[str, Any]:
+def _fetch_manifest(url: str = COMMUNITY_MANIFEST_URL) -> Dict[str, Any]:
     """Fetch the manifest. Raises requests.RequestException on failure."""
     resp = requests.get(url, timeout=HTTP_TIMEOUT)
     resp.raise_for_status()
@@ -150,7 +146,7 @@ def apply_manifest(db, manifest: Dict[str, Any]) -> Dict[str, int]:
     }
 
 
-def sync_now(db, manifest_url: str = MANIFEST_URL) -> Dict[str, Any]:
+def sync_now(db, manifest_url: str = COMMUNITY_MANIFEST_URL) -> Dict[str, Any]:
     """Force a sync regardless of schedule. Returns a summary dict.
 
     On any failure the function raises so the caller can surface the error
@@ -172,6 +168,29 @@ def sync_now(db, manifest_url: str = MANIFEST_URL) -> Dict[str, Any]:
     summary = apply_manifest(db, manifest)
     summary['manifest_version'] = manifest.get('manifest_version')
     summary['fetched_at'] = started_at
+
+    # Compare the manifest's vocabulary_version against the value this app
+    # was built with. A mismatch means the upstream patterns may carry tags
+    # the local validator doesn't know about — surface a warning so the
+    # operator knows their image is behind. The vocabulary itself stays
+    # baked into the app code, so this is informational only.
+    manifest_vocab = manifest.get('vocabulary_version')
+    summary['vocabulary_version'] = manifest_vocab
+    if manifest_vocab is not None:
+        try:
+            if int(manifest_vocab) > VOCABULARY_VERSION:
+                warning = (
+                    f'manifest vocabulary_version={manifest_vocab} is newer '
+                    f'than this app (vocab={VOCABULARY_VERSION}); upgrade '
+                    f'to pick up new tags'
+                )
+                logger.warning(f'community_sync: {warning}')
+                summary['vocabulary_warning'] = warning
+        except (TypeError, ValueError):
+            logger.warning(
+                f'community_sync: manifest vocabulary_version is not an int: '
+                f'{manifest_vocab!r}'
+            )
 
     db.set_setting('community_sync_last_error', '')
     db.set_setting('community_sync_manifest_version', str(manifest.get('manifest_version')))
