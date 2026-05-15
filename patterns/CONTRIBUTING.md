@@ -6,7 +6,7 @@ This explains what happens when you submit a pattern, what gets stripped before 
 
 ## What is a community pattern
 
-A community pattern is an ad pattern from your local MinusPod instance that you’ve chosen to share. Once accepted, it ships to other MinusPod users via the periodic sync. You retain everything you had locally. Submission is a copy, not a move.
+A community pattern is an ad pattern from your local MinusPod instance that you've chosen to share. Once accepted, it ships to other MinusPod users via the periodic sync. You retain everything you had locally. Submission is a copy, not a move.
 
 -----
 
@@ -49,7 +49,7 @@ These reveal which podcasts you listen to.
 
 Pattern text is scanned and the following are stripped:
 
-**Email addresses with consumer domains.** Emails at these domains are removed: `gmail.com`, `yahoo.com`, `aol.com`, `hotmail.com`, `outlook.com`, `icloud.com`, `me.com`, `mac.com`, `protonmail.com`, `proton.me`, `mail.com`, `gmx.com`, `gmx.net`, `yandex.com`, `yandex.ru`, `qq.com`, `163.com`, `live.com`, `msn.com`, `hey.com`, `fastmail.com`, `tutanota.com`. Business emails like `support@nordvpn.com` are kept because they are part of the sponsor’s actual ad copy.
+**Email addresses with consumer domains.** Emails at these domains are removed: `gmail.com`, `yahoo.com`, `aol.com`, `hotmail.com`, `outlook.com`, `icloud.com`, `me.com`, `mac.com`, `protonmail.com`, `proton.me`, `mail.com`, `gmx.com`, `gmx.net`, `yandex.com`, `yandex.ru`, `qq.com`, `163.com`, `live.com`, `msn.com`, `hey.com`, `fastmail.com`, `tutanota.com`. Business emails like `support@nordvpn.com` are kept because they are part of the sponsor's actual ad copy.
 
 **Phone numbers that are not toll-free.** Toll-free numbers are kept (US/CA `800`, `833`, `844`, `855`, `866`, `877`, `888`; UK `0800`, `0808`; AU `1800`; international `+800`). Anything else matching a phone pattern is removed.
 
@@ -67,8 +67,8 @@ The app refuses to submit if any of these are true:
 - You have not confirmed the pattern at least once locally
 - Your false positive count exceeds your confirmation count
 - The pattern is not tied to a single sponsor
-- The assigned sponsor’s name (or any known alias) does not appear in the pattern text
-- A different sponsor’s name appears in the pattern text (multi-sponsor contamination)
+- The assigned sponsor's name (or any known alias) does not appear in the pattern text
+- A different sponsor's name appears in the pattern text (multi-sponsor contamination)
 - Any tag on the pattern is not in the canonical vocabulary
 
 When a check fails, the app shows which one and does not generate a submission.
@@ -78,9 +78,9 @@ When a check fails, the app shows which one and does not generate a submission.
 ## What happens after you click submit
 
 1. The app generates the JSON file and a prefilled GitHub URL.
-1. Your browser opens GitHub at “Create new file” with the JSON already filled in.
-1. You click “Propose new file.” GitHub forks the repo to your account if needed and opens a pull request.
-1. The repo’s GitHub Action runs validation on the PR.
+1. Your browser opens GitHub at "Create new file" with the JSON already filled in.
+1. You click "Propose new file." GitHub forks the repo to your account if needed and opens a pull request.
+1. The repo's GitHub Action runs validation on the PR.
 1. A maintainer reviews the PR.
 1. If accepted, your pattern joins the next published manifest and ships to other instances on their next sync.
 
@@ -102,20 +102,14 @@ Every tag is checked against the canonical vocabulary. Unknown tags fail the che
 
 ### Sponsor validation
 
-The sponsor name is looked up in the seed list:
-
-- **Exact or alias match** — accepted silently
-- **Fuzzy match** — accepted, flagged in a comment for reviewer confirmation
-- **Unknown sponsor** — accepted, flagged in a comment for maintainer triage
-
-A new sponsor is not a rejection. It just means a maintainer has to decide.
+The sponsor name is looked up in the seed list. An exact or alias match passes silently. A fuzzy match passes but the action flags it in a comment for the reviewer to confirm. An unknown sponsor also passes (a new sponsor isn't a rejection) but the action flags it in a comment for maintainer triage.
 
 ### Dedupe
 
-The action canonicalizes the new pattern’s text (lowercase, strip punctuation, remove stopwords, dates, day names) and compares it against every existing community pattern for the same sponsor:
+The action canonicalizes the new pattern's text (lowercase, strip punctuation, remove stopwords, dates, day names) and compares it against every existing community pattern for the same sponsor:
 
 - **95% or higher similarity** → DUPLICATE. PR rejected. Comment points to the existing pattern.
-- **75% to 94% similarity** → VARIANT. PR passes. Comment suggests merging the new text into the existing pattern’s variants list. The maintainer decides during review.
+- **75% to 94% similarity** → VARIANT. PR passes. Comment suggests merging the new text into the existing pattern's variants list. The maintainer decides during review.
 - **Less than 75% similarity** → DISTINCT. Accepted as a new pattern.
 
 Genuinely different ads from the same sponsor are expected. NordVPN has had many ad scripts; each one is a distinct pattern.

@@ -89,16 +89,16 @@ Patterns are embedded inline so the client fetches everything in a single reques
 
 Fields:
 
-- `community_id` — stable identifier across all instances
-- `version` — increments when the pattern is updated upstream
-- `submitted_at` — ISO 8601 timestamp of the original submission
-- `submitted_app_version` — version of the submitting MinusPod app, used for triage
-- `sponsor.name` / `sponsor.aliases` — sponsor identity, looked up against the seed list on import
-- `sponsor.tags` — multi-tag classification, all values must exist in the vocabulary
-- `sponsor_match` — set by the app on submission: `exact`, `alias`, `fuzzy`, or `unknown`
-- `scope` — always `global` for community patterns
-- `text_template` / `intro_variants` / `outro_variants` — the actual matched text
-- `matching_params` — pattern-level matching configuration
+- `community_id` - stable identifier across all instances
+- `version` - increments when the pattern is updated upstream
+- `submitted_at` - ISO 8601 timestamp of the original submission
+- `submitted_app_version` - version of the submitting MinusPod app, used for triage
+- `sponsor.name` / `sponsor.aliases` - sponsor identity, looked up against the seed list on import
+- `sponsor.tags` - multi-tag classification, all values must exist in the vocabulary
+- `sponsor_match` - set by the app on submission: `exact`, `alias`, `fuzzy`, or `unknown`
+- `scope` - always `global` for community patterns
+- `text_template` / `intro_variants` / `outro_variants` - the actual matched text
+- `matching_params` - pattern-level matching configuration
 
 -----
 
@@ -106,18 +106,18 @@ Fields:
 
 49 tags in a flat namespace. The canonical source is `src/seed_data/tag_vocabulary.csv` in the MinusPod app code (read by `src/utils/community_tags.py`). A reference copy lives in `vocabulary.json` alongside the patterns for human readability.
 
-Tag categories (informal grouping for documentation only — they are all in one namespace):
+Tag categories (informal grouping for documentation only; they are all in one namespace):
 
 - **Podcast genres** (26): `arts`, `books`, `business`, `comedy`, `education`, `language_learning`, `self_improvement`, `fiction`, `history`, `health`, `mental_health`, `kids_family`, `leisure`, `gaming`, `automotive`, `music`, `news`, `politics`, `religion`, `science`, `society_culture`, `travel`, `sports`, `technology`, `true_crime`, `tv_film`
 - **Sponsor industries** (22): `tech`, `saas`, `vpn`, `security`, `finance`, `insurance`, `food`, `meal_kit`, `beverage`, `supplements`, `apparel`, `home_goods`, `mattress`, `home_security`, `personal_care`, `auto`, `telecom`, `jobs`, `streaming`, `gambling`, `nicotine`, `dtc`
-- **Special** (1): `universal` — sponsor advertises across all podcast genres
+- **Special** (1): `universal` (sponsor advertises across all podcast genres)
 
 ### Matching rule
 
 A community pattern is eligible for a podcast when ANY of the following is true:
 
 1. The sponsor has the `universal` tag
-1. The sponsor’s tag set and the podcast’s tag set share at least one tag
+1. The sponsor's tag set and the podcast's tag set share at least one tag
 1. The sponsor has no tags (fallback)
 1. The podcast has no tags (fallback)
 
@@ -125,18 +125,14 @@ This filter runs before any fuzzy text matching. Patterns filtered out by tags n
 
 ### Podcast tagging
 
-Podcasts carry their own tag set from the same vocabulary. The effective tag set for a podcast is the union of three sources:
+Podcasts carry their own tag set from the same vocabulary. The effective tag set is the union of three sources. The RSS `<itunes:category>` is parsed when the podcast is added, mapped to vocabulary tags via a fixed table (e.g. `Technology` → `technology`, `True Crime` → `true_crime`). Episode-level RSS category tags add to the effective set for that episode. User-added tags entered through the UI are useful when the RSS metadata is missing or wrong, or when a specific episode departs from the podcast's normal genre.
 
-- **RSS `<itunes:category>`** — parsed automatically when the podcast is added. iTunes categories are mapped to vocabulary tags via a fixed mapping table (e.g. `Technology` → `technology`, `True Crime` → `true_crime`).
-- **Episode-level RSS tags** — when an episode’s RSS metadata includes category tags, those are added to the effective set for that episode.
-- **User-added tags** — manually applied in the UI by the user. Useful when the RSS metadata is missing or wrong, or when a specific episode departs from the podcast’s normal genre.
-
-All three sources are unioned. User-added tags never override or replace RSS-derived tags; they only add to them. A podcast with no tags from any source falls back to matching all community patterns (matching rule 4).
+User-added tags never override or replace RSS-derived tags; they only add to them. A podcast with no tags from any source falls back to matching all community patterns (matching rule 4).
 
 API:
 
-- `GET /api/podcasts/{id}/tags` — returns the effective tag union with source breakdown
-- `PUT /api/podcasts/{id}/tags` — updates the user-added tag layer (the only mutable layer)
+- `GET /api/podcasts/{id}/tags` - returns the effective tag union with source breakdown
+- `PUT /api/podcasts/{id}/tags` - updates the user-added tag layer (the only mutable layer)
 
 -----
 
@@ -171,7 +167,7 @@ When a community pattern is submitted with an unknown sponsor, the GitHub Action
 Maintainer responsibilities for incoming PRs:
 
 1. Check the Action result on the PR. Red checks must be resolved before review proceeds.
-1. Read the Action’s comment for context (variant suggestions, sponsor flags, dedupe notes).
+1. Read the Action's comment for context (variant suggestions, sponsor flags, dedupe notes).
 1. Verify the pattern looks reasonable: real ad copy, no obvious junk, sponsor identification correct.
 1. If the Action flagged a variant suggestion and the suggestion is correct, manually edit the existing pattern file in the PR to add the new text to its `intro_variants` or `outro_variants` array, then close the new-file PR. (Auto-apply is deferred to a later release.)
 1. If a sponsor is flagged as unknown, decide whether to add it to the seed list (separate PR) or treat it as an alias.

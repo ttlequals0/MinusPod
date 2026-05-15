@@ -502,10 +502,10 @@ The feature is **opt-in** and **off by default**. When enabled, your MinusPod in
 
 ### What you control
 
-- **Sync schedule** — cron expression in Settings (default: weekly, Sunday 3am)
-- **Manual sync** — "Sync now" button in Settings
-- **Per-pattern protection** — pin any community pattern with **Protect from sync** to prevent automatic updates or deletion
-- **Disable at any time** — flipping the toggle stops sync; existing community patterns remain unless you delete them
+- **Sync schedule** - cron expression in Settings (default: weekly, Sunday 3am)
+- **Manual sync** - "Sync now" button in Settings
+- **Per-pattern protection** - pin any community pattern with **Protect from sync** to prevent automatic updates or deletion
+- **Disable at any time** - flipping the toggle stops sync; existing community patterns remain unless you delete them
 
 ### What is shared if you submit
 
