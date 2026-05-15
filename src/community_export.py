@@ -283,8 +283,15 @@ def _strip_metadata(pattern: Dict, sponsor_row: Dict) -> Dict:
     intro_variants = [strip_pii(v) for v in intro_variants]
     outro_variants = [strip_pii(v) for v in outro_variants]
 
+    # Community patterns travel without a podcast_id / network_id, so a
+    # 'podcast' or 'network' scope on the source instance no longer makes
+    # sense on the receiver -- the row would never match anything.
+    # Eligibility on the receiver is governed by sponsor tags vs the
+    # podcast's tag set (text_pattern_matcher._filter_patterns_by_scope),
+    # not by the legacy scope column. Force global at the boundary.
+
     return {
-        'scope': pattern.get('scope') or 'global',
+        'scope': 'global',
         'text_template': text_template,
         'intro_variants': intro_variants,
         'outro_variants': outro_variants,

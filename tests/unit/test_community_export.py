@@ -193,6 +193,27 @@ def test_build_export_payload_repairs_double_encoded_variants():
     assert payload['outro_variants'] == outros
 
 
+def test_export_forces_scope_global_even_when_source_is_podcast():
+    """Source instances mostly run patterns at scope='podcast'. The bundle
+    must normalize to 'global' because podcast_id is stripped on export
+    -- a podcast-scoped row without a podcast_id never matches anything.
+    Also confirm podcast_id / network_id never leak into the payload, so
+    a future regression in _strip_metadata can't reintroduce them."""
+    pattern = _pattern(scope='podcast', podcast_id='cordkillers-only-audio')
+    payload = build_export_payload(pattern, [_sponsor()])
+    assert payload['scope'] == 'global'
+    assert 'podcast_id' not in payload
+    assert 'network_id' not in payload
+
+
+def test_export_forces_scope_global_for_network_scope_too():
+    pattern = _pattern(scope='network', network_id='some-network')
+    payload = build_export_payload(pattern, [_sponsor()])
+    assert payload['scope'] == 'global'
+    assert 'podcast_id' not in payload
+    assert 'network_id' not in payload
+
+
 def test_build_export_payload_passes_single_encoded_through():
     """Correctly-encoded patterns must still produce list[str], idempotent."""
     intros = ['Intro variant one for Squarespace ad.']

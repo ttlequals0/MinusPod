@@ -6,6 +6,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.7] - 2026-05-15
+
+### Fixed
+
+- **Community patterns now import with `scope='global'` instead of preserving the source instance's scope.** Pre-2.4.7 the export pipeline copied the source pattern's `scope` (almost always `'podcast'`) into the bundle, and the import pipeline used it verbatim. Since `podcast_id` is stripped on export, the imported row was scope='podcast' with `podcast_id=NULL` and never matched anything. Tag eligibility (`text_pattern_matcher._filter_patterns_by_scope`) is what actually gates community patterns per podcast; the legacy scope column should just be `global`.
+- **Migration repairs existing community rows.** `_normalize_community_scope` UPDATEs every `source='community'` row to `scope='global'`, clears `podcast_id` / `network_id`. Stamped via `community_scope_revision`; idempotent.
+- **12 seed bundle files in `patterns/community/`** were rewritten from `scope: podcast` to `scope: global`. Manifest regenerated. Earlier 2.4.0-2.4.6 syncs pulled them with scope=podcast; the migration above re-stamps those rows on the next container start.
+
 ## [2.4.6] - 2026-05-15
 
 ### Fixed

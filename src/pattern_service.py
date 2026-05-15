@@ -984,13 +984,18 @@ class PatternService:
             )
             return existing['id']
 
+        # Force scope=global. Older bundles (and the 2.4.0 seed files
+        # shipped pre-2.4.7) carried scope='podcast' verbatim from the
+        # source instance, which would make the row un-matchable without
+        # the (stripped) podcast_id. Tag eligibility handles per-podcast
+        # filtering for community patterns.
         pattern_id = self.db.create_ad_pattern(
-            scope=data['scope'],
+            scope='global',
             text_template=data['text_template'],
             sponsor_id=sponsor_id,
-            podcast_id=data.get('podcast_id'),
-            network_id=data.get('network_id'),
-            dai_platform=data.get('dai_platform'),
+            podcast_id=None,
+            network_id=None,
+            dai_platform=None,
             intro_variants=data.get('intro_variants') or [],
             outro_variants=data.get('outro_variants') or [],
             created_by='community',
