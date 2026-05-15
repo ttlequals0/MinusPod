@@ -6,6 +6,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.1] - 2026-05-14
+
+### Added
+
+- **Per-feed tag editor.** New "Tags" card on every feed-detail page. Shows the effective tag set grouped by source (RSS / episode / user), with an "+ Add tag" button that opens a grouped picker of the remaining vocabulary tags. User-added tags carry an inline X to remove them, and saves are auto-applied via `PUT /api/v1/feeds/{slug}/tags`. This was the missing companion UI to the backend endpoint shipped in 2.4.0.
+- **Multi-select pattern export.** The Patterns page **Export** button now opens a dialog with a checkbox per pattern (Select-all, optional include-disabled / include-corrections flags) instead of dumping the whole local pattern DB. `GET /api/v1/patterns/export` gained an `?ids=1,2,3` filter to support this.
+- **Per-row Submit-to-community / Protect-from-sync buttons in the desktop pattern table.** Previously only the mobile card layout had these — desktop reviewers had to switch viewports. New 9th "Actions" column hosts them.
+- **`GET /api/v1/tags/vocabulary`** — returns the canonical 49-tag vocabulary plus per-tag descriptions, grouped into podcast_genres / sponsor_industries / special_tags. Used by the new tag picker.
+
+### Changed
+
+- Tag vocabulary loading is now cached (`utils.community_tags.vocabulary_payload` with `@lru_cache(maxsize=1)`); the CSV is parsed once at process start instead of per request. Frontend cache: `staleTime: Infinity` since vocabulary ships with the app image.
+- `/tags/vocabulary` lives at `src/api/tags.py` (was inline in `sponsors.py`); no behavior change, better discoverability.
+- TypeScript now exports `PATTERN_SOURCES` and `PatternSource` from `frontend/src/api/patterns.ts`, mirroring the Python `PATTERN_SOURCES` frozenset — frontend and backend can no longer drift on source-discriminator spellings.
+
+### Fixed
+
+- **`community_sync.apply_manifest` version stamping**: was using `dict.setdefault('version', manifest_version)` which silently kept a stale `version` carried in the inner `data` dict. Now assigns unconditionally so the manifest's version is authoritative for the `import_community_pattern` version gate.
+- **CodeQL py/reflective-xss in bulk-op endpoints**: hardened `_resolve_bulk_target` so `ids` and `expected_count` are coerced to integers up front. Non-integer payloads return 400 with a clean message instead of being f-stringed into the response body.
+- **Inline CREATE TABLE shape drift**: `_create_new_tables_only` definitions for `ad_patterns` and `known_sponsors` were missing the 2.4.0 columns; brought back into sync with `SCHEMA_SQL`. End state was already correct via the ALTER TABLE migrations, but the "must match SCHEMA_SQL exactly" comment invariant is now true again.
+- **Sponsor reseed migration order**: moved `_reseed_known_sponsors` to run AFTER `_migrate_sponsor_fk` and the Zyn cleanups so it operates on the post-dedup canonical state. Previously a v2.1.x → 2.4.x jump could let dedup discard the freshly-tagged row.
+
 ## [2.4.0] - 2026-05-14
 
 ### Added
