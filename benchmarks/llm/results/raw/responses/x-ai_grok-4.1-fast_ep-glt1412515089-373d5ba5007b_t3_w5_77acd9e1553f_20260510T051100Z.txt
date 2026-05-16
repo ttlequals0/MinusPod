@@ -1,1 +1,0 @@
-{"start":2208.3,"end":2237.2,"confidence":0.99,"reason":"Blinds.com network-inserted retail ad with product pitch, 45% off discount, free measure promo, and website CTA (includes disclaimer start)","end_text":"rules and restrictions apply"}

@@ -1,1 +1,0 @@
-{"start":7173.7,"end":7196.8,"confidence":0.99,"reason":"Netflix sponsor read for Remarkably Bright Creatures show promotion with 'This episode is brought to you by' transition","end_text":"now playing only on Netflix"}

@@ -1,1 +1,0 @@
-{"start":16.7,"end":84.9,"confidence":0.99,"reason":"OutSystems pre-roll sponsor read with promo URL","end_text":"OutSystems.com slash twit."}

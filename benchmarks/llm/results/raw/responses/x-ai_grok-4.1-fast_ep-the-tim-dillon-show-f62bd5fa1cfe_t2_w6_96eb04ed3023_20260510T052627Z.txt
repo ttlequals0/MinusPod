@@ -1,1 +1,0 @@
-{"start":3079.6,"end":3120.0,"confidence":1.0,"reason":"Morgan & Morgan and Stash host-read sponsor segments with URLs, promo mentions, 'paid advertisement'; extends past window","end_text":"Stash is the one"}

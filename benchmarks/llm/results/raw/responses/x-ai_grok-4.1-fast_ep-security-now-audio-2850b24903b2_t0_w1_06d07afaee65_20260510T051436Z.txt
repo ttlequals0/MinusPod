@@ -1,1 +1,0 @@
-{"start":445.6,"end":572.1,"confidence":0.98,"reason":"Zscaler sponsor read with transition to commercials and 'brought to you by Zscaler', customer testimonial, URL zscaler.com/security","end_text":"zscaler.com slash security"}

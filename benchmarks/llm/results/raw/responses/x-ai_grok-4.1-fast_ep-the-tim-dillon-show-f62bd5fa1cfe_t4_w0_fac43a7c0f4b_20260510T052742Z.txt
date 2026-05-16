@@ -1,1 +1,0 @@
-{"start":0.0,"end":27.7,"confidence":0.98,"reason":"Colgate pre-roll platform-inserted brand tagline ad with promotional pitch and tagline","end_text":"Colgate, your smile is your strength."}

@@ -1,1 +1,0 @@
-{"start":1524.5,"end":1602.6,"confidence":0.98,"reason":"Xero sponsor ad, Acast platform promos, and cross-promo for Wrong Turns podcast (platform-inserted post-roll)","end_text":"Acast helps creators... Acast.com."}

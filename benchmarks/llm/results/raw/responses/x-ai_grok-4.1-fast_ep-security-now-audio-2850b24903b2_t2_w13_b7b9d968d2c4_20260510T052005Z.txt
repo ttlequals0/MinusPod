@@ -1,1 +1,0 @@
-{"start":6016.6,"end":6083.5,"confidence":0.98,"reason":"Hoxhunt host-read sponsor segment with transition and product pitch","end_text":"just like the bad guys"}

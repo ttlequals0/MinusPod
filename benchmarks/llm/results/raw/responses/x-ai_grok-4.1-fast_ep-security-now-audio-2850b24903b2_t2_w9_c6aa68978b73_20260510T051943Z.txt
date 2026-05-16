@@ -1,1 +1,0 @@
-{"start":4204.1,"end":4380.0,"confidence":0.98,"reason":"Bitwarden host-read sponsor segment with transition 'take a little break', pitches password/passkey management, Vault health, new Agent Access SDK; listed sponsor bitwarden.com/twit; continues in next","end_text":"unlocking devices at the OS level"}

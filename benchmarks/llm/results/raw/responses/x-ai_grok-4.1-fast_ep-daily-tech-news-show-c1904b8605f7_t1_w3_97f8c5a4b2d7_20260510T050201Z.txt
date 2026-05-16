@@ -1,1 +1,0 @@
-{"start":1742.3,"end":1799.6,"confidence":0.98,"reason":"Capital One sponsor read followed by Lemonada Media podcast cross-promotion","end_text":"the six-part Thrive series."}

@@ -1,1 +1,0 @@
-{"start":1742.3,"end":1799.6,"confidence":0.98,"reason":"Capital One sponsor segment ('This episode is brought to you by Capital One') and Lemonada Media cross-promo for 'Good Things' podcast (network-inserted promotion of different show)","end_text":"six-part Thrive series"}

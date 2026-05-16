@@ -1,1 +1,0 @@
-{"start":1439.2,"end":1665.9,"confidence":0.98,"reason":"Host-read Mint Mobile and Aura Frames sponsors with promo codes/URLs; network-inserted Colgate and Skinny Pop brand tagline ads","end_text":"perfectly salted. Skinny Pop."}

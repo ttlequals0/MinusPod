@@ -1,1 +1,0 @@
-{"start":4646.2,"end":4806.1,"confidence":1.0,"reason":"Network-inserted short brand tagline ads: Colgate (multiple), Skinny Pop, Viz, Garnier with promo language and URLs","end_text":"GarnierUSA.com slash NPF"}

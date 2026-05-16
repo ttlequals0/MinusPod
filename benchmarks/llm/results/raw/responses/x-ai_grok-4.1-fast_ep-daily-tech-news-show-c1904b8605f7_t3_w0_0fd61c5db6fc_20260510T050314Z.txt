@@ -1,1 +1,0 @@
-{"start":0.0,"end":100.9,"confidence":0.98,"reason":"Capital One, Xero, Spectrum Business pre-roll/platform-inserted ads with promo language and calls to action","end_text":"support with 100%"}

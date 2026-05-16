@@ -1,1 +1,0 @@
-{"start":4258.6,"end":4380.0,"confidence":0.98,"reason":"Bitwarden host-read sponsor with transition, product pitches for Access Intelligence, Vault health, Agent Access SDK (partial, continues past window)","end_text":"unlocking devices at the OS level"}
