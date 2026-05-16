@@ -1809,7 +1809,7 @@ class AdDetector:
                           episode_title: str = "Unknown", slug: str = None,
                           episode_id: str = None, episode_description: str = None,
                           audio_path: str = None,
-                          podcast_id: str = None, network_id: str = None,
+                          podcast_id: str = None,
                           skip_patterns: bool = False,
                           podcast_description: str = None,
                           podcast_tags: Optional[set] = None,
@@ -1832,7 +1832,6 @@ class AdDetector:
             episode_description: Episode description
             audio_path: Path to audio file for fingerprinting
             podcast_id: Podcast ID for pattern scoping
-            network_id: Network ID for pattern scoping
             skip_patterns: If True, skip stages 1 & 2 (pattern DB), go directly to Claude
             podcast_description: Podcast-level description for context
             progress_callback: Optional callback(stage, percent) to report progress
@@ -1929,7 +1928,6 @@ class AdDetector:
                 text_matches = self.text_pattern_matcher.find_matches(
                     segments,
                     podcast_id=podcast_id,
-                    network_id=network_id,
                     podcast_tags=podcast_tags,
                 )
 
