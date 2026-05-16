@@ -135,19 +135,22 @@ def render(
     active = {mid: s for mid, s in by_model.items() if mid not in deprecated_ids}
     deprecated = {mid: s for mid, s in by_model.items() if mid in deprecated_ids}
 
+    extras_active = extras.without(deprecated_ids)
+    calls_active = calls if not deprecated_ids else [r for r in calls if r["model"] not in deprecated_ids]
+
     sections = [
         _render_how_to_read(),
         _render_tldr(active, episodes),
         _render_charts_section(),
-        _render_failures(calls),
+        _render_failures(calls_active),
         _render_accuracy_breakdown(active),
         _render_boundary_accuracy(active),
-        _render_calibration_table(extras.calibration),
+        _render_calibration_table(extras_active.calibration),
         _render_latency_tail(active),
         _render_token_efficiency(active),
         _render_trial_variance(active),
-        _render_cross_model_agreement(extras.agreement, active),
-        _render_detection_buckets(extras.detection_buckets),
+        _render_cross_model_agreement(extras_active.agreement, active),
+        _render_detection_buckets(extras_active.detection_buckets),
         _render_quick_comparison(active, episodes),
         "---",
         "## Detailed Results",
@@ -171,22 +174,22 @@ def render(
     _render_pareto(active, assets_dir / "pareto.svg")
     _render_compliance(active, assets_dir / "compliance.svg")
     _render_episode_heatmap(active, episodes, assets_dir / "episodes.svg")
-    _render_calibration_chart(extras.calibration, assets_dir / "calibration.svg")
+    _render_calibration_chart(extras_active.calibration, assets_dir / "calibration.svg")
     _render_latency_tail_chart(active, assets_dir / "latency_tail.svg")
-    _render_agreement_chart(extras.agreement, len(active), assets_dir / "agreement.svg")
-    _render_alignment_chart(extras.agreement, len(active), assets_dir / "alignment.svg")
+    _render_agreement_chart(extras_active.agreement, len(active), assets_dir / "agreement.svg")
+    _render_alignment_chart(extras_active.agreement, len(active), assets_dir / "alignment.svg")
     _render_precision_recall_chart(active, assets_dir / "precision_recall.svg")
     _render_boundary_chart(active, assets_dir / "boundary.svg")
     _render_token_efficiency_chart(active, assets_dir / "token_efficiency.svg")
     _render_trial_variance_chart(active, assets_dir / "trial_variance.svg")
     _render_detection_bucket_chart(
-        extras.detection_buckets, "length",
+        extras_active.detection_buckets, "length",
         ["short (<30s)", "medium (30-90s)", "long (>=90s)"],
         "Detection rate by ad length (rows sorted by overall detection rate, descending)",
         assets_dir / "detection_by_length.svg",
     )
     _render_detection_bucket_chart(
-        extras.detection_buckets, "position",
+        extras_active.detection_buckets, "position",
         ["pre-roll (<10%)", "mid-roll (10-90%)", "post-roll (>90%)"],
         "Detection rate by ad position (rows sorted by overall detection rate, descending)",
         assets_dir / "detection_by_position.svg",
@@ -200,6 +203,18 @@ class _Extras:
     calibration: dict[str, list[tuple[float, bool]]]    # model -> [(confidence, is_tp), ...]
     agreement: dict[tuple[str, int], dict[str, int]]    # (episode, window_idx) -> {model: n_predicted_ads}
     detection_buckets: dict[str, dict[str, dict[str, list[bool]]]]
+
+    def without(self, model_ids: set[str]) -> "_Extras":
+        if not model_ids:
+            return self
+        return _Extras(
+            calibration={mid: v for mid, v in self.calibration.items() if mid not in model_ids},
+            agreement={
+                key: {m: v for m, v in per_model.items() if m not in model_ids}
+                for key, per_model in self.agreement.items()
+            },
+            detection_buckets={mid: v for mid, v in self.detection_buckets.items() if mid not in model_ids},
+        )
     # detection_buckets[model][bucket_kind][bucket_label] -> list of bool (was each truth-ad in this bucket detected?)
 
 
