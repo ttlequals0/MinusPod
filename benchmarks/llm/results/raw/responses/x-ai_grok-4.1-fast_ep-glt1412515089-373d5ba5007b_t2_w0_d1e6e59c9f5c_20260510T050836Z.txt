@@ -1,1 +1,0 @@
-{"start":539.2,"end":600.0,"confidence":0.99,"reason":"Host-read ads for In the Gray movie ('This episode is brought to you by In the Gray') and Skechers slip-ins ('This episode is brought to you by Skechers'); back-to-back with <15s gap, merged; promotional pitches, CTAs, release info; partial ad continues past window","end_text":"slip-ins and casual and dress footwear"}

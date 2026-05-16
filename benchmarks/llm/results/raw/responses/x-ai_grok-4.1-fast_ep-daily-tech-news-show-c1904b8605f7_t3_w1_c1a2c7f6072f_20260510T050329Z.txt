@@ -1,1 +1,0 @@
-{"start":821.4,"end":1021.1,"confidence":0.99,"reason":"Multiple platform-inserted sponsor ads (Capital One, BetterHelp, Amazon Health AI, Spectrum Business, Rinse) with promo pitches, URLs, and calls to action","end_text":"It's time to be great."}

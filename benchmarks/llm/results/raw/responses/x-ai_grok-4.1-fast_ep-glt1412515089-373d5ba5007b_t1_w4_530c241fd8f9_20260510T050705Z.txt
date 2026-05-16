@@ -1,1 +1,0 @@
-{"start":2208.3,"end":2237.2,"confidence":0.99,"reason":"Blinds.com promotional ad with product pitch, discount offer (up to 45% off), call to action, and disclaimer","end_text":"rules and restrictions apply"}

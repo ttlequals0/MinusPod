@@ -1,1 +1,0 @@
-{"start":3079.6,"end":3270.1,"confidence":0.99,"reason":"Consecutive host-read sponsor segments for Morgan & Morgan (ForThePeople.com/TIM, Poundlaw), Stash (stash.com/mood), NeuroGum (NeuroGum.com code TIM) with promotional pitches, URLs, promo codes, paid ad disclosure","end_text":"CVS and Amazon"}

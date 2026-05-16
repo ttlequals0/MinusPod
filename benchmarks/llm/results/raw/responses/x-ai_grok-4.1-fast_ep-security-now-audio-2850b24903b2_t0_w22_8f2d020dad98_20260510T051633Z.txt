@@ -1,1 +1,0 @@
-{"start":9344.4,"end":9374.4,"confidence":0.99,"reason":"Mint Mobile network-inserted ad with Ryan Reynolds endorsement, promo URL mintmobile.com/switch, call to action","end_text":"See full terms at mintmobile.com."}

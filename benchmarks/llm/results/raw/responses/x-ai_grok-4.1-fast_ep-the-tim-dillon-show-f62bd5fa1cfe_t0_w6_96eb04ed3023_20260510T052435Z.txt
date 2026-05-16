@@ -1,1 +1,0 @@
-{"start":3079.6,"end":3134.3,"confidence":0.98,"reason":"Host-read sponsor segments for Morgan & Morgan (ForThePeople.com/TIM, Poundlaw) and Stash; partial Stash ad extends past window","end_text":"Stash is the one"}

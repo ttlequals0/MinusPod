@@ -1,1 +1,0 @@
-{"start":539.2,"end":652.8,"confidence":1.0,"reason":"In the Gray movie and Skechers host-read sponsor segments with 'This episode is brought to you by' transitions, product pitches, and Skechers.com call to action","end_text":"That's only at Skechers.com."}

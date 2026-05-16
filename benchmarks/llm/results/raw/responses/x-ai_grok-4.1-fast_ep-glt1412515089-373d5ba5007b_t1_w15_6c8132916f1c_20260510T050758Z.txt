@@ -1,1 +1,0 @@
-{"start":6368.2,"end":6394.8,"confidence":0.88,"reason":"Perplexity mentioned as 'our AI sponsor' with positive endorsement ('flexing on us, showing us how smart it is') during integrated host-read","end_text":"past, present, and potential future"}

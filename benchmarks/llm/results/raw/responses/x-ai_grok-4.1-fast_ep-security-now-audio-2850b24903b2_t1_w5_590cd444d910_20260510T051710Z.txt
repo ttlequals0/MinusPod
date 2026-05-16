@@ -1,1 +1,0 @@
-{"start":2532.3,"end":2693.0,"confidence":0.98,"reason":"Meter host-read sponsor segment with promo URL meter.com/securitynow and CTA to book a demo","end_text":"book a demo okay meter"}

@@ -1,1 +1,0 @@
-{"start":0.5,"end":43.4,"confidence":0.99,"reason":"Carvana platform-inserted pre-roll ad with scripted testimonial, call to action, and brand pitch","end_text":"Pickup fees may apply."}

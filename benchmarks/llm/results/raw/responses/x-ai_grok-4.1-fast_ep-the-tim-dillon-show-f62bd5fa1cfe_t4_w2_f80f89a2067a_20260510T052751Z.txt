@@ -1,1 +1,0 @@
-{"start":1439.2,"end":1440.0,"confidence":0.98,"reason":"Mint Mobile host-read sponsor segment (partial, continues past window)","end_text":"nation's largest 5G network"}

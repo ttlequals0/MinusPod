@@ -1,1 +1,0 @@
-{"start":0.0,"end":27.7,"confidence":0.95,"reason":"Colgate network-inserted pre-roll brand tagline ad with promotional pitch for Colgate Women's Games","end_text":"Colgate, your smile is your strength."}

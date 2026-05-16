@@ -1,1 +1,0 @@
-{"start":1524.5,"end":1602.6,"confidence":0.99,"reason":"Platform-inserted post-roll ads: Xero sponsor read with CTA, Acast hosting promo, cross-promo for 'Wrong Turns' podcast, Acast creator promo","end_text":"Acast helps creators launch, grow, and monetize their podcasts everywhere. Acast.com."}

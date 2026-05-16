@@ -1,1 +1,0 @@
-{"start":2208.3,"end":2262.0,"confidence":1.0,"reason":"Blinds.com network-inserted retail ad: product pitch for window treatments, discount (up to 45% off site-wide), call to action (get a free professional measure at Blinds.com), includes disclaimer (rules and restrictions apply)","end_text":"rules and restrictions apply"}

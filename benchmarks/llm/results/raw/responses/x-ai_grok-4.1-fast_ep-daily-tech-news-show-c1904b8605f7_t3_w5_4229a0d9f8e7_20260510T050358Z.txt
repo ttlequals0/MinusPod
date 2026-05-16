@@ -1,1 +1,0 @@
-{"start":2246.0,"end":2314.4,"confidence":0.99,"reason":"Capital One and Rinse post-roll sponsor reads with product pitches, CTAs, and URLs","end_text":"Rinse. It's time to be great."}

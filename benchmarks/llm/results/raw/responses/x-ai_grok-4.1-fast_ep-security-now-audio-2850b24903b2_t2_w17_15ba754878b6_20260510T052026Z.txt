@@ -1,1 +1,0 @@
-{"start":7607.7,"end":7743.9,"confidence":0.98,"reason":"Trusted Tech host-read sponsor segment for Microsoft 365 licensing (includes transition 'let's take our final break' and 'brought to you by Trusted Tech')","end_text":"You will be too."}

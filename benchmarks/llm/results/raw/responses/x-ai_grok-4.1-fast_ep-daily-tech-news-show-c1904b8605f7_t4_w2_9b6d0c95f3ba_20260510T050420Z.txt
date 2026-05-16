@@ -1,1 +1,0 @@
-{"start":821.4,"end":1021.1,"confidence":1.0,"reason":"Multiple platform-inserted/network ads (Capital One sponsor, BetterHelp with promo code/URL, Amazon Health AI, Spectrum Business with URL, Rinse cross-promo); starts before window; small gaps <15s merged","end_text":"It's time to be great."}
