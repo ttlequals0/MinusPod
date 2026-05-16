@@ -281,8 +281,24 @@ _SECRET_KEY_LOCKFILE = Path(
 ) / '.secret_key.lock'
 
 
+class SecretKeyUnavailableError(RuntimeError):
+    """Raised when the Flask secret key cannot be loaded or minted safely.
+
+    Without a stable secret key, signed session cookies issued by one worker
+    cannot be verified by another, and a forged cookie can't be distinguished
+    from a legitimate one. Refuse to start rather than silently shipping a
+    diverging or attacker-controllable key. Override `SECRET_KEY` via env to
+    bypass this path entirely (e.g. in dev or ephemeral test environments).
+    """
+
+
 def get_or_create_secret_key():
-    """Get secret key from database or create and persist one under flock."""
+    """Get secret key from database or create and persist one under flock.
+
+    Raises SecretKeyUnavailableError if both the lockfile AND the DB write
+    fail; without coordination, two workers racing the mint path produce
+    divergent keys and silently invalidate each other's sessions.
+    """
     from database import Database
     _db = Database()
 
@@ -306,8 +322,18 @@ def get_or_create_secret_key():
 
         secret_key = _db.get_setting('flask_secret_key')
         if not secret_key:
-            secret_key = secrets.token_hex(32)
-            _db.set_setting('flask_secret_key', secret_key)
+            new_key = secrets.token_hex(32)
+            try:
+                _db.set_setting('flask_secret_key', new_key)
+            except Exception as exc:
+                if lock_fd is None:
+                    raise SecretKeyUnavailableError(
+                        "Refusing to start: secret key DB write failed and the lockfile "
+                        "is unavailable, so we cannot guarantee workers agree on the key. "
+                        f"Underlying error: {exc!r}. Set SECRET_KEY via env to bypass."
+                    ) from exc
+                raise
+            secret_key = new_key
             logger.info("Generated and persisted new Flask secret key")
     finally:
         if lock_fd is not None:

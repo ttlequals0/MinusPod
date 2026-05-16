@@ -90,7 +90,8 @@ def auth_login():
     if is_public_ip_for_lockout(ip):
         db.record_auth_success(ip)
 
-    # Set session
+    # Rotate the session on login so a pre-auth cookie can't ride the new authenticated state (fixation).
+    session.clear()
     session.permanent = True
     session['authenticated'] = True
     logger.info(f"Successful login from {ip}")
@@ -169,7 +170,8 @@ def auth_set_password():
     db.set_setting('app_password', password_hash)
     logger.info(f"Password {'changed' if password_set else 'set'} by {request.remote_addr}")
 
-    # Ensure current session is authenticated
+    # Rotate the session on password change for the same reason as /auth/login.
+    session.clear()
     session.permanent = True
     session['authenticated'] = True
 
