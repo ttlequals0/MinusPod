@@ -1107,7 +1107,7 @@ def bulk_delete_patterns():
     """Hard-delete patterns. Body: {ids?, source?, confirm: true, expected_count: N}.
 
     Either `ids` or `source` must be provided. `expected_count` MUST match
-    the actual number of matched rows or the call is rejected with 400 —
+    the actual number of matched rows or the call is rejected with 400 -- 
     this is the fat-finger guard from the plan.
     """
     db = get_database()

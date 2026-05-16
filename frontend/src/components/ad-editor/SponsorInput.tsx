@@ -18,7 +18,7 @@ interface Props {
 // boundary and dismiss the parent dialog.
 //
 // Selection uses onMouseDown rather than onClick because the input's
-// onBlur fires before onClick would land — onMouseDown commits the value
+// onBlur fires before onClick would land -- onMouseDown commits the value
 // before the focus-loss collapses the menu.
 export function SponsorInput({ value, onChange, sponsors, placeholder }: Props) {
   const [open, setOpen] = useState(false);

@@ -339,7 +339,7 @@ def build_pr_url(payload: Dict) -> Tuple[str, str, bool]:
     """Build the prefilled GitHub PR URL for this payload.
 
     Returns (url, filename, too_large). When `too_large` is True the URL is
-    still returned but it should NOT be opened — the caller should offer the
+    still returned but it should NOT be opened -- the caller should offer the
     JSON file as a download instead.
     """
     sponsor_slug = _slugify(payload.get('sponsor') or 'sponsor')

@@ -96,7 +96,7 @@ def apply_manifest(db, manifest: Dict[str, Any]) -> Dict[str, int]:
     for community_id, data, manifest_version in valid_entries:
         existing = existing_by_cid.get(community_id)
         # Stamp version from manifest entry. The manifest's per-entry
-        # version is authoritative — overwrite anything carried in the
+        # version is authoritative -- overwrite anything carried in the
         # inner `data` dict so version-gating in import_community_pattern
         # compares the manifest's number, not the payload's stale one.
         data_with_version = dict(data)
@@ -187,7 +187,7 @@ def sync_now(db, manifest_url: str = COMMUNITY_MANIFEST_URL) -> Dict[str, Any]:
 
     # Compare the manifest's vocabulary_version against the value this app
     # was built with. A mismatch means the upstream patterns may carry tags
-    # the local validator doesn't know about — surface a warning so the
+    # the local validator doesn't know about -- surface a warning so the
     # operator knows their image is behind. The vocabulary itself stays
     # baked into the app code, so this is informational only.
     manifest_vocab = manifest.get('vocabulary_version')

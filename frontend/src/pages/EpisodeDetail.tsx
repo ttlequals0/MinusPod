@@ -180,7 +180,7 @@ function EpisodeDetail() {
   };
 
   // Helper to find correction for an ad marker. 'create' corrections
-  // have original_bounds=null (there is no original — it's a net-new
+  // have original_bounds=null (there is no original -- it's a net-new
   // marker); guard the dereference so iterating the corrections list
   // doesn't crash after a create save.
   const getAdCorrection = (start: number, end: number) => {

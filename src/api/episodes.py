@@ -11,6 +11,10 @@ from api import (
     api, limiter, log_request, json_response, error_response,
     get_database, get_storage, extract_transcript_segment,
 )
+from audio_peaks import compute_peaks, PeaksError
+from chapters_generator import ChaptersGenerator
+from llm_client import start_episode_token_tracking, get_episode_token_totals
+from processing_queue import ProcessingQueue
 from utils.episode_paths import episode_public_url
 from utils.text import parse_transcript_segments
 from utils.time import parse_timestamp, utc_now_iso
@@ -337,7 +341,6 @@ def get_episode_peaks(slug, episode_id):
     end_seconds = _f('end')
     resolution_ms = _i('resolution_ms', 50)
 
-    from audio_peaks import compute_peaks, PeaksError
     try:
         peaks, effective_resolution_ms = compute_peaks(
             path,
@@ -516,9 +519,6 @@ def regenerate_chapters(slug, episode_id):
     episode_title = episode.get('title', 'Unknown')
 
     try:
-        from chapters_generator import ChaptersGenerator
-        from llm_client import start_episode_token_tracking, get_episode_token_totals
-
         start_episode_token_tracking()
         chapters_gen = ChaptersGenerator()
 
@@ -811,8 +811,6 @@ def retry_ad_detection(slug, episode_id):
         return error_response('No transcript available - full reprocess required', 400)
 
     try:
-        from llm_client import start_episode_token_tracking, get_episode_token_totals
-
         # Parse transcript back into segments
         segments = parse_transcript_segments(transcript)
 
@@ -940,7 +938,6 @@ def cancel_episode_processing(slug, episode_id):
         conn.commit()
 
         try:
-            from processing_queue import ProcessingQueue
             queue = ProcessingQueue()
             if queue.is_processing(slug, episode_id):
                 queue.release()

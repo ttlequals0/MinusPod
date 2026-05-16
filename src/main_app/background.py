@@ -65,7 +65,7 @@ def background_rss_refresh():
         refresh_all_feeds()
         run_cleanup()
         refresh_pricing_if_stale()  # TTL-gated, fetches once per 24h
-        # Community pattern sync — gated by settings.community_sync_enabled
+        # Community pattern sync -- gated by settings.community_sync_enabled
         # and the cron schedule; safe to call every tick.
         try:
             community_pattern_sync_tick(db)

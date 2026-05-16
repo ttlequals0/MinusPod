@@ -699,7 +699,7 @@ class SchemaMixin:
         self._add_column_if_missing(conn, 'ad_patterns', 'duration_samples', 'INTEGER DEFAULT 0', ap_cols)
 
         # Community-pattern columns (2.4.0). source is a CHECK column but
-        # SQLite allows ADD COLUMN with DEFAULT — the CHECK is enforced via
+        # SQLite allows ADD COLUMN with DEFAULT -- the CHECK is enforced via
         # the SCHEMA_SQL CREATE TABLE; existing rows default to 'local'.
         ap_cols = self._get_table_columns(conn, 'ad_patterns')
         self._add_column_if_missing(conn, 'ad_patterns', 'source', "TEXT NOT NULL DEFAULT 'local'", ap_cols)

@@ -79,9 +79,9 @@ export function PatternImportDialog({ open, onClose, onComplete }: Props) {
             onChange={(e) => setMode(e.target.value as ImportMode)}
             disabled={busy}
           >
-            <option value="supplement">Supplement — add only new patterns</option>
-            <option value="merge">Merge — update existing, add new</option>
-            <option value="replace">Replace — wipe all then import</option>
+            <option value="supplement">Supplement -- add only new patterns</option>
+            <option value="merge">Merge -- update existing, add new</option>
+            <option value="replace">Replace -- wipe all then import</option>
           </select>
         </div>
 

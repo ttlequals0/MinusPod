@@ -141,7 +141,7 @@ class PodcastMixin:
         Fast pre-check: when `rss_tags` is provided and is already a subset of
         the row's current `tags` AND `user_tags` is not changing, skip the
         episode-aggregation pass entirely. This is the dominant case on the
-        feed-refresh hot path — a 300-episode podcast paid one SELECT + 300
+        feed-refresh hot path -- a 300-episode podcast paid one SELECT + 300
         JSON parses every 15 minutes for nothing.
         """
         conn = self.get_connection()

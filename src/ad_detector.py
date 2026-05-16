@@ -2120,9 +2120,6 @@ class AdDetector:
                 text_parts.append(seg.get('text', ''))
         return ' '.join(text_parts).strip()
 
-    # Reuse centralized constant (superset of the old INVALID_SPONSOR_REASONS)
-    INVALID_SPONSOR_REASONS = INVALID_SPONSOR_VALUES
-
     def _extract_sponsor_from_reason(self, reason: str) -> Optional[str]:
         """Extract sponsor name from ad detection reason using known sponsors DB.
 
@@ -2137,7 +2134,7 @@ class AdDetector:
 
         # Reject garbage reason values before extraction
         reason_lower = reason.lower().strip()
-        if reason_lower in self.INVALID_SPONSOR_REASONS or len(reason_lower) < 2:
+        if reason_lower in INVALID_SPONSOR_VALUES or len(reason_lower) < 2:
             logger.debug(f"Rejecting invalid reason for sponsor extraction: '{reason}'")
             return None
 
@@ -2146,7 +2143,7 @@ class AdDetector:
         if sponsor:
             # Validate extracted sponsor
             sponsor_lower = sponsor.lower().strip()
-            if sponsor_lower in self.INVALID_SPONSOR_REASONS or len(sponsor_lower) < 2:
+            if sponsor_lower in INVALID_SPONSOR_VALUES or len(sponsor_lower) < 2:
                 logger.debug(f"Rejecting invalid extracted sponsor: '{sponsor}'")
                 return None
             return sponsor

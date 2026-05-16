@@ -86,8 +86,11 @@ def test_hsts_not_enabled_by_default(client):
     assert 'Strict-Transport-Security' not in response.headers
 
 
-def test_csp_absent_on_json_responses(client):
-    """CSP is scoped to HTML responses so JSON / SSE payloads stay
-    unaffected."""
+def test_csp_locked_down_on_json_responses(client):
+    """JSON responses get a minimal CSP (default-src 'none'; frame-ancestors
+    'none') so a JSON endpoint that ends up rendered in a frame or
+    misinterpreted as HTML can't load anything."""
     response = client.get('/api/v1/auth/status')
-    assert 'Content-Security-Policy' not in response.headers
+    csp = response.headers.get('Content-Security-Policy', '')
+    assert "default-src 'none'" in csp
+    assert "frame-ancestors 'none'" in csp

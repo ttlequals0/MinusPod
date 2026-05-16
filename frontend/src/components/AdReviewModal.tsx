@@ -86,7 +86,7 @@ const WINDOW_STEP_SECONDS = 60;
 // review mode. Small enough to show boundary detail; user can expand via
 // wheel-zoom, the +1m buttons, or by typing far-away timestamps.
 const CONTEXT_SECONDS = 30;
-// 100ms buckets — 4× fewer peaks than the prior 50ms default. Still plenty
+// 100ms buckets -- 4× fewer peaks than the prior 50ms default. Still plenty
 // of detail to see speech vs. silence at any reasonable zoom level, and
 // shaves the JSON payload + canvas-render cost on first mount roughly 4×.
 const PEAK_RESOLUTION_MS = 100;
@@ -154,7 +154,7 @@ function savePlayWhileDragging(v: boolean) {
 
 // ----------------------------------------------------------------------
 // Pin: vertical drag handle above the waveform that controls the
-// corresponding ad boundary. Pins ARE the user's drag interface — the
+// corresponding ad boundary. Pins ARE the user's drag interface -- the
 // wavesurfer region is decorative (drag/resize disabled on it).
 
 interface PinProps {
@@ -178,7 +178,7 @@ function Pin({
   const [dragging, setDragging] = useState(false);
 
   const relX = (boundary - windowStart) / windowDuration;
-  // Tolerate a tiny bit outside [0, 1] — happens routinely on post-roll ads
+  // Tolerate a tiny bit outside [0, 1] -- happens routinely on post-roll ads
   // where the LLM places adEnd a hair past where the audio file actually
   // ends, which makes relX = 1.0001 or so. Without slop the END pin
   // disappears entirely.
@@ -234,7 +234,7 @@ function Pin({
   if (!visible) return null;
 
   // Compact pin: small colored circle pinhead, thin stem. The label
-  // (with time) only shows when the pin is being dragged or hovered —
+  // (with time) only shows when the pin is being dragged or hovered -- 
   // when idle, just the circle is visible. Negative top offsets are
   // avoided so the pinhead doesn't get clipped by the parent's
   // overflow-x scrollbox.
@@ -259,7 +259,7 @@ function Pin({
           dragging ? `ring-4 ${ringColor} scale-125` : ''
         } transition-transform`}
       />
-      {/* Time label — only visible while dragging or on hover. */}
+      {/* Time label -- only visible while dragging or on hover. */}
       <div
         className={`absolute -top-5 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded ${color} text-white text-[10px] font-bold tracking-wider whitespace-nowrap shadow-md transition-opacity duration-100 pointer-events-none ${
           dragging ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
@@ -267,13 +267,13 @@ function Pin({
       >
         {labelText} {formatTime(boundary)}
       </div>
-      {/* Stem — runs from just below the circle to the bottom. */}
+      {/* Stem -- runs from just below the circle to the bottom. */}
       <div
         className={`absolute top-[20px] bottom-0 left-1/2 -translate-x-1/2 w-0.5 ${color} ${
           dragging ? 'opacity-100' : 'opacity-80'
         }`}
       />
-      {/* Touch target — wraps the whole pin column for easy mobile grab. */}
+      {/* Touch target -- wraps the whole pin column for easy mobile grab. */}
       <div
         className="absolute inset-y-0 -inset-x-4"
         style={{ touchAction: 'none' }}
@@ -283,7 +283,7 @@ function Pin({
 }
 
 // ----------------------------------------------------------------------
-// Playhead cursor — ref-driven DOM updates from the RAF loop, NOT React
+// Playhead cursor -- ref-driven DOM updates from the RAF loop, NOT React
 // state, so position can update at full 60fps without re-rendering the
 // whole modal tree (which fights wavesurfer + the regions plugin).
 // Position is read from the parent component's RAF loop via the
@@ -307,7 +307,7 @@ function AdReviewModal({
   const regionsRef = useRef<ReturnType<typeof RegionsPlugin.create> | null>(null);
   const adRegionRef = useRef<ReturnType<RegionsPlugin['addRegion']> | null>(null);
 
-  // Defaults derived from the original detection — used by Reset.
+  // Defaults derived from the original detection -- used by Reset.
   // Create mode defaults to the entire episode so the user can pin any
   // moment without zooming/scrolling. Review mode centers on the detected
   // ad with a small context margin so boundary detail is visible at fit
@@ -353,7 +353,7 @@ function AdReviewModal({
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [playbackRate, setPlaybackRate] = useState(1);
-  // Zoom is a multiplier of "fit" — 1 = fit-to-container, 2 = 2× zoomed in, etc.
+  // Zoom is a multiplier of "fit" -- 1 = fit-to-container, 2 = 2× zoomed in, etc.
   const [zoom, setZoom] = useState(1);
   const ZOOM_MIN = 1;
   const ZOOM_MAX = 20;
@@ -400,7 +400,7 @@ function AdReviewModal({
       ? `/api/v1/feeds/${item.podcastSlug}/episodes/${item.episodeId}/original.mp3`
       : processedAudioUrl;
   // The user-requested window. May extend past the actual end of the file
-  // for post-roll ads — ffmpeg silently truncates and returns fewer peaks.
+  // for post-roll ads -- ffmpeg silently truncates and returns fewer peaks.
   const requestedWindowDuration = useMemo(
     () => Math.max(0.001, windowEnd - windowStart),
     [windowStart, windowEnd],
@@ -416,7 +416,7 @@ function AdReviewModal({
   }, [peaks, peakResolutionMs, requestedWindowDuration]);
   // Effective end = start + actual covered duration. Used in the displayed
   // time labels so the user sees the same window the pins / waveform are
-  // actually showing — important for post-roll ads whose requested window
+  // actually showing -- important for post-roll ads whose requested window
   // extends past the file end.
   const effectiveWindowEnd = useMemo(
     () => windowStart + windowDuration,
@@ -470,7 +470,7 @@ function AdReviewModal({
   }, [mode, item.podcastSlug, item.episodeId, adStart, adEnd]);
 
   // ------------------------------------------------------------------
-  // Mount wavesurfer when peaks/window arrive. Region is decorative —
+  // Mount wavesurfer when peaks/window arrive. Region is decorative -- 
   // drag/resize disabled because the Pin components own that interaction.
   useEffect(() => {
     if (!containerRef.current || !peaks) return;
@@ -484,7 +484,7 @@ function AdReviewModal({
       peaks: [peaks],
       duration: windowDuration,
       ...getThemeWaveformColors(),
-      cursorColor: 'transparent',  // we render our own playhead — see <Cursor /> below
+      cursorColor: 'transparent', // we render our own playhead -- see <Cursor /> below
       barWidth: 2,
       barGap: 1,
       barRadius: 2,
@@ -498,7 +498,7 @@ function AdReviewModal({
 
     // wavesurfer 7 mounts its scroll-container inside an *open shadow DOM*
     // attached to containerRef. When minPxPerSec*duration > parent width
-    // it grows an overflow-x: auto scrollbar — duplicate of our own outer
+    // it grows an overflow-x: auto scrollbar -- duplicate of our own outer
     // wrapper. Walk the shadow tree and force every element with overflow
     // styling to be visible. Use setProperty(important) because wavesurfer
     // sets these as inline styles which a plain assignment can't override.
@@ -553,7 +553,7 @@ function AdReviewModal({
     });
     adRegionRef.current = region;
 
-    // Stop the region from swallowing pointer events — clicks anywhere in
+    // Stop the region from swallowing pointer events -- clicks anywhere in
     // the waveform (including inside the ad band) should pass through to
     // wavesurfer's seek and to our cursor scrub overlay.
     const regionEl = (region as unknown as { element?: HTMLElement }).element;
@@ -579,7 +579,7 @@ function AdReviewModal({
 
   // Push zoom changes into wavesurfer AND resize the pin overlay so the
   // pins stay anchored to the right moments when zoomed. The pin overlay's
-  // width must match the waveform's actual rendered width — pins use
+  // width must match the waveform's actual rendered width -- pins use
   // `left: %` against the overlay's box.
   useEffect(() => {
     const ws = wsRef.current;
@@ -633,7 +633,7 @@ function AdReviewModal({
   // ------------------------------------------------------------------
   // Cursor sync: <audio> drives the cursor position via direct DOM update
   // (ref-based, no React re-render). React state is only updated ~10×/s
-  // for the transport time readout — full-rate state updates would
+  // for the transport time readout -- full-rate state updates would
   // re-render the whole modal at 60fps and stutter the cursor.
   useEffect(() => {
     let raf = 0;
@@ -667,7 +667,7 @@ function AdReviewModal({
   // Seed audio.currentTime to a sensible spot near the ad on first
   // metadata-loaded event AND whenever the active item changes. Without
   // this, audio plays from t=0 (the start of the file) when the user hits
-  // Play — for a post-roll ad whose window is at e.g. 6980-7200s, the
+  // Play -- for a post-roll ad whose window is at e.g. 6980-7200s, the
   // cursor would never enter the visible window. Snap to ad-start so the
   // user lands on the ad. We seed to (adStart - 2) for a tiny pre-roll.
   useEffect(() => {
@@ -836,7 +836,7 @@ function AdReviewModal({
   // Mouse-wheel zoom on the waveform: Ctrl/Shift wheel zooms,
   // bare wheel still scrolls horizontally (browser default in overflow-x-auto).
   // We intercept ALL wheel events on the scroll container so the user doesn't
-  // need a modifier key — feels more natural for an audio-editing surface.
+  // need a modifier key -- feels more natural for an audio-editing surface.
   const onWheel = (e: React.WheelEvent<HTMLDivElement>) => {
     // Only act on vertical wheel (deltaY); leave horizontal wheel alone so
     // trackpad horizontal panning still scrolls the waveform.
@@ -865,7 +865,7 @@ function AdReviewModal({
   };
 
   // ------------------------------------------------------------------
-  // Submission — the host owns the actual API call (so it can also
+  // Submission -- the host owns the actual API call (so it can also
   // refresh the surrounding episode view, navigate, etc.); we just emit.
   const [isBusy, setIsBusy] = useState(false);
 
@@ -1019,7 +1019,7 @@ function AdReviewModal({
   }, [isBusy, onClose, sponsorInput, adStart, adEnd, item.start, item.end]);
 
   // ------------------------------------------------------------------
-  // Style helpers — explicit hover treatments so buttons clearly
+  // Style helpers -- explicit hover treatments so buttons clearly
   // highlight on mouseover instead of looking washed out.
 
   const primaryBtn =
@@ -1045,7 +1045,7 @@ function AdReviewModal({
         // Anything inside the modal panel (inputs, buttons, listbox items
         // from a child popup, etc.) gets ignored here without needing a
         // child stopPropagation. In create mode we never auto-close on
-        // backdrop click — the user is in the middle of data entry and
+        // backdrop click -- the user is in the middle of data entry and
         // an accidental tap would lose everything.
         if (e.target !== e.currentTarget) return;
         if (mode === 'create') return;
@@ -1056,7 +1056,7 @@ function AdReviewModal({
         className="bg-card rounded-lg border border-border w-full max-w-4xl max-h-[90vh] overflow-y-auto shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Header — action chrome up top (always fits a single row on
+        {/* Header -- action chrome up top (always fits a single row on
             mobile), title visible only at sm:+ where there's room, and
             the detection metadata wraps onto its own line below. */}
         <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-border space-y-2">
@@ -1178,13 +1178,13 @@ function AdReviewModal({
                 className="overflow-x-auto"
               >
                 <div className="relative min-w-full" ref={overlayRef}>
-                  {/* Header strip — gives the pinheads a place to live INSIDE
+                  {/* Header strip -- gives the pinheads a place to live INSIDE
                       the overlay's box (so they aren't clipped by the
                       enclosing overflow-x-auto scroll container). */}
                   <div className="h-9" />
                   {/* Pins live in the same horizontal coordinate system as
                       the waveform host (overlayRef). When zoom > 1, wavesurfer
-                      widens its canvas — the relative wrapper grows with it,
+                      widens its canvas -- the relative wrapper grows with it,
                       so pin `left: %` keeps tracking the right time. */}
                   <Pin
                     kind="start"
@@ -1218,7 +1218,7 @@ function AdReviewModal({
                     onPointerDown={(e) => {
                       // Drag the cursor pinhead to scrub the audio. Scrub
                       // is bounded by the visible window, NOT the ad
-                      // boundary — user can listen anywhere in context.
+                      // boundary -- user can listen anywhere in context.
                       const overlay = overlayRef.current;
                       const audio = audioRef.current;
                       if (!overlay || !audio) return;
@@ -1255,7 +1255,7 @@ function AdReviewModal({
                   >
                     {/* Compact circle pinhead at top. */}
                     <div className="absolute top-1 left-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full border-2 border-white bg-amber-500 shadow-md cursor-ew-resize" />
-                    {/* Time label — hover or while moving. */}
+                    {/* Time label -- hover or while moving. */}
                     <div className="absolute -top-5 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded bg-amber-500 text-white text-[10px] font-bold whitespace-nowrap shadow-md transition-opacity duration-100 pointer-events-none opacity-0 group-hover/cursor:opacity-100">
                       ▶ {formatTime(currentTime)}
                     </div>

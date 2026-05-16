@@ -602,6 +602,14 @@ def _apply_security_headers(response):
             "connect-src 'self'; "
             "frame-ancestors 'none'"
         )
+    elif content_type == 'application/json':
+        # JSON API responses cannot execute script, but a permissive CSP
+        # still helps if a browser is tricked into rendering one. Lock it
+        # down to deny everything and block framing.
+        response.headers.setdefault(
+            'Content-Security-Policy',
+            "default-src 'none'; frame-ancestors 'none'"
+        )
     return response
 
 # Register routes from routes module

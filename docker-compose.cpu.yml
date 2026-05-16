@@ -104,3 +104,7 @@ services:
     restart: unless-stopped
     expose:
       - "8000"
+    security_opt:
+      - "no-new-privileges:true"
+    cap_drop:
+      - ALL
