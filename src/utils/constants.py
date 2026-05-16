@@ -319,12 +319,33 @@ SPONSOR_PATTERN_KEYWORDS = [
 ]
 
 # Invalid capture words - common English words that indicate regex captured garbage
-# e.g., "not an advertisement" -> regex captures "not an" as sponsor
+# e.g., "not an advertisement" -> regex captures "not an" as sponsor.
+# Distinct from NON_BRAND_WORDS below: this set targets English filler/
+# grammatical words that appear at the START of a captured sponsor name
+# (validate_extracted_sponsor in ad_detector). NON_BRAND_WORDS targets
+# ad-domain vocabulary that follows or surrounds a sponsor mention.
 INVALID_SPONSOR_CAPTURE_WORDS = frozenset({
     'not', 'no', 'this', 'that', 'the', 'a', 'an', 'another',
     'consistent', 'possible', 'potential', 'likely', 'seems',
     'is', 'was', 'are', 'were', 'with', 'from', 'for', 'by',
     'clear', 'any', 'some', 'host', 'their', 'its', 'our',
+})
+
+# Ad-domain vocabulary that appears in ad reasons / Claude output but is
+# never a brand name. Used by ad_detector to filter spurious "sponsor"
+# captures pulled from reason strings like "sponsor read" or "ad segment".
+# This set is a strict superset of the inline excluded_words previously
+# defined in extract_sponsor_names (the latter targeted the same domain
+# but was narrower).
+NON_BRAND_WORDS = frozenset({
+    'ad', 'ads', 'sponsor', 'sponsored', 'advertisement', 'commercial',
+    'host', 'read', 'segment', 'content', 'break', 'detected', 'detection',
+    'network', 'inserted', 'dynamically', 'transition', 'promotional',
+    'promo', 'promotion', 'mention', 'mentioned', 'plug', 'spot',
+    'the', 'and', 'for', 'with', 'from', 'this', 'that', 'into',
+    'brand', 'tagline', 'product', 'pitch', 'marketing', 'copy',
+    'complete', 'partial', 'full', 'brief', 'short', 'long',
+    'message', 'insert', 'mid', 'roll', 'pre', 'post',
 })
 
 # Classifications from LLM that indicate non-ad content

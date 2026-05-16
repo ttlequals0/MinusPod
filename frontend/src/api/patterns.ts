@@ -1,4 +1,4 @@
-import { apiRequest, buildQueryString, csrfHeaders, extractErrorMessage } from './client';
+import { apiRequest, apiFileRequest, buildQueryString } from './client';
 import { downloadBlob } from './history';
 
 // Mirrors src/utils/community_tags.py:PATTERN_SOURCES so the frontend
@@ -231,26 +231,15 @@ export async function previewExportBundle(ids: number[]): Promise<BundlePreview>
 }
 
 // apiRequest assumes JSON responses; the bundle endpoint streams a file,
-// so fall back to a raw fetch. CSRF + error-stringification helpers are
-// reused from client.ts. The actual browser download happens here so
-// callers only deal with the resulting filename.
+// so we use apiFileRequest which preserves CSRF + error-stringification.
+// The actual browser download happens here so callers only deal with the
+// resulting filename.
 export async function downloadCommunityBundle(ids: number[]): Promise<{ filename: string }> {
-  const response = await fetch('/api/v1/patterns/submit-bundle', {
+  const { blob, filename } = await apiFileRequest('/patterns/submit-bundle', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...csrfHeaders('POST'),
-    },
-    body: JSON.stringify({ ids }),
+    body: { ids },
+    fallbackFilename: 'minuspod-community-submission.json',
   });
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Download failed' }));
-    throw new Error(extractErrorMessage(error, response.status));
-  }
-  const blob = await response.blob();
-  const cd = response.headers.get('Content-Disposition') || '';
-  const match = cd.match(/filename="?([^"]+)"?/);
-  const filename = match?.[1] || 'minuspod-community-submission.json';
   downloadBlob(blob, filename);
   return { filename };
 }

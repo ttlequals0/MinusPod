@@ -19,6 +19,7 @@ from secrets_crypto import (
     is_available as crypto_available,
 )
 from utils.time import utc_now_iso
+from utils.ttl_cache import TTLCache
 
 logger = logging.getLogger('podcast.cleanup')
 
@@ -58,41 +59,38 @@ class CleanupService:
             db: Database instance
         """
         self.db = db
-        self._settings_cache = None
-        self._settings_loaded_at = None
+        # 5 minute TTL cache; single bucket keyed by '_settings'
+        self._settings_cache = TTLCache(ttl_seconds=300.0)
 
     def _get_setting(self, key: str) -> any:
         """Get a setting value from database or default."""
-        # Reload settings every 5 minutes
-        if (self._settings_cache is None or
-            self._settings_loaded_at is None or
-            datetime.now() - self._settings_loaded_at > timedelta(minutes=5)):
-            self._load_settings()
-
-        return self._settings_cache.get(key, DEFAULT_SETTINGS.get(key))
+        settings = self._settings_cache.get('_settings')
+        if settings is None:
+            settings = self._load_settings()
+        return settings.get(key, DEFAULT_SETTINGS.get(key))
 
     def _load_settings(self):
-        """Load settings from database."""
-        self._settings_cache = DEFAULT_SETTINGS.copy()
-        self._settings_loaded_at = datetime.now()
+        """Load settings from database and cache them."""
+        settings = DEFAULT_SETTINGS.copy()
 
-        if not self.db:
-            return
+        if self.db:
+            try:
+                for key in DEFAULT_SETTINGS:
+                    value = self.db.get_setting(f'cleanup_{key}')
+                    if value is not None:
+                        # Convert to appropriate type
+                        if key in ('auto_vacuum',):
+                            settings[key] = value.lower() in ('true', '1', 'yes')
+                        elif key in ('episode_days', 'pattern_stale_days', 'pattern_purge_days',
+                                     'confidence_decay_percent', 'min_confirmations_to_decay'):
+                            settings[key] = int(value)
+                        else:
+                            settings[key] = value
+            except Exception as e:
+                logger.warning(f"Failed to load cleanup settings: {e}")
 
-        try:
-            for key in DEFAULT_SETTINGS:
-                value = self.db.get_setting(f'cleanup_{key}')
-                if value is not None:
-                    # Convert to appropriate type
-                    if key in ('auto_vacuum',):
-                        self._settings_cache[key] = value.lower() in ('true', '1', 'yes')
-                    elif key in ('episode_days', 'pattern_stale_days', 'pattern_purge_days',
-                                 'confidence_decay_percent', 'min_confirmations_to_decay'):
-                        self._settings_cache[key] = int(value)
-                    else:
-                        self._settings_cache[key] = value
-        except Exception as e:
-            logger.warning(f"Failed to load cleanup settings: {e}")
+        self._settings_cache.set('_settings', settings)
+        return settings
 
     def run_all(self) -> Dict[str, int]:
         """

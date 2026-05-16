@@ -15,7 +15,7 @@ from llm_client import (
 from utils.llm_call import call_llm_for_window
 from utils.prompt import format_sponsor_block, render_prompt
 from utils.text import get_transcript_text_for_range
-from utils.time import parse_timestamp, first_not_none
+from utils.time import parse_timestamp, first_not_none, overlap_ratio
 
 from config import (
     MIN_TYPICAL_AD_DURATION, MIN_SPONSOR_READ_DURATION, SHORT_GAP_THRESHOLD,
@@ -31,10 +31,11 @@ from config import (
     resolve_stage_tunables,
 )
 from llm_capabilities import PASS_AD_DETECTION_1, PASS_AD_DETECTION_2
+from sponsor_service import SponsorService
 from utils.constants import (
     INVALID_SPONSOR_VALUES, STRUCTURAL_FIELDS,
     SPONSOR_PRIORITY_FIELDS, SPONSOR_PATTERN_KEYWORDS,
-    INVALID_SPONSOR_CAPTURE_WORDS, NOT_AD_CLASSIFICATIONS,
+    INVALID_SPONSOR_CAPTURE_WORDS, NON_BRAND_WORDS, NOT_AD_CLASSIFICATIONS,
     KNOWN_SHORT_BRANDS, canonical_sponsor,
 )
 
@@ -446,76 +447,21 @@ def _text_has_ad_content(text: str, sponsor_names: set = None) -> bool:
 def extract_sponsor_names(text: str, ad_reason: str = None) -> set:
     """Extract potential sponsor names from transcript text and ad reason.
 
-    Looks for:
-    - URLs/domains (e.g., vention, zapier from URLs)
-    - Brand names mentioned in ad reason (e.g., "Vention sponsor read")
-    - Known sponsor patterns
-
-    Args:
-        text: Transcript text to analyze
-        ad_reason: Optional reason field from ad detection
-
-    Returns:
-        Set of potential sponsor name strings (lowercase)
+    Thin delegation to SponsorService.extract_sponsors_from_transcript
+    (canonical implementation). Retained as a module-level alias because
+    several call sites and tests import this name directly.
     """
-    sponsors = set()
-    text_lower = text.lower()
-
-    # Extract domain names from URLs (e.g., "vention" from "ventionteams.com")
-    url_pattern = r'(?:https?://)?(?:www\.)?([a-z0-9]+)(?:teams|\.com|\.tv|\.io|\.co|\.org)'
-    for match in re.finditer(url_pattern, text_lower):
-        sponsor = match.group(1)
-        if len(sponsor) > 2:  # Skip very short matches
-            sponsors.add(sponsor)
-
-    # Also look for explicit "dot com" mentions
-    dotcom_pattern = r'([a-z]+)\s*(?:dot\s*com|\.com)'
-    for match in re.finditer(dotcom_pattern, text_lower):
-        sponsor = match.group(1)
-        if len(sponsor) > 2:
-            sponsors.add(sponsor)
-
-    # Extract brand name from ad reason (e.g., "Vention sponsor read" -> "vention")
-    if ad_reason:
-        reason_lower = ad_reason.lower()
-        # Look for patterns like "X sponsor read", "X ad", "ad for X"
-        reason_patterns = [
-            r'^([a-z]+)\s+(?:sponsor|ad\b)',  # "Vention sponsor read"
-            r'(?:ad for|sponsor(?:ed by)?)\s+([a-z]+)',  # "ad for Vention"
-        ]
-        for pattern in reason_patterns:
-            match = re.search(pattern, reason_lower)
-            if match:
-                brand = match.group(1)
-                # Exclude common non-brand words that appear after "sponsor" or "ad"
-                excluded_words = {
-                    'the', 'and', 'for', 'with',  # articles/prepositions
-                    'read', 'segment', 'content', 'break',  # "sponsor read", "ad segment"
-                    'complete', 'partial', 'full',  # "complete ad segment"
-                    'spot', 'mention', 'plug', 'insert',  # "sponsor mention"
-                    'message', 'promo', 'promotion',  # "ad promo"
-                }
-                if len(brand) > 2 and brand not in excluded_words:
-                    sponsors.add(brand)
-
-    return sponsors
+    return SponsorService.extract_sponsors_from_transcript(text, ad_reason)
 
 
 
 
 # --- Timestamp validation (Fix 1: Claude hallucination correction) ---
 
-# Common words that appear in ad reasons but are not brand names
-_NON_BRAND_WORDS = {
-    'ad', 'ads', 'sponsor', 'sponsored', 'advertisement', 'commercial',
-    'host', 'read', 'segment', 'content', 'break', 'detected', 'detection',
-    'network', 'inserted', 'dynamically', 'transition', 'promotional',
-    'promo', 'promotion', 'mention', 'mentioned', 'plug', 'spot',
-    'the', 'and', 'for', 'with', 'from', 'this', 'that', 'into',
-    'brand', 'tagline', 'product', 'pitch', 'marketing', 'copy',
-    'complete', 'partial', 'full', 'brief', 'short', 'long',
-    'message', 'insert', 'mid', 'roll', 'pre', 'post',
-}
+# Common words that appear in ad reasons but are not brand names.
+# Module-level alias preserved so existing in-file references and any
+# external test introspection continue to work.
+_NON_BRAND_WORDS = NON_BRAND_WORDS
 
 
 def _extract_ad_keywords(ad: Dict) -> List[str]:
@@ -1079,34 +1025,9 @@ def parse_ads_from_response(response_text: str, slug: str = None,
         smaller = min(len(a_words), len(b_words))
         return overlap / smaller > 0.8 if smaller > 0 else False
 
-    def extract_sponsor_from_text(text: str) -> str | None:
-        """Extract sponsor name from descriptive text."""
-        if not text:
-            return None
-        patterns = [
-            r'^(\w+(?:\s+\w+)?)\s+(?:sponsor|ad)\s+read',
-            r'(?:this is (?:a|an) )?(\w+(?:\s+\w+)?)\s+(?:ad|advertisement|sponsor)',
-            r'(?:ad|advertisement|sponsor)(?:ship)?\s+(?:for|by|from)\s+(\w+(?:\s+\w+)?)',
-            r'promoting\s+(\w+(?:\s+\w+)?)',
-            r'brought to you by\s+(\w+(?:\s+\w+)?)',
-        ]
-        for pattern in patterns:
-            match = re.search(pattern, text, re.IGNORECASE)
-            if match:
-                sponsor = match.group(1).strip()
-                if len(sponsor) < 2:
-                    continue
-                if sponsor.lower() in INVALID_SPONSOR_VALUES:
-                    continue
-                if sponsor.lower() in ('a', 'an', 'the', 'this', 'that', 'another', 'host'):
-                    continue
-                first_word = sponsor.split()[0].lower() if sponsor.split() else ''
-                if first_word in INVALID_SPONSOR_CAPTURE_WORDS:
-                    continue
-                if ' ' in sponsor and sponsor == sponsor.lower():
-                    continue
-                return sponsor
-        return None
+    # Local alias for the SponsorService method - keeps call sites below short
+    # and avoids re-importing inside the closure.
+    extract_sponsor_from_text = SponsorService.extract_sponsor_from_reason
 
     def extract_sponsor_name(ad: dict) -> str:
         """Extract sponsor/advertiser name using priority fields, keywords, and dynamic scanning."""
@@ -2103,11 +2024,7 @@ class AdDetector:
     @staticmethod
     def _compute_overlap(a_start, a_end, b_start, b_end):
         """Return fraction of region B covered by region A (0.0-1.0)."""
-        overlap_start = max(a_start, b_start)
-        overlap_end = min(a_end, b_end)
-        overlap = max(0, overlap_end - overlap_start)
-        b_duration = b_end - b_start
-        return overlap / b_duration if b_duration > 0 else 0.0
+        return overlap_ratio(a_start, a_end, b_start, b_end)
 
     def _get_segment_text(self, segments: List[Dict], start: float, end: float) -> str:
         """Extract transcript text within a time range."""

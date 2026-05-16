@@ -13,6 +13,7 @@ from config import (
     MERGE_GAP_THRESHOLD, MAX_SILENT_GAP
 )
 from utils.text import extract_text_from_segments
+from utils.time import overlap_ratio
 
 logger = logging.getLogger(__name__)
 
@@ -209,14 +210,11 @@ class AdValidator:
             return False
 
         for corr in corrections:
-            overlap_start = max(start, corr['start'])
-            overlap_end = min(end, corr['end'])
-            overlap_duration = max(0, overlap_end - overlap_start)
-
-            if overlap_duration > 0:
-                overlap_ratio = overlap_duration / segment_duration
-                if overlap_ratio >= overlap_threshold:
-                    return True
+            # Ratio is (segment AND correction) / segment_duration
+            # i.e. fraction of the segment covered by the correction.
+            ratio = overlap_ratio(corr['start'], corr['end'], start, end)
+            if ratio >= overlap_threshold:
+                return True
 
         return False
 

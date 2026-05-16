@@ -1,4 +1,4 @@
-import { apiRequest } from './client';
+import { apiRequest, apiFileRequest } from './client';
 import { downloadBlob } from './history';
 import { Settings, ClaudeModel, WhisperModel, SystemStatus, UpdateSettingsPayload, TokenUsageSummary, RetentionSettings, ProcessingTimeouts } from './types';
 
@@ -138,20 +138,17 @@ export interface TemplateValidationResult {
 // Data Management
 
 export async function exportOpml(mode: 'original' | 'modified' = 'original'): Promise<void> {
-  const response = await fetch(`/api/v1/feeds/export-opml?mode=${mode}`);
-  if (!response.ok) throw new Error('Failed to export OPML');
-  const blob = await response.blob();
-  const filename = mode === 'modified' ? 'minuspod-feeds-modified.opml' : 'minuspod-feeds.opml';
+  const fallback = mode === 'modified' ? 'minuspod-feeds-modified.opml' : 'minuspod-feeds.opml';
+  const { blob, filename } = await apiFileRequest(`/feeds/export-opml?mode=${mode}`, {
+    fallbackFilename: fallback,
+  });
   downloadBlob(blob, filename);
 }
 
 export async function downloadBackup(): Promise<void> {
-  const response = await fetch('/api/v1/system/backup');
-  if (!response.ok) throw new Error('Failed to download backup');
-  const blob = await response.blob();
-  const disposition = response.headers.get('Content-Disposition') || '';
-  const match = disposition.match(/filename=([^;]+)/);
-  const filename = match ? match[1] : 'minuspod-backup.db';
+  const { blob, filename } = await apiFileRequest('/system/backup', {
+    fallbackFilename: 'minuspod-backup.db',
+  });
   downloadBlob(blob, filename);
 }
 

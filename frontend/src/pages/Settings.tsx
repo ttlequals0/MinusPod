@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useSyncFromQuery } from '../hooks/useSyncFromQuery';
 import { useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getSettings, updateSettings, resetSettings, resetPrompts, getModels, getWhisperModels, getSystemStatus, runCleanup, getProcessingEpisodes, cancelProcessing, refreshModels, getRetention, updateRetention, getProcessingTimeouts, updateProcessingTimeouts, getAudioSettings, updateAudioSettings } from '../api/settings';
@@ -167,32 +168,22 @@ function Settings() {
 
   // Sync form fields with server data via during-render compare. This is the
   // React 19 alternative to a useEffect+setState that fires whenever the
-  // upstream query data identity changes.
-  const [retentionSnapshot, setRetentionSnapshot] = useState(retention);
-  if (retention !== retentionSnapshot) {
-    setRetentionSnapshot(retention);
-    if (retention) {
-      setRetentionDays(retention.retentionDays || 30);
-      setRetentionEnabled(retention.enabled);
-    }
-  }
+  // upstream query data identity changes. useSyncFromQuery encapsulates the
+  // snapshot+conditional-setState pattern; staying render-phase preserves
+  // the May 4 fix that moved these blocks off useEffect.
+  useSyncFromQuery(retention, (r) => {
+    setRetentionDays(r.retentionDays || 30);
+    setRetentionEnabled(r.enabled);
+  });
 
-  const [processingTimeoutsSnapshot, setProcessingTimeoutsSnapshot] = useState(processingTimeouts);
-  if (processingTimeouts !== processingTimeoutsSnapshot) {
-    setProcessingTimeoutsSnapshot(processingTimeouts);
-    if (processingTimeouts) {
-      setSoftTimeoutMinutes(Math.round(processingTimeouts.softTimeoutSeconds / 60));
-      setHardTimeoutMinutes(Math.round(processingTimeouts.hardTimeoutSeconds / 60));
-    }
-  }
+  useSyncFromQuery(processingTimeouts, (t) => {
+    setSoftTimeoutMinutes(Math.round(t.softTimeoutSeconds / 60));
+    setHardTimeoutMinutes(Math.round(t.hardTimeoutSeconds / 60));
+  });
 
-  const [audioSettingsSnapshot, setAudioSettingsSnapshot] = useState(audioSettings);
-  if (audioSettings !== audioSettingsSnapshot) {
-    setAudioSettingsSnapshot(audioSettings);
-    if (audioSettings) {
-      setKeepOriginalAudio(audioSettings.keepOriginalAudio);
-    }
-  }
+  useSyncFromQuery(audioSettings, (a) => {
+    setKeepOriginalAudio(a.keepOriginalAudio);
+  });
 
   const audioSettingsMutation = useMutation({
     mutationFn: (keep: boolean) => updateAudioSettings(keep),

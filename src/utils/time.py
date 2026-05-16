@@ -161,3 +161,27 @@ def first_not_none(*values):
         if v is not None:
             return v
     return None
+
+
+def overlap_ratio(start_a: float, end_a: float, start_b: float, end_b: float) -> float:
+    """Return the fraction of region B covered by region A (0.0-1.0).
+
+    Used by ad detection / validation pipelines that need to know how much
+    of one time range is contained inside another. If B has zero or negative
+    duration, returns 0.0.
+    """
+    overlap_start = max(start_a, start_b)
+    overlap_end = min(end_a, end_b)
+    overlap = max(0.0, overlap_end - overlap_start)
+    b_duration = end_b - start_b
+    return overlap / b_duration if b_duration > 0 else 0.0
+
+
+def ranges_overlap(start_a: float, end_a: float, start_b: float, end_b: float,
+                   tolerance: float = 0.0) -> bool:
+    """Boolean check: do [start_a, end_a] and [start_b, end_b] overlap?
+
+    `tolerance` widens both ranges symmetrically -- a positive tolerance
+    treats touching or near-adjacent ranges as overlapping.
+    """
+    return start_a <= end_b + tolerance and end_a >= start_b - tolerance

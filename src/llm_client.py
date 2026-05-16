@@ -23,7 +23,6 @@ Configuration via environment variables:
 import logging
 import os
 import threading
-import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import List, Dict, Optional, Any, Union
@@ -31,6 +30,7 @@ from typing import List, Dict, Optional, Any, Union
 from utils.circuit_breaker import CircuitBreaker, CircuitBreakerOpen
 from utils.rate_limit import parse_retry_after
 from utils.http import safe_url_for_log
+from utils.ttl_cache import TTLCache
 
 from config import (
     HTTP_MAX_REDIRECTS_API,
@@ -128,29 +128,35 @@ class LLMModel:
 # DB-backed provider settings with short TTL cache
 # =========================================================================
 
-_provider_cache: Dict[str, Any] = {}
-_provider_cache_lock = threading.Lock()
 _PROVIDER_CACHE_TTL = 5.0  # seconds
+_provider_cache = TTLCache(ttl_seconds=_PROVIDER_CACHE_TTL)
+_provider_cache_lock = threading.Lock()
 
 # =========================================================================
 # Model list cache (avoids hitting the API on every /settings page load)
 # =========================================================================
-_model_list_cache: Dict[str, Any] = {}
-_model_list_cache_lock = threading.Lock()
 _MODEL_LIST_CACHE_TTL = 300.0  # 5 minutes
+_model_list_cache = TTLCache(ttl_seconds=_MODEL_LIST_CACHE_TTL)
+_model_list_cache_lock = threading.Lock()
+
+
+# Sentinel so we can cache `None` values (e.g. missing settings) and
+# distinguish "cached miss" from "no entry".
+_CACHED_NONE = object()
+
 
 def _get_cached_setting(key: str) -> Optional[str]:
     """Read a setting from DB with a short TTL cache to avoid per-request queries."""
     with _provider_cache_lock:
-        entry = _provider_cache.get(key)
-        if entry and (time.monotonic() - entry['ts']) < _PROVIDER_CACHE_TTL:
-            return entry['val']
+        cached = _provider_cache.get(key)
+    if cached is not None:
+        return None if cached is _CACHED_NONE else cached
     try:
         from database import Database
         db = Database()
         val = db.get_setting(key)
         with _provider_cache_lock:
-            _provider_cache[key] = {'val': val, 'ts': time.monotonic()}
+            _provider_cache.set(key, _CACHED_NONE if val is None else val)
         return val
     except Exception:
         return None
@@ -159,9 +165,9 @@ def _get_cached_setting(key: str) -> Optional[str]:
 def _get_cached_secret(key: str) -> Optional[str]:
     """Decrypting variant of _get_cached_setting; shares the same TTL cache."""
     with _provider_cache_lock:
-        entry = _provider_cache.get(key)
-        if entry and (time.monotonic() - entry['ts']) < _PROVIDER_CACHE_TTL:
-            return entry['val']
+        cached = _provider_cache.get(key)
+    if cached is not None:
+        return None if cached is _CACHED_NONE else cached
     try:
         from database import Database
         val = Database().get_secret(key)
@@ -169,7 +175,7 @@ def _get_cached_secret(key: str) -> Optional[str]:
         logger.exception("secrets_crypto read failed")
         val = None
     with _provider_cache_lock:
-        _provider_cache[key] = {'val': val, 'ts': time.monotonic()}
+        _provider_cache.set(key, _CACHED_NONE if val is None else val)
     return val
 
 
@@ -182,16 +188,13 @@ def _clear_provider_cache():
 def _get_cached_model_list(provider_key: str) -> Optional[List['LLMModel']]:
     """Return cached model list if still fresh, else None."""
     with _model_list_cache_lock:
-        entry = _model_list_cache.get(provider_key)
-        if entry and (time.monotonic() - entry['ts']) < _MODEL_LIST_CACHE_TTL:
-            return entry['models']
-    return None
+        return _model_list_cache.get(provider_key)
 
 
 def _set_cached_model_list(provider_key: str, models: List['LLMModel']):
     """Store a model list in the cache."""
     with _model_list_cache_lock:
-        _model_list_cache[provider_key] = {'models': models, 'ts': time.monotonic()}
+        _model_list_cache.set(provider_key, models)
 
 
 def _clear_model_list_cache():

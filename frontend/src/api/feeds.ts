@@ -1,4 +1,4 @@
-import { apiRequest, buildQueryString, csrfHeaders } from './client';
+import { apiRequest, buildQueryString, csrfHeaders, extractErrorMessage } from './client';
 import { Feed, Episode, EpisodeDetail, BulkActionResult } from './types';
 
 
@@ -183,8 +183,8 @@ export async function importOpml(file: File): Promise<OpmlImportResult> {
   });
 
   if (!response.ok) {
-    const data = await response.json().catch(() => ({}));
-    throw new Error(data.error || `Import failed: ${response.status}`);
+    const data = await response.json().catch(() => ({ error: 'Import failed' }));
+    throw new Error(extractErrorMessage(data, response.status));
   }
 
   return response.json();

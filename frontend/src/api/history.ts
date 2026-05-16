@@ -1,4 +1,4 @@
-import { apiRequest, buildQueryString } from './client';
+import { apiRequest, apiFileRequest, buildQueryString } from './client';
 import { ProcessingHistoryResponse, ProcessingHistoryStats } from './types';
 
 export interface HistoryQueryParams {
@@ -30,14 +30,10 @@ export async function getProcessingHistoryStats(): Promise<ProcessingHistoryStat
 }
 
 export async function exportProcessingHistory(format: 'csv' | 'json'): Promise<Blob> {
-  const response = await fetch(`/api/v1/history/export?format=${format}`);
-
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Export failed' }));
-    throw new Error(error.error || `HTTP ${response.status}`);
-  }
-
-  return response.blob();
+  const { blob } = await apiFileRequest(`/history/export?format=${format}`, {
+    fallbackFilename: `processing_history.${format}`,
+  });
+  return blob;
 }
 
 export function downloadBlob(blob: Blob, filename: string): void {

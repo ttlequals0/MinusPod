@@ -2,15 +2,16 @@
 import re
 import json
 import logging
-from datetime import datetime, timedelta, timezone
 from typing import List, Dict, Optional
 
 from utils.constants import (
     INVALID_SPONSOR_VALUES,
     INVALID_SPONSOR_CAPTURE_WORDS,
+    NON_BRAND_WORDS,
     SEED_SPONSORS,
     SEED_NORMALIZATIONS,
 )
+from utils.ttl_cache import TTLCache
 
 logger = logging.getLogger(__name__)
 
@@ -26,8 +27,9 @@ class SponsorService:
         self.db = db
         self._cache_normalizations = None
         self._cache_sponsors = None
-        self._cache_time = None
-        self._cache_ttl = timedelta(minutes=5)
+        # Cache freshness gate; payload lives on instance attrs above and
+        # _compiled_patterns below. Single key '_loaded'.
+        self._freshness = TTLCache(ttl_seconds=300.0)  # 5 minutes
         self._compiled_patterns = {}  # {canonical_name: compiled_regex}
 
     @staticmethod
@@ -44,12 +46,12 @@ class SponsorService:
 
     def _refresh_cache_if_needed(self):
         """Cache for 5 minutes to avoid constant DB hits."""
-        if self._cache_time and (datetime.now(timezone.utc) - self._cache_time) < self._cache_ttl:
+        if self._freshness.get('_loaded') is not None:
             return
 
         self._cache_normalizations = self.db.get_sponsor_normalizations(active_only=True)
         self._cache_sponsors = self.db.get_known_sponsors(active_only=True)
-        self._cache_time = datetime.now(timezone.utc)
+        self._freshness.set('_loaded', True)
 
         # Precompile word-boundary regex patterns for sponsor matching
         self._compiled_patterns = {}
@@ -70,7 +72,7 @@ class SponsorService:
 
     def invalidate_cache(self):
         """Call after any updates."""
-        self._cache_time = None
+        self._freshness.clear()
         self._cache_normalizations = None
         self._cache_sponsors = None
 
@@ -240,6 +242,93 @@ class SponsorService:
                     return sponsor
 
         return None
+
+    @staticmethod
+    def extract_sponsor_from_reason(text: str) -> Optional[str]:
+        """Extract sponsor name from descriptive reason / ad-classification text.
+
+        Distinct from extract_sponsor_from_text: this targets short descriptive
+        strings produced by the LLM ("Acme sponsor read", "ad for Acme",
+        "promoting Acme") rather than full transcript text. Returns the raw
+        captured token (case preserved) when valid, else None.
+        """
+        if not text:
+            return None
+        patterns = [
+            r'^(\w+(?:\s+\w+)?)\s+(?:sponsor|ad)\s+read',
+            r'(?:this is (?:a|an) )?(\w+(?:\s+\w+)?)\s+(?:ad|advertisement|sponsor)',
+            r'(?:ad|advertisement|sponsor)(?:ship)?\s+(?:for|by|from)\s+(\w+(?:\s+\w+)?)',
+            r'promoting\s+(\w+(?:\s+\w+)?)',
+            r'brought to you by\s+(\w+(?:\s+\w+)?)',
+        ]
+        for pattern in patterns:
+            match = re.search(pattern, text, re.IGNORECASE)
+            if match:
+                sponsor = match.group(1).strip()
+                if len(sponsor) < 2:
+                    continue
+                if sponsor.lower() in INVALID_SPONSOR_VALUES:
+                    continue
+                if sponsor.lower() in ('a', 'an', 'the', 'this', 'that', 'another', 'host'):
+                    continue
+                first_word = sponsor.split()[0].lower() if sponsor.split() else ''
+                if first_word in INVALID_SPONSOR_CAPTURE_WORDS:
+                    continue
+                if ' ' in sponsor and sponsor == sponsor.lower():
+                    continue
+                return sponsor
+        return None
+
+    @staticmethod
+    def extract_sponsors_from_transcript(text: str, ad_reason: str = None) -> set:
+        """Extract potential sponsor names from transcript text and optional ad reason.
+
+        Returns a set of lowercase brand tokens harvested from:
+        - URL/domain mentions (e.g., "vention" from "ventionteams.com")
+        - "dot com" speech transcriptions
+        - The ad_reason field (e.g., "Vention sponsor read")
+
+        This is the multi-sponsor counterpart used by merge_same_sponsor_ads
+        to test whether adjacent ad regions share a brand.
+        """
+        sponsors = set()
+        if not text:
+            text = ''
+        text_lower = text.lower()
+
+        # Extract domain names from URLs (e.g., "vention" from "ventionteams.com")
+        url_pattern = r'(?:https?://)?(?:www\.)?([a-z0-9]+)(?:teams|\.com|\.tv|\.io|\.co|\.org)'
+        for match in re.finditer(url_pattern, text_lower):
+            sponsor = match.group(1)
+            if len(sponsor) > 2:  # Skip very short matches
+                sponsors.add(sponsor)
+
+        # Also look for explicit "dot com" mentions
+        dotcom_pattern = r'([a-z]+)\s*(?:dot\s*com|\.com)'
+        for match in re.finditer(dotcom_pattern, text_lower):
+            sponsor = match.group(1)
+            if len(sponsor) > 2:
+                sponsors.add(sponsor)
+
+        # Extract brand name from ad reason (e.g., "Vention sponsor read" -> "vention")
+        if ad_reason:
+            reason_lower = ad_reason.lower()
+            # Look for patterns like "X sponsor read", "X ad", "ad for X"
+            reason_patterns = [
+                r'^([a-z]+)\s+(?:sponsor|ad\b)',  # "Vention sponsor read"
+                r'(?:ad for|sponsor(?:ed by)?)\s+([a-z]+)',  # "ad for Vention"
+            ]
+            for pattern in reason_patterns:
+                match = re.search(pattern, reason_lower)
+                if match:
+                    brand = match.group(1)
+                    # Filter common non-brand vocabulary (e.g. "sponsor read",
+                    # "ad segment", "complete ad segment"). NON_BRAND_WORDS is
+                    # a superset of the original inline excluded_words list.
+                    if len(brand) > 2 and brand not in NON_BRAND_WORDS:
+                        sponsors.add(brand)
+
+        return sponsors
 
     # ========== CRUD Wrappers ==========
 

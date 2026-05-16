@@ -1,24 +1,52 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
+
+const NAV_ITEMS: { to: string; label: string }[] = [
+  { to: '/', label: 'Dashboard' },
+  { to: '/add', label: 'Add Feed' },
+  { to: '/patterns', label: 'Patterns' },
+  { to: '/history', label: 'History' },
+  { to: '/stats', label: 'Stats' },
+  { to: '/settings', label: 'Settings' },
+];
+
+interface NavLinkProps {
+  to: string;
+  label: string;
+  active: boolean;
+  onClick?: () => void;
+}
+
+function NavLink({ to, label, active, onClick }: NavLinkProps) {
+  return (
+    <Link
+      to={to}
+      onClick={onClick}
+      className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
+        active
+          ? 'bg-primary text-primary-foreground'
+          : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+      }`}
+    >
+      {label}
+    </Link>
+  );
+}
+
+function isPathActive(pathname: string, to: string): boolean {
+  if (to === '/') return pathname === '/';
+  return pathname.startsWith(to);
+}
 
 function Layout() {
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [lastPath, setLastPath] = useState(location.pathname);
 
-  if (location.pathname !== lastPath) {
-    setLastPath(location.pathname);
+  useEffect(() => {
     setMobileMenuOpen(false);
-  }
-
-  const isActive = (path: string) => {
-    if (path === '/') {
-      return location.pathname === '/';
-    }
-    return location.pathname.startsWith(path);
-  };
+  }, [location.pathname]);
 
   return (
     <div className="min-h-screen bg-background pt-10">
@@ -35,66 +63,14 @@ function Layout() {
                 />
               </Link>
               <nav className="hidden sm:flex gap-4">
-                <Link
-                  to="/"
-                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                    isActive('/') && location.pathname === '/'
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                  }`}
-                >
-                  Dashboard
-                </Link>
-                <Link
-                  to="/add"
-                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                    isActive('/add')
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                  }`}
-                >
-                  Add Feed
-                </Link>
-                <Link
-                  to="/patterns"
-                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                    isActive('/patterns')
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                  }`}
-                >
-                  Patterns
-                </Link>
-                <Link
-                  to="/history"
-                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                    isActive('/history')
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                  }`}
-                >
-                  History
-                </Link>
-                <Link
-                  to="/stats"
-                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                    isActive('/stats')
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                  }`}
-                >
-                  Stats
-                </Link>
-                <Link
-                  to="/settings"
-                  className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                    isActive('/settings')
-                      ? 'bg-primary text-primary-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                  }`}
-                >
-                  Settings
-                </Link>
+                {NAV_ITEMS.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    label={item.label}
+                    active={isPathActive(location.pathname, item.to)}
+                  />
+                ))}
               </nav>
             </div>
             <div className="flex items-center gap-2">
@@ -154,72 +130,15 @@ function Layout() {
         {mobileMenuOpen && (
           <div className="sm:hidden border-t border-border bg-card">
             <nav className="flex flex-col px-4 py-2 gap-1">
-              <Link
-                to="/"
-                onClick={() => setMobileMenuOpen(false)}
-                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  isActive('/') && location.pathname === '/'
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                }`}
-              >
-                Dashboard
-              </Link>
-              <Link
-                to="/add"
-                onClick={() => setMobileMenuOpen(false)}
-                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  isActive('/add')
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                }`}
-              >
-                Add Feed
-              </Link>
-              <Link
-                to="/patterns"
-                onClick={() => setMobileMenuOpen(false)}
-                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  isActive('/patterns')
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                }`}
-              >
-                Patterns
-              </Link>
-              <Link
-                to="/history"
-                onClick={() => setMobileMenuOpen(false)}
-                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  isActive('/history')
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                }`}
-              >
-                History
-              </Link>
-              <Link
-                to="/stats"
-                onClick={() => setMobileMenuOpen(false)}
-                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  isActive('/stats')
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                }`}
-              >
-                Stats
-              </Link>
-              <Link
-                to="/settings"
-                onClick={() => setMobileMenuOpen(false)}
-                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-                  isActive('/settings')
-                    ? 'bg-primary text-primary-foreground'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-accent'
-                }`}
-              >
-                Settings
-              </Link>
+              {NAV_ITEMS.map((item) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  label={item.label}
+                  active={isPathActive(location.pathname, item.to)}
+                  onClick={() => setMobileMenuOpen(false)}
+                />
+              ))}
             </nav>
           </div>
         )}
