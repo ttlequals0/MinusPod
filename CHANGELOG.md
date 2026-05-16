@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Tooling
+
+- **Benchmark report scatter plots now assign a unique color per model.** `_render_pareto`, `_render_precision_recall_chart`, and `_render_token_efficiency_chart` were drawing from `tab20` with `i % 20`, so any run with more than 20 models silently reused colors and made the legend ambiguous. Added `_distinct_colors(n)` that concatenates `tab20 + tab20b + tab20c` (60 categorical colors) and falls back to evenly-spaced `hsv` past that. Benchmark-only change; not shipped in the runtime image, no version bump.
+
 ## [2.4.8] - 2026-05-15
 
 ### Security
