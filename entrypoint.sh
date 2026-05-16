@@ -6,8 +6,8 @@
 # from a host path owned by a different UID (common on first run after a
 # docker compose pull, or after an operator recreates the volume). We fix
 # ownership, then drop privileges to the unprivileged minuspod user via
-# gosu. Only root needs to live long enough to run this script; gunicorn
-# runs as UID 1000 (or APP_UID / APP_GID if overridden).
+# setpriv (util-linux). Only root needs to live long enough to run this
+# script; gunicorn runs as UID 1000 (or APP_UID / APP_GID if overridden).
 #
 set -euo pipefail
 
@@ -47,7 +47,8 @@ if [[ "$(id -u)" == "0" ]]; then
     chown "${APP_UID}:${APP_GID}" /app/gunicorn.conf.py 2>/dev/null || true
 
     cd /app/src
-    exec gosu minuspod gunicorn -c /app/gunicorn.conf.py main_app:app
+    exec setpriv --reuid=minuspod --regid=minuspod --init-groups --inh-caps=-all -- \
+        gunicorn -c /app/gunicorn.conf.py main_app:app
 fi
 
 # Non-root invocation path (operator used --user). Run directly.

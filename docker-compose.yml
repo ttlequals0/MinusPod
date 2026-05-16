@@ -3,7 +3,7 @@ services:
     image: ttlequals0/minuspod:${MINUSPOD_VERSION:-latest}
     platform: linux/amd64
     # The container ships a non-root `minuspod` user at UID/GID 1000
-    # (entrypoint.sh drops root via gosu after fixing volume ownership).
+    # (entrypoint.sh drops root via setpriv after fixing volume ownership).
     # Override here to pin a specific APP_UID/APP_GID if your volume is
     # owned by a different user -- e.g. `user: "2000:2000"`. Leave unset
     # to use the image default (1000:1000).
