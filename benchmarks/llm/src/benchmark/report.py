@@ -1016,6 +1016,25 @@ def _avg_f1(stats: ModelStats) -> float:
     return stats.avg_f1
 
 
+_CATEGORICAL_CMAPS = ("tab20", "tab20b", "tab20c")  # 20 colors each = 60 total
+
+
+def _distinct_colors(n: int) -> list[tuple[float, ...]]:
+    """Return n visually distinct RGBA tuples, never repeating.
+
+    Concatenating the tab20 family gives 60 categorical colors with good
+    perceptual contrast. Past that, fall back to evenly-spaced hsv samples
+    so each model still gets a unique color, accepting weaker contrast."""
+    import matplotlib.pyplot as plt
+    palette: list[tuple[float, ...]] = []
+    for name in _CATEGORICAL_CMAPS:
+        palette.extend(plt.get_cmap(name).colors)
+    if n <= len(palette):
+        return palette[:n]
+    cmap = plt.get_cmap("hsv")
+    return [cmap(i / n) for i in range(n)]
+
+
 def _render_pareto(stats: dict[str, ModelStats], path: Path) -> None:
     """Distinct color per model, legend rendered as a real matplotlib legend
     below the plot so each model's color sits next to its name."""
@@ -1027,13 +1046,12 @@ def _render_pareto(stats: dict[str, ModelStats], path: Path) -> None:
     points = [(s, f1) for s, f1 in points if not (f1 == 0 and s.total_episode_cost == 0)]
     points.sort(key=lambda t: (-t[1], t[0].total_episode_cost))  # rank by F1 desc, then cost asc
 
-    cmap = plt.get_cmap("tab20")
+    colors = _distinct_colors(len(points))
     fig, ax = plt.subplots(figsize=(11, 9))
     for i, (s, f1) in enumerate(points):
-        color = cmap(i % 20)
         ax.scatter(
             s.total_episode_cost, f1,
-            s=180, color=color,
+            s=180, color=colors[i],
             edgecolors="black", linewidths=0.7, zorder=3,
             label=f"{s.model}  (F1 {f1:.3f}, ${s.total_episode_cost:.4f}/ep)",
         )
@@ -1683,7 +1701,7 @@ def _render_precision_recall_chart(stats: dict[str, ModelStats], path: Path) -> 
         return
     points.sort(key=lambda t: -(2 * t[1] * t[2] / (t[1] + t[2]) if (t[1] + t[2]) > 0 else 0))  # F1 desc
 
-    cmap = plt.get_cmap("tab20")
+    colors = _distinct_colors(len(points))
     fig, ax = plt.subplots(figsize=(11, 9))
 
     # F1 isocurves: for each target F1, plot the curve precision*recall*2 / (p+r) = F1
@@ -1699,7 +1717,7 @@ def _render_precision_recall_chart(stats: dict[str, ModelStats], path: Path) -> 
 
     for i, (s, p, r) in enumerate(points):
         f1 = 2 * p * r / (p + r) if (p + r) > 0 else 0
-        ax.scatter(r, p, s=180, color=cmap(i % 20),
+        ax.scatter(r, p, s=180, color=colors[i],
                    edgecolors="black", linewidths=0.7, zorder=3,
                    label=f"{s.model}  (P {p:.2f}, R {r:.2f}, F1 {f1:.2f})")
 
@@ -1775,10 +1793,10 @@ def _render_token_efficiency_chart(stats: dict[str, ModelStats], path: Path) -> 
         return
     points.sort(key=lambda t: -t[1])
 
-    cmap = plt.get_cmap("tab20")
+    colors = _distinct_colors(len(points))
     fig, ax = plt.subplots(figsize=(11, 8))
     for i, (s, f1) in enumerate(points):
-        ax.scatter(s.tokens_per_detected_ad, f1, s=180, color=cmap(i % 20),
+        ax.scatter(s.tokens_per_detected_ad, f1, s=180, color=colors[i],
                    edgecolors="black", linewidths=0.7, zorder=3,
                    label=f"{s.model}  (F1 {f1:.2f}, {s.tokens_per_detected_ad:.0f} tok/ad)")
     ax.set_xscale("log")
