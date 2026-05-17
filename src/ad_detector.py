@@ -1264,51 +1264,21 @@ class AdDetector:
         if not self.api_key:
             logger.warning("No LLM API key found")
         self._llm_client_override: Optional[LLMClient] = None
-        self._db = None
-        self._audio_fingerprinter = None
-        self._text_pattern_matcher = None
-        self._pattern_service = None
-        self._sponsor_service = None
 
-    @property
-    def db(self):
-        """Lazy load database connection."""
-        if self._db is None:
-            from database import Database
-            self._db = Database()
-        return self._db
-
-    @property
-    def audio_fingerprinter(self):
-        """Lazy load audio fingerprinter."""
-        if self._audio_fingerprinter is None:
-            from audio_fingerprinter import AudioFingerprinter
-            self._audio_fingerprinter = AudioFingerprinter(db=self.db)
-        return self._audio_fingerprinter
-
-    @property
-    def text_pattern_matcher(self):
-        """Lazy load text pattern matcher."""
-        if self._text_pattern_matcher is None:
-            from text_pattern_matcher import TextPatternMatcher
-            self._text_pattern_matcher = TextPatternMatcher(db=self.db)
-        return self._text_pattern_matcher
-
-    @property
-    def pattern_service(self):
-        """Lazy load pattern service for match recording."""
-        if self._pattern_service is None:
-            from pattern_service import PatternService
-            self._pattern_service = PatternService(db=self.db)
-        return self._pattern_service
-
-    @property
-    def sponsor_service(self):
-        """Lazy load sponsor service for sponsor lookup."""
-        if self._sponsor_service is None:
-            from sponsor_service import SponsorService
-            self._sponsor_service = SponsorService(db=self.db)
-        return self._sponsor_service
+        # Dependency attributes. Previously these were lazy @property
+        # accessors guarded by ``if self._x is None``; the lazy form gave
+        # us no real benefit beyond letting tests construct a detector
+        # without an on-disk DB. To preserve that test-only convenience
+        # without paying the per-access function call in hot paths, we
+        # initialise them to None here and have ``initialize_client``
+        # (called at the start of every real detection run) build them
+        # eagerly. Tests that need stubs overwrite these attributes
+        # after construction.
+        self.db = None
+        self.audio_fingerprinter = None
+        self.text_pattern_matcher = None
+        self.pattern_service = None
+        self.sponsor_service = None
 
     @property
     def _llm_client(self) -> Optional[LLMClient]:
@@ -1325,8 +1295,40 @@ class AdDetector:
     def _llm_client(self, value: Optional[LLMClient]) -> None:
         self._llm_client_override = value
 
+    def _ensure_deps(self):
+        """Build the dependency objects (db, fingerprinter, matchers,
+        services) once, on demand. Called by initialize_client() at the
+        top of every real detection run, and by the low-level getters
+        (get_model / get_system_prompt / etc.) so that callers reaching
+        in through the API still see real DB values rather than the
+        try/except fallback path.
+
+        Construction is one-shot: subsequent calls are a no-op once
+        self.db is non-None. Tests that need stubs overwrite the
+        attributes after construction and the ``self.db is not None``
+        guard preserves those stubs.
+        """
+        if self.db is not None:
+            return
+        from database import Database
+        from audio_fingerprinter import AudioFingerprinter
+        from text_pattern_matcher import TextPatternMatcher
+        from pattern_service import PatternService
+        self.db = Database()
+        self.audio_fingerprinter = AudioFingerprinter(db=self.db)
+        self.text_pattern_matcher = TextPatternMatcher(db=self.db)
+        self.pattern_service = PatternService(db=self.db)
+        self.sponsor_service = SponsorService(db=self.db)
+
     def initialize_client(self):
-        """Surface LLM client init errors at the start of a detection run."""
+        """Surface LLM client init errors at the start of a detection run.
+
+        Also eagerly constructs the dependency objects on first call so
+        the rest of the detection pipeline can access plain attributes
+        without @property indirection.
+        """
+        self._ensure_deps()
+
         if not self.api_key:
             return
         try:
@@ -1401,6 +1403,7 @@ class AdDetector:
 
     def get_model(self) -> str:
         """Get configured model from database or default."""
+        self._ensure_deps()
         try:
             model = self.db.get_setting('claude_model')
             if model:
@@ -1411,6 +1414,7 @@ class AdDetector:
 
     def get_verification_model(self) -> str:
         """Get verification pass model from database or fall back to first pass model."""
+        self._ensure_deps()
         try:
             model = self.db.get_setting('verification_model')
             if model:
@@ -1421,6 +1425,7 @@ class AdDetector:
 
     def get_system_prompt(self) -> str:
         """Get system prompt from database or default, with dynamic sponsors substituted."""
+        self._ensure_deps()
         try:
             prompt = self.db.get_setting('system_prompt')
             if prompt:
@@ -1433,6 +1438,7 @@ class AdDetector:
 
     def get_verification_prompt(self) -> str:
         """Get verification prompt from database or default, with dynamic sponsors substituted."""
+        self._ensure_deps()
         try:
             prompt = self.db.get_setting('verification_prompt')
             if prompt:

@@ -279,9 +279,13 @@ class RSSParser:
                 header_bytes = feed_content.encode('utf-8', errors='ignore')
             else:
                 header_bytes = feed_content
-            # Only scan the first 4 KB; legitimate feeds declare their
-            # prolog up front, and this keeps the cost bounded.
-            header = header_bytes[:4096].lower()
+            # Scan the first 64 KB; legitimate feeds declare their prolog
+            # up front, but some megabyte-scale feeds carry a chunk of XML
+            # comments / BOM-prefixed iTunes blocks before the DOCTYPE
+            # would appear. 64 KB stays cheap (lowercasing ~65k bytes is
+            # microseconds) while catching pathological cases the 4 KB
+            # window missed.
+            header = header_bytes[:65536].lower()
             if b'<!doctype' in header or b'<!entity' in header:
                 construct = 'DOCTYPE' if b'<!doctype' in header else 'ENTITY'
                 logger.warning(

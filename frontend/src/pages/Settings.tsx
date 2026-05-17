@@ -151,10 +151,12 @@ function Settings() {
     queryFn: getAudioSettings,
   });
 
-  // Ensure System Status section is always expanded on page load
-  useEffect(() => {
-    localStorage.setItem('settings-section-system-status', 'true');
-  }, []);
+  // System Status section uses defaultOpen on its CollapsibleSection
+  // (see SystemStatusSection.tsx) so it starts expanded on first visit.
+  // After that the user's collapsed/expanded preference is persisted via
+  // CollapsibleSection's storage key and respected on subsequent loads --
+  // the previous setItem('true') write here forced it open on every load,
+  // overriding the user's choice.
 
   // Auto-expand and scroll to section when navigated via hash link
   useEffect(() => {

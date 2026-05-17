@@ -23,10 +23,20 @@ import requests
 
 from utils.community_tags import COMMUNITY_MANIFEST_URL, VOCABULARY_VERSION
 from utils.cron import is_due
+from utils.safe_http import (
+    ResponseTooLargeError,
+    URLTrust,
+    read_response_capped,
+    safe_get,
+)
 from utils.time import parse_iso_datetime, utc_now_iso
 
 logger = logging.getLogger('podcast.community_sync')
 HTTP_TIMEOUT = 20
+# Generous cap for a JSON manifest; current production manifests are well
+# under 64 KB, but leave headroom for future growth before the SSRF guard
+# trips.
+MANIFEST_MAX_BYTES = 256 * 1024
 DEFAULT_CRON = '0 3 * * 0'  # Sunday 3am UTC
 
 
@@ -47,10 +57,28 @@ def _parse_iso(value: Optional[str]) -> Optional[datetime]:
 
 
 def _fetch_manifest(url: str = COMMUNITY_MANIFEST_URL) -> Dict[str, Any]:
-    """Fetch the manifest. Raises requests.RequestException on failure."""
-    resp = requests.get(url, timeout=HTTP_TIMEOUT)
-    resp.raise_for_status()
-    return resp.json()
+    """Fetch the manifest. Raises requests.RequestException on failure.
+
+    Routed through ``safe_http.safe_get`` with the hardcoded raw.githubusercontent
+    URL so SSRF / private-range checks and per-hop redirect revalidation
+    apply. Body is streamed through ``read_response_capped`` to refuse a
+    manifest larger than ``MANIFEST_MAX_BYTES`` before deserialisation.
+    """
+    resp = safe_get(
+        url,
+        trust=URLTrust.OPERATOR_CONFIGURED,
+        timeout=HTTP_TIMEOUT,
+        stream=True,
+    )
+    try:
+        resp.raise_for_status()
+        try:
+            body = read_response_capped(resp, MANIFEST_MAX_BYTES)
+        except ResponseTooLargeError as e:
+            raise requests.RequestException(f'manifest exceeded size cap: {e}') from e
+    finally:
+        resp.close()
+    return json.loads(body.decode('utf-8'))
 
 
 def _validate_manifest(manifest: Dict[str, Any]) -> None:

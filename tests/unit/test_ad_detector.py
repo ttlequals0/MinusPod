@@ -409,7 +409,7 @@ class TestClaudeFeedbackDedup:
 
         detector = AdDetector.__new__(AdDetector)
         mock_pattern_service = MagicMock()
-        detector._pattern_service = mock_pattern_service
+        detector.pattern_service = mock_pattern_service
 
         # Two Claude ads that both overlap the same pattern region
         claude_ads = [
@@ -434,8 +434,8 @@ class TestClaudeFeedbackDedup:
                 )
                 if overlap >= PATTERN_CORRECTION_OVERLAP_THRESHOLD:
                     observed_duration = ad['end'] - ad['start']
-                    if detector._pattern_service:
-                        detector._pattern_service.update_duration(
+                    if detector.pattern_service:
+                        detector.pattern_service.update_duration(
                             pid, observed_duration
                         )
                         updated_patterns.add(pid)
@@ -449,7 +449,7 @@ class TestClaudeFeedbackDedup:
 
         detector = AdDetector.__new__(AdDetector)
         mock_pattern_service = MagicMock()
-        detector._pattern_service = mock_pattern_service
+        detector.pattern_service = mock_pattern_service
 
         claude_ads = [
             {'start': 100.0, 'end': 160.0, 'confidence': 0.9, 'reason': 'ad1'},
@@ -472,8 +472,8 @@ class TestClaudeFeedbackDedup:
                 )
                 if overlap >= PATTERN_CORRECTION_OVERLAP_THRESHOLD:
                     observed_duration = ad['end'] - ad['start']
-                    if detector._pattern_service:
-                        detector._pattern_service.update_duration(
+                    if detector.pattern_service:
+                        detector.pattern_service.update_duration(
                             pid, observed_duration
                         )
                         updated_patterns.add(pid)

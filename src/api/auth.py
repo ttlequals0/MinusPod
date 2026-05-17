@@ -105,7 +105,21 @@ def auth_login():
 @api.route('/auth/logout', methods=['POST'])
 @log_request
 def auth_logout():
-    """Logout and clear session."""
+    """Logout and clear session.
+
+    Listed in AUTH_EXEMPT_PATHS so an expired session can still call it,
+    which means the blueprint-level CSRF check in check_auth() is skipped.
+    Enforce it manually here so a cross-site POST cannot terminate an
+    authenticated session. Unauthenticated callers bypass (csrf.validate
+    returns None when session.authenticated is False), preserving the
+    "always callable to clear stale state" property.
+    """
+    from api.csrf import validate as csrf_validate
+    csrf_err = csrf_validate(request)
+    if csrf_err:
+        logger.warning("CSRF check failed on /auth/logout ip=%s", request.remote_addr)
+        return error_response(csrf_err, 403)
+
     session.clear()
     logger.info(f"Logout from {request.remote_addr}")
 

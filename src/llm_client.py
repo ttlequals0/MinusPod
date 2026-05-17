@@ -372,6 +372,48 @@ class LLMClient(ABC):
             _log_content(f"{provider_label} message[{i}] role={msg.get('role')}", content_str)
         io_logger.debug(f"{provider_label} request: model={model} temperature={temperature} max_tokens={max_tokens}")
 
+    def _send_with_fallback(
+        self,
+        provider_label: str,
+        model: str,
+        eff_max: int,
+        eff_temp: float,
+        eff_reasoning: Optional[Union[int, str]],
+        user_max: int,
+        user_temp: float,
+        user_reasoning: Optional[Union[int, str]],
+        episode_id: Optional[str],
+        pass_name: Optional[str],
+        send_fn,
+    ):
+        """Run send_fn(eff_max, eff_temp, eff_reasoning) with one retry on
+        4xx-tunable-rejection. send_fn must return the provider response or raise.
+
+        Centralises the circuit-breaker / fallback bookkeeping that was duplicated
+        across each concrete client. Returns the response and the final
+        (eff_max, eff_temp, eff_reasoning) actually used so the caller can log
+        truncation against the right max_tokens.
+        """
+        try:
+            return send_fn(eff_max, eff_temp, eff_reasoning), eff_max, eff_temp, eff_reasoning
+        except Exception as e:
+            will_fallback = _should_fallback_retry(e, episode_id, pass_name)
+            if not is_rate_limit_error(e) and not will_fallback:
+                self._record_circuit_breaker(success=False)
+            if not will_fallback:
+                raise
+            _log_fallback(provider_label, episode_id, pass_name, model,
+                          user_max, user_temp, user_reasoning, e)
+            set_fallback(episode_id, pass_name)
+            defaults = get_pass_defaults(pass_name)
+            try:
+                response = send_fn(defaults.max_tokens, defaults.temperature, defaults.reasoning_effort)
+            except Exception as e2:
+                if not is_rate_limit_error(e2):
+                    self._record_circuit_breaker(success=False)
+                raise
+            return response, defaults.max_tokens, defaults.temperature, defaults.reasoning_effort
+
     @abstractmethod
     def messages_create(
         self,
@@ -479,52 +521,28 @@ class AnthropicClient(LLMClient):
 
         self._log_messages("Anthropic", effective_system, messages, model, eff_temp, eff_max)
 
-        request_kwargs = dict(
-            model=model,
-            max_tokens=eff_max,
-            temperature=eff_temp,
-            system=effective_system,
-            messages=messages,
-            timeout=timeout,
-        )
-        request_kwargs.update(translate_reasoning_effort(PROVIDER_ANTHROPIC, eff_reasoning))
+        def _send(tok, tmp, reasoning):
+            kw = dict(
+                model=model,
+                max_tokens=tok,
+                temperature=tmp,
+                system=effective_system,
+                messages=messages,
+                timeout=timeout,
+            )
+            kw.update(translate_reasoning_effort(PROVIDER_ANTHROPIC, reasoning))
+            # 429 is throttling, not a provider failure; 4xx tunable rejections
+            # also skip the breaker because the _send_with_fallback wrapper is
+            # about to retry. Both are handled in the wrapper.
+            return self._client.messages.create(**kw)
 
-        try:
-            response = self._client.messages.create(**request_kwargs)
-        except Exception as e:
-            # 429 is throttling, not a provider failure -- don't trip the breaker.
-            # 4xx tunable rejections also skip the breaker: they're user-config
-            # errors, not provider outages, and we're about to retry with defaults.
-            will_fallback = _should_fallback_retry(e, episode_id, pass_name)
-            if not is_rate_limit_error(e) and not will_fallback:
-                self._record_circuit_breaker(success=False)
-            if will_fallback:
-                _log_fallback("Anthropic", episode_id, pass_name, model,
-                              max_tokens, temperature, reasoning_effort, e)
-                set_fallback(episode_id, pass_name)
-                defaults = get_pass_defaults(pass_name)
-                eff_max = defaults.max_tokens
-                eff_temp = defaults.temperature
-                eff_reasoning = defaults.reasoning_effort
-                request_kwargs = dict(
-                    model=model,
-                    max_tokens=eff_max,
-                    temperature=eff_temp,
-                    system=effective_system,
-                    messages=messages,
-                    timeout=timeout,
-                )
-                request_kwargs.update(
-                    translate_reasoning_effort(PROVIDER_ANTHROPIC, eff_reasoning)
-                )
-                try:
-                    response = self._client.messages.create(**request_kwargs)
-                except Exception as e2:
-                    if not is_rate_limit_error(e2):
-                        self._record_circuit_breaker(success=False)
-                    raise
-            else:
-                raise
+        response, eff_max, eff_temp, eff_reasoning = self._send_with_fallback(
+            "Anthropic", model,
+            eff_max, eff_temp, eff_reasoning,
+            max_tokens, temperature, reasoning_effort,
+            episode_id, pass_name,
+            _send,
+        )
 
         self._record_circuit_breaker(success=True)
 
@@ -695,39 +713,19 @@ class OpenAICompatibleClient(LLMClient):
             kw.update(reasoning_kwargs)
             return kw
 
-        kwargs = _build_kwargs(eff_max, eff_temp, eff_reasoning)
-
-        try:
+        def _send(tok, tmp, reasoning):
+            kw = _build_kwargs(tok, tmp, reasoning)
             if cached_param is not None:
-                response = self._client.chat.completions.create(**kwargs)
-            else:
-                response = self._call_with_token_param_fallback(model, kwargs, token_param)
-        except Exception as e:
-            # 429 / 4xx-tunable-rejections both skip the breaker -- one is
-            # throttling, the other is a user-config retry that's about to fire.
-            will_fallback = _should_fallback_retry(e, episode_id, pass_name)
-            if not is_rate_limit_error(e) and not will_fallback:
-                self._record_circuit_breaker(success=False)
-            if will_fallback:
-                _log_fallback("OpenAI", episode_id, pass_name, model,
-                              max_tokens, temperature, reasoning_effort, e)
-                set_fallback(episode_id, pass_name)
-                defaults = get_pass_defaults(pass_name)
-                eff_max = defaults.max_tokens
-                eff_temp = defaults.temperature
-                eff_reasoning = defaults.reasoning_effort
-                kwargs = _build_kwargs(eff_max, eff_temp, eff_reasoning)
-                try:
-                    if cached_param is not None:
-                        response = self._client.chat.completions.create(**kwargs)
-                    else:
-                        response = self._call_with_token_param_fallback(model, kwargs, token_param)
-                except Exception as e2:
-                    if not is_rate_limit_error(e2):
-                        self._record_circuit_breaker(success=False)
-                    raise
-            else:
-                raise
+                return self._client.chat.completions.create(**kw)
+            return self._call_with_token_param_fallback(model, kw, token_param)
+
+        response, eff_max, eff_temp, eff_reasoning = self._send_with_fallback(
+            "OpenAI", model,
+            eff_max, eff_temp, eff_reasoning,
+            max_tokens, temperature, reasoning_effort,
+            episode_id, pass_name,
+            _send,
+        )
 
         self._record_circuit_breaker(success=True)
 
