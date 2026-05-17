@@ -6,9 +6,18 @@ import {
 } from 'lucide-react';
 import WaveSurfer from 'wavesurfer.js';
 import RegionsPlugin from 'wavesurfer.js/dist/plugins/regions.esm.js';
-import { getEpisodePeaks, getTranscriptSpan } from '../api/feeds';
+import { getTranscriptSpan } from '../api/feeds';
 import { getSponsors } from '../api/sponsors';
 import { SponsorInput, type SponsorOption } from './ad-editor/SponsorInput';
+import { Pin } from './ad-editor/Pin';
+import { usePeaks } from './ad-editor/usePeaks';
+import {
+  parseTimeInput,
+  formatTime,
+  getThemeWaveformColors,
+  loadPlayWhileDragging,
+  savePlayWhileDragging,
+} from '../utils/adReviewHelpers';
 
 // Shape used by the per-episode AdEditor: enough to render the waveform
 // editor for a single detected ad and submit a correction back. Matches
@@ -86,201 +95,8 @@ const WINDOW_STEP_SECONDS = 60;
 // review mode. Small enough to show boundary detail; user can expand via
 // wheel-zoom, the +1m buttons, or by typing far-away timestamps.
 const CONTEXT_SECONDS = 30;
-// 100ms buckets -- 4× fewer peaks than the prior 50ms default. Still plenty
-// of detail to see speech vs. silence at any reasonable zoom level, and
-// shaves the JSON payload + canvas-render cost on first mount roughly 4×.
-const PEAK_RESOLUTION_MS = 100;
 const MIN_AD_DURATION = 1.0;
 const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2] as const;
-const PLAY_WHILE_DRAG_KEY = 'minuspod.adInbox.playWhileDragging';
-
-// Parse user-entered timestamp text. Accepts either `MM:SS[.s]` (or
-// `H:MM:SS[.s]`) or a raw seconds value like `139.4`. Returns null on
-// any invalid input so callers can keep the prior boundary.
-function parseTimeInput(s: string): number | null {
-  const t = s.trim();
-  if (!t) return null;
-  if (t.includes(':')) {
-    const parts = t.split(':');
-    if (parts.length < 2 || parts.length > 3) return null;
-    const nums = parts.map(Number);
-    if (nums.some((n) => !Number.isFinite(n) || n < 0)) return null;
-    if (parts.length === 2) return nums[0] * 60 + nums[1];
-    return nums[0] * 3600 + nums[1] * 60 + nums[2];
-  }
-  const n = Number(t);
-  return Number.isFinite(n) && n >= 0 ? n : null;
-}
-
-function formatTime(seconds: number): string {
-  if (!Number.isFinite(seconds)) return '0:00';
-  const sign = seconds < 0 ? '-' : '';
-  const total = Math.abs(seconds);
-  const m = Math.floor(total / 60);
-  const s = total - m * 60;
-  return `${sign}${m}:${s.toFixed(1).padStart(4, '0')}`;
-}
-
-// Read the current theme's wave + progress colors from the CSS vars
-// that already drive the rest of the UI, so the waveform shifts with
-// the active theme instead of staying fixed at slate/cyan.
-function getThemeWaveformColors(): { waveColor: string; progressColor: string } {
-  if (typeof window === 'undefined') {
-    return { waveColor: '#64748b', progressColor: '#22d3ee' };
-  }
-  const cs = getComputedStyle(document.documentElement);
-  const muted = cs.getPropertyValue('--muted-foreground').trim();
-  const primary = cs.getPropertyValue('--primary').trim();
-  return {
-    waveColor: muted ? `hsl(${muted})` : '#64748b',
-    progressColor: primary ? `hsl(${primary})` : '#22d3ee',
-  };
-}
-
-function loadPlayWhileDragging(): boolean {
-  try {
-    return localStorage.getItem(PLAY_WHILE_DRAG_KEY) === '1';
-  } catch {
-    return false;
-  }
-}
-function savePlayWhileDragging(v: boolean) {
-  try {
-    localStorage.setItem(PLAY_WHILE_DRAG_KEY, v ? '1' : '0');
-  } catch {
-    /* private mode etc */
-  }
-}
-
-// ----------------------------------------------------------------------
-// Pin: vertical drag handle above the waveform that controls the
-// corresponding ad boundary. Pins ARE the user's drag interface -- the
-// wavesurfer region is decorative (drag/resize disabled on it).
-
-interface PinProps {
-  kind: 'start' | 'end';
-  boundary: number;
-  windowStart: number;
-  windowDuration: number;
-  containerRef: React.RefObject<HTMLDivElement | null>;
-  onChange: (next: number) => void;
-  // Called while drag is in progress so we can scrub audio if enabled.
-  onDragMove?: (next: number) => void;
-  onDragStart?: () => void;
-  onDragEnd?: () => void;
-  otherBoundary: number;        // for min-separation clamp
-}
-
-function Pin({
-  kind, boundary, windowStart, windowDuration, containerRef,
-  onChange, onDragMove, onDragStart, onDragEnd, otherBoundary,
-}: PinProps) {
-  const [dragging, setDragging] = useState(false);
-
-  const relX = (boundary - windowStart) / windowDuration;
-  // Tolerate a tiny bit outside [0, 1] -- happens routinely on post-roll ads
-  // where the LLM places adEnd a hair past where the audio file actually
-  // ends, which makes relX = 1.0001 or so. Without slop the END pin
-  // disappears entirely.
-  const visible = relX >= -0.02 && relX <= 1.02;
-  const leftPct = Math.max(0, Math.min(1, relX)) * 100;
-
-  const isStart = kind === 'start';
-  const color = isStart ? 'bg-emerald-500' : 'bg-rose-500';
-  const ringColor = isStart ? 'ring-emerald-500/40' : 'ring-rose-500/40';
-  const labelText = isStart ? 'START' : 'END';
-
-  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const container = containerRef.current;
-    if (!container) return;
-
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
-    setDragging(true);
-    onDragStart?.();
-
-    const rect = container.getBoundingClientRect();
-
-    const computeBoundary = (clientX: number): number => {
-      const xPct = (clientX - rect.left) / rect.width;
-      const clampedPct = Math.max(0, Math.min(1, xPct));
-      const t = windowStart + clampedPct * windowDuration;
-      // Min-separation: never let start cross end (and vice-versa).
-      if (isStart) return Math.min(t, otherBoundary - MIN_AD_DURATION);
-      return Math.max(t, otherBoundary + MIN_AD_DURATION);
-    };
-
-    const handleMove = (ev: PointerEvent) => {
-      const next = computeBoundary(ev.clientX);
-      onChange(next);
-      onDragMove?.(next);
-    };
-    const handleUp = (ev: PointerEvent) => {
-      const next = computeBoundary(ev.clientX);
-      onChange(next);
-      setDragging(false);
-      onDragEnd?.();
-      window.removeEventListener('pointermove', handleMove);
-      window.removeEventListener('pointerup', handleUp);
-      window.removeEventListener('pointercancel', handleUp);
-    };
-
-    window.addEventListener('pointermove', handleMove);
-    window.addEventListener('pointerup', handleUp);
-    window.addEventListener('pointercancel', handleUp);
-  };
-
-  if (!visible) return null;
-
-  // Compact pin: small colored circle pinhead, thin stem. The label
-  // (with time) only shows when the pin is being dragged or hovered -- 
-  // when idle, just the circle is visible. Negative top offsets are
-  // avoided so the pinhead doesn't get clipped by the parent's
-  // overflow-x scrollbox.
-
-  return (
-    <div
-      onPointerDown={onPointerDown}
-      style={{
-        left: `${leftPct}%`,
-        touchAction: 'none',
-      }}
-      className={`group absolute inset-y-0 -translate-x-1/2 z-10 cursor-ew-resize select-none ${
-        dragging ? 'cursor-grabbing' : ''
-      }`}
-      role="slider"
-      aria-label={`${labelText} pin · ${formatTime(boundary)}`}
-      aria-valuenow={Math.round(boundary * 10) / 10}
-    >
-      {/* Compact circle pinhead at top. */}
-      <div
-        className={`absolute top-1 left-1/2 -translate-x-1/2 w-3.5 h-3.5 rounded-full border-2 border-white ${color} shadow-md ${
-          dragging ? `ring-4 ${ringColor} scale-125` : ''
-        } transition-transform`}
-      />
-      {/* Time label -- only visible while dragging or on hover. */}
-      <div
-        className={`absolute -top-5 left-1/2 -translate-x-1/2 px-1.5 py-0.5 rounded ${color} text-white text-[10px] font-bold tracking-wider whitespace-nowrap shadow-md transition-opacity duration-100 pointer-events-none ${
-          dragging ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-        }`}
-      >
-        {labelText} {formatTime(boundary)}
-      </div>
-      {/* Stem -- runs from just below the circle to the bottom. */}
-      <div
-        className={`absolute top-[20px] bottom-0 left-1/2 -translate-x-1/2 w-0.5 ${color} ${
-          dragging ? 'opacity-100' : 'opacity-80'
-        }`}
-      />
-      {/* Touch target -- wraps the whole pin column for easy mobile grab. */}
-      <div
-        className="absolute inset-y-0 -inset-x-4"
-        style={{ touchAction: 'none' }}
-      />
-    </div>
-  );
-}
 
 // ----------------------------------------------------------------------
 // Playhead cursor -- ref-driven DOM updates from the RAF loop, NOT React
@@ -344,12 +160,6 @@ function AdReviewModal({
   const [startInput, setStartInput] = useState(() => formatTime(defaults.adStart));
   const [endInput, setEndInput] = useState(() => formatTime(defaults.adEnd));
 
-  const [peaks, setPeaks] = useState<number[] | null>(null);
-  // Resolution actually used by the server. May be coarser than requested
-  // when the window is very long (audio_peaks auto-scales to keep the
-  // payload bounded). Drives effective-duration math below.
-  const [peakResolutionMs, setPeakResolutionMs] = useState<number>(PEAK_RESOLUTION_MS);
-  const [peaksError, setPeaksError] = useState<string | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [playbackRate, setPlaybackRate] = useState(1);
@@ -361,6 +171,15 @@ function AdReviewModal({
   // of peaks). Belt-and-suspenders so Reset always lands a known-good
   // state regardless of which states actually changed.
   const [resetTick, setResetTick] = useState(0);
+  // Fetches peaks for the current window and exposes the resolution the
+  // server actually used. Re-fetches on window or resetTick change.
+  const { peaks, peakResolutionMs, peaksError } = usePeaks(
+    item.podcastSlug,
+    item.episodeId,
+    windowStart,
+    windowEnd,
+    resetTick,
+  );
   const [playWhileDrag, setPlayWhileDrag] = useState<boolean>(loadPlayWhileDragging);
   const wasPlayingBeforeDragRef = useRef(false);
   // Save the playhead position before a pin drag (with playWhileDrag) so
@@ -422,32 +241,6 @@ function AdReviewModal({
     () => windowStart + windowDuration,
     [windowStart, windowDuration],
   );
-
-  // ------------------------------------------------------------------
-  // Fetch peaks whenever window changes. The setState pair here clears
-  // stale data before the new fetch lands so the waveform can't show
-  // peaks from the previous window for a frame. React 19's strict
-  // set-state-in-effect rule fires here; the pattern is correct
-  // because we're synchronizing UI state with an in-flight external
-  // fetch.
-  useEffect(() => {
-    let cancelled = false;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setPeaksError(null);
-    setPeaks(null);
-    getEpisodePeaks(item.podcastSlug, item.episodeId, windowStart, windowEnd, PEAK_RESOLUTION_MS)
-      .then((res) => {
-        if (cancelled) return;
-        setPeaks(res.peaks);
-        setPeakResolutionMs(res.resolutionMs || PEAK_RESOLUTION_MS);
-      })
-      .catch((e) => {
-        if (!cancelled) setPeaksError(e instanceof Error ? e.message : String(e));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [item.podcastSlug, item.episodeId, windowStart, windowEnd, resetTick]);
 
   // ------------------------------------------------------------------
   // Create mode only: auto-populate text template from the transcript
@@ -820,7 +613,8 @@ function AdReviewModal({
     setAdStart(defaults.adStart);
     setAdEnd(defaults.adEnd);
     setZoom(1);
-    setPeaks(null);                        // force a re-fetch + rebuild
+    // usePeaks clears + re-fetches on resetTick change; the bump is
+    // sufficient to force a fresh fetch + waveform rebuild.
     setResetTick((n) => n + 1);
     const audio = audioRef.current;
     if (audio) {
