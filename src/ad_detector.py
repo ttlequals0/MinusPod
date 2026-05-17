@@ -2070,6 +2070,152 @@ class AdDetector:
             return sponsor
         return None
 
+    def _ad_passes_learning_filters(self, ad: Dict, min_confidence: float) -> bool:
+        """Apply basic eligibility filters before sponsor resolution.
+
+        Returns True if the ad should proceed to sponsor extraction.
+        Filters: was_cut, detection_stage == 'claude', confidence floor,
+        and stricter confidence for long (>90s) detections.
+        """
+        # Only learn from ads that were actually removed
+        if not ad.get('was_cut', False):
+            logger.debug(f"Skipping pattern for uncut ad: {ad['start']:.1f}s-{ad['end']:.1f}s")
+            return False
+
+        # Only learn from Claude detections (not fingerprint/text pattern)
+        if ad.get('detection_stage') != 'claude':
+            return False
+
+        # Require high confidence
+        confidence = ad.get('confidence', 0)
+        if confidence < min_confidence:
+            return False
+
+        # For longer detections, require higher confidence to avoid learning
+        # from merged multi-ad spans which contaminate patterns
+        duration = ad['end'] - ad['start']
+        if duration > 90:  # > 90 seconds
+            if confidence < 0.92:  # Require very high confidence for long ads
+                logger.debug(
+                    f"Skipping pattern for long ad ({duration:.0f}s) with "
+                    f"confidence {confidence:.2f} (threshold 0.92 for >90s ads)"
+                )
+                return False
+
+        return True
+
+    def _resolve_sponsor_for_learning(self, ad: Dict) -> Optional[str]:
+        """Resolve a usable sponsor name from an ad via 4-tier lookup.
+
+        Tier 1: sponsor DB lookup on raw sponsor field
+        Tier 2: sponsor DB lookup on reason text
+        Tier 3: extract from reason via regex patterns
+        Tier 4: use raw sponsor if it looks valid
+
+        Returns the canonical sponsor name, or None if no usable sponsor.
+        """
+        sponsor = None
+        raw_sponsor = ad.get('sponsor')
+        reason_text = ad.get('reason', '')
+
+        # Tier 1: sponsor DB lookup on raw sponsor field
+        if raw_sponsor and self.sponsor_service:
+            sponsor = self.sponsor_service.find_sponsor_in_text(raw_sponsor)
+
+        # Tier 2: sponsor DB lookup on reason text
+        if not sponsor and reason_text and self.sponsor_service:
+            sponsor = self.sponsor_service.find_sponsor_in_text(reason_text)
+
+        # Tier 3: extract from reason via regex patterns
+        if not sponsor:
+            sponsor = self._extract_sponsor_from_reason(reason_text)
+
+        # Tier 4: use raw sponsor if it looks valid
+        if not sponsor and raw_sponsor:
+            raw_lower = raw_sponsor.lower().strip()
+            if raw_lower not in INVALID_SPONSOR_VALUES and len(raw_lower) >= 2:
+                sponsor = raw_sponsor
+
+        if not sponsor:
+            return None
+
+        return canonical_sponsor(sponsor)
+
+    def _sponsor_blocked_by_gates(
+        self, sponsor: str, active_pattern_sponsors: set
+    ) -> bool:
+        """Apply Gate A (prefix-of-known) and Gate B (unknown short single word).
+
+        Returns True if the sponsor should be rejected.
+        """
+        # Gate A: reject sponsors that are strict prefixes of known sponsors
+        if self.sponsor_service:
+            sponsor_lower = sponsor.lower()
+            all_sponsors = self.sponsor_service.get_sponsors()
+            for s in all_sponsors:
+                known = s['name'].lower()
+                if known != sponsor_lower and known.startswith(sponsor_lower + ' '):
+                    logger.info(f"Skipping pattern: '{sponsor}' is prefix of '{s['name']}'")
+                    return True
+
+        # Gate B: reject single short words for unknown sponsors.
+        # "Known" means the sponsor is in the sponsor registry, has an
+        # existing active pattern, or is in the curated short-brand seed.
+        words = sponsor.strip().split()
+        if len(words) == 1 and len(sponsor.strip()) < 6:
+            sponsor_lower = sponsor.strip().lower()
+            is_known = (
+                (self.sponsor_service and self.sponsor_service.find_sponsor_in_text(sponsor))
+                or sponsor_lower in active_pattern_sponsors
+                or sponsor_lower in KNOWN_SHORT_BRANDS
+            )
+            if not is_known:
+                logger.info(f"Skipping pattern for unknown short sponsor: '{sponsor}'")
+                return True
+
+        return False
+
+    def _create_pattern_and_fingerprint(
+        self, ad: Dict, segments: List[Dict], sponsor: str,
+        podcast_id: str, episode_id: Optional[str], audio_path: Optional[str]
+    ) -> bool:
+        """Create a text pattern and optional audio fingerprint for an ad.
+
+        Returns True if a pattern was successfully created.
+        """
+        try:
+            pattern_id = self.text_pattern_matcher.create_pattern_from_ad(
+                segments=segments,
+                start=ad['start'],
+                end=ad['end'],
+                sponsor=sponsor,
+                scope='podcast',
+                podcast_id=podcast_id,
+                episode_id=episode_id
+            )
+
+            if pattern_id:
+                logger.info(
+                    f"Created pattern {pattern_id} from Claude detection: "
+                    f"{ad['start']:.1f}s-{ad['end']:.1f}s, sponsor={sponsor}"
+                )
+
+                # Store audio fingerprint alongside the text pattern
+                if audio_path and self.audio_fingerprinter and self.audio_fingerprinter.is_available():
+                    try:
+                        self.audio_fingerprinter.store_fingerprint(
+                            pattern_id=pattern_id,
+                            audio_path=audio_path,
+                            start=ad['start'],
+                            end=ad['end']
+                        )
+                    except Exception as fp_e:
+                        logger.debug(f"Could not store fingerprint for pattern {pattern_id}: {fp_e}")
+                return True
+        except Exception as e:
+            logger.warning(f"Failed to create pattern from detection: {e}")
+        return False
+
     def learn_from_detections(
         self, ads: List[Dict], segments: List[Dict], podcast_id: str,
         episode_id: str = None, audio_path: str = None
@@ -2102,119 +2248,20 @@ class AdDetector:
             active_pattern_sponsors = set()
 
         for ad in ads:
-            # Only learn from ads that were actually removed
-            if not ad.get('was_cut', False):
-                logger.debug(f"Skipping pattern for uncut ad: {ad['start']:.1f}s-{ad['end']:.1f}s")
+            if not self._ad_passes_learning_filters(ad, min_confidence):
                 continue
 
-            # Only learn from Claude detections (not fingerprint/text pattern)
-            if ad.get('detection_stage') != 'claude':
-                continue
-
-            # Require high confidence
-            confidence = ad.get('confidence', 0)
-            if confidence < min_confidence:
-                continue
-
-            # For longer detections, require higher confidence to avoid learning
-            # from merged multi-ad spans which contaminate patterns
-            duration = ad['end'] - ad['start']
-            if duration > 90:  # > 90 seconds
-                if confidence < 0.92:  # Require very high confidence for long ads
-                    logger.debug(
-                        f"Skipping pattern for long ad ({duration:.0f}s) with "
-                        f"confidence {confidence:.2f} (threshold 0.92 for >90s ads)"
-                    )
-                    continue
-
-            # 4-tier sponsor resolution
-            sponsor = None
-            raw_sponsor = ad.get('sponsor')
-            reason_text = ad.get('reason', '')
-
-            # Tier 1: sponsor DB lookup on raw sponsor field
-            if raw_sponsor and self.sponsor_service:
-                sponsor = self.sponsor_service.find_sponsor_in_text(raw_sponsor)
-
-            # Tier 2: sponsor DB lookup on reason text
-            if not sponsor and reason_text and self.sponsor_service:
-                sponsor = self.sponsor_service.find_sponsor_in_text(reason_text)
-
-            # Tier 3: extract from reason via regex patterns
-            if not sponsor:
-                sponsor = self._extract_sponsor_from_reason(reason_text)
-
-            # Tier 4: use raw sponsor if it looks valid
-            if not sponsor and raw_sponsor:
-                raw_lower = raw_sponsor.lower().strip()
-                if raw_lower not in INVALID_SPONSOR_VALUES and len(raw_lower) >= 2:
-                    sponsor = raw_sponsor
-
+            sponsor = self._resolve_sponsor_for_learning(ad)
             if not sponsor:
                 continue
 
-            sponsor = canonical_sponsor(sponsor)
+            if self._sponsor_blocked_by_gates(sponsor, active_pattern_sponsors):
+                continue
 
-            # Gate A: reject sponsors that are strict prefixes of known sponsors
-            if self.sponsor_service:
-                sponsor_lower = sponsor.lower()
-                all_sponsors = self.sponsor_service.get_sponsors()
-                is_prefix = False
-                for s in all_sponsors:
-                    known = s['name'].lower()
-                    if known != sponsor_lower and known.startswith(sponsor_lower + ' '):
-                        logger.info(f"Skipping pattern: '{sponsor}' is prefix of '{s['name']}'")
-                        is_prefix = True
-                        break
-                if is_prefix:
-                    continue
-
-            # Gate B: reject single short words for unknown sponsors.
-            # "Known" means the sponsor is in the sponsor registry, has an
-            # existing active pattern, or is in the curated short-brand seed.
-            words = sponsor.strip().split()
-            if len(words) == 1 and len(sponsor.strip()) < 6:
-                sponsor_lower = sponsor.strip().lower()
-                is_known = (
-                    (self.sponsor_service and self.sponsor_service.find_sponsor_in_text(sponsor))
-                    or sponsor_lower in active_pattern_sponsors
-                    or sponsor_lower in KNOWN_SHORT_BRANDS
-                )
-                if not is_known:
-                    logger.info(f"Skipping pattern for unknown short sponsor: '{sponsor}'")
-                    continue
-
-            try:
-                pattern_id = self.text_pattern_matcher.create_pattern_from_ad(
-                    segments=segments,
-                    start=ad['start'],
-                    end=ad['end'],
-                    sponsor=sponsor,
-                    scope='podcast',
-                    podcast_id=podcast_id,
-                    episode_id=episode_id
-                )
-
-                if pattern_id:
-                    patterns_created += 1
-                    logger.info(
-                        f"Created pattern {pattern_id} from Claude detection: "
-                        f"{ad['start']:.1f}s-{ad['end']:.1f}s, sponsor={sponsor}"
-                    )
-
-                    # Store audio fingerprint alongside the text pattern
-                    if audio_path and self.audio_fingerprinter and self.audio_fingerprinter.is_available():
-                        try:
-                            self.audio_fingerprinter.store_fingerprint(
-                                pattern_id=pattern_id,
-                                audio_path=audio_path,
-                                start=ad['start'],
-                                end=ad['end']
-                            )
-                        except Exception as fp_e:
-                            logger.debug(f"Could not store fingerprint for pattern {pattern_id}: {fp_e}")
-            except Exception as e:
-                logger.warning(f"Failed to create pattern from detection: {e}")
+            if self._create_pattern_and_fingerprint(
+                ad, segments, sponsor, podcast_id, episode_id, audio_path
+            ):
+                patterns_created += 1
 
         if patterns_created > 0:
             logger.info(f"Learned {patterns_created} new patterns from detections")
