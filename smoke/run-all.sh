@@ -44,8 +44,9 @@ run_local() {
     local seq="00-setup 01-health 02-session-cookie 03-auth-matrix \
         04-slug-validation 05-ui-playwright 06-ssrf 07-xxe 08-artwork \
         09-rate-limits 10-destructive-rate 11-lockout 12-rss-public-paths \
-        13-backup 14-patterns 15-log-hygiene 18-multi-worker 17-shutdown \
-        99-teardown"
+        13-backup 14-patterns 15-log-hygiene 18-multi-worker \
+        19-session-rotation 20-logout-csrf 21-json-csp \
+        17-shutdown 99-teardown"
     for name in $seq; do
         local f="$SMOKE_DIR/local/${name}.sh"
         [ -x "$f" ] || chmod +x "$f"
