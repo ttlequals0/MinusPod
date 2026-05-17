@@ -6,11 +6,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.4.9] - 2026-05-16
 
-### Tooling
+### Security
 
-- **Benchmark report scatter plots now assign a unique color per model.** `_render_pareto`, `_render_precision_recall_chart`, and `_render_token_efficiency_chart` were drawing from `tab20` with `i % 20`, so any run with more than 20 models silently reused colors and made the legend ambiguous. Added `_distinct_colors(n)` that concatenates `tab20 + tab20b + tab20c` (60 categorical colors) and falls back to evenly-spaced `hsv` past that. Benchmark-only change; not shipped in the runtime image, no version bump.
+- **Session is now rotated on login and password change.** `session.clear()` runs before re-setting `permanent=True` and `authenticated=True` on `/auth/login` and `/auth/password`, so a pre-auth cookie can't ride the new authenticated state (session fixation). `SameSite=Strict` + `Secure` already mitigated but did not eliminate the window; this closes it.
+- **`/auth/logout` now requires a valid CSRF token.** The route stays in `AUTH_EXEMPT_PATHS` so an expired session can still call it, but the handler validates the double-submit token manually. Unauthenticated callers continue to bypass (csrf.validate returns None when session.authenticated is False), preserving the "always callable to clear stale state" property.
+- **Startup refuses to run when the Flask secret key cannot be coordinated.** If both the lockfile fallback AND the DB write fail, `get_or_create_secret_key()` now raises `SecretKeyUnavailableError` instead of warn-and-continue with a divergent key. Operators can bypass by setting `SECRET_KEY` via env.
+- **JSON responses now ship `Content-Security-Policy: default-src 'none'; frame-ancestors 'none'`.** Matches the lockdown already applied to `/feed/*` RSS. Closes a small corner where a JSON endpoint mistakenly returned `text/html` would have been CSP-less.
+- **`/api/v1/patterns/import` mode validation moved to the route boundary** so the request -> bound-check -> response flow is visible to static analyzers; closes a py/reflective-xss false positive raised by CodeQL against a helper-side narrowing.
+- **`community_sync._fetch_manifest` now routes through `safe_http.safe_get(trust=OPERATOR_CONFIGURED)` with a 256 KB cap.** The manifest URL is a build-time constant today, but the wrapper protects any future setting that exposes it.
+- **`entrypoint.sh`** added `-xdev` to both `find` calls and a pre-check warning when `$DATA_DIR` is owned by a uid that's neither 0 nor `$APP_UID`. Warning-only this release so we see behavior on existing volumes before tightening to fatal.
+- **Container hardening:** `docker-compose.yml` and `docker-compose.cpu.yml` now set `security_opt: ["no-new-privileges:true"]` and `cap_drop: [ALL]` on the `minuspod` service. App already runs as UID 1000 via `setpriv`; no caps needed after start.
+- **Build reproducibility:** pinned `pip==25.2` and `setuptools==80.9.0` in both `Dockerfile` and `Dockerfile.cpu`.
+- **Supply-chain:** every `actions/*` and third-party GitHub Action in `.github/workflows/*.yml` pinned to a commit SHA (human-readable tag kept as a comment). Closes the floating-major-tag exposure flagged in the audit.
+- **Pre-commit hook:** ASCII-glyph guard blocks em-dashes, smart quotes, and U+2605; Bearer-token regex post-filtered to skip common placeholder strings (example/placeholder/test/your-/fixture/sample/dummy/fake/redacted/xxxxx).
+- **RSS DOCTYPE pre-scan widened from 4 KB to 64 KB** so feeds with extensive leading whitespace still surface the `xml_forbidden_construct` warning. `defusedxml.defuse_stdlib()` still gates XXE.
+- **66 em-dashes and 1 U+2605 swept from code/docs/UI** (ASCII-only). Future regressions blocked by the new pre-commit guard.
+
+### Refactor (no behavior change)
+
+- **`src/ad_detector.py` split into `src/ad_detector/` package**: `__init__.py` (AdDetector class + 28 public re-exports), `boundaries.py` (refine/extend/snap/merge/validate/dedupe), `prompts.py` (USER_PROMPT_TEMPLATE, create_windows, format_window_prompt, get_static_system_prompt, parse_ads_from_response). Central file dropped 2575 -> 1403 LOC. Git records the rename so blame survives.
+- **`src/database/schema.py` split into `src/database/schema/` package**: pure code-motion, SQL DDL constants moved to `tables.py`. SHA-256 of `SCHEMA_SQL` and `MIGRATION_INDEXES_SQL` identical before/after. 92 migration-focused tests pass.
+- **`frontend/src/components/AdReviewModal.tsx`** decomposed: helpers moved to `frontend/src/utils/adReviewHelpers.ts`, `Pin` subcomponent to `frontend/src/components/ad-editor/Pin.tsx`, peaks logic to `usePeaks` hook. 1654 -> 1448 LOC. Public surface unchanged.
+- **`src/main_app/processing.py`** four pipeline-stage helpers decomposed: `_run_ad_reviewer` 95 -> 67, `_refine_and_validate` 124 -> 67, `_finalize_episode` 109 -> 26, `_run_verification_pass` 157 -> 93. Every audio_logger call preserved verbatim.
+- **`src/ad_detector.learn_from_detections`** decomposed 151 -> 52 LOC into four phase helpers (`_ad_passes_learning_filters`, `_resolve_sponsor_for_learning`, `_sponsor_blocked_by_gates`, `_create_pattern_and_fingerprint`).
+- **`src/api/settings.update_ad_detection_settings`** decomposed 263 -> 34 LOC dispatcher across nine `_apply_*_fields` phase helpers.
+- **`src/api/patterns.py`** three large handlers decomposed: `submit_correction` 247 -> 44 (orchestrator over five handlers), `_submit_correction_create` 120 -> 77, `import_patterns` 136 -> 40.
+- **EpisodeContext dataclass** (`src/main_app/episode_context.py`) shrinks pipeline parameter lists: `_detect_ads_first_pass` 11 -> 6 params, `_run_verification_pass` 13 -> 7, `_apply_pass2_reviewer` 12 -> 6.
+- **`src/main_app/_get_components()` tuples replaced with direct singleton imports** in processing.py, routes.py, background.py, feeds.py. Eliminates the silent tuple-reorder failure mode.
+- **Helper consolidation**: new `src/utils/ttl_cache.py` (cleanup_service, llm_client, sponsor_service now share it), `overlap_ratio` + `ranges_overlap` in `src/utils/time.py`, `NON_BRAND_WORDS` consolidated to `src/utils/constants.py`, sponsor extraction consolidated to `SponsorService`.
+- **Frontend helper consolidation**: `Artwork.tsx` + `ARTWORK_FALLBACK_SVG` (was duplicated 4x), `useLocalStorageState` hook (was hand-rolled 4x), `useSyncFromQuery` hook (replaces three Settings.tsx snapshot blocks), `NAV_ITEMS` table + `<NavLink>` in `Layout.tsx` (14 link blocks -> 6 entries; 234 -> 156 LOC), `DETECTION_STAGE_META` lookup, `apiFileRequest` helper (four blob downloads consolidated).
+- **Type tightening**: `PatternScope` union, `EpisodeStatus(str, Enum)`, `SettingEntry` dataclass.
+- **Dead code removed**: `INVALID_SPONSOR_REASONS` alias, `network_id` parameter from `process_transcript` (never supplied by any caller; downstream `text_pattern_matcher.find_matches` keeps it because other call sites use it).
+- **Inline imports hoisted** in `src/api/episodes.py` (audio_peaks, chapters_generator, llm_client, processing_queue), `src/api/feeds.py` (urllib.parse, defusedxml), `src/audio_fingerprinter.py` (acoustid lifted to single module-level guarded import).
+
+### Tooling (benchmark; not in runtime image)
+
+- **Benchmark report scatter plots now assign a unique color per model.** `_render_pareto`, `_render_precision_recall_chart`, and `_render_token_efficiency_chart` were drawing from `tab20` with `i % 20`, so any run with more than 20 models silently reused colors. Added `_distinct_colors(n)` that concatenates `tab20 + tab20b + tab20c` (60 categorical colors) and falls back to evenly-spaced `hsv` past that.
 
 ## [2.4.8] - 2026-05-15
 
