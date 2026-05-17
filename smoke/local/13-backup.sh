@@ -38,6 +38,13 @@ elif printf '%s' "$magic" | grep -q '^MPBK01'; then
     SALT_DB="$RESULTS_DIR/T13-salt.db"
     DECRYPTED="$RESULTS_DIR/T13-backup-decrypted.db"
     rm -f "$SALT_DB" "$DECRYPTED"
+    # SQLite in WAL mode buffers writes in podcast.db-wal until checkpointed.
+    # The salt persisted by the backup endpoint above may still be in the WAL
+    # at this point, so checkpoint via the container's python (sqlite3 CLI
+    # isn't installed in the runtime image) before docker cp.
+    docker exec "$LOCAL_CONTAINER" python3 -c \
+        "import sqlite3; c=sqlite3.connect('/app/data/podcast.db'); c.execute('PRAGMA wal_checkpoint(FULL)'); c.close()" \
+        >/dev/null 2>&1 || true
     if docker cp "$LOCAL_CONTAINER:/app/data/podcast.db" "$SALT_DB" 2>/dev/null; then
         if MINUSPOD_MASTER_PASSPHRASE="${MINUSPOD_MASTER_PASSPHRASE:-smoke-test-passphrase}" \
                 python3 "$REPO_ROOT/scripts/decrypt_backup_standalone.py" \

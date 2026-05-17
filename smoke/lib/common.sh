@@ -96,20 +96,25 @@ http_full() {
 }
 
 # Login against $1 base URL with $2 password, write cookies to $3 jar.
-# Optional $4 = X-Forwarded-For value. Pass a unique IP per test to avoid
-# starving the per-IP /auth/login rate limit (3/min, 10/hour) when many
-# tests in the same suite log in back-to-back. Echoes HTTP code.
+# Optional $4 = X-Forwarded-For value. When omitted, the helper derives
+# one from TEST_NAME via smoke_ip so each test gets its own per-IP slot
+# in the /auth/login rate limit (3/min, 10/hour). Without this default,
+# the cumulative logins from a 20-test suite all hit the loopback IP and
+# the 10/hour cap kicks in around test 11, making downstream tests fail
+# with 401 instead of the assertion they're trying to verify. Echoes
+# the HTTP code.
 login() {
     local base="$1" password="$2" jar="$3" xff="${4:-}"
-    local hdr=()
-    if [ -n "$xff" ]; then
-        hdr+=(-H "X-Forwarded-For: $xff")
+    if [ -z "$xff" ]; then
+        local n=0
+        [[ "${TEST_NAME:-}" =~ ^T([0-9]+) ]] && n="${BASH_REMATCH[1]}"
+        xff=$(smoke_ip "$n")
     fi
     curl -s -o /dev/null -w '%{http_code}' \
         -c "$jar" \
         -X POST "$base/api/v1/auth/login" \
         -H "Content-Type: application/json" \
-        "${hdr[@]}" \
+        -H "X-Forwarded-For: $xff" \
         -d "{\"password\":\"$password\"}"
 }
 
