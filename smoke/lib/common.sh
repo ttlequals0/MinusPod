@@ -325,3 +325,21 @@ header_value() {
     local name="$1"
     awk -F': ' -v h="$name" 'tolower($1)==tolower(h){print $2}' | tr -d '\r' | head -1
 }
+
+
+# Poll a GET endpoint until the JSON field equals the expected value (or
+# tries are exhausted). Useful for cache-backed endpoints (e.g. settings
+# under the memory:// limiter where a PUT can invalidate one worker's
+# cache but a subsequent GET lands on the other worker). Prints the last
+# observed value to stdout.
+#
+# Usage: got=$(poll_for /api/v1/settings/retention retentionDays 42)
+poll_for() {
+    local endpoint="$1" key="$2" expected="$3" tries="${4:-10}"
+    local got=""
+    for _ in $(seq 1 "$tries"); do
+        got=$(curl -s -b "$JAR" "$LOCAL_BASE$endpoint" | json_get "$key")
+        [ "$got" = "$expected" ] && break
+    done
+    printf '%s' "$got"
+}

@@ -48,6 +48,8 @@ run_local() {
         19-session-rotation 20-logout-csrf 21-json-csp \
         22-pattern-import-modes 23-pattern-readonly 24-pattern-crud \
         25-pattern-community 26-pattern-edge-cases \
+        27-settings-readonly 28-settings-roundtrip 29-settings-resets \
+        30-webhook-crud \
         17-shutdown 99-teardown"
     for name in $seq; do
         local f="$SMOKE_DIR/local/${name}.sh"
