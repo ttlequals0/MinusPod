@@ -49,7 +49,7 @@ RUN mkdir -p /app/static/ui/swagger \
           /app/static/ui/swagger/
 
 # Stage 2: Python application (CPU-only base; no NVIDIA runtime layer)
-FROM ubuntu:24.04
+FROM ubuntu:26.04
 
 # Install Python 3.11 from deadsnakes PPA and system dependencies
 # Ubuntu 24.04 ships Python 3.12; we use deadsnakes to keep Python 3.11
