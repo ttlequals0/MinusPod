@@ -1063,16 +1063,26 @@ def import_patterns():
     """
     db = get_database()
     data = request.get_json() or {}
-    # Pull the user-controlled values once at the boundary; the validator
-    # below only sees already-extracted args. Keeps the data-flow visible
-    # to interprocedural analysis.
-    raw_patterns = data.get('patterns') if isinstance(data, dict) else None
-    raw_mode = data.get('mode', 'merge') if isinstance(data, dict) else 'merge'
+    if not isinstance(data, dict):
+        return error_response('No patterns provided', 400)
 
-    patterns, early_response = _validate_import_request(raw_patterns, raw_mode)
+    # Inline mode validation so static analyzers see the bound check at the
+    # request boundary. mode is constrained to one of three literal strings
+    # before it flows anywhere else.
+    raw_mode = data.get('mode', 'merge')
+    if raw_mode == 'merge':
+        mode = 'merge'
+    elif raw_mode == 'replace':
+        mode = 'replace'
+    elif raw_mode == 'supplement':
+        mode = 'supplement'
+    else:
+        return error_response('Invalid mode. Use "merge", "replace", or "supplement"', 400)
+
+    raw_patterns = data.get('patterns')
+    patterns, early_response = _validate_import_request(raw_patterns, mode)
     if early_response is not None:
         return early_response
-    mode = raw_mode  # validator has already constrained mode to _IMPORT_MODES
 
     valid_patterns, err = _validate_import_items(patterns)
     if err is not None:

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useTheme } from '../context/ThemeContext';
 
@@ -43,10 +43,14 @@ function Layout() {
   const { theme, toggleTheme } = useTheme();
   const location = useLocation();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  useEffect(() => {
+  // Reset the mobile menu when the route changes. React's docs explicitly
+  // recommend the render-phase "adjust state on prop change" idiom over a
+  // setState-in-useEffect, which the new react-compiler lint rule rejects.
+  const [lastPath, setLastPath] = useState(location.pathname);
+  if (location.pathname !== lastPath) {
+    setLastPath(location.pathname);
     setMobileMenuOpen(false);
-  }, [location.pathname]);
+  }
 
   return (
     <div className="min-h-screen bg-background pt-10">
