@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.11] - 2026-05-17
+
+### Fixed
+
+- **Reprocess silently skipped when episode already in `auto_process_queue`.** The two single-episode reprocess endpoints (`POST /feeds/<slug>/episodes/<id>/reprocess` and `POST /episodes/<slug>/<id>/reprocess`) called `queue_episode_for_processing`, which uses `INSERT ... ON CONFLICT DO NOTHING`. When the queue already had a `failed` row for the episode from a prior run, the re-queue was a no-op: `episodes.status` flipped to `pending` but the background queue processor never picked the episode up. Both endpoints now use `upsert_episode_for_processing`, which resets the existing row to `status='pending'` with `attempts=0`. The bulk endpoint already used the upsert helper; this brings the single-episode endpoints in line. Episodes stuck in pending limbo from a previous reprocess need to be reprocessed again after this release.
+
 ## [2.4.10] - 2026-05-17
 
 ### Fixed

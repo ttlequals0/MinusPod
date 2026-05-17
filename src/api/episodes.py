@@ -470,7 +470,7 @@ def reprocess_episode(slug, episode_id):
             }, 202)  # 202 Accepted - processing started asynchronously
         else:
             # Queue is busy - add to processing queue so background processor picks it up
-            db.queue_episode_for_processing(
+            db.upsert_episode_for_processing(
                 slug, episode_id, episode_url, episode_title,
                 episode_published_at, episode_description
             )
@@ -1044,7 +1044,7 @@ def reprocess_episode_with_mode(slug, episode_id):
             }, 202)  # 202 Accepted
         else:
             # Queue is busy - add to processing queue so background processor picks it up
-            db.queue_episode_for_processing(
+            db.upsert_episode_for_processing(
                 slug, episode_id, episode_url, episode_title,
                 episode_published_at, episode_description
             )
