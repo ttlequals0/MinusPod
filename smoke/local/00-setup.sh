@@ -12,7 +12,11 @@ IMAGE="${IMAGE:-ttlequals0/minuspod:2.0.0}"
 PORT="${PORT:-8001}"
 
 log "pulling $IMAGE"
-docker pull "$IMAGE" >/dev/null
+if docker image inspect "$IMAGE" >/dev/null 2>&1; then
+    log "image $IMAGE already present locally; skipping pull"
+else
+    docker pull "$IMAGE" >/dev/null
+fi
 
 if docker inspect "$LOCAL_CONTAINER" >/dev/null 2>&1; then
     log "removing existing container $LOCAL_CONTAINER"
@@ -42,7 +46,12 @@ docker run -d \
     -e MINUSPOD_MASTER_PASSPHRASE=smoke-test-passphrase \
     -e ANTHROPIC_API_KEY=dummy-key-no-llm-calls-in-smoke \
     -e LOG_LEVEL=INFO \
+    -e GUNICORN_GRACEFUL_TIMEOUT=30 \
+    -e GUNICORN_TIMEOUT=60 \
     "$IMAGE" >/dev/null
+# GUNICORN_GRACEFUL_TIMEOUT defaults to 330s in prod; that's longer than the
+# T17-shutdown test's 90s wait. Tighten to 30s for smoke so the test can
+# observe a real graceful exit window without masking a hang.
 
 log "waiting for /api/v1/health on $LOCAL_BASE"
 if wait_for_health "$LOCAL_BASE" 90; then

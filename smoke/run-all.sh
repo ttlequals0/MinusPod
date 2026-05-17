@@ -21,6 +21,13 @@ export RESULTS_DIR
 
 MODE="${1:-all}"
 
+# Wipe prior per-test result files so accumulated lines from earlier runs
+# can't pollute the new SUMMARY.md. SUMMARY.md itself and any non-.txt
+# artifacts (e.g. container logs) are preserved.
+if [ "${SMOKE_PRESERVE_RESULTS:-0}" != "1" ]; then
+    rm -f "$RESULTS_DIR"/*.txt
+fi
+
 run_script() {
     local script="$1"
     echo
@@ -66,7 +73,7 @@ esac
 # Build SUMMARY.md
 SUMMARY="$RESULTS_DIR/SUMMARY.md"
 {
-    echo "# MinusPod 2.0.0 smoke results"
+    echo "# MinusPod smoke results"
     echo
     echo "Generated: $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
     echo

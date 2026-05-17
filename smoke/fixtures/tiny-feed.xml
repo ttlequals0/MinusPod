@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" version="2.0">
+  <channel>
+    <title>Smoke Fixture Podcast</title>
+    <link>http://example.invalid/smoke</link>
+    <description>Used by the smoke harness; not a real show.</description>
+    <language>en-us</language>
+    <itunes:image href="http://example.invalid/smoke/artwork.jpg"/>
+    <item>
+      <title>Tiny Test Episode</title>
+      <guid isPermaLink="false">smoke-fixture-ep-0001</guid>
+      <pubDate>Sat, 17 May 2026 00:00:00 GMT</pubDate>
+      <enclosure url="http://example.invalid/smoke/tiny-episode.mp3" length="5000" type="audio/mpeg"/>
+      <description>Fixture episode for smoke harness; ~5s of silence.</description>
+    </item>
+  </channel>
+</rss>
