@@ -1,41 +1,27 @@
 #!/usr/bin/env bash
 # T23: read-only pattern endpoints return well-shaped JSON on a clean DB.
-#
-# Covers: /patterns/stats, /patterns/health, /patterns/contaminated,
+# Covers /patterns/stats, /patterns/health, /patterns/contaminated,
 # /patterns?scope=..., /patterns?source=..., /patterns/deduplicate,
 # /patterns/backfill-false-positives.
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEST_NAME="T23-pattern-readonly" source "$SCRIPT_DIR/../lib/common.sh"
 
-JAR="$RESULTS_DIR/T23-cookies.jar"
-rm -f "$JAR"
-login "$LOCAL_BASE" "$LOCAL_PASSWORD" "$JAR" "$(smoke_ip 23)" >/dev/null
-csrf=$(csrf_from_jar "$LOCAL_BASE" "$JAR")
+setup_authed_jar 23
 
 assert_shape() {
     local endpoint="$1" required_keys="$2" desc="$3"
-    local body
-    body=$(curl -s -b "$JAR" "$LOCAL_BASE$endpoint")
-    if ! printf '%s' "$body" | python3 -c "
+    if ! curl -s -b "$JAR" "$LOCAL_BASE$endpoint" | python3 -c "
 import json, sys
-try:
-    d = json.load(sys.stdin)
-except Exception as e:
-    print(f'JSON parse error: {e}', file=sys.stderr)
-    sys.exit(1)
-if not isinstance(d, dict):
-    print(f'expected dict, got {type(d).__name__}', file=sys.stderr)
-    sys.exit(1)
+d = json.load(sys.stdin)
+assert isinstance(d, dict), 'not a dict'
 missing = [k for k in '$required_keys'.split(',') if k not in d]
-if missing:
-    print(f'missing keys: {missing}', file=sys.stderr)
-    sys.exit(1)
-" 2>&1 >/dev/null; then
+assert not missing, f'missing keys: {missing}'
+" 2>/dev/null; then
         fail_step "$desc"
-        return
+    else
+        pass_step "$desc"
     fi
-    pass_step "$desc"
 }
 
 assert_shape '/api/v1/patterns/stats' \
@@ -50,29 +36,15 @@ assert_shape '/api/v1/patterns/contaminated' \
     'patterns' \
     'GET /patterns/contaminated returns {patterns: [...]}'
 
-# /patterns with filters
 for f in 'scope=global' 'source=community' 'source=local' 'source=imported' 'active=false'; do
     code=$(curl -s -o /dev/null -w '%{http_code}' -b "$JAR" "$LOCAL_BASE/api/v1/patterns?$f")
-    if [ "$code" = "200" ]; then
-        pass_step "GET /patterns?$f returns 200"
-    else
-        fail_step "GET /patterns?$f returned $code"
-    fi
+    assert_eq "$code" "200" "GET /patterns?$f returns 200"
 done
 
-# /patterns/deduplicate is idempotent on a clean DB
-code=$(curl -s -o /dev/null -w '%{http_code}' \
-    -b "$JAR" \
-    -X POST "$LOCAL_BASE/api/v1/patterns/deduplicate" \
-    -H "X-CSRF-Token: $csrf")
+code=$(auth_code POST /api/v1/patterns/deduplicate 23)
 assert_eq "$code" "200" 'POST /patterns/deduplicate returns 200'
 
-# /patterns/backfill-false-positives is also idempotent on a clean DB
-code=$(curl -s -o /dev/null -w '%{http_code}' \
-    -b "$JAR" \
-    -X POST "$LOCAL_BASE/api/v1/patterns/backfill-false-positives" \
-    -H "X-CSRF-Token: $csrf")
+code=$(auth_code POST /api/v1/patterns/backfill-false-positives 23)
 assert_eq "$code" "200" 'POST /patterns/backfill-false-positives returns 200'
 
-rm -f "$JAR"
 finish_test "T23-pattern-readonly"
