@@ -910,45 +910,10 @@ def export_patterns():
 _IMPORT_MODES = ('merge', 'replace', 'supplement')
 
 
-def _validate_import_request(patterns, mode):
-    """Validate already-extracted import parameters.
-
-    `patterns` and `mode` are pulled from the request JSON by the caller
-    so the call site retains a direct line from `request.get_json()` to
-    its validator -- keeps interprocedural taint analysis (CodeQL) able
-    to see the bounded set of accepted values.
-
-    Returns (patterns_list_or_None, error_response_or_empty_payload_response).
-    The second value, when not None, is a response to return directly.
-    """
-    if patterns is None:
-        return None, error_response('No patterns provided', 400)
-
-    if mode not in _IMPORT_MODES:
-        return None, error_response(
-            'Invalid mode. Use "merge", "replace", or "supplement"', 400
-        )
-
-    # Empty merge/supplement is a no-op, which is legitimate for a
-    # round-trip on a fresh DB. Replace mode with an empty list would
-    # wipe the table and is almost never what the caller meant, so that
-    # case stays a 400.
-    if not patterns:
-        if mode == 'replace':
-            return None, error_response(
-                'Empty patterns array with mode=replace would wipe the table; '
-                'pass mode=merge or mode=supplement for a round-trip',
-                400,
-            )
-        return None, json_response({
-            'mode': mode,
-            'importedCount': 0,
-            'updatedCount': 0,
-            'skippedCount': 0,
-            'message': 'No patterns in payload; nothing to do',
-        })
-
-    return patterns, None
+def _is_empty_replace_request(patterns, mode) -> bool:
+    """Empty patterns with mode=replace would wipe the table; almost never
+    what the caller meant, so the route returns a 400 instead."""
+    return mode == 'replace' and not patterns
 
 
 def _validate_import_items(patterns):
@@ -1079,10 +1044,28 @@ def import_patterns():
     else:
         return error_response('Invalid mode. Use "merge", "replace", or "supplement"', 400)
 
-    raw_patterns = data.get('patterns')
-    patterns, early_response = _validate_import_request(raw_patterns, mode)
-    if early_response is not None:
-        return early_response
+    patterns = data.get('patterns')
+    if patterns is None:
+        return error_response('No patterns provided', 400)
+
+    if _is_empty_replace_request(patterns, mode):
+        return error_response(
+            'Empty patterns array with mode=replace would wipe the table; '
+            'pass mode=merge or mode=supplement for a round-trip',
+            400,
+        )
+
+    if not patterns:
+        # No-op for merge / supplement on an empty list. mode is constrained
+        # to a literal from the inline check above, so echoing it back is
+        # safe even though it originated as user input.
+        return json_response({
+            'mode': mode,
+            'importedCount': 0,
+            'updatedCount': 0,
+            'skippedCount': 0,
+            'message': 'No patterns in payload; nothing to do',
+        })
 
     valid_patterns, err = _validate_import_items(patterns)
     if err is not None:
