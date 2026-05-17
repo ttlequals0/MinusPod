@@ -5,6 +5,8 @@ import os
 import re
 import threading
 import uuid
+from dataclasses import dataclass
+from typing import Any, Dict, Mapping
 
 from flask import request
 
@@ -31,14 +33,59 @@ from webhook_service import render_template_preview, fire_test_event, load_webho
 logger = logging.getLogger('podcast.api')
 
 
+@dataclass(frozen=True)
+class SettingEntry:
+    """Typed view of one row from db.get_all_settings().
+
+    The producer (src/database/settings.py:get_all_settings) returns
+    ``{key: {'value': X, 'is_default': Y}}`` dicts to stay compatible with
+    consumers outside this module (secrets_crypto, main_app, tests). The
+    helpers below wrap that dict shape into ``SettingEntry`` so consumers
+    in this file get attribute access and a stable type.
+    """
+    value: Any
+    is_default: bool
+
+
+def _settings_view(raw: Mapping[str, Any]) -> Dict[str, SettingEntry]:
+    """Wrap the raw get_all_settings() dict into a SettingEntry mapping.
+
+    Skips entries that lack the expected shape so a malformed row can't
+    crash the GET /settings endpoint.
+    """
+    view: Dict[str, SettingEntry] = {}
+    for key, info in raw.items():
+        if not isinstance(info, Mapping):
+            continue
+        view[key] = SettingEntry(
+            value=info.get('value'),
+            is_default=bool(info.get('is_default', True)),
+        )
+    return view
+
+
 def _setting_value(settings, key, default=None):
-    """Extract value from the settings dict returned by get_all_settings()."""
-    return settings.get(key, {}).get('value', default)
+    """Extract value from the settings dict returned by get_all_settings().
+
+    Accepts both the raw dict shape and a ``SettingEntry`` mapping so
+    legacy callers keep working without a forced wrap.
+    """
+    entry = settings.get(key)
+    if entry is None:
+        return default
+    if isinstance(entry, SettingEntry):
+        return entry.value if entry.value is not None else default
+    return entry.get('value', default)
 
 
 def _setting_is_default(settings, key):
     """Check if a setting is still at its default value."""
-    return settings.get(key, {}).get('is_default', True)
+    entry = settings.get(key)
+    if entry is None:
+        return True
+    if isinstance(entry, SettingEntry):
+        return entry.is_default
+    return entry.get('is_default', True)
 
 
 # ========== Settings Endpoints ==========
@@ -55,7 +102,7 @@ def get_settings():
     from ad_detector import AdDetector
     from config import DEFAULT_AD_DETECTION_MODEL as DEFAULT_MODEL
     from chapters_generator import CHAPTERS_MODEL
-    settings = db.get_all_settings()
+    settings = _settings_view(db.get_all_settings())
 
     # Shorthand for building {value, isDefault} response dicts
     def _sv(key, value=None):

@@ -4,6 +4,27 @@ Centralizes field name sets and classification values that were previously
 duplicated across ad_detector.py and text_pattern_matcher.py.
 """
 
+from enum import Enum
+
+
+class EpisodeStatus(str, Enum):
+    """Episode lifecycle statuses.
+
+    DISCOVERED..PERMANENTLY_FAILED mirror the schema CHECK constraint on
+    episodes.status (src/database/schema.py:50). COMPLETED is the API-facing
+    alias the frontend sees; src/api/episodes.py maps PROCESSED -> COMPLETED
+    in responses. Inherits from str so existing == comparisons against bare
+    literals keep working without a wide-scope refactor.
+    """
+    DISCOVERED = "discovered"
+    PENDING = "pending"
+    PROCESSING = "processing"
+    PROCESSED = "processed"
+    FAILED = "failed"
+    PERMANENTLY_FAILED = "permanently_failed"
+    COMPLETED = "completed"
+
+
 # Invalid sponsor values that indicate extraction failure or garbage data.
 # Used by ad_detector (validate_ads_from_response, _extract_sponsor_from_reason)
 # and text_pattern_matcher (create_pattern_from_ad).

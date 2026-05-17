@@ -21,6 +21,7 @@ from config import (
     MAX_EPISODE_RETRIES,
 )
 from rss_parser import extract_cached_base_url
+from utils.constants import EpisodeStatus
 from utils.safe_http import URLTrust, safe_head
 from utils.time import parse_iso_datetime
 from utils.url import SSRFError
@@ -300,7 +301,7 @@ def register_routes(app):
         episode = db.get_episode(slug, episode_id)
         status = episode['status'] if episode else None
 
-        if status == 'processed':
+        if status == EpisodeStatus.PROCESSED:
             current_version = (episode or {}).get('processed_version') or 0
             # Pick the version to serve. If client asked for a specific version
             # and that file is present, serve it; otherwise fall through to current.
@@ -323,7 +324,7 @@ def register_routes(app):
                 feed_logger.error(f"[{slug}:{episode_id}] Processed file missing")
                 status = None
 
-        elif status == 'permanently_failed':
+        elif status == EpisodeStatus.PERMANENTLY_FAILED:
             ep_key = f"{slug}:{episode_id}"
             if ep_key not in _permanently_failed_warned:
                 _permanently_failed_warned.add(ep_key)
@@ -335,12 +336,12 @@ def register_routes(app):
                 status=410  # Gone - resource no longer available
             )
 
-        elif status == 'failed':
+        elif status == EpisodeStatus.FAILED:
             retry_count = episode.get('retry_count', 0) or 0
             if retry_count >= MAX_EPISODE_RETRIES:
                 # Mark as permanently failed
                 feed_logger.warning(f"[{slug}:{episode_id}] Max retries ({MAX_EPISODE_RETRIES}) exceeded, marking permanently failed")
-                db.upsert_episode(slug, episode_id, status='permanently_failed')
+                db.upsert_episode(slug, episode_id, status=EpisodeStatus.PERMANENTLY_FAILED.value)
                 return Response(
                     "Episode processing has permanently failed after multiple attempts",
                     status=410
@@ -364,7 +365,7 @@ def register_routes(app):
             feed_logger.info(f"[{slug}:{episode_id}] Retrying failed episode (attempt {retry_count + 1}/{MAX_EPISODE_RETRIES})")
             status = None
 
-        elif status == 'processing':
+        elif status == EpisodeStatus.PROCESSING:
             feed_logger.info(f"[{slug}:{episode_id}] Currently processing")
             return Response(
                 "Episode is being processed",
@@ -373,7 +374,7 @@ def register_routes(app):
             )
 
         # HEAD requests should not trigger processing - proxy upstream headers
-        if request.method == 'HEAD' and status != 'processed':
+        if request.method == 'HEAD' and status != EpisodeStatus.PROCESSED:
             ep_data, _ = _routes._lookup_episode(slug, episode_id, feed_map, episode_row=episode)
             if ep_data:
                 return _routes._head_upstream(slug, episode_id, ep_data['url'])

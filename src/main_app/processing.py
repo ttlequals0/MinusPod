@@ -20,6 +20,7 @@ from llm_capabilities import (
     clear_fallback,
 )
 from llm_client import is_retryable_error, is_llm_api_error, start_episode_token_tracking, get_episode_token_totals
+from utils.constants import EpisodeStatus
 from utils.episode_paths import episode_relative_path
 from utils.gpu import get_available_memory_gb, clear_gpu_memory
 from utils.text import parse_transcript_segments
@@ -144,7 +145,7 @@ def _process_episode_background(slug, episode_id, original_url, title, podcast_n
             audio_logger.warning(f"[{slug}:{episode_id}] Failed to clean up partial file: {cleanup_err}")
         # Reset DB status (before finally releases queue, preventing re-queue race)
         try:
-            db.upsert_episode(slug, episode_id, status='pending', error_message='Canceled by user')
+            db.upsert_episode(slug, episode_id, status=EpisodeStatus.PENDING.value, error_message='Canceled by user')
         except Exception as db_err:
             audio_logger.warning(f"[{slug}:{episode_id}] Failed to reset status after cancel: {db_err}")
         status_service.complete_job()
@@ -974,7 +975,7 @@ def _finalize_episode(slug, episode_id, episode_title, podcast_name,
     original_file_rel = f"episodes/{episode_id}-original.mp3" if original_final.exists() else None
     processed_file_rel = episode_relative_path(episode_id, processed_version)
     db.upsert_episode(slug, episode_id,
-        status='processed',
+        status=EpisodeStatus.PROCESSED.value,
         processed_file=processed_file_rel,
         processed_version=processed_version or 0,
         original_file=original_file_rel,
@@ -1096,13 +1097,13 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
     if transient:
         new_retry_count = current_retry + 1
         if new_retry_count >= MAX_EPISODE_RETRIES:
-            new_status = 'permanently_failed'
+            new_status = EpisodeStatus.PERMANENTLY_FAILED.value
             audio_logger.warning(f"[{slug}:{episode_id}] Max retries reached ({MAX_EPISODE_RETRIES}), marking as permanently failed")
         else:
-            new_status = 'failed'
+            new_status = EpisodeStatus.FAILED.value
             audio_logger.info(f"[{slug}:{episode_id}] Transient error, will retry (attempt {new_retry_count}/{MAX_EPISODE_RETRIES})")
     else:
-        new_status = 'permanently_failed'
+        new_status = EpisodeStatus.PERMANENTLY_FAILED.value
         new_retry_count = current_retry
         audio_logger.warning(f"[{slug}:{episode_id}] Permanent error, not retrying: {type(error).__name__}")
 
@@ -1128,7 +1129,7 @@ def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
     except Exception as hist_err:
         audio_logger.warning(f"[{slug}:{episode_id}] Failed to record history: {hist_err}")
 
-    if new_status == 'permanently_failed':
+    if new_status == EpisodeStatus.PERMANENTLY_FAILED:
         try:
             fire_event(
                 event=EVENT_EPISODE_FAILED,
@@ -1189,7 +1190,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
         upsert_kwargs = dict(
             original_url=episode_url, title=episode_title,
             description=episode_description, artwork_url=episode_artwork_url,
-            status='processing'
+            status=EpisodeStatus.PROCESSING.value
         )
         if episode_published_at:
             upsert_kwargs['published_at'] = episode_published_at

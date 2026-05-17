@@ -4,6 +4,8 @@ import logging
 from email.utils import parsedate_to_datetime
 from typing import Optional, Dict, List, Tuple
 
+from utils.constants import EpisodeStatus
+
 logger = logging.getLogger(__name__)
 
 
@@ -718,7 +720,7 @@ class EpisodeMixin:
         self.clear_episode_details(slug, episode_id)
         self.upsert_episode(
             slug, episode_id,
-            status='discovered',
+            status=EpisodeStatus.DISCOVERED.value,
             processed_file=None,
             processed_at=None,
             original_duration=None,

@@ -13,9 +13,16 @@ export const PATTERN_SOURCES = [
 ] as const;
 export type PatternSource = typeof PATTERN_SOURCES[number];
 
+// Mirrors the scope discriminator stored on ad_patterns rows. UI filters
+// (PatternsPage) and backend get_ad_patterns accept the same three values.
+// The 'network' scope is omitted from PatternCorrection.scope below because
+// user-driven pattern creation only exposes podcast vs global; network-scoped
+// patterns are only produced server-side.
+export type PatternScope = 'podcast' | 'network' | 'global';
+
 export interface AdPattern {
   id: number;
-  scope: string;
+  scope: PatternScope;
   network_id: string | null;
   podcast_id: string | null;
   podcast_name?: string | null;
@@ -86,7 +93,7 @@ export interface PatternStats {
   }>;
   no_sponsor_patterns: Array<{
     id: number;
-    scope: string;
+    scope: PatternScope;
     podcast_name: string | null;
     created_at: string;
     text_preview: string;
@@ -106,7 +113,7 @@ export async function getPatternStats(): Promise<PatternStats> {
 // Pattern API
 
 export async function getPatterns(params?: {
-  scope?: string;
+  scope?: PatternScope;
   podcast_id?: string;
   network_id?: string;
   active?: boolean;
@@ -137,7 +144,7 @@ export async function updatePattern(
     outro_variants?: string[];
     is_active?: boolean;
     disabled_reason?: string;
-    scope?: string;
+    scope?: PatternScope;
   }
 ): Promise<void> {
   await apiRequest(`/patterns/${id}`, {

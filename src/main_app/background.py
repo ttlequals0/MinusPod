@@ -5,6 +5,7 @@ import shutil
 import time
 
 from config import MAX_EPISODE_RETRIES
+from utils.constants import EpisodeStatus
 
 refresh_logger = logging.getLogger('podcast.refresh')
 audio_logger = logging.getLogger('podcast.audio')
@@ -161,7 +162,7 @@ def background_queue_processor():
                                 error_msg = f"Processing ended with status: {episode.get('status') if episode else 'unknown'}"
                             db.update_queue_status(queue_id, 'failed', error_msg)
                             episode_status = episode.get('status') if episode else None
-                            if episode_status == 'permanently_failed':
+                            if episode_status == EpisodeStatus.PERMANENTLY_FAILED:
                                 refresh_logger.warning(f"[{slug}:{episode_id}] Auto-process permanently failed: {error_msg}")
                             else:
                                 refresh_logger.info(f"[{slug}:{episode_id}] Auto-process failed (transient), will auto-retry: {error_msg}")
