@@ -13,11 +13,24 @@ TEST_NAME="T11-lockout" source "$SCRIPT_DIR/../lib/common.sh"
 # path end-to-end here.
 note 'private-IP lockout exclusion covered by tests/unit/test_auth_lockout.py'
 
-# 2) Public IP path: 5 wrong from 203.0.113.5. /auth/login is capped at
-# 3/min by flask-limiter, so we pace the attempts 22s apart to stay under
-# the rate limit while still accumulating lockout-counter hits.
+# 2) Public IP path: 5 wrong from a real public IP.
+#
+# IMPORTANT: do NOT use RFC 5737 documentation ranges (192.0.2.0/24,
+# 198.51.100.0/24, 203.0.113.0/24) here. Python stdlib `ipaddress`
+# classifies all of those as `is_private=True` per RFC 6890, so the
+# lockout machinery (`utils.validation.is_public_ip_for_lockout`)
+# refuses to count failures against them and this test silently
+# never trips the threshold.
+#
+# Cloudflare 1.1.1.1 is `is_private=False`, well-known, and the
+# isolated smoke container never actually contacts it -- the IP is
+# only used as a spoofed X-Forwarded-For value.
+#
+# /auth/login is capped at 3/min by flask-limiter, so we pace the
+# attempts 22s apart to stay under the rate limit while still
+# accumulating lockout-counter hits.
 # Total: 5 * 22s + 22s pause = ~132s. Slow but reliable.
-SPOOF="203.0.113.5"
+SPOOF="1.1.1.1"
 for i in $(seq 1 5); do
     curl -s -o /dev/null -X POST "$LOCAL_BASE/api/v1/auth/login" \
         -H "Content-Type: application/json" \

@@ -19,10 +19,21 @@ try:
 except Exception:
     print("")' 2>/dev/null || true)
 note "remote version: $ver"
-if [ "$ver" = "2.0.0" ]; then
-    pass_step 'remote reports version 2.0.0'
+# Accept any non-empty SemVer. Hardcoding a specific value here made the
+# remote smoke fail on every release. Tie this to a specific version only
+# when smoke is run as a post-deploy gate (set SMOKE_EXPECT_VERSION).
+if [ -n "${SMOKE_EXPECT_VERSION:-}" ]; then
+    if [ "$ver" = "${SMOKE_EXPECT_VERSION}" ]; then
+        pass_step "remote reports version ${SMOKE_EXPECT_VERSION}"
+    else
+        fail_step "remote version mismatch: got '$ver', expected '${SMOKE_EXPECT_VERSION}'"
+    fi
 elif [ -n "$ver" ]; then
-    fail_step "remote version mismatch: got '$ver', expected 2.0.0"
+    if printf '%s' "$ver" | grep -qE '^[0-9]+\.[0-9]+\.[0-9]+'; then
+        pass_step "remote reports SemVer version: $ver"
+    else
+        fail_step "remote version is not SemVer: '$ver'"
+    fi
 else
     skip_step 'could not determine remote version (auth or endpoint shape)'
 fi

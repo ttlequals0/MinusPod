@@ -46,12 +46,25 @@ csrf=$(csrf_from_jar "$LOCAL_BASE" "$JAR")
 XXE_URL="http://${GATEWAY}:${HOST_PORT}/feed.xml"
 note "submitting XXE feed: $XXE_URL"
 
-code=$(curl -s -o /dev/null -w '%{http_code}' \
-    -b "$JAR" \
-    -X POST "$LOCAL_BASE/api/v1/feeds" \
-    -H "Content-Type: application/json" \
-    -H "X-CSRF-Token: $csrf" \
-    -d "{\"sourceUrl\":\"$XXE_URL\"}")
+# /api/v1/feeds is rate-limited by flask-limiter; earlier tests in the same
+# run can exhaust the per-minute quota, in which case the limiter returns
+# 429 before the parser ever sees the body and the XXE defense isn't
+# actually exercised. Retry once after waiting long enough for the limiter
+# window to clear so we hit the real parser path.
+post_xxe() {
+    curl -s -o /dev/null -w '%{http_code}' \
+        -b "$JAR" \
+        -X POST "$LOCAL_BASE/api/v1/feeds" \
+        -H "Content-Type: application/json" \
+        -H "X-CSRF-Token: $csrf" \
+        -d "{\"sourceUrl\":\"$XXE_URL\"}"
+}
+code=$(post_xxe)
+if [ "$code" = "429" ]; then
+    note 'rate-limited on first attempt; waiting 65s for limiter window to clear'
+    sleep 65
+    code=$(post_xxe)
+fi
 
 # Expect 400/422 (rejected at parse). 201 would mean XXE was processed.
 assert_in "$code" "400 422" "XXE feed rejected (got $code)"
