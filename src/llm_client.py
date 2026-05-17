@@ -229,6 +229,17 @@ def get_effective_base_url() -> str:
     return os.environ.get('OPENAI_BASE_URL', 'http://localhost:8000/v1')
 
 
+def invalidate_provider_cache() -> None:
+    """Drop every entry in the TTL cache so the next read sees fresh DB
+    values. Call from write paths that touch provider settings (api_key,
+    base_url, llm_provider, model selectors) -- without this the 5s TTL
+    causes the GET /settings response right after a PUT to return the
+    pre-write value, which makes the UI's hasChanges flip back to false
+    and the Save Changes button vanish before the user can confirm."""
+    with _provider_cache_lock:
+        _provider_cache.clear()
+
+
 def get_effective_openrouter_api_key() -> Optional[str]:
     """Return the OpenRouter API key, checking DB first then env var.
 

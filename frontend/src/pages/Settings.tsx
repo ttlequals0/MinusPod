@@ -92,7 +92,16 @@ function Settings() {
   useEffect(() => { reloadProviders(); }, []);
 
   const handleProviderKeySave = async (provider: ProviderName, apiKey: string) => {
-    await updateProvider(provider, { apiKey });
+    // For providers that own a Base URL field rendered alongside the API
+    // key (openai, whisper), persist the current local-state base URL in
+    // the same /providers/<name> PUT. The base URL lived in the global
+    // Save Changes button before, so a user who clicked "Save" next to the
+    // API key saved ONLY the key and Test failed with "base URL not set"
+    // (issue #234). One Save now covers both.
+    const body: { apiKey: string; baseUrl?: string } = { apiKey };
+    if (provider === 'openai') body.baseUrl = openaiBaseUrl;
+    else if (provider === 'whisper') body.baseUrl = whisperApiConfig.baseUrl;
+    await updateProvider(provider, body);
     await reloadProviders();
   };
   const handleProviderKeyClear = async (provider: ProviderName) => {
@@ -269,24 +278,30 @@ function Settings() {
     const d = settings.defaults;
     const payload: UpdateSettingsPayload = {};
 
-    if (systemPrompt !== (settings.systemPrompt?.value || d.systemPrompt)) payload.systemPrompt = systemPrompt;
-    if (verificationPrompt !== (settings.verificationPrompt?.value || d.verificationPrompt)) payload.verificationPrompt = verificationPrompt;
-    if (reviewer.reviewPrompt !== (settings.reviewPrompt?.value || d.reviewPrompt)) payload.reviewPrompt = reviewer.reviewPrompt;
-    if (reviewer.resurrectPrompt !== (settings.resurrectPrompt?.value || d.resurrectPrompt)) payload.resurrectPrompt = reviewer.resurrectPrompt;
+    // Compare against the SAME fallback the hydration block used (see
+    // setSystemPrompt / setSelectedModel etc above). Falling back to
+    // settings.defaults here when the hydration falls back to '' means a
+    // server-stored empty string differs from the defaults-derived value,
+    // hasChanges flips permanently true, and Save Changes never goes away
+    // (issue #234 follow-up).
+    if (systemPrompt !== (settings.systemPrompt?.value || '')) payload.systemPrompt = systemPrompt;
+    if (verificationPrompt !== (settings.verificationPrompt?.value || '')) payload.verificationPrompt = verificationPrompt;
+    if (reviewer.reviewPrompt !== (settings.reviewPrompt?.value || '')) payload.reviewPrompt = reviewer.reviewPrompt;
+    if (reviewer.resurrectPrompt !== (settings.resurrectPrompt?.value || '')) payload.resurrectPrompt = reviewer.resurrectPrompt;
     if (reviewer.enabled !== (settings.enableAdReview?.value ?? d.enableAdReview)) payload.enableAdReview = reviewer.enabled;
-    if (reviewer.model !== (settings.reviewModel?.value || d.reviewModel)) payload.reviewModel = reviewer.model;
+    if (reviewer.model !== (settings.reviewModel?.value || 'same_as_pass')) payload.reviewModel = reviewer.model;
     if (reviewer.maxShift !== (settings.reviewMaxBoundaryShift?.value ?? d.reviewMaxBoundaryShift)) payload.reviewMaxBoundaryShift = reviewer.maxShift;
-    if (selectedModel !== (settings.claudeModel?.value || d.claudeModel)) payload.claudeModel = selectedModel;
-    if (verificationModel !== (settings.verificationModel?.value || d.verificationModel)) payload.verificationModel = verificationModel;
-    if (whisperModel !== (settings.whisperModel?.value || d.whisperModel)) payload.whisperModel = whisperModel;
-    if (chaptersModel !== (settings.chaptersModel?.value || d.chaptersModel)) payload.chaptersModel = chaptersModel;
-    if (llmProvider !== (settings.llmProvider?.value || d.llmProvider)) payload.llmProvider = llmProvider;
-    if (openaiBaseUrl !== (settings.openaiBaseUrl?.value || d.openaiBaseUrl)) payload.openaiBaseUrl = openaiBaseUrl;
-    if (whisperBackend !== (settings.whisperBackend?.value || d.whisperBackend)) payload.whisperBackend = whisperBackend;
-    if (whisperApiConfig.baseUrl !== (settings.whisperApiBaseUrl?.value || d.whisperApiBaseUrl)) payload.whisperApiBaseUrl = whisperApiConfig.baseUrl;
-    if (whisperApiConfig.model !== (settings.whisperApiModel?.value || d.whisperApiModel)) payload.whisperApiModel = whisperApiConfig.model;
-    if (whisperLanguage !== (settings.whisperLanguage?.value || d.whisperLanguage)) payload.whisperLanguage = whisperLanguage;
-    if (whisperComputeType !== (settings.whisperComputeType?.value || d.whisperComputeType)) payload.whisperComputeType = whisperComputeType;
+    if (selectedModel !== (settings.claudeModel?.value || '')) payload.claudeModel = selectedModel;
+    if (verificationModel !== (settings.verificationModel?.value || '')) payload.verificationModel = verificationModel;
+    if (whisperModel !== (settings.whisperModel?.value || 'small')) payload.whisperModel = whisperModel;
+    if (chaptersModel !== (settings.chaptersModel?.value || '')) payload.chaptersModel = chaptersModel;
+    if (llmProvider !== (settings.llmProvider?.value || LLM_PROVIDERS.ANTHROPIC)) payload.llmProvider = llmProvider;
+    if (openaiBaseUrl !== (settings.openaiBaseUrl?.value || 'http://localhost:8000/v1')) payload.openaiBaseUrl = openaiBaseUrl;
+    if (whisperBackend !== (settings.whisperBackend?.value || 'local')) payload.whisperBackend = whisperBackend;
+    if (whisperApiConfig.baseUrl !== (settings.whisperApiBaseUrl?.value || '')) payload.whisperApiBaseUrl = whisperApiConfig.baseUrl;
+    if (whisperApiConfig.model !== (settings.whisperApiModel?.value || 'whisper-1')) payload.whisperApiModel = whisperApiConfig.model;
+    if (whisperLanguage !== (settings.whisperLanguage?.value || 'en')) payload.whisperLanguage = whisperLanguage;
+    if (whisperComputeType !== (settings.whisperComputeType?.value || 'auto')) payload.whisperComputeType = whisperComputeType;
     if (audioBitrate !== (settings.audioBitrate?.value || '128k')) payload.audioBitrate = audioBitrate;
 
     if (autoProcessEnabled !== (settings.autoProcessEnabled?.value ?? d.autoProcessEnabled)) payload.autoProcessEnabled = autoProcessEnabled;

@@ -521,6 +521,13 @@ def _apply_provider_fields(db, data):
                     db.reset_setting(setting_key)
         except Exception:
             logger.exception("Failed to prune stale model selections after provider change")
+    # The TTL cache backing get_effective_base_url / get_effective_provider
+    # lags writes by up to 5s. Without this invalidation, the GET /settings
+    # response that fires right after this PUT returns the pre-write value,
+    # the UI re-hydrates state to the stale value, hasChanges flips back to
+    # false, and the Save Changes button vanishes -- see issue #234.
+    from llm_client import invalidate_provider_cache
+    invalidate_provider_cache()
     return None
 
 
