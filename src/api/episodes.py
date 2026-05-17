@@ -9,7 +9,7 @@ from flask import request, send_file, abort
 
 from api import (
     api, limiter, log_request, json_response, error_response,
-    get_database, get_storage, extract_transcript_segment,
+    get_database, get_storage, extract_transcript_segment, get_status_service,
 )
 from audio_peaks import compute_peaks, PeaksError
 from chapters_generator import ChaptersGenerator
@@ -884,7 +884,7 @@ def retry_ad_detection(slug, episode_id):
 @api.route('/episodes/processing', methods=['GET'])
 @log_request
 def get_processing_episodes():
-    """Get all episodes currently in processing status."""
+    """Episodes processing now (DB + StatusService current_job). Issue #236."""
     db = get_database()
     conn = db.get_connection()
 
@@ -895,15 +895,35 @@ def get_processing_episodes():
         WHERE e.status = 'processing'
         ORDER BY e.updated_at DESC
     """)
-    episodes = cursor.fetchall()
-
-    return json_response([{
+    episodes = [{
         'episodeId': ep['episode_id'],
         'slug': ep['slug'],
         'title': ep['title'] or 'Unknown',
         'podcast': ep['podcast'] or ep['slug'],
-        'startedAt': None  # Could add timestamp tracking later
-    } for ep in episodes])
+        'startedAt': None,
+        'stage': None,
+    } for ep in cursor.fetchall()]
+
+    current = get_status_service().get_status().current_job
+    if current:
+        match = next((e for e in episodes
+                      if e['slug'] == current.slug and e['episodeId'] == current.episode_id), None)
+        if match:
+            match['title'] = current.title or match['title']
+            match['podcast'] = current.podcast_name or match['podcast']
+            match['startedAt'] = current.started_at
+            match['stage'] = current.stage
+        else:
+            episodes.append({
+                'episodeId': current.episode_id,
+                'slug': current.slug,
+                'title': current.title or 'Unknown',
+                'podcast': current.podcast_name or current.slug,
+                'startedAt': current.started_at,
+                'stage': current.stage,
+            })
+
+    return json_response(episodes)
 
 
 @api.route('/feeds/<slug>/episodes/<episode_id>/cancel', methods=['POST'])

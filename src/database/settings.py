@@ -277,7 +277,7 @@ class SettingsMixin:
             logger.info(f"Seeded {inserted} default model pricing entries")
 
     def upsert_fetched_pricing(self, models: List[Dict], source: str):
-        """Bulk upsert pricing fetched from an external source."""
+        """Bulk upsert pricing fetched from an external source. Rejects negative rows (#237)."""
         conn = self.get_connection()
         # Deduplicate by match_key (last entry wins) to avoid PK/UNIQUE conflict
         seen = {}
@@ -285,6 +285,13 @@ class SettingsMixin:
             seen[m['match_key']] = m
         models = list(seen.values())
         for m in models:
+            if m['input_cost_per_mtok'] < 0 or m['output_cost_per_mtok'] < 0:
+                logger.warning(
+                    "Rejecting negative pricing for %s (in=%s out=%s, source=%s)",
+                    m.get('raw_model_id'), m['input_cost_per_mtok'],
+                    m['output_cost_per_mtok'], source,
+                )
+                continue
             conn.execute(
                 """INSERT INTO model_pricing
                        (model_id, match_key, raw_model_id, display_name,

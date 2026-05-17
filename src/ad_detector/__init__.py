@@ -420,6 +420,7 @@ class AdDetector:
             all_window_ads = []
             all_raw_responses = []
             failed_windows = 0
+            last_error = None
             llm_timeout = get_llm_timeout()
             max_retries = get_llm_max_retries()
 
@@ -526,11 +527,22 @@ class AdDetector:
                     f"failed during detection"
                 )
             if failed_windows >= len(windows):
+                # Surface last error so the caller can detect rate-limit vs generic failure (#238).
+                last_err_type = type(last_error).__name__ if last_error else 'Unknown'
+                last_err_status = getattr(last_error, 'status_code', None)
+                parts = [f"All {len(windows)} detection windows failed (last error: {last_err_type}"]
+                if last_err_status:
+                    parts.append(f", status={last_err_status}")
+                if last_error:
+                    parts.append(f": {last_error}")
+                parts.append(")")
                 return {
                     "ads": [],
                     "status": "failed",
-                    "error": f"All {len(windows)} detection windows failed",
-                    "retryable": True
+                    "error": "".join(parts),
+                    "retryable": True,
+                    "last_error_type": last_err_type,
+                    "last_error_status": last_err_status,
                 }
 
             # Deduplicate ads across windows
@@ -1276,6 +1288,7 @@ class AdDetector:
             all_window_ads = []
             all_raw_responses = []
             failed_windows = 0
+            last_error = None
             llm_timeout = get_llm_timeout()
             max_retries = get_llm_max_retries()
 
@@ -1370,11 +1383,22 @@ class AdDetector:
                     f"failed during verification"
                 )
             if failed_windows >= len(windows):
+                # Surface last error so the caller can detect rate-limit vs generic failure (#238).
+                last_err_type = type(last_error).__name__ if last_error else 'Unknown'
+                last_err_status = getattr(last_error, 'status_code', None)
+                parts = [f"All {len(windows)} verification windows failed (last error: {last_err_type}"]
+                if last_err_status:
+                    parts.append(f", status={last_err_status}")
+                if last_error:
+                    parts.append(f": {last_error}")
+                parts.append(")")
                 return {
                     "ads": [],
                     "status": "failed",
-                    "error": f"All {len(windows)} verification windows failed",
-                    "retryable": True
+                    "error": "".join(parts),
+                    "retryable": True,
+                    "last_error_type": last_err_type,
+                    "last_error_status": last_err_status,
                 }
 
             final_ads = deduplicate_window_ads(all_window_ads)

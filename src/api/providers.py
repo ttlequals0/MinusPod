@@ -89,8 +89,7 @@ def update_provider(provider):
             except SSRFError:
                 return error_response('base URL failed SSRF validation', 400)
             db.set_setting(cfg['base_url'], url)
-        else:
-            db.set_setting(cfg['base_url'], '')
+        # Empty baseUrl ignored; clear via DELETE /providers/<name>. Issue #235.
 
     if cfg['model'] and 'model' in body:
         model = body['model'] or ''
@@ -112,6 +111,8 @@ def clear_provider(provider):
     cfg = _PROVIDERS[provider]
     db = Database()
     db.clear_secret(cfg['secret'])
+    if cfg['base_url']:
+        db.set_setting(cfg['base_url'], '')
     from llm_client import invalidate_provider_cache
     invalidate_provider_cache()
     logger.info("provider=%s cleared", provider)

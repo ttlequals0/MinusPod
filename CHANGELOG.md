@@ -6,6 +6,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.10] - 2026-05-17
+
+### Fixed
+
+- **Issue #235 (Transcription URL reset on Save).** `PUT /api/v1/settings/providers/<name>` no longer wipes the stored base URL when the request body contains `baseUrl: ""`. The empty value is now ignored so a pre-hydration `handleProviderKeySave` (issue #234's co-persist path) cannot clear a previously-saved URL. To explicitly clear, use `DELETE /api/v1/settings/providers/<name>`, which now also clears `cfg['base_url']` alongside the secret. The frontend `handleProviderKeySave` mirrors the guard and only sends `baseUrl` when local state is non-empty.
+- **Issue #236 / #237 (banner says processing while Settings queue says empty).** `GET /api/v1/episodes/processing` now merges the DB rows (`episodes.status='processing'`) with `StatusService.current_job` from `processing_status.json`. The Settings panel and the top banner share a source of truth, so a worker that is mid-`Pass 1: Detecting ads (M/N)` shows up in both places instead of the panel saying "No episodes currently processing".
+- **Issue #237 (negative LLM cost, e.g. `$-76,579`).** `database.SettingsMixin.upsert_fetched_pricing` rejects rows with negative `input_cost_per_mtok` / `output_cost_per_mtok` and warns with the source. `database.StatsMixin._calculate_token_cost` clamps a pre-existing negative row to zero (with a WARN per call) so legacy DBs stop accumulating a wrong-sign running total in `stats.total_llm_cost`. Operators should `UPDATE model_pricing SET input_cost_per_mtok=0 WHERE input_cost_per_mtok < 0;` (and the same for `output_cost_per_mtok`) to silence the warning permanently, then re-fetch pricing.
+- **Issue #238 (HTTP 429 treated as permanent failure).** Two changes: `ad_detector.process_transcript` now preserves the last underlying error type and status code in the all-windows-failed return (instead of the generic `"All N windows failed"` that swallowed 429 context). `processing._handle_processing_failure` then routes rate-limit failures through a new branch that retries WITHOUT incrementing `retry_count`, so a sustained provider 429 no longer chews through `MAX_EPISODE_RETRIES` and pushes the episode to `PERMANENTLY_FAILED`. The check uses the existing `llm_client.is_rate_limit_error` helper.
+
+### Docs
+
+- **`docs/DEPLOYMENT.md` rewritten for accuracy:** dropped the duplicate env-var table (`environment-variables.md` is the canonical reference) and added a "minimum production env" section pointing to `ANTHROPIC_API_KEY`, `BASE_URL`, `APP_PASSWORD`, `MINUSPOD_MASTER_PASSPHRASE` plus the `MINUSPOD_TRUSTED_PROXY_COUNT` requirement behind any reverse proxy. Fixed the health-response shape (no `queue_available` key). Replaced the incorrect "automatic backup every 24 hours" claim with the actual `GET /api/v1/system/backup` flow (rate-limited 6/h, AES-GCM when `MINUSPOD_MASTER_PASSPHRASE` is set) plus a manual `tar` snapshot recipe. Added the CPU image variant to the Updating section.
+
 ## [2.4.9] - 2026-05-16
 
 ### Security
