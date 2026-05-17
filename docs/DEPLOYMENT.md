@@ -1,48 +1,37 @@
 # Deployment Runbook
 
+[< Docs index](README.md) | [Project README](../README.md)
+
+---
+
+This page covers running MinusPod in production: health monitoring, backups, updates, and the common operational issues. For first-time install see [Installation](installation.md); for the complete environment variable reference see [Environment Variables](environment-variables.md).
+
 ## Prerequisites
 
-- Docker with NVIDIA runtime (for GPU acceleration)
-- 8 GB RAM minimum (16 GB+ for audio analysis)
-- CUDA-capable GPU (optional but recommended)
-- Anthropic API key
+- Docker (NVIDIA runtime for GPU image; not required for the CPU image)
+- 8 GB RAM minimum; 16 GB+ recommended for `medium` / `large-v3` Whisper or long episodes
+- CUDA-capable GPU (GPU image only; CPU image runs without one)
+- An LLM API key (Anthropic, OpenRouter, OpenAI-compatible, or an Ollama instance)
 
-## Quick Start
+The GPU image is `ttlequals0/minuspod:<version>` and `:latest`. The CPU image is `ttlequals0/minuspod:<version>-cpu` and `:cpu`. See [Installation](installation.md) for variant selection.
 
-```bash
-# Clone repository
-git clone https://github.com/ttlequals0/minuspod.git
-cd minuspod
+## Minimum Production Environment
 
-# Create .env file
-echo "ANTHROPIC_API_KEY=your-key-here" > .env
+The full reference is in [Environment Variables](environment-variables.md). The four worth setting on day one:
 
-# Start container
-docker-compose up -d
+| Variable | Why |
+|----------|-----|
+| `ANTHROPIC_API_KEY` (or other provider key) | Required for ad detection |
+| `BASE_URL` | Public URL embedded in generated RSS feeds |
+| `APP_PASSWORD` | Initial UI password; can also be set in Settings > Security |
+| `MINUSPOD_MASTER_PASSPHRASE` | Encrypts provider keys at rest. Losing it makes stored keys unrecoverable (env fallback still works). |
 
-# View logs
-docker logs -f minuspod
-```
-
-## Environment Variables
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `ANTHROPIC_API_KEY` | Yes | - | Claude API key for ad detection |
-| `BASE_URL` | No | http://localhost:8000 | Public URL for RSS feeds |
-| `WHISPER_MODEL` | No | small | Whisper model size (tiny/small/medium/large-v3) |
-| `WHISPER_DEVICE` | No | cuda | Device for Whisper (cuda/cpu) |
-| `RETENTION_PERIOD` | No | 1440 | Minutes to keep processed episodes |
-| `LOG_FORMAT` | No | text | Log format (text/json) |
-| `LOG_LEVEL` | No | INFO | Log level (DEBUG/INFO/WARNING/ERROR) |
-| `SECRET_KEY` | No | auto-generated | Flask secret key for sessions |
-| `SESSION_LIFETIME_HOURS` | No | 24 | Session expiry in hours |
-| `SESSION_COOKIE_SECURE` | No | false | Require HTTPS for cookies |
+If you are behind a reverse proxy or Cloudflare tunnel, also set `MINUSPOD_TRUSTED_PROXY_COUNT=1` (or higher for multi-hop chains) so login lockout and per-IP rate limits key on the real client IP.
 
 ## Health Monitoring
 
 ```bash
-# Check health
+# Check health (no auth required)
 curl http://localhost:8000/api/v1/health
 
 # Expected response
@@ -50,11 +39,13 @@ curl http://localhost:8000/api/v1/health
     "status": "healthy",
     "checks": {
         "database": true,
-        "storage": true,
-        "queue_available": true
-    }
+        "storage": true
+    },
+    "version": "2.4.9"
 }
 ```
+
+A non-200 response or `"status": "degraded"` means one of the checks failed; inspect the container logs to find which.
 
 ## Common Issues
 
@@ -97,48 +88,60 @@ If GPU not available, set `WHISPER_DEVICE=cpu` (slower but works).
 
 ## Backup and Recovery
 
-### Automatic Backups
+There is no scheduled automatic backup. Use one of the two paths below.
 
-Database is backed up automatically every 24 hours to `data/backups/`.
-Last 7 backups are retained.
-
-### Manual Backup
+### On-Demand SQLite Backup (API)
 
 ```bash
-# Stop container
+# Authenticated download via the API. Rate-limited to 6 requests/hour.
+curl -sS -b cookies.txt \
+  -o minuspod-backup-$(date +%Y%m%d-%H%M%S).db.enc \
+  http://localhost:8000/api/v1/system/backup
+```
+
+When `MINUSPOD_MASTER_PASSPHRASE` is set, the response is AES-GCM encrypted (filename ends `.db.enc`). Restoring it requires the same passphrase that created it; store the passphrase somewhere separate from the backup. Append `?encrypted=false` to download plaintext when you have another protection layer.
+
+### Manual Filesystem Backup
+
+```bash
+# Stop the container to flush any in-flight writes
 docker-compose stop
 
-# Backup data directory
-tar -czvf podcast-backup-$(date +%Y%m%d).tar.gz data/
+# Snapshot the data directory (database, processed audio, status file)
+tar -czvf minuspod-backup-$(date +%Y%m%d).tar.gz data/
 
-# Restart
 docker-compose start
 ```
 
-### Restore from Backup
+### Restore
 
 ```bash
-# Stop container
 docker-compose stop
 
-# Restore database
-cp data/backups/podcast_YYYYMMDD_HHMMSS.db data/podcast.db
+# Replace the database file with your backup
+cp <your-backup>.db data/podcast.db
 
-# Restart
+# Or, if restoring an AES-GCM-encrypted backup, decrypt it first using the
+# same MINUSPOD_MASTER_PASSPHRASE that created it.
+
 docker-compose start
 ```
+
+Migrations run on startup and are forward-compatible; restoring an older snapshot into a newer image is supported.
 
 ## Updating
 
 ```bash
-# Pull latest image
+# GPU image
 docker pull ttlequals0/minuspod:latest
-
-# Recreate container
 docker-compose up -d
 
-# Database migrations run automatically on startup
+# CPU image
+docker pull ttlequals0/minuspod:cpu
+docker-compose -f docker-compose.cpu.yml up -d
 ```
+
+Database migrations run automatically on startup. Take a backup (see above) before pulling a major version.
 
 ## Logs
 
@@ -171,16 +174,23 @@ docker logs --tail 100 minuspod
 For remote access without port forwarding:
 
 ```bash
-# Set tunnel token in .env
+# .env
 TUNNEL_TOKEN=your-cloudflare-tunnel-token
+MINUSPOD_TRUSTED_PROXY_COUNT=1   # required for correct client-IP attribution
 
-# Start with tunnel profile
 docker-compose --profile tunnel up -d
 ```
 
+Without `MINUSPOD_TRUSTED_PROXY_COUNT=1`, login lockout and per-IP rate limits will key on the tunnel sidecar's loopback address instead of the real client. Audit logs and auth-failure webhooks will also carry the wrong IP. Set the same flag when running behind nginx, Traefik, or any other reverse proxy.
+
 ## Security Notes
 
-- Set a password in Settings if exposing publicly
-- Use `SESSION_COOKIE_SECURE=true` with HTTPS
-- RSS feed URLs include slugs but no auth (by design for podcast apps)
-- Consider Cloudflare Tunnel or VPN for remote access
+- Set `MINUSPOD_MASTER_PASSPHRASE` to encrypt provider API keys at rest. Without it they sit as plaintext in the SQLite DB. See [Security & Storage](security-and-storage.md).
+- Set an `APP_PASSWORD` (or one via Settings > Security) before exposing the UI publicly.
+- Use `SESSION_COOKIE_SECURE=true` whenever you serve over HTTPS. Default is `true`; set to `false` only for plain-HTTP localhost development.
+- RSS feed URLs contain a slug but no auth, so podcast apps can fetch them. Treat slugs as semi-private.
+- Cloudflare Tunnel or a VPN is recommended for remote access. Direct port-forwarding works but skips Cloudflare's WAF.
+
+---
+
+[< Docs index](README.md) | [Project README](../README.md)
