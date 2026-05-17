@@ -32,16 +32,14 @@ audio_logger = logging.getLogger('podcast.audio')
 # Import shared warn-dedup set so routes and processing share one instance
 from main_app.shared_state import permanently_failed_warned as _permanently_failed_warned
 from main_app.episode_context import EpisodeContext
-
-
-def _get_components():
-    """Late import to avoid circular imports at module level."""
-    from main_app import (db, storage, transcriber, ad_detector, audio_processor,
-                          audio_analyzer, sponsor_service, status_service, pattern_service,
-                          processing_queue)
-    return (db, storage, transcriber, ad_detector, audio_processor,
-            audio_analyzer, sponsor_service, status_service, pattern_service,
-            processing_queue)
+# Singletons created in main_app/__init__.py before this submodule is
+# loaded by the explicit `from main_app.processing import ...` near the
+# bottom of that module, so the apparent circular import is safe.
+# Replaces a positional 10-tuple from _get_components() that the audit
+# flagged as silently break-on-reorder.
+from main_app import (db, storage, transcriber, ad_detector, audio_processor,
+                      audio_analyzer, sponsor_service, status_service, pattern_service,
+                      processing_queue)
 
 
 def get_min_cut_confidence() -> float:
@@ -53,7 +51,6 @@ def get_min_cut_confidence() -> float:
 
     Default value is MIN_CUT_CONFIDENCE from config.py
     """
-    db = _get_components()[0]
     try:
         value = db.get_setting('min_cut_confidence')
         if value:
@@ -133,7 +130,6 @@ def is_transient_error(error: Exception) -> bool:
 def _process_episode_background(slug, episode_id, original_url, title, podcast_name, description, artwork_url, published_at=None, cancel_event=None):
     """Background thread wrapper for process_episode with queue management."""
     from processing_queue import ProcessingQueue
-    db, storage, _, _, _, _, _, status_service, _, _ = _get_components()
     queue = ProcessingQueue()
     start_time = time.time()
     try:
@@ -178,7 +174,6 @@ def start_background_processing(slug, episode_id, original_url, title, podcast_n
         - (False, "queue_busy:slug:episode_id") if another episode is processing
     """
     from processing_queue import ProcessingQueue
-    _, _, _, _, _, _, _, status_service, _, _ = _get_components()
     queue = ProcessingQueue()
 
     # Check if already processing this episode
@@ -218,7 +213,6 @@ def _download_and_transcribe(slug, episode_id, episode_url, podcast_name):
 
     Returns (audio_path, segments) or raises on failure.
     """
-    _, storage, transcriber, _, _, _, _, status_service, _, _ = _get_components()
     segments = None
     transcript_text = storage.get_transcript(slug, episode_id)
 
@@ -266,7 +260,6 @@ def _download_and_transcribe(slug, episode_id, episode_url, podcast_name):
 
 def _run_audio_analysis(slug, episode_id, audio_path, segments):
     """Pipeline stage: Run volume + transition detection on audio."""
-    db, _, _, _, _, audio_analyzer, _, status_service, _, _ = _get_components()
     status_service.update_job_stage("pass1:analyzing", 25)
     audio_logger.info(f"[{slug}:{episode_id}] Running audio analysis")
     try:
@@ -300,7 +293,6 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
     """
     slug = ctx.slug
     episode_id = ctx.episode_id
-    db, storage, _, ad_detector, _, _, _, status_service, _, _ = _get_components()
     status_service.update_job_stage("pass1:detecting", 50)
     clear_fallback(episode_id, PASS_AD_DETECTION_1)
 
@@ -452,7 +444,6 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
     Returns (ads_to_remove, all_ads_with_validation).
     """
     from ad_validator import AdValidator
-    db, storage, _, ad_detector, _, _, _, _, _, _ = _get_components()
 
     # Boundary refinement
     all_ads = _refine_boundaries(all_ads, segments)
@@ -549,7 +540,6 @@ def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui,
     episode_title = ctx.episode_title
     podcast_description = ctx.podcast_description
     episode_description = ctx.episode_description
-    db, _, _, ad_detector, _, _, _, status_service, _, _ = _get_components()
     clear_fallback(episode_id, PASS_REVIEWER_2)
 
     if not _ad_review_enabled(db):
@@ -744,7 +734,6 @@ def _run_ad_reviewer(slug, episode_id, podcast_id, ads_to_remove,
     Non-blocking: any failure inside the reviewer falls through with the
     original lists. Skips entirely when ``enable_ad_review`` is false.
     """
-    db, storage, _, ad_detector, _, _, _, status_service, _, _ = _get_components()
     clear_fallback(episode_id, PASS_REVIEWER_1 if pass_num == 1 else PASS_REVIEWER_2)
 
     if not _ad_review_enabled(db):
@@ -937,14 +926,12 @@ def _run_verification_pass(ctx, processed_path, ads_to_remove,
     episode_title = ctx.episode_title
     episode_description = ctx.episode_description
     podcast_description = ctx.podcast_description
-    db, _, _, ad_detector, _, audio_analyzer, _, _, pattern_service, _ = _get_components()
     verification_count = 0
     v_ads_for_ui = []
     clear_fallback(episode_id, PASS_AD_DETECTION_2)
 
     try:
         from verification_pass import VerificationPass
-        from main_app import transcriber, storage
         verifier = VerificationPass(
             ad_detector=ad_detector, transcriber=transcriber,
             audio_analyzer=audio_analyzer, pattern_service=pattern_service,
@@ -1025,7 +1012,6 @@ def _generate_assets(slug, episode_id, segments, all_cuts, episode_description,
     """Pipeline stage: Generate VTT transcript and chapters."""
     from transcript_generator import TranscriptGenerator
     from chapters_generator import ChaptersGenerator
-    db, storage, _, _, _, _, _, _, _, _ = _get_components()
     try:
         vtt_enabled = db.get_setting('vtt_transcripts_enabled')
         transcript_gen = TranscriptGenerator()
@@ -1189,7 +1175,6 @@ def _finalize_episode(slug, episode_id, episode_title, podcast_name,
                        original_duration, new_duration, start_time,
                        processed_version=0):
     """Pipeline stage: Update DB, record history, refresh RSS."""
-    db, storage, _, _, _, _, _, _, _, _ = _get_components()
     _persist_episode_state(slug, episode_id, ads_to_remove, verification_count,
                             first_pass_count, original_duration, new_duration,
                             processed_version, db, storage)
@@ -1213,7 +1198,6 @@ def _finalize_episode(slug, episode_id, episode_title, podcast_name,
 def _handle_processing_failure(slug, episode_id, episode_title, podcast_name,
                                 episode_data, error, start_time):
     """Handle processing failure: GPU cleanup, retry logic, error recording."""
-    db, _, _, _, _, _, _, status_service, _, _ = _get_components()
     processing_time = time.time() - start_time
     audio_logger.error(f"[{slug}:{episode_id}] Failed: {error} ({processing_time:.1f}s)")
 
@@ -1298,7 +1282,6 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
     8. Finalize (update DB, record history, refresh RSS)
     """
     from audio_processor import AudioProcessor
-    db, storage, _, ad_detector, audio_processor, _, _, status_service, _, _ = _get_components()
     start_time = time.time()
     start_episode_token_tracking()
 

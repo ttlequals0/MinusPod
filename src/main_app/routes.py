@@ -35,6 +35,12 @@ refresh_logger = logging.getLogger('podcast.refresh')
 
 # Import shared warn-dedup set so routes and processing share one instance
 from main_app.shared_state import permanently_failed_warned as _permanently_failed_warned
+# Singletons created in main_app/__init__.py before this submodule is
+# loaded by the explicit `from main_app.routes import register_routes`
+# in that file, so importing them here at module level is safe. Replaces
+# the positional 4-tuple from _get_components() that the audit flagged
+# as silently break-on-reorder.
+from main_app import db, storage, rss_parser, status_service
 
 # Resolved once at registration time
 STATIC_DIR = None
@@ -65,12 +71,6 @@ def log_request_detailed(f):
     return decorated
 
 
-def _get_components():
-    """Late import to avoid circular imports at module level."""
-    from main_app import db, storage, rss_parser, status_service
-    return db, storage, rss_parser, status_service
-
-
 def get_feed_map():
     """Wrapper that delegates to feeds module (allows patching in tests)."""
     from main_app.feeds import get_feed_map as _get_feed_map
@@ -84,7 +84,6 @@ def _lookup_episode(slug, episode_id, feed_map, episode_row=None):
     episode_dict keys: url, title, description, artwork_url, published.
     Falls back to database if episode is not in the upstream RSS feed.
     """
-    db, _, rss_parser, _ = _get_components()
     original_feed = rss_parser.fetch_feed(feed_map[slug]['in'])
     if original_feed:
         parsed_feed = rss_parser.parse_feed(original_feed)
@@ -215,7 +214,6 @@ def register_routes(app):
         # Import here to use the module-level get_feed_map (patchable)
         import main_app.routes as _routes
         from main_app.feeds import refresh_rss_feed
-        db, storage, _, _ = _get_components()
 
         feed_map = _routes.get_feed_map()
 
@@ -289,7 +287,6 @@ def register_routes(app):
         """
         import main_app.routes as _routes
         from main_app.processing import start_background_processing
-        db, storage, _, status_service = _get_components()
 
         feed_map = _routes.get_feed_map()
 
@@ -434,8 +431,6 @@ def register_routes(app):
     @log_request_detailed
     def serve_transcript_vtt(slug, episode_id):
         """Serve VTT transcript for episode (Podcasting 2.0)."""
-        _, storage, _, _ = _get_components()
-
         vtt_content = storage.get_transcript_vtt(slug, episode_id)
         if not vtt_content:
             feed_logger.info(f"[{slug}:{episode_id}] VTT transcript not found")
@@ -455,8 +450,6 @@ def register_routes(app):
     @log_request_detailed
     def serve_chapters_json(slug, episode_id):
         """Serve chapters JSON for episode (Podcasting 2.0)."""
-        _, storage, _, _ = _get_components()
-
         chapters = storage.get_chapters_json(slug, episode_id)
         if not chapters:
             feed_logger.info(f"[{slug}:{episode_id}] Chapters not found")

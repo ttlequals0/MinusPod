@@ -10,6 +10,13 @@ from utils.time import utc_now_iso
 from slugify import slugify
 
 from main_app.cache import TTLCache
+# Singletons are created in main_app/__init__.py before the explicit
+# `from main_app.feeds import ...` near the bottom of that module, so
+# importing them here at module level is safe despite the surface-level
+# circular shape. The previous _get_components() helper returned a
+# positional 5-tuple; replacing it with direct imports removes the
+# tuple-reorder footgun the audit flagged.
+from main_app import db, rss_parser, storage, status_service, pattern_service
 
 refresh_logger = logging.getLogger('podcast.refresh')
 feed_logger = logging.getLogger('podcast.feed')
@@ -28,19 +35,12 @@ _parsed_feeds_cache = TTLCache(ttl_seconds=60)
 _refresh_coalesce = TTLCache(ttl_seconds=30)
 
 
-def _get_components():
-    """Late import to avoid circular imports at module level."""
-    from main_app import db, rss_parser, storage, status_service, pattern_service
-    return db, rss_parser, storage, status_service, pattern_service
-
-
 def get_feed_map():
     """Get feed map from database, with TTL caching."""
     cached = _feed_cache.get('all_feeds')
     if cached is not None:
         return cached
 
-    db, _, _, _, _ = _get_components()
     feeds = db.get_feeds_config()
     result = {slugify(feed['out'].strip('/')): feed for feed in feeds}
     _feed_cache.set('all_feeds', result)
@@ -63,7 +63,6 @@ def get_parsed_feed(slug: str, source_url: str):
         refresh_logger.debug(f"[{slug}] Using cached parsed feed")
         return cached
 
-    _, rss_parser, _, _, _ = _get_components()
     feed_content = rss_parser.fetch_feed(source_url)
     if feed_content:
         parsed = rss_parser.parse_feed(feed_content)
@@ -87,7 +86,6 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
         return
     _refresh_coalesce.set(slug, True)
 
-    db, rss_parser, storage, status_service, pattern_service = _get_components()
     try:
         # Get podcast name and etag for conditional fetch
         podcast = db.get_podcast_by_slug(slug)
