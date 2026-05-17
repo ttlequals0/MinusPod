@@ -29,11 +29,16 @@ fi
 note "pre-login session cookie length: ${#pre_session}"
 
 # 2) Login carrying the pre-existing session cookie. -b reads, -c writes.
+# X-Forwarded-For uses a per-run unique IP so the /auth/login rate limit
+# (3/min per IP) doesn't starve when this test runs in a suite alongside
+# other auth-touching tests.
 cp "$JAR_PRE" "$JAR_POST"
+T19_IP=$(smoke_ip 19)
 code=$(curl -s -o /dev/null -w '%{http_code}' \
     -b "$JAR_POST" -c "$JAR_POST" \
     -X POST "$LOCAL_BASE/api/v1/auth/login" \
     -H "Content-Type: application/json" \
+    -H "X-Forwarded-For: $T19_IP" \
     -d "{\"password\":\"$LOCAL_PASSWORD\"}")
 assert_eq "$code" "200" 'login HTTP 200'
 

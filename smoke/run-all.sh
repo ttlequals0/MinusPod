@@ -46,6 +46,8 @@ run_local() {
         09-rate-limits 10-destructive-rate 11-lockout 12-rss-public-paths \
         13-backup 14-patterns 15-log-hygiene 18-multi-worker \
         19-session-rotation 20-logout-csrf 21-json-csp \
+        22-pattern-import-modes 23-pattern-readonly 24-pattern-crud \
+        25-pattern-community 26-pattern-edge-cases \
         17-shutdown 99-teardown"
     for name in $seq; do
         local f="$SMOKE_DIR/local/${name}.sh"

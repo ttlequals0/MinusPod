@@ -96,13 +96,20 @@ http_full() {
 }
 
 # Login against $1 base URL with $2 password, write cookies to $3 jar.
-# Echoes HTTP code.
+# Optional $4 = X-Forwarded-For value. Pass a unique IP per test to avoid
+# starving the per-IP /auth/login rate limit (3/min, 10/hour) when many
+# tests in the same suite log in back-to-back. Echoes HTTP code.
 login() {
-    local base="$1" password="$2" jar="$3"
+    local base="$1" password="$2" jar="$3" xff="${4:-}"
+    local hdr=()
+    if [ -n "$xff" ]; then
+        hdr+=(-H "X-Forwarded-For: $xff")
+    fi
     curl -s -o /dev/null -w '%{http_code}' \
         -c "$jar" \
         -X POST "$base/api/v1/auth/login" \
         -H "Content-Type: application/json" \
+        "${hdr[@]}" \
         -d "{\"password\":\"$password\"}"
 }
 
@@ -163,4 +170,23 @@ csrf_from_jar() {
         curl -s -c "$jar" -o /dev/null --max-time 10 "$base/api/v1/auth/status"
     fi
     awk '/minuspod_csrf/{print $7}' "$jar" | head -1
+}
+
+
+# Per-test, per-run unique private IPv4 to spoof in X-Forwarded-For.
+# /patterns/import and other write endpoints rate-limit at 3/hour per IP
+# under the memory:// backend, so reusing the same IP across runs (or
+# across multiple tests in one run) starves the quota and the assertion
+# fails for the wrong reason. We derive the third+fourth octets from a
+# nonce so each test in each run gets fresh quota; second octet stays
+# per-test so the IP also tells you which test issued the request.
+#
+# Usage: ip=$(smoke_ip 22)   # -> 10.22.137.42 (or similar)
+smoke_ip() {
+    local test_octet="${1:-99}"
+    local nonce_pid=$$
+    local nonce_t=$(date +%N | sed 's/^0*//')
+    local third=$(( (nonce_pid + nonce_t / 1000) % 254 + 1 ))
+    local fourth=$(( (nonce_pid * 7 + nonce_t / 100) % 254 + 1 ))
+    printf '10.%d.%d.%d' "$test_octet" "$third" "$fourth"
 }

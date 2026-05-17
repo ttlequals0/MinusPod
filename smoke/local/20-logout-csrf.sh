@@ -12,7 +12,7 @@ TEST_NAME="T20-logout-csrf" source "$SCRIPT_DIR/../lib/common.sh"
 
 JAR="$RESULTS_DIR/T20-cookies.jar"
 rm -f "$JAR"
-login "$LOCAL_BASE" "$LOCAL_PASSWORD" "$JAR" >/dev/null
+login "$LOCAL_BASE" "$LOCAL_PASSWORD" "$JAR" "$(smoke_ip 20)" >/dev/null
 csrf=$(csrf_from_jar "$LOCAL_BASE" "$JAR")
 if [ -z "$csrf" ]; then
     fail_step 'no CSRF token issued after login'
