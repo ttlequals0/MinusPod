@@ -110,11 +110,16 @@ def background_queue_processor():
                 published_at = queued.get('published_at')
                 description = queued.get('description')
 
-                # Check if auto-process is still enabled for this podcast
+                # Auto-process gate: skip if disabled, UNLESS the episode was
+                # explicitly reprocessed by a user (reprocess_requested_at set).
                 if not db.is_auto_process_enabled_for_podcast(slug):
-                    db.update_queue_status(queue_id, 'completed', 'Auto-process disabled for this feed')
-                    refresh_logger.info(f"[{slug}:{episode_id}] Skipped - auto-process disabled for this feed")
-                    continue
+                    episode_row = db.get_episode(slug, episode_id)
+                    user_requested = bool(episode_row and episode_row.get('reprocess_requested_at'))
+                    if not user_requested:
+                        db.update_queue_status(queue_id, 'completed', 'Auto-process disabled for this feed')
+                        refresh_logger.info(f"[{slug}:{episode_id}] Skipped - auto-process disabled for this feed")
+                        continue
+                    refresh_logger.info(f"[{slug}:{episode_id}] Auto-process disabled but user-initiated reprocess; honoring")
 
                 refresh_logger.info(f"[{slug}:{episode_id}] Auto-processing queued episode: {title}")
 

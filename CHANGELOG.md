@@ -6,6 +6,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.12] - 2026-05-17
+
+### Fixed
+
+- **User reprocesses on auto-process-disabled feeds were silently dropped.** The background queue drainer (`src/main_app/background.py`) checked `is_auto_process_enabled_for_podcast` for every row and marked it `completed` with reason "Auto-process disabled" if the feed was disabled. This was the right behavior for RSS auto-discovery but blocked explicit user reprocesses too. The drainer now reads the episode row and bypasses the gate when `reprocess_requested_at` is set, so a user-initiated reprocess on a disabled feed runs through normally. RSS auto-discovery behavior is unchanged.
+- **Legacy reprocess endpoint now sets `reprocess_requested_at`.** Previously only the mode-aware endpoint at `POST /episodes/<slug>/<id>/reprocess` set this field; the legacy `POST /feeds/<slug>/episodes/<id>/reprocess` did not. Both endpoints now write it, so the drainer's user-initiated detection works regardless of which endpoint the frontend hits.
+
+### Changed
+
+- **`GET /api/v1/episodes/processing` now also surfaces queued episodes (waiting on the lock).** Items appear with `stage="queued"` and a `queuedAt` timestamp alongside the currently-processing entry. The reprocess endpoints register the queued episode with `StatusService.queue_episode` after enqueuing into `auto_process_queue`, so the top banner's `queueLength` / `queuedEpisodes` and the Settings queue panel both show "what's coming next".
+
 ## [2.4.11] - 2026-05-17
 
 ### Fixed
