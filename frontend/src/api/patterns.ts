@@ -1,4 +1,4 @@
-import { apiRequest, buildQueryString, csrfHeaders, extractErrorMessage } from './client';
+import { apiRequest, apiFileRequest, buildQueryString } from './client';
 import { downloadBlob } from './history';
 
 // Mirrors src/utils/community_tags.py:PATTERN_SOURCES so the frontend
@@ -13,9 +13,16 @@ export const PATTERN_SOURCES = [
 ] as const;
 export type PatternSource = typeof PATTERN_SOURCES[number];
 
+// Mirrors the scope discriminator stored on ad_patterns rows. UI filters
+// (PatternsPage) and backend get_ad_patterns accept the same three values.
+// The 'network' scope is omitted from PatternCorrection.scope below because
+// user-driven pattern creation only exposes podcast vs global; network-scoped
+// patterns are only produced server-side.
+export type PatternScope = 'podcast' | 'network' | 'global';
+
 export interface AdPattern {
   id: number;
-  scope: string;
+  scope: PatternScope;
   network_id: string | null;
   podcast_id: string | null;
   podcast_name?: string | null;
@@ -86,7 +93,7 @@ export interface PatternStats {
   }>;
   no_sponsor_patterns: Array<{
     id: number;
-    scope: string;
+    scope: PatternScope;
     podcast_name: string | null;
     created_at: string;
     text_preview: string;
@@ -106,7 +113,7 @@ export async function getPatternStats(): Promise<PatternStats> {
 // Pattern API
 
 export async function getPatterns(params?: {
-  scope?: string;
+  scope?: PatternScope;
   podcast_id?: string;
   network_id?: string;
   active?: boolean;
@@ -137,7 +144,7 @@ export async function updatePattern(
     outro_variants?: string[];
     is_active?: boolean;
     disabled_reason?: string;
-    scope?: string;
+    scope?: PatternScope;
   }
 ): Promise<void> {
   await apiRequest(`/patterns/${id}`, {
@@ -231,26 +238,15 @@ export async function previewExportBundle(ids: number[]): Promise<BundlePreview>
 }
 
 // apiRequest assumes JSON responses; the bundle endpoint streams a file,
-// so fall back to a raw fetch. CSRF + error-stringification helpers are
-// reused from client.ts. The actual browser download happens here so
-// callers only deal with the resulting filename.
+// so we use apiFileRequest which preserves CSRF + error-stringification.
+// The actual browser download happens here so callers only deal with the
+// resulting filename.
 export async function downloadCommunityBundle(ids: number[]): Promise<{ filename: string }> {
-  const response = await fetch('/api/v1/patterns/submit-bundle', {
+  const { blob, filename } = await apiFileRequest('/patterns/submit-bundle', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...csrfHeaders('POST'),
-    },
-    body: JSON.stringify({ ids }),
+    body: { ids },
+    fallbackFilename: 'minuspod-community-submission.json',
   });
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({ error: 'Download failed' }));
-    throw new Error(extractErrorMessage(error, response.status));
-  }
-  const blob = await response.blob();
-  const cd = response.headers.get('Content-Disposition') || '';
-  const match = cd.match(/filename="?([^"]+)"?/);
-  const filename = match?.[1] || 'minuspod-community-submission.json';
   downloadBlob(blob, filename);
   return { filename };
 }

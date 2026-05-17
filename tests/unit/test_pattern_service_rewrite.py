@@ -61,7 +61,7 @@ def _seed_pattern(
 
 def test_rewrite_trims_head_and_tail_from_existing_template(db):
     """The trim splices the head/tail transcript slice out of the existing
-    template — it does NOT re-extract a new template from the new bounds."""
+    template -- it does NOT re-extract a new template from the new bounds."""
     template = (
         'Welcome to the show. This episode is brought to you by Squarespace. '
         'Visit Squarespace dot com slash show for a free trial. Use code SHOW '

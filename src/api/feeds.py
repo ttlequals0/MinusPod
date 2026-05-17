@@ -4,6 +4,9 @@ import os
 import time
 import xml.etree.ElementTree as ET  # defusedxml has no SubElement/tostring, so keep ET for OPML export only
 from typing import Optional
+from urllib.parse import urlparse
+
+import defusedxml.ElementTree as DefusedET
 
 from flask import request, Response
 
@@ -178,8 +181,6 @@ def import_opml():
     Accepts a multipart form upload with an 'opml' file field.
     Returns counts of successfully imported and failed feeds.
     """
-    import defusedxml.ElementTree as ET
-
     if 'opml' not in request.files:
         return error_response('No OPML file provided', 400)
 
@@ -193,8 +194,8 @@ def import_opml():
 
     try:
         content = opml_file.read().decode('utf-8')
-        root = ET.fromstring(content)
-    except ET.ParseError as e:
+        root = DefusedET.fromstring(content)
+    except DefusedET.ParseError as e:
         logger.error(f"OPML parse error: {e}")
         return error_response('Invalid OPML file format', 400)
     except UnicodeDecodeError as e:
@@ -252,7 +253,6 @@ def import_opml():
 
         # Fallback to URL-based slug
         if not slug:
-            from urllib.parse import urlparse
             parsed = urlparse(source_url)
             slug_base = parsed.path.strip('/').split('/')[-1] or parsed.netloc
             slug_base = slug_base.replace('.xml', '').replace('.rss', '')

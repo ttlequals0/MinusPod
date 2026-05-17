@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getFeed, getEpisodes, refreshFeed, updateFeed, getNetworks, reprocessAllEpisodes, ReprocessAllResult, bulkEpisodeAction, BulkAction } from '../api/feeds';
 import type { BulkActionResult } from '../api/types';
+import Artwork from '../components/Artwork';
 import CopyButton from '../components/CopyButton';
 import DropdownMenu from '../components/DropdownMenu';
 import EpisodeList from '../components/EpisodeList';
@@ -199,13 +200,10 @@ function FeedDetail() {
       <div className="bg-card rounded-lg border border-border p-6 mb-6">
         <div className="flex flex-col sm:flex-row gap-6">
           <div className="w-32 h-32 shrink-0 mx-auto sm:mx-0">
-            <img
+            <Artwork
               src={`/api/v1/feeds/${slug}/artwork`}
               alt={feed.title}
               className="w-full h-full object-cover rounded-lg"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%239ca3af"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>';
-              }}
             />
           </div>
           <div className="flex-1 min-w-0">

@@ -5,20 +5,20 @@ import shutil
 import time
 
 from config import MAX_EPISODE_RETRIES
+from utils.constants import EpisodeStatus
+# Singletons are bound in main_app/__init__.py before this submodule
+# is loaded by the explicit `from main_app.background import ...` at
+# the bottom of that file, so the apparent circular import is safe.
+# Replaces a positional 5-tuple from _get_components() that the audit
+# flagged as silently break-on-reorder.
+from main_app import db, storage, shutdown_event, processing_queue, status_service
 
 refresh_logger = logging.getLogger('podcast.refresh')
 audio_logger = logging.getLogger('podcast.audio')
 
 
-def _get_components():
-    """Late import to avoid circular imports at module level."""
-    from main_app import db, storage, shutdown_event, processing_queue, status_service
-    return db, storage, shutdown_event, processing_queue, status_service
-
-
 def run_cleanup():
     """Run episode cleanup based on retention period."""
-    db, storage, _, _, _ = _get_components()
     try:
         reset_count, freed_mb = db.cleanup_old_episodes(storage=storage)
         if reset_count > 0:
@@ -60,12 +60,11 @@ def background_rss_refresh():
     from main_app.feeds import refresh_all_feeds
     from pricing_fetcher import refresh_pricing_if_stale
     from community_sync import community_pattern_sync_tick
-    db, _, shutdown_event, _, _ = _get_components()
     while not shutdown_event.is_set():
         refresh_all_feeds()
         run_cleanup()
         refresh_pricing_if_stale()  # TTL-gated, fetches once per 24h
-        # Community pattern sync — gated by settings.community_sync_enabled
+        # Community pattern sync -- gated by settings.community_sync_enabled
         # and the cron schedule; safe to call every tick.
         try:
             community_pattern_sync_tick(db)
@@ -81,7 +80,6 @@ def background_queue_processor():
     Uses shutdown_event for graceful shutdown support.
     """
     from main_app.processing import start_background_processing
-    db, _, shutdown_event, _, _ = _get_components()
     refresh_logger.info("Auto-process queue processor started")
     backoff_seconds = 30  # Initial backoff for busy queue
     orphan_check_interval = 0  # Counter for orphan check (every 10 iterations)
@@ -161,7 +159,7 @@ def background_queue_processor():
                                 error_msg = f"Processing ended with status: {episode.get('status') if episode else 'unknown'}"
                             db.update_queue_status(queue_id, 'failed', error_msg)
                             episode_status = episode.get('status') if episode else None
-                            if episode_status == 'permanently_failed':
+                            if episode_status == EpisodeStatus.PERMANENTLY_FAILED:
                                 refresh_logger.warning(f"[{slug}:{episode_id}] Auto-process permanently failed: {error_msg}")
                             else:
                                 refresh_logger.info(f"[{slug}:{episode_id}] Auto-process failed (transient), will auto-retry: {error_msg}")
@@ -205,7 +203,6 @@ def reset_stuck_processing_episodes():
     Episodes are marked permanently_failed only when retry_count (from real
     failures) reaches MAX_EPISODE_RETRIES.
     """
-    db, _, _, _, _ = _get_components()
     conn = db.get_connection()
     cursor = conn.execute(
         """SELECT e.id, e.episode_id, e.retry_count, p.slug

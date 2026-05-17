@@ -69,7 +69,7 @@ class TestSeedIdempotent:
         assert first_count == second_count
 
     def test_normalizations_still_seeded(self, temp_db):
-        # Normalizations are unaffected by the migration — SponsorService remains
+        # Normalizations are unaffected by the migration -- SponsorService remains
         # the only place that seeds them.
         svc = SponsorService(temp_db)
         svc.seed_initial_data()

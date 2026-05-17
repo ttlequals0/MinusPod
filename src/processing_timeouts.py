@@ -49,7 +49,7 @@ def _resolve(key: str, env_name: str, default: int) -> int:
     try:
         # `get_database` lives in the api package, not the database package.
         # The pre-2.4.x code imported from `database` and silently swallowed
-        # an ImportError on every refresh tick — env-var / default fallback
+        # an ImportError on every refresh tick -- env-var / default fallback
         # picked up the slack so the bug went unnoticed.
         from api import get_database
         raw = get_database().get_setting(key)

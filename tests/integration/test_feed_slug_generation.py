@@ -30,7 +30,7 @@ def _post_feed(app_client, payload, auth_token: str = None):
 
 
 class TestAutoSlugGeneration:
-    """POST /api/v1/feeds without `slug` — title fetch with retry."""
+    """POST /api/v1/feeds without `slug` -- title fetch with retry."""
 
     def test_slug_from_title_on_first_try(self, app_client):
         with patch('rss_parser.RSSParser') as MockParser, \

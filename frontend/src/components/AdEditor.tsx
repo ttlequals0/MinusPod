@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import AdReviewModal, { AdReviewItem, AdReviewSubmit, AdCreateSubmit } from './AdReviewModal';
+import type { PatternScope } from '../api/patterns';
 
 // Save status for visual feedback
 export type SaveStatus = 'idle' | 'saving' | 'success' | 'error';
@@ -13,7 +14,7 @@ export interface DetectedAd {
   sponsor?: string;
   pattern_id?: number;
   detection_stage?: string;
-  scope?: string;
+  scope?: PatternScope;
   network_id?: string;
 }
 

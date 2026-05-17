@@ -96,13 +96,25 @@ http_full() {
 }
 
 # Login against $1 base URL with $2 password, write cookies to $3 jar.
-# Echoes HTTP code.
+# Optional $4 = X-Forwarded-For value. When omitted, the helper derives
+# one from TEST_NAME via smoke_ip so each test gets its own per-IP slot
+# in the /auth/login rate limit (3/min, 10/hour). Without this default,
+# the cumulative logins from a 20-test suite all hit the loopback IP and
+# the 10/hour cap kicks in around test 11, making downstream tests fail
+# with 401 instead of the assertion they're trying to verify. Echoes
+# the HTTP code.
 login() {
-    local base="$1" password="$2" jar="$3"
+    local base="$1" password="$2" jar="$3" xff="${4:-}"
+    if [ -z "$xff" ]; then
+        local n=0
+        [[ "${TEST_NAME:-}" =~ ^T([0-9]+) ]] && n="${BASH_REMATCH[1]}"
+        xff=$(smoke_ip "$n")
+    fi
     curl -s -o /dev/null -w '%{http_code}' \
         -c "$jar" \
         -X POST "$base/api/v1/auth/login" \
         -H "Content-Type: application/json" \
+        -H "X-Forwarded-For: $xff" \
         -d "{\"password\":\"$password\"}"
 }
 
@@ -163,4 +175,176 @@ csrf_from_jar() {
         curl -s -c "$jar" -o /dev/null --max-time 10 "$base/api/v1/auth/status"
     fi
     awk '/minuspod_csrf/{print $7}' "$jar" | head -1
+}
+
+
+# Per-test, per-run unique private IPv4 to spoof in X-Forwarded-For.
+# /patterns/import and other write endpoints rate-limit at 3/hour per IP
+# under the memory:// backend, so reusing the same IP across runs (or
+# across multiple tests in one run) starves the quota and the assertion
+# fails for the wrong reason. We derive the third+fourth octets from a
+# nonce so each test in each run gets fresh quota; second octet stays
+# per-test so the IP also tells you which test issued the request.
+#
+# Usage: ip=$(smoke_ip 22)   # -> 10.22.137.42 (or similar)
+smoke_ip() {
+    local test_octet="${1:-99}"
+    local nonce_pid=$$
+    local nonce_t=$(date +%N | sed 's/^0*//')
+    local third=$(( (nonce_pid + nonce_t / 1000) % 254 + 1 ))
+    local fourth=$(( (nonce_pid * 7 + nonce_t / 100) % 254 + 1 ))
+    printf '10.%d.%d.%d' "$test_octet" "$third" "$fourth"
+}
+
+
+# Per-test setup: create a cookie jar at $RESULTS_DIR/T<n>-cookies.jar,
+# login from a per-run unique X-Forwarded-For IP, grab the CSRF token,
+# and register an EXIT trap so the jar is removed even if the test bails
+# on an assertion failure. Exports globals JAR and CSRF for the caller.
+#
+# Usage: setup_authed_jar <test_num>       # e.g. setup_authed_jar 22
+setup_authed_jar() {
+    local test_num="$1"
+    JAR="$RESULTS_DIR/T${test_num}-cookies.jar"
+    rm -f "$JAR"
+    login "$LOCAL_BASE" "$LOCAL_PASSWORD" "$JAR" "$(smoke_ip "$test_num")" >/dev/null
+    CSRF=$(csrf_from_jar "$LOCAL_BASE" "$JAR")
+    # shellcheck disable=SC2064  # we WANT $JAR expanded at trap-set time
+    trap "rm -f \"$JAR\"" EXIT
+}
+
+
+# Authenticated JSON-body POST/PUT/DELETE. Returns the response body on
+# stdout. Use json_get to extract fields. Test number controls the X-FF
+# IP so each test gets its own per-IP rate-limit quota.
+#
+# Usage: auth_json <method> <path> <test_num> <json-body>
+# Example: body=$(auth_json POST /api/v1/patterns/import 22 "$PAYLOAD")
+auth_json() {
+    local method="$1" path="$2" test_num="$3" body="$4"
+    curl -s -b "$JAR" \
+        -X "$method" "$LOCAL_BASE$path" \
+        -H "Content-Type: application/json" \
+        -H "X-Forwarded-For: $(smoke_ip "$test_num")" \
+        -H "X-CSRF-Token: $CSRF" \
+        -d "$body"
+}
+
+
+# Same shape as auth_json but returns the HTTP code instead of the body.
+# Use when the assertion is "expect this status code".
+auth_code() {
+    local method="$1" path="$2" test_num="$3" body="${4:-}"
+    local data_flag=()
+    if [ -n "$body" ]; then
+        data_flag=(-H "Content-Type: application/json" -d "$body")
+    fi
+    curl -s -o /dev/null -w '%{http_code}' \
+        -b "$JAR" \
+        -X "$method" "$LOCAL_BASE$path" \
+        -H "X-Forwarded-For: $(smoke_ip "$test_num")" \
+        -H "X-CSRF-Token: $CSRF" \
+        "${data_flag[@]}"
+}
+
+
+# Extract a top-level JSON field from stdin. Returns the value as a string
+# (Python `print(value)`), or empty if the key is missing / parse fails.
+#
+# Usage: name=$(curl ... | json_get name)
+json_get() {
+    local key="$1"
+    python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    v = d.get('$key', '') if isinstance(d, dict) else ''
+    print(v if v is not None else '')
+except Exception:
+    print('')
+" 2>/dev/null
+}
+
+
+# Return the id of the first ad_pattern matching the given sponsor name,
+# or empty if not found. Used by pattern-CRUD tests to look up the row
+# they just imported (the import endpoint returns counts, not ids).
+find_pattern_id_by_sponsor() {
+    local sponsor="$1"
+    curl -s -b "$JAR" "$LOCAL_BASE/api/v1/patterns" | python3 -c "
+import json, sys
+sponsor = '$sponsor'
+try:
+    d = json.load(sys.stdin)
+    for p in d.get('patterns', []):
+        if p.get('sponsor') == sponsor:
+            print(p['id'])
+            break
+except Exception:
+    pass
+" 2>/dev/null
+}
+
+
+# Import a single test pattern with the given sponsor name + ad text.
+# Idempotent on conflict (mode=merge); returns the assigned id by looking
+# it up after the import lands. Test number controls the X-FF IP so the
+# import doesn't share the 3/hour quota with other tests in the same run.
+#
+# Usage: id=$(import_test_pattern 22 "$SPONSOR" "$AD_TEXT")
+import_test_pattern() {
+    local test_num="$1" sponsor="$2" text="$3"
+    local payload
+    payload=$(python3 -c "
+import json
+print(json.dumps({
+    'patterns': [{
+        'scope': 'global',
+        'text_template': '''$text''',
+        'intro_variants': ['This episode is brought to you by'],
+        'sponsor': '$sponsor',
+    }],
+    'mode': 'merge',
+}))
+")
+    auth_json POST /api/v1/patterns/import "$test_num" "$payload" >/dev/null
+    find_pattern_id_by_sponsor "$sponsor"
+}
+
+
+# Hard-delete a single pattern by id, satisfying the bulk-delete
+# expected_count guard. Silent on failure so cleanup paths don't mask the
+# actual test result. Test number controls the X-FF IP.
+bulk_delete_pattern() {
+    local test_num="$1" id="$2"
+    auth_code POST /api/v1/patterns/bulk-delete "$test_num" \
+        "{\"ids\":[$id],\"confirm\":true,\"expected_count\":1}" >/dev/null
+}
+
+
+# Extract a response header value from a full `curl -i` dump. Case-
+# insensitive header name; returns empty if absent.
+#
+# Usage: csp=$(printf '%s' "$response" | header_value content-security-policy)
+header_value() {
+    local name="$1"
+    awk -F': ' -v h="$name" 'tolower($1)==tolower(h){print $2}' | tr -d '\r' | head -1
+}
+
+
+# Poll a GET endpoint until the JSON field equals the expected value (or
+# tries are exhausted). Useful for cache-backed endpoints (e.g. settings
+# under the memory:// limiter where a PUT can invalidate one worker's
+# cache but a subsequent GET lands on the other worker). Prints the last
+# observed value to stdout.
+#
+# Usage: got=$(poll_for /api/v1/settings/retention retentionDays 42)
+poll_for() {
+    local endpoint="$1" key="$2" expected="$3" tries="${4:-10}"
+    local got=""
+    for _ in $(seq 1 "$tries"); do
+        got=$(curl -s -b "$JAR" "$LOCAL_BASE$endpoint" | json_get "$key")
+        [ "$got" = "$expected" ] && break
+    done
+    printf '%s' "$got"
 }

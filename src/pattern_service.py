@@ -852,7 +852,7 @@ class PatternService:
         Computes the head slice [original_start, new_start) and tail slice
         (new_end, original_end] from the transcript, then splices them out of
         the existing `text_template` if they appear at its start/end. This is
-        Operation 1 from the plan ("trim-only updates") — explicitly NOT a
+        Operation 1 from the plan ("trim-only updates") -- explicitly NOT a
         full re-extract from the new bounds, which would fit the template to
         one episode's transcription and risk breaking matches on episodes
         that captured the cleaner version.
@@ -970,7 +970,7 @@ class PatternService:
                 )
                 return existing['id']
             if version <= int(existing.get('version') or 1):
-                # Same or older version — no-op.
+                # Same or older version -- no-op.
                 return existing['id']
 
             self.db.update_ad_pattern(

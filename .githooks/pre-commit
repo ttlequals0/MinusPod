@@ -4,6 +4,12 @@
 # the working tree is irrelevant, so local debug files that stay
 # unstaged cannot trigger this.
 #
+# LIMITATION: grep -E is line-oriented. A secret split across multiple
+# lines (line continuations, pretty-printed JSON, base64 with embedded
+# newlines) will not be detected here. Treat this hook as a fast-path
+# guard, not a substitute for repo-wide secret scanning (gitleaks /
+# trufflehog / GitHub push protection).
+#
 # Activate once per clone with:
 #     git config core.hooksPath .githooks
 set -euo pipefail
@@ -37,21 +43,48 @@ while IFS= read -r path; do
     for entry in "${PATTERNS[@]}"; do
         regex="${entry%|*}"
         label="${entry##*|}"
-        if printf '%s' "$staged" | grep -Eq -- "$regex"; then
+        # Filter doc/test placeholders out of matches before counting as a
+        # hit. Real secrets won't contain these substrings; example payloads
+        # in README/CHANGELOG/pattern fixtures regularly do.
+        matches=$(printf '%s' "$staged" | grep -En -- "$regex" \
+            | grep -Eiv 'example|placeholder|your-|fixture|sample|dummy|fake|redacted|xxxxx' \
+            || true)
+        if [ -n "$matches" ]; then
             echo "ERROR: $path appears to contain a $label"
             echo "       pattern: /$regex/"
             echo "       first match:"
-            printf '%s' "$staged" | grep -En -- "$regex" | head -1 | sed 's/^/         /'
+            printf '%s\n' "$matches" | head -1 | sed 's/^/         /'
             hit=1
         fi
     done
+done < <(git diff --cached --name-only --diff-filter=ACM)
+
+# ASCII-only guard: block em-dashes, the star glyph, and smart quotes.
+# Scope: everything staged EXCEPT CHANGELOG.md (frozen) and the
+# benchmarks/llm/results/ tree (LLM-generated artifacts). Matches the
+# CLAUDE.md "ASCII only" rule.
+while IFS= read -r path; do
+    [ -z "$path" ] && continue
+    case "$path" in
+        CHANGELOG.md|benchmarks/llm/results/*) continue ;;
+    esac
+    if git diff --cached --numstat -- "$path" | awk '$1 == "-" && $2 == "-"' | grep -q .; then
+        continue
+    fi
+    bad=$(git show ":$path" 2>/dev/null | grep -nE $'[\xe2\x80\x94\xe2\x98\x85\xe2\x80\x98\xe2\x80\x99\xe2\x80\x9c\xe2\x80\x9d]' || true)
+    if [ -n "$bad" ]; then
+        echo "ERROR: $path contains non-ASCII glyph (em-dash, star, or smart quote)"
+        printf '%s\n' "$bad" | head -3 | sed 's/^/         /'
+        echo "       Use plain --, *, or straight quotes. See CLAUDE.md ASCII rule."
+        hit=1
+    fi
 done < <(git diff --cached --name-only --diff-filter=ACM)
 
 if [ $hit -ne 0 ]; then
     cat >&2 <<EOF
 
 Commit blocked. One or more staged files contain text that looks like
-a credential. Options:
+a credential or a banned non-ASCII glyph. Options:
 
   1. If it's a real secret: unstage the file, scrub the value, rotate
      the credential upstream, then re-commit.

@@ -22,7 +22,7 @@ COMMUNITY_MANIFEST_URL = (
 
 # Schema versions. MANIFEST_VERSION bumps when the manifest envelope shape
 # changes; VOCABULARY_VERSION bumps when the tag list is added to / removed
-# from. Both ship with the app image; this module is the single owner — the
+# from. Both ship with the app image; this module is the single owner -- the
 # manifest generator and the sync job both import these constants, not their
 # own copies.
 MANIFEST_VERSION = 1
@@ -63,7 +63,7 @@ PATTERN_SOURCES: FrozenSet[str] = frozenset({
 
 @lru_cache(maxsize=1)
 def _vocabulary_tags() -> FrozenSet[str]:
-    """Tags from src/seed_data/tag_vocabulary.csv (no 'universal' — see VALID_TAGS)."""
+    """Tags from src/seed_data/tag_vocabulary.csv (no 'universal' -- see VALID_TAGS)."""
     path = os.path.join(_SEED_DIR, 'tag_vocabulary.csv')
     tags = set()
     with open(path, 'r', encoding='utf-8') as fh:
@@ -152,7 +152,7 @@ def sponsor_seed() -> List[Dict[str, object]]:
     return rows
 
 
-# Consumer email domains — strip on export (best-effort, tunable).
+# Consumer email domains -- strip on export (best-effort, tunable).
 CONSUMER_EMAIL_DOMAINS: FrozenSet[str] = frozenset({
     'gmail.com', 'yahoo.com', 'aol.com', 'hotmail.com', 'outlook.com',
     'icloud.com', 'me.com', 'mac.com', 'protonmail.com', 'proton.me',
@@ -161,7 +161,7 @@ CONSUMER_EMAIL_DOMAINS: FrozenSet[str] = frozenset({
     'tutanota.com',
 })
 
-# Toll-free prefixes — phone numbers using these are KEPT in export text.
+# Toll-free prefixes -- phone numbers using these are KEPT in export text.
 # Everything else matched by the phone regex is stripped.
 TOLLFREE_PREFIXES_NANP: Tuple[str, ...] = ('800', '833', '844', '855', '866', '877', '888')
 TOLLFREE_PREFIXES_UK: Tuple[str, ...] = ('0800', '0808')

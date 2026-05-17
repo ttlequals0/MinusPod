@@ -15,7 +15,7 @@ interface DropdownMenuProps {
   title?: string;
   chevronClassName?: string;
   /** Which edge of the menu aligns to the trigger. `right` (default)
-   *  opens the menu leftward — correct when the trigger sits on the
+   * opens the menu leftward -- correct when the trigger sits on the
    *  right side of a row. Use `left` for triggers on the left side so
    *  the menu opens rightward and doesn't clip off-screen on mobile. */
   align?: 'left' | 'right';

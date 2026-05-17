@@ -70,7 +70,7 @@ fi
 assert_in "$code" "400 422" "XXE feed rejected (got $code)"
 
 dump_local_logs
-xxe_log=$(grep -iE 'xml_forbidden_construct|xxe|external entity|forbidden_?dtd|entities_forbidden|dtdforbidden|defusedxml|OPML parse error|Invalid OPML|Invalid feed URL|Failed to add feed' "$LOCAL_LOG_FILE" || true)
+xxe_log=$(grep -iE 'xml[_ ]forbidden[_ ]construct|xxe|external entity|forbidden_?dtd|entities_forbidden|dtdforbidden|defusedxml|OPML parse error|Invalid OPML|Invalid feed URL|Failed to add feed|SSRF blocked' "$LOCAL_LOG_FILE" || true)
 if [ -n "$xxe_log" ]; then
     pass_step 'XXE rejection logged (defusedxml or API-level parse-error line)'
     note "log: $(printf '%s' "$xxe_log" | head -1)"

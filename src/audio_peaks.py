@@ -21,7 +21,7 @@ from utils.subprocess_registry import tracked_run
 
 logger = logging.getLogger('podcast.peaks')
 
-PEAKS_SAMPLE_RATE_HZ = 8000   # mono downsample target — only need amplitude
+PEAKS_SAMPLE_RATE_HZ = 8000 # mono downsample target -- only need amplitude
 PEAKS_TIMEOUT_SECONDS = 60
 MAX_PEAKS_DURATION_SECONDS = 4 * 60 * 60  # hard ceiling: 4h. Episodes longer
 # than that are extreme outliers; refuse rather than spend a minute decoding.

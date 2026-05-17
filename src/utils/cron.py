@@ -1,14 +1,14 @@
 """Minimal 5-field cron evaluator for MinusPod's community-sync schedule.
 
-Supports the common cron syntax users will write — numbers, '*', ranges,
-lists, and step values — for the five standard fields:
+Supports the common cron syntax users will write -- numbers, '*', ranges,
+lists, and step values -- for the five standard fields:
 
   minute (0-59)  hour (0-23)  day-of-month (1-31)  month (1-12)  dow (0-6 sun=0)
 
 Designed to answer two questions:
 
-  * `is_valid_expression(expr)` -> bool — for input validation in settings.
-  * `is_due(expr, last_run, now)` -> bool — has a fire time elapsed since
+  * `is_valid_expression(expr)` -> bool -- for input validation in settings.
+  * `is_due(expr, last_run, now)` -> bool -- has a fire time elapsed since
     `last_run`? Used by the background sync job that ticks every 15 min.
 
 Day-of-month and day-of-week follow vixie-cron's OR semantics: if both

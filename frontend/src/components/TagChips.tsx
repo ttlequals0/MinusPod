@@ -38,7 +38,7 @@ function TagChipsImpl({ tags, className = '' }: Props) {
           className={`px-2 py-0.5 text-xs rounded ${tagClass(tag)}`}
           title={tag === 'universal' ? 'Universal sponsor (matches every podcast)' : tag}
         >
-          {tag === 'universal' ? '★ universal' : tag}
+          {tag === 'universal' ? '* universal' : tag}
         </span>
       ))}
     </div>

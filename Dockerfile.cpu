@@ -82,7 +82,7 @@ RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
 
 ENV PATH="/opt/venv/bin:$PATH"
 
-RUN pip install --no-cache-dir --upgrade pip setuptools \
+RUN pip install --no-cache-dir --upgrade pip==25.2 setuptools==80.9.0 \
     && rm -rf /opt/venv/lib/python3.11/site-packages/setuptools/_vendor/jaraco* \
               /opt/venv/lib/python3.11/site-packages/setuptools/_vendor/wheel*
 

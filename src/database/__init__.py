@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 from utils.constants import DEFAULT_SYSTEM_PROMPT  # re-exported for backward compat
 
 # Verification pass prompt - runs on processed audio to catch missed ads
-DEFAULT_VERIFICATION_PROMPT = """You are reviewing a podcast episode that has ALREADY had advertisements removed. The audio has been processed — detected ads were cut and replaced with a brief transition tone. Your job is to find anything that was MISSED or only partially removed.
+DEFAULT_VERIFICATION_PROMPT = """You are reviewing a podcast episode that has ALREADY had advertisements removed. The audio has been processed -- detected ads were cut and replaced with a brief transition tone. Your job is to find anything that was MISSED or only partially removed.
 
 CONTEXT:
 This is a second pass over processed audio. The first pass already detected and removed obvious ads. What remains should be clean episode content. Anything promotional that is still present was either:
@@ -112,7 +112,7 @@ FRAGMENT EXAMPLE:
 [124.5s - 128.0s] at athleticgreens.com slash podcast. Anyway, moving on to
 [128.5s - 132.0s] the next topic I wanted to discuss was the new research.
 
-Output: [{{"start": 124.5, "end": 128.0, "confidence": 0.95, "reason": "Athletic Greens ad fragment — orphaned URL after cut boundary", "end_text": "moving on to"}}]
+Output: [{{"start": 124.5, "end": 128.0, "confidence": 0.95, "reason": "Athletic Greens ad fragment -- orphaned URL after cut boundary", "end_text": "moving on to"}}]
 
 MISSED AD EXAMPLE:
 [340.0s - 342.0s] You know what I've been really into lately?
@@ -120,7 +120,7 @@ MISSED AD EXAMPLE:
 [348.5s - 365.0s] They have these sleep stories and meditations... You can try it free for 30 days at calm.com/podcast.
 [365.5s - 368.0s] But anyway, getting back to what we were saying about
 
-Output: [{{"start": 340.0, "end": 365.0, "confidence": 0.92, "reason": "Calm app sponsor read — missed baked-in ad with free trial URL", "end_text": "calm.com/podcast"}}]
+Output: [{{"start": 340.0, "end": 365.0, "confidence": 0.92, "reason": "Calm app sponsor read -- missed baked-in ad with free trial URL", "end_text": "calm.com/podcast"}}]
 
 CLEAN EPISODE EXAMPLE:
 [no promotional content found in transcript]

@@ -109,9 +109,7 @@ def test_retention_matches_both_extensions(monkeypatch, temp_db_with_backup_dir)
     svc = CleanupService(db)
     # CleanupService caches settings for 5 min; inject the value directly
     # so the test doesn't depend on cache eviction timing.
-    svc._settings_cache = {'backup_keep_count': 3}
-    from datetime import datetime as _dt
-    svc._settings_loaded_at = _dt.now()
+    svc._settings_cache.set('_settings', {'backup_keep_count': 3})
 
     svc._cleanup_old_backups(backup_dir)
 

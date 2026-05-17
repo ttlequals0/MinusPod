@@ -40,10 +40,24 @@ function useThemeColors() {
 
 type PodcastSortField = 'podcastTitle' | 'episodeCount' | 'totalAds' | 'avgAds' | 'avgTimeSavedSeconds' | 'avgEpisodeLengthSeconds' | 'totalCost' | 'avgTokensPerEpisode';
 
-function SortTh({ field, label, align = 'right', className = '', sortField, sortDir, onSort }: {
-  field: PodcastSortField; label: string; align?: 'left' | 'right'; className?: string;
-  sortField: PodcastSortField; sortDir: 'asc' | 'desc'; onSort: (f: PodcastSortField) => void;
-}) {
+interface SortThProps {
+  field: PodcastSortField;
+  label: string;
+  align?: 'left' | 'right';
+  className?: string;
+  sortField: PodcastSortField;
+  sortDir: 'asc' | 'desc';
+  onSort: (f: PodcastSortField) => void;
+}
+
+/**
+ * Stable component declared at module scope so React's compiler / eslint
+ * `react-hooks/static-components` doesn't flag a per-render component
+ * factory. The cost is that callers thread sortField/sortDir/onSort
+ * through every instance; the win is no per-render component identity
+ * churn (each row would otherwise remount on every sort change).
+ */
+function SortTh({ field, label, align = 'right', className = '', sortField, sortDir, onSort }: SortThProps) {
   return (
     <th
       className={`px-4 py-3 text-${align} text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer hover:bg-accent/50 ${className}`}

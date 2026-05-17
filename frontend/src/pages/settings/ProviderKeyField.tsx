@@ -36,14 +36,28 @@ function ProviderKeyField({
   const [draft, setDraft] = useState('');
   const [busy, setBusy] = useState<'save' | 'test' | 'clear' | null>(null);
   const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [savedNotice, setSavedNotice] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const showActions = status.source === 'db' || draft.length > 0;
+  // Test reads the SAVED key from the backend, not the draft. If the user
+  // typed a value but hasn't clicked Save, Test would always return "no key
+  // configured" because the draft only exists in React state. Disable Test
+  // in that window and explain why via the title tooltip.
+  const testBlocked = draft.length > 0 && status.source !== 'db';
 
   async function handleSave() {
     if (!draft) return;
-    setBusy('save'); setError(null); setTestResult(null);
-    try { await onSave(provider, draft); setDraft(''); }
+    setBusy('save'); setError(null); setTestResult(null); setSavedNotice(false);
+    try {
+      await onSave(provider, draft);
+      setDraft('');
+      // Make the field-clearing intentional: the input goes blank because the
+      // key is now encrypted in the DB and we don't echo secrets back. Without
+      // this notice, users misread the blank input as "save erased my key".
+      setSavedNotice(true);
+      setTimeout(() => setSavedNotice(false), 4000);
+    }
     catch (e) { setError(e instanceof Error ? e.message : 'Save failed'); }
     finally { setBusy(null); }
   }
@@ -109,8 +123,9 @@ function ProviderKeyField({
           </button>
           <button
             type="button"
-            disabled={busy !== null}
+            disabled={busy !== null || testBlocked}
             onClick={handleTest}
+            title={testBlocked ? 'Click Save first -- Test reads the saved key, not the unsaved draft.' : undefined}
             className="px-3 py-1.5 rounded-md border border-border text-sm font-medium hover:bg-secondary disabled:opacity-50"
           >
             {busy === 'test' ? 'Testing...' : 'Test'}
@@ -128,6 +143,11 @@ function ProviderKeyField({
           {testResult && (
             <span className={`text-sm ${testResult.ok ? 'text-green-600 dark:text-green-400' : 'text-destructive'}`}>
               {testResult.msg}
+            </span>
+          )}
+          {savedNotice && (
+            <span className="text-sm text-green-600 dark:text-green-400">
+              Saved -- input cleared because keys are stored encrypted
             </span>
           )}
         </div>

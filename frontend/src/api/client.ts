@@ -142,3 +142,55 @@ export async function apiRequest<T>(endpoint: string, options: RequestOptions = 
   // Unreachable: the loop always throws on the final attempt. Required for TypeScript.
   throw new Error('Request failed after retries');
 }
+
+interface FileRequestOptions {
+  method?: 'GET' | 'POST';
+  body?: BodyInit | object;
+  fallbackFilename?: string;
+}
+
+// Shared blob-download helper. Endpoints that stream a file can't go through
+// apiRequest (which assumes JSON), but they still need the same CSRF header
+// path and error-stringification. Returns the blob plus the filename parsed
+// from Content-Disposition (or fallbackFilename if the header is missing).
+export async function apiFileRequest(
+  endpoint: string,
+  options: FileRequestOptions = {}
+): Promise<{ blob: Blob; filename: string }> {
+  const { method = 'GET', body, fallbackFilename = 'download' } = options;
+
+  const headers: Record<string, string> = {};
+  let serializedBody: BodyInit | undefined;
+  if (body !== undefined) {
+    if (
+      body instanceof FormData ||
+      body instanceof Blob ||
+      body instanceof ArrayBuffer ||
+      body instanceof URLSearchParams ||
+      typeof body === 'string'
+    ) {
+      serializedBody = body as BodyInit;
+    } else {
+      headers['Content-Type'] = 'application/json';
+      serializedBody = JSON.stringify(body);
+    }
+  }
+  Object.assign(headers, csrfHeaders(method));
+
+  const response = await fetch(`${API_BASE}${endpoint}`, {
+    method,
+    headers,
+    body: serializedBody,
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ error: 'Request failed' }));
+    throw new Error(extractErrorMessage(error, response.status));
+  }
+
+  const blob = await response.blob();
+  const cd = response.headers.get('Content-Disposition') || '';
+  const match = cd.match(/filename="?([^";]+)"?/);
+  const filename = match?.[1] || fallbackFilename;
+  return { blob, filename };
+}

@@ -96,6 +96,11 @@ def update_provider(provider):
         model = body['model'] or ''
         db.set_setting(cfg['model'], model)
 
+    # Drop the TTL-cached provider settings so the next read sees this write
+    # immediately (see issue #234: stale cache made Save Changes vanish).
+    from llm_client import invalidate_provider_cache
+    invalidate_provider_cache()
+
     logger.info("provider=%s updated source=%s", provider, _source_for(db, cfg))
     return json_response(_provider_status(db, cfg), 200)
 
@@ -107,6 +112,8 @@ def clear_provider(provider):
     cfg = _PROVIDERS[provider]
     db = Database()
     db.clear_secret(cfg['secret'])
+    from llm_client import invalidate_provider_cache
+    invalidate_provider_cache()
     logger.info("provider=%s cleared", provider)
     return json_response(_provider_status(db, cfg), 200)
 

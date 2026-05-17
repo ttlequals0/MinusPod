@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Any, Optional
 from enum import Enum
 
+from utils.time import ranges_overlap
+
 
 class SignalType(Enum):
     """Types of audio signals that can be detected."""
@@ -39,7 +41,7 @@ class AudioSegmentSignal:
 
     def overlaps(self, other: 'AudioSegmentSignal', tolerance: float = 0) -> bool:
         """Check if this signal overlaps with another."""
-        return self.start <= other.end + tolerance and self.end >= other.start - tolerance
+        return ranges_overlap(self.start, self.end, other.start, other.end, tolerance)
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for JSON serialization."""

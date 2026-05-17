@@ -19,7 +19,7 @@ from flask import abort
 
 _route_logger = logging.getLogger(__name__)
 
-# Cap is generous — real-world podcast slugs auto-generated from long
+# Cap is generous -- real-world podcast slugs auto-generated from long
 # titles routinely exceed the prior 64-char limit. The strict regex still
 # refuses path-traversal characters; length is bounded only to stop
 # obvious abuse, not to gate legitimate slugs.

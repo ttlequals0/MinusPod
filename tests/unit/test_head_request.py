@@ -56,7 +56,7 @@ class TestHeadRequestDoesNotProcess:
     @patch('main_app.processing.start_background_processing')
     @patch('main_app.routes._head_upstream')
     @patch('main_app.routes._lookup_episode', return_value=({'id': 'abc123def456', 'url': 'https://example.com/ep.mp3', 'title': 'Ep 1', 'description': 'desc', 'artwork_url': None}, 'Test Podcast'))
-    @patch('main_app.db')
+    @patch('main_app.routes.db')
     @patch('main_app.routes.get_feed_map')
     def test_head_unprocessed_proxies_upstream(
         self, mock_feed_map, mock_db, mock_lookup, mock_head, mock_start,
@@ -79,7 +79,7 @@ class TestHeadRequestDoesNotProcess:
     @patch('main_app.processing.start_background_processing')
     @patch('main_app.routes._head_upstream')
     @patch('main_app.routes._lookup_episode', return_value=({'id': 'abc123def456', 'url': 'https://example.com/ep.mp3', 'title': 'Ep 1', 'description': 'desc', 'artwork_url': None}, 'Test Podcast'))
-    @patch('main_app.db')
+    @patch('main_app.routes.db')
     @patch('main_app.routes.get_feed_map')
     def test_head_failed_episode_proxies_upstream(
         self, mock_feed_map, mock_db, mock_lookup, mock_head, mock_start,
@@ -99,7 +99,7 @@ class TestHeadRequestDoesNotProcess:
 
     @patch('main_app.processing.start_background_processing')
     @patch('main_app.routes._lookup_episode', return_value=(None, None))
-    @patch('main_app.db')
+    @patch('main_app.routes.db')
     @patch('main_app.routes.get_feed_map')
     def test_head_unprocessed_404_when_not_in_rss(
         self, mock_feed_map, mock_db, mock_lookup, mock_start,
@@ -117,8 +117,8 @@ class TestHeadRequestDoesNotProcess:
 class TestHeadRequestProcessedEpisode:
     """HEAD requests on processed episodes should serve the local file normally."""
 
-    @patch('main_app.storage')
-    @patch('main_app.db')
+    @patch('main_app.routes.storage')
+    @patch('main_app.routes.db')
     @patch('main_app.routes.get_feed_map')
     def test_head_processed_serves_local_file(
         self, mock_feed_map, mock_db, mock_storage,
@@ -141,10 +141,10 @@ class TestHeadRequestProcessedEpisode:
 class TestGetRequestStillProcesses:
     """GET requests should still trigger JIT processing as before."""
 
-    @patch('main_app.status_service')
+    @patch('main_app.routes.status_service')
     @patch('main_app.processing.start_background_processing', return_value=(True, None))
     @patch('main_app.routes._lookup_episode', return_value=({'id': 'abc123def456', 'url': 'https://example.com/ep.mp3', 'title': 'Ep 1', 'description': 'desc', 'artwork_url': None}, 'Test Podcast'))
-    @patch('main_app.db')
+    @patch('main_app.routes.db')
     @patch('main_app.routes.get_feed_map')
     def test_get_unprocessed_triggers_processing(
         self, mock_feed_map, mock_db, mock_lookup, mock_start,
@@ -195,7 +195,7 @@ class TestHeadUpstreamHelper:
 class TestLookupEpisode:
     """Test _lookup_episode helper."""
 
-    @patch('main_app.rss_parser')
+    @patch('main_app.routes.rss_parser')
     def test_returns_episode_and_podcast_name(self, mock_rss):
         mock_rss.fetch_feed.return_value = '<rss></rss>'
         mock_parsed = MagicMock()
@@ -213,7 +213,7 @@ class TestLookupEpisode:
         assert ep_data['id'] == 'ep2'
         assert podcast_name == 'My Podcast'
 
-    @patch('main_app.rss_parser')
+    @patch('main_app.routes.rss_parser')
     def test_returns_none_tuple_when_not_found(self, mock_rss):
         mock_rss.fetch_feed.return_value = '<rss></rss>'
         mock_parsed = MagicMock()
@@ -229,7 +229,7 @@ class TestLookupEpisode:
         assert ep_data is None
         assert podcast_name is None
 
-    @patch('main_app.rss_parser')
+    @patch('main_app.routes.rss_parser')
     def test_returns_none_tuple_when_feed_unavailable(self, mock_rss):
         mock_rss.fetch_feed.return_value = None
 
@@ -250,8 +250,8 @@ class TestJITRetryCooldown:
 
     @patch('main_app.processing.start_background_processing', return_value=(True, None))
     @patch('main_app.routes._lookup_episode', return_value=({'id': 'abc123def456', 'url': 'https://example.com/ep.mp3', 'title': 'Ep 1', 'description': 'desc', 'artwork_url': None}, 'Test Podcast'))
-    @patch('main_app.status_service')
-    @patch('main_app.db')
+    @patch('main_app.routes.status_service')
+    @patch('main_app.routes.db')
     @patch('main_app.routes.get_feed_map')
     def test_failed_episode_within_cooldown_returns_503(
         self, mock_feed_map, mock_db, mock_status, mock_lookup, mock_start,
@@ -270,8 +270,8 @@ class TestJITRetryCooldown:
 
     @patch('main_app.processing.start_background_processing', return_value=(True, None))
     @patch('main_app.routes._lookup_episode', return_value=({'id': 'abc123def456', 'url': 'https://example.com/ep.mp3', 'title': 'Ep 1', 'description': 'desc', 'artwork_url': None}, 'Test Podcast'))
-    @patch('main_app.status_service')
-    @patch('main_app.db')
+    @patch('main_app.routes.status_service')
+    @patch('main_app.routes.db')
     @patch('main_app.routes.get_feed_map')
     def test_failed_episode_past_cooldown_retries(
         self, mock_feed_map, mock_db, mock_status, mock_lookup, mock_start,
@@ -289,8 +289,8 @@ class TestJITRetryCooldown:
 
     @patch('main_app.processing.start_background_processing', return_value=(True, None))
     @patch('main_app.routes._lookup_episode', return_value=({'id': 'abc123def456', 'url': 'https://example.com/ep.mp3', 'title': 'Ep 1', 'description': 'desc', 'artwork_url': None}, 'Test Podcast'))
-    @patch('main_app.status_service')
-    @patch('main_app.db')
+    @patch('main_app.routes.status_service')
+    @patch('main_app.routes.db')
     @patch('main_app.routes.get_feed_map')
     def test_cooldown_doubles_per_retry(
         self, mock_feed_map, mock_db, mock_status, mock_lookup, mock_start,
@@ -309,8 +309,8 @@ class TestJITRetryCooldown:
 
     @patch('main_app.processing.start_background_processing', return_value=(True, None))
     @patch('main_app.routes._lookup_episode', return_value=({'id': 'abc123def456', 'url': 'https://example.com/ep.mp3', 'title': 'Ep 1', 'description': 'desc', 'artwork_url': None}, 'Test Podcast'))
-    @patch('main_app.status_service')
-    @patch('main_app.db')
+    @patch('main_app.routes.status_service')
+    @patch('main_app.routes.db')
     @patch('main_app.routes.get_feed_map')
     def test_first_failure_no_cooldown(
         self, mock_feed_map, mock_db, mock_status, mock_lookup, mock_start,

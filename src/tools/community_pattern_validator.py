@@ -359,7 +359,7 @@ def render_markdown_comment(results: List[ValidationResult]) -> str:
         lines.append(f'### Warnings ({len(warned)})')
         lines.append(
             f'Variant suggestions ({dedupe_link}) and unknown-sponsor flags '
-            f'({sponsor_link}) are advisory — the maintainer decides during review.'
+            f'({sponsor_link}) are advisory -- the maintainer decides during review.'
         )
         lines.append('')
         for r in warned:

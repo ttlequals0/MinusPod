@@ -90,7 +90,8 @@ def auth_login():
     if is_public_ip_for_lockout(ip):
         db.record_auth_success(ip)
 
-    # Set session
+    # Rotate the session on login so a pre-auth cookie can't ride the new authenticated state (fixation).
+    session.clear()
     session.permanent = True
     session['authenticated'] = True
     logger.info(f"Successful login from {ip}")
@@ -104,7 +105,21 @@ def auth_login():
 @api.route('/auth/logout', methods=['POST'])
 @log_request
 def auth_logout():
-    """Logout and clear session."""
+    """Logout and clear session.
+
+    Listed in AUTH_EXEMPT_PATHS so an expired session can still call it,
+    which means the blueprint-level CSRF check in check_auth() is skipped.
+    Enforce it manually here so a cross-site POST cannot terminate an
+    authenticated session. Unauthenticated callers bypass (csrf.validate
+    returns None when session.authenticated is False), preserving the
+    "always callable to clear stale state" property.
+    """
+    from api.csrf import validate as csrf_validate
+    csrf_err = csrf_validate(request)
+    if csrf_err:
+        logger.warning("CSRF check failed on /auth/logout ip=%s", request.remote_addr)
+        return error_response(csrf_err, 403)
+
     session.clear()
     logger.info(f"Logout from {request.remote_addr}")
 
@@ -169,7 +184,8 @@ def auth_set_password():
     db.set_setting('app_password', password_hash)
     logger.info(f"Password {'changed' if password_set else 'set'} by {request.remote_addr}")
 
-    # Ensure current session is authenticated
+    # Rotate the session on password change for the same reason as /auth/login.
+    session.clear()
     session.permanent = True
     session['authenticated'] = True
 

@@ -1,31 +1,18 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { getFeeds, refreshFeed, refreshAllFeeds, deleteFeed } from '../api/feeds';
 import FeedCard from '../components/FeedCard';
 import FeedListItem from '../components/FeedListItem';
 import LoadingSpinner from '../components/LoadingSpinner';
+import { useLocalStorageState } from '../hooks/useLocalStorageState';
 
 function Dashboard() {
   const queryClient = useQueryClient();
   const [refreshingSlug, setRefreshingSlug] = useState<string | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<'grid' | 'list'>(() => {
-    const stored = localStorage.getItem('dashboardViewMode');
-    return stored === 'list' ? 'list' : 'grid';
-  });
-  const [sortBy, setSortBy] = useState<'recent' | 'title'>(() => {
-    const stored = localStorage.getItem('dashboardSortBy');
-    return stored === 'title' ? 'title' : 'recent';
-  });
-
-  useEffect(() => {
-    localStorage.setItem('dashboardViewMode', viewMode);
-  }, [viewMode]);
-
-  useEffect(() => {
-    localStorage.setItem('dashboardSortBy', sortBy);
-  }, [sortBy]);
+  const [viewMode, setViewMode] = useLocalStorageState<'grid' | 'list'>('dashboardViewMode', 'grid');
+  const [sortBy, setSortBy] = useLocalStorageState<'recent' | 'title'>('dashboardSortBy', 'recent');
 
   const { data: feeds, isLoading, error } = useQuery({
     queryKey: ['feeds'],

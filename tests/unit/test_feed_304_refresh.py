@@ -33,17 +33,16 @@ class TestFeed304Refresh(unittest.TestCase):
         # slug are not skipped.
         _feeds_module._refresh_coalesce.invalidate()
 
-    @patch('main_app.feeds._get_components')
-    def test_304_with_episodes_updates_last_checked_at(self, mock_get_components):
+    @patch('main_app.feeds.pattern_service')
+    @patch('main_app.feeds.status_service')
+    @patch('main_app.feeds.storage')
+    @patch('main_app.feeds.rss_parser')
+    @patch('main_app.feeds.db')
+    def test_304_with_episodes_updates_last_checked_at(
+        self, db, rss_parser, storage, status_service, pattern_service
+    ):
         """When upstream returns 304 and episodes exist with artwork cached,
         last_checked_at should be updated so the feed is not perpetually stale."""
-        db = MagicMock()
-        rss_parser = MagicMock()
-        storage = MagicMock()
-        status_service = MagicMock()
-        pattern_service = MagicMock()
-        mock_get_components.return_value = (db, rss_parser, storage, status_service, pattern_service)
-
         # Simulate existing podcast with etag
         db.get_podcast_by_slug.return_value = {
             'id': 1, 'feed_url': 'https://example.com/rss',
@@ -68,17 +67,16 @@ class TestFeed304Refresh(unittest.TestCase):
         self.assertIn('last_checked_at', call_kwargs[1])
         status_service.complete_feed_refresh.assert_called_once_with('test-podcast', 0)
 
-    @patch('main_app.feeds._get_components')
-    def test_304_with_missing_artwork_falls_through(self, mock_get_components):
+    @patch('main_app.feeds.pattern_service')
+    @patch('main_app.feeds.status_service')
+    @patch('main_app.feeds.storage')
+    @patch('main_app.feeds.rss_parser')
+    @patch('main_app.feeds.db')
+    def test_304_with_missing_artwork_falls_through(
+        self, db, rss_parser, storage, status_service, pattern_service
+    ):
         """When upstream returns 304 but artwork is not cached,
         a full fetch should be forced (no early return)."""
-        db = MagicMock()
-        rss_parser = MagicMock()
-        storage = MagicMock()
-        status_service = MagicMock()
-        pattern_service = MagicMock()
-        mock_get_components.return_value = (db, rss_parser, storage, status_service, pattern_service)
-
         db.get_podcast_by_slug.return_value = {
             'id': 1, 'feed_url': 'https://example.com/rss',
             'etag': '"abc123"', 'last_modified': None,

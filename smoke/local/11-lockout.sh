@@ -44,6 +44,13 @@ done
 # 6th attempt (even with correct password) should be 429 with Retry-After
 # from the LOCKOUT path -- not from flask-limiter. The lockout handler
 # sets Retry-After; flask-limiter 429 does not include that header.
+#
+# Wait > 60s after the 5th failure so flask-limiter's 3/min sliding
+# window clears. Without this gap, the limiter check (which runs BEFORE
+# the route handler) intercepts the 6th attempt with its own 429 and the
+# lockout path never runs, leaving Retry-After empty.
+sleep 65
+
 resp=$(curl -s -i -X POST "$LOCAL_BASE/api/v1/auth/login" \
     -H "Content-Type: application/json" \
     -H "X-Forwarded-For: $SPOOF" \

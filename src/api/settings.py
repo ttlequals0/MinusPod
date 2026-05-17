@@ -5,6 +5,8 @@ import os
 import re
 import threading
 import uuid
+from dataclasses import dataclass
+from typing import Any, Dict, Mapping
 
 from flask import request
 
@@ -31,14 +33,59 @@ from webhook_service import render_template_preview, fire_test_event, load_webho
 logger = logging.getLogger('podcast.api')
 
 
+@dataclass(frozen=True)
+class SettingEntry:
+    """Typed view of one row from db.get_all_settings().
+
+    The producer (src/database/settings.py:get_all_settings) returns
+    ``{key: {'value': X, 'is_default': Y}}`` dicts to stay compatible with
+    consumers outside this module (secrets_crypto, main_app, tests). The
+    helpers below wrap that dict shape into ``SettingEntry`` so consumers
+    in this file get attribute access and a stable type.
+    """
+    value: Any
+    is_default: bool
+
+
+def _settings_view(raw: Mapping[str, Any]) -> Dict[str, SettingEntry]:
+    """Wrap the raw get_all_settings() dict into a SettingEntry mapping.
+
+    Skips entries that lack the expected shape so a malformed row can't
+    crash the GET /settings endpoint.
+    """
+    view: Dict[str, SettingEntry] = {}
+    for key, info in raw.items():
+        if not isinstance(info, Mapping):
+            continue
+        view[key] = SettingEntry(
+            value=info.get('value'),
+            is_default=bool(info.get('is_default', True)),
+        )
+    return view
+
+
 def _setting_value(settings, key, default=None):
-    """Extract value from the settings dict returned by get_all_settings()."""
-    return settings.get(key, {}).get('value', default)
+    """Extract value from the settings dict returned by get_all_settings().
+
+    Accepts both the raw dict shape and a ``SettingEntry`` mapping so
+    legacy callers keep working without a forced wrap.
+    """
+    entry = settings.get(key)
+    if entry is None:
+        return default
+    if isinstance(entry, SettingEntry):
+        return entry.value if entry.value is not None else default
+    return entry.get('value', default)
 
 
 def _setting_is_default(settings, key):
     """Check if a setting is still at its default value."""
-    return settings.get(key, {}).get('is_default', True)
+    entry = settings.get(key)
+    if entry is None:
+        return True
+    if isinstance(entry, SettingEntry):
+        return entry.is_default
+    return entry.get('is_default', True)
 
 
 # ========== Settings Endpoints ==========
@@ -55,7 +102,7 @@ def get_settings():
     from ad_detector import AdDetector
     from config import DEFAULT_AD_DETECTION_MODEL as DEFAULT_MODEL
     from chapters_generator import CHAPTERS_MODEL
-    settings = db.get_all_settings()
+    settings = _settings_view(db.get_all_settings())
 
     # Shorthand for building {value, isDefault} response dicts
     def _sv(key, value=None):
@@ -270,7 +317,13 @@ def get_settings():
 @api.route('/settings/ad-detection', methods=['PUT'])
 @log_request
 def update_ad_detection_settings():
-    """Update ad detection settings."""
+    """Update ad detection settings.
+
+    Dispatches the payload through a sequence of phase helpers; each helper
+    handles a related slice of fields (prompts, model selection, numeric
+    clamps, provider gating, whisper config, etc.). Helpers return None on
+    success or a Flask response tuple to short-circuit with a 400/409.
+    """
     data = request.get_json()
 
     if not data:
@@ -278,22 +331,42 @@ def update_ad_detection_settings():
 
     db = get_database()
 
-    if 'systemPrompt' in data:
-        db.set_setting('system_prompt', data['systemPrompt'], is_default=False)
-        logger.info("Updated system prompt")
+    phases = (
+        _apply_prompt_fields,
+        _apply_review_fields,
+        _apply_model_fields,
+        _apply_processing_flags,
+        _apply_min_cut_confidence,
+        _apply_provider_fields,
+        _apply_whisper_fields,
+        _apply_vad_gap_fields,
+        _apply_podcast_index_fields,
+        _apply_stage_tunables,
+    )
+    for phase in phases:
+        err = phase(db, data)
+        if err is not None:
+            return err
 
-    if 'verificationPrompt' in data:
-        db.set_setting('verification_prompt', data['verificationPrompt'], is_default=False)
-        logger.info("Updated verification prompt")
+    return json_response({'message': 'Settings updated'})
 
-    if 'reviewPrompt' in data:
-        db.set_setting('review_prompt', data['reviewPrompt'], is_default=False)
-        logger.info("Updated review prompt")
 
-    if 'resurrectPrompt' in data:
-        db.set_setting('resurrect_prompt', data['resurrectPrompt'], is_default=False)
-        logger.info("Updated resurrect prompt")
+def _apply_prompt_fields(db, data):
+    """Persist the four prompt strings (no coercion, no validation)."""
+    for payload_key, db_key, log_label in (
+        ('systemPrompt', 'system_prompt', 'system prompt'),
+        ('verificationPrompt', 'verification_prompt', 'verification prompt'),
+        ('reviewPrompt', 'review_prompt', 'review prompt'),
+        ('resurrectPrompt', 'resurrect_prompt', 'resurrect prompt'),
+    ):
+        if payload_key in data:
+            db.set_setting(db_key, data[payload_key], is_default=False)
+            logger.info(f"Updated {log_label}")
+    return None
 
+
+def _apply_review_fields(db, data):
+    """Persist the LLM-reviewer toggle, model, and boundary-shift clamp."""
     if 'enableAdReview' in data:
         value = 'true' if bool(data['enableAdReview']) else 'false'
         db.set_setting('enable_ad_review', value, is_default=False)
@@ -310,7 +383,11 @@ def update_ad_detection_settings():
             return error_response('reviewMaxBoundaryShift must be an integer', 400)
         db.set_setting('review_max_boundary_shift', str(value), is_default=False)
         logger.info(f"Updated review_max_boundary_shift to: {value}")
+    return None
 
+
+def _apply_model_fields(db, data):
+    """Persist primary model selections; whisper change marks model for reload."""
     if 'claudeModel' in data:
         db.set_setting('claude_model', data['claudeModel'], is_default=False)
         logger.info(f"Updated Claude model to: {data['claudeModel']}")
@@ -329,6 +406,14 @@ def update_ad_detection_settings():
         except Exception as e:
             logger.warning(f"Could not mark model for reload: {e}")
 
+    if 'chaptersModel' in data:
+        db.set_setting('chapters_model', data['chaptersModel'], is_default=False)
+        logger.info(f"Updated chapters model to: {data['chaptersModel']}")
+    return None
+
+
+def _apply_processing_flags(db, data):
+    """Persist boolean processing toggles and the maxFeedEpisodes clamp."""
     if 'autoProcessEnabled' in data:
         value = 'true' if data['autoProcessEnabled'] else 'false'
         db.set_setting('auto_process_enabled', value, is_default=False)
@@ -358,17 +443,26 @@ def update_ad_detection_settings():
         value = 'true' if data['chaptersEnabled'] else 'false'
         db.set_setting('chapters_enabled', value, is_default=False)
         logger.info(f"Updated chapters generation to: {value}")
+    return None
 
-    if 'chaptersModel' in data:
-        db.set_setting('chapters_model', data['chaptersModel'], is_default=False)
-        logger.info(f"Updated chapters model to: {data['chaptersModel']}")
 
+def _apply_min_cut_confidence(db, data):
+    """Clamp min_cut_confidence to [0.50, 0.95]."""
     if 'minCutConfidence' in data:
         # Clamp to valid range (0.50 - 0.95)
         value = max(0.50, min(0.95, float(data['minCutConfidence'])))
         db.set_setting('min_cut_confidence', str(value), is_default=False)
         logger.info(f"Updated min cut confidence to: {value}")
+    return None
 
+
+def _apply_provider_fields(db, data):
+    """Persist LLM provider + base URL + key, then run post-change side effects.
+
+    On any provider-affecting change: clear cached json_format probe, force a
+    fresh client, probe again, refresh pricing in a background thread, and
+    prune any saved model ID that the new provider does not advertise.
+    """
     provider_changed = False
     if 'llmProvider' in data:
         valid_llm_providers = (
@@ -427,7 +521,18 @@ def update_ad_detection_settings():
                     db.reset_setting(setting_key)
         except Exception:
             logger.exception("Failed to prune stale model selections after provider change")
+    # The TTL cache backing get_effective_base_url / get_effective_provider
+    # lags writes by up to 5s. Without this invalidation, the GET /settings
+    # response that fires right after this PUT returns the pre-write value,
+    # the UI re-hydrates state to the stale value, hasChanges flips back to
+    # false, and the Save Changes button vanishes -- see issue #234.
+    from llm_client import invalidate_provider_cache
+    invalidate_provider_cache()
+    return None
 
+
+def _apply_whisper_fields(db, data):
+    """Persist whisper backend selection, API endpoint, key, model, language, compute type."""
     if 'whisperBackend' in data:
         valid_whisper_backends = (WHISPER_BACKEND_LOCAL, WHISPER_BACKEND_API)
         if data['whisperBackend'] not in valid_whisper_backends:
@@ -483,7 +588,11 @@ def update_ad_detection_settings():
         except Exception:
             logger.exception("Failed to mark Whisper model for reload after compute_type change")
         logger.info(f"Updated whisper compute type to: {ct_val}")
+    return None
 
+
+def _apply_vad_gap_fields(db, data):
+    """Persist VAD gap-detection toggle plus the three positive-float thresholds."""
     if 'vadGapDetectionEnabled' in data:
         raw = data['vadGapDetectionEnabled']
         if isinstance(raw, bool):
@@ -508,7 +617,11 @@ def update_ad_detection_settings():
             return json_response({'error': f'{field_name} must be a positive number'}, 400)
         db.set_setting(db_key, str(value), is_default=False)
         logger.info(f"Updated {db_key} to: {value}")
+    return None
 
+
+def _apply_podcast_index_fields(db, data):
+    """Persist Podcast Index API credentials via the secret writer."""
     if 'podcastIndexApiKey' in data:
         try:
             set_or_clear_secret(db, 'podcast_index_api_key', data['podcastIndexApiKey'])
@@ -522,14 +635,7 @@ def update_ad_detection_settings():
         except SecretWriteRejected:
             return error_response('provider_crypto_unavailable', 409)
         logger.info("Updated Podcast Index API secret")
-
-    # Per-stage LLM tunables (21 fields). Provider-aware reasoning split keeps
-    # Anthropic's numeric budget separate from the other providers' enum.
-    tunable_err = _apply_stage_tunables(db, data)
-    if tunable_err is not None:
-        return tunable_err
-
-    return json_response({'message': 'Settings updated'})
+    return None
 
 
 def _effective_provider_after_update(data):

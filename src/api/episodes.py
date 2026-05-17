@@ -11,6 +11,11 @@ from api import (
     api, limiter, log_request, json_response, error_response,
     get_database, get_storage, extract_transcript_segment,
 )
+from audio_peaks import compute_peaks, PeaksError
+from chapters_generator import ChaptersGenerator
+from llm_client import start_episode_token_tracking, get_episode_token_totals
+from processing_queue import ProcessingQueue
+from utils.constants import EpisodeStatus
 from utils.episode_paths import episode_public_url
 from utils.text import parse_transcript_segments
 from utils.time import parse_timestamp, utc_now_iso
@@ -67,8 +72,8 @@ def list_episodes(slug):
         # Map status for frontend compatibility
         # 'processed' -> 'completed'; discovered/permanently_failed pass through
         status = ep['status']
-        if status == 'processed':
-            status = 'completed'
+        if status == EpisodeStatus.PROCESSED:
+            status = EpisodeStatus.COMPLETED.value
 
         episode_list.append({
             # Frontend expected fields
@@ -136,14 +141,14 @@ def get_episode(slug, episode_id):
 
     # Map status for frontend compatibility
     status = episode['status']
-    if status == 'processed':
-        status = 'completed'
+    if status == EpisodeStatus.PROCESSED:
+        status = EpisodeStatus.COMPLETED.value
 
     # Get file size and Podcasting 2.0 asset availability if processed
     file_size = None
     storage = get_storage()
 
-    if status == 'completed':
+    if status == EpisodeStatus.COMPLETED:
         file_path = storage.get_episode_path(slug, episode_id)
         if file_path.exists():
             file_size = file_path.stat().st_size
@@ -337,7 +342,6 @@ def get_episode_peaks(slug, episode_id):
     end_seconds = _f('end')
     resolution_ms = _i('resolution_ms', 50)
 
-    from audio_peaks import compute_peaks, PeaksError
     try:
         peaks, effective_resolution_ms = compute_peaks(
             path,
@@ -425,7 +429,7 @@ def reprocess_episode(slug, episode_id):
     if not episode:
         return error_response('Episode not found', 404)
 
-    if episode['status'] == 'processing':
+    if episode['status'] == EpisodeStatus.PROCESSING:
         return error_response('Episode is currently processing', 409)
 
     podcast = db.get_podcast_by_slug(slug)
@@ -516,9 +520,6 @@ def regenerate_chapters(slug, episode_id):
     episode_title = episode.get('title', 'Unknown')
 
     try:
-        from chapters_generator import ChaptersGenerator
-        from llm_client import start_episode_token_tracking, get_episode_token_totals
-
         start_episode_token_tracking()
         chapters_gen = ChaptersGenerator()
 
@@ -616,7 +617,7 @@ def reprocess_all_episodes(slug):
         return error_response('Feed not found', 404)
 
     # Get all episodes that have been processed
-    episodes, _ = db.get_episodes(slug, status='processed')
+    episodes, _ = db.get_episodes(slug, status=EpisodeStatus.PROCESSED.value)
 
     if not episodes:
         return json_response({
@@ -633,7 +634,7 @@ def reprocess_all_episodes(slug):
         episode_id = episode['episode_id']
 
         # Skip if already processing
-        if episode.get('status') == 'processing':
+        if episode.get('status') == EpisodeStatus.PROCESSING:
             skipped.append({'episodeId': episode_id, 'reason': 'Already processing'})
             continue
 
@@ -647,7 +648,7 @@ def reprocess_all_episodes(slug):
             # Reset status to pending with reprocess mode for priority queue
             db.upsert_episode(
                 slug, episode_id,
-                status='pending',
+                status=EpisodeStatus.PENDING.value,
                 reprocess_mode=mode,
                 reprocess_requested_at=utc_now_iso(),
                 retry_count=0,
@@ -811,8 +812,6 @@ def retry_ad_detection(slug, episode_id):
         return error_response('No transcript available - full reprocess required', 400)
 
     try:
-        from llm_client import start_episode_token_tracking, get_episode_token_totals
-
         # Parse transcript back into segments
         segments = parse_transcript_segments(transcript)
 
@@ -919,7 +918,7 @@ def cancel_episode_processing(slug, episode_id):
     if not episode:
         return error_response('Episode not found', 404)
 
-    if episode['status'] != 'processing':
+    if episode['status'] != EpisodeStatus.PROCESSING:
         return error_response(
             f"Episode is not processing (status: {episode['status']})",
             400
@@ -940,7 +939,6 @@ def cancel_episode_processing(slug, episode_id):
         conn.commit()
 
         try:
-            from processing_queue import ProcessingQueue
             queue = ProcessingQueue()
             if queue.is_processing(slug, episode_id):
                 queue.release()
@@ -980,7 +978,7 @@ def reprocess_episode_with_mode(slug, episode_id):
     if not episode:
         return error_response('Episode not found', 404)
 
-    if episode['status'] == 'processing':
+    if episode['status'] == EpisodeStatus.PROCESSING:
         return error_response('Episode is currently processing', 409)
 
     podcast = db.get_podcast_by_slug(slug)
@@ -991,7 +989,7 @@ def reprocess_episode_with_mode(slug, episode_id):
         # 1. Set reprocess_mode FIRST so process_episode can read it
         db.upsert_episode(
             slug, episode_id,
-            status='pending',
+            status=EpisodeStatus.PENDING.value,
             reprocess_mode=mode,
             reprocess_requested_at=utc_now_iso(),
             retry_count=0,

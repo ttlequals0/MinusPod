@@ -4,12 +4,15 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getEpisode, getOriginalTranscript, reprocessEpisode, regenerateChapters } from '../api/feeds';
 import { submitCorrection } from '../api/patterns';
 import LoadingSpinner from '../components/LoadingSpinner';
+import Artwork from '../components/Artwork';
 import { EPISODE_STATUS_COLORS } from '../utils/episodeStatus';
+import { DETECTION_STAGE_META } from '../utils/detectionStage';
 import { stripHtml } from '../utils/stripHtml';
 import { formatConfidence } from '../utils/confidence';
 import AdEditor, { AdCorrection } from '../components/AdEditor';
 import PatternLink from '../components/PatternLink';
 import CollapsibleSection from '../components/CollapsibleSection';
+import { useLocalStorageState } from '../hooks/useLocalStorageState';
 import { formatStorage } from './settings/settingsUtils';
 
 function TranscriptBlock({ text }: { text: string }) {
@@ -34,11 +37,13 @@ function EpisodeDetail() {
   const [showReprocessMenu, setShowReprocessMenu] = useState(false);
   const [editorSelectedAdIndex, setEditorSelectedAdIndex] = useState(0);
   const [savedScrollY, setSavedScrollY] = useState<number | null>(null);
-  const [reviewMode, setReviewMode] = useState<'processed' | 'original'>(
-    () => (localStorage.getItem('ad-editor-review-mode') === 'original' ? 'original' : 'processed')
+  const [reviewMode, setReviewMode] = useLocalStorageState<'processed' | 'original'>(
+    'ad-editor-review-mode',
+    'processed',
   );
-  const [originalTranscriptRequested, setOriginalTranscriptRequested] = useState(
-    () => localStorage.getItem('episode-original-transcript') === 'true'
+  const [originalTranscriptRequested, setOriginalTranscriptRequested] = useLocalStorageState<boolean>(
+    'episode-original-transcript',
+    false,
   );
   const editorRef = useRef<HTMLDivElement>(null);
 
@@ -180,7 +185,7 @@ function EpisodeDetail() {
   };
 
   // Helper to find correction for an ad marker. 'create' corrections
-  // have original_bounds=null (there is no original — it's a net-new
+  // have original_bounds=null (there is no original -- it's a net-new
   // marker); guard the dereference so iterating the corrections list
   // doesn't crash after a create save.
   const getAdCorrection = (start: number, end: number) => {
@@ -215,13 +220,10 @@ function EpisodeDetail() {
       <div className="bg-card rounded-lg border border-border p-4 sm:p-6 mb-6">
         <div className="flex gap-4">
           <div className="w-16 h-16 sm:w-24 sm:h-24 shrink-0">
-            <img
+            <Artwork
               src={`/api/v1/feeds/${slug}/artwork`}
               alt="Podcast artwork"
               className="w-full h-full object-cover rounded-lg"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="%239ca3af"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>';
-              }}
             />
           </div>
           <div className="flex flex-col gap-2 min-w-0">
@@ -461,10 +463,7 @@ function EpisodeDetail() {
                 audioUrl={`/episodes/${slug}/${episode.id}.mp3`}
                 audioMode={reviewMode}
                 hasOriginal={!!episode.hasOriginalAudio}
-                onAudioModeChange={(m) => {
-                  setReviewMode(m);
-                  localStorage.setItem('ad-editor-review-mode', m);
-                }}
+                onAudioModeChange={setReviewMode}
                 onCorrection={handleCorrection}
                 onClose={() => {
                   setShowEditor(false);
@@ -496,17 +495,9 @@ function EpisodeDetail() {
                       ? `${formatTimestamp(segment.reviewer_original_start)} - ${formatTimestamp(segment.reviewer_original_end)}`
                       : `${formatTimestamp(segment.start)} - ${formatTimestamp(segment.end)}`}
                   </span>
-                  {segment.detection_stage && (
-                    <span className={`px-1.5 py-0.5 text-xs rounded font-medium ${
-                      segment.detection_stage === 'verification'
-                        ? 'bg-purple-500/20 text-purple-600 dark:text-purple-400'
-                        : segment.detection_stage === 'manual'
-                          ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400'
-                          : 'bg-blue-500/20 text-blue-600 dark:text-blue-400'
-                    }`}>
-                      {segment.detection_stage === 'verification' ? 'Pass 2'
-                        : segment.detection_stage === 'manual' ? 'Manual'
-                        : 'Pass 1'}
+                  {segment.detection_stage && DETECTION_STAGE_META[segment.detection_stage] && (
+                    <span className={`px-1.5 py-0.5 text-xs rounded font-medium ${DETECTION_STAGE_META[segment.detection_stage].className}`}>
+                      {DETECTION_STAGE_META[segment.detection_stage].label}
                     </span>
                   )}
                   {segment.sponsor && (

@@ -50,7 +50,7 @@ def test_dedupe_identifies_duplicate_when_near_identical():
 
 
 def test_dedupe_identifies_variant():
-    # Same sponsor + same opener and closing sentence, middle CTA swapped —
+    # Same sponsor + same opener and closing sentence, middle CTA swapped -- 
     # calibrated to land around 0.78-0.85 on SequenceMatcher.
     base = (
         'Visit Squarespace dot com slash show for a free trial. Use code SHOW '

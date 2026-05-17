@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, type ReactNode } from 'react';
+import { useLocalStorageState } from '../hooks/useLocalStorageState';
 
 interface CollapsibleSectionProps {
   title: string;
@@ -21,18 +22,10 @@ function CollapsibleSection({
 }: CollapsibleSectionProps) {
   const resolvedKey = storageKey || `settings-section-${title.toLowerCase().replace(/\s+/g, '-')}`;
 
-  const [isOpen, setIsOpen] = useState(() => {
-    const stored = localStorage.getItem(resolvedKey);
-    if (stored !== null) return stored === 'true';
-    return defaultOpen;
-  });
+  const [isOpen, setIsOpen] = useLocalStorageState<boolean>(resolvedKey, defaultOpen);
 
   const contentRef = useRef<HTMLDivElement>(null);
   const [maxHeight, setMaxHeight] = useState<string>(isOpen ? 'none' : '0px');
-
-  useEffect(() => {
-    localStorage.setItem(resolvedKey, String(isOpen));
-  }, [isOpen, resolvedKey]);
 
   useEffect(() => {
     if (isOpen) {
