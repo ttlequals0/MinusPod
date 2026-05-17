@@ -31,6 +31,7 @@ audio_logger = logging.getLogger('podcast.audio')
 
 # Import shared warn-dedup set so routes and processing share one instance
 from main_app.shared_state import permanently_failed_warned as _permanently_failed_warned
+from main_app.episode_context import EpisodeContext
 
 
 def _get_components():
@@ -290,38 +291,27 @@ def _run_audio_analysis(slug, episode_id, audio_path, segments):
         return None
 
 
-def _detect_ads_first_pass(slug, episode_id, segments, audio_path,
-                            episode_description, podcast_description,
+def _detect_ads_first_pass(ctx, segments, audio_path,
                             skip_patterns, audio_analysis_result,
-                            podcast_name, episode_title,
                             progress_callback, cancel_event=None):
     """Pipeline stage: Run first-pass Claude ad detection.
 
     Returns (first_pass_ads, first_pass_count, ad_result).
     """
+    slug = ctx.slug
+    episode_id = ctx.episode_id
     db, storage, _, ad_detector, _, _, _, status_service, _, _ = _get_components()
     status_service.update_job_stage("pass1:detecting", 50)
     clear_fallback(episode_id, PASS_AD_DETECTION_1)
-    # Load podcast tags once for the matcher's community-pattern eligibility check.
-    podcast_tags = None
-    try:
-        podcast_row = db.get_podcast_by_slug(slug)
-        if podcast_row and podcast_row.get('tags'):
-            import json as _json
-            podcast_tags = set(_json.loads(podcast_row['tags']))
-    except Exception:
-        podcast_tags = None
 
     ad_result = ad_detector.process_transcript(
-        segments, podcast_name, episode_title, slug, episode_id, episode_description,
+        segments,
         audio_path=audio_path,
-        podcast_id=slug,
         skip_patterns=skip_patterns,
-        podcast_description=podcast_description,
-        podcast_tags=podcast_tags,
         progress_callback=progress_callback,
         audio_analysis=audio_analysis_result,
-        cancel_event=cancel_event
+        cancel_event=cancel_event,
+        ctx=ctx,
     )
     storage.save_ads_json(slug, episode_id, ad_result, pass_number=1)
 
@@ -543,9 +533,7 @@ def _build_episode_meta(slug, episode_id, podcast_id, podcast_name,
     }
 
 
-def _apply_pass2_reviewer(slug, episode_id, podcast_name, episode_title,
-                           episode_description, podcast_description,
-                           v_ads_to_cut, v_ads_for_ui,
+def _apply_pass2_reviewer(ctx, v_ads_to_cut, v_ads_for_ui,
                            verification_ads_processed, verification_ads_original,
                            original_segments, min_cut_confidence):
     """Run the reviewer on pass 2 results, in original transcript coordinates.
@@ -555,6 +543,12 @@ def _apply_pass2_reviewer(slug, episode_id, podcast_name, episode_title,
     original coords cannot safely round-trip through pass 1 cuts to processed
     coords; supporting it would require a per-pass-1-cut timestamp map.
     """
+    slug = ctx.slug
+    episode_id = ctx.episode_id
+    podcast_name = ctx.podcast_name
+    episode_title = ctx.episode_title
+    podcast_description = ctx.podcast_description
+    episode_description = ctx.episode_description
     db, _, _, ad_detector, _, _, _, status_service, _, _ = _get_components()
     clear_fallback(episode_id, PASS_REVIEWER_2)
 
@@ -929,15 +923,20 @@ def _recut_processed_audio(slug, episode_id, processed_path, v_ads_to_cut,
     return processed_path, 0, False
 
 
-def _run_verification_pass(slug, episode_id, processed_path, ads_to_remove,
-                            podcast_name, episode_title, episode_description,
-                            podcast_description, skip_patterns, min_cut_confidence,
+def _run_verification_pass(ctx, processed_path, ads_to_remove,
+                            skip_patterns, min_cut_confidence,
                             local_audio_processor, progress_callback,
                             original_segments=None):
     """Pipeline stage: Run verification (second pass) on processed audio.
 
     Returns (verification_count, v_ads_for_ui, processed_path).
     """
+    slug = ctx.slug
+    episode_id = ctx.episode_id
+    podcast_name = ctx.podcast_name
+    episode_title = ctx.episode_title
+    episode_description = ctx.episode_description
+    podcast_description = ctx.podcast_description
     db, _, _, ad_detector, _, audio_analyzer, _, _, pattern_service, _ = _get_components()
     verification_count = 0
     v_ads_for_ui = []
@@ -999,8 +998,7 @@ def _run_verification_pass(slug, episode_id, processed_path, ads_to_remove,
                 # a boundary shift back to processed coordinates is unsafe
                 # across pass 1 cuts.
                 _apply_pass2_reviewer(
-                    slug, episode_id, podcast_name, episode_title,
-                    episode_description, podcast_description,
+                    ctx,
                     v_ads_to_cut, v_ads_for_ui,
                     verification_ads_processed, verification_ads_original,
                     original_segments, min_cut_confidence,
@@ -1349,13 +1347,33 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             def detection_progress_callback(stage, percent):
                 status_service.update_job_stage(f"{current_pass}:{stage}", percent)
 
+            # Build the per-episode immutable context once. Podcast tags drive
+            # the matcher's community-pattern eligibility check; podcast_id is
+            # the integer DB PK used by the reviewer's episode_meta.
+            podcast_row_for_ctx = db.get_podcast_by_slug(slug)
+            podcast_tags_for_ctx = None
+            if podcast_row_for_ctx and podcast_row_for_ctx.get('tags'):
+                try:
+                    podcast_tags_for_ctx = set(json.loads(podcast_row_for_ctx['tags']))
+                except Exception:
+                    podcast_tags_for_ctx = None
+            ctx = EpisodeContext(
+                slug=slug,
+                episode_id=episode_id,
+                podcast_name=podcast_name,
+                episode_title=episode_title,
+                podcast_id=(podcast_row_for_ctx.get('id') if podcast_row_for_ctx else None),
+                podcast_description=podcast_description,
+                episode_description=episode_description,
+                podcast_tags=podcast_tags_for_ctx,
+            )
+
             # Stage 3: First-pass detection
             first_pass_ads, first_pass_count, ad_result = _detect_ads_first_pass(
-                slug, episode_id, segments, audio_path,
-                episode_description, podcast_description,
+                ctx, segments, audio_path,
                 skip_patterns, audio_analysis_result,
-                podcast_name, episode_title, detection_progress_callback,
-                cancel_event=cancel_event
+                detection_progress_callback,
+                cancel_event=cancel_event,
             )
             _check_cancel(cancel_event, slug, episode_id)
 
@@ -1406,9 +1424,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # Stage 6: Verification pass
             current_pass = "pass2"
             verification_count, v_ads_for_ui, processed_path = _run_verification_pass(
-                slug, episode_id, processed_path, ads_to_remove,
-                podcast_name, episode_title, episode_description,
-                podcast_description, skip_patterns, min_cut_confidence,
+                ctx, processed_path, ads_to_remove,
+                skip_patterns, min_cut_confidence,
                 local_audio_processor, detection_progress_callback,
                 original_segments=segments,
             )

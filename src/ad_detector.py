@@ -1742,7 +1742,9 @@ class AdDetector:
                           podcast_tags: Optional[set] = None,
                           progress_callback=None,
                           audio_analysis=None,
-                          cancel_event=None) -> Dict:
+                          cancel_event=None,
+                          *,
+                          ctx=None) -> Dict:
         """Process transcript for ad detection using three-stage pipeline.
 
         Pipeline stages:
@@ -1763,10 +1765,25 @@ class AdDetector:
             podcast_description: Podcast-level description for context
             progress_callback: Optional callback(stage, percent) to report progress
             cancel_event: Optional threading.Event for cooperative cancellation
+            ctx: Optional EpisodeContext supplying the immutable per-episode
+                 fields (slug, episode_id, podcast_name, etc.). When provided,
+                 its fields override the matching positional/keyword args.
 
         Returns:
             Dict with ads, status, and detection metadata
         """
+        if ctx is not None:
+            slug = ctx.slug
+            episode_id = ctx.episode_id
+            podcast_name = ctx.podcast_name
+            episode_title = ctx.episode_title
+            # Pattern scoping inside this method uses the slug, regardless of
+            # the ctx.podcast_id (which is the integer DB PK and means
+            # something different to downstream reviewers).
+            podcast_id = ctx.slug
+            podcast_description = ctx.podcast_description
+            episode_description = ctx.episode_description
+            podcast_tags = ctx.podcast_tags
         all_ads = []
         pattern_matched_regions = []  # Regions covered by pattern matching
         detection_stats = {
