@@ -45,33 +45,32 @@ interface SortThProps {
   label: string;
   align?: 'left' | 'right';
   className?: string;
+  sortField: PodcastSortField;
+  sortDir: 'asc' | 'desc';
+  onSort: (f: PodcastSortField) => void;
 }
 
 /**
- * Build a SortTh component bound to the current sort state. Callers render
- * <SortTh field=... label=... /> per column without repeating
- * sortField/sortDir/onSort on every instance (8x in the desktop table).
+ * Stable component declared at module scope so React's compiler / eslint
+ * `react-hooks/static-components` doesn't flag a per-render component
+ * factory. The cost is that callers thread sortField/sortDir/onSort
+ * through every instance; the win is no per-render component identity
+ * churn (each row would otherwise remount on every sort change).
  */
-function makeSortTh(
-  sortField: PodcastSortField,
-  sortDir: 'asc' | 'desc',
-  onSort: (f: PodcastSortField) => void,
-) {
-  return function SortTh({ field, label, align = 'right', className = '' }: SortThProps) {
-    return (
-      <th
-        className={`px-4 py-3 text-${align} text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer hover:bg-accent/50 ${className}`}
-        onClick={() => onSort(field)}
-      >
-        <div className={`flex items-center gap-1 ${align === 'right' ? 'justify-end' : ''}`}>
-          {label}
-          {sortField === field && (
-            <span className="text-foreground">{sortDir === 'asc' ? '\u25B2' : '\u25BC'}</span>
-          )}
-        </div>
-      </th>
-    );
-  };
+function SortTh({ field, label, align = 'right', className = '', sortField, sortDir, onSort }: SortThProps) {
+  return (
+    <th
+      className={`px-4 py-3 text-${align} text-xs font-medium text-muted-foreground uppercase tracking-wider cursor-pointer hover:bg-accent/50 ${className}`}
+      onClick={() => onSort(field)}
+    >
+      <div className={`flex items-center gap-1 ${align === 'right' ? 'justify-end' : ''}`}>
+        {label}
+        {sortField === field && (
+          <span className="text-foreground">{sortDir === 'asc' ? '\u25B2' : '\u25BC'}</span>
+        )}
+      </div>
+    </th>
+  );
 }
 
 function ReviewerStatCard({ label, value }: { label: string; value: number | string }) {
@@ -155,14 +154,6 @@ export default function StatsPage() {
       setSortDir('desc');
     }
   };
-
-  const SortTh = useMemo(
-    () => makeSortTh(sortField, sortDir, handleSort),
-    // handleSort closes over sortField/sortDir so re-binding when either
-    // changes is enough; eslint can't infer the indirection.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [sortField, sortDir]
-  );
 
   const sortedPodcasts = useMemo(() => {
     if (!byPodcast?.podcasts) return [];
@@ -386,14 +377,14 @@ export default function StatsPage() {
             <table className="w-full">
               <thead className="bg-muted/50">
                 <tr>
-                  <SortTh field="podcastTitle" label="Podcast" align="left" />
-                  <SortTh field="episodeCount" label="Episodes" />
-                  <SortTh field="totalAds" label="Total Ads" />
-                  <SortTh field="avgAds" label="Avg Ads" />
-                  <SortTh field="avgTimeSavedSeconds" label="Avg Time Saved" />
-                  <SortTh field="avgEpisodeLengthSeconds" label="Avg Length" className="hidden lg:table-cell" />
-                  <SortTh field="totalCost" label="Total Cost" className="hidden lg:table-cell" />
-                  <SortTh field="avgTokensPerEpisode" label="Avg Tokens" className="hidden lg:table-cell" />
+                  <SortTh field="podcastTitle" label="Podcast" align="left" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+                  <SortTh field="episodeCount" label="Episodes" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+                  <SortTh field="totalAds" label="Total Ads" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+                  <SortTh field="avgAds" label="Avg Ads" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+                  <SortTh field="avgTimeSavedSeconds" label="Avg Time Saved" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+                  <SortTh field="avgEpisodeLengthSeconds" label="Avg Length" className="hidden lg:table-cell" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+                  <SortTh field="totalCost" label="Total Cost" className="hidden lg:table-cell" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
+                  <SortTh field="avgTokensPerEpisode" label="Avg Tokens" className="hidden lg:table-cell" sortField={sortField} sortDir={sortDir} onSort={handleSort} />
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">

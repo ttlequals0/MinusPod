@@ -907,21 +907,25 @@ def export_patterns():
     return json_response(export_data)
 
 
-def _validate_import_request(data):
-    """Parse top-level import payload.
+_IMPORT_MODES = ('merge', 'replace', 'supplement')
 
-    Returns (patterns_list, mode, error_response_or_empty_payload_response).
-    The third value, if not None, is the response to return directly
-    (either a 400 error or a no-op 200 for empty merge/supplement).
+
+def _validate_import_request(patterns, mode):
+    """Validate already-extracted import parameters.
+
+    `patterns` and `mode` are pulled from the request JSON by the caller
+    so the call site retains a direct line from `request.get_json()` to
+    its validator -- keeps interprocedural taint analysis (CodeQL) able
+    to see the bounded set of accepted values.
+
+    Returns (patterns_list_or_None, error_response_or_empty_payload_response).
+    The second value, when not None, is a response to return directly.
     """
-    if not data or 'patterns' not in data:
-        return None, None, error_response('No patterns provided', 400)
+    if patterns is None:
+        return None, error_response('No patterns provided', 400)
 
-    patterns = data.get('patterns', [])
-    mode = data.get('mode', 'merge')
-
-    if mode not in ('merge', 'replace', 'supplement'):
-        return None, None, error_response(
+    if mode not in _IMPORT_MODES:
+        return None, error_response(
             'Invalid mode. Use "merge", "replace", or "supplement"', 400
         )
 
@@ -931,12 +935,12 @@ def _validate_import_request(data):
     # case stays a 400.
     if not patterns:
         if mode == 'replace':
-            return None, None, error_response(
+            return None, error_response(
                 'Empty patterns array with mode=replace would wipe the table; '
                 'pass mode=merge or mode=supplement for a round-trip',
                 400,
             )
-        return None, None, json_response({
+        return None, json_response({
             'mode': mode,
             'importedCount': 0,
             'updatedCount': 0,
@@ -944,7 +948,7 @@ def _validate_import_request(data):
             'message': 'No patterns in payload; nothing to do',
         })
 
-    return patterns, mode, None
+    return patterns, None
 
 
 def _validate_import_items(patterns):
@@ -1058,11 +1062,17 @@ def import_patterns():
       - supplement: Only add patterns that don't exist
     """
     db = get_database()
-    data = request.get_json()
+    data = request.get_json() or {}
+    # Pull the user-controlled values once at the boundary; the validator
+    # below only sees already-extracted args. Keeps the data-flow visible
+    # to interprocedural analysis.
+    raw_patterns = data.get('patterns') if isinstance(data, dict) else None
+    raw_mode = data.get('mode', 'merge') if isinstance(data, dict) else 'merge'
 
-    patterns, mode, early_response = _validate_import_request(data)
+    patterns, early_response = _validate_import_request(raw_patterns, raw_mode)
     if early_response is not None:
         return early_response
+    mode = raw_mode  # validator has already constrained mode to _IMPORT_MODES
 
     valid_patterns, err = _validate_import_items(patterns)
     if err is not None:
