@@ -724,7 +724,10 @@ def bulk_episode_action(slug):
                 continue
             eligible_ids.append(episode_id)
         if eligible_ids:
-            queued = db.batch_set_episodes_pending(slug, eligible_ids)
+            # reprocess_requested_at marks the row as user-initiated so the
+            # background drainer's auto-process-disabled gate bypasses it.
+            queued = db.batch_set_episodes_pending(slug, eligible_ids,
+                                                    reprocess_requested_at=utc_now_iso())
             skipped += len(eligible_ids) - queued
 
     elif action in ('reprocess', 'reprocess_full'):

@@ -89,7 +89,8 @@ class SchemaMixin:
                 community_id TEXT,
                 version INTEGER NOT NULL DEFAULT 1,
                 submitted_app_version TEXT,
-                protected_from_sync INTEGER NOT NULL DEFAULT 0
+                protected_from_sync INTEGER NOT NULL DEFAULT 0,
+                source_language TEXT
             )
         """)
 
@@ -418,6 +419,11 @@ class SchemaMixin:
             conn, 'ad_patterns', 'protected_from_sync',
             'INTEGER NOT NULL DEFAULT 0', ap_cols,
         )
+
+        # source_language (#252): ISO 639-1 code of the transcript the pattern
+        # was learned from. Nullable; matcher treats null as language-agnostic.
+        ap_cols = self._get_table_columns(conn, 'ad_patterns')
+        self._add_column_if_missing(conn, 'ad_patterns', 'source_language', 'TEXT', ap_cols)
 
         # Indexes for source filtering and community_id lookup (idempotent)
         try:

@@ -157,7 +157,8 @@ class PatternMixin:
                           community_id: str = None,
                           version: int = 1,
                           submitted_app_version: str = None,
-                          protected_from_sync: int = 0) -> int:
+                          protected_from_sync: int = 0,
+                          source_language: str = None) -> int:
         """Create a new ad pattern. Returns pattern ID."""
         conn = self.get_connection()
         cursor = conn.execute(
@@ -165,14 +166,16 @@ class PatternMixin:
                (scope, text_template, sponsor_id, podcast_id, network_id, dai_platform,
                 intro_variants, outro_variants, created_from_episode_id,
                 avg_duration, duration_samples, created_by,
-                source, community_id, version, submitted_app_version, protected_from_sync)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                source, community_id, version, submitted_app_version, protected_from_sync,
+                source_language)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (scope, text_template, sponsor_id, podcast_id, network_id, dai_platform,
              json.dumps(intro_variants or []), json.dumps(outro_variants or []),
              created_from_episode_id,
              duration, 1 if duration is not None else 0,
              created_by,
-             source, community_id, version, submitted_app_version, protected_from_sync)
+             source, community_id, version, submitted_app_version, protected_from_sync,
+             source_language)
         )
         conn.commit()
         return cursor.lastrowid
@@ -189,7 +192,7 @@ class PatternMixin:
                        'last_matched_at', 'is_active', 'disabled_at', 'disabled_reason',
                        'avg_duration', 'duration_samples', 'created_by',
                        'source', 'community_id', 'version', 'submitted_app_version',
-                       'protected_from_sync'):
+                       'protected_from_sync', 'source_language'):
                 fields.append(f"{key} = ?")
                 values.append(value)
             elif key in ('intro_variants', 'outro_variants'):

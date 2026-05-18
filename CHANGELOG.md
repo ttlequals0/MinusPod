@@ -6,6 +6,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.17] - 2026-05-17
+
+### Fixed
+
+- **Episode list checkbox was hard to tap on mobile; finger landed on the row Link instead.** The `Checkbox` component is a 16px square sitting inside a non-padded absolute wrapper; touchable area was the visible control only, well below the 44px iOS HIG minimum. Most mobile taps hit the surrounding `<Link>` and navigated into the episode, losing any in-progress selection. Replaced the wrapper with a 44x44 `<button>` that stops propagation, prevents default, and routes the tap to `onToggle`; the visible checkbox is centered inside. Bumped the row's left padding to clear the larger tap zone.
+
+## [2.4.16] - 2026-05-17
+
+### Fixed
+
+- **Bulk action buttons in `FeedDetail.tsx` shifted size with the eligible count.** "Full Reprocess (N)" was wrapping onto two lines on narrow viewports while "Reprocess (N)" and "Delete (N)" stayed single-line, giving the toolbar an uneven look. Added `whitespace-nowrap` + `min-w-[8rem] text-center` so every button is the same width and never wraps regardless of the count.
+
+## [2.4.15] - 2026-05-17
+
+### Fixed
+
+- **Bulk action toolbar hid Reprocess/Delete buttons on mixed-status selection.** `FeedDetail.tsx` required EVERY selected episode to share the same status group before showing the matching bulk button. A selection that mixed processed episodes with a stuck `pending` row (e.g. one queued via a prior bulk that the drainer dropped) collapsed to a "Mixed statuses" message, leaving only the feed-level "Reprocess All" dropdown in the header. Now shows each button with an eligibility count (`Reprocess (3)`, `Process (2)`, etc.) when at least one selected item matches; the backend already skips ineligible rows, so a mixed selection still does the right thing.
+
+## [2.4.14] - 2026-05-17
+
+### Fixed
+
+- **Bulk `process` action on auto-process-disabled feeds was silently dropped.** The 2.4.12 fix that let user-initiated reprocesses bypass the background drainer's auto-process gate keyed on `reprocess_requested_at`, which is set by the single-episode and bulk `reprocess` / `reprocess_full` paths. The bulk `process` (first-time process) path did not set the field, so the drainer's bypass check still saw NULL and marked the row `completed` with reason "Auto-process disabled for this feed". Bulk `process` now stamps `reprocess_requested_at` like the other user-initiated paths, so first-time process from the UI on a disabled feed runs through normally.
+
+## [2.4.13] - 2026-05-17
+
+### Changed
+
+- **`ad_patterns.source_language` column (#252).** Patterns are now stamped with the ISO 639-1 transcript language they were learned from (read from the `whisper_language` setting; `'auto'` leaves the column null for language-agnostic behavior). `text_pattern_matcher.find_matches` accepts a `language=` argument and excludes patterns whose `source_language` is set and differs; nulls match any language so existing rows behave as before. The community export bundle includes `source_language` so a Spanish pattern submitted from Mexico won't get treated as a generic English-corpus global pattern on import. Helper at `src/utils/language.py:get_pattern_language(db)`. Schema migration is additive and idempotent. Defense-in-depth metadata only -- runtime impact is minimal because TF-IDF already self-prunes across languages.
+
+### Dependencies
+
+- **pip**: `anthropic 0.100.0 -> 0.102.0`, `openai 2.36.0 -> 2.37.0`, `requests 2.33.1 -> 2.34.2`, `huggingface-hub 1.14.0 -> 1.15.0` (#251, #250, #249, #248).
+- **npm**: `lucide-react 1.14.0 -> 1.16.0`, `swagger-ui-dist 5.32.5 -> 5.32.6`, `eslint 10.3.0 -> 10.4.0`, `typescript-eslint 8.59.2 -> 8.59.3`, `vite 8.0.10 -> 8.0.13` (#247, #246, #245, #244, #243).
+- **GitHub Actions**: `actions/labeler 5.0.0 -> 6.1.0`, `actions/checkout 4.3.1 -> 6.0.2`, `actions/github-script 8.0.0 -> 9.0.0` (#242, #241, #240). Pins updated to commit SHA per the audit policy.
+
+### Deferred
+
+- **Ubuntu 24.04 -> 26.04 on `Dockerfile.cpu` (#208) deferred.** Ubuntu 26.04 is a non-LTS interim release and the deadsnakes PPA (which the CPU image uses to install Python 3.11) has not confirmed publishing for questing yet. CPU image stays on 24.04 LTS until either deadsnakes ships 26.04 binaries or the image switches to `python:3.11-slim` and skips the PPA entirely. PR #208 stays open as a tracking placeholder.
+
 ## [2.4.12] - 2026-05-17
 
 ### Fixed

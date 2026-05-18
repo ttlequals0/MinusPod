@@ -16,6 +16,7 @@ from utils.text import extract_text_from_segments
 from sponsor_normalize import get_or_create_known_sponsor
 from utils.constants import INVALID_SPONSOR_VALUES
 from utils.community_tags import UNIVERSAL_TAG
+from utils.language import get_pattern_language
 
 logger = logging.getLogger('podcast.textmatch')
 
@@ -134,6 +135,7 @@ class AdPattern:
     avg_duration: Optional[float] = None
     sponsor_id: Optional[int] = None
     source: str = 'local'  # "local", "community", "imported"
+    source_language: Optional[str] = None  # ISO 639-1 code of the transcript the pattern was learned from (#252)
 
 
 class TextPatternMatcher:
@@ -225,6 +227,7 @@ class TextPatternMatcher:
                     avg_duration=p.get('avg_duration'),
                     sponsor_id=p.get('sponsor_id'),
                     source=p.get('source') or 'local',
+                    source_language=p.get('source_language'),
                 ))
 
             # Cache sponsor_id -> tags for matcher eligibility checks.
@@ -283,6 +286,7 @@ class TextPatternMatcher:
         podcast_id: str = None,
         network_id: str = None,
         podcast_tags: Optional[set] = None,
+        language: Optional[str] = None,
     ) -> List[TextMatch]:
         """
         Search transcript segments for known ad patterns.
@@ -295,6 +299,9 @@ class TextPatternMatcher:
                 Community patterns are filtered out when their sponsor tags
                 share no overlap with the podcast tags (unless the sponsor
                 or podcast has no tags, or the sponsor carries 'universal').
+            language: Optional ISO 639-1 code. Patterns whose source_language
+                is set and differs are excluded (#252). Null on the pattern
+                is treated as language-agnostic (legacy rows).
 
         Returns:
             List of TextMatch objects for found ads
@@ -322,6 +329,13 @@ class TextPatternMatcher:
         applicable_patterns = self._filter_patterns_by_scope(
             podcast_id, network_id, podcast_tags
         )
+
+        # Filter by source_language (#252).
+        if language:
+            applicable_patterns = [
+                p for p in applicable_patterns
+                if not getattr(p, 'source_language', None) or p.source_language == language
+            ]
 
         if not applicable_patterns:
             return []
@@ -934,7 +948,8 @@ class TextPatternMatcher:
                 podcast_id=podcast_id,
                 network_id=network_id,
                 created_from_episode_id=episode_id,
-                duration=duration
+                duration=duration,
+                source_language=get_pattern_language(self.db),
             )
 
             logger.info(f"Created text pattern {pattern_id} for sponsor: {sponsor}")
@@ -1076,7 +1091,8 @@ class TextPatternMatcher:
                     sponsor_id=split_sponsor_id,
                     podcast_id=pattern.get('podcast_id'),
                     network_id=pattern.get('network_id'),
-                    created_from_episode_id=pattern.get('created_from_episode_id')
+                    created_from_episode_id=pattern.get('created_from_episode_id'),
+                    source_language=pattern.get('source_language'),
                 )
                 if new_id:
                     new_ids.append(new_id)
