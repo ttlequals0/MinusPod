@@ -27,7 +27,7 @@ python-slugify==8.0.4
 
 # Audio analysis (torch/torchaudio 2.6.0+cu124 pre-installed in Dockerfile)
 numpy<2.0                     # numpy 2.x requires X86_V2; target server lacks them
-huggingface_hub>=1.14.0
+huggingface_hub>=1.15.0
 
 # Cross-episode ad training (fingerprinting + text matching)
 pyacoustid>=1.2.0

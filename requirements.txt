@@ -809,9 +809,9 @@ httpx==0.28.1 \
     #   anthropic
     #   huggingface-hub
     #   openai
-huggingface-hub==1.14.0 \
-    --hash=sha256:d6d2c9cd6be1d02ae9ec6672d5587d10a427f377db688e82528f426a041622c2 \
-    --hash=sha256:efe075535c62e130b30e836b138e13785f6f043d1f0539e0a39aa411a99e90b8
+huggingface-hub==1.15.0 \
+    --hash=sha256:28abfdddda3927fd4de6a63cf26ab012498a2c24dae52baf150c5c6edf98a1d5 \
+    --hash=sha256:a4a59af04cbc41a3fe3fec429b171ef994ef8c971eda10136746f408dd4e3744
     # via
     #   -r requirements.in
     #   faster-whisper
@@ -1717,9 +1717,11 @@ typing-inspection==0.4.2 \
     --hash=sha256:ba561c48a67c5958007083d386c3295464928b01faa735ab8547c5692e87f464
     # via pydantic
 urllib3==2.7.0 \
-    --hash=sha256:9fb4c81ebbb1ce9531cce37674bbc6f1360472bc18ca9a553ede278ef7276897 \
-    --hash=sha256:231e0ec3b63ceb14667c67be60f2f2c40a518cb38b03af60abc813da26505f4c
-    # via requests
+    --hash=sha256:231e0ec3b63ceb14667c67be60f2f2c40a518cb38b03af60abc813da26505f4c \
+    --hash=sha256:9fb4c81ebbb1ce9531cce37674bbc6f1360472bc18ca9a553ede278ef7276897
+    # via
+    #   -r requirements.in
+    #   requests
 werkzeug==3.1.8 \
     --hash=sha256:63a77fb8892bf28ebc3178683445222aa500e48ebad5ec77b0ad80f8726b1f50 \
     --hash=sha256:9bad61a4268dac112f1c5cd4630a56ede601b6ed420300677a869083d70a4c44
