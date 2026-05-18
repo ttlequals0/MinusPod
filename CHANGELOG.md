@@ -6,6 +6,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.13] - 2026-05-17
+
+### Changed
+
+- **`ad_patterns.source_language` column (#252).** Patterns are now stamped with the ISO 639-1 transcript language they were learned from (read from the `whisper_language` setting; `'auto'` leaves the column null for language-agnostic behavior). `text_pattern_matcher.find_matches` accepts a `language=` argument and excludes patterns whose `source_language` is set and differs; nulls match any language so existing rows behave as before. The community export bundle includes `source_language` so a Spanish pattern submitted from Mexico won't get treated as a generic English-corpus global pattern on import. Helper at `src/utils/language.py:get_pattern_language(db)`. Schema migration is additive and idempotent. Defense-in-depth metadata only -- runtime impact is minimal because TF-IDF already self-prunes across languages.
+
+### Dependencies
+
+- **pip**: `anthropic 0.100.0 -> 0.102.0`, `openai 2.36.0 -> 2.37.0`, `requests 2.33.1 -> 2.34.2`, `huggingface-hub 1.14.0 -> 1.15.0` (#251, #250, #249, #248).
+- **npm**: `lucide-react 1.14.0 -> 1.16.0`, `swagger-ui-dist 5.32.5 -> 5.32.6`, `eslint 10.3.0 -> 10.4.0`, `typescript-eslint 8.59.2 -> 8.59.3`, `vite 8.0.10 -> 8.0.13` (#247, #246, #245, #244, #243).
+- **GitHub Actions**: `actions/labeler 5.0.0 -> 6.1.0`, `actions/checkout 4.3.1 -> 6.0.2`, `actions/github-script 8.0.0 -> 9.0.0` (#242, #241, #240). Pins updated to commit SHA per the audit policy.
+
+### Deferred
+
+- **Ubuntu 24.04 -> 26.04 on `Dockerfile.cpu` (#208) deferred.** Ubuntu 26.04 is a non-LTS interim release and the deadsnakes PPA (which the CPU image uses to install Python 3.11) has not confirmed publishing for questing yet. CPU image stays on 24.04 LTS until either deadsnakes ships 26.04 binaries or the image switches to `python:3.11-slim` and skips the PPA entirely. PR #208 stays open as a tracking placeholder.
+
 ## [2.4.12] - 2026-05-17
 
 ### Fixed

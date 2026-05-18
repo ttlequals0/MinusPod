@@ -17,6 +17,7 @@ from llm_client import (
     get_llm_timeout, get_llm_max_retries,
     get_effective_provider, model_matches_provider,
 )
+from utils.language import get_pattern_language
 from utils.llm_call import call_llm_for_window
 from utils.prompt import format_sponsor_block, render_prompt
 from utils.text import get_transcript_text_for_range
@@ -713,6 +714,7 @@ class AdDetector:
                     segments,
                     podcast_id=podcast_id,
                     podcast_tags=podcast_tags,
+                    language=get_pattern_language(self.db),
                 )
 
                 tp_added = 0

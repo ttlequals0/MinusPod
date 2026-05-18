@@ -136,7 +136,8 @@ CREATE TABLE IF NOT EXISTS ad_patterns (
     community_id TEXT,
     version INTEGER NOT NULL DEFAULT 1,
     submitted_app_version TEXT,
-    protected_from_sync INTEGER NOT NULL DEFAULT 0
+    protected_from_sync INTEGER NOT NULL DEFAULT 0,
+    source_language TEXT
 );
 
 -- pattern_corrections table (user corrections; conflicting entries cleaned up on reversal)

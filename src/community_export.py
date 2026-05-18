@@ -299,6 +299,7 @@ def _strip_metadata(pattern: Dict, sponsor_row: Dict) -> Dict:
         'sponsor': sponsor_row.get('name'),
         'sponsor_aliases': sponsor_aliases,
         'sponsor_tags': sponsor_tags,
+        'source_language': pattern.get('source_language'),
     }
 
 

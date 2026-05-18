@@ -21,6 +21,7 @@ from config import (
 )
 from text_pattern_matcher import TextPatternMatcher
 from utils.constants import canonical_sponsor
+from utils.language import get_pattern_language
 from sponsor_normalize import get_or_create_known_sponsor
 
 logger = logging.getLogger('podcast.patterns')
@@ -428,12 +429,19 @@ class PatternService:
                 get_or_create_known_sponsor(self.db, merged_sponsor_name)
                 if merged_sponsor_name else None
             )
+            # Inherit language from source patterns when they agree; otherwise
+            # leave null (language-agnostic) rather than stamping the current
+            # whisper setting onto a merger across languages.
+            source_langs = {p.get('source_language') for p in patterns if p.get('source_language')}
+            merged_language = next(iter(source_langs)) if len(source_langs) == 1 else None
+
             merged_id = self.db.create_ad_pattern(
                 scope=target_scope,
                 text_template=best_template,
                 sponsor_id=merged_sponsor_id,
                 intro_variants=list(all_intros),
-                outro_variants=list(all_outros)
+                outro_variants=list(all_outros),
+                source_language=merged_language,
             )
 
             # Update confirmation count
@@ -716,7 +724,8 @@ class PatternService:
                 text_template=best_pattern.get('text_template'),
                 sponsor_id=sponsor_id,
                 intro_variants=best_pattern.get('intro_variants', []),
-                outro_variants=best_pattern.get('outro_variants', [])
+                outro_variants=best_pattern.get('outro_variants', []),
+                source_language=best_pattern.get('source_language'),
             )
 
             if global_id:
@@ -981,6 +990,7 @@ class PatternService:
                 sponsor_id=sponsor_id,
                 version=version,
                 submitted_app_version=data.get('submitted_app_version'),
+                source_language=data.get('source_language'),
             )
             return existing['id']
 
@@ -1004,5 +1014,6 @@ class PatternService:
             version=version,
             submitted_app_version=data.get('submitted_app_version'),
             protected_from_sync=0,
+            source_language=data.get('source_language'),
         )
         return pattern_id
