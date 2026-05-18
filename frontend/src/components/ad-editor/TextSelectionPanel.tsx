@@ -51,10 +51,24 @@ function TextSelectionPanel({
   playbackRate,
   setPlaybackRate,
 }: Props) {
-  const [segments, setSegments] = useState<OriginalSegment[] | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
+  // Fetch state collapsed into a single object so each useEffect outcome is
+  // one setState call, not a setLoadError(null) at the top of the effect plus
+  // setSegments later (the latter shape triggers react-hooks/set-state-in-effect).
+  const [fetchState, setFetchState] = useState<{
+    segments: OriginalSegment[] | null;
+    error: string | null;
+  }>({ segments: null, error: null });
+  const segments = fetchState.segments;
+  const loadError = fetchState.error;
   const [searchTerm, setSearchTerm] = useState('');
+  // React-recommended "adjust state when a prop changes without an effect":
+  // store the term currentMatch was last reset for, and reconcile during render.
+  const [matchSearchKey, setMatchSearchKey] = useState('');
   const [currentMatch, setCurrentMatch] = useState(0);
+  if (matchSearchKey !== searchTerm) {
+    setMatchSearchKey(searchTerm);
+    setCurrentMatch(0);
+  }
   const [isPlaying, setIsPlaying] = useState(false);
 
   const transcriptRef = useRef<HTMLDivElement>(null);
@@ -63,21 +77,23 @@ function TextSelectionPanel({
   // and never change after transcription, so no refetch on selection edits.
   useEffect(() => {
     let cancelled = false;
-    setLoadError(null);
     getOriginalSegments(slug, episodeId)
       .then((res) => {
         if (cancelled) return;
         const hasWords = res.segments.some((s) => s.words && s.words.length > 0);
-        if (!hasWords) {
-          setLoadError(
-            'This episode has no word-level timestamps. Re-transcribe to use text mode.',
-          );
-        }
-        setSegments(res.segments);
+        setFetchState({
+          segments: res.segments,
+          error: hasWords
+            ? null
+            : 'This episode has no word-level timestamps. Re-transcribe to use text mode.',
+        });
       })
       .catch((err) => {
         if (cancelled) return;
-        setLoadError(err?.message || 'Failed to load transcript');
+        setFetchState({
+          segments: null,
+          error: err?.message || 'Failed to load transcript',
+        });
       });
     return () => {
       cancelled = true;
@@ -103,10 +119,6 @@ function TextSelectionPanel({
 
   // O(1) membership for the per-word render highlight.
   const matchSet = useMemo(() => new Set(matchIndices), [matchIndices]);
-
-  useEffect(() => {
-    setCurrentMatch(0);
-  }, [searchTerm]);
 
   useEffect(() => {
     if (matchIndices.length === 0) return;
