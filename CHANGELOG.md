@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.15] - 2026-05-17
+
+### Fixed
+
+- **Bulk action toolbar hid Reprocess/Delete buttons on mixed-status selection.** `FeedDetail.tsx` required EVERY selected episode to share the same status group before showing the matching bulk button. A selection that mixed processed episodes with a stuck `pending` row (e.g. one queued via a prior bulk that the drainer dropped) collapsed to a "Mixed statuses" message, leaving only the feed-level "Reprocess All" dropdown in the header. Now shows each button with an eligibility count (`Reprocess (3)`, `Process (2)`, etc.) when at least one selected item matches; the backend already skips ineligible rows, so a mixed selection still does the right thing.
+
 ## [2.4.14] - 2026-05-17
 
 ### Fixed
