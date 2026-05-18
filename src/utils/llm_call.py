@@ -7,14 +7,16 @@ from typing import Optional, Tuple, Union
 from llm_client import (
     is_retryable_error,
     is_rate_limit_error,
+    classify_structural_rate_limit,
     is_auth_error,
     extract_retry_after,
     get_effective_provider,
+    StructuralRateLimitError,
 )
 # webhook_service is lazy-imported at the call site below (only entered on
-# is_auth_error). Keeping it out of this module's import-time graph lets the
-# offline benchmark in benchmarks/llm/ import ad_detector -> utils.llm_call
-# without pulling in jinja2/flask transitively.
+# is_auth_error or structural-429). Keeping it out of this module's import-time
+# graph lets the offline benchmark in benchmarks/llm/ import ad_detector ->
+# utils.llm_call without pulling in jinja2/flask transitively.
 from utils.retry import calculate_backoff
 
 logger = logging.getLogger(__name__)
@@ -62,6 +64,32 @@ def call_llm_for_window(
             return response, None
         except Exception as e:
             last_error = e
+            structural = classify_structural_rate_limit(e)
+            if structural is not None:
+                provider = get_effective_provider()
+                limit = structural.get('limit')
+                used = structural.get('used')
+                requested = structural.get('requested')
+                actionable = (
+                    f"{provider} rate limit: one detection window's token request "
+                    f"(~{requested}) exceeds the per-minute cap ({limit}). "
+                    f"Reduce the detection window size in Settings > LLM Tunables, "
+                    f"or change provider/tier."
+                )
+                logger.warning(
+                    f"[{slug}:{episode_id}] {window_label} structural rate limit: {actionable}"
+                )
+                # StructuralRateLimitError is excluded from is_retryable_error so
+                # the post-loop secondary retry path skips it.
+                last_error = StructuralRateLimitError(actionable)
+                try:
+                    from webhook_service import fire_structural_rate_limit_event
+                    fire_structural_rate_limit_event(
+                        provider, model, limit, used, requested, str(e),
+                    )
+                except Exception:
+                    logger.exception("Failed to fire structural rate-limit webhook")
+                break
             if is_retryable_error(e) and attempt < max_retries:
                 if is_rate_limit_error(e):
                     retry_after = extract_retry_after(e)

@@ -47,3 +47,72 @@ class TestParseRetryAfterEdgeCases:
 
     def test_negative_string_clamped_to_zero(self):
         assert parse_retry_after("-5") == 0.0
+
+
+class TestParseGroqRateLimitBody:
+    def test_dict_with_full_tpm_message(self):
+        from utils.rate_limit import parse_groq_rate_limit_body
+        body = {
+            "error": {
+                "message": (
+                    "Rate limit reached for model `mixtral-8x7b-32768` in organization "
+                    "`org_xxx` on tokens per minute (TPM): Limit 6000, Used 0, "
+                    "Requested ~7500. Please try again later."
+                ),
+                "type": "tokens",
+                "code": "rate_limit_exceeded",
+            }
+        }
+        assert parse_groq_rate_limit_body(body) == {
+            "limit": 6000, "used": 0, "requested": 7500,
+        }
+
+    def test_string_json_body(self):
+        from utils.rate_limit import parse_groq_rate_limit_body
+        body = (
+            '{"error":{"message":"tokens per minute (TPM): Limit 5000, Used 100, '
+            'Requested ~9000.","type":"tokens","code":"rate_limit_exceeded"}}'
+        )
+        assert parse_groq_rate_limit_body(body) == {
+            "limit": 5000, "used": 100, "requested": 9000,
+        }
+
+    def test_plain_text_tpm(self):
+        from utils.rate_limit import parse_groq_rate_limit_body
+        msg = "TPM exceeded - Limit 5000, Used 100, Requested ~9000"
+        assert parse_groq_rate_limit_body(msg) == {
+            "limit": 5000, "used": 100, "requested": 9000,
+        }
+
+    def test_comma_separated_numbers(self):
+        from utils.rate_limit import parse_groq_rate_limit_body
+        body = {"error": {"message": "tokens per minute: Limit 60,000, Used 1,000, Requested ~70,500", "type": "tokens"}}
+        assert parse_groq_rate_limit_body(body) == {
+            "limit": 60000, "used": 1000, "requested": 70500,
+        }
+
+    def test_requests_per_minute_not_tokens(self):
+        from utils.rate_limit import parse_groq_rate_limit_body
+        body = {"error": {"message": "requests per minute (RPM): Limit 30, Requested ~40"}}
+        assert parse_groq_rate_limit_body(body) is None
+
+    def test_missing_limit(self):
+        from utils.rate_limit import parse_groq_rate_limit_body
+        body = {"error": {"message": "tokens per minute: Requested ~7000", "type": "tokens"}}
+        assert parse_groq_rate_limit_body(body) is None
+
+    def test_missing_requested(self):
+        from utils.rate_limit import parse_groq_rate_limit_body
+        body = {"error": {"message": "tokens per minute: Limit 6000, Used 500", "type": "tokens"}}
+        assert parse_groq_rate_limit_body(body) is None
+
+    @pytest.mark.parametrize("body", [None, "", "garbage", {}, {"error": {}}, 12345])
+    def test_unparseable_inputs_return_none(self, body):
+        from utils.rate_limit import parse_groq_rate_limit_body
+        assert parse_groq_rate_limit_body(body) is None
+
+    def test_used_can_be_zero(self):
+        from utils.rate_limit import parse_groq_rate_limit_body
+        body = {"error": {"message": "TPM: Limit 6000, Used 0, Requested ~7500", "type": "tokens"}}
+        result = parse_groq_rate_limit_body(body)
+        assert result == {"limit": 6000, "used": 0, "requested": 7500}

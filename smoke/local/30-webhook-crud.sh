@@ -70,4 +70,20 @@ print(any(h.get('id') == '$webhook_id' for h in hooks))
 ")
 assert_eq "$still_there" "False" 'webhook is gone after DELETE'
 
+# F9: confirm Rate Limit Structural is accepted as a valid event constant.
+body=$(auth_json POST /api/v1/settings/webhooks 30 \
+    '{"url":"https://example.invalid/structural","events":["Rate Limit Structural"]}')
+rate_hook_id=$(printf '%s' "$body" | json_get id)
+if [ -n "$rate_hook_id" ]; then
+    pass_step 'POST /settings/webhooks accepts Rate Limit Structural event'
+    auth_code DELETE "/api/v1/settings/webhooks/$rate_hook_id" 30 >/dev/null
+else
+    fail_step 'POST /settings/webhooks rejected Rate Limit Structural event'
+fi
+
+# Sanity: a bogus event name still gets rejected.
+code=$(auth_code POST /api/v1/settings/webhooks 30 \
+    '{"url":"https://example.invalid/bogus","events":["Not A Real Event"]}')
+assert_eq "$code" "400" 'POST /settings/webhooks rejects unknown event name (400)'
+
 finish_test "T30-webhook-crud"

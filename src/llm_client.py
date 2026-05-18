@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from typing import List, Dict, Optional, Any, Union
 
 from utils.circuit_breaker import CircuitBreaker, CircuitBreakerOpen
-from utils.rate_limit import parse_retry_after
+from utils.rate_limit import parse_retry_after, parse_groq_rate_limit_body
 from utils.http import safe_url_for_log
 from utils.ttl_cache import TTLCache
 
@@ -1279,6 +1279,10 @@ def is_retryable_error(error: Exception) -> bool:
 
     Works with both Anthropic and OpenAI error types.
     """
+    # Structural 429s are never retryable -- the request itself exceeds the
+    # provider's per-minute cap, no amount of backoff will help.
+    if isinstance(error, StructuralRateLimitError):
+        return False
     # Anthropic errors
     if ANTHROPIC_ERRORS_AVAILABLE:
         from anthropic import APIConnectionError, RateLimitError, InternalServerError, APIError
@@ -1374,6 +1378,58 @@ def is_rate_limit_error(error: Exception) -> bool:
     # Check error message for rate limit indicators
     error_str = str(error).lower()
     return 'rate' in error_str and ('limit' in error_str or '429' in error_str)
+
+
+class StructuralRateLimitError(Exception):
+    """A 429 whose token request structurally exceeds the provider's cap.
+
+    Retrying cannot succeed at the current window size; callers must shrink
+    the detection window or change provider/tier. Explicitly excluded from
+    ``is_retryable_error`` below.
+    """
+    pass
+
+
+def extract_error_body(error: Exception) -> Any:
+    """Pull the raw body off a provider error.
+
+    Both Anthropic and OpenAI SDK exceptions expose the response body in
+    slightly different shapes. Returns None when nothing is reachable.
+    """
+    body = getattr(error, 'body', None)
+    if body is not None:
+        return body
+    response = getattr(error, 'response', None)
+    if response is not None:
+        text = getattr(response, 'text', None)
+        if text:
+            return text
+    return None
+
+
+def classify_structural_rate_limit(error: Exception) -> Optional[dict]:
+    """Detect a 429 whose request structurally exceeds the provider's cap.
+
+    Returns the parsed ``{limit, used, requested}`` dict when the error is a
+    rate limit AND the parsed body's requested count exceeds the limit.
+    Returns None for transient 429s and any parse failure, so the caller can
+    branch with a single value (no second parse needed).
+    """
+    if not is_rate_limit_error(error):
+        return None
+    parsed = parse_groq_rate_limit_body(extract_error_body(error) or str(error))
+    if parsed is None:
+        return None
+    limit = parsed.get('limit')
+    requested = parsed.get('requested')
+    if limit is None or requested is None:
+        return None
+    return parsed if requested > limit else None
+
+
+def is_structural_rate_limit_error(error: Exception) -> bool:
+    """Backwards-compatible boolean classifier built on classify_structural_rate_limit."""
+    return classify_structural_rate_limit(error) is not None
 
 
 def extract_retry_after(error: Exception, *, max_seconds: float = 300.0) -> Optional[float]:

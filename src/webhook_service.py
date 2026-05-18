@@ -24,7 +24,13 @@ logger = logging.getLogger('podcast.webhooks')
 EVENT_EPISODE_PROCESSED = 'Episode Processed'
 EVENT_EPISODE_FAILED = 'Episode Failed'
 EVENT_AUTH_FAILURE = 'Auth Failure'
-VALID_EVENTS = {EVENT_EPISODE_PROCESSED, EVENT_EPISODE_FAILED, EVENT_AUTH_FAILURE}
+EVENT_RATE_LIMIT_STRUCTURAL = 'Rate Limit Structural'
+VALID_EVENTS = {
+    EVENT_EPISODE_PROCESSED,
+    EVENT_EPISODE_FAILED,
+    EVENT_AUTH_FAILURE,
+    EVENT_RATE_LIMIT_STRUCTURAL,
+}
 
 _sandbox_env = SandboxedEnvironment()
 
@@ -312,6 +318,66 @@ def fire_auth_failure_event(provider, model, error_message, status_code):
             except Exception:
                 logger.exception("Failed to send auth failure webhook to %s",
                                  wh.get('url'))
+
+    thread = threading.Thread(target=_dispatch, daemon=True)
+    thread.start()
+
+
+_rate_limit_lock = threading.Lock()
+_last_rate_limit_time = 0.0
+_RATE_LIMIT_DEDUP_SECS = 300  # 5 minutes
+
+
+def fire_structural_rate_limit_event(provider, model, limit, used, requested, error_message):
+    """Fire a structural-429 webhook with 5-minute dedup.
+
+    Signals that a single LLM request structurally exceeds the provider's
+    per-minute token cap. The user-facing remedy is to shrink the detection
+    window or change provider/tier, not to wait for the rate limit to clear.
+    """
+    global _last_rate_limit_time
+
+    now = time.time()
+    with _rate_limit_lock:
+        if now - _last_rate_limit_time < _RATE_LIMIT_DEDUP_SECS:
+            logger.debug("Structural rate-limit webhook suppressed (dedup window)")
+            return
+        _last_rate_limit_time = now
+
+    webhooks = load_webhooks()
+    if not webhooks:
+        return
+
+    matching = [w for w in webhooks
+                if w.get('enabled', False)
+                and EVENT_RATE_LIMIT_STRUCTURAL in w.get('events', [])]
+    if not matching:
+        return
+
+    context = {
+        'event': EVENT_RATE_LIMIT_STRUCTURAL,
+        'provider': provider,
+        'model': model,
+        'limit': limit,
+        'used': used,
+        'requested': requested,
+        'error_message': str(error_message),
+        'timestamp': utc_now_iso(),
+    }
+
+    def _dispatch():
+        for wh in matching:
+            try:
+                _prepare_and_dispatch(wh, context)
+                logger.info(
+                    "Structural rate-limit webhook sent (provider=%s, limit=%s, requested=%s)",
+                    provider, limit, requested,
+                )
+            except Exception:
+                logger.exception(
+                    "Failed to send structural rate-limit webhook to %s",
+                    wh.get('url'),
+                )
 
     thread = threading.Thread(target=_dispatch, daemon=True)
     thread.start()
