@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.17] - 2026-05-17
+
+### Fixed
+
+- **Episode list checkbox was hard to tap on mobile; finger landed on the row Link instead.** The `Checkbox` component is a 16px square sitting inside a non-padded absolute wrapper; touchable area was the visible control only, well below the 44px iOS HIG minimum. Most mobile taps hit the surrounding `<Link>` and navigated into the episode, losing any in-progress selection. Replaced the wrapper with a 44x44 `<button>` that stops propagation, prevents default, and routes the tap to `onToggle`; the visible checkbox is centered inside. Bumped the row's left padding to clear the larger tap zone.
+
 ## [2.4.16] - 2026-05-17
 
 ### Fixed

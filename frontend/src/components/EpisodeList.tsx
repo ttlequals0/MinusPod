@@ -75,19 +75,22 @@ function EpisodeRow({
   return (
     <div className="relative bg-card rounded-lg border border-border hover:border-primary/50 transition-colors">
       {onToggle && canSelect && (
-        <div
-          className="absolute top-3 left-3 z-10"
-          onClick={(e) => e.stopPropagation()}
+        // 44x44 tap zone (iOS HIG minimum); visible checkbox centered inside.
+        // onClick + onTouchEnd both stopPropagation so the underlying Link
+        // doesn't fire when a finger lands slightly off the 16px control.
+        <button
+          type="button"
+          aria-label={selected ? 'Deselect episode' : 'Select episode'}
+          onClick={(e) => { e.stopPropagation(); e.preventDefault(); onToggle(episode.id); }}
+          onTouchEnd={(e) => { e.stopPropagation(); }}
+          className="absolute top-0 left-0 z-10 h-11 w-11 flex items-center justify-center"
         >
-          <Checkbox
-            checked={selected}
-            onChange={() => onToggle(episode.id)}
-          />
-        </div>
+          <Checkbox checked={selected} onChange={() => {}} />
+        </button>
       )}
       <Link
         to={`/feeds/${feedSlug}/episodes/${episode.id}`}
-        className={`block p-4 ${onToggle ? 'pl-10' : ''}`}
+        className={`block p-4 ${onToggle ? 'pl-12' : ''}`}
       >
         <h3 className="font-medium text-foreground truncate">{episode.title}</h3>
         {episode.description && (
