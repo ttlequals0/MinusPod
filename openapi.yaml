@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.4.17
+  version: 2.4.18
   contact:
     name: MinusPod
   license:
@@ -2949,6 +2949,18 @@ paths:
                   type: integer
                   nullable: true
                   description: Ollama context window in tokens (512-131072). Only valid when llmProvider is ollama.
+                windowSizeSeconds:
+                  type: integer
+                  nullable: true
+                  minimum: 120
+                  maximum: 1800
+                  description: Detection-window duration in seconds. Must be strictly greater than windowOverlapSeconds.
+                windowOverlapSeconds:
+                  type: integer
+                  nullable: true
+                  minimum: 0
+                  maximum: 1770
+                  description: Overlap between consecutive detection windows in seconds. Must be less than windowSizeSeconds.
       responses:
         '200':
           description: Settings updated
@@ -3653,7 +3665,12 @@ paths:
                   type: array
                   items:
                     type: string
-                  description: List of event types to subscribe to
+                    enum:
+                      - Episode Processed
+                      - Episode Failed
+                      - Auth Failure
+                      - Rate Limit Structural
+                  description: List of event types to subscribe to. `Rate Limit Structural` fires when one detection-window request exceeds the provider's per-minute token cap.
                 enabled:
                   type: boolean
                   description: Whether the webhook is active
