@@ -136,8 +136,19 @@ class StatsMixin:
             )
             return 0.0
 
-        input_cost = (input_tokens / 1_000_000) * row['input_cost_per_mtok']
-        output_cost = (output_tokens / 1_000_000) * row['output_cost_per_mtok']
+        input_per_mtok = row['input_cost_per_mtok']
+        output_per_mtok = row['output_cost_per_mtok']
+        # Clamp legacy negative pricing (#237).
+        if input_per_mtok < 0 or output_per_mtok < 0:
+            logger.warning(
+                "Clamping negative pricing for model '%s' (in=%s out=%s)",
+                model_id, input_per_mtok, output_per_mtok,
+            )
+            input_per_mtok = max(0.0, input_per_mtok)
+            output_per_mtok = max(0.0, output_per_mtok)
+
+        input_cost = (input_tokens / 1_000_000) * input_per_mtok
+        output_cost = (output_tokens / 1_000_000) * output_per_mtok
         return input_cost + output_cost
 
     def record_token_usage(self, model_id: str, input_tokens: int, output_tokens: int) -> float:

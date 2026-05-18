@@ -92,15 +92,10 @@ function Settings() {
   useEffect(() => { reloadProviders(); }, []);
 
   const handleProviderKeySave = async (provider: ProviderName, apiKey: string) => {
-    // For providers that own a Base URL field rendered alongside the API
-    // key (openai, whisper), persist the current local-state base URL in
-    // the same /providers/<name> PUT. The base URL lived in the global
-    // Save Changes button before, so a user who clicked "Save" next to the
-    // API key saved ONLY the key and Test failed with "base URL not set"
-    // (issue #234). One Save now covers both.
+    // Co-persist base URL with the key (#234). Skip if empty so a pre-hydration save doesn't clear it (#235).
     const body: { apiKey: string; baseUrl?: string } = { apiKey };
-    if (provider === 'openai') body.baseUrl = openaiBaseUrl;
-    else if (provider === 'whisper') body.baseUrl = whisperApiConfig.baseUrl;
+    if (provider === 'openai' && openaiBaseUrl) body.baseUrl = openaiBaseUrl;
+    else if (provider === 'whisper' && whisperApiConfig.baseUrl) body.baseUrl = whisperApiConfig.baseUrl;
     await updateProvider(provider, body);
     await reloadProviders();
   };
