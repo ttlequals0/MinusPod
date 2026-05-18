@@ -17,6 +17,24 @@
 #      Referrer-Policy=strict-origin-when-cross-origin,
 #      Content-Security-Policy present
 #   7. /api/v1/health response includes X-Request-Id matching ^[a-f0-9]{16}$
+#   8. F5 text-mode AddAd modal (orchestrator drives via Playwright MCP):
+#      a. Open an episode that has an original transcript.
+#      b. Click "Add new ad" -> modal opens in create mode with "By audio"
+#         tab active by default.
+#      c. Click "By text" -> waveform hides, transcript panel appears with
+#         search input, scrollable transcript, playback bar.
+#      d. Type a sponsor name in the search box -> match counter renders,
+#         prev/next navigation cycles through matches.
+#      e. Select a range of words via Playwright's selection API -> the
+#         selection readout shows the resolved start/end and duration,
+#         and the textTemplate textarea (visible in the sponsor section)
+#         populates with the highlighted text.
+#      f. Reason field remains visible and editable in both modes.
+#      g. Click "By audio" -> waveform shows the resolved window with
+#         pins at the selected start/end.
+#   9. F6 LLM Tunables window-config inputs render with reset-to-default
+#      buttons; backfilled reset works on existing temperature/max_tokens
+#      controls too. Section title reads "LLM Tunables" (no "(per stage)").
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TEST_NAME="T05-ui-playwright" source "$SCRIPT_DIR/../lib/common.sh"

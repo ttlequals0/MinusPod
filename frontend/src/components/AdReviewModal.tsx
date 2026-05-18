@@ -11,6 +11,7 @@ import { getSponsors } from '../api/sponsors';
 import { SponsorInput, type SponsorOption } from './ad-editor/SponsorInput';
 import { Pin } from './ad-editor/Pin';
 import { usePeaks } from './ad-editor/usePeaks';
+import TextSelectionPanel from './ad-editor/TextSelectionPanel';
 import {
   parseTimeInput,
   formatTime,
@@ -210,6 +211,14 @@ function AdReviewModal({
   const [textTemplateInput, setTextTemplateInput] = useState('');
   const [scopeInput, setScopeInput] = useState<'podcast' | 'global'>('podcast');
   const [reasonInput, setReasonInput] = useState('');
+  // 'audio' uses the waveform + pins, 'text' uses transcript selection.
+  // adStart/adEnd are shared across modes so toggling preserves work.
+  const [inputMode, setInputMode] = useState<'audio' | 'text'>('audio');
+  const textModeActive = mode === 'create' && inputMode === 'text';
+  // True once the user has committed a text-mode selection; suppresses the
+  // audio-mode transcript-span fetch from clobbering the user's chosen text
+  // when they toggle back to audio for fine-tuning.
+  const textTemplateFromSelectionRef = useRef(false);
 
   // Create mode is always against original audio (you can't mark a new ad
   // on already-cut audio). Review mode honors the parent's audioMode.
@@ -248,19 +257,20 @@ function AdReviewModal({
   // don't clobber edits.
   useEffect(() => {
     if (mode !== 'create') return;
+    if (inputMode === 'text') return;
+    // If the template already comes from a text-mode selection, leave it; the
+    // text the user picked is what they want, regardless of where the pins land.
+    if (textTemplateFromSelectionRef.current) return;
     if (!(adStart >= 0 && adEnd > adStart)) return;
     const t = setTimeout(() => {
       getTranscriptSpan(item.podcastSlug, item.episodeId, adStart, adEnd)
         .then((res) => {
-          // Always overwrite so the field tracks the current bounds.
-          // The text template is meant to be derived from the window;
-          // manual edits get clobbered on the next pin move by design.
           setTextTemplateInput(res.text);
         })
         .catch(() => {});
     }, 250);
     return () => clearTimeout(t);
-  }, [mode, item.podcastSlug, item.episodeId, adStart, adEnd]);
+  }, [mode, inputMode, item.podcastSlug, item.episodeId, adStart, adEnd]);
 
   // ------------------------------------------------------------------
   // Mount wavesurfer when peaks/window arrive. Region is decorative -- 
@@ -935,7 +945,7 @@ function AdReviewModal({
             window, and pin drag controls the ad boundaries themselves.
             Window time labels prefixed so they're not a bare pair of
             numbers floating in the chrome. */}
-        <div className="px-4 sm:px-6 pt-3 sm:pt-4 flex items-center justify-between gap-3 flex-wrap text-xs text-muted-foreground tabular-nums">
+        <div className={`px-4 sm:px-6 pt-3 sm:pt-4 flex items-center justify-between gap-3 flex-wrap text-xs text-muted-foreground tabular-nums ${textModeActive ? 'hidden' : ''}`}>
           <span>
             Window: {formatTime(windowStart)} – {formatTime(effectiveWindowEnd)}
           </span>
@@ -958,8 +968,58 @@ function AdReviewModal({
           </div>
         </div>
 
-        {/* Waveform + pin overlay */}
-        <div className="px-6 py-4">
+        {mode === 'create' && (
+          <div className="px-4 sm:px-6 pt-3">
+            <div className="inline-flex rounded-md border border-input overflow-hidden" role="group">
+              <button
+                type="button"
+                onClick={() => setInputMode('audio')}
+                className={`px-3 py-1.5 text-xs transition-colors ${
+                  inputMode === 'audio'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-background text-muted-foreground hover:bg-secondary'
+                }`}
+                title="Mark the ad on the waveform"
+              >
+                By audio
+              </button>
+              <button
+                type="button"
+                onClick={() => setInputMode('text')}
+                className={`px-3 py-1.5 text-xs transition-colors ${
+                  inputMode === 'text'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-background text-muted-foreground hover:bg-secondary'
+                }`}
+                title="Mark the ad by selecting transcript text"
+              >
+                By text
+              </button>
+            </div>
+          </div>
+        )}
+
+        {textModeActive && (
+          <TextSelectionPanel
+            slug={item.podcastSlug}
+            episodeId={item.episodeId}
+            episodeDuration={episodeDuration}
+            audioRef={audioRef}
+            adStart={adStart}
+            adEnd={adEnd}
+            onSelectionChange={(start, end, text) => {
+              setAdStart(start);
+              setAdEnd(end);
+              setTextTemplateInput(text);
+              textTemplateFromSelectionRef.current = true;
+            }}
+            playbackRate={playbackRate}
+            setPlaybackRate={setPlaybackRate}
+          />
+        )}
+
+        {/* Waveform + pin overlay. Hidden when text mode is active. */}
+        <div className={`px-6 py-4 ${textModeActive ? 'hidden' : ''}`}>
           <div className="bg-secondary/40 rounded-lg p-3 min-h-[180px]">
             {peaksError ? (
               <p className="text-sm text-destructive">Failed to load waveform: {peaksError}</p>

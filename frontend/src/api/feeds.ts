@@ -43,6 +43,34 @@ export async function getTranscriptSpan(
   );
 }
 
+
+export interface TranscriptWord {
+  word: string;
+  start: number;
+  end: number;
+}
+
+export interface OriginalSegment {
+  start: number;
+  end: number;
+  text: string;
+  words?: TranscriptWord[];
+}
+
+export interface OriginalSegmentsResponse {
+  episodeId: string;
+  segments: OriginalSegment[];
+}
+
+export async function getOriginalSegments(
+  slug: string,
+  episodeId: string,
+): Promise<OriginalSegmentsResponse> {
+  return apiRequest<OriginalSegmentsResponse>(
+    `/feeds/${slug}/episodes/${episodeId}/original-segments`,
+  );
+}
+
 export async function getFeeds(): Promise<Feed[]> {
   const response = await apiRequest<{ feeds: Feed[] }>('/feeds');
   return response.feeds;
