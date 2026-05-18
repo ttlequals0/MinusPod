@@ -239,6 +239,8 @@ export interface UpdateSettingsPayload {
   chapterTitleReasoningBudget?: number | null;
   chapterTitleReasoningLevel?: ReasoningLevel | null;
   ollamaNumCtx?: number | null;
+  windowSizeSeconds?: number | null;
+  windowOverlapSeconds?: number | null;
 }
 
 export type ReasoningLevel = 'none' | 'low' | 'medium' | 'high';
@@ -271,6 +273,8 @@ export interface StageTunables {
   chapterTitleReasoningBudget: StageTunableEntry<number | null>;
   chapterTitleReasoningLevel: StageTunableEntry<ReasoningLevel | null>;
   ollamaNumCtx: StageTunableEntry<number | null>;
+  windowSizeSeconds: StageTunableEntry<number | null>;
+  windowOverlapSeconds: StageTunableEntry<number | null>;
 }
 
 export interface ClaudeModel {

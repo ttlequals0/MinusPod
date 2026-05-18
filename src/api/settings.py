@@ -227,6 +227,8 @@ def get_settings():
         'chapterTitleReasoningBudget': _tu('chapter_title_reasoning_budget'),
         'chapterTitleReasoningLevel':  _tu('chapter_title_reasoning_level'),
         'ollamaNumCtx':                _tu('ollama_num_ctx'),
+        'windowSizeSeconds':           _tu('window_size_seconds'),
+        'windowOverlapSeconds':        _tu('window_overlap_seconds'),
     }
 
     enable_ad_review_raw = _setting_value(settings, 'enable_ad_review', 'false')
@@ -662,7 +664,28 @@ def _apply_stage_tunables(db, data):
     from config import (
         STAGE_TUNABLE_PAYLOAD_KEYS,
         STAGE_TUNABLE_RANGES, STAGE_TUNABLE_REASONING_LEVELS,
+        get_stage_tunable,
     )
+
+    # overlap >= size would make the derived step <= 0 and break create_windows.
+    if 'windowSizeSeconds' in data or 'windowOverlapSeconds' in data:
+        def _effective(payload_key, db_key):
+            if payload_key in data:
+                raw = data[payload_key]
+                if raw is None or (isinstance(raw, str) and raw.strip() == ""):
+                    return get_stage_tunable(db_key)
+                try:
+                    return int(raw)
+                except (TypeError, ValueError):
+                    return None
+            return get_stage_tunable(db_key)
+
+        size_eff = _effective('windowSizeSeconds', 'window_size_seconds')
+        overlap_eff = _effective('windowOverlapSeconds', 'window_overlap_seconds')
+        if size_eff is not None and overlap_eff is not None and overlap_eff >= size_eff:
+            return json_response({
+                'error': 'windowOverlapSeconds must be less than windowSizeSeconds'
+            }, 400)
 
     # Coercion + provider-gating per kind. Each tuple is
     # (coerce_callable, error_message, provider_required, store_callable).

@@ -22,9 +22,9 @@ from utils.constants import (
     NOT_AD_CLASSIFICATIONS,
 )
 from config import (
-    WINDOW_SIZE_SECONDS, WINDOW_OVERLAP_SECONDS,
     LOW_CONFIDENCE, CONFIDENCE_STRING_MAP,
     CONTENT_DURATION_THRESHOLD, LOW_EVIDENCE_WARN_THRESHOLD,
+    get_stage_tunable,
 )
 
 logger = logging.getLogger('podcast.claude')
@@ -38,19 +38,17 @@ Episode: {episode_title}
 Transcript:
 {transcript}"""
 
-# Sliding window step (derived from config values)
-# WINDOW_SIZE_SECONDS and WINDOW_OVERLAP_SECONDS imported from config.py
-WINDOW_STEP_SECONDS = WINDOW_SIZE_SECONDS - WINDOW_OVERLAP_SECONDS  # 7 minutes
-
-
-def create_windows(segments: List[Dict], window_size: float = WINDOW_SIZE_SECONDS,
-                   overlap: float = WINDOW_OVERLAP_SECONDS) -> List[Dict]:
+def create_windows(segments: List[Dict], window_size: float = None,
+                   overlap: float = None) -> List[Dict]:
     """Create overlapping windows from transcript segments.
 
     Args:
         segments: List of transcript segments with 'start', 'end', 'text'
-        window_size: Duration of each window in seconds
-        overlap: Overlap between consecutive windows in seconds
+        window_size: Duration of each window in seconds. None resolves the
+            user-configurable 'window_size_seconds' tunable at call time so
+            Settings UI changes take effect without restart.
+        overlap: Overlap between consecutive windows in seconds. None resolves
+            the user-configurable 'window_overlap_seconds' tunable at call time.
 
     Returns:
         List of window dicts with:
@@ -60,6 +58,11 @@ def create_windows(segments: List[Dict], window_size: float = WINDOW_SIZE_SECOND
     """
     if not segments:
         return []
+
+    if window_size is None:
+        window_size = get_stage_tunable('window_size_seconds')
+    if overlap is None:
+        overlap = get_stage_tunable('window_overlap_seconds')
 
     # Get total transcript duration
     total_duration = segments[-1]['end']

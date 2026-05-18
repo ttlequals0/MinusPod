@@ -144,6 +144,26 @@ function NumberCommitInput({
   );
 }
 
+function ResetButton({
+  disabled,
+  onClick,
+}: {
+  disabled: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title="Reset to default"
+      className="ml-2 text-xs text-muted-foreground hover:text-foreground underline disabled:opacity-40 disabled:no-underline disabled:cursor-not-allowed"
+    >
+      Reset
+    </button>
+  );
+}
+
 function StageBlockEditor({
   block,
   tunables,
@@ -183,9 +203,15 @@ function StageBlockEditor({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div>
-          <label className="block text-xs font-medium text-foreground mb-1">
-            Temperature
-          </label>
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-xs font-medium text-foreground">
+              Temperature
+            </label>
+            <ResetButton
+              disabled={!!tempEnv || tempEntry?.isDefault !== false}
+              onClick={() => onUpdate({ [block.temperatureKey]: defaults[block.temperatureKey] as number } as UpdateSettingsPayload)}
+            />
+          </div>
           <NumberCommitInput
             value={tempValue}
             min={0}
@@ -210,9 +236,15 @@ function StageBlockEditor({
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-foreground mb-1">
-            Max tokens
-          </label>
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-xs font-medium text-foreground">
+              Max tokens
+            </label>
+            <ResetButton
+              disabled={!!maxEnv || maxEntry?.isDefault !== false}
+              onClick={() => onUpdate({ [block.maxTokensKey]: defaults[block.maxTokensKey] as number } as UpdateSettingsPayload)}
+            />
+          </div>
           <NumberCommitInput
             value={maxValue}
             min={128}
@@ -240,9 +272,15 @@ function StageBlockEditor({
       <div>
         {useAnthropic ? (
           <>
-            <label className="block text-xs font-medium text-foreground mb-1">
-              Reasoning budget (Anthropic)
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-medium text-foreground">
+                Reasoning budget (Anthropic)
+              </label>
+              <ResetButton
+                disabled={!!budgetEnv || budgetEntry?.isDefault !== false}
+                onClick={() => onUpdate({ [block.budgetKey]: null } as UpdateSettingsPayload)}
+              />
+            </div>
             <NumberCommitInput
               value={budgetValue}
               min={1024}
@@ -268,9 +306,15 @@ function StageBlockEditor({
           </>
         ) : (
           <>
-            <label className="block text-xs font-medium text-foreground mb-1">
-              Reasoning effort
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-medium text-foreground">
+                Reasoning effort
+              </label>
+              <ResetButton
+                disabled={!!levelEnv || levelEntry?.isDefault !== false}
+                onClick={() => onUpdate({ [block.levelKey]: null } as UpdateSettingsPayload)}
+              />
+            </div>
             <select
               value={levelValue ?? ''}
               disabled={!!levelEnv}
@@ -297,6 +341,112 @@ function StageBlockEditor({
   );
 }
 
+function WindowConfigBlock({
+  tunables,
+  defaults,
+  onUpdate,
+}: {
+  tunables: StageTunables;
+  defaults: Record<keyof StageTunables, number | string | null>;
+  onUpdate: (payload: UpdateSettingsPayload) => void;
+}) {
+  const sizeEntry = tunables.windowSizeSeconds;
+  const overlapEntry = tunables.windowOverlapSeconds;
+  const sizeEnv = readEnvOverride(sizeEntry);
+  const overlapEnv = readEnvOverride(overlapEntry);
+
+  const sizeValue = (sizeEntry?.value as number | null) ?? (defaults.windowSizeSeconds as number);
+  const overlapValue = (overlapEntry?.value as number | null) ?? (defaults.windowOverlapSeconds as number);
+
+  const crossFieldError =
+    sizeValue !== null && overlapValue !== null && overlapValue >= sizeValue
+      ? 'Overlap must be less than window size.'
+      : null;
+
+  return (
+    <div className="border border-border rounded-lg p-3 space-y-3">
+      <div>
+        <h4 className="text-sm font-semibold text-foreground">Detection Window</h4>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Transcript chunk size for ad detection. Shrink for small-context local LLMs.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-xs font-medium text-foreground">
+              Window size (seconds)
+            </label>
+            <ResetButton
+              disabled={!!sizeEnv || sizeEntry?.isDefault !== false}
+              onClick={() => onUpdate({ windowSizeSeconds: defaults.windowSizeSeconds as number })}
+            />
+          </div>
+          <NumberCommitInput
+            value={sizeValue}
+            min={120}
+            max={1800}
+            step={30}
+            disabled={!!sizeEnv}
+            parse={(raw) => {
+              const v = parseInt(raw, 10);
+              return Number.isFinite(v) ? v : null;
+            }}
+            onCommit={(parsed) => {
+              if (parsed === null) return;
+              onUpdate({ windowSizeSeconds: parsed });
+            }}
+            className="w-full px-2 py-1 rounded border border-input bg-background text-foreground text-sm focus:outline-hidden focus:ring-2 focus:ring-ring disabled:opacity-60"
+          />
+          <p className="mt-1 text-xs text-muted-foreground">
+            {sizeEnv
+              ? `Set by ${sizeEnv}; edit your environment to change.`
+              : '120 to 1800. Default 600 (10 min).'}
+          </p>
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-xs font-medium text-foreground">
+              Overlap (seconds)
+            </label>
+            <ResetButton
+              disabled={!!overlapEnv || overlapEntry?.isDefault !== false}
+              onClick={() => onUpdate({ windowOverlapSeconds: defaults.windowOverlapSeconds as number })}
+            />
+          </div>
+          <NumberCommitInput
+            value={overlapValue}
+            min={0}
+            max={1770}
+            step={30}
+            disabled={!!overlapEnv}
+            parse={(raw) => {
+              const v = parseInt(raw, 10);
+              return Number.isFinite(v) ? v : null;
+            }}
+            onCommit={(parsed) => {
+              if (parsed === null) return;
+              onUpdate({ windowOverlapSeconds: parsed });
+            }}
+            className="w-full px-2 py-1 rounded border border-input bg-background text-foreground text-sm focus:outline-hidden focus:ring-2 focus:ring-ring disabled:opacity-60"
+          />
+          <p className="mt-1 text-xs text-muted-foreground">
+            {overlapEnv
+              ? `Set by ${overlapEnv}; edit your environment to change.`
+              : 'Must be less than window size. Default 180 (3 min).'}
+          </p>
+        </div>
+      </div>
+
+      {crossFieldError && (
+        <p className="text-xs text-destructive">{crossFieldError}</p>
+      )}
+    </div>
+  );
+}
+
 function StageTunablesSection({
   tunables,
   defaults,
@@ -304,9 +454,9 @@ function StageTunablesSection({
   onUpdate,
 }: StageTunablesSectionProps) {
   return (
-    <CollapsibleSection title="LLM Tunables (per stage)">
+    <CollapsibleSection title="LLM Tunables">
       <p className="text-sm text-muted-foreground mb-3">
-        Temperature, max tokens, and reasoning per pass. Applies on the next episode.
+        Temperature, max tokens, reasoning, and detection-window geometry. Applies on the next episode.
       </p>
       <div className="space-y-3">
         {STAGES.map((block) => (
@@ -319,6 +469,11 @@ function StageTunablesSection({
             onUpdate={onUpdate}
           />
         ))}
+        <WindowConfigBlock
+          tunables={tunables}
+          defaults={defaults}
+          onUpdate={onUpdate}
+        />
       </div>
     </CollapsibleSection>
   );

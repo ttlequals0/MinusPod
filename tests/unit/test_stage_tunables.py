@@ -131,6 +131,29 @@ class TestDbFallback:
         with patch("database.Database", side_effect=Exception("disk full")):
             assert config.get_stage_tunable("detection_max_tokens") == 4096
 
+    def test_caller_supplied_dict_shape(self, monkeypatch):
+        # api.settings GET handler passes raw get_all_settings() entries:
+        # {'value': str, 'is_default': bool}.
+        _clear_envs(monkeypatch, "DETECTION_MAX_TOKENS", "AD_DETECTION_MAX_TOKENS")
+        settings = {"detection_max_tokens": {"value": "8192", "is_default": False}}
+        assert config.get_stage_tunable("detection_max_tokens", settings=settings) == 8192
+
+    def test_caller_supplied_setting_entry_shape(self, monkeypatch):
+        # api.settings._settings_view wraps the raw dict into a SettingEntry
+        # dataclass. The resolver must read .value off it; before this
+        # regression test, the resolver only handled the dict shape and
+        # silently fell back to the default for the SettingEntry path.
+        from dataclasses import dataclass
+
+        @dataclass(frozen=True)
+        class FakeEntry:
+            value: object
+            is_default: bool
+
+        _clear_envs(monkeypatch, "DETECTION_MAX_TOKENS", "AD_DETECTION_MAX_TOKENS")
+        settings = {"detection_max_tokens": FakeEntry(value="8192", is_default=False)}
+        assert config.get_stage_tunable("detection_max_tokens", settings=settings) == 8192
+
 
 class TestEnvOverrideDetection:
     def test_no_override_when_env_unset(self, monkeypatch):

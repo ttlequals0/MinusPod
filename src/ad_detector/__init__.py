@@ -26,10 +26,11 @@ from utils.time import first_not_none, overlap_ratio
 from config import (
     MIN_TYPICAL_AD_DURATION, MIN_SPONSOR_READ_DURATION,
     MAX_REALISTIC_SIGNAL, MIN_OVERLAP_TOLERANCE,
-    MAX_AD_DURATION_WINDOW, WINDOW_SIZE_SECONDS, WINDOW_OVERLAP_SECONDS,
+    MAX_AD_DURATION_WINDOW,
     PATTERN_CORRECTION_OVERLAP_THRESHOLD,
     DEFAULT_AD_DETECTION_MODEL,
     resolve_stage_tunables,
+    get_stage_tunable,
 )
 from llm_capabilities import PASS_AD_DETECTION_1, PASS_AD_DETECTION_2
 from sponsor_service import SponsorService
@@ -63,7 +64,6 @@ from .boundaries import (
 )
 from .prompts import (
     USER_PROMPT_TEMPLATE,
-    WINDOW_STEP_SECONDS,
     create_windows,
     format_window_prompt,
     get_static_system_prompt,
@@ -392,8 +392,10 @@ class AdDetector:
             windows = create_windows(segments)
             total_duration = segments[-1]['end'] if segments else 0
 
+            win_size = get_stage_tunable('window_size_seconds')
+            win_overlap = get_stage_tunable('window_overlap_seconds')
             logger.info(f"[{slug}:{episode_id}] Processing {len(windows)} windows "
-                       f"({WINDOW_SIZE_SECONDS/60:.0f}min size, {WINDOW_OVERLAP_SECONDS/60:.0f}min overlap) "
+                       f"({win_size/60:.0f}min size, {win_overlap/60:.0f}min overlap) "
                        f"for {total_duration/60:.1f}min episode")
 
             # Get prompts and model

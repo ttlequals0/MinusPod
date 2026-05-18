@@ -43,4 +43,45 @@ assert_eq "$hard" "1200" '/settings/processing-timeouts hard round-trips'
 code=$(auth_code PUT /api/v1/settings/processing-timeouts 28 '{"softTimeoutSeconds":900}')
 assert_eq "$code" "400" '/settings/processing-timeouts rejects missing hard (400)'
 
+# F6: detection-window geometry as stage tunables. The /settings endpoint
+# accepts both fields with per-field bounds and a cross-field rule
+# (overlap < size). GET surfaces them under stageTunables.*.value.
+
+# Helper: pull a nested stageTunables value via a small python one-shot.
+nested_tunable() {
+    local key="$1"
+    curl -s -b "$JAR" "$LOCAL_BASE/api/v1/settings" | python3 -c "
+import json, sys
+try:
+    d = json.load(sys.stdin)
+    print(d.get('stageTunables', {}).get('$key', {}).get('value', ''))
+except Exception:
+    print('')
+" 2>/dev/null
+}
+
+auth_json PUT /api/v1/settings/ad-detection 28 '{"windowSizeSeconds":300,"windowOverlapSeconds":60}' >/dev/null
+sleep 0.3
+size=$(nested_tunable windowSizeSeconds)
+overlap=$(nested_tunable windowOverlapSeconds)
+assert_eq "$size" "300" '/settings windowSizeSeconds=300 round-trips'
+assert_eq "$overlap" "60" '/settings windowOverlapSeconds=60 round-trips'
+
+# Reset to defaults so other tests don't inherit the small window.
+auth_json PUT /api/v1/settings/ad-detection 28 '{"windowSizeSeconds":600,"windowOverlapSeconds":180}' >/dev/null
+
+# Cross-field: overlap >= size is rejected.
+code=$(auth_code PUT /api/v1/settings/ad-detection 28 '{"windowSizeSeconds":300,"windowOverlapSeconds":300}')
+assert_eq "$code" "400" '/settings rejects overlap >= size (400)'
+
+# Per-field bounds.
+code=$(auth_code PUT /api/v1/settings/ad-detection 28 '{"windowSizeSeconds":50}')
+assert_eq "$code" "400" '/settings rejects windowSizeSeconds below floor (400)'
+
+code=$(auth_code PUT /api/v1/settings/ad-detection 28 '{"windowSizeSeconds":2000}')
+assert_eq "$code" "400" '/settings rejects windowSizeSeconds above ceiling (400)'
+
+code=$(auth_code PUT /api/v1/settings/ad-detection 28 '{"windowOverlapSeconds":-5}')
+assert_eq "$code" "400" '/settings rejects negative windowOverlapSeconds (400)'
+
 finish_test "T28-settings-roundtrip"

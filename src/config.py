@@ -397,7 +397,8 @@ def get_pricing_source(provider: str, base_url: str = '') -> dict:
 # ============================================================
 # Per-Stage LLM Tunables (env > DB > default)
 # ============================================================
-# 5 stages * 4 keys + 1 global Ollama key. Reasoning is split into a numeric
+# 5 stages * 4 keys + 1 global Ollama key + 2 global detection-window keys.
+# Reasoning is split into a numeric
 # token budget (Anthropic, extended thinking) and a string-enum effort level
 # (OpenAI/OpenRouter/Ollama); only the key matching the active provider is read.
 # Stage code reads via get_stage_tunable() at call time so Settings UI changes
@@ -432,6 +433,9 @@ STAGE_TUNABLE_DEFAULTS = {
     'chapter_title_reasoning_level': None,
     # ollama context window (provider-scoped, not per-stage)
     'ollama_num_ctx': None,
+    # detection window geometry (global, not per-stage)
+    'window_size_seconds': WINDOW_SIZE_SECONDS,
+    'window_overlap_seconds': WINDOW_OVERLAP_SECONDS,
 }
 
 STAGE_TUNABLE_ENV_VARS = {key: key.upper() for key in STAGE_TUNABLE_DEFAULTS}
@@ -463,6 +467,11 @@ STAGE_TUNABLE_RANGES = {
     'chapter_title_reasoning_budget': (1024, 65536),
     # ollama context window
     'ollama_num_ctx': (512, 131072),
+    # detection window geometry. Cross-field constraint (overlap < size) is
+    # enforced at the API layer; the per-field bounds here are the static
+    # envelope the resolver checks against.
+    'window_size_seconds': (120, 1800),
+    'window_overlap_seconds': (0, 1770),
 }
 
 STAGE_TUNABLE_REASONING_LEVELS = {"none", "low", "medium", "high"}
@@ -551,6 +560,11 @@ def get_stage_tunable(key: str, settings: Optional[dict] = None) -> Any:
         entry = settings.get(key)
         if isinstance(entry, dict):
             db_val = entry.get('value')
+        elif hasattr(entry, 'value'):
+            # SettingEntry dataclass (api.settings._settings_view wraps the
+            # raw dict shape into typed entries). hasattr check keeps the
+            # resolver pluggable to other entry shapes consumers add.
+            db_val = entry.value
         else:
             db_val = entry
     else:
@@ -608,6 +622,8 @@ STAGE_TUNABLE_PAYLOAD_KEYS = (
     ('chapterTitleReasoningBudget',    'chapter_title_reasoning_budget',  'budget'),
     ('chapterTitleReasoningLevel',     'chapter_title_reasoning_level',   'level'),
     ('ollamaNumCtx',                   'ollama_num_ctx',                  'ollama_ctx'),
+    ('windowSizeSeconds',              'window_size_seconds',             'int'),
+    ('windowOverlapSeconds',           'window_overlap_seconds',          'int'),
 )
 
 
