@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.16] - 2026-05-17
+
+### Fixed
+
+- **Bulk action buttons in `FeedDetail.tsx` shifted size with the eligible count.** "Full Reprocess (N)" was wrapping onto two lines on narrow viewports while "Reprocess (N)" and "Delete (N)" stayed single-line, giving the toolbar an uneven look. Added `whitespace-nowrap` + `min-w-[8rem] text-center` so every button is the same width and never wraps regardless of the count.
+
 ## [2.4.15] - 2026-05-17
 
 ### Fixed
