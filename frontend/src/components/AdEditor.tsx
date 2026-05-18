@@ -97,10 +97,11 @@ export function AdEditor({
     prevCreateModePropRef.current = createMode;
   }, [createMode]);
 
-  // Tracks whether create mode was reached from review (via the
-  // in-modal "+ Add new ad" button) so handleClose can decide between
-  // "return to review" and "close the editor entirely".
-  const cameFromReviewRef = useRef(false);
+  // 2.2.6 added a cameFromReview ref so Cancel from create returned to the
+  // review modal when entered via the in-modal "+ Add new ad". Users found
+  // the reappearing review modal more surprising than helpful (#TBD), so
+  // Cancel/X now always closes the editor regardless of entry path. Save
+  // still flips back to review via handleCreateSubmit below.
 
   const safeIndex =
     detectedAds.length > 0
@@ -202,24 +203,11 @@ export function AdEditor({
   };
 
   const handleAddNew = () => {
-    if (!internalCreateMode) {
-      cameFromReviewRef.current = true;
-    }
     setInternalCreateMode(true);
   };
 
   const handleClose = () => {
-    if (
-      internalCreateMode &&
-      cameFromReviewRef.current &&
-      detectedAds.length > 0
-    ) {
-      cameFromReviewRef.current = false;
-      setInternalCreateMode(false);
-    } else {
-      cameFromReviewRef.current = false;
-      onClose?.();
-    }
+    onClose?.();
   };
 
   // The key forces a clean remount whenever the mode flips or the

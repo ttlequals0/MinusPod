@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.19] - 2026-05-18
+
+### Fixed
+
+- **Cancel/X on the Add-new-ad modal no longer reopens the Detected-ad modal underneath.** 2.2.6 added a `cameFromReviewRef` so that Cancel from create-mode would return the user to the review modal when create was entered via the in-modal `+ Add new ad` button. Users found the reappearing review modal more disruptive than helpful (the page-header path closed cleanly, but the in-modal path bounced them back into review). Both close paths now route to `onClose` and unmount the editor. Save still flips back to review via `handleCreateSubmit` so the user can keep working through a queue after committing an ad.
+
 ## [2.4.18] - 2026-05-18
 
 ### Added
