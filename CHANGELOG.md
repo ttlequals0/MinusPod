@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.14] - 2026-05-17
+
+### Fixed
+
+- **Bulk `process` action on auto-process-disabled feeds was silently dropped.** The 2.4.12 fix that let user-initiated reprocesses bypass the background drainer's auto-process gate keyed on `reprocess_requested_at`, which is set by the single-episode and bulk `reprocess` / `reprocess_full` paths. The bulk `process` (first-time process) path did not set the field, so the drainer's bypass check still saw NULL and marked the row `completed` with reason "Auto-process disabled for this feed". Bulk `process` now stamps `reprocess_requested_at` like the other user-initiated paths, so first-time process from the UI on a disabled feed runs through normally.
+
 ## [2.4.13] - 2026-05-17
 
 ### Changed
