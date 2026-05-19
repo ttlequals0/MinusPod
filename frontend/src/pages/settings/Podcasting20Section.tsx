@@ -15,7 +15,7 @@ function Podcasting20Section({
   onChaptersEnabledChange,
 }: Podcasting20SectionProps) {
   return (
-    <CollapsibleSection title="Podcasting 2.0">
+    <CollapsibleSection title="Transcripts & Chapters">
       <div className="space-y-4">
         <div>
           <label className="flex items-center gap-3 cursor-pointer">
