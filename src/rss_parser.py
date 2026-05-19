@@ -724,12 +724,8 @@ class RSSParser:
         return modified_rss
 
     def _append_podcasting2_tags(self, lines: list, slug: str, episode_id: str, storage) -> None:
-        # Emit transcript/chapters ONLY when MinusPod has its own regenerated
-        # version cached. The served feed must never expose upstream URLs:
-        # subscribers reach MinusPod or they get nothing. Until MinusPod
-        # finishes processing an episode, the served feed carries no
-        # transcript or chapter URL for it, and the audio enclosure 503s
-        # with a JIT-triggered processing job (see serve_episode).
+        # Emit only when MinusPod has the cached file. Upstream URLs must
+        # never appear in the served feed; see docs/podcasting-2.0.md.
         if not storage:
             return
         base_url = self._resolved_base_url()
