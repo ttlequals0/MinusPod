@@ -6,6 +6,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- **CPU image now ships as a multi-arch manifest covering `linux/amd64` and `linux/arm64` (issue #256).** Users on Raspberry Pi 5, Ampere, Graviton, M-series Macs, and other arm64 hosts can pull `ttlequals0/minuspod:<version>-cpu` or `:cpu` without docker-compose's amd64 emulation; Docker auto-selects the matching variant at pull time. GPU image (`Dockerfile`, `:<version>`, `:latest`) stays amd64-only because NVIDIA's arm64 CUDA images target Jetson, not generic arm64 cloud hosts.
+- **CPU image build moves to a GitHub Actions workflow.** `.github/workflows/cpu-image.yml` runs the amd64 leg on `ubuntu-latest` and the arm64 leg on the free native `ubuntu-24.04-arm` runner (no QEMU), then merges both arch-specific digests into a single manifest list. Trigger: `gh workflow run cpu-image.yml -f version=<version>` after the GPU image lands; add `-f promote_cpu_tag=true` to also move the floating `:cpu` tag. Requires repo secrets `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN`. The local `/build-and-push` flow stays as GPU-only.
+- **`docker-compose.cpu.yml` no longer pins `platform: linux/amd64`.** Docker now picks the matching arch from the published manifest list. Re-add the pin only to force amd64 emulation on an arm64 host.
+
 ## [2.4.20] - 2026-05-18
 
 ### Fixed

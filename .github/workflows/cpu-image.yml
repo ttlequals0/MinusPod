@@ -41,7 +41,7 @@ jobs:
     name: Build ${{ matrix.platform }}
     runs-on: ${{ matrix.runner }}
     strategy:
-      fail-fast: false  # let the surviving arch finish so its digest isn't orphaned
+      fail-fast: false  # let the surviving leg finish; its digest is still uploaded for inspection on partial failure
       matrix:
         include:
           - platform: linux/amd64
@@ -78,6 +78,11 @@ jobs:
           ARCH_ID: ${{ matrix.arch_id }}
           IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
         run: |
+          set -euo pipefail
+          if [ -z "$IMAGE_DIGEST" ]; then
+            echo "build-push-action produced no digest output" >&2
+            exit 1
+          fi
           mkdir -p /tmp/digests
           echo "$IMAGE_DIGEST" > "/tmp/digests/$ARCH_ID"
 
