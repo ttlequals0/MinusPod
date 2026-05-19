@@ -98,7 +98,7 @@ jobs:
       PROMOTE_CPU_TAG: ${{ inputs.promote_cpu_tag }}
     steps:
       - name: Download digests
-        uses: actions/download-artifact@2b3aff260ed2e3b2c3b5fa0d5e0d0c6a3a06af0c  # v5.0.0
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0  # v5.0.0
         with:
           path: /tmp/digests
           pattern: digest-*
