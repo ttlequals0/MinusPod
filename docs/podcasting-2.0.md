@@ -59,6 +59,8 @@ These remain accurate after ad removal and are copied verbatim:
 | [`podcast:trailer`](https://podcasting2.org/docs/podcast-namespace/tags/trailer) | A trailer is its own separate file, not an offset into the episode. |
 | [`podcast:image`](https://podcasting2.org/docs/podcast-namespace/tags/image) | Artwork sources improve display and are unaffected. The deprecated plural `podcast:images`, if present upstream, is also passed through untouched. |
 | [`podcast:socialInteract`](https://podcasting2.org/docs/podcast-namespace/tags/social-interact) | Comment and discussion links are unaffected. |
+| [`podcast:block`](https://podcasting2.org/docs/podcast-namespace/tags/block) | The publisher's directory-block hints. Multiple instances are allowed, optionally scoped to one platform with an `id` attribute (e.g. `id="apple"`). MinusPod copies each one verbatim. Stripping these would silently expose the re-feed in directories the publisher chose to keep it out of. |
+| [`podcast:complete`](https://podcasting2.org/docs/podcast-namespace/tags/complete) | Boolean for "no more episodes are coming". Applies to the show, not the audio timeline; ad removal does not change whether the run is over. |
 | [`podcast:txt`](https://podcasting2.org/docs/podcast-namespace/tags/txt) (general, no `verify` purpose) | Free-form metadata, harmless to carry. |
 
 ### Regenerated for the processed audio

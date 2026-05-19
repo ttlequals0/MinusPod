@@ -103,11 +103,16 @@ _PODCAST_NS_URIS = (
 # Note: ``images`` (plural) was deprecated by the namespace in favor of
 # ``image``. Kept for upstream feeds still emitting the deprecated plural;
 # unescaped passthrough is harmless to readers that ignore unknown tags.
+# ``block`` and ``complete`` are publisher distribution / lifecycle metadata
+# that stays true through ad removal: ``block`` may carry multiple instances
+# with an ``id`` attribute scoping the block to specific directories
+# (apple/spotify/amazon), and ``complete`` is a boolean show-finished flag.
 _PC2_CHANNEL_PASSTHROUGH = frozenset({
     "funding", "podroll", "license", "medium", "person",
     "updateFrequency", "season", "episode", "trailer",
     "images", "image", "socialInteract",
     "value", "valueRecipient", "valueTimeSplit",
+    "block", "complete",
 })
 
 # Channel-level podcast:* tags MinusPod always removes. soundbite/liveItem/

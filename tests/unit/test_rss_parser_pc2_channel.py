@@ -5,7 +5,11 @@ Covers the pass/regenerate/strip contract documented in
 strip set, txt-purpose filtering, attribute escaping, malformed-input
 safety, and end-to-end well-formedness of the served feed.
 """
+import os
+
 import defusedxml
+
+FIXTURES_DIR = os.path.join(os.path.dirname(__file__), "..", "fixtures")
 defusedxml.defuse_stdlib()
 from defusedxml.ElementTree import fromstring as _safe_fromstring
 
@@ -201,6 +205,40 @@ class TestPassthroughSet:
             "<podcast:socialInteract",
         ]:
             assert needle in out, f"missing {needle}"
+
+    def test_podcast_block_passed_through_with_all_variants(self):
+        # Upstream commonly emits one generic <podcast:block> plus per-platform
+        # blocks (apple/spotify/amazon). All four must reach the served feed
+        # verbatim. Stripping would silently relist the show in directories
+        # the publisher chose to keep it out of.
+        upstream = _minimal_upstream("""
+            <podcast:block>no</podcast:block>
+            <podcast:block id="apple">yes</podcast:block>
+            <podcast:block id="spotify">yes</podcast:block>
+            <podcast:block id="amazon">yes</podcast:block>
+        """)
+        out = _emit(_build_parser(), upstream)
+        assert out.count("<podcast:block") == 4
+        assert '<podcast:block>no</podcast:block>' in out
+        assert '<podcast:block id="apple">yes</podcast:block>' in out
+        assert '<podcast:block id="spotify">yes</podcast:block>' in out
+        assert '<podcast:block id="amazon">yes</podcast:block>' in out
+
+    def test_podcast_complete_passed_through(self):
+        upstream = _minimal_upstream('<podcast:complete>yes</podcast:complete>')
+        out = _emit(_build_parser(), upstream)
+        assert "<podcast:complete>yes</podcast:complete>" in out
+
+    def test_self_closing_block_serializer_does_not_invent_body(self):
+        # An upstream that emits <podcast:block id="apple"/> with no body
+        # must NOT round-trip as "<podcast:block id='apple'>yes</...>" or
+        # any other invented payload. The serializer must keep the empty
+        # body shape so consumers see exactly what upstream meant.
+        upstream = _minimal_upstream('<podcast:block id="apple"/>')
+        out = _emit(_build_parser(), upstream)
+        assert '<podcast:block id="apple" />' in out
+        assert "<podcast:block id=\"apple\">yes" not in out
+        assert "<podcast:block id=\"apple\">no" not in out
 
 
 class TestMalformedAndEdgeCases:
@@ -404,11 +442,7 @@ class TestPc20SnapshotFixture:
 
     @pytest.fixture
     def pc20_xml(self):
-        import os
-        path = os.path.join(
-            os.path.dirname(__file__), "..", "fixtures", "pc20_snapshot.xml"
-        )
-        with open(path, "r", encoding="utf-8") as f:
+        with open(os.path.join(FIXTURES_DIR, "pc20_snapshot.xml"), "r", encoding="utf-8") as f:
             return f.read()
 
     def test_channel_passthrough_is_non_empty(self, pc20_xml):
@@ -441,6 +475,21 @@ class TestPc20SnapshotFixture:
     def test_ai_content_always_true(self, pc20_xml):
         out = _emit(_build_parser(), pc20_xml)
         assert out.count('<podcast:txt purpose="ai-content">true</podcast:txt>') == 1
+
+    def test_block_and_complete_survive_from_real_fixture(self):
+        # The pc20 snapshot itself contains <podcast:complete>no</podcast:complete>
+        # and four <podcast:block> entries (generic + apple/spotify/amazon).
+        # Before the 2.5.6 passthrough additions these were silently dropped
+        # and this fixture-driven test passed regardless.
+        with open(os.path.join(FIXTURES_DIR, "pc20_snapshot.xml"), encoding="utf-8") as f:
+            served = _full_feed(_build_parser(), f.read())
+        # Channel block only; exclude any item-level matches by trimming.
+        first_item = served.find("<item>")
+        channel = served[:first_item]
+        assert channel.count("<podcast:block") == 4
+        # Exact value, not just substring presence: the fixture has "no"
+        # and that value must survive the round-trip.
+        assert "<podcast:complete>no</podcast:complete>" in channel
 
 
 class TestFullFeedWellFormed:

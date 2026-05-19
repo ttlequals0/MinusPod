@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.6] - 2026-05-19
+
+### Fixed
+
+- **`<podcast:block>` and `<podcast:complete>` are now passed through verbatim instead of silently dropped.** A served-feed audit against the pc20 fixture revealed both tags fell into the "unknown podcast:* localname, skip" branch of `_parse_upstream_channel_pc2_tags`. Neither tag describes the original audio timeline or bytes, so neither belongs on the strip list, but both were missing from the passthrough allowlist. `podcast:block` carries the publisher's directory-block hints with an optional `id` attribute scoping the block to specific directories (e.g. `id="apple"`, `id="spotify"`, `id="amazon"`); stripping these would silently expose the re-feed in directories the publisher chose to keep it out of. `podcast:complete` is the show-finished boolean and is unaffected by ad removal. Both added to `_PC2_CHANNEL_PASSTHROUGH` and documented in `docs/podcasting-2.0.md`. New tests cover all-variants survival, self-closing-block payload preservation, and end-to-end emission against the live pc20 snapshot. No DB or schema changes; rollback is a plain image redeploy.
+
 ## [2.5.5] - 2026-05-19
 
 ### Fixed
