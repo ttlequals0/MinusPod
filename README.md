@@ -44,7 +44,7 @@ Access the web UI at `http://localhost:8000/ui/` to add and manage feeds.
 
 `MINUSPOD_MASTER_PASSPHRASE` is strongly recommended for production. Without it, provider API keys go into the database as plaintext. Setting it later migrates existing plaintext rows to `enc:v1:` encrypted storage on the next boot, with a mandatory pre-migration SQLite snapshot in `data/backups/`. Restoring a backup requires the same passphrase that created it, so pick a long random value and keep it somewhere separate from the database.
 
-**No NVIDIA GPU?** Pull the CPU variant (`docker compose -f docker-compose.cpu.yml up -d`) and offload Whisper to a remote API. Full CPU setup and the 2.0.0+ upgrade notes are in [docs/installation.md](docs/installation.md).
+**No NVIDIA GPU?** Pull the CPU variant (`docker compose -f docker-compose.cpu.yml up -d`; multi-arch, runs natively on amd64 and arm64) and offload Whisper to a remote API. Full CPU setup and the 2.0.0+ upgrade notes are in [docs/installation.md](docs/installation.md).
 
 ## Documentation
 
