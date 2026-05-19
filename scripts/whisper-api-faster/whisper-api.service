@@ -1,0 +1,21 @@
+[Unit]
+Description=Whisper Transcription API (faster-whisper)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/whisper-api
+Environment="WHISPER_MODEL=large-v3"
+Environment="WHISPER_PORT=8090"
+Environment="WHISPER_DEVICE=cuda"
+Environment="WHISPER_COMPUTE_TYPE=float16"
+ExecStart=/opt/whisper-api/venv/bin/python3 /opt/whisper-api/whisper_api.py
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+TimeoutStartSec=120
+
+[Install]
+WantedBy=multi-user.target
