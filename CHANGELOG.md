@@ -6,6 +6,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.2] - 2026-05-19
+
+### Fixed
+
+- **Channel artwork URL was being overridden by per-episode `itunes:image` tags.** feedparser flattens every `<itunes:image>` across the document into a single `feed.image.href`, so a feed that declares a proper 144x144 PNG at channel scope and a different image per episode (e.g. the Podcasting 2.0 reference feed pc20.xml, whose first episode references a 40 MB animated GIF) ended up with MinusPod storing the per-episode override as the show's "official" artwork. The retry-on-every-request artwork cache then burned ~200 ms per page load failing to cache the GIF against the size cap. `RSSParser.extract_podcast_artwork_url` now parses raw channel-level XML via defusedxml: it prefers `<itunes:image href="...">` as a direct child of `<channel>`, falls back to `<image><url>`, and never considers per-episode tags. Both callers (`refresh_rss_feed` and `_extract_artwork_url_from_feed`) now pass raw bytes.
+- **Modified RSS had no channel-level `<itunes:image>` tag.** Apple Podcasts and most podcast players prefer this over the standard `<image>` block, so feeds whose web-UI artwork looked fine still showed no cover in subscribers' apps. `modify_feed` now emits both `<image>` AND `<itunes:image>` at channel scope using the URL returned by the new raw-XML extractor.
+- **Artwork endpoint hammered upstream hosts on every request.** `GET /api/v1/feeds/<slug>/artwork` attempted a full re-download whenever the cached file was missing, even when the prior download had failed cleanly (size cap, content-type rejection, fetch error). Now only retries when `artwork_cached=1` (the "file went missing out from under us" case); when `cached=0`, returns 404 immediately and lets the 15-minute refresh cycle handle the retry.
+
 ## [2.5.1] - 2026-05-19
 
 Tag `2.5.0` was published to Docker Hub but pulled stale bytes through a Portainer/registry cache layer on deploy. `2.5.1` is the first working release that ships the changes below. Treat `2.5.0` as withdrawn.

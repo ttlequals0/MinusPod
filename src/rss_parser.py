@@ -392,14 +392,78 @@ class RSSParser:
             return None
 
     @staticmethod
-    def extract_podcast_artwork_url(parsed_feed) -> Optional[str]:
-        """Extract podcast-level artwork URL from a parsed feed."""
-        if not parsed_feed or not parsed_feed.feed:
+    def extract_podcast_artwork_url(feed_content_or_parsed) -> Optional[str]:
+        """Channel-level podcast artwork URL.
+
+        feedparser flattens ``<itunes:image>`` across the whole document, so
+        ``parsed_feed.feed.image.href`` gets clobbered by the LAST itunes:image
+        encountered (typically a per-episode override) instead of the
+        channel-level one. The Podcasting 2.0 reference feed pc20.xml is a
+        live example: channel ``<image><url>`` is a 144x144 PNG, but
+        feedparser surfaces the 40 MB per-episode GIF.
+
+        Parse the raw XML directly so we only consider channel-level
+        elements. Order of preference:
+
+          1. ``<itunes:image href="...">`` as a direct child of ``<channel>``
+          2. ``<image><url>`` as a direct child of ``<channel>``
+
+        Accepts either raw bytes/str (preferred) or a feedparser parse
+        result (legacy compat); the legacy path is intentionally narrow
+        because it carries the bug described above.
+        """
+        if not feed_content_or_parsed:
             return None
-        feed = parsed_feed.feed
+
+        if isinstance(feed_content_or_parsed, (str, bytes)):
+            try:
+                payload = (feed_content_or_parsed.encode('utf-8')
+                           if isinstance(feed_content_or_parsed, str)
+                           else feed_content_or_parsed)
+                root = defused_fromstring(payload)
+            except Exception:
+                return None
+
+            channel = None
+            for child in list(root) if root is not None else []:
+                tag = getattr(child, 'tag', '')
+                if isinstance(tag, str) and (tag == 'channel' or tag.endswith('}channel')):
+                    channel = child
+                    break
+            if channel is None:
+                return None
+
+            ITUNES_NS_TAGS = (
+                '{http://www.itunes.com/dtds/podcast-1.0.dtd}image',
+                'itunes:image',
+            )
+            channel_itunes_image = None
+            channel_rss_image = None
+            for elem in channel:
+                tag = getattr(elem, 'tag', '')
+                if not isinstance(tag, str):
+                    continue
+                if tag in ITUNES_NS_TAGS:
+                    href = elem.get('href') or ''
+                    if href.strip():
+                        channel_itunes_image = href.strip()
+                        break
+                if tag == 'image' or tag.endswith('}image'):
+                    for sub in elem:
+                        sub_tag = getattr(sub, 'tag', '')
+                        if isinstance(sub_tag, str) and (sub_tag == 'url' or sub_tag.endswith('}url')):
+                            url_text = (sub.text or '').strip()
+                            if url_text:
+                                channel_rss_image = url_text
+                                break
+            return channel_itunes_image or channel_rss_image
+
+        # Legacy feedparser path (kept narrow; see docstring).
+        feed = getattr(feed_content_or_parsed, 'feed', None)
+        if feed is None:
+            return None
         if hasattr(feed, 'image') and hasattr(feed.image, 'href'):
             return feed.image.href
-        # Fallback to itunes:image
         if 'itunes_image' in feed:
             return feed.itunes_image.get('href')
         return None
@@ -523,12 +587,20 @@ class RSSParser:
         lines.append(f'<description><![CDATA[{self._get_channel_description(channel)}]]></description>')
         lines.append(f'<language>{self._escape_xml(channel.get("language", "en"))}</language>')
 
-        if 'image' in channel:
+        # Channel artwork: take the correct channel-level URL from raw XML
+        # (feedparser corrupts feed.image.href with per-episode itunes:image
+        # overrides). Emit BOTH the standard <image> block and the
+        # <itunes:image> tag that Apple Podcasts and most apps prefer.
+        artwork_url = self.extract_podcast_artwork_url(feed_content)
+        if artwork_url:
+            channel_title = channel.get('title', '') or ''
+            channel_link = channel.get('link', '') or ''
             lines.append(f'<image>')
-            lines.append(f'  <url>{self._escape_xml(channel.image.get("href", ""))}</url>')
-            lines.append(f'  <title>{self._escape_xml(channel.image.get("title", ""))}</title>')
-            lines.append(f'  <link>{self._escape_xml(channel.image.get("link", ""))}</link>')
+            lines.append(f'  <url>{self._escape_xml(artwork_url)}</url>')
+            lines.append(f'  <title>{self._escape_xml(channel_title)}</title>')
+            lines.append(f'  <link>{self._escape_xml(channel_link)}</link>')
             lines.append(f'</image>')
+            lines.append(f'<itunes:image href="{self._escape_xml(artwork_url)}" />')
 
         # Channel-level Podcasting 2.0 tags: minted guid, passthrough of safe
         # upstream tags, ai-content disclosure. See docs/podcasting-2.0.md.

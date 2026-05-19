@@ -620,8 +620,9 @@ def _extract_artwork_url_from_feed(source_url: str) -> Optional[str]:
         feed_content = rss_parser.fetch_feed(source_url)
         if not feed_content:
             return None
-        parsed_feed = rss_parser.parse_feed(feed_content)
-        return rss_parser.extract_podcast_artwork_url(parsed_feed)
+        # Pass raw XML; see extract_podcast_artwork_url docstring on why
+        # the feedparser path is unreliable for the channel image.
+        return rss_parser.extract_podcast_artwork_url(feed_content)
     except Exception as e:
         logger.warning(f"Failed to extract artwork URL from feed: {e}")
     return None
@@ -635,17 +636,17 @@ def get_artwork(slug):
 
     artwork = storage.get_artwork(slug)
     if not artwork:
-        # Artwork file missing on disk -- try to recover
+        # Only auto-recover when the DB flag claims artwork IS cached
+        # (the file got deleted out from under us). When cached=0, a prior
+        # download failed (size cap, content-type rejection, fetch error)
+        # and retrying on every request just burns ~200ms per request and
+        # hammers the upstream host. The 15-minute refresh cycle retries
+        # downloads naturally; let it do the work.
         db = get_database()
         podcast = db.get_podcast_by_slug(slug)
-        if podcast:
-            # Clear stale artwork_cached flag so download_artwork won't short-circuit
-            if podcast.get('artwork_cached'):
-                db.update_podcast(slug, artwork_cached=0)
-
+        if podcast and podcast.get('artwork_cached'):
+            db.update_podcast(slug, artwork_cached=0)
             artwork_url = podcast.get('artwork_url')
-            # If artwork_url is NULL or empty string, (re-)extract from the source feed.
-            # Previous empty-string sentinels may be stale (feed updated, extraction improved).
             if not artwork_url and podcast.get('source_url'):
                 artwork_url = _extract_artwork_url_from_feed(podcast['source_url'])
                 if artwork_url:

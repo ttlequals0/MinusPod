@@ -157,8 +157,9 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
             title = parsed_feed.feed.get('title')
             description = parsed_feed.feed.get('description', '')[:500]
 
-            # Extract artwork URL
-            artwork_url = rss_parser.extract_podcast_artwork_url(parsed_feed)
+            # Extract artwork URL from RAW xml (feedparser corrupts the
+            # channel image with the last per-episode itunes:image it sees).
+            artwork_url = rss_parser.extract_podcast_artwork_url(feed_content)
 
             # Update podcast metadata (and ETag if available) in a single DB call
             update_kwargs = dict(
