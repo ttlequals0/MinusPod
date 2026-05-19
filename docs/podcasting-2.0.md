@@ -61,17 +61,28 @@ These remain accurate after ad removal and are copied verbatim:
 | [`podcast:socialInteract`](https://podcasting2.org/docs/podcast-namespace/tags/social-interact) | Comment and discussion links are unaffected. |
 | [`podcast:txt`](https://podcasting2.org/docs/podcast-namespace/tags/txt) (general, no `verify` purpose) | Free-form metadata, harmless to carry. |
 
-### Regenerated for the processed audio
+### Regenerated for the processed audio, with upstream fallback before processing
 
-MinusPod already produces these for the cut file. The upstream
-versions are discarded because their timestamps point into the
-original, uncut audio:
+These tags carry timestamps that have to match the audio MinusPod
+actually serves. The right answer depends on whether MinusPod has
+finished processing an episode:
 
-| Tag | Why it is regenerated |
+- **Processed (we serve cut audio):** MinusPod emits its own URL
+  pointing at the regenerated transcript or chapter file. The upstream
+  publisher's version is dropped, because its offsets would be wrong
+  for the cut file.
+- **Not yet processed (we serve the original audio through our
+  enclosure):** the upstream publisher's transcript and chapters are
+  still correct against that audio, so MinusPod passes them through
+  verbatim. Subscribers keep the publisher's transcripts and chapter
+  markers from day one and gain the regenerated versions silently the
+  moment MinusPod finishes a cut.
+
+| Tag | Behavior |
 |---|---|
-| [`podcast:transcript`](https://podcasting2.org/docs/podcast-namespace/tags/transcript) | MinusPod generates a transcript aligned to the processed audio. An upstream transcript would be offset by the length of every removed ad. |
-| [`podcast:chapters`](https://podcasting2.org/docs/podcast-namespace/tags/chapters) | Same reason. Chapter markers from the original feed land in the wrong place after cutting. |
-| `itunes:duration` | Recomputed from the processed file's actual length. |
+| [`podcast:transcript`](https://podcasting2.org/docs/podcast-namespace/tags/transcript) | If MinusPod has a cached VTT for the episode, served URL points at it. Otherwise, every upstream `<podcast:transcript>` on the item is re-emitted verbatim (URL, type, language, rel preserved). |
+| [`podcast:chapters`](https://podcasting2.org/docs/podcast-namespace/tags/chapters) | Same fallback: cached JSON wins; otherwise the upstream chapters URL is re-emitted. |
+| `itunes:duration` | Recomputed from the processed file's actual length when available; upstream value carried through until then. |
 
 ## What MinusPod does not support, and why
 

@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.4] - 2026-05-19
+
+### Fixed
+
+- **Per-episode `<podcast:transcript>` and `<podcast:chapters>` are no longer dropped on unprocessed episodes.** Before this release, the served feed only emitted these tags when MinusPod had cached its own regenerated VTT/JSON for the episode. For feeds where many episodes are still in `discovered`/`processing` state (typical immediately after adding a podcast), MinusPod serves the original upstream audio through its enclosure URL, but stripped the upstream publisher's transcript and chapter references. Subscribers lost access to the publisher's transcripts and chapter markers entirely until each episode finished cut-processing. New behavior: when MinusPod has its own regenerated file the served URL points at it (cut-aligned timestamps); otherwise every per-item `<podcast:transcript>` and `<podcast:chapters>` from upstream is re-emitted verbatim with all attributes preserved (`url`, `type`, `language`, `rel`). pc20 served feed went from 0 to 193 per-episode transcript and chapter tags as a result. See `docs/podcasting-2.0.md` for the updated semantics.
+
 ## [2.5.3] - 2026-05-19
 
 ### Fixed
