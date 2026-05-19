@@ -41,7 +41,7 @@ jobs:
     name: Build ${{ matrix.platform }}
     runs-on: ${{ matrix.runner }}
     strategy:
-      fail-fast: true
+      fail-fast: false  # let the surviving arch finish so its digest isn't orphaned
       matrix:
         include:
           - platform: linux/amd64
@@ -113,31 +113,25 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Create version-cpu manifest list
+      - name: Create manifest list
         working-directory: /tmp/digests
         run: |
           set -euo pipefail
           AMD64_DIGEST=$(cat digest-amd64/amd64)
           ARM64_DIGEST=$(cat digest-arm64/arm64)
-          echo "amd64 digest: $AMD64_DIGEST"
-          echo "arm64 digest: $ARM64_DIGEST"
+          TAGS=(-t "${REGISTRY_IMAGE}:${VERSION}-cpu")
+          if [ "$PROMOTE_CPU_TAG" = "true" ]; then
+            TAGS+=(-t "${REGISTRY_IMAGE}:cpu")
+          fi
           docker buildx imagetools create \
-            -t "${REGISTRY_IMAGE}:${VERSION}-cpu" \
-            "${REGISTRY_IMAGE}@${AMD64_DIGEST}" \
-            "${REGISTRY_IMAGE}@${ARM64_DIGEST}"
-
-      - name: Promote :cpu floating tag
-        if: ${{ inputs.promote_cpu_tag }}
-        working-directory: /tmp/digests
-        run: |
-          set -euo pipefail
-          AMD64_DIGEST=$(cat digest-amd64/amd64)
-          ARM64_DIGEST=$(cat digest-arm64/arm64)
-          docker buildx imagetools create \
-            -t "${REGISTRY_IMAGE}:cpu" \
+            "${TAGS[@]}" \
             "${REGISTRY_IMAGE}@${AMD64_DIGEST}" \
             "${REGISTRY_IMAGE}@${ARM64_DIGEST}"
 
       - name: Inspect resulting manifest
         run: |
+          set -euo pipefail
           docker buildx imagetools inspect "${REGISTRY_IMAGE}:${VERSION}-cpu"
+          if [ "$PROMOTE_CPU_TAG" = "true" ]; then
+            docker buildx imagetools inspect "${REGISTRY_IMAGE}:cpu"
+          fi
