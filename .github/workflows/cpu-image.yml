@@ -1,0 +1,143 @@
+name: CPU image (multi-arch)
+
+# Builds and publishes ttlequals0/minuspod:<version>-cpu as a multi-arch
+# manifest (linux/amd64 + linux/arm64). The amd64 leg runs on the standard
+# GitHub-hosted runner; the arm64 leg runs on the free native arm64 runner
+# (no QEMU). A final job merges both arch-specific digests into a single
+# manifest list and tags it. Trigger is manual only - releases drive this
+# from the user side, not every commit.
+#
+# Requires repo secrets DOCKERHUB_USERNAME and DOCKERHUB_TOKEN.
+#
+# The GPU image (ttlequals0/minuspod:<version>, :latest) is still built
+# locally via the /build-and-push skill; only the CPU variant is here
+# because NVIDIA's arm64 CUDA images target Jetson, not generic arm servers.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish (matches version.py, e.g. 2.4.21). Pushed as :<version>-cpu."
+        required: true
+        type: string
+      promote_cpu_tag:
+        description: "Also tag and push as :cpu (post-merge floating tag)."
+        required: false
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cpu-image-${{ inputs.version }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY_IMAGE: ttlequals0/minuspod
+
+jobs:
+  build:
+    name: Build ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+            arch_id: amd64
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+            arch_id: arm64
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd  # v4.0.0
+
+      - name: Docker Hub login
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121  # v4.1.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f  # v7.1.0
+        with:
+          context: .
+          file: ./Dockerfile.cpu
+          platforms: ${{ matrix.platform }}
+          outputs: type=image,name=${{ env.REGISTRY_IMAGE }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=cpu-${{ matrix.arch_id }}
+          cache-to: type=gha,scope=cpu-${{ matrix.arch_id }},mode=max
+
+      - name: Export digest
+        env:
+          ARCH_ID: ${{ matrix.arch_id }}
+          IMAGE_DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          mkdir -p /tmp/digests
+          echo "$IMAGE_DIGEST" > "/tmp/digests/$ARCH_ID"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # v5.0.0
+        with:
+          name: digest-${{ matrix.arch_id }}
+          path: /tmp/digests/${{ matrix.arch_id }}
+          if-no-files-found: error
+          retention-days: 1
+
+  merge:
+    name: Merge manifest
+    runs-on: ubuntu-latest
+    needs: build
+    env:
+      VERSION: ${{ inputs.version }}
+      PROMOTE_CPU_TAG: ${{ inputs.promote_cpu_tag }}
+    steps:
+      - name: Download digests
+        uses: actions/download-artifact@2b3aff260ed2e3b2c3b5fa0d5e0d0c6a3a06af0c  # v5.0.0
+        with:
+          path: /tmp/digests
+          pattern: digest-*
+          merge-multiple: false
+
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd  # v4.0.0
+
+      - name: Docker Hub login
+        uses: docker/login-action@4907a6ddec9925e35a0a9e82d7399ccc52663121  # v4.1.0
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Create version-cpu manifest list
+        working-directory: /tmp/digests
+        run: |
+          set -euo pipefail
+          AMD64_DIGEST=$(cat digest-amd64/amd64)
+          ARM64_DIGEST=$(cat digest-arm64/arm64)
+          echo "amd64 digest: $AMD64_DIGEST"
+          echo "arm64 digest: $ARM64_DIGEST"
+          docker buildx imagetools create \
+            -t "${REGISTRY_IMAGE}:${VERSION}-cpu" \
+            "${REGISTRY_IMAGE}@${AMD64_DIGEST}" \
+            "${REGISTRY_IMAGE}@${ARM64_DIGEST}"
+
+      - name: Promote :cpu floating tag
+        if: ${{ inputs.promote_cpu_tag }}
+        working-directory: /tmp/digests
+        run: |
+          set -euo pipefail
+          AMD64_DIGEST=$(cat digest-amd64/amd64)
+          ARM64_DIGEST=$(cat digest-arm64/arm64)
+          docker buildx imagetools create \
+            -t "${REGISTRY_IMAGE}:cpu" \
+            "${REGISTRY_IMAGE}@${AMD64_DIGEST}" \
+            "${REGISTRY_IMAGE}@${ARM64_DIGEST}"
+
+      - name: Inspect resulting manifest
+        run: |
+          docker buildx imagetools inspect "${REGISTRY_IMAGE}:${VERSION}-cpu"

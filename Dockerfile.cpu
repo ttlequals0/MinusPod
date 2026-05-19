@@ -1,10 +1,14 @@
 # =============================================================================
 # CPU-only variant of MinusPod (issue #184).
 #
-# Not published to Docker Hub. Build locally:
-#   docker build --platform=linux/amd64 -f Dockerfile.cpu -t minuspod-cpu:local .
+# Published to Docker Hub as a multi-arch manifest (linux/amd64 + linux/arm64,
+# issue #256). Built by .github/workflows/cpu-image.yml on workflow_dispatch.
+# To build locally for the host arch:
+#   docker build -f Dockerfile.cpu -t minuspod-cpu:local .
 # Or with compose:
 #   docker compose -f docker-compose.cpu.yml up -d --build
+# To build for a different arch via QEMU:
+#   docker buildx build --platform=linux/arm64 -f Dockerfile.cpu -t minuspod-cpu:arm64 --load .
 #
 # MAINTENANCE CONTRACT (mirror from Dockerfile when touched):
 #   - Frontend builder stage (verbatim).

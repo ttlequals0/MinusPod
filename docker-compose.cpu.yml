@@ -23,7 +23,10 @@ services:
     # build:
     #   context: .
     #   dockerfile: Dockerfile.cpu
-    platform: linux/amd64
+    # No `platform:` pin - the CPU image is published as a multi-arch
+    # manifest (linux/amd64 + linux/arm64). Docker picks the matching
+    # variant automatically. Add `platform: linux/amd64` here only if you
+    # need to force amd64 emulation on an arm64 host.
     # The container ships a non-root `minuspod` user at UID/GID 1000
     # (entrypoint.sh drops root via setpriv after fixing volume ownership).
     # Override here to pin a specific APP_UID/APP_GID if your volume is

@@ -55,7 +55,7 @@ Access the web UI at `http://localhost:8000/ui/` to add and manage feeds.
 
 ### CPU-only image (no GPU)
 
-No NVIDIA GPU? Pull the CPU variant. It drops the CUDA runtime layer and the bundled NVIDIA Python wheels; the image is around 3 GB instead of ~16 GB.
+No NVIDIA GPU? Pull the CPU variant. It drops the CUDA runtime layer and the bundled NVIDIA Python wheels; the image is around 3 GB instead of ~16 GB. The CPU image is published as a multi-arch manifest covering `linux/amd64` and `linux/arm64`, so Docker on the puller's machine picks the right architecture automatically. The GPU image stays amd64-only.
 
 Reuse the same `.env` and `data/` directory as the Quick Start, then:
 
@@ -65,7 +65,7 @@ docker compose -f docker-compose.cpu.yml up -d
 
 That pulls `ttlequals0/minuspod:cpu` (the floating CPU tag). To pin a specific release, set `MINUSPOD_VERSION=2.0.21-cpu` in your `.env`. The `:latest` tag always points at the GPU image; CPU users should track `:cpu` or a versioned `-cpu` tag.
 
-Local CPU transcription with `faster-whisper` is slow. For anything beyond a quick test, offload Whisper to a remote API in your `.env`:
+Local CPU transcription with `faster-whisper` is slow on amd64 and slower on arm64. For anything beyond a quick test, offload Whisper to a remote API in your `.env`:
 
 ```
 WHISPER_BACKEND=openai-api
