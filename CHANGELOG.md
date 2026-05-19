@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.5] - 2026-05-19
+
+### Fixed
+
+- **Reverted the 2.5.4 upstream-transcript/upstream-chapters passthrough.** 2.5.4 emitted per-episode `<podcast:transcript>` and `<podcast:chapters>` tags pointing at the publisher's CDN (e.g. `mp3s.nashownotes.com`, `reflex.livewire.io`) whenever MinusPod had not yet processed the episode. This violated the core MinusPod contract: subscribers to a proxied feed must reach MinusPod for all content, never the publisher. The served feed now emits these tags ONLY when MinusPod has its own regenerated VTT / JSON cached; unprocessed episodes carry no transcript or chapters URL. The audio enclosure path is unchanged (returns 503 + JIT-triggered processing, same as it always has). `_extract_per_episode_pc2_tags` and its tests are removed.
+
 ## [2.5.4] - 2026-05-19
 
 ### Fixed

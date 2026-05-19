@@ -633,12 +633,6 @@ class RSSParser:
         # upstream tags, ai-content disclosure. See docs/podcasting-2.0.md.
         self._emit_channel_pc2_tags(lines, feed_content, slug)
 
-        # Per-episode transcript/chapters from raw XML, keyed by enclosure
-        # URL. Used as a fallback in _append_podcasting2_tags when MinusPod
-        # has not yet processed an episode (so we serve the original audio
-        # and upstream's transcript timestamps still match).
-        per_episode_pc2 = self._extract_per_episode_pc2_tags(feed_content)
-
         # Limit to most recent episodes to keep feed size manageable
         # Pocket Casts and other apps may reject very large feeds (>1MB)
         max_episodes = max(1, min(max_episodes, 500))
@@ -704,12 +698,10 @@ class RSSParser:
             if artwork_url:
                 lines.append(f'  <itunes:image href="{self._escape_xml(artwork_url)}" />')
 
-            # Podcasting 2.0 tags (transcript and chapters); upstream
-            # version is passed in as fallback for unprocessed episodes.
-            self._append_podcasting2_tags(
-                lines, slug, episode_id, storage,
-                upstream_pc2=per_episode_pc2.get(episode_url),
-            )
+            # Podcasting 2.0 tags (transcript and chapters). Emits a
+            # MinusPod-served URL only when our regenerated file is
+            # cached; never falls back to upstream.
+            self._append_podcasting2_tags(lines, slug, episode_id, storage)
 
             lines.append('</item>')
 
@@ -731,104 +723,22 @@ class RSSParser:
         logger.info(f"[{slug}] Modified RSS feed with {total_episodes} episodes ({appended_count} appended from DB)")
         return modified_rss
 
-    def _extract_per_episode_pc2_tags(self, feed_content: str) -> Dict:
-        # Build {enclosure_url: {'transcript': [...], 'chapters': [...]}} from
-        # raw XML so we can pass upstream tags through faithfully on items
-        # MinusPod has not yet processed. feedparser doesn't reliably surface
-        # per-episode podcast:* tags, so we parse the source directly.
-        #
-        # transcript entry: (url, type, language, rel)  (last two may be '')
-        # chapters entry:   (url, type)
-        out: Dict[str, Dict[str, list]] = {}
-        if not feed_content:
-            return out
-        try:
-            payload = feed_content.encode("utf-8") if isinstance(feed_content, str) else feed_content
-            root = defused_fromstring(payload)
-        except Exception:
-            return out
-
-        channel = None
-        for child in list(root) if root is not None else []:
-            tag = getattr(child, "tag", "")
-            if isinstance(tag, str) and (tag == "channel" or tag.endswith("}channel")):
-                channel = child
-                break
-        if channel is None:
-            return out
-
-        for item in channel:
-            tag = getattr(item, "tag", "")
-            if not isinstance(tag, str) or tag != "item":
-                continue
-            enclosure_url = None
-            for sub in item:
-                if getattr(sub, "tag", "") == "enclosure":
-                    enclosure_url = sub.get("url", "") or None
-                    if enclosure_url:
-                        break
-            if not enclosure_url:
-                continue
-            transcripts = []
-            chapters = []
-            for sub in item:
-                if not _is_podcast_element(sub):
-                    continue
-                local = _podcast_localname(sub)
-                if local == "transcript":
-                    url = sub.get("url", "") or ""
-                    if url:
-                        transcripts.append((
-                            url,
-                            sub.get("type", "") or "",
-                            sub.get("language", "") or "",
-                            sub.get("rel", "") or "",
-                        ))
-                elif local == "chapters":
-                    url = sub.get("url", "") or ""
-                    if url:
-                        chapters.append((url, sub.get("type", "") or ""))
-            if transcripts or chapters:
-                out[enclosure_url] = {"transcript": transcripts, "chapters": chapters}
-        return out
-
-    def _append_podcasting2_tags(self, lines: list, slug: str, episode_id: str, storage, upstream_pc2: Optional[Dict] = None) -> None:
-        # Transcript and chapters semantics:
-        #   - If MinusPod has a regenerated VTT/JSON cached, emit OUR URL.
-        #     Our files are aligned to the cut audio, so timestamps match
-        #     the bytes the listener actually hears.
-        #   - Otherwise, when MinusPod has not yet processed this episode,
-        #     the served enclosure delivers the ORIGINAL audio. Upstream's
-        #     own transcript and chapters are still aligned to that
-        #     original audio, so passing them through gives subscribers
-        #     correct timestamps until our regenerated version takes over.
+    def _append_podcasting2_tags(self, lines: list, slug: str, episode_id: str, storage) -> None:
+        # Emit transcript/chapters ONLY when MinusPod has its own regenerated
+        # version cached. The served feed must never expose upstream URLs:
+        # subscribers reach MinusPod or they get nothing. Until MinusPod
+        # finishes processing an episode, the served feed carries no
+        # transcript or chapter URL for it, and the audio enclosure 503s
+        # with a JIT-triggered processing job (see serve_episode).
+        if not storage:
+            return
         base_url = self._resolved_base_url()
-        have_cached_transcript = bool(storage and storage.has_transcript_vtt(slug, episode_id))
-        have_cached_chapters = bool(storage and storage.has_chapters_json(slug, episode_id))
-
-        if have_cached_transcript:
+        if storage.has_transcript_vtt(slug, episode_id):
             transcript_url = f"{base_url}/episodes/{slug}/{episode_id}.vtt"
             lines.append(f'  <podcast:transcript url="{transcript_url}" type="text/vtt" language="en" rel="captions" />')
-        elif upstream_pc2:
-            for url, ttype, lang, rel in upstream_pc2.get('transcript', []):
-                attrs = [f'url="{self._escape_xml(url)}"']
-                if ttype:
-                    attrs.append(f'type="{self._escape_xml(ttype)}"')
-                if lang:
-                    attrs.append(f'language="{self._escape_xml(lang)}"')
-                if rel:
-                    attrs.append(f'rel="{self._escape_xml(rel)}"')
-                lines.append(f'  <podcast:transcript {" ".join(attrs)} />')
-
-        if have_cached_chapters:
+        if storage.has_chapters_json(slug, episode_id):
             chapters_url = f"{base_url}/episodes/{slug}/{episode_id}/chapters.json"
             lines.append(f'  <podcast:chapters url="{chapters_url}" type="application/json+chapters" />')
-        elif upstream_pc2:
-            for url, ctype in upstream_pc2.get('chapters', []):
-                attrs = [f'url="{self._escape_xml(url)}"']
-                if ctype:
-                    attrs.append(f'type="{self._escape_xml(ctype)}"')
-                lines.append(f'  <podcast:chapters {" ".join(attrs)} />')
 
     def _append_db_episode_item(self, lines: list, slug: str, ep: Dict, storage) -> None:
         """Append a single <item> for a processed episode from the database."""
