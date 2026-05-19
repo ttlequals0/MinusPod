@@ -81,13 +81,20 @@ def _get_rss_circuit_breaker(url: str) -> CircuitBreaker:
 # Podcasting 2.0 channel-tag dispositions. See docs/podcasting-2.0.md for the
 # full pass/regenerate/strip rationale. These sets are authoritative.
 #
-# Both the canonical https URI and the http URI variant seen in older feeds
-# map to the same prefix; we treat them as equivalent on parse and always
-# emit the canonical URI on the root xmlns declaration.
+# The spec recognizes several URI strings as the SAME namespace. We must
+# accept all of them on parse, because real-world feeds use the different
+# forms interchangeably (notably the reference pc20.xml feed declares the
+# GitHub-blob form, not the podcastindex.org form). We always emit the
+# canonical URI on the root xmlns declaration regardless of which the
+# upstream feed used.
 _PODCAST_NS_CANONICAL = "https://podcastindex.org/namespace/1.0"
 _PODCAST_NS_URIS = (
     _PODCAST_NS_CANONICAL,
     "http://podcastindex.org/namespace/1.0",
+    "https://github.com/Podcastindex-org/podcast-namespace/blob/main/docs/1.0.md",
+    "http://github.com/Podcastindex-org/podcast-namespace/blob/main/docs/1.0.md",
+    "https://github.com/Podcastindex-org/podcast-namespace/blob/master/docs/1.0.md",
+    "http://github.com/Podcastindex-org/podcast-namespace/blob/master/docs/1.0.md",
 )
 
 # Channel-level podcast:* tags MinusPod copies from the upstream feed unchanged.

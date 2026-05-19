@@ -1,0 +1,287 @@
+<rss xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" xmlns:podcast="https://github.com/Podcastindex-org/podcast-namespace/blob/main/docs/1.0.md" version="2.0">
+  <channel>
+    <title>Podcasting 2.0</title>
+    <description>The Podcast Index presents Podcasting 2.0 - Upgrading Podcasting</description>
+    <link>http://podcastindex.org</link>
+    <docs>http://blogs.law.harvard.edu/tech/rss</docs>
+    <language>en</language>
+    <generator>Sovereign Feeds</generator>
+    <pubDate>Fri, 15 May 2026 19:44:54 +0000</pubDate>
+    <lastBuildDate>Fri, 15 May 2026 19:44:54 +0000</lastBuildDate>
+    <podcast:locked owner="adam@curry.com">yes</podcast:locked>
+    <podcast:funding url="https://paypal.me/podcastindex">Value 4 Value</podcast:funding>
+    <managingEditor>adam@curry.com (Adam Curry)</managingEditor>
+    <webMaster>adam@curry.com (Adam Curry)</webMaster>
+    <itunes:owner>
+      <itunes:email>adam@curry.com</itunes:email>
+      <itunes:name><![CDATA[Adam Curry & Dave Jones]]></itunes:name>
+    </itunes:owner>
+    <image>
+      <url>https://noagendaassets.com/enc/1684513486.722_pcifeedimage.png</url>
+      <link>http://podcastindex.org</link>
+      <title>Podcasting 2.0</title>
+      <description>The Podcast Index presents Podcasting 2.0 - Upgrading Podcasting</description>
+      <width>144</width>
+      <height>144</height>
+    </image>
+    <itunes:summary>The Podcast Index presents Podcasting 2.0 - Upgrading Podcasting</itunes:summary>
+    <itunes:author>Podcast Index LLC</itunes:author>
+    <itunes:image href="https://noagendaassets.com/enc/1684513486.722_pcifeedimage.png"/>
+    <itunes:explicit>no</itunes:explicit>
+    <itunes:keywords>podcasting,media,software</itunes:keywords>
+    <itunes:category text="News &amp; Politics"/>
+    <itunes:category text="Technology"/>
+    <podcast:value type="lightning" method="keysend" suggested="0.00000005000">
+      <podcast:valueRecipient name="Podcastindex.org" type="lnaddress" address="podcastindex@getalby.com" split="92"/>
+      <podcast:valueRecipient name="Dreb Scott (Chapters)" type="lnaddress" address="drebscott@getalby.com" split="5"/>
+      <podcast:valueRecipient name="Sovereign Feeds" address="035ad2c954e264004986da2d9499e1732e5175e1dcef2453c921c6cdcc3536e9d8" type="node" fee="true" split="5"/>
+      <podcast:valueRecipient name="Boostagram Monitor" type="lnaddress" address="adam@getalby.com" split="1"/>
+      <podcast:valueRecipient name="Stay Safe Sage" type="lnaddress" address="dave@getalby.com" split="1"/>
+      <podcast:valueRecipient name="Fountain Boost Bot" type="lnaddress" address="boostbot@fountain.fm" split="1"/>
+      <podcast:valueRecipient name="IPFSPodcasting.net" type="node" address="028eb5be336f7fdf2a4e40c57ff55d3d5d71277bb4197ea14957f756bff249e623" split="5" fee="true"/>
+    </podcast:value>
+    <podcast:guid>917393e3-1b1e-5cef-ace4-edaa54e1f810</podcast:guid>
+    <podcast:medium>podcast</podcast:medium>
+    <podcast:complete>no</podcast:complete>
+    <podcast:block>no</podcast:block>
+    <podcast:block id="apple">yes</podcast:block>
+    <podcast:block id="spotify">yes</podcast:block>
+    <podcast:block id="amazon">yes</podcast:block>
+    <podcast:person href="http://curry.com/" img="https://feeds.podcastindex.org/adam_avatar.jpg" group="cast" role="host">Adam Curry</podcast:person>
+    <podcast:person href="http://dave.sobr.org" img="https://feeds.podcastindex.org/dave_avatar.jpg" group="cast" role="host">Dave Jones</podcast:person>
+    <category><![CDATA[News & Politics]]></category>
+    <category>Technology</category>
+    <podcast:podroll>
+      <podcast:remoteItem feedGuid="ae38e5df-3281-5138-b120-b07cb835cac5" feedUrl="https://newmediashow.com/feed/audio/"/>
+      <podcast:remoteItem feedGuid="396d9ae0-da7e-5557-b894-b606231fa3ea" feedUrl="https://feeds.buzzsprout.com/1538779.rss"/>
+      <podcast:remoteItem feedGuid="856cd618-7f34-57ea-9b84-3600f1f65e7f" feedUrl="http://feed.nashownotes.com/rss.xml"/>
+      <podcast:remoteItem feedGuid="e722d2b3-0a9a-5ecc-ba3f-a5de968c18d4" feedUrl="https://feeds.rssblue.com/phantom-power-business-hour"/>
+      <podcast:remoteItem feedGuid="55b53584-4219-4fb0-b916-075ce23f714e" feedUrl="https://serve.podhome.fm/rss/55b53584-4219-4fb0-b916-075ce23f714e"/>
+      <podcast:remoteItem feedGuid="1ebc8445-f337-5150-a82a-48ec3e759e46" feedUrl="https://anchor.fm/s/101adcf44/podcast/rss"/>
+      <podcast:remoteItem feedGuid="d35a8293-f3dd-4186-959f-e0f1211da2df" feedUrl="https://feeds.redcircle.com/d35a8293-f3dd-4186-959f-e0f1211da2df"/>
+      <podcast:remoteItem feedGuid="29cdca4a-32d8-56ba-b48b-09a011c5daa9" feedUrl="https://feeds.buzzsprout.com/231452.rss"/>
+    </podcast:podroll>
+    <podcast:liveItem status="ended" start="2026-05-15T17:20:00.000Z" chat="irc.zeronode.net" end="2026-05-15T19:50:00.000Z">
+      <title>PC2.0 260 Live May 15th 2026</title>
+      <description><![CDATA[<p><strong>PC2.0 Episode #260 May 15th 2026 Live!</strong></p>
+<p><strong>Pre-Boost Us!</strong></p>
+<p>Get Podcast Addict, Podcast Guru, CurioCaster, Podverse, Fountain and Truefans from <a href="http://newpodcastapp.com">newpodcastapps.com</a></p>]]></description>
+      <enclosure length="33" type="audio/mpeg" url="https://op3.dev/e/live.noagendastream.com/noagenda"/>
+      <guid isPermaLink="false">65b05ccb-4b36-400f-8315-0cc86aaeee9e</guid>
+      <itunes:image href="https://behindthesch3m3s.com/wp-content/uploads/2023/01/v4v-storm-good-quality.gif"/>
+      <itunes:subtitle>PC2.0 260 Live May 15th 2026</itunes:subtitle>
+      <itunes:summary><![CDATA[<p><strong>PC2.0 Episode #260 May 15th 2026 Live!</strong></p>
+<p><strong>Pre-Boost Us!</strong></p>
+<p>Get Podcast Addict, Podcast Guru, CurioCaster, Podverse, Fountain and Truefans from <a href="http://newpodcastapp.com">newpodcastapps.com</a></p>]]></itunes:summary>
+      <podcast:contentLink href="http://adam.curry.com/html/NoAgendaStreamandCha-1414965812.html">Listen Live in the Chat Room</podcast:contentLink>
+      <podcast:value type="lightning" method="keysend" suggested="0.00000005000">
+        <podcast:valueRecipient name="Sovereign Feeds" type="lnaddress" address="steven@getalby.com" split="10"/>
+        <podcast:valueRecipient name="boostbot@fountain.fm" type="lnaddress" address="boostbot@fountain.fm" split="2"/>
+        <podcast:valueRecipient name="Dreb Scott - Chapters" type="lnaddress" address="drebscott@getalby.com" split="5"/>
+        <podcast:valueRecipient name="Podping" type="lnaddress" address="Podping@sats.v4v.app" split="2"/>
+        <podcast:valueRecipient name="Boost AC" type="lnaddress" address="adam@getalby.com" split="3"/>
+        <podcast:valueRecipient name="Alecks Gates Strike" type="lnaddress" address="agates@strike.me" split="20"/>
+        <podcast:valueRecipient name="PodcastIndex LN Wallet Test" type="lnaddress" address="podcastindex@getalby.com" split="58"/>
+      </podcast:value>
+      <podcast:chat server="irc.zeronode.net" protocol="irc" accountId="adamc1999" space="#Podcasting20" embedUrl="https://kiwiirc.com/nextclient/irc.zeronode.net/?nick=webtroll?#Podcasting20"/>
+      <podcast:socialInteract uri="https://podcastindex.social/@dave/110634382833124876" protocol="activitypub" accountId="adam" accountUrl="https://podcastindex.social/users/dave"/>
+      <podcast:liveValue uri="https://curiohoster.com/event?event_id=8a2cfa5a-7a4d-466a-9d32-362ad68f945e" protocol="socket.io"/>
+    </podcast:liveItem>
+    <item>
+      <title>Episode 260: Tennessee Trickshot</title>
+      <description><![CDATA[<h2>Podcasting 2.0 May 15th 2026 Episode 260 - "Tennessee Trickshot"</h2>
+<div>
+<p>Podcasting 2.0 May 15th 2026 Episode 260 - "Tennessee Trickshot"</p>
+<p>Adam &amp; Dave Predict The Winter. That's all you need to know!</p>
+<p><a href="https://op3.dev/e/mp3s.nashownotes.com/PC20-260-2026-05-15-Final.mp3" target="_blank" rel="noopener">Download the mp3</a></p>
+<p>Synopsis</p>
+<p><a href="http://mp3s.nashownotes.com/pc20rss.xml" target="_blank" rel="noopener">Podcast Feed</a></p>
+<p><a href="http://podcastindex.org/" target="_blank" rel="noopener">PodcastIndex.org</a></p>
+<p><a href="http://preservepodcasting.com/" target="_blank" rel="noopener">Preservepodcasting.com</a></p>
+<p><a href="http://newpodcastapps.com/" target="_blank" rel="noopener">Check out the podcasting 2.0 apps and services newpodcastapps.com</a></p>
+<p><a href="https://www.paypal.com/donate/?token=m0z6N1K047lEsGvPDr3KMumKYHlUHRAdwPNY645UB0LR9fGf_OtpVByzHId7TEFYo9nXNS5aF33Zdjn9&amp;fromUL=true&amp;country.x=US&amp;locale.x=en_US" target="_blank" rel="noopener">Support us with your Time Talent and Treasure</a></p>
+<p>ShowNotes</p>
+<p>-----------------------------------------------------------------------------------------------------------------------------------------</p>
+<p>01 - NGINX Rift: Achieving NGINX Remote Code Execution via an 18-Year-Old Vulnerability</p>
+<p>-----------------------------------------------------------------------------------------------------------------------------------------</p>
+<p>02 - ROB GREENLEE'S LLM-GHOSTWRITTEN "FRINGE REGRET" RETRACTION (folder: 06 Rob-Greenlee-Fringe)</p>
+<p>-----------------------------------------------------------------------------------------------------------------------------------------</p>
+<p>03 - The DGX Spark Donated by RSS.com Aesus DB10</p>
+<p>-----------------------------------------------------------------------------------------------------------------------------------------</p>
+<p>04 - POD ROLL ATLAS @ atlas.rss.io &mdash; DAVE'S /datasets PAGE SHIPS, ALBERTO BUILDS THE POSTER CHILD (folder: 02 Pod-Roll-Atlas)</p>
+<p>-----------------------------------------------------------------------------------------------------------------------------------------</p>
+<p>05 - DAVE'S SPAM CLASSIFIER SHIPPING WEEK + THE "AISTEN"/"RAPIDLU" BOT WAR (folder: 08 Dave-Spam-Bot-War)</p>
+<p>-----------------------------------------------------------------------------------------------------------------------------------------</p>
+<p>06 - AI SLOP LANDS ON SPOTIFY MEGAPHONE WITH ZERO DISCLOSURE (folder: 04 AI-Slop-Megaphone)</p>
+<p>-----------------------------------------------------------------------------------------------------------------------------------------</p>
+<p>07 - JOHN ENNIS "HEAVEN AND EARTH" &mdash; THE RALPH-WIGGUM LOOP THESIS ON LLMs + DAVE'S CODING-AGENT CONFESSIONAL (folder: 05 Ennis-Heaven-Earth)</p>
+<p>-----------------------------------------------------------------------------------------------------------------------------------------</p>
+<p>08 - HLS VIDEO TIPPING POINT &mdash; AMAZON MUSIC + SPOTIFY MEGAPHONE BOTH JOIN APPLE'S HLS IN A SINGLE WEEK (folder: 07 HLS-Video-Tipping-Point)</p>
+<p>-----------------------------------------------------------------------------------------------------------------------------------------</p>
+<p>09 - UP NEXT &mdash; HOLGER KRUPP'S MIT-LICENSED SERVERLESS iOS PODCAST APP (folder: 03 Up-Next-App)</p>
+<p>-----------------------------------------------------------------------------------------------------------------------------------------</p>
+<p>Sources</p>
+</div>
+<div><small>Last Modified 05/15/2026 14:35:52 by&nbsp;<a href="http://freedomcontroller.com/">Freedom Controller</a></small>&nbsp;<a title="Link to the opml for this document." href="http://adam.curry.com/opml/Podcasting20May15th2-Tzrtwx8SFzdNVnPX5FZ6rdKLTNjxWM.opml">&nbsp;</a></div>]]></description>
+      <link>https://www.podpage.com/podcasting-20/Tennessee-Trickshot/</link>
+      <guid isPermaLink="false">PC20-260</guid>
+      <pubDate>Fri, 15 May 2026 19:34:15 +0000</pubDate>
+      <podcast:chapters url="https://reflex.livewire.io/chapters/podcast/917393e3-1b1e-5cef-ace4-edaa54e1f810/item/PC20-260/chapters/https://mp3s.nashownotes.com/PC20-260-Chapters.json" type="application/json"/>
+      <podcast:transcript url="https://mp3s.nashownotes.com/PC20-260-Captions.srt" type="application/srt" rel="captions"/>
+      <itunes:subtitle>Episode 260: Tennessee Trickshot</itunes:subtitle>
+      <itunes:summary><![CDATA[<h2>Podcasting 2.0 May 15th 2026 Episode 260 - "Tennessee Trickshot"</h2>
+<div>
+<p>Podcasting 2.0 May 15th 2026 Episode 260 - "Tennessee Trickshot"</p>
+<p>Adam &amp; Dave Predict The Winter. That's all you need to know!</p>
+<p><a href="https://op3.dev/e/mp3s.nashownotes.com/PC20-260-2026-05-15-Final.mp3" target="_blank" rel="noopener">Download the mp3</a></p>
+<p>Synopsis</p>
+<p><a href="http://mp3s.nashownotes.com/pc20rss.xml" target="_blank" rel="noopener">Podcast Feed</a></p>
+<p><a href="http://podcastindex.org/" target="_blank" rel="noopener">PodcastIndex.org</a></p>
+<p><a href="http://preservepodcasting.com/" target="_blank" rel="noopener">Preservepodcasting.com</a></p>
+<p><a href="http://newpodcastapps.com/" target="_blank" rel="noopener">Check out the podcasting 2.0 apps and services newpodcastapps.com</a></p>
+<p><a href="https://www.paypal.com/donate/?token=m0z6N1K047lEsGvPDr3KMumKYHlUHRAdwPNY645UB0LR9fGf_OtpVByzHId7TEFYo9nXNS5aF33Zdjn9&amp;fromUL=true&amp;country.x=US&amp;locale.x=en_US" target="_blank" rel="noopener">Support us with your Time Talent and Treasure</a></p>
+<p>ShowNotes</p>
+<p>-----------------------------------------------------------------------------------------------------------------------------------------</p>
+<p>01 - NGINX Rift: Achieving NGINX Remote Code Execution via an 18-Year-Old Vulnerability</p>
+<p>-----------------------------------------------------------------------------------------------------------------------------------------</p>
+<p>02 - ROB GREENLEE'S LLM-GHOSTWRITTEN "FRINGE REGRET" RETRACTION (folder: 06 Rob-Greenlee-Fringe)</p>
+<p>-----------------------------------------------------------------------------------------------------------------------------------------</p>
+<p>03 - The DGX Spark Donated by RSS.com Aesus DB10</p>
+<p>-----------------------------------------------------------------------------------------------------------------------------------------</p>
+<p>04 - POD ROLL ATLAS @ atlas.rss.io &mdash; DAVE'S /datasets PAGE SHIPS, ALBERTO BUILDS THE POSTER CHILD (folder: 02 Pod-Roll-Atlas)</p>
+<p>-----------------------------------------------------------------------------------------------------------------------------------------</p>
+<p>05 - DAVE'S SPAM CLASSIFIER SHIPPING WEEK + THE "AISTEN"/"RAPIDLU" BOT WAR (folder: 08 Dave-Spam-Bot-War)</p>
+<p>-----------------------------------------------------------------------------------------------------------------------------------------</p>
+<p>06 - AI SLOP LANDS ON SPOTIFY MEGAPHONE WITH ZERO DISCLOSURE (folder: 04 AI-Slop-Megaphone)</p>
+<p>-----------------------------------------------------------------------------------------------------------------------------------------</p>
+<p>07 - JOHN ENNIS "HEAVEN AND EARTH" &mdash; THE RALPH-WIGGUM LOOP THESIS ON LLMs + DAVE'S CODING-AGENT CONFESSIONAL (folder: 05 Ennis-Heaven-Earth)</p>
+<p>-----------------------------------------------------------------------------------------------------------------------------------------</p>
+<p>08 - HLS VIDEO TIPPING POINT &mdash; AMAZON MUSIC + SPOTIFY MEGAPHONE BOTH JOIN APPLE'S HLS IN A SINGLE WEEK (folder: 07 HLS-Video-Tipping-Point)</p>
+<p>-----------------------------------------------------------------------------------------------------------------------------------------</p>
+<p>09 - UP NEXT &mdash; HOLGER KRUPP'S MIT-LICENSED SERVERLESS iOS PODCAST APP (folder: 03 Up-Next-App)</p>
+<p>-----------------------------------------------------------------------------------------------------------------------------------------</p>
+<p>Sources</p>
+</div>
+<div><small>Last Modified 05/15/2026 14:35:52 by&nbsp;<a href="http://freedomcontroller.com/">Freedom Controller</a></small>&nbsp;<a title="Link to the opml for this document." href="http://adam.curry.com/opml/Podcasting20May15th2-Tzrtwx8SFzdNVnPX5FZ6rdKLTNjxWM.opml">&nbsp;</a></div>]]></itunes:summary>
+      <itunes:author>Podcast Index LLC</itunes:author>
+      <author>Podcast Index LLC</author>
+      <itunes:image href="https://noagendaassets.com/enc/1684513486.722_pcifeedimage.png"/>
+      <itunes:explicit>No</itunes:explicit>
+      <itunes:keywords>podcasting,curry,podfather,technology,developers</itunes:keywords>
+      <enclosure url="https://op3.dev/e/mp3s.nashownotes.com/PC20-260-2026-05-15-Final.mp3" type="audio/mpeg" length="70363667"/>
+      <podcast:person group="cast" role="host" img="https://feeds.podcastindex.org/adam_avatar.jpg" href="http://curry.com">Adam Curry</podcast:person>
+      <podcast:person href="http://dave.sobr.org" img="https://feeds.podcastindex.org/dave_avatar.jpg" group="cast" role="host">Dave Jones</podcast:person>
+      <podcast:value type="lightning" method="keysend" suggested="0.00000005000">
+        <podcast:valueRecipient name="Dreb Scott (Chapters)" type="lnaddress" address="drebscott@getalby.com" split="5"/>
+        <podcast:valueRecipient name="Sovereign Feeds" address="steven@getalby.com" type="lnaddress" split="10"/>
+        <podcast:valueRecipient name="Fountain Boost bot" type="lnaddress" address="boostbot@fountain.fm" split="1"/>
+        <podcast:valueRecipient name="Reflex.io" type="lnaddress" address="reflex@livewire.io" split="5"/>
+        <podcast:valueRecipient name="ericpp@getalby.com" type="lnaddress" address="ericpp@getalby.com" split="5"/>
+        <podcast:valueRecipient name="Strike Test" type="lnaddress" address="adamcurry@strike.me" split="3"/>
+        <podcast:valueRecipient name="Alecks Gates Strike" type="lnaddress" address="agates@strike.me" split="5"/>
+        <podcast:valueRecipient name="PodcastIndex LN Test Wallet" type="lnaddress" address="podcastindex@getalby.com" split="50"/>
+        <podcast:valueRecipient name="Pod Sage" type="lnaddress" address="dave@getalby.com" split="1"/>
+        <podcast:valueRecipient name="Boost Monitor" type="lnaddress" address="adam@getalby.com" split="5"/>
+      </podcast:value>
+      <podcast:socialInteract protocol="activitypub" uri="https://podcastindex.social/@dave/116579800200863851" accountId="@adam" accountUrl="https://podcastindex.social/users/adam"/>
+      <itunes:duration>5862</itunes:duration>
+      <podcast:funding url="https://www.paypal.com/donate?token=-hvWBEXZQfp7oSFJz0TwT3QXYcjYuemZRPIOml3nrL-EhtiUPAwuVHS6DPN5cBat9wjqwYEtyW-K8zSS">Support us with Value 4 Value</podcast:funding>
+    </item>
+    <item>
+      <title>Episode 259: SlopJacked</title>
+      <description><![CDATA[<p><span style="font-size: 18pt;"><strong>Podcasting 2.0 May 1st 2026 Episode 259 - "SlopJacked"</strong></span></p>
+<p>Dave ships first-party data at the app level - the new /upload/followcounts endpoint changes everything. Plus the podcast:contact; proposal, RSS.com's Alberto Betella on AI disclosure as enforcement substrate</p>
+<p><a href="https://op3.dev/e/mp3s.nashownotes.com/PC20-259-2026-05-01-Final.mp3" target="_blank" rel="noopener">Download the mp3</a></p>
+<p><a href="http://mp3s.nashownotes.com/pc20rss.xml" target="_blank" rel="noopener">Podcast Feed</a></p>
+<p><a href="http://podcastindex.org/" target="_blank" rel="noopener">PodcastIndex.org</a></p>
+<p><a href="http://preservepodcasting.com/" target="_blank" rel="noopener">Preservepodcasting.com</a></p>
+<p><a href="http://newpodcastapps.com/" target="_blank" rel="noopener">Check out the podcasting 2.0 apps and services newpodcastapps.com</a></p>
+<p><a href="https://www.paypal.com/donate/?token=m0z6N1K047lEsGvPDr3KMumKYHlUHRAdwPNY645UB0LR9fGf_OtpVByzHId7TEFYo9nXNS5aF33Zdjn9&amp;fromUL=true&amp;country.x=US&amp;locale.x=en_US" target="_blank" rel="noopener">Support us with your Time Talent and Treasure</a></p>
+<div>
+<p>ShowNotes</p>
+<p>-----------------------------------------------------------------------------------------------------------------------------------------</p>
+<p><a href="https://www.bloomberg.com/news/newsletters/2026-04-30/-podslop-proliferation-is-challenging-the-audio-industry" target="_blank" rel="noopener">Bloomberg article we discussed about podslop, featuring the chicken guy from Alabama</a></p>
+<p>-----------------------------------------------------------------------------------------------------------------------------------------</p>
+<p>01 - DAVE SHIPS /upload/followcounts &mdash; FIRST-PARTY DATA AT THE APP LEVEL (folder: 01 Dave-Ships-Followcounts)</p>
+<p>-----------------------------------------------------------------------------------------------------------------------------------------</p>
+<p>02 - &lt;podcast:contact&gt; NAMESPACE PROPOSAL (folder: 02 Contact-Namespace)</p>
+<p>-----------------------------------------------------------------------------------------------------------------------------------------</p>
+<p>03 - ALBERTO BETELLA (RSS.com CEO) &mdash; AI DISCLOSURE TAG AS ENFORCEMENT SUBSTRATE (folder: 03 Alberto-RSS-AI-Disclosure)</p>
+<p>-----------------------------------------------------------------------------------------------------------------------------------------</p>
+<p>04 - TUCSON DENTAL CARE SEO SPAM PODCAST CLEANUP (folder: 04 Tucson-Dental-SEO-Spam)</p>
+<p>-----------------------------------------------------------------------------------------------------------------------------------------</p>
+<p>05 - AI HARDWARE CRUNCH &mdash; $65 BILLION US POWER EQUIPMENT BOOM (folder: 05 AI-Hardware-Crunch)</p>
+<p>-----------------------------------------------------------------------------------------------------------------------------------------</p>
+<p>06 - ANTHROPIC + AI PRICING FOLLOW-UP (folder: 06 Anthropic-AI-Pricing)</p>
+<p>-----------------------------------------------------------------------------------------------------------------------------------------</p>
+<p>07 - ROBLOX TANKS 18% ON CHILD SAFETY MEASURES (folder: 07 Roblox-Child-Safety)</p>
+<p>-----------------------------------------------------------------------------------------------------------------------------------------</p>
+<p>08 - BOARDROOM NEWS BITES (folder: 08 Boardroom-News-Bites)</p>
+<p>-----------------------------------------------------------------------------------------------------------------------------------------</p>
+<p>Clip Sources</p>
+</div>
+<div><small>Last Modified 05/01/2026 14:18:38 by&nbsp;<a href="http://freedomcontroller.com/">Freedom Controller</a></small>&nbsp;<a title="Link to the opml for this document." href="http://adam.curry.com/opml/Podcasting20May1st20-MX2XsmB530l18ntF5Zhzgd6xgxV4LW.opml">&nbsp;</a></div>]]></description>
+      <link>https://www.podpage.com/podcasting-20/slopjacked/</link>
+      <guid isPermaLink="false">PC20-259</guid>
+      <pubDate>Fri, 01 May 2026 19:17:41 +0000</pubDate>
+      <podcast:chapters url="https://reflex.livewire.io/chapters/podcast/917393e3-1b1e-5cef-ace4-edaa54e1f810/item/PC20-259/chapters/https://chapters.hypercatcher.com/http%3Amp3s.nashownotes.compc20rss.xml/PC20-259" type="application/json"/>
+      <podcast:transcript url="https://mp3s.nashownotes.com/PC20-259-Captions.srt" type="application/srt" rel="captions"/>
+      <itunes:subtitle>Episode 259: SlopJacked</itunes:subtitle>
+      <itunes:summary><![CDATA[<p><span style="font-size: 18pt;"><strong>Podcasting 2.0 May 1st 2026 Episode 259 - "SlopJacked"</strong></span></p>
+<p>Dave ships first-party data at the app level - the new /upload/followcounts endpoint changes everything. Plus the podcast:contact; proposal, RSS.com's Alberto Betella on AI disclosure as enforcement substrate</p>
+<p><a href="https://op3.dev/e/mp3s.nashownotes.com/PC20-259-2026-05-01-Final.mp3" target="_blank" rel="noopener">Download the mp3</a></p>
+<p><a href="http://mp3s.nashownotes.com/pc20rss.xml" target="_blank" rel="noopener">Podcast Feed</a></p>
+<p><a href="http://podcastindex.org/" target="_blank" rel="noopener">PodcastIndex.org</a></p>
+<p><a href="http://preservepodcasting.com/" target="_blank" rel="noopener">Preservepodcasting.com</a></p>
+<p><a href="http://newpodcastapps.com/" target="_blank" rel="noopener">Check out the podcasting 2.0 apps and services newpodcastapps.com</a></p>
+<p><a href="https://www.paypal.com/donate/?token=m0z6N1K047lEsGvPDr3KMumKYHlUHRAdwPNY645UB0LR9fGf_OtpVByzHId7TEFYo9nXNS5aF33Zdjn9&amp;fromUL=true&amp;country.x=US&amp;locale.x=en_US" target="_blank" rel="noopener">Support us with your Time Talent and Treasure</a></p>
+<div>
+<p>ShowNotes</p>
+<p>-----------------------------------------------------------------------------------------------------------------------------------------</p>
+<p><a href="https://www.bloomberg.com/news/newsletters/2026-04-30/-podslop-proliferation-is-challenging-the-audio-industry" target="_blank" rel="noopener">Bloomberg article we discussed about podslop, featuring the chicken guy from Alabama</a></p>
+<p>-----------------------------------------------------------------------------------------------------------------------------------------</p>
+<p>01 - DAVE SHIPS /upload/followcounts &mdash; FIRST-PARTY DATA AT THE APP LEVEL (folder: 01 Dave-Ships-Followcounts)</p>
+<p>-----------------------------------------------------------------------------------------------------------------------------------------</p>
+<p>02 - &lt;podcast:contact&gt; NAMESPACE PROPOSAL (folder: 02 Contact-Namespace)</p>
+<p>-----------------------------------------------------------------------------------------------------------------------------------------</p>
+<p>03 - ALBERTO BETELLA (RSS.com CEO) &mdash; AI DISCLOSURE TAG AS ENFORCEMENT SUBSTRATE (folder: 03 Alberto-RSS-AI-Disclosure)</p>
+<p>-----------------------------------------------------------------------------------------------------------------------------------------</p>
+<p>04 - TUCSON DENTAL CARE SEO SPAM PODCAST CLEANUP (folder: 04 Tucson-Dental-SEO-Spam)</p>
+<p>-----------------------------------------------------------------------------------------------------------------------------------------</p>
+<p>05 - AI HARDWARE CRUNCH &mdash; $65 BILLION US POWER EQUIPMENT BOOM (folder: 05 AI-Hardware-Crunch)</p>
+<p>-----------------------------------------------------------------------------------------------------------------------------------------</p>
+<p>06 - ANTHROPIC + AI PRICING FOLLOW-UP (folder: 06 Anthropic-AI-Pricing)</p>
+<p>-----------------------------------------------------------------------------------------------------------------------------------------</p>
+<p>07 - ROBLOX TANKS 18% ON CHILD SAFETY MEASURES (folder: 07 Roblox-Child-Safety)</p>
+<p>-----------------------------------------------------------------------------------------------------------------------------------------</p>
+<p>08 - BOARDROOM NEWS BITES (folder: 08 Boardroom-News-Bites)</p>
+<p>-----------------------------------------------------------------------------------------------------------------------------------------</p>
+<p>Clip Sources</p>
+</div>
+<div><small>Last Modified 05/01/2026 14:18:38 by&nbsp;<a href="http://freedomcontroller.com/">Freedom Controller</a></small>&nbsp;<a title="Link to the opml for this document." href="http://adam.curry.com/opml/Podcasting20May1st20-MX2XsmB530l18ntF5Zhzgd6xgxV4LW.opml">&nbsp;</a></div>]]></itunes:summary>
+      <itunes:author>Podcast Index LLC</itunes:author>
+      <author>Podcast Index LLC</author>
+      <itunes:image href="https://noagendaassets.com/enc/1684513486.722_pcifeedimage.png"/>
+      <itunes:explicit>No</itunes:explicit>
+      <itunes:keywords>podcasting,curry,podfather,technology,developers</itunes:keywords>
+      <enclosure url="https://op3.dev/e/mp3s.nashownotes.com/PC20-259-2026-05-01-Final.mp3" type="audio/mpeg" length="60173690"/>
+      <podcast:person group="cast" role="host" img="https://feeds.podcastindex.org/adam_avatar.jpg" href="http://curry.com">Adam Curry</podcast:person>
+      <podcast:person href="http://dave.sobr.org" img="https://feeds.podcastindex.org/dave_avatar.jpg" group="cast" role="host">Dave Jones</podcast:person>
+      <podcast:value type="lightning" method="keysend" suggested="0.00000005000">
+        <podcast:valueRecipient name="Dreb Scott (Chapters)" type="lnaddress" address="drebscott@getalby.com" split="5"/>
+        <podcast:valueRecipient name="Sovereign Feeds" address="steven@getalby.com" type="lnaddress" split="10"/>
+        <podcast:valueRecipient name="Fountain Boost bot" type="lnaddress" address="boostbot@fountain.fm" split="1"/>
+        <podcast:valueRecipient name="Reflex.io" type="lnaddress" address="reflex@livewire.io" split="5"/>
+        <podcast:valueRecipient name="ericpp@getalby.com" type="lnaddress" address="ericpp@getalby.com" split="5"/>
+        <podcast:valueRecipient name="Strike Test" type="lnaddress" address="adamcurry@strike.me" split="3"/>
+        <podcast:valueRecipient name="Alecks Gates Strike" type="lnaddress" address="agates@strike.me" split="5"/>
+        <podcast:valueRecipient name="PodcastIndex LN Test Wallet" type="lnaddress" address="podcastindex@getalby.com" split="50"/>
+        <podcast:valueRecipient name="Pod Sage" type="lnaddress" address="dave@getalby.com" split="1"/>
+        <podcast:valueRecipient name="Boost Monitor" type="lnaddress" address="adam@getalby.com" split="5"/>
+      </podcast:value>
+      <podcast:socialInteract protocol="activitypub" uri="https://podcastindex.social/@adam/116500943227789531" accountId="@adam" accountUrl="https://podcastindex.social/users/adam"/>
+      <itunes:duration>5013</itunes:duration>
+      <podcast:funding url="https://www.paypal.com/donate?token=-hvWBEXZQfp7oSFJz0TwT3QXYcjYuemZRPIOml3nrL-EhtiUPAwuVHS6DPN5cBat9wjqwYEtyW-K8zSS">Support us with Value 4 Value</podcast:funding>
+    </item>
+</channel>
+</rss>

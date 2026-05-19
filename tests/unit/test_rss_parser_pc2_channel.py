@@ -337,6 +337,112 @@ class TestRegressionGuards:
         assert '<podcast:txt purpose="ai-content">true</podcast:txt>' in out
 
 
+class TestNamespaceEquivalence:
+    """The Podcast Namespace spec treats several xmlns URIs as equivalent.
+
+    The reference pc20.xml feed (Podcasting 2.0 show) declares the
+    GitHub-blob form, not the canonical podcastindex.org URI. The parser
+    MUST accept all spec-equivalent forms or channel passthrough silently
+    drops on every real-world feed that uses the alternate URI.
+    """
+
+    @pytest.mark.parametrize("xmlns_uri", [
+        "https://podcastindex.org/namespace/1.0",
+        "http://podcastindex.org/namespace/1.0",
+        "https://github.com/Podcastindex-org/podcast-namespace/blob/main/docs/1.0.md",
+        "http://github.com/Podcastindex-org/podcast-namespace/blob/main/docs/1.0.md",
+        "https://github.com/Podcastindex-org/podcast-namespace/blob/master/docs/1.0.md",
+        "http://github.com/Podcastindex-org/podcast-namespace/blob/master/docs/1.0.md",
+    ])
+    def test_channel_passthrough_works_under_each_equivalent_uri(self, xmlns_uri):
+        upstream = f"""<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:podcast="{xmlns_uri}">
+  <channel>
+    <title>Variant Feed</title>
+    <podcast:funding url="https://example.com/donate">Donate</podcast:funding>
+    <podcast:medium>podcast</podcast:medium>
+    <podcast:integrity type="sri" value="sha256-MUST-NOT-LEAK"/>
+  </channel>
+</rss>"""
+        out = _emit(_build_parser(), upstream)
+        # Passthrough survives under any spec-equivalent URI.
+        assert '<podcast:funding url="https://example.com/donate">Donate</podcast:funding>' in out
+        assert "<podcast:medium>podcast</podcast:medium>" in out
+        # Strip list still applies regardless of which URI declared the namespace.
+        assert "sha256-MUST-NOT-LEAK" not in out
+        # And the canonical prefix is always used on emission, never the upstream URI.
+        assert xmlns_uri not in out
+
+    def test_strip_set_applies_under_github_blob_uri(self):
+        # Belt and suspenders for the most likely real-world variant.
+        gh_uri = "https://github.com/Podcastindex-org/podcast-namespace/blob/main/docs/1.0.md"
+        upstream = f"""<?xml version="1.0"?>
+<rss xmlns:podcast="{gh_uri}">
+  <channel>
+    <title>X</title>
+    <podcast:guid>SHOULD-BE-REPLACED-BY-MINTED</podcast:guid>
+    <podcast:soundbite startTime="100" duration="30">Snip</podcast:soundbite>
+    <podcast:txt purpose="verify">VERIFY-TOKEN-GH</podcast:txt>
+  </channel>
+</rss>"""
+        out = _emit(_build_parser(), upstream)
+        assert "SHOULD-BE-REPLACED-BY-MINTED" not in out
+        assert "<podcast:soundbite" not in out
+        assert "VERIFY-TOKEN-GH" not in out
+
+
+class TestPc20SnapshotFixture:
+    """Integration smoke against a trimmed snapshot of feeds.podcastindex.org/pc20.xml.
+
+    pc20.xml is the de-facto reference feed for the Podcast Namespace; it
+    declares the GitHub-blob xmlns and exercises podroll with 8
+    remoteItems, value with nested recipients, two podcast:person entries,
+    funding, medium, and an owner-bearing locked. Holding this as a
+    fixture guards against regression in either direction (passthrough
+    breakage OR accidental promotion of stripped tags).
+    """
+
+    @pytest.fixture
+    def pc20_xml(self):
+        import os
+        path = os.path.join(
+            os.path.dirname(__file__), "..", "fixtures", "pc20_snapshot.xml"
+        )
+        with open(path, "r", encoding="utf-8") as f:
+            return f.read()
+
+    def test_channel_passthrough_is_non_empty(self, pc20_xml):
+        out = _emit(_build_parser(), pc20_xml)
+        # Each of these comes from the real feed and must survive passthrough.
+        assert "<podcast:funding" in out
+        assert "<podcast:medium>podcast</podcast:medium>" in out
+        assert "<podcast:person" in out
+        assert "<podcast:podroll>" in out
+        assert "<podcast:value " in out
+        assert "<podcast:valueRecipient" in out
+
+    def test_locked_carried_with_owner_attribute(self, pc20_xml):
+        out = _emit(_build_parser(), pc20_xml)
+        assert 'owner="adam@curry.com"' in out
+        # Real feed locked body is "yes"; passthrough not default.
+        assert '<podcast:locked owner="adam@curry.com">yes</podcast:locked>' in out
+
+    def test_podroll_remoteitems_preserved(self, pc20_xml):
+        out = _emit(_build_parser(), pc20_xml)
+        # pc20.xml ships exactly 8 remoteItems in its podroll block.
+        assert out.count("<podcast:remoteItem") == 8
+
+    def test_minted_guid_replaces_upstream(self, pc20_xml):
+        out = _emit(_build_parser(), pc20_xml)
+        # pc20.xml's upstream guid value (literal from the feed).
+        assert "917393e3-1b1e-5cef-ace4-edaa54e1f810" not in out
+        assert out.count("<podcast:guid>") == 1
+
+    def test_ai_content_always_true(self, pc20_xml):
+        out = _emit(_build_parser(), pc20_xml)
+        assert out.count('<podcast:txt purpose="ai-content">true</podcast:txt>') == 1
+
+
 class TestFullFeedWellFormed:
     def test_served_feed_parses_with_funding_ampersand(self):
         upstream = _minimal_upstream(

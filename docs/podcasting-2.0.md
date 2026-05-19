@@ -125,6 +125,22 @@ the same address. If you move MinusPod to a different domain, the
 served URL changes and so does the GUID, which is correct, because at
 that point it is genuinely a feed at a new address.
 
+## Upstream namespace URIs
+
+The Podcast Namespace spec treats several xmlns URIs as equivalent, and
+real-world feeds use them interchangeably. The reference `pc20.xml` feed,
+for example, declares the GitHub-blob form rather than the
+`podcastindex.org` form. MinusPod accepts all of these on parse:
+
+- `https://podcastindex.org/namespace/1.0`
+- `https://github.com/Podcastindex-org/podcast-namespace/blob/main/docs/1.0.md`
+- `https://github.com/Podcastindex-org/podcast-namespace/blob/master/docs/1.0.md`
+- The `http://` variants of each
+
+The served feed always declares the canonical `https://podcastindex.org/namespace/1.0`
+URI on its `<rss>` root, no matter which form the upstream feed used.
+Passthrough tags are re-emitted under the canonical `podcast:` prefix.
+
 ## Compatibility with older players
 
 Every tag MinusPod adds is in the `podcast:` namespace. A player that
