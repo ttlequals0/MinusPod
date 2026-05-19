@@ -120,6 +120,24 @@ function TextSelectionPanel({
   // O(1) membership for the per-word render highlight.
   const matchSet = useMemo(() => new Set(matchIndices), [matchIndices]);
 
+  // Derive the highlighted word range from the resolved bounds. This survives
+  // focus changes (clicking into the Text template textarea below clears the
+  // browser's native Selection, which would otherwise wipe the visible
+  // highlight). Recomputed whenever adStart/adEnd change so audio-mode pin
+  // drags also re-highlight when the user toggles back.
+  const selectedRange = useMemo(() => {
+    if (flatWords.length === 0 || !(adEnd > adStart)) return null;
+    let startIdx = -1;
+    let endIdx = -1;
+    for (let i = 0; i < flatWords.length; i++) {
+      const w = flatWords[i];
+      if (startIdx === -1 && w.start >= adStart - 0.001) startIdx = i;
+      if (w.end <= adEnd + 0.001) endIdx = i;
+    }
+    if (startIdx === -1 || endIdx < startIdx) return null;
+    return { startIdx, endIdx };
+  }, [adStart, adEnd, flatWords]);
+
   useEffect(() => {
     if (matchIndices.length === 0) return;
     const idx = matchIndices[currentMatch];
@@ -310,10 +328,13 @@ function TextSelectionPanel({
         </span>
       </div>
 
-      {/* Transcript */}
+      {/* Transcript. selection:bg-primary/40 keeps the active drag visible
+          on mobile (default selection color is near-invisible in dark mode);
+          per-word bg-primary/30 highlight below persists after the browser
+          Selection clears (e.g., when focus moves to the textarea). */}
       <div
         ref={transcriptRef}
-        className="bg-secondary/40 rounded-lg p-3 max-h-[40vh] overflow-y-auto text-sm leading-relaxed select-text"
+        className="bg-secondary/40 rounded-lg p-3 max-h-[40vh] overflow-y-auto text-sm leading-relaxed select-text selection:bg-primary/50 selection:text-primary-foreground"
       >
         {flatWords.length === 0 ? (
           <p className="text-muted-foreground">Transcript is empty.</p>
@@ -321,19 +342,24 @@ function TextSelectionPanel({
           flatWords.map((w) => {
             const isMatch = matchSet.has(w.globalIndex);
             const isCurrent = w.globalIndex === currentMatchGlobal;
+            const isSelected =
+              selectedRange !== null &&
+              w.globalIndex >= selectedRange.startIdx &&
+              w.globalIndex <= selectedRange.endIdx;
+            const className = isSelected
+              ? 'bg-primary/30 text-foreground rounded-sm'
+              : isCurrent
+                ? 'bg-primary/40 text-foreground'
+                : isMatch
+                  ? 'bg-secondary text-foreground'
+                  : '';
             return (
               <span
                 key={w.globalIndex}
                 data-widx={w.globalIndex}
                 data-start={w.start}
                 data-end={w.end}
-                className={
-                  isCurrent
-                    ? 'bg-primary/40 text-foreground'
-                    : isMatch
-                      ? 'bg-secondary text-foreground'
-                      : ''
-                }
+                className={className}
               >
                 {w.word.trim()}{' '}
               </span>

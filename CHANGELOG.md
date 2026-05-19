@@ -6,6 +6,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.4.20] - 2026-05-18
+
+### Fixed
+
+- **Text-mode transcript selection now stays highlighted when focus moves into the Text template / Sponsor / Reason fields.** The browser clears the native Selection when focus moves out of the transcript region, which made the highlight disappear the moment the user clicked into the textarea below it. `TextSelectionPanel.tsx` now derives a `selectedRange` from `adStart`/`adEnd` and applies a `bg-primary/30` class to the in-range word spans, so the visual highlight survives focus changes, re-renders, and audio-mode pin drags.
+- **Active text-selection drag is now visible on mobile (and more visible in dark mode generally).** The transcript container previously fell back to the browser default `::selection` color, which is near-invisible against a dark background on iOS Safari and Chrome Android. Added `selection:bg-primary/50 selection:text-primary-foreground` to the transcript root so the active drag color stands out during selection.
+
 ## [2.4.19] - 2026-05-18
 
 ### Fixed
