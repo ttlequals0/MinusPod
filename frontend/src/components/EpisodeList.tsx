@@ -2,17 +2,19 @@ import { Link } from 'react-router-dom';
 import { Episode } from '../api/types';
 import { EPISODE_STATUS_COLORS, EPISODE_STATUS_LABELS } from '../utils/episodeStatus';
 import { stripHtml } from '../utils/stripHtml';
+import Artwork from './Artwork';
 import Checkbox from './Checkbox';
 
 interface EpisodeListProps {
   episodes: Episode[];
   feedSlug: string;
+  feedArtworkUrl?: string;
   selectedIds?: Set<string>;
   onToggle?: (id: string) => void;
   onSelectAll?: (checked: boolean) => void;
 }
 
-function EpisodeList({ episodes, feedSlug, selectedIds, onToggle, onSelectAll }: EpisodeListProps) {
+function EpisodeList({ episodes, feedSlug, feedArtworkUrl, selectedIds, onToggle, onSelectAll }: EpisodeListProps) {
   if (episodes.length === 0) {
     return (
       <div className="text-center py-8 text-muted-foreground">
@@ -41,6 +43,7 @@ function EpisodeList({ episodes, feedSlug, selectedIds, onToggle, onSelectAll }:
           key={episode.id}
           episode={episode}
           feedSlug={feedSlug}
+          feedArtworkUrl={feedArtworkUrl}
           selected={selectedIds?.has(episode.id) ?? false}
           onToggle={onToggle}
         />
@@ -52,11 +55,13 @@ function EpisodeList({ episodes, feedSlug, selectedIds, onToggle, onSelectAll }:
 function EpisodeRow({
   episode,
   feedSlug,
+  feedArtworkUrl,
   selected,
   onToggle,
 }: {
   episode: Episode;
   feedSlug: string;
+  feedArtworkUrl?: string;
   selected: boolean;
   onToggle?: (id: string) => void;
 }) {
@@ -90,23 +95,30 @@ function EpisodeRow({
       )}
       <Link
         to={`/feeds/${feedSlug}/episodes/${episode.id}`}
-        className={`block p-4 ${onToggle ? 'pl-12' : ''}`}
+        className={`flex gap-3 p-4 ${onToggle ? 'pl-12' : ''}`}
       >
-        <h3 className="font-medium text-foreground truncate">{episode.title}</h3>
-        {episode.description && (
-          <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-            {stripHtml(episode.description)}
-          </p>
-        )}
-        <div className="flex items-center gap-3 mt-2 text-sm text-muted-foreground">
-          <span>{new Date(episode.published).toLocaleDateString()}</span>
-          {episode.duration && <span>{formatDuration(episode.duration)}</span>}
-          {episode.ad_count !== undefined && episode.ad_count > 0 && (
-            <span>{episode.ad_count} ads detected</span>
+        <Artwork
+          src={feedArtworkUrl || `/api/v1/feeds/${feedSlug}/artwork`}
+          alt=""
+          className="w-12 h-12 sm:w-16 sm:h-16 shrink-0 object-cover rounded-md"
+        />
+        <div className="flex-1 min-w-0">
+          <h3 className="font-medium text-foreground truncate">{episode.title}</h3>
+          {episode.description && (
+            <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
+              {stripHtml(episode.description)}
+            </p>
           )}
-          <span className={`px-2 py-0.5 text-xs rounded-full whitespace-nowrap ${EPISODE_STATUS_COLORS[episode.status] || 'bg-muted text-muted-foreground'}`}>
-            {EPISODE_STATUS_LABELS[episode.status] || episode.status}
-          </span>
+          <div className="flex items-center gap-3 mt-2 text-sm text-muted-foreground">
+            <span>{new Date(episode.published).toLocaleDateString()}</span>
+            {episode.duration && <span>{formatDuration(episode.duration)}</span>}
+            {episode.ad_count !== undefined && episode.ad_count > 0 && (
+              <span>{episode.ad_count} ads detected</span>
+            )}
+            <span className={`px-2 py-0.5 text-xs rounded-full whitespace-nowrap ${EPISODE_STATUS_COLORS[episode.status] || 'bg-muted text-muted-foreground'}`}>
+              {EPISODE_STATUS_LABELS[episode.status] || episode.status}
+            </span>
+          </div>
         </div>
       </Link>
     </div>

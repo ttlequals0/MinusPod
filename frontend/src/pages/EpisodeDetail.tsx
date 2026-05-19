@@ -1,7 +1,7 @@
 import { useState, useRef, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getEpisode, getOriginalTranscript, reprocessEpisode, regenerateChapters } from '../api/feeds';
+import { getEpisode, getFeed, getOriginalTranscript, reprocessEpisode, regenerateChapters } from '../api/feeds';
 import { submitCorrection } from '../api/patterns';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Artwork from '../components/Artwork';
@@ -53,6 +53,15 @@ function EpisodeDetail() {
     queryKey: ['episode', slug, episodeId],
     queryFn: () => getEpisode(slug!, episodeId!),
     enabled: !!slug && !!episodeId,
+  });
+
+  // Feed query is used only for its ``artworkUrl`` field; the API returns
+  // either the cached endpoint path or the upstream URL depending on cache
+  // state, mirroring the dashboard fallback chain.
+  const { data: feed } = useQuery({
+    queryKey: ['feed', slug],
+    queryFn: () => getFeed(slug!),
+    enabled: !!slug,
   });
 
   const { data: originalTranscript, isError: originalTranscriptError } = useQuery({
@@ -221,7 +230,7 @@ function EpisodeDetail() {
         <div className="flex gap-4">
           <div className="w-16 h-16 sm:w-24 sm:h-24 shrink-0">
             <Artwork
-              src={`/api/v1/feeds/${slug}/artwork`}
+              src={feed?.artworkUrl || `/api/v1/feeds/${slug}/artwork`}
               alt="Podcast artwork"
               className="w-full h-full object-cover rounded-lg"
             />

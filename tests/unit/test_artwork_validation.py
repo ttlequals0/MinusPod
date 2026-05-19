@@ -48,7 +48,7 @@ def test_allowed_types_excludes_svg():
 
 
 def test_max_artwork_bytes_default():
-    assert _max_artwork_bytes() == 5 * 1024 * 1024
+    assert _max_artwork_bytes() == 25 * 1024 * 1024
 
 
 def test_max_artwork_bytes_env_override(monkeypatch):
@@ -68,7 +68,7 @@ def test_max_artwork_bytes_ceiling(monkeypatch):
 
 def test_max_artwork_bytes_invalid_env_falls_back(monkeypatch):
     monkeypatch.setenv('MINUSPOD_MAX_ARTWORK_BYTES', 'not-a-number')
-    assert _max_artwork_bytes() == 5 * 1024 * 1024
+    assert _max_artwork_bytes() == 25 * 1024 * 1024
 
 
 def _mock_response(content_type: str, body: bytes) -> MagicMock:

@@ -11,6 +11,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import TriStateSelect from '../components/TriStateSelect';
 import { FeedTagsEditor } from '../components/FeedTagsEditor';
 import { formatStorage } from './settings/settingsUtils';
+import { stripHtml } from '../utils/stripHtml';
 
 function FeedDetail() {
   const { slug } = useParams<{ slug: string }>();
@@ -202,7 +203,7 @@ function FeedDetail() {
         <div className="flex flex-col sm:flex-row gap-6">
           <div className="w-32 h-32 shrink-0 mx-auto sm:mx-0">
             <Artwork
-              src={`/api/v1/feeds/${slug}/artwork`}
+              src={feed.artworkUrl || `/api/v1/feeds/${slug}/artwork`}
               alt={feed.title}
               className="w-full h-full object-cover rounded-lg"
             />
@@ -210,7 +211,7 @@ function FeedDetail() {
           <div className="flex-1 min-w-0">
             <h1 className="text-2xl font-bold text-foreground">{feed.title}</h1>
             {feed.description && (
-              <p className="text-muted-foreground mt-2 line-clamp-3">{feed.description}</p>
+              <p className="text-muted-foreground mt-2 line-clamp-3">{stripHtml(feed.description)}</p>
             )}
             <div className="mt-4 flex flex-wrap gap-4 text-sm text-muted-foreground">
               <span>{feed.episodeCount} episodes</span>
@@ -512,6 +513,7 @@ function FeedDetail() {
         <EpisodeList
           episodes={episodes}
           feedSlug={slug!}
+          feedArtworkUrl={feed.artworkUrl}
           selectedIds={selectedIds}
           onToggle={handleToggleSelect}
           onSelectAll={handleSelectAll}

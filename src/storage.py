@@ -49,12 +49,16 @@ def _detect_image_mime(data: bytes) -> Optional[str]:
 
 def _max_artwork_bytes() -> int:
     """Artwork size cap, configurable so operators can host very high-res
-    podcast covers without a code change. Default is 5 MB; clamped to a
-    sensible floor/ceiling so a typo cannot turn this into a memory DoS."""
+    podcast covers without a code change. Default is 25 MB so animated GIF
+    covers (e.g. the Podcasting 2.0 reference feed ships a ~40 MB GIF that
+    falls back to the upstream URL above the cap) and 3000x3000 JPEGs are
+    cached comfortably. Clamped to a sensible floor/ceiling so a typo
+    cannot turn this into a memory DoS.
+    """
     try:
-        raw = int(os.environ.get('MINUSPOD_MAX_ARTWORK_BYTES', 5 * 1024 * 1024))
+        raw = int(os.environ.get('MINUSPOD_MAX_ARTWORK_BYTES', 25 * 1024 * 1024))
     except ValueError:
-        raw = 5 * 1024 * 1024
+        raw = 25 * 1024 * 1024
     return max(64 * 1024, min(raw, 50 * 1024 * 1024))
 
 logger = logging.getLogger(__name__)
