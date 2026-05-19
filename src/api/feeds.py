@@ -18,6 +18,19 @@ from api import (
 )
 from utils.url import validate_url, SSRFError
 
+from slugify import slugify as make_slug
+
+
+def _slug_from_url_path(source_url: str) -> Optional[str]:
+    # Final-resort slug derivation when neither an upstream OPML title nor
+    # an RSS <title> is available. Strips ``.xml`` / ``.rss`` suffixes
+    # because they would otherwise become part of the slug. Returns None
+    # if the URL has no usable path or hostname.
+    parsed = urlparse(source_url)
+    slug_base = parsed.path.strip('/').split('/')[-1] or parsed.netloc
+    slug_base = slug_base.replace('.xml', '').replace('.rss', '')
+    return make_slug(slug_base) if slug_base else None
+
 logger = logging.getLogger('podcast.api')
 
 
@@ -87,7 +100,6 @@ def add_feed():
     # Generate slug from podcast name or use provided slug
     slug = data.get('slug', '').strip()
     if not slug:
-        from slugify import slugify as make_slug
         from rss_parser import RSSParser
 
         # Two attempts with a short gap: some hosts (e.g. Buzzsprout) 403 the
@@ -109,9 +121,16 @@ def add_feed():
                 if title:
                     slug = make_slug(title)
 
+        # URL-path fallback. Without this, a feed whose host blocks the
+        # initial fetch or whose <title> is empty would force the user to
+        # invent a slug by hand. The OPML import path has had this
+        # fallback for a while; the single-add endpoint was missing it.
+        if not slug:
+            slug = _slug_from_url_path(source_url)
+
     if not slug:
         return error_response(
-            "Could not fetch podcast title from RSS. "
+            "Could not derive a slug from the feed URL. "
             "Please provide a 'slug' in the request.",
             400,
         )
@@ -215,7 +234,6 @@ def import_opml():
 
     # Import feeds
     db = get_database()
-    from slugify import slugify as make_slug
     from rss_parser import RSSParser
 
     imported = []
@@ -251,12 +269,9 @@ def import_opml():
             except Exception:
                 pass
 
-        # Fallback to URL-based slug
+        # Fallback to URL-based slug (shared with single-add endpoint).
         if not slug:
-            parsed = urlparse(source_url)
-            slug_base = parsed.path.strip('/').split('/')[-1] or parsed.netloc
-            slug_base = slug_base.replace('.xml', '').replace('.rss', '')
-            slug = make_slug(slug_base) if slug_base else None
+            slug = _slug_from_url_path(source_url)
 
         if not slug:
             failed.append({'url': source_url, 'error': 'Could not generate slug'})

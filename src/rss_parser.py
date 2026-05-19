@@ -192,12 +192,18 @@ class RSSParser:
 
         try:
             logger.info(f"Fetching RSS feed from: {safe_url_for_log(url)}")
+            # APP_USER_AGENT is required: some feed hosts (e.g.
+            # feeds.podcastindex.org) reject the default python-requests UA
+            # with 403. fetch_feed_conditional already sets it; the
+            # initial-fetch path was previously missing it, which made
+            # add_feed slug derivation fail on UA-strict hosts.
             response = safe_get(
                 url,
                 trust=URLTrust.OPERATOR_CONFIGURED,
                 timeout=timeout,
                 max_redirects=HTTP_MAX_REDIRECTS_FEED,
                 stream=True,
+                headers={'User-Agent': APP_USER_AGENT},
             )
             response.raise_for_status()
             if not _content_type_looks_like_feed(response.headers.get('Content-Type')):
@@ -233,7 +239,10 @@ class RSSParser:
                     trust=URLTrust.OPERATOR_CONFIGURED,
                     timeout=timeout,
                     max_redirects=HTTP_MAX_REDIRECTS_FEED,
-                    headers={'Accept-Encoding': 'identity'},
+                    headers={
+                        'Accept-Encoding': 'identity',
+                        'User-Agent': APP_USER_AGENT,
+                    },
                 )
                 response.raise_for_status()
                 logger.info(f"Successfully fetched RSS feed (uncompressed), size: {len(response.content)} bytes")
@@ -511,7 +520,7 @@ class RSSParser:
         channel = feed.feed
         lines.append(f'<title>{self._escape_xml(channel.get("title", ""))}</title>')
         lines.append(f'<link>{self._escape_xml(channel.get("link", ""))}</link>')
-        lines.append(f'<description><![CDATA[{channel.get("description", "")}]]></description>')
+        lines.append(f'<description><![CDATA[{self._get_channel_description(channel)}]]></description>')
         lines.append(f'<language>{self._escape_xml(channel.get("language", "en"))}</language>')
 
         if 'image' in channel:
@@ -654,6 +663,36 @@ class RSSParser:
             return format_datetime(dt)
         except (ValueError, TypeError, AttributeError):
             return iso_date
+
+    @staticmethod
+    def _get_channel_description(channel) -> str:
+        """Channel description with iTunes fallback chain.
+
+        Mirrors ``_get_episode_description`` at channel scope. Falls back
+        only when the upstream ``<description>`` is empty or whitespace,
+        not when it is "short"; publishers who emit a deliberately concise
+        description should not be second-guessed.
+
+        Returns raw HTML when iTunes fields carry markup; the caller
+        wraps in CDATA.
+        """
+        desc = channel.get('description', '') or ''
+        if desc.strip():
+            return desc
+
+        itunes_summary = channel.get('itunes_summary', '') or ''
+        if itunes_summary.strip():
+            return itunes_summary
+
+        subtitle = channel.get('subtitle', '') or ''
+        if subtitle.strip():
+            return subtitle
+
+        itunes_subtitle = channel.get('itunes_subtitle', '') or ''
+        if itunes_subtitle.strip():
+            return itunes_subtitle
+
+        return ''
 
     @staticmethod
     def _get_episode_description(entry) -> str:
