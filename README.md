@@ -60,6 +60,7 @@ Access the web UI at `http://localhost:8000/ui/` to add and manage feeds.
 | [Finding Feeds & Usage](docs/feeds-and-usage.md) | Podcast search, finding RSS feeds, Audiobookshelf |
 | [API & Webhooks](docs/api-and-webhooks.md) | REST endpoints, webhook events, payload templates |
 | [Security, Storage & Custom Assets](docs/security-and-storage.md) | Remote access, login lockout, backups, custom markers |
+| [Podcasting 2.0](docs/podcasting-2.0.md) | What MinusPod emits, regenerates, and deliberately strips from the Podcast Namespace, and why |
 | [Deployment Runbook](docs/DEPLOYMENT.md) | Operational runbook |
 | [LLM Benchmark Report](benchmarks/llm/results/report.md) | Per-model F1, JSON compliance, latency, cost across 32 models on a 7-episode corpus |
 

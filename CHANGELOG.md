@@ -6,7 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.5.0] - 2026-05-19
+
+### Added
+
+- **Channel-level Podcasting 2.0 tag handling.** Every served feed now emits a minted `podcast:guid` (deterministic UUIDv5 over the served URL, per the Podcast Namespace spec), a `podcast:locked` tag defaulting to `yes` when upstream is silent (discourages re-import of private re-feeds), and a `<podcast:txt purpose="ai-content">true</podcast:txt>` disclosure that the audio was algorithmically re-cut. Safe channel tags (`funding`, `podroll`, `license`, `medium`, `person`, `updateFrequency`, `season`, `episode`, `trailer`, `images`, `image`, `socialInteract`, `value`/`valueRecipient`/`valueTimeSplit`, free-form `txt`) pass through verbatim with attribute values re-escaped to prevent feed corruption from upstream `&` characters. See [docs/podcasting-2.0.md](docs/podcasting-2.0.md) for the full pass/regenerate/strip rationale.
+- **Strip list for channel tags that would lie about the re-cut audio.** `podcast:integrity`, `soundbite`, `liveItem`, `alternateEnclosure`, `source`, and any upstream `podcast:guid` are dropped from the served feed (MinusPod mints its own GUID). `podcast:txt` with `purpose="verify"` or `purpose="applepodcastsverify"` is also stripped to avoid leaking the upstream publisher's ownership token through MinusPod. `podcast:podping` is deliberately never emitted: Podping publishes the feed URL to a public blockchain, which is the wrong shape for private re-feeds.
 
 ### Changed
 

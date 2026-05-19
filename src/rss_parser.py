@@ -12,8 +12,12 @@ import requests
 from urllib.parse import urlparse
 
 from config import APP_USER_AGENT, HTTP_MAX_REDIRECTS_FEED
+from defusedxml.common import DefusedXmlException
+from defusedxml.ElementTree import fromstring as defused_fromstring
+
 from utils.circuit_breaker import CircuitBreaker, CircuitBreakerOpen
 from utils.episode_paths import episode_public_url
+from utils.feed_guid import compute_feed_guid
 from utils.time import parse_iso_datetime
 from utils.url import SSRFError
 from utils.http import safe_url_for_log
@@ -72,6 +76,69 @@ def _get_rss_circuit_breaker(url: str) -> CircuitBreaker:
             f"rss-{host}", failure_threshold=5, recovery_timeout=60
         )
     return _rss_circuit_breakers[host]
+
+
+# Podcasting 2.0 channel-tag dispositions. See docs/podcasting-2.0.md for the
+# full pass/regenerate/strip rationale. These sets are authoritative.
+#
+# Both the canonical https URI and the http URI variant seen in older feeds
+# map to the same prefix; we treat them as equivalent on parse and always
+# emit the canonical URI on the root xmlns declaration.
+_PODCAST_NS_CANONICAL = "https://podcastindex.org/namespace/1.0"
+_PODCAST_NS_URIS = (
+    _PODCAST_NS_CANONICAL,
+    "http://podcastindex.org/namespace/1.0",
+)
+
+# Channel-level podcast:* tags MinusPod copies from the upstream feed unchanged.
+# Excludes: guid (we mint our own), locked (handled with a default), txt
+# (filtered by purpose), and anything in _PC2_CHANNEL_STRIP.
+# Note: ``images`` (plural) was deprecated by the namespace in favor of
+# ``image``. Kept for upstream feeds still emitting the deprecated plural;
+# unescaped passthrough is harmless to readers that ignore unknown tags.
+_PC2_CHANNEL_PASSTHROUGH = frozenset({
+    "funding", "podroll", "license", "medium", "person",
+    "updateFrequency", "season", "episode", "trailer",
+    "images", "image", "socialInteract",
+    "value", "valueRecipient", "valueTimeSplit",
+})
+
+# Channel-level podcast:* tags MinusPod always removes. soundbite/liveItem/
+# alternateEnclosure/source/integrity describe original-audio bytes or
+# timeline and would lie about the re-cut file; podping publishes the feed
+# URL to a public blockchain (wrong for private re-feeds).
+_PC2_CHANNEL_STRIP = frozenset({
+    "guid",
+    "soundbite", "liveItem", "alternateEnclosure", "source", "integrity",
+    "podping",
+})
+
+# podcast:txt purpose values that MinusPod refuses to forward.
+# verify/applepodcastsverify are ownership tokens bound to the original
+# publisher; ai-content is always re-asserted (true) by MinusPod itself.
+_PC2_TXT_STRIP_PURPOSES = frozenset({
+    "verify", "applepodcastsverify", "ai-content",
+})
+
+
+def _is_podcast_element(elem) -> bool:
+    """True if elem belongs to the Podcast Namespace (either URI variant)."""
+    tag = getattr(elem, "tag", "")
+    if not isinstance(tag, str) or not tag.startswith("{"):
+        return False
+    end = tag.find("}")
+    if end == -1:
+        return False
+    return tag[1:end] in _PODCAST_NS_URIS
+
+
+def _podcast_localname(elem) -> str:
+    """Return the local name of a {ns}local element, or the raw tag if unnamespaced."""
+    tag = getattr(elem, "tag", "")
+    if not isinstance(tag, str) or not tag.startswith("{"):
+        return tag
+    end = tag.find("}")
+    return tag[end + 1:] if end != -1 else tag
 
 
 _ENCLOSURE_PREFIX_RE = re.compile(r'<enclosure url="([^"]+)/episodes/')
@@ -430,7 +497,7 @@ class RSSParser:
         lines.append('<?xml version="1.0" encoding="UTF-8"?>')
         lines.append('<rss version="2.0" '
                      'xmlns:itunes="http://www.itunes.com/dtds/podcast-1.0.dtd" '
-                     'xmlns:podcast="https://podcastindex.org/namespace/1.0">')
+                     f'xmlns:podcast="{_PODCAST_NS_CANONICAL}">')
         lines.append('<channel>')
 
         # Copy channel metadata (escape XML entities to prevent invalid XML from & in URLs)
@@ -446,6 +513,10 @@ class RSSParser:
             lines.append(f'  <title>{self._escape_xml(channel.image.get("title", ""))}</title>')
             lines.append(f'  <link>{self._escape_xml(channel.image.get("link", ""))}</link>')
             lines.append(f'</image>')
+
+        # Channel-level Podcasting 2.0 tags: minted guid, passthrough of safe
+        # upstream tags, ai-content disclosure. See docs/podcasting-2.0.md.
+        self._emit_channel_pc2_tags(lines, feed_content, slug)
 
         # Limit to most recent episodes to keep feed size manageable
         # Pocket Casts and other apps may reject very large feeds (>1MB)
@@ -619,6 +690,134 @@ class RSSParser:
             .replace('>', '&gt;')
             .replace('"', '&quot;')
             .replace("'", '&apos;'))
+
+    def _serialize_podcast_element(self, elem, _depth: int = 0) -> str:
+        # Hand-rolled rather than ``ET.tostring`` because tostring re-declares
+        # ``xmlns:podcast`` on every element (the root already declares it)
+        # and renames the prefix to ``ns0:``. Non-podcast children are dropped
+        # defensively so unrelated namespaces can't leak into a passthrough
+        # block.
+        #
+        # Depth cap: defusedxml does not bound element nesting (only entity
+        # expansion), so an upstream feed could nest ``podcast:value`` /
+        # ``podcast:valueTimeSplit`` arbitrarily and blow Python's recursion
+        # limit. Spec-legal channel-level podcast trees are <= 3 deep
+        # (e.g. ``value > valueTimeSplit > valueRecipient``), so 16 is a
+        # generous cap that still rejects hostile feeds before they crash
+        # the worker.
+        if _depth > 16:
+            return ""
+
+        local = _podcast_localname(elem)
+
+        attr_parts = []
+        for attr_name, attr_value in elem.attrib.items():
+            if attr_name.startswith("{"):
+                continue
+            attr_parts.append(f'{attr_name}="{self._escape_xml(attr_value)}"')
+        attr_str = (" " + " ".join(attr_parts)) if attr_parts else ""
+
+        child_xml = []
+        for child in elem:
+            if _is_podcast_element(child):
+                child_xml.append(self._serialize_podcast_element(child, _depth + 1))
+
+        raw_text = elem.text or ""
+        text_xml = self._escape_xml(raw_text) if raw_text.strip() else ""
+
+        if not child_xml and not text_xml:
+            return f'<podcast:{local}{attr_str} />'
+        return f'<podcast:{local}{attr_str}>{text_xml}{"".join(child_xml)}</podcast:{local}>'
+
+    def _parse_upstream_channel_pc2_tags(self, feed_content: str) -> Dict:
+        # Never raises. Returns ``{"locked": None, "passthrough": []}`` on any
+        # parse failure so the feed still builds with our minted guid and
+        # ai-content disclosure even when upstream XML is malformed.
+        result = {"locked": None, "passthrough": []}
+        if not feed_content:
+            return result
+
+        try:
+            payload = feed_content.encode("utf-8") if isinstance(feed_content, str) else feed_content
+            root = defused_fromstring(payload)
+        except DefusedXmlException as e:
+            # Mirror the xml_forbidden_construct event in parse_feed so an
+            # operator scanning logs sees the same signal at the same level.
+            logger.warning(
+                "Upstream feed rejected during channel-PC2 parse: %s",
+                type(e).__name__,
+                extra={
+                    'event': 'xml_forbidden_construct',
+                    'construct': type(e).__name__,
+                    'phase': 'pc2_channel_parse',
+                },
+            )
+            return result
+        except Exception as e:
+            logger.debug("PC2 channel parse failed (%s); skipping passthrough", type(e).__name__)
+            return result
+
+        channel = None
+        for child in list(root) if root is not None else []:
+            tag = getattr(child, "tag", "")
+            if isinstance(tag, str) and (tag == "channel" or tag.endswith("}channel")):
+                channel = child
+                break
+        if channel is None:
+            return result
+
+        for elem in channel:
+            if not _is_podcast_element(elem):
+                continue
+            local = _podcast_localname(elem)
+            if local == "locked":
+                result["locked"] = elem
+                continue
+            if local in _PC2_CHANNEL_STRIP:
+                continue
+            if local == "txt":
+                purpose = elem.get("purpose", "")
+                if purpose in _PC2_TXT_STRIP_PURPOSES:
+                    continue
+                result["passthrough"].append(elem)
+                continue
+            if local in _PC2_CHANNEL_PASSTHROUGH:
+                result["passthrough"].append(elem)
+            # Unknown podcast:* localnames at channel level: skip. Passing
+            # through unknown elements would re-introduce the same lying-
+            # about-cut-audio risk this whole module exists to avoid.
+
+        return result
+
+    def _emit_channel_pc2_tags(self, lines: list, feed_content: str, slug: str) -> None:
+        # Emission order matches docs/podcasting-2.0.md: minted guid first,
+        # then locked (upstream or default "yes"), then the passthrough set,
+        # then the ai-content disclosure last.
+        #
+        # ``rstrip('/')`` keeps the GUID stable across base-URL configurations
+        # that may or may not include a trailing slash; without it, toggling
+        # the slash would silently change every feed's identity.
+        served_feed_url = f"{self._resolved_base_url().rstrip('/')}/{slug}"
+        guid = compute_feed_guid(served_feed_url)
+        if guid:
+            lines.append(f'<podcast:guid>{self._escape_xml(guid)}</podcast:guid>')
+
+        upstream = self._parse_upstream_channel_pc2_tags(feed_content)
+
+        upstream_locked_value = ""
+        if upstream["locked"] is not None:
+            upstream_locked_value = (upstream["locked"].text or "").strip().lower()
+        if upstream_locked_value in ("yes", "no"):
+            lines.append(self._serialize_podcast_element(upstream["locked"]))
+        else:
+            # Upstream silent, self-closing, or non-conformant body: spec says
+            # locked text MUST be "yes" or "no", so fall back to default.
+            lines.append('<podcast:locked>yes</podcast:locked>')
+
+        for elem in upstream["passthrough"]:
+            lines.append(self._serialize_podcast_element(elem))
+
+        lines.append('<podcast:txt purpose="ai-content">true</podcast:txt>')
 
     def deduplicate_episodes(self, episodes: List[Dict]) -> List[Dict]:
         """
