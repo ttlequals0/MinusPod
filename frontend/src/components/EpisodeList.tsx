@@ -109,11 +109,11 @@ function EpisodeRow({
               {stripHtml(episode.description)}
             </p>
           )}
-          <div className="flex items-center gap-3 mt-2 text-sm text-muted-foreground">
-            <span>{new Date(episode.published).toLocaleDateString()}</span>
-            {episode.duration && <span>{formatDuration(episode.duration)}</span>}
+          <div className="flex items-center flex-wrap gap-x-3 gap-y-1 mt-2 text-sm text-muted-foreground">
+            <span className="whitespace-nowrap">{new Date(episode.published).toLocaleDateString()}</span>
+            {episode.duration && <span className="whitespace-nowrap">{formatDuration(episode.duration)}</span>}
             {episode.ad_count !== undefined && episode.ad_count > 0 && (
-              <span>{episode.ad_count} ads detected</span>
+              <span className="whitespace-nowrap">{episode.ad_count} ads detected</span>
             )}
             <span className={`px-2 py-0.5 text-xs rounded-full whitespace-nowrap ${EPISODE_STATUS_COLORS[episode.status] || 'bg-muted text-muted-foreground'}`}>
               {EPISODE_STATUS_LABELS[episode.status] || episode.status}

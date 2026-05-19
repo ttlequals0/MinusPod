@@ -6,6 +6,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.3] - 2026-05-19
+
+### Fixed
+
+- **Modified RSS now passes through standard RSS + iTunes channel metadata.** `modify_feed` only emitted `<title>`, `<link>`, `<description>`, `<language>`, and `<image>` at channel scope; every iTunes channel tag (`itunes:author`, `itunes:summary`, `itunes:owner`, `itunes:category`, `itunes:explicit`, `itunes:keywords`, `itunes:type`, `itunes:block`, `itunes:complete`, `itunes:subtitle`) plus standard RSS metadata (`managingEditor`, `webMaster`, `copyright`, `category`, `pubDate`, `ttl`, `docs`) was silently dropped. Apple Podcasts and most podcast apps require several of these to ingest the feed at all, so artwork would not render in apps even when the URL was reachable. A new `_emit_channel_metadata_passthrough` method walks channel-level direct children of the upstream XML and re-serializes the allowlisted tags under their canonical prefix, with strict same-namespace recursion (so nested `itunes:owner > itunes:name + itunes:email` survives intact).
+- **`itunes:new-feed-url` is now explicitly stripped.** Apps interpret this tag as a "feed has moved" signal and migrate every subscriber to the URL it points at. Passing it through would silently redirect MinusPod subscribers back to the upstream feed.
+- **Fresh `<lastBuildDate>` and `<generator>` emitted on every served feed.** Apps that use `lastBuildDate` to decide whether to re-fetch were seeing the upstream's stale timestamp and skipping refreshes. `<generator>` now reads `MinusPod` for attribution.
+- **Episode list rows wrapped chip text mid-string at narrow widths.** Adding the show-artwork thumbnail to `EpisodeRow` in 2.5.2 reduced the meta-row's horizontal space; spans without `whitespace-nowrap` started wrapping inside (`2h\n39m`, `4 ads\ndetected`). The meta-row container now uses `flex-wrap` with column/row gaps, and each chip span has `whitespace-nowrap`, so chips wrap as whole units when needed.
+- **"+ Add new ad" button on the no-ads-detected panel collapsed to a wrapped label on narrow viewports.** Mirrored the existing `AdReviewModal` pattern: plus-icon only on mobile, full label on `sm:+`. The button row has `gap-3` and the column has `shrink-0`/`min-w-0` so the description text doesn't squeeze the button.
+
 ## [2.5.2] - 2026-05-19
 
 ### Fixed

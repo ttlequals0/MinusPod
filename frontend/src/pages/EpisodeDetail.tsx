@@ -377,22 +377,29 @@ function EpisodeDetail() {
               createMode={true}
             />
           ) : (
-            <div className="flex items-center justify-between">
-              <div>
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
                 <h2 className="text-lg font-semibold text-foreground">No ads detected</h2>
                 <p className="text-sm text-muted-foreground">
                   Spotted an ad the detector missed? Mark it manually so the pattern matcher learns it.
                 </p>
               </div>
+              {/* Icon-only on mobile, full label on sm:+. Mirrors AdReviewModal. */}
               <button
+                type="button"
                 onClick={() => {
                   setSavedScrollY(window.scrollY);
                   setCreateModeRequested(true);
                   setShowEditor(true);
                 }}
-                className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+                aria-label="Add new ad"
+                title="Add new ad"
+                className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors whitespace-nowrap"
               >
-                + Add new ad
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                <span className="hidden sm:inline">Add new ad</span>
               </button>
             </div>
           )}
