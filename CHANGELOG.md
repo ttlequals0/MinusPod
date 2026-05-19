@@ -6,7 +6,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.5.0] - 2026-05-19
+## [2.5.1] - 2026-05-19
+
+Tag `2.5.0` was published to Docker Hub but pulled stale bytes through a Portainer/registry cache layer on deploy. `2.5.1` is the first working release that ships the changes below. Treat `2.5.0` as withdrawn.
+
+
 
 ### Fixed
 
