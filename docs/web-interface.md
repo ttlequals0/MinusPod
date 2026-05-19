@@ -21,7 +21,7 @@ The server includes a web-based management UI at `/ui/`:
 - Real-time status bar showing processing progress across all pages
 - OPML export with original or ad-free (modified) feed URLs
 - Global Defaults group in settings (Auto-Process, Max Feed Episodes, Only Expose Processed) that every feed inherits, with per-feed overrides on each feed's settings page
-- Webhook notifications for processed episodes and auth failures
+- Webhook notifications for processed episodes, permanent failures, auth failures, and structural rate-limit hits
 - Podcast search via PodcastIndex.org
 - Multiple dark themes (Tokyo Night, Dracula, Catppuccin, Nord, Gruvbox, Solarized, and more) with light/dark toggle
 - Installable as Progressive Web App (PWA)
@@ -53,7 +53,16 @@ On desktop you get `Space` for play/pause, arrow keys to nudge the focused pin, 
 
 ### Adding a New Ad
 
-If the detector missed one, click `+ Add new ad` from the episode page header or from the same button inside the editor modal. The editor opens in create mode against the original (pre-cut) audio so you hear exactly what the listener would have heard: enter start and end timestamps or drag the pins on the waveform, pick a sponsor from the autocomplete or type a new one, and the text template auto-populates from the transcript span between your bounds. Submitting creates a new pattern with `created_by='user'` and writes a `'create'` correction so the pattern matcher picks it up on future episodes. The Patterns page tags manually created patterns with a `Manual` badge and adds an Origin filter (All / Auto / Manual).
+If the detector missed one, click `+ Add new ad` from the episode page header or from the same button inside the editor modal. The editor opens in create mode against the original (pre-cut) audio so you hear exactly what the listener would have heard.
+
+The modal has two input modes, toggled by a tab strip at the top:
+
+- **By audio** (default): enter start and end timestamps or drag the pins on the waveform. The text template auto-populates from the transcript span between your bounds.
+- **By text**: the original transcript renders with word-level Whisper timestamps. Select a span of text in the browser; the resolved word boundaries populate the start/end timestamps and the template. A search box with `N of M` navigation jumps between matches. The selected text stays highlighted on mobile too, so the selection is visible after the keyboard closes.
+
+Switching tabs preserves your selection, so you can refine bounds in either view. Pick a sponsor from the autocomplete or type a new one. The optional Reason field is available in both modes.
+
+Submitting creates a new pattern with `created_by='user'` and writes a `'create'` correction so the pattern matcher picks it up on future episodes. The Patterns page tags manually created patterns with a `Manual` badge and adds an Origin filter (All / Auto / Manual).
 
 ### Screenshots
 

@@ -24,7 +24,7 @@ Customize ad detection in Settings:
 - **Chapters Model** - Model for chapter generation (a small model like Haiku works well here)
 - **Audio Bitrate** - Output bitrate for processed audio (default 128k)
 - **System Prompts** - Customizable prompts for first pass and verification detection
-- **LLM Tunables (per stage)** - See below
+- **LLM Tunables** - See below
 
 ### Tuning LLM behavior per stage
 
@@ -57,6 +57,19 @@ Every tunable has a matching env var (`DETECTION_TEMPERATURE`, `VERIFICATION_MAX
 #### Ollama context window
 
 Ollama truncates prompts that exceed its context window without telling you. The default is often 2048 tokens, too small for a full-transcript pass, and detection fails silently. When the active provider is Ollama, Settings exposes a **Context window (num_ctx)** field; set it to your model's trained context (8192 or higher on most modern models). Env-var alias: `OLLAMA_NUM_CTX`.
+
+#### Detection window geometry
+
+Long episodes are chunked into overlapping windows before being sent to the detection LLM. These controls are global rather than per-stage, and sit above the per-stage controls:
+
+| Control | Range | Default | Notes |
+|---|---|---|---|
+| Window size | 120-1800 seconds | 600s | How much audio each detection request covers. Lower values reduce tokens per request and help small local models or low-tier provider plans stay under per-minute caps. |
+| Window overlap | 0-1770 seconds | 180s | Trailing overlap between consecutive windows so an ad straddling a boundary is still visible in the next window. Must be strictly less than window size. |
+
+API: `PUT /api/v1/settings` accepts `windowSizeSeconds` and `windowOverlapSeconds`. Cross-field validation rejects `overlap >= size` with a 400. The reset-to-default buttons in the UI clear the stored value so the built-in defaults apply on the next episode; no restart needed.
+
+When the provider returns a 429 because a single window's request exceeds the per-minute token cap, MinusPod flags the episode with a `Rate Limit Structural` error and fires the matching webhook (see [API & Webhooks](api-and-webhooks.md#events)). Lower **Window size** here, or move to a higher provider tier; the retry loop won't eventually succeed because the request itself is too big.
 
 ### VAD Gap Detector (advanced)
 

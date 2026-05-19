@@ -67,6 +67,7 @@ Configure webhooks in **Settings > Webhooks** in the web UI, or via the REST API
 | `Episode Processed` | Episode completes processing successfully |
 | `Episode Failed` | Episode reaches permanently failed status |
 | `Auth Failure` | LLM provider returns 401/403 (rate-limited to one per 5 minutes) |
+| `Rate Limit Structural` | A single detection-window request exceeds the provider's per-minute token cap (rate-limited to one per 5 minutes). Retrying will not help; the operator needs to shrink the detection window or move to a higher tier. |
 
 ### Template Variables
 
@@ -74,7 +75,7 @@ Custom payload templates are Jinja2 strings rendered against these variables:
 
 | Variable | Type | Description |
 |---|---|---|
-| `event` | string | `Episode Processed`, `Episode Failed`, or `Auth Failure` |
+| `event` | string | `Episode Processed`, `Episode Failed`, `Auth Failure`, or `Rate Limit Structural` |
 | `timestamp` | string | ISO 8601 UTC timestamp |
 | `podcast.name` | string | Podcast title (falls back to slug if unavailable) |
 | `podcast.slug` | string | Feed slug |
@@ -102,6 +103,19 @@ Custom payload templates are Jinja2 strings rendered against these variables:
 | `model` | string | Model that failed authentication |
 | `error_message` | string | Error details from the provider |
 | `status_code` | int/null | HTTP status code (401 or 403) |
+
+**Rate Limit Structural events use a different payload:**
+
+| Variable | Type | Description |
+|---|---|---|
+| `event` | string | `Rate Limit Structural` |
+| `timestamp` | string | ISO 8601 UTC timestamp |
+| `provider` | string | LLM provider name |
+| `model` | string | Model that returned the 429 |
+| `limit` | int | The provider's per-minute token cap |
+| `used` | int | Tokens already consumed in the current minute |
+| `requested` | int | Tokens this request asked for (greater than `limit` means the request structurally cannot fit) |
+| `error_message` | string | Raw error details from the provider |
 
 ### Default Payloads
 
@@ -171,6 +185,21 @@ When no custom template is configured, MinusPod sends these JSON payloads.
   "model": "claude-sonnet-4-20250514",
   "error_message": "Invalid API key provided",
   "status_code": 401
+}
+```
+
+**Rate Limit Structural:**
+
+```json
+{
+  "event": "Rate Limit Structural",
+  "timestamp": "2026-04-12T00:15:42Z",
+  "provider": "groq",
+  "model": "llama-3.3-70b-versatile",
+  "limit": 6000,
+  "used": 2400,
+  "requested": 8500,
+  "error_message": "rate_limit_exceeded: Request too large for model on tokens per minute"
 }
 ```
 
