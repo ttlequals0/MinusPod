@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.10] - 2026-05-20
+
+### Changed
+
+- **Serialize schema migrations across gunicorn workers and stop the duplicate "Migration: Created X" log lines.** Both workers race the `Database.__init__` path on container start; the work is idempotent but each worker emits the same per-table creation log and doubles the SQLite write contention against the migrations block. Added an `fcntl.flock`-based file lock at `{data_dir}/.migration.lock` that wraps `_init_schema`, so worker B blocks until worker A finishes and then walks the already-stamped revision flags and short-circuits each gate. The pre-existing "database is locked" retry loop is kept as belt-and-suspenders for any other process holding a write lock. The four per-table "Migration: Created ..." log lines (auto_process_queue, FTS5 search_index, auth_failures, model_pricing + token_usage) are now gated on a sqlite_master pre-check so they only fire when the table genuinely did not exist before this boot.
+
 ## [2.5.9] - 2026-05-20
 
 ### Fixed

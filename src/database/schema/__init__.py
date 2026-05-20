@@ -1,10 +1,12 @@
 """Schema initialization and migration mixin for MinusPod database."""
+import fcntl
 import sqlite3
 import logging
 import json
 import os
 import re
 import time
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Dict, List
 
@@ -16,28 +18,66 @@ from database.schema.tables import SCHEMA_SQL, MIGRATION_INDEXES_SQL
 from community_export import find_foreign_sponsors, declared_sponsor_names_lower
 
 
+@contextmanager
+def _migration_file_lock(data_dir):
+    """Cross-process serializing lock for schema migrations.
+
+    Gunicorn runs 2 workers; both fork into Database.__init__ and race the
+    schema init path. The work is idempotent, but each worker emits its own
+    "Migration: Created X" log line and doubles the SQLite write contention.
+    Worker B blocks here until Worker A releases, then walks the
+    already-stamped revision flags and short-circuits each gate.
+    """
+    lock_path = os.path.join(str(data_dir), '.migration.lock')
+    fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        finally:
+            os.close(fd)
+
+
 class SchemaMixin:
     """Schema initialization and migration methods."""
 
-    def _init_schema(self):
-        """Initialize database schema with retry logic for concurrent workers."""
-        max_retries = 5
-        base_delay = 0.5  # seconds
+    @staticmethod
+    def _table_exists(conn, name: str) -> bool:
+        """True iff a table or view named `name` is registered in sqlite_master."""
+        cursor = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type IN ('table','view') AND name = ?",
+            (name,),
+        )
+        return cursor.fetchone() is not None
 
-        for attempt in range(max_retries):
-            try:
-                self._init_schema_inner()
-                return
-            except sqlite3.OperationalError as e:
-                if "database is locked" in str(e) and attempt < max_retries - 1:
-                    delay = base_delay * (2 ** attempt)  # Exponential backoff
-                    logger.warning(
-                        f"Database locked during schema init, retrying in {delay:.1f}s "
-                        f"(attempt {attempt + 1}/{max_retries})"
-                    )
-                    time.sleep(delay)
-                else:
-                    raise
+    def _init_schema(self):
+        """Initialize database schema with cross-worker serialization + retry.
+
+        The fcntl lock serializes the second gunicorn worker behind the first;
+        the retry loop survives any remaining SQLite contention from other
+        processes (manual sqlite3 sessions, ad-hoc scripts) that bypass the
+        file lock.
+        """
+        with _migration_file_lock(self.data_dir):
+            max_retries = 5
+            base_delay = 0.5  # seconds
+
+            for attempt in range(max_retries):
+                try:
+                    self._init_schema_inner()
+                    return
+                except sqlite3.OperationalError as e:
+                    if "database is locked" in str(e) and attempt < max_retries - 1:
+                        delay = base_delay * (2 ** attempt)  # Exponential backoff
+                        logger.warning(
+                            f"Database locked during schema init, retrying in {delay:.1f}s "
+                            f"(attempt {attempt + 1}/{max_retries})"
+                        )
+                        time.sleep(delay)
+                    else:
+                        raise
 
     def _init_schema_inner(self):
         """Initialize database schema (inner method called with retry wrapper)."""
@@ -607,6 +647,7 @@ class SchemaMixin:
 
         # Migration: Create auto_process_queue table if not exists
         try:
+            fresh = not self._table_exists(conn, 'auto_process_queue')
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS auto_process_queue (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -627,7 +668,8 @@ class SchemaMixin:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_queue_created ON auto_process_queue(created_at)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_queue_podcast_episode ON auto_process_queue(podcast_id, episode_id)")
             conn.commit()
-            logger.info("Migration: Created auto_process_queue table")
+            if fresh:
+                logger.info("Migration: Created auto_process_queue table")
         except Exception as e:
             logger.debug(f"auto_process_queue table creation (may already exist): {e}")
 
@@ -688,6 +730,7 @@ class SchemaMixin:
 
         # Migration: Create FTS5 search index table
         try:
+            fresh = not self._table_exists(conn, 'search_index')
             conn.execute("""
                 CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
                     content_type,
@@ -700,7 +743,8 @@ class SchemaMixin:
                 )
             """)
             conn.commit()
-            logger.info("Migration: Created FTS5 search_index table")
+            if fresh:
+                logger.info("Migration: Created FTS5 search_index table")
         except Exception as e:
             logger.debug(f"FTS5 search_index creation (may already exist): {e}")
 
@@ -716,6 +760,7 @@ class SchemaMixin:
 
         # Migration: Create auth_failures table for login-lockout tracking
         try:
+            fresh = not self._table_exists(conn, 'auth_failures')
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS auth_failures (
                     ip TEXT PRIMARY KEY,
@@ -729,7 +774,8 @@ class SchemaMixin:
                 "CREATE INDEX IF NOT EXISTS idx_auth_failures_last ON auth_failures(last_failed_at)"
             )
             conn.commit()
-            logger.info("Migration: Created auth_failures table")
+            if fresh:
+                logger.info("Migration: Created auth_failures table")
         except Exception as e:
             logger.debug(f"auth_failures table creation (may already exist): {e}")
 
@@ -828,6 +874,7 @@ class SchemaMixin:
 
         # Migration: Create token usage tables and seed default model pricing
         try:
+            fresh = not self._table_exists(conn, 'model_pricing')
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS model_pricing (
                     model_id TEXT PRIMARY KEY,
@@ -864,7 +911,8 @@ class SchemaMixin:
                     (model_id, info['name'], info['input'], info['output'])
                 )
             conn.commit()
-            logger.info("Migration: Created token usage tables and seeded model pricing")
+            if fresh:
+                logger.info("Migration: Created token usage tables and seeded model pricing")
         except Exception as e:
             logger.warning(f"Migration failed for token usage tables: {e}")
 
