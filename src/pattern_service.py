@@ -656,7 +656,7 @@ class PatternService:
                     dai_platform=dai_platform,
                     network_id=network_id
                 )
-                logger.info(
+                logger.debug(
                     f"Updated podcast {podcast_id}: "
                     f"platform={dai_platform}, network={network_id}"
                 )

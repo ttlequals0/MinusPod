@@ -6,6 +6,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.12] - 2026-05-20
+
+### Changed
+
+- **Storage is now a singleton.** Mirrors the Database pattern. Every `/api/v1/health` call (the Portainer probe runs every 30s) used to construct a fresh `Storage()`, which logged `Storage initialized with data_dir: /app/data` each time. Production Loki was carrying ~120 of those lines per hour from one endpoint alone. The new `__new__` + `_initialized` guard short-circuits subsequent constructions; the init log fires once per process lifetime. Storage-backed tests (`test_versioned_mp3.py`, `test_path_containment.py`, `test_artwork_validation.py`) gained a fixture-level `Storage._instance = None` reset so each test still gets a fresh root.
+- **Demote per-poll RSS-refresh INFO logs to DEBUG.** Steady-state refresh activity (every podcast, every poll cycle) was producing 8 INFO lines per feed per poll - `Starting RSS refresh from`, `Feed not modified (304)`, `Fetched RSS feed, size`, `Parsed RSS feed`, `Limiting feed from`, `[slug] Feed unchanged (304), skipping refresh`, `Detected: platform=`, `Updated podcast: platform=`, `[slug] RSS refresh complete` - none of which carry actionable information when nothing changed. They are now DEBUG. The aggregate `RSS refresh complete for N feeds` line and `Discovered N new episode(s)` line (gated on `inserted > 0`) stay at INFO.
+- **`pricing_fetcher` no longer logs a refresh attempt at INFO when nothing will be fetched.** The line was followed immediately by `Provider is local/free -- no pricing to fetch` at DEBUG, so the INFO half was always noise.
+
+### Fixed
+
+- **RSS refresh no longer parses each feed XML three times per cycle.** `refresh_rss_feed` called `parse_feed` directly, then `extract_episodes` (which re-parsed internally), then `modify_feed` (which re-parsed again). Both `extract_episodes` and `modify_feed` gained an optional `parsed_feed` kwarg; when supplied, they skip the internal parse. The orchestrator now parses once and threads the result through. The 3-4 duplicate `Parsed RSS feed: NAME with N entries` lines per refresh cycle are gone (and the lines themselves are now DEBUG).
+
 ## [2.5.11] - 2026-05-20
 
 ### Fixed
