@@ -52,6 +52,33 @@ SPONSOR_REASONING_SUBSTRINGS = (
 )
 SPONSOR_MAX_NAME_CHARS = 60
 
+
+def is_sponsor_reasoning_rationale(text) -> bool:
+    """True if `text` looks like an LLM reasoning sentence stored in a slot
+    that should hold a brand name or ad description.
+
+    Single source of truth for the 2.5.11 sponsor-field guard
+    (ad_detector/prompts.py:get_valid_value), the 2.5.13 verification-miss
+    `reason` filter (pattern_service.record_verification_misses), and the
+    `_cleanup_low_mention_patterns` migration.
+    """
+    if not text:
+        return False
+    lowered = str(text).strip().lower()
+    if lowered.startswith(SPONSOR_REASONING_PREFIXES):
+        return True
+    if any(s in lowered for s in SPONSOR_REASONING_SUBSTRINGS):
+        return True
+    return False
+
+
+# First-pass-learning and verification-miss confidence floors. Single source
+# of truth so the two auto-pattern paths share one trust model
+# (ad_detector._ad_passes_learning_filters, pattern_service.record_verification_misses).
+LEARNING_MIN_CONFIDENCE = 0.85
+LEARNING_MIN_CONFIDENCE_LONG = 0.92
+LEARNING_LONG_DURATION_THRESHOLD = 90.0
+
 # Structural fields in LLM ad response objects that never contain sponsor info.
 # Everything NOT in this set is a candidate for dynamic field scanning.
 STRUCTURAL_FIELDS = frozenset({

@@ -22,10 +22,13 @@ from config import (
 from text_pattern_matcher import TextPatternMatcher
 from utils.constants import (
     canonical_sponsor,
-    SPONSOR_REASONING_PREFIXES,
-    SPONSOR_REASONING_SUBSTRINGS,
+    is_sponsor_reasoning_rationale,
+    LEARNING_MIN_CONFIDENCE,
+    LEARNING_MIN_CONFIDENCE_LONG,
+    LEARNING_LONG_DURATION_THRESHOLD,
 )
 from utils.language import get_pattern_language
+from utils.text import extract_text_from_segments
 from sponsor_normalize import get_or_create_known_sponsor
 from community_export import (
     find_foreign_sponsors,
@@ -33,13 +36,11 @@ from community_export import (
     count_brand_occurrences,
 )
 
-# Verification-miss filter thresholds. Mirror what learn_from_detections
-# already enforces at ad_detector/__init__.py so the two auto-pattern paths
-# share a single trust model rather than the asymmetric pre-2.5.13 shape
-# where verification misses bypassed every guard.
-VERIFICATION_MIN_CONFIDENCE = 0.85
-VERIFICATION_MIN_CONFIDENCE_LONG = 0.92
-VERIFICATION_LONG_DURATION_THRESHOLD = 90.0
+# Verification-miss thresholds re-exported for back-compat with existing
+# test names. New code should import the LEARNING_* names directly.
+VERIFICATION_MIN_CONFIDENCE = LEARNING_MIN_CONFIDENCE
+VERIFICATION_MIN_CONFIDENCE_LONG = LEARNING_MIN_CONFIDENCE_LONG
+VERIFICATION_LONG_DURATION_THRESHOLD = LEARNING_LONG_DURATION_THRESHOLD
 
 logger = logging.getLogger('podcast.patterns')
 
@@ -843,9 +844,9 @@ class PatternService:
             confidence = float(ad.get('confidence') or 0.0)
             duration = float(ad.get('end') or 0.0) - float(ad.get('start') or 0.0)
             min_confidence = (
-                VERIFICATION_MIN_CONFIDENCE_LONG
-                if duration > VERIFICATION_LONG_DURATION_THRESHOLD
-                else VERIFICATION_MIN_CONFIDENCE
+                LEARNING_MIN_CONFIDENCE_LONG
+                if duration > LEARNING_LONG_DURATION_THRESHOLD
+                else LEARNING_MIN_CONFIDENCE
             )
             if confidence < min_confidence:
                 logger.info(
@@ -855,10 +856,7 @@ class PatternService:
                 continue
 
             reason_text = (ad.get('reason') or '').strip()
-            reason_lower = reason_text.lower()
-            if reason_lower.startswith(SPONSOR_REASONING_PREFIXES) or any(
-                s in reason_lower for s in SPONSOR_REASONING_SUBSTRINGS
-            ):
+            if is_sponsor_reasoning_rationale(reason_text):
                 logger.info(
                     f"[{slug}:{episode_id}] Rejecting verification miss for "
                     f"'{sponsor}' (reason looks like an LLM rationale, not an "
@@ -901,10 +899,7 @@ class PatternService:
                 # so aliases and whitespace variants both count.
                 start_s = float(ad.get('start') or 0.0)
                 end_s = float(ad.get('end') or 0.0)
-                window_text = ' '.join(
-                    seg.get('text', '') for seg in segments
-                    if seg.get('end', 0) >= start_s and seg.get('start', 0) <= end_s
-                ).strip()
+                window_text = extract_text_from_segments(segments, start_s, end_s)
                 sponsor_row = (
                     self.db.get_known_sponsor_by_name(sponsor)
                     if self.db else None

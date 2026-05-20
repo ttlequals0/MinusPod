@@ -1348,10 +1348,7 @@ class SchemaMixin:
 
         try:
             from community_export import count_brand_occurrences
-            from utils.constants import (
-                SPONSOR_REASONING_PREFIXES,
-                SPONSOR_REASONING_SUBSTRINGS,
-            )
+            from utils.constants import is_sponsor_reasoning_rationale
             SPONSOR_SUFFIX_TELLS = (
                 ' brand',
                 ' pre-roll',
@@ -1406,9 +1403,7 @@ class SchemaMixin:
                     )
 
                 # Criterion 2a: sponsor field looks like a reasoning sentence
-                if sp_lower.startswith(SPONSOR_REASONING_PREFIXES) or any(
-                    s in sp_lower for s in SPONSOR_REASONING_SUBSTRINGS
-                ):
+                if is_sponsor_reasoning_rationale(sponsor_name):
                     reasons.append(
                         f"sponsor field looks like an LLM rationale: "
                         f"{sponsor_name[:60]!r}"

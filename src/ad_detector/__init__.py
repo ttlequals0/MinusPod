@@ -39,6 +39,8 @@ from utils.constants import (
     SPONSOR_PRIORITY_FIELDS, SPONSOR_PATTERN_KEYWORDS,
     INVALID_SPONSOR_CAPTURE_WORDS, NON_BRAND_WORDS, NOT_AD_CLASSIFICATIONS,
     KNOWN_SHORT_BRANDS, canonical_sponsor,
+    LEARNING_MIN_CONFIDENCE, LEARNING_MIN_CONFIDENCE_LONG,
+    LEARNING_LONG_DURATION_THRESHOLD,
 )
 
 # Re-exports: every symbol the pre-split ``ad_detector`` module exposed at
@@ -955,11 +957,13 @@ class AdDetector:
         # For longer detections, require higher confidence to avoid learning
         # from merged multi-ad spans which contaminate patterns
         duration = ad['end'] - ad['start']
-        if duration > 90:  # > 90 seconds
-            if confidence < 0.92:  # Require very high confidence for long ads
+        if duration > LEARNING_LONG_DURATION_THRESHOLD:
+            if confidence < LEARNING_MIN_CONFIDENCE_LONG:
                 logger.debug(
                     f"Skipping pattern for long ad ({duration:.0f}s) with "
-                    f"confidence {confidence:.2f} (threshold 0.92 for >90s ads)"
+                    f"confidence {confidence:.2f} (threshold "
+                    f"{LEARNING_MIN_CONFIDENCE_LONG} for "
+                    f">{LEARNING_LONG_DURATION_THRESHOLD:.0f}s ads)"
                 )
                 return False
 
@@ -1100,7 +1104,7 @@ class AdDetector:
             return 0
 
         patterns_created = 0
-        min_confidence = 0.85  # Only learn from high-confidence detections
+        min_confidence = LEARNING_MIN_CONFIDENCE
 
         # Preload active pattern sponsors once so Gate B doesn't do N queries.
         try:
