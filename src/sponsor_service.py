@@ -31,6 +31,12 @@ class SponsorService:
         # _compiled_patterns below. Single key '_loaded'.
         self._freshness = TTLCache(ttl_seconds=300.0)  # 5 minutes
         self._compiled_patterns = {}  # {canonical_name: compiled_regex}
+        # Pre-compiled transcript display corrections. Convention: a
+        # normalization is treated as a transcript display correction if its
+        # replacement contains at least one uppercase character (e.g.
+        # "Wegovy"). Lowercase-only replacements (e.g. "ag1") are matcher
+        # canonicalizations and are skipped here.
+        self._cache_transcript_corrections = []
 
     @staticmethod
     def _parse_aliases(aliases) -> list:
@@ -52,6 +58,24 @@ class SponsorService:
         self._cache_normalizations = self.db.get_sponsor_normalizations(active_only=True)
         self._cache_sponsors = self.db.get_known_sponsors(active_only=True)
         self._freshness.set('_loaded', True)
+
+        # Build the transcript-correction list from the normalizations cache.
+        # Convention: any active normalization whose replacement contains an
+        # uppercase character is a display correction.
+        self._cache_transcript_corrections = []
+        for norm in self._cache_normalizations or []:
+            replacement = norm.get('replacement', '')
+            if not any(c.isupper() for c in replacement):
+                continue
+            try:
+                compiled = re.compile(norm['pattern'], re.IGNORECASE)
+            except re.error as e:
+                logger.warning(
+                    f"Skipping invalid transcript-correction regex "
+                    f"'{norm['pattern']}': {e}"
+                )
+                continue
+            self._cache_transcript_corrections.append((compiled, replacement))
 
         # Precompile word-boundary regex patterns for sponsor matching
         self._compiled_patterns = {}
@@ -75,6 +99,7 @@ class SponsorService:
         self._freshness.clear()
         self._cache_normalizations = None
         self._cache_sponsors = None
+        self._cache_transcript_corrections = []
 
     # ========== Initialization ==========
 
@@ -141,6 +166,21 @@ class SponsorService:
 
         # Normalize whitespace
         return ' '.join(text.split())
+
+    def apply_transcript_corrections(self, text: str) -> str:
+        """Apply display-preserving corrections to transcript text.
+
+        Returns the input unchanged when no correction rule matches.
+        Casing and whitespace outside the matched span are preserved;
+        only entries whose replacement contains uppercase characters are
+        applied (see _refresh_cache_if_needed for the convention).
+        """
+        if not text:
+            return text
+        self._refresh_cache_if_needed()
+        for pattern, replacement in self._cache_transcript_corrections:
+            text = pattern.sub(replacement, text)
+        return text
 
     # ========== Sponsors ==========
 

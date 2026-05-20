@@ -174,8 +174,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
                 <textarea
                   value={editedPattern.text_template}
                   onChange={(e) => setEditedPattern(prev => ({ ...prev, text_template: e.target.value }))}
-                  rows={4}
-                  className="w-full px-3 py-2 bg-secondary border border-border rounded text-sm font-mono"
+                  className="w-full px-3 py-3 bg-secondary border border-border rounded text-sm font-mono min-h-[160px] max-h-[400px] resize-y"
                 />
               </div>
 

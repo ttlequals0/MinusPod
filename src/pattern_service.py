@@ -23,6 +23,7 @@ from text_pattern_matcher import TextPatternMatcher
 from utils.constants import canonical_sponsor
 from utils.language import get_pattern_language
 from sponsor_normalize import get_or_create_known_sponsor
+from community_export import find_foreign_sponsors, declared_sponsor_names_lower
 
 logger = logging.getLogger('podcast.patterns')
 
@@ -434,6 +435,38 @@ class PatternService:
             # whisper setting onto a merger across languages.
             source_langs = {p.get('source_language') for p in patterns if p.get('source_language')}
             merged_language = next(iter(source_langs)) if len(source_langs) == 1 else None
+
+            # Reject merges whose combined template names sponsors outside the
+            # consolidated sponsor. A kitchen-sink template (e.g. "AG1,
+            # BetterHelp, Squarespace, ZipRecruiter...") gets high-weight TF-IDF
+            # tokens for every brand and over-matches any episode that mentions
+            # 2-3 of them.
+            known_sponsors = self.db.get_known_sponsors(active_only=True)
+            sponsor_row = None
+            if merged_sponsor_name:
+                merged_lower = merged_sponsor_name.lower()
+                sponsor_row = next(
+                    (s for s in known_sponsors
+                     if (s.get('name') or '').lower() == merged_lower),
+                    None,
+                )
+            declared_lower = declared_sponsor_names_lower(sponsor_row)
+            if merged_sponsor_name:
+                declared_lower.add(merged_sponsor_name.lower())
+            foreign = find_foreign_sponsors(
+                best_template or '',
+                declared_lower,
+                known_sponsors,
+                require_active=True,
+            )
+            if foreign:
+                logger.warning(
+                    "Aborting merge of patterns %s: combined template names "
+                    "foreign sponsors %s",
+                    pattern_ids,
+                    foreign[:5],
+                )
+                return None
 
             merged_id = self.db.create_ad_pattern(
                 scope=target_scope,

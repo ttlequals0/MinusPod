@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 # SQL DDL constants live in tables.py - re-exported for backward compat
 from database.schema.tables import SCHEMA_SQL, MIGRATION_INDEXES_SQL
+from community_export import find_foreign_sponsors, declared_sponsor_names_lower
 
 
 class SchemaMixin:
@@ -1017,6 +1018,14 @@ class SchemaMixin:
         # doesn't update what the editor displays for already-detected ads.
         self._cleanup_zyn_ad_markers(conn)
 
+        # 2.5.7: retire kitchen-sink ad_patterns that name multiple foreign
+        # sponsors in their text_template. The merge guard prevents new ones
+        # going forward; this disables what's already there.
+        try:
+            self._cleanup_multi_sponsor_patterns(conn)
+        except Exception as e:
+            logger.warning(f"Multi-sponsor pattern cleanup failed: {e}")
+
         # Sponsor seed reseed (2.4.0): CSV is authoritative. Runs LAST so
         # `_migrate_sponsor_fk` has already deduped case-variants from
         # legacy v2.1.x rows; the reseed then operates on the canonical
@@ -1233,6 +1242,78 @@ class SchemaMixin:
                 )
         except Exception as e:
             logger.warning(f"Migration: Zyn cascade cleanup failed: {e}")
+
+    def _cleanup_multi_sponsor_patterns(self, conn):
+        """Disable active ad_patterns whose text_template names two or more
+        sponsors outside the pattern's declared sponsor row.
+
+        A "kitchen-sink" template (e.g. naming a half-dozen unrelated brands
+        in one comma-separated list) generates high-weight TF-IDF tokens for
+        every brand and over-matches any episode that mentions a handful of
+        them. The 2.5.7 merge guard prevents new ones; this one-shot pass
+        retires the existing rows. Stamped via settings flag so a second
+        boot doesn't re-scan all patterns x all sponsors.
+        """
+        CLEANUP_REVISION = '2.5.7'
+        try:
+            current = conn.execute(
+                "SELECT value FROM settings "
+                "WHERE key = 'multi_sponsor_cleanup_revision'"
+            ).fetchone()
+            if current and current['value'] == CLEANUP_REVISION:
+                return
+        except Exception:
+            pass
+        try:
+            rows = conn.execute(
+                "SELECT id, name, aliases, is_active FROM known_sponsors "
+                "WHERE is_active = 1"
+            ).fetchall()
+            sponsors = [
+                {"id": r[0], "name": r[1], "aliases": r[2], "is_active": r[3]}
+                for r in rows
+            ]
+            sponsor_by_id = {s["id"]: s for s in sponsors}
+
+            patterns = conn.execute(
+                "SELECT id, text_template, sponsor_id FROM ad_patterns "
+                "WHERE is_active = 1 "
+                "AND text_template IS NOT NULL AND text_template != ''"
+            ).fetchall()
+
+            disabled = []
+            for pid, text_template, sponsor_id in patterns:
+                row = sponsor_by_id.get(sponsor_id) if sponsor_id else None
+                declared_lower = declared_sponsor_names_lower(row)
+                foreign = find_foreign_sponsors(
+                    text_template, declared_lower, sponsors, require_active=True
+                )
+                if len(foreign) >= 2:
+                    disabled.append((pid, foreign[:5]))
+
+            for pid, names in disabled:
+                conn.execute(
+                    "UPDATE ad_patterns SET is_active = 0, "
+                    "disabled_reason = ? WHERE id = ?",
+                    (
+                        f"Multi-sponsor garbage (2.5.7 cleanup): "
+                        f"foreign sponsors {names}",
+                        pid,
+                    ),
+                )
+            conn.execute(
+                "INSERT INTO settings (key, value, is_default) VALUES (?, ?, 0) "
+                "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                ('multi_sponsor_cleanup_revision', CLEANUP_REVISION),
+            )
+            conn.commit()
+            if disabled:
+                logger.info(
+                    f"Migration: disabled {len(disabled)} multi-sponsor "
+                    f"ad_patterns (threshold: 2+ foreign brands)"
+                )
+        except Exception as e:
+            logger.warning(f"Migration: multi-sponsor pattern cleanup failed: {e}")
 
     def _migrate_ad_detection_max_tokens(self, conn):
         """Rename ad_detection_max_tokens -> detection_max_tokens.

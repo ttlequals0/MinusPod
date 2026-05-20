@@ -6,6 +6,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.7] - 2026-05-20
+
+### Added
+
+- **Transcript display corrections.** Whisper sometimes mis-transcribes drug and product names (e.g. "Wegovy" coming back as "WeGoV" or "we go V"). The `sponsor_normalizations` table now drives a case-preserving correction pass that runs once per episode, immediately after `transcribe_chunked()` returns. A new `SponsorService.apply_transcript_corrections()` method walks the cached rules, applies them with `re.IGNORECASE`, and leaves casing and whitespace outside the matched span untouched. A row whose `replacement` contains uppercase opts in to this code path; lowercase-only rows (matcher canonicalizations like `ag1`, `betterhelp`) are skipped. Seed rows for `WeGoV` and `we go v` -> `Wegovy` ship in `SEED_NORMALIZATIONS`. `Wegovy`, `Ozempic`, and `Mounjaro` are also added to `AD_VOCABULARY` so Whisper biases decoding toward the correct spellings up front. Future user-added corrections via `POST /sponsors/normalizations` with a mixed-case replacement Just Work.
+- **Hulu theme.** New dark-only `id: 'hulu'` entry in `frontend/src/themes/themes.ts`. Hulu's signature green (`#1CE783`) drives `primary` and `ring`, set against deep cool-charcoal surfaces. Picked from Settings -> Appearance like every other theme.
+
+### Fixed
+
+- **Kitchen-sink ad patterns no longer over-match.** A sponsor pattern whose `text_template` happened to name several unrelated brands (the canonical example was Pattern #211, a JRE row that listed Athletic Greens, AG1, BetterHelp, Squarespace, ZipRecruiter, Raycon, Manscaped, and Stamps.com in one comma-separated blob) generated high-weight TF-IDF tokens for every brand, so any episode that mentioned two or three of them tripped the 0.70 cosine threshold and got marked as the row's sponsor. Two fixes ship together: (1) `PatternService.merge_similar_patterns()` now calls `find_foreign_sponsors()` on the chosen combined template before writing the merged row; if the template names any active sponsor outside the consolidated sponsor's name and aliases, the merge aborts and the source rows stay intact. (2) A one-shot migration (`_cleanup_multi_sponsor_patterns`) scans active `ad_patterns` on boot and disables any row whose template names two or more foreign sponsors, with `disabled_reason` set to a 2.5.7-tagged explanation. Idempotent against already-inactive rows; flipping `is_active=1` re-enables a row at any time.
+- **Pattern-edit textarea no longer shrinks when entering edit mode.** `PatternDetailModal.tsx` was rendering edit mode as a `<textarea rows={4}>` while view mode was a flexible `<div>` with `p-3` and `whitespace-pre-wrap`. For any template longer than four wrapped lines (so, most of them), clicking Edit visibly collapsed the box. The textarea now uses `min-h-[160px] max-h-[400px]` with `resize-y` and matches the view-mode padding, so the box stays approximately the same height when toggling modes and the user can drag it taller if needed.
+
 ## [2.5.6] - 2026-05-19
 
 ### Fixed

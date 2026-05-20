@@ -732,6 +732,11 @@ SEED_NORMALIZATIONS = [
     {"pattern": r"\bfree\s+shipping\b", "replacement": "free shipping", "category": "phrase"},
     {"pattern": r"\bfree\s+trial\b", "replacement": "free trial", "category": "phrase"},
     {"pattern": r"\bmoney\s+back\s+guarantee\b", "replacement": "money back guarantee", "category": "phrase"},
+
+    # Transcript display corrections. Mixed-case replacement opts in to the
+    # transcript-correction code path; see SponsorService.apply_transcript_corrections.
+    {"pattern": r"\bWeGoV\b", "replacement": "Wegovy", "category": "phrase"},
+    {"pattern": r"\bwe\s+go\s+v\b", "replacement": "Wegovy", "category": "phrase"},
 ]
 
 

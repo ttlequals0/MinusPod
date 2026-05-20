@@ -74,7 +74,8 @@ AD_VOCABULARY = (
     "ExpressVPN, HelloFresh, Audible, Masterclass, ZipRecruiter, "
     "Raycon, Manscaped, Stamps.com, Indeed, LinkedIn, "
     "SimpliSafe, Casper, Helix Sleep, Brooklinen, Bombas, "
-    "Calm, Headspace, Mint Mobile, Dollar Shave Club"
+    "Calm, Headspace, Mint Mobile, Dollar Shave Club, "
+    "Wegovy, Ozempic, Mounjaro"
 )
 
 # Hallucination patterns to filter out (Whisper artifacts)

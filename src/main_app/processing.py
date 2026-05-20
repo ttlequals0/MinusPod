@@ -247,6 +247,19 @@ def _download_and_transcribe(slug, episode_id, episode_url, podcast_name):
         if not segments:
             raise Exception("Failed to transcribe audio")
 
+        corrected_segments = 0
+        for seg in segments:
+            original = seg.get('text', '')
+            fixed = sponsor_service.apply_transcript_corrections(original)
+            if fixed != original:
+                seg['text'] = fixed
+                corrected_segments += 1
+        if corrected_segments:
+            audio_logger.info(
+                f"[{slug}:{episode_id}] Applied transcript corrections to "
+                f"{corrected_segments} segment(s)"
+            )
+
         duration_min = segments[-1]['end'] / 60 if segments else 0
         audio_logger.info(f"[{slug}:{episode_id}] Transcription complete: {len(segments)} segments, {duration_min:.1f} min")
 

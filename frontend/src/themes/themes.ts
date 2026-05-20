@@ -525,6 +525,32 @@ export const THEMES: ThemePair[] = [
     },
     accentColor: '#5196ff',
   },
+  {
+    id: 'hulu',
+    label: 'Hulu',
+    group: 'Other',
+    light: null,
+    dark: {
+      background: '240 6% 6%',
+      foreground: '0 0% 98%',
+      card: '240 6% 10%',
+      'card-foreground': '0 0% 98%',
+      primary: '148 81% 50%',
+      'primary-foreground': '240 6% 6%',
+      secondary: '240 6% 14%',
+      'secondary-foreground': '0 0% 92%',
+      muted: '240 6% 12%',
+      'muted-foreground': '240 4% 62%',
+      accent: '148 40% 16%',
+      'accent-foreground': '148 80% 88%',
+      destructive: '0 72% 55%',
+      'destructive-foreground': '0 0% 100%',
+      border: '240 6% 18%',
+      input: '240 6% 14%',
+      ring: '148 81% 50%',
+    },
+    accentColor: '#1CE783',
+  },
 ];
 
 export function getThemeById(id: string): ThemePair | undefined {
