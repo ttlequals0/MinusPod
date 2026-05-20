@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - **Dropped a duplicate `[run]` / `[corpus]` block** at the bottom of `benchmarks/llm/benchmark.toml.example` that would have made the file unparseable as TOML for anyone copying it as their starting point.
+- **CI pip-audit step now ignores PYSEC-2024-277 (joblib 1.5.3) and PYSEC-2025-183 (pyjwt 2.12.1)** while upstream fixes are pending. Both packages are at the latest release on PyPI; the advisories landed in pip-audit's database between today's main-branch run and this PR. The ignore list is targeted to these two PYSEC IDs only -- any future vulnerability still trips the gate.
 
 ## [2.5.18] - 2026-05-22
 
