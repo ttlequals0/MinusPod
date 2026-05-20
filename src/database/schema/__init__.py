@@ -1306,20 +1306,34 @@ class SchemaMixin:
             logger.warning(f"Migration: Zyn cascade cleanup failed: {e}")
 
     def _cleanup_low_mention_patterns(self, conn):
-        """Disable active ad_patterns whose sponsor name appears <2 times in
-        the text_template.
+        """Retire ad_patterns that are structurally false-positive-shaped.
 
-        Real sponsor reads repeat the brand (intro + outro at minimum). A
-        pattern where the sponsor appears once or zero times in 500-3500
-        chars of transcript is almost always a host name-drop that the
-        verification pass mis-classified as a missed ad. Pattern #354
-        (drink-champs Modelo) was the canonical example.
+        Two retirement criteria, both conservative:
 
-        Counts are case-insensitive substring matches so legitimate ads
-        whose brand appears only inside a URL (e.g. "DeleteMe" inside
-        joindeleteme.com) still pass.
+        1. **Low-mention auto-created, never-matched**:
+           sponsor in any variant appears <2 times in text_template
+           AND created_by == 'auto'
+           AND confirmation_count == 0
+           AND false_positive_count == 0
+           This is the Pattern #354 shape - a verification miss the LLM
+           shouldn't have flagged. Patterns that have matched real ads
+           (`confirmation_count > 0`) are left alone even if they also
+           sit in the low-mention bucket, because we cannot tell the
+           difference between a legitimate brand-once-mentioned ad and a
+           bad pattern that boosted its own conf via the
+           record_verification_misses "boost" path.
 
-        Idempotent. Stamps a settings flag so a re-run is a no-op.
+        2. **Structurally broken sponsor field**:
+           - sponsor starts with a SPONSOR_REASONING_PREFIXES entry
+             (e.g. "Inferred from ..." stored as the sponsor name); OR
+           - sponsor ends with a known LLM-suffix tell (" brand",
+             " pre-roll", " sponsor ad", " sponsor ad with URL", etc.); OR
+           - sponsor stripped of whitespace differs from any
+             known_sponsors row AND no variant appears in template
+             (the "statefarm"-without-spaces shape).
+
+        Reversible per row (`is_active=1` re-enables). Idempotent via
+        the `low_mention_cleanup_revision` settings flag.
         """
         CLEANUP_REVISION = '2.5.13'
         try:
@@ -1333,8 +1347,23 @@ class SchemaMixin:
             pass
 
         try:
+            from community_export import count_brand_occurrences
+            from utils.constants import (
+                SPONSOR_REASONING_PREFIXES,
+                SPONSOR_REASONING_SUBSTRINGS,
+            )
+            SPONSOR_SUFFIX_TELLS = (
+                ' brand',
+                ' pre-roll',
+                ' sponsor ad',
+                ' sponsor ad with url',
+                ' advertisement',
+            )
+
             rows = conn.execute(
-                "SELECT p.id, p.text_template, s.name "
+                "SELECT p.id, p.text_template, p.confirmation_count, "
+                "p.false_positive_count, p.created_by, "
+                "s.name, s.aliases "
                 "FROM ad_patterns p "
                 "JOIN known_sponsors s ON s.id = p.sponsor_id "
                 "WHERE p.is_active = 1 "
@@ -1343,19 +1372,77 @@ class SchemaMixin:
                 "AND s.name IS NOT NULL"
             ).fetchall()
 
-            disabled = []
-            for pid, text_template, sponsor_name in rows:
-                occ = text_template.lower().count(sponsor_name.lower())
-                if occ < 2:
-                    disabled.append((pid, sponsor_name, occ))
+            # Build a set of canonical sponsor names (lowercased, with and
+            # without whitespace) so the structural "whitespace-stripped
+            # sponsor that no longer matches anything" rule can decide.
+            known_canonicals = set()
+            for s in conn.execute(
+                "SELECT name FROM known_sponsors WHERE is_active = 1"
+            ).fetchall():
+                n = (s[0] or '').lower().strip()
+                if not n:
+                    continue
+                known_canonicals.add(n)
+                known_canonicals.add(n.replace(' ', ''))
 
-            for pid, sponsor_name, occ in disabled:
+            disabled = []
+            for pid, text_template, conf_count, fp_count, created_by, sponsor_name, aliases in rows:
+                sponsor_row = {'name': sponsor_name, 'aliases': aliases}
+                occ = count_brand_occurrences(text_template, sponsor_row)
+                sp_lower = (sponsor_name or '').lower().strip()
+
+                reasons = []
+
+                # Criterion 1: low-mention auto-created never-matched
+                if (
+                    occ < 2
+                    and (created_by or '').lower() == 'auto'
+                    and (conf_count or 0) == 0
+                    and (fp_count or 0) == 0
+                ):
+                    reasons.append(
+                        f"sponsor '{sponsor_name}' appears {occ}x in template, "
+                        f"auto-created, never matched"
+                    )
+
+                # Criterion 2a: sponsor field looks like a reasoning sentence
+                if sp_lower.startswith(SPONSOR_REASONING_PREFIXES) or any(
+                    s in sp_lower for s in SPONSOR_REASONING_SUBSTRINGS
+                ):
+                    reasons.append(
+                        f"sponsor field looks like an LLM rationale: "
+                        f"{sponsor_name[:60]!r}"
+                    )
+
+                # Criterion 2b: sponsor field has a known LLM suffix tell
+                if any(sp_lower.endswith(suffix) for suffix in SPONSOR_SUFFIX_TELLS):
+                    reasons.append(
+                        f"sponsor field has an LLM-suffix tell: "
+                        f"{sponsor_name!r}"
+                    )
+
+                # Criterion 2c: whitespace-stripped sponsor doesn't match any
+                # known_sponsors row AND no variant appears in template
+                # (the 'statefarm' shape).
+                if (
+                    sp_lower not in known_canonicals
+                    and sp_lower.replace(' ', '') not in known_canonicals
+                    and occ == 0
+                ):
+                    reasons.append(
+                        f"sponsor '{sponsor_name}' is not canonical AND no "
+                        f"variant appears in template"
+                    )
+
+                if reasons:
+                    disabled.append((pid, sponsor_name, occ, '; '.join(reasons)))
+
+            for pid, sponsor_name, occ, reason in disabled:
                 conn.execute(
                     "UPDATE ad_patterns SET is_active = 0, "
                     "disabled_reason = ? WHERE id = ?",
                     (
-                        f"Low-mention false positive (2.5.13 cleanup): "
-                        f"sponsor '{sponsor_name}' appears {occ}x in template",
+                        f"2.5.13 cleanup: {reason}",
                         pid,
                     ),
                 )
@@ -1367,8 +1454,8 @@ class SchemaMixin:
             conn.commit()
             if disabled:
                 logger.info(
-                    f"Migration: disabled {len(disabled)} low-mention ad_patterns "
-                    f"(sponsor appeared <2x in text_template)"
+                    f"Migration: disabled {len(disabled)} ad_patterns "
+                    f"(low-mention auto-created or structurally broken sponsor)"
                 )
         except Exception as e:
             logger.warning(f"Migration: low-mention pattern cleanup failed: {e}")

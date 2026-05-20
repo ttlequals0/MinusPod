@@ -20,10 +20,26 @@ from config import (
     SPONSOR_GLOBAL_THRESHOLD
 )
 from text_pattern_matcher import TextPatternMatcher
-from utils.constants import canonical_sponsor
+from utils.constants import (
+    canonical_sponsor,
+    SPONSOR_REASONING_PREFIXES,
+    SPONSOR_REASONING_SUBSTRINGS,
+)
 from utils.language import get_pattern_language
 from sponsor_normalize import get_or_create_known_sponsor
-from community_export import find_foreign_sponsors, declared_sponsor_names_lower
+from community_export import (
+    find_foreign_sponsors,
+    declared_sponsor_names_lower,
+    count_brand_occurrences,
+)
+
+# Verification-miss filter thresholds. Mirror what learn_from_detections
+# already enforces at ad_detector/__init__.py so the two auto-pattern paths
+# share a single trust model rather than the asymmetric pre-2.5.13 shape
+# where verification misses bypassed every guard.
+VERIFICATION_MIN_CONFIDENCE = 0.85
+VERIFICATION_MIN_CONFIDENCE_LONG = 0.92
+VERIFICATION_LONG_DURATION_THRESHOLD = 90.0
 
 logger = logging.getLogger('podcast.patterns')
 
@@ -820,6 +836,36 @@ class PatternService:
             if not sponsor or sponsor.lower() in ('unknown', 'n/a', ''):
                 continue
 
+            # Filter parity with ad_detector.learn_from_detections. Pre-2.5.13
+            # this branch trusted every verification miss; the first-pass
+            # learner required confidence + was_cut + sane sponsor. Pattern
+            # #354 ("the big, Modelo?") came in through that gap.
+            confidence = float(ad.get('confidence') or 0.0)
+            duration = float(ad.get('end') or 0.0) - float(ad.get('start') or 0.0)
+            min_confidence = (
+                VERIFICATION_MIN_CONFIDENCE_LONG
+                if duration > VERIFICATION_LONG_DURATION_THRESHOLD
+                else VERIFICATION_MIN_CONFIDENCE
+            )
+            if confidence < min_confidence:
+                logger.info(
+                    f"[{slug}:{episode_id}] Rejecting verification miss for "
+                    f"'{sponsor}' (confidence {confidence:.2f} < {min_confidence:.2f})"
+                )
+                continue
+
+            reason_text = (ad.get('reason') or '').strip()
+            reason_lower = reason_text.lower()
+            if reason_lower.startswith(SPONSOR_REASONING_PREFIXES) or any(
+                s in reason_lower for s in SPONSOR_REASONING_SUBSTRINGS
+            ):
+                logger.info(
+                    f"[{slug}:{episode_id}] Rejecting verification miss for "
+                    f"'{sponsor}' (reason looks like an LLM rationale, not an "
+                    f"ad: {reason_text[:80]!r})"
+                )
+                continue
+
             sponsor = canonical_sponsor(sponsor)
 
             try:
@@ -846,6 +892,30 @@ class PatternService:
                     logger.info(
                         f"[{slug}:{episode_id}] No existing pattern for missed sponsor "
                         f"'{sponsor}' and no transcript segments available for auto-creation"
+                    )
+                    continue
+
+                # Final occurrence-count gate against the actual transcript
+                # window. The brand should appear at least twice in any real
+                # sponsor read (intro + outro). Reuses count_brand_occurrences
+                # so aliases and whitespace variants both count.
+                start_s = float(ad.get('start') or 0.0)
+                end_s = float(ad.get('end') or 0.0)
+                window_text = ' '.join(
+                    seg.get('text', '') for seg in segments
+                    if seg.get('end', 0) >= start_s and seg.get('start', 0) <= end_s
+                ).strip()
+                sponsor_row = (
+                    self.db.get_known_sponsor_by_name(sponsor)
+                    if self.db else None
+                ) or {'name': sponsor, 'aliases': '[]'}
+                occurrences = count_brand_occurrences(window_text, sponsor_row)
+                if occurrences < 2:
+                    logger.info(
+                        f"[{slug}:{episode_id}] Rejecting verification miss for "
+                        f"'{sponsor}' (brand appears only {occurrences}x in "
+                        f"{start_s:.0f}-{end_s:.0f}s window - likely a host "
+                        f"name-drop, not a sponsor read)"
                     )
                     continue
 

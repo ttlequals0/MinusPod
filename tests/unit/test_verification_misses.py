@@ -39,7 +39,7 @@ class TestRecordVerificationMisses:
         svc = _make_service(patterns)
 
         svc.record_verification_misses("slug", "ep1", [
-            {"sponsor": "Acme", "start": 100, "end": 160}
+            {"sponsor": "Acme", "start": 100, "end": 160, "confidence": 0.95, "reason": "Acme host-read"}
         ])
 
         svc.record_pattern_match.assert_called_once_with(
@@ -51,7 +51,7 @@ class TestRecordVerificationMisses:
         svc = _make_service(patterns)
 
         svc.record_verification_misses("slug", "ep1", [
-            {"sponsor": "betterhelp", "start": 0, "end": 90}
+            {"sponsor": "betterhelp", "start": 0, "end": 90, "confidence": 0.95, "reason": "BetterHelp ad"}
         ])
 
         svc.record_pattern_match.assert_called_once()
@@ -61,7 +61,7 @@ class TestRecordVerificationMisses:
 
         with patch("pattern_service.logger") as mock_logger:
             svc.record_verification_misses("slug", "ep1", [
-                {"sponsor": "NewSponsor", "start": 0, "end": 60}
+                {"sponsor": "NewSponsor", "start": 0, "end": 60, "confidence": 0.95, "reason": "NewSponsor ad"}
             ])
             # Should log that no pattern exists
             assert any(
@@ -74,9 +74,9 @@ class TestRecordVerificationMisses:
         svc = _make_service(patterns)
 
         svc.record_verification_misses("slug", "ep1", [
-            {"sponsor": "Acme", "start": 100, "end": 160},
-            {"sponsor": "Acme", "start": 500, "end": 560},
-            {"sponsor": "Unknown Co", "start": 200, "end": 260},
+            {"sponsor": "Acme", "start": 100, "end": 160, "confidence": 0.95, "reason": "Acme host-read"},
+            {"sponsor": "Acme", "start": 500, "end": 560, "confidence": 0.95, "reason": "Acme host-read"},
+            {"sponsor": "Unknown Co", "start": 200, "end": 260, "confidence": 0.95, "reason": "Unknown Co ad"},
         ])
 
         # Patterns loaded once, not per-ad
@@ -94,8 +94,8 @@ class TestRecordVerificationMisses:
         svc.record_pattern_match.side_effect = [Exception("DB error"), None]
 
         svc.record_verification_misses("slug", "ep1", [
-            {"sponsor": "First", "start": 0, "end": 60},
-            {"sponsor": "Third", "start": 100, "end": 160},
+            {"sponsor": "First", "start": 0, "end": 60, "confidence": 0.95, "reason": "First ad"},
+            {"sponsor": "Third", "start": 100, "end": 160, "confidence": 0.95, "reason": "Third ad"},
         ])
 
         assert svc.record_pattern_match.call_count == 2
@@ -106,14 +106,21 @@ class TestRecordVerificationMissesAutoCreate:
 
     def test_auto_creates_pattern_for_unknown_sponsor_when_segments_provided(self):
         svc = _make_service(patterns=[])
+        # 2.5.13 added an occurrence-count gate that consults
+        # db.get_known_sponsor_by_name. Return None so the gate falls back
+        # to the no-aliases sponsor_row and just counts the sponsor string.
+        svc.db.get_known_sponsor_by_name.return_value = None
         fake_matcher = MagicMock()
         fake_matcher.create_pattern_from_ad.return_value = 555
         svc._text_pattern_matcher = fake_matcher
 
-        segments = [{"start": 0, "end": 10, "text": "hello"}]
+        # Window text must mention the sponsor at least twice to pass the
+        # 2.5.13 occurrence-count gate.
+        segments = [{"start": 100, "end": 160,
+                     "text": "NewSponsor is great. Try NewSponsor today."}]
         svc.record_verification_misses(
             "slug", "ep1",
-            [{"sponsor": "NewSponsor", "start": 100, "end": 160}],
+            [{"sponsor": "NewSponsor", "start": 100, "end": 160, "confidence": 0.95, "reason": "NewSponsor ad"}],
             segments=segments,
         )
 
@@ -134,21 +141,26 @@ class TestRecordVerificationMissesAutoCreate:
 
         svc.record_verification_misses(
             "slug", "ep1",
-            [{"sponsor": "NewSponsor", "start": 0, "end": 60}],
+            [{"sponsor": "NewSponsor", "start": 0, "end": 60, "confidence": 0.95, "reason": "NewSponsor ad"}],
         )
         fake_matcher.create_pattern_from_ad.assert_not_called()
 
     def test_logs_declined_when_validator_rejects(self):
         svc = _make_service(patterns=[])
+        svc.db.get_known_sponsor_by_name.return_value = None
         fake_matcher = MagicMock()
         fake_matcher.create_pattern_from_ad.return_value = None
         svc._text_pattern_matcher = fake_matcher
 
+        # Make the verification miss pass the 2.5.13 confidence + occurrence
+        # gates so the validator path is the one that returns None and
+        # produces the "Declined to auto-create" log line.
         with patch("pattern_service.logger") as mock_logger:
             svc.record_verification_misses(
                 "slug", "ep1",
-                [{"sponsor": "ContaminatedSponsor", "start": 0, "end": 300}],
-                segments=[{"start": 0, "end": 300, "text": "..."}],
+                [{"sponsor": "ContaminatedSponsor", "start": 0, "end": 300, "confidence": 0.95, "reason": "Contaminated ad"}],
+                segments=[{"start": 0, "end": 300,
+                           "text": "ContaminatedSponsor here and ContaminatedSponsor again."}],
             )
             assert any(
                 "Declined to auto-create" in str(c)
@@ -163,7 +175,7 @@ class TestRecordVerificationMissesAutoCreate:
 
         svc.record_verification_misses(
             "slug", "ep1",
-            [{"sponsor": "Zero", "start": 100, "end": 160}],
+            [{"sponsor": "Zero", "start": 100, "end": 160, "confidence": 0.95, "reason": "Zero ad"}],
             segments=[{"start": 0, "end": 200, "text": "..."}],
         )
         svc.record_pattern_match.assert_called_once_with(
@@ -179,7 +191,7 @@ class TestRecordVerificationMissesAutoCreate:
 
         svc.record_verification_misses(
             "slug", "ep1",
-            [{"sponsor": "Acme", "start": 100, "end": 160}],
+            [{"sponsor": "Acme", "start": 100, "end": 160, "confidence": 0.95, "reason": "Acme host-read"}],
             segments=[{"start": 0, "end": 200, "text": "..."}],
         )
         svc.record_pattern_match.assert_called_once_with(

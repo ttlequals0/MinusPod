@@ -885,9 +885,20 @@ class TextPatternMatcher:
             logger.warning(f"Rejecting pattern: generic/invalid sponsor '{sponsor}'")
             return None
 
-        # Validate ad duration - reject contaminated multi-ad spans
+        # Validate ad duration - reject contaminated multi-ad spans on the
+        # upper end, and short spans (< 15 s) on the lower end. Pattern #356
+        # (Patreon, 8 s) is the canonical floor false-positive: real sponsor
+        # reads almost never fit in under 15 seconds.
+        MIN_PATTERN_DURATION = 15  # shortest plausible sponsor read
         MAX_PATTERN_DURATION = 120  # 2 minutes - longest reasonable single ad read
         duration = end - start
+        if duration < MIN_PATTERN_DURATION:
+            logger.warning(
+                f"Skipping pattern creation: duration {duration:.0f}s below "
+                f"min {MIN_PATTERN_DURATION}s (likely a fragment or host mention, "
+                f"not a sponsor read)"
+            )
+            return None
         if duration > MAX_PATTERN_DURATION:
             logger.warning(
                 f"Skipping pattern creation: duration {duration:.0f}s exceeds "
@@ -935,24 +946,30 @@ class TextPatternMatcher:
                 )
                 return None
 
-        # Require the sponsor name to appear at least twice in the ad_text.
-        # Real ads repeat the brand (intro + outro at minimum), so a single
-        # mention is a strong signal of a host name-drop rather than a
-        # sponsor read. Pattern #354 (drink-champs Modelo) was the canonical
-        # false-positive that motivated this check: host conversation about
-        # "the big Modelo?" got passed to record_verification_misses as a
-        # missed ad and turned into a podcast-scoped pattern.
+        # Require the brand to appear at least twice in the ad_text. Real
+        # ads repeat the brand (intro + outro at minimum); a single mention
+        # is a strong signal of a host name-drop rather than a sponsor
+        # read. Pattern #354 (drink-champs Modelo) was the canonical
+        # false-positive: host conversation about "the big Modelo?" got
+        # passed to record_verification_misses as a missed ad and turned
+        # into a podcast-scoped pattern.
         #
-        # Counts are case-insensitive substring matches, not word-boundary
-        # matches, so legitimate ads whose brand appears only inside a URL
-        # (e.g. "DeleteMe" inside joindeleteme.com) still pass.
+        # Counts substring (not word-boundary) so brands that only appear
+        # inside a URL still pass ("DeleteMe" inside joindeleteme.com).
+        # Counts across name + aliases + whitespace-stripped variants so a
+        # sponsor stored as 'statefarm' still scores against a 'State Farm'
+        # transcript and vice versa.
         if sponsor:
-            occurrences = ad_text.lower().count(sponsor.lower())
+            from community_export import count_brand_occurrences
+            sponsor_row = self.db.get_known_sponsor_by_name(sponsor) if self.db else None
+            if sponsor_row is None:
+                sponsor_row = {'name': sponsor, 'aliases': '[]'}
+            occurrences = count_brand_occurrences(ad_text, sponsor_row)
             if occurrences < 2:
                 logger.warning(
-                    f"Skipping pattern creation: sponsor '{sponsor}' appears "
-                    f"only {occurrences}x in ad_text (need >=2) - likely a host "
-                    f"name-drop or verification-pass false positive"
+                    f"Skipping pattern creation: sponsor '{sponsor}' (with aliases) "
+                    f"appears only {occurrences}x in ad_text (need >=2) - likely "
+                    f"a host name-drop or verification-pass false positive"
                 )
                 return None
 
