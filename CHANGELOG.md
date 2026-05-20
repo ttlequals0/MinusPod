@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.11] - 2026-05-20
+
+### Fixed
+
+- **Reject reasoning-sentence values in the LLM-returned `sponsor` field.** Claude occasionally fills the `sponsor` slot of an ad object with a description of why the segment looks like an ad (e.g. `"Inferred from ~26 second gap in transcript with no spoken content provided"`) instead of a brand name. The downstream text-pattern matcher caught these and refused to create a pattern, but only after the bogus value had already propagated into the ad dict. `get_valid_value()` in `ad_detector/prompts.py` now drops any value that exceeds 60 characters, starts with one of the reasoning prefixes (`inferred from`, `based on`, `according to`, `likely `, `possibly `, `may be `, `appears to `, `seems to `, `detected as `, `classified as `), or contains an unambiguously meta substring (`in transcript`, `audio signal`, `no spoken content`, `gap in transcript`, `volume anomaly`). The ad survives; only the bogus sponsor field is dropped. Sentences that happen to embed a real brand name (e.g. `"...looks like a Capital One ad"`) still hit the existing fuzzy extractor and surface the brand as before.
+
 ## [2.5.10] - 2026-05-20
 
 ### Changed

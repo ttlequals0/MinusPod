@@ -45,6 +45,61 @@ def test_parse_ads_from_response_module_level_basic():
     assert ads[0]['end'] == 160.0
 
 
+@pytest.mark.parametrize('bad_sponsor', [
+    # The exact line we caught in prod 2026-05-20:
+    'Inferred from ~26 second gap in transcript with no spoken content provided',
+    # Variations of the same reasoning-as-sponsor pattern, no extractable brand:
+    'inferred from audio signal anomaly',
+    'Based on the volume anomaly observed in this segment',
+    'Detected as a network-inserted spot in this window',
+])
+def test_parse_ads_from_response_drops_reasoning_sentence_sponsor(bad_sponsor):
+    """Claude occasionally puts a reasoning sentence in the sponsor field.
+
+    Real sponsor names never start with "Inferred from" / "Based on" /
+    "Detected as", never run past 60 characters, and never contain
+    meta-substrings like "in transcript", "audio signal", "volume anomaly".
+    The ad survives; the bogus sponsor is dropped.
+
+    Note: if the reasoning sentence happens to embed a real brand name
+    (e.g. "...looks like a Capital One ad"), the downstream fuzzy
+    extractor will still surface that brand. That is intentional and is
+    not what this gate targets.
+    """
+    response = json.dumps([{
+        "start": 100.0, "end": 160.0,
+        "confidence": 0.92, "reason": "ad",
+        "sponsor": bad_sponsor,
+    }])
+    ads = parse_ads_from_response(response)
+    assert len(ads) == 1, "ad should still be kept; only the sponsor field is rejected"
+    assert 'sponsor' not in ads[0], (
+        f"reasoning-sentence sponsor {bad_sponsor!r} should be dropped, "
+        f"got {ads[0].get('sponsor')!r}"
+    )
+
+
+@pytest.mark.parametrize('good_sponsor', [
+    'BetterHelp',
+    'Athletic Greens',
+    '1Password',
+    'Capital One',
+    'T-Mobile',
+    'AT&T',
+    'forhers.com',
+    'Capital One Quicksilver',  # multi-word real product name
+])
+def test_parse_ads_from_response_keeps_normal_sponsor_names(good_sponsor):
+    response = json.dumps([{
+        "start": 100.0, "end": 160.0,
+        "confidence": 0.92, "reason": "sponsor read",
+        "sponsor": good_sponsor,
+    }])
+    ads = parse_ads_from_response(response)
+    assert len(ads) == 1
+    assert ads[0].get('sponsor') == good_sponsor
+
+
 # ===== Item 2: format_window_prompt =====
 
 def test_format_window_prompt_includes_window_header():

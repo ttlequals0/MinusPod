@@ -35,6 +35,23 @@ INVALID_SPONSOR_VALUES = frozenset({
     'host read', 'host-read', 'mid-roll', 'pre-roll', 'post-roll'
 })
 
+# Claude occasionally returns a reasoning sentence in the `sponsor` slot
+# (e.g. "Inferred from ~26 second gap in transcript with no spoken content").
+# Reject any value that starts with one of these prefixes (case-insensitive)
+# or that contains an unambiguously meta substring. Real sponsor names never
+# do. The text_pattern_matcher rejects these later, but catching them at
+# parse time keeps junk out of the ad dict in the first place.
+SPONSOR_REASONING_PREFIXES = (
+    'inferred from', 'inferred', 'based on', 'according to',
+    'likely ', 'possibly ', 'may be ', 'appears to ', 'seems to ',
+    'detected as ', 'classified as ',
+)
+SPONSOR_REASONING_SUBSTRINGS = (
+    ' in transcript', 'audio signal', 'no spoken content',
+    'gap in transcript', 'volume anomaly',
+)
+SPONSOR_MAX_NAME_CHARS = 60
+
 # Structural fields in LLM ad response objects that never contain sponsor info.
 # Everything NOT in this set is a candidate for dynamic field scanning.
 STRUCTURAL_FIELDS = frozenset({
