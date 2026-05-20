@@ -1079,6 +1079,15 @@ class SchemaMixin:
         except Exception as e:
             logger.warning(f"Multi-sponsor pattern cleanup failed: {e}")
 
+        # 2.5.13: retire patterns whose sponsor name appears <2 times in the
+        # text_template. Real ads repeat the brand; a single mention is a
+        # host name-drop the verification pass mis-classified. The
+        # create_pattern_from_ad guard prevents new ones going forward.
+        try:
+            self._cleanup_low_mention_patterns(conn)
+        except Exception as e:
+            logger.warning(f"Low-mention pattern cleanup failed: {e}")
+
         # Sponsor seed reseed (2.4.0): CSV is authoritative. Runs LAST so
         # `_migrate_sponsor_fk` has already deduped case-variants from
         # legacy v2.1.x rows; the reseed then operates on the canonical
@@ -1295,6 +1304,74 @@ class SchemaMixin:
                 )
         except Exception as e:
             logger.warning(f"Migration: Zyn cascade cleanup failed: {e}")
+
+    def _cleanup_low_mention_patterns(self, conn):
+        """Disable active ad_patterns whose sponsor name appears <2 times in
+        the text_template.
+
+        Real sponsor reads repeat the brand (intro + outro at minimum). A
+        pattern where the sponsor appears once or zero times in 500-3500
+        chars of transcript is almost always a host name-drop that the
+        verification pass mis-classified as a missed ad. Pattern #354
+        (drink-champs Modelo) was the canonical example.
+
+        Counts are case-insensitive substring matches so legitimate ads
+        whose brand appears only inside a URL (e.g. "DeleteMe" inside
+        joindeleteme.com) still pass.
+
+        Idempotent. Stamps a settings flag so a re-run is a no-op.
+        """
+        CLEANUP_REVISION = '2.5.13'
+        try:
+            current = conn.execute(
+                "SELECT value FROM settings "
+                "WHERE key = 'low_mention_cleanup_revision'"
+            ).fetchone()
+            if current and current['value'] == CLEANUP_REVISION:
+                return
+        except Exception:
+            pass
+
+        try:
+            rows = conn.execute(
+                "SELECT p.id, p.text_template, s.name "
+                "FROM ad_patterns p "
+                "JOIN known_sponsors s ON s.id = p.sponsor_id "
+                "WHERE p.is_active = 1 "
+                "AND p.text_template IS NOT NULL "
+                "AND p.text_template != '' "
+                "AND s.name IS NOT NULL"
+            ).fetchall()
+
+            disabled = []
+            for pid, text_template, sponsor_name in rows:
+                occ = text_template.lower().count(sponsor_name.lower())
+                if occ < 2:
+                    disabled.append((pid, sponsor_name, occ))
+
+            for pid, sponsor_name, occ in disabled:
+                conn.execute(
+                    "UPDATE ad_patterns SET is_active = 0, "
+                    "disabled_reason = ? WHERE id = ?",
+                    (
+                        f"Low-mention false positive (2.5.13 cleanup): "
+                        f"sponsor '{sponsor_name}' appears {occ}x in template",
+                        pid,
+                    ),
+                )
+            conn.execute(
+                "INSERT INTO settings (key, value, is_default) VALUES (?, ?, 0) "
+                "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                ('low_mention_cleanup_revision', CLEANUP_REVISION),
+            )
+            conn.commit()
+            if disabled:
+                logger.info(
+                    f"Migration: disabled {len(disabled)} low-mention ad_patterns "
+                    f"(sponsor appeared <2x in text_template)"
+                )
+        except Exception as e:
+            logger.warning(f"Migration: low-mention pattern cleanup failed: {e}")
 
     def _cleanup_multi_sponsor_patterns(self, conn):
         """Disable active ad_patterns whose text_template names two or more

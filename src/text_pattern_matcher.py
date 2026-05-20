@@ -935,6 +935,27 @@ class TextPatternMatcher:
                 )
                 return None
 
+        # Require the sponsor name to appear at least twice in the ad_text.
+        # Real ads repeat the brand (intro + outro at minimum), so a single
+        # mention is a strong signal of a host name-drop rather than a
+        # sponsor read. Pattern #354 (drink-champs Modelo) was the canonical
+        # false-positive that motivated this check: host conversation about
+        # "the big Modelo?" got passed to record_verification_misses as a
+        # missed ad and turned into a podcast-scoped pattern.
+        #
+        # Counts are case-insensitive substring matches, not word-boundary
+        # matches, so legitimate ads whose brand appears only inside a URL
+        # (e.g. "DeleteMe" inside joindeleteme.com) still pass.
+        if sponsor:
+            occurrences = ad_text.lower().count(sponsor.lower())
+            if occurrences < 2:
+                logger.warning(
+                    f"Skipping pattern creation: sponsor '{sponsor}' appears "
+                    f"only {occurrences}x in ad_text (need >=2) - likely a host "
+                    f"name-drop or verification-pass false positive"
+                )
+                return None
+
         try:
             sponsor_id = (
                 get_or_create_known_sponsor(self.db, sponsor) if sponsor else None
