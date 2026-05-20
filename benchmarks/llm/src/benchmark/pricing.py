@@ -1,8 +1,13 @@
 """Reuse MinusPod's pricing_fetcher for both runtime cost tracking and snapshots.
 
-Pricing source of truth is MinusPod's ``src/pricing_fetcher.py`` (LiteLLM-backed).
-The benchmark snapshots the fetched table at run time so report regeneration can
-recompute costs at consistent prices regardless of when calls were made.
+`fetch_current` unions two sources from MinusPod's ``src/pricing_fetcher.py``:
+LiteLLM's curated JSON (covers anthropic_direct and most non-OpenRouter
+providers) and OpenRouter's ``/api/v1/models`` endpoint (authoritative for
+``openrouter/<slug>`` entries and indexes new models faster than LiteLLM).
+OpenRouter wins on key collisions, but only when its entry carries non-zero
+prices, so an OR entry with missing pricing cannot clobber a valid LiteLLM
+price. The merged table is snapshotted at run time so report regeneration
+recomputes costs at consistent prices regardless of when calls were made.
 """
 from __future__ import annotations
 
@@ -40,10 +45,6 @@ class PricingSnapshot:
 
 
 def fetch_current() -> PricingSnapshot:
-    # LiteLLM covers anthropic_direct and most non-OpenRouter providers.
-    # OpenRouter's own /api/v1/models is authoritative for `openrouter/<slug>`
-    # entries and indexes new models faster than LiteLLM does, so we union the
-    # two sources with OpenRouter winning on key collisions.
     by_key: dict[str, ModelPrice] = {}
     for item in fetch_litellm_pricing():
         entry = _to_model_price(item)
@@ -55,6 +56,10 @@ def fetch_current() -> PricingSnapshot:
         or_items = []
     for item in or_items:
         entry = _to_model_price(item)
+        # OR returns 0.0 for models with missing pricing fields. Letting those
+        # win on a collision would silently zero out a valid LiteLLM price.
+        if entry.input_cost_per_mtok == 0.0 and entry.output_cost_per_mtok == 0.0 and entry.match_key in by_key:
+            continue
         by_key[entry.match_key] = entry
     return PricingSnapshot(captured_at=_utc_now_microseconds(), entries=list(by_key.values()))
 

@@ -6,6 +6,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **Benchmark tool gains 10 new cloud models** in `benchmarks/llm/benchmark.toml.example` (also added to the gitignored live `benchmark.toml`): `qwen/qwen3-235b-a22b-2507`, `qwen/qwen3.6-plus`, `qwen/qwen3.6-flash`, `qwen/qwen3-8b`, `qwen/qwen3-14b`, `qwen/qwen3.5-27b`, `openai/gpt-5.4-mini`, `openai/gpt-oss-120b`, `deepseek/deepseek-v4-pro`, `google/gemini-2.5-flash-lite`. These are the cloud counterparts of the local recommendations in `docs/llm-providers.md`; they will populate the leaderboard after the next `benchmark run`.
+- **Benchmark report TL;DR tables now expose F1 stdev and JSON mode columns.** The F1 stdev column reads from the existing `ModelStats.mean_f1_stdev` (the mean across episodes of within-episode trial stdev) so rank gaps inside the noise floor are no longer easy to over-read. The JSON mode column classifies each model as `native`, `prompt-inject`, or `mixed` based on the `json_format_used` field that the runner has been writing to `calls.jsonl` for some time; a model is `native` or `prompt-inject` only when >=95% of calls used that mode, otherwise `mixed`. The per-model detail block also shows the JSON-mode primary, the native percent, and the call count.
+
+### Changed
+
+- **`benchmarks/llm/src/benchmark/pricing.py:fetch_current` now unions LiteLLM with OpenRouter's `/api/v1/models` endpoint** (via the production `fetch_openrouter_pricing` helper). OpenRouter wins on key collisions when its entry carries a non-zero price; zero-price OR entries are skipped so they cannot clobber valid LiteLLM prices. The change closes a latency gap where benchmarked models with new OpenRouter slugs showed up at $0.00 cost until LiteLLM indexed them. The module docstring is updated to reflect the dual-source merge.
+- **Metric Key in the benchmark report (`_render_how_to_read`) documents the new JSON mode column** alongside JSON compliance and F1 stdev, restoring the "every column has a definition" contract.
+
+### Fixed
+
+- **Dropped a duplicate `[run]` / `[corpus]` block** at the bottom of `benchmarks/llm/benchmark.toml.example` that would have made the file unparseable as TOML for anyone copying it as their starting point.
+
 ## [2.5.18] - 2026-05-22
 
 ### Added
@@ -112,7 +128,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Kitchen-sink ad patterns no longer over-match.** A sponsor pattern whose `text_template` happened to name several unrelated brands (the canonical example was Pattern #211, a JRE row that listed Athletic Greens, AG1, BetterHelp, Squarespace, ZipRecruiter, Raycon, Manscaped, and Stamps.com in one comma-separated blob) generated high-weight TF-IDF tokens for every brand, so any episode that mentioned two or three of them tripped the 0.70 cosine threshold and got marked as the row's sponsor. Two fixes ship together: (1) `PatternService.merge_similar_patterns()` now calls `find_foreign_sponsors()` on the chosen combined template before writing the merged row; if the template names any active sponsor outside the consolidated sponsor's name and aliases, the merge aborts and the source rows stay intact. (2) A one-shot migration (`_cleanup_multi_sponsor_patterns`) scans active `ad_patterns` on boot and disables any row whose template names two or more foreign sponsors, with `disabled_reason` set to a 2.5.7-tagged explanation. Idempotent against already-inactive rows; flipping `is_active=1` re-enables a row at any time.
 - **Pattern-edit textarea no longer shrinks when entering edit mode.** `PatternDetailModal.tsx` was rendering edit mode as a `<textarea rows={4}>` while view mode was a flexible `<div>` with `p-3` and `whitespace-pre-wrap`. For any template longer than four wrapped lines (so, most of them), clicking Edit visibly collapsed the box. The textarea now uses `min-h-[160px] max-h-[400px]` with `resize-y` and matches the view-mode padding, so the box stays approximately the same height when toggling modes and the user can drag it taller if needed.
-
 ## [2.5.6] - 2026-05-19
 
 ### Fixed
