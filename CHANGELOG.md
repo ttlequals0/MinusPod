@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.9] - 2026-05-20
+
+### Fixed
+
+- **Pattern detail modal: textarea now auto-grows to fit content, matching the view-mode height.** 2.5.8 gave view and edit the same `min-h-[160px] max-h-[400px]`, but textareas do not auto-grow with their content the way a `<div>` does, so the view-mode div would expand to ~360px to show a long template while the edit-mode textarea would stay pinned at 160px with internal scroll. User-visible result: the box still appeared to shrink on Edit and content had to be scrolled or the textarea hand-dragged. Added a useRef + useEffect that sets `textarea.style.height = min(scrollHeight, 400)` whenever the user toggles into edit mode or types into the field. View and edit now render at the same height for the same content.
+
 ## [2.5.8] - 2026-05-20
 
 ### Fixed

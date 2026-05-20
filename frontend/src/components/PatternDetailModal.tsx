@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { AdPattern, updatePattern, deletePattern } from '../api/patterns';
 import { getSponsors, addSponsor } from '../api/sponsors';
@@ -19,6 +19,17 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
     is_active: pattern.is_active,
     disabled_reason: pattern.disabled_reason || '',
   });
+  const textTemplateRef = useRef<HTMLTextAreaElement>(null);
+
+  // Auto-grow the textarea to fit its content so view and edit render at the
+  // same height. Clamped between min-h-[160px] and max-h-[400px] in CSS.
+  useEffect(() => {
+    if (!isEditing) return;
+    const ta = textTemplateRef.current;
+    if (!ta) return;
+    ta.style.height = 'auto';
+    ta.style.height = `${Math.min(ta.scrollHeight, 400)}px`;
+  }, [isEditing, editedPattern.text_template]);
 
   // Fetch sponsors for autocomplete
   const { data: sponsors } = useQuery({
@@ -172,9 +183,10 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
                   Text Template
                 </label>
                 <textarea
+                  ref={textTemplateRef}
                   value={editedPattern.text_template}
                   onChange={(e) => setEditedPattern(prev => ({ ...prev, text_template: e.target.value }))}
-                  className="w-full px-3 py-3 bg-secondary border border-border rounded text-sm font-mono min-h-[160px] max-h-[400px] resize-y"
+                  className="w-full px-3 py-3 bg-secondary border border-border rounded text-sm font-mono min-h-[160px] max-h-[400px] resize-y overflow-auto"
                 />
               </div>
 
