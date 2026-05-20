@@ -220,7 +220,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
                 <label className="block text-xs font-medium text-muted-foreground mb-1">
                   Text Template
                 </label>
-                <div className="text-sm text-foreground bg-secondary/50 rounded p-3 font-mono whitespace-pre-wrap">
+                <div className="text-sm text-foreground bg-secondary/50 rounded p-3 font-mono whitespace-pre-wrap min-h-[160px] max-h-[400px] overflow-auto">
                   {pattern.text_template || '(No template)'}
                 </div>
               </div>

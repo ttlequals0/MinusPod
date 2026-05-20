@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.8] - 2026-05-20
+
+### Fixed
+
+- **Pattern detail modal: view-mode and edit-mode now render at the same size.** 2.5.7 dropped the textarea's fixed `rows={4}` and added `min-h-[160px] max-h-[400px]` to fix the shrink-on-edit case, but the view-mode `<div>` had no equivalent min/max, so for short templates the view collapsed to ~84px while edit jumped to 160px - the user-visible jump direction inverted instead of going away. The view-mode container now carries the same `min-h-[160px] max-h-[400px] overflow-auto` triple, so for any template length both modes render at an identical height. Verified on live server in Playwright.
+
 ## [2.5.7] - 2026-05-20
 
 ### Added
