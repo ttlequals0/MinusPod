@@ -95,6 +95,51 @@ def test_per_model_detail_reports_verbosity_and_truncation(tmp_path, minimal_cfg
     assert "1 hit max_tokens (50.0%)" in text
 
 
+def test_json_format_summary_classifies_native_prompt_inject_mixed():
+    assert report._json_format_summary({}) == ("n/a", 0.0)
+    assert report._json_format_summary({"native": 100}) == ("native", 1.0)
+    # 96% native crosses the 95% threshold.
+    prim, pct = report._json_format_summary({"native": 96, "prompt_injection": 4})
+    assert prim == "native"
+    assert pct == 0.96
+    # 94% native falls short -> mixed.
+    prim, _ = report._json_format_summary({"native": 94, "prompt_injection": 6})
+    assert prim == "mixed"
+    prim, pct = report._json_format_summary({"prompt_injection": 99, "native": 1})
+    assert prim == "prompt-inject"
+    assert pct == 0.01
+
+
+def test_tldr_table_includes_f1_stdev_and_json_mode(tmp_path, minimal_cfg, make_episode, pricing_snapshot):
+    """Best Accuracy table renders the F1 stdev and JSON mode columns."""
+    ep = make_episode(n_windows=1)
+    calls = tmp_path / "calls.jsonl"
+    # Two trials on `m1` (one native, one prompt_injection) -> mixed.
+    append_jsonl(calls, {
+        **CALL_RECORD_TEMPLATE, "call_id": "c1", "trial": 0,
+        "parsed_ads": [{"start_time": 0.0, "end_time": 30.0}],
+    })
+    append_jsonl(calls, {
+        **CALL_RECORD_TEMPLATE, "call_id": "c2", "trial": 1,
+        "json_format_used": "prompt_injection",
+        "parsed_ads": [{"start_time": 0.0, "end_time": 30.0}],
+    })
+    out = tmp_path / "report.md"
+    report.render(
+        cfg=minimal_cfg, episodes=[ep],
+        calls_path=calls, episode_results_path=tmp_path / "ep.jsonl",
+        pricing_snapshot=pricing_snapshot,
+        output_path=out, assets_dir=tmp_path / "assets",
+    )
+    text = out.read_text()
+    assert "F1 stdev" in text
+    assert "JSON mode" in text
+    # Per-model detail block surfaces the native percent + call count.
+    assert "JSON mode: mixed" in text
+    assert "50% native" in text
+    assert "2 calls" in text
+
+
 def test_render_handles_no_ad_episode(tmp_path, minimal_cfg, make_episode, pricing_snapshot):
     ep = make_episode(n_windows=1, no_ad=True)
     calls = tmp_path / "calls.jsonl"

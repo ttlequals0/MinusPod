@@ -13,7 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from config import normalize_model_key  # type: ignore[import-not-found]
-from pricing_fetcher import fetch_litellm_pricing  # type: ignore[import-not-found]
+from pricing_fetcher import fetch_litellm_pricing, fetch_openrouter_pricing  # type: ignore[import-not-found]
 
 logger = logging.getLogger(__name__)
 
@@ -40,17 +40,32 @@ class PricingSnapshot:
 
 
 def fetch_current() -> PricingSnapshot:
-    raw = fetch_litellm_pricing()
-    entries = [
-        ModelPrice(
-            match_key=item["match_key"],
-            raw_model_id=item.get("raw_model_id", ""),
-            input_cost_per_mtok=float(item.get("input_cost_per_mtok", 0.0)),
-            output_cost_per_mtok=float(item.get("output_cost_per_mtok", 0.0)),
-        )
-        for item in raw
-    ]
-    return PricingSnapshot(captured_at=_utc_now_microseconds(), entries=entries)
+    # LiteLLM covers anthropic_direct and most non-OpenRouter providers.
+    # OpenRouter's own /api/v1/models is authoritative for `openrouter/<slug>`
+    # entries and indexes new models faster than LiteLLM does, so we union the
+    # two sources with OpenRouter winning on key collisions.
+    by_key: dict[str, ModelPrice] = {}
+    for item in fetch_litellm_pricing():
+        entry = _to_model_price(item)
+        by_key[entry.match_key] = entry
+    try:
+        or_items = fetch_openrouter_pricing()
+    except Exception as exc:
+        logger.warning("OpenRouter pricing fetch failed; falling back to LiteLLM only: %s", exc)
+        or_items = []
+    for item in or_items:
+        entry = _to_model_price(item)
+        by_key[entry.match_key] = entry
+    return PricingSnapshot(captured_at=_utc_now_microseconds(), entries=list(by_key.values()))
+
+
+def _to_model_price(item: dict) -> ModelPrice:
+    return ModelPrice(
+        match_key=item["match_key"],
+        raw_model_id=item.get("raw_model_id", ""),
+        input_cost_per_mtok=float(item.get("input_cost_per_mtok", 0.0)),
+        output_cost_per_mtok=float(item.get("output_cost_per_mtok", 0.0)),
+    )
 
 
 def write_snapshot(snapshot: PricingSnapshot, snapshots_dir: Path) -> Path:

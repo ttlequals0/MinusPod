@@ -49,40 +49,40 @@ Quick reference for the columns in every table below.
 
 All models ranked by F1 against human-verified ground truth. Cost includes free-tier models (shown at $0.00).
 
-| Rank | Model | F1 | Cost / episode | p50 latency | JSON compliance |
-|------|-------|----|----------------|-------------|-----------------|
-| 1 | `qwen/qwen3.5-plus-02-15` | 0.649 | $0.0000 | 49.2s | 1.00 |
-| 2 | `openai/gpt-5.5` | 0.636 | $4.6613 | 6.2s | 0.87 |
-| 3 | `claude-opus-4-7` | 0.618 | $5.5394 | 2.3s | 1.00 |
-| 4 | `openai/gpt-5.4` | 0.605 | $1.8008 | 1.8s | 0.80 |
-| 5 | `google/gemini-2.5-pro` | 0.589 | $2.7901 | 13.7s | 0.97 |
-| 6 | `openai/o3` | 0.576 | $2.1834 | 8.1s | 0.93 |
-| 7 | `x-ai/grok-4.3` | 0.489 | $1.0593 | 3.3s | 1.00 |
-| 8 | `deepseek/deepseek-v4-flash` | 0.464 | $0.0000 | 3.0s | 0.80 |
-| 9 | `google/gemma-4-31b-it` | 0.463 | $0.0000 | 1.8s | 0.86 |
-| 10 | `moonshotai/kimi-k2.6` | 0.456 | $2.0174 | 35.1s | 0.59 |
-| 11 | `deepseek/deepseek-r1` | 0.438 | $4.4082 | 19.2s | 0.96 |
-| 12 | `deepseek/deepseek-r1-0528` | 0.398 | $0.2395 | 14.9s | 0.89 |
-| 13 | `cohere/command-a` | 0.395 | $0.0000 | 4.0s | 0.71 |
-| 14 | `meta-llama/llama-4-maverick` | 0.390 | $0.0000 | 1.2s | 0.79 |
-| 15 | `claude-sonnet-4-6` | 0.377 | $2.5061 | 1.6s | 0.96 |
-| 16 | `nvidia/llama-3.3-nemotron-super-49b-v1.5` | 0.375 | $0.0000 | 22.8s | 0.71 |
-| 17 | `mistralai/mistral-medium-3.1` | 0.367 | $0.0000 | 0.9s | 1.00 |
-| 18 | `claude-haiku-4-5-20251001` | 0.340 | $0.8508 | 1.3s | 0.60 |
-| 19 | `meta-llama/llama-3.3-70b-instruct` | 0.298 | $0.4599 | 1.5s | 0.67 |
-| 20 | `mistralai/codestral-2508` | 0.284 | $0.2296 | 0.8s | 1.00 |
-| 21 | `deepseek/deepseek-v3.2` | 0.279 | $0.4507 | 2.2s | 0.92 |
-| 22 | `google/gemini-2.5-flash` | 0.246 | $0.2425 | 0.9s | 1.00 |
-| 23 | `openai/gpt-3.5-turbo` | 0.221 | $0.3621 | 1.3s | 0.70 |
-| 24 | `meta-llama/llama-4-scout` | 0.220 | $0.0000 | 0.8s | 0.81 |
-| 25 | `deepseek/deepseek-r1-distill-llama-70b` | 0.206 | $0.5333 | 2.0s | 0.74 |
-| 26 | `mistralai/mistral-large-2512` | 0.202 | $0.3977 | 2.7s | 1.00 |
-| 27 | `nvidia/nemotron-nano-9b-v2` | 0.186 | $0.0000 | 12.3s | 0.90 |
-| 28 | `meta-llama/llama-3.1-8b-instruct` | 0.166 | $0.1430 | 0.8s | 0.86 |
-| 29 | `cohere/command-r-plus-08-2024` | 0.136 | $1.8262 | 1.0s | 0.97 |
-| 30 | `openai/o4-mini` | 0.095 | $1.3462 | 7.2s | 0.05 |
-| 31 | `microsoft/phi-4` | 0.050 | $0.1051 | 2.3s | 0.86 |
-| 32 | `mistralai/mistral-7b-instruct-v0.1` | 0.000 | $0.0000 | 8.6s | 0.11 |
+| Rank | Model | F1 | F1 stdev | Cost / episode | p50 latency | JSON compliance | JSON mode |
+|------|-------|----|----------|----------------|-------------|-----------------|-----------|
+| 1 | `qwen/qwen3.5-plus-02-15` | 0.649 | 0.033 | $0.8968 | 49.2s | 1.00 | native |
+| 2 | `openai/gpt-5.5` | 0.636 | 0.061 | $4.6613 | 6.2s | 0.87 | native |
+| 3 | `claude-opus-4-7` | 0.618 | 0.057 | $5.5394 | 2.3s | 1.00 | prompt-inject |
+| 4 | `openai/gpt-5.4` | 0.605 | 0.075 | $1.8008 | 1.8s | 0.80 | native |
+| 5 | `google/gemini-2.5-pro` | 0.589 | 0.044 | $2.7901 | 13.7s | 0.97 | native |
+| 6 | `openai/o3` | 0.576 | 0.172 | $2.1834 | 8.1s | 0.93 | native |
+| 7 | `x-ai/grok-4.3` | 0.489 | 0.116 | $1.0593 | 3.3s | 1.00 | native |
+| 8 | `deepseek/deepseek-v4-flash` | 0.464 | 0.108 | $0.0931 | 3.0s | 0.80 | native |
+| 9 | `google/gemma-4-31b-it` | 0.463 | 0.086 | $0.0909 | 1.8s | 0.86 | native |
+| 10 | `moonshotai/kimi-k2.6` | 0.456 | 0.164 | $1.6916 | 35.1s | 0.59 | native |
+| 11 | `deepseek/deepseek-r1` | 0.438 | 0.132 | $0.7967 | 19.2s | 0.96 | native |
+| 12 | `deepseek/deepseek-r1-0528` | 0.398 | 0.138 | $0.7036 | 14.9s | 0.89 | native |
+| 13 | `cohere/command-a` | 0.395 | 0.043 | $1.8933 | 4.0s | 0.71 | native |
+| 14 | `meta-llama/llama-4-maverick` | 0.390 | 0.022 | $0.1075 | 1.2s | 0.79 | native |
+| 15 | `claude-sonnet-4-6` | 0.377 | 0.026 | $2.5061 | 1.6s | 0.96 | prompt-inject |
+| 16 | `nvidia/llama-3.3-nemotron-super-49b-v1.5` | 0.375 | 0.167 | $0.1516 | 22.8s | 0.71 | native |
+| 17 | `mistralai/mistral-medium-3.1` | 0.367 | 0.049 | $0.3097 | 0.9s | 1.00 | native |
+| 18 | `claude-haiku-4-5-20251001` | 0.340 | 0.001 | $0.8508 | 1.3s | 0.60 | prompt-inject |
+| 19 | `meta-llama/llama-3.3-70b-instruct` | 0.298 | 0.063 | $0.0716 | 1.5s | 0.67 | native |
+| 20 | `mistralai/codestral-2508` | 0.284 | 0.058 | $0.2296 | 0.8s | 1.00 | native |
+| 21 | `deepseek/deepseek-v3.2` | 0.279 | 0.206 | $0.1817 | 2.2s | 0.92 | native |
+| 22 | `google/gemini-2.5-flash` | 0.246 | 0.000 | $0.2425 | 0.9s | 1.00 | native |
+| 23 | `openai/gpt-3.5-turbo` | 0.221 | 0.003 | $0.3621 | 1.3s | 0.70 | native |
+| 24 | `meta-llama/llama-4-scout` | 0.220 | 0.090 | $0.0573 | 0.8s | 0.81 | native |
+| 25 | `deepseek/deepseek-r1-distill-llama-70b` | 0.206 | 0.070 | $0.5148 | 2.0s | 0.74 | native |
+| 26 | `mistralai/mistral-large-2512` | 0.202 | 0.015 | $0.3977 | 2.7s | 1.00 | native |
+| 27 | `nvidia/nemotron-nano-9b-v2` | 0.186 | 0.095 | $0.0598 | 12.3s | 0.90 | native |
+| 28 | `meta-llama/llama-3.1-8b-instruct` | 0.166 | 0.124 | $0.0147 | 0.8s | 0.86 | native |
+| 29 | `cohere/command-r-plus-08-2024` | 0.136 | 0.047 | $1.8262 | 1.0s | 0.97 | native |
+| 30 | `openai/o4-mini` | 0.095 | 0.157 | $1.3462 | 7.2s | 0.05 | native |
+| 31 | `microsoft/phi-4` | 0.050 | 0.066 | $0.0508 | 2.3s | 0.86 | native |
+| 32 | `mistralai/mistral-7b-instruct-v0.1` | 0.000 | 0.000 | $0.0211 | 8.6s | 0.11 | native |
 
 ### Best Value (F1 per dollar)
 
@@ -90,45 +90,38 @@ Paid-tier only. Free-tier models are excluded here because F1 / 0 is undefined; 
 
 | Rank | Model | F1/$ | F1 | Cost / episode |
 |------|-------|------|----|----------------|
-| 1 | `deepseek/deepseek-r1-0528` | 1.66 | 0.398 | $0.2395 |
-| 2 | `mistralai/codestral-2508` | 1.24 | 0.284 | $0.2296 |
-| 3 | `meta-llama/llama-3.1-8b-instruct` | 1.16 | 0.166 | $0.1430 |
-| 4 | `google/gemini-2.5-flash` | 1.02 | 0.246 | $0.2425 |
-| 5 | `meta-llama/llama-3.3-70b-instruct` | 0.65 | 0.298 | $0.4599 |
-| 6 | `deepseek/deepseek-v3.2` | 0.62 | 0.279 | $0.4507 |
-| 7 | `openai/gpt-3.5-turbo` | 0.61 | 0.221 | $0.3621 |
-| 8 | `mistralai/mistral-large-2512` | 0.51 | 0.202 | $0.3977 |
-| 9 | `microsoft/phi-4` | 0.47 | 0.050 | $0.1051 |
-| 10 | `x-ai/grok-4.3` | 0.46 | 0.489 | $1.0593 |
-| 11 | `claude-haiku-4-5-20251001` | 0.40 | 0.340 | $0.8508 |
-| 12 | `deepseek/deepseek-r1-distill-llama-70b` | 0.39 | 0.206 | $0.5333 |
-| 13 | `openai/gpt-5.4` | 0.34 | 0.605 | $1.8008 |
-| 14 | `openai/o3` | 0.26 | 0.576 | $2.1834 |
-| 15 | `moonshotai/kimi-k2.6` | 0.23 | 0.456 | $2.0174 |
-| 16 | `google/gemini-2.5-pro` | 0.21 | 0.589 | $2.7901 |
-| 17 | `claude-sonnet-4-6` | 0.15 | 0.377 | $2.5061 |
-| 18 | `openai/gpt-5.5` | 0.14 | 0.636 | $4.6613 |
-| 19 | `claude-opus-4-7` | 0.11 | 0.618 | $5.5394 |
-| 20 | `deepseek/deepseek-r1` | 0.10 | 0.438 | $4.4082 |
-| 21 | `cohere/command-r-plus-08-2024` | 0.07 | 0.136 | $1.8262 |
-| 22 | `openai/o4-mini` | 0.07 | 0.095 | $1.3462 |
-
-### Best Free-Tier (F1)
-
-Models that came back at $0.00 cost. F1 / $ is undefined for these, so they are ranked by F1 alone. Free-tier eligibility on OpenRouter depends on the attribution headers wired into the benchmark (`HTTP-Referer`, `X-Title`); a model showing as free here may bill on your own deployment if those headers are missing.
-
-| Rank | Model | F1 | p50 latency | JSON compliance |
-|------|-------|----|-------------|-----------------|
-| 1 | `qwen/qwen3.5-plus-02-15` | 0.649 | 49.2s | 1.00 |
-| 2 | `deepseek/deepseek-v4-flash` | 0.464 | 3.0s | 0.80 |
-| 3 | `google/gemma-4-31b-it` | 0.463 | 1.8s | 0.86 |
-| 4 | `cohere/command-a` | 0.395 | 4.0s | 0.71 |
-| 5 | `meta-llama/llama-4-maverick` | 0.390 | 1.2s | 0.79 |
-| 6 | `nvidia/llama-3.3-nemotron-super-49b-v1.5` | 0.375 | 22.8s | 0.71 |
-| 7 | `mistralai/mistral-medium-3.1` | 0.367 | 0.9s | 1.00 |
-| 8 | `meta-llama/llama-4-scout` | 0.220 | 0.8s | 0.81 |
-| 9 | `nvidia/nemotron-nano-9b-v2` | 0.186 | 12.3s | 0.90 |
-| 10 | `mistralai/mistral-7b-instruct-v0.1` | 0.000 | 8.6s | 0.11 |
+| 1 | `meta-llama/llama-3.1-8b-instruct` | 11.33 | 0.166 | $0.0147 |
+| 2 | `google/gemma-4-31b-it` | 5.10 | 0.463 | $0.0909 |
+| 3 | `deepseek/deepseek-v4-flash` | 4.98 | 0.464 | $0.0931 |
+| 4 | `meta-llama/llama-3.3-70b-instruct` | 4.16 | 0.298 | $0.0716 |
+| 5 | `meta-llama/llama-4-scout` | 3.84 | 0.220 | $0.0573 |
+| 6 | `meta-llama/llama-4-maverick` | 3.62 | 0.390 | $0.1075 |
+| 7 | `nvidia/nemotron-nano-9b-v2` | 3.10 | 0.186 | $0.0598 |
+| 8 | `nvidia/llama-3.3-nemotron-super-49b-v1.5` | 2.47 | 0.375 | $0.1516 |
+| 9 | `deepseek/deepseek-v3.2` | 1.53 | 0.279 | $0.1817 |
+| 10 | `mistralai/codestral-2508` | 1.24 | 0.284 | $0.2296 |
+| 11 | `mistralai/mistral-medium-3.1` | 1.19 | 0.367 | $0.3097 |
+| 12 | `google/gemini-2.5-flash` | 1.02 | 0.246 | $0.2425 |
+| 13 | `microsoft/phi-4` | 0.98 | 0.050 | $0.0508 |
+| 14 | `qwen/qwen3.5-plus-02-15` | 0.72 | 0.649 | $0.8968 |
+| 15 | `openai/gpt-3.5-turbo` | 0.61 | 0.221 | $0.3621 |
+| 16 | `deepseek/deepseek-r1-0528` | 0.57 | 0.398 | $0.7036 |
+| 17 | `deepseek/deepseek-r1` | 0.55 | 0.438 | $0.7967 |
+| 18 | `mistralai/mistral-large-2512` | 0.51 | 0.202 | $0.3977 |
+| 19 | `x-ai/grok-4.3` | 0.46 | 0.489 | $1.0593 |
+| 20 | `deepseek/deepseek-r1-distill-llama-70b` | 0.40 | 0.206 | $0.5148 |
+| 21 | `claude-haiku-4-5-20251001` | 0.40 | 0.340 | $0.8508 |
+| 22 | `openai/gpt-5.4` | 0.34 | 0.605 | $1.8008 |
+| 23 | `moonshotai/kimi-k2.6` | 0.27 | 0.456 | $1.6916 |
+| 24 | `openai/o3` | 0.26 | 0.576 | $2.1834 |
+| 25 | `google/gemini-2.5-pro` | 0.21 | 0.589 | $2.7901 |
+| 26 | `cohere/command-a` | 0.21 | 0.395 | $1.8933 |
+| 27 | `claude-sonnet-4-6` | 0.15 | 0.377 | $2.5061 |
+| 28 | `openai/gpt-5.5` | 0.14 | 0.636 | $4.6613 |
+| 29 | `claude-opus-4-7` | 0.11 | 0.618 | $5.5394 |
+| 30 | `cohere/command-r-plus-08-2024` | 0.07 | 0.136 | $1.8262 |
+| 31 | `openai/o4-mini` | 0.07 | 0.095 | $1.3462 |
+| 32 | `mistralai/mistral-7b-instruct-v0.1` | 0.00 | 0.000 | $0.0211 |
 
 ## Charts
 
@@ -424,36 +417,36 @@ How many output tokens the model spent per detected ad. Lower is more concise (t
 
 | Model | Total output tokens | Ads detected | Tokens / ad | Cost / TP |
 |---|---:|---:|---:|---:|
-| `mistralai/mistral-medium-3.1` | 27,290 | 434 | 63 | $0.0000 |
+| `mistralai/mistral-medium-3.1` | 27,290 | 434 | 63 | $0.0030 |
 | `mistralai/codestral-2508` | 30,472 | 476 | 64 | $0.0025 |
-| `meta-llama/llama-3.3-70b-instruct` | 20,252 | 281 | 72 | $0.0061 |
+| `meta-llama/llama-3.3-70b-instruct` | 20,252 | 281 | 72 | $0.0010 |
 | `google/gemini-2.5-flash` | 46,310 | 640 | 72 | $0.0026 |
 | `openai/gpt-3.5-turbo` | 38,656 | 527 | 73 | $0.0048 |
-| `google/gemma-4-31b-it` | 30,335 | 402 | 75 | $0.0000 |
+| `google/gemma-4-31b-it` | 30,335 | 402 | 75 | $0.0008 |
 | `cohere/command-r-plus-08-2024` | 6,849 | 85 | 81 | $0.0537 |
-| `meta-llama/llama-4-scout` | 34,256 | 423 | 81 | $0.0000 |
-| `meta-llama/llama-3.1-8b-instruct` | 59,426 | 708 | 84 | $0.0033 |
+| `meta-llama/llama-4-scout` | 34,256 | 423 | 81 | $0.0008 |
+| `meta-llama/llama-3.1-8b-instruct` | 59,426 | 708 | 84 | $0.0003 |
 | `claude-sonnet-4-6` | 36,463 | 417 | 87 | $0.0232 |
 | `mistralai/mistral-large-2512` | 80,682 | 885 | 91 | $0.0041 |
 | `claude-haiku-4-5-20251001` | 52,024 | 551 | 94 | $0.0074 |
 | `claude-opus-4-7` | 26,188 | 271 | 97 | $0.0416 |
-| `cohere/command-a` | 40,418 | 401 | 101 | $0.0000 |
-| `meta-llama/llama-4-maverick` | 32,554 | 320 | 102 | $0.0000 |
-| `deepseek/deepseek-v3.2` | 19,588 | 190 | 103 | $0.0083 |
+| `cohere/command-a` | 40,418 | 401 | 101 | $0.0177 |
+| `meta-llama/llama-4-maverick` | 32,554 | 320 | 102 | $0.0011 |
+| `deepseek/deepseek-v3.2` | 19,588 | 190 | 103 | $0.0034 |
 | `openai/gpt-5.4` | 31,263 | 293 | 107 | $0.0135 |
-| `deepseek/deepseek-r1-distill-llama-70b` | 154,778 | 438 | 353 | $0.0083 |
-| `microsoft/phi-4` | 159,399 | 400 | 398 | $0.0096 |
-| `deepseek/deepseek-v4-flash` | 293,130 | 450 | 651 | $0.0000 |
+| `deepseek/deepseek-r1-distill-llama-70b` | 154,778 | 438 | 353 | $0.0080 |
+| `microsoft/phi-4` | 159,399 | 400 | 398 | $0.0046 |
+| `deepseek/deepseek-v4-flash` | 293,130 | 450 | 651 | $0.0007 |
 | `openai/gpt-5.5` | 207,858 | 240 | 866 | $0.0364 |
 | `x-ai/grok-4.3` | 381,272 | 414 | 921 | $0.0080 |
-| `deepseek/deepseek-r1-0528` | 806,306 | 621 | 1298 | $0.0020 |
-| `deepseek/deepseek-r1` | 590,495 | 408 | 1447 | $0.0367 |
-| `nvidia/nemotron-nano-9b-v2` | 935,212 | 383 | 2442 | $0.0000 |
+| `deepseek/deepseek-r1-0528` | 806,306 | 621 | 1298 | $0.0059 |
+| `deepseek/deepseek-r1` | 590,495 | 408 | 1447 | $0.0066 |
+| `nvidia/nemotron-nano-9b-v2` | 935,212 | 383 | 2442 | $0.0012 |
 | `google/gemini-2.5-pro` | 939,580 | 336 | 2796 | $0.0196 |
-| `nvidia/llama-3.3-nemotron-super-49b-v1.5` | 1,017,284 | 247 | 4119 | $0.0000 |
+| `nvidia/llama-3.3-nemotron-super-49b-v1.5` | 1,017,284 | 247 | 4119 | $0.0018 |
 | `openai/o3` | 511,096 | 124 | 4122 | $0.0243 |
-| `qwen/qwen3.5-plus-02-15` | 2,264,276 | 280 | 8087 | $0.0000 |
-| `moonshotai/kimi-k2.6` | 1,698,012 | 177 | 9593 | $0.0255 |
+| `qwen/qwen3.5-plus-02-15` | 2,264,276 | 280 | 8087 | $0.0063 |
+| `moonshotai/kimi-k2.6` | 1,698,012 | 177 | 9593 | $0.0214 |
 | `openai/o4-mini` | 676,192 | 30 | 22540 | $0.1224 |
 
 ## Trial variance (determinism check)
@@ -663,38 +656,38 @@ One row per model, one column per episode. The headline columns (`F1`, `Cost/ep`
 
 | Model | F1 | Cost/ep | p50 | ep-daily-tech-news-show-b576979e1fe8 | ep-daily-tech-news-show-c1904b8605f7 | ep-glt1412515089-373d5ba5007b | ep-it-s-a-thing-e339179dfad6 | ep-on-air-with-dan-and-alex2-574e4f303730 | ep-security-now-audio-2850b24903b2 | ep-the-brilliant-idiots-0bb9bf634c8e | ep-the-tim-dillon-show-f62bd5fa1cfe | ep-tosh-show-5f6894439bb6 | ep-ai-cloud-essentials-e8dc897fbd6b (no-ad) | ep-oxide-and-friends-ce789ff5b62e (no-ad) | F1 stdev |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
-| `qwen/qwen3.5-plus-02-15` | 0.649 | $0.0000 | 49.2s | 0.857 | 0.518 | 0.625 | 0.667 | 0.590 | 0.476 | 0.771 | 0.636 | 0.696 | PASS | PASS | 0.033 |
+| `qwen/qwen3.5-plus-02-15` | 0.649 | $0.8968 | 49.2s | 0.857 | 0.518 | 0.625 | 0.667 | 0.590 | 0.476 | 0.771 | 0.636 | 0.696 | PASS | PASS | 0.033 |
 | `openai/gpt-5.5` | 0.636 | $4.6613 | 6.2s | 0.886 | 0.547 | 0.636 | 0.667 | 0.571 | 0.505 | 0.776 | 0.546 | 0.587 | FAIL (1 FP) | PASS | 0.061 |
 | `claude-opus-4-7` | 0.618 | $5.5394 | 2.3s | 0.886 | 0.445 | 0.600 | 0.667 | 0.595 | 0.520 | 0.733 | 0.592 | 0.524 | PASS | PASS | 0.057 |
 | `openai/gpt-5.4` | 0.605 | $1.8008 | 1.8s | 0.892 | 0.518 | 0.506 | 0.613 | 0.747 | 0.495 | 0.516 | 0.586 | 0.569 | FAIL (1 FP) | FAIL (1 FP) | 0.075 |
 | `google/gemini-2.5-pro` | 0.589 | $2.7901 | 13.7s | 0.864 | 0.448 | 0.646 | 0.667 | 0.543 | 0.451 | 0.510 | 0.569 | 0.603 | FAIL (1 FP) | FAIL (1 FP) | 0.044 |
 | `openai/o3` | 0.576 | $2.1834 | 8.1s | 0.848 | 0.472 | 0.664 | 0.333 | 0.687 | 0.644 | 0.698 | 0.372 | 0.464 | PASS | PASS | 0.172 |
 | `x-ai/grok-4.3` | 0.489 | $1.0593 | 3.3s | 0.507 | 0.179 | 0.572 | 0.433 | 0.472 | 0.486 | 0.771 | 0.393 | 0.585 | PASS | PASS | 0.116 |
-| `deepseek/deepseek-v4-flash` | 0.464 | $0.0000 | 3.0s | 0.445 | 0.310 | 0.642 | 0.337 | 0.535 | 0.465 | 0.569 | 0.298 | 0.574 | FAIL (1 FP) | PASS | 0.108 |
-| `google/gemma-4-31b-it` | 0.463 | $0.0000 | 1.8s | 0.811 | 0.119 | 0.645 | 0.467 | 0.514 | 0.496 | 0.585 | 0.350 | 0.182 | FAIL (1 FP) | PASS | 0.086 |
-| `moonshotai/kimi-k2.6` | 0.456 | $2.0174 | 35.1s | 0.914 | 0.600 | 0.469 | 0.200 | 0.734 | 0.196 | 0.538 | 0.184 | 0.267 | FAIL (1 FP) | FAIL (4 FP) | 0.164 |
-| `deepseek/deepseek-r1` | 0.438 | $4.4082 | 19.2s | 0.658 | 0.158 | 0.630 | 0.313 | 0.555 | 0.462 | 0.401 | 0.327 | 0.435 | FAIL (1 FP) | FAIL (1 FP) | 0.132 |
-| `deepseek/deepseek-r1-0528` | 0.398 | $0.2395 | 14.9s | 0.700 | 0.184 | 0.379 | 0.404 | 0.514 | 0.281 | 0.161 | 0.319 | 0.643 | FAIL (27 FP) | FAIL (12 FP) | 0.138 |
-| `cohere/command-a` | 0.395 | $0.0000 | 4.0s | 0.500 | 0.298 | 0.507 | 0.400 | 0.503 | 0.368 | 0.247 | 0.200 | 0.533 | FAIL (3 FP) | PASS | 0.043 |
-| `meta-llama/llama-4-maverick` | 0.390 | $0.0000 | 1.2s | 0.771 | 0.204 | 0.507 | 0.000 | 0.571 | 0.496 | 0.390 | 0.167 | 0.400 | FAIL (1 FP) | PASS | 0.022 |
+| `deepseek/deepseek-v4-flash` | 0.464 | $0.0931 | 3.0s | 0.445 | 0.310 | 0.642 | 0.337 | 0.535 | 0.465 | 0.569 | 0.298 | 0.574 | FAIL (1 FP) | PASS | 0.108 |
+| `google/gemma-4-31b-it` | 0.463 | $0.0909 | 1.8s | 0.811 | 0.119 | 0.645 | 0.467 | 0.514 | 0.496 | 0.585 | 0.350 | 0.182 | FAIL (1 FP) | PASS | 0.086 |
+| `moonshotai/kimi-k2.6` | 0.456 | $1.6916 | 35.1s | 0.914 | 0.600 | 0.469 | 0.200 | 0.734 | 0.196 | 0.538 | 0.184 | 0.267 | FAIL (1 FP) | FAIL (4 FP) | 0.164 |
+| `deepseek/deepseek-r1` | 0.438 | $0.7967 | 19.2s | 0.658 | 0.158 | 0.630 | 0.313 | 0.555 | 0.462 | 0.401 | 0.327 | 0.435 | FAIL (1 FP) | FAIL (1 FP) | 0.132 |
+| `deepseek/deepseek-r1-0528` | 0.398 | $0.7036 | 14.9s | 0.700 | 0.184 | 0.379 | 0.404 | 0.514 | 0.281 | 0.161 | 0.319 | 0.643 | FAIL (27 FP) | FAIL (12 FP) | 0.138 |
+| `cohere/command-a` | 0.395 | $1.8933 | 4.0s | 0.500 | 0.298 | 0.507 | 0.400 | 0.503 | 0.368 | 0.247 | 0.200 | 0.533 | FAIL (3 FP) | PASS | 0.043 |
+| `meta-llama/llama-4-maverick` | 0.390 | $0.1075 | 1.2s | 0.771 | 0.204 | 0.507 | 0.000 | 0.571 | 0.496 | 0.390 | 0.167 | 0.400 | FAIL (1 FP) | PASS | 0.022 |
 | `claude-sonnet-4-6` | 0.377 | $2.5061 | 1.6s | 0.407 | 0.237 | 0.400 | 0.000 | 0.444 | 0.516 | 0.836 | 0.179 | 0.375 | PASS | PASS | 0.026 |
-| `nvidia/llama-3.3-nemotron-super-49b-v1.5` | 0.375 | $0.0000 | 22.8s | 0.299 | 0.177 | 0.596 | 0.233 | 0.431 | 0.587 | 0.478 | 0.171 | 0.399 | PASS | PASS | 0.167 |
-| `mistralai/mistral-medium-3.1` | 0.367 | $0.0000 | 0.9s | 0.162 | 0.095 | 0.671 | 0.000 | 0.500 | 0.640 | 0.591 | 0.223 | 0.421 | PASS | PASS | 0.049 |
+| `nvidia/llama-3.3-nemotron-super-49b-v1.5` | 0.375 | $0.1516 | 22.8s | 0.299 | 0.177 | 0.596 | 0.233 | 0.431 | 0.587 | 0.478 | 0.171 | 0.399 | PASS | PASS | 0.167 |
+| `mistralai/mistral-medium-3.1` | 0.367 | $0.3097 | 0.9s | 0.162 | 0.095 | 0.671 | 0.000 | 0.500 | 0.640 | 0.591 | 0.223 | 0.421 | PASS | PASS | 0.049 |
 | `claude-haiku-4-5-20251001` | 0.340 | $0.8508 | 1.3s | 0.235 | 0.073 | 0.571 | 0.000 | 0.500 | 0.551 | 0.600 | 0.154 | 0.375 | PASS | PASS | 0.001 |
-| `meta-llama/llama-3.3-70b-instruct` | 0.298 | $0.4599 | 1.5s | 0.327 | 0.000 | 0.567 | 0.000 | 0.133 | 0.512 | 0.489 | 0.308 | 0.347 | PASS | PASS | 0.063 |
+| `meta-llama/llama-3.3-70b-instruct` | 0.298 | $0.0716 | 1.5s | 0.327 | 0.000 | 0.567 | 0.000 | 0.133 | 0.512 | 0.489 | 0.308 | 0.347 | PASS | PASS | 0.063 |
 | `mistralai/codestral-2508` | 0.284 | $0.2296 | 0.8s | 0.379 | 0.172 | 0.231 | 0.000 | 0.469 | 0.374 | 0.187 | 0.178 | 0.564 | PASS | PASS | 0.058 |
-| `deepseek/deepseek-v3.2` | 0.279 | $0.4507 | 2.2s | 0.327 | 0.140 | 0.518 | 0.400 | 0.300 | 0.528 | 0.100 | 0.057 | 0.140 | PASS | FAIL (2 FP) | 0.206 |
+| `deepseek/deepseek-v3.2` | 0.279 | $0.1817 | 2.2s | 0.327 | 0.140 | 0.518 | 0.400 | 0.300 | 0.528 | 0.100 | 0.057 | 0.140 | PASS | FAIL (2 FP) | 0.206 |
 | `google/gemini-2.5-flash` | 0.246 | $0.2425 | 0.9s | 0.267 | 0.071 | 0.500 | 0.000 | 0.444 | 0.455 | 0.125 | 0.154 | 0.200 | PASS | PASS | 0.000 |
 | `openai/gpt-3.5-turbo` | 0.221 | $0.3621 | 1.3s | 0.222 | 0.364 | 0.254 | 0.000 | 0.400 | 0.217 | 0.220 | 0.125 | 0.189 | FAIL (3 FP) | FAIL (10 FP) | 0.003 |
-| `meta-llama/llama-4-scout` | 0.220 | $0.0000 | 0.8s | 0.242 | 0.130 | 0.336 | 0.000 | 0.094 | 0.520 | 0.349 | 0.053 | 0.258 | PASS | PASS | 0.090 |
-| `deepseek/deepseek-r1-distill-llama-70b` | 0.206 | $0.5333 | 2.0s | 0.057 | 0.205 | 0.265 | 0.000 | 0.343 | 0.262 | 0.222 | 0.163 | 0.340 | FAIL (2 FP) | FAIL (10 FP) | 0.070 |
+| `meta-llama/llama-4-scout` | 0.220 | $0.0573 | 0.8s | 0.242 | 0.130 | 0.336 | 0.000 | 0.094 | 0.520 | 0.349 | 0.053 | 0.258 | PASS | PASS | 0.090 |
+| `deepseek/deepseek-r1-distill-llama-70b` | 0.206 | $0.5148 | 2.0s | 0.057 | 0.205 | 0.265 | 0.000 | 0.343 | 0.262 | 0.222 | 0.163 | 0.340 | FAIL (2 FP) | FAIL (10 FP) | 0.070 |
 | `mistralai/mistral-large-2512` | 0.202 | $0.3977 | 2.7s | 0.250 | 0.074 | 0.253 | 0.000 | 0.444 | 0.209 | 0.193 | 0.044 | 0.353 | PASS | PASS | 0.015 |
-| `nvidia/nemotron-nano-9b-v2` | 0.186 | $0.0000 | 12.3s | 0.274 | 0.069 | 0.242 | 0.000 | 0.361 | 0.238 | 0.205 | 0.044 | 0.240 | FAIL (1 FP) | PASS | 0.095 |
-| `meta-llama/llama-3.1-8b-instruct` | 0.166 | $0.1430 | 0.8s | 0.231 | 0.029 | 0.183 | 0.400 | 0.284 | 0.133 | 0.000 | 0.049 | 0.185 | PASS | PASS | 0.124 |
+| `nvidia/nemotron-nano-9b-v2` | 0.186 | $0.0598 | 12.3s | 0.274 | 0.069 | 0.242 | 0.000 | 0.361 | 0.238 | 0.205 | 0.044 | 0.240 | FAIL (1 FP) | PASS | 0.095 |
+| `meta-llama/llama-3.1-8b-instruct` | 0.166 | $0.0147 | 0.8s | 0.231 | 0.029 | 0.183 | 0.400 | 0.284 | 0.133 | 0.000 | 0.049 | 0.185 | PASS | PASS | 0.124 |
 | `cohere/command-r-plus-08-2024` | 0.136 | $1.8262 | 1.0s | 0.000 | 0.313 | 0.000 | 0.000 | 0.000 | 0.569 | 0.000 | 0.057 | 0.289 | PASS | PASS | 0.047 |
 | `openai/o4-mini` | 0.095 | $1.3462 | 7.2s | 0.147 | 0.067 | 0.080 | 0.000 | 0.133 | 0.114 | 0.180 | 0.000 | 0.133 | PASS | PASS | 0.157 |
-| `microsoft/phi-4` | 0.050 | $0.1051 | 2.3s | 0.000 | 0.056 | 0.000 | 0.000 | 0.213 | 0.033 | 0.067 | 0.079 | 0.000 | FAIL (3 FP) | FAIL (15 FP) | 0.066 |
-| `mistralai/mistral-7b-instruct-v0.1` | 0.000 | $0.0000 | 8.6s | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | PASS | PASS | 0.000 |
+| `microsoft/phi-4` | 0.050 | $0.0508 | 2.3s | 0.000 | 0.056 | 0.000 | 0.000 | 0.213 | 0.033 | 0.067 | 0.079 | 0.000 | FAIL (3 FP) | FAIL (15 FP) | 0.066 |
+| `mistralai/mistral-7b-instruct-v0.1` | 0.000 | $0.0211 | 8.6s | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | 0.000 | PASS | PASS | 0.000 |
 
 ---
 
@@ -707,9 +700,10 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 #### `qwen/qwen3.5-plus-02-15`
 
 - F1 (avg across episodes): **0.649**
-- Total cost / episode: **$0.0000**
+- Total cost / episode: **$0.8968**
 - p50 / p95 latency: 49.16s / 142.74s
 - JSON compliance: 1.00
+- JSON mode: native (100% native, 615 calls)
 - Parse failure rate: 0.2%
 - Extraction methods: `json_array_direct`: 614, `parse_failure`: 1
 - Verbosity: 547/615 calls over 1024 output tokens (88.9%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
@@ -722,6 +716,7 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 - Total cost / episode: **$4.6613**
 - p50 / p95 latency: 6.16s / 20.78s
 - JSON compliance: 0.87
+- JSON mode: native (100% native, 615 calls)
 - Parse failure rate: 0.2%
 - Extraction methods: `json_object_no_ads`: 353, `json_object_single_ad`: 261, `parse_failure`: 1
 - Verbosity: 43/615 calls over 1024 output tokens (7.0%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
@@ -734,6 +729,7 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 - Total cost / episode: **$5.5394**
 - p50 / p95 latency: 2.30s / 4.33s
 - JSON compliance: 1.00
+- JSON mode: prompt-inject (0% native, 615 calls)
 - Parse failure rate: 0.0%
 - Extraction methods: `json_array_direct`: 613, `regex_json_array`: 2
 - Verbosity: 0/615 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
@@ -746,6 +742,7 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 - Total cost / episode: **$1.8008**
 - p50 / p95 latency: 1.82s / 3.28s
 - JSON compliance: 0.80
+- JSON mode: native (100% native, 615 calls)
 - Parse failure rate: 0.0%
 - Extraction methods: `json_object_no_ads`: 211, `json_object_single_ad`: 404
 - Verbosity: 0/615 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
@@ -758,6 +755,7 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 - Total cost / episode: **$2.7901**
 - p50 / p95 latency: 13.69s / 28.07s
 - JSON compliance: 0.97
+- JSON mode: native (100% native, 615 calls)
 - Parse failure rate: 0.5%
 - Extraction methods: `json_array_direct`: 590, `parse_failure`: 3, `regex_json_array`: 22
 - Verbosity: 481/615 calls over 1024 output tokens (78.2%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
@@ -770,6 +768,7 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 - Total cost / episode: **$2.1834**
 - p50 / p95 latency: 8.10s / 22.32s
 - JSON compliance: 0.93
+- JSON mode: native (100% native, 615 calls)
 - Parse failure rate: 0.7%
 - Extraction methods: `json_object_ads_key`: 20, `json_object_no_ads`: 459, `json_object_segments_key`: 9, `json_object_single_ad`: 123, `parse_failure`: 4
 - Verbosity: 175/615 calls over 1024 output tokens (28.5%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
@@ -782,6 +781,7 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 - Total cost / episode: **$1.0593**
 - p50 / p95 latency: 3.34s / 8.36s
 - JSON compliance: 1.00
+- JSON mode: native (100% native, 615 calls)
 - Parse failure rate: 0.2%
 - Extraction methods: `json_array_direct`: 614, `parse_failure`: 1
 - Verbosity: 102/615 calls over 1024 output tokens (16.6%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
@@ -789,9 +789,10 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 #### `deepseek/deepseek-v4-flash`
 
 - F1 (avg across episodes): **0.464**
-- Total cost / episode: **$0.0000**
+- Total cost / episode: **$0.0931**
 - p50 / p95 latency: 2.98s / 33.56s
 - JSON compliance: 0.80
+- JSON mode: native (100% native, 615 calls)
 - Parse failure rate: 2.3%
 - Extraction methods: `json_array_direct`: 44, `json_object_ads_key`: 362, `json_object_no_ads`: 4, `json_object_segments_key`: 1, `json_object_single_ad`: 190, `parse_failure`: 14
 - Verbosity: 106/615 calls over 1024 output tokens (17.2%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
@@ -801,9 +802,10 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 #### `google/gemma-4-31b-it`
 
 - F1 (avg across episodes): **0.463**
-- Total cost / episode: **$0.0000**
+- Total cost / episode: **$0.0909**
 - p50 / p95 latency: 1.82s / 16.97s
 - JSON compliance: 0.86
+- JSON mode: native (100% native, 615 calls)
 - Parse failure rate: 0.0%
 - Extraction methods: `json_object_ads_key`: 332, `json_object_no_ads`: 154, `json_object_single_ad`: 128, `json_object_single_ad_truncated`: 1
 - Verbosity: 0/615 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 1 salvaged from truncated JSON (0.2%)
@@ -813,9 +815,10 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 #### `moonshotai/kimi-k2.6`
 
 - F1 (avg across episodes): **0.456**
-- Total cost / episode: **$2.0174**
+- Total cost / episode: **$1.6916**
 - p50 / p95 latency: 35.13s / 154.67s
 - JSON compliance: 0.59
+- JSON mode: native (100% native, 615 calls)
 - Parse failure rate: 25.7%
 - Extraction methods: `json_array_direct`: 44, `json_object_ads_key`: 21, `json_object_no_ads`: 91, `json_object_segments_key`: 2, `json_object_single_ad`: 296, `markdown_code_block`: 3, `parse_failure`: 158
 - Verbosity: 550/615 calls over 1024 output tokens (89.4%); 32 hit max_tokens (5.2%); 0 salvaged from truncated JSON (0.0%)
@@ -825,9 +828,10 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 #### `deepseek/deepseek-r1`
 
 - F1 (avg across episodes): **0.438**
-- Total cost / episode: **$4.4082**
+- Total cost / episode: **$0.7967**
 - p50 / p95 latency: 19.23s / 147.57s
 - JSON compliance: 0.96
+- JSON mode: native (100% native, 615 calls)
 - Parse failure rate: 1.0%
 - Extraction methods: `json_array_direct`: 539, `json_object_ads_key`: 2, `json_object_no_ads`: 15, `json_object_segments_key`: 5, `json_object_single_ad`: 36, `markdown_code_block`: 10, `parse_failure`: 6, `regex_json_array`: 2
 - Verbosity: 110/615 calls over 1024 output tokens (17.9%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
@@ -837,9 +841,10 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 #### `deepseek/deepseek-r1-0528`
 
 - F1 (avg across episodes): **0.398**
-- Total cost / episode: **$0.2395**
+- Total cost / episode: **$0.7036**
 - p50 / p95 latency: 14.93s / 85.25s
 - JSON compliance: 0.89
+- JSON mode: native (100% native, 615 calls)
 - Parse failure rate: 8.6%
 - Extraction methods: `json_array_direct`: 503, `json_object_ads_key`: 28, `json_object_no_ads`: 3, `json_object_single_ad`: 25, `json_object_single_ad_truncated`: 2, `markdown_code_block`: 1, `parse_failure`: 53
 - Verbosity: 229/615 calls over 1024 output tokens (37.2%); 7 hit max_tokens (1.1%); 2 salvaged from truncated JSON (0.3%)
@@ -849,9 +854,10 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 #### `cohere/command-a`
 
 - F1 (avg across episodes): **0.395**
-- Total cost / episode: **$0.0000**
+- Total cost / episode: **$1.8933**
 - p50 / p95 latency: 3.97s / 12.10s
 - JSON compliance: 0.71
+- JSON mode: native (100% native, 615 calls)
 - Parse failure rate: 0.0%
 - Extraction methods: `json_object_no_ads`: 17, `json_object_single_ad`: 598
 - Verbosity: 0/615 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
@@ -861,9 +867,10 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 #### `meta-llama/llama-4-maverick`
 
 - F1 (avg across episodes): **0.390**
-- Total cost / episode: **$0.0000**
+- Total cost / episode: **$0.1075**
 - p50 / p95 latency: 1.16s / 2.38s
 - JSON compliance: 0.79
+- JSON mode: native (100% native, 615 calls)
 - Parse failure rate: 0.0%
 - Extraction methods: `json_object_no_ads`: 184, `json_object_single_ad`: 431
 - Verbosity: 3/615 calls over 1024 output tokens (0.5%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
@@ -876,6 +883,7 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 - Total cost / episode: **$2.5061**
 - p50 / p95 latency: 1.58s / 5.56s
 - JSON compliance: 0.96
+- JSON mode: prompt-inject (0% native, 615 calls)
 - Parse failure rate: 0.0%
 - Extraction methods: `json_array_direct`: 567, `markdown_code_block`: 33, `regex_json_array`: 15
 - Verbosity: 0/615 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
@@ -885,9 +893,10 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 #### `nvidia/llama-3.3-nemotron-super-49b-v1.5`
 
 - F1 (avg across episodes): **0.375**
-- Total cost / episode: **$0.0000**
+- Total cost / episode: **$0.1516**
 - p50 / p95 latency: 22.79s / 85.74s
 - JSON compliance: 0.71
+- JSON mode: native (100% native, 615 calls)
 - Parse failure rate: 15.0%
 - Extraction methods: `json_array_direct`: 321, `json_object_single_ad_truncated`: 1, `markdown_code_block`: 182, `parse_failure`: 92, `regex_json_array`: 19
 - Verbosity: 338/615 calls over 1024 output tokens (55.0%); 24 hit max_tokens (3.9%); 1 salvaged from truncated JSON (0.2%)
@@ -897,9 +906,10 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 #### `mistralai/mistral-medium-3.1`
 
 - F1 (avg across episodes): **0.367**
-- Total cost / episode: **$0.0000**
+- Total cost / episode: **$0.3097**
 - p50 / p95 latency: 0.93s / 5.97s
 - JSON compliance: 1.00
+- JSON mode: native (100% native, 615 calls)
 - Parse failure rate: 0.0%
 - Extraction methods: `json_array_direct`: 615
 - Verbosity: 0/615 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
@@ -912,6 +922,7 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 - Total cost / episode: **$0.8508**
 - p50 / p95 latency: 1.29s / 3.93s
 - JSON compliance: 0.60
+- JSON mode: prompt-inject (0% native, 615 calls)
 - Parse failure rate: 0.0%
 - Extraction methods: `markdown_code_block`: 615
 - Verbosity: 0/615 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
@@ -921,9 +932,10 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 #### `meta-llama/llama-3.3-70b-instruct`
 
 - F1 (avg across episodes): **0.298**
-- Total cost / episode: **$0.4599**
+- Total cost / episode: **$0.0716**
 - p50 / p95 latency: 1.51s / 5.60s
 - JSON compliance: 0.67
+- JSON mode: native (100% native, 615 calls)
 - Parse failure rate: 21.0%
 - Extraction methods: `json_array_direct`: 117, `json_object_no_ads`: 126, `json_object_single_ad`: 242, `parse_failure`: 129, `regex_json_array`: 1
 - Verbosity: 1/615 calls over 1024 output tokens (0.2%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
@@ -936,6 +948,7 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 - Total cost / episode: **$0.2296**
 - p50 / p95 latency: 0.77s / 2.06s
 - JSON compliance: 1.00
+- JSON mode: native (100% native, 615 calls)
 - Parse failure rate: 0.0%
 - Extraction methods: `json_array_direct`: 615
 - Verbosity: 0/615 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
@@ -945,9 +958,10 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 #### `deepseek/deepseek-v3.2`
 
 - F1 (avg across episodes): **0.279**
-- Total cost / episode: **$0.4507**
+- Total cost / episode: **$0.1817**
 - p50 / p95 latency: 2.19s / 5.93s
 - JSON compliance: 0.92
+- JSON mode: native (100% native, 615 calls)
 - Parse failure rate: 0.0%
 - Extraction methods: `json_array_direct`: 440, `json_object_ads_key`: 8, `json_object_single_ad`: 167
 - Verbosity: 1/615 calls over 1024 output tokens (0.2%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
@@ -960,6 +974,7 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 - Total cost / episode: **$0.2425**
 - p50 / p95 latency: 0.93s / 3.65s
 - JSON compliance: 1.00
+- JSON mode: native (100% native, 615 calls)
 - Parse failure rate: 0.0%
 - Extraction methods: `json_array_direct`: 615
 - Verbosity: 0/615 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
@@ -972,6 +987,7 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 - Total cost / episode: **$0.3621**
 - p50 / p95 latency: 1.26s / 2.00s
 - JSON compliance: 0.70
+- JSON mode: native (100% native, 615 calls)
 - Parse failure rate: 0.0%
 - Extraction methods: `json_object_no_ads`: 9, `json_object_single_ad`: 606
 - Verbosity: 0/615 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
@@ -981,9 +997,10 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 #### `meta-llama/llama-4-scout`
 
 - F1 (avg across episodes): **0.220**
-- Total cost / episode: **$0.0000**
+- Total cost / episode: **$0.0573**
 - p50 / p95 latency: 0.84s / 3.99s
 - JSON compliance: 0.81
+- JSON mode: native (100% native, 615 calls)
 - Parse failure rate: 0.2%
 - Extraction methods: `bracket_fallback`: 30, `json_array_direct`: 4, `json_object_ads_key`: 461, `json_object_no_ads`: 56, `json_object_single_ad`: 58, `parse_failure`: 1, `regex_json_array`: 5
 - Verbosity: 1/615 calls over 1024 output tokens (0.2%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
@@ -993,9 +1010,10 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 #### `deepseek/deepseek-r1-distill-llama-70b`
 
 - F1 (avg across episodes): **0.206**
-- Total cost / episode: **$0.5333**
+- Total cost / episode: **$0.5148**
 - p50 / p95 latency: 2.00s / 25.81s
 - JSON compliance: 0.74
+- JSON mode: native (100% native, 615 calls)
 - Parse failure rate: 1.3%
 - Extraction methods: `json_array_direct`: 20, `json_object_ads_key`: 44, `json_object_no_ads`: 58, `json_object_single_ad`: 482, `json_object_single_ad_truncated`: 2, `parse_failure`: 8, `regex_json_array`: 1
 - Verbosity: 30/615 calls over 1024 output tokens (4.9%); 7 hit max_tokens (1.1%); 2 salvaged from truncated JSON (0.3%)
@@ -1008,6 +1026,7 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 - Total cost / episode: **$0.3977**
 - p50 / p95 latency: 2.73s / 6.39s
 - JSON compliance: 1.00
+- JSON mode: native (100% native, 615 calls)
 - Parse failure rate: 0.0%
 - Extraction methods: `json_array_direct`: 615
 - Verbosity: 0/615 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
@@ -1017,9 +1036,10 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 #### `nvidia/nemotron-nano-9b-v2`
 
 - F1 (avg across episodes): **0.186**
-- Total cost / episode: **$0.0000**
+- Total cost / episode: **$0.0598**
 - p50 / p95 latency: 12.29s / 37.48s
 - JSON compliance: 0.90
+- JSON mode: native (100% native, 615 calls)
 - Parse failure rate: 8.5%
 - Extraction methods: `json_array_direct`: 541, `json_object_single_ad_truncated`: 11, `parse_failure`: 52, `regex_json_array`: 11
 - Verbosity: 375/615 calls over 1024 output tokens (61.0%); 7 hit max_tokens (1.1%); 11 salvaged from truncated JSON (1.8%)
@@ -1029,9 +1049,10 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 #### `meta-llama/llama-3.1-8b-instruct`
 
 - F1 (avg across episodes): **0.166**
-- Total cost / episode: **$0.1430**
+- Total cost / episode: **$0.0147**
 - p50 / p95 latency: 0.81s / 4.09s
 - JSON compliance: 0.86
+- JSON mode: native (100% native, 615 calls)
 - Parse failure rate: 0.2%
 - Extraction methods: `json_array_direct`: 275, `json_object_no_ads`: 63, `json_object_single_ad`: 276, `parse_failure`: 1
 - Verbosity: 22/615 calls over 1024 output tokens (3.6%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
@@ -1044,6 +1065,7 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 - Total cost / episode: **$1.8262**
 - p50 / p95 latency: 0.96s / 3.45s
 - JSON compliance: 0.97
+- JSON mode: native (100% native, 615 calls)
 - Parse failure rate: 0.0%
 - Extraction methods: `json_object_ads_key`: 16, `json_object_no_ads`: 554, `json_object_single_ad`: 45
 - Verbosity: 0/615 calls over 1024 output tokens (0.0%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
@@ -1056,6 +1078,7 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 - Total cost / episode: **$1.3462**
 - p50 / p95 latency: 7.22s / 24.00s
 - JSON compliance: 0.05
+- JSON mode: native (100% native, 615 calls)
 - Parse failure rate: 93.2%
 - Extraction methods: `json_object_no_ads`: 12, `json_object_single_ad`: 30, `parse_failure`: 573
 - Verbosity: 255/615 calls over 1024 output tokens (41.5%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
@@ -1065,9 +1088,10 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 #### `microsoft/phi-4`
 
 - F1 (avg across episodes): **0.050**
-- Total cost / episode: **$0.1051**
+- Total cost / episode: **$0.0508**
 - p50 / p95 latency: 2.32s / 11.72s
 - JSON compliance: 0.86
+- JSON mode: native (100% native, 615 calls)
 - Parse failure rate: 1.0%
 - Extraction methods: `json_array_direct`: 291, `json_object_ads_key`: 29, `json_object_no_ads`: 27, `json_object_segments_key`: 19, `json_object_single_ad`: 234, `json_object_window_segments`: 2, `parse_failure`: 6, `regex_json_array`: 7
 - Verbosity: 13/615 calls over 1024 output tokens (2.1%); 6 hit max_tokens (1.0%); 0 salvaged from truncated JSON (0.0%)
@@ -1077,9 +1101,10 @@ Full per-model profile: F1 averaged across episodes, total cost per episode at c
 #### `mistralai/mistral-7b-instruct-v0.1`
 
 - F1 (avg across episodes): **0.000**
-- Total cost / episode: **$0.0000**
+- Total cost / episode: **$0.0211**
 - p50 / p95 latency: 8.58s / 34.46s
 - JSON compliance: 0.11
+- JSON mode: native (100% native, 615 calls)
 - Parse failure rate: 72.7%
 - Extraction methods: `bracket_fallback`: 1, `parse_failure`: 447, `regex_json_array`: 167
 - Verbosity: 13/615 calls over 1024 output tokens (2.1%); 0 hit max_tokens (0.0%); 0 salvaged from truncated JSON (0.0%)
@@ -1097,36 +1122,36 @@ One subsection per episode in the corpus, showing how every model performed on t
 
 | Model | Result | FP count |
 |-------|--------|----------|
-| `claude-opus-4-7` | PASS | 0 |
-| `mistralai/mistral-large-2512` | PASS | 0 |
 | `claude-haiku-4-5-20251001` | PASS | 0 |
-| `deepseek/deepseek-v3.2` | PASS | 0 |
 | `google/gemini-2.5-flash` | PASS | 0 |
+| `meta-llama/llama-3.3-70b-instruct` | PASS | 0 |
+| `deepseek/deepseek-v3.2` | PASS | 0 |
+| `x-ai/grok-4.3` | PASS | 0 |
+| `claude-sonnet-4-6` | PASS | 0 |
+| `qwen/qwen3.5-plus-02-15` | PASS | 0 |
 | `meta-llama/llama-4-scout` | PASS | 0 |
 | `cohere/command-r-plus-08-2024` | PASS | 0 |
-| `mistralai/codestral-2508` | PASS | 0 |
-| `qwen/qwen3.5-plus-02-15` | PASS | 0 |
-| `meta-llama/llama-3.1-8b-instruct` | PASS | 0 |
 | `openai/o3` | PASS | 0 |
-| `meta-llama/llama-3.3-70b-instruct` | PASS | 0 |
-| `x-ai/grok-4.3` | PASS | 0 |
-| `nvidia/llama-3.3-nemotron-super-49b-v1.5` | PASS | 0 |
-| `claude-sonnet-4-6` | PASS | 0 |
-| `mistralai/mistral-7b-instruct-v0.1` | PASS | 0 |
-| `mistralai/mistral-medium-3.1` | PASS | 0 |
+| `meta-llama/llama-3.1-8b-instruct` | PASS | 0 |
+| `claude-opus-4-7` | PASS | 0 |
+| `mistralai/mistral-large-2512` | PASS | 0 |
 | `openai/o4-mini` | PASS | 0 |
-| `google/gemma-4-31b-it` | FAIL | 1 |
-| `openai/gpt-5.4` | FAIL | 1 |
-| `deepseek/deepseek-r1` | FAIL | 1 |
-| `deepseek/deepseek-v4-flash` | FAIL | 1 |
+| `mistralai/mistral-medium-3.1` | PASS | 0 |
+| `nvidia/llama-3.3-nemotron-super-49b-v1.5` | PASS | 0 |
+| `mistralai/mistral-7b-instruct-v0.1` | PASS | 0 |
+| `mistralai/codestral-2508` | PASS | 0 |
 | `nvidia/nemotron-nano-9b-v2` | FAIL | 1 |
-| `moonshotai/kimi-k2.6` | FAIL | 1 |
+| `openai/gpt-5.4` | FAIL | 1 |
+| `google/gemma-4-31b-it` | FAIL | 1 |
 | `meta-llama/llama-4-maverick` | FAIL | 1 |
-| `openai/gpt-5.5` | FAIL | 1 |
 | `google/gemini-2.5-pro` | FAIL | 1 |
+| `moonshotai/kimi-k2.6` | FAIL | 1 |
+| `deepseek/deepseek-r1` | FAIL | 1 |
+| `openai/gpt-5.5` | FAIL | 1 |
+| `deepseek/deepseek-v4-flash` | FAIL | 1 |
 | `deepseek/deepseek-r1-distill-llama-70b` | FAIL | 2 |
-| `cohere/command-a` | FAIL | 3 |
 | `microsoft/phi-4` | FAIL | 3 |
+| `cohere/command-a` | FAIL | 3 |
 | `openai/gpt-3.5-turbo` | FAIL | 3 |
 | `deepseek/deepseek-r1-0528` | FAIL | 27 |
 
@@ -1154,8 +1179,8 @@ One subsection per episode in the corpus, showing how every model performed on t
 | `deepseek/deepseek-v4-flash` | 0.445 | 0.191 |
 | `claude-sonnet-4-6` | 0.407 | 0.128 |
 | `mistralai/codestral-2508` | 0.379 | 0.069 |
-| `deepseek/deepseek-v3.2` | 0.327 | 0.211 |
 | `meta-llama/llama-3.3-70b-instruct` | 0.327 | 0.095 |
+| `deepseek/deepseek-v3.2` | 0.327 | 0.211 |
 | `nvidia/llama-3.3-nemotron-super-49b-v1.5` | 0.299 | 0.206 |
 | `nvidia/nemotron-nano-9b-v2` | 0.274 | 0.194 |
 | `google/gemini-2.5-flash` | 0.267 | 0.000 |
@@ -1167,8 +1192,8 @@ One subsection per episode in the corpus, showing how every model performed on t
 | `mistralai/mistral-medium-3.1` | 0.162 | 0.049 |
 | `openai/o4-mini` | 0.147 | 0.202 |
 | `deepseek/deepseek-r1-distill-llama-70b` | 0.057 | 0.128 |
-| `cohere/command-r-plus-08-2024` | 0.000 | 0.000 |
 | `microsoft/phi-4` | 0.000 | 0.000 |
+| `cohere/command-r-plus-08-2024` | 0.000 | 0.000 |
 | `mistralai/mistral-7b-instruct-v0.1` | 0.000 | 0.000 |
 
 #### `ep-daily-tech-news-show-c1904b8605f7`: Switch 2 Prices Rise, Forecast Drops - DTNS 5265
@@ -1249,8 +1274,8 @@ One subsection per episode in the corpus, showing how every model performed on t
 | `mistralai/codestral-2508` | 0.231 | 0.091 |
 | `meta-llama/llama-3.1-8b-instruct` | 0.183 | 0.109 |
 | `openai/o4-mini` | 0.080 | 0.179 |
-| `cohere/command-r-plus-08-2024` | 0.000 | 0.000 |
 | `microsoft/phi-4` | 0.000 | 0.000 |
+| `cohere/command-r-plus-08-2024` | 0.000 | 0.000 |
 | `mistralai/mistral-7b-instruct-v0.1` | 0.000 | 0.000 |
 
 #### `ep-it-s-a-thing-e339179dfad6`: SOUP shots - It's a Thing 418
@@ -1261,38 +1286,38 @@ One subsection per episode in the corpus, showing how every model performed on t
 
 | Model | F1 | F1 stdev |
 |-------|----|----------|
-| `claude-opus-4-7` | 0.667 | 0.000 |
 | `qwen/qwen3.5-plus-02-15` | 0.667 | 0.000 |
-| `openai/gpt-5.5` | 0.667 | 0.000 |
 | `google/gemini-2.5-pro` | 0.667 | 0.000 |
+| `claude-opus-4-7` | 0.667 | 0.000 |
+| `openai/gpt-5.5` | 0.667 | 0.000 |
 | `openai/gpt-5.4` | 0.613 | 0.119 |
 | `google/gemma-4-31b-it` | 0.467 | 0.274 |
 | `x-ai/grok-4.3` | 0.433 | 0.253 |
 | `deepseek/deepseek-r1-0528` | 0.404 | 0.281 |
-| `deepseek/deepseek-v3.2` | 0.400 | 0.548 |
 | `cohere/command-a` | 0.400 | 0.000 |
+| `deepseek/deepseek-v3.2` | 0.400 | 0.548 |
 | `meta-llama/llama-3.1-8b-instruct` | 0.400 | 0.548 |
 | `deepseek/deepseek-v4-flash` | 0.337 | 0.239 |
 | `openai/o3` | 0.333 | 0.471 |
 | `deepseek/deepseek-r1` | 0.313 | 0.301 |
 | `nvidia/llama-3.3-nemotron-super-49b-v1.5` | 0.233 | 0.325 |
 | `moonshotai/kimi-k2.6` | 0.200 | 0.274 |
-| `mistralai/mistral-large-2512` | 0.000 | 0.000 |
+| `nvidia/nemotron-nano-9b-v2` | 0.000 | 0.000 |
 | `claude-haiku-4-5-20251001` | 0.000 | 0.000 |
 | `google/gemini-2.5-flash` | 0.000 | 0.000 |
+| `microsoft/phi-4` | 0.000 | 0.000 |
+| `meta-llama/llama-3.3-70b-instruct` | 0.000 | 0.000 |
+| `meta-llama/llama-4-maverick` | 0.000 | 0.000 |
+| `claude-sonnet-4-6` | 0.000 | 0.000 |
 | `meta-llama/llama-4-scout` | 0.000 | 0.000 |
 | `cohere/command-r-plus-08-2024` | 0.000 | 0.000 |
-| `mistralai/codestral-2508` | 0.000 | 0.000 |
-| `meta-llama/llama-3.3-70b-instruct` | 0.000 | 0.000 |
-| `nvidia/nemotron-nano-9b-v2` | 0.000 | 0.000 |
-| `claude-sonnet-4-6` | 0.000 | 0.000 |
-| `microsoft/phi-4` | 0.000 | 0.000 |
-| `meta-llama/llama-4-maverick` | 0.000 | 0.000 |
-| `mistralai/mistral-7b-instruct-v0.1` | 0.000 | 0.000 |
-| `openai/gpt-3.5-turbo` | 0.000 | 0.000 |
+| `mistralai/mistral-large-2512` | 0.000 | 0.000 |
+| `openai/o4-mini` | 0.000 | 0.000 |
 | `deepseek/deepseek-r1-distill-llama-70b` | 0.000 | 0.000 |
 | `mistralai/mistral-medium-3.1` | 0.000 | 0.000 |
-| `openai/o4-mini` | 0.000 | 0.000 |
+| `mistralai/mistral-7b-instruct-v0.1` | 0.000 | 0.000 |
+| `openai/gpt-3.5-turbo` | 0.000 | 0.000 |
+| `mistralai/codestral-2508` | 0.000 | 0.000 |
 
 #### `ep-on-air-with-dan-and-alex2-574e4f303730`: Ryanair Wants Alcohol Bans, Emirates' $6.8B Record Profit & Buying Spirit Airlines?!
 
@@ -1319,9 +1344,9 @@ One subsection per episode in the corpus, showing how every model performed on t
 | `mistralai/mistral-medium-3.1` | 0.500 | 0.000 |
 | `x-ai/grok-4.3` | 0.472 | 0.066 |
 | `mistralai/codestral-2508` | 0.469 | 0.045 |
-| `mistralai/mistral-large-2512` | 0.444 | 0.000 |
 | `google/gemini-2.5-flash` | 0.444 | 0.000 |
 | `claude-sonnet-4-6` | 0.444 | 0.000 |
+| `mistralai/mistral-large-2512` | 0.444 | 0.000 |
 | `nvidia/llama-3.3-nemotron-super-49b-v1.5` | 0.431 | 0.109 |
 | `openai/gpt-3.5-turbo` | 0.400 | 0.000 |
 | `nvidia/nemotron-nano-9b-v2` | 0.361 | 0.091 |
@@ -1343,36 +1368,36 @@ One subsection per episode in the corpus, showing how every model performed on t
 
 | Model | Result | FP count |
 |-------|--------|----------|
-| `claude-opus-4-7` | PASS | 0 |
-| `mistralai/mistral-large-2512` | PASS | 0 |
+| `nvidia/nemotron-nano-9b-v2` | PASS | 0 |
 | `claude-haiku-4-5-20251001` | PASS | 0 |
 | `google/gemini-2.5-flash` | PASS | 0 |
-| `meta-llama/llama-4-scout` | PASS | 0 |
-| `cohere/command-a` | PASS | 0 |
-| `cohere/command-r-plus-08-2024` | PASS | 0 |
-| `mistralai/codestral-2508` | PASS | 0 |
 | `google/gemma-4-31b-it` | PASS | 0 |
-| `qwen/qwen3.5-plus-02-15` | PASS | 0 |
-| `meta-llama/llama-3.1-8b-instruct` | PASS | 0 |
-| `openai/o3` | PASS | 0 |
-| `deepseek/deepseek-v4-flash` | PASS | 0 |
 | `meta-llama/llama-3.3-70b-instruct` | PASS | 0 |
-| `nvidia/nemotron-nano-9b-v2` | PASS | 0 |
-| `x-ai/grok-4.3` | PASS | 0 |
-| `nvidia/llama-3.3-nemotron-super-49b-v1.5` | PASS | 0 |
-| `claude-sonnet-4-6` | PASS | 0 |
+| `cohere/command-a` | PASS | 0 |
 | `meta-llama/llama-4-maverick` | PASS | 0 |
-| `mistralai/mistral-7b-instruct-v0.1` | PASS | 0 |
+| `x-ai/grok-4.3` | PASS | 0 |
+| `claude-sonnet-4-6` | PASS | 0 |
+| `qwen/qwen3.5-plus-02-15` | PASS | 0 |
+| `meta-llama/llama-4-scout` | PASS | 0 |
+| `cohere/command-r-plus-08-2024` | PASS | 0 |
+| `openai/o3` | PASS | 0 |
+| `meta-llama/llama-3.1-8b-instruct` | PASS | 0 |
+| `claude-opus-4-7` | PASS | 0 |
+| `mistralai/mistral-large-2512` | PASS | 0 |
+| `openai/o4-mini` | PASS | 0 |
 | `openai/gpt-5.5` | PASS | 0 |
 | `mistralai/mistral-medium-3.1` | PASS | 0 |
-| `openai/o4-mini` | PASS | 0 |
+| `nvidia/llama-3.3-nemotron-super-49b-v1.5` | PASS | 0 |
+| `deepseek/deepseek-v4-flash` | PASS | 0 |
+| `mistralai/mistral-7b-instruct-v0.1` | PASS | 0 |
+| `mistralai/codestral-2508` | PASS | 0 |
 | `openai/gpt-5.4` | FAIL | 1 |
-| `deepseek/deepseek-r1` | FAIL | 1 |
 | `google/gemini-2.5-pro` | FAIL | 1 |
+| `deepseek/deepseek-r1` | FAIL | 1 |
 | `deepseek/deepseek-v3.2` | FAIL | 2 |
 | `moonshotai/kimi-k2.6` | FAIL | 4 |
-| `openai/gpt-3.5-turbo` | FAIL | 10 |
 | `deepseek/deepseek-r1-distill-llama-70b` | FAIL | 10 |
+| `openai/gpt-3.5-turbo` | FAIL | 10 |
 | `deepseek/deepseek-r1-0528` | FAIL | 12 |
 | `microsoft/phi-4` | FAIL | 15 |
 
@@ -1427,8 +1452,8 @@ One subsection per episode in the corpus, showing how every model performed on t
 |-------|----|----------|
 | `claude-sonnet-4-6` | 0.836 | 0.048 |
 | `openai/gpt-5.5` | 0.776 | 0.081 |
-| `qwen/qwen3.5-plus-02-15` | 0.771 | 0.048 |
 | `x-ai/grok-4.3` | 0.771 | 0.048 |
+| `qwen/qwen3.5-plus-02-15` | 0.771 | 0.048 |
 | `claude-opus-4-7` | 0.733 | 0.037 |
 | `openai/o3` | 0.698 | 0.273 |
 | `claude-haiku-4-5-20251001` | 0.600 | 0.000 |
@@ -1496,8 +1521,8 @@ One subsection per episode in the corpus, showing how every model performed on t
 | `meta-llama/llama-3.1-8b-instruct` | 0.049 | 0.019 |
 | `nvidia/nemotron-nano-9b-v2` | 0.044 | 0.061 |
 | `mistralai/mistral-large-2512` | 0.044 | 0.025 |
-| `mistralai/mistral-7b-instruct-v0.1` | 0.000 | 0.000 |
 | `openai/o4-mini` | 0.000 | 0.000 |
+| `mistralai/mistral-7b-instruct-v0.1` | 0.000 | 0.000 |
 
 #### `ep-tosh-show-5f6894439bb6`: My Mom - Emergency Pod
 
@@ -1547,29 +1572,29 @@ How each model's responses were actually parsed. Columns are extraction methods,
 
 | Model | bracket_fallback | json_array_direct | json_object_ads_key | json_object_no_ads | json_object_segments_key | json_object_single_ad | json_object_single_ad_truncated | json_object_window_segments | markdown_code_block | parse_failure | regex_json_array |
 |---|---|---|---|---|---|---|---|---|---|---|---|
+| `claude-haiku-4-5-20251001` | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 615 | 0 | 0 |
+| `google/gemini-2.5-flash` | 0 | 615 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
+| `openai/gpt-5.4` | 0 | 0 | 0 | 211 | 0 | 404 | 0 | 0 | 0 | 0 | 0 |
+| `google/gemma-4-31b-it` | 0 | 0 | 332 | 154 | 0 | 128 | 1 | 0 | 0 | 0 | 0 |
+| `cohere/command-a` | 0 | 0 | 0 | 17 | 0 | 598 | 0 | 0 | 0 | 0 | 0 |
+| `deepseek/deepseek-v3.2` | 0 | 440 | 8 | 0 | 0 | 167 | 0 | 0 | 0 | 0 | 0 |
+| `meta-llama/llama-4-maverick` | 0 | 0 | 0 | 184 | 0 | 431 | 0 | 0 | 0 | 0 | 0 |
+| `claude-sonnet-4-6` | 0 | 567 | 0 | 0 | 0 | 0 | 0 | 0 | 33 | 0 | 15 |
+| `cohere/command-r-plus-08-2024` | 0 | 0 | 16 | 554 | 0 | 45 | 0 | 0 | 0 | 0 | 0 |
 | `claude-opus-4-7` | 0 | 613 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 2 |
 | `mistralai/mistral-large-2512` | 0 | 615 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `claude-haiku-4-5-20251001` | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 615 | 0 | 0 |
-| `deepseek/deepseek-v3.2` | 0 | 440 | 8 | 0 | 0 | 167 | 0 | 0 | 0 | 0 | 0 |
-| `google/gemini-2.5-flash` | 0 | 615 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `cohere/command-a` | 0 | 0 | 0 | 17 | 0 | 598 | 0 | 0 | 0 | 0 | 0 |
-| `cohere/command-r-plus-08-2024` | 0 | 0 | 16 | 554 | 0 | 45 | 0 | 0 | 0 | 0 | 0 |
-| `mistralai/codestral-2508` | 0 | 615 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `google/gemma-4-31b-it` | 0 | 0 | 332 | 154 | 0 | 128 | 1 | 0 | 0 | 0 | 0 |
-| `openai/gpt-5.4` | 0 | 0 | 0 | 211 | 0 | 404 | 0 | 0 | 0 | 0 | 0 |
-| `claude-sonnet-4-6` | 0 | 567 | 0 | 0 | 0 | 0 | 0 | 0 | 33 | 0 | 15 |
-| `meta-llama/llama-4-maverick` | 0 | 0 | 0 | 184 | 0 | 431 | 0 | 0 | 0 | 0 | 0 |
-| `openai/gpt-3.5-turbo` | 0 | 0 | 0 | 9 | 0 | 606 | 0 | 0 | 0 | 0 | 0 |
 | `mistralai/mistral-medium-3.1` | 0 | 615 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
-| `meta-llama/llama-4-scout` | 30 | 4 | 461 | 56 | 0 | 58 | 0 | 0 | 0 | 1 | 5 |
-| `qwen/qwen3.5-plus-02-15` | 0 | 614 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 |
-| `meta-llama/llama-3.1-8b-instruct` | 0 | 275 | 0 | 63 | 0 | 276 | 0 | 0 | 0 | 1 | 0 |
+| `openai/gpt-3.5-turbo` | 0 | 0 | 0 | 9 | 0 | 606 | 0 | 0 | 0 | 0 | 0 |
+| `mistralai/codestral-2508` | 0 | 615 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 | `x-ai/grok-4.3` | 0 | 614 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 |
+| `qwen/qwen3.5-plus-02-15` | 0 | 614 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 |
+| `meta-llama/llama-4-scout` | 30 | 4 | 461 | 56 | 0 | 58 | 0 | 0 | 0 | 1 | 5 |
+| `meta-llama/llama-3.1-8b-instruct` | 0 | 275 | 0 | 63 | 0 | 276 | 0 | 0 | 0 | 1 | 0 |
 | `openai/gpt-5.5` | 0 | 0 | 0 | 353 | 0 | 261 | 0 | 0 | 0 | 1 | 0 |
 | `google/gemini-2.5-pro` | 0 | 590 | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 3 | 22 |
 | `openai/o3` | 0 | 0 | 20 | 459 | 9 | 123 | 0 | 0 | 0 | 4 | 0 |
-| `deepseek/deepseek-r1` | 0 | 539 | 2 | 15 | 5 | 36 | 0 | 0 | 10 | 6 | 2 |
 | `microsoft/phi-4` | 0 | 291 | 29 | 27 | 19 | 234 | 0 | 2 | 0 | 6 | 7 |
+| `deepseek/deepseek-r1` | 0 | 539 | 2 | 15 | 5 | 36 | 0 | 0 | 10 | 6 | 2 |
 | `deepseek/deepseek-r1-distill-llama-70b` | 0 | 20 | 44 | 58 | 0 | 482 | 2 | 0 | 0 | 8 | 1 |
 | `deepseek/deepseek-v4-flash` | 0 | 44 | 362 | 4 | 1 | 190 | 0 | 0 | 0 | 14 | 0 |
 | `nvidia/nemotron-nano-9b-v2` | 0 | 541 | 0 | 0 | 0 | 0 | 11 | 0 | 0 | 52 | 11 |
@@ -1588,7 +1613,7 @@ Reproducibility settings used for this run. The benchmark sends the same prompts
 - max_tokens: 4096 (matches MinusPod production)
 - response_format: json_object (with prompt-injection fallback when provider rejects native)
 - Window size: 10 min, overlap: 3 min (imported from MinusPod's create_windows)
-- Pricing snapshot: 2026-05-09T22:50:45.889333Z
+- Pricing snapshot: 2026-05-20T18:13:10.073288Z
 - Corpus episodes: 11
 
 ## Transcript source
@@ -1623,138 +1648,137 @@ model.transcribe(
 
 The `initial_prompt` carries a sponsor vocabulary so Whisper produces consistent spellings (`Athletic Greens` rather than `AG1`, `ExpressVPN` rather than `express vpn`). This biases what shows up in the transcript and therefore what every benchmarked LLM is scored against.
 
-**Sponsor vocabulary** (255 canonical sponsors, 44 of them with explicit alias spellings totaling 48 aliases; from `src/utils/constants.py` `SEED_SPONSORS`). Laid out in two side-by-side groups, read top-to-bottom in each group.
+**Sponsor vocabulary** (254 canonical sponsors, 43 of them with explicit alias spellings totaling 46 aliases; from `src/utils/constants.py` `SEED_SPONSORS`). Laid out in two side-by-side groups, read top-to-bottom in each group.
 
 | Sponsor | Aliases | Category | Sponsor | Aliases | Category |
 |---|---|---|---|---|---|
-| 1Password | `One Password` | tech | MacPaw | `CleanMyMac` | tech |
-| Acorns | - | finance | Magic Mind | - | beverage |
-| ADT | - | home | Magic Spoon | - | food |
-| Affirm | - | finance_fintech | Mailchimp | - | tech_software_saas |
-| Airbnb | - | travel_hospitality | Manscaped | - | personal |
-| Airtable | - | tech_software_saas | MasterClass | `Master Class` | education |
-| Alani Nu | - | food_beverage_nutrition | McDonald's | - | food_beverage_nutrition |
-| Allbirds | - | ecommerce_retail_dtc | Mercury | - | finance_fintech |
-| Alo Yoga | - | ecommerce_retail_dtc | Meter | - | b2b_startup |
-| Amazon | - | retail | Midjourney | - | tech_software_saas |
-| Anthropic | - | tech_software_saas | Mint Mobile | `MintMobile` | telecom |
-| Apple TV+ | - | media_streaming | Miro | - | tech |
-| Asana | - | tech_software_saas | Momentous | - | mental_health_wellness |
-| AT&T | - | telecom | Monarch Money | - | finance |
-| Athletic Brewing | - | beverage | Monday.com | `Monday` | tech |
-| Athletic Greens | `AG1`, `AG One` | health | Native | - | personal |
-| Audible | - | entertainment | NerdWallet | - | finance_fintech |
-| Aura | - | tech | Netflix | - | media_streaming |
-| Babbel | - | education | NetSuite | `Net Suite` | tech |
-| BetMGM | `Bet MGM` | gambling | Noom | - | mental_health_wellness |
-| BetterHelp | `Better Help` | health | NordVPN | `Nord VPN` | vpn |
-| Betterment | - | finance | Notion | - | tech |
-| Bill.com | - | finance_fintech | Nutrafol | - | health |
-| Birchbox | - | ecommerce_retail_dtc | Okta | - | tech_software_saas |
-| Bitwarden | `Bit Warden` | tech | OLIPOP | - | food_beverage_nutrition |
-| Blinkist | - | education | OneSkin | `One Skin` | personal |
-| Bloom Nutrition | - | food_beverage_nutrition | OpenAI | - | tech_software_saas |
-| Blue Apron | - | food | Outdoor Voices | - | ecommerce_retail_dtc |
-| Bombas | - | apparel | OutSystems | - | tech |
-| Booking.com | - | travel_hospitality | PagerDuty | - | b2b_startup |
-| Bose | - | electronics | Paramount+ | - | media_streaming |
-| Brex | - | finance_fintech | Patreon | - | tech_software_saas |
-| Brilliant | - | tech_software_saas | Perplexity | - | tech_software_saas |
-| Brooklinen | - | home | Plaid | - | finance_fintech |
-| Butcher Box | `ButcherBox` | food | PolicyGenius | `Policy Genius` | finance |
-| CacheFly | - | tech | Poppi | - | food_beverage_nutrition |
-| Caesars Sportsbook | - | gaming_sports_betting | Poshmark | - | ecommerce_retail_dtc |
-| Calm | - | health | Progressive | - | finance |
-| Canva | - | tech | Public.com | - | finance_fintech |
-| Capital One | - | finance | Pura | - | home_security |
-| Care/of | `Care of`, `Careof` | health | Purple | - | home |
-| CarMax | `Car Max` | auto | QuickBooks | - | finance_fintech |
-| Carvana | - | auto | Quince | - | apparel |
-| Casper | - | home | Quip | - | personal |
-| Cerebral | - | mental_health_wellness | Ramp | - | finance_fintech |
-| Chime | - | finance_fintech | Raycon | - | electronics |
-| ClickUp | - | tech_software_saas | Retool | - | tech_software_saas |
-| Cloudflare | - | tech_software_saas | Ring | - | home |
-| Coinbase | - | finance_fintech | Rippling | - | b2b_startup |
-| Comcast | - | telecom | Ritual | - | health |
-| Cozy Earth | - | home | Ro | - | mental_health_wellness |
-| Credit Karma | - | finance | Robinhood | - | finance_fintech |
-| CrowdStrike | - | tech_software_saas | Rocket Lawyer | - | insurance_legal |
-| Cursor | - | tech_software_saas | Rocket Money | `RocketMoney`, `Truebill` | finance |
-| Databricks | - | tech_software_saas | Roman | - | health |
-| Datadog | - | tech_software_saas | Rosetta Stone | - | education |
-| Deel | - | business | Rothy's | - | ecommerce_retail_dtc |
-| DeleteMe | `Delete Me` | tech | Saatva | - | ecommerce_retail_dtc |
-| Disney+ | - | media_streaming | Salesforce | - | tech_software_saas |
-| DocuSign | - | tech_software_saas | SeatGeek | - | gaming_sports_betting |
-| Dollar Shave Club | `DSC` | personal | Seed | - | health |
-| DoorDash | `Door Dash` | food | SendGrid | - | tech_software_saas |
-| DraftKings | `Draft Kings` | gambling | ServiceNow | - | tech_software_saas |
-| Duolingo | - | tech_software_saas | Shein | - | ecommerce_retail_dtc |
-| eBay Motors | - | auto | Shopify | - | tech |
-| Eight Sleep | - | mental_health_wellness | SimpliSafe | `Simpli Safe` | home |
-| ElevenLabs | - | tech_software_saas | SiriusXM | - | media_streaming |
-| ESPN Bet | - | gaming_sports_betting | Skillshare | - | tech_software_saas |
-| Everlane | - | ecommerce_retail_dtc | SKIMS | - | ecommerce_retail_dtc |
-| EveryPlate | - | food_beverage_nutrition | Skyscanner | - | travel_hospitality |
-| Expedia | - | travel_hospitality | Slack | - | tech_software_saas |
-| ExpressVPN | `Express VPN` | vpn | Snowflake | - | tech_software_saas |
-| FabFitFun | - | ecommerce_retail_dtc | SoFi | - | finance |
-| Factor | - | food | Spaceship | - | tech |
-| FanDuel | `Fan Duel` | gambling | Splunk | - | b2b_startup |
-| Figma | - | tech_software_saas | Spotify | - | media_streaming |
-| Ford | - | auto | Squarespace | `Square Space` | tech |
-| Framer | - | tech | Stamps.com | `Stamps` | business |
-| FreshBooks | - | finance_fintech | Starbucks | - | food_beverage_nutrition |
-| Function Health | - | mental_health_wellness | State Farm | - | finance |
-| Function of Beauty | - | personal | Stitch Fix | - | ecommerce_retail_dtc |
-| Gametime | `Game Time` | entertainment | StockX | - | ecommerce_retail_dtc |
-| Geico | - | finance | Stripe | - | finance_fintech |
-| GitHub | - | tech_software_saas | StubHub | - | gaming_sports_betting |
-| GitHub Copilot | - | tech_software_saas | Substack | - | tech_software_saas |
-| GOAT | - | ecommerce_retail_dtc | T-Mobile | `TMobile` | telecom |
-| GoodRx | `Good Rx` | health | Talkspace | - | mental_health_wellness |
-| Gopuff | - | ecommerce_retail_dtc | Temu | - | ecommerce_retail_dtc |
-| Grammarly | - | tech | Ten Thousand | - | ecommerce_retail_dtc |
-| Green Chef | `GreenChef` | food | Thinkst Canary | - | tech |
-| Grubhub | `Grub Hub` | food | Thorne | - | mental_health_wellness |
-| Gusto | - | b2b_startup | ThreatLocker | - | tech |
-| Harry's | `Harrys` | personal | ThredUp | - | ecommerce_retail_dtc |
-| HBO Max | - | media_streaming | Thrive Market | - | food |
-| Headspace | `Head Space` | health | Toyota | - | auto |
-| Helix Sleep | `Helix` | home | Transparent Labs | - | food_beverage_nutrition |
-| HelloFresh | `Hello Fresh` | food | Turo | - | automotive_transport |
-| Hers | - | health | Twilio | - | tech_software_saas |
-| Hims | - | health | Uber | - | automotive_transport |
-| Honeylove | `Honey Love` | apparel | Uber Eats | `UberEats` | food |
-| Hopper | - | travel_hospitality | UnitedHealth Group | - | finance_fintech |
-| HubSpot | `Hub Spot` | tech | Vanta | - | tech |
-| Huel | - | food_beverage_nutrition | Veeam | - | tech |
-| Hyundai | - | auto | Vercel | - | tech_software_saas |
-| iHeartRadio | - | media_streaming | Verizon | - | telecom |
-| Imperfect Foods | - | food_beverage_nutrition | Visible | - | telecom |
-| Incogni | - | tech | Vrbo | - | travel_hospitality |
-| Indeed | - | jobs | Vuori | - | ecommerce_retail_dtc |
-| Inside Tracker | - | mental_health_wellness | Warby Parker | - | ecommerce_retail_dtc |
-| Instacart | - | food | Wayfair | - | ecommerce_retail_dtc |
-| Intuit | - | finance_fintech | Waymo | - | automotive_transport |
-| Joovv | - | mental_health_wellness | Wealthfront | - | finance |
-| Kayak | - | travel_hospitality | WebBank | - | finance_fintech |
-| Keeps | - | health | Webflow | - | b2b_startup |
-| Klarna | - | finance_fintech | WhatsApp | - | tech |
-| Klaviyo | - | tech_software_saas | WHOOP | - | mental_health_wellness |
-| LegalZoom | - | insurance_legal | Workday | - | tech_software_saas |
-| Lemonade | - | finance | Xero | - | finance_fintech |
-| Levels | - | mental_health_wellness | YouTube | - | media_streaming |
-| Liberty Mutual | - | finance | YouTube TV | - | media_streaming |
-| Lime | - | automotive_transport | Zapier | - | tech |
-| Linear | - | tech_software_saas | Zendesk | - | tech_software_saas |
-| LinkedIn | `LinkedIn Jobs` | jobs | ZipRecruiter | `Zip Recruiter` | jobs |
-| Liquid IV | `Liquid I.V.` | health | ZocDoc | `Zoc Doc` | health |
-| LMNT | `Element` | health | Zoom | - | tech_software_saas |
-| Loom | - | tech_software_saas | Zscaler | - | tech |
-| Lululemon | - | ecommerce_retail_dtc | Zyn | `ZYN`, `Zinn` | tobacco_nicotine |
-| Lyft | - | automotive_transport |  |  |  |
+| 1Password | `One Password` | tech | Lyft | - | automotive_transport |
+| Acorns | - | finance | MacPaw | `CleanMyMac` | tech |
+| ADT | - | home | Magic Mind | - | beverage |
+| Affirm | - | finance_fintech | Magic Spoon | - | food |
+| Airbnb | - | travel_hospitality | Mailchimp | - | tech_software_saas |
+| Airtable | - | tech_software_saas | Manscaped | - | personal |
+| Alani Nu | - | food_beverage_nutrition | MasterClass | `Master Class` | education |
+| Allbirds | - | ecommerce_retail_dtc | McDonald's | - | food_beverage_nutrition |
+| Alo Yoga | - | ecommerce_retail_dtc | Mercury | - | finance_fintech |
+| Amazon | - | retail | Meter | - | b2b_startup |
+| Anthropic | - | tech_software_saas | Midjourney | - | tech_software_saas |
+| Apple TV+ | - | media_streaming | Mint Mobile | `MintMobile` | telecom |
+| Asana | - | tech_software_saas | Miro | - | tech |
+| AT&T | - | telecom | Momentous | - | mental_health_wellness |
+| Athletic Brewing | - | beverage | Monarch Money | - | finance |
+| Athletic Greens | `AG1`, `AG One` | health | Monday.com | `Monday` | tech |
+| Audible | - | entertainment | Native | - | personal |
+| Aura | - | tech | NerdWallet | - | finance_fintech |
+| Babbel | - | education | Netflix | - | media_streaming |
+| BetMGM | `Bet MGM` | gambling | NetSuite | `Net Suite` | tech |
+| BetterHelp | `Better Help` | health | Noom | - | mental_health_wellness |
+| Betterment | - | finance | NordVPN | `Nord VPN` | vpn |
+| Bill.com | - | finance_fintech | Notion | - | tech |
+| Birchbox | - | ecommerce_retail_dtc | Nutrafol | - | health |
+| Bitwarden | `Bit Warden` | tech | Okta | - | tech_software_saas |
+| Blinkist | - | education | OLIPOP | - | food_beverage_nutrition |
+| Bloom Nutrition | - | food_beverage_nutrition | OneSkin | `One Skin` | personal |
+| Blue Apron | - | food | OpenAI | - | tech_software_saas |
+| Bombas | - | apparel | Outdoor Voices | - | ecommerce_retail_dtc |
+| Booking.com | - | travel_hospitality | OutSystems | - | tech |
+| Bose | - | electronics | PagerDuty | - | b2b_startup |
+| Brex | - | finance_fintech | Paramount+ | - | media_streaming |
+| Brilliant | - | tech_software_saas | Patreon | - | tech_software_saas |
+| Brooklinen | - | home | Perplexity | - | tech_software_saas |
+| Butcher Box | `ButcherBox` | food | Plaid | - | finance_fintech |
+| CacheFly | - | tech | PolicyGenius | `Policy Genius` | finance |
+| Caesars Sportsbook | - | gaming_sports_betting | Poppi | - | food_beverage_nutrition |
+| Calm | - | health | Poshmark | - | ecommerce_retail_dtc |
+| Canva | - | tech | Progressive | - | finance |
+| Capital One | - | finance | Public.com | - | finance_fintech |
+| Care/of | `Care of`, `Careof` | health | Pura | - | home_security |
+| CarMax | `Car Max` | auto | Purple | - | home |
+| Carvana | - | auto | QuickBooks | - | finance_fintech |
+| Casper | - | home | Quince | - | apparel |
+| Cerebral | - | mental_health_wellness | Quip | - | personal |
+| Chime | - | finance_fintech | Ramp | - | finance_fintech |
+| ClickUp | - | tech_software_saas | Raycon | - | electronics |
+| Cloudflare | - | tech_software_saas | Retool | - | tech_software_saas |
+| Coinbase | - | finance_fintech | Ring | - | home |
+| Comcast | - | telecom | Rippling | - | b2b_startup |
+| Cozy Earth | - | home | Ritual | - | health |
+| Credit Karma | - | finance | Ro | - | mental_health_wellness |
+| CrowdStrike | - | tech_software_saas | Robinhood | - | finance_fintech |
+| Cursor | - | tech_software_saas | Rocket Lawyer | - | insurance_legal |
+| Databricks | - | tech_software_saas | Rocket Money | `RocketMoney`, `Truebill` | finance |
+| Datadog | - | tech_software_saas | Roman | - | health |
+| Deel | - | business | Rosetta Stone | - | education |
+| DeleteMe | `Delete Me` | tech | Rothy's | - | ecommerce_retail_dtc |
+| Disney+ | - | media_streaming | Saatva | - | ecommerce_retail_dtc |
+| DocuSign | - | tech_software_saas | Salesforce | - | tech_software_saas |
+| Dollar Shave Club | `DSC` | personal | SeatGeek | - | gaming_sports_betting |
+| DoorDash | `Door Dash` | food | Seed | - | health |
+| DraftKings | `Draft Kings` | gambling | SendGrid | - | tech_software_saas |
+| Duolingo | - | tech_software_saas | ServiceNow | - | tech_software_saas |
+| eBay Motors | - | auto | Shein | - | ecommerce_retail_dtc |
+| Eight Sleep | - | mental_health_wellness | Shopify | - | tech |
+| ElevenLabs | - | tech_software_saas | SimpliSafe | `Simpli Safe` | home |
+| ESPN Bet | - | gaming_sports_betting | SiriusXM | - | media_streaming |
+| Everlane | - | ecommerce_retail_dtc | Skillshare | - | tech_software_saas |
+| EveryPlate | - | food_beverage_nutrition | SKIMS | - | ecommerce_retail_dtc |
+| Expedia | - | travel_hospitality | Skyscanner | - | travel_hospitality |
+| ExpressVPN | `Express VPN` | vpn | Slack | - | tech_software_saas |
+| FabFitFun | - | ecommerce_retail_dtc | Snowflake | - | tech_software_saas |
+| Factor | - | food | SoFi | - | finance |
+| FanDuel | `Fan Duel` | gambling | Spaceship | - | tech |
+| Figma | - | tech_software_saas | Splunk | - | b2b_startup |
+| Ford | - | auto | Spotify | - | media_streaming |
+| Framer | - | tech | Squarespace | `Square Space` | tech |
+| FreshBooks | - | finance_fintech | Stamps.com | `Stamps` | business |
+| Function Health | - | mental_health_wellness | Starbucks | - | food_beverage_nutrition |
+| Function of Beauty | - | personal | State Farm | - | finance |
+| Gametime | `Game Time` | entertainment | Stitch Fix | - | ecommerce_retail_dtc |
+| Geico | - | finance | StockX | - | ecommerce_retail_dtc |
+| GitHub | - | tech_software_saas | Stripe | - | finance_fintech |
+| GitHub Copilot | - | tech_software_saas | StubHub | - | gaming_sports_betting |
+| GOAT | - | ecommerce_retail_dtc | Substack | - | tech_software_saas |
+| GoodRx | `Good Rx` | health | T-Mobile | `TMobile` | telecom |
+| Gopuff | - | ecommerce_retail_dtc | Talkspace | - | mental_health_wellness |
+| Grammarly | - | tech | Temu | - | ecommerce_retail_dtc |
+| Green Chef | `GreenChef` | food | Ten Thousand | - | ecommerce_retail_dtc |
+| Grubhub | `Grub Hub` | food | Thinkst Canary | - | tech |
+| Gusto | - | b2b_startup | Thorne | - | mental_health_wellness |
+| Harry's | `Harrys` | personal | ThreatLocker | - | tech |
+| HBO Max | - | media_streaming | ThredUp | - | ecommerce_retail_dtc |
+| Headspace | `Head Space` | health | Thrive Market | - | food |
+| Helix Sleep | `Helix` | home | Toyota | - | auto |
+| HelloFresh | `Hello Fresh` | food | Transparent Labs | - | food_beverage_nutrition |
+| Hers | - | health | Turo | - | automotive_transport |
+| Hims | - | health | Twilio | - | tech_software_saas |
+| Honeylove | `Honey Love` | apparel | Uber | - | automotive_transport |
+| Hopper | - | travel_hospitality | Uber Eats | `UberEats` | food |
+| HubSpot | `Hub Spot` | tech | UnitedHealth Group | - | finance_fintech |
+| Huel | - | food_beverage_nutrition | Vanta | - | tech |
+| Hyundai | - | auto | Veeam | - | tech |
+| iHeartRadio | - | media_streaming | Vercel | - | tech_software_saas |
+| Imperfect Foods | - | food_beverage_nutrition | Verizon | - | telecom |
+| Incogni | - | tech | Visible | - | telecom |
+| Indeed | - | jobs | Vrbo | - | travel_hospitality |
+| Inside Tracker | - | mental_health_wellness | Vuori | - | ecommerce_retail_dtc |
+| Instacart | - | food | Warby Parker | - | ecommerce_retail_dtc |
+| Intuit | - | finance_fintech | Wayfair | - | ecommerce_retail_dtc |
+| Joovv | - | mental_health_wellness | Waymo | - | automotive_transport |
+| Kayak | - | travel_hospitality | Wealthfront | - | finance |
+| Keeps | - | health | WebBank | - | finance_fintech |
+| Klarna | - | finance_fintech | Webflow | - | b2b_startup |
+| Klaviyo | - | tech_software_saas | WhatsApp | - | tech |
+| LegalZoom | - | insurance_legal | WHOOP | - | mental_health_wellness |
+| Lemonade | - | finance | Workday | - | tech_software_saas |
+| Levels | - | mental_health_wellness | Xero | - | finance_fintech |
+| Liberty Mutual | - | finance | YouTube | - | media_streaming |
+| Lime | - | automotive_transport | YouTube TV | - | media_streaming |
+| Linear | - | tech_software_saas | Zapier | - | tech |
+| LinkedIn | `LinkedIn Jobs` | jobs | Zendesk | - | tech_software_saas |
+| Liquid IV | `Liquid I.V.` | health | ZipRecruiter | `Zip Recruiter` | jobs |
+| LMNT | `Element` | health | ZocDoc | `Zoc Doc` | health |
+| Loom | - | tech_software_saas | Zoom | - | tech_software_saas |
+| Lululemon | - | ecommerce_retail_dtc | Zscaler | - | tech |
 
 **Mishearing corrections** (174 entries, from `src/utils/constants.py` `SPONSOR_ALIASES`). Applied post-transcription to normalize Whisper output toward the canonical sponsor name. Distinct from the `aliases` column above, which lists intentional alternative spellings (e.g. `AG1` vs `Athletic Greens`); the entries below are mostly Whisper mishearings (e.g. `a firm` -> `Affirm`, `xerox` -> `Xero`). Laid out in three side-by-side groups, read top-to-bottom in each group.
 
@@ -1821,10 +1845,10 @@ The `initial_prompt` carries a sponsor vocabulary so Whisper produces consistent
 
 ## Run Metadata
 
-- Report generated: 2026-05-16T02:54:07Z
+- Report generated: 2026-05-20T18:17:31Z
 - Unique work units (current state, last-write-wins after retries): 19680
 - Raw rows in calls.jsonl: 19712 (32 superseded by later retries; kept for audit)
 - Successful: 19680
 - Failed: 0
 - Lifetime actual spend (sum of at-runtime costs, includes superseded rows): $170.9210
-- Active pricing snapshot: 2026-05-09T22:50:45.889333Z
+- Active pricing snapshot: 2026-05-20T18:13:10.073288Z
