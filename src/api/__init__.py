@@ -57,7 +57,7 @@ limiter = Limiter(
 def init_limiter(app):
     """Initialize rate limiter with Flask app."""
     limiter.init_app(app)
-    logger.info("Rate limiter initialized: 200/min, 1000/hr default limits")
+    logger.debug("Rate limiter initialized: 200/min, 1000/hr default limits")
 
 
 # Paths that don't require authentication. Every entry is an exact match;

@@ -92,7 +92,7 @@ class SchemaMixin:
         if is_existing_db:
             # For existing databases, only create new tables and run migrations
             # Don't run full SCHEMA_SQL as indexes may reference columns that don't exist yet
-            logger.info(f"Existing database found at {self.db_path}, running migrations...")
+            logger.debug(f"Existing database found at {self.db_path}, running migrations...")
             self._create_new_tables_only(conn)
             self._run_schema_migrations()
         else:
@@ -105,6 +105,10 @@ class SchemaMixin:
 
     def _create_new_tables_only(self, conn):
         """Create new tables for existing databases without running indexes."""
+        # Sentinel: ad_reviewer_log is the last table created in this block.
+        # If it already exists, every other CREATE IF NOT EXISTS below is a
+        # no-op too, so we can skip the boot "Created new tables..." log.
+        sentinel_existed = self._table_exists(conn, 'ad_reviewer_log')
         # Create ad_patterns table if not exists (must match SCHEMA_SQL exactly)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS ad_patterns (
@@ -277,7 +281,8 @@ class SchemaMixin:
         )
 
         conn.commit()
-        logger.info("Created new tables for cross-episode training and processing history")
+        if not sentinel_existed:
+            logger.info("Created new tables for cross-episode training and processing history")
 
     def _add_column_if_missing(self, conn, table: str, column: str,
                                definition: str, existing_columns: set) -> bool:

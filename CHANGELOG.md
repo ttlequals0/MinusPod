@@ -6,6 +6,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.13] - 2026-05-20
+
+### Changed
+
+- **Boot banners now fire once per restart, not once per worker.** Gunicorn runs 2 workers; on the previous code every banner (`MinusPod v... starting`, `BASE_URL`, `LLM endpoint verified`, `LLM provider verified`, `OpenAI-compatible client initialized`, `Verifying LLM endpoint`, `Registered signal handlers`, `Web UI available`, `Pattern catalog`, `Rate limiter initialized`, `ProxyFix enabled`, `Existing database found ... running migrations`, `Created new tables for cross-episode training and processing history`) printed in both worker processes. The leader/follower gate already used for background-thread ownership now also gates the operator-facing banners. The follower emits one DEBUG line. Per-config banners that aren't operator-actionable (`Pattern catalog`, `Rate limiter initialized`, `ProxyFix enabled`, `Registered signal handlers`) drop to DEBUG entirely.
+- **`Created new tables for cross-episode training and processing history`** is now gated on a sentinel check: the line only logs when `ad_reviewer_log` did not exist on this boot. Most boots it already does, so the line stays silent.
+- **`Existing database found at ..., running migrations`** demoted to DEBUG. It fires every boot regardless of whether any migration produced a change.
+- **`verify_llm_connection()` runs on the leader only.** All workers share the same host and network reachability, so the second verification request and the four duplicate INFO lines it produced were waste.
+- **Periodic search index rebuild no longer logs twice.** The `rebuild_search_index()` method itself already emits `Search index rebuilt with N items`; the caller in `background.py` was emitting a near-identical `Periodic search index rebuild: N items indexed` immediately after. Caller's redundant log line removed.
+
 ## [2.5.12] - 2026-05-20
 
 ### Changed
