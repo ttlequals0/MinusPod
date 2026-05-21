@@ -975,6 +975,18 @@ def get_retention_settings():
     })
 
 
+def _clamp_original_retention(retention_days: int, original: int) -> int:
+    """Clamp `original` so an original cannot outlive its processed peer.
+
+    When retention is disabled (`retention_days == 0`), there is nothing
+    to clamp to; the operator's stored original value is kept as-is.
+    Otherwise the original is capped at `retention_days`.
+    """
+    if retention_days <= 0:
+        return original
+    return min(original, retention_days)
+
+
 @api.route('/settings/retention', methods=['PUT'])
 @log_request
 def update_retention_settings():
@@ -1005,7 +1017,7 @@ def update_retention_settings():
                 'originalRetentionDays must be an integer between 1 and 3650', 400
             )
         # Clamp; never let original outlive processed.
-        original_days = min(original, days) if days > 0 else original
+        original_days = _clamp_original_retention(days, original)
         db.set_setting(
             'original_retention_days', str(original_days), is_default=False
         )

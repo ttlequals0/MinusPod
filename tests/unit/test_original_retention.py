@@ -168,6 +168,22 @@ def test_pre_pass_skips_episodes_still_within_original_window(db):
     storage.delete_original_only.assert_not_called()
 
 
+def test_clamp_caps_original_to_processed():
+    """API clamp helper: original > processed => clamp to processed."""
+    from api.settings import _clamp_original_retention
+    assert _clamp_original_retention(10, 30) == 10
+    assert _clamp_original_retention(30, 10) == 10  # under cap untouched
+    assert _clamp_original_retention(30, 30) == 30
+
+
+def test_clamp_passes_through_when_retention_disabled():
+    """When retention_days=0 (disabled), original is passed through unchanged
+    because there is no processed peer to outlive."""
+    from api.settings import _clamp_original_retention
+    assert _clamp_original_retention(0, 7) == 7
+    assert _clamp_original_retention(0, 365) == 365
+
+
 def test_pre_pass_handles_storage_failure_gracefully(db):
     """If storage.delete_original_only returns (False, 0) (file already gone,
     permission error, etc), the pre-pass should not crash; the main pass
