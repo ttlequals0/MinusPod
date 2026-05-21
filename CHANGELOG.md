@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.15] - 2026-05-21
+
+### Fixed
+
+- **Storage & Retention: Save button moved to bottom of section.** In 2.5.14 the Save Retention Settings button sat between the processed-retention block and the original-retention block, which read as "Save belongs to the top only". The button persists both retention values; placing it after the original retention input matches what it actually does.
+
 ## [2.5.14] - 2026-05-21
 
 ### Added

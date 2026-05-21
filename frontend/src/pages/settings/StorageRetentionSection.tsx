@@ -77,16 +77,6 @@ function StorageRetentionSection({
             Processed audio files older than this will be deleted and episodes reset to Discovered. Episode records and processing history are always kept.
           </p>
         </div>
-        <button
-          onClick={onSave}
-          disabled={saveIsPending || originalExceedsProcessed}
-          className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors text-sm"
-        >
-          {saveIsPending ? 'Saving...' : 'Save Retention Settings'}
-        </button>
-        {saveIsSuccess && (
-          <span className="ml-3 text-sm text-green-600 dark:text-green-400">Saved</span>
-        )}
 
         <div className="pt-4 border-t border-border">
           <label className="flex items-center gap-3 cursor-pointer">
@@ -130,6 +120,19 @@ function StorageRetentionSection({
             <p className="mt-1 text-sm text-destructive">
               Cannot exceed processed retention ({retentionDays} {retentionDays === 1 ? 'day' : 'days'}). Will clamp on save.
             </p>
+          )}
+        </div>
+
+        <div className="pt-2">
+          <button
+            onClick={onSave}
+            disabled={saveIsPending || originalExceedsProcessed}
+            className="px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors text-sm"
+          >
+            {saveIsPending ? 'Saving...' : 'Save Retention Settings'}
+          </button>
+          {saveIsSuccess && (
+            <span className="ml-3 text-sm text-green-600 dark:text-green-400">Saved</span>
           )}
         </div>
       </div>
