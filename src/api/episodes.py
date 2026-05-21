@@ -962,11 +962,24 @@ def cancel_episode_processing(slug, episode_id):
     if not episode:
         return error_response('Episode not found', 404)
 
+    status_service = get_status_service()
+
     if episode['status'] != EpisodeStatus.PROCESSING:
-        return error_response(
-            f"Episode is not processing (status: {episode['status']})",
-            400
-        )
+        # Queued (waiting on the lock): drop it from the display queue and close
+        # its auto_process_queue row so the background worker won't pick it up.
+        removed = status_service.remove_queued_episode(slug, episode_id)
+        closed = db.close_queue_rows_for_episode(slug, episode_id)
+        if not removed and not closed:
+            return error_response(
+                f"Episode is not processing or queued (status: {episode['status']})",
+                400
+            )
+        logger.info(f"Removed queued episode from queue: {slug}:{episode_id}")
+        return json_response({
+            'message': 'Episode removed from queue',
+            'episodeId': episode_id,
+            'slug': slug
+        })
 
     # Signal the processing thread to stop
     thread_signalled = cancel_processing(slug, episode_id)
@@ -989,6 +1002,10 @@ def cancel_episode_processing(slug, episode_id):
         except Exception as e:
             logger.warning(f"Could not release processing queue: {e}")
     # else: thread will handle DB reset, file cleanup, and queue release
+
+    # Clear any stale queue state for this episode (display queue + DB queue rows).
+    status_service.remove_queued_episode(slug, episode_id)
+    db.close_queue_rows_for_episode(slug, episode_id)
 
     logger.info(f"Canceled processing: {slug}:{episode_id} (thread_signalled={thread_signalled})")
     return json_response({

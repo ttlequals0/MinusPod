@@ -277,6 +277,23 @@ class StatusService:
             self._write_status_file(status)
         self._notify_subscribers()
 
+    def remove_queued_episode(self, slug: str, episode_id: str) -> bool:
+        """Remove an episode from the queue. Returns True if it was present."""
+        with self._status_lock:
+            status = self._read_status_file()
+            queued = status.get('queued_episodes', [])
+            remaining = [
+                e for e in queued
+                if not (e['slug'] == slug and e['episode_id'] == episode_id)
+            ]
+            if len(remaining) == len(queued):
+                return False
+            status['queued_episodes'] = remaining
+            status['last_updated'] = time.time()
+            self._write_status_file(status)
+        self._notify_subscribers()
+        return True
+
     def get_queue_position(self, slug: str, episode_id: str) -> int:
         """Get queue position for an episode (1-based, 0 if not queued)."""
         with self._status_lock:
