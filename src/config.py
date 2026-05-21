@@ -642,3 +642,59 @@ def resolve_stage_tunables(prefix: str, settings: Optional[dict] = None):
     else:
         reasoning = get_stage_tunable(f'{prefix}_reasoning_level', settings=settings)
     return max_tokens, temperature, reasoning
+
+
+# ============================================================
+# Audio output
+# ============================================================
+# Allowed encode bitrates for processed audio. Single source of truth for the
+# settings API validation; mirror any change in frontend AudioSection.tsx.
+ALLOWED_AUDIO_BITRATES = ('64k', '96k', '128k', '192k', '256k')
+
+
+# ============================================================
+# Env-backed settings registry
+# ============================================================
+# Settings whose default is sourced from an environment variable. Used as the
+# single source of truth for (a) seeding + per-restart re-sync in the schema
+# initializer, (b) the GET /settings defaults, and (c) reset_setting -- so the
+# "env -> default" mapping stops being duplicated and drifting across those
+# three sites.
+#
+# Precedence (Model B): a user-customized row (is_default=0) always wins;
+# otherwise the value tracks the live env var on every restart, falling back to
+# the hardcoded default. Derived settings with non-trivial unit/provider logic
+# (verification_model / chapters_model via OPENAI_MODEL, retention_days via
+# RETENTION_PERIOD) are intentionally kept out of this registry and handled by
+# their existing bespoke code.
+#
+# Each entry: (db_key, env_var, hardcoded_default, converter). converter maps a
+# raw env string to the stored string form (None == identity).
+ENV_BACKED_SETTINGS = (
+    ('whisper_model',                   'WHISPER_MODEL',           'small',                     None),
+    ('whisper_language',                'WHISPER_LANGUAGE',        'en',                        None),
+    ('llm_provider',                    'LLM_PROVIDER',            'anthropic',                 None),
+    ('openai_base_url',                 'OPENAI_BASE_URL',         'http://localhost:8000/v1',  None),
+    ('processing_soft_timeout_seconds', 'PROCESSING_SOFT_TIMEOUT', '3600',                      None),
+    ('processing_hard_timeout_seconds', 'PROCESSING_HARD_TIMEOUT', '7200',                      None),
+    ('audio_bitrate',                   'AUDIO_BITRATE',           '128k',                      None),
+)
+
+_ENV_BACKED_BY_KEY = {entry[0]: entry for entry in ENV_BACKED_SETTINGS}
+ENV_BACKED_KEYS = frozenset(_ENV_BACKED_BY_KEY)
+
+
+def env_backed_default(db_key: str) -> str:
+    """Resolve the current env-derived default for an env-backed setting.
+
+    Returns the live env var value when set (non-empty), else the hardcoded
+    default. Raises KeyError for keys not in ENV_BACKED_SETTINGS.
+    """
+    try:
+        _, env_var, default, conv = _ENV_BACKED_BY_KEY[db_key]
+    except KeyError:
+        raise KeyError(db_key)
+    raw = os.environ.get(env_var)
+    if raw is None or raw.strip() == '':
+        return default
+    return conv(raw) if conv else raw

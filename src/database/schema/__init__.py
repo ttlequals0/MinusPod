@@ -1047,6 +1047,17 @@ class SchemaMixin:
         except Exception as e:
             logger.error(f"Community scope normalize failed: {e}")
 
+        # Env-backed settings: seed missing rows and re-sync un-customized
+        # (is_default=1) rows to the current environment on EVERY startup.
+        # Lives here (not in _seed_default_settings, which only runs when the
+        # settings table is empty) so a changed env var propagates to existing
+        # databases too -- fixes settings frozen at first init (e.g. LLM_PROVIDER).
+        try:
+            self._sync_env_backed_settings(conn)
+            conn.commit()
+        except Exception as e:
+            logger.warning(f"Env-backed settings re-sync failed: {e}")
+
     def _normalize_community_scope(self, conn):
         """Set scope='global' on every source=community pattern; clear
         podcast_id / network_id since they were stripped on export. Stamped
@@ -1797,20 +1808,9 @@ class SchemaMixin:
             ('keep_original_audio', 'true')
         )
 
-        # Processing timeouts (soft = auto-clear stuck jobs; hard = force-release).
-        # Env var overrides are only used here for seeding; runtime changes live in DB.
-        soft_default = os.environ.get('PROCESSING_SOFT_TIMEOUT', '3600')
-        hard_default = os.environ.get('PROCESSING_HARD_TIMEOUT', '7200')
-        conn.execute(
-            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
-               ON CONFLICT(key) DO NOTHING""",
-            ('processing_soft_timeout_seconds', soft_default)
-        )
-        conn.execute(
-            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
-               ON CONFLICT(key) DO NOTHING""",
-            ('processing_hard_timeout_seconds', hard_default)
-        )
+        # Processing timeouts (soft = auto-clear stuck jobs; hard = force-release)
+        # are env-backed; seeding + per-restart env re-sync is handled by the
+        # _sync_env_backed_settings() pass at the end of this method.
 
         # Verification pass prompt
         conn.execute(
@@ -1853,22 +1853,9 @@ class SchemaMixin:
         except Exception as e:
             logger.warning(f"Settings migration (second_pass -> verification): {e}")
 
-        # Whisper model (defaults to env var or 'small')
-        whisper_model = os.environ.get('WHISPER_MODEL', 'small')
-        conn.execute(
-            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
-               ON CONFLICT(key) DO NOTHING""",
-            ('whisper_model', whisper_model)
-        )
-
-        # Whisper language. ISO 639-1 code (e.g. 'en', 'fi', 'es') or 'auto'
-        # to let Whisper detect. Default English preserves prior behavior.
-        whisper_language = os.environ.get('WHISPER_LANGUAGE') or 'en'
-        conn.execute(
-            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
-               ON CONFLICT(key) DO NOTHING""",
-            ('whisper_language', whisper_language)
-        )
+        # Whisper model + language are env-backed (WHISPER_MODEL / WHISPER_LANGUAGE);
+        # seeding + per-restart env re-sync is handled by _sync_env_backed_settings()
+        # at the end of this method.
 
         # Audio analysis settings
         audio_analysis_settings = [
@@ -1915,12 +1902,8 @@ class SchemaMixin:
             ('only_expose_processed_default', 'false')
         )
 
-        # Audio output bitrate (defaults to 128k)
-        conn.execute(
-            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
-               ON CONFLICT(key) DO NOTHING""",
-            ('audio_bitrate', '128k')
-        )
+        # Audio output bitrate is env-backed (AUDIO_BITRATE); seeding + per-restart
+        # env re-sync is handled by _sync_env_backed_settings() below.
 
         # VTT transcripts enabled (Podcasting 2.0)
         conn.execute(
@@ -1944,19 +1927,8 @@ class SchemaMixin:
             ('chapters_model', env_model or CHAPTERS_MODEL)
         )
 
-        # LLM provider (seeded from env; runtime changes go via settings API)
-        conn.execute(
-            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
-               ON CONFLICT(key) DO NOTHING""",
-            ('llm_provider', os.environ.get('LLM_PROVIDER', 'anthropic'))
-        )
-
-        # OpenAI base URL (seeded from env; runtime changes go via settings API)
-        conn.execute(
-            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
-               ON CONFLICT(key) DO NOTHING""",
-            ('openai_base_url', os.environ.get('OPENAI_BASE_URL', 'http://localhost:8000/v1'))
-        )
+        # LLM provider + OpenAI base URL are env-backed (LLM_PROVIDER / OPENAI_BASE_URL);
+        # seeding + per-restart env re-sync is handled by _sync_env_backed_settings() below.
 
         ad_reviewer_seeds = [
             ('enable_ad_review', 'false'),
@@ -1976,6 +1948,38 @@ class SchemaMixin:
         logger.info("Default settings seeded")
 
         self._migrate_user_prompts_to_placeholders(conn)
+
+    def _sync_env_backed_settings(self, conn: 'sqlite3.Connection'):
+        """Seed and re-sync env-backed settings from the current environment.
+
+        For each key in config.ENV_BACKED_SETTINGS:
+        - no row yet            -> INSERT the env-derived default (is_default=1);
+        - row with is_default=1 -> UPDATE to the env-derived default, so an
+                                   un-customized setting tracks a changed env
+                                   var on every restart (not just first init);
+        - row with is_default=0 -> left untouched: an explicit user choice
+                                   always wins over the env-derived default.
+
+        This is the single place that keeps env -> DB in sync; the prior
+        per-key ``INSERT ... ON CONFLICT DO NOTHING`` seeds froze the value at
+        first init and ignored later env changes.
+        """
+        from config import ENV_BACKED_SETTINGS, env_backed_default
+        for db_key, *_ in ENV_BACKED_SETTINGS:
+            desired = env_backed_default(db_key)
+            row = conn.execute(
+                "SELECT is_default FROM settings WHERE key = ?", (db_key,)
+            ).fetchone()
+            if row is None:
+                conn.execute(
+                    "INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)",
+                    (db_key, desired),
+                )
+            elif row['is_default']:
+                conn.execute(
+                    "UPDATE settings SET value = ? WHERE key = ?",
+                    (desired, db_key),
+                )
 
     def _migrate_user_prompts_to_placeholders(self, conn: 'sqlite3.Connection'):
         """One-time backfill: append ``{sponsor_database}`` to user-customized
