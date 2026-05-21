@@ -32,12 +32,92 @@ class MaintenanceMixin:
         logger.info(f"VACUUM completed in {duration_ms}ms")
         return duration_ms
 
+    @staticmethod
+    def _retention_cutoff_str(days: int) -> str:
+        """ISO-8601 UTC string for `days` ago. Used by both the original-only
+        pre-pass and the main processed-file pass below."""
+        return (
+            datetime.now(timezone.utc) - timedelta(days=days)
+        ).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+    def _resolve_original_retention(self, retention_days: int):
+        """Return original_retention_days if the pre-pass should run, else None.
+
+        Reads `keep_original_audio` and `original_retention_days` once. The
+        pre-pass is meaningful only when keep_original is on AND a smaller
+        original window is set; every other shape collapses to the main
+        pass's existing behaviour.
+        """
+        keep_raw = (self.get_setting('keep_original_audio') or 'true').lower()
+        if keep_raw == 'false':
+            return None
+        raw = self.get_setting('original_retention_days')
+        if not raw:
+            return None
+        try:
+            days = int(raw)
+        except (TypeError, ValueError):
+            return None
+        if days <= 0 or days >= retention_days:
+            return None
+        return days
+
+    def _cleanup_originals_only(self, conn, retention_days: int, storage) -> Tuple[int, float]:
+        """Drop the retained original for episodes past their original
+        retention window but still within the main processed retention.
+
+        Returns (count dropped, MB freed) for log reporting.
+        """
+        original_days = self._resolve_original_retention(retention_days)
+        if original_days is None:
+            return 0, 0.0
+
+        original_cutoff = self._retention_cutoff_str(original_days)
+        processed_cutoff = self._retention_cutoff_str(retention_days)
+
+        # Episodes whose original is past its retention window but whose
+        # processed file is still inside its window. processed_at >=
+        # processed_cutoff keeps us from double-handling rows the main
+        # pass is about to fully reset.
+        rows = conn.execute(
+            """SELECT e.episode_id, p.slug
+               FROM episodes e
+               JOIN podcasts p ON e.podcast_id = p.id
+               WHERE e.processed_file IS NOT NULL
+                 AND e.processed_at < ?
+                 AND e.processed_at >= ?
+                 AND e.status = 'processed'""",
+            (original_cutoff, processed_cutoff),
+        ).fetchall()
+
+        dropped = 0
+        freed_bytes = 0
+        for row in rows:
+            ok, size = storage.delete_original_only(row['slug'], row['episode_id'])
+            if ok:
+                dropped += 1
+                freed_bytes += size
+
+        if dropped:
+            freed_mb = freed_bytes / (1024 * 1024)
+            logger.info(
+                f"Retention cleanup: dropped {dropped} original audio file(s), "
+                f"freed {freed_mb:.1f} MB (processed files kept)"
+            )
+        return dropped, freed_bytes / (1024 * 1024)
+
     def cleanup_old_episodes(self, force_all: bool = False, storage=None) -> Tuple[int, float]:
         """Reset episodes with files older than retention_days back to 'discovered'.
 
         Deletes audio files and episode_details. Never deletes episode rows.
         force_all=True resets ALL episodes with files regardless of age.
         Returns (count reset, MB freed).
+
+        When `original_retention_days < retention_days`, this method first
+        runs an original-only sweep that deletes just the retained pre-cut
+        original for episodes whose original retention has elapsed but
+        whose processed file is still within the main retention window.
+        The episode stays processed; only the original file is freed.
         """
         if storage is None:
             raise ValueError("storage is required for cleanup_old_episodes")
@@ -49,8 +129,14 @@ class MaintenanceMixin:
             if retention_days <= 0:
                 return 0, 0.0
 
-            cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
-            cutoff_str = cutoff.strftime('%Y-%m-%dT%H:%M:%SZ')
+            # First pass: original-only deletion when the operator set a
+            # shorter retention for the pre-cut copy. Skipped entirely
+            # when keep_original_audio is off (no originals exist) or
+            # when the two retention windows match (the main pass below
+            # already covers it).
+            self._cleanup_originals_only(conn, retention_days, storage)
+
+            cutoff_str = self._retention_cutoff_str(retention_days)
 
             cursor = conn.execute(
                 """SELECT e.episode_id, p.slug

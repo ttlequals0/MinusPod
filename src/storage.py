@@ -607,6 +607,32 @@ class Storage:
             logger.debug(f"[{slug}:{episode_id}] Deleted processed/original audio files")
         return deleted
 
+    def delete_original_only(self, slug: str, episode_id: str,
+                             extension: str = ".mp3") -> Tuple[bool, int]:
+        """Delete just the retained pre-cut original for one episode.
+
+        Returns (deleted, bytes_freed). Processed file(s), DB rows, and
+        transcripts are untouched. Used by the 2.5.14 two-pass retention
+        cleanup so an operator can drop originals on a shorter schedule
+        than the processed output without resetting the episode to
+        Discovered.
+        """
+        original = self.get_original_path(slug, episode_id, extension)
+        if not original or not original.exists():
+            return False, 0
+        try:
+            size = original.stat().st_size
+            original.unlink()
+            logger.debug(
+                f"[{slug}:{episode_id}] Deleted original audio (freed {size} bytes)"
+            )
+            return True, size
+        except OSError as exc:
+            logger.warning(
+                f"[{slug}:{episode_id}] Failed to delete original audio: {exc}"
+            )
+            return False, 0
+
 
     def cleanup_episode_files(self, slug: str, episode_id: str) -> int:
         """Delete all files for an episode. Returns bytes freed.

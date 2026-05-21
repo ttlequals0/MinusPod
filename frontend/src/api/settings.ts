@@ -80,10 +80,19 @@ export async function getRetention(): Promise<RetentionSettings> {
   return apiRequest<RetentionSettings>('/settings/retention');
 }
 
-export async function updateRetention(days: number): Promise<RetentionSettings> {
+export async function updateRetention(
+  days: number,
+  originalDays?: number
+): Promise<RetentionSettings> {
+  const body: { retentionDays: number; originalRetentionDays?: number } = {
+    retentionDays: days,
+  };
+  if (originalDays !== undefined) {
+    body.originalRetentionDays = originalDays;
+  }
   return apiRequest<RetentionSettings>('/settings/retention', {
     method: 'PUT',
-    body: { retentionDays: days },
+    body,
   });
 }
 

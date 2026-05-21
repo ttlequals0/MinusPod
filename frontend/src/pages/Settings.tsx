@@ -107,6 +107,7 @@ function Settings() {
   const [podcastIndexApiKey, setPodcastIndexApiKey] = useState('');
   const [podcastIndexApiSecret, setPodcastIndexApiSecret] = useState('');
   const [retentionDays, setRetentionDays] = useState(30);
+  const [originalRetentionDays, setOriginalRetentionDays] = useState(30);
   const [keepOriginalAudio, setKeepOriginalAudio] = useState(true);
   const [softTimeoutMinutes, setSoftTimeoutMinutes] = useState(60);
   const [hardTimeoutMinutes, setHardTimeoutMinutes] = useState(120);
@@ -179,6 +180,7 @@ function Settings() {
   // the May 4 fix that moved these blocks off useEffect.
   useSyncFromQuery(retention, (r) => {
     setRetentionDays(r.retentionDays || 30);
+    setOriginalRetentionDays(r.originalRetentionDays ?? r.retentionDays ?? 30);
     setRetentionEnabled(r.enabled);
   });
 
@@ -206,7 +208,8 @@ function Settings() {
   });
 
   const retentionMutation = useMutation({
-    mutationFn: (days: number) => updateRetention(days),
+    mutationFn: ({ days, originalDays }: { days: number; originalDays: number }) =>
+      updateRetention(days, originalDays),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['retention'] });
       queryClient.invalidateQueries({ queryKey: ['settings'] });
@@ -566,7 +569,12 @@ function Settings() {
         retentionDays={retentionDays}
         onRetentionEnabledChange={setRetentionEnabled}
         onRetentionDaysChange={setRetentionDays}
-        onSave={() => retentionMutation.mutate(retentionEnabled ? retentionDays : 0)}
+        originalRetentionDays={originalRetentionDays}
+        onOriginalRetentionDaysChange={setOriginalRetentionDays}
+        onSave={() => retentionMutation.mutate({
+          days: retentionEnabled ? retentionDays : 0,
+          originalDays: Math.min(originalRetentionDays, retentionDays),
+        })}
         saveIsPending={retentionMutation.isPending}
         saveIsSuccess={retentionMutation.isSuccess}
       />

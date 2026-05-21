@@ -35,6 +35,8 @@ The ad editor supports two review modes, selected by a toggle above the ads list
 
 Original mode requires the pre-cut audio to have been retained. That's controlled by the "Keep original audio for ad boundary review" toggle under Settings > Storage & Retention (default on). Keeping originals roughly doubles per-episode storage; disable it if disk is tight. Episodes processed before v1.6.0 have no retained original. The toggle is disabled (with a tooltip) until you reprocess.
 
+Since 2.5.14, original audio has its own retention input under the same section: "Retain original audio for: N days". Defaults to whatever the processed retention is, so existing installs see no change. Set a smaller number to drop the pre-cut copy sooner while keeping the processed file for the full retention period (useful if originals are taking too much disk but you still want the processed output around for the normal 30-day window). Capped at the processed retention by the server; the input is disabled when "Keep original audio" is off.
+
 The **Original Transcript** panel on the Episode Detail page shows the full pre-cut transcript so you can see exactly what text was identified and removed.
 
 ### Ad Editor

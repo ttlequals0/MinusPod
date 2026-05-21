@@ -398,6 +398,7 @@ export interface BulkActionResult {
 
 export interface RetentionSettings {
   retentionDays: number;
+  originalRetentionDays: number;
   enabled: boolean;
 }
 

@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.5.13
+  version: 2.5.14
   contact:
     name: MinusPod
   license:
@@ -3477,6 +3477,11 @@ paths:
                     type: integer
                     minimum: 0
                     maximum: 3650
+                  originalRetentionDays:
+                    type: integer
+                    minimum: 1
+                    maximum: 3650
+                    description: Days to retain the pre-cut original copy of each episode. Defaults to retentionDays when never set; the server clamps to retentionDays on save so an original cannot outlive its processed peer.
                   enabled:
                     type: boolean
     put:
@@ -3497,6 +3502,11 @@ paths:
                   minimum: 0
                   maximum: 3650
                   description: Days to retain processed audio. 0 disables retention.
+                originalRetentionDays:
+                  type: integer
+                  minimum: 1
+                  maximum: 3650
+                  description: Optional. Days to retain the pre-cut original copy. Server clamps to retentionDays. When omitted, the existing value is preserved.
       responses:
         '200':
           description: Retention updated
@@ -3506,6 +3516,8 @@ paths:
                 type: object
                 properties:
                   retentionDays:
+                    type: integer
+                  originalRetentionDays:
                     type: integer
                   enabled:
                     type: boolean

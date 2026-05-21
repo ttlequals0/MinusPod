@@ -43,7 +43,7 @@ Key endpoints:
 - `POST /api/v1/system/vacuum` - Trigger SQLite VACUUM to reclaim disk space
 - `GET /api/v1/system/backup` - Download SQLite database backup
 - `GET /api/v1/settings` - Get current settings (includes LLM provider, API key status)
-- `GET/PUT /api/v1/settings/retention` - Get or update retention configuration (days, enabled/disabled)
+- `GET/PUT /api/v1/settings/retention` - Get or update retention configuration. `retentionDays` controls how long the processed audio survives; `originalRetentionDays` (added in 2.5.14) controls the pre-cut original separately. Server clamps `originalRetentionDays` to `retentionDays` on save.
 - `GET/PUT /api/v1/settings/audio` - Toggle whether originals are kept for ad editor review (`keepOriginalAudio`)
 - `GET/PUT /api/v1/settings/processing-timeouts` - Soft and hard processing timeouts in seconds
 - `GET /api/v1/feeds/{slug}/episodes/{id}/original.mp3` - Stream the retained pre-cut audio (used by ad editor Review mode)

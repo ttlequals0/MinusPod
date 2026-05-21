@@ -6,6 +6,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.14] - 2026-05-21
+
+### Added
+
+- **Separate retention period for retained original audio (closes #264).** Pre-2.5.14 the pre-cut original copy of each episode shared one retention window with the processed file: when `retention_days` elapsed, both got unlinked together in `cleanup_episode_files()`. Operators who wanted to keep the processed file for the full 30 days but drop the original sooner had no way to express that. Four pieces:
+  - `GET/PUT /api/v1/settings/retention` now exposes `originalRetentionDays` alongside `retentionDays`. When unset, the API returns the same value as `retentionDays`, so existing installs see no behaviour change. Server clamps `originalRetentionDays <= retentionDays` on save (an original outliving its processed peer would be orphaned the moment the next cleanup pass resets the episode to Discovered).
+  - `MaintenanceMixin.cleanup_old_episodes` runs a new pre-pass that calls `storage.delete_original_only(slug, episode_id)` for episodes whose `processed_at` is past `original_retention_days` but still inside `retention_days`. Episode stays `processed`; only the pre-cut original is freed. The pre-pass is a no-op when `keep_original_audio = false` (no originals to drop), when `original_retention_days` is unset, or when `original_retention_days >= retention_days` (the existing full-cleanup pass already covers it).
+  - Settings UI gets a sibling number input under the existing "Keep original audio" toggle. Disabled when either retention is off or keep-original is off. Browser `max` attribute caps spinner; `onBlur` clamps a hand-typed out-of-range value; an inline destructive warning shows while a user mid-edits an invalid value, then disappears once it clamps. The existing "Save Retention Settings" button persists both values in one POST.
+  - `storage.delete_original_only(slug, episode_id, extension='.mp3')` returns `(deleted: bool, bytes_freed: int)`.
+
 ## [2.5.13] - 2026-05-20
 
 ### Fixed
