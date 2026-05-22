@@ -1,1 +1,0 @@
-{"start": 4195.9, "end": 4317.9, "confidence": 0.98, "reason": "Host-read sponsorship and call to support the show with URL mention", "end_text": "enjoyed this broker. Dog and Pony Show Audio."}

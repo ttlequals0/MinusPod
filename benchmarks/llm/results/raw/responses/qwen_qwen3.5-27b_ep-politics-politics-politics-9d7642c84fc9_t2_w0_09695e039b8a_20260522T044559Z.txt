@@ -1,1 +1,0 @@
-[{"start": 30.4, "end": 52.7, "confidence": 0.9, "reason": "Sponsor transition 'Just Another Pilot' indicates ad break before show welcome", "end_text": "Just Another Pilot."}]

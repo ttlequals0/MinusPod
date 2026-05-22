@@ -1,1 +1,0 @@
-{"start": 909.6, "end": 933.9, "confidence": 0.98, "reason": "Host-read sponsor segment for TakePoliticsSeriously.com, includes promotional URL and call to action", "end_text": "Treasury Secretary Scott Besson said"}

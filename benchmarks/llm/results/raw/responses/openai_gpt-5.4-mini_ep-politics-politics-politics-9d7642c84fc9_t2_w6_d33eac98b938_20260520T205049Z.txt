@@ -1,1 +1,0 @@
-{"start":2815.9,"end":2844.6,"confidence":0.63,"reason":"Potential host-adjacent promo-like segment about campaign ads and AI, but no clear sponsor, URL, promo code, or explicit promotional content; not enough evidence to classify as an ad.","end_text":"how that technology is being used"}

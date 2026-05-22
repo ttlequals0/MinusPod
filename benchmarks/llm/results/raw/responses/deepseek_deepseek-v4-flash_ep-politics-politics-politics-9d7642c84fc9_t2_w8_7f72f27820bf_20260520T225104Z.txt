@@ -1,7 +1,0 @@
-{
-  "start": 3495.0,
-  "end": 3544.1,
-  "confidence": 0.15,
-  "reason": "This segment discusses AI impact on industries and jobs, but uses promotional-like language about the AI industry exploding jobs. However, this is Katie Harbath discussing her analysis, not a sponsor read. No ad detected.",
-  "end_text": "them in different places."
-}

@@ -1,1 +1,0 @@
-{"start":909.6,"end":933.9,"confidence":0.92,"reason":"Host-read promo for TakePoliticsSeriously.com with explicit CTA to get two episodes of the show; contains promotional wording and 'brought to you by' framing.","end_text":"go if you want to get"}

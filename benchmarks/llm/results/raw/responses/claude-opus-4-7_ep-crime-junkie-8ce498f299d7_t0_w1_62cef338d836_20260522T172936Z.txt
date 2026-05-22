@@ -1,0 +1,1 @@
+[{"start": 1035.7, "end": 1035.7, "confidence": 0.6, "reason": "Possible ad starting with 'Debt can get messy fast' - continues in next window", "end_text": "get messy fast"}]

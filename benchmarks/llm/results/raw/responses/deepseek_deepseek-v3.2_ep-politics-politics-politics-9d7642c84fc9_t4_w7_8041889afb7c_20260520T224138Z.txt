@@ -1,1 +1,0 @@
-{"start": 3540.0, "end": 3544.1, "confidence": 0.95, "reason": "Host-read sponsor segment for Athletic Greens (AG1) with promo code and URL", "end_text": "athleticgreens.com slash politics"}

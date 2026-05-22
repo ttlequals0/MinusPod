@@ -1,1 +1,0 @@
-{"start": 3120.0, "end": 3120.0, "confidence": 0.0, "reason": "No ad content detected in this transcript segment. The content is a continuous interview discussing AI in politics.", "end_text": "No ad content"}

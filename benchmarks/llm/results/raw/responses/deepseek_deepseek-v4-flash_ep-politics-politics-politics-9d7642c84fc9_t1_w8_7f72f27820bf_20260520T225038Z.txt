@@ -1,1 +1,0 @@
-{"ads": [], "confidence": 0.95, "reason": "No promotional language, sponsor mentions, or ad transitions found in this transcript segment."}

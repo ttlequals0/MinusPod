@@ -1,0 +1,1 @@
+[{"start": 29.9, "end": 71.8, "confidence": 0.95, "reason": "Old National Bank sponsor ad", "end_text": "talk about apartments"}, {"start": 515.6, "end": 550.0, "confidence": 0.9, "reason": "Crain's weekly news quiz promo", "end_text": "with Amy Guth"}]

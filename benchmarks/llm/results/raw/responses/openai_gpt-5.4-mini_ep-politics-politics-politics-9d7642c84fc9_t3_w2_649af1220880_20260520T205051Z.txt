@@ -1,1 +1,0 @@
-{"start":909.6,"end":933.9,"confidence":0.98,"reason":"Host-read sponsor segment for TakePoliticsSeriously.com with promotional CTA 'go to' and 'get two episodes of this show'; includes update intro transition rather than topic content.","end_text":"two episodes of this show"}

@@ -1,1 +1,0 @@
-[{"start": 3709.8, "end": 3735.7, "confidence": 0.95, "reason": "Promotion of substack and upcoming book", "end_text": "Disrupting Politics book"}}]

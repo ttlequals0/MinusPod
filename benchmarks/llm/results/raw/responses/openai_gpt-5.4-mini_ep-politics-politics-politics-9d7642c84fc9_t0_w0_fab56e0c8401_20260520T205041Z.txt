@@ -1,1 +1,0 @@
-{"start":0.0,"end":30.4,"confidence":0.96,"reason":"Host intro followed by clear promotional transition and sponsor mention: 'The following is brought to you by Just Another Pilot.'","end_text":"brought to you by Just Another Pilot"}

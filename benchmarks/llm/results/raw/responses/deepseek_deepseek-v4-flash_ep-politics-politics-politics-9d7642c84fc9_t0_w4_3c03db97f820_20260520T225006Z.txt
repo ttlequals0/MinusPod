@@ -1,1 +1,0 @@
-{"start": 2286.7, "end": 2286.7, "confidence": 0.0, "reason": "No promotional language or ad markers found in the transcript window", "end_text": "hyperscale data centers at this crazy rate, like"}

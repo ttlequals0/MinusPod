@@ -1,1 +1,0 @@
-{"error": "The conversation appears to require JSON list or [] output only. To comply, output must be [] or JSON array. We'll output [] as there is no ad."}

@@ -1,1 +1,0 @@
-[{"start": 909.6, "end": 933.9, "confidence": 0.9, "reason": "Promotion for TakePoliticsSeriously.com subscription for bonus episodes", "end_text": "aimed at deepening economic ties"}]

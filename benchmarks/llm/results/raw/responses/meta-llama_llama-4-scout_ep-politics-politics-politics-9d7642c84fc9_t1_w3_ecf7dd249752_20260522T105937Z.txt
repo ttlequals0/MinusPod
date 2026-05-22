@@ -1,7 +1,0 @@
-{ 
-  "start": 1589.9, 
-  "end": 1601.7, 
-  "confidence": 0.8, 
-  "reason": "Potential sponsorship or promotion mention", 
-  "end_text": "Less than 50 cents"
-}

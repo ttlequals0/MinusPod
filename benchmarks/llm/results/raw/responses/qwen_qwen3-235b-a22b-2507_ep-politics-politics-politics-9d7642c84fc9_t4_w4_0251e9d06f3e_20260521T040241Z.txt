@@ -1,1 +1,0 @@
-{"start": 1682.3, "end": 1712.4, "confidence": 0.9, "reason": "Transition into interview with Katie Harbath, no promotional content or ad language present", "end_text": "around the globe on how to use the platform."}

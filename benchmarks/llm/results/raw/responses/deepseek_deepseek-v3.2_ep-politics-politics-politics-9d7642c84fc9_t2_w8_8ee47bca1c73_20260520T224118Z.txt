@@ -1,1 +1,0 @@
-{"start": 3741.3, "end": 3767.0, "confidence": 0.9, "reason": "Host outro promoting the show, host, producer, and guest's work (Anchor Change, Substack). Contains promotional language for the guest's brand and a call to action ('where you need to go').", "end_text": "brings back such nostalgia for me."}

@@ -1,1 +1,0 @@
-{"start": 2078.8, "end": 2104.9, "confidence": 0.95, "reason": "Transition into AI discussion with reflective question about future scandals, no promotional content", "end_text": "spectrum but i also think"}

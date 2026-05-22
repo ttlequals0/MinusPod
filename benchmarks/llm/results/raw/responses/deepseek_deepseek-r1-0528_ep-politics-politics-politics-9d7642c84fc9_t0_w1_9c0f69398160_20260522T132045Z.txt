@@ -1,7 +1,0 @@
-{
-  "start": 909.6,
-  "end": 991.0,
-  "confidence": 0.95,
-  "reason": "TakePoliticsSeriously.com sponsor segment for the update",
-  "end_text": "talking points in the media"
-}

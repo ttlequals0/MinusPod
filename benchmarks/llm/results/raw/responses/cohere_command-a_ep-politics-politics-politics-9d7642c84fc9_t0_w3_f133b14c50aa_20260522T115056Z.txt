@@ -1,1 +1,0 @@
-{"start": 1589.9, "end": 1601.7, "confidence": 0.85, "reason": "Potential network-inserted retail ad (Temu)", "end_text": "Less than 50 cents an episode? Huh. Interesting."}

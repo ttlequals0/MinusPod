@@ -1,1 +1,0 @@
-{"start": 2078.8, "end": 2700.0, "confidence": 0.0, "reason": "No promotional content found in transcript segment. Content is editorial discussion about AI, campaigns, and data centers.", "end_text": "We'll see you next time."}

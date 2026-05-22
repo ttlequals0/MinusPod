@@ -1,9 +1,0 @@
-[
-  {
-    "start": 909.6,
-    "end": 933.9,
-    "confidence": 0.95,
-    "reason": "This segment is a sponsored update from TakePoliticsSeriously.com, which is a promotional call to action for the podcast.",
-    "end_text": "economic ties while managing security risks."
-  }
-]

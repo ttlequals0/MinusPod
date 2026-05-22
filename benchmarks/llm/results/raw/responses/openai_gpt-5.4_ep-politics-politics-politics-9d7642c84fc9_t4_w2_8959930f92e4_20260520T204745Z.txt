@@ -1,7 +1,0 @@
-{
-  "start": 909.6,
-  "end": 933.9,
-  "confidence": 0.88,
-  "reason": "Host promotional plug for TakePoliticsSeriously.com with call to action to get two episodes of the show; contains explicit promotional language and URL-like site mention",
-  "end_text": "This is your update brought to you by TakePoliticsSeriously.com. That's where you need to go if you want to get two episodes of this show."
-}

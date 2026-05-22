@@ -1,1 +1,0 @@
-[{"start": 30.4, "end": 52.7, "confidence": 0.85, "reason": "Sponsor mention - 'brought to you by Just Another Pilot' followed by audio break", "end_text": "brought to you by Just Another Pilot"}]

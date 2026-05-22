@@ -1,9 +1,0 @@
-[
-  {
-    "start": 909.6,
-    "end": 933.9,
-    "confidence": 0.95,
-    "reason": "Sponsor mention for TakePoliticsSeriously.com with call to action",
-    "end_text": "two episodes of this show"
-  }
-]

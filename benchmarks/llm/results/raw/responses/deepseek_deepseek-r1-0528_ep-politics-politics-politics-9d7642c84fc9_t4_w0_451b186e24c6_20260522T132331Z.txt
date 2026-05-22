@@ -1,9 +1,0 @@
-[
-  {
-    "start": 0.0,
-    "end": 30.4,
-    "confidence": 0.95,
-    "reason": "Host-read ad transition for 'Just Another Pilot'",
-    "end_text": "brought to you by Just Another Pilot"
-  }
-]

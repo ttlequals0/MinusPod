@@ -1,2 +1,0 @@
-[{"start": 4143.7, "end": 4285.6, "confidence": 0.98, "reason": "Host-read promotion for listener payments (Venmo/CashApp), paid subscriptions ($99 annual fee), and vanity URL (TakePoliticsSeriously.com)", "end_text": "Zombie Doc, you want your name"}]
-```

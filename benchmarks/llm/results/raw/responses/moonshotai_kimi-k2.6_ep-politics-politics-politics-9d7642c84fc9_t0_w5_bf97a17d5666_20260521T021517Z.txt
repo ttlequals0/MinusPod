@@ -1,7 +1,0 @@
- {
-  "start": 2649.8,
-  "end": 2681.9,
-  "confidence": 0.95,
-  "reason": "Host-read sponsor segment for Spencer Pratt's Substack and political campaign content; promotional language for a specific candidate's platform and content offering with call to action to visit Substack",
-  "end_text": "We'll see you next time."
-}

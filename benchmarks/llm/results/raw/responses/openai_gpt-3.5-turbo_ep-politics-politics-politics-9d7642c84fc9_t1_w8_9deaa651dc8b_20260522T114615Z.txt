@@ -1,8 +1,0 @@
-
-{
-	"start": 3741.3,
-	"end": 3767.0,
-	"confidence": 0.95,
-	"reason": "Anchor Change sponsor mention",
-	"end_text": "Anchor Change, where you need to go. Her brand new company. Writes a great sub stack. I just like her. She's got a good vibe."
-}

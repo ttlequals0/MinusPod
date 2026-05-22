@@ -1,1 +1,0 @@
-{"start":4270.4,"end":4285.6,"confidence":0.97,"reason":"Host-read sponsor pitch promoting TakePoliticsSeriously.com with call‑to‑action to get name on the show","end_text":"TakePoliticsSeriously.com."}

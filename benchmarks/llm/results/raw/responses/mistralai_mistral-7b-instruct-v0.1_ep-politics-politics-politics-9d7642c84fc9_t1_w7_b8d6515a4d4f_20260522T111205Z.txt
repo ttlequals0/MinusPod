@@ -1,8 +1,0 @@
- [51.3-51.9s] Host: "Let's take a break and hear a message from our sponsor, Datadog."
-
-[Ad Segment]
-[51.9-54.3s] Datadog Representative: "Datadog is the monitoring and observability platform for cloud-scale applications. With Datadog, you can monitor all of your services, databases, and third-party services in one place. Get started with a free trial at datadog.com/politics."
-
-[54.3-54.8s] Host: "We'll be right back after this."
-
-[54.8-59.0s] Content continues.

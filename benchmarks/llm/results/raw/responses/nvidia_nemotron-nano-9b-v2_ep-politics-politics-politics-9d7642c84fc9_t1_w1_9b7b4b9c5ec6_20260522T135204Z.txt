@@ -1,1 +1,0 @@
-[{"start": 601.9, "end": 625.5, "confidence": 0.95, "reason": "TakePoliticsSeriously.com promotion", "end_text": "TakePoliticsSeriously.com"}}[]

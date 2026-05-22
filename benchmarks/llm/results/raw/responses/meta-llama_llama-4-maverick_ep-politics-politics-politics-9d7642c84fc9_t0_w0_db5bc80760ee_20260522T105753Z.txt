@@ -1,1 +1,0 @@
-{"start": 0.0, "end": 52.7, "confidence": 0.9, "reason": "Sponsor mention at the beginning of the episode", "end_text": "Just Another Pilot"}

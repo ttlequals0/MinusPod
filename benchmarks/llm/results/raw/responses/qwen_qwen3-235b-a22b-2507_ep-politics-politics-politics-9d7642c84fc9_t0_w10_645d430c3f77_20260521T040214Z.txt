@@ -1,1 +1,0 @@
-{"start": 4270.4, "end": 4285.6, "confidence": 0.95, "reason": "Promotional call to action for TakePoliticsSeriously.com with sponsorship tier mention", "end_text": "Truckers, Jerry Trucker, John, Berkley"}

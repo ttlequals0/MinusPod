@@ -1,1 +1,0 @@
-{"start":909.6,"end":933.9,"confidence":0.79,"reason":"Sponsored update-style promo for TakePoliticsSeriously.com with explicit 'brought to you by' language and call to visit the site for episodes; appears to be a platform/host promotion rather than editorial content.","end_text":"go if you want to get"}

@@ -1,1 +1,0 @@
-{"start": 4195.9, "end": 4218.0, "confidence": 0.98, "reason": "Host promotes paid membership and bonus content at TakePoliticsSeriously.com with pricing details", "end_text": "set it and forget it"}

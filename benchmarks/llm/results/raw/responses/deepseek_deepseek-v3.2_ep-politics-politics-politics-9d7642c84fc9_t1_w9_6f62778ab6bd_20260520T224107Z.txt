@@ -1,1 +1,0 @@
-{"start": 4143.7, "end": 4195.3, "confidence": 0.95, "reason": "Host-read promotion for show's social media, email, and donation platforms (PayPal, Venmo, Cash App, PO Box)", "end_text": "Austin, Texas 78715."}

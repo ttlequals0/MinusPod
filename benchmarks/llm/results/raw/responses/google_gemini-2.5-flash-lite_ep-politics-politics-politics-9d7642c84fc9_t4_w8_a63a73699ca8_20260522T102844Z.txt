@@ -1,9 +1,0 @@
-[
-  {
-    "start": 3680.7,
-    "end": 3735.7,
-    "confidence": 0.95,
-    "reason": "Host-read promotion for Katie Harbath's substack and upcoming book. Includes a call to action to subscribe and mentions specific product names (substack, book title).",
-    "end_text": "I'm excited. That's awesome. Katie, thank you so much for joining us. Thank you."
-  }
-]

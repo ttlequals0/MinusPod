@@ -1,9 +1,0 @@
-[
-  {
-    "start": 4270.4,
-    "end": 4285.6,
-    "confidence": 0.9,
-    "reason": "Host promoting TakePoliticsSeriously.com for paid subscriptions to get name read on show",
-    "end_text": "TakePoliticsSeriously.com"
-  }
-]

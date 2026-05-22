@@ -1,1 +1,0 @@
-{"start": 2078.8, "end": 2104.9, "confidence": 0.98, "reason": "Transition from interview content to ad break with promotional language for Substack subscription", "end_text": "born out of a decision Facebook made"}

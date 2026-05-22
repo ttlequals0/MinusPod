@@ -1,9 +1,0 @@
-[
-  {
-    "start": 4143.7,
-    "end": 4317.9,
-    "confidence": 0.95,
-    "reason": "Host promoting show's own paid subscription service (TakePoliticsSeriously.com) and donation methods (PayPal, Venmo, Cash App)",
-    "end_text": "Dog and Pony Show Audio"
-  }
-]

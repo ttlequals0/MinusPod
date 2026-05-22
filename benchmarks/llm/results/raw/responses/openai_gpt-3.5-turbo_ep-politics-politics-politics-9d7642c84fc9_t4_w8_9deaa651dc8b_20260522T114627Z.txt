@@ -1,8 +1,0 @@
-
-{
-	"start": 3741.3,
-	"end": 3767.0,
-	"confidence": 0.95,
-	"reason": "Anchor Change book promotion",
-	"end_text": "She's got a good vibe."
-}

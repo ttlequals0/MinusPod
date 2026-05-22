@@ -1,1 +1,0 @@
-{"start":4195.9,"end":4240.6,"confidence":0.88,"reason":"Host transitions into a sponsored-read-like break with promotional support/patronage language for bonus content and a tease of ads; however this window does not contain a clear third-party sponsor pitch, so this may be a partial/non-ad support segment.","end_text":"minute and a half long short films"}

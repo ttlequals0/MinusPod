@@ -1,1 +1,0 @@
-{"start":909.6,"end":933.9,"confidence":0.9,"reason":"Host promotional update segment for TakePoliticsSeriously.com with explicit call to go there to get two episodes of the show; includes ad-like transition 'This is your update brought to you by' and promotional URL mention.","end_text":"go if you want to get two episodes"}

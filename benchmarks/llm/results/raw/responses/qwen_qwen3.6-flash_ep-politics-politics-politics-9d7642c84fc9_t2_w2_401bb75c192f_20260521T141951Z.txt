@@ -1,1 +1,0 @@
-[{"start": 909.6, "end": 963.1, "confidence": 0.9, "reason": "Host-read newsletter/website promotion and news update", "end_text": "Clear economic interest."}]

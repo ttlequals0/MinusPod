@@ -1,7 +1,0 @@
-{
-  "start": 909.6,
-  "end": 933.9,
-  "confidence": 0.78,
-  "reason": "Host-read self-promo ad for TakePoliticsSeriously.com with call to action to get two episodes; partial segment likely continues in next window",
-  "end_text": "this show. Treasury Secretary Scott Besson said"
-}

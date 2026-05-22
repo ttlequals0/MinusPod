@@ -1,1 +1,0 @@
-[{"start": 4195.9, "end": 4317.9, "confidence": 0.95, "reason": "Host-read sponsor segment with calls to action and product pitches", "end_text": "broker. Dog and Pony Show Audio"}]

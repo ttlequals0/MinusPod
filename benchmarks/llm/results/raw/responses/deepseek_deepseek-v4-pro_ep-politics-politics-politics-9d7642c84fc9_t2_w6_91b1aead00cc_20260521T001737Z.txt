@@ -1,1 +1,0 @@
-{"start": 2680.5, "end": 2681.9, "confidence": 0.0, "reason": "No promotional content found - 'We'll see you next time' appears to be conversational or a transition marker but no sponsor names, URLs, promo codes, or product pitches present in this window", "end_text": "We'll see you next time."}

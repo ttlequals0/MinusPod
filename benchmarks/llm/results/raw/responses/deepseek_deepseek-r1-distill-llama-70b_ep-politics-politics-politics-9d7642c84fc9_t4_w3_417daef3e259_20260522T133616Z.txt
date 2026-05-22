@@ -1,7 +1,0 @@
-{
-  "start": 1589.9,
-  "end": 1601.7,
-  "confidence": 0.95,
-  "reason": "Host mentions subscription cost and prompts listeners to comment on YouTube",
-  "end_text": "What's the most American thing that we could do"
-}

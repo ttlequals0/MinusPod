@@ -1,1 +1,0 @@
-{"start":2499.6,"end":2528.4,"confidence":0.89,"reason":"Host mentions a sponsor-style promo for AI-helped audience targeting and then shifts into ad-like promotional language about tools and 'ads'; no explicit sponsor name, but this appears to be content, not a clear ad, so not flagged." ,"end_text":"have all these comments"}

@@ -1,9 +1,0 @@
-[
-  {
-    "start": 3709.1,
-    "end": 3735.7,
-    "confidence": 0.95,
-    "reason": "Guest plugging her own Substack and upcoming book",
-    "end_text": "book coming out this fall"
-  }
-]

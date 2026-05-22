@@ -1,7 +1,0 @@
-[{
-  "start": 1589.9,
-  "end": 1601.7,
-  "confidence": 0.92,
-  "reason": "Host-read promo for podcast subscription service, pitching cost per episode value proposition",
-  "end_text": "an episode? Huh. Interesting."
-}]

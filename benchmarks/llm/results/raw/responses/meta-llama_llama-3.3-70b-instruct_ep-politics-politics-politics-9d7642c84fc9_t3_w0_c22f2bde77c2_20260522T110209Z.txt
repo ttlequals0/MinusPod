@@ -1,1 +1,0 @@
-{"start": 0.0, "end": 30.4, "confidence": 0.98, "reason": "Just Another Pilot sponsor read", "end_text": "the Politics Politics Politics program"}

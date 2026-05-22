@@ -1,1 +1,0 @@
-{"start": 2927.9, "end": 3544.1, "confidence": 0.0, "reason": "No promotional content or ad markers found in this window. The transcript contains only editorial discussion about AI, deepfakes, voice cloning, and campaign tactics.", "end_text": "different places."}

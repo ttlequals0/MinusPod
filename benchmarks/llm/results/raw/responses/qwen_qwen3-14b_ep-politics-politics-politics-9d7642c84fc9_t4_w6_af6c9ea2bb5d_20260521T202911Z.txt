@@ -1,2 +1,0 @@
-t.
-{"start": 2520.0, "end": 3120.0, "confidence": 0.0, "reason": "No advertisement segments detected in the specified window. The transcript contains discussion on AI in politics, campaign strategies, and examples of AI-generated content, but no sponsor mentions, URLs, promo codes, or calls to action were identified.", "end_text": "automated action in its most simplest form. Yeah, it's taking."}

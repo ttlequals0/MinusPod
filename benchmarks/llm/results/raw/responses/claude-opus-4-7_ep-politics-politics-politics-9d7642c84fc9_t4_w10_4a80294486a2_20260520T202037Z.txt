@@ -1,1 +1,0 @@
-[{"start": 4242.8, "end": 4285.6, "confidence": 0.85, "reason": "Patreon/foundational tier supporter shoutouts with call to action to TakePoliticsSeriously.com", "end_text": "TakePoliticsSeriously.com"}]

@@ -1,9 +1,0 @@
-[
-  {
-    "start": 4143.7,
-    "end": 4285.6,
-    "confidence": 0.98,
-    "reason": "Host-read promotion for the podcast's subscription service (TakePoliticsSeriously.com) and direct payment methods (PayPal, Venmo, Cash App), including a reader shout-out for paying members.",
-    "end_text": "do it, TakePoliticsSeriously.com."
-  }
-]

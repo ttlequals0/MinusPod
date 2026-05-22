@@ -1,1 +1,0 @@
-{"start": 2680.5, "end": 2863.4, "confidence": 0.24, "reason": "No promotional language present; 'We'll see you next time' appears to be transcript glitch, not an identifiable ad", "end_text": "We'll see you next time."}

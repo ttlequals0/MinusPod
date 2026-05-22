@@ -1,1 +1,0 @@
-{"start":1589.9,"end":1601.7,"confidence":0.22,"reason":"Possible membership/support CTA fragment ('Less than 50 cents an episode') but no explicit sponsor, URL, or promotional pitch in this window; insufficient evidence of an ad","end_text":"Less than 50 cents an episode? Huh. Interesting."}

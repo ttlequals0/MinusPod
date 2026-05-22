@@ -1,1 +1,0 @@
-{"start": 4242.8, "end": 4285.6, "confidence": 0.58, "reason": "Host membership/support pitch with call to action to TakePoliticsSeriously.com, promoting paid foundational tier and name-read benefit", "end_text": "one place to do it, TakePoliticsSeriously.com"}

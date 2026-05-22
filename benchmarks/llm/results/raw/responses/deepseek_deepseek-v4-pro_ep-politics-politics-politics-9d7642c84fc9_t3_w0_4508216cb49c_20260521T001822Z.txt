@@ -1,1 +1,0 @@
-{"segments": [{"start": 0.0, "end": 52.7, "confidence": 0.9, "reason": "Pre-roll ad for Just Another Pilot - transition phrase 'The following is brought to you by' with sponsor name", "end_text": "by Just Another Pilot"}]}

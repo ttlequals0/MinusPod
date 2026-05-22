@@ -1,9 +1,0 @@
-[
-  {
-    "start": 909.6,
-    "end": 1446.0,
-    "confidence": 0.98,
-    "reason": "Host-read promotion for the podcast's own subscription service, TakePoliticsSeriously.com, framing the subsequent news update as a sponsored segment.",
-    "end_text": "largest fireworks display."
-  }
-]

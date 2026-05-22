@@ -1,7 +1,0 @@
-{
-  "start": 29.27,
-  "end": 35.40,
-  "confidence": 0.95,
-  "reason": "The discussion highlights the potential for AI to be used in political campaigns, particularly through voice cloning and automated actions, which could lead to misinformation and manipulation. The concern is about the ethical implications and the responsibility of AI companies and campaigns in preventing misuse.",
-  "end_text": "I wonder what the future holds for AI technology and its impact on society, particularly in terms of trust and authenticity."
-}

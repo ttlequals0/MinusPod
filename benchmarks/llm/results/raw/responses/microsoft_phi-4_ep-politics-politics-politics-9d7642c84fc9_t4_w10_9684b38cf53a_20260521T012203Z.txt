@@ -1,7 +1,0 @@
-{
-  "start": 4.195,
-  "end": 4.240,
-  "confidence": 0.95,
-  "reason": "Spencer Pratt's ads are mentioned as being produced using AI tools, indicating a significant focus on ads.",
-  "end_text": "Spencer Pratt's fan community"
-}

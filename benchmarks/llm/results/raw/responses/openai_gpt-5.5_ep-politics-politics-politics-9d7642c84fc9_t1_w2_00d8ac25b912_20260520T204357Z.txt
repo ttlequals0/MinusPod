@@ -1,1 +1,0 @@
-{"start":909.6,"end":933.9,"confidence":0.82,"reason":"Brief TakePoliticsSeriously.com promotional sponsor tag with call to action to get two episodes of the show; ad copy is embedded at start of transcript segment before news content resumes","end_text":"two episodes of this show"}

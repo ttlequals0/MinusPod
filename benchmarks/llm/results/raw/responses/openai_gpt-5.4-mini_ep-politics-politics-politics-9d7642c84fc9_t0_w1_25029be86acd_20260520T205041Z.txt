@@ -1,1 +1,0 @@
-{"start":909.6,"end":933.9,"confidence":0.77,"reason":"Promotional host-read for TakePoliticsSeriously.com with explicit call to go there for more episodes; includes update sponsor-style transition language.","end_text":"go if you want to get two episodes"}

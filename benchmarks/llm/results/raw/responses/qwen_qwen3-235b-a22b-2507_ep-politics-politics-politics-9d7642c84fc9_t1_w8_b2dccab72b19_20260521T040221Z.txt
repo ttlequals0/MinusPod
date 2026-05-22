@@ -1,1 +1,0 @@
-{"start": 3741.3, "end": 3767.0, "confidence": 0.95, "reason": "Host promotes Katie Harbath's Substack and new company Anchor Change with clear call to action and URL", "end_text": "Austin, Texas."}

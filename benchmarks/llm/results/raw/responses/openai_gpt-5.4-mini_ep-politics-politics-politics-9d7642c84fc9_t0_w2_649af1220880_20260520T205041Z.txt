@@ -1,1 +1,0 @@
-{"start":909.6,"end":933.9,"confidence":0.98,"reason":"Host-read sponsor read for TakePoliticsSeriously.com with promotional CTA to get two episodes of the show; includes transition into sponsored update","end_text":"want to get two episodes of this show"}

@@ -1,1 +1,0 @@
-{"start": 2680.5, "end": 2681.9, "confidence": 0.95, "reason": "Network-inserted ad break transition", "end_text": "We'll see you next time."}

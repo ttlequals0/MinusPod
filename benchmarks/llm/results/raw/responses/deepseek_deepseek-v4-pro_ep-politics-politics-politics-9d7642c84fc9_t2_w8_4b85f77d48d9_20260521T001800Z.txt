@@ -1,1 +1,0 @@
-{"start": 3337.1, "end": 3968.8, "confidence": 0.0, "reason": "No advertisements detected in this window. All content is interview discussion about AI and politics, followed by host wrap-up and Odyssey movie commentary. Guest's mention of her Substack and book is organic interview response to host's question, not a paid ad.", "end_text": "after he did Batman Begins."}

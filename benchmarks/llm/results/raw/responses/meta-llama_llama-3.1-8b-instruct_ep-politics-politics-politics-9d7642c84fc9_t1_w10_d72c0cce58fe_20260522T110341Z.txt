@@ -1,7 +1,0 @@
-{
-  "start": 4195.9,
-   "end": 4317.9,
-   "confidence": 0.95,
-   "reason": "Host-read sponsor segment with list of supporters",
-   "end_text": "TakePoliticsSeriously.com"
-}

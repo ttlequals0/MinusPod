@@ -1,8 +1,0 @@
-
-{
-	"start": 4195.9,
-	"end": 4285.6,
-	"confidence": 0.95,
-	"reason": "Listener support shoutouts and website mention",
-	"end_text": "Dog and Pony Show Audio."
-}

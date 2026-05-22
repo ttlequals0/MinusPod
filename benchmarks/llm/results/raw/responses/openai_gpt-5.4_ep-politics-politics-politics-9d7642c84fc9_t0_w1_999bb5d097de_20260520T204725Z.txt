@@ -1,7 +1,0 @@
-{
-  "start": 909.6,
-  "end": 933.9,
-  "confidence": 0.88,
-  "reason": "Host-read self-promo/CTA for TakePoliticsSeriously.com: 'This is your update brought to you by TakePoliticsSeriously.com. That's where you need to go if you want to get two episodes of this show.' Partial segment may continue from previous/into next content.",
-  "end_text": "get two episodes of this show"
-}

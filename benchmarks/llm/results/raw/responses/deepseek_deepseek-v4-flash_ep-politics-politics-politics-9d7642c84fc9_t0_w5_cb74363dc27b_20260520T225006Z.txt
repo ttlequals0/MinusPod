@@ -1,7 +1,0 @@
-{  
-  "start": 2078.8,
-  "end": 2681.9,
-  "confidence": 0.0,
-  "reason": "No promotional content, sponsor mentions, promo codes, or calls to action found in this transcript window.",
-  "end_text": "We'll see you next time."
-}

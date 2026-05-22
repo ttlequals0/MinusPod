@@ -1,1 +1,0 @@
-{"start": 4195.9, "end": 4218.0, "confidence": 0.98, "reason": "Promotional pitch for paid membership at TakePoliticsSeriously.com with pricing details and benefits", "end_text": "set it and forget it"}

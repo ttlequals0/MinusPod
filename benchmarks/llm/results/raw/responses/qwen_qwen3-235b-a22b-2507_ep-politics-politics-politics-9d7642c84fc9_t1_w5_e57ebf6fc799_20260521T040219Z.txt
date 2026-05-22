@@ -1,1 +1,0 @@
-{"start": 2201.5, "end": 2206.6, "confidence": 0.3, "reason": "Short overlap with previous segment, no promotional content", "end_text": "Yeah. Yeah. Yeah."}

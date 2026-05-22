@@ -1,0 +1,1 @@
+[{"start": 618.7, "end": 748.3, "confidence": 0.97, "reason": "Ad break with Parloa, Capital One, AllTrails, and Zyn sponsor reads", "end_text": "nicotine is an addictive chemical"}, {"start": 749.6, "end": 784.6, "confidence": 0.9, "reason": "Lemonada Media podcast cross-promotion for Good Things Thrive series", "end_text": "let's get to the briefs"}]

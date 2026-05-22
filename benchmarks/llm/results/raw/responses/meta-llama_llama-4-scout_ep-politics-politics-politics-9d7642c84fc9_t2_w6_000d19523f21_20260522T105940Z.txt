@@ -1,7 +1,0 @@
-{ 
-  "start": 2499.6, 
-  "end": 3088.8, 
-  "confidence": 0.0, 
-  "reason": "No ads detected", 
-  "end_text": "So it's a more"
-}

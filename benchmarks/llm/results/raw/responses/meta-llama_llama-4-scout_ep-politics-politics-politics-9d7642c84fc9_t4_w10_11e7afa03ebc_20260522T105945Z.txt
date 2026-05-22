@@ -1,7 +1,0 @@
-{
-"start": 4195.9,
-  "end": 4317.9,
-  "confidence": 0.98,
-  "reason": "Sponsor read and subscription promotion",
-  "end_text": "this broker. Dog and Pony Show Audio"
-}

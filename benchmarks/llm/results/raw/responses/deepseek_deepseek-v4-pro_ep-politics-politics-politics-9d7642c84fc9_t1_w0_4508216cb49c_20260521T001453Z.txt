@@ -1,1 +1,0 @@
-{"start": 0.0, "end": 52.7, "confidence": 0.75, "reason": "Pre-roll sponsorship: 'The following is brought to you by Just Another Pilot' transition followed by ad gap. Cross-promotion or sponsor ad with no transcript in gap but clear sponsorship language.", "end_text": "Just Another Pilot"}

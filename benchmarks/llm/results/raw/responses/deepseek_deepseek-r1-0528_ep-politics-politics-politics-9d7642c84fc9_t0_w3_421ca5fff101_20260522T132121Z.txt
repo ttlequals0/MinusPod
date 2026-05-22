@@ -1,9 +1,0 @@
-[
-  {
-    "start": 1589.9,
-    "end": 1601.7,
-    "confidence": 0.85,
-    "reason": "Host-read promotion for podcast subscription service, referencing cost per episode",
-    "end_text": "Huh. Interesting."
-  }
-]

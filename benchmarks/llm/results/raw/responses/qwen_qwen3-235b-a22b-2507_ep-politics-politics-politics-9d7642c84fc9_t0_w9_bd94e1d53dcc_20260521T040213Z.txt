@@ -1,1 +1,0 @@
-{"start": 4195.9, "end": 4218.0, "confidence": 0.95, "reason": "Host promotes paid membership tier and bonus content at TakePoliticsSeriously.com with call to action", "end_text": "in your life is that $99 annual fee"}

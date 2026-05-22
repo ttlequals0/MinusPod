@@ -1,1 +1,0 @@
-{"start": 1682.3, "end": 1712.4, "confidence": 0.95, "reason": "Host-read promotion for Anchor Change newsletter and Substack", "end_text": "newsletter at Substack at anchorchange.substack.com"}

@@ -1,7 +1,0 @@
-{
-  "start": 2927.9,
-  "end": 2954.6,
-  "confidence": 0.8,
-  "reason": "Discussion about AI video and voice cloning in political campaigns",
-  "end_text": "elevates opposition research up a level where before, if a candidate wrote something embarrassing, you could just show it on screen and have a scary narrator say that they said this and then have the same scary narrator react disgusted to it or something like that, which is what we've had forever. But in this grand platinum race, you have this treasure trove of ridiculous stuff that he wrote on Reddit 10 years ago. And now, it's not only in his voice, but it's in whatever tone of his voice that the ad maker wants to do."
-}

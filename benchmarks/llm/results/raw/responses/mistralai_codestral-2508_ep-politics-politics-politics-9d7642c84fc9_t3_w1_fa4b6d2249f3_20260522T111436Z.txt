@@ -1,1 +1,0 @@
-[{"start": 909.6, "end": 1021.5, "confidence": 0.95, "reason": "TakePoliticsSeriously.com sponsor read", "end_text": "conciliatory. They are looking for a truce"}]

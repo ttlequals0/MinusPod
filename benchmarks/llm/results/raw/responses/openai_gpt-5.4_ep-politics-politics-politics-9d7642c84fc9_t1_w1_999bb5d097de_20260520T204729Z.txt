@@ -1,7 +1,0 @@
-{
-  "start": 909.6,
-  "end": 933.9,
-  "confidence": 0.74,
-  "reason": "Host-read promotional mention for TakePoliticsSeriously.com with call to action to get two episodes; likely partial ad/promo segment continuing into content",
-  "end_text": "get two episodes of this show"
-}

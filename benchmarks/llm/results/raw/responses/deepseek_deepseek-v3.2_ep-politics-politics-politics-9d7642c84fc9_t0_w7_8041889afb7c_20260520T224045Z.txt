@@ -1,1 +1,0 @@
-{"start": 3544.1, "end": 3544.1, "confidence": 0.0, "reason": "No promotional content found in this transcript segment.", "end_text": ""}

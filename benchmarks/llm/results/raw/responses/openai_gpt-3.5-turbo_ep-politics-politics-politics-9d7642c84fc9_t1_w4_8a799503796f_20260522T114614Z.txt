@@ -1,7 +1,0 @@
-{
-	"start": 2230.3,
-	"end": 2286.7,
-	"confidence": 1,
-	"reason": "Non-ad content",
-	"end_text": "all these companies, OpenAI and Facebook that are all building these hyperscale data centers at this crazy rate, like,"
-}

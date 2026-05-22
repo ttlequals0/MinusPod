@@ -1,7 +1,0 @@
-{
-	"start": 4195.9,
-	"end": 4218.0,
-	"confidence": 1,
-	"reason": "Podcast bonus content and membership promotion",
-	"end_text": "We just talked about a few of those Spencer Pratt ads."
-}

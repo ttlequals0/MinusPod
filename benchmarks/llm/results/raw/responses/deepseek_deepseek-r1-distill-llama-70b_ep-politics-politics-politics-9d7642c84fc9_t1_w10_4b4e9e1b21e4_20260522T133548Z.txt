@@ -1,7 +1,0 @@
-{
-  "start": 4270.4,
-  "end": 4285.6,
-  "confidence": 0.95,
-  "reason": "Host-read promotion of TakePoliticsSeriously.com with call to action",
-  "end_text": "TakePoliticsSeriously.com."
-}

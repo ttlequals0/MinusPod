@@ -1,7 +1,0 @@
-{
-  "start": 0.0,
-  "end": 30.4,
-  "confidence": 0.72,
-  "reason": "Platform/network promo indicated by 'The following is brought to you by Just Another Pilot' at the end of the intro; partial ad/promo begins in this window",
-  "end_text": "brought to you by Just Another Pilot"
-}

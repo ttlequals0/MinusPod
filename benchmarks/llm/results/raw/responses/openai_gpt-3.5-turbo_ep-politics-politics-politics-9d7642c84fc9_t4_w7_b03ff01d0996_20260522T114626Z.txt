@@ -1,7 +1,0 @@
-{
-	"start": 3540.0,
-	"end": 3544.1,
-	"confidence": 0.95,
-	"reason": "End of episode content",
-	"end_text": "different places."
-}

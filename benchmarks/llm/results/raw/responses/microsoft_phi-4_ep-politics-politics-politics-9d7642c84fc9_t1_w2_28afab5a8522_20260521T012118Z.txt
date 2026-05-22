@@ -1,7 +1,0 @@
-{  
-  "start": 14.0,  
-  "end": 24.0,  
-  "confidence": 0.95,  
-  "reason": "The discussion focuses on political dynamics and strategies, particularly regarding the Republican primary and the Democrats' approach to redistricting and court challenges. This segment highlights the political maneuvers and strategies employed by both parties, emphasizing the importance of understanding political realities and the conditions under which political figures like JD Vance and Marco Rubio are considered viable alternatives. The segment also discusses the Democrats' response to recent court defeats and their shift towards more aggressive redistricting strategies, which is relevant to political discussions and strategies.",  
-  "end_text": "The discussion highlights the Democrats' shift towards aggressive redistricting strategies and the potential for broader retaliation against the Supreme Court, emphasizing the need for political parties to adapt and respond to legal and electoral challenges."  
-}

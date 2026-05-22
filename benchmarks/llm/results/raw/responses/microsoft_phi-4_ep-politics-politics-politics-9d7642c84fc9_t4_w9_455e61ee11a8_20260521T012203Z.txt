@@ -1,7 +1,0 @@
-{
-  "start": 37.68,
-  "end": 43.17,
-  "confidence": 0.95,
-  "reason": "The discussion revolves around the casting decisions for Christopher Nolan's movie, 'Odyssey', and the skepticism surrounding these choices. The episode highlights the controversy and the anticipation of the movie's release, focusing on the potential impact of casting decisions on audience reception.",
-  "end_text": "We'll be back next week. Have a great weekend. Until then, this is your old pal, Justin Robert Young, saying some shows talk about politics, others talk about politics, but this is the only show that dares discuss politics. Ho! Three. Diamond Club hopes you have enjoyed this broker. Dog and Pony Show Audio."
-}

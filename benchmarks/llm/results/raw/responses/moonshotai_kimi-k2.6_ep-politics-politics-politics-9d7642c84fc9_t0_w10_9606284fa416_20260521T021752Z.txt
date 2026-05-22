@@ -1,2 +1,0 @@
-
-    {"start": 4195.9, "end": 4317.9, "confidence": 0.92, "reason": "Host promotion of own Patreon/subscription tier ('foundational tier', 'TakePoliticsSeriously.com') and listener name reads. Not a paid sponsor per guidelines (organic Patreon mention), but included for review due to promotional URL and extended donation pitch", "end_text": "Dog and Pony Show Audio"}

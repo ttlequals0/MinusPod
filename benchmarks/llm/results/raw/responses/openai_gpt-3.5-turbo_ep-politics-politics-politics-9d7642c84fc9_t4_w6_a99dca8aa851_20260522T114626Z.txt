@@ -1,7 +1,0 @@
-{
-	"start": 2727.7,
-	"end": 2733.8,
-	"confidence": 1,
-	"reason": "Discussion about AI",
-	"end_text": "I guess politics is always downstream of this stuff, but like the idea of AI."
-}

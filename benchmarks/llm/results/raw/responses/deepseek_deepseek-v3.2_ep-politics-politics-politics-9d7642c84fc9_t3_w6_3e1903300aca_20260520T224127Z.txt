@@ -1,1 +1,0 @@
-{"start": 2528.4, "end": 2532.3, "confidence": 0.1, "reason": "Potential ad break transition phrase 'social listening in a way that you maybe wouldn't have been able to' - but no clear promotional content, likely just content gap", "end_text": "you maybe wouldn't have been able to"}

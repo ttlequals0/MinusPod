@@ -1,9 +1,0 @@
-[
-  {
-    "start": 909.6,
-    "end": 933.9,
-    "confidence": 0.95,
-    "reason": "Podcast self-promotion for premium content",
-    "end_text": "managing security risks."
-  }
-]

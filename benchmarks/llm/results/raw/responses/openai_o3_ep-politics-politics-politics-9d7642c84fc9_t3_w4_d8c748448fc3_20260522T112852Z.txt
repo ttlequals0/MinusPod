@@ -1,1 +1,0 @@
-{"error":"No ad content present in transcript"}

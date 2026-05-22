@@ -1,1 +1,0 @@
-[{"start": 909.6, "end": 933.9, "confidence": 0.85, "reason": "Host plug for TakePoliticsSeriously.com subscription service", "end_text": "managing security risks."}]

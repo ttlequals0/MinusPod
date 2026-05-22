@@ -1,1 +1,0 @@
-[{"start": 0.0, "end": 30.4, "confidence": 0.95, "reason": "Host-read sponsor transition \"The following is brought to you by Just Another Pilot.\" (partial ad, continues in next window)", "end_text": "Just Another Pilot."}]

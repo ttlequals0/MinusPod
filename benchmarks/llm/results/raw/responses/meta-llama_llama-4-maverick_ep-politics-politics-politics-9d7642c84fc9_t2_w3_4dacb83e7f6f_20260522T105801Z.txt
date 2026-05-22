@@ -1,1 +1,0 @@
-{"start": 1589.9, "end": 1601.7, "confidence": 0.8, "reason": "Sponsorship mention with pricing", "end_text": "an episode? Huh. Interesting"}

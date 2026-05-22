@@ -1,3 +1,0 @@
-[
-  {"start": 0.0, "end": 30.4, "confidence": 0.9, "reason": "Host-read sponsorship announcement with sponsor name", "end_text": "Just Another Pilot"}
-]

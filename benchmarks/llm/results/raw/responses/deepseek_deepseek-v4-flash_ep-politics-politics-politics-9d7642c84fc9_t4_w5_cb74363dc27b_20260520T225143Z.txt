@@ -1,7 +1,0 @@
-{
-  "start": 2510.0,
-  "end": 2561.6,
-  "confidence": 0.95,
-  "reason": "Network-inserted brand tagline ad for FreshField Market",
-  "end_text": "Explore more at FreshField"
-}

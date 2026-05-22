@@ -1,1 +1,0 @@
-{"error":"We are returning a JSON array, not an object"}

@@ -1,7 +1,0 @@
-{
-  "start": 42.0,
-  "end": 52.0,
-  "confidence": 0.95,
-  "reason": "The segment discusses AI's impact on political campaigns, focusing on micro-targeting and personalized content, which are high-confidence topics due to their relevance and specificity.",
-  "end_text": "We'll see you next time."
-}

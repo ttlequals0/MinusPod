@@ -1,1 +1,0 @@
-{"start": 2680.5, "end": 2681.9, "confidence": 0.88, "reason": "Produced outro/cross-promo style sign-off phrase indicating a likely inserted segment; partial ad at window end", "end_text": "We'll see you next time."}

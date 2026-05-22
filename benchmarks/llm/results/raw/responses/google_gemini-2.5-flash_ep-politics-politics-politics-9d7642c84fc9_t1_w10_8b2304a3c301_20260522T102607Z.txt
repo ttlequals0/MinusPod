@@ -1,9 +1,0 @@
-[
-  {
-    "start": 4286.7,
-    "end": 4317.9,
-    "confidence": 0.9,
-    "reason": "Podcast outro and network promotion",
-    "end_text": "Dog and Pony Show Audio"
-  }
-]

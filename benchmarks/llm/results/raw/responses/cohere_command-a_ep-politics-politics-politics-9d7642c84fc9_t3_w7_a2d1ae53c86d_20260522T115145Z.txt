@@ -1,1 +1,0 @@
-{"start": 2927.9, "end": 3540.0, "confidence": 0.01, "reason": "No promotional content found in transcript", "end_text": "different reasons to hire more engineers to put them in different places"}

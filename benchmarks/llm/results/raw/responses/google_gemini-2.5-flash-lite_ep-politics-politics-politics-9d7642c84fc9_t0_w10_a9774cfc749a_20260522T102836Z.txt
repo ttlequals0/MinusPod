@@ -1,9 +1,0 @@
-[
-  {
-    "start": 4270.4,
-    "end": 4285.6,
-    "confidence": 0.95,
-    "reason": "Host read ad for TakePoliticsSeriously.com, a call to action for listeners to get their name read on the show.",
-    "end_text": "TakePoliticsSeriously.com."
-  }
-]

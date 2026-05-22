@@ -1,1 +1,0 @@
-{"start": 909.6, "end": 933.9, "confidence": 0.95, "reason": "TakePoliticsSeriously.com sponsor mention with URL", "end_text": "show. Treasury Secretary Scott Besson said that"}

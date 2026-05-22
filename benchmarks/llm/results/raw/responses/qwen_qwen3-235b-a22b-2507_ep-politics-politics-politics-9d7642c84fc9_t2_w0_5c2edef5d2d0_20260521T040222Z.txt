@@ -1,1 +1,0 @@
-{"start": 0.0, "end": 30.4, "confidence": 0.98, "reason": "Host-read sponsor segment with transition phrase 'The following is brought to you by Just Another Pilot' and promotional language for a non-existent brand, typical of fictional or placeholder sponsorship in independent podcasts", "end_text": "It's all coming up"}

@@ -1,7 +1,0 @@
-{  
-  "start": 12.44,  
-  "end": 18.60,  
-  "confidence": 0.95,  
-  "reason": "Discussion of the intersection between politics and technology, focusing on the rise of AI and its cultural impact, which is relevant to the topic of AI's influence on politics and technology.",  
-  "end_text": "largely because it's looked at as this natural extension of people souring or a subsection of humanity, just by the fact that they use it every day, becoming concerned or angry about technology."  
-}

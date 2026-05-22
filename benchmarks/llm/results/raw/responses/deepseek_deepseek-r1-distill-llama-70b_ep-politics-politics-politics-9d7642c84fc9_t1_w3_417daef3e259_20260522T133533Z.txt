@@ -1,7 +1,0 @@
-{
-  "start": 1589.9,
-  "end": 1601.7,
-  "confidence": 0.95,
-  "reason": "Host mentions subscription cost and Patreon-like support",
-  "end_text": "Interesting."
-}

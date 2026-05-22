@@ -1,1 +1,0 @@
-[{"start": 909.6, "end": 933.9, "confidence": 0.85, "reason": "Promo for TakePoliticsSeriously.com subscription", "end_text": "talks in Beijing"}]

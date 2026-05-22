@@ -1,9 +1,0 @@
-[
-  {
-    "start": 4242.8,
-    "end": 4285.6,
-    "confidence": 0.98,
-    "reason": "Host-read promotion for the show's paid subscription service, with a call to action and URL.",
-    "end_text": "do it, TakePoliticsSeriously.com."
-  }
-]

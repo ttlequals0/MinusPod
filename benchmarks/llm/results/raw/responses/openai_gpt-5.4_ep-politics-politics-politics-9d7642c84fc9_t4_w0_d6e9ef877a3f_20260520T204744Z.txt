@@ -1,1 +1,0 @@
-{"start":0.0,"end":30.4,"confidence":0.82,"reason":"Produced promo/ad segment with explicit sponsorship language: \"The following is brought to you by Just Another Pilot\"","end_text":"brought to you by Just Another Pilot"}

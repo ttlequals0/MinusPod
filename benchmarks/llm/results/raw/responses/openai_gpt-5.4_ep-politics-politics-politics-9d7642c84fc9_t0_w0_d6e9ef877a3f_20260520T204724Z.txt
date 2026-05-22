@@ -1,1 +1,0 @@
-{"start":0.0,"end":30.4,"confidence":0.58,"reason":"Produced pre-roll mention: 'The following is brought to you by Just Another Pilot,' indicating a sponsor/platform promo; partial ad likely continues beyond available lines before show intro resumes at 52.7s","end_text":"brought to you by Just Another Pilot"}

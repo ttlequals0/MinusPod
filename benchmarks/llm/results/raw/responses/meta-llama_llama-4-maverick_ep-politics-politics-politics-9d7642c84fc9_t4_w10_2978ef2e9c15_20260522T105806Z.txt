@@ -1,1 +1,0 @@
-{"start": 4270.4, "end": 4317.9, "confidence": 0.8, "reason": "Sponsorship mention and call to action for TakePoliticsSeriously.com", "end_text": "Ho! Three. Diamond Club hopes you have enjoyed this broker."}

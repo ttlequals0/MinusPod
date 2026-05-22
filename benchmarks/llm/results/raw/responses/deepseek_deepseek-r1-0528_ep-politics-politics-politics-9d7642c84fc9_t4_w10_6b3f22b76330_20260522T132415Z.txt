@@ -1,9 +1,0 @@
-[
-  {
-    "start": 4242.8,
-    "end": 4285.6,
-    "confidence": 0.95,
-    "reason": "Promotion of show's subscription service (foundational tier) with call to action to TakePoliticsSeriously.com",
-    "end_text": "one place to do it, TakePoliticsSeriously.com"
-  }
-]

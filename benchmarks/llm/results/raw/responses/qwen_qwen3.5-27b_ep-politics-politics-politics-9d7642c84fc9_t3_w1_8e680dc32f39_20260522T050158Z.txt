@@ -1,9 +1,0 @@
-[
-  {
-    "start": 909.6,
-    "end": 933.9,
-    "confidence": 0.95,
-    "reason": "Host-read sponsor segment for TakePoliticsSeriously.com with URL and call to action. Note: Transcript block includes transition to news content.",
-    "end_text": "managing security risks."
-  }
-]

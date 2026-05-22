@@ -1,9 +1,0 @@
-[
-  {
-    "start": 1589.9,
-    "end": 1601.7,
-    "confidence": 0.9,
-    "reason": "A short, distinct segment promoting the podcast's own paid subscription by highlighting the low cost per episode.",
-    "end_text": "Huh. Interesting."
-  }
-]

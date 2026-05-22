@@ -1,1 +1,0 @@
-[{"start": 0.0, "end": 30.4, "confidence": 0.95, "reason": "Explicit host-read sponsor segment ('brought to you by Just Another Pilot')", "end_text": "by Just Another Pilot."}]

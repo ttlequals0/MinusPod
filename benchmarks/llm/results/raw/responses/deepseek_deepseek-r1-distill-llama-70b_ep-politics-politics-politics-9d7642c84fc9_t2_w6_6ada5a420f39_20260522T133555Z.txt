@@ -1,7 +1,0 @@
-{
-  "start": 2680.5,
-  "end": 2681.9,
-  "confidence": 0.95,
-  "reason": "Host transition phrase 'We'll see you next time.'",
-  "end_text": "We'll see you next time."
-}

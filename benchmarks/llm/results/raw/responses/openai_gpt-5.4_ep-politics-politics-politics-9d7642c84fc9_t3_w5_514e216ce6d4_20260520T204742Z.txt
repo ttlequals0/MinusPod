@@ -1,1 +1,0 @@
-{"start": 2680.5, "end": 2681.9, "confidence": 0.72, "reason": "Produced outro/cross-promo style line 'We'll see you next time' appears to mark a non-editorial inserted segment beginning or ending, but transcript window is incomplete so this is a partial ad indicator", "end_text": "We'll see you next time."}

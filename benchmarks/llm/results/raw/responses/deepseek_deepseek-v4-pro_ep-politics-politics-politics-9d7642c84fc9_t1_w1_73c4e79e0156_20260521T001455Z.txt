@@ -1,1 +1,0 @@
-{"start": 909.6, "end": 933.9, "confidence": 0.85, "reason": "Host-read self-promotion for show's own subscription at TakePoliticsSeriously.com - structured as ad break but promoting own content, not third-party sponsor", "end_text": "two episodes of this show" }

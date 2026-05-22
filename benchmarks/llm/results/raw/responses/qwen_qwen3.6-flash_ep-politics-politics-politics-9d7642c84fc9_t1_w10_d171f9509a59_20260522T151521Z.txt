@@ -1,1 +1,0 @@
-[{"start": 4242.8, "end": 4317.9, "confidence": 0.9, "reason": "Host-read Patreon subscription plug with patron name roll call and call to action URL", "end_text": "Dog and Pony Show Audio."}]

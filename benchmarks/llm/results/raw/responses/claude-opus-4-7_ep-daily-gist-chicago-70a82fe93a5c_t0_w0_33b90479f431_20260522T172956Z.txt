@@ -1,0 +1,1 @@
+[{"start": 29.9, "end": 64.7, "confidence": 0.95, "reason": "Old National Bank sponsor ad", "end_text": "Member FDIC"}, {"start": 515.6, "end": 548.5, "confidence": 0.9, "reason": "Crain's Weekly News Quiz promo", "end_text": "wherever you get your podcasts"}]

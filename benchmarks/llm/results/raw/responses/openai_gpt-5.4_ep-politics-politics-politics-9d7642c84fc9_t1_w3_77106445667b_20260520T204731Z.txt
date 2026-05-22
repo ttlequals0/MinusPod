@@ -1,1 +1,0 @@
-{"start":1589.9,"end":1601.7,"confidence":0.22,"reason":"Possible partial subscription/promo tease without explicit sponsor or call-to-action; insufficient promotional language to confirm ad","end_text":"Less than 50 cents an episode? Huh. Interesting."}

@@ -1,1 +1,0 @@
-[{"start": 909.6, "end": 1021.5, "confidence": 0.98, "reason": "TakePoliticsSeriously.com sponsor read", "end_text": "conciliatory. Here are the two things that came up"}]

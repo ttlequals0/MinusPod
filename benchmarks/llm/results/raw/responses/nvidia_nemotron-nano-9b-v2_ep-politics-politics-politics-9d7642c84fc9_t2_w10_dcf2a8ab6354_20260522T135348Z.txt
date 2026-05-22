@@ -1,1 +1,0 @@
-[{"start": 4195.9, "end": 4218.0, "confidence": 0.95, "reason": "Promoting subscription tiers with supporter names", "end_text": "TakePoliticsSeriously.com"}, {"start": 4270.4, "end": 4285.6, "confidence": 0.95, "reason": "Promoting subscription tiers with supporter names", "end_text": "TakePoliticsSeriously.com"}]

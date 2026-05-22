@@ -1,1 +1,0 @@
-{"start": 1589.9, "end": 1601.7, "confidence": 0.95, "reason": "Host-read Patreon/subscriber promotion pitch with payment mention", "end_text": "Interesting."}

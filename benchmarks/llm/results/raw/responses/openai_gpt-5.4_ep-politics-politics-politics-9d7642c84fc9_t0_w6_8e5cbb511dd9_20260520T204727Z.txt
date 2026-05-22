@@ -1,1 +1,0 @@
-{"start": 2680.5, "end": 2863.4, "confidence": 0.22, "reason": "No promotional language present; repeated 'We'll see you next time' appears to be transcript artifact, not a verifiable ad", "end_text": "We'll see you next time"}

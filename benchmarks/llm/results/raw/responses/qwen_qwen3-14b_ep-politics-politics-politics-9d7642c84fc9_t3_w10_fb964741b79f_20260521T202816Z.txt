@@ -1,2 +1,0 @@
-w.
-{"start": 4270.4, "end": 4285.6, "confidence": 0.85, "reason": "Host lists supporters and directs to TakePoliticsSeriously.com for name recognition", "end_text": "TakePoliticsSeriously.com."}
