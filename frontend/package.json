@@ -10,8 +10,10 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.100.9",
+    "@types/pulltorefreshjs": "^0.1.7",
     "clsx": "^2.1.0",
     "lucide-react": "^1.16.0",
+    "pulltorefreshjs": "^0.1.22",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-is": "^19.2.5",

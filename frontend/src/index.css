@@ -55,6 +55,16 @@
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
+  /* Suppress native pull-to-refresh so pulltorefreshjs is the only handler. */
+  html {
+    overscroll-behavior-y: contain;
+  }
+}
+
+/* Visual cue while the App.tsx dwell timer is running. */
+.ptr--ptr.ptr--dwelling .ptr--icon {
+  color: hsl(var(--primary));
+  transition: color 200ms ease-out;
 }
 
 @layer utilities {
