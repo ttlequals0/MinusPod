@@ -1,0 +1,1 @@
+{"start": 13617.2, "end": 13620.0, "confidence": 0.25, "reason": "Potential AI mention but no promotional content; segment appears to be regular discussion", "end_text": "AI is just a bootlicker"}

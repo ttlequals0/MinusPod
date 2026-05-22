@@ -1,0 +1,2 @@
+t.
+{"start": 4265.2, "end": 4465.7, "confidence": 0.98, "reason": "Bitwarden sponsor read with product pitch, user stats, and call to action", "end_text": "Security Now. Okay. No more singing. Back to Steve."}

@@ -1,0 +1,1 @@
+{"start": 3358.6, "end": 3376.2, "confidence": 0.7, "reason": "Possible short network-inserted 'Thank you for watching' interstitial - unsure if part of show or inserted", "end_text": "Thank you for watching."}

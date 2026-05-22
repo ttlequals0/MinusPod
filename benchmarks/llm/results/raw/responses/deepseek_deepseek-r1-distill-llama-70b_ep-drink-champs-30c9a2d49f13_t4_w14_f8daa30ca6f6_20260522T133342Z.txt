@@ -1,0 +1,7 @@
+{
+  "start": 6208.7,
+  "end": 6233.9,
+  "confidence": 0.95,
+  "reason": "Airtasker ad with promo code mention",
+  "end_text": "done. Download the Airtasker app or go to Airtasker.com."
+}

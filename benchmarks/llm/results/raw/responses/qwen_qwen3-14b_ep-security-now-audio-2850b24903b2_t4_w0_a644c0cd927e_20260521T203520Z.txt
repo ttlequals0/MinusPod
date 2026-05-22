@@ -1,0 +1,2 @@
+s.
+{"start": 16.7, "end": 68.0, "confidence": 0.95, "reason": "OutSystems sponsor read", "end_text": "OutSystems.com slash twit."}

@@ -1,0 +1,7 @@
+{
+  "start": 13669.1,
+  "end": 13758.2,
+  "confidence": 0.95,
+  "reason": "Airtasker and Care for the Culture sponsor reads",
+  "end_text": "Gilead Sciences."
+}

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 4197.5,
+    "end": 4804.9,
+    "confidence": 0.0,
+    "reason": "No promotional content detected; entire segment is conversation about football and personal stories",
+    "end_text": "bill like..."
+  }
+]

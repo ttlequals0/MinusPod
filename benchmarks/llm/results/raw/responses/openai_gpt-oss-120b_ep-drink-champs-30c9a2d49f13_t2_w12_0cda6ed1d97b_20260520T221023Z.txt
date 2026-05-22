@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 5420.4,
+      "end": 5441.4,
+      "confidence": 0.8,
+      "reason": "Repeated promo code/discount code wording indicates a sponsor promotion",
+      "end_text": "discount code, discount code"
+    }
+  ]
+}

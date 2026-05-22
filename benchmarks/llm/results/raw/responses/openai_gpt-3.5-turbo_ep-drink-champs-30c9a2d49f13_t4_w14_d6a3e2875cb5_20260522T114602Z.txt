@@ -1,0 +1,7 @@
+{
+	"start": 6208.7,
+	"end": 6233.9,
+	"confidence": 0.95,
+	"reason": "Airtasker app promotion",
+	"end_text": "Airtasker, get anything done."
+}

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2609.5,
+    "end": 2634.3,
+    "confidence": 0.95,
+    "reason": "Sponsor placeholder or platform-inserted ad listing promo codes and sponsors",
+    "end_text": "Manscaped, Stamps.com,"
+  }
+]

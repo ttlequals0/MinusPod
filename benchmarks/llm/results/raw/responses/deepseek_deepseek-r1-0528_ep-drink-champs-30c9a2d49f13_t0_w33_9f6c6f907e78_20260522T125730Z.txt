@@ -1,0 +1,30 @@
+[
+  {
+    "start": 13886.8,
+    "end": 13907.2,
+    "confidence": 0.95,
+    "reason": "Transition phrase 'Let's take a sunny shot' and interruption of content for non-conversational break",
+    "end_text": "He still ain't taking"
+  },
+  {
+    "start": 14025.3,
+    "end": 14033.4,
+    "confidence": 0.9,
+    "reason": "Product placement for Richardson hat brand during conversational pause",
+    "end_text": "Trust me. It don't"
+  },
+  {
+    "start": 14069.0,
+    "end": 14089.3,
+    "confidence": 0.98,
+    "reason": "Explicit show branding 'Drink Champs, Sport Champs' with merchandise display",
+    "end_text": "they pausing. I want"
+  },
+  {
+    "start": 14316.0,
+    "end": 14343.8,
+    "confidence": 0.92,
+    "reason": "Cross-promotion for Facebook platform during content gap",
+    "end_text": "wildest. I ain't gonna"
+  }
+]

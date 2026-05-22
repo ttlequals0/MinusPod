@@ -1,0 +1,1 @@
+{"error":"As an AI text model without access to the full podcast transcript including timestamps, I cannot provide the detailed JSON output requested. Please provide the precise audio segment markers and transcript details for accurate ad detection."}

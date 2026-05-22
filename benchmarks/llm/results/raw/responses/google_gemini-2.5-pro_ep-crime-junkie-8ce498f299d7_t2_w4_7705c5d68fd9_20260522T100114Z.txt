@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1959.8,
+    "end": 2080.5,
+    "confidence": 0.99,
+    "reason": "A multi-part ad break for Rakuten, LinkedIn, and Hertz, featuring promotional language and calls to action.",
+    "end_text": "newest fleet yet at Hertz.com."
+  }
+]

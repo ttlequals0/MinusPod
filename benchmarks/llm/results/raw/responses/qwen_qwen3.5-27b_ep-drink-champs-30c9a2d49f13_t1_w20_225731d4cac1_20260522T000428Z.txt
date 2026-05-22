@@ -1,0 +1,1 @@
+[{"start": 8724.9, "end": 8831.4, "confidence": 0.98, "reason": "Sponsor reads for AirTasker, OnDeck, Public, and cross-promo for Decisions Decisions podcast", "end_text": "those who take it seriously."}]

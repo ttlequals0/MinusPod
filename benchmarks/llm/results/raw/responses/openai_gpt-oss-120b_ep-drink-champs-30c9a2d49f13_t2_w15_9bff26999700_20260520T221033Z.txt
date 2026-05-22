@@ -1,0 +1,18 @@
+{
+  "ads": [
+    {
+      "start": 6283.4,
+      "end": 6318.1,
+      "confidence": 0.99,
+      "reason": "OnDeck small business line of credit sponsor read with URL and call to action, followed by Public platform sponsor credit",
+      "end_text": "take it seriously."
+    },
+    {
+      "start": 6343.1,
+      "end": 6355.7,
+      "confidence": 0.98,
+      "reason": "CastingWords transcription service sponsor credit",
+      "end_text": "by CastingWords"
+    }
+  ]
+}

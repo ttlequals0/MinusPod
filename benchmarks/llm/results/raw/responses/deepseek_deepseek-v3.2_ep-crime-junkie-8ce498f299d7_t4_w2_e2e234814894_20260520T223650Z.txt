@@ -1,0 +1,1 @@
+[{"start": 1036.2, "end": 1097.9, "confidence": 0.98, "reason": "SoFi sponsor read with promo URL SoFi.com slash CJ", "end_text": "slash CJ. Loans originated by SoFi Bank"}, {"start": 1099.8, "end": 1129.6, "confidence": 0.98, "reason": "LinkedIn Premium All-in-One sponsor read with promo URL LinkedIn.com slash all-in-one", "end_text": "slash all-in-one."}]

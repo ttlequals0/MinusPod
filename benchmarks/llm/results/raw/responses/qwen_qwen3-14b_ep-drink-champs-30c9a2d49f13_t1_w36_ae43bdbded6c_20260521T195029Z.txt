@@ -1,0 +1,2 @@
+t.
+{"start": 15388.3, "end": 15416.5, "confidence": 0.95, "reason": "Airtasker service promotion with URL and call to action", "end_text": "Airtasker."}

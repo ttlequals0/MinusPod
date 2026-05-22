@@ -1,0 +1,16 @@
+[
+  {
+    "start": 1.6,
+    "end": 77.2,
+    "confidence": 1.0,
+    "reason": "Acast platform-inserted promotional segments for other podcasts and Acast services",
+    "end_text": "leaders of tomorrow."
+  },
+  {
+    "start": 135.5,
+    "end": 166.4,
+    "confidence": 0.9,
+    "reason": "Host-read advertisement for show merchandise and Patreon support",
+    "end_text": "until just this moment."
+  }
+]

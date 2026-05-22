@@ -1,0 +1,2 @@
+s.
+{"start": 469.0, "end": 572.1, "confidence": 0.95, "reason": "Zscaler sponsor read with product pitch and call to action", "end_text": "Now back to Steve and Security Now. Thank you, Leo."}

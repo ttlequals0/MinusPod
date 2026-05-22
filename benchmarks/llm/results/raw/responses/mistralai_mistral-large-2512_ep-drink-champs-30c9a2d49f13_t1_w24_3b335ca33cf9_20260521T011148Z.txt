@@ -1,0 +1,9 @@
+[
+    {
+        "start": 10527.5,
+        "end": 10574.0,
+        "confidence": 0.85,
+        "reason": "Platform-inserted ad for 'Ballers' HBO show, promoted as a separate produced segment with distinct tone and marketing language ('too much truth', 'they even had Jerry Jones in there'). No direct promo code but clear cross-promotion of another show.",
+        "end_text": "denying the rock."
+    }
+]

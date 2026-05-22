@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1959.8,
+    "end": 2080.5,
+    "confidence": 1.0,
+    "reason": "Sponsor ad read for Rakuten, LinkedIn Premium, and Hertz",
+    "end_text": "newest fleet yet at Hertz.com."
+  }
+]

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1450.9,
+    "end": 1629.0,
+    "confidence": 0.99,
+    "reason": "This segment contains multiple back-to-back ads for Airtasker, the 'Decisions Decisions' podcast, OnDeck, and BetMGM.",
+    "end_text": "with Kansas Crossing Casino and Hotel."
+  }
+]

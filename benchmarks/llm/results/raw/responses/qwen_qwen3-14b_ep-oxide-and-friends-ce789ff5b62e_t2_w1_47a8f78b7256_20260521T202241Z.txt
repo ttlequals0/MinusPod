@@ -1,0 +1,2 @@
+t.
+{"start": 7.0, "end": 17.0, "confidence": 0.0, "reason": "No advertisement segments detected in this window.", "end_text": "the way you all work is the amount of time"}

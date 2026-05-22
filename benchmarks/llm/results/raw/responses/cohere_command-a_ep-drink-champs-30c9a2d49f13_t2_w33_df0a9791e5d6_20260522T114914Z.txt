@@ -1,0 +1,1 @@
+{"start": 13886.8, "end": 13938.9, "confidence": 0.1, "reason": "possible mid-roll ad, unclear", "end_text": "Relax. I've been your age, you haven't been mine"}

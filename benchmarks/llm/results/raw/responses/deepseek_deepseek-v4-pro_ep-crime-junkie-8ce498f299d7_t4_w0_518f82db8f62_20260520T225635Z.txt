@@ -1,0 +1,32 @@
+{
+  "segments": [
+    {
+      "start": 0.0,
+      "end": 14.1,
+      "confidence": 0.95,
+      "reason": "Vitel Global ad segment with AI-powered communications pitch",
+      "end_text": "all in one place."
+    },
+    {
+      "start": 14.7,
+      "end": 40.8,
+      "confidence": 0.95,
+      "reason": "Vitel Global ad segment continues with AI receptionist features and website call to action",
+      "end_text": "make every connection count."
+    },
+    {
+      "start": 41.5,
+      "end": 69.8,
+      "confidence": 0.95,
+      "reason": "LinkedIn Premium All-in-One sponsored segment with promotional offer",
+      "end_text": "linkedin.com slash all-in-one."
+    },
+    {
+      "start": 70.5,
+      "end": 98.4,
+      "confidence": 0.95,
+      "reason": "Hertz rental car ad segment promoting new fleet with call to action",
+      "end_text": "at Hertz.com."
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+[{"start": 1030.0, "end": 1035.7, "confidence": 0.8, "reason": "Partial ad start detected at end of window ('Debt can get messy fast.'), likely financial sponsor insertion continuing past segment.", "end_text": "Debt can get messy fast."}]

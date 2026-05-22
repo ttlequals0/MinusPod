@@ -1,0 +1,16 @@
+[
+  {
+    "start": 6283.4,
+    "end": 6312.4,
+    "confidence": 0.95,
+    "reason": "OnDeck sponsor read",
+    "end_text": "North Dakota. All loans and..."
+  },
+  {
+    "start": 6313.8,
+    "end": 6318.1,
+    "confidence": 0.95,
+    "reason": "Public sponsor mention",
+    "end_text": "take it seriously."
+  }
+]

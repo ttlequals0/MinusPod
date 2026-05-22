@@ -1,0 +1,25 @@
+{
+  "ads": [
+    {
+      "start": 6208.7,
+      "end": 6233.9,
+      "confidence": 0.94,
+      "reason": "Host-read sponsor promotion for Airtasker",
+      "end_text": "overlooked, sexual health."
+    },
+    {
+      "start": 6262.1,
+      "end": 6282.7,
+      "confidence": 0.96,
+      "reason": "Sponsor mention for Care for the Culture (Gilead Sciences)",
+      "end_text": "Gilead Sciences."
+    },
+    {
+      "start": 6283.4,
+      "end": 6318.1,
+      "confidence": 0.95,
+      "reason": "Combined sponsor reads: OnDeck small business line of credit and Public investing platform",
+      "end_text": "take it seriously."
+    }
+  ]
+}

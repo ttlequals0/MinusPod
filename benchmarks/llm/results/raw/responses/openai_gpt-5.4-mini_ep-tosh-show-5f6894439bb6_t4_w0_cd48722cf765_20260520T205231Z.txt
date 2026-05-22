@@ -1,0 +1,1 @@
+{"start":0.0,"end":22.1,"confidence":0.99,"reason":"Progressive Insurance host-read sponsor segment with promotional language, bundle home and auto policies, and a direct URL; includes the break-intro wording at the start of the ad block.","end_text":"Potential savings will vary. Not available in all states."}

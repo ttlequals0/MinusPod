@@ -1,0 +1,16 @@
+[
+  {
+    "start": 9741.1,
+    "end": 9750.4,
+    "confidence": 0.95,
+    "reason": "Host-read promotion for Applied Love Labs' 'timemachine.love' product.",
+    "end_text": "timemachine.love?"
+  },
+  {
+    "start": 9752.2,
+    "end": 9839.9,
+    "confidence": 0.95,
+    "reason": "Host-read promotion for Applied Love Labs' 'timemachine.love' product, describing its features and impact.",
+    "end_text": "unconditional love itself caused"
+  }
+]

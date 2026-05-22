@@ -1,0 +1,1 @@
+{"start":8799.1,"end":8831.4,"confidence":0.98,"reason":"Back-to-back network-inserted ads: OnDeck small business loans promo with URL and Public investing platform sponsor mention; segment appears to continue from previous/into gap","end_text":"take it seriously."}

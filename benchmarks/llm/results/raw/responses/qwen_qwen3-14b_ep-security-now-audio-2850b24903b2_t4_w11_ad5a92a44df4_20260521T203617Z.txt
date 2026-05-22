@@ -1,0 +1,1 @@
+{"start": 4661.9, "end": 5015.7, "confidence": 0.95, "reason": "Anthropic Claude Security sponsor read", "end_text": "Thank you for watching."}

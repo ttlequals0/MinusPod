@@ -1,0 +1,1 @@
+{"segments":[{"start":3278.7,"end":3358.1,"confidence":0.92,"reason":"Host discussion of bug bounty model is followed by a clear transition into sponsor-style promotional language? No explicit ad markers or sponsor names here, so this is not an ad.","end_text":"Finding bugs is now cheaper than ever."}]}

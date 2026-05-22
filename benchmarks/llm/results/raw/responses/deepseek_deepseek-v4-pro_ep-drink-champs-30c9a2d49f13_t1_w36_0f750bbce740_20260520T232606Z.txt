@@ -1,0 +1,9 @@
+{"segments": [
+  {
+    "start": 15123.4,
+    "end": 15163.2,
+    "reason": "Host-read ad for drink champs with promotional language and URLs",
+    "confidence": 0.9,
+    "end_text": "drinkchamps.com. Listen and subscribe at https://www.drinkchamps.com"
+  }
+]}

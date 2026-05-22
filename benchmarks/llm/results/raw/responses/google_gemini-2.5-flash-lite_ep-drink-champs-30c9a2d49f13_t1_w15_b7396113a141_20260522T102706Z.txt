@@ -1,0 +1,9 @@
+[
+  {
+    "start": 6313.8,
+    "end": 6318.1,
+    "confidence": 0.95,
+    "reason": "Public network-inserted brand tagline ad",
+    "end_text": "take it seriously."
+  }
+]

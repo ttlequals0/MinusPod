@@ -1,0 +1,2 @@
+s.
+{"start": 42.8, "end": 70.8, "confidence": 0.95, "reason": "Care for the Culture sponsor read", "end_text": "from Gilead Sciences."}

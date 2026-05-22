@@ -1,0 +1,1 @@
+{"start":11335.2,"end":11454.3,"confidence":0.99,"reason":"Airtasker host-read ad followed immediately by a produced promo for Decisions Decisions and a sponsored Care for the Culture by Gilead Sciences spot, then OnDeck loan promotion with URL and CTA","end_text":"All loans..."}

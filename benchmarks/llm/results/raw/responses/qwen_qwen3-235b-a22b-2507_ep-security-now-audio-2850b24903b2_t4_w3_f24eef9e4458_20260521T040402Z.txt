@@ -1,0 +1,1 @@
+{"error": "No advertisement segments detected in the provided transcript window. The content consists of editorial discussion about cybersecurity, technical debt, and NCSC guidance without any promotional language, sponsor mentions, URLs, promo codes, or host-read advertisements. Transitions and silence gaps present are part of normal podcast production, not ad breaks."}

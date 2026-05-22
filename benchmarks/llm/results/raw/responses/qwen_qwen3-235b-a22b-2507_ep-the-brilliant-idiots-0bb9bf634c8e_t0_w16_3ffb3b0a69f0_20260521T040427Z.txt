@@ -1,0 +1,1 @@
+{"start": 7173.7, "end": 7196.8, "confidence": 0.98, "reason": "Netflix-sponsored content promoting 'Remarkably Bright Creatures' with promotional language, call to action, and streaming platform URL", "end_text": "now playing only on Netflix"}

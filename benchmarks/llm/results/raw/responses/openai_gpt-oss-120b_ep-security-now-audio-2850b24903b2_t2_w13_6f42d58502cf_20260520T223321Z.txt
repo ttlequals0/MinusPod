@@ -1,0 +1,18 @@
+{
+  "ads": [
+    {
+      "start": 5491.1,
+      "end": 5578.4,
+      "confidence": 0.96,
+      "reason": "Host-read sponsor segment promoting Yubico security keys with preferred pricing",
+      "end_text": "software-based pass keys."
+    },
+    {
+      "start": 6016.6,
+      "end": 6083.5,
+      "confidence": 0.97,
+      "reason": "Sponsor read for Hawks Hunt (Hawkshunt) with promotional language and call to action",
+      "end_text": "like the bad guys."
+    }
+  ]
+}

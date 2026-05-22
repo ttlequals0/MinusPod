@@ -1,0 +1,7 @@
+{
+  "start": 8799.1,
+  "end": 8831.4,
+  "confidence": 0.99,
+  "reason": "Host-read sponsor reads for OnDeck loan service and Public investing platform, containing promotional language, brand names, URLs and calls to action.",
+  "end_text": "take it seriously."
+}

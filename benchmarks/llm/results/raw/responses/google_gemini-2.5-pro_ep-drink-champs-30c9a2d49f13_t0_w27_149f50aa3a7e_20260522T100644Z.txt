@@ -1,0 +1,16 @@
+[
+  {
+    "start": 11335.2,
+    "end": 11455.4,
+    "confidence": 1.0,
+    "reason": "A series of network-inserted ads for Airtasker, the 'Decisions Decisions' podcast, and OnDeck.",
+    "end_text": "subject to lender approval."
+  },
+  {
+    "start": 11513.7,
+    "end": 11513.7,
+    "confidence": 0.9,
+    "reason": "Partial ad for Public.com, containing only the closing disclosure statement.",
+    "end_text": "public.com slash disclosures."
+  }
+]

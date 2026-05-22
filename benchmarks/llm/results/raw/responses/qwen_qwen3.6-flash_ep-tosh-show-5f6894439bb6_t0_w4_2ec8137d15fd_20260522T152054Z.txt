@@ -1,0 +1,1 @@
+[{"start": 1837.5, "end": 1999.5, "confidence": 0.98, "reason": "Host-read sponsor reads for Mint Mobile, Mattress Warehouse, and PC Richard & Son", "end_text": "slash Aseema dot HTML for details."}]

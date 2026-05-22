@@ -1,0 +1,9 @@
+[
+    {
+        "start": 5420.4,
+        "end": 5441.4,
+        "confidence": 0.99,
+        "reason": "Network-inserted retail ad with repeated promotional language (promo code/discount code) and distinct tonal shift from host content. No specific brand named, but structure matches short brand tagline ads.",
+        "end_text": "discount code, discount code"
+    }
+]

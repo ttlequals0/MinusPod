@@ -1,0 +1,2 @@
+s.
+{"start": 2324.6, "end": 2404.4, "confidence": 0.95, "reason": "Blue Chew Gold sponsor read with promo code and URL", "end_text": "sponsoring the podcast."}

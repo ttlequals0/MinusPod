@@ -1,0 +1,1 @@
+{"start": 5420.4, "end": 5471.4, "confidence": 0.8, "reason": "Rapid repetition of 'discount code' likely indicates a mid-roll ad read", "end_text": ". . . . . . . . . . . ."}

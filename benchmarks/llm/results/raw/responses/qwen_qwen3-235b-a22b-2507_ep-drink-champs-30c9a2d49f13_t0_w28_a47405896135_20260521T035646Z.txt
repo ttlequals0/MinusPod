@@ -1,0 +1,1 @@
+{"start": 11796.2, "end": 11819.9, "confidence": 0.95, "reason": "Transition phrase 'I'm outta here' followed by 'look, let me, let me, let me, hold on' indicates a break in conversation, but no promotional content or sponsor language is present. This is a natural pause in dialogue, not an ad.", "end_text": "so..."}

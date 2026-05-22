@@ -1,0 +1,9 @@
+[
+  {
+    "start": 3539.3,
+    "end": 3540.0,
+    "confidence": 0.9,
+    "reason": "Platform-inserted ad break (Megaphone/AdChoices)",
+    "end_text": "Visit megaphone.fm/adchoices"
+  }
+]

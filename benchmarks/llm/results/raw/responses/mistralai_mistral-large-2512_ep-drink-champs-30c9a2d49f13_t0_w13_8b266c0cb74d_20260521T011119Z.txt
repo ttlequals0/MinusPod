@@ -1,0 +1,9 @@
+[
+    {
+        "start": 5692.6,
+        "end": 5745.2,
+        "confidence": 0.98,
+        "reason": "Brooklinen sponsor mention with product positioning language and brand name repetition. Hosts explicitly name-drop 'Brooklinen, New York' and later reference it as a 'monster' in a promotional context.",
+        "end_text": "Brooklinen, New York."
+    }
+]

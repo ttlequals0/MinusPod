@@ -1,0 +1,1 @@
+{"start":6044.5,"end":6162.3,"confidence":0.99,"reason":"HoxHunt host-read sponsor segment beginning with \"This episode of Security Now brought to you by Hawks Hunt\" and ending with the sponsor URL/call to action.","end_text":"Now back to the work he's doing"}

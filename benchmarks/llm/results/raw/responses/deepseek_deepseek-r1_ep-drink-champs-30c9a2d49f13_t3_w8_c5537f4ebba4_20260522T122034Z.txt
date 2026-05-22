@@ -1,0 +1,30 @@
+[
+  {
+    "start": 3478.9,
+    "end": 3528.5,
+    "confidence": 0.97,
+    "reason": "Airtasker host-read ad with download instruction and URL",
+    "end_text": "Airtasker, get anything done"
+  },
+  {
+    "start": 3528.8,
+    "end": 3577.4,
+    "confidence": 0.98,
+    "reason": "Decisions Decisions podcast cross-promotion with sponsor mention (Care for the Culture)",
+    "end_text": "sponsored by Care for the Culture"
+  },
+  {
+    "start": 3578.1,
+    "end": 3608.0,
+    "confidence": 0.99,
+    "reason": "OnDeck business loan ad with URL and call to action",
+    "end_text": "subject to lender approval"
+  },
+  {
+    "start": 3607.1,
+    "end": 3637.4,
+    "confidence": 0.96,
+    "reason": "Public investing platform ad with URL and product features",
+    "end_text": "backtest it again"
+  }
+]

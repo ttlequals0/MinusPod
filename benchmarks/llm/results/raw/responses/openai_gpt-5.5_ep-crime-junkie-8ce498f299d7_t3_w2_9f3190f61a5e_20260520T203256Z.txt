@@ -1,0 +1,1 @@
+{"start":1012.8,"end":1129.6,"confidence":0.99,"reason":"Sponsor ad break featuring SoFi personal loan debt consolidation pitch with URL SoFi.com/CJ, followed by LinkedIn Premium All-in-One promotional spot with free trial URL LinkedIn.com/all-in-one","end_text":"LinkedIn.com slash all-in-one"}

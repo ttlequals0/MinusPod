@@ -1,0 +1,1 @@
+{"start": 1413.5, "end": 1441.5, "confidence": 0.98, "reason": "Transition into sponsor segment with promotional language and URLs from episode description; sponsor mentions align with known ad content", "end_text": "technical debt."}

@@ -1,0 +1,7 @@
+{
+  "start": 1240.8,
+  "end": 1271.2,
+  "confidence": 0.0,
+  "reason": "No promotional content found; this is a standard outro segment with show credits and calls to subscribe, not an ad.",
+  "end_text": "right back here next time"
+}

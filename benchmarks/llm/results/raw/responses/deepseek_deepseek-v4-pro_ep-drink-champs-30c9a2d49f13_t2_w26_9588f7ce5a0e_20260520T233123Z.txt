@@ -1,0 +1,11 @@
+{
+  "segments": [
+    {
+      "start": 10894.9,
+      "end": 10894.9,
+      "confidence": 0.0,
+      "reason": "No promotional content or ad markers in this window. The segment covers casual conversation about Warren Sapp's college days and personal anecdotes.",
+      "end_text": "and personal anecdotes."
+    }
+  ]
+}

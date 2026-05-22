@@ -1,0 +1,1 @@
+{"start":5036.2,"end":5052.8,"confidence":0.29,"reason":"No promotional sponsor language; just the episode closing and a hiring mention for Oxide mechanical engineers, which is editorial content rather than an ad.","end_text":"a lot of what we're doing"}

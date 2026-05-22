@@ -1,0 +1,2 @@
+f.
+{"start": 1139.5, "end": 1168.4, "confidence": 0.7, "reason": "Repetitive discount code mentions possibly indicating a promo code segment", "end_text": "discount code, discount code"}

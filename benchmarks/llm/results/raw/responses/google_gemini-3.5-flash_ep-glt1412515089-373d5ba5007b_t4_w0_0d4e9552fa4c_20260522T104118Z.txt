@@ -1,0 +1,9 @@
+[
+  {
+    "start": 539.2,
+    "end": 624.5,
+    "confidence": 1.0,
+    "reason": "Sponsor reads for 'In the Gray' movie and Skechers; Skechers ad continues past this segment",
+    "end_text": "dress footwear, sandals, sneakers"
+  }
+]

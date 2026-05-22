@@ -1,0 +1,1 @@
+{"start":6208.7,"end":6282.7,"confidence":0.97,"reason":"Ad break starts with sponsor copy for Airtasker ('I love living in New York... I post my tasks on Airtasker') and then continues into a produced promo for 'Decisions Decisions' with 'Sponsored by Care for the Culture from Gilead Sciences.'","end_text":"Sponsored by Care for the Culture from Gilead Sciences"}

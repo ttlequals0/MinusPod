@@ -1,0 +1,23 @@
+[
+  {
+    "start": 3478.9,
+    "end": 3556.2,
+    "confidence": 0.98,
+    "reason": "Airtasker sponsor read transitioning into Decisions Decisions podcast promo sponsored by Gilead Sciences",
+    "end_text": "sponsored by Care for the Culture from Gilead Sciences"
+  },
+  {
+    "start": 3578.1,
+    "end": 3608.0,
+    "confidence": 0.97,
+    "reason": "OnDeck small business loan advertisement with URL and legal disclosures",
+    "end_text": "subject to lender approval"
+  },
+  {
+    "start": 3608.5,
+    "end": 3637.4,
+    "confidence": 0.96,
+    "reason": "Public.com investing platform ad with generated assets pitch and URL",
+    "end_text": "backtest it again"
+  }
+]

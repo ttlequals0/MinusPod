@@ -1,0 +1,1 @@
+{"start":3079.6,"end":3134.3,"confidence":0.99,"reason":"Morgan & Morgan host-read sponsor segment with promotional claims, fee-free pitch, and call to action to ForThePeople.com slash Tim / Poundlaw; immediately followed by Stash mention indicating ad continues into next sponsor read.","end_text":"Stash is the one. Stash is the one"}

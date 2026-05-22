@@ -1,0 +1,7 @@
+{
+  "start": 7981.9,
+  "end": 8580.0,
+  "confidence": 0.01,
+  "reason": "No promotional content detected in this segment",
+  "end_text": "y'all got DJ Clue."
+}

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2863.0,
+    "end": 2894.5,
+    "confidence": 0.98,
+    "reason": "LinkedIn Premium ad read with URL and call to action",
+    "end_text": "LinkedIn.com slash all-in-one"
+  }
+]

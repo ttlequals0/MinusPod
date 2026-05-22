@@ -1,0 +1,7 @@
+{
+	"start": 588.5,
+	"end": 597.9,
+	"confidence": 0.95,
+	"reason": "Podcast sign-off",
+	"end_text": "We'll see you next time."
+}

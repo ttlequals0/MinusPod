@@ -1,0 +1,7 @@
+{
+  "start": 1012.8,
+  "end": 1035.7,
+  "confidence": 0.97,
+  "reason": "Short network-inserted brand tagline ad for Debt.com with promotional language: \"Debt can get messy fast.\"",
+  "end_text": "Debt can get messy fast."
+}

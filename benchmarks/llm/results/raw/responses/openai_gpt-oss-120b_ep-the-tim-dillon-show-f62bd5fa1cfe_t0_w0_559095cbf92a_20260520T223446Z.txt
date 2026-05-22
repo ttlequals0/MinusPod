@@ -1,0 +1,10 @@
+{
+  "ads": [
+    {
+      "start": 0.0,
+      "end": 27.7,
+      "confidence": 0.98,
+      "reason": "Colgate sponsor read",
+      "end_text": "girls and women."
+    }
+ 

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 0.0,
+    "end": 98.4,
+    "confidence": 1.0,
+    "reason": "Multiple host-read ads: Vitel Global (calls to action: 'Visit VitelGlobal.com'), LinkedIn Premium All-in-One (calls to action: 'Try for free at linkedin.com slash all-in-one'), Hertz (calls to action: 'Get paired at Hertz.com')",
+    "end_text": "fleet yet at Hertz.com"
+  }
+]

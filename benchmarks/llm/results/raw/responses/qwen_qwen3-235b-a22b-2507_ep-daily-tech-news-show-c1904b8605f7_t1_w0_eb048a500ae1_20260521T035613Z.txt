@@ -1,0 +1,1 @@
+{"start": 0.0, "end": 152.9, "confidence": 0.99, "reason": "Multiple host-read sponsor segments with promotional language, URLs, and calls to action: Capital One, Xero, Spectrum Business, and Warby Parker. Includes transition 'This episode is brought to you by' and ends after final URL repetition.", "end_text": "warbyparker.com."}

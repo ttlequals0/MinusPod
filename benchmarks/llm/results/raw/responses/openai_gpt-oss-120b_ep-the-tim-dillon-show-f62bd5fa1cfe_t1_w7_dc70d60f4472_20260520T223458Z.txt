@@ -1,0 +1,3 @@
+[
+{"start":3079.6,"end":3188.0,"confidence":0.99,"reason":"Morgan & Morgan and Stash sponsor reads","end_text":"Investing involves risk"},{"start":3209.1,"end":3270.1,"confidence":0.98,"reason":"Neuro Gum sponsor read","end_text":"and Amazon"}
+]

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 15261.8,
+    "end": 15285.2,
+    "confidence": 0.85,
+    "reason": "Repeating promo and discount code placeholder text indicating an ad segment",
+    "end_text": "discount code"
+  }
+]

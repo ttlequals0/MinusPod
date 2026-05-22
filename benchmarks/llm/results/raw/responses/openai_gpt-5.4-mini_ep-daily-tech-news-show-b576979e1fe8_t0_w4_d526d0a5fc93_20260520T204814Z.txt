@@ -1,0 +1,1 @@
+{"start":2015.9,"end":2045.2,"confidence":0.98,"reason":"Capital One host-read ad with explicit sponsor intro ('This episode is brought to you by Capital One') and product pitch for Chat Concierge/car shopping; continues with Capital One tagline","end_text":"That's technology at Capital One"}

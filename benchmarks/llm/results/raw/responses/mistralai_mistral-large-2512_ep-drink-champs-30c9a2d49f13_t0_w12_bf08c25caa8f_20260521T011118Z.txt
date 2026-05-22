@@ -1,0 +1,9 @@
+[
+    {
+        "start": 5420.4,
+        "end": 5441.4,
+        "confidence": 0.99,
+        "reason": "Repeated mentions of 'promo code' and 'discount code' in a concentrated segment, indicative of a host-read or dynamically inserted ad break. The language is explicitly promotional and distinct from conversational content.",
+        "end_text": "discount code, discount code"
+    }
+]

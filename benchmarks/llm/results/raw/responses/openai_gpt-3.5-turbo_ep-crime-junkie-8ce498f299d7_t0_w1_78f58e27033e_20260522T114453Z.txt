@@ -1,0 +1,7 @@
+{
+	"start": 1020.0,
+	"end": 1044.0,
+	"confidence": 0.95,
+	"reason": "Potential ad break",
+	"end_text": "Debt can get messy fast."
+}

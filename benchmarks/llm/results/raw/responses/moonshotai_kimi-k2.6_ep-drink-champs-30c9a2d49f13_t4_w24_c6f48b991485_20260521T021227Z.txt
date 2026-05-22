@@ -1,0 +1,1 @@
+{"start": 10069.7, "end": 10705.5, "confidence": 0.0, "reason": "No promotional content, sponsor mentions, URLs, promo codes, or transition phrases detected in this window. Entire segment consists of organic conversation between hosts and guest about football, movies, politics, and music rights.", "end_text": "I think that's something that"}

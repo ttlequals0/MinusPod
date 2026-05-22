@@ -1,0 +1,7 @@
+{
+  "start": 7584.4,
+  "end": 7743.9,
+  "confidence": 0.99,
+  "reason": "Trusted Tech sponsor read; includes transition phrase \"let's take our final break\" and promotional language about Microsoft 365 licensing, pricing, and call to action.",
+  "end_text": "You will be too."
+}

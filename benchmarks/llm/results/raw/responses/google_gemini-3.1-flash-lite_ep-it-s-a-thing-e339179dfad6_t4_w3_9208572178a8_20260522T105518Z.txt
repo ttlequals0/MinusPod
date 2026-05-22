@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1524.5,
+    "end": 1602.6,
+    "confidence": 1.0,
+    "reason": "Host-read Xero ad followed by Acast platform-inserted network promo and hosting platform outro",
+    "end_text": "monetize their podcasts everywhere. Acast.com."
+  }
+]

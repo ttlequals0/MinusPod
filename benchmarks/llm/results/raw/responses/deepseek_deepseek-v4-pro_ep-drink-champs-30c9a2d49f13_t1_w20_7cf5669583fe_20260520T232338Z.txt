@@ -1,0 +1,1 @@
+{"start": 8724.9, "end": 8831.4, "confidence": 0.98, "reason": "Multiple ads: AirTasker, Decisions Decisions podcast cross-promo, OnDeck, Public", "end_text": "take it seriously."}

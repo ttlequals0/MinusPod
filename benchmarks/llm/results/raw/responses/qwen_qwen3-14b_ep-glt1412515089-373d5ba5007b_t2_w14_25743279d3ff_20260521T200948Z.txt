@@ -1,0 +1,1 @@
+{"start": 6395.6, "end": 6480.0, "confidence": 0.95, "reason": "Perplexity AI sponsor flex", "end_text": "made out of atoms."}

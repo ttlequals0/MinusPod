@@ -1,0 +1,4 @@
+[{"start": 1959.8, "end": 2020.4, "confidence": 0.99, "reason": "Rakuten sponsor read", "end_text": "start saving money today"}, 
+{"start": 2022.1, "end": 2032.3, "confidence": 0.98, "reason": "LinkedIn Premium All-in-One ad", "end_text": "all-in-one product"}, 
+{"start": 2033.0, "end": 2061.4, "confidence": 0.95, "reason": "LinkedIn Premium All-in-One ad continuation", "end_text": "all-in-one product"}, 
+{"start": 2062.1, "end": 2080.5, "confidence": 0.96, "reason": "Hertz ad", "end_text": "Hertz.com"}]

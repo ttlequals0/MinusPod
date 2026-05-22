@@ -1,0 +1,1 @@
+">// 537.5s - 566.6s: Thrive Cosmetics sponsor read with URL and promo code (high confidence) // 617.2s - 654.3s: PC Richard & Son lease-to-own promotion with URL (high confidence) // 945.1s - 969.1s: Shoe website product pitch (moderate confidence due to lack of URL/promo code but clear product promotion) [ {"

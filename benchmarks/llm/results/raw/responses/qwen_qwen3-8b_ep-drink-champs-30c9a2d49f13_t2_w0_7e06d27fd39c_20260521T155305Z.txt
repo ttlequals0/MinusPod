@@ -1,0 +1,1 @@
+">// 0.0s - 19.5s: Airtasker sponsor read with URL and promo language (iHeart Podcast intro is platform-inserted ad) [start: 0.0, end: 19.5, confidence: 0.98, reason: "

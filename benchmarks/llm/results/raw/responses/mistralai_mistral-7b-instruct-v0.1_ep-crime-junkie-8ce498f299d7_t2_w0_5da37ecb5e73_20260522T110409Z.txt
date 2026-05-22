@@ -1,0 +1,10 @@
+ Ad segments:
+
+[0.0s - 14.1s] "In every business, there's a moment when things click. That moment starts with Vitel Global, the AI-powered unified communications platform built for modern business. Vitel Global offers calling, meetings, messaging, all in one place. And with their AI receptionist, every call gets answered quickly, routed properly, and handled with care and precision. Visit VitelGlobal.com to learn more about Vitel Global's AI-powered unified communications and make every connection count."
+
+This is a host-read sponsor segment, and it contains promotional language for Vitel Global's product. The call to action is to visit their website for more information. This segment lasts approximately 14 seconds.
+
+There are no other ads in the given window.
+
+[600.0s "continues in next"] - If an ad extends past this window, use 600.0 with note "continues in next"
+[No other ads in the given window] - Return: []

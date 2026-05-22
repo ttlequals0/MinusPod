@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1742.3,
+    "end": 1799.6,
+    "confidence": 0.99,
+    "reason": "Capital One sponsor ad merged with a network promo for Lemonada Media's Thrive series",
+    "end_text": "six-part Thrive series"
+  }
+]

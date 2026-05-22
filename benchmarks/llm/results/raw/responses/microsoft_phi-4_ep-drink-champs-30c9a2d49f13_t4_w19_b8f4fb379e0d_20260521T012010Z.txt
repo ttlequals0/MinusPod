@@ -1,0 +1,7 @@
+{
+  "start": 133.0,
+  "end": 143.0,
+  "confidence": 0.95,
+  "reason": "The segment contains promotional language and mentions of brand names and product categories, indicating a network-inserted retail ad.",
+  "end_text": "N. W. A. or Wu-Tang? N. W. A. or Wu-Tang? N. W. A. or Wu-Tang? N. W. A. or Wu-Tang?"
+}

@@ -1,0 +1,1 @@
+[{"start": 3578.1, "end": 3608.0, "confidence": 0.95, "reason": "OnDeck small business line of credit sponsor read", "end_text": "OnDeck.com. Funds could be available as soon as tomorrow."}, {"start": 3608.5, "end": 3650.4, "confidence": 0.95, "reason": "Public investing platform sponsor read", "end_text": "Public, the investing platform for those who take it seriously."}]

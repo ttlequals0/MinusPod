@@ -1,0 +1,1 @@
+{"start": 415.2, "end": 984.2, "confidence": 0.98, "reason": "No advertisement segments detected in transcript; content consists entirely of technical discussion on AI in engineering and robotics without promotional language, sponsor mentions, or platform-inserted ads", "end_text": "stay tuned for more. Thank you."}

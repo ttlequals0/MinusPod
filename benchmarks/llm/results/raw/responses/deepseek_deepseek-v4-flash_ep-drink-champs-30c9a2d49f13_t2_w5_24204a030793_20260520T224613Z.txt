@@ -1,0 +1,7 @@
+{
+  "start": 2700.0,
+  "end": 2700.0,
+  "confidence": 0.0,
+  "reason": "No ad detected in this window. The transcript is full of organic conversation about Warren Sapp's NFL draft experience, his time at Miami, and his mohawk story. No sponsor mentions, promo codes, URLs, or promotional language of any kind.",
+  "end_text": ""
+}

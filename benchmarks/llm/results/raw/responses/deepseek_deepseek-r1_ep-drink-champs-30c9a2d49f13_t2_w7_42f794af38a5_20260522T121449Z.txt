@@ -1,0 +1,7 @@
+[{
+    "start": 3478.9,
+    "end": 3556.2,
+    "confidence": 0.95,
+    "reason": "Airtasker product ad followed by Decisions Decisions podcast cross-promotion",
+    "end_text": "conversation about abstinence?"
+}]

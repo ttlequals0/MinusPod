@@ -1,0 +1,12 @@
+{
+  "ads": [
+    {
+      "start": 12611.1,
+      "end": 12638.6,
+      "confidence": 0.9,
+      "reason": "Potential promo for Wall Street history, but no clear ad markers. Checking content.",
+      "end_text": "rest of their life. We were the first commodities. There was no stocks and bonds."
+    }
+  ],
+  "error": null
+}

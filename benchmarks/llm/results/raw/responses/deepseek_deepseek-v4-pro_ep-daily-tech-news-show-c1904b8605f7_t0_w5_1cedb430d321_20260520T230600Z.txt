@@ -1,0 +1,25 @@
+{
+  "segments": [
+    {
+      "start": 2080.8,
+      "end": 2221.9,
+      "confidence": 0.98,
+      "reason": "Host-read patron call-to-action and sponsor credits, including Acast Ad Support mention",
+      "end_text": "Acast Ad Support from Tatiana Matias"
+    },
+    {
+      "start": 2246.0,
+      "end": 2275.3,
+      "confidence": 0.99,
+      "reason": "Dynamically inserted Capital One sponsor ad with AI product pitch",
+      "end_text": "technology at Capital One"
+    },
+    {
+      "start": 2276.2,
+      "end": 2314.4,
+      "confidence": 0.99,
+      "reason": "Rinse laundry service ad with call to action and URL",
+      "end_text": "time to be great"
+    }
+  ]
+}

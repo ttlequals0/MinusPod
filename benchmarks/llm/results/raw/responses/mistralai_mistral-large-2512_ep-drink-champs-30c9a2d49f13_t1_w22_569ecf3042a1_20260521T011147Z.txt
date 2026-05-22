@@ -1,0 +1,9 @@
+[
+    {
+        "start": 9741.9,
+        "end": 9757.2,
+        "confidence": 0.92,
+        "reason": "Mention of McDonald's with promotional context and call to action ('Let's do a couple more shots. Come on, come on. I got another one for you. You know McDonald's?')",
+        "end_text": "serving human fucking puffs."
+    }
+]

@@ -1,0 +1,7 @@
+{
+  "start": 1959.8,
+  "end": 2020.4,
+  "confidence": 0.95,
+  "reason": "Rakuten cashback service ad with promo URL",
+  "end_text": "today. Rakuten.com or download the Rakuten app to start saving money today."
+}

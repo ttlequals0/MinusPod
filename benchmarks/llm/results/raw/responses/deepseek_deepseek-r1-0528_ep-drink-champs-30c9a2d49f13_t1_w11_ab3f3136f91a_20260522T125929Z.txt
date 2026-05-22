@@ -1,0 +1,37 @@
+[
+  {
+    "start": 4993.1,
+    "end": 5002.0,
+    "confidence": 0.95,
+    "reason": "Hosts promoting the show's theme of giving flowers and drinks, which includes calls to action for audience engagement",
+    "end_text": "Yeah, yeah, yeah, yeah"
+  },
+  {
+    "start": 5005.6,
+    "end": 5024.4,
+    "confidence": 0.9,
+    "reason": "Repetitive promotion of the show's catchphrase 'That's what I'm talking about' as branding",
+    "end_text": "I'm talking about"
+  },
+  {
+    "start": 5059.9,
+    "end": 5082.4,
+    "confidence": 0.85,
+    "reason": "Mention of specific alcohol brands (Mama Juana, Reposado) and bar recommendations",
+    "end_text": "Trust me. All right"
+  },
+  {
+    "start": 5115.8,
+    "end": 5120.4,
+    "confidence": 0.8,
+    "reason": "Repeated calls to drink during the 'Drink Champ' segment with product mentions",
+    "end_text": "I'll do one"
+  },
+  {
+    "start": 5127.1,
+    "end": 5146.0,
+    "confidence": 0.9,
+    "reason": "Specific alcohol brand endorsements (Mavis, Sardellis) within show segment",
+    "end_text": "Sardellis. Yeah, yeah"
+  }
+]

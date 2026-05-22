@@ -1,0 +1,30 @@
+[
+  {
+    "start": 3478.9,
+    "end": 3528.5,
+    "confidence": 0.95,
+    "reason": "Airtasker sponsor read. Includes product pitch and call to action to download the app or visit Airtasker.com.",
+    "end_text": "Airtasker, get anything done."
+  },
+  {
+    "start": 3528.8,
+    "end": 3577.4,
+    "confidence": 0.95,
+    "reason": "Care for the Culture from Gilead Sciences sponsor read. Promotes a special episode about sexual health and mentions Gilead Sciences.",
+    "end_text": "Gilead Sciences."
+  },
+  {
+    "start": 3578.1,
+    "end": 3607.1,
+    "confidence": 0.95,
+    "reason": "OnDeck sponsor read. Promotes small business line of credit and includes a call to action to apply at OnDeck.com.",
+    "end_text": "OnDeck does not lend in North Dakota."
+  },
+  {
+    "start": 3608.5,
+    "end": 3637.5,
+    "confidence": 0.95,
+    "reason": "Public sponsor read. Promotes the investing platform and its features, including AI-generated assets, with a call to action to visit public.com/disclosures.",
+    "end_text": "public.com slash disclosures."
+  }
+]

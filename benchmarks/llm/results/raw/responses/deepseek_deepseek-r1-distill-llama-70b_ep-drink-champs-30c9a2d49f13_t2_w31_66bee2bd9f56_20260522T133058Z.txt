@@ -1,0 +1,7 @@
+{
+  "start": 13421.1,
+  "end": 13446.0,
+  "confidence": 0.95,
+  "reason": "Host-read sponsor segment mentioning making the show go and promoting the platform",
+  "end_text": "if you weren't poor."
+}

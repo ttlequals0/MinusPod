@@ -1,0 +1,7 @@
+{
+	"start": 15388.3,
+	"end": 15452.3,
+	"confidence": 0.95,
+	"reason": "Airtasker ad",
+	"end_text": "So visit us at cvs.com or just come by our store. We can't wait to meet you. Store hours vary by location."
+}

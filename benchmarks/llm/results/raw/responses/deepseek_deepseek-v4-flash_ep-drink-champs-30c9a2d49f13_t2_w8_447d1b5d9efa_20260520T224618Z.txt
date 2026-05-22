@@ -1,0 +1,7 @@
+{
+  "start": 3503.7,
+  "end": 3650.4,
+  "confidence": 0.98,
+  "reason": "Three consecutive dynamic ad segments: Airtasker (host-read, promo code), Decisions Decisions podcast cross-promotion (network-inserted with sponsor mention), OnDeck small business line of credit (retail ad), and Public investing platform (retail ad). Includes transitions and promotional language.",
+  "end_text": "Disclosures available at public.com slash disclosures"
+}

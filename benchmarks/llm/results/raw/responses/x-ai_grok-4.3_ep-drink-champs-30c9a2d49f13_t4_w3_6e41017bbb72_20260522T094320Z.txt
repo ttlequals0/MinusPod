@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1450.9,
+    "end": 1629.0,
+    "confidence": 0.95,
+    "reason": "Network-inserted ads: Airtasker read, Decisions Decisions cross-promo, OnDeck, BetMGM",
+    "end_text": "Kansas Crossing Casino and Hotel"
+  }
+]

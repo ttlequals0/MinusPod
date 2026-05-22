@@ -1,0 +1,32 @@
+```json
+[
+  {
+    "start": 13669.1,
+    "end": 13696.9,
+    "confidence": 0.95,
+    "reason": "Airtasker sponsor read with app download and website URL",
+    "end_text": "go to Airtasker.com"
+  },
+  {
+    "start": 13697.3,
+    "end": 13758.2,
+    "confidence": 0.92,
+    "reason": "Decisions Decisions podcast cross-promotion with Care for the Culture sponsorship mention",
+    "end_text": "sponsored by Care for the Culture from Gilead Sciences"
+  },
+  {
+    "start": 13759.0,
+    "end": 13786.2,
+    "confidence": 0.95,
+    "reason": "OnDeck sponsor read with loan details and website URL",
+    "end_text": "Apply in minutes at OnDeck.com"
+  },
+  {
+    "start": 13786.9,
+    "end": 13828.9,
+    "confidence": 0.93,
+    "reason": "Public investing platform sponsor read with product features and disclosure URL",
+    "end_text": "Disclosures available at public.com slash disclosures"
+  }
+]
+```

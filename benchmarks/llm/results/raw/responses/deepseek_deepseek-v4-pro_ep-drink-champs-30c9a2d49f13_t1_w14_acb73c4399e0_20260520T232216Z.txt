@@ -1,0 +1,32 @@
+{
+  "segments": [
+    {
+      "start": 6208.7,
+      "end": 6233.9,
+      "confidence": 0.95,
+      "reason": "Airtasker sponsor read with promo code",
+      "end_text": "get anything done. This is Mandy B."
+    },
+    {
+      "start": 6233.9,
+      "end": 6282.7,
+      "confidence": 0.98,
+      "reason": "Cross-promotion for Decisions Decisions podcast with Keke Palmer",
+      "end_text": "Care for the Culture from Gilead Sciences."
+    },
+    {
+      "start": 6283.4,
+      "end": 6318.1,
+      "confidence": 0.95,
+      "reason": "Multi-sponsor ad for OnDeck and Public with promotional offers and URLs",
+      "end_text": "take it seriously."
+    },
+    {
+      "start": 6343.1,
+      "end": 6355.7,
+      "confidence": 0.8,
+      "reason": "CastingWords transcription credit, likely part of ad read",
+      "end_text": "Transcription by CastingWords"
+    }
+  ]
+}

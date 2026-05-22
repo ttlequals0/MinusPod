@@ -1,0 +1,1 @@
+{"start": 1837.5, "end": 1999.5, "confidence": 0.99, "reason": "Multiple sponsor segments: Mint Mobile (host-read with promo code), Mattress Warehouse (produced ad), and PC Richard & Son with Aseema Lease to Own (produced ad) - all promotional content with calls to action and URLs", "end_text": "for details."}

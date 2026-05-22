@@ -1,0 +1,7 @@
+{ 
+  "start": 7301.4, 
+  "end": 7336.8, 
+  "confidence": 0.0, 
+  "reason": "No promotional content detected", 
+  "end_text": "she was working down"
+}

@@ -1,0 +1,1 @@
+{"start":521.5,"end":548.5,"confidence":0.99,"reason":"Host-read promo for Crain's Weekly News Quiz with direct call to action and URL chicagobusiness.com/quiz; includes transition back to show content.","end_text":"This is the Crain's Daily Gist with Amy Guth"}

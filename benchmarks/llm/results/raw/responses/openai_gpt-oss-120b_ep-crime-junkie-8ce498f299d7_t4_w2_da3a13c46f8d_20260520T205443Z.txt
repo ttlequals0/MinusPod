@@ -1,0 +1,7 @@
+{
+  "start": 1036.2,
+  "end": 1097.9,
+  "confidence": 0.98,
+  "reason": "Host-read SoFi sponsor segment with promotional language and URL",
+  "end_text": "NMLS 696891."
+}

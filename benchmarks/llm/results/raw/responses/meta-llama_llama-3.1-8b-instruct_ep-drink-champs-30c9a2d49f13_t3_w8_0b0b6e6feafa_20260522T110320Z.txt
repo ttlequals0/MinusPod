@@ -1,0 +1,191 @@
+[
+{
+  "start": 3358.0,
+   "end": 3380.2,
+   "confidence": 0.0,
+   "reason": "Not an ad, normal conversation",
+   "end_text": "I had never thought about it"
+},
+{
+   "start": 3381.8,
+   "end": 3409.7,
+   "confidence": 0.0,
+   "reason": "Not an ad, normal conversation",
+   "end_text": "you didn't see"
+},
+{
+   "start": 3410.8,
+   "end": 3430.9,
+   "confidence": 0.0,
+   "reason": "Not an ad, normal conversation",
+   "end_text": "you're like"
+},
+{
+   "start": 3431.9,
+   "end": 3453.3,
+   "confidence": 0.0,
+   "reason": "Not an ad, normal conversation",
+   "end_text": "you still coming"
+},
+{
+   "start": 3454.7,
+   "end": 3478.5,
+   "confidence": 0.0,
+   "reason": "Not an ad, normal conversation",
+   "end_text": "you don't just"
+},
+{
+   "start": 3478.9,
+   "end": 3503.7,
+   "confidence": 0.0,
+   "reason": "Not an ad, normal conversation",
+   "end_text": "be a pro"
+},
+{
+   "start": 3504.1,
+   "end": 3528.5,
+   "confidence": 0.95,
+   "reason": "Airtasker ad",
+   "end_text": "on your terms"
+},
+{
+   "start": 3528.8,
+   "end": 3556.2,
+   "confidence": 0.0,
+   "reason": "Not an ad, normal conversation",
+   "end_text": "it's literally"
+},
+{
+   "start": 3556.8,
+   "end": 3577.4,
+   "confidence": 0.0,
+   "reason": "Not an ad, normal conversation",
+   "end_text": "it's not real"
+},
+{
+   "start": 3578.1,
+   "end": 3606.4,
+   "confidence": 0.95,
+   "reason": "OnDeck ad",
+   "end_text": "without missing a beat"
+},
+{
+   "start": 3607.1,
+   "end": 3608.0,
+   "confidence": 0.0,
+   "reason": "Not an ad, normal conversation",
+   "end_text": "All amounts subject"
+},
+{
+   "start": 3608.5,
+   "end": 3637.4,
+   "confidence": 0.95,
+   "reason": "Public ad",
+   "end_text": "again and again"
+},
+{
+   "start": 3637.5,
+   "end": 3650.4,
+   "confidence": 0.0,
+   "reason": "Not an ad, normal conversation",
+   "end_text": "Transcription by CastingWords"
+},
+{
+   "start": 3666.3,
+   "end": 3690.2,
+   "confidence": 0.0,
+   "reason": "Not an ad, normal conversation",
+   "end_text": "So what are you doing"
+},
+{
+   "start": 3690.8,
+   "end": 3718.8,
+   "confidence": 0.0,
+   "reason": "Not an ad, normal conversation",
+   "end_text": "You get to control"
+},
+{
+   "start": 3719.5,
+   "end": 3738.5,
+   "confidence": 0.0,
+   "reason": "Not an ad, normal conversation",
+   "end_text": "I said what's that"
+},
+{
+   "start": 3740.9,
+   "end": 3751.1,
+   "confidence": 0.0,
+   "reason": "Not an ad, normal conversation",
+   "end_text": "I'm not talking"
+},
+{
+   "start": 3752.3,
+   "end": 3777.9,
+   "confidence": 0.0,
+   "reason": "Not an ad, normal conversation",
+   "end_text": "You know what the thing"
+},
+{
+   "start": 3778.8,
+   "end": 3801.6,
+   "confidence": 0.0,
+   "reason": "Not an ad, normal conversation",
+   "end_text": "We grew up on Dion"
+},
+{
+   "start": 3808.9,
+   "end": 3829.3,
+   "confidence": 0.0,
+   "reason": "Not an ad, normal conversation",
+   "end_text": "And us and Apaka"
+},
+{
+   "start": 3830.4,
+   "end": 3847.3,
+   "confidence": 0.0,
+   "reason": "Not an ad, normal conversation",
+   "end_text": "so I had to put"
+},
+{
+   "start": 3847.6,
+   "end": 3859.1,
+   "confidence": 0.0,
+   "reason": "Not an ad, normal conversation",
+   "end_text": "You see they was"
+},
+{
+   "start": 3860.2,
+   "end": 3889.2,
+   "confidence": 0.0,
+   "reason": "Not an ad, normal conversation",
+   "end_text": "They were throwing"
+},
+{
+   "start": 3889.2,
+   "end": 3910.1,
+   "confidence": 0.0,
+   "reason": "Not an ad, normal conversation",
+   "end_text": "do you remember"
+},
+{
+   "start": 3913.4,
+   "end": 3937.1,
+   "confidence": 0.0,
+   "reason": "Not an ad, normal conversation",
+   "end_text": "I remember going"
+},
+{
+   "start": 3938.7,
+   "end": 3964.2,
+   "confidence": 0.0,
+   "reason": "Not an ad, normal conversation",
+   "end_text": "So I remember going"
+},
+{
+   "start": 3954.0,
+   "end": 3983.4,
+   "confidence": 0.0,
+   "reason": "Not an ad, normal conversation",
+   "end_text": "I got a self-imposed"
+}
+]

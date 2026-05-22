@@ -1,0 +1,1 @@
+{"start":796.9,"end":1018.9,"confidence":0.98,"reason":"Multiple sponsor segments back-to-back after 'let's take time to thank...' including Capital One, BetterHelp, Amazon Health AI, Spectrum Business, and Rinse with promotional copy and URLs; merged because gaps are short","end_text":"Schedule at rinse.com. Rinse"}

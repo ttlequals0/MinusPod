@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1036.2,
+    "end": 1129.6,
+    "confidence": 0.98,
+    "reason": "SoFi debt consolidation loan sponsor read followed by LinkedIn Premium promotion with calls to action",
+    "end_text": "LinkedIn.com slash all-in-one"
+  }
+]

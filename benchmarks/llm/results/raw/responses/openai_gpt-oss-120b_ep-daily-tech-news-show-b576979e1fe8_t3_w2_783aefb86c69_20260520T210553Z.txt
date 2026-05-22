@@ -1,0 +1,7 @@
+{
+  "start": 994.2,
+  "end": 1263.6,
+  "confidence": 0.96,
+  "reason": "Host-read sponsor segment promoting Insta360 Go 3S Retro Bundle with product details, pricing, and call to action",
+  "end_text": "And so here we are."
+}

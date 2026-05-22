@@ -1,0 +1,1 @@
+{"start":2560.1,"end":2687.4,"confidence":0.99,"reason":"Meter sponsor read with transition from 'break time' and promotional copy including meter.com/securitynow and 'book a demo'","end_text":"meter.com"}

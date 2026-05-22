@@ -1,0 +1,1 @@
+{"start": 0.0, "end": 162.9, "confidence": 0.97, "reason": "Platform-inserted pre-roll ad block featuring Airtasker, Care for the Culture/Gilead, Nissan Rogue, and Shopify with promo URL", "end_text": "Shopify.com slash B-E-N."}

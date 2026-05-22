@@ -1,0 +1,1 @@
+{"start": 1267.4, "end": 1271.2, "confidence": 0.0, "reason": "not an ad", "end_text": "next time."}

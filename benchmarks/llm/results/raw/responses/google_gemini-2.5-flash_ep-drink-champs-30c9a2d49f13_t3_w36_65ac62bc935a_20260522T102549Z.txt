@@ -1,0 +1,37 @@
+[
+  {
+    "start": 15323.9,
+    "end": 15383.7,
+    "confidence": 0.99,
+    "reason": "Podcast outro and self-promotion for Drink Champs",
+    "end_text": "going to drinkchamps.com"
+  },
+  {
+    "start": 15388.3,
+    "end": 15416.5,
+    "confidence": 0.95,
+    "reason": "Airtasker network-inserted ad",
+    "end_text": "Airtasker. Get anything done"
+  },
+  {
+    "start": 15416.7,
+    "end": 15452.3,
+    "confidence": 0.95,
+    "reason": "CVS network-inserted ad",
+    "end_text": "by our store. We can't wait to meet you. Store hours vary by location."
+  },
+  {
+    "start": 15453.9,
+    "end": 15481.1,
+    "confidence": 0.95,
+    "reason": "Trashy network-inserted ad",
+    "end_text": "Visit Trashy.io to get started"
+  },
+  {
+    "start": 15482.9,
+    "end": 15517.1,
+    "confidence": 0.95,
+    "reason": "Try Fencing network-inserted ad and iHeart Podcast tag",
+    "end_text": "tryfencing.org. This is an iHeart Podcast. Guaranteed human."
+  }
+]

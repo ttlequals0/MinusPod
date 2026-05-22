@@ -1,0 +1,1 @@
+{"start": 0.0, "end": 30.3, "confidence": 0.98, "reason": "HEX.ai sponsor ad with promotional language, URL, and call to action", "end_text": "1500 other customers at Hex.ai."}

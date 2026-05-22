@@ -1,0 +1,7 @@
+[
+
+[{"start": 6234.1, "end": 6261.5, "confidence": 0.95, "reason": "Airtasker network-inserted ad with product pitch and call to action", "end_text": "get anything done."},  
+{"start": 6283.4, "end": 6312.4, "confidence": 0.95, "reason": "OnDeck network-inserted ad with product pitch and call to action", "end_text": "issued by OnDeck or Celtic Bank."},  
+{"start": 6313.8, "end": 6318.1, "confidence": 0.90, "reason": "Public network-inserted ad with product pitch", "end_text": "for the show comes from Public."}]
+
+]

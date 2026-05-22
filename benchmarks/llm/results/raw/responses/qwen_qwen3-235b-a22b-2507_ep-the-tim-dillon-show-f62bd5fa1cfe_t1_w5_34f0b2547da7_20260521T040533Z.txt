@@ -1,0 +1,1 @@
+[{"start": 2085.5, "end": 2699.0, "confidence": 0.0, "reason": "No promotional language, sponsor mentions, URLs, or calls to action present; content is continuous discussion of topic without ad break", "end_text": "full of chicken nuggets and we forgot the fiber"}]

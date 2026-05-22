@@ -1,0 +1,7 @@
+{
+  "start": 13421.1,
+  "end": 13446.0,
+  "confidence": 0.95,
+  "reason": "Host-read sponsor segment promoting Shopify",
+  "end_text": "making this show go. Trust me, because that bitch would have been dead 45 minutes ago if you weren't poor."
+}

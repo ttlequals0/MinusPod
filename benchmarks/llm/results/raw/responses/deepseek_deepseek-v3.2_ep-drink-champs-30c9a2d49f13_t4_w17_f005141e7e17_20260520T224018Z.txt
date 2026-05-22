@@ -1,0 +1,1 @@
+{"start": 7740.0, "end": 7762.0, "confidence": 0.95, "reason": "Host-read ad for Modelo beer with promotional language and call to action", "end_text": "we don't drink, yeah"}

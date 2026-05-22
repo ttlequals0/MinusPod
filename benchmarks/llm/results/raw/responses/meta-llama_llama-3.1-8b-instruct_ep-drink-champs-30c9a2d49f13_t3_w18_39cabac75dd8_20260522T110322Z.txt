@@ -1,0 +1,156 @@
+[
+{
+  "start": 7538.4,
+   "end": 7538.4,
+   "confidence": 0.0,
+   "reason": "No ad detected",
+   "end_text": ""
+},
+{
+   "start": 7563.8,
+   "end": 7563.8,
+   "confidence": 0.0,
+   "reason": "No ad detected",
+   "end_text": ""
+},
+{
+   "start": 7586.3,
+   "end": 7586.3,
+   "confidence": 0.0,
+   "reason": "No ad detected",
+   "end_text": ""
+},
+{
+   "start": 7611.8,
+   "end": 7611.8,
+   "confidence": 0.0,
+   "reason": "No ad detected",
+   "end_text": ""
+},
+{
+   "start": 7624.2,
+   "end": 7624.2,
+   "confidence": 0.0,
+   "reason": "No ad detected",
+   "end_text": ""
+},
+{
+   "start": 7650.4,
+   "end": 7650.4,
+   "confidence": 0.0,
+   "reason": "No ad detected",
+   "end_text": ""
+},
+{
+   "start": 7665.8,
+   "end": 7665.8,
+   "confidence": 0.0,
+   "reason": "No ad detected",
+   "end_text": ""
+},
+{
+   "start": 7696.8,
+   "end": 7696.8,
+   "confidence": 0.0,
+   "reason": "No ad detected",
+   "end_text": ""
+},
+{
+   "start": 7716.6,
+   "end": 7716.6,
+   "confidence": 0.0,
+   "reason": "No ad detected",
+   "end_text": ""
+},
+{
+   "start": 7737.1,
+   "end": 7737.1,
+   "confidence": 0.0,
+   "reason": "No ad detected",
+   "end_text": ""
+},
+{
+   "start": 7763.7,
+   "end": 7763.7,
+   "confidence": 0.0,
+   "reason": "No ad detected",
+   "end_text": ""
+},
+{
+   "start": 7792.8,
+   "end": 7792.8,
+   "confidence": 0.0,
+   "reason": "No ad detected",
+   "end_text": ""
+},
+{
+   "start": 7821.3,
+   "end": 7821.3,
+   "confidence": 0.0,
+   "reason": "No ad detected",
+   "end_text": ""
+},
+{
+   "start": 7848.8,
+   "end": 7848.8,
+   "confidence": 0.0,
+   "reason": "No ad detected",
+   "end_text": ""
+},
+{
+   "start": 7877.9,
+   "end": 7877.9,
+   "confidence": 0.0,
+   "reason": "No ad detected",
+   "end_text": ""
+},
+{
+   "start": 7904.4,
+   "end": 7904.4,
+   "confidence": 0.0,
+   "reason": "No ad detected",
+   "end_text": ""
+},
+{
+   "start": 7933.1,
+   "end": 7933.1,
+   "confidence": 0.0,
+   "reason": "No ad detected",
+   "end_text": ""
+},
+{
+   "start": 7954.2,
+   "end": 7954.2,
+   "confidence": 0.0,
+   "reason": "No ad detected",
+   "end_text": ""
+},
+{
+   "start": 7981.9,
+   "end": 7981.9,
+   "confidence": 0.0,
+   "reason": "No ad detected",
+   "end_text": ""
+},
+{
+   "start": 8025.2,
+   "end": 8025.2,
+   "confidence": 0.0,
+   "reason": "No ad detected",
+   "end_text": ""
+},
+{
+   "start": 8058.6,
+   "end": 8058.6,
+   "confidence": 0.0,
+   "reason": "No ad detected",
+   "end_text": ""
+},
+{
+   "start": 8160.0,
+   "end": 8160.0,
+   "confidence": 0.0,
+   "reason": "No ad detected, continues in next",
+   "end_text": ""
+}
+]

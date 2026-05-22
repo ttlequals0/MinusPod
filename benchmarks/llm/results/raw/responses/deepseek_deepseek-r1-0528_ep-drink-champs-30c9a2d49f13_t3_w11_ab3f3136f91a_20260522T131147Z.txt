@@ -1,0 +1,23 @@
+[
+  {
+    "start": 4990.4,
+    "end": 5002.0,
+    "confidence": 0.95,
+    "reason": "Host-read sponsor segment for Miami Heroes",
+    "end_text": "thoughts where they can drink them, and they drinks where they can drink them"
+  },
+  {
+    "start": 5114.8,
+    "end": 5120.4,
+    "confidence": 0.9,
+    "reason": "Promotional mention of Mama Juana and Reposado",
+    "end_text": "Mama Juana off the goddamn Elvis Island"
+  },
+  {
+    "start": 5146.0,
+    "end": 5148.2,
+    "confidence": 0.85,
+    "reason": "Brand mention of Mavis wine and Sardellis",
+    "end_text": "wine and a little herb and some Sardellis"
+  }
+]

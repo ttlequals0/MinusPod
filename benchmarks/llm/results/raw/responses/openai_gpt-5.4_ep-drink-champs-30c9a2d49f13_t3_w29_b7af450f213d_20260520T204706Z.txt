@@ -1,0 +1,1 @@
+{"start":12751.3,"end":12780.0,"confidence":0.18,"reason":"No clear promotional language or sponsor read in this window; show conversation only","end_text":"You watch Que Pasa USA?"}

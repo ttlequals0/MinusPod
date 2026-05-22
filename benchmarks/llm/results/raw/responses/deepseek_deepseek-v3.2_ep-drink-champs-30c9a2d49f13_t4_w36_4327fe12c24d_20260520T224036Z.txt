@@ -1,0 +1,1 @@
+{"start": 15261.8, "end": 15285.2, "confidence": 0.95, "reason": "Repeated promotional phrase 'promo code, discount code' indicating a host-read ad transition or ad read", "end_text": "discount code, discount code, discount code"}

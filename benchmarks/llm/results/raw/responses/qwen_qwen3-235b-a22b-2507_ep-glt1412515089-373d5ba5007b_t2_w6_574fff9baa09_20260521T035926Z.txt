@@ -1,0 +1,1 @@
+{"start": 2510.5, "end": 3120.9, "confidence": 0.98, "reason": "Continuous conversation about flow, self-transcendence, martial arts, precognitive dreams, and scientific inquiry with no promotional content or ad markers", "end_text": "oh, okay."}

@@ -1,0 +1,1 @@
+[{"start": 401.8, "end": 1043.5, "confidence": 0.0, "reason": "No promotional language, sponsor mentions, URLs, or calls to action present in transcript segment. Discussion remains editorial and topically consistent. No host-read ads or platform-inserted ad content detected.", "end_text": "incentivized and encouraged"}]

@@ -1,0 +1,1 @@
+{"start":0.0,"end":0.0,"confidence":0.0,"reason":"No ad segments found in provided transcript window. No promotional sponsor reads or platform ads present; only show content discussing bug bounties and AI.","end_text":""}

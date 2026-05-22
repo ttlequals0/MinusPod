@@ -1,0 +1,1 @@
+[{"start": 2412.8, "end": 2484.9, "confidence": 0.95, "reason": "Network-inserted retail ads (HealthCast by Stony Brook Medicine, PC Richard & Son). Continues to end of episode.", "end_text": "PCRichard.com slash Asima dot HTML for details."}]

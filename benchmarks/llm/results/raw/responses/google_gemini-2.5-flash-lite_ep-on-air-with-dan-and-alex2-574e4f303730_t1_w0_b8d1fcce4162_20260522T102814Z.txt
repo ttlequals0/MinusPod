@@ -1,0 +1,16 @@
+[
+  {
+    "start": 0.0,
+    "end": 30.3,
+    "confidence": 0.95,
+    "reason": "This is a host-read advertisement for Hex.ai, a data platform, with promotional language and a call to action to visit Hex.ai.",
+    "end_text": "Hex.ai."
+  },
+  {
+    "start": 30.9,
+    "end": 59.9,
+    "confidence": 0.95,
+    "reason": "This is a host-read advertisement for Orange County, New York (PickOCNY.com), promoting tourism with descriptive language and a call to action to visit PickOCNY.com.",
+    "end_text": "PickOCNY.com."
+  }
+]

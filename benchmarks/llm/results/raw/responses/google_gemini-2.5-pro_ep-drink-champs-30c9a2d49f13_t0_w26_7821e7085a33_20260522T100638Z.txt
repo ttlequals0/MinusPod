@@ -1,0 +1,9 @@
+[
+  {
+    "start": 11335.2,
+    "end": 11455.4,
+    "confidence": 0.99,
+    "reason": "A series of network-inserted ads for Airtasker, the Decisions Decisions podcast, and OnDeck.",
+    "end_text": "an amount subject to lender approval."
+  }
+]

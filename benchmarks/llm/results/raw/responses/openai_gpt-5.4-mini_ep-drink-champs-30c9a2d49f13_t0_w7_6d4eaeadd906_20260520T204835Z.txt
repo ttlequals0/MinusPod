@@ -1,0 +1,1 @@
+{"start":3478.9,"end":3528.5,"confidence":0.97,"reason":"Produced Airtasker host-read ad begins with promo-style transition into 'Meet Chris...' and includes Airtasker product pitch plus download/website CTA","end_text":"Download the Airtasker app or go to Airtasker.com"}

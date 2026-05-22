@@ -1,0 +1,1 @@
+{"start":539.2,"end":652.8,"confidence":0.99,"reason":"Platform-inserted ad block containing clear promotional copy for 'In the Gray' ('This episode is brought to you by...'), followed by a host-read Skechers sponsor segment with product pitches and call to action ('Skechers slip-ins', 'Check out Skechers.com').","end_text":"That's only at Skechers.com"}

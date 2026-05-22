@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 7557.6,
+      "end": 7633.1,
+      "confidence": 0.98,
+      "reason": "Host-read ad for Trusted Tech with promo code and call to action",
+      "end_text": "with Mozilla's response as seen through the filter of the register"
+    }
+  ]
+}

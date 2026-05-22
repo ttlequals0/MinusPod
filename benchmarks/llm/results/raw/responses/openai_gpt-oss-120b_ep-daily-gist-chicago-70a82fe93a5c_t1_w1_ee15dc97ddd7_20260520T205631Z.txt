@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 521.5,
+      "end": 548.5,
+      "confidence": 0.98,
+      "reason": "Crain's Weekly News Quiz promotional segment",
+      "end_text": "with Amy Guth"
+    }
+  ]
+}

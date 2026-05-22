@@ -1,0 +1,1 @@
+{"start": 7.0, "end": 1020.0, "confidence": 0.98, "reason": "Hosted on Acast platform insertion at end of episode description, indicating network-inserted promotional content likely present in audio", "end_text": "for more information."}

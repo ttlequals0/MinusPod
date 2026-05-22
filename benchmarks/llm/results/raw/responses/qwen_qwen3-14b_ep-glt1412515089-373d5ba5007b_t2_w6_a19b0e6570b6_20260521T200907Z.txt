@@ -1,0 +1,2 @@
+t.
+{"start": 2510.5, "end": 2510.5, "confidence": 0.0, "reason": "No ads found in the specified window", "end_text": "juliamossbridge.com"}

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 8820.0,
+    "end": 8831.4,
+    "confidence": 1.0,
+    "reason": "Merged ad segment: OnDeck (business loans) and Public (investing platform) with gap <15s",
+    "end_text": "take it seriously"
+  }
+]

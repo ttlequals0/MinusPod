@@ -1,0 +1,1 @@
+{"start":0.0,"end":0.0,"confidence":0.0,"reason":"No ad segments found in this transcript window; only show content and a non-ad platform note in the episode description.","end_text":""}

@@ -1,0 +1,1 @@
+{"start": 4920.5, "end": 4949.0, "confidence": 0.72, "reason": "Possible in-show product mentions for Pizza Hut, Allstate, and Samsung as part of discussion, but lacks clear sponsor language or call to action; not a confirmed ad", "end_text": "he wasn't even the most paid NIL guy"}

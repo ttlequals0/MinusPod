@@ -1,0 +1,1 @@
+{"start": 8214.4, "end": 8270.6, "confidence": 0.8, "reason": "Potential ad read for Diana Posalka's book 'American Cosmic', but it seems more like a discussion of the book's content", "end_text": "some kind of mystical awareness"}

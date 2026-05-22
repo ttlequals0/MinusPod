@@ -1,0 +1,1 @@
+{"start": 3890.3, "end": 3915.5, "confidence": 0.95, "reason": "Host transition to outro", "end_text": "ways increase load on already constrained teams."}

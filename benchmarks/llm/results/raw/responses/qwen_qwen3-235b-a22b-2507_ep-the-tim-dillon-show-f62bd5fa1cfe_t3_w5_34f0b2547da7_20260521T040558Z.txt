@@ -1,0 +1,1 @@
+{"start": 2085.5, "end": 2699.0, "confidence": 0.99, "reason": "continuous monologue on screen time, GLP-1s, parenting, and societal trends without any promotional content or sponsor mentions", "end_text": "on the iPad."}

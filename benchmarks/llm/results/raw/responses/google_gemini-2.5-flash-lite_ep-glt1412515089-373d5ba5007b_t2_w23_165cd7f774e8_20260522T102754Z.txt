@@ -1,0 +1,16 @@
+[
+  {
+    "start": 9741.1,
+    "end": 9785.0,
+    "confidence": 0.95,
+    "reason": "Host-read promotion for timemachine.love, an audio journaling app, presented as a 'time machine'. Includes a call to action to visit the URL.",
+    "end_text": "it has a"
+  },
+  {
+    "start": 9898.8,
+    "end": 9920.6,
+    "confidence": 0.95,
+    "reason": "Host-read promotion for the book 'Have a Nice Disclosure!' by Julia Mossbridge, PhD. Includes a call to action to get the book and mentions the audiobook read by the author.",
+    "end_text": "I'll listen to it. Bye, everybody. Bye."
+  }
+]

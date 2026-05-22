@@ -1,0 +1,18 @@
+{
+  "segments": [
+    {
+      "start": 1742.3,
+      "end": 1771.5,
+      "confidence": 0.95,
+      "reason": "Capital One sponsor read, host-read 'This episode is brought to you by Capital One'",
+      "end_text": "technology at Capital One."
+    },
+    {
+      "start": 2260.0,
+      "end": 2295.0,
+      "confidence": 0.9,
+      "reason": "Capital One and Rinse sponsor ads, multiple host and cross-promotion segments continuing past window",
+      "end_text": "continue to the end"
+    }
+  ]
+}

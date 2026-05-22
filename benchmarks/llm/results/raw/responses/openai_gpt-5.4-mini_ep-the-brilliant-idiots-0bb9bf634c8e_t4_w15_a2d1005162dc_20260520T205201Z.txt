@@ -1,0 +1,1 @@
+{"start":6365.0,"end":6390.2,"confidence":0.92,"reason":"Host transition into a sponsored break with promotional lead-in 'Let's pay some bills' before show resumes; no explicit sponsor in this short section, likely partial ad break continuing from omitted sponsor copy.","end_text":"that takes a lot more strategy"}

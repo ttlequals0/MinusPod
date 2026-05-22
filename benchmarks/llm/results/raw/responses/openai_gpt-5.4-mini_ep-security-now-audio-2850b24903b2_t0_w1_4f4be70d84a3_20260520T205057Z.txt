@@ -1,0 +1,1 @@
+{"start":469.0,"end":572.1,"confidence":0.99,"reason":"Host transition into ad break and full Zscaler sponsor read with promotional language, product pitch, and URL (zscaler.com/security).","end_text":"That's zscaler.com slash security"}

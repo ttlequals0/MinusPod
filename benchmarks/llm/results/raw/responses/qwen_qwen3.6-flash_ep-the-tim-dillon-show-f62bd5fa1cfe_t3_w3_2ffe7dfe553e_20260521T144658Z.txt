@@ -1,0 +1,1 @@
+[{"start": 1439.2, "end": 1606.7, "confidence": 0.95, "reason": "Host-read sponsor reads for Mint Mobile, Aura Frames, and Colgate", "end_text": "Colgate, your smile is your strength."}, {"start": 1637.6, "end": 1665.9, "confidence": 0.95, "reason": "Host-read sponsor read for Skinny Pop", "end_text": "Skinny Pop."}]

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 7173.7,
+    "end": 7196.8,
+    "confidence": 0.95,
+    "reason": "This is a host-read ad for Netflix's Remarkably Bright Creatures, including a plot summary and a call to action to watch it on Netflix.",
+    "end_text": "only on Netflix."
+  }
+]

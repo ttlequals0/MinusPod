@@ -1,0 +1,7 @@
+{  
+  "start": 2834.9,  
+  "end": 2851.5,  
+  "confidence": 0.0,  
+  "reason": "The transcript shows a series of periods (...........) which likely represent silence or audio gap, not an ad. No promotional language is present.",  
+  "end_text": "........................"  
+}

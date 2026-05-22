@@ -1,0 +1,1 @@
+{"start": 3354.0, "end": 3983.9, "confidence": 0.1, "reason": "No advertisement segments detected; content consists of discussion about hip hop media figures and list rankings without promotional language, sponsor mentions, or calls to action", "end_text": "part of conversations you want to be a part of."}

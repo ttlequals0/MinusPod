@@ -1,0 +1,11 @@
+[
+  {
+    "start": 1524.5,
+    "end": 1561.9,
+    "confidence": 0.98,
+    "reason": "Xero accounting platform sponsor read with call to action and mention of Acast.",
+    "end_text": "ACAST powers the world's best podcasts."
+  },
+  {
+    "start": 1565.4,
+    "end": 

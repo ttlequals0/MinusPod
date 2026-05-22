@@ -1,0 +1,7 @@
+{
+	"start": 13669.1,
+	"end": 13696.9,
+	"confidence": 0.95,
+	"reason": "Airtasker sponsorship",
+	"end_text": "Download the Airtasker app or go to Airtasker.com."
+}

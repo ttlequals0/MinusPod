@@ -1,0 +1,2 @@
+s.
+{"start": 28.0, "end": 38.0, "confidence": 0.0, "reason": "No advertisement segments detected in the provided transcript window.", "end_text": "the insulation layer."}

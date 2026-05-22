@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2609.5,
+    "end": 2634.3,
+    "confidence": 0.95,
+    "reason": "This segment lists common podcast sponsors and promotional phrases, indicating a platform-inserted ad break.",
+    "end_text": "Stamps.com"
+  }
+]

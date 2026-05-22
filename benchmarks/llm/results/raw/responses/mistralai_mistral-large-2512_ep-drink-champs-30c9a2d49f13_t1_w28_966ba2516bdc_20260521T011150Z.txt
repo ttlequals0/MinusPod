@@ -1,0 +1,9 @@
+[
+    {
+        "start": 12266.8,
+        "end": 12268.4,
+        "confidence": 0.9,
+        "reason": "Mention of '1Password' with promotional language ('throw all my shaders away at $1.25 each month'). Likely a misheard or misattributed sponsor read, but fits ad criteria due to product pitch and pricing.",
+        "end_text": "month. You know what"
+    }
+]

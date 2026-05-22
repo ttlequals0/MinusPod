@@ -1,0 +1,1 @@
+[{"start": 0.0, "end": 161.0, "confidence": 0.98, "reason": "iHeart platform pre-roll with multiple ads: Airtasker, Gilead Sciences (Care for the Culture), Nissan Rogue, Shopify", "end_text": "Shopify.com slash B-E-N"}]

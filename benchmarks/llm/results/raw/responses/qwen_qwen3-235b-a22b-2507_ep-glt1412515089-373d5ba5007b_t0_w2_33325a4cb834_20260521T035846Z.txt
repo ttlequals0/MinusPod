@@ -1,0 +1,1 @@
+{"start": 858.0, "end": 1452.5, "confidence": 0.0, "reason": "No promotional content or advertisement detected in transcript segment", "end_text": "learned thing that, you know, people have this desire"}

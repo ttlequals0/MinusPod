@@ -1,0 +1,1 @@
+{"start":8799.1,"end":8831.4,"confidence":0.98,"reason":"Two back-to-back ads: OnDeck small business loans promo with CTA to OnDeck.com, followed by Public investing platform sponsor mention; merged due to short gap","end_text":"take it seriously."}

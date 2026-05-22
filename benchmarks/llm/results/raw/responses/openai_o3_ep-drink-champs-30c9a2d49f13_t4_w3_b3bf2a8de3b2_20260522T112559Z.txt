@@ -1,0 +1,1 @@
+{"start": 1450.9, "end": 1629.0, "confidence": 0.97, "reason": "Airtasker, Decisions Decisions podcast cross-promo, OnDeck loan, and BetMGM sportsbook ads", "end_text": "Casino and Hotel."}

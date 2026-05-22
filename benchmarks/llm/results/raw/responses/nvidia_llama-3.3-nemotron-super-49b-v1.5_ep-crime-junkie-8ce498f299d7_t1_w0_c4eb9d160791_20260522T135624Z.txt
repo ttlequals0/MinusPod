@@ -1,0 +1,1 @@
+[{"start": 0.0, "end": 69.8, "confidence": 0.98, "reason": "Merged sponsor reads for Vitel Global, LinkedIn Premium, and Hertz with URLs and promotional language", "end_text": "Hertz.com."}]

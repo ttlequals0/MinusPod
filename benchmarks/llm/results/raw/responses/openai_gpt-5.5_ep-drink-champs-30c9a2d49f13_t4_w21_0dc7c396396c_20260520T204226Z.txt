@@ -1,0 +1,1 @@
+{"start":8799.1,"end":8831.4,"confidence":0.99,"reason":"Merged sponsor ad break: OnDeck small business loans pitch and Public investing platform sponsorship; includes promotional language like 'Apply in minutes at OnDeck.com' and 'Support for the show comes from Public'","end_text":"who take it seriously"}

@@ -1,0 +1,19 @@
+{
+  "ad_segments": [
+    {
+      "start": 3419.1,
+      "end": 3456.7,
+      "confidence": 0.92,
+      "reason": "Host-read sign-off leads directly into Arizona State University promotional segment - clearly structured as an advertisement with a call to action.",
+      "end_text": "programs at asunline.asu.edu."
+    },
+    {
+      "start": 3456.7,
+      "end": 3486.2,
+      "confidence": 0.96,
+      "reason": "University of Michigan promotional advertisement with a call to action.",
+      "end_text": "solutions at umich.edu."
+    }
+  ],
+  "notes": "The podcast ends with the hosts signing off. The time from 3419.1s to 3421.3s is the conclusion of the host content. The following segments from 3428.1s to 3456.1s and 3458.8s to 3486.2s are clearly produced advertisements or sponsored messages for Arizona State University and the University of Michigan, respectively. These are not part of the podcast's editorial content. The segment ends at 3486.2s as the final timestamp provided, but the ad may continue past this window."
+}

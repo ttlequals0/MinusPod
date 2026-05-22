@@ -1,0 +1,1 @@
+[{"start": 8724.9, "end": 8831.4, "confidence": 0.98, "reason": "Continuous ad block: AirTasker sponsor read, Decisions Decisions cross-promo (Sponsored by Gilead), OnDeck sponsor read, Public sponsor read", "end_text": "those who take it seriously."}]

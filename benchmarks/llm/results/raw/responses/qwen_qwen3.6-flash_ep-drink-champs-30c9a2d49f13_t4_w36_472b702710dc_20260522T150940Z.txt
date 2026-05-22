@@ -1,0 +1,1 @@
+[{"start": 15388.3, "end": 15517.1, "confidence": 0.98, "reason": "Post-roll ad break featuring Airtasker, CVS, Trashy, Try Fencing, and iHeart platform ad", "end_text": "Guaranteed human."}]

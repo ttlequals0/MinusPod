@@ -1,0 +1,1 @@
+{"start":3864.8,"end":3891.5,"confidence":0.93,"reason":"Mid-roll sponsor-style promo mention with transition into ads context; includes 'let's take a break' not present in this excerpt but the segment is a produced ad break/cross-promo style mention of academic content and corrections?","end_text":"everything is blended into one yeah"}

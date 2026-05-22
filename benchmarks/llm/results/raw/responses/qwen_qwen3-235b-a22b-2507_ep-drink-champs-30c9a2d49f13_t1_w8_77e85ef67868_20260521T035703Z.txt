@@ -1,0 +1,1 @@
+{"start": 3478.9, "end": 3504.1, "confidence": 0.96, "reason": "Host-read ad for Airtasker with promotional language, URL, and call to action", "end_text": "Airtasker. Download the Airtasker app"}

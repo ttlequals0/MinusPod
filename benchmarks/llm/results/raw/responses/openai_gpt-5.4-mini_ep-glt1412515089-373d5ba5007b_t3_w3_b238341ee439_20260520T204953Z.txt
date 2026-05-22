@@ -1,0 +1,1 @@
+{"start":1240.0,"end":1240.0,"confidence":0.98,"reason":"Perplexity host-read ad likely begins before this transcript window; promotional copy in episode description/transcript mentions Perplexity app and podcastchoices ad-choices CTA, but no on-transcript break language shown here. Marking as continued/partial ad per window note.","end_text":"continues from previous"}

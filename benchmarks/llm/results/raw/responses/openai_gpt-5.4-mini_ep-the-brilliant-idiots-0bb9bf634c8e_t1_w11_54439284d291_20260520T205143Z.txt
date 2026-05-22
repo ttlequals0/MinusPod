@@ -1,0 +1,1 @@
+{"start":4945.9,"end":4945.9,"confidence":0.0,"reason":"No advertisement segment found in this transcript window; content is discussion of Met Gala, interracial couple rankings, and celebrity topics with no sponsor copy or promotional CTA.","end_text":"No ads found"}

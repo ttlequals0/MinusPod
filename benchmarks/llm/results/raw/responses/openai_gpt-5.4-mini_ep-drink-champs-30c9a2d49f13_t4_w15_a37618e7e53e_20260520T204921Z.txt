@@ -1,0 +1,1 @@
+{"start":6283.4,"end":6313.4,"confidence":0.99,"reason":"OnDeck sponsor read with promotional copy and call to action; continues into legal disclaimer before show content resumes","end_text":"All amounts subject to lender approval"}

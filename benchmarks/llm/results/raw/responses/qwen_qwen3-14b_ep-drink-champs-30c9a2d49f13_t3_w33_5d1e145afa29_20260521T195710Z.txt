@@ -1,0 +1,1 @@
+{"start": 14043.9, "end": 14069.0, "confidence": 0.95, "reason": "Drink Champs brand mention in conversation", "end_text": "Sport Champs. Yeah."}

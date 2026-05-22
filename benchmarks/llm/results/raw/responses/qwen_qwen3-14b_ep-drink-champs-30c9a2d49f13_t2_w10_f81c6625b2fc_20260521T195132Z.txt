@@ -1,0 +1,2 @@
+w.
+{"start": 4200.0, "end": 4800.0, "confidence": 0.0, "reason": "No advertisement segments detected in the provided transcript window.", "end_text": "the NFL then? No, no, no."}

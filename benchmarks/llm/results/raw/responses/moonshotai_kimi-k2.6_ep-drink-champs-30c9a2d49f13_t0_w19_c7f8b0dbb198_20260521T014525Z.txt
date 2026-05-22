@@ -1,0 +1,1 @@
+{"start": 7981.9, "end": 8588.6, "confidence": 0.0, "reason": "No promotional content, sponsor reads, or advertisements detected in this window. Entire segment consists of show content including Warren Sapp's stories and conversational segments.", "end_text": "y'all got DJ Clue"}

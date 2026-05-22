@@ -1,0 +1,1 @@
+{"start": 1242.3, "end": 1861.8, "confidence": 0.0, "reason": "no ads found", "end_text": "David believes that whoever that was who called him"}

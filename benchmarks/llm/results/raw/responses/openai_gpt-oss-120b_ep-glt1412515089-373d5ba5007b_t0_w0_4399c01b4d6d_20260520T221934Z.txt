@@ -1,0 +1,7 @@
+{
+  "start": 539.2,
+  "end": 600.0,
+  "confidence": 0.99,
+  "reason": "Combined sponsor reads for In the Gray movie and Skechers slip‑ins (promotional language, product pitch, calls to action)",
+  "end_text": "sandals, sneakers,"
+}

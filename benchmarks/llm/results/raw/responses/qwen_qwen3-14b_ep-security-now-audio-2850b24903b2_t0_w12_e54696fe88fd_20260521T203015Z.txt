@@ -1,0 +1,2 @@
+y.
+{"start": 5640.0, "end": 5640.0, "confidence": 0.0, "reason": "No advertisement segments detected in the provided window", "end_text": "conversations"}

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 6390.2,
+    "end": 6419.4,
+    "confidence": 0.95,
+    "reason": "Host-read advertisement for BlueChew",
+    "end_text": "you was giving Bluetooth"
+  }
+]

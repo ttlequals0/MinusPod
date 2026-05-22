@@ -1,0 +1,1 @@
+{"start": 13856.0, "end": 14466.2, "confidence": 0.0, "reason": "No promotional content, sponsor reads, or platform-inserted ads detected in this window. The transcript contains only conversational show content.", "end_text": "I want the smoke"}

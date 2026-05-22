@@ -1,0 +1,1 @@
+{"start":54.1,"end":64.7,"confidence":0.96,"reason":"Old National Bank sponsor ad with promotional tagline, call to connect with a banker, URL oldnational.com/commercialbanking, and Member FDIC disclosure; appears partial at start","end_text":"commercial banking. Member FDIC."}

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 15388.3,
+    "end": 15517.1,
+    "confidence": 1.0,
+    "reason": "Network-inserted ad block featuring Airtasker, CVS, Trashy, and TryFencing",
+    "end_text": "This is an iHeart Podcast. Guaranteed human."
+  }
+]

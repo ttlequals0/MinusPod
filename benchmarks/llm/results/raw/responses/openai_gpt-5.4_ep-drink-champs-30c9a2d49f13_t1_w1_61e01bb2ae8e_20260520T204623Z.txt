@@ -1,0 +1,1 @@
+{"start":588.5,"end":597.9,"confidence":0.63,"reason":"Brief produced sign-off style promo/insert with promotional closing language; partial segment in this window","end_text":"We'll see you next time."}

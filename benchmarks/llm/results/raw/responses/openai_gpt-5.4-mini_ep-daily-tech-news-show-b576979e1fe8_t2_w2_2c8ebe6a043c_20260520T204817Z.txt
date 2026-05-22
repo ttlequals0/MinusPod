@@ -1,0 +1,1 @@
+{"start":994.2,"end":1293.0,"confidence":0.97,"reason":"Insta360 promotional segment for the Go 3S Retro Bundle, including product pitch, pricing, and brand name repeated; no explicit break phrase appears in this transcript window, but the copy is clearly sponsor-style ad content.","end_text":"I might get one. You got me, Insta360"}

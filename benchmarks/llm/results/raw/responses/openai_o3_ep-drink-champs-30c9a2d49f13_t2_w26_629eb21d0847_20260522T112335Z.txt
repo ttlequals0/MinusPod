@@ -1,0 +1,1 @@
+{"error":"Cannot identify ad segments because no promotional language detected in the provided transcript window."}

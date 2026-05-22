@@ -1,0 +1,1 @@
+[{"start": 821.4, "end": 1024.8, "confidence": 0.98, "reason": "Continuous block of host-read and network-inserted sponsor segments (Capital One, BetterHelp, Amazon Health AI, Spectrum Business, Rinse/Best One Yet podcast cross-promo)", "end_text": "Let's get to the briefs."}]

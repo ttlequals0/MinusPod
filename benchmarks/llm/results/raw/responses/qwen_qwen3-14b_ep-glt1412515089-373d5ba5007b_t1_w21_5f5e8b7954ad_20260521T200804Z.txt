@@ -1,0 +1,1 @@
+{"start": 147.0, "end": 157.0, "confidence": 0.0, "reason": "no ads found", "end_text": "uranium dust on his boots."}

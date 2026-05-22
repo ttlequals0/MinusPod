@@ -1,0 +1,7 @@
+{
+  "start": 9228.0,
+  "end": 9840.0,
+  "confidence": 0.0,
+  "reason": "No promotional language, sponsor names, URLs, promo codes, calls to action, or branded tagline ads found in this window. The transcript consists entirely of conversational content about fishing, diving, shark encounters, iguana eating, and McDonald's/Food discussion with no ad markers.",
+  "end_text": "Soylent Green. What's Soylent Green"
+}

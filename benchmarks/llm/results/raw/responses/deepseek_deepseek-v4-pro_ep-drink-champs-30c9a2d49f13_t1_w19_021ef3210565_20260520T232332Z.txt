@@ -1,0 +1,1 @@
+{"segments": [], "confidence": 0.95, "reason": "No advertisement segments detected. The transcript contains storytelling about Biggie Smalls and TinyChat, as well as natural conversation about N.W.A. vs Wu-Tang. There are no sponsor reads, promo codes, URLs, calls to action, transition phrases, or network-inserted ads in this window."}

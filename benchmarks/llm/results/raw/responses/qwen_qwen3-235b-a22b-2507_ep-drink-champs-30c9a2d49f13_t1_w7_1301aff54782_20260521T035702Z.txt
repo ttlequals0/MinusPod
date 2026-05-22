@@ -1,0 +1,1 @@
+[{"start": 3478.9, "end": 3528.5, "confidence": 0.96, "reason": "Airtasker network-inserted ad with promotional language, URL, and call to action", "end_text": "Airtasker, get anything done"}, {"start": 3528.8, "end": 3556.2, "confidence": 0.93, "reason": "Cross-promotion for 'Decisions Decisions' podcast, platform-inserted network promo", "end_text": "about abstinence?"}]

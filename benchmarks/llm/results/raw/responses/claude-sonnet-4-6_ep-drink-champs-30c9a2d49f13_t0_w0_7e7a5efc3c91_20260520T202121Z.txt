@@ -1,0 +1,18 @@
+```json
+[
+  {
+    "start": 0.0,
+    "end": 101.0,
+    "confidence": 0.97,
+    "reason": "Multiple platform-inserted ads: Airtasker app promotion, HIV awareness sponsored by Care for the Culture/Gilead Sciences, and Nissan Rogue campaign ad",
+    "end_text": "hold their ground in real-world conditions"
+  },
+  {
+    "start": 109.0,
+    "end": 150.5,
+    "confidence": 0.99,
+    "reason": "Shopify host-read sponsor segment with call to action URL Shopify.com/BEN and product promotion",
+    "end_text": "Shopify.com slash B-E-N"
+  }
+]
+```

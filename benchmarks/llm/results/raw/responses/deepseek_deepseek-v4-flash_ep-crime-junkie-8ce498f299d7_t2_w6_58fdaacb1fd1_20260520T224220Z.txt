@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 2863.0,
+      "end": 2894.5,
+      "confidence": 0.95,
+      "reason": "LinkedIn Premium All-in-One ad with promotional language ('try for free', 'LinkedIn.com/slash/all-in-one')",
+      "end_text": "LinkedIn slash all-in-one"
+    }
+  ]
+}

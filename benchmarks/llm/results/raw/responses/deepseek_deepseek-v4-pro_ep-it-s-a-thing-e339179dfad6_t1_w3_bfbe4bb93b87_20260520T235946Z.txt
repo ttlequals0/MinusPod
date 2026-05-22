@@ -1,0 +1,18 @@
+{
+  "ad_segments": [
+    {
+      "start": 1524.5,
+      "end": 1561.9,
+      "confidence": 0.96,
+      "reason": "Xero accounting platform sponsor ad with call-to-action to search Xero for free trial",
+      "end_text": "search XERO for your free trial"
+    },
+    {
+      "start": 1565.4,
+      "end": 1602.6,
+      "confidence": 0.98,
+      "reason": "Acast platform-inserted promo: Jameela Jamil's podcast Wrong Turns and Acast platform ad",
+      "end_text": "Acast.com"
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+{"start":2863.0,"end":2894.5,"confidence":0.99,"reason":"LinkedIn Premium All-in-One sponsor read with promotional claims and CTA; ad break continues from previous content into this window","end_text":"Try for free at LinkedIn.com slash all-in-one"}

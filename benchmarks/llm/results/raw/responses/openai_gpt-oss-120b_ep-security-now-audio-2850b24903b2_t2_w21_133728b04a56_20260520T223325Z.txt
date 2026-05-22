@@ -1,0 +1,3 @@
+[
+{"start":9075.4,"end":9130.0,"confidence":0.98,"reason":"Host-read promotion of Spinrite utility and related GRC products","end_text":"get it now for sure"},{"start":9259.3,"end":9290.5,"confidence":0.97,"reason":"Network cross‑promotion of This Week in Tech podcast","end_text":"from the TWiT Network. Thank you"},{"start":9344.4,"end":9374.4,"confidence":0.99,"reason":"Mint Mobile ad read by Ryan Reynolds with promo URL and offer details","end_text":"at mintmobile.com"}
+]

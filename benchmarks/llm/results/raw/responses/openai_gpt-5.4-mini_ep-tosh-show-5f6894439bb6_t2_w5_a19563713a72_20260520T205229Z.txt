@@ -1,0 +1,1 @@
+{"start":2412.8,"end":2484.9,"confidence":0.99,"reason":"Platform/network promo followed by PC Richard & Son sponsored lease-to-own ad with clear promotional language, product pitch, Memorial Day sale, and URL. Partial segment continues through transcript end.","end_text":"visit PCRichard.com slash Asima dot HTML for details"}

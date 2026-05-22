@@ -1,0 +1,9 @@
+[
+  {
+    "start": 5626.9,
+    "end": 5646.8,
+    "confidence": 0.85,
+    "reason": "Platform-inserted ad break (Megaphone/ad choices)",
+    "end_text": "I'm really asking why"
+  }
+]

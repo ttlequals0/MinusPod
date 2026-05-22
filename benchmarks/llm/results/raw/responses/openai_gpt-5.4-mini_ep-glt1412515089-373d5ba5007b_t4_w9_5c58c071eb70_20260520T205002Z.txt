@@ -1,0 +1,1 @@
+{"start":4380.0,"end":4380.0,"confidence":0.61,"reason":"Possible ad/promo continuation detected from episode window note, but no explicit promotional sponsor language appears in the provided transcript window; cannot confirm an ad segment","end_text":"continues in next"}

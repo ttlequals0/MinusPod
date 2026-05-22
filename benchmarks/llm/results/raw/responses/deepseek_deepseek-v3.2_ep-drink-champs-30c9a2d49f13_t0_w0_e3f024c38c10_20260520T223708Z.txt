@@ -1,0 +1,39 @@
+{
+  "ads": [
+    {
+      "start": 0.0,
+      "end": 42.2,
+      "confidence": 0.98,
+      "reason": "iHeart Podcast intro and Airtasker ad with promotional language and call to action (Airtasker.com)",
+      "end_text": "Airtasker, get anything done."
+    },
+    {
+      "start": 42.8,
+      "end": 72.1,
+      "confidence": 0.95,
+      "reason": "Public service announcement/network-inserted ad for Gilead Sciences 'Care for the Culture' with promotional health messaging",
+      "end_text": "from Gilead Sciences."
+    },
+    {
+      "start": 72.9,
+      "end": 101.0,
+      "confidence": 0.96,
+      "reason": "Nissan Rogue brand tagline ad with product marketing language",
+      "end_text": "in real-world conditions."
+    },
+    {
+      "start": 109.0,
+      "end": 150.5,
+      "confidence": 0.99,
+      "reason": "Host-read Shopify ad with promo code (Shopify.com/B-E-N) and call to action",
+      "end_text": "Shopify.com slash B-E-N."
+    },
+    {
+      "start": 162.9,
+      "end": 189.6,
+      "confidence": 0.97,
+      "reason": "Drink Champs show intro/network promo with marketing taglines",
+      "end_text": "Drink up, motherfuckers."
+    }
+  ]
+}

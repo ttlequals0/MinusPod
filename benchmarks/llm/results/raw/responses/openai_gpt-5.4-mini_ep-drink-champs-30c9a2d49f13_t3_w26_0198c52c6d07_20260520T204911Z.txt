@@ -1,0 +1,1 @@
+{"start":11335.2,"end":11424.6,"confidence":0.98,"reason":"Platform/network ad block: Airtasker promo followed by another sponsored podcast promo for Decisions Decisions and Care for the Culture from Gilead Sciences; contains explicit brand names, app/download CTA, and sponsor attribution.","end_text":"Sponsored by Care for the Culture from Gilead Sciences"}

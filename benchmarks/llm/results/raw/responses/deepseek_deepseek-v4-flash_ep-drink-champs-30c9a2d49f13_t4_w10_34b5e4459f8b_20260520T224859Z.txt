@@ -1,0 +1,1 @@
+{"start": 4197.5, "end": 4800.0, "confidence": 0.00, "reason": "No ad segments found; transcript consists entirely of editorial football discussion with no promotional language, sponsor mentions, or calls to action.", "end_text": "N/A"}

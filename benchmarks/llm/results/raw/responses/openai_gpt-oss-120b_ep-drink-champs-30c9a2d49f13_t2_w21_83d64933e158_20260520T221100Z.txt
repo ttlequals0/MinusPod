@@ -1,0 +1,18 @@
+{
+  "ads": [
+    {
+      "start": 8799.1,
+      "end": 8826.4,
+      "confidence": 0.97,
+      "reason": "Host-read sponsor read for OnDeck business loans with promotional language and call to action",
+      "end_text": "subject to lender approval."
+    },
+    {
+      "start": 8827.0,
+      "end": 8831.4,
+      "confidence": 0.96,
+      "reason": "Sponsor mention for Public investing platform with promotional phrasing",
+      "end_text": "who take it seriously."
+    }
+  ]
+}

@@ -1,0 +1,2 @@
+d.
+{"start": 4265.2, "end": 4396.1, "confidence": 0.98, "reason": "Bitwarden sponsor read with product features, user stats, and SDK announcement", "end_text": "passkey login, I love this, for Windows 11"}

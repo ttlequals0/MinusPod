@@ -1,0 +1,1 @@
+{"start": 2609.5, "end": 2633.6, "confidence": 0.98, "reason": "List of known sponsor brands and promotional terms like 'promo code', 'discount code', 'sponsored by' inserted in transcript, indicating a platform or host-read ad break", "end_text": "Stamps.com,"}

@@ -1,0 +1,39 @@
+{
+  "ads": [
+    {
+      "start": 15388.3,
+      "end": 15416.5,
+      "confidence": 0.98,
+      "reason": "Host-read sponsor ad for Airtasker with product pitch and URL",
+      "end_text": "Airtasker.com. Airtasker."
+    },
+    {
+      "start": 15416.7,
+      "end": 15452.3,
+      "confidence": 0.98,
+      "reason": "Host-read sponsor ad for CVS with promotional language and URL",
+      "end_text": "vary by location."
+    },
+    {
+      "start": 15453.9,
+      "end": 15481.1,
+      "confidence": 0.98,
+      "reason": "Host-read sponsor ad for Trashy with product description and URL",
+      "end_text": "Trashy.io to get started."
+    },
+    {
+      "start": 15482.9,
+      "end": 15512.2,
+      "confidence": 0.98,
+      "reason": "Host-read sponsor ad for Try Fencing with promotional copy and URL",
+      "end_text": "tryfencing.org."
+    },
+    {
+      "start": 15512.4,
+      "end": 15517.1,
+      "confidence": 0.98,
+      "reason": "Platform-inserted ad identifying the podcast as an iHeart Podcast",
+      "end_text": "Guaranteed human."
+    }
+  ]
+}

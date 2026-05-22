@@ -1,0 +1,9 @@
+[
+  {
+    "start": 6208.7,
+    "end": 6318.1,
+    "confidence": 0.95,
+    "reason": "Contains multiple platform-inserted ads: Airtasker promo, Decisions Decisions podcast cross-promotion, OnDeck financial ad, Public sponsorship",
+    "end_text": "comes from Public"
+  }
+]

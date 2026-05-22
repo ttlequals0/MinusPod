@@ -1,0 +1,1 @@
+{"start": 10567.1, "end": 10575.1, "confidence": 0.95, "reason": "Host-read ad for 'Brandon Marshall' (likely a brand or show promotion)", "end_text": "That's what Brandon Marshall said."}

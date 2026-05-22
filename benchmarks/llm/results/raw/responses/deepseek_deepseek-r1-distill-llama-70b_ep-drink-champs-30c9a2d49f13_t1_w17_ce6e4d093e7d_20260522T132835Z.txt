@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so let's take a break. This episode is brought to you by BetterHelp. If you're feeling overwhelmed, BetterHelp offers convenient, affordable, and private online counseling. You can get matched with a licensed therapist in your area. Visit BetterHelp.com/DrinkChamps or use the code DRINK15 at checkout to receive 15% off your first month. That's BetterHelp.com/DrinkChamps. Alright, let's get back to the show.",
+  "start": 7740.0,
+  "end": 7755.0
+}

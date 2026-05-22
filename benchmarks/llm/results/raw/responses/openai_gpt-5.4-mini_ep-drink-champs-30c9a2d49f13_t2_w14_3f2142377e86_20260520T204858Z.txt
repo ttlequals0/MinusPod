@@ -1,0 +1,1 @@
+{"start":6208.7,"end":6313.4,"confidence":0.98,"reason":"Host-read and platform-inserted ad block: Airtasker promo with CTA 'Download the Airtasker app or go to Airtasker.com', followed by sponsored segment 'Sponsored by Care for the Culture from Gilead Sciences' and OnDeck loan promotion with application URL.","end_text":"All amounts subject to lender approval"}

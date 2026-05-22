@@ -1,0 +1,1 @@
+{"start": 2258.8, "end": 2270.2, "confidence": 0.98, "reason": "Platform-inserted ad or content gap with 'Thank you for watching' tag, but no promotional content or sponsor mention; this is likely a segment break, not an ad", "end_text": "So, I hadn't heard about this"}

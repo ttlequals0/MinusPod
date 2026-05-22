@@ -1,0 +1,1 @@
+[{"start": 10080.0, "end": 10680.0, "confidence": 0.95, "reason": "DrinkChamps subscription promotion with URL", "end_text": "https://www.drinkchamps.com"}}]

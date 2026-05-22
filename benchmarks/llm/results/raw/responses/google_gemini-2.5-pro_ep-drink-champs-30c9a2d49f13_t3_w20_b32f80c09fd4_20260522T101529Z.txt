@@ -1,0 +1,9 @@
+[
+  {
+    "start": 8724.9,
+    "end": 8831.4,
+    "confidence": 0.99,
+    "reason": "A multi-part ad break containing promotions for AirTasker, the podcast 'Decisions Decisions' (sponsored by Gilead), OnDeck, and Public.",
+    "end_text": "who take it seriously."
+  }
+]

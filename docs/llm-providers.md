@@ -94,13 +94,13 @@ These come from the [offline LLM benchmark](../benchmarks/llm/) included in this
 
 | Use case | Model | F1 | Cost / episode | Why |
 |---|---|---:|---:|---|
-| Best accuracy overall | `qwen/qwen3.5-plus-02-15` (via OpenRouter) | 0.649 | $0.00 | Rank 1 of all 32 models, paid or free. Perfect JSON compliance (1.00). p50 latency 49s, not for live UX, fine for offline batches. Alibaba's content classifier may reject a small fraction of windows. |
-| Best accuracy (paid) | `openai/gpt-5.5` | 0.636 | $4.66 | Highest F1 of any paid model. Beats `claude-opus-4-7` on both F1 (0.636 vs 0.618) and cost ($4.66 vs $5.54). JSON compliance 0.87 (the production parser handles the remaining 13% via fallback). |
-| Best Anthropic-direct | `claude-opus-4-7` | 0.618 | $5.54 | Rank 3 overall. Perfect JSON compliance (1.00), perfect no-ad pass, lowest false-positive rate. Pick this for direct Anthropic billing or the strictest control side, knowing gpt-5.5 is cheaper and slightly more accurate. |
-| Cheap and fast (production) | `google/gemma-4-31b-it` (via OpenRouter) | 0.463 | $0.00 | Free via OpenRouter, p50 latency 1.8s, rank 9 F1. JSON compliance 0.86 (14% of windows take a parser-fallback path; the production parser handles this). |
+| Best accuracy overall | `qwen/qwen3.6-plus` (via OpenRouter) | 0.693 | $1.11 | Rank 1 of 44. Perfect JSON compliance, p50 39.9s -- offline batches, not live UX. Edges out `qwen3.5-plus-02-15` (F1 0.679, $1.23) by 0.014, which sits inside the trial-stdev noise floor, so treat them as a tie and pick on price. |
+| Best fast + accurate | `qwen/qwen3.6-flash` (via OpenRouter) | 0.660 | $0.55 | Rank 3, p50 13.0s. Top-tier accuracy at fast-model latency and cost -- a rare combo. Heads-up: hit by Alibaba shared-pool 429s during the initial sweep. Bring your own Dashscope key on OpenRouter if you plan to lean on it. |
+| Best Anthropic-direct | `claude-opus-4-7` | 0.576 | $7.81 | Rank 10. Perfect JSON compliance, perfect no-ad pass, but $7.81/episode is the priciest on this list and a Qwen will beat it for less. Pick this only if Anthropic-direct billing is non-negotiable. |
+| Cheap and production-fast | `openai/gpt-5.4-mini` | 0.584 | $0.76 | Rank 9, p50 1.2s. The accuracy-to-cost knee: noticeably better F1 than the under-$0.15/ep tier (gemma-4-31b-it and deepseek-v4-flash both around F1 0.47) at a still-reasonable price. JSON compliance 0.81. |
 
 Caveats:
-- Numbers come from a 7-episode corpus (6 ad-bearing, 1 no-ad control), 32 models tested with 31 active (xAI deprecated `grok-4.1-fast` upstream after the May 10 sweep; `grok-4.3` replaces it at F1 0.489 rank 7), 5 trials each, ~14,400 total calls. They will refine as the corpus grows.
+- Numbers come from a 14-episode corpus (10 ad-bearing, 4 no-ad control), 44 active models, 5 trials each, ~38,000 total calls. They will refine as the corpus grows.
 - Latency for OpenRouter-routed models reflects routing-layer queueing, not just model compute. Treat it as an availability indicator.
 - F1 uses IoU >= 0.5 against human-verified ad spans. A model with F1 0.5 catches half the ads with the right boundaries; a higher F1 means closer to the truth.
 
@@ -152,7 +152,7 @@ Simplest task. Summarization only, no structured detection. Minimize VRAM usage 
 
 ### Cloud vs. Local: What Changes
 
-Best cloud F1 in the [benchmark](../benchmarks/llm/) is 0.65 (`qwen/qwen3.5-plus-02-15`, free tier on OpenRouter) over 32 models on a 7-episode corpus. `claude-sonnet-4-6` scores 0.38 in the same sweep, well below the leader, so "use Claude" doesn't fix accuracy by itself. The cloud model you pick matters as much as cloud-vs-local does.
+Best cloud F1 in the [benchmark](../benchmarks/llm/) is 0.69 (`qwen/qwen3.6-plus` via OpenRouter) across 44 models on a 14-episode corpus. `claude-sonnet-4-6` scores 0.45 in the same sweep, well below the leader, so "use Claude" doesn't fix accuracy by itself. The cloud model you pick matters as much as cloud-vs-local does.
 
 The LLM only sees host-read ads that blend into content, new sponsors not yet in the pattern database, and ambiguous mid-rolls without promo codes or URLs. Everything else (audio fingerprinting, text pattern matching, pre/post-roll heuristics, audio-signal enforcement) runs without an LLM and catches a substantial share of ads regardless of model.
 

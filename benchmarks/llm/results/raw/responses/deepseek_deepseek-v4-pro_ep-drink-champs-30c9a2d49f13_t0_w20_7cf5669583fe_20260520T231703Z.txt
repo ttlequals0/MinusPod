@@ -1,0 +1,32 @@
+{
+  "segments": [
+    {
+      "start": 8724.9,
+      "end": 8737.9,
+      "confidence": 0.95,
+      "reason": "AirTasker network-inserted ad",
+      "end_text": "handle it. AirTasker."
+    },
+    {
+      "start": 8738.1,
+      "end": 8798.3,
+      "confidence": 0.95,
+      "reason": "Decisions Decisions podcast cross-promotion sponsored by Care for the Culture",
+      "end_text": "Care for the Culture from Gilead Sciences."
+    },
+    {
+      "start": 8799.1,
+      "end": 8826.4,
+      "confidence": 0.95,
+      "reason": "OnDeck network-inserted ad",
+      "end_text": "amounts subject to lender approval."
+    },
+    {
+      "start": 8827.0,
+      "end": 8856.4,
+      "confidence": 0.90,
+      "reason": "Public investing platform sponsor mention",
+      "end_text": "who take it seriously."
+    }
+  ]
+}

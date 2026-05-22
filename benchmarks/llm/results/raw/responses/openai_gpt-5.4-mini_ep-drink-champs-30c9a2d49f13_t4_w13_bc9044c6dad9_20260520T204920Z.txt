@@ -1,0 +1,1 @@
+{"start":5692.6,"end":5712.8,"confidence":0.92,"reason":"Host conversation includes a brand-name mention of Brooklinen in a promotional-sounding, non-editorial context; possible platform or sponsor insertion, though transcript lacks an explicit ad transition.","end_text":"Brooklinen, New York. You sure?"}

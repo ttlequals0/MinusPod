@@ -1,0 +1,9 @@
+[
+  {
+    "start": 8820.0,
+    "end": 8831.4,
+    "confidence": 0.99,
+    "reason": "Merged ad segment: OnDeck business loans (partial due to window start) followed by Public investing platform sponsorship",
+    "end_text": "take it seriously"
+  }
+]

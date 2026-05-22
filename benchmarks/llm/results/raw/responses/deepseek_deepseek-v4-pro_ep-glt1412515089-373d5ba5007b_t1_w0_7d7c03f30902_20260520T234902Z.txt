@@ -1,0 +1,18 @@
+{
+  "segments": [
+    {
+      "start": 539.2,
+      "end": 595.4,
+      "confidence": 0.98,
+      "reason": "Movie promotion - In the Gray film advertisement with director and cast naming, theater release date, and rating information",
+      "end_text": "Theaters May 15th. Rated R, under 17, requires accompanying parent or adult guardian."
+    },
+    {
+      "start": 595.4,
+      "end": 624.5,
+      "confidence": 0.97,
+      "reason": "Skechers hands-free slip-ins product advertisement with comfort technology pitch and product features",
+      "end_text": "casual and dress footwear, sandals, sneakers,"
+    }
+  ]
+}

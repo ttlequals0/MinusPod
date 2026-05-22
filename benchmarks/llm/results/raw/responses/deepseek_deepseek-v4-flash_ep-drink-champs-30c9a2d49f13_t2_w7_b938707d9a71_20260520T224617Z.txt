@@ -1,0 +1,1 @@
+{"ads": [], "window_start": 2929.2, "window_end": 3556.2}

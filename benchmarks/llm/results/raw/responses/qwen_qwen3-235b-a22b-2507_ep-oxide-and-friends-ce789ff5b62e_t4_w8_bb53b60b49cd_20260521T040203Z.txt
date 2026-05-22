@@ -1,0 +1,1 @@
+{"start": 3344.8, "end": 3975.1, "confidence": 0.98, "reason": "Technical discussion about mechanical engineering, injection molding, part design, and cost analysis without any promotional language, sponsor mentions, URLs, or calls to action. This is core episode content.", "end_text": "complexity of the print"}

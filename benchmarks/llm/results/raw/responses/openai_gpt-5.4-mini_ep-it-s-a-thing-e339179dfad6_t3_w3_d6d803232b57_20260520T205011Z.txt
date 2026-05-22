@@ -1,0 +1,1 @@
+{"start":1524.5,"end":1561.9,"confidence":0.99,"reason":"Xero host-read sponsor segment with promotional language, product pitch, free trial CTA, and transition into ad break","end_text":"search XERO for your free trial. Conditions apply"}

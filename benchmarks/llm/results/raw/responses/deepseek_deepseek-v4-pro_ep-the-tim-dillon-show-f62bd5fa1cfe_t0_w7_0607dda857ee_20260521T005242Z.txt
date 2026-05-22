@@ -1,0 +1,25 @@
+{
+  "ad_segments": [
+    {
+      "start": 3079.6,
+      "end": 3105.5,
+      "confidence": 0.98,
+      "reason": "Morgan & Morgan sponsor read with promo code and URL",
+      "end_text": "Let them know I sent you."
+    },
+    {
+      "start": 3105.5,
+      "end": 3208.0,
+      "confidence": 0.98,
+      "reason": "Stash sponsor read with URL and financial disclaimer. Immediate follow-up to Morgan & Morgan ad.",
+      "end_text": "Investing involves risk."
+    },
+    {
+      "start": 3208.0,
+      "end": 3270.1,
+      "confidence": 0.98,
+      "reason": "Neuro Gum sponsor read with promo code and URL. Adjacent to Stash ad.",
+      "end_text": "CVS and Amazon."
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "start": 1242.3,
+  "end": 1861.8,
+  "confidence": 0.0,
+  "reason": "No promotional language, sponsor names, URLs, promo codes, or calls to action found in this transcript segment. The content is entirely narrative about the case.",
+  "end_text": "double-crossing"
+}

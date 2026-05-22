@@ -1,0 +1,1 @@
+{"start": 3778.8, "end": 3801.6, "confidence": 0.0, "reason": "No promotional content detected in this segment. Contains conversation about Deion Sanders and football.", "end_text": "And he ain't cussing, you know he ain't cussing."}

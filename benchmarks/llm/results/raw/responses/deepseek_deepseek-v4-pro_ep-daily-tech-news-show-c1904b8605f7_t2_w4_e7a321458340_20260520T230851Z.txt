@@ -1,0 +1,25 @@
+{
+  "results": [
+    {
+      "start": 1742.3,
+      "end": 1771.5,
+      "confidence": 0.97,
+      "reason": "Capital One host-read ad with promo message and 'That's technology at Capital One' tagline",
+      "end_text": "That's technology at Capital One."
+    },
+    {
+      "start": 2004.1,
+      "end": 2031.6,
+      "confidence": 0.7,
+      "reason": "Possible brief sponsor mention or reading of a message",
+      "end_text": "you're in the queue."
+    },
+    {
+      "start": 2246.0,
+      "end": 2302.0,
+      "confidence": 0.96,
+      "reason": "Capital One repeat ad followed by Rinse laundry service ad with promotional language",
+      "end_text": "they remove the friction of a relentless task."
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+[
+    {
+        "start": 15388.3,
+        "end": 15416.5,
+        "confidence": 0.99,
+        "reason": "Airtasker network-inserted ad with call to action, app download, and brand tagline",
+        "end_text": "Airtasker makes city life easier. Airtasker."
+    },
+    {
+        "start": 15416.7,
+        "end": 15452.3,
+        "confidence": 0.99,
+        "reason": "CVS network-inserted ad with community messaging, store mention, and promotional language",
+        "end_text": "visit us at cvs.com or just come by our store."
+    },
+    {
+        "start": 15453.9,
+        "end": 15481.1,
+        "confidence": 0.99,
+        "reason": "Trashy network-inserted ad with call to action, URL, and promotional offer (Trashy Unlimited)",
+        "end_text": "Visit Trashy.io to get started."
+    },
+    {
+        "start": 15482.9,
+        "end": 15517.1,
+        "confidence": 0.98,
+        "reason": "Fencing network-inserted ad with URL (tryfencing.org) and promotional pitch for the sport",
+        "end_text": "tryfencing.org. This is an iHeart Podcast."
+    }
+]

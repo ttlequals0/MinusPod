@@ -1,0 +1,7 @@
+{
+  "start": 1035.7,
+  "end": 1035.7,
+  "confidence": 0.55,
+  "reason": "possible incomplete ad start at window boundary, no promotional content confirmed",
+  "end_text": "the car was left, just like"
+}

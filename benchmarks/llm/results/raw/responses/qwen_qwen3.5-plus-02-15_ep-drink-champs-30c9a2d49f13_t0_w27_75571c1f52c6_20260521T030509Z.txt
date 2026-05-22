@@ -1,0 +1,1 @@
+[{"start": 11335.2, "end": 11455.4, "confidence": 0.98, "reason": "Continuous ad break featuring Airtasker pitch, Decisions Decisions cross-promotion sponsored by Gilead Sciences, and OnDeck small business loan ad", "end_text": "subject to lender approval."}]

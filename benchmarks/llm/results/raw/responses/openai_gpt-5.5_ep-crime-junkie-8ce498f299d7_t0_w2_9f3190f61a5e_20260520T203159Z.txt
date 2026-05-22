@@ -1,0 +1,1 @@
+{"start":1012.8,"end":1129.6,"confidence":0.98,"reason":"Ad break with SoFi personal loan sponsor copy including SoFi.com/CJ, followed by LinkedIn Premium All-in-One promo; merged due short gap between ads","end_text":"LinkedIn.com slash all-in-one"}

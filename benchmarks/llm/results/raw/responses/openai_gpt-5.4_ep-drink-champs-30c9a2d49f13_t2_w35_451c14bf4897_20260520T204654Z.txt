@@ -1,0 +1,1 @@
+{"start": 15261.8, "end": 15285.2, "confidence": 0.61, "reason": "Possible partial ad marker with repeated promotional language 'promo code, discount code'; likely incomplete/inserted ad continuing beyond detected window", "end_text": "discount code, discount code,"}

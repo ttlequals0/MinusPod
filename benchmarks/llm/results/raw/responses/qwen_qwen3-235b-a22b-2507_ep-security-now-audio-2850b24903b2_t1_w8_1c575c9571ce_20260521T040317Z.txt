@@ -1,0 +1,1 @@
+{"start": 3358.6, "end": 3979.0, "confidence": 0.98, "reason": "Content discussion on AI impact on bug bounties without promotional language or sponsor mentions; no ad content present in transcript window", "end_text": "hasn't fully formed yet."}

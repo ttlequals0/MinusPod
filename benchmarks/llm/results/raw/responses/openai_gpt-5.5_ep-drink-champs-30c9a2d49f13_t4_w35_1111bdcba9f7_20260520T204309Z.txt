@@ -1,0 +1,1 @@
+{"start":15261.8,"end":15285.2,"confidence":0.6,"reason":"Possible partial ad insertion with repeated promotional language: 'promo code, discount code' but no identifiable sponsor or product in transcript","end_text":"discount code, discount code"}

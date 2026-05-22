@@ -1,0 +1,1 @@
+{"start":2246.0,"end":2314.4,"confidence":0.99,"reason":"Ad break starting with 'This episode is brought to you by Capital One' and followed by a separate Rinse sponsor read with promo language and URL 'Sign up at Rinse.com'; merged as one ad block with a short gap","end_text":"Rinse. It's time to be great."}

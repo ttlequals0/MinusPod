@@ -1,0 +1,7 @@
+{
+  "start": 0.0,
+  "end": 98.4,
+  "confidence": 0.99,
+  "reason": "Host-read sponsor block promoting Vitel Global, LinkedIn Premium, and Hertz",
+  "end_text": "newest fleet yet at Hertz.com."
+}

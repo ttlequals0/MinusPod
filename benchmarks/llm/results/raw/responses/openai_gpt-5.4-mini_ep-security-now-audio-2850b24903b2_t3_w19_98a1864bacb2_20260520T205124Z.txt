@@ -1,0 +1,1 @@
+{"start":8599.9,"end":8599.9,"confidence":0.21,"reason":"No clear advertisement segment in this window; transcript is editorial discussion about Google/ads, not sponsor copy or promo read.","end_text":"opportunity."}

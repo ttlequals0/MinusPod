@@ -1,0 +1,1 @@
+{"start": 7916.6, "end": 7936.3, "confidence": 0.98, "reason": "Platform-inserted ad or outro with 'Thank you for watching' - tonally distinct, abrupt shift from conversation, likely a network or platform break", "end_text": "Thank you for watching"}

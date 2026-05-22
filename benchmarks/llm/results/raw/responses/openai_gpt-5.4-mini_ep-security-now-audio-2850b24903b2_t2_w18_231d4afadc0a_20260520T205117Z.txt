@@ -1,0 +1,1 @@
+{"start":7633.7,"end":7797.4,"confidence":0.99,"reason":"Trusted Tech sponsor read begins after 'let's take our final break' and includes promotional copy, free Microsoft 365 licensing consultation, and the URL trustedtech.team/securitynow365.","end_text":"Now, back to Steve"}

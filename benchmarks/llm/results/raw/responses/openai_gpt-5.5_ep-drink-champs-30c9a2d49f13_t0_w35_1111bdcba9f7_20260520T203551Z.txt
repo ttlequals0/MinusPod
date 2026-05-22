@@ -1,0 +1,1 @@
+{"start":15261.8,"end":15285.2,"confidence":0.62,"reason":"Likely partial/garbled ad break containing repeated promotional language: \"promo code, discount code\"; no sponsor name captured in transcript","end_text":"discount code, discount code"}

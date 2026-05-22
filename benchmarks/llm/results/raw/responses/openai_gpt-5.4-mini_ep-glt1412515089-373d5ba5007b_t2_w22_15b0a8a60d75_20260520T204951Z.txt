@@ -1,0 +1,1 @@
+{"start":9238.0,"end":9839.9,"confidence":0.88,"reason":"No explicit advertisement segment found in this window. Mentions of applied.love, timemachine.love, and Julia Mossbridge's own nonprofit/project are presented as interview content, not a sponsored promo with break transition or sponsor CTA.","end_text":"looks like unconditional love itself caused"}

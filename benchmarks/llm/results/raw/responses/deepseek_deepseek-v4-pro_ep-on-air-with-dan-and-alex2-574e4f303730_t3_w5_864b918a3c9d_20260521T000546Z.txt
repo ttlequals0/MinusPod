@@ -1,0 +1,1 @@
+{"reasoning": "I need to carefully analyze the transcript for any advertisement segments based on the strict rules provided.", "segments": []}

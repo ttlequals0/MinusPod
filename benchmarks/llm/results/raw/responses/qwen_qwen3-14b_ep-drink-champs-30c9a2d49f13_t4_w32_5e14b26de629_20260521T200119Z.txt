@@ -1,0 +1,11 @@
+s.
+{
+
+"[{" 
+  :"",
+  "start": 13669.1, 
+  "end": 13696.9, 
+  "confidence": 0.95, 
+  "reason": "Airtasker sponsor read with product pitch and URL", 
+  "end_text": "Airtasker.com."
+}

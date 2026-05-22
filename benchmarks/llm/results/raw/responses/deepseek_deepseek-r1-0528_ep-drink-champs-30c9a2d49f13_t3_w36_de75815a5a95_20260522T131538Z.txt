@@ -1,0 +1,9 @@
+[
+  {
+    "start": 15388.3,
+    "end": 15517.1,
+    "confidence": 0.99,
+    "reason": "Multiple third-party ads: Airtasker (15388.3-15416.5), CVS (15416.7-15452.3), Trashy (15453.9-15481.1), fencing (15482.9-15512.2), and iHeart platform tag (15512.4-15517.1)",
+    "end_text": "an iHeart Podcast. Guaranteed human."
+  }
+]

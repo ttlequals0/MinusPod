@@ -1,0 +1,1 @@
+{"start": 0.5, "end": 16.8, "confidence": 0.9, "reason": "Carvana ad with call to action and URL", "end_text": "back for another week of the Brilliant Idiots podcast."}

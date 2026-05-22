@@ -1,0 +1,1 @@
+{"start":6016.6,"end":6162.3,"confidence":0.99,"reason":"Host-read sponsor segment promoting Hawkshunt security training platform, includes break cue and promotional language","end_text":"back to our discussion"}

@@ -1,0 +1,16 @@
+[
+  {
+    "start": 2324.6,
+    "end": 2404.4,
+    "confidence": 1.0,
+    "reason": "BlueChew host-read advertisement",
+    "end_text": "sponsoring the podcast"
+  },
+  {
+    "start": 2404.4,
+    "end": 2450.0,
+    "confidence": 1.0,
+    "reason": "ZipRecruiter host-read advertisement",
+    "end_text": "Meet your match on ZipRecruiter"
+  }
+]

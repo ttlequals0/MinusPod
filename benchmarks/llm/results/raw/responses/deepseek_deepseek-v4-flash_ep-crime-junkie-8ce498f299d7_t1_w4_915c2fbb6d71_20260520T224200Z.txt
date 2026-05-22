@@ -1,0 +1,25 @@
+{
+  "ads": [
+    {
+      "start": 1959.8,
+      "end": 2020.4,
+      "confidence": 0.98,
+      "reason": "Rakuten sponsor read with promo URL and cashback pitch",
+      "end_text": "download the Rakuten app to start saving money today"
+    },
+    {
+      "start": 2022.1,
+      "end": 2032.3,
+      "confidence": 0.95,
+      "reason": "LinkedIn Premium All-in-One sponsor read with promo URL",
+      "end_text": "linkedin.com slash all-in-one"
+    },
+    {
+      "start": 2033.0,
+      "end": 2080.5,
+      "confidence": 0.95,
+      "reason": "Hertz network-inserted brand tagline ad with product pitch",
+      "end_text": "Get paired with our newest fleet yet at Hertz.com"
+    }
+  ]
+}

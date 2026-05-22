@@ -1,0 +1,3 @@
+[
+{"start":2324.6,"end":2404.4,"confidence":0.99,"reason":"BlueChew sponsor read with product pitch, promo code, URL and thank‑you line","end_text":"sponsoring the podcast"},{"start":2404.7,"end":2450.0,"confidence":0.99,"reason":"ZipRecruiter sponsor read with hiring pitch, URL and call‑to‑action","end_text":"Match on ZipRecruiter"}
+]

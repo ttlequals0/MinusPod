@@ -1,0 +1,7 @@
+[{
+  "start": 506.4,
+  "end": 548.5,
+  "confidence": 0.95,
+  "reason": "Podcast self-promotion with call-to-action for Crain's Weekly News Quiz at chicagobusiness.com/quiz",
+  "end_text": "get your podcasts"
+}]

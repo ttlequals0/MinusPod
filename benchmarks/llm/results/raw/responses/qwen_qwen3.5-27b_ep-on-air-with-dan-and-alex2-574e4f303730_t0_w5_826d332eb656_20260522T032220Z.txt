@@ -1,0 +1,1 @@
+[{"start": 2609.5, "end": 2634.3, "confidence": 0.95, "reason": "Sponsor read segment listing multiple brands including Athletic Greens and BetterHelp", "end_text": "Manscaped, Stamps.com,"}]

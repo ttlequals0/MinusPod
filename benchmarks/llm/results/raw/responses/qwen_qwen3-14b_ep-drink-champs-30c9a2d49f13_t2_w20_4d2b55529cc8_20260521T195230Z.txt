@@ -1,0 +1,2 @@
+s.
+{"start": 8724.9, "end": 8737.9, "confidence": 0.95, "reason": "AirTasker sponsor read with URL and call to action", "end_text": "AirTasker."}

@@ -1,0 +1,32 @@
+{
+  "segments": [
+    {
+      "start": 983.0,
+      "end": 986.4,
+      "confidence": 0.1,
+      "reason": "Insufficient context - 'Thank you for watching' could be a misattribution or fragment but no sponsor details",
+      "end_text": "Thank you for watching"
+    },
+    {
+      "start": 1228.7,
+      "end": 1268.8,
+      "confidence": 0.1,
+      "reason": "Insufficient context - 'Thank you for watching' could be a misattribution or fragment but no promotional content",
+      "end_text": "Thank you for watching"
+    },
+    {
+      "start": 1302.7,
+      "end": 1314.1,
+      "confidence": 0.1,
+      "reason": "Insufficient context - 'and many more' could be a fragment but no promotional content",
+      "end_text": "and many more"
+    },
+    {
+      "start": 1377.5,
+      "end": 1383.9,
+      "confidence": 0.1,
+      "reason": "Insufficient context - 'And when we would have our conversation' could be a fragment but no promotional content",
+      "end_text": "And when we would have our conversation"
+    }
+  ]
+}

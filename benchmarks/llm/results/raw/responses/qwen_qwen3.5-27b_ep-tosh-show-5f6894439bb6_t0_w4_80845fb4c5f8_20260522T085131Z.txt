@@ -1,0 +1,1 @@
+[{"start": 1837.5, "end": 1999.5, "confidence": 0.98, "reason": "Three consecutive ad reads: Mint Mobile (1837.5-1912.2s), Mattress Warehouse (1913.4-1942.4s), and PC Richard & Son (1943.2-1999.5s)", "end_text": "PCRichard.com slash Aseema dot HTML for details"}]

@@ -1,0 +1,1 @@
+{"start":3428.1,"end":3486.2,"confidence":0.99,"reason":"Platform-inserted ad segment: Arizona State University and University of Michigan produced promotional spots with marketing copy and URLs (asunline.asu.edu, umich.edu). Continues from previous content break.","end_text":"serving the public good. For all of us, look to Michigan. See more solutions at umich.edu"}

@@ -1,0 +1,1 @@
+{"start": 8724.9, "end": 8831.4, "confidence": 0.99, "reason": "Back-to-back inserted ads and promos: AirTasker ad ('Post your tasks at AirTasker.com'), Decisions Decisions/Care for the Culture promo, OnDeck loan ad ('Apply in minutes at OnDeck.com'), and Public sponsor mention", "end_text": "take it seriously."}

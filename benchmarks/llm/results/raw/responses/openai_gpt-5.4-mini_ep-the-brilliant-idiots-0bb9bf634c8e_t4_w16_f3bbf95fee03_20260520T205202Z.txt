@@ -1,0 +1,1 @@
+{"start":7135.4,"end":7168.9,"confidence":0.84,"reason":"Host outro followed by platform-style promo CTA for Lauren LaRosa's podcast; includes 'follow you, Lauren' and 'listen to the latest with Lauren LaRosa, the podcast.' Not a classic sponsor read, but promotional cross-promo content in the ad window.","end_text":"Brilliant Idiots podcast. Thank you for listening."}

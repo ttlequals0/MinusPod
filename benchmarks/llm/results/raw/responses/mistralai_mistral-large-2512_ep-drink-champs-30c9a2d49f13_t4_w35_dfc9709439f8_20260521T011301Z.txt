@@ -1,0 +1,9 @@
+[
+    {
+        "start": 15261.8,
+        "end": 15300.2,
+        "confidence": 0.99,
+        "reason": "Repeated mentions of 'promo code' and 'discount code' with promotional language, followed by host transitioning to thanking the guest, indicating the end of the ad segment. Likely a dynamically inserted ad for a sponsor.",
+        "end_text": "level there."
+    }
+]

@@ -1,0 +1,1 @@
+{"start":1959.8,"end":2080.5,"confidence":0.99,"reason":"Merged ad break with three back-to-back ads: Rakuten cashback promo, LinkedIn Premium All-in-One free trial, and Hertz new fleet rental pitch, with clear promotional language, brand names, URL/call-to-action","end_text":"Get paired with our newest fleet yet at Hertz.com."}

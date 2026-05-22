@@ -1,0 +1,1 @@
+{"start":147.0,"end":157.0,"confidence":0.99,"reason":"Perplexity platform ad inserted before the transcript window, with promotional language directing listeners to download the app and a podcastchoices ad-choices link; continues from previous","end_text":"Visit podcastchoices.com/adchoices"}

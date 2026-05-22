@@ -1,0 +1,1 @@
+{"start":5491.1,"end":5578.4,"confidence":0.96,"reason":"Yubico/YubiKey sponsor read tied to OpenAI advanced account security with promotional language about preferred pricing, customized bundle, and stronger phishing-resistant protection; includes sponsor transition into product pitch.","end_text":"stronger phishing-resistant account protection"}

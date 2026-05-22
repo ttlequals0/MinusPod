@@ -1,0 +1,16 @@
+[
+  {
+    "start": 613.5,
+    "end": 624.6,
+    "confidence": 0.95,
+    "reason": "The transcript mentions \"NFT craze\" and the idea of performing in the metaverse, which is a topic related to the sponsors' offerings. This is a common ad transition where the host discusses a topic that is often tied to sponsored content.",
+    "end_text": "the NFT craze where..."
+  },
+  {
+    "start": 969.4,
+    "end": 995.0,
+    "confidence": 0.95,
+    "reason": "The host is discussing the metaverse and Meta, which is a company that has been advertised by various platforms. The mention of \"Meta dying\" and \"Facebook dying\" suggests a discussion that could be leading into or from an advertisement related to these platforms or their competitors.",
+    "end_text": "It's on Trudge. And, you know,"
+  }
+]

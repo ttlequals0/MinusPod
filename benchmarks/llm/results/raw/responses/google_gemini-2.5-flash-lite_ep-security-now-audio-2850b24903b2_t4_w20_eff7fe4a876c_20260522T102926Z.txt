@@ -1,0 +1,72 @@
+[
+  {
+    "start": 8498.3,
+    "end": 8524.9,
+    "confidence": 0.95,
+    "reason": "Host discusses Google's search results being dominated by sponsored advertisements, which is a form of promotion.",
+    "end_text": "that I need to weigh down past a bunch of YouTube video links that I have zero interest in."
+  },
+  {
+    "start": 8525.6,
+    "end": 8548.6,
+    "confidence": 0.95,
+    "reason": "Host discusses Apple's App Store also prioritizing paid placements over user searches, indicating promotional content.",
+    "end_text": "what someone paid them to show me first in the hope that I wouldn't notice or wasn't sure what it was that I wanted."
+  },
+  {
+    "start": 8549.1,
+    "end": 8572.8,
+    "confidence": 0.95,
+    "reason": "Host acknowledges Google provides services for free in exchange for tolerating advertising, which is a form of promotion.",
+    "end_text": "And, you know, the catch-all junk email account I maintain over at Gmail is similarly valuable."
+  },
+  {
+    "start": 8573.3,
+    "end": 8599.9,
+    "confidence": 0.95,
+    "reason": "Host criticizes Google for intermixing web standards with commercial interests and leveraging browser dominance for promotion.",
+    "end_text": "into the winner of the web browser wars. I get it."
+  },
+  {
+    "start": 8600.8,
+    "end": 8618.6,
+    "confidence": 0.95,
+    "reason": "Host mentions Google constantly offering opportunities to improve life by switching to Chrome, which is promotional.",
+    "end_text": "To improve my life in one way or another by switching to Chrome, I constantly need to decline."
+  },
+  {
+    "start": 8813.1,
+    "end": 8840.3,
+    "confidence": 0.95,
+    "reason": "Host discusses annoying chat boxes that pop up, implying a promotional or intrusive element, and warns against forcing AI down users' throats.",
+    "end_text": "And I don't think that's good either for Google or for AI in general."
+  },
+  {
+    "start": 8864.6,
+    "end": 8891.9,
+    "confidence": 0.95,
+    "reason": "Host mentions Apple touting its local models and data staying local, which is a form of product promotion.",
+    "end_text": "Apple Intelligence is a local model. So there is a precedent for this on those platforms."
+  },
+  {
+    "start": 8920.9,
+    "end": 8948.8,
+    "confidence": 0.95,
+    "reason": "Host discusses Google's pushback on anti-tracking proposals due to commercial interests (advertisers), implying a promotional aspect.",
+    "end_text": "Large, large commercial interests, and there's no one to push back on this."
+  },
+  {
+    "start": 8949.2,
+    "end": 8975.3,
+    "confidence": 0.95,
+    "reason": "Host discusses users collectively having power and the need to use browsers, mentioning leaving Chrome for Firefox as a reason, implying a choice between promotional platforms.",
+    "end_text": "But would somebody leave Chrome to go to Firefox? Well, you and I have."
+  },
+  {
+    "start": 8976.2,
+    "end": 9004.0,
+    "confidence": 0.95,
+    "reason": "Host mentions Widevine (DRM) and specific sites (OpenTable, Restream) not working on Firefox, requiring Chrome, which is a form of promoting Chrome's functionality.",
+    "end_text": "And if you don't want, if you want Chrome and Google to be the only player in the internet,"
+  }
+]

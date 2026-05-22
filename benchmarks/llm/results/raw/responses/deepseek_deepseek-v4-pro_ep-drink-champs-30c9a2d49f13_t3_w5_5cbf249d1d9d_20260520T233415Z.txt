@@ -1,0 +1,1 @@
+{"start": 2074.0, "end": 2714.2, "confidence": 0.0, "reason": "No promotional content, sponsor mentions, URLs, promo codes, or ad transitions found in this segment. All content is interview/discussion.", "end_text": "I'm with you, baby. That's it."}

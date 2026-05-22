@@ -1,0 +1,9 @@
+[
+  {
+    "start": 7606.7,
+    "end": 7743.9,
+    "confidence": 1.0,
+    "reason": "Trusted Tech sponsor read, partial ad segment that continues past the end of this transcript window",
+    "end_text": "He was impressed. You will be too."
+  }
+]

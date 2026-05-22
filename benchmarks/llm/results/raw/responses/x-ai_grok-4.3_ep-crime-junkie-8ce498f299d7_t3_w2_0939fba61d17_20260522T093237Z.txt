@@ -1,0 +1,1 @@
+[{"start": 1036.2, "end": 1097.9, "confidence": 0.99, "reason": "SoFi sponsor read with promo code", "end_text": "NMLS 696891."}, {"start": 1099.8, "end": 1129.6, "confidence": 0.99, "reason": "LinkedIn Premium sponsor read", "end_text": "LinkedIn.com slash all-in-one."}]

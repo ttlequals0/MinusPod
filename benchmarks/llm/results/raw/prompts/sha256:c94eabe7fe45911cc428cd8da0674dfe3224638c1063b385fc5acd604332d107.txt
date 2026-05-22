@@ -1,0 +1,59 @@
+Podcast: security-now-audio
+Episode: SN 1077: A Browser AI API? - End of Bug Bounties?
+
+
+Episode description: <p>Google is sneaking a massive 4.7GB AI model into Chrome, and Mozilla is fighting back as the future of browsers threatens to turn into an AI arms race. Find out what's really happening behind this push and why it's setting off alarm bells across the web.</p><ul> 
+<li>Hackers AI-code a portal, forget to add authentication.</li> 
+<li>The UK's NCSC issues a Mythos warning. Where's CISA?</li> 
+<li>Another (of many) Linux local privilege escalations.</li> 
+<li>AI may be spelling the end of bug bounties.</li> 
+<li>Anthropic releases "Claude Security" mini-Mythos.</li> 
+<li>ChatGPT gets very serious about login security.</li> 
+<li>Syncthing's SyncTrayzor v1 abandoned; v2 created.</li> 
+<li>Google drops an AI API into Chrome; Mozilla objects</li></ul> 
+<p>Show Notes - <a href="https://www.grc.com/sn/SN-1077-Notes.pdf">https://www.grc.com/sn/SN-1077-Notes.pdf</a></p> 
+<p><strong>Hosts:</strong> <a href="https://twit.tv/people/steve-gibson">Steve Gibson</a> and <a href="https://twit.tv/people/leo-laporte">Leo Laporte</a></p> 
+<p>Download or subscribe to <em>Security Now</em> at <a href="https://twit.tv/shows/security-now">https://twit.tv/shows/security-now</a>.</p> 
+<p>You can submit a question to <em>Security Now</em> at the <a href="https://www.grc.com/feedback.htm" target="_blank">GRC Feedback Page</a>.</p> 
+<p>For 16kbps versions, transcripts, and notes (including fixes), visit Steve's site: <a href="https://www.grc.com/securitynow.htm" target="_blank">grc.com</a>, also the home of the best disk maintenance and recovery utility ever written <a href="https://www.grc.com/sr/spinrite.htm" target="_blank">Spinrite 6</a>.</p> 
+<p><strong>Join Club TWiT for Ad-Free Podcasts!</strong><br /> 
+Support what you love and get ad-free audio <em>and</em> video feeds, a members-only Discord, and exclusive content. Join today: <a href="https://twit.tv/clubtwit" rel="payment">https://twit.tv/clubtwit</a></p>
+<p><strong>Sponsors:</strong><ul>
+<li><a href="http://zscaler.com/security" rel="sponsored" target="_blank">zscaler.com/security</a></li>
+<li><a href="http://meter.com/securitynow" rel="sponsored" target="_blank">meter.com/securitynow</a></li>
+<li><a href="http://bitwarden.com/twit" rel="sponsored" target="_blank">bitwarden.com/twit</a></li>
+<li><a href="http://hoxhunt.com/securitynow" rel="sponsored" target="_blank">hoxhunt.com/securitynow</a></li>
+<li><a href="http://trustedtech.team/securitynow365" rel="sponsored" target="_blank">trustedtech.team/securitynow365</a></li>
+</ul></p>
+
+Transcript:
+[7138.1s - 7160.5s] A 4 gigabyte, actually it's 4.7 is the number I saw, down from 22, which it was earlier, a massive language model to Chrome, so that Chrome will become AI-enabled intrinsically, and that would allow
+[7162.4s - 7182.8s] Chrome hosted web pages to do lots of things they can't now. So, okay. Today's web browsers are littered with yesterday's great ideas that while they may have never achieved critical mass,
+[7183.8s - 7211.7s] must still be present and supported since random websites scattered around the world still use them. As one example, it may not be fair to single out Flash since it did have its day. There was a time when you could only do things with Flash that you wish you could do on the browser, but JavaScript and scripting in general had not caught up. But boy, was Flash difficult to kill off.
+[7212.1s - 7239.3s] And in some places, even today, it won't die. As I look over the prompt API implementation section, I can empathize with Mozilla's gut reaction since this does seem sort of, well, both obvious but also forced and a bit unnatural. For example, this API defines a specific system prompt.
+[7239.9s - 7267.7s] As they call it, the specification says the language model can be configured with a special system prompt, which gives it the context for future interactions. The system prompt must be the first message, whether passed via the initial prompts option to the create function, or as the first message to the first prompt, or append.
+[7268.3s - 7269.3s] Method Calls.
+[7270.0s - 7298.8s] We then see three examples of these various semantic options that they just described. The first one shows where a constant variable session one is set to the large language model dot create functions output where the initial prompt, the initial prompts system prompt is
+[7299.4s - 7321.9s] Pretend to be an eloquent hamster. And then we log to the console the output of that large language model was just created being prompted, what's your favorite food? So of course, an eloquent hamster is going to respond.
+[7322.9s - 7349.1s] To the question, what's your favorite food? I guess that's what, lettuce? I think that's what hamsters like. This is an eloquent hamster, which is a different matter entirely. Might be lettuce with caviar. Anyway, my reaction to all of this is that web standards are too important to be created in any half-baked fashion. And Mozilla apparently feels...
+[7349.6s - 7371.8s] That it's too soon to do this. Once a web standard exists, as we know, we've seen this over and over, it is incredibly difficult to deprecate it since, as we saw with Flash, someone somewhere will be using it. Browser bloat and the security implications of that are very real problems.
+[7372.5s - 7397.6s] Google has never held back though, right, in unilaterally declaring web standards. They say, well, you know, we're the dominant browser, we can do whatever we want. And I understand Mozilla's reluctance to go along for the ride. And I think people are not going to be happy about 4.7 gigabytes being downloaded to their hard drive. It's really going to change the whole complexion of Chrome.
+[7398.2s - 7423.7s] Yeah, it becomes massive. I can understand why Google may say, oh, well, maybe for spell checking or local grammar or something, you know, developers might find a use for this, but it is a little, I think, I think Mozilla's right. This is premature. There's no reason to be doing this now. No, there's no demand for this now, I don't think. Is there? No, no. And there, I mean, the...
+[7424.4s - 7450.6s] I guess what they're, they recognize that you can do this in the cloud now. Browser pages are able to reach back out to the cloud and talk to a large language model. That's going on already. They're saying, well, but we want, you know, we've got this cool technology. We've managed to squeeze a large language model down to 4.7 gig. We want it in the browser because we can, because we own the browser.
+[7451.8s - 7476.9s] Right, and we might imagine down the road some use. Yes. It's hard for me to imagine what that use is. Yeah, I agree. That would justify this. So, Google's working specification goes on and on and on, and it's all extremely specific to the application of today's LLMs. They are creating something as important as an industry-wide specification.
+[7478.1s - 7497.2s] For what could just be the moment we're in today. I mean, to me, that's the problem is that none of this is gelled yet. I mean, it is still a moving target. So the idea of API-ing it to create a web standard seems premature and misguided.
+[7497.7s - 7523.8s] Anyway, I've dropped the URL of Google's full specification into the show notes. It's at the top of page 20 for anyone to follow up who may be interested. I want to now switch to Mozilla's response. I have the rather dry conversation thread in Mozilla's GitHub account. It's under their standards positions. So I've dropped that URL into the notes also.
+[7524.5s - 7536.4s] But since this podcast endeavors not only to inform, but also to entertain our listeners, rather than sharing Mozilla's dry recitation, ah yes, I want to share the registers.
+[7537.6s - 7557.6s] Typically Feisty and Irreverent take on this controversy. Leo, let's take our final break, and then we're going to look at the flip side of what's going on. I can only imagine what the reg has to say about this. I'm trying to give Krum the benefit of the doubt, but this is my problem.
+[7558.3s - 7583.9s] My problem with Google for a while now, they don't go to the IETF or W3C and say, here, we want to do a standard, you know, let's get everybody involved. It's already in there. Yeah, they're so big, they're so dominant. There's something like 90% of the browser space that they could just do it and it becomes a de facto standard. So I'm with you. I'm not necessarily against the idea. And it sounds like in their spec, they're saying
+[7584.4s - 7606.9s] Well, it doesn't have to be our model. It doesn't have to be Gemma. It could be something else. But I don't know if there's a demand for this. And I know people are going to be very upset. I already see the upset over this giant download. And you don't get a choice. You can't turn it off. It comes with Chrome now. All right. Well, let's take our final break. And we'll be back with Mozilla's
+[7607.7s - 7633.1s] Response as seen through the filter of the register. You're watching Security Now with Steve Gibson. More in a moment. This episode of Security Now brought to you by Trusted Tech. If you're managing Microsoft 365 for your company, you are responsible for both the cost and whether it's set up correctly. And I think you might already know on July 1st, Microsoft's raising prices.
+[7633.7s - 7661.5s] So any mistakes in your licensing are about to get more expensive. Most companies using Microsoft 365 are either over-licensed, paying for unused seats and features, or under-licensed, creating compliance and security risks. Sometimes it's both. The result is wasting thousands, sometimes tens of thousands per year on tools your team doesn't use, or worse, I guess, missing critical security features you thought you had.
+[7662.4s - 7689.5s] You gotta get this just right, and that's why you need Trusted Tech. Trusted Tech helps businesses understand what they have, what they actually need, and how to lock in the right setup now before the costs go up. Their team ensures your M365 environment is well supported and aligned with how your business actually operates. And if you need ongoing help, they also offer reactive support for your Microsoft environment through their certified support services.
+[7690.7s - 7716.8s] Microsoft licensing is, I don't think I have to tell you, constantly changing. E3 versus E5 versus Business Premium. There's add-ons, the new E7. It's confusing and easy to misconfigure and overpay. And licensing mistakes don't just cost money. They create compliance exposure that's going to get more expensive after July 1st. So even if you think your licensing is dialed in, it's absolutely worth a second look.
+[7717.2s - 7743.9s] and no one could do it better than Trusted Tech. Just ask Kevin Turner. You know his name, former Microsoft COO. This is what he said when he talked to Trusted Tech. He said, you, Trusted Tech, you have an incredible customer reputation and you have to earn that every single day. The relentless focus you guys have on taking care of customers gives them value and differentiates you in the marketplace. End quote. He was impressed. You will be too.
+
+=== WINDOW 18/23: 119.0-129.0 minutes ===
+- Use absolute timestamps from transcript (as shown in brackets)
+- If an ad starts before this window, use the first timestamp with note "continues from previous"
+- If an ad extends past this window, use 7740.0 with note "continues in next"

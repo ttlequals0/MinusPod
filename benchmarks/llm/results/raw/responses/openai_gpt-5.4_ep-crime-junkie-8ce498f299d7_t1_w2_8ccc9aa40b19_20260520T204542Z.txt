@@ -1,0 +1,1 @@
+{"start": 1036.2, "end": 1129.6, "confidence": 0.99, "reason": "Back-to-back sponsor ads for SoFi and LinkedIn Premium All-in-One with explicit promotional language, URL calls to action, and product pitches", "end_text": "Try for free at LinkedIn.com slash all-in-one."}

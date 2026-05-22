@@ -1,0 +1,1 @@
+{"start":8724.9,"end":8831.4,"confidence":0.99,"reason":"Cluster of inserted ads/promos: AirTasker commercial, Decisions Decisions/Kiki Palmer promo sponsored by Gilead Sciences, OnDeck small business loans ad, and Public investing platform sponsorship","end_text":"take it seriously."}

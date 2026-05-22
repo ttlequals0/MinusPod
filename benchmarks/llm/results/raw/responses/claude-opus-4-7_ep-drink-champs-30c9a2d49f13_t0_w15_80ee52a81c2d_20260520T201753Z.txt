@@ -1,0 +1,1 @@
+[{"start": 6283.4, "end": 6343.1, "confidence": 0.98, "reason": "OnDeck and Public investing platform ads", "end_text": "who take it seriously"}]

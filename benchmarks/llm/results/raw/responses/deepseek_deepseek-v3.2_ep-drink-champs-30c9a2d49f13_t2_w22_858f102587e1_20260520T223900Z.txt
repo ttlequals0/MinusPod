@@ -1,0 +1,1 @@
+{"start": 9228.0, "end": 9254.6, "confidence": 0.95, "reason": "Host-read ad for GoPro, includes product mention and demonstration", "end_text": "I got the GoPro stick in my hand, see?"}

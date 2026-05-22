@@ -1,0 +1,1 @@
+[{"start": 8799.1, "end": 8831.4, "confidence": 0.95, "reason": "OnDeck sponsor read and Public intro (Public pitch truncated in transcript)", "end_text": "take it seriously."}]

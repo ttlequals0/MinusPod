@@ -1,0 +1,1 @@
+{"start": 1240.8, "end": 1271.2, "confidence": 0.98, "reason": "Host-read sign-off with promotional content for Crain's Daily Gist, including calls to action to subscribe, rate, review, and visit chicagobusiness.com", "end_text": "Thanks so much for listening"}

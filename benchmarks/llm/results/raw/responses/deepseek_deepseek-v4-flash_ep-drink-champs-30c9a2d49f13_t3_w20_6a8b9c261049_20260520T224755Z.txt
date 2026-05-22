@@ -1,0 +1,32 @@
+{
+  "ads": [
+    {
+      "start": 8724.9,
+      "end": 8737.9,
+      "confidence": 0.95,
+      "reason": "AirTasker host-read ad with promo copy, URL, and call to action",
+      "end_text": "handle it. AirTasker."
+    },
+    {
+      "start": 8738.1,
+      "end": 8798.3,
+      "confidence": 0.98,
+      "reason": "Cross-promotion ad for 'Decisions Decisions' podcast with Kiki Palmer, sponsored by Gilead Sciences - network/platform inserted ad segment",
+      "end_text": "Gilead Sciences."
+    },
+    {
+      "start": 8799.1,
+      "end": 8826.4,
+      "confidence": 0.97,
+      "reason": "OnDeck sponsor ad with loan offer, BBB rating, Trustpilot reviews, URL, and lender disclosure",
+      "end_text": "subject to lender approval."
+    },
+    {
+      "start": 8827.0,
+      "end": 8831.4,
+      "confidence": 0.90,
+      "reason": "Public investing platform network-inserted brand tagline ad",
+      "end_text": "those who take it seriously."
+    }
+  ]
+}

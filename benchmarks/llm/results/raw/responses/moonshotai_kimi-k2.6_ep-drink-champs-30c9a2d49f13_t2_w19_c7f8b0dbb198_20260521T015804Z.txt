@@ -1,0 +1,1 @@
+{"start": 7981.9, "end": 8588.6, "confidence": 0.0, "reason": "No promotional content, sponsor mentions, or ad transitions detected in this window. The transcript contains continuous show content with Warren Sapp telling stories about Biggie Smalls, NFL Network, and answering rapid-fire questions.", "end_text": "y'all got DJ Clue"}

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 15388.3,
+    "end": 15517.1,
+    "confidence": 0.98,
+    "reason": "Platform-inserted ads for Airtasker, CVS, Trashy, and fencing promotion with URLs/calls to action",
+    "end_text": "tryfencing.org. This is an iHeart Podcast. Guaranteed human."
+  }
+]

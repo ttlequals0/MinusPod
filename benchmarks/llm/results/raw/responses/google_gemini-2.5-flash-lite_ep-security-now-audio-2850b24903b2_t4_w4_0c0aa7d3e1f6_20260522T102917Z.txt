@@ -1,0 +1,37 @@
+[
+  {
+    "start": 1905.2,
+    "end": 1928.8,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Zscaler. Mentions vendor name and URL.",
+    "end_text": "Thank you for watching."
+  },
+  {
+    "start": 2061.8,
+    "end": 2086.9,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Meter. Mentions vendor name and URL.",
+    "end_text": "CISA is not on that list."
+  },
+  {
+    "start": 2109.8,
+    "end": 2138.0,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Bitwarden. Mentions vendor name and URL.",
+    "end_text": "declined."
+  },
+  {
+    "start": 2138.6,
+    "end": 2162.9,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Trusted Tech Team. Mentions vendor name and URL.",
+    "end_text": "national cyber director."
+  },
+  {
+    "start": 2258.8,
+    "end": 2270.2,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Hoxhunt. Mentions vendor name and URL.",
+    "end_text": "imminently"
+  }
+]

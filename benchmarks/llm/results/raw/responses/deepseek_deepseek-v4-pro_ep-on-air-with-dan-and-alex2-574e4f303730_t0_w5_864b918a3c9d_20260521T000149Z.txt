@@ -1,0 +1,1 @@
+[{"start": 2609.5, "end": 2634.3, "confidence": 0.85, "reason": "Ad segment listing sponsor brands like Athletic Greens, BetterHelp, Squarespace", "end_text": "Raycon, Manscaped, Stamps.com"}]

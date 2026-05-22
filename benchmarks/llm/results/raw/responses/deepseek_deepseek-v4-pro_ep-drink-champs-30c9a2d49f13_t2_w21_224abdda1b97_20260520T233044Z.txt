@@ -1,0 +1,4 @@
+{
+  "segments": [],
+  "reasoning": "No ads detected in this segment. The content consists of interview conversation about football, diving, and personal stories, with no sponsor messages, promotional language, or ad transitions."
+}

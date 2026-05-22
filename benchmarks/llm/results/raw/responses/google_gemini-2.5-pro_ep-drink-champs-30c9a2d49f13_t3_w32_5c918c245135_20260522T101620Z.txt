@@ -1,0 +1,9 @@
+[
+  {
+    "start": 13669.1,
+    "end": 13844.8,
+    "confidence": 1.0,
+    "reason": "A block of network-inserted ads for Airtasker, the Decisions Decisions podcast, OnDeck, and Public.",
+    "end_text": "at public.com slash disclosures."
+  }
+]

@@ -1,0 +1,7 @@
+{
+  "start": 6040.5,
+  "end": 6040.5,
+  "confidence": 0.95,
+  "reason": "Host transition phrase 'Drink this.'",
+  "end_text": "Drink this."
+}

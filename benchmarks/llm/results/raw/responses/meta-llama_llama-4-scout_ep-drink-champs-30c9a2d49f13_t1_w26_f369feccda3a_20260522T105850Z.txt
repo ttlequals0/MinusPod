@@ -1,0 +1,26 @@
+ads": [ 
+  {
+    "start": 11335.2, 
+    "end": 11365.6, 
+    "confidence": 0.98, 
+    "reason": "Airtasker sponsor read", "end_textAirtasker anything done"
+  }, 
+  {
+   ": 11366, 
+    "end": 11392.4, 
+    "confidence":.90, 
+reason": "Decisions Decisions podcast promo", "end_text": a sneak peek"
+ 
+  {
+   ": 11416, 
+    "end11424. 
+    "confidence0.95, 
+reason": "Care for the Culture from G Sciences sponsor mention", 
+    "end_text": "Sponsored by Care for the Culture from Gilead Sciences"
+  }, 
+  {
+start": 11425, 
+    "end": 11454.3, 
+    "confidence": 0.98 "reason":Deck small business line of credit ad", 
+   _text": "Apply OnDeck.com }
+]}

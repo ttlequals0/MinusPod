@@ -1,0 +1,25 @@
+{
+  "result": [
+    {
+      "start": 6208.7,
+      "end": 6233.9,
+      "confidence": 0.99,
+      "reason": "Airtasker sponsor read with brand name, URL and call to action",
+      "end_text": "get anything done"
+    },
+    {
+      "start": 6262.1,
+      "end": 6282.7,
+      "confidence": 0.99,
+      "reason": "Sponsored by Care for the Culture from Gilead Sciences mention",
+      "end_text": "from Gilead Sciences"
+    },
+    {
+      "start": 6283.4,
+      "end": 6318.1,
+      "confidence": 0.99,
+      "reason": "OnDeck small business loan sponsor read followed by Public platform ad",
+      "end_text": "take it seriously"
+    }
+  ]
+}

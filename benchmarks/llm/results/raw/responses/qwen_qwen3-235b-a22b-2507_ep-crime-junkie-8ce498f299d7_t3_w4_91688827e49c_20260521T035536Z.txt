@@ -1,0 +1,1 @@
+{"start": 1959.8, "end": 2061.4, "confidence": 0.98, "reason": "Rakuten and LinkedIn Premium sponsor segment with promotional language, URLs, and calls to action", "end_text": "Try for free at linkedin.com slash all-in-one"}

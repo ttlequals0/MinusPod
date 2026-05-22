@@ -1,0 +1,1 @@
+{"start": 8521.9, "end": 8588.6, "confidence": 0.0, "reason": "No promotional content found. This is a rapid-fire question segment about sports and music preferences.", "end_text": "y'all got DJ Clue."}

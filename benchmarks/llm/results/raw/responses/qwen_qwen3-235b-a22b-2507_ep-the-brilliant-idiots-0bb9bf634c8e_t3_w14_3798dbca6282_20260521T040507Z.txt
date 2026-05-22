@@ -1,0 +1,1 @@
+{"start": 6390.2, "end": 6480.0, "confidence": 0.95, "reason": "Transition to ad break with 'Let's pay some bills and do some asking idiots' followed by promotional content for Blue Chew with product mention, health claim, and implied endorsement", "end_text": "I don't do blue chew. But no"}

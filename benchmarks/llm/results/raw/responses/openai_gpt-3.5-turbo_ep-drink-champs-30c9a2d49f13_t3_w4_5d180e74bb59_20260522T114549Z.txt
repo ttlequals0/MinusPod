@@ -1,0 +1,7 @@
+{
+	"start": 2263.4,
+	"end": 2267.2,
+	"confidence": 1,
+	"reason": "Podcast host mentions looking at the guest in the draft",
+	"end_text": "looked at you in the draft, right?"
+}

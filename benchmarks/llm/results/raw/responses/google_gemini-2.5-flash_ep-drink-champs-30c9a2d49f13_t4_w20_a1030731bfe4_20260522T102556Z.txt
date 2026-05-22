@@ -1,0 +1,30 @@
+[
+  {
+    "start": 8724.9,
+    "end": 8737.9,
+    "confidence": 0.95,
+    "reason": "AirTasker sponsor read",
+    "end_text": "handle it. AirTasker."
+  },
+  {
+    "start": 8738.1,
+    "end": 8798.3,
+    "confidence": 0.95,
+    "reason": "Care for the Culture from Gilead Sciences sponsor read",
+    "end_text": "get your podcasts. Sponsored by Care for the Culture from Gilead Sciences."
+  },
+  {
+    "start": 8799.1,
+    "end": 8826.4,
+    "confidence": 0.95,
+    "reason": "OnDeck sponsor read",
+    "end_text": "lender approval."
+  },
+  {
+    "start": 8827.0,
+    "end": 8831.4,
+    "confidence": 0.95,
+    "reason": "Public sponsor read",
+    "end_text": "take it seriously."
+  }
+]

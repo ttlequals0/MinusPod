@@ -1,0 +1,1 @@
+{"start": 842.3, "end": 1430.4, "confidence": 0.0, "reason": "No promotional content, sponsor mentions, URLs, promo codes, or transition phrases detected in this window. All transcript content is organic interview conversation about football.", "end_text": "Roscoe Griffin was in a rushing title"}

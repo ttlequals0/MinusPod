@@ -1,0 +1,1 @@
+{"start":539.2,"end":624.5,"confidence":0.99,"reason":"Platform-inserted ad break with explicit transition phrase and promotional copy for In the Gray and Skechers, including 'This episode is brought to you by' and product pitch","end_text":"sandals, sneakers"}

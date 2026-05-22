@@ -1,0 +1,28 @@
+s.
+{
+
+"[{" 
+  :"",
+  "end": 4763.1, 
+  "confidence": 0.95, 
+  "reason": "Colgate Women's Games sponsor read with product pitch and call to action", 
+  "end_text": "Colgate, your smile is your strength."
+  ,"{" 
+  :"",
+  "end": 4733.9, 
+  "confidence": 0.95, 
+  "reason": "Skinny Pop product promotion with benefits and call to action", 
+  "end_text": "Skinny Pop."
+  ,"{" 
+  :"",
+  "end": 4787.9, 
+  "confidence": 0.95, 
+  "reason": "Viz prescription eye drop product pitch with usage instructions and URL", 
+  "end_text": "Learn more at Viz.com."
+  ,"{" 
+  :"",
+  "end": 4806.1, 
+  "confidence": 0.95, 
+  "reason": "Garnier National Park Foundation partnership promotion with URL", 
+  "end_text": "GarnierUSA.com slash NPF."
+}

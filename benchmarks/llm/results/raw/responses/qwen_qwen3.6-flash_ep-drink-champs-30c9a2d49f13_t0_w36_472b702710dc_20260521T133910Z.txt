@@ -1,0 +1,1 @@
+[{"start": 15388.3, "end": 15517.1, "confidence": 0.98, "reason": "Network-inserted sponsor reads (Airtasker, CVS, Trashy, Try Fencing, iHeart)", "end_text": "Guaranteed human."}]

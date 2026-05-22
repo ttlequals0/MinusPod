@@ -1,0 +1,9 @@
+[
+    {
+        "start": 2234.5,
+        "end": 2263.3,
+        "confidence": 0.98,
+        "reason": "Platform-inserted ad segment with repeated call to action ('Take one. Take one. Take one.'). Likely a network-inserted retail or brand tagline ad, though no specific sponsor name is mentioned.",
+        "end_text": "Take one. Take one."
+    }
+]

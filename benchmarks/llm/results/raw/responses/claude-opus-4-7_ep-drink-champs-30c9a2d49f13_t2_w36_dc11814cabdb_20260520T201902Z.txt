@@ -1,0 +1,1 @@
+[{"start": 15301.4, "end": 15517.1, "confidence": 0.97, "reason": "Outro with platform promos and multiple network-inserted ads: Airtasker, CVS, Trashy, Try Fencing, iHeart", "end_text": "This is an iHeart Podcast"}]

@@ -1,0 +1,3 @@
+[
+{"start":16.7,"end":84.9,"confidence":0.99,"reason":"OutSystems host‑read sponsor segment with promotional language and URL","end_text":"This is Twit"},{"start":469.0,"end":572.1,"confidence":0.99,"reason":"Zscaler host‑read sponsor segment with product pitch and URL","end_text":"Now back to Steve"}
+]

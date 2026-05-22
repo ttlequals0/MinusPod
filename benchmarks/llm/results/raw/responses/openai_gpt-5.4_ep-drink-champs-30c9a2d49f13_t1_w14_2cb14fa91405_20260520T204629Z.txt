@@ -1,0 +1,1 @@
+{"start":6208.7,"end":6318.1,"confidence":0.99,"reason":"Back-to-back inserted ads/promos: Airtasker app call-to-action, Decisions Decisions/Kiki Palmer podcast promo sponsored by Gilead Sciences, OnDeck small business line of credit ad, and Public investing platform sponsor mention","end_text":"take it seriously."}

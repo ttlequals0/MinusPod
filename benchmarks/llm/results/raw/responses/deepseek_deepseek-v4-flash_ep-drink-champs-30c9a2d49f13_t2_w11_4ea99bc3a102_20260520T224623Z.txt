@@ -1,0 +1,1 @@
+{ "start": null, "end": null, "confidence": 0.0, "reason": "No promotional language or ad content detected in this transcript window.", "end_text": "" }

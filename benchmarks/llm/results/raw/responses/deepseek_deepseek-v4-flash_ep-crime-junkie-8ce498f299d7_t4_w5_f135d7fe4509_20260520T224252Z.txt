@@ -1,0 +1,1 @@
+{"start": 2716.3, "end": 2716.3, "confidence": 0.0, "reason": "No advertisements found in this segment. The transcript contains only case narrative content without any promotional language, sponsor mentions, promo codes, calls to action, or brand taglines.", "end_text": "Window 6/7: 35.0-45.0 minutes"}

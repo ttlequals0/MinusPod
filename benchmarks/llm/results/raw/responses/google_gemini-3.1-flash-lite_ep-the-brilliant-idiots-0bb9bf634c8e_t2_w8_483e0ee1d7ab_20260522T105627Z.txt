@@ -1,0 +1,9 @@
+[
+  {
+    "start": 3955.2,
+    "end": 3983.9,
+    "confidence": 0.9,
+    "reason": "Host-read advertisement for the Black Effect Network and other sponsor links",
+    "end_text": "part of conversations you want to be a part of"
+  }
+]

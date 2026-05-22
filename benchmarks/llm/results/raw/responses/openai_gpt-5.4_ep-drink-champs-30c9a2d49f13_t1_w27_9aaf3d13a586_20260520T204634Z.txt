@@ -1,0 +1,1 @@
+{"start":11335.2,"end":11455.4,"confidence":0.99,"reason":"Cluster of platform-inserted ads: Airtasker commercial, Decisions Decisions/Keke Palmer podcast promo sponsored by Gilead Sciences, and OnDeck small business line of credit ad","end_text":"amount subject to lender approval."}

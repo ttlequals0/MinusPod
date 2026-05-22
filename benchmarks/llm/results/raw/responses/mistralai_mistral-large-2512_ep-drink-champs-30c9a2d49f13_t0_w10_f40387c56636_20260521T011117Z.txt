@@ -1,0 +1,9 @@
+[
+    {
+        "start": 4782.6,
+        "end": 4800.0,
+        "confidence": 0.85,
+        "reason": "Partial network-inserted ad for Cash App, continues in next window. Promotional language detected ('Cash App, the easiest way to send money') in adjacent segments, but not fully visible in this transcript window. Ad likely begins mid-pitch.",
+        "end_text": "ran up a bill like..."
+    }
+]

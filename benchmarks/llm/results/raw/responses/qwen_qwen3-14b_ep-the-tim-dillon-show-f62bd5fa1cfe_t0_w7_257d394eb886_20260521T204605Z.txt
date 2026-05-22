@@ -1,0 +1,2 @@
+n.
+{"start": 3107.1, "end": 3134.3, "confidence": 0.95, "reason": "Morgan & Morgan sponsor read", "end_text": "Poundlaw. This is a paid advertisement."}

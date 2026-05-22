@@ -1,0 +1,25 @@
+{
+  "ads": [
+    {
+      "start": 821.4,
+      "end": 844.7,
+      "confidence": 0.99,
+      "reason": "Capital One sponsor read",
+      "end_text": "estimate trade-in value"
+    },
+    {
+      "start": 862.2,
+      "end": 889.7,
+      "confidence": 0.99,
+      "reason": "BetterHelp sponsor read with promo code and URL",
+      "end_text": "first month of online therapy"
+    },
+    {
+      "start": 912.2,
+      "end": 1018.9,
+      "confidence": 0.99,
+      "reason": "Spectrum Business sponsor read, cross‑promotion, and Rinse service ad",
+      "end_text": "rinse.com. Rinse"
+    }
+  ]
+}

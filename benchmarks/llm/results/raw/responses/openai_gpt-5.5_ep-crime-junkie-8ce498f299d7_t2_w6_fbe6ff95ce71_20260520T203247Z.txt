@@ -1,0 +1,1 @@
+{"start":2863.0,"end":2894.5,"confidence":0.99,"reason":"LinkedIn Premium All-in-One promotional ad with product benefits and call to action/free trial URL","end_text":"at LinkedIn.com slash all-in-one"}

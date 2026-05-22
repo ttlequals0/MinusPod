@@ -1,0 +1,1 @@
+[{"start": 1439.2, "end": 1665.9, "confidence": 0.98, "reason": "Merged ad break containing host-read Mint Mobile and Aura Frames sponsor segments, plus network-inserted Colgate and Skinny Pop brand tagline ads", "end_text": "Deliciously popped, perfectly salted. Skinny Pop."}]

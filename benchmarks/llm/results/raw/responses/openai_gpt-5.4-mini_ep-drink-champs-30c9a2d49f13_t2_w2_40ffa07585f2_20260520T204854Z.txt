@@ -1,0 +1,1 @@
+{"start":1330.2,"end":1430.4,"confidence":0.26,"reason":"No clear advertisement detected in this window; the transcript is show conversation about football and retirement with no sponsor language, promo codes, URLs, or calls to action. The 'let's take a break' transition is not present.","end_text":"Roscoe needed"}

@@ -1,0 +1,1 @@
+{"segments": [{"start": 8218.9, "end": 8242.2, "confidence": 0.99, "reason": "Hosting platform insert: 'Transcript by Rev.com.' flagged as ad", "end_text": "Transcript by Rev.com."}]}

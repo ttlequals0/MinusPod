@@ -1,0 +1,1 @@
+{"start": 3503.7, "end": 3528.5, "confidence": 0.99, "reason": "Airtasker host-read ad with URL and call to action", "end_text": "Airtasker, get anything done."}

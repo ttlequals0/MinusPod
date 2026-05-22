@@ -1,0 +1,1 @@
+{"start": 13091.7, "end": 13097.8, "confidence": 0.95, "reason": "Host-read ad for 'I wake up every morning' (likely a brand tagline or sponsor mention)", "end_text": "I wake up every morning."}

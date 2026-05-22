@@ -1,0 +1,1 @@
+{"start": 1439.2, "end": 1576.1, "confidence": 0.99, "reason": "Host-read sponsor segment for Mint Mobile and Aura Frames with promotional language, URLs, promo codes, and calls to action", "end_text": "Carver Matt at AuraFrames.com slash Tim"}

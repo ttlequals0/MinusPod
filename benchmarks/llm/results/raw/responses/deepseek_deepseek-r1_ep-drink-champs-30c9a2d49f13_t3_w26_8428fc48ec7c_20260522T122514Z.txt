@@ -1,0 +1,9 @@
+[
+  {
+    "start": 11335.2,
+    "end": 11472.5,
+    "confidence": 0.98,
+    "reason": "Multiple platform-inserted ads: Airtasker promo, Decisions Decisions podcast cross-promotion, OnDeck business loan ad",
+    "end_text": "subject to lender approval"
+  }
+]

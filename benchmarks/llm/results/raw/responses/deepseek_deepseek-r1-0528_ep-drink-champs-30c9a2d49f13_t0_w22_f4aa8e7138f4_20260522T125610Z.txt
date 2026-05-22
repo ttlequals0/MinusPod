@@ -1,0 +1,37 @@
+[
+  {
+    "start": 9741.9,
+    "end": 9757.2,
+    "confidence": 0.95,
+    "reason": "Host-initiated transition to McDonald's mention in context of Epstein files, but lacks promotional content",
+    "end_text": "serving human fucking puffs"
+  },
+  {
+    "start": 9758.4,
+    "end": 9778.2,
+    "confidence": 0.9,
+    "reason": "Discussion of McDonald's Big Mac and ghetto Big Mac recipe, not an ad",
+    "end_text": "add Big Mac sauce"
+  },
+  {
+    "start": 9778.8,
+    "end": 9799.5,
+    "confidence": 0.85,
+    "reason": "Mention of Epstein Files and Chick-fil-A ingredients, editorial not ad",
+    "end_text": "holy. And we thought"
+  },
+  {
+    "start": 9800.2,
+    "end": 9823.1,
+    "confidence": 0.8,
+    "reason": "Chick-fil-A ingredient count discussion, no promotion",
+    "end_text": "They don't open on Sunday"
+  },
+  {
+    "start": 9823.8,
+    "end": 9852.4,
+    "confidence": 0.75,
+    "reason": "Food critique and mention of gummy bears, not an ad",
+    "end_text": "It's a longer story"
+  }
+]

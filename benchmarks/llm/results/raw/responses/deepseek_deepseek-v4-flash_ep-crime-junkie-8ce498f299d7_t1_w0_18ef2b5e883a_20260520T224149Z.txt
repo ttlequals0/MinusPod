@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 0.0,
+      "end": 98.4,
+      "confidence": 1.0,
+      "reason": "Three clearly identified sponsor reads: Vitel Global, LinkedIn Premium All-in-One, and Hertz, each with promotional language, URLs, and calls to action. The host of Crime Junkie returns at 98.8s with the show's typical opening.",
+      "end_text": "newest fleet yet at Hertz.com"
+    }
+  ]
+}

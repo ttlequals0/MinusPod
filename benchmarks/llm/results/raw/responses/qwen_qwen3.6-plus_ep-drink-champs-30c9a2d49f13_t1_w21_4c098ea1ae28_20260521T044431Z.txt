@@ -1,0 +1,1 @@
+[{"start": 8799.1, "end": 8831.4, "confidence": 0.95, "reason": "OnDeck business loan sponsor read followed by Public investing platform intro", "end_text": "take it seriously."}]

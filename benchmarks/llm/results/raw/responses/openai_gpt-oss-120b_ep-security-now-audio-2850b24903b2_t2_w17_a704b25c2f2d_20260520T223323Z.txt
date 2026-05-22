@@ -1,0 +1,1 @@
+{"start":7584.4,"end":7740.0,"confidence":0.98,"reason":"Trusted Tech sponsor read following 'let's take our final break' transition","end_text":"you will be too"}

@@ -1,0 +1,7 @@
+[{
+    "start": 15261.8,
+    "end": 15517.1,
+    "confidence": 0.95,
+    "reason": "Multiple platform-inserted ads including Airtasker, CVS, Trashy, and fencing promotion with URLs/promo codes",
+    "end_text": "tryfencing.org. This is"
+}]

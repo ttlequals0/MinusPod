@@ -1,0 +1,1 @@
+{"start": 506.4, "end": 521.5, "confidence": 0.9, "reason": "Transition to promotion for Crain's Daily Gist quiz", "end_text": "Amy Guth"}

@@ -1,0 +1,1 @@
+{"start":1009.1,"end":1029.9,"confidence":0.78,"reason":"Possible platform/promo segment referencing 'Jerry's Store provides that service' without clear show ad transition; transcript here is not clearly promotional enough to fully confirm an ad, but it has sponsor-like commercial language and may be a partial inserted spot.","end_text":"Jerry's Store provides that service"}

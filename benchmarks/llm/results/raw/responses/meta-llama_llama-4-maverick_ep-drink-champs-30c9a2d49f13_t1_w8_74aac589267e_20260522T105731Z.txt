@@ -1,0 +1,1 @@
+{"start": 3478.9, "end": 3607.1, "confidence": 0.95, "reason": "Multiple ads: Airtasker, Decisions Decisions/Care for the Culture, OnDeck", "end_text": "All amounts subject to lender approval."}

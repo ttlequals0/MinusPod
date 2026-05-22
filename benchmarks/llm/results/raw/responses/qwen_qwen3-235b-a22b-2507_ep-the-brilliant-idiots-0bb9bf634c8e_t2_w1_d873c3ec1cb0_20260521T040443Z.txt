@@ -1,0 +1,1 @@
+{"start": 422.5, "end": 446.2, "confidence": 0.98, "reason": "Sponsor-read segment with promotional language for Jess Hilarious, 2Chainz, Cheryl McKissack Daniel, Dawn Staley, Charlamagne Tha God books, Andrew Schulz, Black Effect Network, and AlexxMedia", "end_text": "Checks out AlexxMedia"}

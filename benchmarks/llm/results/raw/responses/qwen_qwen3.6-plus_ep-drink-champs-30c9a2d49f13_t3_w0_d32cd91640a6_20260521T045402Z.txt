@@ -1,0 +1,1 @@
+[{"start": 0.0, "end": 150.5, "confidence": 0.98, "reason": "Pre-roll ad block featuring iHeart platform intro, Airtasker, Care for the Culture/Gilead Sciences, Nissan Rogue, and Shopify sponsor read", "end_text": "Shopify.com slash B-E-N."}]

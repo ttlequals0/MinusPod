@@ -1,0 +1,11 @@
+{
+  "ad_segments": [
+    {
+      "start": 4059.4,
+      "end": 4107.1,
+      "confidence": 0.95,
+      "reason": "Host-read mentions of paying bills and transition to podcast promotions, including Lauren LaRosa's YouTube channel promotion.",
+      "end_text": "at 6 a.m."
+    }
+  ]
+}

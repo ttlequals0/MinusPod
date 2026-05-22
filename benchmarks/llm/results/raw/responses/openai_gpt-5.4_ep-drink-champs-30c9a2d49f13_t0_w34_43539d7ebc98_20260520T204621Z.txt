@@ -1,0 +1,1 @@
+{"start":14854.0,"end":14861.3,"confidence":0.99,"reason":"Produced closing promo for video platform with call to action: 'Thank you for watching.' Partial segment; likely continues from previous/next context.","end_text":"Thank you for watching."}

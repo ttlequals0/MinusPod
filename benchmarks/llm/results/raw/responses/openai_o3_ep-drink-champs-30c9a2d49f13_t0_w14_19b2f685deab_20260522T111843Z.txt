@@ -1,0 +1,1 @@
+{"start": 6208.7, "end": 6318.1, "confidence": 0.98, "reason": "Airtasker sponsor ad, Decisions Decisions podcast cross-promo (sponsored by Gilead), OnDeck line-of-credit ad, and Public investing platform ad delivered back-to-back with <15 s gaps", "end_text": "take it seriously."}

@@ -1,0 +1,1 @@
+{"start":0.0,"end":51.6,"confidence":0.99,"reason":"Colgate host-read sponsor segment with promotional copy for Colgate Women's Games and brand tagline","end_text":"Colgate, your smile is your strength"}

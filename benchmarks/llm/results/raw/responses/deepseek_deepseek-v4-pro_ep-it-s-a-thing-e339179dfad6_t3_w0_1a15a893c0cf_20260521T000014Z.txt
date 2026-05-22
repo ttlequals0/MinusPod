@@ -1,0 +1,1 @@
+[{"start": 1.6, "end": 77.2, "confidence": 0.98, "reason": "Pre-roll ads: Acast platform promos and podcast cross-promotions for Wrong Turns and Formative", "end_text": "leaders of tomorrow."}]

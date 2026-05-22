@@ -1,0 +1,9 @@
+[
+  {
+    "start": 4318.8,
+    "end": 4378.5,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Morgan & Morgan. Includes a call to action and a vanity URL.",
+    "end_text": "look like an accident."
+  }
+]

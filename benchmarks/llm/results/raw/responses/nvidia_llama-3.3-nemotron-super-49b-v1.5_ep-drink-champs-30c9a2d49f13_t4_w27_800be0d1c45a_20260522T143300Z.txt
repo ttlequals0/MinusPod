@@ -1,0 +1,6 @@
+[
+  {"start": 11341.1, "end": 11365.6, "confidence": 0.95, "reason": "Airtasker sponsor read", "end_text": "Airtasker, get anything done."},
+  {"start": 11366.2, "end": 11392.4, "confidence": 0.95, "reason": "Network-inserted promo for Decisions Decisions podcast", "end_text": "sneak peek."},
+  {"start": 11425.3, "end": 11454.3, "confidence": 0.95, "reason": "OnDeck small business loan ad", "end_text": "All loans..."},
+  {"start": 11614.6, "end": 11630.6, "confidence": 0.98, "reason": "Host-read sponsor mentions (Athletic Greens, Audible, Masterclass, ZipRecruiter, Raycon, Manscaped, Stamps.com)", "end_text": "Stamps.com,"}
+]

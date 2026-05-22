@@ -1,0 +1,1 @@
+{"start":1.6,"end":77.2,"confidence":0.99,"reason":"Platform-inserted Acast promo segments for Wrong Turns and Formative, including 'Acast powers the world's best podcasts,' 'Acast helps creators,' and calls to listen to other podcasts","end_text":"the podcast where the leaders of today are interviewed by the leaders of tomorrow"}

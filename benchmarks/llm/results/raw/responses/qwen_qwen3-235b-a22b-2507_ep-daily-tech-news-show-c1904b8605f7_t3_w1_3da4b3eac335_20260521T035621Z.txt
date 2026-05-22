@@ -1,0 +1,1 @@
+{"start": 821.4, "end": 857.6, "confidence": 0.98, "reason": "Capital One and BetterHelp sponsor segment with promotional language, URLs, and calls to action", "end_text": "A BetterHelp ad."}

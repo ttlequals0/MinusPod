@@ -1,0 +1,16 @@
+{"ad_segments": [
+  {
+    "start": 6283.4,
+    "end": 6313.4,
+    "confidence": 0.98,
+    "reason": "OnDeck sponsor read",
+    "end_text": "lender approval"
+  },
+  {
+    "start": 6313.8,
+    "end": 6355.7,
+    "confidence": 0.98,
+    "reason": "Public sponsor read",
+    "end_text": "take it seriously"
+  }
+] }

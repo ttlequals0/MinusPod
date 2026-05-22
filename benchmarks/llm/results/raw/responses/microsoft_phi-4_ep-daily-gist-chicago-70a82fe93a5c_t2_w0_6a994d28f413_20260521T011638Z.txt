@@ -1,0 +1,7 @@
+{
+  "start": 0.5,
+  "end": 600.0,
+  "confidence": 0.95,
+  "reason": "The segment includes a transition phrase 'Today, May 19th' and discusses the priciest suburban apartment deal, including the transition phrase 'I'm joined by Crain's commercial real estate reporter, Rachel Herzog'. It also mentions the transition phrase 'So we've seen a few of these sales' and discusses the Chicago suburbs market dynamics.",
+  "end_text": "We would like them to stay in the state of Illinois, so I'm fighting hard to make sure they can do that."
+}

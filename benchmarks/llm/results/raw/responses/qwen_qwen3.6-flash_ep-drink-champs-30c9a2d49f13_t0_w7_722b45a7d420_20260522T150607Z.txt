@@ -1,0 +1,1 @@
+[{"start": 3478.9, "end": 3556.2, "confidence": 0.95, "reason": "Airtasker sponsor read and Decisions Decisions cross-promotion", "end_text": "conversation about abstinence?"}]

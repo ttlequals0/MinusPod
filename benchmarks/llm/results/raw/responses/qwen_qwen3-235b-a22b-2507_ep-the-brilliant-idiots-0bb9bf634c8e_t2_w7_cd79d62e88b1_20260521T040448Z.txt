@@ -1,0 +1,1 @@
+{"start": 3380.7, "end": 3403.5, "confidence": 0.98, "reason": "Promotional segment for Underground Sound with product pitch and descriptive language", "end_text": "Netspin and SD Kid."}

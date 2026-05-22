@@ -1,0 +1,1 @@
+{"start": 14268.7, "end": 14893.8, "confidence": 0.0, "reason": "No promotional content, sponsor mentions, URLs, promo codes, or product pitches detected in this transcript window. All content appears to be organic conversation.", "end_text": "interrupting me by talking to me"}

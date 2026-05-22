@@ -1,0 +1,1 @@
+[{"start": 821.4, "end": 1021.1, "confidence": 0.98, "reason": "Merged sponsor segment featuring Capital One, BetterHelp, Amazon Health AI, Spectrum Business, and Rinse with promotional URLs, discount codes, and calls to action.", "end_text": "It's time to be great."}]

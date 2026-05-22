@@ -1,0 +1,1 @@
+{"start":6283.4,"end":6313.4,"confidence":0.99,"reason":"OnDeck sponsor ad with promotional copy, application CTA, and pricing/disclosure language; includes sponsor read and commercial pitch","end_text":"All amounts subject to lender approval"}

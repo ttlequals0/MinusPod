@@ -1,0 +1,1 @@
+{"start":11335.2,"end":11455.4,"confidence":0.99,"reason":"Merged ad break containing Airtasker app promotion, Decisions Decisions/Keke Palmer podcast promo sponsored by Care for the Culture from Gilead Sciences, and OnDeck small business line of credit ad","end_text":"amount subject to lender approval."}

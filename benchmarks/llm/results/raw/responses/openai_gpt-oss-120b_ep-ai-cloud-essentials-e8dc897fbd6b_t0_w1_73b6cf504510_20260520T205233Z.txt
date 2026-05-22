@@ -1,0 +1,3 @@
+{
+  "analysis": "We need to detect ads in the given transcript segment. The segment runs from 415.2s to 984.2s. We must look for promotional language, sponsor mentions, transition phrases like \"let's take a break\" etc. I read through the transcript; I see no explicit sponsor mention, no \"let's take a break\", no promo codes, no URLs, no brand names. It's all content about AI, robotics, etc. No ad markers. Therefore output should be [] per instructions."
+}

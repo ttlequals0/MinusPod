@@ -1,0 +1,7 @@
+{
+  "start": 1295.0,
+  "end": 1311.2,
+  "confidence": 0.85,
+  "reason": "Host-read sponsorship by Perplexity. Contains app download prompt, call-to-action URL.",
+  "end_text": "How dare you?"
+}

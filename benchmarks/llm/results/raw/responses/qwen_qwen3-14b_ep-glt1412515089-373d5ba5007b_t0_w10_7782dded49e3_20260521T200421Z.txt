@@ -1,0 +1,2 @@
+y.
+{"start": 4200.0, "end": 4800.0, "confidence": 0.0, "reason": "No advertisements detected within the specified window", "end_text": "Participant 5 mentioned about how to make the telepathy work better."}

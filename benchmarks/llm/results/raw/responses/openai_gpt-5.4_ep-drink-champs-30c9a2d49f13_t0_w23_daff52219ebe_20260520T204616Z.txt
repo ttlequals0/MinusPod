@@ -1,0 +1,1 @@
+{"start": 9908.7, "end": 9932.6, "confidence": 0.76, "reason": "Possible promotional plug for Warren Sapp's Instagram content featuring Subway; contains call to action 'check my Instagram' and repeated brand mention, partial segment in window", "end_text": "It doesn't move. It's not food. Subway uses a mat"}

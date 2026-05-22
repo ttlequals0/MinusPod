@@ -1,0 +1,7 @@
+{
+  "start": 2535.6,
+  "end": 2551.7,
+  "confidence": 0.95,
+  "reason": "Host transition to break with promotional language",
+  "end_text": "Modelas."
+}

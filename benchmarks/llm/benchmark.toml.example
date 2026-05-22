@@ -10,31 +10,198 @@ client = "openai_compatible"
 base_url = "https://openrouter.ai/api/v1"
 api_key_env = "OPENROUTER_API_KEY"
 
-[providers.together]
-client = "openai_compatible"
-base_url = "https://api.together.xyz/v1"
-api_key_env = "TOGETHER_API_KEY"
-
 [providers.anthropic_direct]
 client = "anthropic"
 api_key_env = "ANTHROPIC_API_KEY"
 
 # --- Models ---
 
+# Anthropic - direct provider
 [[models]]
-id = "anthropic/claude-sonnet-4.6"
-provider = "openrouter"
+id = "claude-opus-4-7"
+provider = "anthropic_direct"
 
 [[models]]
-id = "anthropic/claude-haiku-4.5"
-provider = "openrouter"
+id = "claude-sonnet-4-6"
+provider = "anthropic_direct"
 
+[[models]]
+id = "claude-haiku-4-5-20251001"
+provider = "anthropic_direct"
+
+# OpenAI
 [[models]]
 id = "openai/gpt-5.5"
 provider = "openrouter"
 
 [[models]]
+id = "openai/gpt-5.4"
+provider = "openrouter"
+
+[[models]]
+id = "openai/gpt-5.4-mini"
+provider = "openrouter"
+
+[[models]]
+id = "openai/gpt-oss-120b"
+provider = "openrouter"
+
+# DeepSeek
+[[models]]
 id = "deepseek/deepseek-v3.2"
+provider = "openrouter"
+
+[[models]]
+id = "deepseek/deepseek-v4-flash"
+provider = "openrouter"
+
+[[models]]
+id = "deepseek/deepseek-v4-pro"
+provider = "openrouter"
+
+# Mistral - note: namespace is "mistralai/" not "mistral/"
+[[models]]
+id = "mistralai/mistral-large-2512"
+provider = "openrouter"
+
+[[models]]
+id = "mistralai/mistral-medium-3.1"
+provider = "openrouter"
+
+# Microsoft Phi
+[[models]]
+id = "microsoft/phi-4"
+provider = "openrouter"
+
+# Moonshot Kimi
+[[models]]
+id = "moonshotai/kimi-k2.6"
+provider = "openrouter"
+
+# Qwen - note: dated suffix
+[[models]]
+id = "qwen/qwen3.5-plus-02-15"
+provider = "openrouter"
+
+[[models]]
+id = "qwen/qwen3-235b-a22b-2507"
+provider = "openrouter"
+
+[[models]]
+id = "qwen/qwen3.6-plus"
+provider = "openrouter"
+
+[[models]]
+id = "qwen/qwen3.6-flash"
+provider = "openrouter"
+
+[[models]]
+id = "qwen/qwen3-8b"
+provider = "openrouter"
+
+[[models]]
+id = "qwen/qwen3-14b"
+provider = "openrouter"
+
+[[models]]
+id = "qwen/qwen3.5-27b"
+provider = "openrouter"
+
+# xAI Grok
+[[models]]
+id = "x-ai/grok-4.3"
+provider = "openrouter"
+
+# Google Gemma - paid endpoint exists on OpenRouter, no Together needed
+[[models]]
+id = "google/gemma-4-31b-it"
+provider = "openrouter"
+
+# --- Round 2 additions (validated against OpenRouter /models) ---
+
+# Google Gemini frontier (gemini-3 not on OpenRouter yet; use 2.5)
+[[models]]
+id = "google/gemini-2.5-pro"
+provider = "openrouter"
+
+[[models]]
+id = "google/gemini-2.5-flash"
+provider = "openrouter"
+
+[[models]]
+id = "google/gemini-2.5-flash-lite"
+provider = "openrouter"
+
+# Meta Llama 4 (the new family; 405B / 70B specifically aren't on OR, maverick + scout are)
+[[models]]
+id = "meta-llama/llama-4-maverick"
+provider = "openrouter"
+
+[[models]]
+id = "meta-llama/llama-4-scout"
+provider = "openrouter"
+
+# Open-weights baseline tier
+[[models]]
+id = "meta-llama/llama-3.3-70b-instruct"
+provider = "openrouter"
+
+[[models]]
+id = "meta-llama/llama-3.1-8b-instruct"
+provider = "openrouter"
+
+[[models]]
+id = "mistralai/mistral-7b-instruct-v0.1"
+provider = "openrouter"
+
+# Code-model control (expected to underperform on prose ad detection)
+[[models]]
+id = "mistralai/codestral-2508"
+provider = "openrouter"
+
+# OpenAI reasoning models (o3 / o4-mini; o5 not on OR yet)
+[[models]]
+id = "openai/o3"
+provider = "openrouter"
+
+[[models]]
+id = "openai/o4-mini"
+provider = "openrouter"
+
+# Legacy baseline
+[[models]]
+id = "openai/gpt-3.5-turbo"
+provider = "openrouter"
+
+# Cohere (known for structured-output reliability)
+[[models]]
+id = "cohere/command-a"
+provider = "openrouter"
+
+[[models]]
+id = "cohere/command-r-plus-08-2024"
+provider = "openrouter"
+
+# DeepSeek reasoning variants (does deliberate thinking help?)
+[[models]]
+id = "deepseek/deepseek-r1"
+provider = "openrouter"
+
+[[models]]
+id = "deepseek/deepseek-r1-0528"
+provider = "openrouter"
+
+[[models]]
+id = "deepseek/deepseek-r1-distill-llama-70b"
+provider = "openrouter"
+
+# NVIDIA Nemotron family
+[[models]]
+id = "nvidia/nemotron-nano-9b-v2"
+provider = "openrouter"
+
+[[models]]
+id = "nvidia/llama-3.3-nemotron-super-49b-v1.5"
 provider = "openrouter"
 
 # Mark deprecated to keep historical data but exclude from headline rankings.

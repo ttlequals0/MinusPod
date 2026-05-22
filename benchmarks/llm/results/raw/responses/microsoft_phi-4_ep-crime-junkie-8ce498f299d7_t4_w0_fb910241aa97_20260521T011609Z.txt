@@ -1,0 +1,16 @@
+[  
+  {  
+    "start": 0.0,  
+    "end": 40.8,  
+    "confidence": 0.98,  
+    "reason": "Vitel Global and LinkedIn Premium All-in-One sponsor reads",  
+    "end_text": "all-in-one product"  
+  },  
+  {  
+    "start": 41.5,  
+    "end": 98.4,  
+    "confidence": 0.95,  
+    "reason": "Hertz network-inserted ad",  
+    "end_text": "Hertz.com"  
+  }  
+]

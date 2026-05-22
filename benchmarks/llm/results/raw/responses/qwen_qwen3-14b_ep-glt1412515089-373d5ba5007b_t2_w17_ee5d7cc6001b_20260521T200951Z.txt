@@ -1,0 +1,2 @@
+y.
+{"start": 7140.0, "end": 7740.0, "confidence": 0.0, "reason": "No advertisement segments detected in the specified window", "end_text": "the same sort of process is going on that would occur if it was happening right here and right now."}

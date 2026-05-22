@@ -1,0 +1,23 @@
+[
+    {
+        "start": 11335.2,
+        "end": 11365.6,
+        "confidence": 0.99,
+        "reason": "Airtasker sponsor read with call to action, app download, and URL mention",
+        "end_text": "Airtasker, get anything done"
+    },
+    {
+        "start": 11392.7,
+        "end": 11424.6,
+        "confidence": 0.98,
+        "reason": "Decisions Decisions podcast cross-promotion with sponsor attribution (Care for the Culture from Gilead Sciences)",
+        "end_text": "Sponsored by Care for the Culture from Gilead Sciences"
+    },
+    {
+        "start": 11425.3,
+        "end": 11455.4,
+        "confidence": 0.99,
+        "reason": "OnDeck small business line of credit sponsor read with URL, funding details, and lender disclosures",
+        "end_text": "an amount subject to lender approval"
+    }
+]

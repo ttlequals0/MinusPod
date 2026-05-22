@@ -1,0 +1,1 @@
+{"start":11335.2,"end":11424.6,"confidence":0.99,"reason":"Airtasker sponsor read followed by a produced cross-promo for Decisions Decisions / Gilead Sciences with sponsored episode language","end_text":"Sponsored by Care for the Culture from Gilead Sciences"}

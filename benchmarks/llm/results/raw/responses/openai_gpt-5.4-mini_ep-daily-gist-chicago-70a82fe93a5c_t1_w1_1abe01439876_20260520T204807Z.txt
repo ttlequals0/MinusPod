@@ -1,0 +1,1 @@
+{"start":521.5,"end":548.5,"confidence":0.98,"reason":"Crain's Daily Gist promotional segment urging listeners to take the weekly news quiz at chicagobusiness.com/quiz and follow the podcast","end_text":"This is the Crain's Daily Gist with Amy Guth"}

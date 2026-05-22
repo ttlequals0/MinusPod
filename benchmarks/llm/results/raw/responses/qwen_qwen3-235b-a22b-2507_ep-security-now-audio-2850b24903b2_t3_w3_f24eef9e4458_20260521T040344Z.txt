@@ -1,0 +1,1 @@
+{"start": 1255.9, "end": 1886.0, "confidence": 0.98, "reason": "Multiple sponsor URLs listed in episode description with promotional intent; typical structure of podcast sponsor read with transition phrases and calls to action", "end_text": "greased path."}

@@ -1,0 +1,1 @@
+{"start":0.0,"end":22.1,"confidence":0.99,"reason":"Progressive Insurance host-read sponsor segment with explicit \"This episode ... is brought to you by\" and promo to Progressive.com","end_text":"in all states."}

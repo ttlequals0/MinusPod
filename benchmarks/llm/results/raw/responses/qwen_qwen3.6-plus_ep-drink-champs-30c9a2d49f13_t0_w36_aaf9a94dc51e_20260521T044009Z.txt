@@ -1,0 +1,1 @@
+[{"start": 15388.3, "end": 15517.1, "confidence": 0.98, "reason": "Merged ad break featuring Airtasker, CVS, Trashy, and Try Fencing sponsor reads and network inserts", "end_text": "iHeart Podcast. Guaranteed human."}]

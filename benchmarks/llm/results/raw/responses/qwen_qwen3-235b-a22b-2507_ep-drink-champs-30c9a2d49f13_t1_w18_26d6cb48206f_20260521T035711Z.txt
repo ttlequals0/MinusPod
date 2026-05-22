@@ -1,0 +1,1 @@
+{"start": 7538.4, "end": 8187.1, "confidence": 0.99, "reason": "continuous conversation without any promotional language, sponsor mentions, URLs, promo codes, or ad-like transitions; content is organic discussion about Ice Cube, Biggie, football, and personal stories with no indication of advertisement", "end_text": "going through this gate? They like, yeah."}

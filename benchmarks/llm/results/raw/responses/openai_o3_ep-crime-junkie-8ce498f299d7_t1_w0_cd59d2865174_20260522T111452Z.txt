@@ -1,0 +1,1 @@
+{"start": 0.0, "end": 98.4, "confidence": 0.98, "reason": "Vitel Global, LinkedIn Premium, and Hertz sponsor spots before show intro", "end_text": "yet at Hertz.com"}

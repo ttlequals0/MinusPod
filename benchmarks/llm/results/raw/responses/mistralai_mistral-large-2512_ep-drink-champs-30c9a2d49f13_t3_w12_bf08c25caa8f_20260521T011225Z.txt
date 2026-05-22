@@ -1,0 +1,16 @@
+[
+    {
+        "start": 5420.4,
+        "end": 5441.4,
+        "confidence": 0.99,
+        "reason": "Repeated mention of 'promo code, discount code' in a rapid, non-conversational manner, indicative of a dynamically inserted ad segment. The tone and content are promotional and distinct from the surrounding organic conversation.",
+        "end_text": "discount code, discount code, discount code"
+    },
+    {
+        "start": 5441.3,
+        "end": 5469.9,
+        "confidence": 0.95,
+        "reason": "Network-inserted retail ad for 'Modelo' (brand mention) with promotional language ('big, Modelo'). The segment is tonally distinct and includes a call to action ('No, no, no, later, later, later').",
+        "end_text": "that was my second game then"
+    }
+]

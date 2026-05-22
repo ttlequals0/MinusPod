@@ -1,0 +1,1 @@
+{"start":6394.8,"end":6417.2,"confidence":0.91,"reason":"Perplexity sponsor mention and ad read; host explicitly says 'it's Perplexity, our AI sponsor' while discussing the app and AI help. Partial ad continues into content about the Akashic Records.","end_text":"our AI sponsor, trying to flex"}

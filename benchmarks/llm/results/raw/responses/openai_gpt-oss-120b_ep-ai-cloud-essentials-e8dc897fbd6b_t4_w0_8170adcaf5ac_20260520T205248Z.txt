@@ -1,0 +1,1 @@
+{"start":58.0,"end":80.3,"confidence":0.97,"reason":"Host‑read sponsor mention of Core Read (\"brought to you by Core Read\") at start of episode","end_text":"brought to you by Core Read"}

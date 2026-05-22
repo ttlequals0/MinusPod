@@ -1,0 +1,34 @@
+[
+
+[
+  {
+    "start": 6234.1,
+    "end": 6261.5,
+    "confidence": 0.95,
+    "reason": "Airtasker sponsor read with call to action",
+    "end_text": "Airtasker, get anything done"
+  },
+  {
+    "start": 6283.4,
+    "end": 6312.4,
+    "confidence": 0.95,
+    "reason": "OnDeck sponsor read with call to action",
+    "end_text": "OnDeck.com. Funds could be available"
+  },
+  {
+    "start": 6312.4,
+    "end": 6313.4,
+    "confidence": 0.90,
+    "reason": "OnDeck continuation with loan details",
+    "end_text": "lender approval"
+  },
+  {
+    "start": 6313.8,
+    "end": 6318.1,
+    "confidence": 0.95,
+    "reason": "Public sponsor read with call to action",
+    "end_text": "investing platform"
+  }
+]
+
+]

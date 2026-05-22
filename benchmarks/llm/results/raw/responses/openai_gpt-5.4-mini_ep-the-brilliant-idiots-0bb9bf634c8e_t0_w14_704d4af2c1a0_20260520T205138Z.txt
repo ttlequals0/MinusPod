@@ -1,0 +1,1 @@
+{"start":6390.2,"end":6445.0,"confidence":0.86,"reason":"Host transition into sponsor break with \"Let's pay some bills\" followed by promotional BlueChew discussion and return to show content","end_text":"Okay, Asking Idiots"}

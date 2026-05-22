@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1450.9,
+    "end": 1629.0,
+    "confidence": 0.99,
+    "reason": "Continuous ad segment containing Airtasker, podcast cross-promo (Decisions Decisions with Kiki Palmer), OnDeck, and BetMGM advertisements",
+    "end_text": "Kansas Crossing Casino and Hotel"
+  }
+]

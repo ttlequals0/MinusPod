@@ -1,0 +1,1 @@
+[{"start": 8724.9, "end": 8831.4, "confidence": 0.98, "reason": "Mid-roll ad break featuring AirTasker sponsor read, Decisions Decisions cross-promotion, OnDeck business loan pitch, and Public investing platform sponsor read", "end_text": "take it seriously."}]

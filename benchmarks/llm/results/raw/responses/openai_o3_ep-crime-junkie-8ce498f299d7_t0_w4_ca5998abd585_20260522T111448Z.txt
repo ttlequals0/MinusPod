@@ -1,0 +1,1 @@
+{"start": 1959.8, "end": 2082.8, "confidence": 0.97, "reason": "Back-to-back host-read sponsor ads for Rakuten, LinkedIn Premium All-in-One, and Hertz (promo language, brand names, URLs, calls to action)", "end_text": "fleet yet at Hertz.com."}

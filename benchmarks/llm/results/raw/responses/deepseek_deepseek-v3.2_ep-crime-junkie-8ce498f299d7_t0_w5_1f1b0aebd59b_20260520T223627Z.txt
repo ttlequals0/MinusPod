@@ -1,0 +1,1 @@
+{"start": 2082.8, "end": 2110.7, "confidence": 0.95, "reason": "Host-read sponsor segment for Athletic Greens (AG1)", "end_text": "athleticgreens.com/crimejunkie"}

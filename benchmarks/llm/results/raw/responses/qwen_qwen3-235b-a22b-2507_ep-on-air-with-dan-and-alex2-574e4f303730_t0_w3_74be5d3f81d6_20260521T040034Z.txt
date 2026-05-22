@@ -1,0 +1,1 @@
+{"start": 1246.0, "end": 1879.5, "confidence": 0.1, "reason": "No promotional content, sponsor mentions, URLs, promo codes, or calls to action present; discussion is organic editorial content about airline policies and alcohol consumption", "end_text": "get..."}

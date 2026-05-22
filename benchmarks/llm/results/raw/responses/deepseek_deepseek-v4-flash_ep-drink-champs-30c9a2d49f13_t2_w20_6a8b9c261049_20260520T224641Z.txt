@@ -1,0 +1,25 @@
+{
+  "ads": [
+    {
+      "start": 8724.9,
+      "end": 8737.9,
+      "confidence": 1.0,
+      "reason": "Airtasker sponsor read with URL and call to action",
+      "end_text": "handle it. AirTasker."
+    },
+    {
+      "start": 8738.1,
+      "end": 8798.3,
+      "confidence": 1.0,
+      "reason": "Cross-promotional ad for 'Decisions Decisions' podcast with Kiki Palmer, sponsored by Gilead Sciences",
+      "end_text": "Gilead Sciences."
+    },
+    {
+      "start": 8799.1,
+      "end": 8826.4,
+      "confidence": 1.0,
+      "reason": "OnDeck business loan sponsor read with URL and terms",
+      "end_text": "subject to lender approval."
+    }
+  ]
+}

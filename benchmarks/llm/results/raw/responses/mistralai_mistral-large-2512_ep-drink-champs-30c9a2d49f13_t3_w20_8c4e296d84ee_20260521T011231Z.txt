@@ -1,0 +1,30 @@
+[
+    {
+        "start": 8724.9,
+        "end": 8737.9,
+        "confidence": 0.99,
+        "reason": "AirTasker sponsor read with call to action and app mention",
+        "end_text": "Taskers will handle it. AirTasker"
+    },
+    {
+        "start": 8738.1,
+        "end": 8798.3,
+        "confidence": 0.98,
+        "reason": "Cross-promotion for 'Decisions Decisions' podcast with sponsor tag for Care for the Culture from Gilead Sciences",
+        "end_text": "from Gilead Sciences"
+    },
+    {
+        "start": 8799.1,
+        "end": 8826.4,
+        "confidence": 0.99,
+        "reason": "OnDeck small business loan sponsor read with loan details and URL",
+        "end_text": "Apply in minutes at OnDeck.com"
+    },
+    {
+        "start": 8827.0,
+        "end": 8831.4,
+        "confidence": 0.95,
+        "reason": "Public investing platform sponsor tagline",
+        "end_text": "take it seriously"
+    }
+]

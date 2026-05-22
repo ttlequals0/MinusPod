@@ -1,0 +1,7 @@
+{
+  "start": 1240.8,
+  "end": 1266.6,
+  "confidence": 0.95,
+  "reason": "Host-read sponsor segment promoting multiple platforms",
+  "end_text": "wherever you like to get your audio on demand"
+}

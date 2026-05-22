@@ -1,0 +1,1 @@
+{"start":0.0,"end":59.8,"confidence":0.99,"reason":"Host‑read sponsor reads for Hex.ai and PickOCNY.com, promotional language with URLs","end_text":"at PickOCNY.com"}

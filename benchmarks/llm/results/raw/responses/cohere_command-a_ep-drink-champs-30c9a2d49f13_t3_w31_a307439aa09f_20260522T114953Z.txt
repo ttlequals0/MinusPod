@@ -1,0 +1,7 @@
+{
+  "start": 13617.2,
+  "end": 13620.0,
+  "confidence": 0.0,
+  "reason": "No ads detected in this window",
+  "end_text": "mean, if you Google, white man stole my car, Google will tell you, you mean a black man stole your car?"
+}

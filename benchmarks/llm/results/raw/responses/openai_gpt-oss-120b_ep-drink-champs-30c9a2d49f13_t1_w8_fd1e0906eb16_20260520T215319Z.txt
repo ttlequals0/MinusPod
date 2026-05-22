@@ -1,0 +1,32 @@
+{
+  "ads": [
+    {
+      "start": 3478.9,
+      "end": 3528.5,
+      "confidence": 0.98,
+      "reason": "Host-read sponsor segment promoting Airtasker with call to action and URL",
+      "end_text": "Airtasker, get anything done."
+    },
+    {
+      "start": 3556.8,
+      "end": 3577.4,
+      "confidence": 0.97,
+      "reason": "Sponsor mention for Care for the Culture from Gilead Sciences",
+      "end_text": "Gilead Sciences."
+    },
+    {
+      "start": 3578.1,
+      "end": 3608.0,
+      "confidence": 0.98,
+      "reason": "Host-read ad for OnDeck small business line of credit with promotional language and URL",
+      "end_text": "lender approval."
+    },
+    {
+      "start": 3608.5,
+      "end": 3637.4,
+      "confidence": 0.96,
+      "reason": "Host-read ad for Public investing platform with promotional copy",
+      "end_text": "backtest it again."
+    }
+  ]
+}

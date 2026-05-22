@@ -1,0 +1,3 @@
+[
+{"start":3079.6,"end":3134.3,"confidence":0.99,"reason":"Host-read sponsor segment for Morgan & Morgan personal injury law firm","end_text":"Stash is the one"},{"start":3135.6,"end":3208.0,"confidence":0.99,"reason":"Host-read sponsor segment for Stash investing app and Market Mood feature","end_text":"Investing involves risk"},{"start":3209.1,"end":3270.1,"confidence":0.99,"reason":"Host-read sponsor segment for Neuro Gum energy and focus gum","end_text":"CVS and Amazon"}
+]

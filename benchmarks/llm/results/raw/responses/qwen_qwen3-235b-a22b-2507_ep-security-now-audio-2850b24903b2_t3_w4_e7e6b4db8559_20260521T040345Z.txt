@@ -1,0 +1,1 @@
+{"start": 1773.7, "end": 1801.2, "confidence": 0.95, "reason": "Transition into sponsor segment with promotional content for Bitwarden", "end_text": "cybersecurity fundamentals to raise resilience"}

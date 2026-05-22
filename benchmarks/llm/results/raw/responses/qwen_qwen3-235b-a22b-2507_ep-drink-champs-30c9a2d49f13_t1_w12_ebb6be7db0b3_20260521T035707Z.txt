@@ -1,0 +1,1 @@
+{"start": 5420.4, "end": 5469.9, "confidence": 0.98, "reason": "Repetition of 'discount code' suggests a platform-inserted ad or promotional placeholder, likely part of a dynamically inserted ad segment", "end_text": "discount code, discount code"}

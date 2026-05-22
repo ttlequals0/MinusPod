@@ -1,0 +1,7 @@
+{
+  "start": 10069.7,
+  "end": 10680.0,
+  "confidence": 0.88,
+  "reason": "No promotional language detected; segment consists of free-flowing conversation about football, movies, TV shows, and athlete compensation. No sponsor mentions, promo codes, URLs, or calls to action.",
+  "end_text": "Is this a new reparation"
+}

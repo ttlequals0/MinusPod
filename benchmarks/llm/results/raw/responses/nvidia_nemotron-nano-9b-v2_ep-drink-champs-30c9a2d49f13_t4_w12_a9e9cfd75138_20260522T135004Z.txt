@@ -1,0 +1,1 @@
+[{"start": 5441.3, "end": 5469.9, "confidence": 0.98, "reason": "Promo code repetition for discount", "end_text": "discount code, discount code, discount code"}]

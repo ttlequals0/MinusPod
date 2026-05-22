@@ -1,0 +1,6 @@
+[
+  {"start": 0.0, "end": 19.5, "confidence": 0.95, "reason": "Airtasker sponsor read", "end_text": "get anything done."},
+  {"start": 20.0, "end": 70.8, "confidence": 0.95, "reason": "Care for the Culture sponsor read", "end_text": "Gilead Sciences."},
+  {"start": 72.9, "end": 101.0, "confidence": 0.95, "reason": "Nissan Rogue ad", "end_text": "real-world conditions."},
+  {"start": 109.0, "end": 150.5, "confidence": 0.95, "reason": "Shopify sponsor read", "end_text": "Shopify.com slash B-E-N."}
+]

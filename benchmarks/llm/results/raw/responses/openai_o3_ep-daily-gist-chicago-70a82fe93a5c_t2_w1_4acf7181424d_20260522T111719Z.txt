@@ -1,0 +1,1 @@
+{"start": 506.4, "end": 548.5, "confidence": 0.95, "reason": "Self-promo sponsor segment for Crain's Weekly News Quiz with call to action and URL", "end_text": "with Amy Guth."}

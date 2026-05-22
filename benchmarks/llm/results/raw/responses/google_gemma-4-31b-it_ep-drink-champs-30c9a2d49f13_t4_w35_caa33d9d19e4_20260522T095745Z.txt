@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 15261.8,
+      "end": 15285.2,
+      "confidence": 0.9,
+      "reason": "Repetitive mention of 'promo code' and 'discount code' indicating a placeholder or a glitchy ad read segment",
+      "end_text": "discount code, discount code"
+    }
+  ]
+}

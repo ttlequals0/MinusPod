@@ -1,0 +1,1 @@
+{"start": 3430.8, "end": 3446.1, "confidence": 0.98, "reason": "Platform-inserted ad break with silence and abrupt cut-off typical of dynamic ad insertion; followed by non-sequitur resumption of topic suggesting content was interrupted by ad", "end_text": "And..."}

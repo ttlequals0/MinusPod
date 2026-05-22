@@ -1,0 +1,1 @@
+[{"start": 4204.1, "end": 4380.0, "confidence": 0.98, "reason": "Host-read sponsor segment for Bitwarden, includes break transition and product pitch. Continues in next window.", "end_text": "securely unlocking devices at the OS level."}]

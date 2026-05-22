@@ -1,0 +1,16 @@
+[
+  {
+    "start": 5692.6,
+    "end": 5712.8,
+    "confidence": 0.95,
+    "reason": "Mention of 'Brooklinen' as a brand, which is a known podcast sponsor, in a context that does not appear to be organic content",
+    "end_text": "Brooklinen, New York"
+  },
+  {
+    "start": 5744.6,
+    "end": 5772.5,
+    "confidence": 0.95,
+    "reason": "Repeated mention of 'Brooklinen' in a non-football context, suggesting possible brand promotion",
+    "end_text": "position, which is my position"
+  }
+]

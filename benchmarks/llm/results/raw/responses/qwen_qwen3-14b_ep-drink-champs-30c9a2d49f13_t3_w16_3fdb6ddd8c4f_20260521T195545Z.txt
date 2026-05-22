@@ -1,0 +1,1 @@
+{"start": 7211.3, "end": 7224.6, "confidence": 0.9, "reason": "Host mentions 'I guess, I guess, ah, whatever. So what's it going to do?' which may indicate a transition to an ad, but no clear sponsor or promo code is present.", "end_text": "whatever. So what's it going to do?"}

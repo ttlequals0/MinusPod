@@ -1,0 +1,5 @@
+{
+  "transcript": "[4800.0s - 4804.9s] They're actually getting a million dollars. Oh, wow. I didn't... Yeah. So, in that case... 10 over 10. Wait, 10 over 10? Why did he even go to the NFL then? No, no, no. It ain't 10 over 10. You gotta stop dealing. It ran up a bill like...",
+  "window_start": 4800.0,
+  "window_end": 4804.9
+}

@@ -1,0 +1,1 @@
+{"start":2208.3,"end":2237.0,"confidence":0.98,"reason":"Blinds.com host-read ad with clear promotional copy and a call to action: \"The right window treatments change everything... At Blinds.com... get up to 45% off site-wide, plus get a free professional measure\". Includes platform-style ad insertion after the show topic.","end_text":"at Blinds.com"}

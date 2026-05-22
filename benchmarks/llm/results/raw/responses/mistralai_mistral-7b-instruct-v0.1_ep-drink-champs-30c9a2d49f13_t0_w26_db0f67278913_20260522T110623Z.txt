@@ -1,0 +1,4 @@
+ Ad segment:
+[11484.6s - 11485.3s] "Apply today at OnDeck.com. Funds could be available as soon as tomorrow. Depending on certain loan attributes, your business loan may be issued by OnDeck or Celtic Bank. OnDeck does not lend in North Dakota. All loans subject to lender approval. Disclosures available at public.com slash disclosures."
+
+This segment meets the detection rules as it contains promotional language for OnDeck and a call to action to apply for a business loan at their website. The transition phrase "Apply today" also indicates an ad break.

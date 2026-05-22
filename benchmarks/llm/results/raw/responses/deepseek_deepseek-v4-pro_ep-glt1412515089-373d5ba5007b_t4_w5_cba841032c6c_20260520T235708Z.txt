@@ -1,0 +1,1 @@
+{"segments": [{"start": 2208.3, "end": 2237.0, "confidence": 0.98, "reason": "Blinds.com sponsor ad with promo code and URL", "end_text": "measure at Blinds.com."}]}

@@ -1,0 +1,39 @@
+{
+  "ads": [
+    {
+      "start": 15261.8,
+      "end": 15285.2,
+      "confidence": 0.95,
+      "reason": "Repeated promo/discount language likely indicating an ad segment",
+      "end_text": "discount code discount code"
+    },
+    {
+      "start": 15416.5,
+      "end": 15416.5,
+      "confidence": 0.95,
+      "reason": "Airtasker network-inserted ad (promotional copy, brand name, call to action)",
+      "end_text": "Airtasker"
+    },
+    {
+      "start": 15438.4,
+      "end": 15452.3,
+      "confidence": 0.95,
+      "reason": "CVS network-inserted ad (promotional copy, brand name, call to action, store visit)",
+      "end_text": "Store hours vary by location"
+    },
+    {
+      "start": 15453.9,
+      "end": 15481.1,
+      "confidence": 0.95,
+      "reason": "Trashy network-inserted ad (promotional copy, brand name, call to action, URL)",
+      "end_text": "Visit Trashy.io to get started"
+    },
+    {
+      "start": 15482.9,
+      "end": 15517.1,
+      "confidence": 0.95,
+      "reason": "Try Fencing network-inserted ad (promotional copy, brand name, call to action, URL)",
+      "end_text": "tryfencing.org. This is an iHeart Podcast. Guaranteed human"
+    }
+  ]
+}

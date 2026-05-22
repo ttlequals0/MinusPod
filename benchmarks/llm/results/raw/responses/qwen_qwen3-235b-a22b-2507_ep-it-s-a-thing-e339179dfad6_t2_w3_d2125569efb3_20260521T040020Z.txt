@@ -1,0 +1,1 @@
+{"start": 1524.5, "end": 1561.9, "confidence": 0.98, "reason": "Xero sponsor read with promotional language, call to action, and free trial offer", "end_text": "free trial. Conditions apply."}

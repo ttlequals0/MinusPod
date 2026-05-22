@@ -1,0 +1,1 @@
+{"start": 4752.4, "end": 4802.4, "confidence": 0.95, "reason": "Continuation of technical discussion on rivets in rack manufacturing, no promotional content or ad markers present", "end_text": "engineering time, like start to finish."}

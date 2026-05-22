@@ -1,0 +1,11 @@
+{
+  "segments": [
+    {
+      "start": 0.5,
+      "end": 43.4,
+      "confidence": 0.95,
+      "reason": "Carvana host-read ad",
+      "end_text": "pickup fees may apply"
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+{"start": 3360.3, "end": 3975.9, "confidence": 0.05, "reason": "No advertisement segments detected in this window; content consists of continuous comedic monologue about Hantavirus cruise and related topics without any promotional language, sponsor mentions, URLs, promo codes, or transition phrases indicating ad breaks", "end_text": "last thing I'll ever do."}

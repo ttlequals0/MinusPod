@@ -1,0 +1,9 @@
+[
+  {
+    "start": 6367.2,
+    "end": 6395.6,
+    "confidence": 0.95,
+    "reason": "Perplexity, our AI sponsor, trying to flex. Oh, okay, cool. That's what it's doing. It's flexing on us, showing us how smart it is.",
+    "end_text": "how smart it is."
+  }
+]

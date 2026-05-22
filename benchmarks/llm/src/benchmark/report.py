@@ -74,6 +74,15 @@ class ModelStats:
     p99_call_latency_ms: float = 0.0
     max_call_latency_ms: float = 0.0
     json_compliance_mean: float = 0.0
+    # JSON request-mode telemetry. `json_format_used` is logged per call as
+    # "native" (the provider accepted response_format=json_object) or
+    # "prompt_injection" (provider rejected it and we fell back to instructing
+    # JSON in the prompt). Surfacing this helps explain compliance variance:
+    # a low score on a model that needed prompt_injection is a different
+    # signal than the same score with native support.
+    json_format_native_pct: float = 0.0
+    json_format_total: int = 0
+    json_format_primary: str = "n/a"
     parse_failure_rate: float = 0.0
     extraction_method_counts: dict[str, int] = field(default_factory=dict)
     schema_violations_total: int = 0
@@ -98,6 +107,25 @@ class ModelStats:
     @property
     def tokens_per_detected_ad(self) -> float | None:
         return self.output_tokens_total / self.detected_ads_total if self.detected_ads_total > 0 else None
+
+
+# If >=95% of calls used one mode we call that the model's primary, otherwise
+# `mixed`. The threshold matches existing "near-perfect compliance" framing in
+# the report; anything below it is worth surfacing as fallback noise.
+_JSON_FORMAT_PRIMARY_THRESHOLD = 0.95
+
+
+def _json_format_summary(counts: dict[str, int]) -> tuple[str, float]:
+    total = sum(counts.values())
+    if total == 0:
+        return "n/a", 0.0
+    native = counts.get("native", 0)
+    native_pct = native / total
+    if native_pct >= _JSON_FORMAT_PRIMARY_THRESHOLD:
+        return "native", native_pct
+    if (counts.get("prompt_injection", 0) / total) >= _JSON_FORMAT_PRIMARY_THRESHOLD:
+        return "prompt-inject", native_pct
+    return "mixed", native_pct
 
 
 def _dedup_last_write_wins(calls: list[dict]) -> list[dict]:
@@ -239,6 +267,7 @@ def _aggregate(
     call_count_per_model: dict[str, int] = defaultdict(int)
     truncated_per_model: dict[str, int] = defaultdict(int)
     over_1024_per_model: dict[str, int] = defaultdict(int)
+    json_format_counts_per_model: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
     calibration: dict[str, list[tuple[float, bool]]] = defaultdict(list)
     agreement: dict[tuple[str, int], dict[str, int]] = defaultdict(lambda: defaultdict(int))
     detection_buckets: dict[str, dict[str, dict[str, list[bool]]]] = defaultdict(
@@ -272,6 +301,12 @@ def _aggregate(
         # was never captured pre-flag, so we accept 0% on legacy data.
         if rec.get("over_1024_tokens") or out_toks > 1024:
             over_1024_per_model[rec["model"]] += 1
+        # "n/a" is the runner's placeholder when the LLM call errored before a
+        # format could be selected; skip those so the percent reflects only
+        # successful calls.
+        json_format = rec.get("json_format_used")
+        if json_format and json_format != "n/a":
+            json_format_counts_per_model[rec["model"]][json_format] += 1
         ads = rec.get("parsed_ads") or []
         detected_ads_per_model[rec["model"]] += len(ads)
         # Cross-model agreement: count predictions per (episode, window) per model
@@ -385,6 +420,9 @@ def _aggregate(
         ms.avg_f1 = statistics.fmean(f1s) if f1s else 0.0
         stdevs = list(ms.f1_stdev_per_episode.values())
         ms.mean_f1_stdev = statistics.fmean(stdevs) if stdevs else 0.0
+        counts = json_format_counts_per_model[model]
+        ms.json_format_total = sum(counts.values())
+        ms.json_format_primary, ms.json_format_native_pct = _json_format_summary(counts)
         out[model] = ms
     extras = _Extras(
         calibration=dict(calibration),
@@ -453,12 +491,12 @@ def _render_tldr(stats: dict[str, ModelStats], episodes: list[Episode]) -> str:
     lines = ["## TL;DR", "", "### Best Accuracy (F1 @ IoU >= 0.5)", ""]
     lines.append("All models ranked by F1 against human-verified ground truth. Cost includes free-tier models (shown at $0.00).")
     lines.append("")
-    lines.append("| Rank | Model | F1 | Cost / episode | p50 latency | JSON compliance |")
-    lines.append("|------|-------|----|----------------|-------------|-----------------|")
+    lines.append("| Rank | Model | F1 | F1 stdev | Cost / episode | p50 latency | JSON compliance | JSON mode |")
+    lines.append("|------|-------|----|----------|----------------|-------------|-----------------|-----------|")
     for i, s in enumerate(accuracy_rows, 1):
         lines.append(
-            f"| {i} | `{s.model}` | {_avg_f1(s):.3f} | ${s.total_episode_cost:.4f} | "
-            f"{s.p50_call_latency_ms / 1000:.1f}s | {s.json_compliance_mean:.2f} |"
+            f"| {i} | `{s.model}` | {_avg_f1(s):.3f} | {s.mean_f1_stdev:.3f} | ${s.total_episode_cost:.4f} | "
+            f"{s.p50_call_latency_ms / 1000:.1f}s | {s.json_compliance_mean:.2f} | {s.json_format_primary} |"
         )
 
     lines += ["", "### Best Value (F1 per dollar)", ""]
@@ -483,12 +521,12 @@ def _render_tldr(stats: dict[str, ModelStats], episodes: list[Episode]) -> str:
             "(`HTTP-Referer`, `X-Title`); a model showing as free here may bill on your own deployment if those headers are missing."
         )
         lines.append("")
-        lines.append("| Rank | Model | F1 | p50 latency | JSON compliance |")
-        lines.append("|------|-------|----|-------------|-----------------|")
+        lines.append("| Rank | Model | F1 | F1 stdev | p50 latency | JSON compliance | JSON mode |")
+        lines.append("|------|-------|----|----------|-------------|-----------------|-----------|")
         for i, s in enumerate(free_by_f1, 1):
             lines.append(
-                f"| {i} | `{s.model}` | {_avg_f1(s):.3f} | "
-                f"{s.p50_call_latency_ms / 1000:.1f}s | {s.json_compliance_mean:.2f} |"
+                f"| {i} | `{s.model}` | {_avg_f1(s):.3f} | {s.mean_f1_stdev:.3f} | "
+                f"{s.p50_call_latency_ms / 1000:.1f}s | {s.json_compliance_mean:.2f} | {s.json_format_primary} |"
             )
 
     return "\n".join(lines)
@@ -541,7 +579,8 @@ def _render_how_to_read() -> str:
         "| **p50 / p95 latency** | seconds | lower is better, with caveats | Median (p50) and tail (p95) wall-clock response time. **Note**: for models routed through OpenRouter (everything except `claude-*`), this includes OpenRouter's queueing and upstream-provider latency, not just the model itself. Treat as a load/availability indicator, not a model-quality signal. |\n"
         "| **JSON compliance** | 0 to 1 | higher is better | Fraction of responses that parsed as a clean JSON array matching the requested schema. 1.0 = always clean; lower = used object wrappers (`{ads: [...]}`), markdown fences, extra fields like `sponsor`, or required regex fallback to extract. |\n"
         "| **No-ad episode** | PASS / FAIL | PASS desired | Negative-control test on `ep-ai-cloud-essentials` (which has no ads). PASS = zero predictions across all 15 windows. FAIL = the model false-positived on a non-ad segment, with the FP count shown. |\n"
-        "| **F1 stdev** | 0 to 1 | lower means more consistent | Standard deviation of F1 across the four ad-bearing episodes. High stdev = inconsistent across content types. |\n\n"
+        "| **F1 stdev** | 0 to 1 | lower means more consistent | Standard deviation of F1 across the four ad-bearing episodes. High stdev = inconsistent across content types. |\n"
+        "| **JSON mode** | `native` / `prompt-inject` / `mixed` | -- | How the model received its JSON-output instruction. `native` = provider accepted `response_format=json_object` for at least 95% of calls; `prompt-inject` = provider rejected it and the runner fell back to instructing JSON in the prompt for at least 95% of calls; `mixed` = neither path crossed the threshold (sample mostly comes from intermittent provider rejections). Reads from `json_format_used` in `calls.jsonl`. Useful when picking a model whose provider may not support native JSON mode -- a strong `JSON compliance` score from a `prompt-inject` model carries different weight than the same score from a `native` model. |\n\n"
         "### Glossary\n\n"
         "- **IoU (intersection over union)**: how much two time ranges overlap, expressed as `(overlap) / (union)`. 0 means no overlap, 1 means identical ranges. We use IoU >= 0.5 as the threshold for a predicted ad to count as matching a truth ad.\n"
         "- **Trial**: each (model, episode) pair runs 5 trials at temperature 0.0 to surface non-determinism. F1 numbers in tables are averaged across trials.\n"
@@ -720,6 +759,11 @@ def _render_per_model_detail(stats: dict[str, ModelStats]) -> str:
         lines.append(f"- Total cost / episode: **${s.total_episode_cost:.4f}**")
         lines.append(f"- p50 / p95 latency: {s.p50_call_latency_ms / 1000:.2f}s / {s.p95_call_latency_ms / 1000:.2f}s")
         lines.append(f"- JSON compliance: {s.json_compliance_mean:.2f}")
+        lines.append(
+            f"- JSON mode: {s.json_format_primary} "
+            f"({s.json_format_native_pct:.0%} native, "
+            f"{s.json_format_total} calls)"
+        )
         lines.append(f"- Parse failure rate: {s.parse_failure_rate * 100:.1f}%")
         if s.extraction_method_counts:
             counts = ", ".join(f"`{k}`: {v}" for k, v in sorted(s.extraction_method_counts.items()))

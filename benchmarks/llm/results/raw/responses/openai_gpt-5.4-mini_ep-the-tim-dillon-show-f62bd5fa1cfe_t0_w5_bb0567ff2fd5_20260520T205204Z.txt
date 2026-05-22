@@ -1,0 +1,1 @@
+{"start":2085.5,"end":2085.5,"confidence":0.0,"reason":"No advertisement segment found in this window; transcript is continuous show content about screens and children, with no sponsor pitch or transition like 'let's take a break'.","end_text":"No ad detected"}

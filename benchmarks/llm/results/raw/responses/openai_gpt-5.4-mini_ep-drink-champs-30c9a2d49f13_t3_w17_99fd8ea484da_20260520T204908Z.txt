@@ -1,0 +1,1 @@
+{"start":7122.6,"end":7762.0,"confidence":0.2,"reason":"No clear ad segment detected in this transcript window; conversation is continuous interview banter with no sponsor pitch, promo code, URL, or transition like 'let's take a break'. Mentions of brands like Tinder, Modelo, and drinks are part of discussion, not promotions.","end_text":"Nigerian that ran fast"}

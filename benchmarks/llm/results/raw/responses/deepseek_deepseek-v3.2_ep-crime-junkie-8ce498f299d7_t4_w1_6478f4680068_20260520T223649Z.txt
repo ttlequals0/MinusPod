@@ -1,0 +1,1 @@
+{"start": 1035.7, "end": 1035.7, "confidence": 0.95, "reason": "Host-read ad for Rocket Money, includes promo code and call to action", "end_text": "rocketmoney.com slash crime junkie"}

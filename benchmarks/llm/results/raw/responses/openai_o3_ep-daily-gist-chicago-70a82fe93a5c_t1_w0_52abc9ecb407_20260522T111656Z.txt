@@ -1,0 +1,1 @@
+{"segments":[{"start":54.1,"end":64.7,"confidence":0.95,"reason":"Old National Bank sponsor read with URL and FDIC mention","end_text":"commercial banking. Member FDIC."},{"start":506.4,"end":548.5,"confidence":0.9,"reason":"Promotional break for Crain's Weekly News Quiz introduced by \"right after this\"","end_text":"you get your podcasts."}]}

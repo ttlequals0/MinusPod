@@ -1,0 +1,1 @@
+{"start": 2263.4, "end": 2267.2, "confidence": 0.3, "reason": "Very short segment with unclear context; 'Take one' repeated but no promotional content or sponsor mention", "end_text": "or something like that."}

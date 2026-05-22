@@ -1,0 +1,1 @@
+{"start": 8242.2, "end": 8359.2, "confidence": 0.95, "reason": "possible ad segment mentioning Diana Pasolka's book American Cosmic and other content", "end_text": ""}

@@ -1,8 +1,13 @@
 """Reuse MinusPod's pricing_fetcher for both runtime cost tracking and snapshots.
 
-Pricing source of truth is MinusPod's ``src/pricing_fetcher.py`` (LiteLLM-backed).
-The benchmark snapshots the fetched table at run time so report regeneration can
-recompute costs at consistent prices regardless of when calls were made.
+`fetch_current` unions two sources from MinusPod's ``src/pricing_fetcher.py``:
+LiteLLM's curated JSON (covers anthropic_direct and most non-OpenRouter
+providers) and OpenRouter's ``/api/v1/models`` endpoint (authoritative for
+``openrouter/<slug>`` entries and indexes new models faster than LiteLLM).
+OpenRouter wins on key collisions, but only when its entry carries non-zero
+prices, so an OR entry with missing pricing cannot clobber a valid LiteLLM
+price. The merged table is snapshotted at run time so report regeneration
+recomputes costs at consistent prices regardless of when calls were made.
 """
 from __future__ import annotations
 
@@ -13,7 +18,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from config import normalize_model_key  # type: ignore[import-not-found]
-from pricing_fetcher import fetch_litellm_pricing  # type: ignore[import-not-found]
+from pricing_fetcher import fetch_litellm_pricing, fetch_openrouter_pricing  # type: ignore[import-not-found]
 
 logger = logging.getLogger(__name__)
 
@@ -40,17 +45,32 @@ class PricingSnapshot:
 
 
 def fetch_current() -> PricingSnapshot:
-    raw = fetch_litellm_pricing()
-    entries = [
-        ModelPrice(
-            match_key=item["match_key"],
-            raw_model_id=item.get("raw_model_id", ""),
-            input_cost_per_mtok=float(item.get("input_cost_per_mtok", 0.0)),
-            output_cost_per_mtok=float(item.get("output_cost_per_mtok", 0.0)),
-        )
-        for item in raw
-    ]
-    return PricingSnapshot(captured_at=_utc_now_microseconds(), entries=entries)
+    by_key: dict[str, ModelPrice] = {}
+    for item in fetch_litellm_pricing():
+        entry = _to_model_price(item)
+        by_key[entry.match_key] = entry
+    try:
+        or_items = fetch_openrouter_pricing()
+    except Exception as exc:
+        logger.warning("OpenRouter pricing fetch failed; falling back to LiteLLM only: %s", exc)
+        or_items = []
+    for item in or_items:
+        entry = _to_model_price(item)
+        # OR returns 0.0 for models with missing pricing fields. Letting those
+        # win on a collision would silently zero out a valid LiteLLM price.
+        if entry.input_cost_per_mtok == 0.0 and entry.output_cost_per_mtok == 0.0 and entry.match_key in by_key:
+            continue
+        by_key[entry.match_key] = entry
+    return PricingSnapshot(captured_at=_utc_now_microseconds(), entries=list(by_key.values()))
+
+
+def _to_model_price(item: dict) -> ModelPrice:
+    return ModelPrice(
+        match_key=item["match_key"],
+        raw_model_id=item.get("raw_model_id", ""),
+        input_cost_per_mtok=float(item.get("input_cost_per_mtok", 0.0)),
+        output_cost_per_mtok=float(item.get("output_cost_per_mtok", 0.0)),
+    )
 
 
 def write_snapshot(snapshot: PricingSnapshot, snapshots_dir: Path) -> Path:

@@ -1,0 +1,1 @@
+{"start":7537.6,"end":7743.9,"confidence":0.98,"reason":"Host transition 'let's take our final break' followed by a Trusted Tech sponsor read promoting Microsoft 365 licensing services, July 1st price increase, and support services","end_text":"You will be too"}

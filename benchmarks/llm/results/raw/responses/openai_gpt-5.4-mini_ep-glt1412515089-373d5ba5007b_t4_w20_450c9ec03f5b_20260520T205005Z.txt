@@ -1,0 +1,1 @@
+{"start":8980.5,"end":9008.6,"confidence":0.91,"reason":"Partial platform/promo segment begins with an ad-like story transition into Lockheed Martin job mention, but no clear sponsor copy in this window; likely continuation from previous sponsored content not fully captured","end_text":"hire me on the spot. Then"}

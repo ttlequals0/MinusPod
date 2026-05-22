@@ -1,0 +1,9 @@
+[
+  {
+    "start": 6300.0,
+    "end": 6318.1,
+    "confidence": 1.0,
+    "reason": "OnDeck and Public sponsor reads",
+    "end_text": "take it seriously"
+  }
+]

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 6208.7,
+    "end": 6318.1,
+    "confidence": 1.0,
+    "reason": "A multi-part ad break featuring Airtasker, a cross-promotion for the 'Decisions Decisions' podcast, OnDeck, and Public.",
+    "end_text": "who take it seriously."
+  }
+]

@@ -1,0 +1,16 @@
+[
+  {
+    "start": 2324.6,
+    "end": 2404.4,
+    "confidence": 0.98,
+    "reason": "Host-read ad for BlueChew with promotional language, URL, and promo code.",
+    "end_text": "and we thank BlueChew for sponsoring the podcast."
+  },
+  {
+    "start": 2404.7,
+    "end": 2450.0,
+    "confidence": 0.98,
+    "reason": "Host-read ad for ZipRecruiter with promotional language, URL, and promo code.",
+    "end_text": "Meet your match on ZipRecruiter."
+  }
+]

@@ -1,0 +1,1 @@
+[{"start": 15323.9, "end": 15517.1, "confidence": 0.97, "reason": "End-of-episode outro followed by network-inserted ads for Airtasker, CVS, Trashy, and Try Fencing", "end_text": "This is an iHeart Podcast"}]

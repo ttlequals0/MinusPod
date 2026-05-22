@@ -1,0 +1,32 @@
+{
+  "ads": [
+    {
+      "start": 15261.8,
+      "end": 15285.2,
+      "confidence": 0.95,
+      "reason": "discount code mention",
+      "end_text": "discount code, discount code, discount code"
+    },
+    {
+      "start": 15416.7,
+      "end": 15452.3,
+      "confidence": 0.95,
+      "reason": "CVS retail ad",
+      "end_text": "cvs.com or just come by our store. We can't wait to meet you. Store hours vary by location."
+    },
+    {
+      "start": 15453.9,
+      "end": 15481.1,
+      "confidence": 0.95,
+      "reason": "Trashy retail ad",
+      "end_text": "rewards cash back for every bag. And now, with Trashy Unlimited, you get unlimited bags for just $48 your first year. Clean out, donate, earn rewards. Visit Trashy.io to get started."
+    },
+    {
+      "start": 15482.9,
+      "end": 15512.2,
+      "confidence": 0.95,
+      "reason": "Try Fencing retail ad",
+      "end_text": "tryfencing.org. This is an iHeart Podcast. Guaranteed human."
+    }
+  ]
+}

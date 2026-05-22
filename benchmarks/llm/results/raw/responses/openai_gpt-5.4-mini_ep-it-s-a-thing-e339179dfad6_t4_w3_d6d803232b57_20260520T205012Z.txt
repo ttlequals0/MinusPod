@@ -1,0 +1,1 @@
+{"start":1524.5,"end":1602.6,"confidence":0.99,"reason":"Host-read Xero sponsor segment with promotional copy ('Xero, the accounting platform for small businesses', 'free trial') followed by platform ads for Acast and promo for Wrong Turns; includes ad transition and clear marketing language","end_text":"Acast.com"}

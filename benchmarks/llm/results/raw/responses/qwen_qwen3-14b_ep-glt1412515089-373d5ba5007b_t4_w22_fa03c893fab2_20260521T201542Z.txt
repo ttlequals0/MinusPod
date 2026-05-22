@@ -1,0 +1,1 @@
+{"start": 9741.1, "end": 9750.4, "confidence": 0.9, "reason": "timemachine.love promotion", "end_text": "curricula."}

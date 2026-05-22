@@ -1,0 +1,1 @@
+{"segments": [{"start": 5568.0, "end": 5596.3, "confidence": 1.0, "reason": "Netflix 'Remarkably Bright Creatures' advertisement with call to action 'only on Netflix'", "end_text": "only on Netflix"}]}

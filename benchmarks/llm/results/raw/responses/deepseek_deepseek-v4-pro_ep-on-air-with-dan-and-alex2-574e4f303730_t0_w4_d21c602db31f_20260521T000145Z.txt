@@ -1,0 +1,1 @@
+{"start": 1690.2, "end": 1747.7, "confidence": 0.95, "reason": "Finnair domestic flight alcohol policy discussion", "end_text": "that's all it was i mean"}

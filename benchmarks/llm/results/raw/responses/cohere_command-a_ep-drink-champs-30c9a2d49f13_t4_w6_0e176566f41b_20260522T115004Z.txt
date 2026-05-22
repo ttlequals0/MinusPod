@@ -1,0 +1,1 @@
+{"start": 2520.2, "end": 2534.5, "confidence": 0.0, "reason": "not an ad, show content", "end_text": "thing I know. That's the only goddamn thing"}

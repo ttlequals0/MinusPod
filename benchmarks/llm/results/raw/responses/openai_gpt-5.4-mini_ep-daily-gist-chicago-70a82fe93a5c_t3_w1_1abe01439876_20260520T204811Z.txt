@@ -1,0 +1,1 @@
+{"start":506.4,"end":548.5,"confidence":0.98,"reason":"Host transitions with \"right after this\" into a clearly promotional Crain's Daily Gist network segment encouraging listeners to take the weekly news quiz at chicagobusiness.com and follow the podcast; contains CTA and URL.","end_text":"This is the Crain's Daily Gist with Amy Guth"}

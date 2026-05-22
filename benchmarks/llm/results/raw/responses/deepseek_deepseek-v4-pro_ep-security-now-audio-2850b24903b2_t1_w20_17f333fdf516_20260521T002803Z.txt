@@ -1,0 +1,11 @@
+{
+  "segments": [
+    {
+      "start": 8380.6,
+      "end": 9000.0,
+      "confidence": 0.05,
+      "reason": "No advertisement segments detected. Content is editorial discussion about Google Chrome, AI models, Mozilla, and web standards. No sponsor names, promo codes, product pitches, or calls to action found in this window.",
+      "end_text": "player in the internet,"
+    }
+  ]
+}

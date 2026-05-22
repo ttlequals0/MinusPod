@@ -1,0 +1,25 @@
+{
+  "ads": [
+    {
+      "start": 821.4,
+      "end": 910.1,
+      "confidence": 0.98,
+      "reason": "Sponsor reads for Capital One, BetterHelp, and Amazon Health AI with promotional language, URLs and discount codes",
+      "end_text": "just got less painful."
+    },
+    {
+      "start": 912.2,
+      "end": 990.3,
+      "confidence": 0.97,
+      "reason": "Spectrum Business sponsor read with product pitch, price guarantee, and call to action URL",
+      "end_text": "not a time suck."
+    },
+    {
+      "start": 990.6,
+      "end": 1018.9,
+      "confidence": 0.96,
+      "reason": "Rinse laundry service sponsor read with promotional description and URL",
+      "end_text": "rinse.com. Rinse."
+    }
+  ]
+}

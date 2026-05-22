@@ -1,0 +1,1 @@
+{"start":821.4,"end":1021.1,"confidence":0.99,"reason":"Multiple host-read and inserted sponsor spots: Capital One, BetterHelp, Amazon Health AI, Spectrum Business, and Rinse, with promo language, URLs, and calls to action; starts with 'This episode is brought to you by' and ends before show content resumes.","end_text":"It's time to be great."}

@@ -1,0 +1,1 @@
+"displayed in the transcript. No ad segments were identified based on the detection rules provided."

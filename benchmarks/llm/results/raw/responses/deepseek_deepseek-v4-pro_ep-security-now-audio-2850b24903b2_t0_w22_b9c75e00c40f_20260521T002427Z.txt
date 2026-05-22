@@ -1,0 +1,18 @@
+{
+  "ad_segments": [
+    {
+      "start": 9259.3,
+      "end": 9290.5,
+      "confidence": 0.95,
+      "reason": "Leo Laporte promotes 'This Week in Tech' podcast, acting as a produced cross-promotion for the TWiT Network.",
+      "end_text": "from the TWiT Network. Thank you."
+    },
+    {
+      "start": 9344.4,
+      "end": 9374.4,
+      "confidence": 1.0,
+      "reason": "Mint Mobile ad read by Ryan Reynolds with promotional offer, URL, and legal disclaimer.",
+      "end_text": "full terms at mintmobile.com."
+    }
+  ]
+}

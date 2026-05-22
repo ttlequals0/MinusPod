@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1036.2,
+    "end": 1129.6,
+    "confidence": 0.95,
+    "reason": "SoFi and LinkedIn sponsor reads (merged due to <15s gap)",
+    "end_text": "at LinkedIn.com slash all-in-one"
+  }
+]

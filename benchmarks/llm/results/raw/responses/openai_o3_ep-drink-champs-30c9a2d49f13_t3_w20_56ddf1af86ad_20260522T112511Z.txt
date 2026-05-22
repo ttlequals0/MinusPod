@@ -1,0 +1,1 @@
+{"start": 8724.9, "end": 8869.0, "confidence": 0.97, "reason": "Back-to-back ad break featuring AirTasker host-read, cross-promo for Decisions Decisions podcast sponsored by Gilead, OnDeck loan spot, Public investing platform mention, and CastingWords tagline", "end_text": "Transcription by CastingWords"}

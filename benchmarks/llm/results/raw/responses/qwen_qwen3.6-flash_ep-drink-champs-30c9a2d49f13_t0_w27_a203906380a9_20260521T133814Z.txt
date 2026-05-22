@@ -1,0 +1,1 @@
+[{"start": 11335.2, "end": 11455.4, "confidence": 0.95, "reason": "Airtasker, Decisions Decisions cross-promo, and OnDeck sponsor reads", "end_text": "an amount subject to lender approval."}, {"start": 11513.7, "end": 11536.6, "confidence": 0.85, "reason": "Public.com short sponsor read", "end_text": "Disclosures available at public.com slash disclosures."}]

@@ -1,0 +1,11 @@
+{
+  "segments": [
+    {
+      "start": 7173.7,
+      "end": 7196.8,
+      "confidence": 1.0,
+      "reason": "Netflix's Remarkably Bright Creatures sponsored message",
+      "end_text": "only on Netflix."
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1341.5,
+    "end": 1363.8,
+    "confidence": 0.95,
+    "reason": "Host mentions retirement and upcoming game, but no promotional content found",
+    "end_text": "come back. We're going to renegotiate your money."
+  }
+]

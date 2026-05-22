@@ -1,0 +1,1 @@
+[{"start": 591.3, "end": 784.6, "confidence": 0.98, "reason": "Host transition to sponsor reads for Parloa, Capital One, Zinn, and Lemonada Media cross-promo", "end_text": "Let's get to the briefs."}]

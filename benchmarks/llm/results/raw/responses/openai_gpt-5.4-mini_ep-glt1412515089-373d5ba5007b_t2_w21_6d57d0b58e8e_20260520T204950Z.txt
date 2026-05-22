@@ -1,0 +1,1 @@
+{"start":147.0,"end":157.0,"confidence":0.91,"reason":"Perplexity platform ad shown in episode description with promo language and URL (\"Download the app or ask Perplexity anything at https://pplx.ai/rogan\"); window contains only continuation notes, so this ad continues from previous segment","end_text":"continues from previous"}

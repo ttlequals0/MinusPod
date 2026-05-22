@@ -1,0 +1,1 @@
+[{"start": 537.0, "end": 654.3, "confidence": 0.98, "reason": "Ad break with transition 'We'll be right back', featuring Thrive Cosmetics sponsor read and PC Richard & Son/Mattress Warehouse network retail ad", "end_text": "Asima dot HTML for details."}]

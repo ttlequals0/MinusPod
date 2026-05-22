@@ -1,0 +1,1 @@
+[{"start": 1439.2, "end": 1665.9, "confidence": 0.98, "reason": "Host-read sponsor segment for Mint Mobile, Aura Frames, Colgate, and Skinny Pop", "end_text": "Skinny Pop."}]

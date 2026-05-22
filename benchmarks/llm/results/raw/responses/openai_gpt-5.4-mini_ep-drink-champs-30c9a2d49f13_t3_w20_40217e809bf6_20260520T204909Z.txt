@@ -1,0 +1,1 @@
+{"start":8724.9,"end":8831.4,"confidence":0.98,"reason":"Produced ad break begins with AirTasker promo and continues into sponsored podcast promos for Care for the Culture/Gilead Sciences, OnDeck, and Public; includes direct calls to action and brand names","end_text":"the investing platform for those who take it seriously"}

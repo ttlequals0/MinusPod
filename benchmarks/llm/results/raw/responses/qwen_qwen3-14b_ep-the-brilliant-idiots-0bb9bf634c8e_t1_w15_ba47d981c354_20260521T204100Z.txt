@@ -1,0 +1,1 @@
+{"start": 6889.9, "end": 6905.8, "confidence": 0.0, "reason": "not an ad", "end_text": "Tell me why."}

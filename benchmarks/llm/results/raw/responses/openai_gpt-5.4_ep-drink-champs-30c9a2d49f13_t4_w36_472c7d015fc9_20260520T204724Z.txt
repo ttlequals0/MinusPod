@@ -1,0 +1,1 @@
+{"start":15388.3,"end":15452.3,"confidence":0.98,"reason":"Back-to-back network-inserted ads for Airtasker and CVS with explicit brand pitches and URLs/calls to action; merged because gap is under 15 seconds","end_text":"Store hours vary by location."}

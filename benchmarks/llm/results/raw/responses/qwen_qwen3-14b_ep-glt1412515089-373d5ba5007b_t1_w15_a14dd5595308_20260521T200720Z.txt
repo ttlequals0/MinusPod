@@ -1,0 +1,2 @@
+."
+{"start": 6395.6, "end": 6414.8, "confidence": 0.95, "reason": "Perplexity sponsor read", "end_text": "flexing on us, showing us how smart it is"}

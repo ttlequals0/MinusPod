@@ -1,0 +1,3 @@
+[
+  {"start": 13669.1, "end": 13815.9, "confidence": 0.95, "reason": "Multiple consecutive sponsor reads and cross-promo (Airtasker, Decisions Decisions/Gilead, OnDeck, Public)", "end_text": "back test it again"}
+]

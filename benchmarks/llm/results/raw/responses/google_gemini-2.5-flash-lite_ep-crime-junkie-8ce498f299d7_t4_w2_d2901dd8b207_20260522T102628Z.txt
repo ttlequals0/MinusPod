@@ -1,0 +1,16 @@
+[
+  {
+    "start": 1036.2,
+    "end": 1097.9,
+    "confidence": 0.98,
+    "reason": "Host-read ad for SoFi, a personal loan provider, including a vanity URL and call to action.",
+    "end_text": "NMLS 696891."
+  },
+  {
+    "start": 1099.8,
+    "end": 1129.6,
+    "confidence": 0.97,
+    "reason": "Host-read ad for LinkedIn Premium, promoting its features for small businesses with a vanity URL and call to action.",
+    "end_text": "slash all-in-one."
+  }
+]

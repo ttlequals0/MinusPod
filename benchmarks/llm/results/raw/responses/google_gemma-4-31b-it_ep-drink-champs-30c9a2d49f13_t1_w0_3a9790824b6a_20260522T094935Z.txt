@@ -1,0 +1,1 @@
+{"start": 0.0, "end": 42.2, "confidence": 0.98, "reason": "iHeart Podcast platform pre-roll and Airtasker ad", "end_text": "get anything done"}

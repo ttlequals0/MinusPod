@@ -1,0 +1,18 @@
+{
+  "segments": [
+    {
+      "start": 54.1,
+      "end": 64.7,
+      "confidence": 0.98,
+      "reason": "Old National Bank sponsor ad with URL and call to action",
+      "end_text": "Member FDIC."
+    },
+    {
+      "start": 506.4,
+      "end": 548.5,
+      "confidence": 0.95,
+      "reason": "Crain's Weekly News Quiz promotional segment",
+      "end_text": "with Amy Guth."
+    }
+  ]
+}

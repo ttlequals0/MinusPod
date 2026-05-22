@@ -1,0 +1,1 @@
+{"start": 5441.3, "end": 6063.9, "confidence": 0.0, "reason": "No advertisement segments found in this window. All content appears to be organic podcast conversation and interviews.", "end_text": ""}

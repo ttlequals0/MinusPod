@@ -1,0 +1,30 @@
+[
+    {
+        "start": 3503.7,
+        "end": 3528.5,
+        "confidence": 0.99,
+        "reason": "Airtasker sponsor read with call to action (URL and app download mention)",
+        "end_text": "Airtasker, get anything done"
+    },
+    {
+        "start": 3528.8,
+        "end": 3556.2,
+        "confidence": 0.98,
+        "reason": "Cross-promotion for 'Decisions Decisions' podcast with sponsor attribution (Gilead Sciences)",
+        "end_text": "podcasts. Sponsored by Care for the Culture from Gilead Sciences"
+    },
+    {
+        "start": 3578.1,
+        "end": 3608.0,
+        "confidence": 0.99,
+        "reason": "OnDeck small business line of credit ad with URL (OnDeck.com) and loan details",
+        "end_text": "All amounts subject to lender approval"
+    },
+    {
+        "start": 3608.5,
+        "end": 3650.4,
+        "confidence": 0.99,
+        "reason": "Public investing platform ad with call to action (public.com slash disclosures) and product pitch",
+        "end_text": "Transcription by CastingWords"
+    }
+]

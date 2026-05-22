@@ -1,0 +1,25 @@
+{
+  "ads": [
+    {
+      "start": 3358.6,
+      "end": 3376.2,
+      "confidence": 0.95,
+      "reason": "Platform-inserted pre-roll ad: 'Thank you for watching'",
+      "end_text": "Thank you for watching."
+    },
+    {
+      "start": 3382.8,
+      "end": 3440.0,
+      "confidence": 0.95,
+      "reason": "Platform-inserted pre-roll ad: 'Thank you for watching' repeated",
+      "end_text": "Akito continues."
+    },
+    {
+      "start": 3862.5,
+      "end": 3879.8,
+      "confidence": 0.95,
+      "reason": "Platform-inserted post-roll ad: 'Thank you for watching'",
+      "end_text": "Thank you for watching."
+    }
+  ]
+}

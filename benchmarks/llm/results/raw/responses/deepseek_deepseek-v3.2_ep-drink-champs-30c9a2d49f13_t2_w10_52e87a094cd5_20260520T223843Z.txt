@@ -1,0 +1,1 @@
+{"start": 4800.0, "end": 4800.0, "confidence": 0.0, "reason": "No ad content in this transcript segment. The conversation is about coaching college football and player payments.", "end_text": "No ad content"}

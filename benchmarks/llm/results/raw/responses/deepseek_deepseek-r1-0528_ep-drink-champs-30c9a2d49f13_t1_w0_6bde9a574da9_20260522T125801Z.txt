@@ -1,0 +1,9 @@
+[
+  {
+    "start": 0.0,
+    "end": 150.5,
+    "confidence": 1.0,
+    "reason": "Consecutive pre-roll ads: Airtasker, Care for the Culture (Gilead Sciences), Nissan Rogue, Shopify",
+    "end_text": "Shopify.com slash B-E-N"
+  }
+]

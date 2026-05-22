@@ -1,0 +1,7 @@
+{
+  "reason": "No promotional language detected. Content is conversational about personal stories, McDonald's, and Epstein files without any sponsor mentions, URLs, promo codes, or calls to action.",
+  "confidence": 1.0,
+  "end_text": "Soylent Green. What's Soylent Green? I'll tell you later. It's a longer story. It's a movie that predicts.",
+  "end": 9852.4,
+  "start": 9228.0
+}

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 11335.2,
+    "end": 11455.4,
+    "confidence": 0.98,
+    "reason": "Multi-ad block: Airtasker sponsor read, Decisions Decisions podcast cross-promo, and OnDeck small business line of credit ad",
+    "end_text": "subject to lender approval"
+  }
+]

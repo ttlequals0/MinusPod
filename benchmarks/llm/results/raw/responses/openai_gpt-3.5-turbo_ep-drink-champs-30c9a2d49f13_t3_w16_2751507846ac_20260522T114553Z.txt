@@ -1,0 +1,7 @@
+{
+	"start": 1120.0,
+	"end": 1140.0,
+	"confidence": 0.95,
+	"reason": "Potential sponsor mention",
+	"end_text": "I was coming. I was supposed to wear the ring."
+}

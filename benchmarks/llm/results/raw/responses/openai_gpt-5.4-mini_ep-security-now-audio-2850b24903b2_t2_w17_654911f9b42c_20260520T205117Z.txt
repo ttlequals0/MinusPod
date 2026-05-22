@@ -1,0 +1,1 @@
+{"start":7537.6,"end":7743.9,"confidence":0.98,"reason":"Final break transition plus host-read Trusted Tech sponsor segment for Microsoft 365 licensing, including 'This episode of Security Now brought to you by Trusted Tech' and sales pitch for their services.","end_text":"You will be too"}

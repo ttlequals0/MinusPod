@@ -1,0 +1,2 @@
+s.
+{"start": 2280.0, "end": 2285.1, "confidence": 0.9, "reason": "Platform-inserted ad choice disclaimer", "end_text": "adchoices"}

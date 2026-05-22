@@ -1,0 +1,1 @@
+{"start":3428.1,"end":3456.1,"confidence":0.98,"reason":"Arizona State University host-read style sponsor segment with promotional language about programs, rankings, and a call to action to explore more programs at asunline.asu.edu; resumes after show wrap-up, so this is a post-roll ad","end_text":"more than 350 programs at asunline.asu.edu"}

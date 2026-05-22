@@ -1,0 +1,32 @@
+{
+  "ads": [
+    {
+      "start": 1450.9,
+      "end": 1459.5,
+      "confidence": 0.85,
+      "reason": "Short brand tagline: 'airtasker knows your plate is full...' promotional language with call to action",
+      "end_text": "or download the app"
+    },
+    {
+      "start": 1460.1,
+      "end": 1524.8,
+      "confidence": 0.95,
+      "reason": "Cross-promotion for Decisions Decisions podcast, sponsored by Care for the Culture from Gilead Sciences",
+      "end_text": "sponsored by Care for the Culture from Gilead Sciences"
+    },
+    {
+      "start": 1525.5,
+      "end": 1553.8,
+      "confidence": 0.95,
+      "reason": "OnDeck small business line of credit ad with URL and call to action",
+      "end_text": "does not lend in North Dakota"
+    },
+    {
+      "start": 1555.6,
+      "end": 1629.0,
+      "confidence": 0.98,
+      "reason": "BetMGM sportsbook ad with extensive promotional language, app download, and gambling helpline disclaimers",
+      "end_text": "with Kansas Crossing Casino and Hotel"
+    }
+  ]
+}

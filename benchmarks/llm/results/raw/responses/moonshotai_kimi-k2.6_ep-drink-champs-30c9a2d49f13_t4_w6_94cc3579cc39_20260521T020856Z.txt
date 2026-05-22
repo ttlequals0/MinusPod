@@ -1,0 +1,1 @@
+{"start": 2520.2, "end": 3137.2, "confidence": 0.0, "reason": "No promotional language, sponsor mentions, URLs, promo codes, or calls to action detected in this window. Gaps in transcript lack promotional content and appear to be normal production pauses.", "end_text": "genius and madness. Right, right, right."}

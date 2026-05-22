@@ -1,0 +1,1 @@
+[{"start": 1.6, "end": 77.2, "confidence": 0.98, "reason": "Platform pre-roll and cross-promotions (Acast, Wrong Turns, Formative)", "end_text": "leaders of tomorrow."}]

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 5420.4,
+    "end": 5441.4,
+    "confidence": 0.95,
+    "reason": "The segment contains repeated instances of 'promo code, discount code' which is a strong indicator of an advertisement, even without a specific product or URL mentioned.",
+    "end_text": "discount code, discount code"
+  }
+]

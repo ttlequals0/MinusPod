@@ -1,0 +1,1 @@
+{"start":2412.8,"end":2460.5,"confidence":0.99,"reason":"HealthCast by Stony Brook Medicine platform promo followed by PC Richard & Son / Aseema Lease to Own sponsor ad with product pitch, Memorial Day Sale, and call to action","end_text":"P.C. Richard & Son, family owned and operated"}

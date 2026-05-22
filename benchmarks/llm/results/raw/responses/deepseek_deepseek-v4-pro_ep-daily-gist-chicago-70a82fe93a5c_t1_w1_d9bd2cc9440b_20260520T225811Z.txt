@@ -1,0 +1,11 @@
+{
+  "segments": [
+    {
+      "start": 506.4,
+      "end": 548.5,
+      "confidence": 0.95,
+      "reason": "Crain's Daily Gist self-promotion and news quiz ad",
+      "end_text": "Crain's Daily Gist with Amy Guth"
+    }
+  ]
+}

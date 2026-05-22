@@ -1,0 +1,1 @@
+{"start":5019.7,"end":5044.2,"confidence":0.81,"reason":"The episode appears to be in the middle of a sponsor/promo block tied to the show description materials and external links, but no clear spoken promo copy is present in this window; treated as a likely continuation of an inserted ad break from the prior segment.","end_text":"asian man black woman"}

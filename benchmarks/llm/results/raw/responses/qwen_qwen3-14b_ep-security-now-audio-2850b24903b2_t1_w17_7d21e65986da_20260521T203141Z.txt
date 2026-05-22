@@ -1,0 +1,4 @@
+w.
+{
+
+":[{":"start"  ,"end"  :"", "confidence": 0.95, "reason": "Trusted Tech sponsor read with product pitch and testimonial", "end_text": "you will be too."}

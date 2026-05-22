@@ -1,0 +1,152 @@
+{
+  "segments": [
+  {
+    "start": 0.0,
+    "end": 19.5,
+    "confidence": 0.95,
+    "reason": "No promotional language detected in this segment.",
+    "end_text": "I'm a legendary Queens rapper. He's a Miami hip-hop pioneer."
+  },
+  {
+    "start": 20.0,
+    "end": 42.2,
+    "confidence": 0.95,
+    "reason": "No promotional language detected in this segment.",
+    "end_text": "I'm so pumped because Shopify is going to show up at our Black Effect Podcast Festival this year in a big way for all of our small Black-owned businesses that partner with us."
+  },
+  {
+    "start": 42.9,
+    "end": 109.0,
+    "confidence": 0.95,
+    "reason": "No promotional language detected in this segment.",
+    "end_text": "I'm going to build your store, own your audience, and create something that lasts."
+  },
+  {
+    "start": 109.0,
+    "end": 124.1,
+    "confidence": 0.95,
+    "reason": "No promotional language detected in this segment.",
+    "end_text": "I'm going to build your store, own your audience, and create something that lasts."
+  },
+  {
+    "start": 124.6,
+    "end": 150.5,
+    "confidence": 0.95,
+    "reason": "No promotional language detected in this segment.",
+    "end_text": "Start now at Shopify.com slash B-E-N."
+  },
+  {
+    "start": 150.5,
+    "end": 250.0,
+    "confidence": 0.95,
+    "reason": "No promotional language detected in this segment.",
+    "end_text": "Super Bowl champion."
+  },
+  {
+    "start": 250.0,
+    "end": 266.3,
+    "confidence": 0.95,
+    "reason": "No promotional language detected in this segment.",
+    "end_text": "My favorite, too."
+  },
+  {
+    "start": 266.3,
+    "end": 287.2,
+    "confidence": 0.95,
+    "reason": "No promotional language detected in this segment.",
+    "end_text": "I'm the baby."
+  },
+  {
+    "start": 287.2,
+    "end": 304.5,
+    "confidence": 0.95,
+    "reason": "No promotional language detected in this segment.",
+    "end_text": "I'm going to play in the NFL on Monday Night Football."
+  },
+  {
+    "start": 304.5,
+    "end": 340.5,
+    "confidence": 0.95,
+    "reason": "No promotional language detected in this segment.",
+    "end_text": "I'm going to play in the NFL on Monday Night Football."
+  },
+  {
+    "start": 340.5,
+    "end": 356.2,
+    "confidence": 0.95,
+    "reason": "No promotional language detected in this segment.",
+    "end_text": "I'm going to play in the NFL on Monday Night Football."
+  },
+  {
+    "start": 356.2,
+    "end": 385.1,
+    "confidence": 0.95,
+    "reason": "No promotional language detected in this segment.",
+    "end_text": "I'm going to play in the NFL on Monday Night Football."
+  },
+  {
+    "start": 385.1,
+    "end": 400.6,
+    "confidence": 0.95,
+    "reason": "No promotional language detected in this segment.",
+    "end_text": "Thank you for watching."
+  },
+  {
+    "start": 400.6,
+    "end": 428.4,
+    "confidence": 0.95,
+    "reason": "No promotional language detected in this segment.",
+    "end_text": "New York is a concrete jungle, right?"
+  },
+  {
+    "start": 428.8,
+    "end": 456.3,
+    "confidence": 0.95,
+    "reason": "No promotional language detected in this segment.",
+    "end_text": "Orlando. Orlando, okay."
+  },
+  {
+    "start": 456.3,
+    "end": 484.8,
+    "confidence": 0.95,
+    "reason": "No promotional language detected in this segment.",
+    "end_text": "Plymouth, Apopka."
+  },
+  {
+    "start": 484.8,
+    "end": 485.0,
+    "confidence": 0.95,
+    "reason": "No promotional language detected in this segment.",
+    "end_text": "Zellwood, where Sammy Smith is from."
+  },
+  {
+    "start": 485.0,
+    "end": 506.2,
+    "confidence": 0.95,
+    "reason": "No promotional language detected in this segment.",
+    "end_text": "Duval County is a rival or an ally?"
+  },
+  {
+    "start": 506.2,
+    "end": 532.5,
+    "confidence": 0.95,
+    "reason": "No promotional language detected in this segment.",
+    "end_text": "Duval County is a rival or an ally."
+  },
+  {
+    "start": 532.5,
+    "end": 559.2,
+    "confidence": 0.95,
+    "reason": "No promotional language detected in this segment.",
+    "end_text": "Duval County is a rival or an ally."
+  },
+  {
+    "start": 559.2,
+    "end": 597.9,
+    "confidence": 0.95,
+    "reason": "No promotional language detected in this segment.",
+    "end_text": "We'll see you next time."
+  }
+]
+  
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               

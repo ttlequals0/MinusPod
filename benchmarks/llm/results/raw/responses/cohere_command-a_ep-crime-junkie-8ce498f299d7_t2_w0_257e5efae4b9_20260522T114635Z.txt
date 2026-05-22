@@ -1,0 +1,1 @@
+{"start": 0.0, "end": 98.4, "confidence": 0.95, "reason": "Multiple sponsor reads: Vitel Global, LinkedIn Premium, Hertz", "end_text": "newest fleet yet at Hertz.com"}

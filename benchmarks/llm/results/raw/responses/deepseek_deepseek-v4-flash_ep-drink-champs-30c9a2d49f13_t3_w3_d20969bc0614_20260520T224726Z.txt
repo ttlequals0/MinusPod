@@ -1,0 +1,7 @@
+{
+  "start": 1450.9,
+  "end": 1513.0,
+  "confidence": 0.98,
+  "reason": "Airtasker host-read ad (post task, URL) followed by cross-promotion segment for 'Decisions Decisions' podcast featuring Kiki Palmer, sponsored by Care for the Culture from Gilead Sciences",
+  "end_text": "sponsored by Care for the Culture from Gilead Sciences"
+}

@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 8799.1,
+    "end": 8831.4,
+    "confidence": 0.95,
+    "reason": "OnDeck business loan sponsor read with URL and call to action (Apply at OnDeck.com), followed by Public investing platform sponsor mention",
+    "end_text": "investing platform for those who take it seriously"
+  }
+]
+```

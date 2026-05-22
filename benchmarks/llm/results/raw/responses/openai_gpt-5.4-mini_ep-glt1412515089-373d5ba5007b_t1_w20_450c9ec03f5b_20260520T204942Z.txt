@@ -1,0 +1,1 @@
+{"start":9000.0,"end":9000.0,"confidence":0.0,"reason":"No advertisement segment found in the provided transcript window; Perplexity promo appears only in episode metadata, not transcript","end_text":""}

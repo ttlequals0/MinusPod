@@ -1,0 +1,16 @@
+[
+  {
+    "start": 537.5,
+    "end": 567.0,
+    "confidence": 1.0,
+    "reason": "Thrive Cosmetics host-read ad",
+    "end_text": "Shine 26"
+  },
+  {
+    "start": 594.7,
+    "end": 654.3,
+    "confidence": 1.0,
+    "reason": "Network-inserted retail ads for Mattress Warehouse and PC Richard & Son",
+    "end_text": "Asima dot HTML for details"
+  }
+]

@@ -1,0 +1,1 @@
+{"start":1036.2,"end":1129.6,"confidence":0.97,"reason":"Host-read sponsor segment for SoFi personal loans and LinkedIn Premium, includes promo URLs and call-to-action","end_text":"LinkedIn.com slash all-in-one"}

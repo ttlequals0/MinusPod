@@ -1,0 +1,1 @@
+{"start":2246.0,"end":2314.4,"confidence":0.99,"reason":"Ad break starts with transition 'This episode is brought to you by Capital One' and includes promotional copy for Capital One Chat Concierge, then a second sponsor read for Rinse with brand pitch and URL 'Sign up at Rinse.com'","end_text":"Rinse. It's time to be great."}

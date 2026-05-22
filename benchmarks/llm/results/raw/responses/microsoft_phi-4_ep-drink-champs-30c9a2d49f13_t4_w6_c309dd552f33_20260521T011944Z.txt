@@ -1,0 +1,7 @@
+{
+  "start": 25.20,
+  "end": 26.12,
+  "confidence": 0.95,
+  "reason": "The segment contains promotional language and mentions a product endorsement (room service) and a call to action (requesting room service), indicating an advertisement.",
+  "end_text": "room service"
+}

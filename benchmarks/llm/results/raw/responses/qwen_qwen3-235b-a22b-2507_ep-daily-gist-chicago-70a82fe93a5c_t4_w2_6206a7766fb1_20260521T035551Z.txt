@@ -1,0 +1,1 @@
+{"start": 1240.8, "end": 1271.2, "confidence": 0.98, "reason": "Host-read closing segment with calls to action, platform mentions, and promotional content for the show", "end_text": "next time"}

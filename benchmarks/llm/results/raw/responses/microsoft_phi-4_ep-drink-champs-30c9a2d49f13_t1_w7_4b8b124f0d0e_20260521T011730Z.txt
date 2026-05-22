@@ -1,0 +1,7 @@
+{
+  "start": 29.29,
+  "end": 35.56,
+  "confidence": 0.95,
+  "reason": "The segment contains promotional language and references to the hosting platform, Airtasker, which is a high-confidence sponsor.",
+  "end_text": "Here's a sneak peek. We live in this world, y'all, where it's like one second it's fluid out, city girls, and the next minute, don't ask me about my health. It's literally that. And we were talking. Why is it either porn or not at all? And that's the problem with those comments that day. It was like, what happened to the conversation about abstinence?"
+}

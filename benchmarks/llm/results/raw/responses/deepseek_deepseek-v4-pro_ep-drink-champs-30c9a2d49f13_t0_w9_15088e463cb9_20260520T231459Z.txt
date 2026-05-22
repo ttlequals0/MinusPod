@@ -1,0 +1,8 @@
+{
+  "ad_segments": [],
+  "window_processed": {
+    "start_minute": 63.0,
+    "end_minute": 73.0,
+    "timestamp_range": [3780.0, 4380.0]
+  }
+}

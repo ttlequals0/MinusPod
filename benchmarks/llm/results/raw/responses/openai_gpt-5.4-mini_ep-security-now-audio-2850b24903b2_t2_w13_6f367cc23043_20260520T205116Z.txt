@@ -1,0 +1,1 @@
+{"start":6016.6,"end":6083.5,"confidence":0.97,"reason":"Host transition \"We'll take a little break\" into a sponsor read for Hoxhunt, with explicit promo language describing the product and its benefits.","end_text":"just like the bad guys"}

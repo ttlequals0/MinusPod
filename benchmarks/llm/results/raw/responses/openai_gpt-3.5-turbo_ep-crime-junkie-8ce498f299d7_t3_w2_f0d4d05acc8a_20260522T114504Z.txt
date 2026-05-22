@@ -1,0 +1,8 @@
+
+{
+	"start": 1036.2,
+	"end": 1097.9,
+	"confidence": 0.95,
+	"reason": "SoFi finance app sponsor read",
+	"end_text": "NMLS 696891."
+}

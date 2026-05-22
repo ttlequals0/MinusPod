@@ -1,0 +1,23 @@
+[
+  {
+    "start": 11340.0,
+    "end": 11365.6,
+    "confidence": 1.0,
+    "reason": "Airtasker ad with product pitch and call to action",
+    "end_text": "Airtasker, get anything done"
+  },
+  {
+    "start": 11366.2,
+    "end": 11424.6,
+    "confidence": 1.0,
+    "reason": "Decisions Decisions podcast promo with sponsorship mention",
+    "end_text": "Gilead Sciences"
+  },
+  {
+    "start": 11425.3,
+    "end": 11455.4,
+    "confidence": 1.0,
+    "reason": "OnDeck small business loan ad with call to action",
+    "end_text": "subject to lender approval"
+  }
+]

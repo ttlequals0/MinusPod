@@ -1,0 +1,16 @@
+[
+  {
+    "start": 588.5,
+    "end": 597.9,
+    "confidence": 0.95,
+    "reason": "Host transition phrase 'We'll see you next time' followed by silence, indicating potential ad break start",
+    "end_text": "see you next time"
+  },
+  {
+    "start": 613.4,
+    "end": 630.0,
+    "confidence": 0.9,
+    "reason": "Host personal anecdote about upbringing, no promotional content",
+    "end_text": "pizza man did not deliver"
+  }
+]

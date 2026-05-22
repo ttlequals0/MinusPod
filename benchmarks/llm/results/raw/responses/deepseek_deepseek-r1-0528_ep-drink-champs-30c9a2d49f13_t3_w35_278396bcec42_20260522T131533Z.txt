@@ -1,0 +1,9 @@
+[
+  {
+    "start": 15261.8,
+    "end": 15285.2,
+    "confidence": 0.95,
+    "reason": "Repetition of promo code and discount code indicating sponsor read",
+    "end_text": "discount code, discount code"
+  }
+]

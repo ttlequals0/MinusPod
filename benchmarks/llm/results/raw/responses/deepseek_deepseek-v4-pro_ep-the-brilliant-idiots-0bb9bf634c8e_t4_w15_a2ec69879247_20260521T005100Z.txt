@@ -1,0 +1,11 @@
+{
+  "segments": [
+    {
+      "start": 6390.2,
+      "end": 6445.0,
+      "confidence": 0.85,
+      "reason": "Host transitions with 'Let's pay some bills' followed by discussion of Blue Chew and LinkedIn, likely ad break start. Unclear if Blue Chew/link mentions are organic conversation or sponsored. Ends before 'Asking Idiots' segment resumes.",
+      "end_text": "Can't wait to see that. Okay, Asking Idiots"
+    }
+  ]
+}

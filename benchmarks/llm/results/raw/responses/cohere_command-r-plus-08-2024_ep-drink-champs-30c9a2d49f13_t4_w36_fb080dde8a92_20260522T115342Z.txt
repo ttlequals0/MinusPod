@@ -1,0 +1,25 @@
+{
+  "ads": [
+    {
+      "start": 15416.7,
+      "end": 15452.3,
+      "confidence": 0.95,
+      "reason": "CVS retail ad",
+      "end_text": "come by our store. We can't wait to meet you."
+    },
+    {
+      "start": 15453.9,
+      "end": 15481.1,
+      "confidence": 0.95,
+      "reason": "Trashy retail ad",
+      "end_text": "get started."
+    },
+    {
+      "start": 15482.9,
+      "end": 15512.2,
+      "confidence": 0.95,
+      "reason": "Try Fencing retail ad",
+      "end_text": "tryfencing.org."
+    }
+  ]
+}

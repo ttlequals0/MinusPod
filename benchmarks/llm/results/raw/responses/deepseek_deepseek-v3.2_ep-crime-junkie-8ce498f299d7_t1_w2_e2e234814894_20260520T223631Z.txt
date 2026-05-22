@@ -1,0 +1,18 @@
+{
+  "ads": [
+    {
+      "start": 1036.2,
+      "end": 1097.9,
+      "confidence": 0.99,
+      "reason": "Host-read SoFi sponsor segment with product pitch, call to action (SoFi.com/CJ), and loan details.",
+      "end_text": "slash CJ. Terms and conditions apply. NMLS 696891."
+    },
+    {
+      "start": 1099.8,
+      "end": 1129.6,
+      "confidence": 0.99,
+      "reason": "Host-read LinkedIn Premium All-in-One sponsor segment with product pitch and call to action (LinkedIn.com/all-in-one).",
+      "end_text": "slash all-in-one."
+    }
+  ]
+}

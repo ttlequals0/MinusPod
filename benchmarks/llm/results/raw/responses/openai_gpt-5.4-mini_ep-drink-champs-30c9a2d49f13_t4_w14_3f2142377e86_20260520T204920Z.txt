@@ -1,0 +1,1 @@
+{"start":6208.7,"end":6282.7,"confidence":0.99,"reason":"Host break with explicit promotional content for Airtasker, plus a produced promo for Decisions Decisions and sponsored Care for the Culture by Gilead Sciences; ad begins at the break and includes calls to action and sponsor names","end_text":"Sponsored by Care for the Culture from Gilead Sciences"}

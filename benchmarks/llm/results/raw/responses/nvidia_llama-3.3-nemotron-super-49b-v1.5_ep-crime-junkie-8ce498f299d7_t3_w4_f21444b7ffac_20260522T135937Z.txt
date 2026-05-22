@@ -1,0 +1,3 @@
+[
+    {"start": 1959.8, "end": 2062.1, "confidence": 0.95, "reason": "Merged sponsor reads for Rakuten, LinkedIn Premium, and Hertz due to gaps <15 seconds between ads", "end_text": "at Hertz.com"}
+]

@@ -1,0 +1,30 @@
+[
+  {
+    "start": 15388.3,
+    "end": 15416.5,
+    "confidence": 0.98,
+    "reason": "Airtasker sponsor read with URL and call to action",
+    "end_text": "Airtasker.com. Airtasker"
+  },
+  {
+    "start": 15416.7,
+    "end": 15452.3,
+    "confidence": 0.98,
+    "reason": "CVS brand advertisement with store visit call to action",
+    "end_text": "vary by location"
+  },
+  {
+    "start": 15453.9,
+    "end": 15481.1,
+    "confidence": 0.98,
+    "reason": "Trashy promotion with URL (Trashy.io) and pricing",
+    "end_text": "to get started"
+  },
+  {
+    "start": 15482.9,
+    "end": 15517.1,
+    "confidence": 0.97,
+    "reason": "Fencing promotion with repeated URL (tryfencing.org) and iHeart platform tag",
+    "end_text": "Guaranteed human"
+  }
+]

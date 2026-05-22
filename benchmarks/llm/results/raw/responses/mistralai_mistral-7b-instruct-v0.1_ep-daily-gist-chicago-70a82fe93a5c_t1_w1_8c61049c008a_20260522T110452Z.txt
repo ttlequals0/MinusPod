@@ -1,0 +1,5 @@
+ [1017.3-1020.3] This segment mentions the Curve Industrial redevelopment project, but it does not contain any promotional language or a call to action, so it is not an ad. However, there is an ongoing sponsorship between the podcast and Curve Industrial, so this segment could be considered a host-read sponsor mention.
+
+Therefore, based on the given detection rules, there are no advertisement segments in the provided window.
+
+[]

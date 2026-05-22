@@ -1,0 +1,32 @@
+{
+  "ad_segments": [
+    {
+      "start": 13669.1,
+      "end": 13696.9,
+      "confidence": 0.98,
+      "reason": "Airtasker host-read sponsor segment with pitch, call to action, and URL",
+      "end_text": "Download the Airtasker app or go to Airtasker.com."
+    },
+    {
+      "start": 13697.3,
+      "end": 13758.2,
+      "confidence": 0.96,
+      "reason": "Cross-promotion ad for Decisions Decisions podcast, sponsored by Care for the Culture from Gilead Sciences, with network-inserted feel",
+      "end_text": "sponsored by Care for the Culture from Gilead Sciences."
+    },
+    {
+      "start": 13759.0,
+      "end": 13786.2,
+      "confidence": 0.97,
+      "reason": "OnDeck business loans ad with promotional language, BBB rating, and URL call to action",
+      "end_text": "all loans and amounts subject to lender approval."
+    },
+    {
+      "start": 13786.9,
+      "end": 13828.9,
+      "confidence": 0.98,
+      "reason": "Public investing platform ad with product features, AI prompt example, and disclosures URL",
+      "end_text": "Transcription by CastingWords"
+    }
+  ]
+}

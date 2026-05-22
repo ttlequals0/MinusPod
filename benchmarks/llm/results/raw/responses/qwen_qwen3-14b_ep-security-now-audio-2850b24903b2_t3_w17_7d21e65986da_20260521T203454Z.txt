@@ -1,0 +1,10 @@
+t.
+{
+
+"[{" 
+  :"",
+  "end": 7740.0, 
+  "confidence": 0.95, 
+  "reason": "Trusted Tech sponsor read with product pitch and customer testimonial", 
+  "end_text": "You will be too."
+}

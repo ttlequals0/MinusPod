@@ -1,0 +1,4 @@
+[
+    {"start": 6300.0, "end": 6313.4, "confidence": 0.95, "reason": "OnDeck sponsor read (continues from previous)", "end_text": "All loans and..."},
+    {"start": 6313.8, "end": 6318.1, "confidence": 0.95, "reason": "Public sponsor read", "end_text": "take it seriously"}
+]

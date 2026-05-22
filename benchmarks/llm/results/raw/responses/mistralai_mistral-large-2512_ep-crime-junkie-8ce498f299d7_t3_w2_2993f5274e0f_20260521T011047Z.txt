@@ -1,0 +1,16 @@
+[
+    {
+        "start": 1036.2,
+        "end": 1097.9,
+        "confidence": 0.99,
+        "reason": "SoFi sponsor read with promotional language, call to action, and vanity URL (SoFi.com slash CJ)",
+        "end_text": "SoFi.com slash CJ"
+    },
+    {
+        "start": 1099.8,
+        "end": 1129.6,
+        "confidence": 0.98,
+        "reason": "LinkedIn Premium All-in-One sponsor read with promotional language, call to action, and vanity URL (LinkedIn.com slash all-in-one)",
+        "end_text": "LinkedIn.com slash all-in-one"
+    }
+]

@@ -1,0 +1,2 @@
+t.
+{"start": 6045.5, "end": 6083.5, "confidence": 0.95, "reason": "Hawks Hunt sponsor read with product details and call to action", "end_text": "just like the bad guys"}

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 5515.4,
+    "end": 5578.4,
+    "confidence": 0.9,
+    "reason": "Host-read promotion of Yubico security keys and partnership with OpenAI",
+    "end_text": "software-based pass keys"
+  }
+]

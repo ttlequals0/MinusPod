@@ -1,0 +1,32 @@
+{
+"ads": [
+    {
+      "start": 1450.9,
+      "end": 1486.1,
+      "confidence": 0.98,
+      "reason": "Airtasker sponsor read",
+      "end_text": "get anything done"
+    },
+    {
+      "start": 1486.6,
+      "end": 1524.8,
+      "confidence": 0.95,
+      "reason": "Care for the Culture from Gilead Sciences sponsor mention",
+      "end_text": "Gilead Sciences"
+    },
+    {
+      "start": 1525.5,
+      "end": 1553.8,
+      "confidence": 0.98,
+      "reason": "OnDeck sponsor read",
+      "end_text": "apply today at OnDeck.com"
+    },
+    {
+      "start": 1555.6,
+      "end": 1597.8,
+      "confidence": 0.98,
+      "reason": "BetMGM sponsor read",
+      "end_text": "download the BetMGM app"
+    }
+  ]
+}

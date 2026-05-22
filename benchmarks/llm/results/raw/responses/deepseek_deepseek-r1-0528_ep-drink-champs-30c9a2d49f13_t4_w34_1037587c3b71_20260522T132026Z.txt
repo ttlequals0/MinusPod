@@ -1,0 +1,9 @@
+[
+  {
+    "start": 14854.0,
+    "end": 14861.3,
+    "confidence": 0.95,
+    "reason": "End-of-episode sign-off with 'Thank you for watching' which may include platform-inserted ad",
+    "end_text": "Thank you for watching"
+  }
+]

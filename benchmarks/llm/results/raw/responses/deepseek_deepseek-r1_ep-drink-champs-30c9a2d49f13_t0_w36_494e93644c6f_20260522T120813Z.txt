@@ -1,0 +1,30 @@
+[
+  {
+    "start": 15388.3,
+    "end": 15416.5,
+    "confidence": 0.98,
+    "reason": "Airtasker host-read ad with call-to-action (Airtasker.com)",
+    "end_text": "go to Airtasker.com. Airtasker"
+  },
+  {
+    "start": 15416.7,
+    "end": 15452.3,
+    "confidence": 0.97,
+    "reason": "CVS brand ad with store visit prompt (cvs.com)",
+    "end_text": "hours vary by location"
+  },
+  {
+    "start": 15453.9,
+    "end": 15481.1,
+    "confidence": 0.96,
+    "reason": "Trashy Unlimited service promotion with vanity URL (trashy.io)",
+    "end_text": "at Trashy.io to get started"
+  },
+  {
+    "start": 15482.9,
+    "end": 15517.1,
+    "confidence": 0.98,
+    "reason": "iHeart-inserted fencing promotion with dedicated URL (tryfencing.org) and platform tag",
+    "end_text": "This is an iHeart Podcast"
+  }
+]

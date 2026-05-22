@@ -1,0 +1,1 @@
+{"start":0.0,"end":104.3,"confidence":0.99,"reason":"Consecutive ad block at episode start: Capital One sponsor read, Broadway promo for Every Brilliant Thing, AllTrails app promo, and Zinn Nicotine Pouches ad with nicotine warning.","end_text":"Nicotine is an addictive chemical"}

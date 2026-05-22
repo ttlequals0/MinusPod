@@ -1,0 +1,16 @@
+[
+  {
+    "start": 8724.9,
+    "end": 8831.4,
+    "confidence": 0.98,
+    "reason": "AirTasker, Decisions Decisions cross-promo, OnDeck, and Public sponsor reads",
+    "end_text": "those who take it seriously."
+  },
+  {
+    "start": 8856.4,
+    "end": 8869.0,
+    "confidence": 0.85,
+    "reason": "CastingWords transcription service brand tagline",
+    "end_text": "Transcription by CastingWords"
+  }
+]

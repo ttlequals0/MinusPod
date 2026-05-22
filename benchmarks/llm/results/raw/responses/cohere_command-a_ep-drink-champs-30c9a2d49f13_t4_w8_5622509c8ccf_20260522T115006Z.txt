@@ -1,0 +1,1 @@
+{"start": 3503.7, "end": 3528.5, "confidence": 0.95, "reason": "Airtasker network-inserted brand tagline ad", "end_text": "Airtasker, get anything done."}

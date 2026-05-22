@@ -1,0 +1,1 @@
+{"start": 1684.6, "end": 1706.6, "confidence": 0.3, "reason": "Topic transition without promotional content; no sponsor mentions, URLs, or calls to action", "end_text": "I feel like Angie Martinez is a hip hop journalist."}

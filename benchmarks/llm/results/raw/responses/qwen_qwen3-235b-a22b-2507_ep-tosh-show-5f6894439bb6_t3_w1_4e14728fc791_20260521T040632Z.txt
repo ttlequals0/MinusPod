@@ -1,0 +1,1 @@
+{"start": 537.5, "end": 567.0, "confidence": 0.98, "reason": "Host-read sponsor segment for Thrive Cosmetics with promotional language, URL, and promo code", "end_text": "shine26"}

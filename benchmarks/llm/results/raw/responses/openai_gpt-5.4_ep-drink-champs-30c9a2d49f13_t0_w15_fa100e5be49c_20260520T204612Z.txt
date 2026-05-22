@@ -1,0 +1,7 @@
+{
+  "start": 6283.4,
+  "end": 6318.1,
+  "confidence": 0.98,
+  "reason": "Two back-to-back network-inserted sponsor ads: OnDeck small business line of credit with CTA 'Apply today at OnDeck.com' followed by Public 'the investing platform for those who take it seriously'; segment appears to continue from previous and may be partial",
+  "end_text": "those who take it seriously"
+}

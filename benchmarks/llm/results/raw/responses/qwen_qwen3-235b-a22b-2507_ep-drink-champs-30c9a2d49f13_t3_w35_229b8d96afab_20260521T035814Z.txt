@@ -1,0 +1,1 @@
+{"start": 15261.8, "end": 15285.2, "confidence": 0.99, "reason": "Repetition of 'discount code' suggests a corrupted or placeholder ad script, likely inserted by platform or network; consistent with dynamically inserted ad anomalies", "end_text": "discount code, discount code"}

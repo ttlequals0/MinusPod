@@ -1,0 +1,1 @@
+{"start":506.4,"end":548.5,"confidence":0.9,"reason":"Promo for Crain's Weekly News Quiz with CTA to visit chicagobusiness.com/quiz; includes preceding break transition","end_text":"with Amy Guth."}

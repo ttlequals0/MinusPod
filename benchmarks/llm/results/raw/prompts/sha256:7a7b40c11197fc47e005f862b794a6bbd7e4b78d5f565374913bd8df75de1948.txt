@@ -1,0 +1,59 @@
+Podcast: security-now-audio
+Episode: SN 1077: A Browser AI API? - End of Bug Bounties?
+
+
+Episode description: <p>Google is sneaking a massive 4.7GB AI model into Chrome, and Mozilla is fighting back as the future of browsers threatens to turn into an AI arms race. Find out what's really happening behind this push and why it's setting off alarm bells across the web.</p><ul> 
+<li>Hackers AI-code a portal, forget to add authentication.</li> 
+<li>The UK's NCSC issues a Mythos warning. Where's CISA?</li> 
+<li>Another (of many) Linux local privilege escalations.</li> 
+<li>AI may be spelling the end of bug bounties.</li> 
+<li>Anthropic releases "Claude Security" mini-Mythos.</li> 
+<li>ChatGPT gets very serious about login security.</li> 
+<li>Syncthing's SyncTrayzor v1 abandoned; v2 created.</li> 
+<li>Google drops an AI API into Chrome; Mozilla objects</li></ul> 
+<p>Show Notes - <a href="https://www.grc.com/sn/SN-1077-Notes.pdf">https://www.grc.com/sn/SN-1077-Notes.pdf</a></p> 
+<p><strong>Hosts:</strong> <a href="https://twit.tv/people/steve-gibson">Steve Gibson</a> and <a href="https://twit.tv/people/leo-laporte">Leo Laporte</a></p> 
+<p>Download or subscribe to <em>Security Now</em> at <a href="https://twit.tv/shows/security-now">https://twit.tv/shows/security-now</a>.</p> 
+<p>You can submit a question to <em>Security Now</em> at the <a href="https://www.grc.com/feedback.htm" target="_blank">GRC Feedback Page</a>.</p> 
+<p>For 16kbps versions, transcripts, and notes (including fixes), visit Steve's site: <a href="https://www.grc.com/securitynow.htm" target="_blank">grc.com</a>, also the home of the best disk maintenance and recovery utility ever written <a href="https://www.grc.com/sr/spinrite.htm" target="_blank">Spinrite 6</a>.</p> 
+<p><strong>Join Club TWiT for Ad-Free Podcasts!</strong><br /> 
+Support what you love and get ad-free audio <em>and</em> video feeds, a members-only Discord, and exclusive content. Join today: <a href="https://twit.tv/clubtwit" rel="payment">https://twit.tv/clubtwit</a></p>
+<p><strong>Sponsors:</strong><ul>
+<li><a href="http://zscaler.com/security" rel="sponsored" target="_blank">zscaler.com/security</a></li>
+<li><a href="http://meter.com/securitynow" rel="sponsored" target="_blank">meter.com/securitynow</a></li>
+<li><a href="http://bitwarden.com/twit" rel="sponsored" target="_blank">bitwarden.com/twit</a></li>
+<li><a href="http://hoxhunt.com/securitynow" rel="sponsored" target="_blank">hoxhunt.com/securitynow</a></li>
+<li><a href="http://trustedtech.team/securitynow365" rel="sponsored" target="_blank">trustedtech.team/securitynow365</a></li>
+</ul></p>
+
+Transcript:
+[7558.3s - 7583.9s] My problem with Google for a while now, they don't go to the IETF or W3C and say, here, we want to do a standard, you know, let's get everybody involved. It's already in there. Yeah, they're so big, they're so dominant. There's something like 90% of the browser space that they could just do it and it becomes a de facto standard. So I'm with you. I'm not necessarily against the idea. And it sounds like in their spec, they're saying
+[7584.4s - 7606.9s] Well, it doesn't have to be our model. It doesn't have to be Gemma. It could be something else. But I don't know if there's a demand for this. And I know people are going to be very upset. I already see the upset over this giant download. And you don't get a choice. You can't turn it off. It comes with Chrome now. All right. Well, let's take our final break. And we'll be back with Mozilla's
+[7607.7s - 7633.1s] Response as seen through the filter of the register. You're watching Security Now with Steve Gibson. More in a moment. This episode of Security Now brought to you by Trusted Tech. If you're managing Microsoft 365 for your company, you are responsible for both the cost and whether it's set up correctly. And I think you might already know on July 1st, Microsoft's raising prices.
+[7633.7s - 7661.5s] So any mistakes in your licensing are about to get more expensive. Most companies using Microsoft 365 are either over-licensed, paying for unused seats and features, or under-licensed, creating compliance and security risks. Sometimes it's both. The result is wasting thousands, sometimes tens of thousands per year on tools your team doesn't use, or worse, I guess, missing critical security features you thought you had.
+[7662.4s - 7689.5s] You gotta get this just right, and that's why you need Trusted Tech. Trusted Tech helps businesses understand what they have, what they actually need, and how to lock in the right setup now before the costs go up. Their team ensures your M365 environment is well supported and aligned with how your business actually operates. And if you need ongoing help, they also offer reactive support for your Microsoft environment through their certified support services.
+[7690.7s - 7716.8s] Microsoft licensing is, I don't think I have to tell you, constantly changing. E3 versus E5 versus Business Premium. There's add-ons, the new E7. It's confusing and easy to misconfigure and overpay. And licensing mistakes don't just cost money. They create compliance exposure that's going to get more expensive after July 1st. So even if you think your licensing is dialed in, it's absolutely worth a second look.
+[7717.2s - 7743.9s] and no one could do it better than Trusted Tech. Just ask Kevin Turner. You know his name, former Microsoft COO. This is what he said when he talked to Trusted Tech. He said, you, Trusted Tech, you have an incredible customer reputation and you have to earn that every single day. The relentless focus you guys have on taking care of customers gives them value and differentiates you in the marketplace. End quote. He was impressed. You will be too.
+[7744.4s - 7770.9s] And remember, after July 1st, you're stuck paying more. This is the last chance to fix your licensing before costs go up. Trusted Tech is offering a free Microsoft 365 licensing consultation right now. Visit trustedtech.team slash securitynow365 to get a clear, data-backed view of your current licenses, what you're wasting, and how to lock in savings before the price increases.
+[7771.7s - 7797.4s] Go to trustedtech.team securitynow365 and submit a form to get in contact with Trusted Tech's Microsoft Licensing Engineers. I'm going to say it one more time. Write this down. trustedtech.team securitynow365 You got to do it now. trustedtech.team securitynow365 Now, back to Steve.
+[7797.9s - 7816.6s] And back to our conversation. Actually, Darren Oakey, who is, of course, as you know, one of our most avid AI users in the ClubTut discord, says he thinks this may be the most important thing to happen to browsers since AI. He thinks it's really important.
+[7817.7s - 7840.8s] I'm not sure I agree. I mean, I could see there's some potential. It's a huge change to our browser. It is a big change. I guess nobody disagrees about that. And I think it's also the case that Google is forcing this instead of proposing it. And I don't like that either. But I didn't like it when they forced HTTPS down. Well, and you don't always get the right design.
+[7862.1s - 7868.6s] We talked to the CEO of the Mozilla Foundation.
+[7869.4s - 7888.6s] A few weeks ago on Intelligent Machines, and even then at the time, and this is before they'd added that little switch, he said, we're going to be very judicious about AI in our browsers. And now they actually have a switch that says disable all AI features. This is a switch most notably Google is not offering in Chrome. You cannot disable this.
+[7889.1s - 7914.8s] Okay, so I'm going to share the register's typically feisty and irreverent take on this controversy. They also supply a great deal of additional useful background. And when we see that their headline is, quote, Firefox maker torches Google for building prompt API into browser, well, you know, it's going to be good. The register wrote, Jake Archibald
+[7915.2s - 7937.9s] Mozilla Web Developer Relations Lead articulated the organization's concerns in a GitHub discussion of the API, which provides a standard way to send and receive prompts and responses from a local machine learning model. Archibald wrote, quote, We continue to oppose this API and feel it has
+[7932.1s - 7959.4s] Archibald wrote, quote, We continue to oppose this API and feel it has severe negative consequences to the interoperability, updatability, and neutrality of the web platform, unquote. The register writes, the prompt API, as Google describes it, quote, gives web pages the ability to directly prompt a browser-provided language model. Specifically, and here it comes,
+[7959.9s - 7986.5s] It provides a way to send natural language instructions to Google's Gemini Nano model, which is small enough to be downloaded for local inference through Chrome. However, writes the register, it's not small. Google recommends having 22 gigabytes of space available, although the Nano V3 Nano model
+[7986.9s - 8007.8s] for desktop use is 4.27 gigabytes. Web developers already have a variety of ways to interact with AI models. They could use cloud service APIs to communicate with hosted models, or they can access local models through technologies like JavaScript runtime frameworks, WebASEM, or WebGPU.
+[8008.5s - 8025.2s] Various vendors like OpenAI and Perplexity have shipped browsers that embed access to remotely hosted AI models. Mozilla itself is testing an AI-based smart window in Firefox and is developing tools for AI model scaffolding.
+[8025.7s - 8053.0s] The prompt API aims to make it easier to run local inference in a way that takes advantage of browser security mechanisms to produce faster response times to allow offline usage and to provide more cost-effective ways to integrate AI services. For example, providing a free AI fallback if users lack a paid API key. Okay, so that's interesting.
+[8053.4s - 8080.2s] That suggests that Google wants us to register our LLM AI provider accounts with our browser so that random websites we visit will be able to submit their prompts to our AI account. This brings to mind the famous rhetorical question, what could possibly go wrong? The register continues, Mozilla's concern
+[8080.7s - 8105.3s] As articulated by Archibald, has to do with what the prompt API means for the web, not to mention Google's justification for deployment. First, he worries that Google's own nano model will become the default and that developers will standardize on it in an effort to make the non-deterministic responses of an AI model more predictable.
+[8106.0s - 8133.8s] That tendency, he argues, will create pressure for Apple and Mozilla to license Nano for the sake of a common user experience. Perhaps more significantly, Archibald notes that using the prompt API requires agreeing to Google's generative AI prohibited uses policy, which prohibits activities that are not necessarily illegal, like generating disturbing content.
+[8135.2s - 8153.6s] I'll just pause to say, who determines what content is disturbing? There is nothing that attorneys love more than ambiguous language in contractual agreements. It's a built-in full employment guarantee. The register quotes Jake saying,
+[8154.2s - 8170.1s] This seems like a bad direction for an API on the web platform and sets a worrying precedent for more APIs that have browser-specific rules around their usage. Amen to that. Anyway, the register continues.
+
+=== WINDOW 19/23: 126.0-136.0 minutes ===
+- Use absolute timestamps from transcript (as shown in brackets)
+- If an ad starts before this window, use the first timestamp with note "continues from previous"
+- If an ad extends past this window, use 8160.0 with note "continues in next"

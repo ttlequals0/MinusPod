@@ -1,0 +1,23 @@
+[
+  {
+    "start": 11335.2,
+    "end": 11365.6,
+    "confidence": 0.98,
+    "reason": "Airtasker network-inserted ad with app download CTA",
+    "end_text": "Airtasker, get anything done"
+  },
+  {
+    "start": 11366.2,
+    "end": 11424.6,
+    "confidence": 0.97,
+    "reason": "Decisions Decisions podcast promo + Care for the Culture sponsorship",
+    "end_text": "podcasts. Sponsored by Care for the Culture"
+  },
+  {
+    "start": 11425.3,
+    "end": 11454.3,
+    "confidence": 0.99,
+    "reason": "OnDeck small business loan ad with URL and funding details",
+    "end_text": "issued by OnDeck or Celtic"
+  }
+]

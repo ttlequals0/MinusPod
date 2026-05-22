@@ -1,0 +1,9 @@
+[
+    {
+        "start": 5420.4,
+        "end": 5469.9,
+        "confidence": 0.99,
+        "reason": "Network-inserted retail ad for Modelo with repeated promotional language ('promo code, discount code') and call to action. Tonally distinct from host conversation.",
+        "end_text": "Donald McNabb's mama never invited my mama back, dog."
+    }
+]

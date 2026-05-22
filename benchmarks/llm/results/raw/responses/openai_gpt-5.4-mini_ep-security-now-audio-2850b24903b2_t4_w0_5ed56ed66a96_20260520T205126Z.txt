@@ -1,0 +1,1 @@
+{"start":16.7,"end":84.9,"confidence":0.99,"reason":"OutSystems sponsor read with promotional language, brand pitch, and URL; begins after the show's take-a-break transition","end_text":"OutSystems.com slash twit"}

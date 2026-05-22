@@ -1,0 +1,1 @@
+{"start":1493.2,"end":1536.8,"confidence":0.99,"reason":"Capital One sponsor read (\"This episode is brought to you by Capital One\") followed by AllTrails promotion, both with promotional language and calls to action","end_text":"find your outside"}

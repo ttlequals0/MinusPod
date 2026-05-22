@@ -1,0 +1,1 @@
+{"start": 5005.6, "end": 5024.4, "confidence": 0.95, "reason": "Musical drop/interlude with repeated chanting ('That's what I'm talking about') - no promotional language, product pitch, or sponsor mention. This is show production, not an advertisement.", "end_text": "That's what I'm talking about."}

@@ -1,0 +1,1 @@
+{"start": 11335.2, "end": 11455.4, "confidence": 0.96, "reason": "Airtasker job marketplace ad, Decisions Decisions podcast promo, OnDeck small business line of credit sponsor read", "end_text": "to lender approval."}

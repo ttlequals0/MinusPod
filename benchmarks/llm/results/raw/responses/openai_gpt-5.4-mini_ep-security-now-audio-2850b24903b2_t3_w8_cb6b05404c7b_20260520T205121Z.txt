@@ -1,0 +1,1 @@
+{"start":3840.0,"end":3862.5,"confidence":0.41,"reason":"Possible clipped sponsor read context near the end of a segment, but no clear promotional language, sponsor name, URL, or call to action is present in this window; likely not an ad.","end_text":"You can submit a question"}

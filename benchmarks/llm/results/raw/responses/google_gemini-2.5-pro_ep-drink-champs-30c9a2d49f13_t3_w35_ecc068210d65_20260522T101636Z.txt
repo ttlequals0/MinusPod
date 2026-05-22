@@ -1,0 +1,9 @@
+[
+  {
+    "start": 15261.8,
+    "end": 15285.2,
+    "confidence": 0.9,
+    "reason": "This segment contains only repeated placeholder words like 'promo code' and 'discount code', indicating a likely dynamically inserted ad that was not transcribed correctly.",
+    "end_text": "discount code, discount code"
+  }
+]

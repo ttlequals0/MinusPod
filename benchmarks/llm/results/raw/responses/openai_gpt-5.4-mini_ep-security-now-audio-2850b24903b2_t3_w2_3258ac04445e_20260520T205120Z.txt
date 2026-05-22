@@ -1,0 +1,1 @@
+{"start":1413.5,"end":1441.5,"confidence":0.66,"reason":"Continuing into a sponsored-style quoted warning/tagline? No clear sponsor promo found; transcript only mentions NCSC warning and a tagline about preparing for patches, which appears editorial rather than ad content.","end_text":"technical debt."}

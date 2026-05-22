@@ -1,0 +1,1 @@
+ {"start": 1240.8, "end": 1271.2, "confidence": 0.0, "reason": "Show outro with host sign-off, production credits, and standard podcast platform mentions. No promotional content for sponsors, products, or advertisers detected.", "end_text": "right back here next time"}

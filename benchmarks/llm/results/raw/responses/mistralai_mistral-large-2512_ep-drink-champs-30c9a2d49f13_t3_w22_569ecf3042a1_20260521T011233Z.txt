@@ -1,0 +1,16 @@
+[
+    {
+        "start": 9741.9,
+        "end": 9757.2,
+        "confidence": 0.9,
+        "reason": "Mention of McDonald's with promotional context ('ghetto Big Mac' pitch) and call to action ('Let's do a couple more shots').",
+        "end_text": "Epstein file serving human fucking puffs."
+    },
+    {
+        "start": 9758.4,
+        "end": 9840.0,
+        "confidence": 0.85,
+        "reason": "Continued discussion of McDonald's with product-specific details (Big Mac, Chick-fil-A comparison) and promotional tone. Ad continues past this window.",
+        "end_text": "predicts. continues in next"
+    }
+]

@@ -1,0 +1,1 @@
+{"start": 1657.5, "end": 1659.2, "confidence": 0.3, "reason": "Brief non-sequitur with no promotional content; likely a content transition or audio edit", "end_text": "That's true. If the Super Bowl happens."}

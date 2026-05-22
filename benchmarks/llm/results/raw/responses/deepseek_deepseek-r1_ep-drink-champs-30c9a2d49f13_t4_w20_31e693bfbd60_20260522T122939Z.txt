@@ -1,0 +1,7 @@
+[{
+    "start": 8724.9,
+    "end": 8831.4,
+    "confidence": 0.97,
+    "reason": "Ad block containing AirTasker promo, Decisions Decisions cross-promotion, OnDeck business loan pitch, and Public sponsorship",
+    "end_text": "subject to lender approval"
+}]

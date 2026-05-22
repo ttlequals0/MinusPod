@@ -1,0 +1,1 @@
+{"start":49.0,"end":59.0,"confidence":0.99,"reason":"Platform-inserted Perplexity promo in episode description with explicit call to action and ad choices link; window contains continuation of ad context via transcript note/episode sponsor block.","end_text":"continues in next"}

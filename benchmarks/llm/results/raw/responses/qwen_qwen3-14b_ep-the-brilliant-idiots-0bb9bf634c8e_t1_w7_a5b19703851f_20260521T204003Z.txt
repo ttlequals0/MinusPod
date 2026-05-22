@@ -1,0 +1,2 @@
+w.
+{"start": 2940.0, "end": 3540.0, "confidence": 0.0, "reason": "No advertisement segments detected in the specified window. The transcript contains no host-read sponsor segments, promotional language, or platform-inserted ads within the 49.0-59.0 minute window.", "end_text": "adchoices"}

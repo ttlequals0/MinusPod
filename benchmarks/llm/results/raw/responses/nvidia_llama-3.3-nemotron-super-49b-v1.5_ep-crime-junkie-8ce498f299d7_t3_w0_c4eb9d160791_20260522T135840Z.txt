@@ -1,0 +1,9 @@
+[
+  {
+    "start": 0.0,
+    "end": 69.8,
+    "confidence": 0.98,
+    "reason": "Vitel Global, LinkedIn Premium, and Hertz sponsor reads",
+    "end_text": "Hertz.com"
+  }
+]

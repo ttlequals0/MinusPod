@@ -1,0 +1,9 @@
+[
+  {
+    "start": 0.0,
+    "end": 98.4,
+    "confidence": 0.98,
+    "reason": "Combined pre-roll ads for Vitel Global, LinkedIn Premium All-in-One, and Hertz with explicit calls to action (VitelGlobal.com, linkedin.com/all-in-one, Hertz.com)",
+    "end_text": "fits your adventure at Hertz.com"
+  }
+]

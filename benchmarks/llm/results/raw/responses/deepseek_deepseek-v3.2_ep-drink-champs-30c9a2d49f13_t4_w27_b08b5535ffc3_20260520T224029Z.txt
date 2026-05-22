@@ -1,0 +1,1 @@
+{"start": 11335.2, "end": 11424.6, "confidence": 0.95, "reason": "Network-inserted ads for Airtasker, Decisions Decisions podcast, and Care for the Culture/Gilead Sciences", "end_text": "Care for the Culture from Gilead Sciences."}

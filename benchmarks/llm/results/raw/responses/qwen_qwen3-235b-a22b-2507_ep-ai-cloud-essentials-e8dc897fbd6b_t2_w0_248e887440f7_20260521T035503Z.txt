@@ -1,0 +1,1 @@
+{"start": 58.0, "end": 80.1, "confidence": 0.98, "reason": "Host-read sponsor segment for Coreweave with promotional language and branding", "end_text": "talk about how AI is breaking into the physical world"}

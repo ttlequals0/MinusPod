@@ -1,0 +1,23 @@
+[
+  {
+    "start": 11335.2,
+    "end": 11455.4,
+    "confidence": 0.98,
+    "reason": "Airtasker, Decisions Decisions, and OnDeck sponsor reads merged due to <15s gaps",
+    "end_text": "amount subject to lender approval."
+  },
+  {
+    "start": 11513.7,
+    "end": 11536.6,
+    "confidence": 0.85,
+    "reason": "Public.com disclosure (tail end of ad, includes show content transition)",
+    "end_text": "off that resume."
+  },
+  {
+    "start": 11614.6,
+    "end": 11630.6,
+    "confidence": 0.90,
+    "reason": "Sponsor list bumper (Athletic Greens, Audible, etc.)",
+    "end_text": "Manscaped, Stamps.com,"
+  }
+]

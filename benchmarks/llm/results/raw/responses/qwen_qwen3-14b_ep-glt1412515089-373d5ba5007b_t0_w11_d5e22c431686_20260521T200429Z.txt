@@ -1,0 +1,2 @@
+y.
+{"start": 5220.0, "end": 5220.0, "confidence": 0.0, "reason": "No ads found in the specified window", "end_text": "5220.0"}

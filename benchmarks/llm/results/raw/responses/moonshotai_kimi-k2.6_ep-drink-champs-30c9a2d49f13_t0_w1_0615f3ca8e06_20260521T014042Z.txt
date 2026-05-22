@@ -1,0 +1,1 @@
+ {"start": 588.5, "end": 613.4, "confidence": 0.3, "reason": "Possible mid-show break with 'We'll see you next time' and silence gap, but no promotional transcript content detected to confirm as advertisement", "end_text": "next time."}

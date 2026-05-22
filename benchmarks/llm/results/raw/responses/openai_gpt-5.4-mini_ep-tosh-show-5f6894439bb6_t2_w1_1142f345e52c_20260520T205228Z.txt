@@ -1,0 +1,1 @@
+{"start":537.5,"end":567.0,"confidence":0.98,"reason":"Thrive Cosmetics host-read sponsor segment with promo code and URL; preceded by 'We'll be right back' transition","end_text":"Shine 26."}

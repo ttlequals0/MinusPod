@@ -1,0 +1,23 @@
+[
+  {
+    "start": 1959.8,
+    "end": 2020.4,
+    "confidence": 0.98,
+    "reason": "Rakuten sponsor read with explicit calls to action (Rakuten.com, download app) and promotional offers",
+    "end_text": "start saving money today"
+  },
+  {
+    "start": 2022.1,
+    "end": 2032.3,
+    "confidence": 0.97,
+    "reason": "LinkedIn Premium All-in-One ad with vanity URL (linkedin.com/all-in-one) and business service promotion",
+    "end_text": "slash all-in-one"
+  },
+  {
+    "start": 2062.1,
+    "end": 2080.5,
+    "reason": "Hertz car rental ad with product-specific pitches (convertible, minivan, SUV) and direct call-to-action (Hertz.com)",
+    "confidence": 0.96,
+    "end_text": "at Hertz.com"
+  }
+]

@@ -1,0 +1,7 @@
+{
+  "start": 1036.2,
+  "end": 1097.9,
+  "confidence": 0.95,
+  "reason": "SoFi sponsor read",
+  "end_text": "SoFi.com slash CJ"
+}

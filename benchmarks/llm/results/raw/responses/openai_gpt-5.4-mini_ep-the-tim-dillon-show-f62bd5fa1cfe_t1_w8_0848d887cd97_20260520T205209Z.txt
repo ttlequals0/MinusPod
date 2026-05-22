@@ -1,0 +1,1 @@
+{"start":3950.7,"end":3975.9,"confidence":0.31,"reason":"No clear ad segment detected in this window; transcript is show content about Facebook/Meta and hantavirus, not promotional copy. Mention of Meta is incidental, not an ad.","end_text":"this is literally the last thing"}

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 636.8,
+    "end": 776.6,
+    "confidence": 1.0,
+    "reason": "Multiple host-read and network-inserted sponsor segments including Parloa, Capital One, AllTrails, Zinn, and Lemonada Media",
+    "end_text": "hear the six-part Thrive series"
+  }
+]

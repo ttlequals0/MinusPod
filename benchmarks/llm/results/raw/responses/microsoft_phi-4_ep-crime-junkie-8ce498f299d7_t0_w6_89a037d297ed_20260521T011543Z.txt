@@ -1,0 +1,7 @@
+{
+  "start": 25.23,
+  "end": 28.75,
+  "confidence": 0.95,
+  "reason": "LinkedIn Premium All-in-One network-inserted brand tagline ad",
+  "end_text": "try for free at LinkedIn.com slash all-in-one"
+}

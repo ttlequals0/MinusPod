@@ -1,0 +1,18 @@
+Looking at this transcript window, I can identify several advertisement segments:
+
+1. **Airtasker ad** (11335.2s - 11365.6s): Clear sponsor read with product pitch, URL (Airtasker.com), and call to action ("Download the Airtasker app").
+
+2. **Decisions Decisions / Gilead Sciences cross-promo** (11366.2s - 11424.6s): A produced segment promoting another podcast ("Decisions Decisions") with a sneak peek clip, ending with "Sponsored by Care for the Culture from Gilead Sciences."
+
+3. **OnDeck small business line of credit ad** (11425.3s - 11455.4s): Clear sponsor read with product pitch, URL (OnDeck.com), and call to action.
+
+4. **Public.com ad** (11513.7s - 11536.6s): Begins with "Disclosures available at public.com slash disclosures" — a known sponsor with a vanity URL, indicating a sponsor segment that started before this window.
+
+```json
+[
+  {"start": 11335.2, "end": 11365.6, "confidence": 0.98, "reason": "Airtasker host-read sponsor ad with URL and call to action", "end_text": "Airtasker, get anything done"},
+  {"start": 11366.2, "end": 11424.6, "confidence": 0.95, "reason": "Cross-promotion for Decisions Decisions podcast, sponsored by Care for the Culture from Gilead Sciences", "end_text": "from Gilead Sciences"},
+  {"start": 11425.3, "end": 11455.4, "confidence": 0.97, "reason": "OnDeck small business line of credit sponsor read with URL and call to action", "end_text": "subject to lender approval"},
+  {"start": 11513.7, "end": 11536.6, "confidence": 0.85, "reason": "Public.com sponsor segment ending with disclosures URL, continues from previous window", "end_text": "public.com slash disclosures"}
+]
+```

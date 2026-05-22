@@ -1,0 +1,1 @@
+{"start":3478.9,"end":3577.4,"confidence":0.98,"reason":"Host breaks for a produced sponsor block: Airtasker promo with download/app call to action, followed by Care for the Culture from Gilead Sciences and show-promo copy for Decisions Decisions/Kiki Palmer, ending before the conversation resumes.","end_text":"Sponsored by Care for the Culture from Gilead Sciences"}

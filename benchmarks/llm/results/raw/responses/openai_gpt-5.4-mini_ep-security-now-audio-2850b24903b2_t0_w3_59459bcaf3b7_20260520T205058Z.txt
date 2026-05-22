@@ -1,0 +1,1 @@
+{"start": 1255.9,"end": 1268.8,"confidence": 0.22,"reason":"No clear ad detected in this transcript window; only show content and a brief 'Thank you for watching' line with no sponsor promo language, URLs, codes, or calls to action.","end_text":"Thank you for watching."}

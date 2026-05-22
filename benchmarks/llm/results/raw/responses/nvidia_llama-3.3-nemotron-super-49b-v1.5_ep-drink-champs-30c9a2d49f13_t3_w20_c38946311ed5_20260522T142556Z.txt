@@ -1,0 +1,4 @@
+[
+    {"start": 8724.9, "end": 8766.2, "confidence": 0.95, "reason": "AirTasker and Care for the Culture sponsor reads", "end_text": "Gilead Sciences"},
+    {"start": 8799.1, "end": 8831.4, "confidence": 0.95, "reason": "OnDeck and Public sponsor reads", "end_text": "take it seriously"}
+]

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 0.0,
+    "end": 98.4,
+    "confidence": 0.99,
+    "reason": "This is a pre-roll ad block containing promotions for Vitel Global, LinkedIn, and Hertz, all featuring promotional language and calls to action.",
+    "end_text": "newest fleet yet at Hertz.com."
+  }
+]

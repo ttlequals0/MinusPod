@@ -1,0 +1,7 @@
+{
+  "start": 12600.1,
+  "end": 12602.9,
+  "confidence": 0.95,
+  "reason": "Host-read sponsor segment mentioning 'Thank you.' which is a transition phrase, likely leading into an ad.",
+  "end_text": "Thank you."
+}

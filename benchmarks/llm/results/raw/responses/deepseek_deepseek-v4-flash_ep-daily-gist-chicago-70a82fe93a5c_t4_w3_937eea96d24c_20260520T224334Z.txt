@@ -1,0 +1,1 @@
+{"start": 1240.8, "end": 1271.2, "confidence": 0.0, "reason": "No promotional content for sponsors. This segment contains only show closing credits, listening platform mentions, and producer credit. These are organic show elements, not advertisements.", "end_text": "right back here next time."}

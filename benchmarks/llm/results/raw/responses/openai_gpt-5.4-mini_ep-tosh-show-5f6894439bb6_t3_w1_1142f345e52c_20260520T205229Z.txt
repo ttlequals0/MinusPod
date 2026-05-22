@@ -1,0 +1,1 @@
+{"start":537.5,"end":567.0,"confidence":0.99,"reason":"Thrive Cosmetics sponsor read with \"Let's take a break\" style transition and promo code/URL (thrivecosmetics.com/slash shine26). Partial ad continues into the next line ending with \"Shine 26.\"","end_text":"Shine 26"}

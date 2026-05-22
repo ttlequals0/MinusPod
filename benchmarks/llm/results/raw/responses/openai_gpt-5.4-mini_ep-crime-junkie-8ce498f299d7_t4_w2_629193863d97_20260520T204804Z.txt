@@ -1,0 +1,1 @@
+{"start":1036.2,"end":1097.9,"confidence":0.99,"reason":"SoFi host-read sponsor segment with transition from content, product pitch, and CTA to SoFi.com/slash CJ","end_text":"That's SoFi.com slash CJ."}

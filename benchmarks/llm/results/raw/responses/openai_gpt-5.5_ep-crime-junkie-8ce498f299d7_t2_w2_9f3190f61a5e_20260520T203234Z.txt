@@ -1,0 +1,1 @@
+{"start":1012.8,"end":1129.6,"confidence":0.99,"reason":"Ad break including SoFi sponsor read with debt consolidation pitch and SoFi.com/CJ CTA, followed by LinkedIn Premium All-in-One promo with free trial CTA; start timestamp includes transition into ad within same transcript segment.","end_text":"at LinkedIn.com slash all-in-one"}

@@ -1,0 +1,1 @@
+{"start": 6900.0, "end": 6900.0, "confidence": 0.0, "reason": "no ads found in this window", "end_text": "web developer doesn't care which one they're interacting with."}

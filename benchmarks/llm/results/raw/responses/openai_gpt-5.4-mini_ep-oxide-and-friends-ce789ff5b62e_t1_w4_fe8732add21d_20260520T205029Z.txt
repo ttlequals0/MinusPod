@@ -1,0 +1,1 @@
+{"start":2280.0,"end":2285.2,"confidence":0.41,"reason":"No ad detected in this window; transcript is continuing technical discussion with no promotional language. Window note indicates no sponsor content present.","end_text":"I think..."}

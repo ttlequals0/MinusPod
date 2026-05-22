@@ -1,0 +1,9 @@
+[
+  {
+    "start": 7607.7,
+    "end": 7797.9,
+    "confidence": 1.0,
+    "reason": "Trusted Tech sponsor read",
+    "end_text": "Now, back to Steve."
+  }
+]

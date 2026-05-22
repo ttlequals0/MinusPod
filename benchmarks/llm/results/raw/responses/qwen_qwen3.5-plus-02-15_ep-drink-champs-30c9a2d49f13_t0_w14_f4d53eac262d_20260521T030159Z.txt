@@ -1,0 +1,1 @@
+[{"start": 6208.7, "end": 6318.1, "confidence": 0.98, "reason": "Ad break containing Airtasker host-read, Decisions Decisions cross-promo (Gilead), OnDeck produced ad, and Public sponsor tag", "end_text": "those who take it seriously."}]

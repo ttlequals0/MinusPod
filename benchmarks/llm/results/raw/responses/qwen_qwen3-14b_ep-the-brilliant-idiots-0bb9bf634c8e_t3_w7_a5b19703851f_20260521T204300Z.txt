@@ -1,0 +1,2 @@
+y.
+{"start": 2938.5, "end": 2938.5, "confidence": 0.5, "reason": "Sponsor mention without transition phrase", "end_text": "brilliant-idiots"}

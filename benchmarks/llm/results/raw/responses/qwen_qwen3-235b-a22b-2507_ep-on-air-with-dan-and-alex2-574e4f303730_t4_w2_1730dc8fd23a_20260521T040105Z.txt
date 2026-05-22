@@ -1,0 +1,1 @@
+{"start": 1139.5, "end": 1168.4, "confidence": 0.98, "reason": "Repetitive mention of 'discount code' and 'promo code' in rapid succession indicates a dynamically inserted retail ad or sponsorship break, likely for a consumer brand or e-commerce platform", "end_text": "discount code, discount code,"}

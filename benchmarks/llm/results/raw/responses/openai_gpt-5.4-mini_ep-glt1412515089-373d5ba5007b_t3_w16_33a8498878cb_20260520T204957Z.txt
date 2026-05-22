@@ -1,0 +1,1 @@
+{"start":112.0,"end":122.0,"confidence":0.96,"reason":"Mid-roll platform ad break introduced by Perplexity promo and podcastchoices ad-choices CTA; ad content is outside shown excerpt but clearly indicates sponsored insertion continuing through this window","end_text":"Visit podcastchoices.com/adchoices"}

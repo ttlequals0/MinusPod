@@ -1,0 +1,1 @@
+{"start":0.0,"end":152.9,"confidence":0.99,"reason":"Multiple host-read sponsor segments at the start: Capital One, Xero, Spectrum Business, and Warby Parker, each with promotional copy and calls to action like 'search XERO for your free trial' and 'visit warbyparker.com today'. Begins with 'This episode is brought to you by'.","end_text":"visit warbyparker.com today"}

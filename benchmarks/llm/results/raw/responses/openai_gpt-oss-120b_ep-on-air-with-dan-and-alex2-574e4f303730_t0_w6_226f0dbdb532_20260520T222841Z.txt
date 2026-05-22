@@ -1,0 +1,1 @@
+{"start":2609.5,"end":2634.3,"confidence":0.97,"reason":"Host-read sponsor list with promo language (\"promo code, discount code, sponsored by\") and multiple sponsor names","end_text":"Stamps.com"}

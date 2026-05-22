@@ -1,0 +1,2 @@
+w.
+{"start": 5040.0, "end": 5070.0, "confidence": 0.0, "reason": "No advertisement detected in the provided window", "end_text": "see you all next time."}

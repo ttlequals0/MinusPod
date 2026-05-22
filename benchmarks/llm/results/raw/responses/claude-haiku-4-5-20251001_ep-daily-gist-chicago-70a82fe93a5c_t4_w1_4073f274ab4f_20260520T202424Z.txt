@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 521.5,
+    "end": 548.5,
+    "confidence": 0.92,
+    "reason": "Crain's Weekly News Quiz promotion - host-read ad for chicagobusiness.com/quiz with call to action",
+    "end_text": "Follow us wherever you get your podcasts"
+  }
+]
+```

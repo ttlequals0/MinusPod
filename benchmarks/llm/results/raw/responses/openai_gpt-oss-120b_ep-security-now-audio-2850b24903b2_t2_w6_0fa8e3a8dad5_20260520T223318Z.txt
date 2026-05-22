@@ -1,0 +1,1 @@
+{"start":2532.3,"end":2693.0,"confidence":0.99,"reason":"Host transition phrase \"Okay, break time\" followed by a full host‑read sponsor spot for Meter with promotional language, URLs and call to action","end_text":"back to steve"}

@@ -1,0 +1,25 @@
+{
+"ads": [
+    {
+      "start": 11341.1,
+      "end": 11365.6,
+      "confidence": 0.98,
+      "reason": "Airtasker sponsor read",
+      "end_text": "Airtasker, get anything done"
+    },
+    {
+      "start": 11425.3,
+      "end": 11454.3,
+      "confidence": 0.98,
+      "reason": "OnDeck sponsor read",
+      "end_text": "Funds could be available as soon as tomorrow"
+    },
+    {
+      "start": 11614.6,
+      "end": 11630.6,
+      "confidence": 0.8,
+      "reason": "Listed sponsors, likely ad segment",
+      "end_text": "Stamps.com"
+    }
+  ]
+}

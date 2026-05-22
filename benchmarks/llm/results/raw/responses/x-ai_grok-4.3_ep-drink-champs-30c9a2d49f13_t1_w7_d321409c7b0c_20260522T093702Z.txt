@@ -1,0 +1,4 @@
+[
+  {"start": 3495.0, "end": 3528.5, "confidence": 0.95, "reason": "Airtasker sponsor read with app download CTA", "end_text": "get anything done"},
+  {"start": 3528.8, "end": 3540.0, "confidence": 0.9, "reason": "Cross-promo for Decisions Decisions podcast", "end_text": "about abstinence?"}
+]

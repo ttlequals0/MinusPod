@@ -1,0 +1,1 @@
+{"error": "No advertisement segments detected in the provided transcript window. The content consists of technical discussion, team acknowledgments, and organic show closing remarks without promotional language, sponsor mentions, URLs, promo codes, or platform-inserted ad content. Transitions and topic changes are part of natural conversation flow, not ad breaks."}

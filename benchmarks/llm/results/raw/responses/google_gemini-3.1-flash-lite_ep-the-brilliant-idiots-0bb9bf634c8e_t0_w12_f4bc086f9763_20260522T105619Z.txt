@@ -1,0 +1,9 @@
+[
+  {
+    "start": 5640.0,
+    "end": 5646.8,
+    "confidence": 0.9,
+    "reason": "Platform-inserted ad break (Megaphone/ad choices)",
+    "end_text": "you don't have to feel that way"
+  }
+]

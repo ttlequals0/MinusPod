@@ -1,0 +1,1 @@
+[{"start": 4646.2, "end": 4806.1, "confidence": 0.98, "reason": "Continuous block of sponsor reads (Colgate, Skinny Pop, Viz, Garnier) with gaps under 15 seconds.", "end_text": "GarnierUSA.com slash NPF."}]

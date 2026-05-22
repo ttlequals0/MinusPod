@@ -1,0 +1,1 @@
+{"start": 5443.4, "end": 6060.0, "confidence": 0.0, "reason": "no ads detected", "end_text": "the Democratic Party, even the..." }

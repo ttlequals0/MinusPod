@@ -1,0 +1,1 @@
+{"start": 2268.6, "end": 2296.9, "confidence": 0.9, "reason": "NORI drug test mention", "end_text": "walk down there."}

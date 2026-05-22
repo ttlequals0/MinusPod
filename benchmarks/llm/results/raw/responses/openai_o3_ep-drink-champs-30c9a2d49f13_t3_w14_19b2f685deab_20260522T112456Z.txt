@@ -1,0 +1,1 @@
+{"start": 6208.7, "end": 6318.1, "confidence": 0.96, "reason": "Ad block with Airtasker app promo, Decisions Decisions podcast cross-promo sponsored by Gilead, OnDeck small business credit, and Public investing platform", "end_text": "platform for those who take it seriously"}

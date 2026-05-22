@@ -1,0 +1,7 @@
+{
+	"start": 12780.0,
+	"end": 12798.5,
+	"confidence": 0.9,
+	"reason": "Content shift to discussing TV shows",
+	"end_text": "You watch Que Pasa USA?"
+}

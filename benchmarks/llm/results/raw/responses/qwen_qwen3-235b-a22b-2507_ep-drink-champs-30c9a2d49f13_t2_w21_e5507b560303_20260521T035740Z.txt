@@ -1,0 +1,1 @@
+{"start": 8799.1, "end": 8826.4, "confidence": 0.98, "reason": "OnDeck sponsor read with promotional language, URL, and call to action", "end_text": "subject to lender approval"}

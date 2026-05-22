@@ -1,0 +1,9 @@
+[
+    {
+        "start": 12266.8,
+        "end": 12268.4,
+        "confidence": 0.9,
+        "reason": "Mentions '1Password' in a promotional context ('throw all my shaders away at $1.25 each month'). Likely a misheard or misattributed sponsor read for a password manager (e.g., 1Password).",
+        "end_text": "month. You know what"
+    }
+]

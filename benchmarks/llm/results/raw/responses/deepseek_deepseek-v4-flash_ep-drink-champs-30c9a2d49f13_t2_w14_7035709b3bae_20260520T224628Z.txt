@@ -1,0 +1,7 @@
+{
+  "start": 6208.7,
+  "end": 6233.9,
+  "confidence": 0.99,
+  "reason": "Host-read ad for Airtasker with app download call to action and URL mention",
+  "end_text": "get anything done."
+}

@@ -1,0 +1,1 @@
+{"start": 506.4, "end": 515.6, "confidence": 0.8, "reason": "transition phrase 'right after this'", "end_text": "hundreds of jobs"}

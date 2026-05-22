@@ -1,0 +1,5 @@
+[
+    {"start": 1460.1, "end": 1486.1, "confidence": 0.95, "reason": "Airtasker sponsor read with URL and call to action", "end_text": "get anything done"},
+    {"start": 1525.5, "end": 1553.8, "confidence": 0.95, "reason": "OnDeck loan service ad with URL and promotional language", "end_text": "OnDeck.com"},
+    {"start": 1555.6, "end": 1597.8, "confidence": 0.95, "reason": "BetMGM sports betting ad with promotional offers and terms", "end_text": "Available in the U.S"}
+]

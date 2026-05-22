@@ -1,0 +1,11 @@
+[
+  {
+    "start": 0.0,
+    "end": 100.9,
+    "confidence": 0.98,
+    "reason": "This segment contains multiple sponsor mentions and promotional language for Capital One, Xero, and Spectrum Business, including calls to action and URLs.",
+    "end_text": "100% "
+  },
+  {
+    "start": 124.0,
+    

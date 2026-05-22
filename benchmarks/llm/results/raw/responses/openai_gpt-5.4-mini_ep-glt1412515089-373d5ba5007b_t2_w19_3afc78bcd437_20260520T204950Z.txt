@@ -1,0 +1,1 @@
+{"start":7965.7,"end":8218.9,"confidence":0.52,"reason":"No explicit sponsor-read language in this window; transcript stays on interview content about retrocausality, UFOs, and consciousness. No promotional URL, code, or transition like 'let's take a break' appears, so no ad can be confirmed.","end_text":"Atomically layered, you know, somehow"}

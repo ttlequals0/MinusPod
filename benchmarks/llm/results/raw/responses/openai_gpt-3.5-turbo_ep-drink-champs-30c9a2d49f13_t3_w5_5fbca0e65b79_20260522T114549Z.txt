@@ -1,0 +1,7 @@
+{
+	"start": 2350.7,
+	"end": 2352.1,
+	"confidence": 1,
+	"reason": "Transition to show content",
+	"end_text": "This out of my hands. Okay."
+}

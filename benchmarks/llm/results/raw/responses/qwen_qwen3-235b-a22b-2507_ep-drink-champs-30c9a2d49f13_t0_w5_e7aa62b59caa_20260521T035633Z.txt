@@ -1,0 +1,1 @@
+{"start": 2101.4, "end": 2127.4, "confidence": 0.98, "reason": "Transition and sponsor read for \"The Leather in the Sun Room,\" a Brad Brown movie, with promotional language and repetition indicating a network-inserted brand tagline ad", "end_text": "The black quarterback."}

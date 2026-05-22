@@ -1,0 +1,32 @@
+```json
+[
+  {
+    "start": 8724.9,
+    "end": 8737.9,
+    "confidence": 0.92,
+    "reason": "AirTasker network-inserted brand tagline ad with call to action",
+    "end_text": "AirTasker. Get anything done."
+  },
+  {
+    "start": 8738.1,
+    "end": 8798.3,
+    "confidence": 0.88,
+    "reason": "Decisions Decisions podcast cross-promotion with Care for the Culture sponsorship mention",
+    "end_text": "Sponsored by Care for the Culture from Gilead Sciences."
+  },
+  {
+    "start": 8799.1,
+    "end": 8826.4,
+    "confidence": 0.95,
+    "reason": "OnDeck sponsor read with product pitch, URL, and call to action",
+    "end_text": "Apply in minutes at OnDeck.com."
+  },
+  {
+    "start": 8827.0,
+    "end": 8831.4,
+    "confidence": 0.85,
+    "reason": "Public investing platform sponsor mention",
+    "end_text": "Support for the show comes from Public, the investing platform for those who take it seriously."
+  }
+]
+```

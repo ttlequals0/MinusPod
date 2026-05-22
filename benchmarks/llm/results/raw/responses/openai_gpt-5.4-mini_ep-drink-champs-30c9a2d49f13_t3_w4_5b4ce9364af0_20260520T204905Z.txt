@@ -1,0 +1,1 @@
+{"start":2234.5,"end":2263.3,"confidence":0.22,"reason":"No clear ad detected; this is just normal show content with 'Take one' repetition and no sponsor language, URLs, promo codes, or calls to action.","end_text":"Take one. Take one. Take one."}

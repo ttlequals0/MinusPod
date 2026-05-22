@@ -1,0 +1,1 @@
+{"start": 9741.1, "end": 9840.0, "confidence": 0.97, "reason": "Host-read promotional segment for timemachine.love, including call to action and product pitch for Applied Love Labs' time machine app", "end_text": "caused"}

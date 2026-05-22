@@ -1,0 +1,16 @@
+[
+    {
+        "start": 506.4,
+        "end": 548.5,
+        "confidence": 0.98,
+        "reason": "Crain's Weekly News Quiz promotion with call to action and vanity URL (chicagobusiness.com/quiz). Includes transition phrase 'right after this' and promotional language.",
+        "end_text": "wherever you get your podcasts"
+    },
+    {
+        "start": 617.2,
+        "end": 643.8,
+        "confidence": 0.95,
+        "reason": "Platform-inserted outro with promotional language for the podcast network ('Thank you for watching, and I'll see you next time'). Likely a network-inserted ad or outro segment.",
+        "end_text": "I'll see you next time"
+    }
+]

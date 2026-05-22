@@ -1,0 +1,16 @@
+[
+  {
+    "start": 54.1,
+    "end": 64.7,
+    "confidence": 0.99,
+    "reason": "Old National Bank sponsor read",
+    "end_text": "commercial banking. Member FDIC."
+  },
+  {
+    "start": 506.4,
+    "end": 548.5,
+    "confidence": 0.95,
+    "reason": "Mid-roll break with Crain's Weekly News Quiz promo",
+    "end_text": "Gist with Amy Guth."
+  }
+]

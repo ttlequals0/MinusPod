@@ -1,0 +1,1 @@
+{"start": 539.2, "end": 652.8, "confidence": 0.98, "reason": "Host-read dual sponsorship: 'In the Gray' movie promotion followed by Skechers product endorsement with promotional language, URLs, and calls to action", "end_text": "Skechers.com for the biggest selection"}

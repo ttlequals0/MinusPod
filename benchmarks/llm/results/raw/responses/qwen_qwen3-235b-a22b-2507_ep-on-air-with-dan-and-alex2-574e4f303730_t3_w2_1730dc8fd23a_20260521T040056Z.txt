@@ -1,0 +1,1 @@
+{"start": 1139.5, "end": 1168.4, "confidence": 0.99, "reason": "Unusual repetitive phrase 'discount code' repeated 17 times with no context, indicative of a failed or corrupted ad insertion, likely a network-inserted promo that glitched", "end_text": "discount code, discount code,"}

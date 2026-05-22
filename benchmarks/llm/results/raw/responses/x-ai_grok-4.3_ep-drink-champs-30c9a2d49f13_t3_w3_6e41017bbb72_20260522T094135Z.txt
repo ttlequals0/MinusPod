@@ -1,0 +1,5 @@
+[
+  {"start": 1450.9, "end": 1524.8, "confidence": 0.98, "reason": "Airtasker host-read ad followed by Decisions Decisions cross-promo", "end_text": "Gilead Sciences"},
+  {"start": 1525.5, "end": 1553.8, "confidence": 0.97, "reason": "OnDeck small business line of credit ad", "end_text": "North Dakota"},
+  {"start": 1555.6, "end": 1629.0, "confidence": 0.98, "reason": "BetMGM MLB baseball promo with terms", "end_text": "Kansas Crossing Casino"}
+]

@@ -1,0 +1,1 @@
+{"start":0.5,"end":43.4,"confidence":0.99,"reason":"Carvana host-read sponsor segment with promo copy and call to action; opens with a branded story and ends before show discussion resumes","end_text":"Sell your car today on Carvana"}

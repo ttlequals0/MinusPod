@@ -1,0 +1,25 @@
+{
+  "segments": [
+    {
+      "start": 2412.8,
+      "end": 2427.6,
+      "confidence": 0.95,
+      "reason": "HealthCast by Stony Brook Medicine podcast promo",
+      "end_text": "health.stonybrookmedicine.edu slash podcasts"
+    },
+    {
+      "start": 2428.9,
+      "end": 2460.5,
+      "confidence": 0.98,
+      "reason": "PC Richard & Son Aseema Lease to Own program ad",
+      "end_text": "operated for 116 years"
+    },
+    {
+      "start": 2461.6,
+      "end": 2484.9,
+      "confidence": 0.98,
+      "reason": "PC Richard & Son Aseema legal disclaimer (continuation of ad)",
+      "end_text": "PCRichard.com slash Asima dot HTML for details"
+    }
+  ]
+}

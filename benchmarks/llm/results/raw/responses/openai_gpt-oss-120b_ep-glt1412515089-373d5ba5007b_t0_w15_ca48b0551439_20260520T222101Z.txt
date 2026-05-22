@@ -1,0 +1,1 @@
+{"start":6368.2,"end":6394.8,"confidence":0.7,"reason":"Host-read sponsor mention of Perplexity AI sponsor","end_text":"what it's doing"}

@@ -1,0 +1,1 @@
+{"start": 1440.0, "end": 1440.0, "confidence": 0.0, "reason": "No promotional content or ad markers found in transcript segment", "end_text": "continues in next"}

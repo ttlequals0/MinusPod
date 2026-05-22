@@ -1,0 +1,7 @@
+{
+  "start": 14.0,
+  "end": 24.0,
+  "confidence": 0.95,
+  "reason": "The segment contains a sponsor read with promotional language, indicating a transition from content to advertisement. The segment begins with a continuation note from the previous ad, suggesting it starts at 14.0 minutes.",
+  "end_text": "they actually have a digital trail that shows Cole's movements the whole night and lined up with the other phones."
+}

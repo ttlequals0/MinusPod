@@ -1,0 +1,1 @@
+{"start": 0, "end": 0, "confidence": 0, "reason": "no ads found in this segment", "end_text": "no promotional language detected"}

@@ -1,0 +1,16 @@
+[
+    {
+        "start": 506.4,
+        "end": 548.5,
+        "confidence": 0.98,
+        "reason": "Crain's Weekly News Quiz promotion with call to action and URL (chicagobusiness.com/quiz)",
+        "end_text": "wherever you get your podcasts"
+    },
+    {
+        "start": 617.2,
+        "end": 643.8,
+        "confidence": 0.95,
+        "reason": "Platform-inserted outro segment with promotional language for the podcast and hosting platform ('Thank you for watching... see you next time')",
+        "end_text": "see you next time"
+    }
+]

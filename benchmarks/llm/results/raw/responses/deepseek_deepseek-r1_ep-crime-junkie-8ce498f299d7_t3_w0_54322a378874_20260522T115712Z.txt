@@ -1,0 +1,16 @@
+[
+  {
+    "start": 0.0,
+    "end": 40.8,
+    "confidence": 0.99,
+    "reason": "Vitel Global and LinkedIn Premium All-in-One ads with product pitches and URLs",
+    "end_text": "try for free at linkedin.com slash all-in-one"
+  },
+  {
+    "start": 41.5,
+    "end": 98.4,
+    "confidence": 0.99,
+    "reason": "LinkedIn Premium continuation and Hertz ad with product features and URL call-to-action",
+    "end_text": "newest fleet yet at Hertz.com"
+  }
+]

@@ -1,0 +1,1 @@
+{"start": 11742.8, "end": 11763.1, "confidence": 0.0, "reason": "Not an ad, conversational content", "end_text": "U.N. football players. Thank you."}

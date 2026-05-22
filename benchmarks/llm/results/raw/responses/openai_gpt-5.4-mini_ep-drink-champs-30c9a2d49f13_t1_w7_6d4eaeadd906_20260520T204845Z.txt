@@ -1,0 +1,1 @@
+{"start":3478.9,"end":3528.5,"confidence":0.97,"reason":"Produced Airtasker ad segment with promotional copy and CTA ('Download the Airtasker app or go to Airtasker.com'). Includes a transition into the ad content starting at the ad insertion point.","end_text":"Download the Airtasker app or go to Airtasker.com"}

@@ -1,0 +1,3 @@
+[{"start": 1742.3, "end": 1771.5, "confidence": 0.98, "reason": "Capital One sponsor ad", "end_text": "technology at Capital One"},
+{"start": 1772.6, "end": 1803.6, "confidence": 0.9, "reason": "Lemonada Media Good Things podcast promo", "end_text": "six-part Thrive series"},
+{"start": 2246.0, "end": 2280.0, "confidence": 0.98, "reason": "Capital One sponsor ad and Rinse ad continue in next window", "end_text": "continues in next"}]

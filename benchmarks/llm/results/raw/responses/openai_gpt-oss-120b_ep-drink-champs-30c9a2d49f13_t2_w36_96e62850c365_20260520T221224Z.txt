@@ -1,0 +1,39 @@
+{
+  "ads": [
+    {
+      "start": 15388.3,
+      "end": 15416.5,
+      "confidence": 0.98,
+      "reason": "Airtasker sponsor read ad",
+      "end_text": "Airtasker."
+    },
+    {
+      "start": 15416.7,
+      "end": 15452.3,
+      "confidence": 0.98,
+      "reason": "CVS sponsor ad",
+      "end_text": "by location."
+    },
+    {
+      "start": 15453.9,
+      "end": 15481.1,
+      "confidence": 0.98,
+      "reason": "Trashy sponsor ad",
+      "end_text": "get started."
+    },
+    {
+      "start": 15482.9,
+      "end": 15512.2,
+      "confidence": 0.98,
+      "reason": "TryFencing sponsor ad",
+      "end_text": "tryfencing.org."
+    },
+    {
+      "start": 15512.4,
+      "end": 15517.1,
+      "confidence": 0.98,
+      "reason": "iHeart platform ad (continues in next)",
+      "end_text": "Guaranteed human."
+    }
+  ]
+}

@@ -1,0 +1,16 @@
+[
+  {
+    "start": 1.6,
+    "end": 51.9,
+    "confidence": 1.0,
+    "reason": "Acast platform-inserted cross-promotion for other podcasts",
+    "end_text": "think you might also like Formative"
+  },
+  {
+    "start": 52.4,
+    "end": 77.2,
+    "confidence": 1.0,
+    "reason": "Acast platform-inserted cross-promotion for Formative podcast",
+    "end_text": "interviewed by the leaders of tomorrow"
+  }
+]

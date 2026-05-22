@@ -1,0 +1,4 @@
+[{"start": 1450.9, "end": 1459.5, "confidence": 0.95, "reason": "Airtasker ad with promotional language", "end_text": "miniature pony's nails done"},
+{"start": 1459.5, "end": 1524.8, "confidence": 0.9, "reason": "Care for the Culture from Gilead Sciences ad with promotional language", "end_text": "wherever you get your podcasts"},
+{"start": 1525.5, "end": 1553.8, "confidence": 0.95, "reason": "OnDeck ad with promotional language", "end_text": "Apply today at OnDeck.com"},
+{"start": 1555.6, "end": 1627.2, "confidence": 0.95, "reason": "BetMGM ad with promotional language", "end_text": "Download the BetMGM app"} ]

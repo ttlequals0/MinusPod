@@ -1,0 +1,11 @@
+{
+  "segments": [
+    {
+      "start": 1836.9,
+      "end": 1861.3,
+      "confidence": 0.98,
+      "reason": "Mint Mobile sponsor read with promo language and call to action",
+      "end_text": "crazy high bills?"
+    }
+  ]
+}

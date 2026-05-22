@@ -1,0 +1,16 @@
+[
+  {
+    "start": 6300.0,
+    "end": 6313.4,
+    "confidence": 1.0,
+    "reason": "OnDeck small business line of credit ad (continues from previous)",
+    "end_text": "All amounts subject to lender approval"
+  },
+  {
+    "start": 6313.8,
+    "end": 6318.1,
+    "confidence": 1.0,
+    "reason": "Public investing platform ad",
+    "end_text": "for those who take it seriously"
+  }
+]

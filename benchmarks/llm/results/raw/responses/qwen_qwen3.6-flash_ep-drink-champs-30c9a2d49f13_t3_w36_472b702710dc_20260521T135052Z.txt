@@ -1,0 +1,1 @@
+[{"start": 15388.3, "end": 15517.1, "confidence": 0.95, "reason": "Network-inserted ad block featuring Airtasker, CVS, Trashy, and Try Fencing, followed by iHeart Podcast platform promo.", "end_text": "Guaranteed human."}]

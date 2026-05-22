@@ -1,0 +1,9 @@
+[
+  {
+    "start": 6300.0,
+    "end": 6318.1,
+    "confidence": 0.95,
+    "reason": "OnDeck and Public ads (ad break)",
+    "end_text": "for those who take it seriously"
+  }
+]

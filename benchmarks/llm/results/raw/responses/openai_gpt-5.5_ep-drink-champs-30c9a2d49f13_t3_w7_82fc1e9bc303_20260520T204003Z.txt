@@ -1,0 +1,1 @@
+{"start":3478.9,"end":3540.0,"confidence":0.98,"reason":"Airtasker app advertisement followed by a network cross-promo for Decisions Decisions; includes calls to action 'Download the Airtasker app or go to Airtasker.com' and podcast promo, continues in next window","end_text":"Here's a sneak peek"}

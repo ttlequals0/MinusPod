@@ -1,0 +1,1 @@
+{"start":7584.4,"end":7740.0,"confidence":0.99,"reason":"Trusted Tech sponsor read after final break phrase","end_text":"He was impressed."}

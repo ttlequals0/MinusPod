@@ -1,0 +1,7 @@
+{
+  "start": 14043.9,
+  "end": 14089.3,
+  "confidence": 0.85,
+  "reason": "Transition 'Let's take a sunny shot' likely leads into 'Drink Champs / Sport Champs' promotional segment, referencing the show's own branded clothing/merchandise. This functions as a self-promotional sponsor-like segment for the show's apparel line.",
+  "end_text": "pushed pause? hell nah!"
+}

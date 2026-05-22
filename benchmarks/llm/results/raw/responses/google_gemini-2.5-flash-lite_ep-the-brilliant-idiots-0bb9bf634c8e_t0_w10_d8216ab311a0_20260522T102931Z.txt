@@ -1,0 +1,11 @@
+[
+  {
+    "start": 4324.2,
+    "end": 4334.1,
+    "confidence": 0.95,
+    "reason": "Host read ad for Jess Hilarious' book and a tennis event.",
+    "end_text": "Love Racquet Club."
+  },
+  {
+    "start": 4334.7,
+    "end": 436

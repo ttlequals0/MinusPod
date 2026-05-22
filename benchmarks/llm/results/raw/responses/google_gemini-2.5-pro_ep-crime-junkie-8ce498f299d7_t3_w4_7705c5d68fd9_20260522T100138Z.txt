@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1959.8,
+    "end": 2080.5,
+    "confidence": 1.0,
+    "reason": "A merged ad block containing host-read promotions for Rakuten, LinkedIn, and Hertz.",
+    "end_text": "fleet yet at Hertz.com."
+  }
+]

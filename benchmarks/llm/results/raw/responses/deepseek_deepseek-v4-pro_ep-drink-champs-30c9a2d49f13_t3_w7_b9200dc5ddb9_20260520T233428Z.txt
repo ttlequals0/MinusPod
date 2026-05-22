@@ -1,0 +1,11 @@
+{
+  "segments": [
+    {
+      "start": 3503.7,
+      "end": 3540.0,
+      "confidence": 0.98,
+      "reason": "Airtasker sponsor ad followed by Decisions Decisions podcast promo, merged; second ad continues past window",
+      "end_text": "It's literally that."
+    }
+  ]
+}

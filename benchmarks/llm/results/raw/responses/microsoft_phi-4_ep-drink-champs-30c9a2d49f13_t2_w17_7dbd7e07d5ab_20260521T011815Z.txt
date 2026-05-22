@@ -1,0 +1,7 @@
+{
+  "start": 119.0,
+  "end": 129.0,
+  "confidence": 0.95,
+  "reason": "The segment contains promotional language and mentions DJ Khaled and DJ Drama, indicating sponsorship content.",
+  "end_text": "Master shit, DJ Master"
+}

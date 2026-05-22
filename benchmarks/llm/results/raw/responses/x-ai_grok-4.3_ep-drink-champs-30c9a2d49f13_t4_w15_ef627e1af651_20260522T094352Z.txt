@@ -1,0 +1,4 @@
+[
+  {"start": 6283.4, "end": 6313.4, "confidence": 0.98, "reason": "OnDeck small business loan ad with promo URL and call to action", "end_text": "All loans and..."},
+  {"start": 6313.8, "end": 6318.1, "confidence": 0.85, "reason": "Public investing platform sponsor mention", "end_text": "take it seriously."}
+]

@@ -1,0 +1,1 @@
+{"start": 4324.2, "end": 4380.0, "confidence": 0.95, "reason": "Charlamagne Tha God promoting his own show AM Mornings and other content", "end_text": "your outfit is..." }

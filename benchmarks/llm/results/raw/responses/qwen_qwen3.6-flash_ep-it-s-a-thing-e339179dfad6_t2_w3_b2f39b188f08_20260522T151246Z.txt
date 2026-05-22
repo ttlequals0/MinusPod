@@ -1,0 +1,1 @@
+[{"start": 1524.5, "end": 1602.6, "confidence": 0.98, "reason": "Host-read Xero sponsor segment, followed by Acast cross-promo for Wrong Turns and Acast platform promotion.", "end_text": "Acast.com."}]

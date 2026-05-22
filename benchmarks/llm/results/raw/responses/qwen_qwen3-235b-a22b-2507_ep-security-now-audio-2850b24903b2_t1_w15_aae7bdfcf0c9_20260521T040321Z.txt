@@ -1,0 +1,1 @@
+{"start": 6284.0, "end": 6900.0, "confidence": 0.98, "reason": "Sponsor segment begins with transition 'Let's take a break' and includes promotional language for Bitwarden, Hoxhunt, Meter, Zscaler, and Trusted Tech Team with URLs and calls to action", "end_text": "using a model that's optimized for the device."}

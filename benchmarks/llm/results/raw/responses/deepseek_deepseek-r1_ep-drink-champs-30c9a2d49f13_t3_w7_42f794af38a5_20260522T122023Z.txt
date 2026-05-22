@@ -1,0 +1,16 @@
+[
+  {
+    "start": 3478.9,
+    "end": 3528.5,
+    "confidence": 0.98,
+    "reason": "Airtasker sponsorship with explicit call to action (download app, visit website)",
+    "end_text": "get anything done"
+  },
+  {
+    "start": 3528.8,
+    "end": 3540.0,
+    "confidence": 0.95,
+    "reason": "Cross-promotion for Decisions Decisions podcast - continues in next",
+    "end_text": "often overlooked, sexual health"
+  }
+]

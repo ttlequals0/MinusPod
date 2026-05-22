@@ -1,0 +1,2 @@
+y.
+{"start": 4200.0, "end": 4800.0, "confidence": 0.0, "reason": "No advertisements detected in the provided transcript segment", "end_text": "change took maybe 12 hours of engineering time"}

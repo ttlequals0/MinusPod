@@ -1,0 +1,1 @@
+{"start": 1421.3, "end": 1449.3, "confidence": 0.98, "reason": "Host organically mentions Mother's Day plans and church, but no promotional language, sponsor names, URLs, or calls to action present. This is part of the natural conversation with his mom about family traditions and breakfast plans. No ad content detected.", "end_text": "son?"}

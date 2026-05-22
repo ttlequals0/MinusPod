@@ -1,0 +1,9 @@
+[
+  {
+    "start": 5420.4,
+    "end": 5441.4,
+    "confidence": 0.9,
+    "reason": "Repeated 'promo code, discount code' phrases indicating potential ad insertion point",
+    "end_text": "discount code, discount code"
+  }
+]

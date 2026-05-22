@@ -1,0 +1,1 @@
+{"start": 5443.4, "end": 6060.2, "confidence": 0.98, "reason": "continuous discussion on interracial relationships, Met Gala, Jeff Bezos, Amazon, X, Elon Musk, and Killer Mike without any promotional content, sponsor mentions, URLs, promo codes, or ad-like language; all content is organic conversation", "end_text": "even the, even the..."}

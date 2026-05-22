@@ -1,0 +1,9 @@
+[
+  {
+    "start": 7737.1,
+    "end": 7762.0,
+    "confidence": 0.95,
+    "reason": "Host-read ad segment for Modelo beer",
+    "end_text": "Nigerian that ran fast"
+  }
+]

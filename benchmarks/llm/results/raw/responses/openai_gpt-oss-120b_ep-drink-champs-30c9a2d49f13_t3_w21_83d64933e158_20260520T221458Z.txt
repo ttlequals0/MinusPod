@@ -1,0 +1,17 @@
+{
+  "ads": [
+    {
+      "start": 8799.1,
+      "end": 8826.4,
+      "confidence": 0.98,
+      "reason": "OnDeck loan sponsor read",
+      "end_text": "subject to lender approval"
+    },
+    {
+      "start": 8827.0,
+      "end": 8831.4,
+      "confidence": 0.96,
+      "reason": "Public investing platform sponsor mention",
+      "end_text": "take it seriously"
+    }
+  ]

@@ -1,0 +1,1 @@
+{"start": 1742.3, "end": 1771.5, "confidence": 0.99, "reason": "Host-read Capital One sponsorship with product pitch, call to action, and promotional language", "end_text": "That's technology at Capital One"}

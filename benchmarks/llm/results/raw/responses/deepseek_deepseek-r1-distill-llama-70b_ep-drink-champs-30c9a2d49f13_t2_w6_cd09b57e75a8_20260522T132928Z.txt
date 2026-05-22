@@ -1,0 +1,7 @@
+{
+  "start": 2535.6,
+  "end": 2551.7,
+  "confidence": 0.95,
+  "reason": "Host transition to break with 'Wow. Here we are. Here we are. Here we are three years later.'",
+  "end_text": "the only goddamn thing I know."
+}

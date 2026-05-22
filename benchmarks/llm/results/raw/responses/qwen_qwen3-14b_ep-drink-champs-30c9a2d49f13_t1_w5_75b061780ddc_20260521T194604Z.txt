@@ -1,0 +1,2 @@
+t.
+{"start": 2100.0, "end": 2700.0, "confidence": 0.0, "reason": "No advertisement segments detected in the provided transcript window", "end_text": "they think they need."}

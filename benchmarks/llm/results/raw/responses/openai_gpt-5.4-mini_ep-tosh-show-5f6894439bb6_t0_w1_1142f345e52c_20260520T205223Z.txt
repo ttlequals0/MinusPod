@@ -1,0 +1,1 @@
+{"start":537.5,"end":567.0,"confidence":0.99,"reason":"Thrive Cosmetics host-read sponsor segment with transition back from break, product pitch, and promo code URL (shine26). Partial ad continues into next clip.","end_text":"Shine 26."}

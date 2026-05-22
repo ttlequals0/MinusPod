@@ -1,0 +1,1 @@
+[{"start": 1450.9, "end": 1629.0, "confidence": 0.98, "reason": "Continuous ad break featuring Airtasker, Decisions Decisions network promo, OnDeck, and BetMGM sponsor reads", "end_text": "Kansas Crossing Casino and Hotel"}]

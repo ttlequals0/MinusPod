@@ -1,0 +1,1 @@
+[{"start": 8820.0, "end": 8831.4, "confidence": 0.98, "reason": "OnDeck and Public sponsor reads, merged due to small gap, continues from previous", "end_text": "take it seriously"}]

@@ -1,0 +1,16 @@
+[
+  {
+    "start": 11335.2,
+    "end": 11455.4,
+    "confidence": 0.98,
+    "reason": "Continuous ad break featuring Airtasker, Decisions Decisions cross-promo, and OnDeck sponsor reads",
+    "end_text": "subject to lender approval."
+  },
+  {
+    "start": 11614.6,
+    "end": 11630.6,
+    "confidence": 0.95,
+    "reason": "Host reading list of sponsors including Athletic Greens and Audible",
+    "end_text": "Manscaped, Stamps.com,"
+  }
+]

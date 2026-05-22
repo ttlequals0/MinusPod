@@ -1,0 +1,1 @@
+[{"start": 4675.4, "end": 4787.9, "confidence": 0.95, "reason": "Network-inserted block of sponsor reads (Colgate, Skinny Pop, Viz, Garnier)", "end_text": "GarnierUSA.com slash NPF."}]

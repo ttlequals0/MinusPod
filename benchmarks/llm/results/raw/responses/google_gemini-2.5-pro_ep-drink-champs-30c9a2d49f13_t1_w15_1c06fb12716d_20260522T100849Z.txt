@@ -1,0 +1,9 @@
+[
+  {
+    "start": 6283.4,
+    "end": 6318.1,
+    "confidence": 0.98,
+    "reason": "A merged ad segment for OnDeck and Public, featuring promotional language, a URL, and a 'support for the show' transition.",
+    "end_text": "who take it seriously."
+  }
+]

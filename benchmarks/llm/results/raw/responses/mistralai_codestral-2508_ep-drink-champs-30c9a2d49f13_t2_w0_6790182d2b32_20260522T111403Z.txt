@@ -1,0 +1,1 @@
+[{"start": 0.0, "end": 72.1, "confidence": 0.95, "reason": "iHeart Podcast network-inserted brand tagline ad", "end_text": "from Gilead Sciences."}]

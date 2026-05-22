@@ -1,0 +1,1 @@
+{"start": 2520.2, "end": 3137.2, "confidence": 0.0, "reason": "No promotional language, sponsor names, URLs, promo codes, or product pitches detected in this window. The transcript consists entirely of host and guest conversation about NFL draft stories and team experiences.", "end_text": "that did some special things, but"}

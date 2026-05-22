@@ -1,0 +1,1 @@
+{"start":5566.3,"end":5596.3,"confidence":0.97,"reason":"Netflix network-inserted promo with clear ad copy: 'This episode is brought to you by Netflix's remarkably bright creatures' and show description/call to action","end_text":"Remarkably Bright Creatures is now playing"}

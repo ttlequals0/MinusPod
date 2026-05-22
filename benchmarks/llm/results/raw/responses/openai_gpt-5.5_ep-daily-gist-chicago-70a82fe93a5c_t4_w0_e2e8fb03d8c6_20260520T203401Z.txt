@@ -1,0 +1,1 @@
+{"start":54.1,"end":64.7,"confidence":0.94,"reason":"Old National Bank sponsor/ad with promotional tagline and call to action to oldnational.com/commercialbanking; partial ad likely began before first transcribed ad line","end_text":"commercial banking. Member FDIC."}

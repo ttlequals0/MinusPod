@@ -1,0 +1,7 @@
+{
+  "start": 13, 
+  "end": 14, 
+  "confidence": 0.95, 
+  "reason": "The segment contains a transition phrase indicating a shift from a serious discussion to a lighter topic, suggesting a change in content rather than an advertisement.", 
+  "end_text": "Let's talk, let's talk, let's talk."
+}

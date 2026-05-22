@@ -1,0 +1,7 @@
+{
+	"start": 54.1,
+	"end": 64.7,
+	"confidence": 1,
+	"reason": "Old National Bank sponsor mention",
+	"end_text": "Connect with a banker today at oldnational.com slash commercial banking."
+}

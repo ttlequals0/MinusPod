@@ -1,0 +1,1 @@
+[{"start": 1959.8, "end": 2080.5, "confidence": 0.98, "reason": "Mid-roll ad break featuring Rakuten, LinkedIn, and Hertz sponsor reads merged due to short gaps", "end_text": "fleet yet at Hertz.com"}]

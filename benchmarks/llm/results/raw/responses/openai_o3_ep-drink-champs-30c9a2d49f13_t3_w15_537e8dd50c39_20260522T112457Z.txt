@@ -1,0 +1,1 @@
+{"error":"We have only one ad segment, but because we do not show the last 3-5 words for this segment, the required output format cannot be met."}

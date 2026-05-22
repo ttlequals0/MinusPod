@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1457.3,
+    "end": 1511.2,
+    "confidence": 0.95,
+    "reason": "Mention of CellHawk app with promotional language",
+    "end_text": "put them into a map that you can actually like..."
+  }
+]

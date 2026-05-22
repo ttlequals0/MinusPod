@@ -1,0 +1,30 @@
+[
+  {
+    "start": 11788.7,
+    "end": 11819.9,
+    "confidence": 0.95,
+    "reason": "Host transition to ad break",
+    "end_text": "I agree with that. But look, so"
+  },
+  {
+    "start": 11825.1,
+    "end": 11864.6,
+    "confidence": 0.98,
+    "reason": "Repeated ad slogan delivery",
+    "end_text": "Give me a shot. Give me a shot"
+  },
+  {
+    "start": 11990.9,
+    "end": 12011.2,
+    "confidence": 0.97,
+    "reason": "Platform-inserted ad interruption",
+    "end_text": "stop, stop, stop, stop, stop"
+  },
+  {
+    "start": 12151.9,
+    "end": 12159.3,
+    "confidence": 0.96,
+    "reason": "Juicy Juice product placement",
+    "end_text": "hey, hey, hey, hey, hey, hey"
+  }
+]

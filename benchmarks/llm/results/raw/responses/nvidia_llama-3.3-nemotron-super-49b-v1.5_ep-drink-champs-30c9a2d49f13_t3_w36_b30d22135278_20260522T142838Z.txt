@@ -1,0 +1,7 @@
+[
+    {"start": 15416.7, "end": 15438.4, "confidence": 0.95, "reason": "Airtasker sponsor read with call to action and URL", "end_text": "Airtasker."},
+    {"start": 15439.0, "end": 15452.3, "confidence": 0.95, "reason": "CVS sponsor read with promotional messaging and URL", "end_text": "come by our store."},
+    {"start": 15453.9, "end": 15481.1, "confidence": 0.95, "reason": "Trashy sponsor read with call to action and URL", "end_text": "Trashy.io to get started."},
+    {"start": 15482.9, "end": 15512.2, "confidence": 0.95, "reason": "Try Fencing promotional ad with URL", "end_text": "tryfencing.org that's"},
+    {"start": 15512.4, "end": 15517.1, "confidence": 0.95, "reason": "Platform-inserted iHeart Podcast ad", "end_text": "Guaranteed human."}
+]

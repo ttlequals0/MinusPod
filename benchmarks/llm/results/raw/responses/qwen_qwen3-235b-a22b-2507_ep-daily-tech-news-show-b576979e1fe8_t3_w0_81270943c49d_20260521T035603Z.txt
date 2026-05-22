@@ -1,0 +1,1 @@
+{"start": 0.0, "end": 58.3, "confidence": 0.98, "reason": "Host-read Capital One ad followed by Broadway show promo - both are paid sponsor segments with promotional language and calls to action", "end_text": "Visit Every Brilliant Thing"}

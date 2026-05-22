@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 5420.4,
+      "end": 5441.4,
+      "confidence": 0.9,
+      "reason": "Repetitive promotional language ('promo code', 'discount code') typical of a dynamically inserted ad or a placeholder for one.",
+      "end_text": "discount code, discount code"
+    }
+  ]
+}

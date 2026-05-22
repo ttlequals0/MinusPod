@@ -1,0 +1,1 @@
+{"start":1450.9,"end":1627.4,"confidence":0.99,"reason":"Merged ad break containing Airtasker commercial, Decisions Decisions/Care for the Culture from Gilead Sciences podcast promo, OnDeck line of credit ad, and BetMGM sports betting ad with CTA and legal disclaimer","end_text":"with Kansas Crossing Casino and Hotel."}

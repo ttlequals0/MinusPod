@@ -1,0 +1,1 @@
+{"start":6388.0,"end":6394.8,"confidence":0.98,"reason":"Perplexity host-read sponsor mention with promotional language and the note 'our AI sponsor' / ad break context; partial ad continues into sponsor explanation","end_text":"it's Flexing on us"}

@@ -1,0 +1,8 @@
+[
+  {
+    "start": 539.2,
+    "end": 568.3,
+    "confidence": 0.95,
+    "reason": "This episode is brought to you by In the Gray, written and directed by Guy Ritchie, my man, I love that dude. This blockbuster stars Jake Gyllenhaal, Henry Cavill, and Aza Gonzalez as elite operatives with questionable morals. When billions get stolen, these are the pros that steal it back, turning an impossible heist into an all-hands-on-deck operation with plenty of action. In a world of black and white, they operate.",
+    "end_text": "they operate."
+  

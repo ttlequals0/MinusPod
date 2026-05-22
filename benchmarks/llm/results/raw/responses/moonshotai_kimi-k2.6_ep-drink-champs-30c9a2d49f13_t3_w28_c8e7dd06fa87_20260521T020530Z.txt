@@ -1,0 +1,1 @@
+{"start": 11742.8, "end": 12382.9, "confidence": 0.0, "reason": "No promotional content, sponsor mentions, URLs, promo codes, or ad transitions detected in this window. All content is interview conversation with Warren Sapp and host banter.", "end_text": "N/A"}

@@ -1,0 +1,14 @@
+{
+  "segments": [
+    {
+      "start": 0.0,
+      "end": 58.1,
+      "confidence": 0.98,
+      "reason": "Progressive Insurance host-read ad and Whole Foods Market network-inserted ad, merged due to short gap",
+      "end_text": "mom with Whole Foods Market."
+    },
+    {
+      "start": 537.0,
+      "end": 567.0,
+      "confidence": 0.98,
+      "reason": "Thrive Cosmetics sponsor read

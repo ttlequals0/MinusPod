@@ -1,0 +1,86 @@
+[
+  {
+    "start": 14581.4,
+    "end": 14582.2,
+    "confidence": 0.95,
+    "reason": "Host transition to advertisement",
+    "end_text": "What are you selling then?"
+  },
+  {
+    "start": 14583.8,
+    "end": 14611.2,
+    "confidence": 0.98,
+    "reason": "Product/service promotion",
+    "end_text": "spread the love and"
+  },
+  {
+    "start": 14612.6,
+    "end": 14630.4,
+    "confidence": 0.98,
+    "reason": "Continued promotion",
+    "end_text": "talk my shit. Exactly."
+  },
+  {
+    "start": 14631.4,
+    "end": 14659.7,
+    "confidence": 0.98,
+    "reason": "Promotional content",
+    "end_text": "loud and motherfucking clear."
+  },
+  {
+    "start": 14660.6,
+    "end": 14689.6,
+    "confidence": 0.98,
+    "reason": "Promotional narrative",
+    "end_text": "nigga. Thank you. Thank you."
+  },
+  {
+    "start": 14689.7,
+    "end": 14717.6,
+    "confidence": 0.98,
+    "reason": "Educational product integration",
+    "end_text": "Gotta know your rights."
+  },
+  {
+    "start": 14718.7,
+    "end": 14745.0,
+    "confidence": 0.98,
+    "reason": "Legal advice promotion",
+    "end_text": "You think I got a gun?"
+  },
+  {
+    "start": 14747.4,
+    "end": 14774.2,
+    "confidence": 0.98,
+    "reason": "Safety product endorsement",
+    "end_text": "No, no, no, no, no."
+  },
+  {
+    "start": 14776.0,
+    "end": 14804.8,
+    "confidence": 0.98,
+    "reason": "Regional service promotion",
+    "end_text": "I'm Orlando. Orlando's one"
+  },
+  {
+    "start": 14805.3,
+    "end": 14827.8,
+    "confidence": 0.98,
+    "reason": "Tourism advisory",
+    "end_text": "Yeah, yeah, yeah, we know that."
+  },
+  {
+    "start": 14828.9,
+    "end": 14834.6,
+    "confidence": 0.98,
+    "reason": "Legal service mention",
+    "end_text": "I never heard the violation."
+  },
+  {
+    "start": 14854.0,
+    "end": 14861.3,
+    "confidence": 0.98,
+    "reason": "Call to action",
+    "end_text": "Thank you for watching."
+  }
+]

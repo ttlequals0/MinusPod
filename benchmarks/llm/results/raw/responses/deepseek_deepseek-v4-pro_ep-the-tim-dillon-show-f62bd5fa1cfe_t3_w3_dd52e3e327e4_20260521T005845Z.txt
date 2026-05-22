@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1439.2,
+    "end": 1665.9,
+    "confidence": 0.98,
+    "reason": "Host-read ads for Mint Mobile and Aura Frames, plus network-inserted ads for Colgate Women's Games and Skinny Pop popcorn",
+    "end_text": "perfectly salted. Skinny Pop."
+  }
+]

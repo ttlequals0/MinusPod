@@ -1,0 +1,1 @@
+{"start": 2263.4, "end": 2267.2, "confidence": 0.98, "reason": "Transition phrase 'I went back and I recently looked at you in the draft, right? Oh shit.' indicates a shift back to content after a likely ad break; however, no promotional content is present in transcript", "end_text": "draft, right? Oh shit."}

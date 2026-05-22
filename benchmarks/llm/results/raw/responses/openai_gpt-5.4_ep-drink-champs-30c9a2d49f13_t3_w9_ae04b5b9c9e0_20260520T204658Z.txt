@@ -1,0 +1,1 @@
+{"start": 4007.7, "end": 4010.5, "confidence": 0.02, "reason": "No promotional language; only outro music marker", "end_text": "Outro Music"}

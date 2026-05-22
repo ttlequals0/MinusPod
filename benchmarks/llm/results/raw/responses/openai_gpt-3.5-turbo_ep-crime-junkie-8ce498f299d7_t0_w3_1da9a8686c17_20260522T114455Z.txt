@@ -1,0 +1,7 @@
+{
+	"start": 1860.0,
+	"end": 1860.0,
+	"confidence": 0.9,
+	"reason": "End of episode content",
+	"end_text": "may have been double-crossing"
+}

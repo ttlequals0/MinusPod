@@ -1,0 +1,1 @@
+{"start": 15261.8, "end": 15291.0, "confidence": 0.95, "reason": "Promo code mention, likely sponsor segment", "end_text": "discount code, discount code"}

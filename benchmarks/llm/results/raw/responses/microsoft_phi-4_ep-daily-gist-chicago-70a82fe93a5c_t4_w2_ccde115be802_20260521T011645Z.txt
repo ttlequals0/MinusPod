@@ -1,0 +1,7 @@
+{  
+  "start": 11.40,  
+  "end": 12.67,  
+  "confidence": 0.95,  
+  "reason": "The segment includes a transition from the previous ad and continues into the next segment, indicating a dynamic ad boundary within the window. The segment contains promotional language and mentions of specific transactions and safety concerns related to commercial real estate, which are typical characteristics of advertisements.",  
+  "end_text": "Thanks so much for listening. I'm Amy Guth, and I'll meet you right back here next time."  
+}

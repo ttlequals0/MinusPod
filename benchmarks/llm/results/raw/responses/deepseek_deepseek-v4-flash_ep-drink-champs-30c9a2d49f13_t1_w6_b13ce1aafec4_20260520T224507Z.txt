@@ -1,0 +1,1 @@
+{"start": 2520.2, "end": 3137.2, "confidence": 0.0, "reason": "No promotional language, sponsor names, URLs, promo codes, or calls to action detected in this window. The transcript consists entirely of conversational storytelling and football anecdotes.", "end_text": "some special things, but"}

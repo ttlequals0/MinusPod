@@ -1,0 +1,2 @@
+t.
+{"start": 6480.0, "end": 6480.0, "confidence": 0.0, "reason": "No advertisement segments found in the provided window", "end_text": "no advertisement segments found in the provided window"}

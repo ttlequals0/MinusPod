@@ -1,0 +1,1 @@
+{"start":2520.2,"end":3137.2,"confidence":0.14,"reason":"No clear advertisement segments found in this transcript window; content is continuous interview conversation with no sponsor language, promo codes, URLs, or break transitions. The provided window appears to be show content only.","end_text":"fast offense back in the day but"}

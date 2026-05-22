@@ -1,0 +1,1 @@
+{"start": 63.0,"end": 73.0,"confidence": 0.0,"reason":"No advertisement segments found in this transcript window; content is interview discussion only.","end_text":"It's a beautiful sky."}

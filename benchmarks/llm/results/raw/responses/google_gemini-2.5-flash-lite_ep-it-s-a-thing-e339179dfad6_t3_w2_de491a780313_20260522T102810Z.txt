@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1061.8,
+    "end": 1081.8,
+    "confidence": 0.95,
+    "reason": "Platform-inserted ad: 'Hosted on Acast. See acast.com/privacy for more information.'",
+    "end_text": "acast.com/privacy"
+  }
+]

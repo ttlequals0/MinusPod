@@ -1,0 +1,18 @@
+{
+  "output": [
+    {
+      "start": 539.2,
+      "end": 595.4,
+      "confidence": 0.98,
+      "reason": "Host-read sponsor segment promoting the movie 'In the Gray' with release date and rating information",
+      "end_text": "parent or adult guardian."
+    },
+    {
+      "start": 595.4,
+      "end": 624.5,
+      "confidence": 0.98,
+      "reason": "Host-read sponsor segment promoting Skechers hands-free slip-ins shoes",
+      "end_text": "sandals, sneakers,"
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+{ "start": 13018.5, "end": 13018.5, "confidence": 0.00, "reason": "no promotional language found; conversation continues", "end_text": "" }

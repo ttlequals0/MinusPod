@@ -1,0 +1,1 @@
+{"start": 3778.8, "end": 4380.0, "confidence": 0.0, "reason": "No promotional content found in transcript segment", "end_text": "3-1, 3-1, so we won 12. It was 12-4."}

@@ -1,0 +1,1 @@
+{"start": 1.6, "end": 37.6, "confidence": 0.95, "reason": "Acast platform promo and cross-promotion of 'Wrong Turns' and 'Formative'", "end_text": "the leaders of tomorrow."}

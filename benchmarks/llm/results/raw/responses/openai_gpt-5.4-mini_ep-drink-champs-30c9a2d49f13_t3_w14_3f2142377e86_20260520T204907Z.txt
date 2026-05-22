@@ -1,0 +1,1 @@
+{"start":6208.7,"end":6262.1,"confidence":0.94,"reason":"Airtasker host-read sponsor segment with promotional copy, app/URL call to action, followed by a produced promo for Decisions Decisions and sponsored Care for the Culture mention. Includes the break transition into the ad-like promo block.","end_text":"Sponsored by Care for the Culture"}

@@ -1,0 +1,16 @@
+{"ads": [
+  {
+    "start": 1036.2,
+    "end": 1071.3,
+    "confidence": 0.98,
+    "reason": "SoFi sponsor read",
+    "end_text": "SoFi.com slash CJ"
+  },
+  {
+    "start": 1099.8,
+    "end": 1110.4,
+    "confidence": 0.95,
+    "reason": "LinkedIn Premium All-in-One ad",
+    "end_text": "LinkedIn.com slash all-in-one"
+  }
+]}

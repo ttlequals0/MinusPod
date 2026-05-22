@@ -1,0 +1,1 @@
+[{"start": 1959.8, "end": 2080.5, "confidence": 0.98, "reason": "Rakuten, LinkedIn, and Hertz sponsor ads", "end_text": "at Hertz.com."}]

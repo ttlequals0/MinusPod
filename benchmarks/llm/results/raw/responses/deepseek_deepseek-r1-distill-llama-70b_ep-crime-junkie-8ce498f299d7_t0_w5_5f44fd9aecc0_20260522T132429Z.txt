@@ -1,0 +1,7 @@
+{
+  "start": 2195.2,
+  "end": 2222.8,
+  "confidence": 0.95,
+  "reason": "Chief Percy discusses the possibility of missing drugs and potential consequences.",
+  "end_text": "Well..."
+}

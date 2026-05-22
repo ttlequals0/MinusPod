@@ -1,0 +1,1 @@
+"displayed in JSON format as specified, with each ad segment containing the required fields. The ads are identified based on promotional language, URLs, and host-read sponsor segments."

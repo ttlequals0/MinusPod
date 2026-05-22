@@ -1,0 +1,25 @@
+{
+  "ads": [
+    {
+      "start": 13669.1,
+      "end": 13758.2,
+      "confidence": 0.97,
+      "reason": "Host-read sponsor for Airtasker and cross‑promotion of Kiki Palmer episode, includes promotional language, URLs and sponsor mention",
+      "end_text": "from Gilead Sciences."
+    },
+    {
+      "start": 13759.0,
+      "end": 13815.9,
+      "confidence": 0.96,
+      "reason": "Back‑to‑back sponsor reads for OnDeck and Public, contain product pitches, URLs and calls to action",
+      "end_text": "back test it again."
+    },
+    {
+      "start": 13844.8,
+      "end": 13854.6,
+      "confidence": 0.94,
+      "reason": "Sponsor mention of Public.com with URL disclosure, promotional language",
+      "end_text": "into robots."
+    }
+  ]
+}

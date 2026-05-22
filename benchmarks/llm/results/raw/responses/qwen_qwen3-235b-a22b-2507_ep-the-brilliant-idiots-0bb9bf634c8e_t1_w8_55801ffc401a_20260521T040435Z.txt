@@ -1,0 +1,1 @@
+{"start": 3354.0, "end": 3983.9, "confidence": 0.99, "reason": "continuous discussion of Complex's Most Powerful People in Hip Hop Media list without promotional content or ad markers; mentions of individuals and commentary are part of organic episode content", "end_text": "part of conversations you want to be a part of."}

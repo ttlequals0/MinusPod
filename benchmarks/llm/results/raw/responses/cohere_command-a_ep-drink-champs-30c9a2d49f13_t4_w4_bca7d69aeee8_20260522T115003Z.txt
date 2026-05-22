@@ -1,0 +1,7 @@
+{
+  "start": 1674.3,
+  "end": 2280.0,
+  "confidence": 0.01,
+  "reason": "No promotional content detected in this segment",
+  "end_text": "I was going to walk down there."
+}

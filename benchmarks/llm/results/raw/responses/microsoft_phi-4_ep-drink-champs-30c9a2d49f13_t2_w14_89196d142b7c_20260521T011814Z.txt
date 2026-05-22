@@ -1,0 +1,7 @@
+{
+  "start": 64.46,
+  "end": 64.98,
+  "confidence": 0.95,
+  "reason": "SAP is a speech act, and the discussion about the First Amendment freedoms indicates a focus on speech rights, which aligns with the podcast's theme.",
+  "end_text": "So we're going to put an end to this shit."
+}

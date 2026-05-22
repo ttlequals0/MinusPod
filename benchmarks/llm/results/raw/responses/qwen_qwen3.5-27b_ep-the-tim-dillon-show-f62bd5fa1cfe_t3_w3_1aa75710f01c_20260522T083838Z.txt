@@ -1,0 +1,7 @@
+{
+  "start": 1439.2,
+  "end": 1668.7,
+  "confidence": 0.98,
+  "reason": "Host-read sponsor segments for Mint Mobile and Aura Frames followed by network-inserted ads for Colgate and Skinny Pop",
+  "end_text": "Skinny Pop."
+}

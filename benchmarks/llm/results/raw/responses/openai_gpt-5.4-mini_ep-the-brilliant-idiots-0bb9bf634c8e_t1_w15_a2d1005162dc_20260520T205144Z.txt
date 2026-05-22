@@ -1,0 +1,1 @@
+{"start":6390.2,"end":6419.1,"confidence":0.64,"reason":"Partial host-read transition into sponsored content: 'Let's pay some bills and do some asking idiots, man' followed by sponsor-style promotion mentioning Blue Chew/\"BlueChew\" in the ensuing banter. Transcript appears to capture only the tail end of an ad break.","end_text":"What else we got to do? Let's do some"}

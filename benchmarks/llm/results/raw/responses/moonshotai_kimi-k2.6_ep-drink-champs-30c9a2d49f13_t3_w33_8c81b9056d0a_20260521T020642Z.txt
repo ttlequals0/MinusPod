@@ -1,0 +1,1 @@
+{"start": 13856.0, "end": 14466.2, "confidence": 0.0, "reason": "No promotional content, sponsor mentions, URLs, promo codes, or platform-inserted ads detected in this window. Transcript consists entirely of continuous show conversation between hosts and guest.", "end_text": "You want the smoke."}

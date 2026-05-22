@@ -1,0 +1,1 @@
+{"start": 11335.2, "end": 11365.6, "confidence": 0.99, "reason": "Airtasker network-inserted ad with promotional language and call to action (Airtasker.com)", "end_text": "Airtasker, get anything done."}

@@ -1,0 +1,1 @@
+{"start": 588.5, "end": 597.9, "confidence": 0.95, "reason": "Host-read ad break transition with promotional language for the show and network", "end_text": "We'll see you next time."}

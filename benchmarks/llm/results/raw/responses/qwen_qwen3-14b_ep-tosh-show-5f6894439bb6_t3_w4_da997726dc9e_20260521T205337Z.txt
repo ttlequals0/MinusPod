@@ -1,0 +1,1 @@
+{"start": 1837.5, "end": 2008.5, "confidence": 0.95, "reason": "Mint Mobile and Mattress Warehouse sponsor reads", "end_text": "get Eddie's mom on the phone, too."}

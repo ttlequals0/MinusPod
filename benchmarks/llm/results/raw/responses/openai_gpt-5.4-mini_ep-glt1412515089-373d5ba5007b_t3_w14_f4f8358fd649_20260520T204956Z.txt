@@ -1,0 +1,1 @@
+{"start":6380.0,"end":6394.8,"confidence":0.89,"reason":"Perplexity sponsor mention with explicit ad copy and transition from discussion; includes \"our AI sponsor\" and sponsor naming, likely continuation of a host-read ad segment","end_text":"showing us how smart it is"}

@@ -1,0 +1,7 @@
+{
+"start": 15261.8,
+  "end": 15285.2,
+  "confidence": 0.8,
+  "reason": "sponsor mention with promo code",
+  "end_text": "discount code"
+}

@@ -1,0 +1,7 @@
+{
+  "start": 506.4,
+  "end": 548.5,
+  "confidence": 0.93,
+  "reason": "Crain's self-promotional segment for the Weekly News Quiz with call to action and URL ('visit chicagobusiness.com slash quiz'), introduced by 'right after this'",
+  "end_text": "This is the Crain's Daily Gist"
+}

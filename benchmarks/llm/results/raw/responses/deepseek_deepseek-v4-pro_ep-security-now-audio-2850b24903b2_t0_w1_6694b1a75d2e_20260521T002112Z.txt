@@ -1,0 +1,11 @@
+{
+"segments": [
+{
+"start": 445.6,
+"end": 572.1,
+"confidence": 0.98,
+"reason": "Zscaler sponsor ad with promo URL",
+"end_text": "Thank you, Leo."
+}
+]
+}

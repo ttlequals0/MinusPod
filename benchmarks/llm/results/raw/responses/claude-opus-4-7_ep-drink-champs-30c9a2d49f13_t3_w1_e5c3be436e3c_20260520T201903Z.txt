@@ -1,0 +1,5 @@
+[597.9s - 613.4s] segment appears to be a break/transition with a quote from Warren Sapp, but no promotional content is visible. Let me check more carefully...
+
+Looking at the transcript, there's a gap between 597.9s and 613.4s (about 15 seconds of silence/break), then content resumes with Warren Sapp speaking. No sponsor names, no promo codes, no product pitches. Similar gap at 754s and 941s but these are just content gaps.
+
+[]

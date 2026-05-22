@@ -1,0 +1,1 @@
+[{"start": 636.8, "end": 776.6, "confidence": 0.98, "reason": "Host-read and network-inserted sponsor reads (Parloa, Capital One, AllTrails, Zinn, Good Things podcast promo)", "end_text": "six-part Thrive series."}]

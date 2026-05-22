@@ -1,0 +1,1 @@
+{"start": 3765.7, "end": 4382.8, "confidence": 0.99, "reason": "continuous technical discussion about mechanical engineering, manufacturing processes, and design trade-offs at Oxide without any promotional content, sponsor mentions, URLs, promo codes, or advertising language", "end_text": "make these fabricatable"}

@@ -1,0 +1,1 @@
+{"start": 6283.4, "end": 6318.1, "confidence": 0.98, "reason": "OnDeck small business line of credit sponsor read with URL and legal disclaimer, followed immediately by Public investing platform sponsor mention; merged as single ad break", "end_text": "take it seriously."}

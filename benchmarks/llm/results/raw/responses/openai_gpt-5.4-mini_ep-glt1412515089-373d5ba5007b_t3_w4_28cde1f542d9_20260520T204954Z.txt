@@ -1,0 +1,1 @@
+{"start":2208.3,"end":2262.0,"confidence":0.97,"reason":"Blinds.com host-read ad with promotional copy about window treatments, 30 years of experience, 25 million windows, 50,000 five-star reviews, and the call to action 'get up to 45% off site-wide' plus 'free professional measure at Blinds.com'","end_text":"rules and restrictions apply"}

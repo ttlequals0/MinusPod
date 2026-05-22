@@ -1,0 +1,9 @@
+ Based on the provided transcript, there is an advertisement segment in window 36/37 (245.0-255.0 minutes) as follows:
+
+[15291.0s - 15300.2s] Man, Warren, man, you've been so fucking great as a guest, man. Thank you so much, man. I love what y'all are doing. Thank you, bro. Because it puts us on a level there. (Host expressing gratitude towards the guest)
+
+promo code, discount code, discount code, discount code, discount code, discount code, discount code, (Repeated promotional language for discount codes)
+
+This segment contains promotional language for discount codes, making it an advertisement. However, it's unclear which product or service is being advertised, as no specific brand or sponsor is mentioned. If more context is available, it may be possible to identify the specific advertisement.
+
+If this advertisement continues before or after the given window, the timestamps should be adjusted accordingly. If it continues in the next window, the last timestamp (15300.0s) should be used with a note indicating that the advertisement continues in the next window.

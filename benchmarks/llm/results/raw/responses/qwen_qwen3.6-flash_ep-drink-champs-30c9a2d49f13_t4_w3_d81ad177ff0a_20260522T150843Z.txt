@@ -1,0 +1,1 @@
+[{"start": 1450.9, "end": 1486.1, "confidence": 0.95, "reason": "Airtasker/Decisions Decisions cross-promo ad", "end_text": "No shame, no stigma."}, {"start": 1524.8, "end": 1629.0, "confidence": 0.98, "reason": "OnDeck and BetMGM network-inserted sponsor reads", "end_text": "Kansas Crossing Casino and Hotel."}]

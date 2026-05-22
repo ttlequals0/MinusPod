@@ -1,0 +1,1 @@
+[{"start": 0.0, "end": 104.3, "confidence": 0.98, "reason": "Back-to-back sponsor reads for Capital One, Every Brilliant Thing, AllTrails, and Zyn", "end_text": "is an addictive chemical"}]

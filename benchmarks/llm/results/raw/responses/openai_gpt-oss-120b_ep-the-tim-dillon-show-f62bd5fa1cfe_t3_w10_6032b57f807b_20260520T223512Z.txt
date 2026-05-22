@@ -1,0 +1,1 @@
+{"start":4675.4,"end":4806.1,"confidence":0.99,"reason":"Series of host‑read sponsor reads for Colgate, Skinny Pop, Viz, and Garnier merged into one ad block (gap <15 s between spots)","end_text":"GarnierUSA.com slash NPF"}

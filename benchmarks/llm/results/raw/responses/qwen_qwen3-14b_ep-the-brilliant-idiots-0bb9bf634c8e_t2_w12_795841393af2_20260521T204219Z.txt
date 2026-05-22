@@ -1,0 +1,1 @@
+{"start": 5390.9, "end": 5415.0, "confidence": 0.9, "reason": "Charlamagne Tha God promoting his book 'Get Honest or Die Lying' and other content", "end_text": "you know what I'm talking about?"}

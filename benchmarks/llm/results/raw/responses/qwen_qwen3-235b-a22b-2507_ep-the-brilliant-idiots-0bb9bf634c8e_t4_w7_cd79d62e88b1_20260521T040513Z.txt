@@ -1,0 +1,1 @@
+{"start": 3380.7, "end": 3403.5, "confidence": 0.95, "reason": "Promotional description of Underground Sound as a platform, with concentrated marketing language typical of network-inserted brand tagline ads", "end_text": "pushing names like Netspin and SD Kid"}

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 4204.1,
+    "end": 4396.1,
+    "confidence": 0.98,
+    "reason": "Host-read ad for Bitwarden, including product features, benefits, and a call to action for developers to use their SDK.",
+    "end_text": "level."
+  }
+]

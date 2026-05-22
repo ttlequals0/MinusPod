@@ -1,0 +1,9 @@
+[
+  {
+    "start": 7607.7,
+    "end": 7743.9,
+    "confidence": 1.0,
+    "reason": "Host-read advertisement for Trusted Tech",
+    "end_text": "He was impressed. You will be too."
+  }
+]

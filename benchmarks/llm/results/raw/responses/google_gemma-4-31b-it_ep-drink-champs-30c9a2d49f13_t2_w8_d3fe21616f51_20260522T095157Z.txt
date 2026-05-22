@@ -1,0 +1,1 @@
+{"start": 3478.9, "end": 3666.3, "confidence": 0.98, "reason": "Multiple back-to-back ads including Airtasker, a cross-promotion for 'Decisions Decisions' podcast sponsored by Gilead Sciences, OnDeck, and Public.com.", "end_text": "public.com slash disclosures"}

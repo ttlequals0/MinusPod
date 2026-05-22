@@ -1,0 +1,1 @@
+{"start":1255.9,"end":1268.8,"confidence":0.46,"reason":"Possible platform insert/cut with no clear promotional transcript beyond 'Thank you for watching'; not enough explicit ad copy in this window to confirm a sponsor read","end_text":"Thank you for watching"}

@@ -1,0 +1,1 @@
+{"start":6208.7,"end":6318.1,"confidence":0.99,"reason":"Merged ad break: Airtasker app/website spot, Decisions Decisions podcast promo sponsored by Care for the Culture from Gilead Sciences, OnDeck small business credit ad, and Public investing platform sponsor mention","end_text":"who take it seriously"}

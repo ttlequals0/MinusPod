@@ -1,0 +1,1 @@
+{"start": 1240.8, "end": 1271.2, "confidence": 0.3, "reason": "End-of-episode credits and sign-off without promotional language or sponsor mentions. Mentions of platforms (Apple Podcasts, Spotify) are organic host recommendations, not ads. No URLs, promo codes, or product pitches present.", "end_text": "next time."}

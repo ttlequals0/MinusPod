@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1295.0,
+    "end": 1311.2,
+    "confidence": 0.95,
+    "reason": "The host is pitching a role in government to the guest, which is a playful, conversational segment that is not an advertisement.",
+    "end_text": "How dare you?"
+  }
+]

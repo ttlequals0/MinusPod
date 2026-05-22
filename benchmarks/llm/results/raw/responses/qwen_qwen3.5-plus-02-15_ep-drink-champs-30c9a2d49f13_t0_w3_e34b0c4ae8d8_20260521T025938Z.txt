@@ -1,0 +1,1 @@
+[{"start": 1450.9, "end": 1629.0, "confidence": 0.98, "reason": "Network-inserted ad block featuring Airtasker, Decisions Decisions cross-promo, OnDeck, and BetMGM sponsor reads with URLs and CTAs", "end_text": "Kansas Crossing Casino and Hotel."}]

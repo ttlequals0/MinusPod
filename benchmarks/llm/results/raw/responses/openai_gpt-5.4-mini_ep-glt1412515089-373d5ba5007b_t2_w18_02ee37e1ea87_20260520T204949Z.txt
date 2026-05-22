@@ -1,0 +1,1 @@
+{"start":126.0,"end":136.0,"confidence":0.99,"reason":"Perplexity platform promo in episode description/transcript window with explicit call to action and podcastchoices ad link; appears as an inserted sponsor/ad segment","end_text":"podcastchoices.com/adchoices"}

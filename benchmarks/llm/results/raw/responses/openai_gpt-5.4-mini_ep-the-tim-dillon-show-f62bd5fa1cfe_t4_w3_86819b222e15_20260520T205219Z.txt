@@ -1,0 +1,1 @@
+{"start":1439.2,"end":1576.1,"confidence":0.99,"reason":"Host-read sponsor block with Mint Mobile, Aura Frames, promo codes, and purchase URLs; begins with promotional copy and continues through multiple ad reads before show content resumes.","end_text":"use code TIM. Save now"}

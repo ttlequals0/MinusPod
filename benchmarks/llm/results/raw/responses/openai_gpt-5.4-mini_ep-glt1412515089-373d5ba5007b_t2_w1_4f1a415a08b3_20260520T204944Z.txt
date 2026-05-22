@@ -1,0 +1,1 @@
+{"start":539.2,"end":652.8,"confidence":0.99,"reason":"Multiple host-read sponsor segments: 'This episode is brought to you by In the Gray' followed by a Skechers slip-ins promo with brand name, product pitch, and call to action to Skechers.com. Includes the required break transition language.","end_text":"That's only at Skechers.com"}

@@ -1,0 +1,1 @@
+{"start":6390.2,"end":6419.1,"confidence":0.64,"reason":"Host transition 'Let's pay some bills' followed by sponsor-style promotion for Blue Chew/\"Bluetooth\" with product banter; likely ad break but the exact full sponsor read is partially clipped in this window.","end_text":"My grandmother, I told you, was pre-diabetic. Why was you giving her Blue Chew?"}

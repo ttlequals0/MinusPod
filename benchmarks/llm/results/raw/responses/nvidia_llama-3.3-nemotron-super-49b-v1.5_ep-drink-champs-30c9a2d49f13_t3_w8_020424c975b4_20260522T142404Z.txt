@@ -1,0 +1,6 @@
+[
+    {"start": 3478.9, "end": 3503.7, "confidence": 0.95, "reason": "Airtasker sponsor read with call to action and URL", "end_text": "Airtasker, get anything done"},
+    {"start": 3504.1, "end": 3577.4, "confidence": 0.9, "reason": "Decisions Decisions promo sponsored by Care for the Culture from Gilead Sciences", "end_text": "wherever you get your podcasts"},
+    {"start": 3578.1, "end": 3608.0, "confidence": 0.95, "reason": "OnDeck small business loan ad with URL and call to action", "end_text": "OnDeck does not lend in North Dakota"},
+    {"start": 3608.5, "end": 3637.4, "confidence": 0.95, "reason": "Public investing platform ad with product description and call to action", "end_text": "backtest it again"}
+]

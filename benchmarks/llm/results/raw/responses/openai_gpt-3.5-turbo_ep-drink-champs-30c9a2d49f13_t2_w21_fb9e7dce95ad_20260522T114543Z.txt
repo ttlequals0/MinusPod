@@ -1,0 +1,7 @@
+{
+	"start": 8799.1,
+	"end": 8826.4,
+	"confidence": 1,
+	"reason": "OnDeck small business loans",
+	"end_text": "lender approval."
+}

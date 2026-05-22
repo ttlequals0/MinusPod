@@ -1,0 +1,7 @@
+{
+  "start": 10069.7,
+  "end": 10675.4,
+  "confidence": 0.95,
+  "reason": "The segment discusses the transition of rights and royalties from college players to NFL players, highlighting the ongoing issue of player compensation and rights reversion.",
+  "end_text": "We wait for that 25 years."
+}

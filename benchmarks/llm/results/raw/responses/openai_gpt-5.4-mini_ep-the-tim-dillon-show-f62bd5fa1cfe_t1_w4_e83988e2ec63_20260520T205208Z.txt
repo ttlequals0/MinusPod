@@ -1,0 +1,1 @@
+{"start":2108.1,"end":2276.2,"confidence":0.98,"reason":"Host-read sponsor block / ad-like promotional segment with explicit CTA-style language? No. Actually this window contains no sponsor copy from the provided transcript; it is content about babies and screens, so no ad detected.","end_text":"and have language delay"}

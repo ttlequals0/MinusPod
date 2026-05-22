@@ -1,0 +1,9 @@
+[
+  {
+    "start": 0.0,
+    "end": 51.6,
+    "confidence": 0.95,
+    "reason": "Colgate sponsor advertisement",
+    "end_text": "smile is your strength"
+  }
+]

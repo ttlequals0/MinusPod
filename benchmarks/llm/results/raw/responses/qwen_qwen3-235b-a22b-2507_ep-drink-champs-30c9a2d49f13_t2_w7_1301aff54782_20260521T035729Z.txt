@@ -1,0 +1,1 @@
+{"start": 3478.9, "end": 3528.5, "confidence": 0.97, "reason": "Hosted on Acast platform-inserted ad for Airtasker with promotional language, URL, and call to action", "end_text": "Airtasker, get anything done"}

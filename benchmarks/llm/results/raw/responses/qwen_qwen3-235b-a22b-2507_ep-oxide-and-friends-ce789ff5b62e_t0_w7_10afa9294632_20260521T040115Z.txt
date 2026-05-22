@@ -1,0 +1,1 @@
+{"start": 2931.2, "end": 3556.0, "confidence": 0.1, "reason": "No advertisement segments detected; all content is technical discussion about mechanical engineering, manufacturing, and product design at Oxide Computer", "end_text": "am I able to pull this part in the direction that I want to?"}

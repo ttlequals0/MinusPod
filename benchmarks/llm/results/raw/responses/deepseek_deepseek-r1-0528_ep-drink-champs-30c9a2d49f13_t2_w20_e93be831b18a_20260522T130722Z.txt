@@ -1,0 +1,9 @@
+[
+  {
+    "start": 8724.9,
+    "end": 8831.4,
+    "confidence": 0.98,
+    "reason": "Consecutive ads: AirTasker (to-do list service), Decisions Decisions podcast promo (sponsored by Care for the Culture), OnDeck (business loans), Public (investing platform)",
+    "end_text": "take it seriously"
+  }
+]

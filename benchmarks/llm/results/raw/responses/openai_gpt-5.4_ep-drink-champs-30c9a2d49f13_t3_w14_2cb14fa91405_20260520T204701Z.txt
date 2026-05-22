@@ -1,0 +1,1 @@
+{"start":6208.7,"end":6318.1,"confidence":0.99,"reason":"Merged ad break with multiple inserted ads: Airtasker brand ad, Decisions Decisions/Kiki Palmer podcast promo sponsored by Care for the Culture from Gilead Sciences, OnDeck small business credit ad, ending on Public sponsorship mention","end_text":"take it seriously."}

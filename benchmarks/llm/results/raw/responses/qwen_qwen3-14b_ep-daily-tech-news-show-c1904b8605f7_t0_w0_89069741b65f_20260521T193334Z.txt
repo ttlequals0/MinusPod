@@ -1,0 +1,2 @@
+s.
+{"start": 0.0, "end": 100.9, "confidence": 0.95, "reason": "Capital One, XERO, Spectrum Business sponsor reads", "end_text": "support with 100%"}

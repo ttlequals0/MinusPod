@@ -1,0 +1,1 @@
+{ "start": 3041.4, "end": 3137.2, "confidence": 0.0, "reason": "No promotional language, sponsor names, URLs, promo codes, calls to action, or branded product pitches found. Segment contains only conversation about Warren Sapp's rookie year story.", "end_text": "between genius and madness. Right, right, right." }

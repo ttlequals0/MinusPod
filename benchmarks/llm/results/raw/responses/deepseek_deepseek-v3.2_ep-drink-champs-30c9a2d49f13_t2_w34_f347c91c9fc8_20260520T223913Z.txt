@@ -1,0 +1,1 @@
+{"start": 14854.0, "end": 14861.3, "confidence": 0.85, "reason": "Hosting platform post-roll ad: 'Thank you for watching' suggests a produced sign-off, likely a platform-inserted ad or outro.", "end_text": "Thank you for watching."}

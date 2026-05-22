@@ -1,0 +1,25 @@
+```json
+[
+  {
+    "start": 11335.2,
+    "end": 11365.6,
+    "confidence": 0.92,
+    "reason": "Airtasker network-inserted ad with product pitch and call to action",
+    "end_text": "Airtasker, get anything done"
+  },
+  {
+    "start": 11366.2,
+    "end": 11424.6,
+    "confidence": 0.88,
+    "reason": "Decisions Decisions podcast cross-promotion with Keke Palmer episode and Gilead Sciences sponsorship mention",
+    "end_text": "Sponsored by Care for the Culture from Gilead Sciences"
+  },
+  {
+    "start": 11425.3,
+    "end": 11454.3,
+    "confidence": 0.93,
+    "reason": "OnDeck small business line of credit sponsor read with product details and call to action",
+    "end_text": "an amount subject to lender approval"
+  }
+]
+```

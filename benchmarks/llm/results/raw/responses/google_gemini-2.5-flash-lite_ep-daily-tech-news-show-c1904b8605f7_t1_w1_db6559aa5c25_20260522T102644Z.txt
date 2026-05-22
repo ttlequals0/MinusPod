@@ -1,0 +1,37 @@
+[
+  {
+    "start": 821.4,
+    "end": 857.6,
+    "confidence": 0.98,
+    "reason": "Capital One sponsor read. Mentions \"Capital One\" and describes their AI technology for car shopping.",
+    "end_text": "I just need to..."
+  },
+  {
+    "start": 862.2,
+    "end": 889.7,
+    "confidence": 0.98,
+    "reason": "BetterHelp sponsor read. Mentions \"BetterHelp\" and provides a URL and discount code.",
+    "end_text": "of online therapy."
+  },
+  {
+    "start": 890.6,
+    "end": 910.1,
+    "confidence": 0.98,
+    "reason": "Amazon Health AI ad. Describes their AI service for virtual care and symptom checking.",
+    "end_text": "less painful."
+  },
+  {
+    "start": 912.2,
+    "end": 990.3,
+    "confidence": 0.98,
+    "reason": "Spectrum Business ad. Promotes their fiber-powered internet and business services, including a price guarantee and US-based customer service.",
+    "end_text": "to get started."
+  },
+  {
+    "start": 990.6,
+    "end": 1018.9,
+    "confidence": 0.98,
+    "reason": "Rinse laundry service ad. Promotes their premium, tech-driven laundry service with a URL.",
+    "end_text": "Rinse."
+  }
+]

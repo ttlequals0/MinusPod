@@ -1,0 +1,30 @@
+[
+  {
+    "start": 1450.9,
+    "end": 1486.1,
+    "confidence": 0.95,
+    "reason": "Airtasker sponsor read and cross-promotion for another podcast",
+    "end_text": "Airtasker, get anything done. This is Mandi B and Weezy WTF from Decisions Decisions."
+  },
+  {
+    "start": 1486.6,
+    "end": 1524.8,
+    "confidence": 0.95,
+    "reason": "Care for the Culture from Gilead Sciences sponsor read",
+    "end_text": "sponsored by Care for the Culture from Gilead Sciences."
+  },
+  {
+    "start": 1525.5,
+    "end": 1553.8,
+    "confidence": 0.95,
+    "reason": "OnDeck sponsor read",
+    "end_text": "OnDeck does not lend in North Dakota."
+  },
+  {
+    "start": 1555.6,
+    "end": 1629.0,
+    "confidence": 0.95,
+    "reason": "BetMGM sponsor read",
+    "end_text": "with Kansas Crossing Casino and Hotel."
+  }
+]

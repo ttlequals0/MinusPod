@@ -1,0 +1,1 @@
+{"start": 10069.7, "end": 10705.5, "confidence": 0.0, "reason": "No promotional content, sponsor mentions, URLs, promo codes, or ad transitions detected in this window. The transcript contains continuous conversational content between the hosts and guest.", "end_text": "I think that's something that..."}

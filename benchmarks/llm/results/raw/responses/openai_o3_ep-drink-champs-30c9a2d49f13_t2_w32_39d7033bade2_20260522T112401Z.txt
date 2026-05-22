@@ -1,0 +1,1 @@
+{"start": 13669.1, "end": 13854.6, "confidence": 0.97, "reason": "Cluster of network-inserted ads: Airtasker, Decisions Decisions podcast promo, OnDeck, Public investing platform", "end_text": "public.com slash disclosures"}

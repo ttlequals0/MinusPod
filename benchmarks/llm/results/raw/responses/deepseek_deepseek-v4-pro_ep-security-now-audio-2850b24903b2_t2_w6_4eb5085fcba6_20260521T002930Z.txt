@@ -1,0 +1,1 @@
+[{"start": 2558.9, "end": 2694.2, "confidence": 0.98, "reason": "Meter sponsor read with URL and call to action", "end_text": "M-E-T-E-R, meter.com"}]

@@ -1,0 +1,1 @@
+[{"start": 1439.2, "end": 1665.9, "confidence": 0.98, "reason": "Mid-roll ad break featuring Mint Mobile, Aura Frames, Colgate, and Skinny Pop sponsor reads/network inserts", "end_text": "Skinny Pop."}]

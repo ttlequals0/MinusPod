@@ -1,0 +1,7 @@
+{
+  "start": 12.600,
+  "end": 12.771,
+  "confidence": 0.95,
+  "reason": "The segment contains a product endorsement with promotional language, mentioning the Statue of Liberty and its chains, which is a product endorsement.",
+  "end_text": "You watch Que Pasa USA?"
+}

@@ -1,0 +1,1 @@
+{"start": 1240.8, "end": 1271.2, "confidence": 0.85, "reason": "Show outro with organic host mentions of podcast platforms and production credits - not a paid advertisement but contains promotional language for the show itself", "end_text": "I'll meet you right back here next time"}

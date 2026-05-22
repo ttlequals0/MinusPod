@@ -1,0 +1,16 @@
+[
+  {
+    "start": 54.1,
+    "end": 64.7,
+    "confidence": 0.98,
+    "reason": "Old National Bank sponsor read with URL and tagline",
+    "end_text": "oldnational.com slash commercial banking. Member FDIC."
+  },
+  {
+    "start": 521.5,
+    "end": 548.5,
+    "confidence": 0.95,
+    "reason": "Crain's Daily Gist weekly quiz self-promotion with call to action",
+    "end_text": "Crain's Daily Gist with Amy Guth."
+  }
+]

@@ -1,0 +1,2 @@
+w.
+{"start": 63.0, "end": 73.0, "confidence": 0.0, "reason": "No advertisements detected in the specified window", "end_text": "I'm ready."}

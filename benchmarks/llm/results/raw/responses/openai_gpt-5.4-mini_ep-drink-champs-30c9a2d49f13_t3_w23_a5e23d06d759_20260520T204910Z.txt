@@ -1,0 +1,1 @@
+{"start": 9976.5,"end": 10015.4,"confidence": 0.83,"reason":"Host mentions Subway in a promotional/commercial-like discussion, including a personal brand pitch about gluten-free bread and product supply; no clear break phrase, likely partial sponsor-style mention continuing around the food rant.","end_text":"they want to change the marriage age"}

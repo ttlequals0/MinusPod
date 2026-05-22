@@ -1,0 +1,1 @@
+{"start":2560.1,"end":2687.4,"confidence":0.99,"reason":"Meter host-read sponsor segment with explicit promo language: 'This episode of Security Now brought to you by Meter,' product pitch, testimonial, and call to action to 'go to meter.com/securitynow and book a demo'","end_text":"meter.com. security now book a demo okay meter"}

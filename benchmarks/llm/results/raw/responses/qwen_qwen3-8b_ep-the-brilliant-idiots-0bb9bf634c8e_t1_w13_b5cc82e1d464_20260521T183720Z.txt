@@ -1,0 +1,1 @@
+"displayed in JSON format as specified, with no markdown formatting. Here is the JSON output for the ad segments detected in the provided transcript: [{{\"start\": 6060.0, \"end\": 6060.0, \"confidence\": 0.95, \"reason\": \"Platform-inserted ad choice disclosure\", \"end_text\": \"adchoices\"}}]"

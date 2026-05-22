@@ -1,0 +1,1 @@
+{"start": 1450.9, "end": 1597.8, "confidence": 0.98, "reason": "Multiple consecutive sponsor segments including Airtasker, Decisions Decisions podcast promo, Care for the Culture, OnDeck, and BetMGM, with promotional language, URLs, and calls to action", "end_text": "Download the BetMGM app and step up to the plate today."}

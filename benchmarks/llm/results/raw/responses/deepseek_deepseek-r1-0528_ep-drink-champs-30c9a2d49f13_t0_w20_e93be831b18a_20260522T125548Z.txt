@@ -1,0 +1,9 @@
+[
+  {
+    "start": 8724.9,
+    "end": 8831.4,
+    "confidence": 1.0,
+    "reason": "Merged ad block: AirTasker (post tasks at AirTasker.com), Decisions Decisions podcast promo (sponsored by Care for the Culture from Gilead Sciences), OnDeck (apply at OnDeck.com), Public (investing platform)",
+    "end_text": "take it seriously"
+  }
+]

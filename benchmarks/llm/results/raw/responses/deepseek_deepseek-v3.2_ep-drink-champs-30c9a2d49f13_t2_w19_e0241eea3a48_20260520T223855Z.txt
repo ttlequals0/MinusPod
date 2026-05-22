@@ -1,0 +1,1 @@
+{"start": 8521.9, "end": 8588.6, "confidence": 0.0, "reason": "No promotional content found. Segment contains show content (questions about sports and music preferences).", "end_text": "DJ Clue talking over the beat."}

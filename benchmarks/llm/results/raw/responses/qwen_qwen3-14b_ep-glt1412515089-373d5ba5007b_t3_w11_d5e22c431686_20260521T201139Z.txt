@@ -1,0 +1,2 @@
+w.
+{"start": 4608.9, "end": 4608.9, "confidence": 0.95, "reason": "Perplexity sponsor read (platform-inserted ad)", "end_text": "https://pplx.ai/rogan"}

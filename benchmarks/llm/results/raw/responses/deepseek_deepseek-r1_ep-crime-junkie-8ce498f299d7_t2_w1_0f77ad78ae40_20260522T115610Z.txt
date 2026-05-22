@@ -1,0 +1,7 @@
+{
+  "start": 1012.8,
+  "end": 1035.7,
+  "confidence": 0.95,
+  "reason": "Host-read ad for Debt, mentioning a product/service related to debt management with call to action",
+  "end_text": "following on foot right behind him. Debt can get messy fast."
+}

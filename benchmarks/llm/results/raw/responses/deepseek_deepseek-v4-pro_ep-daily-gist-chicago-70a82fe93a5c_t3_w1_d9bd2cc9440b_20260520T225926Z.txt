@@ -1,0 +1,18 @@
+{
+  "adSegments": [
+    {
+      "start": 506.4,
+      "end": 548.5,
+      "confidence": 0.98,
+      "reason": "Host-read transition to a break followed by a promotional segment for Crain's News Quiz and self-promotion",
+      "end_text": "Daily Gist with Amy Guth."
+    },
+    {
+      "start": 643.8,
+      "end": 646.4,
+      "confidence": 0.9,
+      "reason": "Likely a platform-inserted dynamic ad break based on audio gap and out-of-context sentence ('Thank you for watching, and I'll see you next time.') before content resumes.",
+      "end_text": "I'll see you next time."
+    }
+  ]
+}

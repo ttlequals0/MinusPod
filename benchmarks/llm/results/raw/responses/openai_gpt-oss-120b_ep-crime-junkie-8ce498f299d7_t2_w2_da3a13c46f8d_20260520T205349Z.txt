@@ -1,0 +1,18 @@
+{
+  "ads": [
+    {
+      "start": 1036.2,
+      "end": 1097.9,
+      "confidence": 0.99,
+      "reason": "SoFi sponsor read with promotional language and URL",
+      "end_text": "Terms and conditions apply"
+    },
+    {
+      "start": 1099.8,
+      "end": 1129.6,
+      "confidence": 0.99,
+      "reason": "LinkedIn Premium All-in-One sponsor read with call to action and URL",
+      "end_text": "LinkedIn.com slash all-in-one"
+    }
+  ]
+}

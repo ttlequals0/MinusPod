@@ -1,0 +1,1 @@
+[{"start": 2609.5, "end": 2634.3, "confidence": 0.85, "reason": "Explicit 'sponsored by' text and list of known podcast sponsors interrupting show content.", "end_text": "Raycon, Manscaped, Stamps.com,"}]

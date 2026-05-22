@@ -1,0 +1,7 @@
+{  
+  "start": 15.118,  
+  "end": 15.169,  
+  "confidence": 0.95,  
+  "reason": "Dynamic sponsor segment with promotional language and transition phrase 'Listen and subscribe at https://www.drinkchamps.com/'",  
+  "end_text": "subscribe at https://www.drinkchamps.com"  
+}

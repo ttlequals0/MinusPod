@@ -1,0 +1,16 @@
+[
+  {
+    "start": 0.0,
+    "end": 28.1,
+    "confidence": 0.95,
+    "reason": "This segment contains promotional language for Colgate, mentioning their support for female athletes and the Colgate Women's Games, and includes a tagline. This is a network-inserted brand tagline ad.",
+    "end_text": "strength. Ladies and gentlemen, welcome to the Tim Dillon Show."
+  },
+  {
+    "start": 587.5,
+    "end": 612.8,
+    "confidence": 0.98,
+    "reason": "This segment contains promotional language for Mint Mobile, including a URL and a specific offer. This is a host-read sponsor segment.",
+    "end_text": "and components and"
+  }
+]

@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 3033.4,
+      "end": 3040.6,
+      "confidence": 0.0,
+      "reason": "No advertisement detected in this segment. Content is exclusively interview narrative with no promotional language, sponsor mentions, or ad breaks.",
+      "end_text": "still getting off the bus"
+    }
+  ]
+}

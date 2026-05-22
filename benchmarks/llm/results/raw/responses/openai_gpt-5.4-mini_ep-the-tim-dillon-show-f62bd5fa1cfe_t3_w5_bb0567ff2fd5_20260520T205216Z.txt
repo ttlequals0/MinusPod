@@ -1,0 +1,1 @@
+{"start":2079.0,"end":2079.0,"confidence":0.0,"reason":"No ad segment detected in this transcript window; content is continuous discussion about children, screens, and GLP-1s with no sponsor promo language or break transition.","end_text":"[]"}

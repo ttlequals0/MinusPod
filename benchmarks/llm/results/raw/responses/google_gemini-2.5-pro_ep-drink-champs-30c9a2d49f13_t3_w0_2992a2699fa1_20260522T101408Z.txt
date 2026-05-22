@@ -1,0 +1,9 @@
+[
+  {
+    "start": 0.0,
+    "end": 150.5,
+    "confidence": 1.0,
+    "reason": "This pre-roll ad block contains multiple network-inserted and host-read ads for Airtasker, a 'Care for the Culture' PSA sponsored by Gilead Sciences, Nissan, and Shopify.",
+    "end_text": "at Shopify.com slash B-E-N."
+  }
+]

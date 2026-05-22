@@ -1,0 +1,7 @@
+{
+  "start": 1439.2,
+  "end": 1576.1,
+  "confidence": 0.99,
+  "reason": "Mint Mobile and Aura Frames host-read sponsor reads",
+  "end_text": "Promo code TIM."
+}

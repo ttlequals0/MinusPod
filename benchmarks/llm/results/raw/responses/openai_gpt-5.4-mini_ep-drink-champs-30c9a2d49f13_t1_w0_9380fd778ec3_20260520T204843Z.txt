@@ -1,0 +1,1 @@
+{"start":0.0,"end":150.5,"confidence":0.99,"reason":"Starts with iHeart Podcast and Airtasker promo, then Care for the Culture/Gilead Sciences sponsored message, Nissan campaign promo, and Shopify host-read sponsor read with URL and call to action","end_text":"Start now at Shopify.com slash B-E-N"}

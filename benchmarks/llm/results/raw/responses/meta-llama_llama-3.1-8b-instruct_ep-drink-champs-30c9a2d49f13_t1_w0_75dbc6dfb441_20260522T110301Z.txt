@@ -1,0 +1,44 @@
+[
+{
+  "start": 0.0,
+   "end": 19.5,
+   "confidence": 0.95,
+   "reason": "Airtasker platform-inserted ad",
+   "end_text": "Airtasker, get anything done"
+},
+{
+   "start": 42.8,
+   "end": 70.8,
+   "confidence": 0.98,
+   "reason": "Care for the Culture sponsor read",
+   "end_text": "Know your options, ask questions, and protect your peace and your body"
+},
+{
+   "start": 71.2,
+   "end": 72.1,
+   "confidence": 0.95,
+   "reason": "Gilead Sciences sponsor read",
+   "end_text": "from Gilead Sciences"
+},
+{
+   "start": 109.0,
+   "end": 124.1,
+   "confidence": 0.98,
+   "reason": "Nissan sponsor read",
+   "end_text": "hold their ground in real-world conditions"
+},
+{
+   "start": 124.6,
+   "end": 150.5,
+   "confidence": 0.98,
+   "reason": "Shopify sponsor read",
+   "end_text": "create something that lasts"
+},
+{
+   "start": 162.9,
+   "end": 189.6,
+   "confidence": 0.95,
+   "reason": "Drink Champs intro",
+   "end_text": "Drink up, motherfuckers"
+}
+]

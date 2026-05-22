@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1837.5,
+    "end": 1861.3,
+    "confidence": 1.0,
+    "reason": "Mint Mobile sponsor read, partial segment continuing past the end of this transcript window",
+    "end_text": "fed up with crazy high bills?"
+  }
+]

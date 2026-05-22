@@ -1,0 +1,9 @@
+[
+  {
+    "start": 8724.9,
+    "end": 8831.4,
+    "confidence": 1.0,
+    "reason": "Ad break featuring AirTasker, Decisions Decisions podcast promo, OnDeck, and Public",
+    "end_text": "who take it seriously."
+  }
+]

@@ -1,0 +1,60 @@
+{  
+  "ads": [
+    {
+      "start": 13665.3,
+      "end": 13667.9,
+      "confidence": 1.0,
+      "reason": "continuation of previous ad segment (Airtasker) – transition out of editorial content; note: the Airtasker ad clearly starts before this window (at 13665.3) and its promotional copy extends into this window",
+      "end_text": "If you are ready. Yeah. No, he's over."
+    },
+    {
+      "start": 13669.1,
+      "end": 13696.9,
+      "confidence": 0.98,
+      "reason": "Airtasker host-read ad – promotes platform, call to action (download app / go to Airtasker.com), tagline",
+      "end_text": "Airtasker, get anything done."
+    },
+    {
+      "start": 13697.3,
+      "end": 13719.5,
+      "confidence": 0.97,
+      "reason": "Cross‑promo for 'Decisions Decisions' podcast with Kiki Palmer – produced segment promoting another podcast, sponsored by Gilead Sciences; network‑inserted ad",
+      "end_text": "sponsored by Care for the Culture from Gilead Sciences."
+    },
+    {
+      "start": 13719.5,
+      "end": 13746.5,
+      "confidence": 0.96,
+      "reason": "Continuation of cross‑promo – sneak peek of the episode; promotional content continues",
+      "end_text": "to get tested and to disclose."
+    },
+    {
+      "start": 13747.1,
+      "end": 13758.2,
+      "confidence": 0.98,
+      "reason": "Cross‑promo outro – direct call to action ('our episode … is now out wherever you get your podcasts') and sponsor mention",
+      "end_text": "sponsored by Care for the Culture from Gilead Sciences."
+    },
+    {
+      "start": 13759.0,
+      "end": 13786.2,
+      "confidence": 0.98,
+      "reason": "OnDeck loan ad – promotional language (loan offers, rates, BBB rating, Trustpilot, call to action at OnDeck.com)",
+      "end_text": "all loans and amounts subject to lender approval."
+    },
+    {
+      "start": 13786.9,
+      "end": 13815.9,
+      "confidence": 0.98,
+      "reason": "Public investing platform ad – describes features (stocks, bonds, options, crypto, AI‑generated indices), call to action, mentions disclosures URL",
+      "end_text": "lets you back test it again."
+    },
+    {
+      "start": 13815.9,
+      "end": 13828.9,
+      "confidence": 0.85,
+      "reason": "Transcription by CastingWords – platform‑inserted credit/promo (signals ad break closing); may be a service credit but is promotional in nature",
+      "end_text": "Transcription by CastingWords"
+    }
+  ]
+}

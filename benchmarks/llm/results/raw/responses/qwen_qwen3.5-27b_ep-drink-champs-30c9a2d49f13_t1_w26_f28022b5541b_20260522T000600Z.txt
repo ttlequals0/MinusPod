@@ -1,0 +1,30 @@
+[
+  {
+    "start": 11335.2,
+    "end": 11365.6,
+    "confidence": 0.98,
+    "reason": "Airtasker sponsor read with product pitch and URL",
+    "end_text": "Airtasker, get anything done."
+  },
+  {
+    "start": 11366.2,
+    "end": 11424.6,
+    "confidence": 0.95,
+    "reason": "Cross-promotion for Decisions Decisions podcast, sponsored by Gilead Sciences",
+    "end_text": "Care for the Culture from Gilead Sciences."
+  },
+  {
+    "start": 11425.3,
+    "end": 11455.4,
+    "confidence": 0.98,
+    "reason": "OnDeck sponsor read with product pitch and URL",
+    "end_text": "an amount subject to lender approval."
+  },
+  {
+    "start": 11513.7,
+    "end": 11536.6,
+    "confidence": 0.85,
+    "reason": "Public.com sponsor disclosure followed by show content transition",
+    "end_text": "That ain't no art."
+  }
+]

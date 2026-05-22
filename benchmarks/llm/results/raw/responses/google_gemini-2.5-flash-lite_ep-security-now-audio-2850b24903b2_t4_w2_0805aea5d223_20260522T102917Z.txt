@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1009.1,
+    "end": 1441.5,
+    "confidence": 0.95,
+    "reason": "This segment discusses Jerry's Store, a credit card vetting tool, and mentions its use of legitimate merchants like Amazon, Grubhub, and Lyft for credit card validity checks. It also details the value of stolen card data and the marketplace's administrator being fluent in Chinese. The latter part of the segment discusses the UK's NCSC issuing a warning about a 'Vulnerability Patch Wave' and 'decades of technical debt', which is a discussion of cybersecurity news and not an advertisement.",
+    "end_text": "decades of technical debt."
+  }
+]

@@ -1,0 +1,11 @@
+{
+  "segments": [
+    {
+      "start": 539.2,
+      "end": 595.4,
+      "confidence": 0.98,
+      "reason": "Ads for 'In the Gray' and Skechers with promotional language and URLs",
+      "end_text": "under 17, requires accompanying parent or adult guardian."
+    }
+  ]
+}

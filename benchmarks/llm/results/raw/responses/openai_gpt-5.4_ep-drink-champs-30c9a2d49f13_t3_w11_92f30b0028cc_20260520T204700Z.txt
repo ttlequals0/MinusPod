@@ -1,0 +1,1 @@
+{"start": 4949.0, "end": 4949.0, "confidence": 0.08, "reason": "No clear advertisement segment with promotional language found in this window", "end_text": ""}

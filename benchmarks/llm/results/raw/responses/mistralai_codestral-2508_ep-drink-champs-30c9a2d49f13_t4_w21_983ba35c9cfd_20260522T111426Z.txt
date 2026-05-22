@@ -1,0 +1,1 @@
+[{"start": 8799.1, "end": 8831.4, "confidence": 0.95, "reason": "OnDeck business loan sponsor read", "end_text": "North Dakota all loans and amounts subject to lender approval"}, {"start": 8856.4, "end": 8869.0, "confidence": 0.95, "reason": "CastingWords transcription service sponsor read", "end_text": "Transcription by CastingWords"}]

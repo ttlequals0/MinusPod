@@ -1,0 +1,30 @@
+[
+  {
+    "start": 11335.2,
+    "end": 11365.6,
+    "confidence": 1.0,
+    "reason": "Airtasker sponsor read",
+    "end_text": "Airtasker, get anything done."
+  },
+  {
+    "start": 11366.2,
+    "end": 11424.6,
+    "confidence": 1.0,
+    "reason": "Decisions Decisions podcast cross-promotion",
+    "end_text": "from Gilead Sciences."
+  },
+  {
+    "start": 11425.3,
+    "end": 11455.4,
+    "confidence": 1.0,
+    "reason": "OnDeck small business loan sponsor read",
+    "end_text": "subject to lender approval."
+  },
+  {
+    "start": 11614.6,
+    "end": 11630.6,
+    "confidence": 0.9,
+    "reason": "List of sponsors read by host",
+    "end_text": "Stamps.com,"
+  }
+]

@@ -1,0 +1,1 @@
+{"start": 4296.0, "end": 4361.4, "confidence": 0.98, "reason": "Host promotes books and personal events/merchandise (Jess Elias book, tennis event, AM Mornings show)", "end_text": "Mornings on YouTube. See you guys there. Peace."}

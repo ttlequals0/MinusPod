@@ -1,0 +1,1 @@
+{"start": 3360.3, "end": 3975.9, "confidence": 0.98, "reason": "Sponsor read for Mint Mobile, Aura Frames, Morgan & Morgan, Stash, and Neuro Gum with promotional language, URLs, and promo codes", "end_text": "created by aliens. So I guess this is literally the last thing I'll ever do."}

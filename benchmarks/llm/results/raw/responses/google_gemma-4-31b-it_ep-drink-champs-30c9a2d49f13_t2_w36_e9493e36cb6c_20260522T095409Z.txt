@@ -1,0 +1,39 @@
+{
+  "ads": [
+    {
+      "start": 15349.7,
+      "end": 15383.7,
+      "confidence": 0.9,
+      "reason": "Network/Platform promo for Drink Champs and hosting platforms",
+      "end_text": "going to drinkchamps.com"
+    },
+    {
+      "start": 15388.3,
+      "end": 15416.5,
+      "confidence": 0.99,
+      "reason": "Airtasker sponsor read",
+      "end_text": "Airtasker.com. Airtasker"
+    },
+    {
+      "start": 15416.7,
+      "end": 15452.3,
+      "confidence": 0.99,
+      "reason": "CVS retail brand ad",
+      "end_text": "Store hours vary by location"
+    },
+    {
+      "start": 15453.9,
+      "end": 15481.1,
+      "confidence": 0.99,
+      "reason": "Trashy.io sponsor read",
+      "end_text": "Visit Trashy.io to get started"
+    },
+    {
+      "start": 15482.9,
+      "end": 15517.1,
+      "confidence": 0.98,
+      "reason": "TryFencing.org promotion and iHeart Podcast platform tag",
+      "end_text": "Guaranteed human"
+    }
+  ]
+}

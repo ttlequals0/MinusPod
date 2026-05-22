@@ -1,0 +1,1 @@
+[{"start": 1065.2, "end": 1129.6, "confidence": 0.95, "reason": "SoFi and LinkedIn Premium All-in-One ads", "end_text": "linkedin.com/slash all-in-one"}]

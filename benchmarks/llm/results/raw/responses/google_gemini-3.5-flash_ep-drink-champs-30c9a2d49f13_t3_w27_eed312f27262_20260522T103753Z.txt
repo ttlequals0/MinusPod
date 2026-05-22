@@ -1,0 +1,16 @@
+[
+  {
+    "start": 11335.2,
+    "end": 11455.4,
+    "confidence": 0.99,
+    "reason": "Ad block containing Airtasker, Care for the Culture, and OnDeck sponsor advertisements",
+    "end_text": "subject to lender approval."
+  },
+  {
+    "start": 11614.6,
+    "end": 11630.6,
+    "confidence": 0.95,
+    "reason": "Sponsor list read mentioning Athletic Greens, Audible, Masterclass, ZipRecruiter, Raycon, Manscaped, and Stamps.com",
+    "end_text": "Manscaped, Stamps.com,"
+  }
+]

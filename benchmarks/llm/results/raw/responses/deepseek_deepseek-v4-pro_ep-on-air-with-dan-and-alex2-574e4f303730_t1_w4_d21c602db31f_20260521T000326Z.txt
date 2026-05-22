@@ -1,0 +1,5 @@
+{
+  "ad_segments": [],
+  "total_count": 0,
+  "window_analyzed": "28.0-38.0 minutes"
+}

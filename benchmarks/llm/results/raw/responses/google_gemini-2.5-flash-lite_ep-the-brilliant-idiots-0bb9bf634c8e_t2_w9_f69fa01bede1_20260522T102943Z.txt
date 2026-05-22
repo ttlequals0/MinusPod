@@ -1,0 +1,16 @@
+[
+  {
+    "start": 4059.4,
+    "end": 4077.5,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Jess Hilarious' book, Charlamagne's book, and a tennis event. Includes calls to action and promotional language.",
+    "end_text": "All Love Racquet Club."
+  },
+  {
+    "start": 4077.5,
+    "end": 4083.9,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Charlamagne's show AM Mornings. Includes a call to action and promotional language.",
+    "end_text": "See you guys there. Peace."
+  }
+]

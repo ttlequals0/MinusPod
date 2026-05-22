@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1359.1,
+    "end": 1381.4,
+    "confidence": 0.95,
+    "reason": "Host mentions multiple podcasts and platforms within the Black Effect podcast network, which is a promotional activity.",
+    "end_text": "Black Effect podcast network"
+  }
+]

@@ -1,0 +1,1 @@
+{"start":2246.0,"end":2314.4,"confidence":0.98,"reason":"Hosted ad block begins with 'This episode is brought to you by Capital One' and includes a second sponsor read for Rinse with promotional copy and a signup URL 'Rinse.com'; likely a contiguous ad pod before show content ends.","end_text":"Rinse. It's time to be great."}

@@ -1,0 +1,1 @@
+{"start":2085.5,"end":2085.5,"confidence":0.0,"reason":"No advertisement segments found in this transcript window; content is discussion about children, screens, and GLP-1s with no sponsor pitch or promo language.","end_text":"[]"}

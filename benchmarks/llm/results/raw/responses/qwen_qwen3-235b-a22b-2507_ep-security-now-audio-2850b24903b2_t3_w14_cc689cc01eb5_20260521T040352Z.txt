@@ -1,0 +1,1 @@
+{"start": 5946.7, "end": 6162.3, "confidence": 0.99, "reason": "Host-read Hoxhunt sponsor segment with promotional language, URL, and call to action following transition phrase 'Let's take a timeout'", "end_text": "hawkshunt.com security now"}

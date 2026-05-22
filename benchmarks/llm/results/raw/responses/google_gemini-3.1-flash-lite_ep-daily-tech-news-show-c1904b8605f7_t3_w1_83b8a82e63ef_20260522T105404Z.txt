@@ -1,0 +1,37 @@
+[
+  {
+    "start": 821.4,
+    "end": 857.6,
+    "confidence": 1.0,
+    "reason": "Capital One sponsor read",
+    "end_text": "technology at Capital One"
+  },
+  {
+    "start": 862.2,
+    "end": 889.7,
+    "confidence": 1.0,
+    "reason": "BetterHelp sponsor read",
+    "end_text": "scratching my downtown"
+  },
+  {
+    "start": 890.6,
+    "end": 910.1,
+    "confidence": 1.0,
+    "reason": "Amazon Health AI network-inserted ad",
+    "end_text": "got less painful"
+  },
+  {
+    "start": 912.2,
+    "end": 961.5,
+    "confidence": 1.0,
+    "reason": "Spectrum Business sponsor read",
+    "end_text": "to get started"
+  },
+  {
+    "start": 961.9,
+    "end": 1021.1,
+    "confidence": 1.0,
+    "reason": "Rinse cross-promotion ad",
+    "end_text": "time to be great"
+  }
+]

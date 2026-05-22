@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1035.7,
+    "end": 1129.6,
+    "confidence": 1.0,
+    "reason": "Sponsor reads for SoFi and LinkedIn Premium",
+    "end_text": "LinkedIn.com slash all-in-one"
+  }
+]

@@ -1,0 +1,1 @@
+{"start":1493.2,"end":1536.8,"confidence":0.99,"reason":"Host-read sponsor break for Capital One and AllTrails with explicit ad intro 'This episode is brought to you by' and promotional copy plus CTA","end_text":"today and find your outside"}

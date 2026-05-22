@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 2863.0,
+    "end": 2894.5,
+    "confidence": 0.95,
+    "reason": "LinkedIn Premium All-in-One network-inserted sponsor ad with product pitch and call to action",
+    "end_text": "LinkedIn.com slash all-in-one"
+  }
+]
+```

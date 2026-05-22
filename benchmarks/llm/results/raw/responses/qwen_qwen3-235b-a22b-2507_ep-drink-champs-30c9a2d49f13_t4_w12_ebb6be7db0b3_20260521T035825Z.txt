@@ -1,0 +1,1 @@
+{"start": 5420.4, "end": 5469.9, "confidence": 0.98, "reason": "Promotional language with repeated mention of 'promo code, discount code' indicating a dynamically inserted ad or host-read sponsor segment", "end_text": "discount code, discount code, discount code,"}

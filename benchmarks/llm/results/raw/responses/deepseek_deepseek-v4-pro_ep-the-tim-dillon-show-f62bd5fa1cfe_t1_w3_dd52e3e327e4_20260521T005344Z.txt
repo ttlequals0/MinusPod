@@ -1,0 +1,32 @@
+{
+  "segments": [
+    {
+      "start": 1439.2,
+      "end": 1488.9,
+      "confidence": 1.0,
+      "reason": "Host-read ad for Mint Mobile with promo code, URL, and call to action.",
+      "end_text": "See Mint Mobile for details."
+    },
+    {
+      "start": 1512.6,
+      "end": 1576.1,
+      "confidence": 0.99,
+      "reason": "Host-read ad for Aura Frames with promo code, URL, and call to action.",
+      "end_text": "Promo code TIM."
+    },
+    {
+      "start": 1578.3,
+      "end": 1606.7,
+      "confidence": 0.95,
+      "reason": "Network-inserted brand tagline ad for Colgate Women's Games, promoting Colgate brand.",
+      "end_text": "Colgate, your smile is your strength."
+    },
+    {
+      "start": 1637.6,
+      "end": 1665.9,
+      "confidence": 0.95,
+      "reason": "Network-inserted brand tagline ad for Skinny Pop popcorn.",
+      "end_text": "perfectly salted. Skinny Pop."
+    }
+  ]
+}

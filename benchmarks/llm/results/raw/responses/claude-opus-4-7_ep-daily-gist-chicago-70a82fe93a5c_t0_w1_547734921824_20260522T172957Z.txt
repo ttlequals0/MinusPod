@@ -1,0 +1,1 @@
+[{"start": 521.5, "end": 548.5, "confidence": 0.9, "reason": "Crain's Weekly News Quiz promo / podcast self-promo segment between content blocks", "end_text": "Daily Gist with Amy Guth"}]

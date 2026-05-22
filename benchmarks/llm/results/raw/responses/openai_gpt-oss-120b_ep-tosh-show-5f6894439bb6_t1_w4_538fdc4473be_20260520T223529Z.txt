@@ -1,0 +1,1 @@
+[{"start":1837.5,"end":1999.5,"confidence":0.99,"reason":"Host-read sponsor reads for Mint Mobile, Mattress Warehouse, and PC Richard & Son (promotional language, URLs, pricing, calls to action)","end_text":"PC Richard & Son"}]

@@ -1,0 +1,1 @@
+[{"start": 4674.6, "end": 4806.1, "confidence": 0.95, "reason": "Block of consecutive sponsor ads (Colgate, Skinny Pop, Viz, Garnier) with gaps under 15 seconds.", "end_text": "GarnierUSA.com slash NPF."}]

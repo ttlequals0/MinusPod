@@ -1,0 +1,37 @@
+[
+  {
+    "start": 8025.2,
+    "end": 8026.8,
+    "confidence": 0.95,
+    "reason": "Host transition phrase 'Biggie Smalls or Big L?' followed by ad break",
+    "end_text": "Biggie Smalls or Big L?"
+  },
+  {
+    "start": 8028.6,
+    "end": 8056.1,
+    "confidence": 0.95,
+    "reason": "Host-read sponsor segment for Athletic Greens",
+    "end_text": "whatever. So he calls me"
+  },
+  {
+    "start": 8058.6,
+    "end": 8085.6,
+    "confidence": 0.95,
+    "reason": "Promo for AG1 including URL athleticgreens.com/podcast",
+    "end_text": "position from the University"
+  },
+  {
+    "start": 8086.1,
+    "end": 8098.1,
+    "confidence": 0.95,
+    "reason": "Call to action for Athletic Greens promo code DRINKCHAMPS",
+    "end_text": "smoking blood, and I'll"
+  },
+  {
+    "start": 8098.5,
+    "end": 8110.1,
+    "confidence": 0.95,
+    "reason": "Transition back to content with 'Now, back to our conversation'",
+    "end_text": "stanky stuff, his stuff"
+  }
+]

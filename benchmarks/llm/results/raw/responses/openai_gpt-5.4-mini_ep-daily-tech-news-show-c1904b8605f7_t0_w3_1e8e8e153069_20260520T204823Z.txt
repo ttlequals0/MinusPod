@@ -1,0 +1,1 @@
+{"start":1742.3,"end":1771.5,"confidence":0.99,"reason":"Capital One sponsor read with promotional copy about Chat Concierge and car shopping; begins after 'This episode is brought to you by' and includes brand messaging.","end_text":"That's technology at Capital One"}

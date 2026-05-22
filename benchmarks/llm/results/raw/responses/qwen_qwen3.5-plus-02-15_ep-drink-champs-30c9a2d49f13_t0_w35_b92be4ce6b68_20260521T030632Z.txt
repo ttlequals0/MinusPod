@@ -1,0 +1,1 @@
+[{"start": 15261.8, "end": 15285.2, "confidence": 0.7, "reason": "Transcript explicitly repeats 'promo code, discount code', indicating a sponsor segment despite missing brand name", "end_text": "discount code, discount code,"}]

@@ -1,0 +1,1 @@
+{"start": 4964.1, "end": 4990.4, "confidence": 0.98, "reason": "Host-read sponsor segment with promotional language and call to action for 'Miami Heroes' with repeated branding", "end_text": "Miami Heroes. We got to give these flowers, bruh"}

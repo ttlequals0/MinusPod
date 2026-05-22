@@ -1,0 +1,1 @@
+{"start":7537.6,"end":7743.9,"confidence":0.99,"reason":"Final break transition followed by host-read Trusted Tech sponsor segment promoting Microsoft 365 licensing help, pricing increase on July 1st, and repeated product pitch; continues through full ad read","end_text":"They will be too"}

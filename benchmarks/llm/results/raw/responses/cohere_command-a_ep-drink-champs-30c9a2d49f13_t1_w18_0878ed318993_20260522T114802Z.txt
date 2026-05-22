@@ -1,0 +1,1 @@
+{"start": 7538.4, "end": 7563.5, "confidence": 0.0, "reason": "not an ad", "end_text": "the damn Raider fucking practices"}

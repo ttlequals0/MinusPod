@@ -1,0 +1,1 @@
+{"start":13669.1,"end":13854.6,"confidence":0.99,"reason":"Merged ad break with multiple inserted ads/promos: Airtasker app CTA, Decisions Decisions/Kiki Palmer promo sponsored by Care for the Culture from Gilead Sciences, OnDeck loan ad, and Public investing platform ad; show content resumes after disclosures","end_text":"Disclosures available at public.com slash disclosures"}

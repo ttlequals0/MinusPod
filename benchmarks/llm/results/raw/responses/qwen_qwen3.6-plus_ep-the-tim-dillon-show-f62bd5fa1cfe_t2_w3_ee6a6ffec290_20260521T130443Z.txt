@@ -1,0 +1,1 @@
+[{"start": 1439.2, "end": 1665.9, "confidence": 0.98, "reason": "Host-read sponsor segments for Mint Mobile and Aura Frames, followed by produced network ads for Colgate and Skinny Pop. Gaps between ads are under 15 seconds, merged into one continuous ad break.", "end_text": "perfectly salted. Skinny Pop."}]

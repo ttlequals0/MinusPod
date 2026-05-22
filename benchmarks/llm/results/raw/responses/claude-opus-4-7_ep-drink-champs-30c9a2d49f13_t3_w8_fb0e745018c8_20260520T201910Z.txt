@@ -1,0 +1,1 @@
+[{"start": 3493.0, "end": 3650.4, "confidence": 0.97, "reason": "Ad block: Airtasker, Decisions Decisions podcast promo (Care for the Culture/Gilead), OnDeck, Public.com", "end_text": "lets you backtest it again"}]

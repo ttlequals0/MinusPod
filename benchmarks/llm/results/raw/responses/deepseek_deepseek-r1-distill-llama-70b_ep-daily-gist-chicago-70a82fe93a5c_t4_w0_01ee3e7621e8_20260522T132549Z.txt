@@ -1,0 +1,18 @@
+{
+  "transcript": [
+    {
+      "start": 54.1,
+      "end": 64.7,
+      "content": "Because when you succeed, they succeed. Old National Bank, where relationships and results meet. Connect with a banker today at oldnational.com slash commercial banking. Member FDIC."
+    }
+  ],
+  "ads": [
+    {
+      "start": 54.1,
+      "end": 64.7,
+      "confidence": 0.95,
+      "reason": "Old National Bank sponsor read",
+      "end_text": "Member FDIC."
+    }
+  ]
+}

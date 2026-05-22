@@ -1,0 +1,1 @@
+{"start": 13669.1, "end": 13828.9, "confidence": 0.96, "reason": "Platform-inserted ad break with Airtasker, Decisions Decisions podcast promo, OnDeck, and Public investing ads", "end_text": "Transcription by CastingWords"}

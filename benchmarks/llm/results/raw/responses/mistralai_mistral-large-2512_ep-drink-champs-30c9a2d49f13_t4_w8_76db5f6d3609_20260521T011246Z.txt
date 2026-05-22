@@ -1,0 +1,30 @@
+[
+    {
+        "start": 3504.1,
+        "end": 3528.5,
+        "confidence": 0.99,
+        "reason": "Airtasker sponsor read with call to action and URL (Airtasker.com)",
+        "end_text": "get anything done"
+    },
+    {
+        "start": 3528.8,
+        "end": 3556.2,
+        "confidence": 0.98,
+        "reason": "Cross-promotion for 'Decisions Decisions' podcast with sponsor mention (Care for the Culture from Gilead Sciences)",
+        "end_text": "wherever you get your podcasts"
+    },
+    {
+        "start": 3556.8,
+        "end": 3608.0,
+        "confidence": 0.99,
+        "reason": "OnDeck sponsor read with call to action and URL (OnDeck.com)",
+        "end_text": "subject to lender approval"
+    },
+    {
+        "start": 3608.5,
+        "end": 3650.4,
+        "confidence": 0.99,
+        "reason": "Public sponsor read with call to action and URL (public.com/disclosures)",
+        "end_text": "Transcription by CastingWords"
+    }
+]

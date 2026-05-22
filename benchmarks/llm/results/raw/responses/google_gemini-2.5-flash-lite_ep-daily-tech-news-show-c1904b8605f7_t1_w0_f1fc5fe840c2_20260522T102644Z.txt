@@ -1,0 +1,16 @@
+[
+  {
+    "start": 0.0,
+    "end": 100.9,
+    "confidence": 0.98,
+    "reason": "This segment is an advertisement for Capital One and Xero. It includes promotional language, calls to action ('search XERO for your free trial'), and mentions specific product features ('batch payments', 'automated accounts payable'). The transition phrase 'This episode is brought to you by Capital One' clearly marks the start of the ad.",
+    "end_text": "100% "
+  },
+  {
+    "start": 124.0,
+    "end": 152.9,
+    "confidence": 0.97,
+    "reason": "This segment is an advertisement for Warby Parker. It includes promotional language ('one-stop shop for all your vision needs', 'expertly crafted and unexpectedly affordable'), calls to action ('head to your nearest Warby Parker store or visit warbyparker.com today'), and mentions specific services ('eye exams', 'take vision insurance').",
+    "end_text": "warbyparker.com."
+  }
+]

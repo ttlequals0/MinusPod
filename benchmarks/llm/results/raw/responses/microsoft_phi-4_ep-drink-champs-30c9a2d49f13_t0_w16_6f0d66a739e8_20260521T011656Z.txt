@@ -1,0 +1,7 @@
+{
+  "start": 112.0,
+  "end": 122.0,
+  "confidence": 0.85,
+  "reason": "The segment contains a product endorsement with promotional language, including a mention of a specific product (Modelo) and a call to action (Tinder). The host discusses personal experiences with the product, which is typical of sponsored content.",
+  "end_text": "I'm in there. I'm in there. I'm in there. I'm in there. I'm in there."
+}

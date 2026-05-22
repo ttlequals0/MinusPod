@@ -1,0 +1,3 @@
+[
+{"start":1477.9,"end":1485.6,"confidence":0.96,"reason":"Valor trucks brand tagline ad","end_text":"Valor trucks way"},{"start":1524.5,"end":1602.6,"confidence":0.99,"reason":"Xero sponsor read plus Acast platform and cross‑promotion ads","end_text":"Acast.com"}
+]

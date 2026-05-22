@@ -1,0 +1,2 @@
+t.
+{"start": 2609.5, "end": 2634.3, "confidence": 0.95, "reason": "Sponsor list with known brands and 'sponsored by' mention", "end_text": "Stamps.com,"}

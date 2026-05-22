@@ -1,0 +1,1 @@
+{"start":4639.7,"end":4661.1,"confidence":0.86,"reason":"Claude Security promotional segment; specifically says 'Claude Security is now available in public beta to Claude Enterprise customers' and describes cybersecurity capabilities. Appears to be a sponsored or promotional read, though no explicit break phrase is present in this excerpt.","end_text":"With Clawed Security,"}

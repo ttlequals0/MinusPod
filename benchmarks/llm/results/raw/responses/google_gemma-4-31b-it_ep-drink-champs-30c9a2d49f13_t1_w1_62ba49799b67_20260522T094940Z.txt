@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 588.5,
+      "end": 597.9,
+      "confidence": 0.9,
+      "reason": "Short network/platform transition or promo segment",
+      "end_text": "see you next time"
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+[{"start": 58.0, "end": 80.1, "confidence": 0.9, "reason": "Host-read sponsor mention for CoreWeave (transcribed as Core Read)", "end_text": "physical world. So welcome, Richard."}]

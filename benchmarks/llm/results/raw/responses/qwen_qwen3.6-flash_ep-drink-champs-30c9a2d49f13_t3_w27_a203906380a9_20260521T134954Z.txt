@@ -1,0 +1,1 @@
+[{"start": 11335.2, "end": 11454.3, "confidence": 0.95, "reason": "Network-inserted ads (Airtasker, Decisions Decisions/Gilead Sciences, OnDeck)", "end_text": "an amount subject to lender approval."}]

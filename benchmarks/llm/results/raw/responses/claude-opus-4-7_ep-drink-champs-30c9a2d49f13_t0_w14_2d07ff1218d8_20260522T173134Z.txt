@@ -1,0 +1,1 @@
+[{"start": 6208.7, "end": 6373.0, "confidence": 0.98, "reason": "Ad break: Airtasker, Decisions Decisions/Care for the Culture promo, OnDeck, Public investing platform", "end_text": "those who take it seriously"}]

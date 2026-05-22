@@ -1,0 +1,1 @@
+{"start":1837.5,"end":1999.5,"confidence":0.99,"reason":"Ad break introduced by 'We'll be right back' followed by Mint Mobile sponsor read with promo URL mintmobile.com/tosh, then continues into Mattress Warehouse Memorial Day Sale and PC Richard & Son Aseema Lease to Own promotional spots.","end_text":"Visit PCRichard.com slash Aseema dot HTML for details"}

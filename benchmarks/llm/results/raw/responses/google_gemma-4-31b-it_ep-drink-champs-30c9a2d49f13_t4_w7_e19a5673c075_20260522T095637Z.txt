@@ -1,0 +1,18 @@
+{
+  "ads": [
+    {
+      "start": 3478.9,
+"end": 3528.5,
+"confidence": 1.0,
+"reason": "Airtasker sponsor read with product pitch and URL",
+"end_text": "Airtasker, get anything done"
+},
+    {
+"start": 3528.5,
+"end": 3556.2,
+"confidence": 1.0,
+"reason": "Cross-promotion for 'Decisions Decisions' podcast featuring Kiki Palmer",
+"end_text": "conversation about abstinence?"
+}
+  ]
+}

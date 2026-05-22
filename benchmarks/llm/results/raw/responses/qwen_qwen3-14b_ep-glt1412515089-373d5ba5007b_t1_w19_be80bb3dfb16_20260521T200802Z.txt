@@ -1,0 +1,1 @@
+{"start": 8242.2, "end": 8270.6, "confidence": 0.95, "reason": "Diana Pasolka book promotion", "end_text": "I totally get it, I think I would feel the same way"}

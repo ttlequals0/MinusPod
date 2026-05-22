@@ -1,0 +1,1 @@
+[{"start": 15388.3, "end": 15517.1, "confidence": 0.98, "reason": "Post-roll ad block featuring Airtasker, CVS, Trashy, and Try Fencing sponsor reads with URLs and calls to action", "end_text": "This is an iHeart Podcast."}]

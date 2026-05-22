@@ -1,0 +1,1 @@
+[{"start": 1035.7, "end": 1035.7, "confidence": 0.6, "reason": "Possible ad transition - 'Debt can get messy fast' sounds like start of a financial services ad (e.g., Rocket Money)", "end_text": "messy fast", "note": "continues in next"}]

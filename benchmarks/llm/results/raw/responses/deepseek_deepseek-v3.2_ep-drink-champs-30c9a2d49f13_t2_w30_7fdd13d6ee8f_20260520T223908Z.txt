@@ -1,0 +1,1 @@
+{"start": 12600.1, "end": 12602.9, "confidence": 0.95, "reason": "Hosting platform pre-roll ad (Omny Studio)", "end_text": "for privacy information."}

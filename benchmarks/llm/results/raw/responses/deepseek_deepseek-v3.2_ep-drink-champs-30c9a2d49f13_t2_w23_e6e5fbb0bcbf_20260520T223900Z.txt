@@ -1,0 +1,1 @@
+{"start": 9903.6, "end": 9907.6, "confidence": 0.95, "reason": "Platform-inserted ad: 'I don't know what he's saying listen guys' - abrupt tonal shift, likely a network promo for another show", "end_text": "I don't know what he's saying listen guys"}

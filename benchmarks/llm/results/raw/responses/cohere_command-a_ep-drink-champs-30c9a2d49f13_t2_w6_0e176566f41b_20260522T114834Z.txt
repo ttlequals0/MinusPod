@@ -1,0 +1,7 @@
+{
+  "start": 2520.2,
+  "end": 2534.5,
+  "confidence": 0.0,
+  "reason": "not an ad",
+  "end_text": "back in about 20 minutes"
+}

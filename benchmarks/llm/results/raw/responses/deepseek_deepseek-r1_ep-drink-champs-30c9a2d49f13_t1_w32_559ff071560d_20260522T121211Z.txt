@@ -1,0 +1,1 @@
+[{"start": 13669.1, "end": 13815.9, "confidence": 0.98, "reason": "Multiple sponsor ads: Airtasker, Decisions Decisions podcast, OnDeck, and Public", "end_text": "back test it again"}]

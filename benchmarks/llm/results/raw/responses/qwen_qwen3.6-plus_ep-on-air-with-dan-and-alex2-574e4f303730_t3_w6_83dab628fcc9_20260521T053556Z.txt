@@ -1,0 +1,1 @@
+[{"start": 2609.5, "end": 2634.3, "confidence": 0.65, "reason": "Transcript placeholder listing sponsor names and ad keywords, indicating a dynamically inserted or redacted ad segment", "end_text": "Manscaped, Stamps.com,"}]

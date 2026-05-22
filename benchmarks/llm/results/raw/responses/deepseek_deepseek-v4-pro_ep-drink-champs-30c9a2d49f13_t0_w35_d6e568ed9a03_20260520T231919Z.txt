@@ -1,0 +1,1 @@
+{"segments": [{"start": 15261.8, "end": 15285.2, "confidence": 0.98, "reason": "Promo code repeated multiple times, indicating a dynamically inserted ad break.", "end_text": "discount code, discount code, discount code"}]}

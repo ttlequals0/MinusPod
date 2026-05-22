@@ -1,0 +1,17 @@
+Looking at this transcript window, I can identify several advertisement segments:
+
+1. **Airtasker ad** (11335.2s - 11365.6s): Clear sponsor read with product pitch, URL, and tagline "get anything done"
+
+2. **Decisions Decisions / Care for the Culture / Gilead Sciences** (11366.2s - 11424.6s): Cross-promotion for another podcast ("Decisions Decisions") with sponsor disclosure "Sponsored by Care for the Culture from Gilead Sciences"
+
+3. **OnDeck** (11425.3s - 11455.4s): Small business line of credit ad with URL (OnDeck.com), product pitch, and call to action
+
+The segment at 11614.6s-11630.6s appears to be transcript noise/artifacts listing sponsor names without actual promotional content in context. The rest is show content.
+
+```json
+[
+  {"start": 11335.2, "end": 11365.6, "confidence": 0.97, "reason": "Airtasker host-read sponsor ad with URL and tagline", "end_text": "Airtasker, get anything done"},
+  {"start": 11366.2, "end": 11424.6, "confidence": 0.95, "reason": "Cross-promotion for Decisions Decisions podcast sponsored by Care for the Culture from Gilead Sciences", "end_text": "Sponsored by Care for the Culture"},
+  {"start": 11425.3, "end": 11455.4, "confidence": 0.97, "reason": "OnDeck small business line of credit ad with URL and call to action", "end_text": "subject to lender approval"}
+]
+```

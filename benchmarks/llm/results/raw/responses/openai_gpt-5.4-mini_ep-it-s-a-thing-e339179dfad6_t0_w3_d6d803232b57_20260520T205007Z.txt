@@ -1,0 +1,1 @@
+{"start":1524.5,"end":1602.6,"confidence":0.99,"reason":"Mid-roll Xero sponsor read with promo language and CTA, followed by Acast platform promo and cross-promo for Wrong Turns, plus Acast host/monetization message","end_text":"Acast.com"}

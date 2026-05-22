@@ -1,0 +1,1 @@
+{"start":8799.1,"end":8831.4,"confidence":0.99,"reason":"OnDeck sponsor read followed by Public support promo; includes promotional language, brand names, and URL call to action","end_text":"for those who take it seriously"}

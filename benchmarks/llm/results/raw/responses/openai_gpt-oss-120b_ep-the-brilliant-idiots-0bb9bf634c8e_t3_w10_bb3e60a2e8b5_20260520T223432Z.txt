@@ -1,0 +1,1 @@
+{"start":4296.0,"end":4361.4,"confidence":0.96,"reason":"Host-read sponsor promotion of Jess Elias book and All Love Racquet Club tennis event","end_text":"get your ticket there"}

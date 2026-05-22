@@ -1,0 +1,1 @@
+{"start": 9683.5, "end": 9920.6, "confidence": 0.98, "reason": "Host promotes Applied Love Labs and timemachine.love, a product tied to the guest's nonprofit, with clear call to action and URL", "end_text": "Bye, everybody. Bye."}

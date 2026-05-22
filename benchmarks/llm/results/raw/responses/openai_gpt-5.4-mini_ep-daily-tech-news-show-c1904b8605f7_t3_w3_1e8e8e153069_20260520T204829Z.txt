@@ -1,0 +1,1 @@
+{"start":1742.3,"end":1799.6,"confidence":0.97,"reason":"Capital One sponsor read followed by promo for 'Good Things from Lemonada Media' / 'the six-part Thrive series'; includes 'This episode is brought to you by' and branded calls to tune in.","end_text":"to hear the six-part Thrive series"}

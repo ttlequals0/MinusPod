@@ -1,0 +1,1 @@
+{"error": "Not enough valid ad content found. No ad segments identified."}

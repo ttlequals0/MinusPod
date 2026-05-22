@@ -1,0 +1,3 @@
+[
+  {"start": 506.4, "end": 548.5, "confidence": 0.9, "reason": "Host transition to break followed by Crain's quiz promo with URL and CTA", "end_text": "with Amy Guth."}
+]

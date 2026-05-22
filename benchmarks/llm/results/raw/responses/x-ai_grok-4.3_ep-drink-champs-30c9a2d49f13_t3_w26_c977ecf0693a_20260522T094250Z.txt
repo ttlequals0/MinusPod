@@ -1,0 +1,5 @@
+[
+  {"start": 11335.2, "end": 11365.6, "confidence": 0.98, "reason": "Airtasker sponsor read with CTA and URL", "end_text": "Airtasker, get anything done."},
+  {"start": 11366.2, "end": 11424.6, "confidence": 0.95, "reason": "Cross-promo for Decisions Decisions podcast with Gilead sponsor mention", "end_text": "from Gilead Sciences."},
+  {"start": 11425.3, "end": 11454.3, "confidence": 0.97, "reason": "OnDeck small business loan advertisement with URL", "end_text": "All loans..."}
+]

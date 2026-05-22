@@ -1,0 +1,1 @@
+{"start":11335.2,"end":11424.6,"confidence":0.99,"reason":"Airtasker ad followed by produced promo for Decisions Decisions with Keke Palmer and a sponsor mention for Care for the Culture from Gilead Sciences; includes promotional copy and 'Sponsored by' language","end_text":"Sponsored by Care for the Culture from Gilead Sciences"}

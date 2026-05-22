@@ -1,0 +1,1 @@
+{"start":2863.0,"end":2894.5,"confidence":0.99,"reason":"LinkedIn Premium All-in-One network-inserted ad with product pitch and call to action 'Try for free at LinkedIn.com slash all-in-one'; partial ad may continue from previous silence gap","end_text":"LinkedIn.com slash all-in-one"}

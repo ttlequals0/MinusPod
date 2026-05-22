@@ -1,0 +1,9 @@
+[
+  {
+    "start": 11335.2,
+    "end": 11454.3,
+    "confidence": 0.97,
+    "reason": "Airtasker product ad, Decisions Decisions podcast cross-promotion, Care for the Culture sponsorship, OnDeck financial services ad",
+    "end_text": "subject to lender approval"
+  }
+]

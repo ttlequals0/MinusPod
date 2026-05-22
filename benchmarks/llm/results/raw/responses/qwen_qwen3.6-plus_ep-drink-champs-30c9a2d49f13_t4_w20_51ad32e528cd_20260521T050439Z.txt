@@ -1,0 +1,1 @@
+[{"start":8724.9,"end":8831.4,"confidence":0.98,"reason":"Continuous mid-roll ad block featuring AirTasker, Decisions Decisions podcast promo, OnDeck, and Public sponsor reads","end_text":"take it seriously."}]

@@ -1,0 +1,1 @@
+{"start": 5055.3, "end": 5069.8, "confidence": 0.9, "reason": "Transition to end of episode with farewell and sign-off, no promotional content present", "end_text": "see you all next time"}

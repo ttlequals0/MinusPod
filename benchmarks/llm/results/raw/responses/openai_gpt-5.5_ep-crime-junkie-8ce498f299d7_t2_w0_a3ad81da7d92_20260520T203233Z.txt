@@ -1,0 +1,1 @@
+{"start":0.0,"end":98.4,"confidence":0.99,"reason":"Pre-roll ad block with promotional spots for Vitel Global (VitelGlobal.com), LinkedIn Premium All-in-One (try for free at linkedin.com/all-in-one), and Hertz (Get paired with our newest fleet yet at Hertz.com). Show content resumes in the same timestamped segment.","end_text":"newest fleet yet at Hertz.com"}

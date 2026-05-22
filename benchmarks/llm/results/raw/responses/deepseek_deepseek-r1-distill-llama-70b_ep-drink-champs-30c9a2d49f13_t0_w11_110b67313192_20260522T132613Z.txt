@@ -1,0 +1,7 @@
+{
+  "start": 4614.6,
+  "end": 5241.2,
+  "confidence": 0.95,
+  "reason": "No ads detected in this window",
+  "end_text": "see this fucking shit. Money running back from the top."
+}

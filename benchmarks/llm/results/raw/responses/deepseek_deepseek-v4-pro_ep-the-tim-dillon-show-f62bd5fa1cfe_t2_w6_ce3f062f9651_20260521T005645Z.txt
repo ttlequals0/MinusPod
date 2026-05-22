@@ -1,0 +1,9 @@
+[
+  {
+    "start": 3079.6,
+    "end": 3134.3,
+    "confidence": 0.99,
+    "reason": "Morgan & Morgan and Stash sponsor read, continues into next window",
+    "end_text": "Stash is the one."
+  }
+]

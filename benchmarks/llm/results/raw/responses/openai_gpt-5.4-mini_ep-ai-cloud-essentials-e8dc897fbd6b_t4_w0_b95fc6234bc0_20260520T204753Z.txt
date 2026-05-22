@@ -1,0 +1,1 @@
+{"start":58.0,"end":80.1,"confidence":0.95,"reason":"Host-read sponsor intro mentioning 'brought to you by Core Read' and 'Let's kick things off' around the transition into the interview; promotional episode framing for the podcast brand","end_text":"So welcome, Richard. Let's kick things off with..."}

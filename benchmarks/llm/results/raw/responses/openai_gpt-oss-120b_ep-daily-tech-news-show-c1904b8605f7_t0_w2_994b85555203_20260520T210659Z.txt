@@ -1,0 +1,39 @@
+{
+  "ads": [
+    {
+      "start": 821.4,
+      "end": 857.6,
+      "confidence": 0.97,
+      "reason": "Capital One sponsor read with promotional language and call to action",
+      "end_text": "I just need to"
+    },
+    {
+      "start": 862.2,
+      "end": 889.7,
+      "confidence": 0.98,
+      "reason": "BetterHelp ad with URL and discount code",
+      "end_text": "first month of online therapy"
+    },
+    {
+      "start": 890.6,
+      "end": 910.1,
+      "confidence": 0.96,
+      "reason": "Amazon Health AI promotional segment",
+      "end_text": "less painful"
+    },
+    {
+      "start": 912.2,
+      "end": 990.3,
+      "confidence": 0.97,
+      "reason": "Spectrum Business sponsor read with URL and cross‑promotion for Best One Yet podcast",
+      "end_text": "available in all areas"
+    },
+    {
+      "start": 990.6,
+      "end": 1018.9,
+      "confidence": 0.97,
+      "reason": "Rinse laundry service ad with URL and call to action",
+      "end_text": "rinse.com. Rinse"
+    }
+  ]
+}

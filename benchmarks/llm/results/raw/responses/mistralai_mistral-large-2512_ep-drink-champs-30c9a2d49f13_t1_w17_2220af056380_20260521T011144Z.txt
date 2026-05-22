@@ -1,0 +1,16 @@
+[
+    {
+        "start": 7693.5,
+        "end": 7715.9,
+        "confidence": 0.9,
+        "reason": "Platform-inserted ad for 'Gangsta Grillz' and 'DJ Drama' with promotional language and distinct marketing tone. References 'Master shit' and 'serious radio,' which are not part of the organic conversation.",
+        "end_text": "looking for shit."
+    },
+    {
+        "start": 7737.1,
+        "end": 7740.0,
+        "confidence": 0.85,
+        "reason": "Partial network-inserted ad or promo for a sports-related segment (Bo Jackson/Nigerian night) with promotional phrasing. Continues in next window.",
+        "end_text": "continues in next"
+    }
+]

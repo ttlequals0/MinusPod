@@ -1,0 +1,22 @@
+t.
+{
+
+"[{" 
+  :"",
+  "end": 4733.9, 
+  "confidence": 0.95, 
+  "reason": "Colgate Women's Games sponsor read", 
+  "end_text": "your strength."
+  ,"{" 
+  :"",
+  "end": 4787.9, 
+  "confidence": 0.95, 
+  "reason": "Viz prescription eye drop ad", 
+  "end_text": "Learn more at Viz.com."
+  ,"{" 
+  :"",
+  "end": 4800.0, 
+  "confidence": 0.95, 
+  "reason": "Garnier National Park Foundation partnership ad", 
+  "end_text": "at GarnierUSA.com slash NPF."
+}

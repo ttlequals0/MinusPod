@@ -1,0 +1,3 @@
+[
+  {"start": 6208.7, "end": 6318.1, "confidence": 0.98, "reason": "Consecutive network-inserted ads: Airtasker read, Decisions Decisions cross-promo with Gilead sponsor, OnDeck commercial, Public sponsor mention", "end_text": "take it seriously"}
+]

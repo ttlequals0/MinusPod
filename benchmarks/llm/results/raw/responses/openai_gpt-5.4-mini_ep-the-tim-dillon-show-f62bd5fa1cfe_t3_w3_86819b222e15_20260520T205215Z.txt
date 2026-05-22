@@ -1,0 +1,1 @@
+{"start":1439.2,"end":1564.4,"confidence":0.99,"reason":"Host-read sponsor block with clear promotional language for Mint Mobile and Aura Frames, including product pitches, pricing, URLs, and promo code TIM; starts at the sponsor transition and runs through the end of the Aura Frames read.","end_text":"AuraFrames.com slash Tim. Promo code TIM"}

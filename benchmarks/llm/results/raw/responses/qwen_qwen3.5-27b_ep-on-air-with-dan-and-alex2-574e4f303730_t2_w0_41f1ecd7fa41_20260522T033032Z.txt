@@ -1,0 +1,1 @@
+[{"start": 0.0, "end": 59.8, "confidence": 0.98, "reason": "Back-to-back sponsor reads for HEX and PickOCNY tourism", "end_text": "mind at PickOCNY.com."}]

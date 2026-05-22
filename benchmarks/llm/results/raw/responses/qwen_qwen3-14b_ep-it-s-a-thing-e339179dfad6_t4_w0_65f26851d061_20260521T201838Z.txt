@@ -1,0 +1,2 @@
+."
+{"start": 1.6, "end": 77.2, "confidence": 0.9, "reason": "multiple ads including Acast and cross-promotions", "end_text": "leaders of tomorrow."}

@@ -1,0 +1,1 @@
+{"start":0.0,"end":0.0,"confidence":0.0,"reason":"No advertisement segments found in the provided transcript window. The only host mention of sponsorship-related content is a platform footer (“Hosted on Acast”), but no separate ad read or promotional segment is present in this excerpt.","end_text":""}

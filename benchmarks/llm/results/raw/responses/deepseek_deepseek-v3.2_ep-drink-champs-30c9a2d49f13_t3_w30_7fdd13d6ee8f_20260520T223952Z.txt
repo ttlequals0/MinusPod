@@ -1,0 +1,1 @@
+{"start": 12600.1, "end": 13208.2, "confidence": 0.0, "reason": "No promotional content found in transcript segment. All content is conversational, discussing topics like Brooklyn, the Statue of Liberty, Stephen A. Smith, and General Hospital.", "end_text": "How long you been married?"}

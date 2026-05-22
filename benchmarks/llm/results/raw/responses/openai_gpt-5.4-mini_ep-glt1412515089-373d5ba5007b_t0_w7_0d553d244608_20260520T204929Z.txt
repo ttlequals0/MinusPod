@@ -1,0 +1,1 @@
+{"start":49.0,"end":59.0,"confidence":0.0,"reason":"No ad segment found in this transcript window; only interview content is present. The Perplexity promo is listed in episode metadata, not in the transcript window.","end_text":"continues in next"}

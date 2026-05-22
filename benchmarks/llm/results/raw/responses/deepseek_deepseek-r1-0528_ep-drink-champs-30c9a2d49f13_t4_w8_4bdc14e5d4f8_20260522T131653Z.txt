@@ -1,0 +1,9 @@
+[
+  {
+    "start": 3478.9,
+    "end": 3637.4,
+    "confidence": 0.98,
+    "reason": "Ad break with Airtasker (app download), Decisions Decisions podcast promo sponsored by Care for the Culture, OnDeck business loan, and Public investing platform",
+    "end_text": "public.com slash disclosures"
+  }
+]

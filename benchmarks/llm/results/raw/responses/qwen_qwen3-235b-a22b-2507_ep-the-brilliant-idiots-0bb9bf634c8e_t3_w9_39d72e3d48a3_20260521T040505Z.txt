@@ -1,0 +1,1 @@
+{"start": 4059.4, "end": 4077.5, "confidence": 0.98, "reason": "Transition to sponsor segment with promotional language and call to action for Lil P and Taylor Gang, indicating a sponsored or advertised segment", "end_text": "all goddamn day, okay?"}

@@ -1,0 +1,1 @@
+{"start": 3354.0, "end": 3983.9, "confidence": 0.1, "reason": "No promotional language, sponsor mentions, URLs, or calls to action present; content is organic discussion of a media list and industry figures", "end_text": "part of conversations you want to be a part of."}

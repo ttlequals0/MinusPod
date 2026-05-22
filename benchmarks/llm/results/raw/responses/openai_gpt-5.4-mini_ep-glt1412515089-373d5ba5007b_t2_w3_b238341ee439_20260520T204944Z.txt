@@ -1,0 +1,1 @@
+{"start":1267.2,"end":1270.2,"confidence":0.61,"reason":"Possible ad transition is not present here; transcript only shows conversation. No promotive sponsor copy or calls to action in this window.","end_text":"could you turn down my..."}

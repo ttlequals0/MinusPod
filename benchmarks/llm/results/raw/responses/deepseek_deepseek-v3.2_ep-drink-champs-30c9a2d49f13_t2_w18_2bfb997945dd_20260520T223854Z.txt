@@ -1,0 +1,1 @@
+{"start": 8187.1, "end": 8190.0, "confidence": 0.95, "reason": "Host-read ad for Athletic Greens (AG1) with promo code and URL", "end_text": "athleticgreens.com/drinkchamps"}

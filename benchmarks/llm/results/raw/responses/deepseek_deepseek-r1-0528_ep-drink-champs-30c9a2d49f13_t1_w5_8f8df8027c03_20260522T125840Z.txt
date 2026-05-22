@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2074.0,
+    "end": 2714.2,
+    "confidence": 0.0,
+    "reason": "No promotional content detected in the entire segment",
+    "end_text": "I'm with you, baby. That's it."
+  }
+]

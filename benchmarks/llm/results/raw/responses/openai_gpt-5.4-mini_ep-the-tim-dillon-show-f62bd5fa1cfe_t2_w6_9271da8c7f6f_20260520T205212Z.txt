@@ -1,0 +1,1 @@
+{"start":3079.6,"end":3134.3,"confidence":0.98,"reason":"Morgan & Morgan host-read sponsor segment with promotional copy, fee is free unless they win, and CTA to ForThePeople.com/Tim and Poundlaw; includes transition from content into ad and runs into Stash mention.","end_text":"This is a paid advertisement. Stash is the one"}

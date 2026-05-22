@@ -1,0 +1,1 @@
+{"start":6395.6,"end":6395.6,"confidence":0.97,"reason":"Perplexity sponsor mention and promotional segue around 'our AI sponsor' and ad copy context; partial ad continuing from prior content window","end_text":"it's going to happen or know about"}

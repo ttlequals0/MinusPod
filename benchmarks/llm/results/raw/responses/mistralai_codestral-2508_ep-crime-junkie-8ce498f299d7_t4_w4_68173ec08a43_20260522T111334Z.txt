@@ -1,0 +1,1 @@
+[{"start": 1959.8, "end": 2020.4, "confidence": 0.95, "reason": "Rakuten cashback and rewards program", "end_text": "Join for free at Rakuten.com or download the Rakuten app to start saving money today."}]

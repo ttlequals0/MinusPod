@@ -1,0 +1,7 @@
+{
+  "start": 1748.4,
+  "end": 1879.5,
+  "confidence": 0.95,
+  "reason": "FreshField Market network-inserted brand tagline ad",
+  "end_text": "thousand euros more just because you'll get"
+}

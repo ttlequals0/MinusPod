@@ -1,0 +1,1 @@
+{"start": 11742.8, "end": 11763.1, "confidence": 0.95, "reason": "Host-read ad for Rolex Lounge, includes promotional language and brand name", "end_text": "The U.N. football players. Thank you."}

@@ -1,0 +1,2 @@
+e.
+{"start": 1837.5, "end": 1860.0, "confidence": 0.95, "reason": "Mint Mobile sponsor read with call to action", "end_text": "crazy high bills?"}

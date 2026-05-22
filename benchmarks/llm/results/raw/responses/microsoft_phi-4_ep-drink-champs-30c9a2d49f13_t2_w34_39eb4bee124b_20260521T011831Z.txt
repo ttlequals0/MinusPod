@@ -1,0 +1,7 @@
+{
+  "start": 14.2687,
+  "end": 14.2938,
+  "confidence": 0.95,
+  "reason": "The segment contains promotional language discussing rights and responsibilities, with a call to action regarding teaching children about rights.",
+  "end_text": "That's what they know."
+}

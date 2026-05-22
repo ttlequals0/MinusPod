@@ -1,0 +1,1 @@
+{"start":469.0,"end":572.1,"confidence":0.99,"reason":"Zscaler host-read sponsor segment with explicit sponsor intro, product pitch, and call to action to learn more at zscaler.com/security; includes 'Now back to Steve and Security Now' transition.","end_text":"Now back to Steve and Security Now"}

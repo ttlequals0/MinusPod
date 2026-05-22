@@ -1,0 +1,1 @@
+{"start":9259.3,"end":9290.5,"confidence":0.96,"reason":"TWiT network promo for This Week in Tech with explicit call to subscribe; platform-inserted cross-promotion/ad","end_text":"from the TWiT Network. Thank you."}

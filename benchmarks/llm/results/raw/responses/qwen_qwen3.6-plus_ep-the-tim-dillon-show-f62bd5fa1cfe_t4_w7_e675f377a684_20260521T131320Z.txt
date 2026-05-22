@@ -1,0 +1,1 @@
+[{"start": 3079.6, "end": 3270.1, "confidence": 0.98, "reason": "Merged ad block featuring Morgan & Morgan, Stash, and NeuroGum sponsor reads with URLs and promo codes", "end_text": "CVS and Amazon."}]

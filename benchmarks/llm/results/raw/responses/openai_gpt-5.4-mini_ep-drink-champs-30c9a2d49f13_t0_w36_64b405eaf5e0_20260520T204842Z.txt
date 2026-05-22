@@ -1,0 +1,1 @@
+{"start":15388.3,"end":15517.1,"confidence":0.99,"reason":"Continuous ad block after show outro: Airtasker, CVS, Trashy, and Try Fencing promos with calls to action/URLs; ends with platform promo 'This is an iHeart Podcast. Guaranteed human.'","end_text":"This is an iHeart Podcast. Guaranteed human."}

@@ -1,0 +1,1 @@
+{"start":1320.3,"end":1372.4,"confidence":0.93,"reason":"Host-read ad break mentioning McDonald's by name and promotional reference to the bright golden arches, with the show then returning to the investigation.","end_text":"No Julian either. But he has"}

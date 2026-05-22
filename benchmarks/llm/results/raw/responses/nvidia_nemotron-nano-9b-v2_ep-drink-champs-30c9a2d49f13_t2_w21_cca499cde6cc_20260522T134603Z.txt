@@ -1,0 +1,1 @@
+[{"start": 8827.0, "end": 8831.4, "confidence": 0.95, "reason": "Public investing platform promotion", "end_text": "take it seriously"}]

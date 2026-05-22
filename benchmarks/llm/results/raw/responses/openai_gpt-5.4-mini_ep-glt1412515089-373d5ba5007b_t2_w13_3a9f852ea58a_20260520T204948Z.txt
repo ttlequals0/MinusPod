@@ -1,0 +1,1 @@
+{"start":5546.3,"end":5596.3,"confidence":0.99,"reason":"Netflix network ad break; includes transition and promo copy for 'Netflix's remarkably bright creatures' with show description and 'now playing' call to action","end_text":"only on Netflix"}

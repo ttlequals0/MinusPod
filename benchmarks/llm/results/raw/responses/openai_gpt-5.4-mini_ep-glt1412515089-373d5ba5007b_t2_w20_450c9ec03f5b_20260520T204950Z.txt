@@ -1,0 +1,1 @@
+{"start":8405.6,"end":8409.5,"confidence":0.83,"reason":"Partial platform-adjacent transition into sponsor segment; transcript in this window shows only conversation resuming after the ad break, with no standalone promo copy visible here. Included because the window may contain the tail end of an earlier ad break.","end_text":"That's what it's like"}

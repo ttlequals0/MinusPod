@@ -1,0 +1,1 @@
+{"start":2246.0,"end":2314.4,"confidence":0.99,"reason":"Capital One host-read sponsor segment followed by Rinse promotional ad; includes 'This episode is brought to you by Capital One', product pitch for Chat Concierge, and Rinse.com CTA. Continues through the break into the next ad with no return to show content.","end_text":"Rinse. It's time to be great."}

@@ -1,0 +1,1 @@
+{"start":4265.2,"end":4465.7,"confidence":0.99,"reason":"Bitwarden host-read sponsor segment with clear ad intro and promo URL bitwarden.com/twit; continues after the break into the sponsor pitch and ends at the return to show content.","end_text":"back to Steve"}

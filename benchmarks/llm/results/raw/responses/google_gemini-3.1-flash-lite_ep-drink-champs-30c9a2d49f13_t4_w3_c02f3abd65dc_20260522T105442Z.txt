@@ -1,0 +1,30 @@
+[
+  {
+    "start": 1450.9,
+    "end": 1459.5,
+    "confidence": 0.95,
+    "reason": "Airtasker ad segment",
+    "end_text": "Airtasker, get anything done."
+  },
+  {
+    "start": 1459.5,
+    "end": 1524.8,
+    "confidence": 0.95,
+    "reason": "Decisions Decisions podcast promo",
+    "end_text": "from Gilead Sciences."
+  },
+  {
+    "start": 1525.5,
+    "end": 1553.8,
+    "confidence": 0.95,
+    "reason": "OnDeck small business loan ad",
+    "end_text": "OnDeck does not lend in North Dakota."
+  },
+  {
+    "start": 1555.6,
+    "end": 1629.0,
+    "confidence": 0.95,
+    "reason": "BetMGM sports betting ad",
+    "end_text": "Kansas Crossing Casino and Hotel."
+  }
+]

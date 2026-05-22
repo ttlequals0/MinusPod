@@ -1,0 +1,1 @@
+{"start": 521.5, "end": 548.5, "confidence": 0.98, "reason": "Host-read promotional segment for Crain's Weekly News Quiz with URL and call to action", "end_text": "study guide. Follow us wherever"}

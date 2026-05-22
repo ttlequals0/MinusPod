@@ -1,0 +1,1 @@
+{"start": 12600.1, "end": 12602.9, "confidence": 0.3, "reason": "Possible platform-inserted ad or audio break; 'Thank you.' may be a trailing host acknowledgment after an ad, but no promotional content or sponsor mention in transcript", "end_text": "Thank you."}

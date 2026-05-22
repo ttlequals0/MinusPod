@@ -1,0 +1,1 @@
+{"start":3354.0,"end":3380.1,"confidence":0.54,"reason":"Possible platform-inserted promo for Underground Sound begins with content describing the page as a 'launching pad for emerging artists'; no explicit sponsor code or CTA, so confidence is low and this may be editorial rather than an ad.","end_text":"underground sound is a launching pad"}

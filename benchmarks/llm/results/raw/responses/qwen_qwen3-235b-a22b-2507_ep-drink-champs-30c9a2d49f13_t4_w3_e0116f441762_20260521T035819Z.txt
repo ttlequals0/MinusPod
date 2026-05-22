@@ -1,0 +1,1 @@
+{"start": 1450.9, "end": 1459.5, "confidence": 0.95, "reason": "Airtasker ad with promotional language and URL", "end_text": "miniature pony's nails done"}

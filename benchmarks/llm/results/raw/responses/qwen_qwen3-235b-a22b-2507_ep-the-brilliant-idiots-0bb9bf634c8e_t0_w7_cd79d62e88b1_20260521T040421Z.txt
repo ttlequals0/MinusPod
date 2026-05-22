@@ -1,0 +1,1 @@
+{"start": 3290.1, "end": 3308.8, "confidence": 0.98, "reason": "Host organically mentions Gina Views and Nyla Simone in the context of hip-hop journalism discussion, not promotional", "end_text": "because..."}

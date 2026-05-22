@@ -1,0 +1,1 @@
+{"start":8724.9,"end":8826.4,"confidence":0.98,"reason":"Platform-inserted ad break with AirTasker promo, then cross-promo for Decisions Decisions and sponsor mention Care for the Culture from Gilead Sciences, followed by OnDeck lending ad and Public sponsorship copy","end_text":"Support for the show comes from Public"}

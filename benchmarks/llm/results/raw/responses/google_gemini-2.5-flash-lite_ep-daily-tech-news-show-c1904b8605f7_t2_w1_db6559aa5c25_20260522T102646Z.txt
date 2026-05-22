@@ -1,0 +1,37 @@
+[
+  {
+    "start": 821.4,
+    "end": 857.6,
+    "confidence": 0.98,
+    "reason": "Capital One sponsor read. Mentions \"Capital One\", \"Chat Concierge\", and \"technology at Capital One\".",
+    "end_text": "I just need to..."
+  },
+  {
+    "start": 862.2,
+    "end": 889.7,
+    "confidence": 0.98,
+    "reason": "BetterHelp sponsor read. Mentions \"BetterHelp\", \"betterhelp.com/random podcast\", and \"online therapy\".",
+    "end_text": "downtown."
+  },
+  {
+    "start": 890.6,
+    "end": 910.1,
+    "confidence": 0.98,
+    "reason": "Amazon Health AI sponsor read. Mentions \"Amazon Health AI\", \"virtual care 24-7\", and \"Healthcare just got less painful\".",
+    "end_text": "less painful."
+  },
+  {
+    "start": 912.2,
+    "end": 961.5,
+    "confidence": 0.98,
+    "reason": "Spectrum Business sponsor read. Mentions \"Spectrum Business\", \"spectrum.com/business\", and \"fiber-powered internet\".",
+    "end_text": "you can bundle."
+  },
+  {
+    "start": 961.9,
+    "end": 1018.9,
+    "confidence": 0.98,
+    "reason": "Rinse sponsor read. Mentions \"Rinse\", \"rinse.com\", and \"laundry service\".",
+    "end_text": "Rinse."
+  }
+]

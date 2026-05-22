@@ -1,0 +1,30 @@
+[
+  {
+    "start": 6208.7,
+    "end": 6233.9,
+    "confidence": 0.98,
+    "reason": "Airtasker host-read ad with explicit call-to-action (app download and URL)",
+    "end_text": "Airtasker, get anything done"
+  },
+  {
+    "start": 6234.1,
+    "end": 6282.7,
+    "confidence": 0.95,
+    "reason": "Cross-promotion for Decisions Decisions podcast featuring Kiki Palmer with sponsor mention (Care for the Culture/Gilead Sciences)",
+    "end_text": "wherever you get your podcasts"
+  },
+  {
+    "start": 6283.4,
+    "end": 6313.4,
+    "confidence": 0.97,
+    "reason": "OnDeck financial services ad with URL (OnDeck.com), specific product details ($200k line of credit), and legal disclosures",
+    "end_text": "subject to lender approval"
+  },
+  {
+    "start": 6313.8,
+    "end": 6318.1,
+    "confidence": 0.96,
+    "reason": "Public investing platform sponsorship mention with call-to-action",
+    "end_text": "platform for those who take it seriously"
+  }
+]

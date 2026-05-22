@@ -1,0 +1,9 @@
+[
+  {
+    "start": 5420.4,
+    "end": 5441.4,
+    "confidence": 0.95,
+    "reason": "Placeholder text 'promo code, discount code' indicates a dynamically inserted ad.",
+    "end_text": "discount code, discount code"
+  }
+]

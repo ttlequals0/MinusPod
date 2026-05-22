@@ -1,0 +1,1 @@
+{"start":2140.5,"end":2140.5,"confidence":0.62,"reason":"Possible platform/promo mention around 'Black Effect Podcast Network' and list discussion, but no clear ad transition or sponsor pitch in this window; likely not an ad segment.","end_text":"They put you at number two."}

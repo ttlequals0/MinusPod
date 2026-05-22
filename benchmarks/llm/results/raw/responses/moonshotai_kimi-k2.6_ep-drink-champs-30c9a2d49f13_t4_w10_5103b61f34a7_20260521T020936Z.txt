@@ -1,0 +1,1 @@
+{"start": 4197.5, "end": 4804.9, "confidence": 0.0, "reason": "No promotional content detected in this window. Entire segment consists of interview conversation with Warren Sapp discussing football, helmets, coaching techniques, and college player compensation.", "end_text": "It ran up a bill like..."}

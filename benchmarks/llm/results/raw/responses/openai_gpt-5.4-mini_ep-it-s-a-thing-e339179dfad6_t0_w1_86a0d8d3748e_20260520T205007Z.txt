@@ -1,0 +1,1 @@
+{"start": 0.0,"end": 0.0,"confidence": 0.0,"reason":"No advertisement segments found in this transcript window. The only brand/platform mention is the episode metadata 'Hosted on Acast' outside the spoken transcript, and there is no promotional ad copy or sponsor read in the provided segment.","end_text":""}

@@ -1,0 +1,2 @@
+w.
+{"start": 842.3, "end": 1430.4, "confidence": 0.0, "reason": "No advertisement segments detected in the provided transcript window.", "end_text": "Roscoe needed"}

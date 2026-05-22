@@ -1,0 +1,1 @@
+{"start":6044.5,"end":6083.5,"confidence":0.98,"reason":"Hoxhunt sponsor read introduced with \"This episode of Security Now brought to you by Hawks Hunt\" and promotional copy about phishing training, AI-powered micro-training, and admin benefits; continues from break phrase","end_text":"just like the bad guys"}

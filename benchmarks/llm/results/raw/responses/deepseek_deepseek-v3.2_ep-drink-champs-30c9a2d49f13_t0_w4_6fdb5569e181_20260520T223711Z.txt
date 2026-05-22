@@ -1,0 +1,1 @@
+{"start": 2263.4, "end": 2267.2, "confidence": 0.95, "reason": "Host-read ad for 'Take one' product, likely a beverage or supplement, with direct promotional call to action.", "end_text": "Take one. Take one."}

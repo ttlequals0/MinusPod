@@ -1,0 +1,1 @@
+{"start": 858.0, "end": 1452.5, "confidence": 0.98, "reason": "continuous conversation without promotional content; no sponsor mentions, URLs, promo codes, or ad transitions present in transcript segment", "end_text": "learned thing that, you know, people have this desire."}

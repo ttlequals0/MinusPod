@@ -1,0 +1,1 @@
+[{"start": 0.0, "end": 5.0, "confidence": 0.95, "reason": "Perplexity sponsor read", "end_text": "https://pplx.ai/rogan."}]

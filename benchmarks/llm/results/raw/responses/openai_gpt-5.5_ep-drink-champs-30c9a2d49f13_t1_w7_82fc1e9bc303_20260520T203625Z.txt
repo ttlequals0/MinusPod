@@ -1,0 +1,1 @@
+{"start":3478.9,"end":3540.0,"confidence":0.98,"reason":"Airtasker promotional ad followed immediately by a cross-promotion for the Decisions Decisions podcast; continues in next window","end_text":"continues in next window"}

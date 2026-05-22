@@ -1,0 +1,1 @@
+{"start": 506.4, "end": 548.5, "confidence": 0.97, "reason": "Crain's self-promotional break with call to action to take the weekly news quiz and visit chicagobusiness.com/quiz", "end_text": "This is the Crain's Daily Gist with Amy Guth"}

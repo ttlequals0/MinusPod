@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 0.5,
+      "end": 43.4,
+      "confidence": 0.98,
+      "reason": "Carvana advertisement with promo pitch and call to action",
+      "end_text": "Caravana give it a whirl"
+    }
+  ]
+}

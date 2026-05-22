@@ -1,0 +1,18 @@
+{
+  "ad_segments": [
+    {
+      "start": 0.0,
+      "end": 0.0,
+      "confidence": 0.98,
+      "reason": "continues from previous - Airtasker host-read ad with product description and URL",
+      "end_text": "get anything done"
+    },
+    {
+      "start": 3528.8,
+      "end": 3556.2,
+      "confidence": 0.90,
+      "reason": "Cross-promotion: Decisions Decisions podcast with Kiki Palmer preview",
+      "end_text": "about abstinence?"
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "start": 12.40,
+  "end": 12.71,
+  "confidence": 0.95,
+  "reason": "Sponsor read for Crain's Daily Gist",
+  "end_text": "Crain's Daily Gist"
+}

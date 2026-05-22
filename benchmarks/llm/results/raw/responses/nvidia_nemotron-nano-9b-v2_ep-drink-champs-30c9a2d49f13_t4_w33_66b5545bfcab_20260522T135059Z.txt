@@ -1,0 +1,1 @@
+[{"start": 14025.3, "end": 14089.3, "confidence": 0.98, "reason": "Drink Champs promotion with product endorsement", "end_text": "Sport Champs"}}]

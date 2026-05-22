@@ -1,0 +1,1 @@
+{"start": 821.4, "end": 857.6, "confidence": 0.98, "reason": "Capital One sponsor read with product pitch and deployment claim", "end_text": "deployed. That's how they stack."}

@@ -1,0 +1,1 @@
+{"start":2208.3,"end":2237.0,"confidence":0.98,"reason":"Blinds.com host-read sponsor segment; includes promo language about window treatments, brand name, and call to action with discount and free professional measure","end_text":"free professional measure at Blinds.com"}

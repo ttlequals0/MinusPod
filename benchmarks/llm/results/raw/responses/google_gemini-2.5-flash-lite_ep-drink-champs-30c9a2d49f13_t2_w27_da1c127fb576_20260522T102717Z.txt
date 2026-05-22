@@ -1,0 +1,37 @@
+[
+  {
+    "start": 11335.2,
+    "end": 11365.6,
+    "confidence": 0.95,
+    "reason": "Airtasker ad read. Includes product pitch and call to action to download the app or go to Airtasker.com.",
+    "end_text": "Airtasker, get anything done."
+  },
+  {
+    "start": 11416.3,
+    "end": 11424.6,
+    "confidence": 0.95,
+    "reason": "Advertisement for a special episode of 'Decisions Decisions' sponsored by Care for the Culture from Gilead Sciences.",
+    "end_text": "from Gilead Sciences."
+  },
+  {
+    "start": 11425.3,
+    "end": 11455.4,
+    "confidence": 0.95,
+    "reason": "OnDeck small business loan ad. Includes product pitch, benefits, and call to action to apply at OnDeck.com.",
+    "end_text": "subject to lender approval."
+  },
+  {
+    "start": 11513.7,
+    "end": 11536.6,
+    "confidence": 0.95,
+    "reason": "Public.com ad read. Includes a call to action to visit public.com/disclosures and promotional language about investing.",
+    "end_text": "Or more. That ain't no art."
+  },
+  {
+    "start": 11614.6,
+    "end": 11630.6,
+    "confidence": 0.95,
+    "reason": "This segment lists multiple sponsors: Athletic Greens, Audible, Masterclass, ZipRecruiter, Raycon, Manscaped, Stamps.com. This is a host-read ad segment.",
+    "end_text": "Stamps.com,"
+  }
+]

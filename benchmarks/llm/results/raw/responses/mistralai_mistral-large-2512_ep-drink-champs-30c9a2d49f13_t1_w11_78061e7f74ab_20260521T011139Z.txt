@@ -1,0 +1,16 @@
+[
+    {
+        "start": 4993.1,
+        "end": 5024.4,
+        "confidence": 0.92,
+        "reason": "Promotional segment for 'Miami Heroes' with repeated call-to-action phrasing ('That's what I'm talking about') and brand emphasis, likely a host-read ad or cross-promotion for a sponsor or affiliated product.",
+        "end_text": "That's what I'm talking about."
+    },
+    {
+        "start": 5059.9,
+        "end": 5082.4,
+        "confidence": 0.85,
+        "reason": "Host-read segment promoting a drink product from 'my dude from Hawaii' with a clear call-to-action ('I'm going to give a Drink Champ like that'), suggesting a sponsored or promotional mention.",
+        "end_text": "That's a great bar trip."
+    }
+]

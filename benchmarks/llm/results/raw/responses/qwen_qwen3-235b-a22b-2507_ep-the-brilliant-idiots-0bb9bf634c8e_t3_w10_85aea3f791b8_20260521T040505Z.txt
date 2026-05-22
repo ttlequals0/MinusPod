@@ -1,0 +1,1 @@
+{"start": 4296.0, "end": 4361.4, "confidence": 0.98, "reason": "Host promotes Jess Elias' book, tennis event with All Love Racquet Club, and new show AM Mornings with specific URLs and event details", "end_text": "Head over to AM Mornings on YouTube"}

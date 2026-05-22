@@ -1,0 +1,1 @@
+{"start":0.0,"end":59.8,"confidence":0.99,"reason":"Two ad segments at the opening: Hex sponsor read and PickOCNY.com travel promo with promotional language, product pitch, and call to action; window begins with the ads and they end before show content resumes","end_text":"Find your fresh state of mind at PickOCNY.com"}

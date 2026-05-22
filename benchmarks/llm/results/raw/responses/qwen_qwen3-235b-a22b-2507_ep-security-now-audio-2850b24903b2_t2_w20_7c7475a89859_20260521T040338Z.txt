@@ -1,0 +1,1 @@
+{"start": 8380.6, "end": 9004.0, "confidence": 0.98, "reason": "Host discusses Google's AI integration in Chrome, Mozilla's opposition, and broader implications for web standards and user choice; no promotional content, sponsor mentions, URLs, or calls to action present", "end_text": "be the only player in the internet"}

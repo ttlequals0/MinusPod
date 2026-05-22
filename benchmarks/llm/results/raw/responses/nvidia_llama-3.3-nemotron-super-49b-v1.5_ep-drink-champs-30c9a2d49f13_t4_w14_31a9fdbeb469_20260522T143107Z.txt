@@ -1,0 +1,4 @@
+[
+    {"start": 6208.7, "end": 6261.5, "confidence": 0.95, "reason": "Airtasker service promotion and Decisions Decisions podcast cross-promo sponsored by Care for the Culture", "end_text": "Gilead Sciences"},
+    {"start": 6283.4, "end": 6318.1, "confidence": 0.95, "reason": "OnDeck small business loan ad and Public investing platform sponsor mention", "end_text": "take it seriously"}
+]

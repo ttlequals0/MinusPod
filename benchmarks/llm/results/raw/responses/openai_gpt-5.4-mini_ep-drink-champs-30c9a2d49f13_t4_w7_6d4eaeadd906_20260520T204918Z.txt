@@ -1,0 +1,1 @@
+{"start":3478.9,"end":3528.5,"confidence":0.95,"reason":"Airtasker host-read sponsor segment with promotional copy and app/website call to action","end_text":"Download the Airtasker app or go"}

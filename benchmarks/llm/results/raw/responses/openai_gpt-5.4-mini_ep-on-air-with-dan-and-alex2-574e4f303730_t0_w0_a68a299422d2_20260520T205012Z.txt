@@ -1,0 +1,1 @@
+{"start":0.0,"end":59.8,"confidence":0.99,"reason":"Two ad reads at the top: HEX sponsor copy with product pitch and Hex.ai mention, followed by PickOCNY.com tourism promotion and call to action. Includes ad-style transition into the sponsor content.","end_text":"Find your fresh state of mind at PickOCNY.com"}

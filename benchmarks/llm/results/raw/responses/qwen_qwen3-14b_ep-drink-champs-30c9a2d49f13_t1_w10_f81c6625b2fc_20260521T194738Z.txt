@@ -1,0 +1,1 @@
+{"start": 4782.6, "end": 4804.9, "confidence": 0.9, "reason": "Warren Sapp discussing college football coaching and player compensation", "end_text": "ran up a bill like..." }

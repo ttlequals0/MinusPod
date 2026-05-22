@@ -1,0 +1,1 @@
+{"start":0.0,"end":152.9,"confidence":0.99,"reason":"Multiple consecutive sponsor reads: Capital One, Xero (free trial mention), Spectrum Business, and Warby Parker; includes 'This episode is brought to you by' and promotional URLs/calls to action.","end_text":"visit warbyparker.com today. That's warbyparker.com."}

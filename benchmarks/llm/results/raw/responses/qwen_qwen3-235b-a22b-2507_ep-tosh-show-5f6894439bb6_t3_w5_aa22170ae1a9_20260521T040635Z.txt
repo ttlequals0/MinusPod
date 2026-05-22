@@ -1,0 +1,1 @@
+[{"start": 2412.8, "end": 2484.9, "confidence": 0.98, "reason": "Two consecutive network-inserted retail ads: HealthCast by Stony Brook Medicine and PC Richard & Son Aseema Lease to Own program, with promotional language, URLs, and calls to action", "end_text": "for details"}]

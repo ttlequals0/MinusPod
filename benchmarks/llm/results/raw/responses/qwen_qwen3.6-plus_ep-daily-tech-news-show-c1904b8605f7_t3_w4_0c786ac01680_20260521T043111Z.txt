@@ -1,0 +1,1 @@
+[{"start": 1742.3, "end": 1799.6, "confidence": 0.97, "reason": "Capital One sponsor read and Lemonada Media cross-promotion", "end_text": "six-part Thrive series."}, {"start": 2246.0, "end": 2301.6, "confidence": 0.97, "reason": "Capital One post-roll and Rinse laundry service promotional segment", "end_text": "friction of a relentless task."}]

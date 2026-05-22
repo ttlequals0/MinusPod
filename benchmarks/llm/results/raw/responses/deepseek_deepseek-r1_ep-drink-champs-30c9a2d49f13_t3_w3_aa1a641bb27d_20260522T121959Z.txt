@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1450.9,
+    "end": 1629.0,
+    "confidence": 1.0,
+    "reason": "Multiple consecutive ads: Airtasker service promo, Decisions Decisions podcast cross-promotion, OnDeck financial service, BetMGM gambling platform with legal disclaimers",
+    "end_text": "with Kansas Crossing Casino and Hotel"
+  }
+]

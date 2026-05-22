@@ -1,0 +1,1 @@
+{"start":4639.7,"end":4661.1,"confidence":0.94,"reason":"Anthropic Claude Security sponsor-style promotional segment with product positioning and feature pitch; no explicit break phrase appears in this transcript window, but it is clearly ad copy for Claude Security","end_text":"But our cybersecurity efforts go beyond Glasswing. With Clawed Security,"}

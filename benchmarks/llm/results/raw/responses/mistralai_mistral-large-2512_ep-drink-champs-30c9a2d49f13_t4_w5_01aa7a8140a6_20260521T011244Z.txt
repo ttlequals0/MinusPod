@@ -1,0 +1,9 @@
+[
+    {
+        "start": 2234.5,
+        "end": 2263.3,
+        "confidence": 0.99,
+        "reason": "Platform-inserted ad break with 'Take one' repeated, likely a placeholder for dynamically inserted ads (common in podcasts for ad slots). No explicit sponsor mentioned, but the structure and repetition indicate an ad segment.",
+        "end_text": "Take one."
+    }
+]

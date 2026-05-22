@@ -1,0 +1,1 @@
+{"start":1668.7,"end":1668.7,"confidence":0.29,"reason":"No clear ad segment in this window; transcript is continuous show content with no promotional language, sponsor pitch, or break transition.","end_text":"content resumes"}

@@ -1,0 +1,16 @@
+[
+  {
+    "start": 2412.8,
+    "end": 2427.6,
+    "confidence": 1.0,
+    "reason": "HealthCast by Stony Brook Medicine promotional segment",
+    "end_text": "stonybrookmedicine.edu slash podcasts"
+  },
+  {
+    "start": 2428.9,
+    "end": 2484.9,
+    "confidence": 1.0,
+    "reason": "PC Richard & Son / Aseema Lease to Own promotional segment",
+    "end_text": "PCRichard.com slash Asima dot HTML for details"
+  }
+]

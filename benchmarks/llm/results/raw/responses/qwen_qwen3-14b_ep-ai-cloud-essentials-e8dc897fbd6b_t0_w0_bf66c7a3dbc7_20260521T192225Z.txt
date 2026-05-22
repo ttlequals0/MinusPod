@@ -1,0 +1,2 @@
+w.
+{"start": 58.0, "end": 80.1, "confidence": 0.85, "reason": "Core Read sponsor mention in show opening", "end_text": "season two of the AI Cloud Essentials"}

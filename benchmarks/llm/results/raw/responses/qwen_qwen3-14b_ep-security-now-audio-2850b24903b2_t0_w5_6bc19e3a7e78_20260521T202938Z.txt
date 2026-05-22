@@ -1,0 +1,10 @@
+."
+{
+
+"[{" 
+  :"",
+  "end": 2687.4, 
+  "confidence": 0.98, 
+  "reason": "Meter sponsor read with product description, URL, and call to action", 
+  "end_text": "book a demo"
+}

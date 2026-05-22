@@ -1,0 +1,1 @@
+{"start":3033.4,"end":3120.0,"confidence":0.03,"reason":"No advertisement detected; continuous show conversation about football and being benched","end_text":"did some special things, but"}

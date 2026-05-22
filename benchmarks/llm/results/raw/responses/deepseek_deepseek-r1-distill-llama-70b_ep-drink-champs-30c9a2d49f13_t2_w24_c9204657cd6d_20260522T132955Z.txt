@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so let's take a break. This episode is brought to you by BetterHelp. BetterHelp offers convenient, affordable, and private online counseling. If you're feeling overwhelmed or just need someone to talk to, BetterHelp is here for you. As a listener, you'll get 10% off your first month by visiting betterhelp.com/drinkchamps or using the code 'DRINK15' at checkout. Don't wait, take control of your mental health today. And we're back.",
+  "start": 10680.0,
+  "end": 10720.0
+}

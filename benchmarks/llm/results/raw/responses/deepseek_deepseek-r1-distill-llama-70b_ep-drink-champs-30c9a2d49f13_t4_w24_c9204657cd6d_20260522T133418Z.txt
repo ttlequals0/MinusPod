@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so we're talking about the importance of mental health. Let's take a break and hear from our sponsors. This episode is brought to you by BetterHelp. If you're struggling with anxiety or depression, BetterHelp can connect you with licensed therapists online. Visit betterhelp.com/drinkchamps or use the promo code 'DRINK15' for 15% off your first month. We'll be right back.",
+  "start": 10680.0,
+  "end": 10720.0
+}

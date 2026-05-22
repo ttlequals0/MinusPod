@@ -1,0 +1,11 @@
+{
+  "ad_segments": [
+    {
+      "start": 2208.3,
+      "end": 2237.0,
+      "confidence": 0.95,
+      "reason": "Blinds.com sponsored ad read",
+      "end_text": "free professional measure at Blinds.com."
+    }
+  ]
+}

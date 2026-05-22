@@ -1,0 +1,1 @@
+{"start": 1242.3, "end": 1268.5, "confidence": 0.0, "reason": "No promotional content detected in this segment. Content is narrative about the case.", "end_text": "he, like,"}

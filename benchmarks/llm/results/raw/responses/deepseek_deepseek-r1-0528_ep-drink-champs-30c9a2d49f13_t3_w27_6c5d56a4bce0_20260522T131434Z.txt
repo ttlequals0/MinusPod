@@ -1,0 +1,30 @@
+[
+  {
+    "start": 11335.2,
+    "end": 11365.6,
+    "confidence": 0.99,
+    "reason": "Airtasker ad with call to action",
+    "end_text": "Airtasker, get anything done"
+  },
+  {
+    "start": 11366.2,
+    "end": 11424.6,
+    "confidence": 0.99,
+    "reason": "Decisions Decisions podcast promo sponsored by Care for the Culture",
+    "end_text": "Gilead Sciences"
+  },
+  {
+    "start": 11425.3,
+    "end": 11455.4,
+    "confidence": 0.99,
+    "reason": "OnDeck small business loan ad",
+    "end_text": "subject to lender approval"
+  },
+  {
+    "start": 11614.6,
+    "end": 11630.6,
+    "confidence": 0.95,
+    "reason": "Host-read sponsor list including Athletic Greens, Audible, etc.",
+    "end_text": "Stamps.com"
+  }
+]

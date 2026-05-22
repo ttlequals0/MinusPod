@@ -1,0 +1,3 @@
+[
+{"start":4675.4,"end":4697.4,"confidence":0.99,"reason":"Host‑read sponsor read for Colgate Women’s Games","end_text":"your smile is your strength"},{"start":4705.5,"end":4733.9,"confidence":0.99,"reason":"Host‑read sponsor read for Skinny Pop popcorn","end_text":"Skinny Pop"},{"start":4734.3,"end":4763.1,"confidence":0.99,"reason":"Second Colgate Women’s Games sponsor read","end_text":"your smile is your strength"},{"start":4766.5,"end":4806.1,"confidence":0.99,"reason":"Combined sponsor reads for Viz eye drops and Garnier partnership with National Park Foundation","end_text":"GarnierUSA.com slash NPF"}
+]

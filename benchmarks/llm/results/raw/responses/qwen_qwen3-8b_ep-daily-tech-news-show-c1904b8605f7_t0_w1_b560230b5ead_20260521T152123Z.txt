@@ -1,0 +1,1 @@
+"displayed in JSON format as specified, with each ad segment including start and end timestamps, confidence, reason, and end_text. The ads detected are the sponsor segments for Capital One, BetterHelp, Amazon Health AI, Spectrum Business, and Rinse, each identified by their promotional language and transitions."

@@ -1,0 +1,7 @@
+ {
+  "start": 506.4,
+  "end": 548.5,
+  "confidence": 0.85,
+  "reason": "Crain's Weekly News Quiz house promo with URL and CTA following transition",
+  "end_text": "Crain's Daily Gist with Amy Guth"
+}

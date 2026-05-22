@@ -1,0 +1,1 @@
+{"start":2185.7,"end":2198.0,"confidence":0.88,"reason":"Host mentions Drink Champs and the Black Effect Podcast Network in a promotional context, but this appears to be a brief cross-promo mention rather than a full ad break; no explicit transition phrase is present in-window.","end_text":"Black Effect Podcast Network, once again"}

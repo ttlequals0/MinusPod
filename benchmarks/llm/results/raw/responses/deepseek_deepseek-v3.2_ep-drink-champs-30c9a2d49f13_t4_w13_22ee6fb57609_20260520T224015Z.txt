@@ -1,0 +1,1 @@
+{"start": 5471.4, "end": 5484.4, "confidence": 0.8, "reason": "Silence gap with ellipses, no promotional content", "end_text": ". . . . . . . . . . . ."}

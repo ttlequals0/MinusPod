@@ -1,0 +1,2 @@
+[{"start": 15261.8, "end": 15285.2, "confidence": 0.9, "reason": "Garbled ad content (promo code repeated)", "end_text": "discount code, discount code"},
+{"start": 15388.3, "end": 15517.1, "confidence": 0.98, "reason": "Network-inserted ads: Airtasker, CVS, Trashy, Try Fencing, iHeart", "end_text": "This is an iHeart Podcast"}]

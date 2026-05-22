@@ -1,0 +1,9 @@
+[
+    {
+        "start": 10527.5,
+        "end": 10574.0,
+        "confidence": 0.85,
+        "reason": "Platform-inserted ad for 'Ballers' HBO show with promotional language ('Rollerhouse’s story', 'too much truth', 'real time' discussion of NFL dynamics). While not a traditional sponsor, this segment functions as a cross-promotion for another show, which qualifies as a network-inserted ad.",
+        "end_text": "denying the rock."
+    }
+]

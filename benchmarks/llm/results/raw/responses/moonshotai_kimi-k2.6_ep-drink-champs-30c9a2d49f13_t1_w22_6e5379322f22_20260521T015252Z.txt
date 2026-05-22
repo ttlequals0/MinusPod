@@ -1,0 +1,1 @@
+{"start": 9741.9, "end": 9757.2, "confidence": 0.95, "reason": "Alcohol brand promotion - 'Let's do a couple more shots' with implied product placement for the show's sponsor", "end_text": "serving human fucking puffs"}

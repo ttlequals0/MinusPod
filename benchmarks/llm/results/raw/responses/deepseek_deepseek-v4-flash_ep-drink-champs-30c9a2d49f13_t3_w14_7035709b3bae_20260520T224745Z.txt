@@ -1,0 +1,1 @@
+{"start": 6208.7, "end": 6233.9, "confidence": 0.95, "reason": "Airtasker host-read ad with promo language and call to action", "end_text": "get anything done. This is Mandy B."}

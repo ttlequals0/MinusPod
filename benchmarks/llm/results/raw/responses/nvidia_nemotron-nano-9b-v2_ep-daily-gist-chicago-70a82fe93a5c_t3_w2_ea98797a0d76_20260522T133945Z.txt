@@ -1,0 +1,1 @@
+[{"start": 1267.4, "end": 1271.2, "confidence": 0.95, "reason": "Host-read promotion of chicagobusiness.com and subscription call-to-action", "end_text": "Thanks so much for listening. I'm Amy Guth, and I'll meet you right back here next time."}]

@@ -1,0 +1,30 @@
+{"ads": [
+  {
+    "start": 11341.1,
+    "end": 11365.6,
+    "confidence": 0.98,
+    "reason": "Airtasker sponsor read",
+    "end_text": "Airtasker, get anything done"
+  },
+  {
+    "start": 11366.2,
+    "end": 11415.2,
+    "confidence": 0.95,
+    "reason": "Decisions Decisions podcast promo",
+    "end_text": "Sponsored by Care for the Culture from Gilead Sciences"
+  },
+  {
+    "start": 11425.3,
+    "end": 11455.4,
+    "confidence": 0.96,
+    "reason": "OnDeck sponsor read",
+    "end_text": "OnDeck.com"
+  },
+  {
+    "start": 11614.6,
+    "end": 11630.6,
+    "confidence": 0.92,
+    "reason": "Listed sponsors read",
+    "end_text": "Stamps.com"
+  }
+]}

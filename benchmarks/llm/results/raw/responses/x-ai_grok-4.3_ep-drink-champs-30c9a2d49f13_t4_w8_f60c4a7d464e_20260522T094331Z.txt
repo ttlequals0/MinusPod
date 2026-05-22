@@ -1,0 +1,6 @@
+[
+  {"start": 3478.9, "end": 3503.7, "confidence": 0.98, "reason": "Airtasker network-inserted ad", "end_text": "Airtasker, get anything done"},
+  {"start": 3504.1, "end": 3556.2, "confidence": 0.95, "reason": "Decisions Decisions cross-promo ad", "end_text": "from Gilead Sciences"},
+  {"start": 3556.8, "end": 3577.4, "confidence": 0.97, "reason": "OnDeck sponsor read", "end_text": "lender approval"},
+  {"start": 3578.1, "end": 3650.4, "confidence": 0.96, "reason": "Public investing platform sponsor read", "end_text": "public.com slash disclosures"}
+]

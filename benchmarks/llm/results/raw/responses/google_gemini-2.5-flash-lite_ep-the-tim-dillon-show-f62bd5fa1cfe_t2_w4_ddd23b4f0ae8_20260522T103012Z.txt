@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1668.7,
+    "end": 2286.3,
+    "confidence": 0.99,
+    "reason": "This entire segment is a host-read advertisement for multiple sponsors: Mint Mobile, Aura Frames, Morgan & Morgan, Stash, and Neuro Gum. The host discusses each sponsor, provides URLs, and mentions promo codes, which are clear indicators of advertisement.",
+    "end_text": "and there's nothing you can do about it. I'm sorry."
+  }
+]

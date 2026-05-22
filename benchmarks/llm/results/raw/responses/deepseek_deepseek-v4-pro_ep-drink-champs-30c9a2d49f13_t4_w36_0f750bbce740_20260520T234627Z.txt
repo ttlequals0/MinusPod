@@ -1,0 +1,7 @@
+{
+  "start": 15388.3,
+  "end": 15517.1,
+  "confidence": 0.98,
+  "reason": "Multiple ads: Airtasker, CVS, Trashy, fencing, iHeartRadio platform tagline",
+  "end_text": "Guaranteed human."
+}

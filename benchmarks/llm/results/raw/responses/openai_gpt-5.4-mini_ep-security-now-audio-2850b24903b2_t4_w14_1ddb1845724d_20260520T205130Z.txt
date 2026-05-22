@@ -1,0 +1,1 @@
+{"start":6044.5,"end":6162.3,"confidence":0.99,"reason":"Host-read sponsor segment for Hoxhunt introduced with 'This episode of Security Now brought to you by Hawks Hunt' and ending with 'visit hawkshunt.com/securitynow' and thanks for supporting the show.","end_text":"That's hawkshunt.com security now"}

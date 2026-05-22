@@ -1,0 +1,1 @@
+{"ads": [], "error": "No promotional language detected. The transcript content is purely conversational with no sponsor mentions, promo codes, URLs, calls to action, or brand tagline ads. The segment about 'promo code' at 15261.8s appears to be a repeated thought or speech artifact, not an actual advertisement."}

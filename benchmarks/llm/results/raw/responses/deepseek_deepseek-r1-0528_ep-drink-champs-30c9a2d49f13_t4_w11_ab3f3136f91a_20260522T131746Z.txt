@@ -1,0 +1,23 @@
+[
+  {
+    "start": 4993.1,
+    "end": 5002.0,
+    "confidence": 0.95,
+    "reason": "Host-read promotion for Drink Champs show elements including 'giving flowers' and drinking",
+    "end_text": "yeah, yeah, yeah, yeah"
+  },
+  {
+    "start": 5059.9,
+    "end": 5082.4,
+    "confidence": 0.9,
+    "reason": "Promotional mention of Maui bar and Drink Champs game setup",
+    "end_text": "Trust me. All right"
+  },
+  {
+    "start": 5127.1,
+    "end": 5146.0,
+    "confidence": 0.85,
+    "reason": "Endorsement of Mavis wine and Sardellis",
+    "end_text": "Sardellis. Yeah, yeah"
+  }
+]

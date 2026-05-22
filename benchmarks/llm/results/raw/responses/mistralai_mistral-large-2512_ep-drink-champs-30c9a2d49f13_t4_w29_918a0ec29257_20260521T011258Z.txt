@@ -1,0 +1,9 @@
+[
+    {
+        "start": 12268.4,
+        "end": 12271.4,
+        "confidence": 0.95,
+        "reason": "Host-read ad for Watsapp with call to action ('Me and Watsapp are going to have a, we're going to meet up one day') continues in next segment",
+        "end_text": "going to meet up"
+    }
+]

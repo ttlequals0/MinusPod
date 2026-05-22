@@ -1,0 +1,9 @@
+[
+    {
+        "start": 2863.0,
+        "end": 2894.5,
+        "confidence": 0.99,
+        "reason": "LinkedIn Premium All-in-One sponsor read with promotional language, call to action, and vanity URL (LinkedIn.com/slash/all-in-one)",
+        "end_text": "LinkedIn.com slash all-in-one"
+    }
+]

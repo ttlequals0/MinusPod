@@ -1,0 +1,23 @@
+{"ads": [
+  {
+    "start": 11341.1,
+    "end": 11365.6,
+    "confidence": 0.98,
+    "reason": "Airtasker sponsor read",
+    "end_text": "Airtasker, get anything done"
+  },
+  {
+    "start": 11366.2,
+    "end": 11392.4,
+    "confidence": 0.95,
+    "reason": "Decisions Decisions podcast ad",
+    "end_text": "Sponsored by Care for the Culture"
+  },
+  {
+    "start": 11425.3,
+    "end": 11454.3,
+    "confidence": 0.98,
+    "reason": "OnDeck sponsor read",
+    "end_text": "Apply today at OnDeck.com"
+  }
+]}

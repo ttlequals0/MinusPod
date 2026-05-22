@@ -1,0 +1,1 @@
+{"start":3079.6,"end":3270.1,"confidence":0.99,"reason":"Consecutive host-read sponsor ads for Morgan & Morgan, Stash, and NeuroGum with promotional language, URLs, and promo code TIM; ad break includes the transition into the sponsor reads.","end_text":"You can also find Neuro at CVS and Amazon"}

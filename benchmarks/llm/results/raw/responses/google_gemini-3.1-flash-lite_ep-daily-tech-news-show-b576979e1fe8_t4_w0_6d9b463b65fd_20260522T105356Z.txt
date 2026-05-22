@@ -1,0 +1,30 @@
+[
+  {
+    "start": 0.0,
+    "end": 29.1,
+    "confidence": 1.0,
+    "reason": "Capital One host-read advertisement",
+    "end_text": "technology at Capital One"
+  },
+  {
+    "start": 29.4,
+    "end": 58.3,
+    "confidence": 1.0,
+    "reason": "Every Brilliant Thing Broadway advertisement",
+    "end_text": "Visit Every Brilliant Thing"
+  },
+  {
+    "start": 59.2,
+    "end": 73.6,
+    "confidence": 1.0,
+    "reason": "AllTrails advertisement",
+    "end_text": "and find your outside"
+  },
+  {
+    "start": 74.8,
+    "end": 104.3,
+    "confidence": 1.0,
+    "reason": "Zinn Nicotine Pouches advertisement",
+    "end_text": "is an addictive chemical"
+  }
+]

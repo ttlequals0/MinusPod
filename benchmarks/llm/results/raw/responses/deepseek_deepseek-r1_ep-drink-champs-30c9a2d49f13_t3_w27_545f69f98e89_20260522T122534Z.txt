@@ -1,0 +1,23 @@
+[
+  {
+    "start": 11335.2,
+    "end": 11365.6,
+    "confidence": 0.95,
+    "reason": "Airtasker host-read ad with URL and call to action",
+    "end_text": "Airtasker, get anything done"
+  },
+  {
+    "start": 11366.2,
+    "end": 11424.6,
+    "confidence": 0.90,
+    "reason": "Decisions Decisions podcast promo with sponsor mention",
+    "end_text": "Sponsored by Care for the Culture"
+  },
+  {
+    "start": 11425.3,
+    "end": 11455.4,
+    "confidence": 0.98,
+    "reason": "OnDeck commercial with URL and funding details",
+    "end_text": "subject to lender approval"
+  }
+]

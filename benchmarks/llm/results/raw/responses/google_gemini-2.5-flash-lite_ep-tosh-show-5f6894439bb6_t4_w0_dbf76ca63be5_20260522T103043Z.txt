@@ -1,0 +1,23 @@
+[
+  {
+    "start": 0.0,
+    "end": 22.1,
+    "confidence": 0.98,
+    "reason": "Host-read ad for Progressive Insurance. Includes sponsor name, call to action, and URL.",
+    "end_text": "affiliates. Potential savings will vary. Not available in all states."
+  },
+  {
+    "start": 29.8,
+    "end": 58.1,
+    "confidence": 0.97,
+    "reason": "Network-inserted ad for Whole Foods Market. Includes brand name, product promotion, and call to action.",
+    "end_text": "Celebrate mom with Whole Foods Market."
+  },
+  {
+    "start": 537.5,
+    "end": 567.0,
+    "confidence": 0.98,
+    "reason": "Host-read ad for Thrive Cosmetics. Includes sponsor name, product promotion, URL, and promo code.",
+    "end_text": "Shine 26."
+  }
+]

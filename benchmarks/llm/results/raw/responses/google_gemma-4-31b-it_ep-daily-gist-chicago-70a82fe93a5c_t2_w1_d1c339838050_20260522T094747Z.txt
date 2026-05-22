@@ -1,0 +1,1 @@
+{"start": 506.4, "end": 548.5, "confidence": 0.98, "reason": "Host transition to break followed by a promotional segment for Crain's Weekly News Quiz and website", "end_text": "with Amy Guth"}

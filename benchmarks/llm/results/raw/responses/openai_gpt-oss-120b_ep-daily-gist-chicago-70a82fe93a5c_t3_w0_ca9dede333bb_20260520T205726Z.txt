@@ -1,0 +1,3 @@
+[
+{"start":54.1,"end":64.7,"confidence":0.98,"reason":"Old National Bank sponsor read","end_text":"Member FDIC."},{"start":521.5,"end":548.5,"confidence":0.98,"reason":"Crain's Weekly News Quiz promotional segment","end_text":"with Amy Guth."}
+]

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 539.2,
+    "end": 624.5,
+    "confidence": 0.98,
+    "reason": "This segment contains two distinct advertisements. The first is for 'In the Gray', a movie directed by Guy Ritchie, and the second is for 'Skechers' slip-in shoes. Both segments include promotional language, calls to action (implied for the movie, direct for the shoes), and sponsor names.",
+    "end_text": "sandals, sneakers,"
+  }
+]

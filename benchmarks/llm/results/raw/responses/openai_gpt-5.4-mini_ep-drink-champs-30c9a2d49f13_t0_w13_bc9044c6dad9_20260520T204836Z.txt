@@ -1,0 +1,1 @@
+{"start":5692.6,"end":5712.8,"confidence":0.67,"reason":"Possible host ad-like mention of Brooklinen, but no promotional language, CTA, or sponsored break framing; likely organic brand mention in conversation","end_text":"Brooklinen, New York."}

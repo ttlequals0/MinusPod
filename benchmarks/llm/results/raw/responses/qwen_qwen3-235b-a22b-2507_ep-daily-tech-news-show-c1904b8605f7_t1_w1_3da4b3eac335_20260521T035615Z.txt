@@ -1,0 +1,1 @@
+{"start": 821.4, "end": 857.6, "confidence": 0.98, "reason": "Host-read Capital One ad with product pitch, call to action, and promotional language", "end_text": "A BetterHelp ad. Hold on. One second. I just need to..."}

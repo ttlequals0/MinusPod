@@ -1,0 +1,7 @@
+{
+	"start": 2263.4,
+	"end": 2267.2,
+	"confidence": 1,
+	"reason": "Transition to ad break",
+	"end_text": "I went back and I recently looked at you in the draft, right? Oh shit."
+}

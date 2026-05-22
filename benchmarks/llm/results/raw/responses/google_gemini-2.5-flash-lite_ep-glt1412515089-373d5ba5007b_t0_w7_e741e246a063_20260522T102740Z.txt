@@ -1,0 +1,9 @@
+[
+  {
+    "start": 3446.1,
+    "end": 3540.5,
+    "confidence": 0.95,
+    "reason": "This segment discusses language as a technology and the nature of consciousness before language, which is a common topic for Perplexity AI ads. The ad is identified by the mention of Perplexity and a call to action to download the app or ask it anything, along with a URL.",
+    "end_text": "Is it a guy? Yeah, it's like a general."
+  }
+]

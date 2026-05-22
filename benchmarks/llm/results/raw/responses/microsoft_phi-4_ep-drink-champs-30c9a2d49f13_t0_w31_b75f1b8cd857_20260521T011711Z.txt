@@ -1,0 +1,7 @@
+{
+  "start": 13018.5,
+  "end": 13617.2,
+  "confidence": 0.95,
+  "reason": "The segment contains promotional language and references to specific products and brands, such as 'Caymus' and 'Nike', which are indicative of advertising content. The segment also includes calls to action and product endorsements, typical of ads.",
+  "end_text": "Google will say you mean a black man stole your car?"
+}

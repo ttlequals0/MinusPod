@@ -1,0 +1,16 @@
+[
+  {
+    "start": 506.4,
+    "end": 521.5,
+    "confidence": 0.95,
+    "reason": "Transition phrase 'right after this' followed by a break before new content.",
+    "end_text": "after this."
+  },
+  {
+    "start": 521.5,
+    "end": 548.5,
+    "confidence": 0.98,
+    "reason": "Host-read ad for Crain's Weekly News Quiz with a call to action (visit chicagobusiness.com/quiz).",
+    "end_text": "Amy Guth."
+  }
+]

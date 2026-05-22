@@ -1,0 +1,4 @@
+s.
+{
+
+":[{":"start"  ,"end"  :"", "confidence": 0.95, "reason": "Old National Bank sponsor read", "end_text": "Member FDIC"}

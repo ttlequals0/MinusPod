@@ -1,0 +1,1 @@
+{"start":3478.9,"end":3528.5,"confidence":0.98,"reason":"Host-read sponsor promotion for Airtasker with brand name, description, call to action, and URL","end_text":"Airtasker, get anything done"}

@@ -1,0 +1,1 @@
+{"start":2649.0,"end":2652.1,"confidence":0.71,"reason":"Partial sponsor/promo mention with transition-like language \"shout out to the mid-roll\" and promotional context about partnering with the podcast, but no full ad read visible in this window","end_text":"they didn't get it, but I went to them"}

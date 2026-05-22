@@ -1,0 +1,32 @@
+{
+  "ads": [
+    {
+      "start": 3478.9,
+      "end": 3528.5,
+      "confidence": 0.98,
+      "reason": "Host-read ad for Airtasker with transition, app download promo, and URLs",
+      "end_text": "get anything done. This is Mandy B."
+    },
+    {
+      "start": 3528.8,
+      "end": 3577.4,
+      "confidence": 0.95,
+      "reason": "Cross-promotion for Decisions Decisions podcast introducing special episode sponsored by Care for the Culture",
+      "end_text": "Culture from Gilead Sciences."
+    },
+    {
+      "start": 3578.1,
+      "end": 3608.0,
+      "confidence": 0.96,
+      "reason": "OnDeck small business line of credit ad with promo URL and CTA",
+      "end_text": "lender approval."
+    },
+    {
+      "start": 3608.5,
+      "end": 3650.4,
+      "confidence": 0.97,
+      "reason": "Public.com investing platform ad with CTA and disclosures",
+      "end_text": "Transcription by CastingWords"
+    }
+  ]
+}

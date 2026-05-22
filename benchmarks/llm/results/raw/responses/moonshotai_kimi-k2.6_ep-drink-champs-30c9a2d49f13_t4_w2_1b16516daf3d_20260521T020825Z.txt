@@ -1,0 +1,1 @@
+{"start": 842.3, "end": 1430.4, "confidence": 0.0, "reason": "No promotional content, sponsor mentions, URLs, promo codes, or transition phrases detected in transcript window. Entire segment consists of organic interview content about football.", "end_text": "Roscoe needed"}

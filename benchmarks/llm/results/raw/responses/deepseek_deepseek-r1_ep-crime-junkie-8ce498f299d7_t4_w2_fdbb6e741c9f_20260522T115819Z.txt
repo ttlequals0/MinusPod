@@ -1,0 +1,7 @@
+[{
+    "start": 1036.2,
+    "end": 1129.6,
+    "confidence": 0.98,
+    "reason": "SoFi personal loan promotion followed by LinkedIn Premium All-in-One ad with calls to action and URLs",
+    "end_text": "grow your small business in one tab. Try for free at LinkedIn.com slash all-in-one"
+}]

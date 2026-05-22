@@ -1,0 +1,18 @@
+{
+  "ads": [
+    {
+      "start": 0.0,
+      "end": 40.8,
+      "confidence": 0.99,
+      "reason": "Vitel Global and LinkedIn Premium sponsor read with URLs and call to action",
+      "end_text": "linkedin.com slash all-in-one"
+    },
+    {
+      "start": 70.5,
+      "end": 98.4,
+      "confidence": 0.98,
+      "reason": "Hertz sponsor read promoting car rentals with URL",
+      "end_text": "at Hertz.com"
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 506.4,
+    "end": 548.5,
+    "confidence": 0.95,
+    "reason": "Self-promotional ad for the Crain's Weekly News Quiz, with a call to action and URL.",
+    "end_text": "with Amy Guth."
+  }
+]

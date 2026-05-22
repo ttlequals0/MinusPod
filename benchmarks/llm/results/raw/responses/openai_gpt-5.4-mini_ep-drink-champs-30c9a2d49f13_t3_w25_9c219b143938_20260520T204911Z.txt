@@ -1,0 +1,1 @@
+{"start":175.0,"end":185.0,"confidence":0.0,"reason":"No advertisement segment found in this transcript window; only interview content about football, college rights, clubs, and teammates, with no sponsor copy, promo codes, URLs, or transition into an ad break.","end_text":"No ads detected"}

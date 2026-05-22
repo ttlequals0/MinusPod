@@ -1,0 +1,7 @@
+[{
+    "start": 3478.9,
+    "end": 3556.2,
+    "confidence": 0.98,
+    "reason": "Airtasker sponsor read with call-to-action (Airtasker.com) followed by cross-promotion for Decisions Decisions podcast",
+    "end_text": "abstinence? And we were"
+}]

@@ -1,0 +1,1 @@
+[{"start": 3079.6, "end": 3270.1, "confidence": 0.95, "reason": "Morgan & Morgan, Stash, and NeuroGum sponsor reads with promo codes and URLs", "end_text": "use code TIM for 20% off your first order"}]

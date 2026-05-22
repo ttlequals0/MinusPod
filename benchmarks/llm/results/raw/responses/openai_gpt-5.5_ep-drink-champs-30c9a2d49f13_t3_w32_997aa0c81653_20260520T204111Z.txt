@@ -1,0 +1,1 @@
+{"start":13669.1,"end":13844.8,"confidence":0.99,"reason":"Multi-ad break including Airtasker app promo, Decisions Decisions podcast/Gilead Sciences promo, OnDeck business loans, and Public investing platform sponsor read with disclosure","end_text":"public.com slash disclosures"}

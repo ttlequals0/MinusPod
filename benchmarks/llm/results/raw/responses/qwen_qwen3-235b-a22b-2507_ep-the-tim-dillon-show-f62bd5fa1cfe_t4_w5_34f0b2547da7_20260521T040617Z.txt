@@ -1,0 +1,1 @@
+{"start": 2671.3, "end": 2699.0, "confidence": 0.3, "reason": "Overlap and duplicate text from previous segment, not an ad", "end_text": "while I was watching the iPad"}

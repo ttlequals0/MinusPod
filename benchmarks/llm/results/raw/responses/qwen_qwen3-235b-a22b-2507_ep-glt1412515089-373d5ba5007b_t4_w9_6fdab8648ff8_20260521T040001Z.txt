@@ -1,0 +1,1 @@
+{"start": 4052.1, "end": 4054.4, "confidence": 0.3, "reason": "Brief non-sequitur with no promotional content; likely a content transition or audio gap", "end_text": "You're having all these experiences."}

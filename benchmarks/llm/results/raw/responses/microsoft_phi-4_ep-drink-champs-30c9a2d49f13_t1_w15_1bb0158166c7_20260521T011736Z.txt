@@ -1,0 +1,7 @@
+{
+  "start": 6.2834,
+  "end": 6.5551,
+  "confidence": 0.95,
+  "reason": "The segment contains promotional language for OnDeck, a business platform, with a call to action and mention of loan attributes.",
+  "end_text": "you a lawyer"
+}

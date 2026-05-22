@@ -1,0 +1,1 @@
+{"type":"object","value":[{"start":2208.3,"end":2237.0,"confidence":0.99,"reason":"Blinds.com sponsor read","end_text":"free professional measure at Blinds.com"}]}

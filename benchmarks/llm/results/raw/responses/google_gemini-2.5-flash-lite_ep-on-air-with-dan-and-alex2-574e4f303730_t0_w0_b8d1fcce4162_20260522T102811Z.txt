@@ -1,0 +1,16 @@
+[
+  {
+    "start": 0.0,
+    "end": 30.3,
+    "confidence": 0.95,
+    "reason": "This is a platform-inserted ad for Hex.ai, a data analytics platform. It uses promotional language like '10 times more productive', 'faster insights, higher trust, less tool sprawl', and a call to action 'Join teams... at Hex.ai'.",
+    "end_text": "Hex.ai."
+  },
+  {
+    "start": 30.9,
+    "end": 59.9,
+    "confidence": 0.95,
+    "reason": "This is a platform-inserted ad for Orange County, New York (PickOCNY.com). It uses promotional language like 'getaway that's anything but ordinary', 'sip cider in a treehouse', 'picnic among towering sculptures', 'uncover the secrets', 'hike the trails, raft the Delaware, then kick back, relax, and stay a while', and a call to action 'Find your fresh state of mind at PickOCNY.com'.",
+    "end_text": "PickOCNY.com."
+  }
+]

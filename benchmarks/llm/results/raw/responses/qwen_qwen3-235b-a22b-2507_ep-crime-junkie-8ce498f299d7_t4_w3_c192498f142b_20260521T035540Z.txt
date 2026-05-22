@@ -1,0 +1,1 @@
+{"start": 1242.3, "end": 1861.8, "confidence": 0.99, "reason": "continuous narrative content with no promotional language, sponsor mentions, or ad transitions; includes investigative storytelling, phone data analysis, PI threats, and case developments", "end_text": "may have been the plan all along. He thinks it's possible that Julian may have been double-crossing"}

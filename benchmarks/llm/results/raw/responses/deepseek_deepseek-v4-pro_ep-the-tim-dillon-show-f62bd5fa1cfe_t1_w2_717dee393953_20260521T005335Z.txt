@@ -1,0 +1,11 @@
+{
+  "ad_segments": [
+    {
+      "start": 1465.2,
+      "end": 1565.0,
+      "confidence": 0.98,
+      "reason": "Mint Mobile sponsor read with promo code and call to action",
+      "end_text": "nation's largest 5G network"
+    }
+  ]
+}

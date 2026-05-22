@@ -1,0 +1,7 @@
+{
+  "start": 1012.8,
+  "end": 1129.6,
+  "confidence": 0.99,
+  "reason": "SoFi debt consolidation sponsor read followed by LinkedIn Premium All-in-One promotional ad; merged due to short gap",
+  "end_text": "LinkedIn.com slash all-in-one"
+}

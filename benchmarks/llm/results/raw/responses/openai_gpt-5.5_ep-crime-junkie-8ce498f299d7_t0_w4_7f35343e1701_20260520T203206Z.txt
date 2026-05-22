@@ -1,0 +1,1 @@
+{"start":1959.8,"end":2080.5,"confidence":0.99,"reason":"Ad break with promotional spots for Rakuten cash back/rewards, LinkedIn Premium All-in-One free trial, and Hertz car rentals; includes calls to action and URLs Rakuten.com, linkedin.com/all-in-one, and Hertz.com","end_text":"newest fleet yet at Hertz.com"}

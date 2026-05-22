@@ -1,0 +1,18 @@
+{  
+  "ads": [  
+    {  
+      "start": 14.7,  
+      "end": 40.8,  
+      "confidence": 0.95,  
+      "reason": "Vitel Global's AI-empowered unified communications platform is promoted, with a call to action to visit their website and learn more about their product.",  
+      "end_text": "learn more about Vitel Global's AI-empowered unified communications"  
+    },  
+    {  
+      "start": 41.5,  
+      "end": 98.4,  
+      "confidence": 0.90,  
+      "reason": "Hertz's product is promoted with a call to action to visit their website and explore their new fleet offerings.",  
+      "end_text": "find a new car that fits your adventure"  
+    }  
+  ]  
+}

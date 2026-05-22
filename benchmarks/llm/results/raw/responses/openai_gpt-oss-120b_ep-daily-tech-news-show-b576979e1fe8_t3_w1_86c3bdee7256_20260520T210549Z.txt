@@ -1,0 +1,32 @@
+{
+  "ads": [
+    {
+      "start": 636.8,
+      "end": 671.5,
+      "confidence": 0.97,
+      "reason": "Host-read sponsor read for Parloa AI platform",
+      "end_text": "P-A-R-L-O-A dot com."
+    },
+    {
+      "start": 674.0,
+      "end": 717.6,
+      "confidence": 0.96,
+      "reason": "Host-read sponsor read for Capital One followed by AllTrails promotion",
+      "end_text": "find your outside."
+    },
+    {
+      "start": 718.8,
+      "end": 748.3,
+      "confidence": 0.95,
+      "reason": "Host-read sponsor read for Zinn Nicotine Pouches with disclaimer",
+      "end_text": "is an addictive chemical."
+    },
+    {
+      "start": 749.6,
+      "end": 776.6,
+      "confidence": 0.94,
+      "reason": "Cross‑promotion for Good Things podcast from Lemonada Media",
+      "end_text": "six-part Thrive series."
+    }
+  ]
+}

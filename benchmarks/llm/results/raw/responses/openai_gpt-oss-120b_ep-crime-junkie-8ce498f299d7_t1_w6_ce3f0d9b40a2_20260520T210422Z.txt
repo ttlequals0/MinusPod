@@ -1,0 +1,7 @@
+{
+  "start": 2863.0,
+  "end": 2894.5,
+  "confidence": 0.99,
+  "reason": "Host-read sponsor segment for LinkedIn Premium All-in-One with promotional language, URL and call to action",
+  "end_text": "LinkedIn.com slash all-in-one."
+}

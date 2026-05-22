@@ -1,0 +1,1 @@
+{"start":1493.2,"end":1536.8,"confidence":0.99,"reason":"Host-read sponsor segment with explicit ad language: 'This episode is brought to you by Capital One' plus Capital One product pitch and AllTrails download CTA.","end_text":"find your outside"}

@@ -1,0 +1,7 @@
+{
+	"start": 14417.3,
+	"end": 14439.9,
+	"confidence": 0.95,
+	"reason": "Discussion about civil rights and standing up for rights",
+	"end_text": "Why you scared of them? No, because I know my rights."
+}

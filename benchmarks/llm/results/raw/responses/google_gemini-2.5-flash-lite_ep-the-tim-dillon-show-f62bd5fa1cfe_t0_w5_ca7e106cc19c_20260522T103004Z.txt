@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2085.5,
+    "end": 2699.0,
+    "confidence": 0.99,
+    "reason": "This entire segment is a host-read advertisement for GLP-1s and iPads for toddlers, framed as a satirical solution to parenting challenges. It includes promotional language and a call to action (implied by the discussion of benefits and future approval).",
+    "end_text": "my toddler's stomach exploded."
+  }
+]

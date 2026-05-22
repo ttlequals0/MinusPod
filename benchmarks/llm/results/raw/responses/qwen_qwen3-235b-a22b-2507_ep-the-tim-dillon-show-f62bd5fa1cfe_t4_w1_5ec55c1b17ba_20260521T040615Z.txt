@@ -1,0 +1,1 @@
+{"start": 963.8, "end": 1020.0, "confidence": 0.95, "reason": "transition into ad break with promotional content for sponsors including Mint Mobile, Aura Frames, Morgan & Morgan, Stash, and Neuro Gum with URLs and promo codes", "end_text": "incentivized and encouraged"}

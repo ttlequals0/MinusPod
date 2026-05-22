@@ -1,0 +1,16 @@
+[
+  {
+    "start": 537.5,
+    "end": 567.0,
+    "confidence": 0.98,
+    "reason": "Host-read ad for Thrive Cosmetics, including a URL and a discount code.",
+    "end_text": "shine26"
+  },
+  {
+    "start": 594.7,
+    "end": 654.3,
+    "confidence": 0.95,
+    "reason": "Network-inserted ad for PC Richard & Son, promoting a lease-to-own offer with specific terms and conditions.",
+    "end_text": "Asima dot HTML for details"
+  }
+]

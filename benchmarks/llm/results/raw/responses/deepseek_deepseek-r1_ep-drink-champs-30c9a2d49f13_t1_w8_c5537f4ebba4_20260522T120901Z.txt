@@ -1,0 +1,1 @@
+{"start": 3504.1, "end": 3528.5, "confidence": 1.0, "reason": "Airtasker sponsorship", "end_text": "Airtasker, get anything done."}

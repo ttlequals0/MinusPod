@@ -1,0 +1,7 @@
+{
+  "start": 140.0,
+  "end": 150.0,
+  "confidence": 0.95,
+  "reason": "The segment contains promotional language and mentions of sponsors, indicating advertisement content.",
+  "end_text": "Southern University food"
+}

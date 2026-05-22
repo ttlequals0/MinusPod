@@ -1,0 +1,1 @@
+[{"start": 0.0, "end": 219.9, "confidence": 0.95, "reason": "Network-inserted pre-roll ads and show intro", "end_text": "sports, sports champs."}]

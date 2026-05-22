@@ -1,0 +1,32 @@
+```json
+[
+  {
+    "start": 6208.7,
+    "end": 6233.9,
+    "confidence": 0.92,
+    "reason": "Airtasker sponsor read with app download and website URL",
+    "end_text": "Airtasker, get anything done"
+  },
+  {
+    "start": 6234.1,
+    "end": 6282.7,
+    "confidence": 0.88,
+    "reason": "Decisions Decisions podcast cross-promotion with Kiki Palmer episode, sponsored by Care for the Culture from Gilead Sciences",
+    "end_text": "Sponsored by Care for the Culture from Gilead Sciences"
+  },
+  {
+    "start": 6283.4,
+    "end": 6313.4,
+    "confidence": 0.90,
+    "reason": "OnDeck small business line of credit sponsor read with website URL and loan terms",
+    "end_text": "All amounts subject to lender approval"
+  },
+  {
+    "start": 6313.8,
+    "end": 6318.1,
+    "confidence": 0.85,
+    "reason": "Public investing platform sponsor mention",
+    "end_text": "those who take it seriously"
+  }
+]
+```

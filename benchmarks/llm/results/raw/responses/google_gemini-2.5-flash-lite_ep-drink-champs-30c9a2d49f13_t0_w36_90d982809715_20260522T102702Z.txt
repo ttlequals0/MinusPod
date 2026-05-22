@@ -1,0 +1,30 @@
+[
+  {
+    "start": 15388.3,
+    "end": 15416.5,
+    "confidence": 0.95,
+    "reason": "Airtasker network-inserted ad with promotional language and call to action.",
+    "end_text": "Airtasker."
+  },
+  {
+    "start": 15416.7,
+    "end": 15452.3,
+    "confidence": 0.95,
+    "reason": "CVS network-inserted ad with promotional language and call to action.",
+    "end_text": "come by our store. We can't wait to meet you. Store hours vary by location."
+  },
+  {
+    "start": 15453.9,
+    "end": 15481.1,
+    "confidence": 0.95,
+    "reason": "Trashy network-inserted ad with promotional language and call to action.",
+    "end_text": "to get started."
+  },
+  {
+    "start": 15482.9,
+    "end": 15517.1,
+    "confidence": 0.95,
+    "reason": "Try Fencing network-inserted ad with promotional language and call to action.",
+    "end_text": "tryfencing.org. This is an iHeart Podcast. Guaranteed human."
+  }
+]

@@ -1,0 +1,1 @@
+{"start":0.5,"end":43.4,"confidence":0.99,"reason":"Carvana host-read sponsor segment with promotional language, pickup call-to-action, and brand mention; includes transition into show intro after ad.","end_text":"Sell your car today on Carvana"}

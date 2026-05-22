@@ -1,0 +1,19 @@
+[{
+    "start": 11335.2,
+    "end": 11365.6,
+    "confidence": 0.97,
+    "reason": "Airtasker promotional segment with app download call-to-action and URL",
+    "end_text": "Airtasker, get anything done"
+}, {
+    "start": 11366.2,
+    "end": 11424.6,
+    "confidence": 0.98,
+    "reason": "Decisions Decisions podcast promo explicitly tagged as sponsored by Care for the Culture",
+    "end_text": "podcasts. Sponsored by Care"
+}, {
+    "start": 11425.3,
+    "end": 11455.4,
+    "confidence": 0.99,
+    "reason": "OnDeck business loan advertisement with specific funding details and URL (OnDeck.com)",
+    "end_text": "subject to lender approval"
+}]

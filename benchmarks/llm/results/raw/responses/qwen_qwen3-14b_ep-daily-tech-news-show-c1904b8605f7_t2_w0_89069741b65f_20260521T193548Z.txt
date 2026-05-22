@@ -1,0 +1,1 @@
+{"start": 0.0, "end": 100.9, "confidence": 0.95, "reason": "Capital One and XERO sponsor reads", "end_text": "price guarantee so you can focus on running your business."}

@@ -1,0 +1,1 @@
+{"start": 5241.2, "end": 5241.2, "confidence": 0.0, "reason": "No ad content detected in this transcript segment. The conversation is continuous about football stories and drinking.", "end_text": "this fucking shit. Money running back"}

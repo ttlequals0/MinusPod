@@ -1,0 +1,9 @@
+[
+  {
+    "start": 15388.3,
+    "end": 15517.1,
+    "confidence": 1.0,
+    "reason": "A series of network-inserted ads for Airtasker, CVS, Trashy, and tryfencing.org, followed by an iHeart Podcast bumper.",
+    "end_text": "Podcast. Guaranteed human."
+  }
+]

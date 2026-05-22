@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2234.5,
+    "end": 2263.3,
+    "confidence": 0.95,
+    "reason": "Network-inserted ad break with repetitive promotional audio",
+    "end_text": "Take one. Take one."
+  }
+]

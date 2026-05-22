@@ -1,0 +1,1 @@
+{"start": 1255.9, "end": 1268.8, "confidence": 0.3, "reason": "Possible partial ad or transition, but no promotional content detected; likely a content break", "end_text": "Thank you for watching."}

@@ -1,0 +1,4 @@
+{
+  "ad_segments": [],
+  "reason": "In this segment, we see Steve Gibson and Leo Laporte talking about AI integration into browsers, with discussion of Mozilla's pushback, Google's business interests, and concerns about non-deterministic LLMs. There is a mention of OpenTable not working under Firefox and a suggestion that it 'Needs Chrome.' At timestamp [8976.2 - 9004.0], Steve mentions Restream needing Chrome. This is not an ad; it is commentary about browser compatibility issues related to the editorial topic. No promotional segment (host-read sponsor, network promo, tagline, or call to action) was detected anywhere in this window."
+}

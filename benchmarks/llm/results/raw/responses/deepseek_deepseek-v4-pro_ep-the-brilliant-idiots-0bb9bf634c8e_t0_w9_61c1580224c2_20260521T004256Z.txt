@@ -1,0 +1,11 @@
+{
+  "segments": [
+    {
+      "start": 4059.4,
+      "end": 4305.4,
+      "confidence": 0.98,
+      "reason": "Self-promotions and paid endorsements for books, events, and shows",
+      "end_text": "Head to All Love Racquet Club."
+    }
+  ]
+}

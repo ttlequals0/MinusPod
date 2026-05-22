@@ -1,0 +1,7 @@
+{
+  "start": 500.4,
+  "end": 523.4,
+  "confidence": 0.8,
+  "reason": "Host discusses Cole's disappearance and the investigation",
+  "end_text": "they killed him. They who?"
+}

@@ -1,0 +1,1 @@
+{"start": 1450.9, "end": 1597.8, "confidence": 0.99, "reason": "Multiple network-inserted ads: Airtasker, Decisions Decisions podcast promo, OnDeck, BetMGM", "end_text": "step up to the plate today"}

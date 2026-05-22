@@ -1,0 +1,2 @@
+y.
+{"start": 4380.0, "end": 4386.8, "confidence": 0.95, "reason": "Platform-inserted ad disclaimer", "end_text": "megaphone.fm/adchoices"}

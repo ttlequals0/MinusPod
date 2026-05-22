@@ -1,0 +1,1 @@
+{"start":2184.9,"end":2198.0,"confidence":0.93,"reason":"Host-read promo mentioning Drink Champs and Black Effect Podcast Network; includes sponsor-like promotional language 'Once again' and a clear show/network recommendation. Partial ad segment continuing into show discussion.","end_text":"Black Effect Podcast Network. Once again, Nori"}

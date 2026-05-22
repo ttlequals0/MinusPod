@@ -1,0 +1,1 @@
+[{"start": 8724.9, "end": 8737.9, "confidence": 0.95, "reason": "AirTasker promotion with URL", "end_text": "AirTasker.com or download the app"}, {"start": 8738.1, "end": 8766.2, "confidence": 0.95, "reason": "Public investing platform sponsorship", "end_text": "Public, the investing platform"}]

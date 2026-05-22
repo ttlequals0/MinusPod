@@ -1,0 +1,16 @@
+[
+  {
+    "start": 11335.2,
+    "end": 11455.4,
+    "confidence": 0.98,
+    "reason": "Merged sponsor reads: Airtasker, Decisions Decisions cross-promo, OnDeck. Starts before window.",
+    "end_text": "subject to lender approval."
+  },
+  {
+    "start": 11614.6,
+    "end": 11631.4,
+    "confidence": 0.95,
+    "reason": "Sponsor list tag (Athletic Greens, Audible, etc.)",
+    "end_text": "Raycon, Manscaped, Stamps.com,"
+  }
+]

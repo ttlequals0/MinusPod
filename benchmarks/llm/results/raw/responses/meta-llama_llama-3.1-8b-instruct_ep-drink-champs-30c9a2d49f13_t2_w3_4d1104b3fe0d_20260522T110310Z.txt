@@ -1,0 +1,51 @@
+[
+{
+  "start": 1252.4,
+   "end": 1281.2,
+   "confidence": 0.95,
+   "reason": "N/A",
+   "end_text": "yeah yeah yeah yeah yeah yeah"
+},
+{
+   "start": 1486.6,
+   "end": 1513.0,
+   "confidence": 0.95,
+   "reason": "N/A",
+   "end_text": "no shame no stigma"
+},
+{
+   "start": 1513.7,
+   "end": 1524.8,
+   "confidence": 0.95,
+   "reason": "N/A",
+   "end_text": "sponsored by Care for the Culture"
+},
+{
+   "start": 1525.5,
+   "end": 1553.8,
+   "confidence": 0.95,
+   "reason": "N/A",
+   "end_text": "without missing a beat"
+},
+{
+   "start": 1555.6,
+   "end": 1582.2,
+   "confidence": 0.95,
+   "reason": "N/A",
+   "end_text": "all season long"
+},
+{
+   "start": 1582.4,
+   "end": 1597.8,
+   "confidence": 0.95,
+   "reason": "N/A",
+   "end_text": "more chances to win"
+},
+{
+   "start": 1598.4,
+   "end": 1627.2,
+   "confidence": 0.95,
+   "reason": "N/A",
+   "end_text": "in the U.S."
+}
+]

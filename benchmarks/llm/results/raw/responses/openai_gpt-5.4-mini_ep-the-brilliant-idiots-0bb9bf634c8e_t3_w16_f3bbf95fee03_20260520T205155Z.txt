@@ -1,0 +1,1 @@
+{"start":7135.4,"end":7158.5,"confidence":0.93,"reason":"Host-read promotional outro for Lauren LaRosa podcast with call to action to follow/listen; includes explicit promo language and functions as a cross-promo segment preceding the show outro. No separate 'let's take a break' phrase in this window.","end_text":"the latest with Lauren LaRosa"}

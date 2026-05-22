@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1036.2,
+    "end": 1129.6,
+    "confidence": 0.98,
+    "reason": "Back-to-back SoFi and LinkedIn Premium All-in-One sponsor reads with promo codes and URLs",
+    "end_text": "linkedin.com slash all-in-one"
+  }
+]

@@ -1,0 +1,1 @@
+{"start":1450.9,"end":1629.0,"confidence":0.99,"reason":"Multi-ad break with Airtasker task service promotion, Decisions Decisions podcast cross-promo sponsored by Gilead Sciences, OnDeck small business line of credit ad, and BetMGM MLB gambling promotion with calls to action and legal disclaimers","end_text":"Kansas Crossing Casino and Hotel."}

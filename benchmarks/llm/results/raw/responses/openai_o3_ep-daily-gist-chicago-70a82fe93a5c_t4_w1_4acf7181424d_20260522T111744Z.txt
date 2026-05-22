@@ -1,0 +1,1 @@
+{"start": 506.4, "end": 548.5, "confidence": 0.92, "reason": "Host-read promo with call to action and URL for Crain's Weekly News Quiz, introduced by 'right after this' transition", "end_text": "This is the Crain's Daily Gist with Amy Guth."}

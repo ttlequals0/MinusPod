@@ -1,0 +1,1 @@
+{"start": 3392.4, "end": 3432.2, "confidence": 0.98, "reason": "Host-read sponsor segment with promotional language for Perplexity including URL and call to action", "end_text": "And..."}

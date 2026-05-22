@@ -1,0 +1,1 @@
+[{"start": 2863.0, "end": 2894.5, "confidence": 0.98, "reason": "LinkedIn Premium All-in-One sponsor read with URL and product pitch", "end_text": "LinkedIn.com slash all-in-one"}]

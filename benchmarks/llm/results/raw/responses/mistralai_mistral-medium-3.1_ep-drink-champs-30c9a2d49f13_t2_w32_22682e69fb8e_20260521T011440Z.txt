@@ -1,0 +1,1 @@
+[{"start": 13669.1, "end": 13696.9, "confidence": 0.98, "reason": "Airtasker sponsor read", "end_text": "Airtasker.com"}, {"start": 13759.0, "end": 13786.2, "confidence": 0.95, "reason": "OnDeck sponsor read", "end_text": "OnDeck.com"}, {"start": 13786.9, "end": 13815.9, "confidence": 0.93, "reason": "Public sponsor read", "end_text": "investable index with AI"} ]

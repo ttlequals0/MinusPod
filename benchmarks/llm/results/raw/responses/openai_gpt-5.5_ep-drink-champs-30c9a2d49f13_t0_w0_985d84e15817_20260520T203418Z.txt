@@ -1,0 +1,1 @@
+{"start":0.0,"end":150.5,"confidence":0.99,"reason":"Merged pre-roll ad block: iHeart/Airtasker promo, Care for the Culture/Gilead sponsored message, Nissan Rogue campaign, and Shopify sponsor read with URL Shopify.com/BEN","end_text":"Shopify.com slash B-E-N"}

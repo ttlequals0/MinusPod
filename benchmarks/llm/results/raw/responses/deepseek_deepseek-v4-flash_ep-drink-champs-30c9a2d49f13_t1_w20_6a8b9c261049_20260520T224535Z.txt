@@ -1,0 +1,1 @@
+{"ads": [], "processing_segment": "window 21/37", "window_start": 8400.0, "window_end": 9000.0}

@@ -1,0 +1,1 @@
+{"start": 1861.8, "end": 1861.8, "confidence": 0.0, "reason": "No ads detected in this transcript segment. The content is continuous narrative about the case.", "end_text": "may have been double-crossing"}

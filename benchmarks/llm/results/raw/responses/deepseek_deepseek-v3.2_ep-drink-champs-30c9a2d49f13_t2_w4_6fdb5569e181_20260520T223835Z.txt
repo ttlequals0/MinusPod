@@ -1,0 +1,1 @@
+{"start": 2234.5, "end": 2263.3, "confidence": 0.95, "reason": "Host-read ad break with promotional language for a sponsor (Take one)", "end_text": "Take one. Take one."}

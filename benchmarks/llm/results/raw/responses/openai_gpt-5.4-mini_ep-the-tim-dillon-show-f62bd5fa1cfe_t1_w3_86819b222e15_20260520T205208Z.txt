@@ -1,0 +1,1 @@
+{"start":1439.2,"end":1576.1,"confidence":0.99,"reason":"Mint Mobile, then Aura Frames host-read sponsor segments with promotional copy, URLs, and promo codes; includes the transition into sponsor reads and repeated CTA language.","end_text":"Promo code TIM"}

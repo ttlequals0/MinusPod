@@ -1,0 +1,1 @@
+{"start":3079.6,"end":3134.3,"confidence":0.99,"reason":"Morgan & Morgan host-read sponsor segment with promotional language, fee-is-free claim, URL and call to action; immediately transitions into Stash promo, so this is a contiguous ad break","end_text":"Let them know I sent you. This is a paid advertisement. Stash is the one."}

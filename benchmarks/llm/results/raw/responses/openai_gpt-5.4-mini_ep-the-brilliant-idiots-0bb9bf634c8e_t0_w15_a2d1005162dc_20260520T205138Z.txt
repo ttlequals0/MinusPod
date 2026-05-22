@@ -1,0 +1,1 @@
+{"start":6390.2,"end":6419.1,"confidence":0.57,"reason":"Possible host-read ad break signaled by 'Let's pay some bills'; includes 'Blue Chew' mention and promotional transition, but no explicit full sponsor read in this excerpt.","end_text":"My grandmother, I told you, was pre-diabetic. Why was you giving her Blue Chew?"}

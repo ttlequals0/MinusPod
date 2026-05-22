@@ -1,0 +1,7 @@
+{
+  "start": 13669.1,
+  "end": 13815.9,
+  "confidence": 0.99,
+  "reason": "Multiple sponsor reads (Airtasker, Decisions Decisions promo, Care for the Culture, OnDeck, Public) with product mentions, URLs, calls to action and promotional language",
+  "end_text": "back test it again."
+}

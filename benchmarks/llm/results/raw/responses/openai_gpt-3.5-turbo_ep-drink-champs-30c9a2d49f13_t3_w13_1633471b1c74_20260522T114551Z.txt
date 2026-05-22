@@ -1,0 +1,7 @@
+{
+	"start": 6045.8,
+	"end": 6063.9,
+	"confidence": 1.0,
+	"reason": "Non-ad content",
+	"end_text": "Robert Bassett had just got hurt."
+}

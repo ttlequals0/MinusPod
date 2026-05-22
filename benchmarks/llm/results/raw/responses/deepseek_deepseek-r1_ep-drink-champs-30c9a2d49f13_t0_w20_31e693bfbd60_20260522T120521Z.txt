@@ -1,0 +1,9 @@
+[
+    {
+        "start": 8724.9,
+        "end": 8831.4,
+        "confidence": 1.0,
+        "reason": "Ad block with AirTasker promo, Decisions Decisions podcast promo sponsored by Gilead Sciences, OnDeck business loan ad, and Public investing platform ad",
+        "end_text": "for those who take it seriously"
+    }
+]

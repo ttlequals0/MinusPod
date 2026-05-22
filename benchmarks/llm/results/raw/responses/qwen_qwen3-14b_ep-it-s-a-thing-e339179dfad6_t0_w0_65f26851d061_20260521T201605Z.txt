@@ -1,0 +1,2 @@
+."
+{"start": 1.6, "end": 77.2, "confidence": 0.95, "reason": "Multiple platform-inserted ads and cross-promotions merged due to <15s gaps", "end_text": "leaders of tomorrow"}

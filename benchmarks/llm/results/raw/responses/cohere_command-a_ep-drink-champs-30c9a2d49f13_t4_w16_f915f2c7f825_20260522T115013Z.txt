@@ -1,0 +1,1 @@
+{"start": 6723.5, "end": 6748.3, "confidence": 0.0, "reason": "not an ad", "end_text": "time. Lawrence Taylor or Ray Lewis?"}

@@ -1,0 +1,1 @@
+{"start": 4402.0, "end": 4402.0, "confidence": 0.0, "reason": "No ad segments detected in this transcript window. The content is continuous conversation about football, coaches, and team dynamics with no promotional language, sponsor mentions, or ad transitions.", "end_text": "No ad detected"}

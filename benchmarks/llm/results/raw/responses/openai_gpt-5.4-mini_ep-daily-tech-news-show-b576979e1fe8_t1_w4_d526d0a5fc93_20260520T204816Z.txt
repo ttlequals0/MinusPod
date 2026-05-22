@@ -1,0 +1,1 @@
+{"start":2015.9,"end":2045.2,"confidence":0.99,"reason":"Capital One sponsor read with clear ad copy and branded callout ('This episode is brought to you by Capital One', 'Chat Concierge').","end_text":"That's technology at Capital One"}

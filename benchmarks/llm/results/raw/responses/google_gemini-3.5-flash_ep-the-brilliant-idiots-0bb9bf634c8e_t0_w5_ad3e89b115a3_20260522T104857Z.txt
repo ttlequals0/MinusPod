@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2324.6,
+    "end": 2450.0,
+    "confidence": 1.0,
+    "reason": "Contiguous sponsor reads for BlueChew and ZipRecruiter",
+    "end_text": "Meet your match on ZipRecruiter"
+  }
+]

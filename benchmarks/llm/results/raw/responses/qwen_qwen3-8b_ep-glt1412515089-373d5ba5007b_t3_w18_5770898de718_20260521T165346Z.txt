@@ -1,0 +1,1 @@
+"displayed in JSON format as specified, with the ad segment identified at the end of the transcript. The ad includes promotional language from Perplexity and the ad choices link, even though the transition phrase isn't explicitly present. The confidence is high due to the clear sponsor mention and URL."

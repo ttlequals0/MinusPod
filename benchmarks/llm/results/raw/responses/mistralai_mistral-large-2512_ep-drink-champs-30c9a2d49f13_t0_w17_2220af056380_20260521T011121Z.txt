@@ -1,0 +1,16 @@
+[
+    {
+        "start": 7693.5,
+        "end": 7715.9,
+        "confidence": 0.9,
+        "reason": "Platform-inserted ad for 'Gangsta Grillz' and 'DJ Master' (Master P), which is a cross-promotion for other shows or content. The segment includes promotional language ('I want the newest shit') and feels tonally distinct from the surrounding conversation.",
+        "end_text": "looking for shit."
+    },
+    {
+        "start": 7737.1,
+        "end": 7740.0,
+        "confidence": 0.85,
+        "reason": "Partial ad segment promoting 'Nigerian night' and referencing a combine event, which may be a dynamically inserted ad or network promo. The segment cuts off, so it continues in the next window.",
+        "end_text": "continues in next"
+    }
+]

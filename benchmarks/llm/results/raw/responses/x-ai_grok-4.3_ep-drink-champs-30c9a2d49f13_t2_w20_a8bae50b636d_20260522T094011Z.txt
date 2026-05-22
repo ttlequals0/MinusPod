@@ -1,0 +1,6 @@
+[
+  {"start": 8724.9, "end": 8737.9, "confidence": 0.98, "reason": "AirTasker sponsor read with URL and CTA", "end_text": "download the app and Taskers"},
+  {"start": 8738.1, "end": 8798.3, "confidence": 0.95, "reason": "Cross-promo for Decisions Decisions podcast with Gilead sponsor", "end_text": "from Gilead Sciences"},
+  {"start": 8799.1, "end": 8826.4, "confidence": 0.97, "reason": "OnDeck sponsor read with URL and loan pitch", "end_text": "subject to lender approval"},
+  {"start": 8827.0, "end": 8831.4, "confidence": 0.92, "reason": "Public investing platform sponsor mention", "end_text": "take it seriously"}
+]

@@ -1,0 +1,2 @@
+y.
+{"start": 1440.0, "end": 1440.0, "confidence": 0.95, "reason": "Platform-inserted ad: 'Hosted on Acast'", "end_text": "acast.com/privacy"}

@@ -1,0 +1,1 @@
+{"start":3079.6,"end":3270.1,"confidence":0.99,"reason":"Consecutive host-read sponsor ads for Morgan & Morgan, Stash, and NeuroGum with explicit promotional copy, URLs, and promo code; starts with sponsor pitch and ends after final code mention before show content resumes","end_text":"Use code TIM for 20% off your first order"}
