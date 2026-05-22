@@ -28,6 +28,15 @@ function AIModelsSection({
   onRefresh,
   refreshIsPending,
 }: AIModelsSectionProps) {
+  // A saved model id missing from the live catalog (wrong provider for
+  // the stored tag, renamed model, transient probe failure) would render
+  // the <select> blank, which users read as "the setting was reset".
+  const renderOrphan = (value: string) => {
+    if (!value || !models) return null;
+    if (models.some((m) => m.id === value)) return null;
+    return <option value={value}>{value} (current, not in catalog)</option>;
+  };
+
   return (
     <CollapsibleSection
       title="AI Models"
@@ -74,6 +83,7 @@ function AIModelsSection({
             onChange={(e) => onSelectedModelChange(e.target.value)}
             className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
           >
+            {renderOrphan(selectedModel)}
             {models?.map((model) => (
               <option key={model.id} value={model.id}>
                 {formatModelLabel(model)}
@@ -95,6 +105,7 @@ function AIModelsSection({
             onChange={(e) => onVerificationModelChange(e.target.value)}
             className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
           >
+            {renderOrphan(verificationModel)}
             {models?.map((model) => (
               <option key={model.id} value={model.id}>
                 {formatModelLabel(model)}
@@ -116,6 +127,7 @@ function AIModelsSection({
             onChange={(e) => onChaptersModelChange(e.target.value)}
             className="w-full px-4 py-2 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
           >
+            {renderOrphan(chaptersModel)}
             {models?.map((model) => (
               <option key={model.id} value={model.id}>
                 {formatModelLabel(model)}

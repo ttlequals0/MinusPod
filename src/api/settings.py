@@ -507,12 +507,24 @@ def _apply_provider_fields(db, data):
             client.probe_json_format_support()
         threading.Thread(target=force_refresh_pricing, daemon=True).start()
 
-        # Prune saved model IDs that the new provider does not advertise.
-        # Otherwise selections from a prior catalog (e.g. OpenRouter-style
-        # tags carrying into Ollama Cloud) survive the switch and fail at
-        # request time with not_found_error. Reset to provider-aware defaults.
+        # Prune saved model IDs that the new provider does not advertise so
+        # selections from a prior catalog (e.g. OpenRouter-style tags
+        # carrying into Ollama Cloud) do not survive the switch and fail at
+        # request time with not_found_error.
+        #
+        # The SDKs swallow auth 401, network 5xx, and unreachable-host
+        # errors and return []. Treating an empty list as "every prior
+        # model is invalid" wiped claude_model, verification_model, and
+        # chapters_model on any provider save with a misconfigured key.
         try:
             advertised = {m.id for m in client.list_models()}
+        except ValueError as e:
+            logger.info("Provider catalog unavailable after switch: %s", e)
+            advertised = set()
+        except Exception:
+            logger.exception("Failed to fetch model catalog after provider change")
+            advertised = set()
+        if advertised:
             for setting_key in ('claude_model', 'verification_model', 'chapters_model'):
                 current = db.get_setting(setting_key)
                 if current and current not in advertised:
@@ -521,8 +533,11 @@ def _apply_provider_fields(db, data):
                         setting_key, current,
                     )
                     db.reset_setting(setting_key)
-        except Exception:
-            logger.exception("Failed to prune stale model selections after provider change")
+        else:
+            logger.warning(
+                "Skipping model prune after provider change: new provider's "
+                "catalog probe returned empty (likely auth or network failure)"
+            )
     # The TTL cache backing get_effective_base_url / get_effective_provider
     # lags writes by up to 5s. Without this invalidation, the GET /settings
     # response that fires right after this PUT returns the pre-write value,

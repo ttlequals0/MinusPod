@@ -180,3 +180,77 @@ class TestPartialUpdatePreservesOtherFields:
         assert db.get_setting('whisper_backend') == 'local'
         assert db.get_setting('whisper_api_base_url') == ''
         assert db.get_setting('whisper_api_model') == 'whisper-1'
+
+
+class TestProviderChangeModelPruning:
+    """Provider-change pruning at _apply_provider_fields must NOT reset saved
+    model IDs when the new provider's catalog probe came back empty -- that
+    means the lookup failed (bad key, network 5xx, unreachable), not that
+    every prior model is invalid. Issue #266: changing the provider with a
+    misconfigured key was wiping claude_model / verification_model /
+    chapters_model on every save."""
+
+    def test_empty_catalog_preserves_existing_model_selections(self, client):
+        db = database.Database()
+        db.set_setting('llm_provider', 'anthropic', is_default=False)
+        db.set_setting('claude_model', 'claude-sonnet-4-5-20250929', is_default=False)
+        db.set_setting('verification_model', 'claude-sonnet-4-5-20250929', is_default=False)
+        db.set_setting('chapters_model', 'claude-haiku-4-5-20251001', is_default=False)
+
+        # Force list_models() to return [] regardless of the provider being
+        # switched to; mirrors what the OpenAI SDK does on 401 (logs + empty).
+        fake_client = MagicMock()
+        fake_client.list_models.return_value = []
+        fake_client.probe_json_format_support.return_value = None
+        with patch('api.settings.get_llm_client', return_value=fake_client):
+            response = client.put(
+                '/api/v1/settings/ad-detection',
+                data=json.dumps({'llmProvider': 'openai-compatible'}),
+                content_type='application/json',
+            )
+        assert response.status_code == 200, response.data
+        assert db.get_setting('llm_provider') == 'openai-compatible'
+        assert db.get_setting('claude_model') == 'claude-sonnet-4-5-20250929'
+        assert db.get_setting('verification_model') == 'claude-sonnet-4-5-20250929'
+        assert db.get_setting('chapters_model') == 'claude-haiku-4-5-20251001'
+
+    def test_list_models_raises_preserves_existing_model_selections(self, client):
+        db = database.Database()
+        db.set_setting('llm_provider', 'anthropic', is_default=False)
+        db.set_setting('claude_model', 'claude-sonnet-4-5-20250929', is_default=False)
+
+        fake_client = MagicMock()
+        fake_client.list_models.side_effect = RuntimeError('network down')
+        fake_client.probe_json_format_support.return_value = None
+        with patch('api.settings.get_llm_client', return_value=fake_client):
+            response = client.put(
+                '/api/v1/settings/ad-detection',
+                data=json.dumps({'llmProvider': 'openai-compatible'}),
+                content_type='application/json',
+            )
+        assert response.status_code == 200, response.data
+        assert db.get_setting('claude_model') == 'claude-sonnet-4-5-20250929'
+
+    def test_populated_catalog_still_prunes_stale_selections(self, client):
+        """The prune is the original feature -- a model not in the new
+        provider's catalog still gets reset. Regression guard so the empty-
+        list fix above does not over-correct into never-pruning."""
+        db = database.Database()
+        db.set_setting('llm_provider', 'anthropic', is_default=False)
+        db.set_setting('claude_model', 'openai/gpt-stale', is_default=False)
+        db.set_setting('chapters_model', 'claude-haiku-4-5-20251001', is_default=False)
+
+        fake_model_a = MagicMock(id='claude-haiku-4-5-20251001')
+        fake_model_b = MagicMock(id='claude-sonnet-4-5-20250929')
+        fake_client = MagicMock()
+        fake_client.list_models.return_value = [fake_model_a, fake_model_b]
+        fake_client.probe_json_format_support.return_value = None
+        with patch('api.settings.get_llm_client', return_value=fake_client):
+            response = client.put(
+                '/api/v1/settings/ad-detection',
+                data=json.dumps({'llmProvider': 'anthropic'}),
+                content_type='application/json',
+            )
+        assert response.status_code == 200, response.data
+        assert db.get_setting('claude_model') == 'claude-sonnet-4-5-20250929'
+        assert db.get_setting('chapters_model') == 'claude-haiku-4-5-20251001'

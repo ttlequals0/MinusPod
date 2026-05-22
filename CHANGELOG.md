@@ -6,6 +6,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.16] - 2026-05-21
+
+### Fixed
+
+- **Provider-change pruning no longer wipes saved model selections when the new catalog probe comes back empty (closes #266).** `_apply_provider_fields` calls `client.list_models()` on the new provider and resets any saved `claude_model` / `verification_model` / `chapters_model` whose ID is not in the returned list. The OpenAI and Anthropic SDKs catch HTTP errors internally and return an empty list rather than raising, so a bad key, unreachable host, or rate-limited probe all looked the same as "no models advertised", and the pruner then reset every previously saved selection to the provider default. Anyone who hit Save in the LLM Provider section while their key was wrong saw their ad-detection model silently revert to `claude-sonnet-4-5-20250929`. The pruner now runs only when `advertised` is non-empty. When the probe raises or returns empty, the saved selections survive and a warning logs that the catalog was unavailable. New cases in `tests/unit/test_settings_validation.py::TestProviderChangeModelPruning` pin this behaviour (empty list, raised exception, populated list still prunes mismatched entries).
+- **`AIModelsSection` now surfaces the saved model ID when it is missing from the current provider's catalog.** If the saved value did not appear in the live `/v1/models` response (stored tag belongs to a different provider, model renamed upstream, probe failed), the `<select>` rendered blank because no `<option>` matched, and operators read that as "the setting was reset". Each model dropdown now renders a leading `(current, not in catalog)` option carrying the saved value, so the persisted setting stays visible.
+
 ## [2.5.15] - 2026-05-21
 
 ### Fixed
