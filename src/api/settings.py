@@ -463,6 +463,7 @@ def _apply_provider_fields(db, data):
 
     On any provider-affecting change: clear cached json_format probe, force a
     fresh client, probe again, refresh pricing in a background thread, and
+    (only when the new provider's catalog probe returns a non-empty list)
     prune any saved model ID that the new provider does not advertise.
     """
     provider_changed = False
