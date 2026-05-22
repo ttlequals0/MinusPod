@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.5.18] - 2026-05-22
+
+### Added
+
+- **Pull-to-refresh in the PWA.** Native browser pull-to-refresh is disabled in installed (`display: standalone`) PWAs, so users on the home-screen icon had no way to refresh short of force-quitting the app. Adds whole-app pull-to-refresh via `pulltorefreshjs` (~5 KB gzipped). Triggers `window.location.reload()` only when the user has pulled at least 80 px past the top AND held there for 300 ms before releasing -- a fast flick or short pull snaps back with no action. Implementation is in `frontend/src/App.tsx`: `PullToRefresh.init` mounted from a `useEffect`, plus a side-channel `touchmove` listener that runs the 300 ms dwell timer (the library exposes no per-frame pull callback). The library's standard `.ptr--ptr` indicator colour-shifts to the primary theme token while the dwell timer is running so the user gets a "keep holding" cue. Suppressed when `window.scrollY != 0`, on the Login route, while an `input`/`textarea`/`select` has focus, and against re-entrant touchstart so a second finger does not overwrite the pull origin. `overscroll-behavior-y: contain` added to `html` to block the browser's own pull-to-refresh / rubber-band so the two handlers do not fight.
+
 ## [2.5.17] - 2026-05-22
 
 ### Fixed
