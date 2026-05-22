@@ -1,0 +1,25 @@
+[{
+    "start": 15388.3,
+    "end": 15416.5,
+    "confidence": 0.98,
+    "reason": "Airtasker sponsor read",
+    "end_text": "Airtasker.com. Airtasker."
+}, {
+    "start": 15416.7,
+    "end": 15452.3,
+    "confidence": 0.97,
+    "reason": "CVS sponsor read",
+    "end_text": "cvs.com or just come by our store."
+}, {
+    "start": 15453.9,
+    "end": 15481.1,
+    "confidence": 0.96,
+    "reason": "Trashy sponsor read",
+    "end_text": "Visit Trashy.io to get started."
+}, {
+    "start": 15482.9,
+    "end": 15517.1,
+    "confidence": 0.95,
+    "reason": "Fencing promotion and iHeart Podcast tag",
+    "end_text": "tryfencing.org. This is an iHeart Podcast."
+}]

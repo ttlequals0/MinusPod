@@ -1,0 +1,1 @@
+{"start":2208.3,"end":2237.0,"confidence":0.99,"reason":"Blinds.com host-read style ad with promotional copy, product pitch, and discount offer; likely preceded by a break transition from the show content","end_text":"get a free professional measure at Blinds.com"}

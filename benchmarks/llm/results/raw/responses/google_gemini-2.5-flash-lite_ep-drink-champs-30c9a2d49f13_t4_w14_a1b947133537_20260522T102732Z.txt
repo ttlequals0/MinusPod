@@ -1,0 +1,30 @@
+[
+  {
+    "start": 6208.7,
+    "end": 6233.9,
+    "confidence": 0.95,
+    "reason": "Airtasker sponsor read with a call to action to download the app or go to Airtasker.com.",
+    "end_text": "Airtasker, get anything done."
+  },
+  {
+    "start": 6234.1,
+    "end": 6282.7,
+    "confidence": 0.95,
+    "reason": "This segment promotes a special episode about sexual health, sponsored by Care for the Culture from Gilead Sciences. It includes a call to action to listen wherever podcasts are available.",
+    "end_text": "wherever you get your podcasts. Sponsored by Care for the Culture from Gilead Sciences."
+  },
+  {
+    "start": 6283.4,
+    "end": 6313.4,
+    "confidence": 0.95,
+    "reason": "OnDeck sponsor read with a call to action to apply at OnDeck.com.",
+    "end_text": "All amounts subject to lender approval."
+  },
+  {
+    "start": 6313.8,
+    "end": 6318.1,
+    "confidence": 0.95,
+    "reason": "This is a short, network-inserted ad for Public, an investing platform.",
+    "end_text": "take it seriously."
+  }
+]

@@ -1,0 +1,16 @@
+[
+  {
+    "start": 1886.8,
+    "end": 1901.8,
+    "confidence": 0.9,
+    "reason": "Hosting platform/network-inserted outro/transition",
+    "end_text": "Thank you for watching."
+  },
+  {
+    "start": 2270.7,
+    "end": 2288.1,
+    "confidence": 0.9,
+    "reason": "Hosting platform/network-inserted outro/transition",
+    "end_text": "Thank you for watching."
+  }
+]

@@ -1,0 +1,7 @@
+{
+  "start": 4143.7,
+  "end": 4195.3,
+  "confidence": 0.7,
+  "reason": "Host read of listener support options (email, social media, Patreon, Venmo, Cash app, PO box) and cross-promotion of bonus content/subscription. This is a promotional segment for the show's own support/merchandise, not a third-party ad, but includes a call to action for paid subscription. Per rules, host organically mentioning their own other shows/social media/Patreon during conversation is not an ad. However, the call to subscribe to bonus content at TakePoliticsSeriously.com with a price ($99 annual) and pitch 'Set it and forget it... Get four episodes... delivered straight to your ear holes' is promotional language for the show's own product. Low confidence due to lack of third-party sponsor.",
+  "end_text": "straight to your ear holes, man"
+}

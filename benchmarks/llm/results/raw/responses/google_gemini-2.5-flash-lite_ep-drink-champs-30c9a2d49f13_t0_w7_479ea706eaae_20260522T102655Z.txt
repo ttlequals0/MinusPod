@@ -1,0 +1,16 @@
+[
+  {
+    "start": 3478.9,
+    "end": 3528.5,
+    "confidence": 0.95,
+    "reason": "Airtasker network-inserted ad with promotional language and call to action.",
+    "end_text": "Airtasker, get anything done."
+  },
+  {
+    "start": 3528.8,
+    "end": 3556.2,
+    "confidence": 0.95,
+    "reason": "This appears to be a cross-promotion for another podcast, 'Decisions Decisions', discussing sexual health. This is a form of advertisement.",
+    "end_text": "and that's the problem with those comments that day."
+  }
+]

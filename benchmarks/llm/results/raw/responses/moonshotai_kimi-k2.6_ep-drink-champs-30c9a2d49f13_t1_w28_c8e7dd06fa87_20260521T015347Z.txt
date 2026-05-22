@@ -1,0 +1,1 @@
+{"start": 11742.8, "end": 12382.9, "confidence": 0.0, "reason": "No promotional language, sponsor names, URLs, promo codes, or calls to action detected in this window. Content consists entirely of interview conversation, host banter, and show wrap-up.", "end_text": "N/A"}

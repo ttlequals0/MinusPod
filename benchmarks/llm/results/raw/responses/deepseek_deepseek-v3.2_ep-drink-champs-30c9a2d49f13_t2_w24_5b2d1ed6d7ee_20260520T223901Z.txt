@@ -1,0 +1,1 @@
+{"start": 10680.0, "end": 10680.0, "confidence": 0.0, "reason": "No ad content detected in this transcript segment. The conversation is about artist rights, NFL player rights, and reparations.", "end_text": "I think that's something that"}

@@ -1,0 +1,32 @@
+{
+  "ad_segments": [
+    {
+      "start": 9237.9,
+      "end": 9258.6,
+      "confidence": 0.95,
+      "reason": "End of episode wrap-up and farewell",
+      "end_text": "next time on Security Now. Righto."
+    },
+    {
+      "start": 9259.3,
+      "end": 9290.5,
+      "confidence": 0.98,
+      "reason": "TWiT Network cross-promotion for This Week in Tech",
+      "end_text": "from the TWiT Network. Thank you."
+    },
+    {
+      "start": 9312.9,
+      "end": 9315.5,
+      "confidence": 0.50,
+      "reason": "Possible platform-inserted tag fragment but too short/ambiguous to definitively classify as ad",
+      "end_text": "ambition, for citizens back."
+    },
+    {
+      "start": 9344.4,
+      "end": 9374.4,
+      "confidence": 0.99,
+      "reason": "Mint Mobile sponsored ad with promo code and legal disclaimer",
+      "end_text": "full terms at mintmobile.com."
+    }
+  ]
+}

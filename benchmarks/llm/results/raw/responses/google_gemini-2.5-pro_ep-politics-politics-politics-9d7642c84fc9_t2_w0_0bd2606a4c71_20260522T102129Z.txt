@@ -1,0 +1,9 @@
+[
+  {
+    "start": 0.0,
+    "end": 30.4,
+    "confidence": 0.95,
+    "reason": "The segment contains a clear sponsorship transition: 'The following is brought to you by Just Another Pilot.' The ad itself likely aired in the untranscribed gap that follows.",
+    "end_text": "by Just Another Pilot."
+  }
+]

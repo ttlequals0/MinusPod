@@ -1,0 +1,7 @@
+{ 
+  "start": 2927.9, 
+  "end": 3544.1, 
+  "confidence": 0.0, 
+  "reason": "No promotional content or sponsor mentions detected in this window", 
+  "end_text": "And it's not really in the ways that we had initially thought. It hasn't reduced jobs in Silicon Valley."
+}

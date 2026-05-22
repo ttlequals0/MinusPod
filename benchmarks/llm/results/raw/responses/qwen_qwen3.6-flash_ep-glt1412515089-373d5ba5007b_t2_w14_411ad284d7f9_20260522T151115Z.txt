@@ -1,0 +1,1 @@
+[{"start": 5866.3, "end": 5866.3, "confidence": 0.95, "reason": "Pre-roll sponsor read for Perplexity", "end_text": "podcastchoices.com/adchoices"}]

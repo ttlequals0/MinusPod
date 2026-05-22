@@ -1,0 +1,7 @@
+{  
+  "start": 12.42,  
+  "end": 18.61,  
+  "confidence": 0.95,  
+  "reason": "The segment contains a detailed description of a podcast episode focusing on a crime investigation, including specific details about the suspects and their actions, which aligns with the criteria for advertisement detection due to its structured and promotional nature.",  
+  "end_text": "David believes it's possible that Julian may have been double-crossing."  
+}

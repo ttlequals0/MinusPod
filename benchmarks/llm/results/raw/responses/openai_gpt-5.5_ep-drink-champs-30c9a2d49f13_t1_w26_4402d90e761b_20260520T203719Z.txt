@@ -1,0 +1,1 @@
+{"start":11335.2,"end":11455.4,"confidence":0.99,"reason":"Ad break with Airtasker app promotion, Decisions Decisions/Gilead Sciences podcast promo, and OnDeck small business line of credit ad with call to action OnDeck.com","end_text":"subject to lender approval"}

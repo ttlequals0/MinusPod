@@ -1,0 +1,9 @@
+[
+  {
+    "start": 3251.5,
+    "end": 3279.5,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Club TWiT, promoting ad-free podcasts and exclusive content.",
+    "end_text": "and we're going to cover Mozilla's pushback against that at the end of the podcast."
+  }
+]

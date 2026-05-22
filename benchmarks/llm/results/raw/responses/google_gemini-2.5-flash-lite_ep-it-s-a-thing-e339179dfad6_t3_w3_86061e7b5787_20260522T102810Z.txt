@@ -1,0 +1,23 @@
+[
+  {
+    "start": 1524.5,
+    "end": 1561.9,
+    "confidence": 0.98,
+    "reason": "Xero accounting platform sponsor read with call to action and mention of Acast.",
+    "end_text": "ACAST powers the world's best podcasts."
+  },
+  {
+    "start": 1565.4,
+    "end": 1592.5,
+    "confidence": 0.95,
+    "reason": "Cross-promotion for the podcast 'Wrong Turns' hosted by Jameeda Jamil, inserted by Acast.",
+    "end_text": "where dignity goes to die."
+  },
+  {
+    "start": 1595.5,
+    "end": 1602.6,
+    "confidence": 0.95,
+    "reason": "Acast platform ad promoting their services.",
+    "end_text": "Acast.com."
+  }
+]

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 8724.9,
+    "end": 8831.4,
+    "confidence": 1.0,
+    "reason": "Multiple ads: AirTasker (promo with URL), Decisions Decisions podcast cross-promo sponsored by Gilead Sciences, OnDeck (loan service with URL), Public (investing platform)",
+    "end_text": "take it seriously"
+  }
+]

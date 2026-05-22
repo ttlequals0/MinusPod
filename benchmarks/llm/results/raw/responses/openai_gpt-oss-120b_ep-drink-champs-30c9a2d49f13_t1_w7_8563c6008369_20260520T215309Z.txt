@@ -1,0 +1,1 @@
+{"start":3478.9,"end":3528.5,"confidence":0.97,"reason":"Airtasker sponsor read with call‑to‑action and URL, plus cross‑promotion for Decisions Decisions","end_text":"Decisions Decisions."}

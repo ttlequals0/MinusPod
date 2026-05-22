@@ -1,0 +1,1 @@
+{"start": 1659.8, "end": 2285.1, "confidence": 0.98, "reason": "No advertisement segments detected in transcript window; all content is organic discussion about hip-hop media, journalists, and rankings without promotional language, sponsor mentions, URLs, or calls to action", "end_text": "everything he talked about."}

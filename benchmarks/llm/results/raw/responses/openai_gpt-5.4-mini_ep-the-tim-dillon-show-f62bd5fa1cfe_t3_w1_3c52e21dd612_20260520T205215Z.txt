@@ -1,0 +1,1 @@
+{"start":401.8,"end":430.7,"confidence":0.84,"reason":"Partial host mention of sponsor-type content is not enough to confirm an ad, but this segment is the only possible ad-like break in the provided window; transcript lacks explicit promo copy here, so confidence is low and it may be non-ad content.","end_text":"they don't sell the houses"}

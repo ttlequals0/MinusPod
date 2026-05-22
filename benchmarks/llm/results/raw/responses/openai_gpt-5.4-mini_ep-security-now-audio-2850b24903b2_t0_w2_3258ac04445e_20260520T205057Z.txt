@@ -1,0 +1,1 @@
+{"start":1405.0,"end":1441.5,"confidence":0.27,"reason":"No clear ad read in the transcript window; this is editorial content about NCSC warning and a tagline in a quoted warning, not sponsor promotion. No promotional sponsor names, URLs, or calls to action.","end_text":"address decades of technical debt"}

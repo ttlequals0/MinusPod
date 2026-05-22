@@ -1,0 +1,9 @@
+[
+  {
+    "start": 5420.4,
+    "end": 5441.4,
+    "confidence": 0.9,
+    "reason": "Detected placeholder text ('promo code, discount code') which strongly indicates a dynamically inserted ad that was not transcribed properly.",
+    "end_text": "code, discount code, discount code"
+  }
+]

@@ -1,0 +1,1 @@
+[{"start": 15388.3, "end": 15517.1, "confidence": 0.98, "reason": "Back-to-back sponsor reads for Airtasker, CVS, Trashy, and Try Fencing, ending with iHeart platform tag", "end_text": "iHeart Podcast. Guaranteed human."}]

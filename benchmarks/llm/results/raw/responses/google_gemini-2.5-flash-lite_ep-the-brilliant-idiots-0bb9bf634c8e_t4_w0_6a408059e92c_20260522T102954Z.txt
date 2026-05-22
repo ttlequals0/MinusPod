@@ -1,0 +1,9 @@
+[
+  {
+    "start": 0.5,
+    "end": 43.4,
+    "confidence": 0.98,
+    "reason": "This is a host-read advertisement for Carvana, a car selling service. The host describes their personal experience using the service and encourages listeners to try it.",
+    "end_text": "Charlemagne Tha God, back for another week of the Brilliant Idiots podcast."
+  }
+]

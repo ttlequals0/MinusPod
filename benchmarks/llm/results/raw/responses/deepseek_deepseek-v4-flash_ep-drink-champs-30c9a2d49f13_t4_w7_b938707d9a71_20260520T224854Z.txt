@@ -1,0 +1,7 @@
+{
+  "start": 3478.9,
+  "end": 3540.0,
+  "confidence": 0.97,
+  "reason": "Airtasker sponsor read and cross-promotion for Decisions Decisions podcast with Kiki Palmer",
+  "end_text": "what happened to the conversation about abstinence"
+}

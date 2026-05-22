@@ -1,0 +1,11 @@
+{
+  "segments": [
+    {
+      "start": 7607.7,
+      "end": 7797.4,
+      "confidence": 0.98,
+      "reason": "Host-read ad for Trusted Tech with promo code and URL (trustedtech.team/securitynow365)",
+      "end_text": "trustedtech.team securitynow365"
+    }
+  ]
+}

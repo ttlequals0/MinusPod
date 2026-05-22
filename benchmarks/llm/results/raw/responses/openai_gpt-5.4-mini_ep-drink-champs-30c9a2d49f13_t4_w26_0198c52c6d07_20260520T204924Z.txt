@@ -1,0 +1,1 @@
+{"start":11335.2,"end":11454.3,"confidence":0.99,"reason":"Produced ad block for Airtasker, then a sponsored promo for Decisions Decisions and Care for the Culture from Gilead Sciences, followed by OnDeck small business line of credit pitch with URL and call to apply","end_text":"Apply today at OnDeck.com"}

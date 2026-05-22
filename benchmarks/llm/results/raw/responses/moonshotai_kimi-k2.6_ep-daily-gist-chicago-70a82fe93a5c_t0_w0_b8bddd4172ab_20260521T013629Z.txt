@@ -1,0 +1,1 @@
+{"start":54.1,"end":64.7,"confidence":0.95,"reason":"Old National Bank host-read sponsor segment with product pitch, URL, and call to action: 'Connect with a banker today at oldnational.com slash commercial banking. Member FDIC.'","end_text":"slash commercial banking. Member FDIC."}

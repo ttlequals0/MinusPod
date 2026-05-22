@@ -1,0 +1,7 @@
+{
+  "start": 2078.8,
+  "end": 2681.9,
+  "confidence": 0.95,
+  "reason": "No ads detected in this window. The content is a discussion about AI, data centers, and campaign strategies.",
+  "end_text": "We'll see you next time."
+}

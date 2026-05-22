@@ -1,0 +1,7 @@
+{
+  "start": 33.58,
+  "end": 39.83,
+  "confidence": 0.95,
+  "reason": "The segment contains a transition from a discussion about sexual health to a personal anecdote involving John Gruden and Bon Jovi, indicating a shift in topic and a potential sponsorship or promotional content.",
+  "end_text": "I got married my 98, January 28th, 1998. At what age?"
+}

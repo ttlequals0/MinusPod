@@ -1,0 +1,7 @@
+{
+  "start": 400.6,
+  "end": 977.3,
+  "confidence": 0.95,
+  "reason": "The segment contains a sponsor read with promotional language and transitions, including references to specific products and calls to action.",
+  "end_text": "I got three. I got three."
+}

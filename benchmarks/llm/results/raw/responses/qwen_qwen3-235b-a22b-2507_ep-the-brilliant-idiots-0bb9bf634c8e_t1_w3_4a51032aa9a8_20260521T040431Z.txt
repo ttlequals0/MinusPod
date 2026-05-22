@@ -1,0 +1,1 @@
+{"start": 1250.2, "end": 1867.6, "confidence": 0.1, "reason": "No promotional language, sponsor mentions, URLs, or calls to action present; content is organic discussion of hip-hop media, rankings, and journalism; mentions of 'Black Effect' and podcasts are contextual within the conversation, not host-read ads", "end_text": "Elliott Wilson in that category, too."}

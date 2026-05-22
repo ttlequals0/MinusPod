@@ -1,0 +1,1 @@
+{"start":0.0,"end":59.8,"confidence":0.99,"reason":"Two sponsor reads: Hex promo with product pitch and Hex.ai URL, followed by PickOCNY.com travel promotion and call to visit the site. Includes ad-style transition into sponsor content.","end_text":"Find your fresh state of mind at PickOCNY.com"}

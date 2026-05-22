@@ -1,0 +1,1 @@
+{"start":2270.0,"end":2309.9,"confidence":0.41,"reason":"Possible platform/network promo about OpenAI, Facebook, Amazon and data centers, but no clear sponsor read, URL, promo code, or explicit ad transition; likely editorial discussion rather than an ad","end_text":"we need compute to yesterday. And I don't mean"}

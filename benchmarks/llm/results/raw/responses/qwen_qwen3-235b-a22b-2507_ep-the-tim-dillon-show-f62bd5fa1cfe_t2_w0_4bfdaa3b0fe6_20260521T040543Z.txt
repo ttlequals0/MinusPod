@@ -1,0 +1,1 @@
+{"start": 0.0, "end": 28.1, "confidence": 0.98, "reason": "Colgate Women's Games promotional segment with brand name, product positioning, and tagline", "end_text": "Colgate, your smile is your strength."}

@@ -1,0 +1,1 @@
+{ "start": 5441.4, "end": 5469.9, "confidence": 0.3, "reason": "Possible ad: repeated phrase 'discount code' (9 times) but no sponsor name, URL, or coherent promotional content; likely a transcription artifact or production error rather than a genuine advertisement", "end_text": "discount code, discount code, discount code" }

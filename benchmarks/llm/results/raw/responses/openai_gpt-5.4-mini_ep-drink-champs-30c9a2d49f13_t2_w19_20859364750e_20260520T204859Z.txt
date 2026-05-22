@@ -1,0 +1,1 @@
+{"start":8580.0,"end":8588.6,"confidence":0.22,"reason":"No clear ad detected in this window; transcript shows continued conversation with no sponsor promo language, URLs, codes, or break transition.","end_text":"y'all got DJ Clue"}

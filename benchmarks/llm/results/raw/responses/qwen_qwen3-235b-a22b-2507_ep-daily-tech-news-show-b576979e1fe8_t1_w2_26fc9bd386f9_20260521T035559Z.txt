@@ -1,0 +1,1 @@
+[{"start": 994.2, "end": 1086.5, "confidence": 0.96, "reason": "Host-read promotional segment for Insta360 Go 3S Retro Bundle with product details, pricing, and marketing language", "end_text": "launch price for the model that came before it"}]

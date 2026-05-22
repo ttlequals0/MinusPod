@@ -1,0 +1,1 @@
+{"start":3278.7,"end":3358.1,"confidence":0.82,"reason":"Host transitions into sponsor-like promotional discussion of bug bounty concepts with explicit callout 'let's take a step back' but no clear ad markers; however the transcript here appears to be show content, not an ad, so no ad segment detected in this window.","end_text":"Finding bugs is now cheaper than ever."}

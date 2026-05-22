@@ -1,0 +1,1 @@
+{"start": 4195.9, "end": 4317.9, "confidence": 0.98, "reason": "Host-read sponsorship and call to action for paid subscription with promotional language, URLs, and calls to support", "end_text": "Diamond Club hopes you have enjoyed this broker"}

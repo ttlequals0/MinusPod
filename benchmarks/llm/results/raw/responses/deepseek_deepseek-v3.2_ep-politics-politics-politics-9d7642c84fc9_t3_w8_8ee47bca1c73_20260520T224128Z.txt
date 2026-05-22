@@ -1,0 +1,1 @@
+{"start": 3741.3, "end": 3767.0, "confidence": 0.95, "reason": "Host outro with show credits, host and producer names, and promotion of guest's work and company", "end_text": "She's got a good vibe."}

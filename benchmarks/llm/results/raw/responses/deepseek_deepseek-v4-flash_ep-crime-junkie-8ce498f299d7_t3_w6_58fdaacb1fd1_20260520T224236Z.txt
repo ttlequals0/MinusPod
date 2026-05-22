@@ -1,0 +1,16 @@
+{  
+  "ads": [  
+    {  
+      "start": 2834.9,  
+      "end": 2834.9,  
+      "confidence": 0.97,  
+      "reason": "AudioChuck production tagline with silence gap – network/production promo, not editorial content (only transition detected, no host-read sponsor)."  
+    },  
+    {  
+      "start": 2863.0,  
+      "end": 2894.5,  
+      "confidence": 0.99,  
+      "reason": "LinkedIn Premium All-in-One host-read ad: promotional pitch, product features, call to action (LinkedIn.com/slash/all-in-one), no promo code but clear sponsor message."  
+    }  
+  ]  
+}

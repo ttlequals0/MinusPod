@@ -1,0 +1,2 @@
+w.
+{"start": 9840.0, "end": 9840.0, "confidence": 0.0, "reason": "No advertisement segments detected in the provided transcript window.", "end_text": "No advertisement segments detected in the provided transcript window."}

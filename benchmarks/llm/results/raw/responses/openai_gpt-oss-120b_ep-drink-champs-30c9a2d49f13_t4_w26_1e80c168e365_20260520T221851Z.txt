@@ -1,0 +1,18 @@
+{
+  "ads": [
+    {
+      "start": 11341.1,
+      "end": 11392.4,
+      "confidence": 0.96,
+      "reason": "Airtasker sponsor read and Decisions Decisions cross‑promotion",
+      "end_text": ". . . . ."
+    },
+    {
+      "start": 11416.3,
+      "end": 11455.4,
+      "confidence": 0.97,
+      "reason": "Care for the Culture sponsor mention and OnDeck loan promotion",
+      "end_text": "subject to lender approval."
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "ads": [
+    {
+      "start": 3478.9,
+      "end": 3528.5,
+      "confidence": 0.99,
+      "reason": "Airtasker sponsor read",
+      "end_text": "get anything done"
+    },
+    {
+      "start": 3528.8,
+      "end": 3577.4,
+      "confidence": 0.98,
+      "reason": "Cross-promotion for 'Decisions Decisions' podcast sponsored by Gilead Sciences",
+      "end_text": "from Gilead Sciences"
+    },
+    {
+      "start": 3578.1,
+      "end": 3608.0,
+      "confidence": 0.99,
+      "reason": "OnDeck small business line of credit ad",
+      "end_text": "lender approval"
+    },
+    {
+      "start": 3608.5,
+      "end": 3666.3,
+      "confidence": 0.99,
+      "reason": "Public investing platform sponsor read",
+      "end_text": "public.com slash disclosures"
+    }
+  ]
+}

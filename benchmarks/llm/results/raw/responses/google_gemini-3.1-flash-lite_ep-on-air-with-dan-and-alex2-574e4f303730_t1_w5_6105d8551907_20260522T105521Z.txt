@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2609.5,
+    "end": 2634.3,
+    "confidence": 1.0,
+    "reason": "Host-read advertisement segment listing multiple sponsors and promo codes",
+    "end_text": "Manscaped, Stamps.com"
+  }
+]

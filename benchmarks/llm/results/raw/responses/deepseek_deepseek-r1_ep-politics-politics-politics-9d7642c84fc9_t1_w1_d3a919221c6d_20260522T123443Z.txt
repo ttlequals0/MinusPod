@@ -1,0 +1,9 @@
+[
+  {
+    "start": 909.6,
+    "end": 933.9,
+    "confidence": 0.85,
+    "reason": "Host-read promotion for TakePoliticsSeriously.com with call to action for bonus episodes",
+    "end_text": "episodes of this show"
+  }
+]

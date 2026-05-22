@@ -1,0 +1,7 @@
+{
+  "start": 10521.6,
+  "end": 10526.4,
+  "confidence": 0.95,
+  "reason": "Host transition to break",
+  "end_text": "ESPN cannot be a part of this."
+}

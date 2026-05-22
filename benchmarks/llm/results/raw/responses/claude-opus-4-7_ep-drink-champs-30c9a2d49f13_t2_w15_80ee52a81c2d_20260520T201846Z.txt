@@ -1,0 +1,1 @@
+[{"start": 6283.4, "end": 6343.1, "confidence": 0.98, "reason": "OnDeck and Public.com ads, continues from previous", "end_text": "Transcription by CastingWords"}]

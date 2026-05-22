@@ -1,0 +1,1 @@
+[{"start": 3478.9, "end": 3650.4, "confidence": 0.98, "reason": "Sponsor block containing Airtasker, Decisions Decisions/Gilead, OnDeck, Public, and CastingWords reads", "end_text": "Transcription by CastingWords"}, {"start": 3666.3, "end": 3669.0, "confidence": 0.95, "reason": "Public.com legal disclosure segment", "end_text": "public.com slash disclosures"}]

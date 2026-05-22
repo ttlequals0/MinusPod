@@ -1,0 +1,2 @@
+."
+{"start": 591.3, "end": 619.8, "confidence": 0.95, "reason": "Parloa sponsor read", "end_text": "take it, take it, take it, take it."}

@@ -1,0 +1,6 @@
+[
+  {
+    "start": 2085.5,
+    "end": 2699.0,
+    "confidence": 0.95,
+    "reason": "This entire segment is a host-read advertisement for GLP-1s and iPads for toddlers, framed as a satirical or darkly humorous take on modern parenting. While not a direct sponsor read with a promo code, the language is promotional in nature, advocating for the use of these products

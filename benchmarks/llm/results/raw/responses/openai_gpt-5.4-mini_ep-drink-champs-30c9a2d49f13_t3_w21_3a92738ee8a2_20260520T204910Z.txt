@@ -1,0 +1,1 @@
+{"start":8799.1,"end":8831.4,"confidence":0.99,"reason":"Continues from previous; sponsored break with explicit ad copy for OnDeck and Public, including 'Support for the show comes from Public' and OnDeck loan pitch plus URL.","end_text":"the investing platform for those who take it seriously."}

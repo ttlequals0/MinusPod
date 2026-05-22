@@ -1,0 +1,1 @@
+{"start":0.0,"end":104.3,"confidence":0.99,"reason":"Multiple ad segments at the start: Capital One sponsor read, Broadway promo for Every Brilliant Thing, AllTrails app promotion, and Zyn nicotine pouches ad with product pitch and CTA","end_text":"Nicotine is an addictive chemical"}

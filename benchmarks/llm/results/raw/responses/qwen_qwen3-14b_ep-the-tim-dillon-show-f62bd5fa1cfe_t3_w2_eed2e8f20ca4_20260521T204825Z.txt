@@ -1,0 +1,2 @@
+y.
+{"start": 1440.0, "end": 1440.0, "confidence": 0.0, "reason": "No advertisement segments found in the provided transcript window.", "end_text": "part of life."}

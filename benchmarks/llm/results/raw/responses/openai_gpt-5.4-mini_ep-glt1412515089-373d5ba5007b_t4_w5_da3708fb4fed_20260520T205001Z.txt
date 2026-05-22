@@ -1,0 +1,1 @@
+{"start":2208.3,"end":2237.0,"confidence":0.97,"reason":"Blinds.com host-read sponsor segment with promotional copy and discount offer; begins with a break into ad content and includes product pitch and site-wide discount","end_text":"free professional measure at Blinds.com"}

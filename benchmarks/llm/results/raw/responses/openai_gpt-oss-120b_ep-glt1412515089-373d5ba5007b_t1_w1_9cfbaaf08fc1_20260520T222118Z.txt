@@ -1,0 +1,18 @@
+{
+  "result": [
+    {
+      "start": 539.2,
+      "end": 568.3,
+      "confidence": 0.98,
+      "reason": "In the Gray movie sponsor read",
+      "end_text": "black and white, they operate."
+    },
+    {
+      "start": 568.4,
+      "end": 652.8,
+      "confidence": 0.98,
+      "reason": "Skechers slip‑ins product sponsor read",
+      "end_text": "only at Skechers.com."
+    }
+  ]
+}

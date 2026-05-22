@@ -1,0 +1,1 @@
+{"error":"Transcript times do not exist. Start times in the problem appear to be referencing whole transcript, but window indices might differ. We must ensure start and end numeric floats. Provided times (13669.1 etc) are correct floats. Provide JSON array with objects."}

@@ -1,0 +1,1 @@
+{"start": 1035.7, "end": 1129.6, "confidence": 0.97, "reason": "Host-read sponsor ads for SoFi personal loans and LinkedIn Premium All-in-One with promotional language, URL, and call to action", "end_text": "LinkedIn.com slash all-in-one"}

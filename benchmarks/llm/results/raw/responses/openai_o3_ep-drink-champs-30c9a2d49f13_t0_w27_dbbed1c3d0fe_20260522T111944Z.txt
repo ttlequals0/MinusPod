@@ -1,0 +1,1 @@
+{"start":11335.2,"end":11513.7,"confidence":0.94,"reason":"Merged ad block containing Airtasker app sponsor read, Decisions Decisions podcast promo (sponsored by Gilead Sciences), and OnDeck line of credit ad","end_text":"Transcription by CastingWords"}

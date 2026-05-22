@@ -1,0 +1,1 @@
+{"start":1742.3,"end":1799.6,"confidence":0.99,"reason":"Capital One sponsor segment with explicit promo language ('This episode is brought to you by Capital One'), product pitch for Chat Concierge, and a call to action to 'Tune in to Good Things from Lemonada Media' and 'Thrive series'.","end_text":"hear the six-part Thrive series"}

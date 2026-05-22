@@ -1,0 +1,1 @@
+{"start": 4525.1, "end": 4528.1, "confidence": 0.98, "reason": "Platform-inserted ad break or outro with abrupt transition", "end_text": "We'll see you next time."}

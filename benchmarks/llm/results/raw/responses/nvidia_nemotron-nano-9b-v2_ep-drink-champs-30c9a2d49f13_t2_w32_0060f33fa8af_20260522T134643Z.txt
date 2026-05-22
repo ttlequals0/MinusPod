@@ -1,0 +1,1 @@
+[{"start": 13759.0, "end": 13786.2, "confidence": 0.95, "reason": "OnDeck promotion with transition phrase", "end_text": "Apply in minutes at OnDeck.com"}]

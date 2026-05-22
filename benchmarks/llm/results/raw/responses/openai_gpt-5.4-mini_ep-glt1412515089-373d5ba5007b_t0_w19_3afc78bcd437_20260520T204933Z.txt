@@ -1,0 +1,1 @@
+{"start":7965.7,"end":8218.9,"confidence":0.99,"reason":"Continues from previous window; Perplexity promo is explicitly referenced in episode description with 'Download the app or ask Perplexity anything at https://pplx.ai/rogan' and podcastchoices ad-choices link, spanning this transcript window until show content resumes.","end_text":"little bits, like weird metals"}

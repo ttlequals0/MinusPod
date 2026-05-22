@@ -1,0 +1,1 @@
+{"start": 1267.4, "end": 1271.2, "confidence": 0.9, "reason": "Podcast outro with host sign-off and subscription call to action", "end_text": "meet you right back here next time."}

@@ -1,0 +1,29 @@
+{
+  "transcript_segments": [
+    {
+      "start": 4195.9,
+      "end": 4218.0,
+      "text": "Set it and forget it. Just get four episodes of this show delivered straight to your ear holes, man. And we are in midterm season. You want to know what? Next week, we got to do ads. I just got to carve out time. There's a lot of ads that have come out. We just talked about a few of those Spencer Pratt ads. We got to watch some of them on here."
+    },
+    {
+      "start": 4221.7,
+      "end": 4240.6,
+      "text": "because they're like fast and furious. Spencer Pratt, his fan community are using these AI tools to do these like minute and a half long short films like three times a week. It's pretty crazy."
+    },
+    {
+      "start": 4242.8,
+      "end": 4269.3,
+      "text": "But the only way that you can get your name read on the end of the show each and every week is our foundational tier like these fine folks. Sunny Black, L3PO, Peepaw, Scott, Middle Age Mike, Tom, Nick, Sarah, Jeannie, Jeremy, Pro Idiot, Chiller Tomatoes, Neil, Casey, oh yeah, it's Adam, AB Puppy, Dr. Whiskey, Fat Tony's PJs from New York, Will, The Borge, B, Michael, Matt, DP4Bongo, Andrew, Edwin, Sam, Andrew, Phil, Edison, Paul."
+    },
+    {
+      "start": 4270.4,
+      "end": 4285.6,
+      "text": "Gloria Young, my mother, a dog named Truckers, Jerry Trucker, John, Berkley, Steven, and Zombie Doc, you want your name right on the show, one place to do it, TakePoliticsSeriously.com."
+    },
+    {
+      "start": 4286.7,
+      "end": 4317.9,
+      "text": "We'll be back next week. Have a great weekend. Until then, this is your old pal, Justin Robert Young, saying, some shows talk about politics, others talk about politics, and still more discuss politics, but this is the only show that dares discuss. Ho! Three. Diamond Club hopes you have enjoyed this broker. Dog and Pony Show Audio."
+    }
+  ]
+}

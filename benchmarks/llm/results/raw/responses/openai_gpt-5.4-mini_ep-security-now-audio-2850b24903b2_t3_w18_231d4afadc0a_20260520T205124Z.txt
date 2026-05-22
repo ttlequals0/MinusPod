@@ -1,0 +1,1 @@
+{"start":7606.9,"end":7797.4,"confidence":0.99,"reason":"Host explicitly says 'let's take our final break' followed by a full Trusted Tech sponsor read with promotional language, Microsoft 365 licensing pitch, free consultation offer, and trustedtech.team/securitynow365 calls to action.","end_text":"Now, back to Steve"}

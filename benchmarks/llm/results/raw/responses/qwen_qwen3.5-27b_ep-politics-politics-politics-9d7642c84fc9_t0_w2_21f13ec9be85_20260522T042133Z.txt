@@ -1,0 +1,1 @@
+[{"start": 909.6, "end": 961.9, "confidence": 0.95, "reason": "TakePoliticsSeriously.com sponsor read introducing news update", "end_text": "which Besant said is China's"}]

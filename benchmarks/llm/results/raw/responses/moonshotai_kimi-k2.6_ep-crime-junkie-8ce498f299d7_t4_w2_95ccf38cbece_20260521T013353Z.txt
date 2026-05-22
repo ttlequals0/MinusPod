@@ -1,0 +1,1 @@
+ {"start": 1036.2, "end": 1129.6, "confidence": 0.99, "reason": "Host-read SoFi sponsor segment with promo URL followed by LinkedIn Premium network-inserted spot with call to action; merged due to <15s gap", "end_text": "LinkedIn.com slash all-in-one"}

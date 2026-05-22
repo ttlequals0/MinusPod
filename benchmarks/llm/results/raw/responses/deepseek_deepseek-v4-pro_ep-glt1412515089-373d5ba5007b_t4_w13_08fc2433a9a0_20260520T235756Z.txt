@@ -1,0 +1,11 @@
+{
+  "transcript": [
+    {
+      "start": 5565.0,
+      "end": 5596.3,
+      "confidence": 0.95,
+      "reason": "Netflix Remarkably Bright Creatures promoted by host read \"This episode is brought to you by\".",
+      "end_text": "only on Netflix. Yeah."
+    }
+  ]
+}

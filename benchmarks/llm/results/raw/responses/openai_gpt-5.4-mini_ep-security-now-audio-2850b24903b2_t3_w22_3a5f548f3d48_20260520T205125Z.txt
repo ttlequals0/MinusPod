@@ -1,0 +1,1 @@
+{"start":9237.9,"end":9290.5,"confidence":0.93,"reason":"Platform promo for another TWiT show: Leo Laporte introduces This Week in Tech and asks listeners to subscribe, following the Security Now sign-off. Includes show promotion language rather than episode content.","end_text":"This Week in Tech from the TWiT Network. Thank you."}

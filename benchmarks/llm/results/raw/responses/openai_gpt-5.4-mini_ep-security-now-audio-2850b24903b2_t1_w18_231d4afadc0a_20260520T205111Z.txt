@@ -1,0 +1,1 @@
+{"start":7630.0,"end":7797.4,"confidence":0.99,"reason":"Trusted Tech host-read sponsor segment begins with 'This episode of Security Now brought to you by Trusted Tech' and includes promo pitch, free consultation offer, and URL 'trustedtech.team/securitynow365'; ad break resumes with 'Now, back to Steve.'","end_text":"Now, back to Steve."}

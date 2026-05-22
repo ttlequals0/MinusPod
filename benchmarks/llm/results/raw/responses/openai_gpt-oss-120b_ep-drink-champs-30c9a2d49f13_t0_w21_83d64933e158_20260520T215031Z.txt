@@ -1,0 +1,25 @@
+{
+  "ads": [
+    {
+      "start": 8799.1,
+      "end": 8826.4,
+      "confidence": 0.97,
+      "reason": "OnDeck sponsor read",
+      "end_text": "subject to lender approval"
+    },
+    {
+      "start": 8827.0,
+      "end": 8831.4,
+      "confidence": 0.96,
+      "reason": "Public investing platform sponsor read",
+      "end_text": "take it seriously"
+    },
+    {
+      "start": 8856.4,
+      "end": 8869.0,
+      "confidence": 0.95,
+      "reason": "CastingWords transcription credit ad",
+      "end_text": "Transcription by CastingWords"
+    }
+  ]
+}

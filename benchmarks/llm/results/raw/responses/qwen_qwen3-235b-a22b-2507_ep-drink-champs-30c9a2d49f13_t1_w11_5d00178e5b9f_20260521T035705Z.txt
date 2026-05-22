@@ -1,0 +1,1 @@
+{"start": 4993.1, "end": 5220.0, "confidence": 0.98, "reason": "Host-read sponsor segment with promotional language and calls to action for \"Drink Champs\" and \"giving flowers,\" including repeated branding and product-like pitch for the show itself, indicating a self-promotional ad break", "end_text": "back from the top."}

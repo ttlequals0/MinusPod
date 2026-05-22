@@ -1,0 +1,1 @@
+[{"start": 1450.9, "end": 1629.0, "confidence": 0.97, "reason": "Multiple platform-inserted ads: Airtasker promo, Decisions Decisions podcast cross-promotion sponsored by Gilead Sciences/Care for the Culture, OnDeck small business line of credit, and BetMGM MLB betting promotion with full disclaimer", "end_text": "Casino and Hotel."}]

@@ -1,0 +1,1 @@
+{"start": 3503.7, "end": 3528.5, "confidence": 0.99, "reason": "Airtasker sponsor read", "end_text": "Airtasker.com"}

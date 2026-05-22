@@ -1,0 +1,2 @@
+n.
+{"start": 8242.2, "end": 8270.6, "confidence": 0.95, "reason": "Perplexity sponsor read with URL and call to action", "end_text": "Visit podcastchoices.com/adchoices"}

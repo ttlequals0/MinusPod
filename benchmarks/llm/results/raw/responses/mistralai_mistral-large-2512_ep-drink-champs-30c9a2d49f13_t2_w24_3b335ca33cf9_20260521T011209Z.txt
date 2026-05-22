@@ -1,0 +1,9 @@
+[
+    {
+        "start": 10527.5,
+        "end": 10574.0,
+        "confidence": 0.92,
+        "reason": "Platform-inserted ad for 'Ballers' (HBO show) with promotional discussion and call to action ('doing the Ballers was...'). While the hosts discuss the show organically, the segment includes concentrated marketing language ('they moved it up... something we can sell you') and references to Drew Rosenhaus, a real-life agent, which aligns with network-inserted ad patterns.",
+        "end_text": "too much truth."
+    }
+]

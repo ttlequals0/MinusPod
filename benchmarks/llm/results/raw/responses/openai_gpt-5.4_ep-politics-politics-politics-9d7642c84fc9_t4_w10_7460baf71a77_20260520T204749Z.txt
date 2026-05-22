@@ -1,0 +1,1 @@
+{"start":4270.4,"end":4285.6,"confidence":0.72,"reason":"self-promotional membership/support call to action for TakePoliticsSeriously.com with explicit pitch to get your name read on the show","end_text":"one place to do it, TakePoliticsSeriously.com"}

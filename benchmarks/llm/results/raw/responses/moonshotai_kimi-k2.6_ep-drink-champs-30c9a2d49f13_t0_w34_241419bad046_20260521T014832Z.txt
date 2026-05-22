@@ -1,0 +1,1 @@
+{"type":"no_ads","start":14268.7,"end":14893.8,"confidence":0.0,"reason":"No promotional language, sponsor names, URLs, promo codes, product pitches, calls to action, or platform/network insertions detected in transcript. Content consists entirely of conversational/editorial discussion between hosts and guest.","end_text":"stopping me and interrupting me by talking to me"}

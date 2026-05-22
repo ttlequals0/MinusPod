@@ -1,0 +1,1 @@
+{"start": 506.4, "end": 515.6, "confidence": 0.9, "reason": "Crain's Daily Gist listener quiz promotion", "end_text": "right after this."}

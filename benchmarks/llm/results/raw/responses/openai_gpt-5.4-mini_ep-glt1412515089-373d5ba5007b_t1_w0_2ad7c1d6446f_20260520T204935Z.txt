@@ -1,0 +1,1 @@
+{"start":539.2,"end":624.5,"confidence":0.99,"reason":"Platform/network ad break beginning with 'This episode is brought to you by' for In the Gray and continuing into a Skechers sponsorship read with promotional copy about Hands-free Skechers slip-ins and product benefits.","end_text":"sneakers,"}

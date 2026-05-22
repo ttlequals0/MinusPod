@@ -1,0 +1,7 @@
+{
+  "start": 400.6,
+  "end": 1023.4,
+  "confidence": 0.95,
+  "reason": "The segment contains promotional language and references to specific products and brands, such as 'Keith Byers' and 'Randall Cunningham', which are discussed in a promotional context. The segment also includes calls to action and product endorsements, indicating it is an advertisement.",
+  "end_text": "Keith Byers was on there, too, doing his thing."
+}

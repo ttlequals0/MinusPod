@@ -1,0 +1,11 @@
+{
+  "segments": [
+    {
+      "start": 524.6,
+      "end": 551.0,
+      "confidence": 0.92,
+      "reason": "Host-read ad transition with 'But before, you wanted to quickly discuss the Air France KLM proposal...' followed by contextual promotional language for their own content/services. This segment includes a call to action for sponsorships and directs listeners to follow and contact them. While it's a transition, it contains promotional elements for the show itself.",
+      "end_text": "what's happening? Yeah, just a quick little..."
+    }
+  ]
+}

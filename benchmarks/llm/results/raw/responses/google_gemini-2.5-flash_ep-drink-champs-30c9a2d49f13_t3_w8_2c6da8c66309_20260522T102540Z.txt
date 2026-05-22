@@ -1,0 +1,30 @@
+[
+  {
+    "start": 3499.0,
+    "end": 3528.5,
+    "confidence": 0.95,
+    "reason": "Airtasker sponsor read",
+    "end_text": "Airtasker, get anything done."
+  },
+  {
+    "start": 3528.5,
+    "end": 3577.4,
+    "confidence": 0.95,
+    "reason": "Care for the Culture / Gilead Sciences sponsor read",
+    "end_text": "from Gilead Sciences."
+  },
+  {
+    "start": 3578.1,
+    "end": 3608.0,
+    "confidence": 0.95,
+    "reason": "OnDeck sponsor read",
+    "end_text": "lender approval."
+  },
+  {
+    "start": 3608.5,
+    "end": 3650.4,
+    "confidence": 0.95,
+    "reason": "Public investing platform sponsor read",
+    "end_text": "by CastingWords"
+  }
+]

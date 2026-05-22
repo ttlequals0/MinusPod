@@ -1,0 +1,1 @@
+{"start": 9741.9, "end": 9757.2, "confidence": 0.3, "reason": "Mention of McDonald's in conspiracy context, not promotional", "end_text": "human fucking puffs"}

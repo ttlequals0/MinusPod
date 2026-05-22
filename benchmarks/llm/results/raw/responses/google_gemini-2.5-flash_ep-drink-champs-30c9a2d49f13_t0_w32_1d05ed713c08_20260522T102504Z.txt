@@ -1,0 +1,37 @@
+[
+  {
+    "start": 13691.1,
+    "end": 13696.9,
+    "confidence": 0.95,
+    "reason": "Airtasker sponsor read",
+    "end_text": "Airtasker.com. Airtasker, get anything done."
+  },
+  {
+    "start": 13697.3,
+    "end": 13758.2,
+    "confidence": 0.95,
+    "reason": "Care for the Culture from Gilead Sciences sponsor read",
+    "end_text": "from Gilead Sciences."
+  },
+  {
+    "start": 13759.0,
+    "end": 13786.2,
+    "confidence": 0.95,
+    "reason": "OnDeck sponsor read",
+    "end_text": "lender approval."
+  },
+  {
+    "start": 13786.9,
+    "end": 13828.9,
+    "confidence": 0.95,
+    "reason": "Public investing platform sponsor read",
+    "end_text": "Transcription by CastingWords"
+  },
+  {
+    "start": 13844.8,
+    "end": 13854.6,
+    "confidence": 0.95,
+    "reason": "Public investing platform sponsor read",
+    "end_text": "day. Of water."
+  }
+]

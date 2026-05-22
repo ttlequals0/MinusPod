@@ -1,0 +1,1 @@
+[{"start": 8724.9, "end": 8737.9, "confidence": 0.95, "reason": "AirTasker ad", "end_text": "AirTasker.com"}, {"start": 8766.4, "end": 8788.9, "confidence": 0.95, "reason": "Care for the Culture from Gilead Sciences", "end_text": "Gilead Sciences"}, {"start": 8827.0, "end": 8831.4, "confidence": 0.95, "reason": "Public investing platform", "end_text": "Public.com"}]

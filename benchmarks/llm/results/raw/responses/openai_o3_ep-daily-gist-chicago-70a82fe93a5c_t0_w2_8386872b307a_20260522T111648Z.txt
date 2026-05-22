@@ -1,0 +1,1 @@
+{"error": "The provided transcript segment contains no advertisement segments according to the specified detection rules."}

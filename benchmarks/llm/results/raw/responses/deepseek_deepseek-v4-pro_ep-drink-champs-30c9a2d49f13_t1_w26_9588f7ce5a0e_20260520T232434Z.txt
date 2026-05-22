@@ -1,0 +1,11 @@
+{
+  "segments": [
+    {
+      "start": 11335.2,
+      "end": 11455.4,
+      "confidence": 0.96,
+      "reason": "Multiple ads: Airtasker pitch with call to action, cross-promotion for Decisions Decisions podcast, and OnDeck financial product advertisement with URL and disclosures",
+      "end_text": "subject to lender approval."
+    }
+  ]
+}

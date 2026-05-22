@@ -1,0 +1,1 @@
+{"start": 2078.8, "end": 2104.9, "confidence": 0.0, "reason": "No promotional content detected in this transcript segment. The content is a continuation of an interview about AI and politics.", "end_text": "doomers or"}

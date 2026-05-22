@@ -1,0 +1,1 @@
+">// [1414.2s - 1488.9s] Mint Mobile sponsor read with promo code and URL, [1489.6s - 1512.6s] Aura Frames sponsor read with promo code TIM and URL, [1607.4s - 1629.5s] Colgate Women's Games sponsor read, [1637.6s - 1665.9s] Skinny Pop sponsor read with product pitch and benefits</p><p>Output: [{{"

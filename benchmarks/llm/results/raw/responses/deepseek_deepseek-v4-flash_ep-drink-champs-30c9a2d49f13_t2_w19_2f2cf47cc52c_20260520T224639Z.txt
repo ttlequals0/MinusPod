@@ -1,0 +1,1 @@
+{ "start": 0, "end": 0, "confidence": 0, "reason": "No ads in this transcript window", "end_text": "" }

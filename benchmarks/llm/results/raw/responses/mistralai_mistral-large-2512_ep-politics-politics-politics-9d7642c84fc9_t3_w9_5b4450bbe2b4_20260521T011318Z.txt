@@ -1,0 +1,16 @@
+[
+    {
+        "start": 4167.1,
+        "end": 4285.6,
+        "confidence": 0.98,
+        "reason": "Host-read ad segment promoting bonus content, payment platforms (PayPal, Venmo, Cash App), mailing address, and Patreon-like subscription (TakePoliticsSeriously.com). Includes calls to action, URLs, and payment details.",
+        "end_text": "TakePoliticsSeriously.com."
+    },
+    {
+        "start": 4286.7,
+        "end": 4317.9,
+        "confidence": 0.95,
+        "reason": "Network/platform-inserted outro with promotional language for the show and hosting platform (Diamond Club, 'broker Dog and Pony Show Audio'). Tonally distinct from editorial content.",
+        "end_text": "broker. Dog and Pony Show Audio."
+    }
+]

@@ -1,0 +1,11 @@
+{
+  "segments": [
+    {
+      "start": 15388.3,
+      "end": 15517.1,
+      "confidence": 0.99,
+      "reason": "Multiple ads: Airtasker, CVS, Trashy, tryfencing.org, iHeart Podcast tagline",
+      "end_text": "iHeart Podcast. Guaranteed human."
+    }
+  ]
+}

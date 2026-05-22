@@ -1,0 +1,1 @@
+{"start":5760.0,"end":5815.9,"confidence":0.96,"reason":"Host discussion explicitly notes Jeff Bezos as sponsor of the Met Gala and mentions Amazon, Amazon Studios, MGM Studios, Washington Post, and Prime in a promotional context; this is the sponsor-related break boundary within the window.","end_text":"Amazon was a corporate sponsor, too, of the Met Gala"}

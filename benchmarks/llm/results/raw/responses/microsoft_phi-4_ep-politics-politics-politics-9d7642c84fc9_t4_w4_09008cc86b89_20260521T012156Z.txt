@@ -1,0 +1,7 @@
+{
+  "start": 16.82,
+  "end": 18.19,
+  "confidence": 0.95,
+  "reason": "The segment discusses the public perception of AI and its comparison to social media, highlighting the tension and uncertainty surrounding AI's impact on daily life and job security.",
+  "end_text": "And so, I think that uncertainty for people also causes a lot of this anxiety of not really knowing what this is going to do not knowing what to believe, and having just a lot of information being thrown at them, and so they feel overwhelmed by it."
+}

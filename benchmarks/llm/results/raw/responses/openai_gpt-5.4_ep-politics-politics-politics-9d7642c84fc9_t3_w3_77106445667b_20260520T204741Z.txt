@@ -1,0 +1,1 @@
+{"start":1589.9,"end":1601.7,"confidence":0.62,"reason":"Partial paid-subscription promotion tease with pricing language ('Less than 50 cents an episode') but no explicit sponsor/URL in this window; likely incomplete segment","end_text":"Less than 50 cents an episode? Huh. Interesting."}

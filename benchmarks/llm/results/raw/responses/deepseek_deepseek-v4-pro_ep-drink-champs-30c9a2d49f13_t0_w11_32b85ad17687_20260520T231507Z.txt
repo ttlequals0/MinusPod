@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 5060.0,
+      "end": 5110.0,
+      "confidence": 0.85,
+      "reason": "Possible Maui brand/alcohol promotion by guest, but lacks typical ad structure, URLs, or promo codes. Likely not an ad.",
+      "end_text": "a great bar trip"
+    }
+  ]
+}

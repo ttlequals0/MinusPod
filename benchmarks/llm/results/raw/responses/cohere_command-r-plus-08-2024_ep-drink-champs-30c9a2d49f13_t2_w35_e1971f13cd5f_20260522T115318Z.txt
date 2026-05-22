@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 15261.8,
+      "end": 15291.0,
+      "confidence": 0.95,
+      "reason": "Host-read sponsor segment with discount code",
+      "end_text": "Thank you so much, man."
+    }
+  ]
+}

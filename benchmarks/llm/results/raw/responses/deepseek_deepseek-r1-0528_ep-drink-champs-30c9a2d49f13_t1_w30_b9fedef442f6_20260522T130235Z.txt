@@ -1,0 +1,23 @@
+[
+  {
+    "start": 12831.1,
+    "end": 12848.4,
+    "confidence": 0.95,
+    "reason": "Host mentions 'last week' repeatedly, indicating a potential ad transition",
+    "end_text": "last week, last week"
+  },
+  {
+    "start": 13018.5,
+    "end": 13044.4,
+    "confidence": 0.9,
+    "reason": "Discussion of Stephen A. Smith's controversies, possibly leading into an ad break",
+    "end_text": "doing that shit again?"
+  },
+  {
+    "start": 13128.2,
+    "end": 13155.7,
+    "confidence": 0.85,
+    "reason": "Host references past events and challenges to check facts, common ad transition",
+    "end_text": "definitely said that shit"
+  }
+]

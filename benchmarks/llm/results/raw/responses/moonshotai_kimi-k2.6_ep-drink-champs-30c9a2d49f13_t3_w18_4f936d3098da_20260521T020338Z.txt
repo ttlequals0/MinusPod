@@ -1,0 +1,1 @@
+{"start": 7538.4, "end": 8187.1, "confidence": 0.0, "reason": "No promotional content, sponsor mentions, URLs, promo codes, or calls to action detected in this window. The transcript consists entirely of conversational content between the hosts and guest.", "end_text": "going through this gate? They like, yeah."}

@@ -1,0 +1,11 @@
+{
+  "transcript": "Alright, so I've been thinking about this a lot lately. Let's take a break and hear from our sponsors. This episode is brought to you by BetterHelp. If you're struggling with anxiety or depression, BetterHelp can connect you with licensed therapists online. Visit betterhelp.com/dailygist or use the code DAILY20 at checkout for 20% off your first month. That's betterhelp.com/dailygist. We'll be right back after this break.",
+  "detection_rules": {
+    "host_read": true,
+    "promo_code": true,
+    "transition_phrase": true,
+    "vanity_url": true
+  },
+  "ad_start": 45.0,
+  "ad_end": 82.0
+}

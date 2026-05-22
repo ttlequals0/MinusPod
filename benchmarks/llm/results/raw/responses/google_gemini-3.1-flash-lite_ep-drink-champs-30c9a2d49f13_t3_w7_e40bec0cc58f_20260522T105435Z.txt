@@ -1,0 +1,16 @@
+[
+  {
+    "start": 3478.9,
+    "end": 3528.5,
+    "confidence": 0.98,
+    "reason": "Airtasker host-read advertisement",
+    "end_text": "Airtasker, get anything done"
+  },
+  {
+    "start": 3528.5,
+    "end": 3556.2,
+    "confidence": 0.95,
+    "reason": "Cross-promotion for Decisions Decisions podcast",
+    "end_text": "conversation about abstinence"
+  }
+]

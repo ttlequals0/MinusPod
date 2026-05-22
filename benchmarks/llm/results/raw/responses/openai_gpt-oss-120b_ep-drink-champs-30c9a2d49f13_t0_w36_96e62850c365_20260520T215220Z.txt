@@ -1,0 +1,7 @@
+{
+  "start": 15388.3,
+  "end": 15517.1,
+  "confidence": 0.97,
+  "reason": "Series of sponsor reads (Airtasker, CVS, Trashy, Tryfencing) and platform tag (iHeart Podcast) with brand names, URLs, and calls to action",
+  "end_text": "iHeart Podcast. Guaranteed human."
+}

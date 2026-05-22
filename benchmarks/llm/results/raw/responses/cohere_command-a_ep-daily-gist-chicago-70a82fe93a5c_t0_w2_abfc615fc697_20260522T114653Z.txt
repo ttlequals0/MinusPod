@@ -1,0 +1,1 @@
+{"start": 1240.8, "end": 1271.2, "confidence": 0.85, "reason": "Platform-inserted promotional content for Crain's Daily Gist and its sponsors, including calls to action for subscribing and rating", "end_text": "you right back here next time"}

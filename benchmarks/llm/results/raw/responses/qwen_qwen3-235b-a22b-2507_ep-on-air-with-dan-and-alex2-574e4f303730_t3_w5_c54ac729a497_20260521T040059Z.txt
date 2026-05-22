@@ -1,0 +1,1 @@
+{"error": "No advertisement segments detected in the specified window. The transcript segment does not contain promotional language, sponsor mentions, URLs, promo codes, or calls to action that meet the defined ad criteria. Audio transitions and topic discussions are part of normal episode content. Platform-inserted ads or host-read sponsor segments are absent in this window."}

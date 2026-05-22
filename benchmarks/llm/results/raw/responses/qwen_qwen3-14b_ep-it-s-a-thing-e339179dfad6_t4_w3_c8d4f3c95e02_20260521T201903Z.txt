@@ -1,0 +1,2 @@
+d.
+{"start": 1524.5, "end": 1561.9, "confidence": 0.95, "reason": "Xero sponsor read with call to action", "end_text": "Conditions apply."}

@@ -1,0 +1,37 @@
+{"ad_segments": [
+    {
+        "start": 0.0,
+        "end": 14.1,
+        "confidence": 0.98,
+        "reason": "Vitel Global sponsor read",
+        "end_text": "make every connection count"
+    },
+    {
+        "start": 14.7,
+        "end": 40.8,
+        "confidence": 0.98,
+        "reason": "LinkedIn Premium All-in-One sponsor read",
+        "end_text": "try for free at linkedin.com slash all-in-one"
+    },
+    {
+        "start": 41.5,
+        "end": 69.8,
+        "confidence": 0.0,
+        "reason": "no ad content found",
+        "end_text": ""
+    },
+    {
+        "start": 70.5,
+        "end": 98.4,
+        "confidence": 0.0,
+        "reason": "no ad content found",
+        "end_text": ""
+    },
+    {
+        "start": 98.8,
+        "end": 120.1,
+        "confidence": 0.0,
+        "reason": "no ad content found",
+        "end_text": ""
+    }
+]}

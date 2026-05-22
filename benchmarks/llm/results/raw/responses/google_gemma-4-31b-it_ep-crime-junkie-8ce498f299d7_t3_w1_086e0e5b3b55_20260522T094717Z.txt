@@ -1,0 +1,1 @@
+{"start": 1035.7, "end": 1035.7, "confidence": 0.9, "reason": "Partial ad start: 'Debt can get messy fast' is a promotional hook for a financial service/loan product, distinct from the true crime narrative.", "end_text": "Debt can get messy fast"}

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 13018.5,
+    "end": 13635.5,
+    "confidence": 0.95,
+    "reason": "Host-read sponsor segment for Drink Champs",
+    "end_text": "Google will tell you"
+  }
+]

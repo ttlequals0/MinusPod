@@ -1,0 +1,1 @@
+{"start":401.8,"end":430.7,"confidence":0.86,"reason":"Transcript appears to begin mid-sponsor discussion about a show where people 'sell houses'; no explicit sponsor marker in this excerpt, but likely continuation of a host-read ad break from the prior window.","end_text":"they didn't even defend"}

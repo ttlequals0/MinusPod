@@ -1,0 +1,1 @@
+{"start":1959.8,"end":2080.5,"confidence":0.99,"reason":"Dynamically inserted ad break with promotional reads for Rakuten cash back, LinkedIn Premium All-in-One free trial, and Hertz car rentals/URL","end_text":"newest fleet yet at Hertz.com"}

@@ -1,0 +1,7 @@
+{
+  "start": 400.6,
+  "end": 428.4,
+  "confidence": 0.95,
+  "reason": "Host-read sponsor segment promoting Athletic Greens",
+  "end_text": "athleticgreens.com/podcast"
+}

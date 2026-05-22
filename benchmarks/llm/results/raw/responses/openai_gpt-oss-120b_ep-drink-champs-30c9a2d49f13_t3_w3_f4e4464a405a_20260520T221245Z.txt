@@ -1,0 +1,32 @@
+{
+  "ads": [
+    {
+      "start": 1460.1,
+      "end": 1486.1,
+      "confidence": 0.97,
+      "reason": "Host-read Airtasker sponsor with URL and call to action",
+      "end_text": "Airtasker, get anything done"
+    },
+    {
+      "start": 1513.7,
+      "end": 1524.8,
+      "confidence": 0.95,
+      "reason": "Sponsor mention for Care for the Culture from Gilead Sciences",
+      "end_text": "from Gilead Sciences"
+    },
+    {
+      "start": 1525.5,
+      "end": 1553.8,
+      "confidence": 0.96,
+      "reason": "OnDeck small business line of credit ad with URL and call to action",
+      "end_text": "lend in North Dakota"
+    },
+    {
+      "start": 1555.6,
+      "end": 1629.0,
+      "confidence": 0.96,
+      "reason": "BetMGM MLB betting promotion with download instructions and legal disclaimer",
+      "end_text": "Casino and Hotel"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+[
+  {
+    "start": 636.8,
+    "end": 671.5,
+    "confidence": 0.95,
+    "reason": "This is a sponsor read for Parloa, including a description of their AI agents and a call to action with a URL.",
+    "end_text": "parloa.com"
+  },
+  {
+    "start": 674.0,
+    "end": 717.6,
+    "confidence": 0.95,
+    "reason": "This is a sponsor read for Capital One, discussing their AI technology in car shopping and a call to action to experience the benefits of nature with AllTrails.",
+    "end_text": "find your outside."
+  },
+  {
+    "start": 718.8,
+    "end": 748.3,
+    "confidence": 0.95,
+    "reason": "This is a sponsor read for Zinn Nicotine Pouches, including promotional language, product features, and a call to action to find the product.",
+    "end_text": "addictive chemical."
+  },
+  {
+    "start": 749.6,
+    "end": 776.6,
+    "confidence": 0.95,
+    "reason": "This is a sponsor read for Lemonada Media's 'Good Things' podcast, promoting their 'Thrive' series.",
+    "end_text": "Thrive series."
+  }
+]

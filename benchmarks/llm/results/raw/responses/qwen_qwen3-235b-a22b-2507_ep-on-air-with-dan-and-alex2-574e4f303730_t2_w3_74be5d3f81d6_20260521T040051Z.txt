@@ -1,0 +1,1 @@
+{"start": 1246.0, "end": 1879.5, "confidence": 0.99, "reason": "continuous discussion on alcohol bans, airline policies, and passenger behavior without any promotional content or ad markers", "end_text": "a thousand euros more just because you'll get..."}

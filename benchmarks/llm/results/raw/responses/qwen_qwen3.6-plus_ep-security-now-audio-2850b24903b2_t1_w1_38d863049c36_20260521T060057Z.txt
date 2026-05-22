@@ -1,0 +1,1 @@
+[{"start": 417.2, "end": 572.1, "confidence": 0.98, "reason": "Zscaler sponsor read including transition to break and host handoff", "end_text": "Thank you, Leo."}]

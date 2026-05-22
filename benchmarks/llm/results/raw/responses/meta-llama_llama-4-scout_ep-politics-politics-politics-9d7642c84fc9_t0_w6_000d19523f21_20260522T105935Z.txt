@@ -1,0 +1,7 @@
+{ 
+  "start": 2499.6, 
+  "end": 3088.8, 
+  "confidence": 0.3, 
+  "reason": "no clear ad segment detected", 
+  "end_text": "So it's a more, it's something you build and it does an automated action in its most simplest form. Yeah, it's taking."
+}

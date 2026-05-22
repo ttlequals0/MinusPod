@@ -1,0 +1,1 @@
+{"start": 14854.0, "end": 14861.3, "confidence": 0.98, "reason": "Platform-inserted end card or sponsorship tag (common in Omny Studio-hosted podcasts), likely a network promotion or call to action for the show, despite brevity and lack of detailed pitch", "end_text": "Thank you for watching."}

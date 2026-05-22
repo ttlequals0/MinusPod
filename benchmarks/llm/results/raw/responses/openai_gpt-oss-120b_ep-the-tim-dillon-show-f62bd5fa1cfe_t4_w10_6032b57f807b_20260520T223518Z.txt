@@ -1,0 +1,1 @@
+{"start":4675.4,"end":4800.0,"confidence":0.97,"reason":"Series of sponsor reads (Colgate, Skinny Pop, Viz, Garnier) with promotional language and calls to action","end_text":"GarnierUSA.com slash NPF"}

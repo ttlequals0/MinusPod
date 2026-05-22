@@ -1,0 +1,7 @@
+{
+  "start": 12453.0,
+  "end": 12481.7,
+  "confidence": 0.95,
+  "reason": "Host transition to break with promotional content",
+  "end_text": "what you say?"
+}

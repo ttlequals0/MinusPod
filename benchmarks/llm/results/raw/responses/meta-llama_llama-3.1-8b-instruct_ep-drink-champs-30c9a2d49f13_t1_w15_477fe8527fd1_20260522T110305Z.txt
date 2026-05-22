@@ -1,0 +1,16 @@
+[
+{
+  "start": 6283.4,
+   "end": 6583.0,
+   "confidence": 0.95,
+   "reason": "OnDeck small business loan sponsor read",
+   "end_text": "OnDeck.com"
+},
+{
+   "start": 6343.1,
+   "end": 6355.7,
+   "confidence": 0.95,
+   "reason": "Public investing platform sponsor read",
+   "end_text": "Public"
+}
+]

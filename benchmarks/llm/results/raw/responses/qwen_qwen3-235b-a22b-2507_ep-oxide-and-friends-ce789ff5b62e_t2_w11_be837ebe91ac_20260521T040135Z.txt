@@ -1,0 +1,1 @@
+{"start": 4960.7, "end": 4980.5, "confidence": 0.3, "reason": "Host mentions 'subscribe' in a joking context, but no promotional language, sponsor, URL, or call to action; this is organic show banter, not an ad", "end_text": "subscribe for that one"}

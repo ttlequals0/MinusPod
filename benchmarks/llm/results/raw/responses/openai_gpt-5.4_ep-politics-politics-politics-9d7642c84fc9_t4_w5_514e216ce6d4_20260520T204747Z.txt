@@ -1,0 +1,1 @@
+{"start":2680.5,"end":2681.9,"confidence":0.93,"reason":"Produced sign-off/cross-promo style insertion with call-to-return language; partial segment likely continues beyond window","end_text":"We'll see you next time."}

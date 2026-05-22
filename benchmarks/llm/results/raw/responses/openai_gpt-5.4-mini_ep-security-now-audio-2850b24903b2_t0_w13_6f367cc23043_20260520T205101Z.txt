@@ -1,0 +1,1 @@
+{"start":6044.5,"end":6083.5,"confidence":0.98,"reason":"Hoxhunt host-read sponsor segment introduced with 'This episode of Security Now brought to you by Hawks Hunt' and continued product pitch about phishing training and AI-powered micro-training; starts after the 'Let's take a break' transition.","end_text":"just like the bad guys"}

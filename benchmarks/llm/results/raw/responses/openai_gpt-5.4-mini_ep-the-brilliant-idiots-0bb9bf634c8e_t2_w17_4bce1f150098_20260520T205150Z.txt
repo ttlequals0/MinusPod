@@ -1,0 +1,1 @@
+{"start":7173.7,"end":7196.8,"confidence":0.98,"reason":"Netflix network promo with explicit sponsor language and show description for Remarkably Bright Creatures","end_text":"only on Netflix"}

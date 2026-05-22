@@ -1,0 +1,39 @@
+{
+  "ads": [
+    {
+      "start": 0.0,
+      "end": 42.2,
+      "confidence": 0.95,
+      "reason": "iHeart Podcast network intro and Airtasker ad",
+      "end_text": "Airtasker, get anything done."
+    },
+    {
+      "start": 42.8,
+      "end": 72.1,
+      "confidence": 0.95,
+      "reason": "Gilead Sciences 'Care for the Culture' sponsored health PSA",
+      "end_text": "from Gilead Sciences."
+    },
+    {
+      "start": 72.9,
+      "end": 101.0,
+      "confidence": 0.95,
+      "reason": "Nissan Rogue brand tagline ad",
+      "end_text": "in real-world conditions."
+    },
+    {
+      "start": 109.0,
+      "end": 150.5,
+      "confidence": 0.95,
+      "reason": "Shopify host-read ad with promo URL",
+      "end_text": "Shopify.com slash B-E-N."
+    },
+    {
+      "start": 162.9,
+      "end": 189.6,
+      "confidence": 0.95,
+      "reason": "Drink Champs show intro/theme (self-promotion)",
+      "end_text": "Drink up, motherfuckers."
+    }
+  ]
+}

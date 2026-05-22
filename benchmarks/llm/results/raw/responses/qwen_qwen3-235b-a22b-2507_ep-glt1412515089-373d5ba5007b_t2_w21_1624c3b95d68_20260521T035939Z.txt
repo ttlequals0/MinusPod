@@ -1,0 +1,1 @@
+{"start": 9420.0, "end": 9426.7, "confidence": 0.99, "reason": "continues from previous ad segment - Perplexity sponsorship with promotional URL", "end_text": "https://pplx.ai/rogan."}

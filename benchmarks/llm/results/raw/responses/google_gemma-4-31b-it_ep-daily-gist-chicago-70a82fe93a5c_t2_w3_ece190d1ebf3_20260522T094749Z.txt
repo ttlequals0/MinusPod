@@ -1,0 +1,1 @@
+{"start": 1240.8, "end": 1266.6, "confidence": 0.8, "reason": "Platform/Network promo for Crain's news feed and podcast subscriptions", "end_text": "at Earsight Studios."}

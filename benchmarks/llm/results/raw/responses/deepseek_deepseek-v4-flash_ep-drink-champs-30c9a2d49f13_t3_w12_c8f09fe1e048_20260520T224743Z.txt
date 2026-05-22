@@ -1,0 +1,7 @@
+{
+  "start": 5420.4,
+  "end": 5484.4,
+  "confidence": 0.95,
+  "reason": "Repeat of 'promo code, discount code' and subsequent silence with unknown host-read promotional segment; multiple repeats of 'discount code' strongly indicate an ad, followed by dead air typical of ad break",
+  "end_text": ". . . . . . . . . . . ."
+}

@@ -1,0 +1,1 @@
+[{"start": 1450.9, "end": 1629.0, "confidence": 0.98, "reason": "Block of multiple network-inserted ads: Airtasker, podcast promo, OnDeck, BetMGM", "end_text": "with Kansas Crossing Casino and Hotel."}]

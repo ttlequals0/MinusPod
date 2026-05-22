@@ -1,0 +1,1 @@
+{"segments": [{"start": 7135.4, "end": 7196.8, "confidence": 0.95, "reason": "Host-read promo for Lauren LaRosa's podcast followed by Netflix sponsor read for Remarkably Bright Creatures", "end_text": "now playing only on Netflix"}]}

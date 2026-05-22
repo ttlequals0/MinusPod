@@ -1,0 +1,1 @@
+[{"start": 3578.1, "end": 3606.4, "confidence": 0.95, "reason": "Care for the Culture from Gilead Sciences sponsor", "end_text": "Gilead Sciences"}, {"start": 3607.1, "end": 3637.4, "confidence": 0.95, "reason": "Public investing platform sponsor", "end_text": "Public.com"}]

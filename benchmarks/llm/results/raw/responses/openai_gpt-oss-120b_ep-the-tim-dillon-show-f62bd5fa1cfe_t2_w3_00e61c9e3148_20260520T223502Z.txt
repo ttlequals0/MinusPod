@@ -1,0 +1,3 @@
+[
+{"start":1439.2,"end":1576.1,"confidence":0.98,"reason":"Mint Mobile and Aura Frames sponsor reads with URLs and promo code","end_text":"Promo code TIM"},{"start":1607.4,"end":1629.5,"confidence":0.97,"reason":"Colgate sponsor read promoting women's games","end_text":"your strength"},{"start":1637.6,"end":1665.9,"confidence":0.96,"reason":"Skinny Pop snack brand promotional read","end_text":"Skinny Pop"}
+]

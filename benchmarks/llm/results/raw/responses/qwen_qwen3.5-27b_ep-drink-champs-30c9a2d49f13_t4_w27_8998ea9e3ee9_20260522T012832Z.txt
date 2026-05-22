@@ -1,0 +1,37 @@
+[
+  {
+    "start": 11335.2,
+    "end": 11365.6,
+    "confidence": 0.98,
+    "reason": "Airtasker sponsor read",
+    "end_text": "Airtasker, get anything done."
+  },
+  {
+    "start": 11366.2,
+    "end": 11424.6,
+    "confidence": 0.95,
+    "reason": "Decisions Decisions cross-promo + Gilead Sciences sponsor",
+    "end_text": "Care for the Culture from Gilead Sciences."
+  },
+  {
+    "start": 11425.3,
+    "end": 11455.4,
+    "confidence": 0.98,
+    "reason": "OnDeck sponsor read",
+    "end_text": "subject to lender approval."
+  },
+  {
+    "start": 11513.7,
+    "end": 11516.0,
+    "confidence": 0.90,
+    "reason": "Public.com ad disclosure (continues from previous)",
+    "end_text": "public.com slash disclosures."
+  },
+  {
+    "start": 11614.6,
+    "end": 11630.6,
+    "confidence": 0.85,
+    "reason": "Sponsor list read (Athletic Greens, Audible, etc.)",
+    "end_text": "Manscaped, Stamps.com,"
+  }
+]

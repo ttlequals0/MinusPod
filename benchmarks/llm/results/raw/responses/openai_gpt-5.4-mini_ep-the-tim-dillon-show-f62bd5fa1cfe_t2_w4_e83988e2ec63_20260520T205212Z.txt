@@ -1,0 +1,1 @@
+{"start":1668.7,"end":2286.3,"confidence":0.46,"reason":"No explicit ad break or sponsor-read transition appears in this window; transcript is continuous show content discussing Facebook, children, and screens without promotional language.","end_text":"and there's nothing you can do"}

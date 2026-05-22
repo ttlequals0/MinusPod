@@ -1,0 +1,1 @@
+{"start":539.2,"end":652.8,"confidence":0.99,"reason":"Platform-inserted ad break with transition phrase 'This episode is brought to you by' followed by promotional copy for In the Gray and Skechers slip-ins, including specific product names and website call to action 'Skechers.com'.","end_text":"That's only at Skechers.com."}

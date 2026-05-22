@@ -1,0 +1,2 @@
+s.
+{"start": 7131.4, "end": 7155.5, "confidence": 0.95, "reason": "Perplexity platform-inserted ad with URL", "end_text": "https://pplx.ai/rogan."}

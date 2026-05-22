@@ -1,0 +1,2 @@
+y.
+{"start": 1036.2, "end": 1071.7, "confidence": 0.98, "reason": "SoFi personal loan sponsor read with URL and promo code", "end_text": "Terms and conditions apply."}

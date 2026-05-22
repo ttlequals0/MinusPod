@@ -1,0 +1,1 @@
+{"start": 9908.7, "end": 9932.6, "confidence": 0.78, "reason": "Possible promotional tease for Warren Sapp's Instagram and upcoming Subway demonstration; contains call to action to check Instagram, but reads more like conversational self-promotion than a paid ad", "end_text": "Subway uses a mat"}

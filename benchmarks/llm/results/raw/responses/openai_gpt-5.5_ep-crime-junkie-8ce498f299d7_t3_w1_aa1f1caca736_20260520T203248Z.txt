@@ -1,0 +1,1 @@
+{"start":1012.8,"end":1020.0,"confidence":0.68,"reason":"Partial ad begins at end of window with debt-related marketing setup phrase 'Debt can get messy fast'; continues in next window","end_text":"Debt can get messy fast"}

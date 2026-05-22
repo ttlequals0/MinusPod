@@ -1,0 +1,1 @@
+{"start": 4646.2, "end": 4674.6, "confidence": 0.98, "reason": "Colgate Women's Games sponsor segment with promotional language and brand messaging", "end_text": "I'm resilient."}

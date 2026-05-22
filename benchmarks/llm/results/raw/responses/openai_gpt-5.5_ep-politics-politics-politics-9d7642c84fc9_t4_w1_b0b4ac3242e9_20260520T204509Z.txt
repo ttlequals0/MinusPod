@@ -1,0 +1,1 @@
+{"start":909.6,"end":933.9,"confidence":0.72,"reason":"Brief host-read house promo/CTA for TakePoliticsSeriously.com to get additional episodes; ad copy is embedded at start of segment before news content resumes","end_text":"deepening economic ties while managing security risks"}

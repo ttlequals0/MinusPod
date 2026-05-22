@@ -1,0 +1,1 @@
+{"start": 3765.7, "end": 4382.8, "confidence": 0.99, "reason": "continuous technical discussion about mechanical engineering, manufacturing processes, material costs, and design decisions without any promotional content, sponsor mentions, or advertisement language", "end_text": "make it and you can actually pay for it?"}

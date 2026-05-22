@@ -1,0 +1,1 @@
+{"start": 9228.0, "end": 9852.4, "confidence": 0.0, "reason": "No promotional content detected in window. All transcript content is organic conversation between hosts and guest covering fishing stories, shark encounters, iguana hunting, and fast food commentary without sponsor reads, promo codes, URLs, or platform/network insertions.", "end_text": "It's a movie that predicts."}

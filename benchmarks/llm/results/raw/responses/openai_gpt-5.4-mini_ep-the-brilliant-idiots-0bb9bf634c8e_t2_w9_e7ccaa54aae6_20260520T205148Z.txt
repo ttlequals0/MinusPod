@@ -1,0 +1,1 @@
+{"start":4059.4,"end":4077.5,"confidence":0.91,"reason":"Host transition 'let's pay some bills' indicates a sponsor break, but no specific advertiser pitch appears in this window; likely continuation of an ad break from earlier transcript","end_text":"Lil P got to eat, okay?"}

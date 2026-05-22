@@ -1,0 +1,9 @@
+[
+  {
+    "start": 8799.1,
+    "end": 8831.4,
+    "confidence": 0.99,
+    "reason": "A network-inserted ad for OnDeck followed by an ad for Public.",
+    "end_text": "those who take it seriously."
+  }
+]

@@ -1,0 +1,1 @@
+{"start": 12175.2, "end": 12798.5, "confidence": 0.0, "reason": "No promotional language, sponsor names, URLs, promo codes, or calls to action detected in this window. The transcript contains only continuous conversational content between the hosts and guest.", "end_text": "Que Pasa USA?"}

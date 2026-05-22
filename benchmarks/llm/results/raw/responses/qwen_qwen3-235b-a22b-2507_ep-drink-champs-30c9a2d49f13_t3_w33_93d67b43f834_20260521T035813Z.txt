@@ -1,0 +1,1 @@
+{"start": 13984.5, "end": 13995.2, "confidence": 0.9, "reason": "Repetitive promotional phrase 'Just ask for it' with no context, typical of ad copy; followed by transition back to conversation", "end_text": "Just ask for it"}

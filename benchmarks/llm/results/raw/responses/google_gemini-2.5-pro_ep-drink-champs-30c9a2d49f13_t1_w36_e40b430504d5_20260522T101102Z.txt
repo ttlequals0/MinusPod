@@ -1,0 +1,16 @@
+[
+  {
+    "start": 15261.8,
+    "end": 15285.2,
+    "confidence": 0.8,
+    "reason": "This segment consists of the repeated phrases \"promo code\" and \"discount code,\" which are explicit ad markers, likely indicating a placeholder for a dynamically inserted ad.",
+    "end_text": "discount code, discount code"
+  },
+  {
+    "start": 15388.3,
+    "end": 15517.1,
+    "confidence": 1.0,
+    "reason": "This is a post-roll ad block containing multiple network-inserted ads for Airtasker, CVS, Trashy, and Try Fencing, followed by an iHeart network tag.",
+    "end_text": "Podcast. Guaranteed human."
+  }
+]

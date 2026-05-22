@@ -1,0 +1,1 @@
+{"start":5701.0,"end":5788.5,"confidence":0.91,"reason":"Host discussion includes sponsored Met Gala mention and promotional sponsor context in episode break area; no clear standalone ad read, but the segment contains explicit sponsor language around Jeff Bezos/Amazon and fits a potential inserted sponsor block.","end_text":"he was one of the sponsors, one"}

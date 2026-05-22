@@ -1,0 +1,1 @@
+{"start":521.5,"end":548.5,"confidence":0.99,"reason":"Host-read Crain's Weekly News Quiz promotion with website CTA and follow-us call to action; begins after 'right after this.'","end_text":"wherever you get your podcasts. This is the Crain's Daily Gist with Amy Guth."}

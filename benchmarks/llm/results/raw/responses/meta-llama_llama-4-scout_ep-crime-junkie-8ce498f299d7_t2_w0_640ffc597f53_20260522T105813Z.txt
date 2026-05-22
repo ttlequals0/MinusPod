@@ -1,0 +1,9 @@
+{"ad_segments": [
+    {
+        "start": 0.0,
+        "end": 40.8,
+        "confidence": 0.98,
+        "reason": "Vitel Global and LinkedIn Premium sponsor reads",
+        "end_text": "all-in-one product"
+    }
+] }

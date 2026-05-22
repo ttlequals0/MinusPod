@@ -1,0 +1,67 @@
+{
+  "segments": [
+  {
+    "start": 10.497,
+    "end": 10.521,
+    "confidence": 0.95,
+    "reason": "Sapp discusses his experiences with ESPN and the influence of the O'Bannon brothers, which is promotional content.",
+    "end_text": "ESPN cannot be a part of this."
+  },
+  {
+    "start": 10.521,
+    "end": 10.554,
+    "confidence": 0.90,
+    "reason": "Sapp talks about the impact of college players' salaries and mentions the O'Bannon brothers, which is promotional content.",
+    "end_text": "Sapp mentions the O'Bannon brothers."
+  },
+  {
+    "start": 10.554,
+    "end": 10.597,
+    "confidence": 0.85,
+    "reason": "Sapp discusses the rights of college players and mentions the O'Bannon brothers, which is promotional content.",
+    "end_text": "Sapp discusses the rights of college players."
+  },
+  {
+    "start": 10.597,
+    "end": 10.609,
+    "confidence": 0.80,
+    "reason": "Sapp mentions the O'Bannon brothers and their influence on college players' salaries, which is promotional content.",
+    "end_text": "Sapp mentions the O'Bannon brothers."
+  },
+  {
+    "start": 10.609,
+    "end": 10.705,
+    "confidence": 0.75,
+    "reason": "Sapp discusses the influence of the O'Bannon brothers on college players' salaries, which is promotional content.",
+    "end_text": "Sapp discusses the influence of the O'Bannon brothers."
+  },
+  {
+    "start": 10.705,
+    "end": 10.753,
+    "confidence": 0.70,
+    "reason": "Sapp talks about the O'Bannon brothers' influence on college players' salaries, which is promotional content.",
+    "end_text": "Sapp discusses the influence of the O'Bannon brothers."
+  },
+  {
+    "start": 10.753,
+    "end": 10.804,
+    "confidence": 0.65,
+    "reason": "Sapp mentions the O'Bannon brothers and their influence on college players' salaries, which is promotional content.",
+    "end_text": "Sapp discusses the influence of the O'Bannon brothers."
+  },
+  {
+    "start": 10.804,
+    "end": 10.805,
+    "confidence": 0.60,
+    "reason": "Sapp mentions the O'Bannon brothers and their influence on college players' salaries, which is promotional content.",
+    "end_text": "Sapp discusses the influence of the O'Bannon brothers."
+  },
+  {
+    "start": 10.805,
+    "end": 10.804,
+    "confidence": 0.55,
+    "reason": "Sapp mentions the O'Bannon brothers and their influence on college players' salaries, which is promotional content.",
+    "end_text": "Sapp discusses the influence of the O'Bannon brothers."
+  }
+]
+}

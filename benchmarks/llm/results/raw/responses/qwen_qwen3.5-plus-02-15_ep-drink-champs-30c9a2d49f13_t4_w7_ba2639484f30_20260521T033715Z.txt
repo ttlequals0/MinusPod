@@ -1,0 +1,9 @@
+[
+  {
+    "start": 3498.0,
+    "end": 3540.0,
+    "confidence": 0.95,
+    "reason": "Airtasker sponsor read and Decisions Decisions cross-promotion (continues in next)",
+    "end_text": "facts, self-care, and share"
+  }
+]

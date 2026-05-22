@@ -1,0 +1,1 @@
+{"start":2863.0,"end":2894.5,"confidence":0.99,"reason":"LinkedIn Premium All-in-One ad with product pitch and call to action to try for free at LinkedIn.com/all-in-one","end_text":"LinkedIn.com slash all-in-one"}

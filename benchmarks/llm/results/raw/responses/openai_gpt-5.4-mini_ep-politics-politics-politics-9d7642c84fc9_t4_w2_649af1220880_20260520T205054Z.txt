@@ -1,0 +1,7 @@
+{
+  "start": 909.6,
+  "end": 933.9,
+  "confidence": 0.96,
+  "reason": "Host reads promo for TakePoliticsSeriously.com with explicit CTA to get two episodes of the show; introduced as 'your update brought to you by'.",
+  "end_text": "you want to get two episodes of this show"
+}

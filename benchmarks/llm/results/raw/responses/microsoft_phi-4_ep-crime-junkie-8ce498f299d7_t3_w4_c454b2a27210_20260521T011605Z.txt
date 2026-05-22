@@ -1,0 +1,5 @@
+[
+
+[1978.4, 2020.4, 0.98, "Rakuten network-inserted ad", "saving money today"]
+
+]

@@ -1,0 +1,1 @@
+{"start":858.0,"end":877.8,"confidence":0.82,"reason":"Possible ad break marker is not present, but this appears to be regular interview content with no promotional language, so no ad detected in this window.","end_text":"mainstream"}

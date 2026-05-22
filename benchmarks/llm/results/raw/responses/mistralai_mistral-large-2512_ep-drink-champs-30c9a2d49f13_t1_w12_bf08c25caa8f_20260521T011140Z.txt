@@ -1,0 +1,9 @@
+[
+    {
+        "start": 5420.4,
+        "end": 5469.9,
+        "confidence": 0.99,
+        "reason": "Network-inserted retail ad with repeated promotional language (discount/promo code mentions) and abrupt tonal shift from host conversation. Likely a dynamically inserted ad for a consumer brand (e.g., retail, apparel, or service).",
+        "end_text": "Donald McNabb's mama never invited my mama back, dog."
+    }
+]

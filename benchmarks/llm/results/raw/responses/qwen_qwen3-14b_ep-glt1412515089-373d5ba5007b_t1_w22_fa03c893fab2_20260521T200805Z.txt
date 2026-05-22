@@ -1,0 +1,2 @@
+y.
+{"start": 9240.0, "end": 9840.0, "confidence": 0.0, "reason": "No advertisement segments found in the specified window.", "end_text": "the world a better place."}

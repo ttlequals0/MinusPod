@@ -1,0 +1,1 @@
+[{"start": 0.0, "end": 30.4, "confidence": 0.8, "reason": "Sponsor transition for 'Just Another Pilot', actual ad content untranscribed in subsequent gap", "end_text": "brought to you by Just Another Pilot."}]

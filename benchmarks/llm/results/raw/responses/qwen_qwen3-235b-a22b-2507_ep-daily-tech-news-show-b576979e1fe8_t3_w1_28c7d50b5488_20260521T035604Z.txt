@@ -1,0 +1,1 @@
+{"start": 618.7, "end": 776.6, "confidence": 0.98, "reason": "Multiple host-read sponsor segments with promotional language, URLs, and calls to action: Parloa, Capital One, AllTrails, Zinn Nicotine Pouches, and Lemonada Media Thrive series. Includes transition 'Let's take a little bit of time' and ends after final ad content.", "end_text": "young people need to truly thrive?"}

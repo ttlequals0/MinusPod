@@ -1,0 +1,7 @@
+{
+  "start": 46.14,
+  "end": 52.18,
+  "confidence": 0.95,
+  "reason": "The segment contains a sponsor read with promotional language and a transition phrase indicating a continuation of the ad.",
+  "end_text": "you gotta see this fucking shit"
+}

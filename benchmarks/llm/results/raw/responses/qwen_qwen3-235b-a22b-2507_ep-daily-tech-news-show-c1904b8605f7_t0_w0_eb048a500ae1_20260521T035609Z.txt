@@ -1,0 +1,1 @@
+{"start": 0.0, "end": 152.9, "confidence": 0.98, "reason": "Host-read sponsor segment with multiple promotional pitches: Capital One, Xero, Spectrum Business, and Warby Parker, including calls to action, URLs, and product benefits", "end_text": "warbyparker.com."}

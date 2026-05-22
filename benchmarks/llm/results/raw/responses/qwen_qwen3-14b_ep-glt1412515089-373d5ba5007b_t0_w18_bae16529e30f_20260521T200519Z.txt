@@ -1,0 +1,2 @@
+w.
+{"start": 7916.6, "end": 7937.1, "confidence": 0.95, "reason": "Thank you for watching. [silence]", "end_text": "Thank you for watching."}

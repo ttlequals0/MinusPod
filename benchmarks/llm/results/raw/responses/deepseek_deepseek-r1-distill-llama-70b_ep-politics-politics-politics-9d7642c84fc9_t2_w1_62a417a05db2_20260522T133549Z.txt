@@ -1,0 +1,7 @@
+{
+  "start": 909.6,
+  "end": 933.9,
+  "confidence": 0.95,
+  "reason": "Host-read sponsor segment promoting TakePoliticsSeriously.com",
+  "end_text": "Treasury Secretary Scott Besson said that the Trump administration is discussing a U.S.-China investment board and a possible trade board as part of talks in Beijing aimed at deepening economic ties while managing security risks."
+}

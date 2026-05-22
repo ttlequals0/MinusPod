@@ -1,0 +1,1 @@
+{"start": 9741.9, "end": 9852.4, "confidence": 0.3, "reason": "No promotional language, sponsor mention, or call to action detected; discussion of McDonald's, Chick-fil-A, and food ingredients is part of organic conversation, not an ad; no transition phrase indicating a sponsor break; content is critical commentary, not promotion", "end_text": "predicts."}

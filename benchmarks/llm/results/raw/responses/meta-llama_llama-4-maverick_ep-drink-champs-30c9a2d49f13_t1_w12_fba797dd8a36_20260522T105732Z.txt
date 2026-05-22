@@ -1,0 +1,1 @@
+{"start": 5420.4, "end": 5471.4, "confidence": 0.8, "reason": "Repeated mentions of 'discount code' and 'promo code' indicate a likely ad read", "end_text": ". . . . . . . . . . . ."}

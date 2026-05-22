@@ -1,0 +1,1 @@
+[{"start": 4258.6, "end": 4465.7, "confidence": 0.98, "reason": "Bitwarden host-read sponsor segment with transition and URL call-to-action", "end_text": "We thank them so much for supporting."}]

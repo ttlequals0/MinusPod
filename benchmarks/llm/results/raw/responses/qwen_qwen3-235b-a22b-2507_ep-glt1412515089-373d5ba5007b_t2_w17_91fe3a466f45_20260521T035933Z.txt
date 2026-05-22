@@ -1,0 +1,1 @@
+{"start": 7131.4, "end": 7756.0, "confidence": 0.05, "reason": "No promotional language, sponsor mentions, URLs, or calls to action present; discussion is continuous scientific conversation about quantum mechanics, retrocausality, and observation without any ad content", "end_text": "not both because they're solving the same problem"}

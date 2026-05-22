@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so let's take a break. This episode is brought to you by BetterHelp. If you're feeling overwhelmed, BetterHelp can connect you with a licensed therapist who can help you navigate life's challenges. With convenient online sessions, you can get the support you need from the comfort of your own home. And as a listener of this podcast, you'll get 10% off your first month by using the promo code DRINKCHAMPS at checkout. So why wait? Take control of your mental health today and sign up at betterhelp.com/drinkchamps. That's betterhelp.com/drinkchamps. Alright, and we're back.",
+  "start": 4200.0,
+  "end": 4230.0
+}

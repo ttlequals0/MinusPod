@@ -1,0 +1,7 @@
+{  
+  "start": 126.0,  
+  "end": 136.0,  
+  "confidence": 0.95,  
+  "reason": "This segment contains promotional language and mentions of brand names, indicating it is an advertisement. The transition phrases and calls to action suggest a sponsored segment, particularly focusing on Biggie Smalls and the Florida State University football team, which aligns with the detection rules for advertisements.",  
+  "end_text": "Biggie Smalls, Florida State University football team, and related brand names."  
+}

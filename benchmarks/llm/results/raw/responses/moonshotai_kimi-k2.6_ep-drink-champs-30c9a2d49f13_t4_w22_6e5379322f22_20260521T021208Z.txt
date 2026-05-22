@@ -1,0 +1,1 @@
+{"start": 9228.0, "end": 9852.4, "confidence": 0.0, "reason": "No promotional content, sponsor mentions, URLs, promo codes, or transition phrases detected in this window. The transcript contains only conversational content about fishing, shark encounters, food discussion, and pop-culture references with no advertisements.", "end_text": "It's a movie that predicts."}

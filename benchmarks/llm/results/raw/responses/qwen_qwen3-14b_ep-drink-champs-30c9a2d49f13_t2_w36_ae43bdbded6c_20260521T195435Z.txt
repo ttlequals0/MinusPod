@@ -1,0 +1,1 @@
+{"start": 15261.8, "end": 15285.2, "confidence": 0.9, "reason": "repeating discount code phrases", "end_text": "discount code,"}

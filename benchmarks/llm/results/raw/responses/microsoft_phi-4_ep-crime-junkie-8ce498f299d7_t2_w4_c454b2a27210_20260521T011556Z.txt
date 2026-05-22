@@ -1,0 +1,7 @@
+{  
+  "start": 16.70,  
+  "end": 17.39,  
+  "confidence": 0.95,  
+  "reason": "This segment contains a detailed description of a suspicious plan involving a group of people, including the use of Spanish language and potential drug-related activities. It also mentions a specific product, Rakuten, which is a promotional message. The transition from discussing the plan to promoting Rakuten indicates a shift from content to advertisement.",  
+  "end_text": "Join for free at Rakuten.com or download the Rakuten app to start saving money today."  
+}

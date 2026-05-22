@@ -1,0 +1,1 @@
+{"start":3428.1,"end":3456.1,"confidence":0.99,"reason":"Arizona State University host-read style promo with motivational copy and call to action to explore programs at asunline.asu.edu","end_text":"Explore more at asunline.asu.edu."}

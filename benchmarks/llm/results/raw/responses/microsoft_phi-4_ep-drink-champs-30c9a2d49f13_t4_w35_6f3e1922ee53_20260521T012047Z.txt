@@ -1,0 +1,7 @@
+{
+  "start": 14718.7,
+  "end": 15029.3,
+  "confidence": 0.95,
+  "reason": "The segment contains promotional language and references to a discount code, indicating an advertisement.",
+  "end_text": "promo code, discount code, discount code, discount code, discount code, discount code"
+}

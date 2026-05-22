@@ -1,0 +1,1 @@
+{"start": 1674.3, "end": 2296.9, "confidence": 0.0, "reason": "No promotional language, sponsor names, URLs, promo codes, or product pitches found in transcript. Gaps contain no transcript content.", "end_text": "walk down there."}

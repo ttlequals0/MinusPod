@@ -1,0 +1,1 @@
+{"start": 7981.9, "end": 8588.6, "confidence": 0.0, "reason": "No promotional content detected in this window", "end_text": "DJ Clue talking over the beat"}

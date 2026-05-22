@@ -1,0 +1,1 @@
+{"start":3741.3,"end":3767.0,"confidence":0.78,"reason":"Possible host outro promo mentioning Katie Harbath's Anchor Change Substack and saying 'subscribe if they want to stay in touch'; includes transition into wrap-up but lacks a clear sponsor pitch, so only borderline promotional content is present.","end_text":"Her brand new company"}

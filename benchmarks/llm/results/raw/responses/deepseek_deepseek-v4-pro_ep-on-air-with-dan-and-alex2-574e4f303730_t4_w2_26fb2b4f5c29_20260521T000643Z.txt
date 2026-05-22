@@ -1,0 +1,7 @@
+{
+  "start": 1168.3,
+  "end": 1190.1,
+  "confidence": 0.92,
+  "reason": "Unusual repetitive promo code mention pattern, possibly misheard or glitch in transcript, but contextually fits 'discount code' repetition.",
+  "end_text": "things people discuss in public, there was one lady in a call."
+}

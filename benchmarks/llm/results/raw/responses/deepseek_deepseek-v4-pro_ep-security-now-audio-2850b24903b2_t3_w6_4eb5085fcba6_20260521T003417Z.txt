@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2531.8,
+    "end": 2693.0,
+    "confidence": 0.98,
+    "reason": "Meter sponsor read with transition and call to action",
+    "end_text": "all right now back to steve"
+  }
+]

@@ -1,0 +1,1 @@
+{"start": 3680.7, "end": 3709.1, "confidence": 0.95, "reason": "Katie Harbath promotes her Substack and upcoming book", "end_text": "it's becoming really real. I'm excited. That's awesome. Katie, thank you so much for joining us. Thank you."}

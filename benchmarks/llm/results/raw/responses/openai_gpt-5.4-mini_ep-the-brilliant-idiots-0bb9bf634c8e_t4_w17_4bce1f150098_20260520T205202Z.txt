@@ -1,0 +1,1 @@
+{"start":7135.4,"end":7168.9,"confidence":0.94,"reason":"Host-read promo for Loren LaRosa podcast and show/network plugs; promotional language and calls to listen/download are present, but it ends before the later Netflix ad segment.","end_text":"It's the Brilliant Idiots podcast. Thank you for listening."}

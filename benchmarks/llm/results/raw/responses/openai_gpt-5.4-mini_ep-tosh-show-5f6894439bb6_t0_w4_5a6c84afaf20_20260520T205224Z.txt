@@ -1,0 +1,1 @@
+{"start":1837.5,"end":1999.5,"confidence":0.99,"reason":"Mint Mobile host-read sponsor segment plus two dynamic retail ads from Mattress Warehouse and PC Richard & Son; includes 'we'll be right back' transition, promo URL mintmobile.com/slash/tosh, and promotional copy for lease-to-own and Memorial Day sale","end_text":"Visit PCRichard.com slash Aseema dot HTML for details"}

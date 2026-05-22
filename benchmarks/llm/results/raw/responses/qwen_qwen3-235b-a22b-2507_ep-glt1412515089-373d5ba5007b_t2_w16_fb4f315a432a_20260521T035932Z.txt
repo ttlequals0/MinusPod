@@ -1,0 +1,1 @@
+{"start": 7320.0, "end": 7320.0, "confidence": 0.0, "reason": "No promotional content found in transcript segment", "end_text": "tests. So if you do an experiment. Yeah, no, let me explain that effect. So with the double slit experiment."}

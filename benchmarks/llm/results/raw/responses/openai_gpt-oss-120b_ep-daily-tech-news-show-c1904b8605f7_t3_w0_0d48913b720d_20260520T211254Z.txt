@@ -1,0 +1,32 @@
+{
+  "ads": [
+    {
+      "start": 0.0,
+      "end": 52.3,
+      "confidence": 0.99,
+      "reason": "Capital One host-read sponsor",
+      "end_text": "What a life."
+    },
+    {
+      "start": 52.5,
+      "end": 71.6,
+      "confidence": 0.98,
+      "reason": "Combined Xero and Spectrum Business sponsor read",
+      "end_text": "stronger and faster."
+    },
+    {
+      "start": 72.1,
+      "end": 100.9,
+      "confidence": 0.98,
+      "reason": "Spectrum Business host-read sponsor (continues beyond window)",
+      "end_text": "support with 100%"
+    },
+    {
+      "start": 124.0,
+      "end": 152.9,
+      "confidence": 0.99,
+      "reason": "Warby Parker host-read sponsor",
+      "end_text": "That's warbyparker.com."
+    }
+  ]
+}

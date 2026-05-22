@@ -1,0 +1,1 @@
+{"start":4639.7,"end":4961.8,"confidence":0.67,"reason":"Partial host-read sponsor segment promoting Anthropic Claude Security / Claude.ai/security, continuing from prior window; includes product pitch, feature list, and CTA-style URL mention.","end_text":"send scan results to Slack, Jira, or other tools via webhooks. Okay."}

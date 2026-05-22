@@ -1,0 +1,32 @@
+{
+  "ads": [
+    {
+      "start": 0.0,
+      "end": 42.2,
+      "confidence": 1.0,
+      "reason": "Hosting platform network-inserted ad segment with two distinct ads: Airtasker (promotional pitch with download call, URL Airtasker.com) and Weezy WTF / Care for the Culture / Gilead (HIV awareness sponsored content). Both are pre-roll network ads before show content begins.",
+      "end_text": "Airtasker, get anything done."
+    },
+    {
+      "start": 42.8,
+      "end": 72.1,
+      "confidence": 1.0,
+      "reason": "Continuation of pre-roll ad block: Care for the Culture/Gilead Sciences HIV awareness sponsored message with call to community action and brand attribution.",
+      "end_text": "Sponsored by Care for the Culture from Gilead Sciences."
+    },
+    {
+      "start": 72.9,
+      "end": 101.0,
+      "confidence": 1.0,
+      "reason": "Network-inserted brand ad for Nissan Rogue: promotional language describing durability tests, brand tagline style pitch with no promo code but clear marketing content.",
+      "end_text": "hold their ground in real-world conditions."
+    },
+    {
+      "start": 109.0,
+      "end": 150.5,
+      "confidence": 1.0,
+      "reason": "Host-read sponsor ad for Shopify: direct promotion with benefits (discoverability), call to action (URL Shopify.com/BEN), mention of Black Effect Podcast Festival. Includes promo code/vanity URL and product pitch.",
+      "end_text": "Start now at Shopify.com slash B-E-N."
+    }
+  ]
+}

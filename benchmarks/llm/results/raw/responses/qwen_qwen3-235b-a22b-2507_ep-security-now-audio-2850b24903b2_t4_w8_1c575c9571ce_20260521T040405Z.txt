@@ -1,0 +1,1 @@
+{"start": 3358.6, "end": 3376.2, "confidence": 0.3, "reason": "Possible platform-inserted ad or outro, but no promotional content or sponsor mention; likely show conclusion or transition", "end_text": "Thank you for watching"}

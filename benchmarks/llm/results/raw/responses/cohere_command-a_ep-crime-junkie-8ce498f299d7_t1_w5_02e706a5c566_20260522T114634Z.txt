@@ -1,0 +1,7 @@
+{
+  "start": 2167.4,
+  "end": 2194.9,
+  "confidence": 0.95,
+  "reason": "BetterHelp sponsor read",
+  "end_text": "could have been even way less complicated than double-crossing"
+}

@@ -1,0 +1,23 @@
+[
+  {
+    "start": 613.7,
+    "end": 644.7,
+    "confidence": 0.95,
+    "reason": "The host mentions a break and then discusses food options at the water park, which is a common ad transition. The mention of 'chicken fingers and pizza' and 'all you could eat' sounds like a pitch for the snack bar, even without a specific sponsor name.",
+    "end_text": "pizza"
+  },
+  {
+    "start": 675.0,
+    "end": 719.8,
+    "confidence": 0.95,
+    "reason": "The host introduces 'soup shots' as a pick-me-up after a long day, describing it as a 'coffee soup' and a 'thing to know if you are in a hip coffee shop'. This is promotional language for a product.",
+    "end_text": "pour over"
+  },
+  {
+    "start": 851.2,
+    "end": 875.8,
+    "confidence": 0.95,
+    "reason": "The host discusses 'retro tech' in general, mentioning specific items like digital typewriters, boom boxes, and instant cameras. This segment functions as a promotion for the concept of retro tech, which is often sponsored.",
+    "end_text": "world"
+  }
+]

@@ -1,0 +1,1 @@
+{"start":1439.2,"end":1564.4,"confidence":0.99,"reason":"Host-read Mint Mobile and Aura Frames sponsor reads with promotional language, URLs, and promo code TIM; ad break begins with Mint Mobile pitch and continues through Aura Frames CTA.","end_text":"Promo code TIM"}

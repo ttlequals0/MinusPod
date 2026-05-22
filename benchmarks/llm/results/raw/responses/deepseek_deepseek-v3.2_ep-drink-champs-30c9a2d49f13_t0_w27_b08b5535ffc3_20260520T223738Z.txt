@@ -1,0 +1,23 @@
+[
+  {
+    "start": 11335.2,
+    "end": 11365.6,
+    "confidence": -1.0,
+    "reason": "Airtasker network-inserted ad with product pitch and call to action (Download the app, go to Airtasker.com).",
+    "end_text": "Airtasker, get anything done."
+  },
+  {
+    "start": 11366.2,
+    "end": 11424.6,
+    "confidence": -1.0,
+    "reason": "Cross-promotion for 'Decisions Decisions' podcast episode with Keke Palmer, sponsored by Care for the Culture from Gilead Sciences. Includes promotional language and sponsor mention.",
+    "end_text": "Sponsored by Care for the Culture from Gilead Sciences."
+  },
+  {
+    "start": 11425.3,
+    "end": 11455.4,
+    "confidence": -1.0,
+    "reason": "OnDeck small business line of credit ad with product details, call to action (Apply today at OnDeck.com), and legal disclosures.",
+    "end_text": "an amount subject to lender approval."
+  }
+]

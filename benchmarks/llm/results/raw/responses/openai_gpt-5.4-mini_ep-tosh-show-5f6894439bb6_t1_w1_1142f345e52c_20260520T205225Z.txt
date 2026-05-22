@@ -1,0 +1,1 @@
+{"start":537.5,"end":567.0,"confidence":0.98,"reason":"Thrive Cosmetics host-read sponsor segment with promo URL and code, preceded by break cue; includes 'Let's take a break' style transition via 'We'll be right back.'","end_text":"Shine 26"}

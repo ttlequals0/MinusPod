@@ -1,0 +1,1 @@
+{"start":6283.4,"end":6318.1,"confidence":0.99,"reason":"Sponsored ad break for OnDeck followed by Public, with promotional copy, funding claims, and a direct apply/URL call to action; includes break-style transition in the same ad block","end_text":"Support for the show comes from Public"}

@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 1493.2,
+      "end": 1536.8,
+      "confidence": 0.99,
+      "reason": "Host‑read sponsor segment for Capital One followed by AllTrails promotion",
+      "end_text": "find your outside."
+    }
+  ]
+}

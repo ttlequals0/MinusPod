@@ -1,0 +1,7 @@
+{
+  "start": 10069.7,
+  "end": 10680.0,
+  "confidence": 0.000,
+  "reason": "No promotional language, sponsor names, URLs, promo codes, or calls to action found in the transcript. This is all conversational content (football, Warren Buffett, Luke congressional race, NFL media portrayals, college player compensation). No host-read sponsor segments, no network-inserted ads, no brand taglines.",
+  "end_text": "like, I think that's something that..."
+}

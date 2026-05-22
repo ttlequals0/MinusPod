@@ -1,0 +1,9 @@
+[
+  {
+    "start": 11335.2,
+    "end": 11455.4,
+    "confidence": 0.99,
+    "reason": "Ad block featuring Airtasker, Care for the Culture (Gilead Sciences), and OnDeck",
+    "end_text": "subject to lender approval"
+  }
+]

@@ -1,0 +1,7 @@
+{
+  "start": 3778.8,
+  "end": 4401.9,
+  "confidence": 0.0,
+  "reason": "No promotional content, sponsor mentions, URLs, promo codes, or platform-inserted ads detected in this window. The segment contains only conversational content between hosts/guest and outro music.",
+  "end_text": "It was 12-4."
+}

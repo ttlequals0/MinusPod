@@ -1,0 +1,1 @@
+{"start": 2100.0, "end": 2100.0, "confidence": 0.0, "reason": "No ad content detected in transcript window", "end_text": ""}

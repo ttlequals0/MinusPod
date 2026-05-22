@@ -1,0 +1,1 @@
+[{"start": 4195.9, "end": 4317.9, "confidence": 0.95, "reason": "Podcast sponsorship and promotion", "end_text": "TakePoliticsSeriously.com"}]

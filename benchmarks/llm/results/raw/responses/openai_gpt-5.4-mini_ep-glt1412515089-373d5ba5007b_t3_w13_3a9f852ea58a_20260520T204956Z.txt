@@ -1,0 +1,1 @@
+{"start":5546.3,"end":5596.3,"confidence":0.98,"reason":"Netflix sponsored promo; includes 'This episode is brought to you by Netflix's remarkably bright creatures' and a show-style ad read before returning to content","end_text":"only on Netflix. Yeah. Right"}

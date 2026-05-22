@@ -1,0 +1,1 @@
+{"start": 1879.5, "end": 1890.3, "confidence": 0.98, "reason": "transition phrase 'let's take a break' indicates ad break start, though no promotional content is present in transcript", "end_text": "Should we declare CEO"}

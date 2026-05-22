@@ -1,0 +1,1 @@
+{"start":126.0,"end":136.0,"confidence":0.97,"reason":"Perplexity platform promo inserted in episode description/transcript metadata with download/app call to action and podcastchoices ad-choices link; no in-window show content indicates a separate ad break, but this appears to continue from outside the window","end_text":"continues in next"}

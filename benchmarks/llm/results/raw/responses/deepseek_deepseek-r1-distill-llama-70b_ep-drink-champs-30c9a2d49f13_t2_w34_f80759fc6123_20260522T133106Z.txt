@@ -1,0 +1,7 @@
+{
+  "start": 14516.1,
+  "end": 14527.9,
+  "confidence": 0.95,
+  "reason": "Host-read sponsor segment promoting Shopify with promo code and URL",
+  "end_text": "name and badge number, and continue what you were saying."
+}

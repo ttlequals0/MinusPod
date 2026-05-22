@@ -1,0 +1,9 @@
+[
+  {
+    "start": 396.8,
+    "end": 412.2,
+    "confidence": 0.95,
+    "reason": "Platform-inserted ad break",
+    "end_text": "Thank you for watching."
+  }
+]

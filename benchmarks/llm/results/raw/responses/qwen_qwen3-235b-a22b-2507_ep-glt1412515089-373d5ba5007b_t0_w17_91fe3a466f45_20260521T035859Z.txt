@@ -1,0 +1,1 @@
+{"start": 7131.4, "end": 7756.0, "confidence": 0.99, "reason": "continuous discussion of quantum physics, retrocausality, observer effect, and quantum computing without any promotional content, sponsor mentions, or ad markers; transcript shows unbroken dialogue between host and guest on scientific topics", "end_text": "solving the same problem"}

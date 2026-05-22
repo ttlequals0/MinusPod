@@ -1,0 +1,1 @@
+{"start": 10497.6, "end": 11104.1, "confidence": 0.0, "reason": "No promotional content, sponsor mentions, URLs, promo codes, or platform-inserted ads detected in this window. All transcript content is organic conversation about football, Ballers TV show, college athlete compensation, and Miami club stories.", "end_text": "because I was there you were there"}

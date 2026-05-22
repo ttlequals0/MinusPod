@@ -1,0 +1,1 @@
+{"start":3428.1,"end":3457.8,"confidence":0.99,"reason":"Host break transition omitted in transcript but clear sponsor read for Arizona State University with promotional copy and URL asunline.asu.edu","end_text":"degree better"}

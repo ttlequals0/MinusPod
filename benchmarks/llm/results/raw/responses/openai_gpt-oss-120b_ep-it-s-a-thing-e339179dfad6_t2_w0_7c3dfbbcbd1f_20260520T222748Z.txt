@@ -1,0 +1,7 @@
+{
+  "start": 1.6,
+  "end": 77.2,
+  "confidence": 0.99,
+  "reason": "Acast platform pre-roll and host-read sponsor promos (Wrong Turns, Formative) with promotional language and calls to action",
+  "end_text": "leaders of tomorrow."
+}

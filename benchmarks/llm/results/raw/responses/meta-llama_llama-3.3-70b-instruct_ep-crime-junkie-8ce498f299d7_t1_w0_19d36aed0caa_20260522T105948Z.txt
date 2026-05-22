@@ -1,0 +1,4 @@
+[{"start": 0.0, "end": 14.1, "confidence": 0.95, "reason": "Vitel Global sponsor read", "end_text": "unified communications platform"}, 
+{"start": 14.7, "end": 40.8, "confidence": 0.95, "reason": "Vitel Global and LinkedIn Premium sponsor read", "end_text": "make every connection count"}, 
+{"start": 41.5, "end": 69.8, "confidence": 0.95, "reason": "LinkedIn Premium sponsor read", "end_text": "all-in-one product"}, 
+{"start": 70.5, "end": 98.4, "confidence": 0.95, "reason": "Hertz sponsor read", "end_text": "Hertz.com"}]

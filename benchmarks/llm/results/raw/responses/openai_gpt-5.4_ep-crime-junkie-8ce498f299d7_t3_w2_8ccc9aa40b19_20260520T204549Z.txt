@@ -1,0 +1,1 @@
+{"start":1036.2,"end":1129.6,"confidence":0.99,"reason":"Back-to-back sponsor ads: SoFi personal loan debt consolidation read followed by LinkedIn Premium All-in-One promo with CTA URLs","end_text":"Try for free at LinkedIn.com slash all-in-one."}

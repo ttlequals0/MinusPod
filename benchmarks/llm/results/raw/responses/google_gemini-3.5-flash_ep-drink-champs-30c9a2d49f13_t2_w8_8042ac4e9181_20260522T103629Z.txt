@@ -1,0 +1,9 @@
+[
+  {
+    "start": 3503.7,
+    "end": 3637.4,
+    "confidence": 0.98,
+    "reason": "Ad break featuring Airtasker, Decisions Decisions podcast promo, OnDeck, and Public investing platform.",
+    "end_text": "backtest it again"
+  }
+]

@@ -1,0 +1,1 @@
+{"start": 2085.5, "end": 2699.0, "confidence": 0.99, "reason": "Continuous monologue on screens, parenting, and GLP-1s without any promotional content or sponsor transitions; host discusses societal trends and personal opinions without ad language, URLs, promo codes, or calls to action", "end_text": "while I was watching the iPad."}

@@ -1,0 +1,1 @@
+[{"start": 0.0, "end": 150.5, "confidence": 0.98, "reason": "Continuous pre-roll ad block featuring Airtasker, Gilead Sciences, Nissan, and Shopify sponsor reads", "end_text": "Shopify.com slash B-E-N"}]

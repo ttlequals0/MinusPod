@@ -1,0 +1,1 @@
+{"start":0.0,"end":98.4,"confidence":0.99,"reason":"Consecutive host-read sponsor segments for Vitel Global, LinkedIn Premium All-in-One, and Hertz with promotional copy, URLs, and product pitches before the show starts","end_text":"Get paired with our newest fleet yet at Hertz.com"}

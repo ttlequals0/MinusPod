@@ -1,0 +1,1 @@
+{"start": 12600.1, "end": 13208.2, "confidence": 0.0, "reason": "No promotional content, sponsor names, URLs, promo codes, or calls to action detected in this window. The transcript contains only continuous conversational content between the hosts and guest.", "end_text": "How long you been married?"}

@@ -1,0 +1,1 @@
+{"start":6390.2,"end":6419.1,"confidence":0.94,"reason":"Host transition 'Let's pay some bills' followed by promo mention of Blue Chew and sponsor-style banter before returning to content; partial ad break in transcript window","end_text":"Let's pay some bills and"}

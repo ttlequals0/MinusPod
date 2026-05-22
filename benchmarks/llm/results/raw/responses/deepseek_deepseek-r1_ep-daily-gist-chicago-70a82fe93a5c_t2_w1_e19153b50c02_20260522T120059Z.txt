@@ -1,0 +1,7 @@
+[{
+  "start": 506.4,
+  "end": 548.5,
+  "confidence": 0.95,
+  "reason": "Crain's self-promotion ad for Weekly News Quiz and podcast with call to action",
+  "end_text": "Daily Gist with Amy Guth"
+}]

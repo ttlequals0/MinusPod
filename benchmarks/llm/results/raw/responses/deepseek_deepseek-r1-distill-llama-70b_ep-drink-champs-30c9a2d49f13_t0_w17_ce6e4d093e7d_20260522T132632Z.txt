@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so let's take a break. This episode is brought to you by BetterHelp. If you're feeling overwhelmed, BetterHelp offers convenient, affordable, and private online counseling. Visit BetterHelp.com/DrinkChamps to get 10% off your first month. And don't forget to check out our other sponsors like Shopify and HelloFresh. Thanks for tuning in, and we'll be right back.",
+  "start": 7740.0,
+  "end": 7755.0
+}

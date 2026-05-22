@@ -1,0 +1,1 @@
+{"start": 2659.8, "end": 2674.1, "confidence": 0.3, "reason": "Partial repetition of content, no promotional language or ad markers present", "end_text": "you have a better understanding of yourself, which is odd"}

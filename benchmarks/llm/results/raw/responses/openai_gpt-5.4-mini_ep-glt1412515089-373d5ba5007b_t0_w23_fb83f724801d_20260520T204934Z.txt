@@ -1,0 +1,1 @@
+{"start":9898.8,"end":9920.6,"confidence":0.93,"reason":"Host mentions the book title and then the discussion shifts to the audiobook, but this window contains no clear ad read; no promotional sponsor language beyond the guest's own book mention. No ad detected in this excerpt.","end_text":"Bye, everybody. Bye"}

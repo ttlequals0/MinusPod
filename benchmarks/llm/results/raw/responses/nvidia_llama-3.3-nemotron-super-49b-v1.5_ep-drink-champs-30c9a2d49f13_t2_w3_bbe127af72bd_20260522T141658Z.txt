@@ -1,0 +1,6 @@
+[
+    {"start": 1460.1, "end": 1486.1, "confidence": 0.95, "reason": "Airtasker sponsor read", "end_text": "Airtasker, get anything done"},
+    {"start": 1513.7, "end": 1524.8, "confidence": 0.9, "reason": "Care for the Culture sponsorship mention", "end_text": "sponsored by Care for the Culture from Gilead Sciences"},
+    {"start": 1525.5, "end": 1553.8, "confidence": 0.95, "reason": "OnDeck small business loan ad", "end_text": "Apply today at OnDeck.com"},
+    {"start": 1555.6, "end": 1627.2, "confidence": 0.95, "reason": "BetMGM MLB promotional ad", "end_text": "Download the BetMGM app and step up to the plate today"}
+]

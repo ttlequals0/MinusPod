@@ -1,0 +1,11 @@
+{
+  "ad_segments": [
+    {
+      "start": 821.4,
+      "end": 1021.1,
+      "confidence": 0.99,
+      "reason": "Multiple sponsor ads for Capital One, BetterHelp, Amazon Health AI, Spectrum Business, and Rinse laundry service",
+      "end_text": "It's time to be great."
+    }
+  ]
+}

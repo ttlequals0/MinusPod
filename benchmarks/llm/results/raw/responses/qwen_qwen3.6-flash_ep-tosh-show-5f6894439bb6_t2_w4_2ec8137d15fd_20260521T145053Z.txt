@@ -1,0 +1,1 @@
+[{"start": 1836.9, "end": 1999.5, "confidence": 0.98, "reason": "Continuous ad break featuring Mint Mobile, Mattress Warehouse, and PC Richard & Son sponsor reads.", "end_text": "Visit PCRichard.com slash Aseema dot HTML for details."}]

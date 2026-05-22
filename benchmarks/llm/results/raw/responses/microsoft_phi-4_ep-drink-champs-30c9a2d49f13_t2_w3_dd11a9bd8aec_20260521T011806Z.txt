@@ -1,0 +1,7 @@
+{
+  "start": 12.52,
+  "end": 18.22,
+  "confidence": 0.95,
+  "reason": "The segment contains promotional language and mentions of specific products and services, such as 'OnDeck' and 'BetMGM', indicating sponsorship segments.",
+  "end_text": "Will said, you ready? I said, boy, I'm ready for this."
+}

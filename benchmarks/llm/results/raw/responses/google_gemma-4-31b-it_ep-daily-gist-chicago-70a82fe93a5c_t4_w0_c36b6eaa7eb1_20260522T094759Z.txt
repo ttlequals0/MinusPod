@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 54.1,
+      "end": 64.7,
+      "confidence": 1.0,
+      "reason": "Old National Bank sponsor read with URL and CTA",
+      "end_text": "oldnational.com slash commercial banking"
+    }
+  ]
+}

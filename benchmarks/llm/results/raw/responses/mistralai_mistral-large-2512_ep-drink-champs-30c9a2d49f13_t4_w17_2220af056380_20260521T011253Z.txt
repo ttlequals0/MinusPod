@@ -1,0 +1,9 @@
+[
+    {
+        "start": 7693.5,
+        "end": 7715.9,
+        "confidence": 0.9,
+        "reason": "Platform-inserted ad for 'Gangsta Grillz' and 'Master' (likely DJ Master or similar), featuring promotional language for radio shows and music content. Tonally distinct from host conversation and includes calls to action ('look', 'you down').",
+        "end_text": "looking for shit."
+    }
+]

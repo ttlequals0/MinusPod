@@ -1,0 +1,1 @@
+{"start":2234.5,"end":2263.3,"confidence":0.18,"reason":"Possible break cue ('Take one') but no promotional language, sponsor, product pitch, URL, or call to action present; not an ad","end_text":"Take one. Take one. Take one."}

@@ -1,0 +1,44 @@
+[
+    {
+        "start": 1450.9,
+        "end": 1459.5,
+        "confidence": 0.98,
+        "reason": "Airtasker sponsor read with promotional language and call to action (URL and app mention)",
+        "end_text": "pony's nails done"
+    },
+    {
+        "start": 1460.1,
+        "end": 1486.1,
+        "confidence": 0.98,
+        "reason": "Airtasker network-inserted ad with tagline and URL (airtasker.com)",
+        "end_text": "get anything done"
+    },
+    {
+        "start": 1486.6,
+        "end": 1524.8,
+        "confidence": 0.95,
+        "reason": "Cross-promotion for 'Decisions Decisions' podcast with Care for the Culture (Gilead Sciences) sponsorship mention",
+        "end_text": "Gilead Sciences"
+    },
+    {
+        "start": 1525.5,
+        "end": 1553.8,
+        "confidence": 0.98,
+        "reason": "OnDeck small business line of credit sponsor read with promotional language, URL, and loan details",
+        "end_text": "as soon as tomorrow"
+    },
+    {
+        "start": 1555.6,
+        "end": 1627.2,
+        "confidence": 0.99,
+        "reason": "BetMGM sports betting ad with MLB promotions, app download call to action, and gambling disclaimers",
+        "end_text": "1-800-GAMBLER"
+    },
+    {
+        "start": 1627.4,
+        "end": 1629.0,
+        "confidence": 0.95,
+        "reason": "Partial BetMGM ad continuation with Kansas Crossing Casino and Hotel mention (continues in next window likely)",
+        "end_text": "Casino and Hotel"
+    }
+]

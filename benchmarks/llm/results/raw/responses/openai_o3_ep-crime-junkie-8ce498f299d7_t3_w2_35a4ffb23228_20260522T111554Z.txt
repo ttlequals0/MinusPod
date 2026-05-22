@@ -1,0 +1,1 @@
+{"start": 1036.2, "end": 1129.6, "confidence": 0.97, "reason": "SoFi and LinkedIn Premium sponsor reads with promo URLs", "end_text": "slash all-in-one"}

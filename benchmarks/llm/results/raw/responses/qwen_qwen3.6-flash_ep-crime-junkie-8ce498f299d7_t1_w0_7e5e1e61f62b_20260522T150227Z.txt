@@ -1,0 +1,1 @@
+[{"start": 0.0, "end": 98.4, "confidence": 0.98, "reason": "Multiple host-read sponsor reads (Vitel Global, LinkedIn Premium, Hertz) at the start of the episode", "end_text": "at Hertz.com."}]

@@ -1,0 +1,1 @@
+{"start":2609.5,"end":2634.3,"confidence":0.92,"reason":"Host briefly reads sponsor/promo list including Athletic Greens, AG1, BetterHelp, Squarespace, ZipRecruiter, Raycon, Manscaped, and Stamps.com; promotional language appears as a sponsor interruption.","end_text":"Manscaped, Stamps.com"}

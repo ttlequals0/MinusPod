@@ -1,0 +1,60 @@
+Podcast: security-now-audio
+Episode: SN 1077: A Browser AI API? - End of Bug Bounties?
+
+
+Episode description: <p>Google is sneaking a massive 4.7GB AI model into Chrome, and Mozilla is fighting back as the future of browsers threatens to turn into an AI arms race. Find out what's really happening behind this push and why it's setting off alarm bells across the web.</p><ul> 
+<li>Hackers AI-code a portal, forget to add authentication.</li> 
+<li>The UK's NCSC issues a Mythos warning. Where's CISA?</li> 
+<li>Another (of many) Linux local privilege escalations.</li> 
+<li>AI may be spelling the end of bug bounties.</li> 
+<li>Anthropic releases "Claude Security" mini-Mythos.</li> 
+<li>ChatGPT gets very serious about login security.</li> 
+<li>Syncthing's SyncTrayzor v1 abandoned; v2 created.</li> 
+<li>Google drops an AI API into Chrome; Mozilla objects</li></ul> 
+<p>Show Notes - <a href="https://www.grc.com/sn/SN-1077-Notes.pdf">https://www.grc.com/sn/SN-1077-Notes.pdf</a></p> 
+<p><strong>Hosts:</strong> <a href="https://twit.tv/people/steve-gibson">Steve Gibson</a> and <a href="https://twit.tv/people/leo-laporte">Leo Laporte</a></p> 
+<p>Download or subscribe to <em>Security Now</em> at <a href="https://twit.tv/shows/security-now">https://twit.tv/shows/security-now</a>.</p> 
+<p>You can submit a question to <em>Security Now</em> at the <a href="https://www.grc.com/feedback.htm" target="_blank">GRC Feedback Page</a>.</p> 
+<p>For 16kbps versions, transcripts, and notes (including fixes), visit Steve's site: <a href="https://www.grc.com/securitynow.htm" target="_blank">grc.com</a>, also the home of the best disk maintenance and recovery utility ever written <a href="https://www.grc.com/sr/spinrite.htm" target="_blank">Spinrite 6</a>.</p> 
+<p><strong>Join Club TWiT for Ad-Free Podcasts!</strong><br /> 
+Support what you love and get ad-free audio <em>and</em> video feeds, a members-only Discord, and exclusive content. Join today: <a href="https://twit.tv/clubtwit" rel="payment">https://twit.tv/clubtwit</a></p>
+<p><strong>Sponsors:</strong><ul>
+<li><a href="http://zscaler.com/security" rel="sponsored" target="_blank">zscaler.com/security</a></li>
+<li><a href="http://meter.com/securitynow" rel="sponsored" target="_blank">meter.com/securitynow</a></li>
+<li><a href="http://bitwarden.com/twit" rel="sponsored" target="_blank">bitwarden.com/twit</a></li>
+<li><a href="http://hoxhunt.com/securitynow" rel="sponsored" target="_blank">hoxhunt.com/securitynow</a></li>
+<li><a href="http://trustedtech.team/securitynow365" rel="sponsored" target="_blank">trustedtech.team/securitynow365</a></li>
+</ul></p>
+
+Transcript:
+[8380.6s - 8408.1s] To the debate over other controversial web technologies like encrypted media extensions, remember EME, he suggested the outcome has not been as desired as was predicted. But focusing on data so far has not done much for Google's cause. According to a report created in February that compares the performance of Chrome with Gemini Nano and Edge with Fi4 Mini Instruct,
+[8408.4s - 8433.4s] Using the prompt API, these models do not provide very good results. The report says, quote, for generative tasks, composition, tag generation, etc., 24.29% edges and 15.17% of Chrome's responses failed to complete the task at all.
+[8433.9s - 8461.6s] This is in reference to a rubric that defines failure as a score of two or less on a scale of one to five. For classification tasks, 29.58% of edges and 23.93% of Chrome's responses did not label or categorize input correctly. So it's often also wrong. They finished with the report's conclusions, noting, in terms of groundedness and accuracy,
+[8462.5s - 8488.8s] Edge failed, which is to say hallucinated, 17% of the time, while Chrome failed 6% of the time. Is that good for the web? You could ask Chrome, but you might not get a reliable answer. And that's how the register signs off. Burn. Burn. So where does this leave us? I guess it leaves me more happy than ever that I've stuck with Mozilla.
+[8490.5s - 8496.9s] I look at what Google now presents us on a page of search results.
+[8498.3s - 8524.9s] And it becomes clear that we're the product. I search for something specific and sponsored. Instead of what I ask for, I get sponsored interception advertisements that are promoted to the top of the page and are presented before the result that I'm seeking that I need to weigh down past a bunch of YouTube video links that I have zero interest in.
+[8525.6s - 8548.6s] Okay, now in fairness, Google's not alone in doing this. Apple has similarly succumbed in their app store. The thing I'm looking for is never first any longer. Even when I search for it by name and spell it correctly, what's first is what someone paid them to show me first in the hope that I wouldn't notice or wasn't sure what it was that I wanted. And on the Google side,
+[8549.1s - 8572.8s] In return for tolerating a bunch of advertising, we do receive a ton of services at no charge. You know, I author these show notes every week in Google Docs for free. And, you know, the catch-all junk email account I maintain over at Gmail is similarly valuable. All of that means a lot. So, thank you, Google. But all of that seems fundamentally different to me.
+[8573.3s - 8599.9s] from intermixing the design and establishment of crucial web standards with a single company's commercial interests. Yes, Google has succeeded in leveraging their position as the winner of internet search into the winner of the web browser wars. I get it. As I use the internet daily, I am more or less continually being offered the opportunity.
+[8600.8s - 8618.6s] To improve my life in one way or another by switching to Chrome, I constantly need to decline. Most people have given up declining, and they're perfectly happy using Chrome, whether or not their lives are any better for it, and that's great. But tremendous responsibility
+[8619.6s - 8644.8s] Burdens Google's dominance with Chrome. You know, they need somebody knowledgeable to push back and to question their actions, if for no other reason than to help them make the best choices. So I'm very pleased that we have Mozilla watching and actively participating. Google may and likely will still plow ahead and force Mozilla to keep up or to be left behind while Mozilla and Apple
+[8646.0s - 8667.9s] And, you know, either be, you know, keep up or get left behind and become irrelevant. But everyone will likely get a better browser, whether that's Chrome, Edge, Safari, Brave, Vivaldi, or Firefox, if this is a collaborative effort. And Leo, the thing that I think was most significant here.
+[8668.9s - 8694.0s] is the observation that Archibald made that LLMs are inherently non-deterministic. You know, every time you ask a question, you get a different answer. And so we're putting, we're now talking about having the browser interface to one vendor's solution.
+[8694.9s - 8720.1s] which has a random number generator in its heart not a very good one either you know it's got it's got some temperature it's got some temperature setting right and apparently it's they had to sacrifice a lot of reliability in order to get the size down it's heavily quantized yeah it was tolerable they wanted it to be 22 gigs and people said f off i am not putting that in my
+[8720.5s - 8744.9s] You know, is that mass storage? Is that RAM? Where does that 22 gigs live? Somewhere you don't want it to live, probably. And so they've had to squeeze it down in order to make it acceptable, and in the process, it's lost its reliability. So, I mean, really, if we want to be able to surf the web with any browser we choose, and if...
+[8745.1s - 8759.7s] Web pages that we download are going to start wanting to use local large language models. Whose large language model will it be? And they aren't interchangeable. We know they're not interchangeable.
+[8760.1s - 8776.3s] Right. Well, and, you know, Darren, who loves AI, said, well, I can imagine some uses. For instance, it's hard to write software that detects misspellings, but the AI could quickly detect a misspelling if somebody's entering it in and correct it. And so there is that convenience.
+[8778.0s - 8805.8s] But I also think that this is Google bigfooting the whole process, and it's part of the inshittification of Google. They don't feel any responsibility to anything at this point except their stakeholders to make more money. And that's clearly, you know, this is about dominating the browser space and putting everybody else out of business. The other thing that worries me as an AI fan, and I know you're an AI fan too, the more we force AI down the throats of un...
+[8810.5s - 8811.6s] Google's found that out.
+[8813.1s - 8840.3s] Microsoft's found that out in spades. Oh, those annoying chat box that pop up in the lower right corner of your screen. Well, that's going to end up running locally. And it's like... So I don't want to turn people against AI. AI is a real value. But by doing this kind of forcing it down people's throats, you're actually making enemies. And I don't think that's good either for Google or for AI in general. So, yeah, I have lots of problems. We'll talk about this. I'm looking forward to a conversation tomorrow.
+[8861.4s - 8863.9s] Google wants everybody to have it.
+[8864.6s - 8891.9s] It's not a very well-kept secret. I should point out that one of the reasons Google thinks this is okay is because they're already doing this on Android, as is Apple doing it on iOS. There are built-in local models on both those systems. Apple touts this all the time. And your data stays local on the device. Apple Intelligence is a local model. So there is a precedent for this on those platforms. I think I still wish, maybe it's a futile wish, that the web would be a
+[8892.5s - 8919.3s] All of these are standards-based interface and that everybody should be able to choose the browser of their choice and they should all work well. The only one who doesn't want it to be a standard is the big guy. It's Google, the winner. Yeah, you're not going to see Vivaldi saying, well, we think a standard should be in favor of us. They can't, nor can Mozilla, but Google can and clearly they do. I agree with you.
+[8920.9s - 8948.8s] You know, we saw Google back way down on a number of its proposals. True. The whole anti-tracking technology, they tried several times, but they got real pushback. But they got pushback from people who had invested, I mean, like... Advertisers. Yes, exactly. Large, large commercial interests, and there's no one to push back on this.
+[8949.2s - 8975.3s] Well, just remember, as users, maybe as individuals, we don't have much power, but collectively, we do. They still need us to use their darn browsers. But would somebody leave Chrome to go to Firefox? Well, you and I have. I've, yes. You and I have, and this is one of the reasons. And fortunately, so far, you can mostly use the internet with a Firefox-based browser, mostly.
+[8976.2s - 9004.0s] Widevine is another example, DRM in the browser. Yeah, the OpenTable site I use for restaurant reservations and it doesn't work under Firefox. Needs Chrome. As I said, Restream needs Chrome because of WebRTC and the WebRTC implementation it uses. I think that's, you know, this is an object lesson. This is what happens. And if you don't want, if you want Chrome and Google to be the only player in the internet,
+
+=== WINDOW 21/23: 140.0-150.0 minutes ===
+- Use absolute timestamps from transcript (as shown in brackets)
+- If an ad starts before this window, use the first timestamp with note "continues from previous"
+- If an ad extends past this window, use 9000.0 with note "continues in next"

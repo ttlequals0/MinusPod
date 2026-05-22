@@ -1,0 +1,30 @@
+[
+  {
+    "start": 1439.2,
+    "end": 1512.6,
+    "confidence": 0.98,
+    "reason": "Host-read ad for Mint Mobile. Mentions saving money, economy, cell phone service, high-speed data, unlimited talk and text, 5G network, and provides a vanity URL (mintmobile.com/TimDillon) and promo details.",
+    "end_text": "slash Tim Dillon, upfront payments of $45 for three months, five gigabyte plan required, equivalent to $15 a month, new customer offer for the first three months, only then full price plans available, taxes and fees extra, see Mint Mobile for details."
+  },
+  {
+    "start": 1514.6,
+    "end": 1576.1,
+    "confidence": 0.97,
+    "reason": "Host-read ad for Aura Frames. Describes the product as a digital picture frame, highlights features like unlimited storage, preloading photos, personalization, gift box, and mentions Mother's Day. Provides a vanity URL (AuraFrames.com/Tim) and promo code (TIM).",
+    "end_text": "Promo code TIM."
+  },
+  {
+    "start": 1607.4,
+    "end": 1629.5,
+    "confidence": 0.95,
+    "reason": "Network-inserted ad for Colgate. Features a voiceover and music distinct from the host, promoting the Colgate Women's Games and the tagline 'your smile is your strength'.",
+    "end_text": "your smile is your strength."
+  },
+  {
+    "start": 1637.6,
+    "end": 1688.4,
+    "confidence": 0.95,
+    "reason": "Network-inserted ad for Skinny Pop. Features a distinct voiceover and marketing language promoting the product's simplicity and taste.",
+    "end_text": "Skinny Pop."
+  }
+]

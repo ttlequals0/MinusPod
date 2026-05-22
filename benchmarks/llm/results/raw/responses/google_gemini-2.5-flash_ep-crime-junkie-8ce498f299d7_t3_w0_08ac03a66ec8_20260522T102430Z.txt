@@ -1,0 +1,23 @@
+[
+  {
+    "start": 0.0,
+    "end": 14.7,
+    "confidence": 0.95,
+    "reason": "Vitel Global sponsor read",
+    "end_text": "all in one place."
+  },
+  {
+    "start": 14.7,
+    "end": 40.8,
+    "confidence": 0.95,
+    "reason": "LinkedIn Premium sponsor read",
+    "end_text": "in your day."
+  },
+  {
+    "start": 40.8,
+    "end": 69.8,
+    "confidence": 0.95,
+    "reason": "LinkedIn Premium sponsor read",
+    "end_text": "at Hertz.com."
+  }
+]

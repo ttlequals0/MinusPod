@@ -1,0 +1,1 @@
+{"start": 8980.5, "end": 9008.6, "confidence": 0.3, "reason": "Partial segment of job interview story at Lockheed Martin; no promotional language, sponsor mention, or ad markers present. This is organic content continuation.", "end_text": "hire me on the spot. Then,"}

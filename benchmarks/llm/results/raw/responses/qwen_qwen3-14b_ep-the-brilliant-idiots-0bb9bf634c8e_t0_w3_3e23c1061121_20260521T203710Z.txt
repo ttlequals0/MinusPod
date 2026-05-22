@@ -1,0 +1,2 @@
+w.
+{"start": 1260.0, "end": 1860.0, "confidence": 0.0, "reason": "No advertisement segments found in the specified window", "end_text": "Sway, absolutely. See, okay, but when you say- Fab Five Freddy."}

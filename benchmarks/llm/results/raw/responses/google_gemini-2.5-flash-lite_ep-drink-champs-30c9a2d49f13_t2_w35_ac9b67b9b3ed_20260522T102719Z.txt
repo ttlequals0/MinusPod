@@ -1,0 +1,9 @@
+[
+  {
+    "start": 15261.8,
+    "end": 15285.2,
+    "confidence": 0.95,
+    "reason": "The transcript contains repeated phrases like 'promo code, discount code' which are strong indicators of an advertisement, even without a specific product or URL mentioned.",
+    "end_text": "discount code, discount code"
+  }
+]

@@ -1,0 +1,7 @@
+{
+	"start": 1450.9,
+	"end": 1513.0,
+	"confidence": 1,
+	"reason": "Airtasker ad",
+	"end_text": "my miniature pony's nails done"
+}

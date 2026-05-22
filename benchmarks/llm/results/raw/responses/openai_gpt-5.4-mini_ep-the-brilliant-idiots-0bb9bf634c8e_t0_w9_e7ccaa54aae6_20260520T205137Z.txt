@@ -1,0 +1,1 @@
+{"start":4059.4,"end":4077.5,"confidence":0.95,"reason":"Host explicitly says 'let's pay some bills' and 'we got to pay some bills' before ad-style break, followed by promo content resume; partial sponsor break in this window with no standalone brand pitch in transcript excerpt.","end_text":"Lil P got to eat, okay?"}

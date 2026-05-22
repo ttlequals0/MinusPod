@@ -1,0 +1,7 @@
+{
+  "start": 17.16,
+  "end": 18.22,
+  "confidence": 0.95,
+  "reason": "The segment contains a transition phrase 'Let's take a break' and includes a sponsor read by DJ EFN, which is a typical ad structure with promotional language.",
+  "end_text": "I'm telling you what you're saying, because you're saying Miami was a bad thing. I'm thinking football-wise."
+}

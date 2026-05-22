@@ -1,0 +1,1 @@
+{"start":2208.3,"end":2237.0,"confidence":0.99,"reason":"Blinds.com host-read style ad with clear promotional copy, including 'The right window treatments change everything,' brand name, product claims, and 'get up to 45% off site-wide' call to action. Includes the break transition into ad content.","end_text":"free professional measure at Blinds.com"}

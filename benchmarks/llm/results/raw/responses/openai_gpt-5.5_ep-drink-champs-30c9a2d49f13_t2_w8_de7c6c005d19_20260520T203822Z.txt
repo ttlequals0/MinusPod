@@ -1,0 +1,1 @@
+{"start":3478.9,"end":3666.3,"confidence":0.99,"reason":"Network-inserted ad break containing Airtasker promotion, Decisions Decisions/Gilead podcast promo, OnDeck business line of credit ad, and Public investing platform sponsor read with URLs/calls to action.","end_text":"public.com slash disclosures"}

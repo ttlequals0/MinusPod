@@ -1,0 +1,1 @@
+[{"start": 6208.7, "end": 6318.1, "confidence": 0.98, "reason": "Host-read Airtasker ad, cross-promotion for Decisions Decisions podcast, OnDeck network ad, and Public sponsorship.", "end_text": "those who take it seriously."}]

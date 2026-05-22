@@ -1,0 +1,1 @@
+[{"start": 1836.9, "end": 1999.5, "confidence": 0.98, "reason": "Merged ad block: Mint Mobile host read, Mattress Warehouse retail insert, and PC Richard & Son promotional spot", "end_text": "Aseema dot HTML for details."}]

@@ -1,0 +1,1 @@
+{"start": 0.0, "end": 69.8, "confidence": 0.98, "reason": "Host-read sponsor segment with promotional language for Vitel Global and LinkedIn Premium All-in-One, including URLs and calls to action", "end_text": "Try for free at linkedin.com slash all-in-one"}

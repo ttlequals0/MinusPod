@@ -1,0 +1,2 @@
+y.
+{"start": 2280.0, "end": 2280.0, "confidence": 0.0, "reason": "No advertisement segments detected in the provided transcript window.", "end_text": "Nori calls going on Jason Lee podcast."}

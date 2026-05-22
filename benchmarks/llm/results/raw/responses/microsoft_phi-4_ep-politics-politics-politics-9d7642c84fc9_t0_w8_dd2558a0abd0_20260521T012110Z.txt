@@ -1,0 +1,7 @@
+{
+  "start": 33.37,
+  "end": 39.20,
+  "confidence": 0.95,
+  "reason": "The discussion about the hypothetical JD Vance vs. Rubio showdown and the implications of AI on political campaigns and voter trust levels is relevant to the current political landscape and the potential impact of AI technology on campaigns.",
+  "end_text": "But I don't understand it with Christopher Nolan. I have no idea why people would believe that Christopher Nolan isn't going to make a good movie that will largely be enjoyed by men."
+}

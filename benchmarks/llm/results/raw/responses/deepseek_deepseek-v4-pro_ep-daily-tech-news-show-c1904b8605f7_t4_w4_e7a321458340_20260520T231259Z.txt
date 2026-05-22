@@ -1,0 +1,1 @@
+{"segments": [{"start": 1742.3, "end": 1771.5, "confidence": 0.98, "reason": "Capital One sponsor read", "end_text": "That's technology at Capital One."}, {"start": 2174.2, "end": 2221.9, "confidence": 0.95, "reason": "Acast ad support mention", "end_text": "Acast Ad Support from Tatiana Matias."}]}

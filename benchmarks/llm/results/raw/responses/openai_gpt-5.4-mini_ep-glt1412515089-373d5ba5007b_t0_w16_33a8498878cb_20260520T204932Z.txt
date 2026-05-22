@@ -1,0 +1,1 @@
+{"start":7313.3,"end":7323.7,"confidence":0.38,"reason":"Possible partial platform promo overlap near the window end, but transcript here is show content and contains no ad copy; no clear sponsorship language in this segment","end_text":"the double slit experiment"}

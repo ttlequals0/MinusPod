@@ -1,0 +1,7 @@
+[{
+    "start": 4269.3,
+    "end": 4285.6,
+    "confidence": 0.95,
+    "reason": "Host promoting paid subscription with vanity URL call-to-action",
+    "end_text": "TakePoliticsSeriously.com"
+}]

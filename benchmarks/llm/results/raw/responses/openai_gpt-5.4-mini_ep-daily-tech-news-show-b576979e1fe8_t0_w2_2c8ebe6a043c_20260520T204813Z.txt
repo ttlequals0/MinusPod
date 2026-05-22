@@ -1,0 +1,1 @@
+{"start":994.2,"end":1263.6,"confidence":0.9,"reason":"Insta360 promo segment for the Go 3S Retro Bundle with product positioning, features, pricing, and brand name repeated; no explicit break phrase in transcript but clear sponsored-style promotional copy","end_text":"here we are"}

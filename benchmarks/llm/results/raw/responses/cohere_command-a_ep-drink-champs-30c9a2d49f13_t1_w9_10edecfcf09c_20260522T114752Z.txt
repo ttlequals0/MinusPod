@@ -1,0 +1,7 @@
+{
+  "start": 3954.0,
+  "end": 3983.4,
+  "confidence": 0.0,
+  "reason": "not an ad, just a repetition of previous content",
+  "end_text": "January 28th, 1998. At what age?"
+}

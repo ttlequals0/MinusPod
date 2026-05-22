@@ -1,0 +1,3 @@
+[
+{"start":9103.0,"end":9130.0,"confidence":0.96,"reason":"Host-read sponsor promotion for Spinrite product with call to action and URL mention","end_text":"get it now for sure"},{"start":9259.3,"end":9290.5,"confidence":0.96,"reason":"Network cross‑promotion for This Week in Tech podcast","end_text":"Network. Thank you"},{"start":9344.4,"end":9374.4,"confidence":0.96,"reason":"Mint Mobile host‑read ad with promo code, pricing details and URL","end_text":"at mintmobile.com"}
+]

@@ -1,0 +1,1 @@
+{"start": 8215.0, "end": 8218.9, "confidence": 0.99, "reason": "Transcript attribution to Rev.com is a platform-inserted footer, common in automated transcripts and often used as a subtle promotional tag", "end_text": "Transcript by Rev.com."}

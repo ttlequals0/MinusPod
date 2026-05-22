@@ -1,0 +1,1 @@
+[{"start": 821.4, "end": 1020.0, "confidence": 0.98, "reason": "Continuous ad block featuring Capital One, BetterHelp, Amazon Health AI, Spectrum Business, and Rinse with cross-promo", "end_text": "It's time to be great."}]

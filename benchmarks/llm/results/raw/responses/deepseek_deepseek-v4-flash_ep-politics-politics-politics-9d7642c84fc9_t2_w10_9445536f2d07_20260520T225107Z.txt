@@ -1,0 +1,25 @@
+{
+  "ads": [
+    {
+      "start": 4195.9,
+      "end": 4218.0,
+      "confidence": 0.95,
+      "reason": "Host-read promotion for the show itself (foundational tier, get name read on show) — but this is NOT an external advertisement; it is the host's own show/community promotion. However, the instruction says 'Host-read sponsor segments ARE ads' but also says 'The host organically mentioning their own other shows, social media, or Patreon as part of conversation' is NOT an ad. This is a tangled mix: the host is promoting his own show's subscription tier, not a third-party sponsor. So it should NOT be flagged as an ad.",
+      "end_text": "It's pretty crazy."
+    },
+    {
+      "start": 4218.0,
+      "end": 4285.6,
+      "confidence": 0.95,
+      "reason": "Continued promotion of show subscription tier, reading listener names, and directing to TakePoliticsSeriously.com — again, host's own show promotion, not a third-party ad.",
+      "end_text": "TakePoliticsSeriously.com"
+    },
+    {
+      "start": 4285.6,
+      "end": 4317.9,
+      "confidence": 0.90,
+      "reason": "Host wrap-up, sign-off, show name drop, and 'Dog and Pony Show Audio' — this is standard outro content, not an ad.",
+      "end_text": "Dog and Pony Show Audio."
+    }
+  ]
+}

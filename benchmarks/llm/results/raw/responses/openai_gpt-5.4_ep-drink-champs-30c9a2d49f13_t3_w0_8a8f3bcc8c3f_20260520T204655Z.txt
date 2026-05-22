@@ -1,0 +1,1 @@
+{"start":0.0,"end":150.5,"confidence":0.99,"reason":"Cluster of platform/network inserted ads and sponsor spots: iHeart Podcast sting, Airtasker ad, Care for the Culture/Gilead sponsored message, Nissan campaign, and Shopify sponsor read with CTA to Shopify.com slash B-E-N; merged because gaps are under 15 seconds","end_text":"Start now at Shopify.com slash B-E-N"}

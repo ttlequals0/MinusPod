@@ -1,0 +1,9 @@
+[
+  {
+    "start": 6208.7,
+    "end": 6318.1,
+    "confidence": 0.97,
+    "reason": "Consecutive platform-inserted ads: Airtasker, Decisions Decisions podcast promo sponsored by Gilead Sciences, OnDeck small business loan, Public investing platform",
+    "end_text": "investing platform for those"
+  }
+]

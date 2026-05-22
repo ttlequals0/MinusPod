@@ -1,0 +1,1 @@
+{"start":5692.6,"end":5720.0,"confidence":0.86,"reason":"Host mentions Brooklinen New York in a sponsor-like exchange, but this appears to be organic conversation with no clear promotional pitch or transition phrase; no ad confirmed.","end_text":"Brooklinen, New York. You sure?"}

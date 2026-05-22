@@ -1,0 +1,16 @@
+[
+    {
+        "start": 3503.7,
+        "end": 3528.5,
+        "confidence": 0.99,
+        "reason": "Airtasker sponsor read with promotional language, call to action, and platform-inserted ad structure",
+        "end_text": "Airtasker, get anything done"
+    },
+    {
+        "start": 3528.8,
+        "end": 3540.0,
+        "confidence": 0.95,
+        "reason": "Cross-promotion for 'Decisions Decisions' podcast with promotional language and network-inserted ad structure (continues in next)",
+        "end_text": "abstinence?"
+    }
+]

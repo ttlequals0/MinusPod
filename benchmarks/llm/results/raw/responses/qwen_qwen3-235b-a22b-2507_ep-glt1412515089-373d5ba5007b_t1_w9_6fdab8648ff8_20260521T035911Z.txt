@@ -1,0 +1,1 @@
+{"start": 4052.1, "end": 4054.4, "confidence": 0.1, "reason": "Short gap with no promotional content; 'You're having all these experiences' is part of conversational flow, not an ad transition or pitch", "end_text": "all these experiences"}

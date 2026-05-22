@@ -1,0 +1,1 @@
+[{"start": 1449.0, "end": 1629.0, "confidence": 0.98, "reason": "Network-inserted ads/cross-promotions for Decisions Decisions podcast, OnDeck, and BetMGM MLB partnership.", "end_text": "with Kansas Crossing Casino and Hotel."}]

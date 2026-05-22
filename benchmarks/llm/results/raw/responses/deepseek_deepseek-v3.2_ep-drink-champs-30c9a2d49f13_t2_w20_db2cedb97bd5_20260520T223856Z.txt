@@ -1,0 +1,1 @@
+{"start": 8724.9, "end": 8737.9, "confidence": 0.95, "reason": "AirTasker network-inserted ad with URL and call to action", "end_text": "will handle it. AirTasker."}

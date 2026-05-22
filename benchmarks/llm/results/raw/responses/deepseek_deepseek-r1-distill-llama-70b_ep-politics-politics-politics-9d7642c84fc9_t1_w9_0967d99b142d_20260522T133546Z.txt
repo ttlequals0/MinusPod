@@ -1,0 +1,7 @@
+{
+  "start": 4195.9,
+  "end": 4218.0,
+  "confidence": 0.95,
+  "reason": "Host promoting their own Patreon-style subscription and bonus content",
+  "end_text": "four episodes of this show delivered straight to your ear holes, man."
+}

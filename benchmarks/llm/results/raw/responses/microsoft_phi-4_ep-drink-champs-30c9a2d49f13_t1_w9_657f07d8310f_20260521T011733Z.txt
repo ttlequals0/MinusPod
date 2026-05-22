@@ -1,0 +1,7 @@
+{
+  "start": 63.0,
+  "end": 73.0,
+  "confidence": 0.95,
+  "reason": "The segment contains promotional language and references to specific product endorsements and brand names, indicating it is an advertisement.",
+  "end_text": "something new"
+}

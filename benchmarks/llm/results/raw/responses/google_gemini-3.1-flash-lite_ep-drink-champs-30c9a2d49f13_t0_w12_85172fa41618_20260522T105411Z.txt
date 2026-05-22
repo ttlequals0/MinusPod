@@ -1,0 +1,9 @@
+[
+  {
+    "start": 5420.4,
+    "end": 5441.4,
+    "confidence": 1.0,
+    "reason": "Dynamically inserted ad segment containing repetitive promotional keywords",
+    "end_text": "discount code, discount code"
+  }
+]

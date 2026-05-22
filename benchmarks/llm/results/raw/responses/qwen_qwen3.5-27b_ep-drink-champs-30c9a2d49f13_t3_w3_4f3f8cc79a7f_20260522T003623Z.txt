@@ -1,0 +1,1 @@
+[{"start": 1450.9, "end": 1629.0, "confidence": 0.98, "reason": "Consecutive sponsor reads for Airtasker, Decisions Decisions (Gilead Sciences), OnDeck, and BetMGM", "end_text": "Kansas Crossing Casino and Hotel."}]

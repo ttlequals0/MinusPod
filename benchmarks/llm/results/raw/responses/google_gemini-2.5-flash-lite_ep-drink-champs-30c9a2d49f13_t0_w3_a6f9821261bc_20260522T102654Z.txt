@@ -1,0 +1,23 @@
+[
+  {
+    "start": 1450.9,
+    "end": 1486.1,
+    "confidence": 0.95,
+    "reason": "Airtasker network-inserted brand tagline ad",
+    "end_text": "Airtasker, get anything done."
+  },
+  {
+    "start": 1486.6,
+    "end": 1524.8,
+    "confidence": 0.95,
+    "reason": "Care for the Culture from Gilead Sciences network-inserted ad",
+    "end_text": "from Gilead Sciences."
+  },
+  {
+    "start": 1525.5,
+    "end": 1629.0,
+    "confidence": 0.95,
+    "reason": "OnDeck and BetMGM network-inserted ads",
+    "end_text": "and Hotel."
+  }
+]

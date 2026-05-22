@@ -1,0 +1,16 @@
+[
+  {
+    "start": 54.1,
+    "end": 64.7,
+    "confidence": 0.98,
+    "reason": "A produced ad for Old National Bank with a clear call to action and URL.",
+    "end_text": "banking. Member FDIC."
+  },
+  {
+    "start": 506.4,
+    "end": 548.5,
+    "confidence": 0.95,
+    "reason": "A self-promotional ad for the Crain's Weekly News Quiz, including the transition phrase and a call to action with a URL.",
+    "end_text": "Gist with Amy Guth."
+  }
+]

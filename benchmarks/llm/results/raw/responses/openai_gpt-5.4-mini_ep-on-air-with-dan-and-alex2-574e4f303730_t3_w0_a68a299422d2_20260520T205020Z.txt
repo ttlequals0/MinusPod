@@ -1,0 +1,1 @@
+{"start":0.0,"end":59.8,"confidence":0.99,"reason":"Contiguous ad break with Hex sponsor read followed by PickOCNY.com travel promotion; includes promotional copy, brand names, and URL call-to-action","end_text":"and all the wonderful places"}

@@ -1,0 +1,16 @@
+[
+  {
+    "start": 0.0,
+    "end": 30.3,
+    "confidence": 1.0,
+    "reason": "HEX data platform sponsor read",
+    "end_text": "customers at Hex.ai"
+  },
+  {
+    "start": 30.9,
+    "end": 59.8,
+    "confidence": 1.0,
+    "reason": "PickOCNY tourism sponsor read",
+    "end_text": "mind at PickOCNY.com"
+  }
+]

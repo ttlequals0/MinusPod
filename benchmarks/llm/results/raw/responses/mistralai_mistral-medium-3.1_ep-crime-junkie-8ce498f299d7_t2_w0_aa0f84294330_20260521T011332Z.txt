@@ -1,0 +1,16 @@
+[
+    {
+        "start": 0.0,
+        "end": 40.8,
+        "confidence": 0.98,
+        "reason": "Vitel Global and LinkedIn Premium All-in-One sponsor reads",
+        "end_text": "learn more about Vitel Global's AI-powered"
+    },
+    {
+        "start": 41.5,
+        "end": 98.4,
+        "confidence": 0.95,
+        "reason": "Hertz sponsor read",
+        "end_text": "new SUV will give you plenty of space"
+    }
+]

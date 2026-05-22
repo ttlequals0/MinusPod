@@ -1,0 +1,1 @@
+{"start":126.0,"end":136.0,"confidence":0.99,"reason":"Perplexity platform promo shown in episode description with app download CTA and podcastchoices ad-choices link; no separate show-content ad break appears in this window, so this is a partial platform ad continuing into the segment context","end_text":"continues in next"}

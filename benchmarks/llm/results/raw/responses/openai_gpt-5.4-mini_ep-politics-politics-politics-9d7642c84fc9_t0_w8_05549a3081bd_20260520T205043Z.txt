@@ -1,0 +1,1 @@
+{"start":3680.7,"end":3735.7,"confidence":0.86,"reason":"Promo for Katie Harbath's Substack and upcoming book with clear call to action to subscribe and mention of anchorchange.substack.com; includes the show transition into wrap-up and book plug, indicating a sponsor-like promotional segment within the provided window","end_text":"subscribe if they want to stay in touch"}

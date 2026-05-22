@@ -1,0 +1,1 @@
+{"start": 1426.3, "end": 1452.5, "confidence": 0.98, "reason": "continues from previous", "end_text": "emotional maturity. I think it's also a learned thing that, you know, people have this desire."}

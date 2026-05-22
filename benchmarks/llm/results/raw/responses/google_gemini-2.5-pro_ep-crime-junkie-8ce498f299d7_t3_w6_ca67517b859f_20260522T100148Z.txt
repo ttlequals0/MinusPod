@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2863.0,
+    "end": 2894.5,
+    "confidence": 1.0,
+    "reason": "This is a produced ad for LinkedIn Premium, a known podcast sponsor, which includes a specific call to action and vanity URL.",
+    "end_text": "LinkedIn.com slash all-in-one."
+  }
+]

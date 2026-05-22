@@ -1,0 +1,35 @@
+{
+
+  "ads": [
+
+    {
+
+      "start": 11335.2,
+
+      "end": 11455.4,
+
+      "confidence": 0.99,
+
+      "reason": "Airtasker ad (platform-inserted) followed by Decisions Decisions podcast cross-promotion followed by OnDeck small business line of credit ad. Multiple ads with <15s gaps merged into one segment. Includes promo language: 'Download the Airtasker app', 'OnDeck.com', 'sponsored by Care for the Culture from Gilead Sciences'. End at 'subject to lender approval' just before gap and content transition.",
+
+      "end_text": "subject to lender approval"
+
+    },
+
+    {
+
+      "start": 11614.6,
+
+      "end": 11630.6,
+
+      "confidence": 0.90,
+
+      "reason": "Partial ad segment with only keyword list (promo code, discount code, sponsored by, Athletic Greens, etc.). Not a full read; likely a metadata/dynamic insertion remnant. Ends with content transition back to conversation.",
+
+      "end_text": "Stamps.com,"
+
+    }
+
+  ]
+
+}

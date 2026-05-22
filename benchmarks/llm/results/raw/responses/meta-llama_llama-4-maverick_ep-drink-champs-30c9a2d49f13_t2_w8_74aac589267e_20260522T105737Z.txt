@@ -1,0 +1,1 @@
+{"start": 3478.9, "end": 3650.4, "confidence": 0.95, "reason": "Multiple ads: Airtasker, Decisions Decisions podcast, OnDeck, Public", "end_text": "public.com slash disclosures"}

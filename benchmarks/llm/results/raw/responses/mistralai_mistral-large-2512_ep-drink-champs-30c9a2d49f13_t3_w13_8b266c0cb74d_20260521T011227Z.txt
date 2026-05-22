@@ -1,0 +1,9 @@
+[
+    {
+        "start": 5714.6,
+        "end": 5777.4,
+        "confidence": 0.98,
+        "reason": "Brooklinen sponsor mention with product positioning language and host engagement (e.g., 'Brooklinen is a monster'). This is a host-read ad with promotional intent.",
+        "end_text": "a hundred and two and a half"
+    }
+]

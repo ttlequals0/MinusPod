@@ -1,0 +1,9 @@
+[
+    {
+        "start": 2234.5,
+        "end": 2263.3,
+        "confidence": 0.98,
+        "reason": "Platform-inserted ad break with 'Take one' repeated, likely a dynamic ad insertion placeholder or network promo transition phrase.",
+        "end_text": "Take one."
+    }
+]

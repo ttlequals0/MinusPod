@@ -1,0 +1,9 @@
+[
+  {
+    "start": 8820.0,
+    "end": 8831.4,
+    "confidence": 0.99,
+    "reason": "OnDeck and Public sponsor ads",
+    "end_text": "the investing platform"
+  }
+]

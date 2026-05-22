@@ -1,0 +1,1 @@
+{"ads": [{"start": 1035.7, "end": 1035.7, "confidence": 0.9, "reason": "Partial ad start: 'Debt can get messy fast' is a typical hook for a financial service sponsor (e.g., Rocket Money or similar), appearing immediately after the narrative break.", "end_text": "Debt can get messy fast"}]}

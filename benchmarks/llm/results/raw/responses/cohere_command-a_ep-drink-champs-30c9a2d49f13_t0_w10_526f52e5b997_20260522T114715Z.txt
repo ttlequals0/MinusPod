@@ -1,0 +1,1 @@
+{"start": 4375.7, "end": 4402.5, "confidence": 0.95, "reason": "FreshField Market network-inserted brand tagline ad", "end_text": "wellness begins. Explore more at FreshField"}

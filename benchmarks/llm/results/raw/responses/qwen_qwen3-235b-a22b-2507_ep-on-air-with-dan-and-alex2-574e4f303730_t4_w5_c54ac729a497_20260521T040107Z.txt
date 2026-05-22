@@ -1,0 +1,1 @@
+{"start": 2609.5, "end": 2633.6, "confidence": 0.98, "reason": "Host-read ad listing common sponsor brands and promo code language, indicating a sponsored segment transition", "end_text": "promo code, discount code, sponsored by"}

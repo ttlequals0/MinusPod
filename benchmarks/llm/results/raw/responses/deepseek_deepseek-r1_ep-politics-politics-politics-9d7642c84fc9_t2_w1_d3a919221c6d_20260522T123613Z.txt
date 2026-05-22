@@ -1,0 +1,7 @@
+[{
+  "start": 1033.0,
+  "end": 1085.0,
+  "confidence": 0.98,
+  "reason": "BetterHelp and Athletic Greens sponsor reads with promo codes/URLs",
+  "end_text": "athleticgreens.com/politics"
+}]

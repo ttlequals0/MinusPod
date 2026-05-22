@@ -1,0 +1,184 @@
+[
+  {
+    "start": 13018.5,
+    "end": 13044.4,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Drink Champs",
+    "end_text": "plantation to me"
+  },
+  {
+    "start": 13045.2,
+    "end": 13074.2,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Drink Champs",
+    "end_text": "Cognac"
+  },
+  {
+    "start": 13091.7,
+    "end": 13097.8,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Drink Champs",
+    "end_text": "every morning"
+  },
+  {
+    "start": 13099.5,
+    "end": 13127.8,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Drink Champs",
+    "end_text": "that shit"
+  },
+  {
+    "start": 13128.2,
+    "end": 13155.7,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Drink Champs",
+    "end_text": "Palmas, five floors"
+  },
+  {
+    "start": 13158.4,
+    "end": 13184.0,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Drink Champs",
+    "end_text": "don't worry about it"
+  },
+  {
+    "start": 13184.7,
+    "end": 13208.2,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Drink Champs",
+    "end_text": "left hand"
+  },
+  {
+    "start": 13208.8,
+    "end": 13235.0,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Drink Champs",
+    "end_text": "I don't remember"
+  },
+  {
+    "start": 13237.3,
+    "end": 13260.2,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Drink Champs",
+    "end_text": "burdens of the children"
+  },
+  {
+    "start": 13260.6,
+    "end": 13276.9,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Drink Champs",
+    "end_text": "taste"
+  },
+  {
+    "start": 13277.6,
+    "end": 13281.8,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Drink Champs",
+    "end_text": "going on"
+  },
+  {
+    "start": 13308.8,
+    "end": 13315.3,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Drink Champs",
+    "end_text": "love you for"
+  },
+  {
+    "start": 13320.1,
+    "end": 13345.7,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Drink Champs",
+    "end_text": "polo match"
+  },
+  {
+    "start": 13346.8,
+    "end": 13364.6,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Drink Champs",
+    "end_text": "good run"
+  },
+  {
+    "start": 13367.1,
+    "end": 13389.6,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Drink Champs",
+    "end_text": "Goody Mops"
+  },
+  {
+    "start": 13389.9,
+    "end": 13393.2,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Drink Champs",
+    "end_text": "all right"
+  },
+  {
+    "start": 13408.8,
+    "end": 13413.7,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Drink Champs",
+    "end_text": "the draft"
+  },
+  {
+    "start": 13421.1,
+    "end": 13446.0,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Drink Champs",
+    "end_text": "Donnie at my house"
+  },
+  {
+    "start": 13446.5,
+    "end": 13465.4,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Drink Champs",
+    "end_text": "Super Bowl"
+  },
+  {
+    "start": 13481.0,
+    "end": 13484.0,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Drink Champs",
+    "end_text": "like this"
+  },
+  {
+    "start": 13485.4,
+    "end": 13498.9,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Drink Champs",
+    "end_text": "saying that"
+  },
+  {
+    "start": 13499.2,
+    "end": 13525.7,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Drink Champs",
+    "end_text": "Flea Market"
+  },
+  {
+    "start": 13526.1,
+    "end": 13539.7,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Drink Champs",
+    "end_text": "on Earth"
+  },
+  {
+    "start": 13540.8,
+    "end": 13567.0,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Drink Champs",
+    "end_text": "dreads"
+  },
+  {
+    "start": 13590.5,
+    "end": 13614.9,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Drink Champs",
+    "end_text": "fucking zone"
+  },
+  {
+    "start": 13617.2,
+    "end": 13635.5,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Drink Champs",
+    "end_text": "a bootlicker"
+  }
+]

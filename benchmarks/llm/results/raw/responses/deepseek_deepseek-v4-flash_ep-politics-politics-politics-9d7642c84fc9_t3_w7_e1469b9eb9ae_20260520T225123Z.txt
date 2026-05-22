@@ -1,0 +1,7 @@
+{
+  "start": 2927.9,
+  "end": 3544.1,
+  "confidence": 0.0,
+  "reason": "No promotional language or sponsor mentions detected in this transcript segment. The conversation discusses AI, voice cloning, agents, and their political implications without any ad breaks or sponsored pitches.",
+  "end_text": "put them in different places"
+}

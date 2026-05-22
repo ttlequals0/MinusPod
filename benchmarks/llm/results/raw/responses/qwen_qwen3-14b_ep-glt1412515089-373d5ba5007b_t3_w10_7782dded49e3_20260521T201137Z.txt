@@ -1,0 +1,1 @@
+{"start": 4533.0, "end": 4560.5, "confidence": 0.95, "reason": "Host transition to outro with mention of Perplexity AI", "end_text": "include the double date stuff in it because it's too private and they say too many names of other students."}

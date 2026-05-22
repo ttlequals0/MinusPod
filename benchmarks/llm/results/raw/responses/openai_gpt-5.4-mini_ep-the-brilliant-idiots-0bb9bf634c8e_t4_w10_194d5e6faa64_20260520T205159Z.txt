@@ -1,0 +1,1 @@
+{"start":4323.9,"end":4361.4,"confidence":0.93,"reason":"Host transition into a sponsor read with promotional mentions of Jess Hilarious' book, All Love Racquet Club event, and AM Mornings YouTube show; ad-like CTA follows 'let's listen' break","end_text":"Let's listen to this moment"}

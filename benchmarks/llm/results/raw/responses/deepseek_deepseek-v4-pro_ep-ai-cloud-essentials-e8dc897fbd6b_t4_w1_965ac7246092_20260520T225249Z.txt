@@ -1,0 +1,4 @@
+{
+  "segments": [],
+  "reason": "No ad segments detected in this window. The conversation is entirely editorial content about physical AI, simulation, and robotics, with no sponsor mentions, promo codes, URLs, or product pitches."
+}

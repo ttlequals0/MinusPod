@@ -1,0 +1,7 @@
+{
+  "start": 2268.6,
+  "end": 2296.9,
+  "confidence": 0.95,
+  "reason": "Host-read sponsor segment mentioning product and promo code",
+  "end_text": "I was going to walk down there in my drawers. What?"
+}

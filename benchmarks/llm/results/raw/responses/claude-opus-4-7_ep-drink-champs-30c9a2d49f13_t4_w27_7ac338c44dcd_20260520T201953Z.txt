@@ -1,0 +1,2 @@
+[{"start": 11335.2, "end": 11455.4, "confidence": 0.98, "reason": "Ad block: Airtasker, Decisions Decisions podcast promo (Care for the Culture/Gilead), OnDeck", "end_text": "subject to lender approval"},
+{"start": 11513.7, "end": 11536.6, "confidence": 0.85, "reason": "Public.com disclosures tail of ad", "end_text": "public.com slash disclosures"}]

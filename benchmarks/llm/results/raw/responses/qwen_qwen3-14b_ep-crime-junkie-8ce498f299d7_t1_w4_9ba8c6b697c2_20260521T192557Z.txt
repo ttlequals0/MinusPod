@@ -1,0 +1,2 @@
+s.
+{"start": 1959.8, "end": 2020.4, "confidence": 0.95, "reason": "Rakuten sponsor read with URL and call to action", "end_text": "start saving money today."}

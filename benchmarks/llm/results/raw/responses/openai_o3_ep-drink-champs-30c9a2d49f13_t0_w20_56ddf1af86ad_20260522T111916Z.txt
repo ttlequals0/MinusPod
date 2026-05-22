@@ -1,0 +1,1 @@
+{"start": 8724.9, "end": 8889.4, "confidence": 0.96, "reason": "Cluster of network-inserted ads: AirTasker app, Decisions Decisions podcast promo with Kiki Palmer, OnDeck small-business loans, Public investing platform", "end_text": "Transcription by CastingWords"}

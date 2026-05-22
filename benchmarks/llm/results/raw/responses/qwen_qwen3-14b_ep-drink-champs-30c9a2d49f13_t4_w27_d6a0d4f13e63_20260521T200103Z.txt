@@ -1,0 +1,1 @@
+{"start": 11416.3, "end": 11424.6, "confidence": 0.95, "reason": "Gilead Sciences sponsored episode with Keke Palmer", "end_text": "the NFL."}

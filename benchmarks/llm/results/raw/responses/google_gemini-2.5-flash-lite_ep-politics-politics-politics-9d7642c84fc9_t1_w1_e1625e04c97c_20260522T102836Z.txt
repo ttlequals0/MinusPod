@@ -1,0 +1,9 @@
+[
+  {
+    "start": 909.6,
+    "end": 933.9,
+    "confidence": 0.95,
+    "reason": "This segment is a sponsor read for TakePoliticsSeriously.com, which offers bonus episodes and subscriber content. The host explicitly directs listeners to the website for more.",
+    "end_text": "TakePoliticsSeriously.com"
+  }
+]

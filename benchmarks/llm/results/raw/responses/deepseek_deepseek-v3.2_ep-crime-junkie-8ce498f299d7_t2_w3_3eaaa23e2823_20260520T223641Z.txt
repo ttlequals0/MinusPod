@@ -1,0 +1,1 @@
+{"start": 1242.3, "end": 1861.8, "confidence": 0.0, "reason": "No promotional language found in transcript segment", "end_text": "may have been double-crossing"}

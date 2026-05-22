@@ -1,0 +1,1 @@
+{"start": 0.0, "end": 30.4, "confidence": 0.85, "reason": "Potential sponsor mention at start, but no promotional language", "end_text": "It's all coming up. The following is brought to you by Just Another Pilot."}

@@ -1,0 +1,1 @@
+{"start":8799.1,"end":8831.4,"confidence":0.98,"reason":"Network/host sponsor ad break with OnDeck loan promotion and Public investing platform support mention; includes calls to action such as 'Apply in minutes at OnDeck.com' and sponsor language 'Support for the show comes from Public'.","end_text":"those who take it seriously"}

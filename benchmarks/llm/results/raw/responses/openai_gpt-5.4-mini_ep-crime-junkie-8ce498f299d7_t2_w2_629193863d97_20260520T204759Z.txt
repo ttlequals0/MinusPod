@@ -1,0 +1,1 @@
+{"start":1036.2,"end":1097.9,"confidence":0.99,"reason":"SoFi sponsor read with promotional claims, debt consolidation pitch, and URL/code 'SoFi.com/slash CJ'; includes transition from content into ad.","end_text":"That's SoFi.com slash CJ"}

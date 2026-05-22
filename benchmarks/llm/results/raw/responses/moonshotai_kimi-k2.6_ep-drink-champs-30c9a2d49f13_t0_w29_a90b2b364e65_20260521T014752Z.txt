@@ -1,0 +1,7 @@
+{
+  "start": 12175.2,
+  "end": 12798.5,
+  "confidence": 0.0,
+  "reason": "No promotional content, sponsor mentions, URLs, promo codes, or calls to action detected in this window. The transcript contains continuous conversational content between the hosts and guest Warren Sapp covering football, politics, history, and media topics.",
+  "end_text": "You watch Que Pasa USA?"
+}

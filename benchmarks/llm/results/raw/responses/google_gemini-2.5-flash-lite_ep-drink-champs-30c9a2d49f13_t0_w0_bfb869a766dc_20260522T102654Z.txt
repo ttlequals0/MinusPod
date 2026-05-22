@@ -1,0 +1,23 @@
+[
+  {
+    "start": 0.0,
+    "end": 42.2,
+    "confidence": 0.95,
+    "reason": "Platform-inserted ad for Airtasker and Decisions Decisions.",
+    "end_text": "grown woman energy."
+  },
+  {
+    "start": 42.8,
+    "end": 72.1,
+    "confidence": 0.95,
+    "reason": "Platform-inserted ad for Care for the Culture sponsored by Gilead Sciences.",
+    "end_text": "Gilead Sciences."
+  },
+  {
+    "start": 72.9,
+    "end": 150.5,
+    "confidence": 0.95,
+    "reason": "Platform-inserted ad for Nissan and Shopify.",
+    "end_text": "com/B-E-N."
+  }
+]

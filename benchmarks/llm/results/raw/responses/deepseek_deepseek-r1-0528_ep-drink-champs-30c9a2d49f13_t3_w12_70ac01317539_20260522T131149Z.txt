@@ -1,0 +1,9 @@
+[
+  {
+    "start": 5420.4,
+    "end": 5441.4,
+    "confidence": 0.95,
+    "reason": "Repeated promo code and discount code calls to action",
+    "end_text": "discount code discount code"
+  }
+]

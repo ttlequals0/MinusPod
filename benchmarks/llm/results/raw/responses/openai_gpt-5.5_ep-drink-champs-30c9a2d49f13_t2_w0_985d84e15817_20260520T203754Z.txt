@@ -1,0 +1,1 @@
+{"start":0.0,"end":150.5,"confidence":0.99,"reason":"Pre-roll ad block with iHeart/Airtasker promotion, Gilead Sciences sponsored Care for the Culture message, Nissan Rogue campaign ad, and Shopify sponsor read with URL Shopify.com/B-E-N","end_text":"Shopify.com slash B-E-N"}

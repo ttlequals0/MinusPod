@@ -1,0 +1,1 @@
+{"start": 872.0, "end": 878.9, "confidence": 0.01, "reason": "No ad detected, no promotional content, URLs, promo codes, or sponsor mentions", "end_text": "the verge of a breakthrough"}

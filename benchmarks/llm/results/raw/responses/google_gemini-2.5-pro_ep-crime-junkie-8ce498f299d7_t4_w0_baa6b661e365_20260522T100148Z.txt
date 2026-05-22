@@ -1,0 +1,9 @@
+[
+  {
+    "start": 0.0,
+    "end": 98.4,
+    "confidence": 1.0,
+    "reason": "A pre-roll ad break for Vitel Global, LinkedIn, and Hertz, identified by promotional language and calls to action with URLs.",
+    "end_text": "fleet yet at Hertz.com."
+  }
+]

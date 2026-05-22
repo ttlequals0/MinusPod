@@ -1,0 +1,1 @@
+{"error": "No advertisement segments detected in the provided transcript window. The content consists of narrative storytelling and interview dialogue without promotional language, sponsor mentions, URLs, promo codes, or platform-inserted ad markers. Normal topic transitions and conversational gaps are present but do not meet ad criteria."}

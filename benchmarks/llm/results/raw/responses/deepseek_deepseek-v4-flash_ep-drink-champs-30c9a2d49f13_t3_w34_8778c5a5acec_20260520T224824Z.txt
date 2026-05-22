@@ -1,0 +1,1 @@
+{"start": 14268.7, "end": 14834.6, "confidence": 0.03, "reason": "No promotional language, sponsor names, URLs, or calls to action found. Discussion about civil rights, police encounters, and legal rights is editorial content.", "end_text": "I never heard the violation"}

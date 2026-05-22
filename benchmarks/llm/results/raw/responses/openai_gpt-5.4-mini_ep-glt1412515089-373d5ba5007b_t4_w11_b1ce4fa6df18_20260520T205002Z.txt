@@ -1,0 +1,1 @@
+{"start":77.0,"end":87.0,"confidence":0.99,"reason":"No advertisement segments found in this transcript window; content is interview discussion with no sponsor reads, promo codes, URLs, or transition into ads.","end_text":"continues in next"}

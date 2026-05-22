@@ -1,0 +1,1 @@
+[{"start": 0.0, "end": 52.7, "confidence": 0.85, "reason": "Pre-roll sponsor tag 'Just Another Pilot' and ad break before show content resumes", "end_text": "brought to you by Just Another Pilot."}]

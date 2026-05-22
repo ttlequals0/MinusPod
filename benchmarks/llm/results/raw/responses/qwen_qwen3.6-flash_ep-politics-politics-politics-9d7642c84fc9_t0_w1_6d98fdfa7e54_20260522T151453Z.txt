@@ -1,0 +1,1 @@
+[{"start": 909.6, "end": 933.9, "confidence": 0.85, "reason": "Host-read newsletter promotion with explicit 'brought to you by' transition and CTA", "end_text": "managing security risks."}]

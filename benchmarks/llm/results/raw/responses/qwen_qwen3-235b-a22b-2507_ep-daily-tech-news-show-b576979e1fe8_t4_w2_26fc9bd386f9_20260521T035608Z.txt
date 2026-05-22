@@ -1,0 +1,1 @@
+{"start": 994.2, "end": 1293.0, "confidence": 0.98, "reason": "Insta360 product promotion with detailed feature pitch, pricing, and nostalgic branding - host expresses personal desire to purchase, indicating promotional intent", "end_text": "problematic drivers called Cloud Initiated Driver Recovery"}

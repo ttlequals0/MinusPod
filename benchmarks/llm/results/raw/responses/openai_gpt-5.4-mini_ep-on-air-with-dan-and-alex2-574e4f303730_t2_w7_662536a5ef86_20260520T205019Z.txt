@@ -1,0 +1,1 @@
+{"start":3428.1,"end":3457.8,"confidence":0.99,"reason":"Arizona State University host-read style promo with promotional language and URL; continues after show outro","end_text":"That's a degree better"}

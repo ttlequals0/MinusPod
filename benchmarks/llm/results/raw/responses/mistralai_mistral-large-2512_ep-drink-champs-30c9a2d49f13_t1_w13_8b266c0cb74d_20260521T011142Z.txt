@@ -1,0 +1,9 @@
+[
+    {
+        "start": 5714.6,
+        "end": 5777.4,
+        "confidence": 0.98,
+        "reason": "Brooklinen sponsor mention with product positioning language and host-read endorsement. The segment includes repeated brand name emphasis and a call to action ('Brooklinen is a monster').",
+        "end_text": "a hundred and two and a half"
+    }
+]

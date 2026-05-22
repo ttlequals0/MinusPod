@@ -1,0 +1,6 @@
+[
+  {
+    "start": 613.5,
+    "end": 624.6,
+    "confidence": 0.95,
+    "reason": "The transcript mentions \"NFT craze\" and the idea of performing in the metaverse, which is a topic related to the sponsors' offerings

@@ -1,0 +1,7 @@
+{
+  "start": 0.0,
+  "end": 101.0,
+  "confidence": 1.0,
+  "reason": "Multiple network-inserted ads: iHeart Podcast intro, Airtasker, Gilead/Care for the Culture HIV awareness, Nissan Rogue campaign",
+  "end_text": "hold their ground in real-world conditions"
+}

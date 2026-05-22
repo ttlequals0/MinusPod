@@ -1,0 +1,1 @@
+{"start": 4167.1, "end": 4195.9, "confidence": 0.95, "reason": "Host-read sponsor promotion for TakePoliticsSeriously.com", "end_text": "midterm season. You want to know what?"}

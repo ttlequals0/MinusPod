@@ -1,0 +1,1 @@
+{"start":5420.4,"end":5441.4,"confidence":0.62,"reason":"Likely inserted ad fragment; transcript contains repeated promotional terms 'promo code' and 'discount code' interrupting show content, but no brand is transcribed","end_text":"discount code, discount code, discount code"}

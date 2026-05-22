@@ -1,0 +1,1 @@
+{"start": 8025.2, "end": 8026.8, "confidence": 0.9, "reason": "Biggie Smalls or Big L? question transition", "end_text": "Big L?"}

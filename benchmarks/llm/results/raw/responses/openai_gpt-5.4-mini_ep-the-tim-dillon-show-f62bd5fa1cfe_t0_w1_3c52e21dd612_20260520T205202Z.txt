@@ -1,0 +1,1 @@
+{"start":401.8,"end":430.7,"confidence":0.89,"reason":"Possible sponsor-adjacent reference to a real estate show discussion only; no promo language or sponsor callout in transcript window","end_text":"they didn't even go, no, we sell houses"}

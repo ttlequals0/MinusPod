@@ -1,0 +1,8 @@
+{
+  "ads": [],
+  "window_analysis": {
+    "start_time": 2938.5,
+    "end_time": 3539.3,
+    "reason": "No promotional content detected. Content is a discussion of DJ Hed, Gina Views, and other figures on the Complex Most Powerful People in Hip Hop Media list, and later mentions Underground Sound and Elliott Wilson. No sponsors, promo codes, URLs, product pitches, or calls to action are present."
+  }
+}

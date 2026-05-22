@@ -1,0 +1,1 @@
+{"start":4218.0,"end":4270.4,"confidence":0.87,"reason":"Host transitions into promotional/support messages for TakePoliticsSeriously.com, bonus episodes, and paid membership; includes calls to action and supporter tiers, so this is promotional content rather than editorial.","end_text":"one place to do it, TakePoliticsSeriously.com"}

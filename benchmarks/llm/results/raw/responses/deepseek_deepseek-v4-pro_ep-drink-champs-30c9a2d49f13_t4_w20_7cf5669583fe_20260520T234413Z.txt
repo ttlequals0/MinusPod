@@ -1,0 +1,1 @@
+{"segments": [{"start": 8724.9, "end": 8831.4, "confidence": 0.99, "reason": "Multiple ads: AirTasker, Decisions Decisions podcast promo, OnDeck, Public", "end_text": "for those who take it seriously."}]}

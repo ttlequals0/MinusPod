@@ -1,0 +1,39 @@
+{
+  "ads": [
+    {
+      "start": 15388.3,
+      "end": 15416.5,
+      "confidence": 1.0,
+      "reason": "Airtasker promotional ad with call to action and URL",
+      "end_text": "go to Airtasker.com. Airtasker"
+    },
+    {
+      "start": 15416.7,
+      "end": 15452.3,
+      "confidence": 1.0,
+      "reason": "CVS retail brand ad with URL",
+      "end_text": "visit us at cvs.com"
+    },
+    {
+      "start": 15453.9,
+      "end": 15481.1,
+      "confidence": 1.0,
+      "reason": "Trashy.io promotional ad with pricing and URL",
+      "end_text": "Visit Trashy.io to get started"
+    },
+    {
+      "start": 15482.9,
+      "end": 15512.2,
+      "confidence": 1.0,
+      "reason": "Try Fencing promotional ad with URL",
+      "end_text": "that's tryfencing.org"
+    },
+    {
+      "start": 15512.4,
+      "end": 15517.1,
+      "confidence": 1.0,
+      "reason": "iHeart Podcast platform insertion",
+      "end_text": "Guaranteed human"
+    }
+  ]
+}

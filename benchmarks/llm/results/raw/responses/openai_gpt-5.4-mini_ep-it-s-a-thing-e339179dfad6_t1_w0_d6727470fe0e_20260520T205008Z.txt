@@ -1,0 +1,1 @@
+{"start":1.6,"end":77.2,"confidence":0.99,"reason":"Platform-inserted Acast promo block with 'Acast powers the world's best podcasts', 'Here's a show that we recommend', Wrong Turns trailer, and Acast/Formative promotional copy","end_text":"the podcast where the leaders of tomorrow"}

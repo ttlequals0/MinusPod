@@ -1,0 +1,1 @@
+{"start": 3503.7, "end": 3556.2, "confidence": 0.99, "reason": "Airtasker host-read ad followed by cross-promotion for 'Decisions Decisions' podcast", "end_text": "the conversation about abstinence?"}

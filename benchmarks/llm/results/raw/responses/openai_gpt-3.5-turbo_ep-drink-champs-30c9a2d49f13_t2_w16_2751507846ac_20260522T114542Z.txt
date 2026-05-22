@@ -1,0 +1,7 @@
+{
+	"start": 1120.0,
+	"end": 1140.0,
+	"confidence": 1.0,
+	"reason": "Potential ad break",
+	"end_text": "doing all the stores there and then going to Washington. And her dad was a hedge fund manager when I was a billionaire. Trust me. She show up."
+}

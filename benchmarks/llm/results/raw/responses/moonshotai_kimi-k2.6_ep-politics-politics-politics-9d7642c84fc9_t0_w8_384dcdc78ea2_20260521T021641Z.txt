@@ -1,0 +1,1 @@
+{"transcript_window": "56.0-66.0 minutes", "detected_ads": []}

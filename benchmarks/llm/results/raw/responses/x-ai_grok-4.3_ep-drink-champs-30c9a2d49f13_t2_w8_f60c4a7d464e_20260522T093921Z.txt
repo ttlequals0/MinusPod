@@ -1,0 +1,9 @@
+[
+  {
+    "start": 3478.9,
+    "end": 3637.4,
+    "confidence": 0.95,
+    "reason": "Multiple consecutive sponsor reads: Airtasker, Decisions Decisions podcast promo (Gilead), OnDeck, Public.com",
+    "end_text": "public.com slash disclosures"
+  }
+]

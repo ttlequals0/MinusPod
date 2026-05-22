@@ -1,0 +1,1 @@
+{"start":821.4,"end":1019.4,"confidence":0.99,"reason":"Multiple ad reads and platform ads: Capital One sponsor intro, BetterHelp promo with URL, Amazon Health AI promo, Spectrum Business sponsor read, and Rinse ad; includes transition into sponsored breaks","end_text":"Rinse. It's time to be great."}

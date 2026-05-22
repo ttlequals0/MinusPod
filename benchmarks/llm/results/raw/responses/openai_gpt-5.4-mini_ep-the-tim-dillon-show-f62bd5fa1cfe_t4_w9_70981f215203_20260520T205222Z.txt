@@ -1,0 +1,1 @@
+{"start":3976.8,"end":4002.7,"confidence":0.82,"reason":"Host read includes promotional mention of Martin's potato rolls and 'before the summer months where we hope we see a little spike in spending' inside the ad-like break; appears to be a partial dynamic sponsor segment continuing from a break","end_text":"by people buying Martin's potato rolls, burgers, dogs, etc."}

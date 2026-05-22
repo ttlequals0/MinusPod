@@ -1,0 +1,1 @@
+{"start":5565.5,"end":5596.3,"confidence":0.98,"reason":"Netflix network-inserted promo: \"This episode is brought to you by Netflix's remarkably bright creatures\" with show synopsis and streaming call-to-action","end_text":"only on Netflix"}

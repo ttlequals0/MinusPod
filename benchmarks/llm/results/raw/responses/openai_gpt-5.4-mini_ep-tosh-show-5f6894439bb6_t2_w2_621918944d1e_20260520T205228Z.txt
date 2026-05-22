@@ -1,0 +1,1 @@
+{"start":945.1,"end":969.1,"confidence":0.98,"reason":"Host-read promotional segment introducing a Mother's Day gift and specifically pitching a \"cool shoe website\" where you \"pick out a fun pair of flats\"; this is ad-like promo language even though no explicit brand name is given.","end_text":"they're really pretty. You're going to like it."}

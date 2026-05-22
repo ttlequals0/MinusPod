@@ -1,0 +1,7 @@
+{
+	"start": 977.3,
+	"end": 996.7,
+	"confidence": 0.95,
+	"reason": "Potential ad-like structure discussing the guest's achievements and legendary status",
+	"end_text": "I'm a Giants fan as hard, right? Supposed to be. Randall Cunningham was a monster."
+}

@@ -1,0 +1,25 @@
+{
+  "ads": [
+    {
+      "start": 11335.2,
+      "end": 11392.4,
+      "confidence": 0.98,
+      "reason": "Host-read sponsor for Airtasker followed by cross‑promotion for Decisions Decisions podcast",
+      "end_text": "the next minute..."
+    },
+    {
+      "start": 11416.3,
+      "end": 11455.4,
+      "confidence": 0.98,
+      "reason": "Sponsor read for Care for the Culture (Gilead Sciences) and OnDeck small‑business line of credit",
+      "end_text": "subject to lender approval."
+    },
+    {
+      "start": 11614.6,
+      "end": 11630.6,
+      "confidence": 0.97,
+      "reason": "Generic sponsor list including Athletic Greens, Audible, Masterclass, ZipRecruiter, Raycon, Manscaped, Stamps.com",
+      "end_text": "Stamps.com,"
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "start": 58.0,
+  "end": 80.1,
+  "confidence": 0.93,
+  "reason": "Host-read sponsor segment mentioning 'brought to you by Core Read'",
+  "end_text": "with..."
+}

@@ -1,0 +1,25 @@
+{
+  "segments": [
+    {
+      "start": 11335.2,
+      "end": 11365.6,
+      "confidence": 0.96,
+      "reason": "Airtasker platform-inserted ad with promotional language and call to action",
+      "end_text": "Airtasker, get anything done."
+    },
+    {
+      "start": 11366.2,
+      "end": 11424.6,
+      "confidence": 0.99,
+      "reason": "Cross-promotion for Decisions Decisions podcast sponsored by Care for the Culture from Gilead Sciences",
+      "end_text": "Sponsored by Care for the Culture from Gilead Sciences."
+    },
+    {
+      "start": 11425.3,
+      "end": 11455.4,
+      "confidence": 0.99,
+      "reason": "OnDeck small business line of credit ad with promotional language and call to action, includes financial disclosures",
+      "end_text": "subject to lender approval."
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+{"start":4639.7,"end":4683.1,"confidence":0.93,"reason":"Continued host-read Claude Security promotional segment with product positioning, beta availability, partner mentions, and direct call to action implied by the sponsor copy; no explicit break phrase in this transcript window, appears to continue from prior ad read.","end_text":"Thank you for watching."}

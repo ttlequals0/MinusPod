@@ -1,0 +1,1 @@
+{"start": 4007.7, "end": 4010.5, "confidence": 0.1, "reason": "Outro music - show production element, not promotional content", "end_text": "Outro Music"}

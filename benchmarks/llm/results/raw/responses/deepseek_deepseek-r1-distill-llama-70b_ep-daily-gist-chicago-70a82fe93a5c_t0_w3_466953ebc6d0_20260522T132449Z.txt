@@ -1,0 +1,7 @@
+{
+  "start": 1240.8,
+  "end": 1266.6,
+  "confidence": 0.95,
+  "reason": "Host promoting their own show and podcast platforms",
+  "end_text": "right back here next time."
+}

@@ -1,0 +1,11 @@
+{
+"ads": [
+    {
+      "start": 909.6,
+      "end": 933.9,
+      "confidence": 0.98,
+      "reason": "Sponsor read for TakePoliticsSeriously.com",
+      "end_text": "TakePoliticsSeriously.com"
+    }
+  ]
+}

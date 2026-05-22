@@ -1,0 +1,7 @@
+{
+  "start": 13.441,
+  "end": 13.933,
+  "confidence": 0.95,
+  "reason": "This segment contains promotional language for Public, an investing platform, with a call to action and product endorsement.",
+  "end_text": "apply in minutes at OnDeck.com"
+}

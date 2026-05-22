@@ -1,0 +1,1 @@
+{"start": 9741.9, "end": 9757.2, "confidence": 0.0, "reason": "not an ad", "end_text": "Wait, what? For real? My daughter read that shit comment, because you know..."}

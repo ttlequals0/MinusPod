@@ -1,0 +1,1 @@
+{"start": 10497.6, "end": 11104.1, "confidence": 0.0, "reason": "No promotional language, sponsor mentions, URLs, promo codes, or platform-inserted content detected in this window. All content appears to be organic conversation.", "end_text": "because i was there you were there"}

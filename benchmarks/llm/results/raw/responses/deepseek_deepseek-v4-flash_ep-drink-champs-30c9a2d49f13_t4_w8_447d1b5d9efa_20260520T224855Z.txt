@@ -1,0 +1,6 @@
+{"ads": [
+  {"start": 3494.5, "end": 3521.8, "confidence": 0.95, "reason": "Airtasker host-read sponsor ad with call to action and promo URL", "end_text": "Airtasker, get anything done."},
+  {"start": 3521.9, "end": 3577.4, "confidence": 0.95, "reason": "Cross-promotional ad for Decisions Decisions podcast with Kiki Palmer, sponsored by Gilead Sciences", "end_text": "Care for the Culture from Gilead Sciences."},
+  {"start": 3578.1, "end": 3606.4, "confidence": 0.95, "reason": "OnDeck small business line of credit sponsor ad with call to action", "end_text": "All amounts subject to lender approval."},
+  {"start": 3608.5, "end": 3650.4, "confidence": 0.95, "reason": "Public investing platform sponsor ad with promotional language and disclosure", "end_text": "Transcription by CastingWords"}
+]}

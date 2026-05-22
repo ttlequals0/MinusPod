@@ -1,0 +1,1 @@
+{"start":2652.2,"end":2688.1,"confidence":0.83,"reason":"Host mentions 'shout out to the mid-roll' and pitching money to partner with a podcast network; promo-like sponsorship discussion, but it appears to be a partial read and not a full explicit ad break in this window.","end_text":"good fucking talkers there are"}

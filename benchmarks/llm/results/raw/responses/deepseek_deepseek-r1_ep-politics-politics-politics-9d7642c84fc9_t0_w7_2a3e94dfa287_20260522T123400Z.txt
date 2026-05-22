@@ -1,0 +1,7 @@
+{
+  "start": 2927.9,
+  "end": 3544.1,
+  "confidence": 0.95,
+  "reason": "The entire segment is a conversation between the host and Katie Harbath discussing the impact of AI on politics, including voice cloning, AI agents, and misinformation in elections. There are no ad breaks or promotional content within this transcript window.",
+  "end_text": "different reasons to hire more engineers to put them in different places."
+}

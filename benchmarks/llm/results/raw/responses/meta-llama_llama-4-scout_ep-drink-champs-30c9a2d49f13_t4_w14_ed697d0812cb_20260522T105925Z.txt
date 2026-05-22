@@ -1,0 +1,25 @@
+{
+"ads": [
+    {
+      "start": 6208.7,
+      "end": 6233.9,
+      "confidence": 0.98,
+      "reason": "Airtasker sponsor read",
+      "end_text": "Airtasker, get anything done"
+    },
+    {
+      "start": 6283.4,
+      "end": 6312.4,
+      "confidence": 0.98,
+      "reason": "OnDeck sponsor read",
+      "end_text": "Funds could be available as soon as tomorrow"
+    },
+    {
+      "start": 6313.8,
+      "end": 6318.1,
+      "confidence": 0.95,
+      "reason": "Public sponsor mention",
+      "end_text": "take it seriously"
+    }
+  ]
+}

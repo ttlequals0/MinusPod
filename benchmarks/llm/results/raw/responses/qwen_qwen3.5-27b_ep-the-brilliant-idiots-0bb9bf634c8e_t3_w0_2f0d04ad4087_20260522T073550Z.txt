@@ -1,0 +1,9 @@
+[
+  {
+    "start": 0.5,
+    "end": 43.4,
+    "confidence": 0.98,
+    "reason": "Carvana sponsor read (pre-roll/intro ad)",
+    "end_text": "Brilliant Idiots podcast."
+  }
+]

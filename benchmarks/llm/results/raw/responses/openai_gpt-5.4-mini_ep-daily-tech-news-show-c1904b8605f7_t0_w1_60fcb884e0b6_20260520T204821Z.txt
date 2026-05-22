@@ -1,0 +1,1 @@
+{"start":796.9,"end":1018.9,"confidence":0.99,"reason":"Multiple ad segments back-to-back after show support thanks; includes Capital One sponsor read, BetterHelp promo code URL, Amazon Health AI ad, Spectrum Business ad with CTA, and Rinse ad with website.","end_text":"Rinse. It's time to be great."}

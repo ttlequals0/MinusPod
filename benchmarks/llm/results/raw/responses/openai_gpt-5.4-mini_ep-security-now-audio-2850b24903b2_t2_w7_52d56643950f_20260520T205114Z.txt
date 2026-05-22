@@ -1,0 +1,1 @@
+{"start":3278.7,"end":3278.7,"confidence":0.54,"reason":"Possible sponsor-like promo transition with \"let's take a step back\" appears in editorial discussion, but no clear ad copy or sponsor read is present in this window; not enough evidence to classify as an ad.","end_text":"let's take a step back"}

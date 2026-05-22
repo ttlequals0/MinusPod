@@ -1,0 +1,32 @@
+{
+  "segments": [
+    {
+      "start": 1450.9,
+      "end": 1460.1,
+      "confidence": 0.98,
+      "reason": "Airtasker network-inserted ad with call to action and URL",
+      "end_text": "Airtasker, get anything done."
+    },
+    {
+      "start": 1460.1,
+      "end": 1524.8,
+      "confidence": 0.97,
+      "reason": "Decisions Decisions podcast promo with Kiki Palmer, sponsored by Care for the Culture",
+      "end_text": "from Gilead Sciences."
+    },
+    {
+      "start": 1525.5,
+      "end": 1553.8,
+      "confidence": 0.98,
+      "reason": "OnDeck business loan ad with call to action and URL",
+      "end_text": "not lend in North Dakota."
+    },
+    {
+      "start": 1555.6,
+      "end": 1629.0,
+      "confidence": 0.98,
+      "reason": "BetMGM sports betting ad with promotions, download call, and gambling disclaimers",
+      "end_text": "with Kansas Crossing Casino and Hotel."
+    }
+  ]
+}

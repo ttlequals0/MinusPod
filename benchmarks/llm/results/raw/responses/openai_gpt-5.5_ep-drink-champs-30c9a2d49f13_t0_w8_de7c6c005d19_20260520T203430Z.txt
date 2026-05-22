@@ -1,0 +1,1 @@
+{"start":3478.9,"end":3666.3,"confidence":0.99,"reason":"Dynamic ad break with Airtasker task marketplace promo, Decisions Decisions podcast/Gilead sponsored promo, OnDeck business credit ad, and Public investing platform ad; includes calls to action like Airtasker.com, OnDeck.com, and public.com/disclosures","end_text":"public.com slash disclosures"}

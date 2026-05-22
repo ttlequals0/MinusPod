@@ -1,0 +1,7 @@
+[{
+    "start": 909.6,
+    "end": 961.9,
+    "confidence": 0.98,
+    "reason": "Host-read sponsor segment for TakePoliticsSeriously.com with explicit URL and call to action",
+    "end_text": "U.S. agriculture, and reopening"
+}]

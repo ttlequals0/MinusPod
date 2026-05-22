@@ -1,0 +1,9 @@
+[
+  {
+    "start": 521.5,
+    "end": 548.5,
+    "confidence": 1.0,
+    "reason": "Host-read promotion for Crain's Weekly News Quiz",
+    "end_text": "with Amy Guth"
+  }
+]

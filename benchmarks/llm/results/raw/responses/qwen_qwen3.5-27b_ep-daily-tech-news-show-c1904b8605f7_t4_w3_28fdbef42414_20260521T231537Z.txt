@@ -1,0 +1,1 @@
+[{"start": 1718.3, "end": 1799.6, "confidence": 0.95, "reason": "Combined ad block: Host merch store pitch, Capital One sponsor read, and Lemonada Media cross-promo", "end_text": "six-part Thrive series"}]

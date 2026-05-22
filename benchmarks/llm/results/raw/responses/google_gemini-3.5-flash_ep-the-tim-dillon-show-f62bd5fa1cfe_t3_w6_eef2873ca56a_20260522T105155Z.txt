@@ -1,0 +1,9 @@
+[
+  {
+    "start": 3079.6,
+    "end": 3134.3,
+    "confidence": 1.0,
+    "reason": "Morgan & Morgan sponsor read, transitioning into Stash ad at the end of the transcript segment (partial ad, continues past this segment)",
+    "end_text": "Stash is the one"
+  }
+]

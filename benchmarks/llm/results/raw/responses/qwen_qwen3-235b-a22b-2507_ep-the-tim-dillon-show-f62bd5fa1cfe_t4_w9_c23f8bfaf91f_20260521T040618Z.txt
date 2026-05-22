@@ -1,0 +1,1 @@
+{"start": 3879.5, "end": 3882.3, "confidence": 0.3, "reason": "Short pause with repetition of 'selflessly' - no promotional content or sponsor mention; likely editorial transition", "end_text": "Selflessly. Selflessly."}

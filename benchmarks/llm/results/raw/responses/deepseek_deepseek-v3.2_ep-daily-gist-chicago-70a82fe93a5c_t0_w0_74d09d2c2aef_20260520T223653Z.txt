@@ -1,0 +1,16 @@
+[
+  {
+    "start": 54.1,
+    "end": 64.7,
+    "confidence": -1.0,
+    "reason": "Old National Bank commercial banking ad with URL and call to action",
+    "end_text": "oldnational.com slash commercial banking"
+  },
+  {
+    "start": 506.4,
+    "end": 548.5,
+    "confidence": -1.0,
+    "reason": "Crain's Weekly News Quiz cross-promotion with URL and call to action",
+    "end_text": "Visit chicagobusiness.com slash quiz"
+  }
+]

@@ -1,0 +1,7 @@
+{
+  "start": 6390.2,
+  "end": 6396.7,
+  "confidence": 0.0,
+  "reason": "Transition phrase 'let's pay some bills' but no subsequent sponsored content identified - might be show banter, not a full ad segment with identifiable promotional material",
+  "end_text": "pay some bills"
+}

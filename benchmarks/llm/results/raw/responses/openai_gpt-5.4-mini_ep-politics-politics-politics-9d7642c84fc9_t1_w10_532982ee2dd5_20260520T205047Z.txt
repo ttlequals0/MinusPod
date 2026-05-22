@@ -1,0 +1,1 @@
+{"start":4195.9,"end":4285.6,"confidence":0.87,"reason":"Host-read promotional segment directing listeners to TakePoliticsSeriously.com, with subscription pitch and explicit note about ad timing; includes sponsor-style promotional language about getting names read on the show.","end_text":"one place to do it, TakePoliticsSeriously.com"}

@@ -1,0 +1,1 @@
+{"start":2230.3,"end":2257.8,"confidence":0.72,"reason":"Netflix mentioned in a discussion of streaming as part of editorial content; no clear promotional ad language or sponsor callout detected in this window.","end_text":"turn on my TV, I go to Netflix, I watch it"}

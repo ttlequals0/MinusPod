@@ -1,0 +1,57 @@
+{
+  "ad_segments": [
+    {
+      "start": 8025.2,
+      "end": 8056.1,
+      "confidence": 0.95,
+      "reason": "Possible ad - Biggie Smalls or Big L? Biggie Smalls. What was your Biggie story you said you had? Luther Campbell and me, birthdays are three, four days apart. No, three days. 19 and a 22nd. No, 23rd. He's 23rd. I'm the defensive player of the year, all that shit going on, whatever. So he calls me, get your ass over to the house. We hanging out today. I don't give a damn. I say, you know if I come out, yeah, yeah, bring your shit with you because I'm smoking. I'm like, I don't know where I'm burning. So we get over this motherfucker.",
+      "end_text": "I don't know where I'm burning. So we get over this motherfucker."
+    },
+    {
+      "start": 8058.6,
+      "end": 8085.6,
+      "confidence": 0.95,
+      "reason": "Possible ad - And this light-skinned, blue-eyed Puerto Rican named Dee is there. They're her two friends. And Luke say, I got something for you for your birthday. So my man Caesar's there that taught me how to play the defensive tackle position from the University of Miami. He from Jersey. East Orange. So, Luke come in, yell, yo, go get the motherfuckers out of the front.",
+      "end_text": "yell, yo, go get the motherfuckers out of the front."
+    },
+    {
+      "start": 8086.1,
+      "end": 8098.1,
+      "confidence": 0.95,
+      "reason": "Possible ad - It's Biggie, Lil' C's, home junior mafia. Mind you, I'm on the couch with these streets smoking blood, and I'll be attacked. I'll be all over me.",
+      "end_text": "and I'll be attacked. I'll be all over me."
+    },
+    {
+      "start": 8098.5,
+      "end": 8110.1,
+      "confidence": 0.95,
+      "reason": "Possible ad - So these motherfuckers walk in, Luke like, no, no, no, I ain't here, I ain't here, he doing whatever he doing, come on, come on, come on, come on, cause they smoking too. And he say, y'all don't smoke what he smoke, y'all smoke that stanky stuff, his stuff smell alright, cause you don't smoke a crip.",
+      "end_text": "stuff smell alright, cause you don't smoke a crip."
+    },
+    {
+      "start": 8119.3,
+      "end": 8144.6,
+      "confidence": 0.95,
+      "reason": "Possible ad - What? I'm asking. I'm telling you the story, just listen, you might learn. So, so, so, so, so, they all go on about it, they smoking or whatever, so, Big come back in, Big say, yo, Big Man, I say, yo, what's up, baby? I'll be, I'll be in contact with my preacher. He say, you mind, uh, so they can pick one. She want me to do pick, I got, I got a hand in this, you pick it.",
+      "end_text": "I got a hand in this, you pick it."
+    },
+    {
+      "start": 8145.5,
+      "end": 8156.4,
+      "confidence": 0.95,
+      "reason": "Possible ad - I'ma be in the room, you send me one. So he walks to the bedroom. Three chicks looking at me, I'm like, what, y'all want me to wreck y'all to go do whatever big... D's like, I got him. She jumped up.",
+      "end_text": "big... D's like, I got him. She jumped up."
+    },
+    {
+      "start": 8158.4,
+      "end": 8187.1,
+      "confidence": 0.95,
+      "reason": "Possible ad - Did him up. We, like, that's 94, 95, 96, 97. He's at Tallahassee, the Kapalua. I ain't never been to Kapalua. I'm a Cane. We go to Kapalua. My Florida State dudes, Derrick Brooks, Derrick Alexander, Smarty Roll, all them up there. Yo, chef, we can't get in. I said, oh, I'm getting in. I said, I guarantee you. You telling me Biggie Small Van coming through this road right here, going through this gate? They like, yeah.",
+      "end_text": "gate? They like, yeah."
+    }
+  ],
+  "errors": [],
+  "warnings": [
+    "No transcript segments detected for given time window. Check window boundaries"
+  ]
+}

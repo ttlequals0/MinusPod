@@ -1,0 +1,7 @@
+{
+  "start": 20.74,
+  "end": 25.97,
+  "confidence": 0.95,
+  "reason": "The segment contains a transition phrase indicating a sponsor read, followed by promotional language and specific references to the Tampa Bay Buccaneers and the draft process.",
+  "end_text": "I'm sitting there for two hours and 45 minutes and the camera is stuck on my ass."
+}

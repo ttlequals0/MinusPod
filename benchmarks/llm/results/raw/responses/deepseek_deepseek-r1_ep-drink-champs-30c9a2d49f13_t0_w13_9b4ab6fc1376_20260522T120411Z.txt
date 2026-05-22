@@ -1,0 +1,9 @@
+[
+  {
+    "start": 5692.6,
+    "end": 5772.5,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Brooklinen with repeated brand mentions and product praise",
+    "end_text": "Brooklinen is a monster"
+  }
+]

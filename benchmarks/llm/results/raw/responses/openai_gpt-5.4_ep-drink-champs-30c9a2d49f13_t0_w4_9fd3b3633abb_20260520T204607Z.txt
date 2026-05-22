@@ -1,0 +1,1 @@
+{"start":2234.5,"end":2263.3,"confidence":0.06,"reason":"No promotional language; 'Take one' appears to be production/reset, not an advertisement","end_text":"Take one. Take one."}

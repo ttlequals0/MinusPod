@@ -1,0 +1,1 @@
+{"start":588.5,"end":597.9,"confidence":0.62,"reason":"Partial ad-like inserted outro/promo marker with promotional-style sign-off; appears incomplete in this window","end_text":"We'll see you next time."}

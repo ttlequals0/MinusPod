@@ -1,0 +1,1 @@
+{"start": 1589.9, "end": 1601.7, "confidence": 0.95, "reason": "Host-read ad for subscription service, mentions cost per episode", "end_text": "Less than 50 cents an episode"}

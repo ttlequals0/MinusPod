@@ -1,0 +1,1 @@
+{"start":8724.9,"end":8831.4,"confidence":0.98,"reason":"Ad break containing AirTasker task-service ad, Decisions Decisions podcast promo sponsored by Care for the Culture/Gilead Sciences, OnDeck small business loan ad, and Public investing platform sponsor mention","end_text":"who take it seriously"}

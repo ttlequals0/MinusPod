@@ -1,0 +1,1 @@
+{"start":9259.3,"end":9290.5,"confidence":0.97,"reason":"Produced cross-promo for another TWiT show, with Leo Laporte promoting This Week in Tech and a call to subscribe. Includes \"Hi there, Leo Laporte here\" and \"I hope you'll tune in every Sunday\".","end_text":"This Week in Tech from the TWiT Network. Thank you."}

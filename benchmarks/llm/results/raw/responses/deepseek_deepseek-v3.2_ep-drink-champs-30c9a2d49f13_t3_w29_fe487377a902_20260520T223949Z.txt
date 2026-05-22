@@ -1,0 +1,1 @@
+{"start": 12773.6, "end": 12798.5, "confidence": 0.95, "reason": "Host-read ad for General Hospital, includes promotional language and call to action ('you should be there')", "end_text": "You watch Que Pasa USA?"}

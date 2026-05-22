@@ -1,0 +1,16 @@
+[
+    {
+        "start": 14854.0,
+        "end": 14861.3,
+        "confidence": 0.95,
+        "reason": "Platform-inserted outro ad or network promo, likely Omny Studio or iHeartRadio branding (common in podcast endings). The phrase 'Thank you for watching' is atypical for this audio-only podcast and suggests a produced segment.",
+        "end_text": "for watching."
+    },
+    {
+        "start": 14871.4,
+        "end": 14880.0,
+        "confidence": 0.9,
+        "reason": "Continues platform/network promo or ad insertion. The abrupt shift in tone and topic suggests a produced segment, likely promoting the hosting platform or network (e.g., Omny Studio, iHeartRadio). Marked as continuing in next window due to truncation.",
+        "end_text": "interrupting me by talking to me."
+    }
+]

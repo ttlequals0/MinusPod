@@ -1,0 +1,1 @@
+{"start": 1668.7, "end": 2286.3, "confidence": 0.99, "reason": "continuous monologue without any ad breaks or promotional content; discussion of Facebook, Meta, aging, and screen use in children with no sponsor mentions, URLs, promo codes, or calls to action", "end_text": "And there's nothing you can do about it. I'm sorry."}

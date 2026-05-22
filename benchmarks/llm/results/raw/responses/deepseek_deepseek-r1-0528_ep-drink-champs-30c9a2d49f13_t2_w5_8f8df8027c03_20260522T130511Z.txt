@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2554.1,
+    "end": 2569.1,
+    "confidence": 0.95,
+    "reason": "Host mentions Modela beer organically during conversation",
+    "end_text": "let me get one of them Modelas"
+  }
+]

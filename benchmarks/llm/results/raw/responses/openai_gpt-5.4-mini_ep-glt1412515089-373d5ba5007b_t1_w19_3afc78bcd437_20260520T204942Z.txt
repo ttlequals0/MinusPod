@@ -1,0 +1,1 @@
+{"start":7965.7,"end":8588.5,"confidence":0.61,"reason":"No clear ad read found in this window. The transcript is continuous interview content about retrocausality, UFOs, ideas, and creativity, with no sponsor names, promo codes, URLs, or transition like 'let's take a break'.","end_text":"hear it. And they hear it."}

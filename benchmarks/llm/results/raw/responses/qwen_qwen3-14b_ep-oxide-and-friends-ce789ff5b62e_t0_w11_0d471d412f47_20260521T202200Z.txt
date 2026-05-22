@@ -1,0 +1,2 @@
+].
+{"start": 0.0, "end": 0.0, "confidence": 0.0, "reason": "No advertisements detected in the provided transcript window", "end_text": "next time."}

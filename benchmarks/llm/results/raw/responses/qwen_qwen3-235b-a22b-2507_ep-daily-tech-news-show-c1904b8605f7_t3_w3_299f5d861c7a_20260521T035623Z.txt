@@ -1,0 +1,1 @@
+[{"start": 1742.3, "end": 1771.5, "confidence": 0.98, "reason": "Host-read Capital One sponsor segment with product pitch and call to action", "end_text": "That's technology at Capital One."}, {"start": 1772.6, "end": 1799.6, "confidence": 0.95, "reason": "Network-inserted promo for Lemonada Media's Thrive series", "end_text": "Tune in to Good Things from Lemonada Media"}]

@@ -1,0 +1,2 @@
+e.
+{"start": 5420.4, "end": 5441.4, "confidence": 0.7, "reason": "Repetitive promo code mention indicating a dynamic ad insertion", "end_text": "discount code"}

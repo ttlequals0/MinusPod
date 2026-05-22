@@ -1,0 +1,18 @@
+{
+  "segments": [
+    {
+      "start": 0.0,
+      "end": 40.8,
+      "confidence": 0.99,
+      "reason": "Vitel Global and LinkedIn Premium All-in-One ads, host-read sponsors with promotional language, URLs, and calls to action",
+      "end_text": "linkedin.com slash all-in-one"
+    },
+    {
+      "start": 40.8,
+      "end": 98.4,
+      "confidence": 0.99,
+      "reason": "Hertz ad, host-read sponsor with promotional language and URL",
+      "end_text": "Get paired with our newest fleet yet at Hertz.com"
+    }
+  ]
+}

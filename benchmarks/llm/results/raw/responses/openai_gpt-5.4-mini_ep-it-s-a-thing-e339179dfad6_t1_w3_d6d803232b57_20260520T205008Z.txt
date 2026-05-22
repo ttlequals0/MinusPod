@@ -1,0 +1,1 @@
+{"start":1524.5,"end":1602.6,"confidence":0.98,"reason":"Xero host-read sponsor segment with promotional copy, free trial CTA, followed by Acast platform promo and 'Here's a show that we recommend' cross-promo; includes 'let's take a break' style transition at ad break boundary in this window context","end_text":"Acast.com"}

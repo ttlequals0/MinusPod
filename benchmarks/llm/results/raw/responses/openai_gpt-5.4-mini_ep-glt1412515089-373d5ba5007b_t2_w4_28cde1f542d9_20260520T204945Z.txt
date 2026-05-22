@@ -1,0 +1,1 @@
+{"start":2208.3,"end":2262.0,"confidence":0.97,"reason":"Blinds.com host-read sponsor segment with promotional language, product pitch, and call to action after transition in content","end_text":"rules and restrictions apply"}

@@ -1,0 +1,10 @@
+{
+  "ads": [
+    {
+      "start": 2208.3,
+      "end": 2237.0,
+      "confidence": 0.99,
+      "reason": "Blinds.com sponsor read promoting window treatments and discount",
+      "end_text": "measure at Blinds.com."
+    }
+ 

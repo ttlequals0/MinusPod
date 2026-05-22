@@ -1,0 +1,30 @@
+[
+  {
+    "start": 11335.2,
+    "end": 11365.6,
+    "confidence": 0.97,
+    "reason": "Airtasker platform-inserted ad with product pitch and URL",
+    "end_text": "Airtasker, get anything done"
+  },
+  {
+    "start": 11366.2,
+    "end": 11415.2,
+    "confidence": 0.96,
+    "reason": "Decisions Decisions podcast cross-promotion ad",
+    "end_text": "comments like"
+  },
+  {
+    "start": 11416.3,
+    "end": 11424.6,
+    "confidence": 0.98,
+    "reason": "Explicit sponsorship mention: 'Sponsored by Care for the Culture'",
+    "end_text": "Gilead Sciences"
+  },
+  {
+    "start": 11425.3,
+    "end": 11454.3,
+    "confidence": 0.99,
+    "reason": "OnDeck financial services ad with URL and product details",
+    "end_text": "loans... an amount"
+  }
+]

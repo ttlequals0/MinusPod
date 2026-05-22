@@ -1,0 +1,7 @@
+{
+  "start": 161.0,
+  "end": 171.0,
+  "confidence": 0.85,
+  "reason": "The segment contains promotional language and references to NFL players, which are indicative of sponsorship content. The mention of 'Warren Moone' and 'Warren Beatty' suggests a focus on brand endorsements, typical of advertisement segments.",
+  "end_text": "help him with his NFL deal"
+}

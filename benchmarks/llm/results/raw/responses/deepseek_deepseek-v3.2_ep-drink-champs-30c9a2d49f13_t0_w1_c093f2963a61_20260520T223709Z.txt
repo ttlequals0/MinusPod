@@ -1,0 +1,1 @@
+{"start": 588.5, "end": 597.9, "confidence": 0.95, "reason": "Network-inserted outro/teaser ad for next episode", "end_text": "We'll see you next time."}

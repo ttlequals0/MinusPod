@@ -1,0 +1,7 @@
+{
+  "start": 8799.1,
+  "end": 8826.4,
+  "confidence": 0.95,
+  "reason": "OnDeck loan service ad with promotional language and call to action",
+  "end_text": "OnDeck.com. Depending on certain loan attributes, your business loan may be issued by OnDeck or Celtic Bank."
+}

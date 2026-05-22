@@ -1,0 +1,30 @@
+[
+  {
+    "start": 6208.7,
+    "end": 6220.5,
+    "confidence": 1.0,
+    "reason": "Airtasker host-read advertisement",
+    "end_text": "Airtasker, get anything done."
+  },
+  {
+    "start": 6220.5,
+    "end": 6282.7,
+    "confidence": 1.0,
+    "reason": "Decisions Decisions podcast cross-promotion ad",
+    "end_text": "from Gilead Sciences."
+  },
+  {
+    "start": 6283.4,
+    "end": 6313.4,
+    "confidence": 1.0,
+    "reason": "OnDeck small business loan advertisement",
+    "end_text": "subject to lender approval."
+  },
+  {
+    "start": 6313.8,
+    "end": 6318.1,
+    "confidence": 0.9,
+    "reason": "Public investing platform sponsor mention",
+    "end_text": "take it seriously."
+  }
+]

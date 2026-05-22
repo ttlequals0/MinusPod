@@ -1,0 +1,1 @@
+{"start": 2680.5, "end": 2863.4, "confidence": 0.12, "reason": "No clear advertisement detected; 'We'll see you next time' appears to be transcript artifact without promotional language", "end_text": "We'll see you next time."}

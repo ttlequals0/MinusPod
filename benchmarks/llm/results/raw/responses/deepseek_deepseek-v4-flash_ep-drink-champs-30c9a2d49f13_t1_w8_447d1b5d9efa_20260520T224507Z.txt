@@ -1,0 +1,32 @@
+{
+  "ads": [
+    {
+      "start": 3478.9,
+      "end": 3503.7,
+      "confidence": 0.97,
+      "reason": "Airtasker host-read sponsor segment with promotional language, app download call to action, and URL",
+      "end_text": "Airtasker, get anything done"
+    },
+    {
+      "start": 3503.7,
+      "end": 3577.4,
+      "confidence": 0.98,
+      "reason": "Cross-promotion for 'Decisions Decisions' podcast with Kiki Palmer, sponsored by Care for the Culture/Gilead Sciences - produced segment with different voice/tone",
+      "end_text": "Care for the Culture from Gilead Sciences"
+    },
+    {
+      "start": 3578.1,
+      "end": 3608.0,
+      "confidence": 0.97,
+      "reason": "OnDeck small business line of credit network-inserted ads with promo language and URL",
+      "end_text": "All amounts subject to lender approval"
+    },
+    {
+      "start": 3608.5,
+      "end": 3666.3,
+      "confidence": 0.98,
+      "reason": "Public investing platform network-inserted ad with detailed product pitch and disclosure URL",
+      "end_text": "public.com slash disclosures"
+    }
+  ]
+}

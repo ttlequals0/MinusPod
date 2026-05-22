@@ -1,0 +1,1 @@
+{"segments": [{"start": 1139.5, "end": 1168.4, "confidence": 0.98, "reason": "Repeated promo code mentions likely indicate a host-read ad or a segment being mocked/parodied", "end_text": "discount code, discount code, discount code"}]}

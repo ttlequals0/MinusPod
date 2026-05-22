@@ -1,0 +1,1 @@
+{"error": "Given instructions: Return ONLY a valid JSON array. Can't be object."}

@@ -1,0 +1,1 @@
+{"start": 1.6, "end": 7.0, "confidence": 0.98, "reason": "Acast platform-inserted pre-roll ad promoting Acast's podcast network", "end_text": "we recommend."}

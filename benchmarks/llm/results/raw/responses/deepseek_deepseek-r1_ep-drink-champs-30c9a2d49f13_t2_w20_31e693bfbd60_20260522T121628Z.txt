@@ -1,0 +1,9 @@
+[
+  {
+    "start": 8724.9,
+    "end": 8831.4,
+    "confidence": 0.95,
+    "reason": "Multiple network-inserted ads: AirTasker, Decisions Decisions podcast promo, Care for the Culture sponsorship, OnDeck business loans, Public investing platform",
+    "end_text": "the show comes from Public"
+  }
+]

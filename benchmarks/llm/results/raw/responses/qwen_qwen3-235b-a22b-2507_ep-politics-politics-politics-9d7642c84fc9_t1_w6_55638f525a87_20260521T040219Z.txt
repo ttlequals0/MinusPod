@@ -1,0 +1,1 @@
+{"start": 2528.4, "end": 2533.2, "confidence": 0.3, "reason": "Short gap with no promotional content; likely audio edit or pause, not an ad", "end_text": "social listening in a way that you maybe wouldn't have been able to"}

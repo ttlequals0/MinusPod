@@ -1,0 +1,7 @@
+[{
+  "start": 4286.7,
+  "end": 4317.9,
+  "confidence": 0.95,
+  "reason": "Network-inserted post-roll ad for Diamond Club production",
+  "end_text": "Dog and Pony Show Audio"
+}]

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1.6,
+    "end": 77.2,
+    "confidence": 1.0,
+    "reason": "Platform-inserted ads for other podcasts and Acast hosting services",
+    "end_text": "leaders of tomorrow."
+  }
+]

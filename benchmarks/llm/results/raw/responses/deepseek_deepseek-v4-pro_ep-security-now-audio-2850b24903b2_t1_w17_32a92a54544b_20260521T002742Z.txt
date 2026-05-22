@@ -1,0 +1,11 @@
+{
+  "segments": [
+    {
+      "start": 7633.1,
+      "end": 7743.9,
+      "confidence": 0.99,
+      "reason": "Trusted Tech sponsor read: promo for Microsoft 365 licensing services, specific URL trustedtech.team/securitynow365, host-read ad",
+      "end_text": "was impressed. You will be too."
+    }
+  ]
+}

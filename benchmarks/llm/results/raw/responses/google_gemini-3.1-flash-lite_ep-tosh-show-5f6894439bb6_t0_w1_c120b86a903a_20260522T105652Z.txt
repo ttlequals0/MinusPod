@@ -1,0 +1,16 @@
+[
+  {
+    "start": 537.5,
+    "end": 567.0,
+    "confidence": 1.0,
+    "reason": "Thrive Cosmetics host-read ad",
+    "end_text": "C-A-U-S-E-M-E-T-I-C-S dot com slash shine26"
+  },
+  {
+    "start": 594.7,
+    "end": 654.3,
+    "confidence": 1.0,
+    "reason": "PC Richard & Son / Asima network-inserted ad",
+    "end_text": "PCRichard.com slash Asima dot HTML for details"
+  }
+]

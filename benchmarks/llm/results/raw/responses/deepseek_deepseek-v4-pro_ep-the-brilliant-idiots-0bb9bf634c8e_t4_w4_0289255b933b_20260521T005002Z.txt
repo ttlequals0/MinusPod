@@ -1,0 +1,4 @@
+{
+  "ad_segments": [],
+  "reasoning": "After analyzing the provided segment of the Brilliant Idiots transcript, no advertisement segments were detected. The content is entirely editorial, featuring hosts Charlamagne tha God and Loren Lorosa discussing hip-hop journalism, Complex's list, and various media personalities. There are no transition phrases, sponsor mentions, promo codes, product pitches, or any form of promotional language that would indicate an advertisement break."
+}

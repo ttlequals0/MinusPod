@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1959.8,
+    "end": 2080.5,
+    "confidence": 0.98,
+    "reason": "Multiple consecutive ads: Rakuten cashback promotion, LinkedIn Premium All-in-One business tool, and Hertz car rental services",
+    "end_text": "newest fleet yet at Hertz.com"
+  }
+]

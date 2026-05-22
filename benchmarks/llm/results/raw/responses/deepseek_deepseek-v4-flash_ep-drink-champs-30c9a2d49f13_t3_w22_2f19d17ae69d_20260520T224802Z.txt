@@ -1,0 +1,1 @@
+{"start": 9228.0, "end": 9840.0, "confidence": 1.0, "reason": "continues from previous and into next window", "end_text": "It's a movie that predicts"}

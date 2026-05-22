@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1959.8,
+    "end": 2080.5,
+    "confidence": 0.99,
+    "reason": "Rakuten, LinkedIn Premium All-in-One, and Hertz ads with calls to action",
+    "end_text": "fleet yet at Hertz.com"
+  }
+]

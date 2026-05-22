@@ -1,0 +1,16 @@
+[
+    {
+        "start": 4969.9,
+        "end": 4990.4,
+        "confidence": 0.92,
+        "reason": "Promotion of Miami Heroes with repeated mentions and call to action ('We got to give these flowers, bruh. Yes, man. Our show is about giving people they flowers...')",
+        "end_text": "Miami Heroes. Miami Heroes"
+    },
+    {
+        "start": 5059.9,
+        "end": 5082.4,
+        "confidence": 0.85,
+        "reason": "Host-read promotion of a bar trip ('my dude from Hawaii makes that, from Maui. That's a great bar. Yeah, that's a great bar trip. Trust me.') with product endorsement language",
+        "end_text": "That's a great bar trip"
+    }
+]

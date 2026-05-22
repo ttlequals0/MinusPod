@@ -1,0 +1,7 @@
+{
+  "start": 909.6,
+  "end": 933.9,
+  "confidence": 0.94,
+  "reason": "Promotion for the show's subscription site with call to action 'TakePoliticsSeriously.com' and benefit of getting two episodes",
+  "end_text": "get two episodes of this show"
+}

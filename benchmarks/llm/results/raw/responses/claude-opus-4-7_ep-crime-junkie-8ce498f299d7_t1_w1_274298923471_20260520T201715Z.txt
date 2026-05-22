@@ -1,0 +1,1 @@
+[{"start": 1035.7, "end": 1035.7, "confidence": 0.7, "reason": "Debt-related ad pitch beginning, continues in next window", "end_text": "can get messy fast", "continues_in_next": true}]

@@ -1,0 +1,1 @@
+{"start": 909.6, "end": 991.0, "confidence": 0.8, "reason": "Sponsor mention with call to action", "end_text": "China's Clear economic interest"}

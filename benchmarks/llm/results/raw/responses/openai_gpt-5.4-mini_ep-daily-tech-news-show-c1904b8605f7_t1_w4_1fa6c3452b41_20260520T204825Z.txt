@@ -1,0 +1,1 @@
+{"start":1742.3,"end":1771.5,"confidence":0.99,"reason":"Capital One host-read sponsor segment with clear ad language ('This episode is brought to you by Capital One') and product pitch for Chat Concierge; includes promotional claims and brand tagline.","end_text":"That's technology at Capital One."}

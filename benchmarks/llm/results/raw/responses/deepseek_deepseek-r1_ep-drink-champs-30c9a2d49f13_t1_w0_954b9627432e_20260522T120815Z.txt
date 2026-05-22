@@ -1,0 +1,16 @@
+[
+  {
+    "start": 0.0,
+    "end": 124.1,
+    "confidence": 0.98,
+    "reason": "Multiple network-inserted ads: Airtasker (host-read promo), Care for the Culture PSA, Nissan Rogue commercial, Shopify host-read endorsement",
+    "end_text": "Shopify puts my products"
+  },
+  {
+    "start": 124.6,
+    "end": 150.5,
+    "confidence": 0.99,
+    "reason": "Continued Shopify host-read with explicit URL (Shopify.com/B-E-N) and call to action",
+    "end_text": "start now at Shopify.com slash B-E-N"
+  }
+]

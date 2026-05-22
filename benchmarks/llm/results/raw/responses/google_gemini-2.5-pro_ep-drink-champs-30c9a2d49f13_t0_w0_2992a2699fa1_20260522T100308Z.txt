@@ -1,0 +1,9 @@
+[
+  {
+    "start": 0.0,
+    "end": 150.5,
+    "confidence": 1.0,
+    "reason": "A series of pre-roll ads for Airtasker, Care for the Culture (Gilead), Nissan, and a host-read ad for Shopify.",
+    "end_text": "at Shopify.com slash B-E-N."
+  }
+]

@@ -1,0 +1,1 @@
+{"start": 9741.1, "end": 9840.0, "confidence": 0.98, "reason": "Host promotes 'Applied Love Labs' and the time machine.love app with a call to action, URL, and product description", "end_text": "caused"}

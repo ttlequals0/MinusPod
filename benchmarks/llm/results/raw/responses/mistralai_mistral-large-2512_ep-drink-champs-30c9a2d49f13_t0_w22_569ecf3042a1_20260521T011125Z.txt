@@ -1,0 +1,9 @@
+[
+    {
+        "start": 9741.9,
+        "end": 9757.2,
+        "confidence": 0.95,
+        "reason": "Mention of McDonald's with promotional context and call to action ('Let's do a couple more shots. Come on, come on. I got another one for you. You know McDonald's?'). While not a traditional ad, the segment includes concentrated brand focus and a product pitch (ghetto Big Mac), which fits the brand tagline ad criteria.",
+        "end_text": "Epstein file serving human fucking puffs"
+    }
+]

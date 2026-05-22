@@ -1,0 +1,1 @@
+{"start":2938.5,"end":2959.5,"confidence":0.86,"reason":"Possible sponsor-style promotional segment in the episode window, but no explicit ad intro or clear sponsor CTA in this excerpt; appears to be show content rather than a full ad break. No definite ad identified from transcript.","end_text":"show content rather than a full ad break"}

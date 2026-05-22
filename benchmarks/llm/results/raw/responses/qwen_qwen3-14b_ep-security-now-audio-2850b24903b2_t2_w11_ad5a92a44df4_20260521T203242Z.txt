@@ -1,0 +1,2 @@
+y.
+{"start": 4620.0, "end": 5220.0, "confidence": 0.0, "reason": "No advertisement segments detected in the specified window", "end_text": "For some people,"}

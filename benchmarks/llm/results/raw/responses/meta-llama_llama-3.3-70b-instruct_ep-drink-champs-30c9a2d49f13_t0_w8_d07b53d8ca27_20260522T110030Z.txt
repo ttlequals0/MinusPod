@@ -1,0 +1,5 @@
+[{"start": 3478.9, "end": 3503.7, "confidence": 0.95, "reason": "Airtasker sponsor read", "end_text": "get anything done"}, 
+{"start": 3504.1, "end": 3528.5, "confidence": 0.8, "reason": "Decisions Decisions podcast promotion", "end_text": "get your podcasts"}, 
+{"start": 3556.8, "end": 3577.4, "confidence": 0.7, "reason": "Care for the Culture from Gilead Sciences sponsorship", "end_text": "get tested"}, 
+{"start": 3578.1, "end": 3606.4, "confidence": 0.9, "reason": "OnDeck small business loan ad", "end_text": "lender approval"}, 
+{"start": 3608.5, "end": 3637.4, "confidence": 0.85, "reason": "Public investing platform ad", "end_text": "put the AI to work"}]

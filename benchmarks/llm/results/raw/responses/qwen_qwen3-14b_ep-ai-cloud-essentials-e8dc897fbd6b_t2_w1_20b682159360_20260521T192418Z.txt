@@ -1,0 +1,1 @@
+{"start": 7.0, "end": 16.4, "confidence": 0.0, "reason": "no ads found", "end_text": "stay tuned for more. Thank you."}

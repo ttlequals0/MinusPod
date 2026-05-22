@@ -1,0 +1,1 @@
+{ "start": 521.5, "end": 548.5, "confidence": 0.95, "reason": "Crain's Daily Gist listeners know their Chicago business, so why not prove it by taking the Crain's Weekly News Quiz at chicagobusiness.com", "end_text": "chicagobusiness.com slash quiz" }

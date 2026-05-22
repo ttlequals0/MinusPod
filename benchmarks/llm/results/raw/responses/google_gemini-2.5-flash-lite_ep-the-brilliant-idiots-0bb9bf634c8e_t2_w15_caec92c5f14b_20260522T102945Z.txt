@@ -1,0 +1,9 @@
+[
+  {
+    "start": 6390.2,
+    "end": 6445.0,
+    "confidence": 0.95,
+    "reason": "Transition phrase 'Let's pay some bills' followed by a segment that appears to be a sponsor read or ad break, mentioning 'Blue Chew' and 'Asking Idiots' which is likely a segment name for ads or listener questions related to sponsors.",
+    "end_text": "Asking Idiots."
+  }
+]

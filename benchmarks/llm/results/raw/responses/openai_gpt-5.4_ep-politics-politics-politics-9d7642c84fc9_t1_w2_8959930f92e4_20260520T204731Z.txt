@@ -1,0 +1,7 @@
+{
+  "start": 909.6,
+  "end": 933.9,
+  "confidence": 0.62,
+  "reason": "Show self-promo/call to action for TakePoliticsSeriously.com: 'This is your update brought to you by TakePoliticsSeriously.com. That's where you need to go if you want to get two episodes of this show.'",
+  "end_text": "get two episodes of this show"
+}

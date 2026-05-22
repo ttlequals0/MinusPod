@@ -1,0 +1,7 @@
+{
+	"start": 977.3,
+	"end": 996.7,
+	"confidence": 0.95,
+	"reason": "Discussion about Warren Sapp's career and achievements",
+	"end_text": "I got three. You're a legend in the game. Yeah. No doubt. And you played with many other competitors. Now, in my childhood, who I didn't, I'm a Giants fan as hard, right? Supposed to be. Randall Cunningham was a monster."
+}

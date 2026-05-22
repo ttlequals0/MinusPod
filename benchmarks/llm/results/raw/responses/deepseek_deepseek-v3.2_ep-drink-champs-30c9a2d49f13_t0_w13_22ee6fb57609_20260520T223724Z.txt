@@ -1,0 +1,1 @@
+{"start": 5471.4, "end": 5500.8, "confidence": 0.95, "reason": "Extended silence gap with no promotional content, likely a natural pause or production gap, not an ad.", "end_text": "Both. That's right."}

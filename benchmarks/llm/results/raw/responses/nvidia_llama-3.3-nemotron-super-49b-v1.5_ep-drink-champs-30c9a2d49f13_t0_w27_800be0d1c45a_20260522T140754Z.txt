@@ -1,0 +1,6 @@
+[
+    {"start": 11341.1, "end": 11365.6, "confidence": 0.95, "reason": "Airtasker sponsor read with URL and call to action", "end_text": "Airtasker, get anything done."},
+    {"start": 11416.3, "end": 11424.6, "confidence": 0.9, "reason": "Sponsored by Care for the Culture from Gilead Sciences", "end_text": "wherever you get your podcasts."},
+    {"start": 11425.3, "end": 11454.3, "confidence": 0.95, "reason": "OnDeck small business loan ad with URL and call to action", "end_text": "All loans..."},
+    {"start": 11614.6, "end": 11630.6, "confidence": 0.95, "reason": "Host-read sponsor mentions with promo codes and sponsored by language", "end_text": "Stamps.com,"}
+]

@@ -1,0 +1,1 @@
+{"start": 7122.6,"end": 7740.0,"confidence": 0.38,"reason":"No clear ad found in this window; transcript is continuous show conversation with no sponsor transition, promo code, URL pitch, or platform promo. Window note suggests continuation only.","end_text":"continues in next"}

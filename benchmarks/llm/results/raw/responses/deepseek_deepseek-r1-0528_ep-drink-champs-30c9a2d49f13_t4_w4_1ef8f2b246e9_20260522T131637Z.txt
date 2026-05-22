@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2234.5,
+    "end": 2263.3,
+    "confidence": 0.9,
+    "reason": "Host transition phrase 'Take one' repeated three times, indicating a break, but no explicit sponsor mention. However, given the context of Drink Champs podcast, breaks often lead to ads. This segment is followed by a content gap and then a topic change.",
+    "end_text": "Take one. Take one"
+  }
+]

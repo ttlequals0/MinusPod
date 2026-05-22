@@ -1,0 +1,1 @@
+"displayed in the transcript. The ad segment includes the call to action and the link. The start timestamp is 5580.1s, and the end is when the link is mentioned. The confidence is high due to the direct promotion and call to action."

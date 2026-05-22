@@ -1,0 +1,12 @@
+{
+  "ads": [
+    {
+      "start": "The transcript contains a segment containing the repeated phrase 'promo code, discount code' which is a clear marker of an ad insertion or a placeholder for a sponsor, though the host is likely reading a script or there is a technical glitch in the transcript representing an ad break.",
+      "start": 5420.4,
+      "end": 5441.4,
+      "confidence": 0.9,
+      "reason": "Promotional language ('promo code, discount code') indicating a sponsor segment",
+      "end_text": "discount code, discount code"
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "start": 1482.9,
+  "end": 1511.2,
+  "confidence": 0.95,
+  "reason": "Mention of CellHawk and BadgeApp, which are products used by law enforcement",
+  "end_text": "make sense of?"
+}

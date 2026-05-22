@@ -1,0 +1,1 @@
+{"start": 524.6, "end": 550.1, "confidence": 0.3, "reason": "Topic transition without promotional content; 'let's get down to business' is a content pivot, not an ad", "end_text": "agenda for today's episode"}

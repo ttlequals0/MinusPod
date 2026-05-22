@@ -1,0 +1,23 @@
+[
+{
+  "start": 4167.1,
+   "end": 4218.0,
+   "confidence": 0.95,
+   "reason": "PayPal and Venmo promotion",
+   "end_text": "Austin, Texas 78715"
+},
+{
+   "start": 4221.7,
+   "end": 4269.3,
+   "confidence": 0.95,
+   "reason": "Spencer Pratt ads and AI tools promotion",
+   "end_text": "three times a week"
+},
+{
+   "start": 4286.7,
+   "end": 4317.9,
+   "confidence": 0.95,
+   "reason": "TakePoliticsSeriously.com promotion",
+   "end_text": "this is your old pal"
+}
+]

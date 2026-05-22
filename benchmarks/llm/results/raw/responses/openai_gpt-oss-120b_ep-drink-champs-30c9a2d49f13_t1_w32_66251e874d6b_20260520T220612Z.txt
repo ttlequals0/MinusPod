@@ -1,0 +1,18 @@
+{
+  "ads": [
+    {
+      "start": 13669.1,
+      "end": 13719.5,
+      "confidence": 0.98,
+      "reason": "Airtasker sponsor read with product pitch and call to action",
+      "end_text": "No shame, no stigma."
+    },
+    {
+      "start": 13747.1,
+      "end": 13815.9,
+      "confidence": 0.98,
+      "reason": "Multiple sponsor reads (Care for the Culture, OnDeck, Public) merged due to short gaps",
+      "end_text": "back test it again."
+    }
+  ]
+}

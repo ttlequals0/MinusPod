@@ -1,0 +1,7 @@
+{
+  "start": 8799.1,
+  "end": 8831.4,
+  "confidence": 0.99,
+  "reason": "OnDeck loan ad followed immediately by Public sponsor mention; promotional language includes brand names, product pitch, ratings, and call to action at OnDeck.com; partial ad break continues from previous/into gap",
+  "end_text": "take it seriously"
+}

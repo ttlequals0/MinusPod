@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2609.5,
+    "end": 2634.3,
+    "confidence": 0.95,
+    "reason": "Sponsor and promo code placeholder segment listing common podcast sponsors",
+    "end_text": "Manscaped, Stamps.com,"
+  }
+]

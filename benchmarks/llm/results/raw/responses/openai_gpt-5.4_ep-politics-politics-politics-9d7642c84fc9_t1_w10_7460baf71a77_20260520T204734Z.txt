@@ -1,0 +1,1 @@
+{"start": 4242.8, "end": 4285.6, "confidence": 0.84, "reason": "Host promotes paid support/foundational tier with call to action and URL-like site mention: 'one place to do it, TakePoliticsSeriously.com'", "end_text": "one place to do it, TakePoliticsSeriously.com"}

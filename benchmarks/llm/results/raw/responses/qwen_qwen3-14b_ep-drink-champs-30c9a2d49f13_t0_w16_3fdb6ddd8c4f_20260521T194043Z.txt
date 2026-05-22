@@ -1,0 +1,1 @@
+{"start": 7211.3, "end": 7224.6, "confidence": 0.9, "reason": "Host mentions 'Legend' and 'home run' which could be promotional language, but no clear sponsor or product name identified", "end_text": "whatever. I guess, I guess, ah, whatever."}

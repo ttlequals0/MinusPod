@@ -1,0 +1,1 @@
+{"start":469.0,"end":572.1,"confidence":0.99,"reason":"Host transition 'we'll take our first break' followed by a full host-read Zscaler sponsor segment with clear promotional copy and CTA to zscaler.com/security.","end_text":"That's zscaler.com slash security"}

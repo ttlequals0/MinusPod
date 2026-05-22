@@ -1,0 +1,1 @@
+[{"start": 1524.5, "end": 1602.6, "confidence": 0.98, "reason": "Xero sponsor read followed by Acast platform cross-promo and network ad", "end_text": "everywhere. Acast.com."}]

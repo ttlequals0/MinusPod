@@ -1,0 +1,1 @@
+{"start": 12773.6, "end": 12798.5, "confidence": 0.0, "reason": "No promotional content detected. This is a conversation about TV shows (General Hospital, Que Pasa USA).", "end_text": "You watch Que Pasa USA?"}

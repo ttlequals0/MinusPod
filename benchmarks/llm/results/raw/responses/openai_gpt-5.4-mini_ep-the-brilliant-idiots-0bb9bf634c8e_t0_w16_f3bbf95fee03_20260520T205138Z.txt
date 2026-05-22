@@ -1,0 +1,1 @@
+{"start":7158.5,"end":7168.9,"confidence":0.86,"reason":"Host outro transitions into a platform/network promo read for the show and network with clear promotional language about listening and following Lauren LaRosa; no separate show-content resume before the Netflix promo. Note: window ends with the next ad starting immediately after.","end_text":"Thank you for listening."}

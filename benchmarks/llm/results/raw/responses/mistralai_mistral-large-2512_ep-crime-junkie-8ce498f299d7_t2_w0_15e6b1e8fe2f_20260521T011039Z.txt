@@ -1,0 +1,16 @@
+[
+    {
+        "start": 0.0,
+        "end": 40.8,
+        "confidence": 0.99,
+        "reason": "Vitel Global and LinkedIn Premium All-in-One network-inserted ads with promotional language, URLs, and product pitches",
+        "end_text": "linkedin.com slash all-in-one"
+    },
+    {
+        "start": 70.5,
+        "end": 98.4,
+        "confidence": 0.98,
+        "reason": "Hertz sponsor read with promotional language and call to action (Hertz.com)",
+        "end_text": "newest fleet yet at Hertz.com"
+    }
+]

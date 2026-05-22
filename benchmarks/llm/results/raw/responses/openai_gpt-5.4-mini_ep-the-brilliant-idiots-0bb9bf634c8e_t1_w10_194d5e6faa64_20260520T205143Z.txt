@@ -1,0 +1,1 @@
+{"start":4324.2,"end":4361.4,"confidence":0.71,"reason":"Host-read promo break for Jess Hilarious book and Charlamagne's AM Mornings; includes explicit calls to action and the transition into a break with 'Let's listen to this moment.'","end_text":"See you guys there. Peace. Let's listen"}

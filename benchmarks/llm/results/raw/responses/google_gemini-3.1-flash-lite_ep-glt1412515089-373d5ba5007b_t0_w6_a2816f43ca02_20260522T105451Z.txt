@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2846.0,
+    "end": 2858.9,
+    "confidence": 1.0,
+    "reason": "Platform-inserted transcription service credit",
+    "end_text": "CastingWords Transcription by CastingWords"
+  }
+]

@@ -1,0 +1,1 @@
+{"start":11335.2,"end":11513.7,"confidence":0.99,"reason":"Dynamic ad break with Airtasker task marketplace ad, Decisions Decisions podcast promo sponsored by Gilead Sciences, OnDeck small business line of credit ad, and Public.com disclosure tail before show content resumes","end_text":"public.com slash disclosures"}

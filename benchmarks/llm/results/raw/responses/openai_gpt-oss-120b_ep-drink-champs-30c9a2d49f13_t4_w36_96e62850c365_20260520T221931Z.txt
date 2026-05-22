@@ -1,0 +1,1 @@
+{"start":15388.3,"end":15517.1,"confidence":0.97,"reason":"Series of sponsor reads (Airtasker, CVS, Trashy, TryFencing, iHeart) with brand names, URLs and calls to action","end_text":"Guaranteed human."}

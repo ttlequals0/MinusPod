@@ -1,0 +1,1 @@
+[{"start": 2324.6, "end": 2450.0, "confidence": 0.98, "reason": "Back-to-back host-read sponsor segments for BlueChew and ZipRecruiter featuring product pitches, URLs, and promo code 'Idiots'.", "end_text": "Meet your match on ZipRecruiter."}]

@@ -1,0 +1,7 @@
+{
+  "start": 4195.9,
+  "end": 4285.6,
+  "confidence": 0.92,
+  "reason": "Host-read ad for the show's paid subscription tier, including calls to action to get name on show and visit TakePoliticsSeriously.com",
+  "end_text": "TakePoliticsSeriously.com"
+}

@@ -1,0 +1,1 @@
+{"start":5420.4,"end":5441.4,"confidence":0.98,"reason":"Inserted sponsor/CTA-like ad break marked by \"promo code, discount code\" repeated as promotional language, occurring in a break before show resumes.","end_text":"discount code, discount code, discount code"}

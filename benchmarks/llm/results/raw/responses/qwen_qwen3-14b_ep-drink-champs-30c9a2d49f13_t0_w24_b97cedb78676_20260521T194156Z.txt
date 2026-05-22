@@ -1,0 +1,2 @@
+w.
+{"start": 10080.0, "end": 10680.0, "confidence": 0.0, "reason": "No advertisement segments detected in the provided transcript window.", "end_text": "reparations. It's kind of... Is this a new reparation?"}

@@ -1,0 +1,23 @@
+[
+  {
+    "start": 2216.5,
+    "end": 2230.5,
+    "confidence": 0.95,
+    "reason": "Host transition to ad break",
+    "end_text": "on 79th Street?"
+  },
+  {
+    "start": 2234.5,
+    "end": 2263.3,
+    "confidence": 0.98,
+    "reason": "Ad read for Take One (sponsor)",
+    "end_text": "Take one. Take one."
+  },
+  {
+    "start": 2263.4,
+    "end": 2267.2,
+    "confidence": 0.95,
+    "reason": "Host transition back to content",
+    "end_text": "in the draft, right?"
+  }
+]

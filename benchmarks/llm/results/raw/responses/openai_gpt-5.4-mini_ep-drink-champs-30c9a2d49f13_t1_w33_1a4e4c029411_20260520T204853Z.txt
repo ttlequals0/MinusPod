@@ -1,0 +1,1 @@
+{"start":13996.5,"end":14017.3,"confidence":0.61,"reason":"Potential host-read promo for Drink Champs merch/hat with explicit product pitch and sign-off, but no clear sponsor brand or URL; may be show content rather than ad","end_text":"Ever. Ever. Ever. Ever"}

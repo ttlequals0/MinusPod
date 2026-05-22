@@ -1,0 +1,1 @@
+{"start":3339.8,"end":3390.5,"confidence":0.81,"reason":"Possible partial ad crossover from prior segment is not evident here; no promotional language. No ads detected in this window.","end_text":"anticipating it."}

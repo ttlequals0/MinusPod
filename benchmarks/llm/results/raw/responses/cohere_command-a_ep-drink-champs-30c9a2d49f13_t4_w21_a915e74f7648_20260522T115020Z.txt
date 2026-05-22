@@ -1,0 +1,7 @@
+{
+  "start": 8799.1,
+  "end": 8826.4,
+  "confidence": 0.95,
+  "reason": "OnDeck business loan ad",
+  "end_text": "all loans and amounts subject to lender approval"
+}

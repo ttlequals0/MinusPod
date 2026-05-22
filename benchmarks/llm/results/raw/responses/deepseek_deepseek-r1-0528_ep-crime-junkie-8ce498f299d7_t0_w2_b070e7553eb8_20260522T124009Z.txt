@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1036.2,
+    "end": 1129.6,
+    "confidence": 0.95,
+    "reason": "SoFi personal loan and LinkedIn Premium All-in-One ads with calls to action",
+    "end_text": "LinkedIn.com slash all-in-one"
+  }
+]

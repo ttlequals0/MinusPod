@@ -1,0 +1,3 @@
+[
+{"start":4675.4,"end":4763.1,"confidence":0.99,"reason":"Host-read sponsor spots for Colgate and Skinny Pop merged","end_text":"your smile is your strength."},{"start":4766.5,"end":4806.1,"confidence":0.99,"reason":"Host-read sponsor spots for Viz eye drops and Garnier merged","end_text":"GarnierUSA.com slash NPF."}
+]

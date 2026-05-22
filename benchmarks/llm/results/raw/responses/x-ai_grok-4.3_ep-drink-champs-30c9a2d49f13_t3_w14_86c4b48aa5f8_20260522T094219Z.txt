@@ -1,0 +1,5 @@
+[
+  {"start": 6208.7, "end": 6282.7, "confidence": 0.98, "reason": "Airtasker host-read ad followed by Decisions Decisions cross-promo", "end_text": "Gilead Sciences"},
+  {"start": 6283.4, "end": 6318.1, "confidence": 0.99, "reason": "OnDeck small business loan commercial", "end_text": "lender approval"},
+  {"start": 6313.8, "end": 6318.1, "confidence": 0.9, "reason": "Public investing platform sponsor mention", "end_text": "take it seriously"}
+]

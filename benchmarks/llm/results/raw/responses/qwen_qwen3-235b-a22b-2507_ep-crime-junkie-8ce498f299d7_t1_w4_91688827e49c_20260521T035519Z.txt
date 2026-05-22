@@ -1,0 +1,1 @@
+{"start": 1959.8, "end": 2020.4, "confidence": 0.98, "reason": "Rakuten sponsor read with promotional language, URL, and call to action", "end_text": "Rakuten.com or download the Rakuten app to start saving money today."}

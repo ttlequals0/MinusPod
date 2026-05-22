@@ -1,0 +1,7 @@
+{
+  "start": 1267.4,
+   "end": 1271.2,
+   "confidence": 0.95,
+   "reason": "Host-read sponsor segment",
+   "end_text": "next time"
+}

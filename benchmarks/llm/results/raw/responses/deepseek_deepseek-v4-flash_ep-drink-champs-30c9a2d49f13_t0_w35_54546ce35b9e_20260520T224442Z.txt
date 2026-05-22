@@ -1,0 +1,1 @@
+{ "start": 15261.8, "end": 15285.2, "confidence": 0.25, "reason": "Repeated phrase 'promo code, discount code' suggests ad language, but context is unclear and no sponsor name or URL is present", "end_text": "discount code, discount code" }

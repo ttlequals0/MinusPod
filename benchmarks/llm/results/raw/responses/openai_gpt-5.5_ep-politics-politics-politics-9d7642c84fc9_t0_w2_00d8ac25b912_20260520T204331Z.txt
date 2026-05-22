@@ -1,0 +1,1 @@
+{"start":909.6,"end":933.9,"confidence":0.78,"reason":"House ad/self-promo for TakePoliticsSeriously.com with CTA to get two episodes of the show; promotional text shares timestamp chunk with show content","end_text":"two episodes of this show"}

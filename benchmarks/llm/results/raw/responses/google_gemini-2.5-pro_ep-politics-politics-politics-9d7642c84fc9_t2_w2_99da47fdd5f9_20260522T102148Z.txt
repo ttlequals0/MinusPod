@@ -1,0 +1,9 @@
+[
+  {
+    "start": 909.6,
+    "end": 933.9,
+    "confidence": 0.95,
+    "reason": "Host-read promotion for the show's subscription service, TakePoliticsSeriously.com.",
+    "end_text": "episodes of this show."
+  }
+]

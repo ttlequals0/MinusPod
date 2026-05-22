@@ -1,0 +1,18 @@
+{
+  "segments": [
+    {
+      "start": 539.2,
+      "end": 595.4,
+      "confidence": 0.98,
+      "reason": "In the Gray movie sponsor ad",
+      "end_text": "accompanying parent or adult guardian"
+    },
+    {
+      "start": 595.8,
+      "end": 624.5,
+      "confidence": 0.97,
+      "reason": "Skechers slip-ins sponsor ad (ad continues into next window)",
+      "end_text": "sandals, sneakers,"
+    }
+  ]
+}

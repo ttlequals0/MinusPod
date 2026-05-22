@@ -1,0 +1,37 @@
+[
+  {
+    "start": 13669.1,
+    "end": 13696.9,
+    "confidence": 0.95,
+    "reason": "Airtasker sponsor read with call to action",
+    "end_text": "go to Airtasker.com"
+  },
+  {
+    "start": 13697.3,
+    "end": 13758.2,
+    "confidence": 0.95,
+    "reason": "Decisions Decisions podcast cross-promotion sponsored by Gilead Sciences",
+    "end_text": "sponsored by Care for the Culture from Gilead Sciences"
+  },
+  {
+    "start": 13759.0,
+    "end": 13786.2,
+    "confidence": 0.95,
+    "reason": "OnDeck business loan advertisement with URL",
+    "end_text": "subject to lender approval"
+  },
+  {
+    "start": 13786.9,
+    "end": 13815.9,
+    "confidence": 0.95,
+    "reason": "Public investing platform ad with AI features",
+    "end_text": "back test it again"
+  },
+  {
+    "start": 13844.8,
+    "end": 13854.6,
+    "confidence": 0.90,
+    "reason": "Public disclosure tagline with URL",
+    "end_text": "public.com slash disclosures"
+  }
+]

@@ -1,0 +1,1 @@
+">// 0.0-10.0 minutes window (0.0s-600.0s) analysis: 3 ad segments identified with confidence >= 0.95, including platform ads and sponsor reads. No "

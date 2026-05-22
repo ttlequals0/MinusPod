@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2412.8,
+    "end": 2484.9,
+    "confidence": 0.99,
+    "reason": "Network-inserted ads for HealthCast by Stony Brook Medicine and PC Richard & Son / Asima Lease to Own program.",
+    "end_text": "slash Asima dot HTML for details."
+  }
+]

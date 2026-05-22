@@ -1,0 +1,7 @@
+{
+  "start": 3780.0,
+  "end": 4380.0,
+  "confidence": 0.0,
+  "reason": "No promotional content, sponsor mentions, URLs, promo codes, or ad transitions detected in this window. The transcript contains continuous conversational content about football stories and personal anecdotes.",
+  "end_text": "we won 12. It was 12-4."
+}

@@ -1,0 +1,7 @@
+{
+  "transcript": "Alright, so let's take a break. This episode is brought to you by BetterHelp. If you're feeling overwhelmed or struggling with mental health, BetterHelp can connect you with professional counselors in a safe and private online environment. You can get help at your own pace, whenever and wherever you need it. And as a listener of this podcast, you'll get 10% off your first month by using the promo code DRINKCHAMPS10 at checkout. So why not take the first step towards improving your mental health? Visit BetterHelp.com or download the app today. Alright, and we're back.",
+  "start": 8520.6,
+  "end": 8540.6,
+  "window_start": 8520.6,
+  "window_end": 8540.6
+}

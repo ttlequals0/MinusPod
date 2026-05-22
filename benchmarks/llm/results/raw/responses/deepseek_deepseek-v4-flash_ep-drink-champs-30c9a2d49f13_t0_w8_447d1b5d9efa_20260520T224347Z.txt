@@ -1,0 +1,1 @@
+{  "start": 3478.9, "end": 3527.4, "confidence": 0.93, "reason": "Airtasker ad with promo URL and call-to-action: 'Meet Chris... Download the Airtasker app or go to Airtasker.com'", "end_text": "Airtasker get anything done" }

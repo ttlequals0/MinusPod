@@ -1,0 +1,23 @@
+[
+{
+  "start": 5500.8,
+   "end": 5503.6,
+   "confidence": 0.95,
+   "reason": "Discount code mention",
+   "end_text": "That's right"
+},
+{
+   "start": 5507.5,
+   "end": 5534.8,
+   "confidence": 0.95,
+   "reason": "Discount code mention",
+   "end_text": "dawg. X was the greatest"
+},
+{
+   "start": 5637.3,
+   "end": 5663.2,
+   "confidence": 0.95,
+   "reason": "Discount code mention",
+   "end_text": "man. Yo, family"
+}
+]

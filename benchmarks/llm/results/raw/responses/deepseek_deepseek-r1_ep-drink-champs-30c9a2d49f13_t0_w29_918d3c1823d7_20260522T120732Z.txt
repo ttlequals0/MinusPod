@@ -1,0 +1,7 @@
+{
+  "start": 12780.0,
+  "end": 12810.0,
+  "confidence": 0.95,
+  "reason": "Platform-inserted ad break for Acast",
+  "end_text": "Acast powers the world's best podcasts"
+}

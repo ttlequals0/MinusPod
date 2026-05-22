@@ -1,0 +1,1 @@
+[{"start": 1959.8, "end": 2080.5, "confidence": 0.97, "reason": "Three back-to-back sponsor reads: Rakuten cashback promotion with rakuten.com URL, LinkedIn Premium All-in-One with linkedin.com/all-in-one URL, and Hertz fleet promotion with hertz.com URL", "end_text": "paired with our newest fleet yet at Hertz.com"}]

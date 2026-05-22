@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 821.4,
+      "end": 1020.0,
+      "confidence": 0.99,
+      "reason": "Series of sponsor reads: Capital One, BetterHelp, Amazon Health AI, Spectrum Business, and Rinse, all containing promotional language, URLs, and calls to action; gaps between reads are under 15 seconds, so merged into one ad block (continues beyond window).",
+      "end_text": "to be great."
+    }
+  ]
+}

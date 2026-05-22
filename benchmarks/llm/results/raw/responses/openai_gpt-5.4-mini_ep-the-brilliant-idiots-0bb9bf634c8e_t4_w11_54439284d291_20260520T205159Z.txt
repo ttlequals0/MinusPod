@@ -1,0 +1,1 @@
+{"start":4602.8,"end":5235.3,"confidence":0.98,"reason":"Continues from previous sponsored content; transcript window contains no separate ad break markers, promo copy, sponsor names, URLs, or calls to action. The provided segment is show discussion only, with no detectable advertisement segment in this window.","end_text":"show discussion only"}

@@ -1,0 +1,1 @@
+{"start":4324.2,"end":4361.4,"confidence":0.89,"reason":"Host-read promo segment with transition from discussion into sponsored plugs; promotes Jess Hilarious book and AM Mornings with calls to action and Instagram/YouTube mentions","end_text":"See you guys there. Peace. Let's listen"}

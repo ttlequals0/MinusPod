@@ -1,0 +1,1 @@
+{"start": 539.2, "end": 624.5, "confidence": 0.95, "reason": "In the Gray movie ad and Skechers ad", "end_text": "footwear, sandals, sneakers,"}

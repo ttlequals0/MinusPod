@@ -1,0 +1,9 @@
+[
+  {
+    "start": 4143.7,
+    "end": 4285.6,
+    "confidence": 1.0,
+    "reason": "Host-read promotion for direct financial support via PayPal, Venmo, and Cash App, as well as a paid subscription at TakePoliticsSeriously.com, including a supporter credit roll.",
+    "end_text": "do it, TakePoliticsSeriously.com."
+  }
+]

@@ -1,0 +1,1 @@
+{"start":3478.9,"end":3528.5,"confidence":0.99,"reason":"Airtasker network-inserted ad with product pitch and call to action ('Download the Airtasker app or go to Airtasker.com')","end_text":"Airtasker, get anything done."}

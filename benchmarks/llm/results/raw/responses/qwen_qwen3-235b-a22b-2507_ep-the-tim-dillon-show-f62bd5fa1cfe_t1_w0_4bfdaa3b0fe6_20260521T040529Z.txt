@@ -1,0 +1,1 @@
+[{"start": 0.0, "end": 51.6, "confidence": 0.98, "reason": "Host-read Colgate Women's Games sponsorship with promotional language, brand name, and call to support female athletes", "end_text": "Colgate, your smile is your strength."}]

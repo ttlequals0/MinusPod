@@ -1,0 +1,23 @@
+[
+    {
+        "start": 1959.8,
+        "end": 2020.4,
+        "confidence": 0.99,
+        "reason": "Rakuten sponsor read with promotional language, partner brands, and call to action (Rakuten.com, app download, cashback offers)",
+        "end_text": "start saving money today"
+    },
+    {
+        "start": 2022.1,
+        "end": 2061.4,
+        "confidence": 0.99,
+        "reason": "LinkedIn Premium All-in-One sponsor read with promotional language, call to action (linkedin.com/slash all-in-one), and business growth pitch",
+        "end_text": "sell, market, and hire now all-in-one product"
+    },
+    {
+        "start": 2062.1,
+        "end": 2080.5,
+        "confidence": 0.98,
+        "reason": "Hertz network-inserted ad with promotional language, fleet pitch, and call to action (Hertz.com)",
+        "end_text": "newest fleet yet at Hertz.com"
+    }
+]

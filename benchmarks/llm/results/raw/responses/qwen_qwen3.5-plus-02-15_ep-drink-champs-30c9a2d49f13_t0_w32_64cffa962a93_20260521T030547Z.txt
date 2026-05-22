@@ -1,0 +1,9 @@
+[
+  {
+    "start": 13669.1,
+    "end": 13854.6,
+    "confidence": 0.98,
+    "reason": "Mid-roll ad break featuring Airtasker, Decisions Decisions podcast promo, OnDeck, and Public investing sponsor reads",
+    "end_text": "at public.com slash disclosures"
+  }
+]

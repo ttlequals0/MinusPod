@@ -1,0 +1,1 @@
+{"start":3478.9,"end":3556.2,"confidence":0.98,"reason":"Platform-inserted ad break: Airtasker promo with product pitch and CTA ('Download the Airtasker app or go to Airtasker.com'), followed by a cross-promo for Decisions Decisions featuring Kiki Palmer and a sexual health discussion sneak peek. Continues into next segment.","end_text":"about abstinence?"}

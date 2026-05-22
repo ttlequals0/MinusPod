@@ -1,0 +1,1 @@
+{"start":2184.0,"end":2191.0,"confidence":0.88,"reason":"Brief sponsor mention of Drink Champs partnering with the Black Effect Podcast Network; platform/network promo in the middle of discussion.","end_text":"Black Effect Podcast Network. Once again, Nori."}

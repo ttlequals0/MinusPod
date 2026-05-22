@@ -1,0 +1,7 @@
+{
+  "start": 3503.7,
+  "end": 3528.5,
+  "confidence": 0.98,
+  "reason": "Airtasker sponsor read with host-style narration, promo for the app and website, followed by a cross-promotion for another podcast 'Decisions Decisions'",
+  "end_text": "navigating intimacy with confidence. No shame, no stigma. Here's a sneak peek."
+}

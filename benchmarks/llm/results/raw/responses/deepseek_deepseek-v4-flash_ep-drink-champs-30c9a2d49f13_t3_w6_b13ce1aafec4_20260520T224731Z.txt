@@ -1,0 +1,1 @@
+{"start": 2789.8, "end": 2831.0, "confidence": 0.65, "reason": "Possible short ad or network promotional tagline for a brand; contains promotional language 'That charcoal and red and black' but lacks clear sponsor name and typical ad markers; segment is fragmented and may be a production break rather than a paid ad", "end_text": "we probably go two and seven"}

@@ -1,0 +1,1 @@
+{"start":54.1,"end":64.7,"confidence":0.98,"reason":"Old National Bank host-read sponsor segment with promotional language and URL; transition into ad break implied by surrounding show flow","end_text":"oldnational.com slash commercial banking"}

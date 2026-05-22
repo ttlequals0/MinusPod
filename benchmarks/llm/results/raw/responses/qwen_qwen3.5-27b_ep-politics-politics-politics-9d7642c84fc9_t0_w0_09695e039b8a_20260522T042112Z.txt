@@ -1,0 +1,1 @@
+[{"start": 0.0, "end": 52.7, "confidence": 0.95, "reason": "Sponsor disclosure 'Just Another Pilot' with transition phrase 'brought to you by' followed by gap before show intro", "end_text": "Just Another Pilot."}]

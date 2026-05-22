@@ -1,0 +1,7 @@
+{
+  "start": 6283.4,
+  "end": 6343.1,
+  "confidence": 0.99,
+  "reason": "OnDeck sponsor segment with product pitch, URL (OnDeck.com), and loan terms; followed by Public.com sponsor mention.",
+  "end_text": "support from Public"
+}

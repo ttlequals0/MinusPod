@@ -1,0 +1,25 @@
+{
+  "ad_segments": [
+    {
+      "start": 6390.2,
+      "end": 6397.0,
+      "confidence": 0.95,
+      "reason": "Transition to ad break with 'Let's pay some bills and do some asking idiots' followed by silence/gap before host-read Blue Chew ad",
+      "end_text": "do some asking idiots, man."
+    },
+    {
+      "start": 6396.0,
+      "end": 6445.0,
+      "confidence": 0.98,
+      "reason": "Blue Chew host-read ad segment with product discussion and promo code mention",
+      "end_text": "you was giving Bluetooth. Stop talking."
+    }
+  ],
+  "merged_ad": {
+    "start": 6390.2,
+    "end": 6445.0,
+    "confidence": 0.98,
+    "reason": "Merged ad break containing 'Let's pay some bills' transition phrase and Blue Chew host-read ad",
+    "end_text": "you was giving Bluetooth. Stop talking."
+  }
+}

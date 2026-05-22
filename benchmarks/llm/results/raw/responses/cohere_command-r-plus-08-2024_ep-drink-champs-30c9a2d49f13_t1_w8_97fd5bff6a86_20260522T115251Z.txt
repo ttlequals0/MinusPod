@@ -1,0 +1,39 @@
+{
+  "ads": [
+    {
+      "start": 3504.1,
+      "end": 3528.5,
+      "confidence": 0.95,
+      "reason": "Airtasker host-read ad",
+      "end_text": "Airtasker, get anything done."
+    },
+    {
+      "start": 3528.8,
+      "end": 3556.2,
+      "confidence": 0.95,
+      "reason": "Care for the Culture from Gilead Sciences host-read ad",
+      "end_text": "Gilead Sciences."
+    },
+    {
+      "start": 3556.8,
+      "end": 3606.4,
+      "confidence": 0.95,
+      "reason": "OnDeck host-read ad",
+      "end_text": "OnDeck.com."
+    },
+    {
+      "start": 3607.1,
+      "end": 3608.0,
+      "confidence": 0.95,
+      "reason": "OnDeck host-read ad",
+      "end_text": "OnDeck.com."
+    },
+    {
+      "start": 3608.5,
+      "end": 3650.4,
+      "confidence": 0.95,
+      "reason": "Public host-read ad",
+      "end_text": "public.com slash disclosures."
+    }
+  ]
+}

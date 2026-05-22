@@ -1,0 +1,7 @@
+{
+  "start": 1450.9,
+  "end": 1629.0,
+  "confidence": 1.0,
+  "reason": "Ad break containing Airtasker host-read, Decisions Decisions podcast cross-promo sponsored by Care for the Culture from Gilead Sciences, OnDeck small business line of credit, and BetMGM sports betting ad",
+  "end_text": "Kansas Crossing Casino and Hotel"
+}

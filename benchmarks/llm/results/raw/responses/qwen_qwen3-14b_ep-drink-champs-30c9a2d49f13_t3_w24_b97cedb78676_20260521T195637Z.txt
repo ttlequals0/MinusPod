@@ -1,0 +1,1 @@
+{"start": 10680.0, "end": 10680.0, "confidence": 0.0, "reason": "no ads found in this window", "end_text": "reparations."}

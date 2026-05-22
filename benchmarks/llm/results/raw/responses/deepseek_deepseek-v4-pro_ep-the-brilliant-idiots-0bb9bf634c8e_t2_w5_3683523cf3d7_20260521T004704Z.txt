@@ -1,0 +1,11 @@
+{
+  "segments": [
+    {
+      "start": 2324.6,
+      "end": 2450.0,
+      "confidence": 0.99,
+      "reason": "Blue Chew Gold and ZipRecruiter host-read sponsor advertisements with promo codes and calls to action",
+      "end_text": "ZipRecruiter.com slash idiots. Meet your match on ZipRecruiter."
+    }
+  ]
+}

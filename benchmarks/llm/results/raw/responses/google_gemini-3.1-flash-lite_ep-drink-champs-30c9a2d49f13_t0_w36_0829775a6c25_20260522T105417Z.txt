@@ -1,0 +1,16 @@
+[
+  {
+    "start": 15261.8,
+    "end": 15285.2,
+    "confidence": 0.9,
+    "reason": "Generic promotional placeholder segment",
+    "end_text": "discount code, discount code"
+  },
+  {
+    "start": 15388.3,
+    "end": 15517.1,
+    "confidence": 1.0,
+    "reason": "Network-inserted retail and service advertisements (Airtasker, CVS, Trashy, Try Fencing) and iHeart platform outro",
+    "end_text": "Guaranteed human."
+  }
+]

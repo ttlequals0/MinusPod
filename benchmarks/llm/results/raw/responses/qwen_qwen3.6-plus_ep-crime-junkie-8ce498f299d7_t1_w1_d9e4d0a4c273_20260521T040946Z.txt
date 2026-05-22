@@ -1,0 +1,1 @@
+[{"start": 1035.7, "end": 1035.7, "confidence": 0.9, "reason": "Partial ad start at window end. Hook phrase 'Debt can get messy fast.' indicates transition to financial sponsor, cuts off before full pitch.", "end_text": "Debt can get messy fast."}]

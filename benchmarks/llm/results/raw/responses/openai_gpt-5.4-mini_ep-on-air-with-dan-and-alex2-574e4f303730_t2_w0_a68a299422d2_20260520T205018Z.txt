@@ -1,0 +1,1 @@
+{"start":0.0,"end":59.8,"confidence":0.99,"reason":"Back-to-back sponsor segments: Hex platform promo and PickOCNY.com travel promotion with call to action and brand URLs; includes pre-roll ad style opening before show content","end_text":"Find your fresh state of mind at PickOCNY.com"}

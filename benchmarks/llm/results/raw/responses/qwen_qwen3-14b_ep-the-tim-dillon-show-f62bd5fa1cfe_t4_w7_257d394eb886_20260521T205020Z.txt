@@ -1,0 +1,707 @@
+s.
+{
+
+"[{" 
+  :"",
+  "start": 3079.6, 
+  "end": 3105.5, 
+  "confidence": 0.95, 
+  "reason": "Morgan & Morgan law firm sponsorship with URL and phone number", 
+  "end_text": "Poundlaw. That's ForThePeople.com slash Tim, dial Poundlaw."
+  ,"" 
+  :"",
+  "start": 3107.1, 
+  "end": 3134.3, 
+  "confidence": 0.98, 
+  "reason": "Stash investment app sponsorship with URL and call to action", 
+  "end_text": "This is a paid advertisement."
+  ,"" 
+  :"",
+  "start": 3209.1, 
+  "end": 3234.2, 
+  "confidence": 0.95, 
+  "reason": "NeuroGum product promotion with promo code and URL", 
+  "end_text": "Investing involves risk."
+  ,"" 
+  :"",
+  "start": 3261.9, 
+  "end": 3270.1, 
+  "confidence": 0.9, 
+  "reason": "NeuroGum limited-time offer with promo code and retail availability", 
+  "end_text": "Use code TIM for 20% off your first order."
+  ,"" 
+  :"",
+  "start": 3272.9, 
+  "end": 3299.1, 
+  "confidence": 0.85, 
+  "reason": "NeuroGum product benefits and ingredients discussion", 
+  "end_text": "you could do molly and stuff on the ocean."
+  ,"" 
+  :"",
+  "start": 3354.5, 
+  "end": 3358.4, 
+  "confidence": 0.7, 
+  "reason": "Hantavirus cruise news segment with potential network-inserted ad", 
+  "end_text": "Hantavirus."
+  ,"" 
+  :"",
+  "start": 3360.3, 
+  "end": 3389.5, 
+  "confidence": 0.65, 
+  "reason": "Hantavirus outbreak news segment with potential network-inserted ad", 
+  "end_text": "how you're leaving the cruise."
+  ,"" 
+  :"",
+  "start": 3448.7, 
+  "end": 3458.9, 
+  "confidence": 0.7, 
+  "reason": "Hantavirus doctor interview segment with potential network-inserted ad", 
+  "end_text": "we're all gonna get Hantavirus!"
+  ,"" 
+  :"",
+  "start": 3484.2, 
+  "end": 3512.0, 
+  "confidence": 0.6, 
+  "reason": "Hantavirus expert interview segment with potential network-inserted ad", 
+  "end_text": "Bomb that ship!"
+  ,"" 
+  :"",
+  "start": 3513.7, 
+  "end": 3541.2, 
+  "confidence": 0.55, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "you're dead. Say it."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.5, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "Say it. By the way, don't release the information to the public."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.45, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "I'm telling the Trump administration."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.4, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "Some of them are, you know, not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.35, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.3, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.25, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.2, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.15, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.1, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.05, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+  "end": 3540.0, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3540.0, 
+  "end": 3541.2, 
+  "confidence": 0.0, 
+  "reason": "Hantavirus outbreak response segment with potential network-inserted ad", 
+  "end_text": "not too thrilled with me."
+  ,"" 
+  :"",
+  "start": 3541.2, 
+ 

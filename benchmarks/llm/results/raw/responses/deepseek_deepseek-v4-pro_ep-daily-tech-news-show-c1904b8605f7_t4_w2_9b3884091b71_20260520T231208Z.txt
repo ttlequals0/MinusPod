@@ -1,0 +1,18 @@
+{
+  "ad_segments": [
+    {
+      "start": 821.4,
+      "end": 910.1,
+      "confidence": 0.98,
+      "reason": "Capital One, BetterHelp, and Amazon Health AI sponsor ads",
+      "end_text": "Healthcare just got less painful"
+    },
+    {
+      "start": 912.2,
+      "end": 990.3,
+      "confidence": 0.98,
+      "reason": "Spectrum Business and Rinse sponsor ads",
+      "end_text": "Schedule at rinse.com. Rinse"
+    }
+  ]
+}

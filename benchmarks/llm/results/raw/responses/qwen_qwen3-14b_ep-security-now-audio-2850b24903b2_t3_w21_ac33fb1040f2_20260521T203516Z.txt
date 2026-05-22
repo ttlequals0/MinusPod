@@ -1,0 +1,2 @@
+n.
+{"start": 9344.4, "end": 9374.4, "confidence": 0.95, "reason": "Mint Mobile platform-inserted ad with promo code and call to action", "end_text": "mintmobile.com."}

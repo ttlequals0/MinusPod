@@ -1,0 +1,7 @@
+{
+  "start": 13907.2,
+  "end": 13912.6,
+  "confidence": 0.95,
+  "reason": "Host-read sponsor segment with transition phrase 'Let's take a break' and promotional content for Shopify",
+  "end_text": "Shopify.com/podcast"
+}

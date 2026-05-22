@@ -1,0 +1,1 @@
+{"start": 4270.4, "end": 4317.9, "confidence": 0.95, "reason": "TakePoliticsSeriously.com subscription call to action", "end_text": "broker. Dog and Pony Show Audio."}

@@ -1,0 +1,1 @@
+{ "start": 2074.0, "end": 2700.0, "confidence": 0.0, "reason": "No promotional language, sponsor names, URLs, promo codes, or calls to action found in this window. All content is conversational interview about Warren Sapp's college and NFL draft experiences.", "end_text": "walk up out of here. She said, I'm with you, baby. That's it." }

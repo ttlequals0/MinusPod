@@ -1,0 +1,1 @@
+{"start":2924.1,"end":3540.5,"confidence":0.92,"reason":"Continues from previous window and no ad transition or promotional sponsor content appears in this transcript window; the only promo in the episode description is outside the transcript. No detectable ad read in-window.","end_text":"It's like a general."}

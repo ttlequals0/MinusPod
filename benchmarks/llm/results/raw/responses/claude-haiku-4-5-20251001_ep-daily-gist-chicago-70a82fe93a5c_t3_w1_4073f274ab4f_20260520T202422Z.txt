@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 521.5,
+    "end": 548.5,
+    "confidence": 0.92,
+    "reason": "Crain's Weekly News Quiz promotion - self-promotional segment for chicagobusiness.com quiz and podcast",
+    "end_text": "Crain's Daily Gist with Amy Guth"
+  }
+]
+```

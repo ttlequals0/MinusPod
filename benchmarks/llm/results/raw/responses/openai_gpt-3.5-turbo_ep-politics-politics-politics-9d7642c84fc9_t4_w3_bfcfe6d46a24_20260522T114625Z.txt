@@ -1,0 +1,7 @@
+{
+	"start": 1589.9,
+	"end": 1601.7,
+	"confidence": 0.95,
+	"reason": "Potential ad with pricing mention",
+	"end_text": "Huh. Interesting."
+}

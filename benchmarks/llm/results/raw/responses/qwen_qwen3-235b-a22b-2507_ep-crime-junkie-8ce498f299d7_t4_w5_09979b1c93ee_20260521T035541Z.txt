@@ -1,0 +1,1 @@
+{"start": 2082.8, "end": 2716.3, "confidence": 0.99, "reason": "continuous narrative content with no promotional language, sponsor mentions, or ad-like transitions; this is part of the investigative storytelling about Cole Thomas's disappearance", "end_text": "hard for me to believe"}

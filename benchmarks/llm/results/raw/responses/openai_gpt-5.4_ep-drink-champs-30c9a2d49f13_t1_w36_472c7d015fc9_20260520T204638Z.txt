@@ -1,0 +1,1 @@
+{"start":15388.3,"end":15517.1,"confidence":0.99,"reason":"Merged block of network-inserted ads: Airtasker, CVS, Trashie, Try Fencing, ending with iHeart Podcast promo; multiple produced promotional calls to action and URLs","end_text":"This is an iHeart Podcast. Guaranteed human."}

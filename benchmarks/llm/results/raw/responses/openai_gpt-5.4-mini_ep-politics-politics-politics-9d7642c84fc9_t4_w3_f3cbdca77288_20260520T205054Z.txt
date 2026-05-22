@@ -1,0 +1,1 @@
+{"start":1589.9,"end":1601.7,"confidence":0.62,"reason":"Partial host-read promo mention with pricing tease 'less than 50 cents an episode' appears to be an ad or subscriber promotion, but no full sponsor name/call-to-action is present in this window.","end_text":"Huh. Interesting."}

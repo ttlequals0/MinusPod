@@ -1,0 +1,1 @@
+{"start": 13200.0, "end": 13200.0, "confidence": 0.0, "reason": "no ad detected in this window", "end_text": "How long you been married?"}

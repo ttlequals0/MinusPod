@@ -1,0 +1,30 @@
+[
+  {
+    "start": 7560.0,
+    "end": 7563.5,
+    "confidence": 0.95,
+    "reason": "Host transition into ad break",
+    "end_text": "Raider fucking practices"
+  },
+  {
+    "start": 7665.8,
+    "end": 7693.5,
+    "confidence": 0.92,
+    "reason": "Host-read Squarespace promotion",
+    "end_text": "fucked up the house"
+  },
+  {
+    "start": 7954.2,
+    "end": 7979.8,
+    "confidence": 0.93,
+    "reason": "Athletic Greens sponsorship segment",
+    "end_text": "They both are right"
+  },
+  {
+    "start": 8025.2,
+    "end": 8026.8,
+    "confidence": 0.91,
+    "reason": "Transition back to content",
+    "end_text": "Biggie Smalls or"
+  }
+]

@@ -1,0 +1,39 @@
+{
+  "ads": [
+    {
+      "start": 8724.9,
+      "end": 8737.9,
+      "confidence": 0.98,
+      "reason": "Host-read sponsor promotion for AirTasker with URL and call to action",
+      "end_text": "handle it. AirTasker."
+    },
+    {
+      "start": 8738.1,
+      "end": 8766.2,
+      "confidence": 0.96,
+      "reason": "Network promo for special Kiki Palmer episode about sexual health",
+      "end_text": "and the next minute"
+    },
+    {
+      "start": 8789.4,
+      "end": 8798.3,
+      "confidence": 0.99,
+      "reason": "Sponsor mention for Care for the Culture from Gilead Sciences",
+      "end_text": "from Gilead Sciences."
+    },
+    {
+      "start": 8799.1,
+      "end": 8826.4,
+      "confidence": 0.99,
+      "reason": "Host-read sponsor ad for OnDeck business loans with URL and call to action",
+      "end_text": "lender approval."
+    },
+    {
+      "start": 8827.0,
+      "end": 8831.4,
+      "confidence": 0.97,
+      "reason": "Sponsor mention for Public investing platform",
+      "end_text": "take it seriously."
+    }
+  ]
+}

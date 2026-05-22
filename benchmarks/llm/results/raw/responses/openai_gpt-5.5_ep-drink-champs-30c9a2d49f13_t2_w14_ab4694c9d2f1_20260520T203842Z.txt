@@ -1,0 +1,1 @@
+{"start":6208.7,"end":6318.1,"confidence":0.98,"reason":"Contiguous inserted ad break including Airtasker app promotion, Decisions Decisions podcast/Gilead sponsored promo, OnDeck business credit ad, and Public investing platform sponsor tag","end_text":"those who take it seriously"}

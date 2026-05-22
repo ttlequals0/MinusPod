@@ -1,0 +1,4 @@
+{
+  "reasoning": "I reviewed the podcast transcript segment (2505.7s to 3141.4s) for advertisements. The conversation is a continuous discussion about hip-hop media figures, rappers with podcasts, and personal anecdotes about DJ Head. There are no host-read sponsor segments, no promotional language, no promo codes, no calls to action, and no produced ad segments for other podcasts or products. The segment is entirely editorial content.",
+  "ad_segments": []
+}

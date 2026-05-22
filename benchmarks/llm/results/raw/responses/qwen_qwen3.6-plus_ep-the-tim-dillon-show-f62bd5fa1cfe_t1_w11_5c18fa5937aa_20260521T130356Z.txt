@@ -1,0 +1,1 @@
+[{"start": 4646.2, "end": 4806.1, "confidence": 0.98, "reason": "Network-inserted ad break featuring Colgate, Skinny Pop, Viz, and Garnier sponsor reads", "end_text": "GarnierUSA.com slash NPF."}]

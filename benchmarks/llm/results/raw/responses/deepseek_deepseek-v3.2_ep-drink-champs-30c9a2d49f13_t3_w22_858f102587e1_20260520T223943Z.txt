@@ -1,0 +1,1 @@
+{"start": 9228.0, "end": 9320.8, "confidence": 0.1, "reason": "No promotional content detected in this segment. Contains only conversation about fishing, birthdays, and personal stories.", "end_text": "I'm fake. My resume is what it is, man. Fuck out of here. You gon' catch me in a lot of bucks."}

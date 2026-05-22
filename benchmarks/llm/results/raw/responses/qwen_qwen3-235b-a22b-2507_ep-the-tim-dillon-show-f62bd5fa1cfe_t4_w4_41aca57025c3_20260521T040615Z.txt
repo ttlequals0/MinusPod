@@ -1,0 +1,1 @@
+{"start": 1688.4, "end": 1691.5, "confidence": 0.98, "reason": "transition into ad segment with pause following content and preceding sponsor mentions in description", "end_text": "This is such a lie"}

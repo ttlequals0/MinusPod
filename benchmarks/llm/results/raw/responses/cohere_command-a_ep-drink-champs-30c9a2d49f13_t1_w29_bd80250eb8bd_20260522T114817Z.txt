@@ -1,0 +1,1 @@
+{"start": 12722.6, "end": 12750.1, "confidence": 0.85, "reason": "WhatsApp brand mention with promotional context", "end_text": "there ain't more than five of them"}

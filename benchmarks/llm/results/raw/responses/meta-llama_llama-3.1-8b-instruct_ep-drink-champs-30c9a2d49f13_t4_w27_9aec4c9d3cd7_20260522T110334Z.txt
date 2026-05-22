@@ -1,0 +1,107 @@
+[
+{
+  "start": 11335.2,
+   "end": 11340.6,
+   "confidence": 0.95,
+   "reason": "Airtasker sponsor read",
+   "end_text": "Airtasker, get anything done"
+},
+{
+   "start": 11341.1,
+   "end": 11365.6,
+   "confidence": 0.95,
+   "reason": "Airtasker sponsor read",
+   "end_text": "Airtasker, get anything done"
+},
+{
+   "start": 11366.2,
+   "end": 11392.4,
+   "confidence": 0.95,
+   "reason": "Decisions Decisions sponsor read",
+   "end_text": "Decisions Decisions"
+},
+{
+   "start": 11392.7,
+   "end": 11415.2,
+   "confidence": 0.95,
+   "reason": "Decisions Decisions sponsor read",
+   "end_text": "Decisions Decisions"
+},
+{
+   "start": 11416.3,
+   "end": 11424.6,
+   "confidence": 0.95,
+   "reason": "Care for the Culture sponsor read",
+   "end_text": "Care for the Culture"
+},
+{
+   "start": 11425.3,
+   "end": 11454.3,
+   "confidence": 0.95,
+   "reason": "OnDeck sponsor read",
+   "end_text": "OnDeck.com"
+},
+{
+   "start": 11454.3,
+   "end": 11455.4,
+   "confidence": 0.95,
+   "reason": "OnDeck sponsor read",
+   "end_text": "OnDeck.com"
+},
+{
+   "start": 11485.3,
+   "end": 11497.9,
+   "confidence": 0.95,
+   "reason": "Public.com sponsor read",
+   "end_text": "public.com slash disclosures"
+},
+{
+   "start": 11614.6,
+   "end": 11630.6,
+   "confidence": 0.95,
+   "reason": "Athletic Greens sponsor read",
+   "end_text": "Athletic Greens"
+},
+{
+   "start": 11631.4,
+   "end": 11658.6,
+   "confidence": 0.95,
+   "reason": "Audible sponsor read",
+   "end_text": "Audible"
+},
+{
+   "start": 11631.4,
+   "end": 11658.6,
+   "confidence": 0.95,
+   "reason": "Masterclass sponsor read",
+   "end_text": "Masterclass"
+},
+{
+   "start": 11631.4,
+   "end": 11658.6,
+   "confidence": 0.95,
+   "reason": "ZipRecruiter sponsor read",
+   "end_text": "ZipRecruiter"
+},
+{
+   "start": 11631.4,
+   "end": 11658.6,
+   "confidence": 0.95,
+   "reason": "Raycon sponsor read",
+   "end_text": "Raycon"
+},
+{
+   "start": 11631.4,
+   "end": 11658.6,
+   "confidence": 0.95,
+   "reason": "Manscaped sponsor read",
+   "end_text": "Manscaped"
+},
+{
+   "start": 11631.4,
+   "end": 11658.6,
+   "confidence": 0.95,
+   "reason": "Stamps.com sponsor read",
+   "end_text": "Stamps.com"
+}
+]

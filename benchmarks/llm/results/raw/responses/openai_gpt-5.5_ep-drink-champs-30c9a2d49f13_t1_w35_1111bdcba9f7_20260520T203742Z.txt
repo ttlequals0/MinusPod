@@ -1,0 +1,1 @@
+{"start":15261.8,"end":15285.2,"confidence":0.62,"reason":"Likely partial/garbled ad segment; transcript contains repeated promotional terms 'promo code' and 'discount code' before show content resumes","end_text":"discount code, discount code"}

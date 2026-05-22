@@ -1,0 +1,1 @@
+{"start": 3428.1, "end": 3486.2, "confidence": 0.97, "reason": "Two consecutive host-read promotional segments for Arizona State University and University of Michigan with calls to action and URLs", "end_text": "at umich.edu"}

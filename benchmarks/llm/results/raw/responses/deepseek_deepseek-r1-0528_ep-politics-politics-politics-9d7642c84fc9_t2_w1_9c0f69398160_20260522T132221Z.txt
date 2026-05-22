@@ -1,0 +1,9 @@
+[
+  {
+    "start": 909.6,
+    "end": 933.9,
+    "confidence": 0.95,
+    "reason": "Host-read ad for TakePoliticsSeriously.com promoting access to two episodes of the show",
+    "end_text": "two episodes of this show"
+  }
+]

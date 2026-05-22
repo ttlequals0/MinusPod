@@ -1,0 +1,1 @@
+{ "start": 7538.4, "end": 8160.0, "confidence": 0.0, "reason": "No promotional language found in this transcript window", "end_text": "they like, yeah" }

@@ -1,0 +1,1 @@
+{"start":1450.9,"end":1524.8,"confidence":0.99,"reason":"Host read ad break starting with Airtasker promo ('Airtasker knows...','Post your task at Airtasker.com') followed by a sponsored promo for Decisions Decisions and Kiki Palmer, including 'sponsored by Care for the Culture from Gilead Sciences'.","end_text":"sponsored by Care for the Culture from Gilead Sciences"}

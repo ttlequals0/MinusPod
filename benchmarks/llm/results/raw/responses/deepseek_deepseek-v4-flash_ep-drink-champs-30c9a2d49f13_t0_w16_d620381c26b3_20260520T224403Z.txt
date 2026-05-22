@@ -1,0 +1,1 @@
+{"start": 7312.3, "end": 7312.3, "confidence": 0.0, "reason": "No promotional language identified. The transcript in this window contains only casual conversation, storytelling, and drinking banter. No sponsor names, URLs, promo codes, or calls to action are present.", "end_text": "she show up"}

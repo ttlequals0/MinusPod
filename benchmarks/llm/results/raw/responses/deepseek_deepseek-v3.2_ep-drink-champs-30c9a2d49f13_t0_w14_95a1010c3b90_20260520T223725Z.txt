@@ -1,0 +1,1 @@
+{"start": 6208.7, "end": 6313.4, "confidence": 0.99, "reason": "Multiple network-inserted ads: Airtasker promo, Decisions Decisions podcast promo for Kiki Palmer episode sponsored by Gilead Sciences, OnDeck small business loan ad", "end_text": "subject to lender approval."}

@@ -1,0 +1,32 @@
+{  
+  "ads": [  
+    {  
+      "start": 438.2,  
+      "end": 460.7,  
+      "confidence": 0.95,  
+      "reason": "The segment discusses the potential impact of Trump's unpopularity on the administration's stability, particularly focusing on the economic issues and the situation in Iran.",  
+      "end_text": "the Strait of Hormuz"  
+    },  
+    {  
+      "start": 541.5,  
+      "end": 572.3,  
+      "confidence": 0.98,  
+      "reason": "The segment highlights the potential blame for the Iran situation falling on Marco Rubio, emphasizing his role as Secretary of State.",  
+      "end_text": "who gets blamed for the Iran situation"  
+    },  
+    {  
+      "start": 601.9,  
+      "end": 625.5,  
+      "confidence": 0.97,  
+      "reason": "The segment discusses the increased charisma and political maturity of Marco Rubio, suggesting his potential as a presidential candidate.",  
+      "end_text": "Senator Rubio has become more charismatic and presidential"  
+    },  
+    {  
+      "start": 746.9,  
+      "end": 781.4,  
+      "confidence": 0.96,  
+      "reason": "The segment discusses Rubio's potential as a presidential candidate and his moment of presidential-like charisma during a press briefing.",  
+      "end_text": "Marco Rubio's moment of presidential charisma"  
+    }  
+  ]  
+}

@@ -1,0 +1,1 @@
+{"start":1320.3,"end":1372.4,"confidence":0.93,"reason":"Host mentions McDonald's/Mickey D's as a verified stop in the story, but this window includes promotional-style sponsor-like discussion? No clear ad markers or promo language beyond the narrative.","end_text":"No Julian either."}

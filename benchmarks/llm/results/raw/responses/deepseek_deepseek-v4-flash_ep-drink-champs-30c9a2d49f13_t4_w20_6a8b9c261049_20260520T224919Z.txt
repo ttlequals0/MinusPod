@@ -1,0 +1,7 @@
+{
+  "start": 8724.9,
+  "end": 8831.4,
+  "confidence": 0.99,
+  "reason": "Multiple advertisements: AirTasker, Decisions Decisions podcast cross-promo, OnDeck business loans, Public investing platform - sequentially with promotional language, URLs, and sponsor mentions",
+  "end_text": "Public, the investing platform for those who take it seriously"
+}

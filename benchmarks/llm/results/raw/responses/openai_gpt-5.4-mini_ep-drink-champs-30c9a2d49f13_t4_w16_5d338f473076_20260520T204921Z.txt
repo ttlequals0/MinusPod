@@ -1,0 +1,1 @@
+{"start":723.0,"end":7320.0,"confidence":0.43,"reason":"No clear advertisement segment in this window; transcript shows only interview conversation with brand mentions like Hennessy/Modelo/Tinder in organic discussion and no sponsor transition, promo code, URL, or host-read ad copy.","end_text":"continues in next"}

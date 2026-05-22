@@ -1,0 +1,30 @@
+[
+  {
+    "start": 8724.9,
+    "end": 8737.9,
+    "confidence": 0.95,
+    "reason": "AirTasker network-inserted brand tagline ad",
+    "end_text": "AirTasker."
+  },
+  {
+    "start": 8738.1,
+    "end": 8798.3,
+    "confidence": 0.95,
+    "reason": "Care for the Culture from Gilead Sciences network-inserted ad",
+    "end_text": "Gilead Sciences."
+  },
+  {
+    "start": 8799.1,
+    "end": 8826.4,
+    "confidence": 0.95,
+    "reason": "OnDeck network-inserted ad",
+    "end_text": "lender approval."
+  },
+  {
+    "start": 8827.0,
+    "end": 8831.4,
+    "confidence": 0.95,
+    "reason": "Public network-inserted ad",
+    "end_text": "take it seriously."
+  }
+]

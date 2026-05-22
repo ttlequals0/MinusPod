@@ -1,0 +1,1 @@
+{"start": 9420.0, "end": 9426.7, "confidence": 0.3, "reason": "Partial segment only; no promotional content detected in this window. Transcript continues discussion of personal story with no ad markers, transition phrases, or sponsor mentions. Possible continuation of previous content, but no evidence of ad in this segment.", "end_text": "uranium mining facility in Denver."}

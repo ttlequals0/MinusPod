@@ -1,0 +1,1 @@
+{"start": 9741.9, "end": 9852.4, "confidence": 0.98, "reason": "Host organically discussing McDonald's, Chick-fil-A, and food ingredients as part of the conversation; no promotional language, sponsor mention, or call to action present", "end_text": "It's a movie that predicts."}

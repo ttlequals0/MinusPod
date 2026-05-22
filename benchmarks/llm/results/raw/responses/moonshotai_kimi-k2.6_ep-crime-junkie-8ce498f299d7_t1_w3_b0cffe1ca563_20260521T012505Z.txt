@@ -1,0 +1,1 @@
+{"start": 1242.3, "end": 1268.5, "confidence": 0.95, "reason": "Host-read sponsor segment for McDonald's with promotional language ('bright golden arches', 'Mickey D's') and product placement integrated into true crime narrative", "end_text": "maybe he could just go through the drive-thru"}

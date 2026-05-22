@@ -1,0 +1,32 @@
+{
+  "ads": [
+    {
+      "start": 2155.2,
+      "end": 2171.6,
+      "confidence": 0.99,
+      "reason": "Host-read Patreon promotion",
+      "end_text": "patreon.com slash DTNS"
+    },
+    {
+      "start": 2193.2,
+      "end": 2221.9,
+      "confidence": 0.99,
+      "reason": "Platform-inserted Acast ad support",
+      "end_text": "Tatiana Matias"
+    },
+    {
+      "start": 2246.0,
+      "end": 2275.3,
+      "confidence": 0.99,
+      "reason": "Sponsor read for Capital One",
+      "end_text": "at Capital One"
+    },
+    {
+      "start": 2276.2,
+      "end": 2314.4,
+      "confidence": 0.99,
+      "reason": "Sponsor read for Rinse laundry service",
+      "end_text": "time to be great"
+    }
+  ]
+}

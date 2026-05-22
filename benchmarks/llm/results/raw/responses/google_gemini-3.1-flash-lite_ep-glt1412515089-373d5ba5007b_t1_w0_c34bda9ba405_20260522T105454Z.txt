@@ -1,0 +1,16 @@
+[
+  {
+    "start": 539.2,
+    "end": 568.4,
+    "confidence": 1.0,
+    "reason": "In the Gray movie advertisement",
+    "end_text": "they operate."
+  },
+  {
+    "start": 568.4,
+    "end": 600.0,
+    "confidence": 1.0,
+    "reason": "Skechers advertisement",
+    "end_text": "sneakers,"
+  }
+]

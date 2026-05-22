@@ -1,0 +1,37 @@
+[
+  {
+    "start": 15261.8,
+    "end": 15285.2,
+    "confidence": 0.9,
+    "reason": "Generic promotional segment with repeated discount code language",
+    "end_text": "discount code, discount code"
+  },
+  {
+    "start": 15388.3,
+    "end": 15416.5,
+    "confidence": 1.0,
+    "reason": "Airtasker host-read advertisement",
+    "end_text": "Airtasker. Get anything done."
+  },
+  {
+    "start": 15416.7,
+    "end": 15452.3,
+    "confidence": 1.0,
+    "reason": "CVS network-inserted retail advertisement",
+    "end_text": "We can't wait to meet you."
+  },
+  {
+    "start": 15453.9,
+    "end": 15481.1,
+    "confidence": 1.0,
+    "reason": "Trashy network-inserted advertisement",
+    "end_text": "Visit Trashy.io to get started."
+  },
+  {
+    "start": 15482.9,
+    "end": 15517.1,
+    "confidence": 1.0,
+    "reason": "Try Fencing network-inserted advertisement and iHeart platform outro",
+    "end_text": "Guaranteed human."
+  }
+]

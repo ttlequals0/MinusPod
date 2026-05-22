@@ -1,0 +1,1 @@
+{"start":3478.9,"end":3666.3,"confidence":0.99,"reason":"Merged ad break: Airtasker task platform promotion, Decisions Decisions podcast/Gilead sponsored cross-promo, OnDeck small business line of credit ad, and Public investing platform ad with disclosures","end_text":"public.com slash disclosures"}

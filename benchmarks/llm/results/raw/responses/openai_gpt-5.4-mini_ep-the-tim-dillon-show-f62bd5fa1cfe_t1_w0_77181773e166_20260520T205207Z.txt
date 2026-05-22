@@ -1,0 +1,1 @@
+{"start":0.0,"end":51.6,"confidence":0.99,"reason":"Host reads a Colgate sponsor spot with promotional copy about Colgate Women's Games and the brand tagline, preceded by no-content ad transition in the transcript window","end_text":"your smile is your strength"}

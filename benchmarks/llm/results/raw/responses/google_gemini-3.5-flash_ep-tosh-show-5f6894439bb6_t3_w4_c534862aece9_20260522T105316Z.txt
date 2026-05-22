@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1837.5,
+    "end": 1999.5,
+    "confidence": 1.0,
+    "reason": "Ad break containing a host-read Mint Mobile ad and network-inserted ads for Mattress Warehouse and PC Richard & Son.",
+    "end_text": "dot HTML for details"
+  }
+]

@@ -1,0 +1,1 @@
+{"start": 2258.4, "end": 2286.7, "confidence": 0.95, "reason": "continues from previous", "end_text": "hyperscale data centers at this crazy rate, like,"}

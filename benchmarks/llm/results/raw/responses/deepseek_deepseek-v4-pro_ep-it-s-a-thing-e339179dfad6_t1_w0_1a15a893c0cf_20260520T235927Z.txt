@@ -1,0 +1,11 @@
+{
+  "segments": [
+    {
+      "start": 1.6,
+      "end": 77.2,
+      "confidence": 0.98,
+      "reason": "Acast platform pre-roll ad and cross-promotions for Wrong Turns and Formative podcasts",
+      "end_text": "leaders of tomorrow"
+    }
+  ]
+}

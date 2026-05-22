@@ -1,0 +1,4 @@
+{
+  "segments": [],
+  "reasoning": "I analyzed the full transcript from 0.0 to 600.0 seconds (10.0 minutes). I found no advertisement segments. No promotional language, sponsor mentions, URLs, or promo codes were present. The content is entirely host-guest conversation."
+}

@@ -1,0 +1,7 @@
+{
+  "start": 5471.4,
+  "end": 5484.4,
+  "confidence": 0.95,
+  "reason": "Acast platform-inserted pre-roll for episode privacy information (Omny Studio listener link) — detected as network-inserted promotional segment for the hosting platform, though no explicit promotional text is in this transcript excerpt itself.",
+  "end_text": ". . . . . . . . . . . ."
+}

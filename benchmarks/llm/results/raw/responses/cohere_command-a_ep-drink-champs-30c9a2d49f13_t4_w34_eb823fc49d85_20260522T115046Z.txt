@@ -1,0 +1,1 @@
+{"start": 14268.7, "end": 14880.0, "confidence": 0.0, "reason": "No ads detected in this segment", "end_text": "continues in next"}

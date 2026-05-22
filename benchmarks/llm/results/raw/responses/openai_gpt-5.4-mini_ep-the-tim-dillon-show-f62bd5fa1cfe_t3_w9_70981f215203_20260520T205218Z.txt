@@ -1,0 +1,1 @@
+{"start":3976.7,"end":4002.7,"confidence":0.74,"reason":"Possible partial host-read sponsor mention embedded in show content; includes promotional product pitch for Martin's potato rolls and a summer spending/economy mention, but no clear full ad transition or sponsor read. Continues from previous segment context.","end_text":"buying Martin's potato rolls, burgers, dogs, etc."}

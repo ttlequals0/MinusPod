@@ -1,0 +1,1 @@
+{"start":417.2,"end":572.1,"confidence":0.99,"reason":"Zscaler sponsor read with transition phrase","end_text":"Now back to Steve"}

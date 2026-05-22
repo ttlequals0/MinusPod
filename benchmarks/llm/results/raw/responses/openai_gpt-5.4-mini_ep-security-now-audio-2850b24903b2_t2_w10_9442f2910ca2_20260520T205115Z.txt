@@ -1,0 +1,1 @@
+{"start":4265.2,"end":4465.7,"confidence":0.99,"reason":"Bitwarden host-read sponsor segment with explicit 'This episode of Security Now is brought to you by Bitwarden' and promo URL 'bitwarden.com/twit'; includes sustained product pitching and closes before show content resumes.","end_text":"supporting. Security Now. Okay."}

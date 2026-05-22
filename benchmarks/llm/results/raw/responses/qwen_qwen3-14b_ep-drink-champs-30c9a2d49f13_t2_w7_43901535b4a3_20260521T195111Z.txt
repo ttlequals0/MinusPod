@@ -1,0 +1,1 @@
+{"start": 3478.9, "end": 3540.0, "confidence": 0.95, "reason": "Airtasker sponsor read", "end_text": "about abstinence?"}

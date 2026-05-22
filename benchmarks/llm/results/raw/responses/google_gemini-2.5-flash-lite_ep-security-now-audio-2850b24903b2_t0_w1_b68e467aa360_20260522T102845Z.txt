@@ -1,0 +1,9 @@
+[
+  {
+    "start": 469.0,
+    "end": 572.1,
+    "confidence": 0.98,
+    "reason": "Host-read ad for Zscaler. Includes sponsor name, product pitch, and call to action (zscaler.com/security).",
+    "end_text": "slash security. Now back to Steve and Security Now."
+  }
+]

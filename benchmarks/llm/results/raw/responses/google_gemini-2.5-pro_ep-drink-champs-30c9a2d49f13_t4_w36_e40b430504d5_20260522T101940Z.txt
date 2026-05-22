@@ -1,0 +1,16 @@
+[
+  {
+    "start": 15261.8,
+    "end": 15285.2,
+    "confidence": 0.7,
+    "reason": "This segment contains repeated placeholder words 'promo code' and 'discount code', indicating an ad insertion point or a transcription error of an ad.",
+    "end_text": "code, discount code"
+  },
+  {
+    "start": 15388.3,
+    "end": 15517.1,
+    "confidence": 1.0,
+    "reason": "A block of multiple network-inserted ads for Airtasker, CVS, Trashy, and Try Fencing.",
+    "end_text": "Podcast. Guaranteed human."
+  }
+]

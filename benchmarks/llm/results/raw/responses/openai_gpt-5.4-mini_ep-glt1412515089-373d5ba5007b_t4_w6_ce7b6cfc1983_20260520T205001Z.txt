@@ -1,0 +1,1 @@
+{"start":3120.0,"end":3120.0,"confidence":0.0,"reason":"No advertisement segments found in this window; transcript contains only interview content and no sponsor-read or platform promo language.","end_text":"in next"}

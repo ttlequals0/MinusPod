@@ -1,0 +1,7 @@
+{
+  "start": 2499.6,
+  "end": 2528.4,
+  "confidence": 0.8,
+  "reason": "Host discusses AI's impact on politics and campaigns, including social listening and micro-targeting.",
+  "end_text": "social listening in a way that you maybe wouldn't have been able to"
+}

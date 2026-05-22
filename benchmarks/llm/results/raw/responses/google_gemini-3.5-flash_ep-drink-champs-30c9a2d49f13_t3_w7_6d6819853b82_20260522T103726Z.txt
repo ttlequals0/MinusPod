@@ -1,0 +1,9 @@
+[
+  {
+    "start": 3478.9,
+    "end": 3556.2,
+    "confidence": 0.95,
+    "reason": "Airtasker sponsor ad followed by a cross-promotional ad for Decisions Decisions podcast, continuing past the end of the transcript",
+    "end_text": "conversation about abstinence?"
+  }
+]

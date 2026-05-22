@@ -1,0 +1,7 @@
+{
+  "start": 2863.0,
+  "end": 2894.5,
+  "confidence": 0.95,
+  "reason": "LinkedIn Premium All-in-One network-inserted ad with call to action (extends beyond 48.2 min window)",
+  "end_text": "free at LinkedIn.com slash all-in-one"
+}

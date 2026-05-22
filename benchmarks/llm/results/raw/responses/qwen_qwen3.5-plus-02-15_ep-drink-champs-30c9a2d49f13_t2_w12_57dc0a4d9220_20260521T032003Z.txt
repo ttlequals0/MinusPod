@@ -1,0 +1,1 @@
+[{"start": 5420.4, "end": 5441.4, "confidence": 0.85, "reason": "Transcript contains repeated 'promo code, discount code' text indicating a dynamic ad insertion slot", "end_text": "discount code, discount code"}]

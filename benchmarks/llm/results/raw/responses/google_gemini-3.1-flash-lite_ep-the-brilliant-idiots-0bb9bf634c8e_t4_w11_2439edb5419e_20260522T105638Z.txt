@@ -1,0 +1,9 @@
+[
+  {
+    "start": 5235.3,
+    "end": 5260.0,
+    "confidence": 0.95,
+    "reason": "Platform-inserted ad for ad choices",
+    "end_text": "Visit megaphone.fm/adchoices"
+  }
+]

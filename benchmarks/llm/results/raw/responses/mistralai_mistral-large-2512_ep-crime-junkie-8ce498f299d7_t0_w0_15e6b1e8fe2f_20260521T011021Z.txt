@@ -1,0 +1,23 @@
+[
+    {
+        "start": 0.0,
+        "end": 40.8,
+        "confidence": 0.99,
+        "reason": "Vitel Global network-inserted ad with promotional language, product pitch, and call to action (URL: VitelGlobal.com)",
+        "end_text": "make every connection count."
+    },
+    {
+        "start": 41.5,
+        "end": 69.8,
+        "confidence": 0.99,
+        "reason": "LinkedIn Premium All-in-One sponsor read with promotional language, call to action (URL: linkedin.com/slash all-in-one), and product benefits pitch",
+        "end_text": "linkedin.com slash all-in-one."
+    },
+    {
+        "start": 70.5,
+        "end": 98.4,
+        "confidence": 0.99,
+        "reason": "Hertz network-inserted ad with promotional language, product pitch (new car fleet), and call to action (URL: Hertz.com)",
+        "end_text": "newest fleet yet at Hertz.com."
+    }
+]

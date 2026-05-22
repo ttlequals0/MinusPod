@@ -1,0 +1,1 @@
+{"start": 14854.0, "end": 14861.3, "confidence": 0.95, "reason": "Show outro with 'Thank you for watching' - not a promotional advertisement, just closing content", "end_text": "Thank you for watching."}

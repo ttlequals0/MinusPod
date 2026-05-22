@@ -1,0 +1,1 @@
+{"start":2324.6,"end":2450.0,"confidence":0.99,"reason":"Host-led sponsor read transitioning with 'Bluetooth!' followed by BlueChew Gold promotional copy, URL, promo code, and then ZipRecruiter sponsor read with trial offer and ZipRecruiter.com/idiots CTA.","end_text":"Meet your match on ZipRecruiter"}

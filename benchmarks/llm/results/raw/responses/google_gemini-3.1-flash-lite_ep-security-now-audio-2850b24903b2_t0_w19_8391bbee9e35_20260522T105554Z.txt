@@ -1,0 +1,9 @@
+[
+  {
+    "start": 8599.9,
+    "end": 8680.0,
+    "confidence": 0.95,
+    "reason": "Host-read advertisement for Zscaler",
+    "end_text": "zscaler.com/security"
+  }
+]

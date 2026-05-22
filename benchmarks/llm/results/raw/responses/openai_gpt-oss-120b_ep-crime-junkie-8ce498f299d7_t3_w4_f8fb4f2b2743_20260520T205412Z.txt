@@ -1,0 +1,18 @@
+{
+  "ads": [
+    {
+      "start": 1959.8,
+      "end": 2020.4,
+      "confidence": 0.99,
+      "reason": "Host-read sponsor segment promoting Rakuten cash back service with brand name, promotional language, and call to action URL.",
+      "end_text": "saving money today."
+    },
+    {
+      "start": 2022.1,
+      "end": 2080.5,
+      "confidence": 0.99,
+      "reason": "Host-read sponsor segment promoting LinkedIn Premium All-in-One and Hertz car rental service with brand names, promotional language, and call to action URLs.",
+      "end_text": "at Hertz.com."
+    }
+  ]
+}

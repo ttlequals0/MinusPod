@@ -1,0 +1,16 @@
+[
+  {
+    "start": 539.2,
+    "end": 568.3,
+    "confidence": 0.95,
+    "reason": "This episode is brought to you by In the Gray, written and directed by Guy Ritchie, my man, I love that dude. This blockbuster stars Jake Gyllenhaal, Henry Cavill, and Aza Gonzalez as elite operatives with questionable morals. When billions get stolen, these are the pros that steal it back, turning an impossible heist into an all-hands-on-deck operation with plenty of action. In a world of black and white, they operate.",
+    "end_text": "they operate."
+  },
+  {
+    "start": 568.4,
+    "end": 652.8,
+    "confidence": 0.98,
+    "reason": "This episode is brought to you by Skechers. Today, life is all about convenience. And do you know what the ultimate convenience is? Hands-free Skechers slip-ins. They're so easy. You've probably seen the ads. You just step in, and they're on. with no bending down. Well, they work just as advertised. You tie the laces once and you never have to tie them again. It's the perfect fit. Just step in and go. It's a life hack for putting on your footwear. And not only are Skechers slip-ins convenient, they're also very comfortable. At Skechers, comfort is a technology. They take comfort that seriously. Plus, they're stylish and they come in so many colors and sizes. You can get slip-ins and casual and dress footwear, sandals, sneakers, and more. Plus, how about this for convenience? They're even machine washable. Pop them in the washing machine and they come out looking like new. So if you like convenience and so much more, you've got to try Skechers slip-ins. You'll wish your shoes were this easy. Check out Skechers.com for the biggest selection in the world plus all the hard-to-find styles. That's only at Skechers.com.",
+    "end_text": "only at Skechers.com."
+  }
+]

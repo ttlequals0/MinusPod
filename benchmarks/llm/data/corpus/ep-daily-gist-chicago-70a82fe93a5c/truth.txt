@@ -1,0 +1,12 @@
+# Pre-populated from MinusPod production ad markers.
+# Verify each ad: check boundaries, confirm text matches transcript.
+# Use the no-ads marker (uncomment) if this episode has no ads:
+# # Verified: no ads in this episode.
+
+start: 0:54.06
+end:   1:04.66
+text:  Because when you succeed, they succeed. Old National Bank, where relationships and results meet. Connect with a banker today at oldnational.com slash commercial banking. Member FDIC.
+---
+start: 8:41.47
+end:   9:02.17
+text:  Crain's Daily Gist listeners know their Chicago business, so why not prove it by taking the Crain's Weekly News Quiz at chicagobusiness.com. Did you keep up with the week's news? Now you can test your knowledge with our weekly quiz. Visit chicagobusiness.com slash quiz. And of course, Crain's Daily Gist is a great study guide. Follow us wherever you get your podcasts. 

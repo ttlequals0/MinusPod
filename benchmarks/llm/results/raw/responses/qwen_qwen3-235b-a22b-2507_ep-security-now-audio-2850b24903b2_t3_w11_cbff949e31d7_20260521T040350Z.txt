@@ -1,0 +1,1 @@
+{"start": 5158.3, "end": 5223.6, "confidence": 0.98, "reason": "Host-read sponsor segment with promotional language for OpenAI's Advanced Account Security, but no external sponsor mentioned; this is organic discussion of a product update, not a compensated advertisement", "end_text": "For some people,"}

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 8724.9,
+    "end": 8831.4,
+    "confidence": 1.0,
+    "reason": "A block of multiple network-inserted ads for AirTasker, the podcast \"Decisions Decisions\" (sponsored by Gilead Sciences), OnDeck, and Public.",
+    "end_text": "for those who take it seriously."
+  }
+]

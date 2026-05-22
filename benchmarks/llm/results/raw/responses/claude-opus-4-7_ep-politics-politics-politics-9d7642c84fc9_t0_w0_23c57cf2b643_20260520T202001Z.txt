@@ -1,0 +1,1 @@
+[{"start": 30.4, "end": 52.7, "confidence": 0.6, "reason": "Sponsor mention - 'brought to you by Just Another Pilot'", "end_text": "by Just Another Pilot"}]

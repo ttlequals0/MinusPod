@@ -1,0 +1,1 @@
+{"start": 13886.8, "end": 13938.9, "confidence": 0.2, "reason": "potential ad segment with unclear transition phrase but no promotional language", "end_text": "Let's take a sunny shot to that. Okay. He stillain't taking a shot?" }

@@ -1,0 +1,9 @@
+[
+    {
+        "start": 0.0,
+        "end": 30.4,
+        "confidence": 0.98,
+        "reason": "Sponsor read for 'Just Another Pilot' at the start of the episode, including promotional transition phrase 'The following is brought to you by...'",
+        "end_text": "Just Another Pilot."
+    }
+]

@@ -1,0 +1,23 @@
+[
+  {
+    "start": 1959.8,
+    "end": 2020.4,
+    "confidence": 0.99,
+    "reason": "Rakuten sponsor read with promotional language, cash back offers, partner brands (Ulta, Expedia), and call to action (Rakuten.com)",
+    "end_text": "money today"
+  },
+  {
+    "start": 2022.1,
+    "end": 2061.4,
+    "confidence": 0.99,
+    "reason": "LinkedIn Premium All-in-One ad with business benefits pitch, vanity URL (linkedin.com/all-in-one), and free trial offer",
+    "end_text": "slash all-in-one"
+  },
+  {
+    "start": 2062.1,
+    "end": 2080.5,
+    "confidence": 0.99,
+    "reason": "Hertz car rental ad with product scenarios (convertible, minivan, SUV) and call to action (Hertz.com)",
+    "end_text": "at Hertz.com"
+  }
+]

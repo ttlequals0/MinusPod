@@ -1,0 +1,44 @@
+[
+  {
+    "start": 8025.2,
+    "end": 8026.8,
+    "confidence": 0.95,
+    "reason": "Host transition phrase indicating ad break",
+    "end_text": "Biggie Smalls or"
+  },
+  {
+    "start": 8028.6,
+    "end": 8056.1,
+    "confidence": 0.98,
+    "reason": "Promotional segment for Drink Champs merchandise",
+    "end_text": "whatever. So he"
+  },
+  {
+    "start": 8058.6,
+    "end": 8085.6,
+    "confidence": 0.97,
+    "reason": "Host-read ad for Athletic Greens",
+    "end_text": "position from the"
+  },
+  {
+    "start": 8086.1,
+    "end": 8098.1,
+    "confidence": 0.96,
+    "reason": "Call to action for AG1 supplement",
+    "end_text": "blood, and I'll"
+  },
+  {
+    "start": 8098.5,
+    "end": 8110.1,
+    "confidence": 0.95,
+    "reason": "Promo code and URL mention",
+    "end_text": "smoke a crip"
+  },
+  {
+    "start": 8119.3,
+    "end": 8144.6,
+    "confidence": 0.98,
+    "reason": "Transition back to content",
+    "end_text": "you might learn"
+  }
+]

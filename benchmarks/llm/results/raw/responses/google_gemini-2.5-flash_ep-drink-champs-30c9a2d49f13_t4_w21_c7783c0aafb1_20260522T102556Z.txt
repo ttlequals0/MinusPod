@@ -1,0 +1,16 @@
+[
+  {
+    "start": 8799.1,
+    "end": 8826.4,
+    "confidence": 0.98,
+    "reason": "OnDeck sponsor read",
+    "end_text": "subject to lender approval"
+  },
+  {
+    "start": 8827.0,
+    "end": 8831.4,
+    "confidence": 0.95,
+    "reason": "Public sponsor mention",
+    "end_text": "take it seriously"
+  }
+]

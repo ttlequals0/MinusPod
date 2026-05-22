@@ -1,0 +1,9 @@
+[
+    {
+        "start": 13320.1,
+        "end": 13345.7,
+        "confidence": 0.9,
+        "reason": "Host-led transition to sponsor read for Caymus wine, including promotional language ('That's Caymus. Okay, left hand. It's everything.')",
+        "end_text": "It's everything. Why are you sneaking"
+    }
+]

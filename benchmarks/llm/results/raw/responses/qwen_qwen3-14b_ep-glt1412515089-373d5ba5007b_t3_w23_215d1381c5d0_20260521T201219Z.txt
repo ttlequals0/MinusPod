@@ -1,0 +1,2 @@
+w.
+{"start": 9655.2, "end": 9655.2, "confidence": 0.0, "reason": "No ads found in the specified window", "end_text": "disclosure!"}

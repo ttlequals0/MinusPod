@@ -1,0 +1,184 @@
+[
+  {
+    "start": 13018.5,
+    "end": 13044.4,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Drink Champs website and social media",
+    "end_text": "at drinkchamps.com"
+  },
+  {
+    "start": 13045.2,
+    "end": 13074.2,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Drink Champs merchandise",
+    "end_text": "merch at drinkchamps.com"
+  },
+  {
+    "start": 13091.7,
+    "end": 13097.8,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Athletic Greens",
+    "end_text": "athleticgreens.com/drinkchamps"
+  },
+  {
+    "start": 13099.5,
+    "end": 13127.8,
+    "confidence": 0.95,
+    "reason": "Host-read ad for BetterHelp",
+    "end_text": "betterhelp.com/drinkchamps"
+  },
+  {
+    "start": 13128.2,
+    "end": 13155.7,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Squarespace",
+    "end_text": "squarespace.com/drinkchamps"
+  },
+  {
+    "start": 13158.4,
+    "end": 13184.0,
+    "confidence": 0.95,
+    "reason": "Host-read ad for DoorDash",
+    "end_text": "doordash.com/drinkchamps"
+  },
+  {
+    "start": 13184.7,
+    "end": 13208.2,
+    "confidence": 0.95,
+    "reason": "Host-read ad for NordVPN",
+    "end_text": "nordvpn.com/drinkchamps"
+  },
+  {
+    "start": 13208.8,
+    "end": 13235.0,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Mint Mobile",
+    "end_text": "mintmobile.com/drinkchamps"
+  },
+  {
+    "start": 13237.3,
+    "end": 13260.2,
+    "confidence": 0.95,
+    "reason": "Host-read ad for HelloFresh",
+    "end_text": "hellofresh.com/drinkchamps"
+  },
+  {
+    "start": 13260.6,
+    "end": 13276.9,
+    "confidence": 0.95,
+    "reason": "Host-read ad for ExpressVPN",
+    "end_text": "expressvpn.com/drinkchamps"
+  },
+  {
+    "start": 13277.6,
+    "end": 13281.8,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Shopify",
+    "end_text": "shopify.com/drinkchamps"
+  },
+  {
+    "start": 13308.8,
+    "end": 13315.3,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Audible",
+    "end_text": "audible.com/drinkchamps"
+  },
+  {
+    "start": 13320.1,
+    "end": 13345.7,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Casper Mattress",
+    "end_text": "casper.com/drinkchamps"
+  },
+  {
+    "start": 13346.8,
+    "end": 13364.6,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Dollar Shave Club",
+    "end_text": "dollarshaveclub.com/drinkchamps"
+  },
+  {
+    "start": 13367.1,
+    "end": 13389.6,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Blue Apron",
+    "end_text": "blueapron.com/drinkchamps"
+  },
+  {
+    "start": 13389.9,
+    "end": 13393.2,
+    "confidence": 0.95,
+    "reason": "Host-read ad for ZipRecruiter",
+    "end_text": "ziprecruiter.com/drinkchamps"
+  },
+  {
+    "start": 13408.8,
+    "end": 13413.7,
+    "confidence": 0.95,
+    "reason": "Host-read ad for SimpliSafe",
+    "end_text": "simplisafe.com/drinkchamps"
+  },
+  {
+    "start": 13421.1,
+    "end": 13446.0,
+    "confidence": 0.95,
+    "reason": "Host-read ad for MasterClass",
+    "end_text": "masterclass.com/drinkchamps"
+  },
+  {
+    "start": 13446.5,
+    "end": 13465.4,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Indeed",
+    "end_text": "indeed.com/drinkchamps"
+  },
+  {
+    "start": 13481.0,
+    "end": 13484.0,
+    "confidence": 0.95,
+    "reason": "Host-read ad for LinkedIn",
+    "end_text": "linkedin.com/drinkchamps"
+  },
+  {
+    "start": 13485.4,
+    "end": 13498.9,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Stamps.com",
+    "end_text": "stamps.com/drinkchamps"
+  },
+  {
+    "start": 13499.2,
+    "end": 13525.7,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Grubhub",
+    "end_text": "grubhub.com/drinkchamps"
+  },
+  {
+    "start": 13526.1,
+    "end": 13539.7,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Uber Eats",
+    "end_text": "ubereats.com/drinkchamps"
+  },
+  {
+    "start": 13540.8,
+    "end": 13567.0,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Instacart",
+    "end_text": "instacart.com/drinkchamps"
+  },
+  {
+    "start": 13590.5,
+    "end": 13614.9,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Rocket Money",
+    "end_text": "rocketmoney.com/drinkchamps"
+  },
+  {
+    "start": 13617.2,
+    "end": 13635.5,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Credit Karma",
+    "end_text": "creditkarma.com/drinkchamps"
+  }
+]

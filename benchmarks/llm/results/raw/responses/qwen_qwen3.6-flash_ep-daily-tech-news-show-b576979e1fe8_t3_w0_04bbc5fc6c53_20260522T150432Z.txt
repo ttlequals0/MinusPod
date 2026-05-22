@@ -1,0 +1,1 @@
+[{"start": 0.0, "end": 104.3, "confidence": 0.98, "reason": "Continuous block of sponsor segments (Capital One, Every Brilliant Thing, All Trails, Zinn Nicotine Pouches) with gaps under 15 seconds.", "end_text": "addictive chemical."}]

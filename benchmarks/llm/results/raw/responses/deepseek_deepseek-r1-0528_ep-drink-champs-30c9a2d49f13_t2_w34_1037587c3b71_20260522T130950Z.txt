@@ -1,0 +1,16 @@
+[
+  {
+    "start": 14854.0,
+    "end": 14861.3,
+    "confidence": 0.95,
+    "reason": "Platform-inserted ad: 'Thank you for watching' suggests end-of-episode platform message",
+    "end_text": "Thank you for watching"
+  },
+  {
+    "start": 14871.4,
+    "end": 14893.8,
+    "confidence": 0.9,
+    "reason": "Hosting platform post-roll ad (common sign-off pattern)",
+    "end_text": "interrupting me by talking"
+  }
+]

@@ -1,0 +1,1 @@
+{"start": 0.0, "end": 613.9, "confidence": 0.0, "reason": "No promotional content or advertisement detected in transcript segment. All content is organic discussion about mechanical engineering at Oxide, team introductions, and technical challenges. No sponsor mentions, URLs, promo codes, or advertising language present.", "end_text": "than we would expect on certain lanes."}

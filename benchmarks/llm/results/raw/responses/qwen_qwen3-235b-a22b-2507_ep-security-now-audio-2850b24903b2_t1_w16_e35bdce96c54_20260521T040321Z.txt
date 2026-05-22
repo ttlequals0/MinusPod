@@ -1,0 +1,1 @@
+{"start": 7138.1, "end": 7320.0, "confidence": 0.95, "reason": "continues from previous segment discussing Google's AI model in Chrome; no promotional content or sponsor mentions in this window", "end_text": "respond."}

@@ -1,0 +1,1 @@
+{"start":8145.5,"end":8158.4,"confidence":0.18,"reason":"No advertisement detected; this is continuing show conversation and storytelling with no sponsor, promo code, URL, or call to action","end_text":"She jumped up"}

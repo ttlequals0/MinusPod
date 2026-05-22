@@ -1,0 +1,1 @@
+{"start":0.0,"end":30.4,"confidence":0.99,"reason":"Platform-style opening promo for 'Just Another Pilot' with transition phrase 'The following is brought to you by'","end_text":"brought to you by Just Another Pilot"}

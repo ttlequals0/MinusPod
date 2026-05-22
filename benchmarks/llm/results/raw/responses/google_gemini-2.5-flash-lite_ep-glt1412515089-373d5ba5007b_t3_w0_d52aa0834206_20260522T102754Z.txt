@@ -1,0 +1,6 @@
+[
+  {
+    "start": 539.2,
+    "end": 624.5,
+    "confidence": 0.98,
+    "reason": "This segment contains two distinct advertisements. The first is for 'In the Gray', a movie directed by Guy Ritchie, and the

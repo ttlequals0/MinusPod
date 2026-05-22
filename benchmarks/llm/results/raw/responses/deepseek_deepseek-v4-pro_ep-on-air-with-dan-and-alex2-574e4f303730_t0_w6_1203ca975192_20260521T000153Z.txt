@@ -1,0 +1,1 @@
+[{"start": 2609.5, "end": 2634.3, "confidence": 0.99, "reason": "Host-read sponsor list with multiple known sponsors and promotional language", "end_text": "Raycon, Manscaped, Stamps.com"}]

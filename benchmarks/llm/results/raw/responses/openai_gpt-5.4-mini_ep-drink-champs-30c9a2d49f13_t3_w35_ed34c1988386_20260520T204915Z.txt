@@ -1,0 +1,1 @@
+{"start":15261.8,"end":15285.2,"confidence":0.44,"reason":"Possible ad fragment with repeated 'promo code, discount code' language, but no sponsor name, URL, or clear promotional pitch in the transcript window; likely incomplete/garbled sponsored read","end_text":"discount code, discount code, discount code"}

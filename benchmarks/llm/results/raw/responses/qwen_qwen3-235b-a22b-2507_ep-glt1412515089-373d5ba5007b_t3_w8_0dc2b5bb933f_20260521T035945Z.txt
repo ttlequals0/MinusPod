@@ -1,0 +1,1 @@
+{"start": 3418.9, "end": 3430.8, "confidence": 0.98, "reason": "Perplexity ad insertion with promotional URL", "end_text": "Visit podcastchoices.com/adchoices"}

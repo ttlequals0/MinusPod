@@ -1,0 +1,1 @@
+{"start": 6723.5, "end": 7320.0, "confidence": 0.0, "reason": "No promotional content found in transcript segment. Content is conversational about personal stories, sports, and drinks.", "end_text": "Puerto Rico doing all the stores there and then going to Washington. And her dad was a hedge fund manager when I was a billionaire. Trust me. She show up."}

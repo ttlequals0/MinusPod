@@ -1,0 +1,1 @@
+{"start":945.1,"end":969.1,"confidence":0.97,"reason":"Host-read promo for a shoe website and Mother's Day gift mention; includes promotional product pitch and implied call to action","end_text":"really cool and they're really pretty"}

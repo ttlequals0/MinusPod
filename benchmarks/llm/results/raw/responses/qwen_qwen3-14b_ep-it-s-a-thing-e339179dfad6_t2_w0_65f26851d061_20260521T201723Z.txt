@@ -1,0 +1,2 @@
+e.
+{"start": 1.6, "end": 77.2, "confidence": 0.95, "reason": "Platform-inserted Acast ad and cross-promotions for 'Wrong Turns' and 'Formative'", "end_text": "listen to brand new episodes and an archive of 100 previous episodes of Formative"}

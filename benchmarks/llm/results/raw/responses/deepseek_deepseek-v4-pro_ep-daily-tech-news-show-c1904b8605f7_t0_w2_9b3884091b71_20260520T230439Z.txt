@@ -1,0 +1,41 @@
+{
+  "segments": [
+    {
+      "start": 821.4,
+      "end": 857.6,
+      "confidence": 0.95,
+      "reason": "Capital One sponsor segment",
+      "end_text": "A BetterHelp ad. Hold on. One second. I just need to...",
+    "ad_text": "This episode is brought to you by Capital One. Capital One's tech team isn't just talking about multi-agentic AI. They already deployed one. It's called Chat Concierge and it's simplifying car shopping. Using self-reflection and layered reasoning with live API checks, it doesn't just help buyers find a car they love. It helps schedule a test drive, get pre-approved for financing, and estimate trade-in value. Advanced, intuitive, and deployed. That's how they stack. That's technology at Capital One. A BetterHelp ad. Hold on. One second. I just need to..."
+  },
+    {
+      "start": 862.2,
+      "end": 889.7,
+      "confidence": 0.98,
+      "reason": "BetterHelp sponsor segment",
+      "end_text": "first month of online therapy.",
+    "ad_text": "What if you had a room where no one interrupts? No notifications, no expectations, just space to talk. With BetterHelp, therapy happens in a space that's yours. Visit betterhelp.com slash random podcast for 10% off your first month of online therapy."
+  },
+    {
+      "start": 890.6,
+      "end": 910.1,
+      "confidence": 0.95,
+      "reason": "Amazon Health AI sponsor segment",
+      "end_text": "less painful.",
+    "ad_text": "Amazon Health AI presents painful thoughts. I, um, I can't stop scratching my downtown. Yeah, but I'm not itching to go downtown and tell a receptionist I'm here to talk about my downtown. Some things you'd rather type than say out loud. There's no question too embarrassing for Amazon Health AI. Chat your symptoms and get virtual care 24-7. Healthcare just got less painful."
+  },
+    {
+      "start": 912.2,
+      "end": 961.5,
+      "confidence": 0.95,
+      "reason": "Spectrum Business sponsor segment",
+      "end_text": "help you stay up and running.",
+    "ad_text": "As a woman entrepreneur, you know that every connection counts, whether it's with your customers, your team, or your community. Spectrum Business is here to help you build those connections stronger and faster. Imagine running your business with fast, reliable, fiber-powered internet so you can stay connected to customers, employees, and vendors without having to worry. We know flexibility matters. That's why select Spectrum business packages come with a three-year price guarantee, so you can focus on running your business. Plus, enjoy savings on internet, phone, TV, and mobile services when you can bundle. With Spectrum Business, you get more than just internet. You get support with 100% US-based customer service. Real people who understand small business, ready 24-7 to help you stay up and running."
+  },
+    {
+      "start": 961.9,
+      "end": 1018.9,
+      "confidence": 0.98,
+      "reason": "Rinse sponsor segment and cross-promo for Best One Yet podcast",
+      "end_text": "Schedule at rinse.com. Rinse.",
+    "ad_text": "Join millions of business owners like you across America who trust Spectrum Business for reliability, speed, and support. Visit spectrum.com slash business today to get started. Restrictions apply. Service is not available in all areas. Hi, I'm Nick Martell from the Best One Yet podcast. Fact, laundry, it's the ultimate zombie chore. It's relentless, it regenerates, it's always rising from the dead right before your plate is already full. That's not just a

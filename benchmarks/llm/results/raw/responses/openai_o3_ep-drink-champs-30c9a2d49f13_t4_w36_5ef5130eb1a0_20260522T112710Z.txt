@@ -1,0 +1,1 @@
+{"start":15388.3,"end":15517.1,"confidence":0.98,"reason":"Back-to-back platform-inserted ads: Airtasker app, CVS pharmacy, Trashy clothing recycle, TryFencing.org, and iHeart network bumper","end_text":"Guaranteed human."}

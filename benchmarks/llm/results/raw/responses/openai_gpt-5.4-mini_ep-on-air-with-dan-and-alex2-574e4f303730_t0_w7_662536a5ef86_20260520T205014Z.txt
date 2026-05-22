@@ -1,0 +1,1 @@
+{"start":3428.1,"end":3457.8,"confidence":0.98,"reason":"Arizona State University host-read sponsor spot with promotional copy and URL (asunline.asu.edu), includes transition from show into ad and back","end_text":"That's a degree better"}

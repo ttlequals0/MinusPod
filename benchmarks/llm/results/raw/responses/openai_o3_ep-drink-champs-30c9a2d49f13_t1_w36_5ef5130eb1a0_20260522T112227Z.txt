@@ -1,0 +1,1 @@
+{"start": 15388.3, "end": 15517.1, "confidence": 0.96, "reason": "Network-inserted ad block promoting Airtasker, CVS, Trashy, and TryFencing with URLs and calls to action", "end_text": "Podcast. Guaranteed human."}

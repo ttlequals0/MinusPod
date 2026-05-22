@@ -1,0 +1,8 @@
+
+{
+	"start": 909.6,
+	"end": 933.9,
+	"confidence": 0.95,
+	"reason": "TakePoliticsSeriously.com sponsor mention",
+	"end_text": "This is your update brought to you by TakePoliticsSeriously.com."
+}

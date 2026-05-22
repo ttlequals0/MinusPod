@@ -1,0 +1,1 @@
+{"start": 15388.3, "end": 15517.1, "confidence": 0.96, "reason": "Network-inserted ad block featuring Airtasker, CVS, Trashy, TryFencing promos and iHeart platform tag", "end_text": "Guaranteed human."}

@@ -1,0 +1,1 @@
+{"start": 693.7, "end": 719.8, "confidence": 0.95, "reason": "Soup Shots product promotion with URL", "end_text": "soup on the menu."}

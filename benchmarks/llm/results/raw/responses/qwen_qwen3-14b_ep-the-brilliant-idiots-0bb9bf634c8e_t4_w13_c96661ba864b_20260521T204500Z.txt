@@ -1,0 +1,2 @@
+d.
+{"start": 5460.0, "end": 6060.0, "confidence": 0.0, "reason": "No advertisement segments detected in the provided transcript window. The sponsor information listed in the episode description is not present in the transcript content, and no promotional language, sponsor mentions, or ad transitions (e.g., 'Let's take a break') are found within the 91.0-101.0 minute window.", "end_text": "the Democratic Party, even the,"}

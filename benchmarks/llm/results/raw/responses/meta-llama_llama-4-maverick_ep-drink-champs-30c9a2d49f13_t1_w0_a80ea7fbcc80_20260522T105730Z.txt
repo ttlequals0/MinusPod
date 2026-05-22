@@ -1,0 +1,1 @@
+{"start": 0.0, "end": 101.0, "confidence": 0.95, "reason": "Multiple platform-inserted ads", "end_text": "real-world conditions"}

@@ -1,0 +1,1 @@
+{"start": 5471.4, "end": 5484.4, "confidence": 0.1, "reason": "Silence/dead air gap with no promotional transcript content", "end_text": ". . . . . . . . . . . ."}

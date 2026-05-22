@@ -1,0 +1,7 @@
+{
+  "start": 539.2,
+  "end": 624.5,
+  "confidence": 0.97,
+  "reason": "Host-read sponsor reads for In the Gray movie and Skechers slip‑ins, both introduced with 'This episode is brought to you by' and contain promotional language, URLs, and calls to action.",
+  "end_text": "and sizes"
+}

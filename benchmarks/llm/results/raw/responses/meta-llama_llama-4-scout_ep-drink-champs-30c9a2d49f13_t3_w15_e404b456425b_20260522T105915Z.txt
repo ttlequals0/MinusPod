@@ -1,0 +1,18 @@
+{
+"ads": [
+    {
+      "start": 6283.4,
+      "end": 6318.1,
+      "confidence": 0.98,
+      "reason": "OnDeck sponsor read",
+      "end_text": "All loans and"
+    },
+    {
+      "start": 6313.8,
+      "end": 6355.7,
+      "confidence": 0.90,
+      "reason": "Public sponsor mention",
+      "end_text": "Transcription by"
+    }
+  ]
+}

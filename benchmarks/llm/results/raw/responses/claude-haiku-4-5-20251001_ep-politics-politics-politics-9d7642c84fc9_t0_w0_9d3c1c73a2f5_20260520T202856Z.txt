@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 0.0,
+    "end": 30.4,
+    "confidence": 0.85,
+    "reason": "Host-read intro segment mentioning 'brought to you by Just Another Pilot' - sponsor read with transition",
+    "end_text": "brought to you by Just Another Pilot"
+  }
+]
+```

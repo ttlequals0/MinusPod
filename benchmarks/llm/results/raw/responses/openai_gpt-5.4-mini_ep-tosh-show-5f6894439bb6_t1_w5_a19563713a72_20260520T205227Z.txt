@@ -1,0 +1,1 @@
+{"start":2412.8,"end":2484.9,"confidence":0.99,"reason":"Platform-inserted HealthCast by Stony Brook Medicine promo followed by PC Richard & Son / Aseema Lease to Own sponsor read with product pitch, Memorial Day sale, $1 to start your lease, and URL","end_text":"Visit PCRichard.com slash Asima dot HTML for details"}

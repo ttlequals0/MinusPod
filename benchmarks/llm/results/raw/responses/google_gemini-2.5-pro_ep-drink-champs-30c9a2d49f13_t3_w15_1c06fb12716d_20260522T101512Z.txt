@@ -1,0 +1,9 @@
+[
+  {
+    "start": 6283.4,
+    "end": 6318.1,
+    "confidence": 1.0,
+    "reason": "This segment contains two back-to-back ads. The first is a host-read ad for OnDeck with a URL and product pitch. The second is an ad for Public, introduced with 'Support for the show comes from...'.",
+    "end_text": "who take it seriously."
+  }
+]

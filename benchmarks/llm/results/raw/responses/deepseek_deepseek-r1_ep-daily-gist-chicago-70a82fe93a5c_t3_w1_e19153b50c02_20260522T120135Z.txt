@@ -1,0 +1,1 @@
+[{"start": 506.4, "end": 548.5, "confidence": 0.95, "reason": "Crain's self-promotion for news quiz with explicit URL and call-to-action", "end_text": "get your podcasts"}]

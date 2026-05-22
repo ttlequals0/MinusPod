@@ -1,0 +1,7 @@
+{
+  "start": 112.0,
+  "end": 122.0,
+  "confidence": 0.85,
+  "reason": "The segment contains a product endorsement with promotional language, specifically mentioning a Tinder profile and a Florida State ex-volleyball player. This indicates a sponsored segment, likely inserted by a platform or network.",
+  "end_text": "I'm in there. I'm in there. I'm in there. I'm in there. I'm in there."
+}

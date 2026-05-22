@@ -1,0 +1,1 @@
+{"start": 1450.9, "end": 1629.0, "confidence": 0.99, "reason": "Airtasker ad, Decisions Decisions podcast cross-promo (sponsored by Care for the Culture/Gilead Sciences), OnDeck ad, and BetMGM ad with gambling disclaimers", "end_text": "Kansas Crossing Casino and Hotel"}

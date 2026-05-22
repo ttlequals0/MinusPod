@@ -1,0 +1,10 @@
+[
+  {
+    "start": 9741.1,
+    "end": 9785.0,
+    "confidence": 0.95,
+    "reason": "Host-read promotion for timemachine.love, an audio journaling app, presented as a 'time machine'. Includes a call to action to visit the URL.",
+    "end_text": "it has a"
+  },
+  {
+    "start": 

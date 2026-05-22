@@ -1,0 +1,9 @@
+[
+  {
+    "start": 13669.1,
+    "end": 13815.9,
+    "confidence": 1.0,
+    "reason": "Airtasker sponsorship, Decisions Decisions podcast promo, OnDeck business loan ad, Public investing platform ad",
+    "end_text": "back test it again"
+  }
+]

@@ -1,0 +1,1 @@
+[{"start": 11335.2, "end": 11455.4, "confidence": 0.98, "reason": "Network-inserted ads for Airtasker, Decisions Decisions, and OnDeck", "end_text": "subject to lender approval."}, {"start": 11513.7, "end": 11536.6, "confidence": 0.95, "reason": "Public.com short brand ad", "end_text": "Disclosures available at public.com"}]

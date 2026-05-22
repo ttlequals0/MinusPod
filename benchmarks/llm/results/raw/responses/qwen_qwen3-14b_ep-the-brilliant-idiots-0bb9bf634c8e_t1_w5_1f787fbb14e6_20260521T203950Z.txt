@@ -1,0 +1,2 @@
+r.
+{"start": 2324.6, "end": 2353.8, "confidence": 0.95, "reason": "Blue Chew Gold product promotion with URL and promo code", "end_text": "get bricked up out here"}

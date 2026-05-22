@@ -1,0 +1,1 @@
+"displayed in JSON format as specified, with proper start and end times, confidence, and reasons for each ad segment."

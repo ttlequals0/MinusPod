@@ -1,0 +1,1 @@
+{"start": 0.0, "end": 42.2, "confidence": 0.98, "reason": "iHeart Podcast network-inserted ad for Airtasker with promotional language and call to action", "end_text": "Download the Airtasker app or go to Airtasker.com."}

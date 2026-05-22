@@ -1,0 +1,16 @@
+[
+    {
+        "start": 4993.1,
+        "end": 5024.4,
+        "confidence": 0.9,
+        "reason": "Promotional segment for 'Miami Heroes' with repeated branding and call-to-action language ('Our show is about giving people they flowers...'). Likely a host-read ad or internal promo for a sponsor or partner.",
+        "end_text": "That's what I'm talking about."
+    },
+    {
+        "start": 5059.9,
+        "end": 5094.6,
+        "confidence": 0.85,
+        "reason": "Hosts promote a drink from 'my dude from Hawaii' and set up a drinking game with branded rules ('Drink Champ like that'). While not a traditional ad, this segment includes promotional language for a product (drink) tied to the show's brand.",
+        "end_text": "all of us drinking. Okay."
+    }
+]

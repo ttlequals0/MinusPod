@@ -1,0 +1,7 @@
+{
+  "start": 1266.6,
+  "end": 1271.2,
+  "confidence": 0.0,
+  "reason": "No promotional language or sponsor content found in this window. The segment contains only editorial news content and a standard show outro with subscription/rating requests, which are host mentions of their own show, not ads.",
+  "end_text": "right back here next time"
+}

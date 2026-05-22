@@ -1,0 +1,1 @@
+{"start": 1439.0, "end": 1466.2, "confidence": 0.98, "reason": "Transition back to show content after potential ad break; no promotional content or sponsor language present in transcript", "end_text": "it looks crazy."}

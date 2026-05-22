@@ -1,0 +1,23 @@
+[
+  {
+    "start": 1718.3,
+    "end": 1735.3,
+    "confidence": 0.95,
+    "reason": "The host mentions the show's store and promotes merchandise like mugs, t-shirts, and mouse pads as gifts that also support the show. This is a form of advertising for the show's own products.",
+    "end_text": "there you go"
+  },
+  {
+    "start": 1742.3,
+    "end": 1771.5,
+    "confidence": 0.98,
+    "reason": "This is a clear advertisement for Capital One, mentioning their tech team, a product called Chat Concierge, and its features for car shopping. It includes promotional language and a call to action implicitly by highlighting the company's technological advancements.",
+    "end_text": "at Capital One"
+  },
+  {
+    "start": 1772.6,
+    "end": 1829.8,
+    "confidence": 0.95,
+    "reason": "This segment promotes the 'Thrive' series from Lemonada Media, which is a cross-promotion for another podcast or series, presented as a sponsored segment.",
+    "end_text": "in the future"
+  }
+]

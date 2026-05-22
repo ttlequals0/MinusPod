@@ -1,0 +1,1 @@
+{"start": 1035.7, "end": 1035.7, "confidence": 0.9, "reason": "Host-read ad for Debt.com with promotional language and call to action", "end_text": "Debt.com/podcast"}

@@ -1,0 +1,1 @@
+{"start": 2936.4, "end": 3545.1, "confidence": 0.98, "reason": "Host-read sponsor segment with promotional language, URLs, and calls to action for sponsors including Zscaler, Meter, Bitwarden, Hoxhunt, and Trusted Tech", "end_text": "we're doing stupid things faster with more energy."}

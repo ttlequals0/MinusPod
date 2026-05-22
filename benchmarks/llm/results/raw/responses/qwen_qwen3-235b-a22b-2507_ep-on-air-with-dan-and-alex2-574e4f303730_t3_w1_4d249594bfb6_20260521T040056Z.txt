@@ -1,0 +1,1 @@
+{"start": 524.6, "end": 550.1, "confidence": 0.98, "reason": "Transition phrase 'let's get down to business' after content gap suggests ad break; 'before, you wanted to quickly discuss' indicates resumption of content after sponsor segment", "end_text": "agenda for today's episode"}

@@ -1,0 +1,1 @@
+{"start": 7.0, "end": 1020.0, "confidence": 0.0, "reason": "No advertisement segments detected in transcript window", "end_text": "a lot of different Twitter pages that put out things and information."}

@@ -1,0 +1,13 @@
+[
+  {
+    "start": 8498.3,
+    "end": 8524.9,
+    "confidence": 0.95,
+    "reason": "Host discusses Google's search results being dominated by sponsored advertisements, which is a form of promotion.",
+    "end_text": "that I need to weigh down past a bunch of YouTube video links that I have zero interest in."
+  },
+  {
+    "start": 8525.6,
+    "end": 8548.6,
+    "confidence": 0.95,
+    "reason": "Host discusses Apple's App Store also prioritizing paid placements over user

@@ -1,0 +1,6 @@
+[
+  {
+    "start": 8980.5,
+    "end": 9000.0,
+    "confidence": 0.95,
+    "reason": "This segment appears to be the beginning of a platform-inserted ad. The host mentions seeing an ad in the newspaper and getting hired on the spot, which is a common narrative setup for ads. The transition to a new employer and the mention of a specific job type (word processor) at a company

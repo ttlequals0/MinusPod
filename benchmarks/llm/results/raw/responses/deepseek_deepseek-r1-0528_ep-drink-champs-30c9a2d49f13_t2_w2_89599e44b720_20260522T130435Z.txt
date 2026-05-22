@@ -1,0 +1,16 @@
+[
+  {
+    "start": 1330.2,
+    "end": 1363.8,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Athletic Greens",
+    "end_text": "athleticgreens.com/drinkchamps"
+  },
+  {
+    "start": 1364.6,
+    "end": 1390.3,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Shopify",
+    "end_text": "shopify.com/drinkchamps"
+  }
+]

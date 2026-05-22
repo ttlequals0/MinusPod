@@ -1,0 +1,9 @@
+[
+    {
+        "start": 7696.8,
+        "end": 7715.9,
+        "confidence": 0.92,
+        "reason": "Platform-inserted ad for 'Gangsta Grillz' and 'Master' (likely DJ Master) with promotional language for radio shows and new music content. Tonally distinct from host conversation and includes calls to action ('look', 'you down').",
+        "end_text": "fucked up the house."
+    }
+]

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 539.2,
+    "end": 624.5,
+    "confidence": 1.0,
+    "reason": "Sponsor ads for 'In the Gray' movie and Skechers slip-ins; segment continues past the end of this transcript window.",
+    "end_text": "sandals, sneakers,"
+  }
+]

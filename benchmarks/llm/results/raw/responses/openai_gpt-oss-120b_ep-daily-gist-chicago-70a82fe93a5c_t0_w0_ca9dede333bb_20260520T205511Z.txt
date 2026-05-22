@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 54.1,
+      "end": 64.7,
+      "confidence": 0.98,
+      "reason": "Old National Bank sponsor read with brand name, tagline, URL and call to action",
+      "end_text": "Member FDIC."
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+{"start": 10069.7, "end": 10675.4, "confidence": 0.99, "reason": "No promotional language, sponsor mentions, URLs, or calls to action detected; all content is organic conversation about Warren Sapp, NFL, college football, player rights, and related topics", "end_text": "wait for that 25 years. You know what I'm saying? Like, I think that's something..."}

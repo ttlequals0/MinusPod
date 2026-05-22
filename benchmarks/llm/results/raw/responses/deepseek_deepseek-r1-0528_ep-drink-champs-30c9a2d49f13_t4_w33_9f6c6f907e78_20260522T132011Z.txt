@@ -1,0 +1,23 @@
+[
+  {
+    "start": 13886.8,
+    "end": 13907.2,
+    "confidence": 0.95,
+    "reason": "Transition phrase 'Let's take a sunny shot' (likely misheard 'Let's take a shot') with context of interrupting conversation flow",
+    "end_text": "He still ain't taking a shot? No."
+  },
+  {
+    "start": 14043.9,
+    "end": 14069.0,
+    "confidence": 0.9,
+    "reason": "Mentions 'Drink Champs' and 'Sport Champs' with promotional tone about merchandise",
+    "end_text": "I wasn't thinking about it."
+  },
+  {
+    "start": 14316.0,
+    "end": 14343.8,
+    "confidence": 0.85,
+    "reason": "Repeated references to 'sports champ' in self-promotional context",
+    "end_text": "in the midterm..."
+  }
+]

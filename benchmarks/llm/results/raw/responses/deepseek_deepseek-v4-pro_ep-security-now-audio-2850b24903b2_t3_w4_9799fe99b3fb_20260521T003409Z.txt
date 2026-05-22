@@ -1,0 +1,1 @@
+{"start": 1905.2, "end": 2288.1, "confidence": 0.95, "reason": "Network-inserted promo for TWiT.tv network shows 'Thank you for watching' transitions; contains bit.ly/twit promo language.", "end_text": "Thank you for watching"}

@@ -1,0 +1,1 @@
+[{"start": 15388.3, "end": 15517.1, "confidence": 0.99, "reason": "Consecutive sponsor reads and network platform ads (Airtasker, CVS, Trashy, Try Fencing, iHeart) with gaps under 15 seconds.", "end_text": "This is an iHeart Podcast. Guaranteed human."}]

@@ -1,0 +1,7 @@
+{
+  "start": 14.0,
+  "end": 24.0,
+  "confidence": 0.95,
+  "reason": "The segment contains a transition phrase indicating a continuation of a sponsor segment, with a clear promotional language and mention of a product (Roscoe Griffin's shoulder pads).",
+  "end_text": "Roscoe needed"
+}

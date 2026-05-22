@@ -1,0 +1,5 @@
+{
+  "transcript": "Alright, so we're talking about the NFL and college football, and I just want to bring up something that's been on my mind. You know, college athletes not getting paid is wild, right? I mean, they're generating millions for their schools and the NCAA, but they don't see a dime. It's like, how is that fair? I remember when I was in college, we didn't get paid either, but at least we had some scholarships. These kids are out there putting their bodies on the line, and they can't even make a buck from their own jerseys. It's messed up.",
+  "start": 10635.9,
+  "end": 10650.3
+}

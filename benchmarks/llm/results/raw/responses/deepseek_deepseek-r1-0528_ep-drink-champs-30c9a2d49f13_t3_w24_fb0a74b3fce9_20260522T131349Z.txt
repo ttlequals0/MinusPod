@@ -1,0 +1,9 @@
+[
+  {
+    "start": 10680.0,
+    "end": 10705.5,
+    "confidence": 0.0,
+    "reason": "No promotional content found; conversation about rights and reparations",
+    "end_text": "that's something that"
+  }
+]

@@ -1,0 +1,7 @@
+{
+  "start": 89.36,
+  "end": 91.12,
+  "confidence": 0.95,
+  "reason": "The segment contains a transition phrase indicating a shift from a sponsor segment to a host segment, with a clear change in topic and tone.",
+  "end_text": "hold on, hold on"
+}

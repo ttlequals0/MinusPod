@@ -1,0 +1,1 @@
+{"start":2560.1,"end":2693.0,"confidence":0.98,"reason":"Meter sponsor break introduced by 'break time' and 'This episode of Security Now brought to you by Meter' with product pitch and URL meter.com/securitynow","end_text":"security now book a demo okay meter all right now back to steve"}

@@ -1,0 +1,16 @@
+[
+    {
+        "start": 506.4,
+        "end": 548.5,
+        "confidence": 0.98,
+        "reason": "Crain's Weekly News Quiz promotion with call to action and URL (chicagobusiness.com/quiz). Includes transition phrase 'right after this' and platform-inserted promo for the podcast itself.",
+        "end_text": "wherever you get your podcasts."
+    },
+    {
+        "start": 548.5,
+        "end": 550.0,
+        "confidence": 0.95,
+        "reason": "Short network-inserted brand tagline ad for the podcast itself, tonally distinct and promotional ('Crain's Daily Gist with Amy Guth').",
+        "end_text": "Daily Gist with Amy Guth."
+    }
+]

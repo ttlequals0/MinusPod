@@ -1,0 +1,1 @@
+{"start": 8588.6, "end": 8588.6, "confidence": 0.1, "reason": "no promotional language found", "end_text": "y'all got DJ Clue"}

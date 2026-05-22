@@ -1,0 +1,58 @@
+Podcast: security-now-audio
+Episode: SN 1077: A Browser AI API? - End of Bug Bounties?
+
+
+Episode description: <p>Google is sneaking a massive 4.7GB AI model into Chrome, and Mozilla is fighting back as the future of browsers threatens to turn into an AI arms race. Find out what's really happening behind this push and why it's setting off alarm bells across the web.</p><ul> 
+<li>Hackers AI-code a portal, forget to add authentication.</li> 
+<li>The UK's NCSC issues a Mythos warning. Where's CISA?</li> 
+<li>Another (of many) Linux local privilege escalations.</li> 
+<li>AI may be spelling the end of bug bounties.</li> 
+<li>Anthropic releases "Claude Security" mini-Mythos.</li> 
+<li>ChatGPT gets very serious about login security.</li> 
+<li>Syncthing's SyncTrayzor v1 abandoned; v2 created.</li> 
+<li>Google drops an AI API into Chrome; Mozilla objects</li></ul> 
+<p>Show Notes - <a href="https://www.grc.com/sn/SN-1077-Notes.pdf">https://www.grc.com/sn/SN-1077-Notes.pdf</a></p> 
+<p><strong>Hosts:</strong> <a href="https://twit.tv/people/steve-gibson">Steve Gibson</a> and <a href="https://twit.tv/people/leo-laporte">Leo Laporte</a></p> 
+<p>Download or subscribe to <em>Security Now</em> at <a href="https://twit.tv/shows/security-now">https://twit.tv/shows/security-now</a>.</p> 
+<p>You can submit a question to <em>Security Now</em> at the <a href="https://www.grc.com/feedback.htm" target="_blank">GRC Feedback Page</a>.</p> 
+<p>For 16kbps versions, transcripts, and notes (including fixes), visit Steve's site: <a href="https://www.grc.com/securitynow.htm" target="_blank">grc.com</a>, also the home of the best disk maintenance and recovery utility ever written <a href="https://www.grc.com/sr/spinrite.htm" target="_blank">Spinrite 6</a>.</p> 
+<p><strong>Join Club TWiT for Ad-Free Podcasts!</strong><br /> 
+Support what you love and get ad-free audio <em>and</em> video feeds, a members-only Discord, and exclusive content. Join today: <a href="https://twit.tv/clubtwit" rel="payment">https://twit.tv/clubtwit</a></p>
+<p><strong>Sponsors:</strong><ul>
+<li><a href="http://zscaler.com/security" rel="sponsored" target="_blank">zscaler.com/security</a></li>
+<li><a href="http://meter.com/securitynow" rel="sponsored" target="_blank">meter.com/securitynow</a></li>
+<li><a href="http://bitwarden.com/twit" rel="sponsored" target="_blank">bitwarden.com/twit</a></li>
+<li><a href="http://hoxhunt.com/securitynow" rel="sponsored" target="_blank">hoxhunt.com/securitynow</a></li>
+<li><a href="http://trustedtech.team/securitynow365" rel="sponsored" target="_blank">trustedtech.team/securitynow365</a></li>
+</ul></p>
+
+Transcript:
+[8813.1s - 8840.3s] Microsoft's found that out in spades. Oh, those annoying chat box that pop up in the lower right corner of your screen. Well, that's going to end up running locally. And it's like... So I don't want to turn people against AI. AI is a real value. But by doing this kind of forcing it down people's throats, you're actually making enemies. And I don't think that's good either for Google or for AI in general. So, yeah, I have lots of problems. We'll talk about this. I'm looking forward to a conversation tomorrow.
+[8861.4s - 8863.9s] Google wants everybody to have it.
+[8864.6s - 8891.9s] It's not a very well-kept secret. I should point out that one of the reasons Google thinks this is okay is because they're already doing this on Android, as is Apple doing it on iOS. There are built-in local models on both those systems. Apple touts this all the time. And your data stays local on the device. Apple Intelligence is a local model. So there is a precedent for this on those platforms. I think I still wish, maybe it's a futile wish, that the web would be a
+[8892.5s - 8919.3s] All of these are standards-based interface and that everybody should be able to choose the browser of their choice and they should all work well. The only one who doesn't want it to be a standard is the big guy. It's Google, the winner. Yeah, you're not going to see Vivaldi saying, well, we think a standard should be in favor of us. They can't, nor can Mozilla, but Google can and clearly they do. I agree with you.
+[8920.9s - 8948.8s] You know, we saw Google back way down on a number of its proposals. True. The whole anti-tracking technology, they tried several times, but they got real pushback. But they got pushback from people who had invested, I mean, like... Advertisers. Yes, exactly. Large, large commercial interests, and there's no one to push back on this.
+[8949.2s - 8975.3s] Well, just remember, as users, maybe as individuals, we don't have much power, but collectively, we do. They still need us to use their darn browsers. But would somebody leave Chrome to go to Firefox? Well, you and I have. I've, yes. You and I have, and this is one of the reasons. And fortunately, so far, you can mostly use the internet with a Firefox-based browser, mostly.
+[8976.2s - 9004.0s] Widevine is another example, DRM in the browser. Yeah, the OpenTable site I use for restaurant reservations and it doesn't work under Firefox. Needs Chrome. As I said, Restream needs Chrome because of WebRTC and the WebRTC implementation it uses. I think that's, you know, this is an object lesson. This is what happens. And if you don't want, if you want Chrome and Google to be the only player in the internet,
+[9004.9s - 9027.2s] This is how these things happen. I think we gotta fight. Hey, great topic, great show as usual. Thanks to all of you for being here. We do Security Now Tuesdays, as I mentioned. Steve's got copies of his show, if you can't watch live, at his website, GRC.com. Actually, he has a lot of good stuff at GRC.com. The show is there, including...
+[9027.5s - 9056.4s] unique versions. Only Steve has a 16 kilobit audio version, a 64 kilobit audio version. Those are nice small versions for people who just want the audio. They don't want a lot of bandwidth. They don't want 4.7 gigabytes of AI downloaded with every single episode. He also has very nice transcripts written by Elaine Farris. She's going to put that up a couple of days from now. It takes a while. She actually has to physically type it. He also has the show notes. There are 20 pages, 21 pages this week, 22 pages of
+[9056.5s - 9071.8s] Thank you for watching, and I'll see you next time.
+[9075.4s - 9102.6s] questions, submit photos. Oh, there goes another one of those helicopters. My wife might even be on it. Send in your photos for the picture of the week, that kind of thing. But below that email form, there is also, there are two check boxes. One for the weekly newsletter mailing. You can sign up for that. You'll get it automatically every Sunday or Monday. The other is for a much less frequent email when he's got a new product, something like Spinrite.
+[9103.0s - 9130.0s] I don't know seven could be in the horizon we're at 6.1 in the world's best mass storage maintenance recovery and performance enhancing utility uh he also has that fabulous dns benchmark pro which he has been uh updating and a new update i think is coming soon anyway that's how you'd find out about those things do get spin right that's steve's bread and butter you'll find that at grc too and if you have mass storage you need spin right if you don't have it get it now for sure
+[9130.7s - 9150.4s] Also, lots of other free stuff. Steve's kind of prolific. All hand-coded in assembly language. Steve, I don't think you're ever going to use vibe coding tools somehow. You know, I think my first exposure may be creating some homegrown iOS things. Just for yourself.
+[9151.1s - 9172.9s] Not something, yes, it's for home automation and just for like monitoring GRC servers. And I'm thinking, you know, not commercial products, but just my own purpose. I was just looking at my GitHub repo and my projects. I have 22 or 23 little things like that that I vibe coded that are incredibly useful.
+[9174.2s - 9201.6s] You know, it's scanning my email now. It's preparing my calendar. It's doing all sorts of great stuff. But there is a big difference between putting that on your own hardware and using it for yourself and giving it to the public. And Steve knows that's a high, much higher calling, higher responsibility. We have copies of the show at our website, twit.tv slash SN. We have 188 kilobit audio, which does not amazingly enough sound any better than the 64 kilobit audio.
+[9202.1s - 9222.4s] But it's there because Apple downsamples and we need it to be bigger, etc. It's a long story. I don't even want to bore you with it. We also have video, which Steve refuses to do because he fought us every step of the way. But we've been offering video for some time now on Security Now. You can get that at twit.tv slash SN. There is a YouTube channel for the video.
+[9223.0s - 9237.4s] More importantly, you can subscribe in your favorite podcast client and get it automatically so you don't even have to think about it. Just every Tuesday, you'll get a new Security Now like magic. We will be back next Tuesday. I will be back home, I'm sad to say.
+[9237.9s - 9255.8s] I apologize for any stray noises coming in from my lanai. It's been very nice to have a little tropical bird tweeting background. It's in the 80s. The breezes are blowing. It's just beautiful. It's really lovely here. Thanks Steve. Have a great week.
+[9237.9s - 9258.6s] I apologize for any stray noises coming in from my lanai. It's been very nice to have a little tropical bird tweeting background. It's in the 80s. The breezes are blowing. It's just beautiful. It's really lovely here. Thanks, Steve. Have a great week. We'll see you next time on Security Now. Righto.
+[9259.3s - 9281.2s] Hi there, Leo Laporte here. I just wanted to let you know about some of the other shows we do on this network. You probably already know about This Week in Tech. Every Sunday, I bring together some of the top journalists in the tech field to talk about the tech stories. It's a wonderful chance for you to keep up on what's going on with tech, plus be entertained by some very bright and fun minds.
+[9281.7s - 9290.5s] I hope you'll tune in every Sunday for This Week in Tech. Just go to your favorite podcast client and subscribe. This Week in Tech from the TWiT Network. Thank you.
+[9312.9s - 9315.5s] Fit for your ambition, for citizens back.
+[9344.4s - 9363.3s] Ryan Reynolds here from Mint Mobile. I don't know if you knew this, but anyone can get the same premium wireless for $15 a month plan that I've been enjoying. It's not just for celebrities. So do like I did and have one of your assistant's assistants switch you to Mint Mobile today. I'm told it's super easy to do at mintmobile.com slash switch.
+[9363.8s - 9374.4s] Upfront payment of $45 for three-month plan equivalent to $15 per month required. Intro rate first three months only, then full price plan options available. Taxes and fees extra. See full terms at mintmobile.com.
+
+=== WINDOW 22/23: 147.0-156.2 minutes ===
+- Use absolute timestamps from transcript (as shown in brackets)
+- If an ad starts before this window, use the first timestamp with note "continues from previous"
+- If an ad extends past this window, use 9374.4 with note "continues in next"

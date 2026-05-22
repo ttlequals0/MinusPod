@@ -1,0 +1,1 @@
+{"start": 1341.5, "end": 1440.0, "confidence": 0.9, "reason": "Host-read ad for 'Manny Mawson' with promotional language and call to action", "end_text": "Manny Mawson, he scores like early in that game with deep ball."}

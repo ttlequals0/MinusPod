@@ -1,0 +1,2 @@
+."
+{"start": 17.7, "end": 43.4, "confidence": 0.95, "reason": "Carvana sponsor read with call to action and transition phrase", "end_text": "Pickup fees may apply."}

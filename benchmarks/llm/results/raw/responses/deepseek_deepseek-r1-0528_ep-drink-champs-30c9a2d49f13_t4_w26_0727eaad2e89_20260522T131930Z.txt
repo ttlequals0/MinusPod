@@ -1,0 +1,9 @@
+[
+  {
+    "start": 11335.2,
+    "end": 11455.4,
+    "confidence": 1.0,
+    "reason": "Ad break: Airtasker, Decisions Decisions podcast promo sponsored by Gilead Sciences, OnDeck",
+    "end_text": "subject to lender approval"
+  }
+]

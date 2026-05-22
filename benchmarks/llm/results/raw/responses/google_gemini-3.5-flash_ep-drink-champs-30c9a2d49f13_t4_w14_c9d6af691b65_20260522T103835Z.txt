@@ -1,0 +1,9 @@
+[
+  {
+    "start": 6208.7,
+    "end": 6318.1,
+    "confidence": 0.99,
+    "reason": "Airtasker, Decisions Decisions podcast promo, OnDeck, and Public sponsor reads",
+    "end_text": "who take it seriously."
+  }
+]

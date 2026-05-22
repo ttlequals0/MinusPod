@@ -1,0 +1,1 @@
+{"start": 6723.5, "end": 7336.8, "confidence": 0.0, "reason": "No promotional content, sponsor reads, URLs, promo codes, or platform insertions detected in this window. All transcript content is organic conversation between hosts and guest.", "end_text": "She show up."}

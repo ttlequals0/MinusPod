@@ -1,0 +1,1 @@
+{"start":2560.1,"end":2687.4,"confidence":0.99,"reason":"Host-read sponsor break for Meter with transition 'break time' and multiple promotional mentions including meter.com/securitynow, product pitch, and call to action to book a demo.","end_text":"meter.com slash security now"}

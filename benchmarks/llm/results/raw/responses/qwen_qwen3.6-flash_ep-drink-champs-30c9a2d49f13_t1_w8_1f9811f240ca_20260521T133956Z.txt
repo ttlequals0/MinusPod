@@ -1,0 +1,1 @@
+[{"start": 3478.9, "end": 3690.2, "confidence": 0.95, "reason": "Block of sponsor reads and cross-promotions (Airtasker, Decisions Decisions, OnDeck, Public)", "end_text": "public.com slash disclosures."}]

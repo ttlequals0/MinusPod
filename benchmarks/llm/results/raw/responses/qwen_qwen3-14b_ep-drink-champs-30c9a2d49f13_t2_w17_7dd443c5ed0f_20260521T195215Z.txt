@@ -1,0 +1,1 @@
+{"start": 7122.6, "end": 7148.0, "confidence": 0.0, "reason": "no ad detected", "end_text": "all that. I got all that."}

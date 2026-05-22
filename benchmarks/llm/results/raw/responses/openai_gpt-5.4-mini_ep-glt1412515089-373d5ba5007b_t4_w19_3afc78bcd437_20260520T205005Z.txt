@@ -1,0 +1,1 @@
+{"start":7965.7,"end":7993.9,"confidence":0.33,"reason":"No promotional language in this window; only show conversation about retrocausality and UFOs. No ad detected.","end_text":"to current human beings to..."}

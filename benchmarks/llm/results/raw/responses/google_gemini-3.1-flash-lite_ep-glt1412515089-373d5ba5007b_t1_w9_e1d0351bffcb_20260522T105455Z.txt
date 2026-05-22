@@ -1,0 +1,9 @@
+[
+  {
+    "start": 4380.0,
+    "end": 4400.0,
+    "confidence": 0.95,
+    "reason": "Perplexity platform-inserted ad",
+    "end_text": "Visit podcastchoices.com/adchoices"
+  }
+]

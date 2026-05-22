@@ -1,0 +1,1 @@
+{"start": 10497.6, "end": 11104.1, "confidence": 0.0, "reason": "No promotional content found in transcript segment. All content is conversational about football, college players, and personal stories.", "end_text": "i was there you were there"}

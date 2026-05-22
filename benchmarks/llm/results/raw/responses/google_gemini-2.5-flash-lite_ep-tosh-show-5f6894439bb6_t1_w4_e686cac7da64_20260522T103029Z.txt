@@ -1,0 +1,23 @@
+[
+  {
+    "start": 1837.5,
+    "end": 1912.2,
+    "confidence": 0.98,
+    "reason": "Host-read ad for Mint Mobile, including a call to action with a URL and mention of pricing.",
+    "end_text": "details."
+  },
+  {
+    "start": 1913.4,
+    "end": 1942.4,
+    "confidence": 0.95,
+    "reason": "Network-inserted ad for Mattress Warehouse, promoting a Memorial Day Sale with specific savings and product mentions.",
+    "end_text": "at Mattress Warehouse."
+  },
+  {
+    "start": 1943.2,
+    "end": 1999.5,
+    "confidence": 0.95,
+    "reason": "Network-inserted ad for PC Richard & Son promoting their Aseema Lease to Own program with specific offer details and a URL.",
+    "end_text": "Aseema dot HTML for details."
+  }
+]

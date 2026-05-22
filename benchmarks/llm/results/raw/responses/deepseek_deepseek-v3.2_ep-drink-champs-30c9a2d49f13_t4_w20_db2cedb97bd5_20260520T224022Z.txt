@@ -1,0 +1,1 @@
+{"start": 8724.9, "end": 8826.4, "confidence": 0.99, "reason": "Multiple network-inserted ads: AirTasker, Decisions Decisions podcast promo, OnDeck business loan ad", "end_text": "subject to lender approval."}

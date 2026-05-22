@@ -1,0 +1,1 @@
+{"start": 8724.9, "end": 8889.4, "confidence": 0.97, "reason": "Platform-inserted ad block featuring AirTasker, Decisions Decisions cross-promo with Gilead Sciences, OnDeck, and Public investing pitch", "end_text": "Transcription by CastingWords"}

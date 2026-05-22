@@ -1,0 +1,2 @@
+w.
+{"start": 7936.3, "end": 7936.3, "confidence": 0.0, "reason": "No advertisement segments found in the provided window.", "end_text": "Thank you for watching."}

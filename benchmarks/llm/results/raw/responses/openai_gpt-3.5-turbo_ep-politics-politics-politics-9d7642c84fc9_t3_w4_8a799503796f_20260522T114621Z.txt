@@ -1,0 +1,7 @@
+{
+	"start": 2230.3,
+	"end": 2257.8,
+	"confidence": 0.95,
+	"reason": "Non-ad content discussing tech infrastructure and education",
+	"end_text": "understand all the infrastructure that goes with it."
+}

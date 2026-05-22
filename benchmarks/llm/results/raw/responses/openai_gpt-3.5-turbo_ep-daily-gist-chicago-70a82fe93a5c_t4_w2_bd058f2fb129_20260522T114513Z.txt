@@ -1,0 +1,7 @@
+{
+	"start": 1267.4,
+	"end": 1271.2,
+	"confidence": 1,
+	"reason": "End of episode",
+	"end_text": "right back here next time."
+}

@@ -1,0 +1,1 @@
+{"start":7135.4,"end":7168.9,"confidence":0.95,"reason":"Host-read promotional segment for Lauren LaRosa's podcast with explicit call to listen and follow, followed by show sign-off before ad transition","end_text":"It's the Brilliant Idiots podcast. Thank you for listening."}

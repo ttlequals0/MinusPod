@@ -1,0 +1,1 @@
+{"start": 0.0, "end": 72.1, "confidence": 0.99, "reason": "iHeart Podcast intro, Airtasker ad, Weezy WTF/Care for the Culture ad, Gilead Sciences tag", "end_text": "from Gilead Sciences."}

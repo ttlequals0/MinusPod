@@ -1,0 +1,1 @@
+{"start": 2234.5, "end": 2263.3, "confidence": 0.3, "reason": "Possible ad break or transition with 'Take one' repeated, but no promotional language, sponsor names, or product pitches detected in transcript. Likely show content (drinking/toasting) or music gap.", "end_text": "Take one."}

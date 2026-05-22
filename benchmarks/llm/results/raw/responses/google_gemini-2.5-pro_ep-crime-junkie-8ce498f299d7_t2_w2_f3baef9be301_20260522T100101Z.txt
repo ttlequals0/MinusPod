@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1035.7,
+    "end": 1129.6,
+    "confidence": 0.99,
+    "reason": "Host-read ads for SoFi and LinkedIn.",
+    "end_text": "LinkedIn.com slash all-in-one."
+  }
+]

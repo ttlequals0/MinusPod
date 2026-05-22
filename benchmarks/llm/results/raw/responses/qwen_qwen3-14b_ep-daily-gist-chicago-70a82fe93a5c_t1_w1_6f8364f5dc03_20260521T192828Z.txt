@@ -1,0 +1,2 @@
+n.
+{"start": 521.5, "end": 548.5, "confidence": 0.95, "reason": "Crain's Weekly News Quiz promotion with URL and call to action", "end_text": "get your podcasts."}

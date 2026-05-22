@@ -1,0 +1,1 @@
+{"start": 3741.3, "end": 3767.0, "confidence": 0.9, "reason": "Host-read outro promoting the show, host, producer, and guest's work and Substack", "end_text": "She's got a good vibe."}

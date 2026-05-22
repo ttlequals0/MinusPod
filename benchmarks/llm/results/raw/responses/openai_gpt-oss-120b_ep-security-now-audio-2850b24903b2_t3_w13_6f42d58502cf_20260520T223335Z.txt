@@ -1,0 +1,3 @@
+[
+{"start":5491.1,"end":5578.4,"confidence":0.98,"reason":"Yubico partnership sponsor read","end_text":"software-based pass keys"},{"start":6016.6,"end":6060.0,"confidence":0.98,"reason":"Hawkshunt sponsor read, continues in next","end_text":"personalized to each employee"}
+]

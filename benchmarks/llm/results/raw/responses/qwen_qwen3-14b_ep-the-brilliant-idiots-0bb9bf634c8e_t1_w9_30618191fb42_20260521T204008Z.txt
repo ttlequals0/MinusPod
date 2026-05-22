@@ -1,0 +1,2 @@
+n.
+{"start": 3780.0, "end": 4380.0, "confidence": 0.0, "reason": "No advertisement segments found in the specified window", "end_text": "your outfit is..."}

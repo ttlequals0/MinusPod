@@ -1,0 +1,8 @@
+ Ad segment:
+[3118.4s - 3138.8s] "There's bots that you can do. I built one that will go, only has read permissions of my news folder in my Gmail, and every morning it will do a summary for me and then send it to me in Slack, that summary. So it's a more, it's something you build and it does an automated action in its most simplest form. Yeah, it's taking. [This segment is an advertisement for AI bots and automation tools. The host is discussing how he has built and uses a bot for his personal use, promoting the capability and benefits of such tools.]
+
+Transition phrase: "There's bots that you can do."
+
+Duration: 18.4 seconds.
+
+Note: This ad segment continues from the previous window, as the discussion about bots and automation was not completed in the previous segment.

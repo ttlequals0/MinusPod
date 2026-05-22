@@ -1,0 +1,16 @@
+[
+  {
+    "start": 13669.1,
+    "end": 13815.9,
+    "confidence": 0.98,
+    "reason": "Multiple platform-inserted ads: Airtasker app promotion, Decisions Decisions podcast cross-promotion, OnDeck business loans, Public investing platform",
+    "end_text": "back test it again"
+  },
+  {
+    "start": 13844.8,
+    "end": 13854.6,
+    "confidence": 0.95,
+    "reason": "Public investing platform disclosures with URL call to action",
+    "end_text": "public.com slash disclosures"
+  }
+]

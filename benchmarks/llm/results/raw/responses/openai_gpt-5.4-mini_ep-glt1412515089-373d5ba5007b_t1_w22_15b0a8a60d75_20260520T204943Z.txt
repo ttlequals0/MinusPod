@@ -1,0 +1,1 @@
+{"start":9839.9,"end":9839.9,"confidence":0.95,"reason":"Transcript ends mid-mention of Applied Love Labs / timemachine.love; no clear ad break transition or sponsor pitch in this window. Partial segment only, not enough evidence to classify as an ad.","end_text":"unconditional love itself caused"}

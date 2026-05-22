@@ -1,0 +1,9 @@
+[
+    {
+        "start": 7624.2,
+        "end": 7650.0,
+        "confidence": 0.3,
+        "reason": "Mention of DJ Khaled and DJ Drama, but no promotional language or sponsor indicators. Context is a game choice, not an ad.",
+        "end_text": "greatest shit ever."
+    }
+]

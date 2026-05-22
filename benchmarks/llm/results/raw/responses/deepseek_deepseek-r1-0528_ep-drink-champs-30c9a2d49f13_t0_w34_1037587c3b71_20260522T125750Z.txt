@@ -1,0 +1,9 @@
+[
+  {
+    "start": 14581.4,
+    "end": 14611.2,
+    "confidence": 0.95,
+    "reason": "Host-read ad for self-improvement/knowledge product",
+    "end_text": "spread the love and"
+  }
+]

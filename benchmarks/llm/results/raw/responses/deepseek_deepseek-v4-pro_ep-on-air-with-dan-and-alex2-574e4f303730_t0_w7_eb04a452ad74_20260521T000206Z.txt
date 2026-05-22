@@ -1,0 +1,18 @@
+{
+  "segments": [
+    {
+      "start": 3428.1,
+      "end": 3457.8,
+      "confidence": 0.97,
+      "reason": "Arizona State University online degree program ad with promotional call to action",
+      "end_text": "That's a degree better."
+    },
+    {
+      "start": 3458.8,
+      "end": 3486.2,
+      "confidence": 0.95,
+      "reason": "University of Michigan brand ad with research stories and URL call to action",
+      "end_text": "See more solutions at umich.edu."
+    }
+  ]
+}

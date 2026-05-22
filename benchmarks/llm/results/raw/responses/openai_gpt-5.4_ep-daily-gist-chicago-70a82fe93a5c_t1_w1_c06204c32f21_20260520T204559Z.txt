@@ -1,0 +1,1 @@
+{"start":506.4,"end":548.5,"confidence":0.95,"reason":"Crain's self-promotional ad break for the Crain's Weekly News Quiz, introduced with 'right after this' and includes CTA/URL 'visit chicagobusiness.com slash quiz'","end_text":"This is the Crain's Daily Gist with Amy Guth."}

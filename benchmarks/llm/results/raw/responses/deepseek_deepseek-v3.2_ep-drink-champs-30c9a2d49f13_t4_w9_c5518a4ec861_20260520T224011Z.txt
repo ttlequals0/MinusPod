@@ -1,0 +1,1 @@
+{"start": 4401.9, "end": 4401.9, "confidence": 0.95, "reason": "Hosting platform post-roll ad: 'omnystudio.com/listener' for privacy information", "end_text": "omnystudio.com/listener"}

@@ -1,0 +1,7 @@
+{
+  "start": 909.6,
+  "end": 933.9,
+  "confidence": 0.84,
+  "reason": "Host-read self-promotional plug for TakePoliticsSeriously.com with call to action to get two episodes of the show",
+  "end_text": "get two episodes of this show"
+}

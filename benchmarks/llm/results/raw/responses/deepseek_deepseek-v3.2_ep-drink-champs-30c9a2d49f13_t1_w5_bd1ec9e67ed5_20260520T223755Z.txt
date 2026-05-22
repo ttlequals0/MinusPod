@@ -1,0 +1,1 @@
+{"start": 2714.2, "end": 2714.2, "confidence": 0.0, "reason": "No ad content detected in this transcript segment. The provided text is a continuous conversation about the NFL draft with no promotional language, transitions, or sponsor mentions.", "end_text": "I'm with you, baby. That's it."}

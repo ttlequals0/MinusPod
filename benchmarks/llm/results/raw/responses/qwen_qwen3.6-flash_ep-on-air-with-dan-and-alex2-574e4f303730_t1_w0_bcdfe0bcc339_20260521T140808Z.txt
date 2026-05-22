@@ -1,0 +1,1 @@
+[{"start": 0.0, "end": 59.8, "confidence": 0.97, "reason": "HEX and Orange County NY tourism sponsor reads", "end_text": "Find your fresh state of mind at PickOCNY.com."}]

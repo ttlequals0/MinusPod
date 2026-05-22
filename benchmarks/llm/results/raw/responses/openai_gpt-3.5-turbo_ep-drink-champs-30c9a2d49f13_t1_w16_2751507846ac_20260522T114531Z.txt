@@ -1,0 +1,7 @@
+{
+	"start": 112.0,
+	"end": 122.0,
+	"confidence": 1.0,
+	"reason": "Transition phrase 'Let's take a break'",
+	"end_text": "show up."
+}

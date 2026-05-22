@@ -1,0 +1,1 @@
+{"start":0.0,"end":150.5,"confidence":0.99,"reason":"Multiple ad segments at episode start: iHeart Podcast/Airtasker promo with app URL and calls to action; sponsored Care for the Culture / Gilead Sciences message; Nissan campaign brand pitch; and Shopify sponsor read with URL and Black Effect Podcast Festival mention.","end_text":"Start now at Shopify.com slash B-E-N"}

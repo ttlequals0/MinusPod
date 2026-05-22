@@ -1,0 +1,1 @@
+{"start": 15261.8, "end": 15285.2, "confidence": 0.95, "reason": "Discount code repetition likely indicating ad segment", "end_text": "discount code,"}

@@ -1,0 +1,1 @@
+{"error": "No ad segments detected in this window. All content appears to be continuous narrative and investigative discussion without promotional language, sponsor mentions, URLs, promo codes, or platform-inserted advertising. Transitions and audio gaps (if any) are consistent with normal podcast production and not indicative of advertisements."}

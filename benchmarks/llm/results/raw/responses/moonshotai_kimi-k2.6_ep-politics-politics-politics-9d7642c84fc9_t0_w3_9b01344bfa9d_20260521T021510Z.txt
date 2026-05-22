@@ -1,0 +1,1 @@
+ {"start": 1589.9, "end": 1601.7, "confidence": 0.85, "reason": "Host-read sponsor/promotional segment for podcast subscription with call to action and price point ('Less than 50 cents an episode')", "end_text": "50 cents an episode? Huh. Interesting."}

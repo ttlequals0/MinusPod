@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2324.6,
+    "end": 2450.0,
+    "confidence": 1.0,
+    "reason": "Host-read ads for BlueChew and ZipRecruiter",
+    "end_text": "match on ZipRecruiter."
+  }
+]

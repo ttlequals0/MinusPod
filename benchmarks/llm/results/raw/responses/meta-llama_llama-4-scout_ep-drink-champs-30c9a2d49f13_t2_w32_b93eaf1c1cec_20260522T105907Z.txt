@@ -1,0 +1,18 @@
+ads 
+  {
+start": .1, "end": 13719.5, 
+    "confidence":.98, 
+reason": "Airt sponsor read", "end_text": "Airtasker.com"
+  }, 
+  {
+   ": 13759.0, "end13786.2    "0.98, 
+    "reason": "OnDeck sponsor read", 
+    " "OnDeck.com"
+  }, 
+ "start": 13815.9, 
+   ": 13828.9, 
+    "confidence": 0.98, 
+    "reason": "Public.com sponsor read", 
+end_text": "public.com"
+  }
+]}

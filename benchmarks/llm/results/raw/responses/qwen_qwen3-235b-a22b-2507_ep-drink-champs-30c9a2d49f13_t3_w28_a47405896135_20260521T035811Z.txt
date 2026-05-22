@@ -1,0 +1,1 @@
+{"start": 11825.1, "end": 11864.6, "confidence": 0.98, "reason": "Host-read ad transition and repeated call for shots suggests a promotional break, but no sponsor content present in transcript", "end_text": "Give me a shot."}

@@ -1,0 +1,1 @@
+{"start": 2522.4, "end": 2534.5, "confidence": 0.98, "reason": "Mid-roll transition with promotional intent referencing 'shout out to the mid-roll', indicating a sponsor segment is being acknowledged", "end_text": "Right. And then..."}

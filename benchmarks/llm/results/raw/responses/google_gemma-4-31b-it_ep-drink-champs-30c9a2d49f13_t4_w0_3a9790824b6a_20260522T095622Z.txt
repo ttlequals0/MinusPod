@@ -1,0 +1,1 @@
+{"start": 0.0, "end": 150.5, "confidence": 0.98, "reason": "Sequence of platform-inserted and host-read ads including Airtasker, Care for the Culture (Gilead Sciences), Nissan, and Shopify", "end_text": "Shopify.com slash B-E-N"}

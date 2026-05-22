@@ -1,0 +1,2 @@
+."
+{"start": 6283.4, "end": 6312.4, "confidence": 0.95, "reason": "OnDeck small business line of credit sponsor read", "end_text": "lender approval."}

@@ -1,0 +1,1 @@
+{"start":506.4,"end":548.5,"confidence":0.86,"reason":"House promo for Crain's Weekly News Quiz with CTA and URL chicagobusiness.com/quiz; includes transition 'right after this'","end_text":"Daily Gist with Amy Guth"}

@@ -1,0 +1,1 @@
+{"start":8799.1,"end":8831.4,"confidence":0.99,"reason":"OnDeck sponsor read followed by Public support mention; contains promotional language, loan pitch, and the transition back to show break context","end_text":"the investing platform for those who take it seriously"}

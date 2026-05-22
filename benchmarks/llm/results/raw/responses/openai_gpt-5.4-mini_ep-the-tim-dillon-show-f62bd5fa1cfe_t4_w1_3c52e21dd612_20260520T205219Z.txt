@@ -1,0 +1,1 @@
+{"start":401.8,"end":430.7,"confidence":0.86,"reason":"Transcript shows a produced sponsor break immediately before this content, but the actual promo copy is truncated in this window; likely a host-read ad continuation from prior segment.","end_text":"houses or whatever. I don't"}

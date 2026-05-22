@@ -1,0 +1,6 @@
+[
+    {"start": 1460.1, "end": 1486.1, "confidence": 0.95, "reason": "Airtasker sponsor read", "end_text": "get anything done."},
+    {"start": 1486.6, "end": 1524.8, "confidence": 0.9, "reason": "Cross-promotion for Decisions Decisions podcast sponsored by Gilead Sciences", "end_text": "Gilead Sciences"},
+    {"start": 1525.5, "end": 1553.8, "confidence": 0.95, "reason": "OnDeck small business loan ad", "end_text": "OnDeck.com"},
+    {"start": 1555.6, "end": 1629.0, "confidence": 0.95, "reason": "BetMGM sports betting ad", "end_text": "Kansas Crossing Casino and Hotel"}
+]

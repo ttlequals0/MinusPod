@@ -1,0 +1,1 @@
+{ "start": 7665.8, "end": 7693.5, "confidence": 1.0, "reason": "Host mentions sponsor: Gangsta Grills (product pitch with call to action 'let's go')", "end_text": "hell I heard. I want the newest" }

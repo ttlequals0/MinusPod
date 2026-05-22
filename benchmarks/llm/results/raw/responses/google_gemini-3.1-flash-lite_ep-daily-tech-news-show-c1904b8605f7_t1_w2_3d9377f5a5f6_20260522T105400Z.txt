@@ -1,0 +1,37 @@
+[
+  {
+    "start": 821.4,
+    "end": 857.6,
+    "confidence": 1.0,
+    "reason": "Capital One host-read advertisement",
+    "end_text": "That's technology at Capital One."
+  },
+  {
+    "start": 862.2,
+    "end": 889.7,
+    "confidence": 1.0,
+    "reason": "BetterHelp host-read advertisement",
+    "end_text": "10% off your first month of online therapy."
+  },
+  {
+    "start": 889.7,
+    "end": 910.1,
+    "confidence": 1.0,
+    "reason": "Amazon Health AI advertisement",
+    "end_text": "Healthcare just got less painful."
+  },
+  {
+    "start": 912.2,
+    "end": 961.5,
+    "confidence": 1.0,
+    "reason": "Spectrum Business advertisement",
+    "end_text": "Service is not available in all areas."
+  },
+  {
+    "start": 961.9,
+    "end": 1021.1,
+    "confidence": 1.0,
+    "reason": "Rinse laundry service advertisement",
+    "end_text": "It's time to be great."
+  }
+]

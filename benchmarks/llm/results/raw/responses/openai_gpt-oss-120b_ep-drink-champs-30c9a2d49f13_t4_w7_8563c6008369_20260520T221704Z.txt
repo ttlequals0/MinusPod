@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 3478.9,
+      "end": 3528.5,
+      "confidence": 0.98,
+      "reason": "Host-read sponsor segment promoting Airtasker with call to action and URL",
+      "end_text": "get anything done."
+    }
+  ]
+}

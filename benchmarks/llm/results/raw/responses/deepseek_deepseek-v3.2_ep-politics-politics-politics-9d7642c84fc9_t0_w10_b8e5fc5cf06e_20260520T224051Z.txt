@@ -1,0 +1,1 @@
+{"start": 4195.9, "end": 4285.6, "confidence": 0.95, "reason": "Host-read promotion for show's foundational tier and call to action for TakePoliticsSeriously.com", "end_text": "TakePoliticsSeriously.com."}

@@ -1,0 +1,2 @@
+y.
+{"start": 1257.4, "end": 1267.2, "confidence": 0.95, "reason": "Perplexity sponsor read with URL", "end_text": "https://pplx.ai/rogan."}

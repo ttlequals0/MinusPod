@@ -1,0 +1,7 @@
+{
+  "start": 2208.3,
+  "end": 2237.0,
+  "confidence": 0.99,
+  "reason": "Blinds.com sponsor read ad promoting window treatments with discount and free measure",
+  "end_text": "free professional measure at Blinds.com."
+}

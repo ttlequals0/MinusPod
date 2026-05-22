@@ -1,0 +1,16 @@
+[
+  {
+    "start": 2263.4,
+    "end": 2267.2,
+    "confidence": 0.95,
+    "reason": "Host transition to ad break",
+    "end_text": "Oh shit."
+  },
+  {
+    "start": 2268.6,
+    "end": 2296.9,
+    "confidence": 0.9,
+    "reason": "Host-read advertisement segment",
+    "end_text": "in my drawers. What?"
+  }
+]

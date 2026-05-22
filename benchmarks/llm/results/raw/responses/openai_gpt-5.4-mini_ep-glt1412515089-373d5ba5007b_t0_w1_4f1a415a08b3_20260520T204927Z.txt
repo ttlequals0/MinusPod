@@ -1,0 +1,1 @@
+{"ads":[{"start":539.2,"end":652.8,"confidence":0.99,"reason":"Multiple ad reads: 'This episode is brought to you by In the Gray' followed by Skechers slip-ins promo with product claims and call to action to Skechers.com","end_text":"That's only at Skechers.com"}]}

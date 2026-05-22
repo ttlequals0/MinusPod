@@ -1,0 +1,9 @@
+[
+  {
+    "start": 909.6,
+    "end": 933.9,
+    "confidence": 1.0,
+    "reason": "Host-read sponsor segment for TakePoliticsSeriously.com",
+    "end_text": "episodes of this show."
+  }
+]

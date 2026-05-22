@@ -1,0 +1,1 @@
+{"start":5036.2,"end":5052.8,"confidence":0.84,"reason":"Possible host-read promo for Oxide recruiting ('we are expanding the team... if you are a mechanical engineer'); no clear sponsor brand or paid advertisement language, but it functions as promotional hiring copy in the show outro.","end_text":"as well"}

@@ -1,0 +1,16 @@
+[
+  {
+    "start": 54.1,
+    "end": 64.7,
+    "confidence": 0.95,
+    "reason": "Old National Bank sponsor read with promotional language and call to action.",
+    "end_text": "Member FDIC."
+  },
+  {
+    "start": 506.4,
+    "end": 548.5,
+    "confidence": 0.95,
+    "reason": "Crain's Weekly News Quiz promotion with a call to action to visit chicagobusiness.com/quiz.",
+    "end_text": "Amy Guth."
+  }
+]

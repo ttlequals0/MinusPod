@@ -1,0 +1,7 @@
+{
+  "start": 3778.8,
+  "end": 4401.9,
+  "confidence": 0.95,
+  "reason": "No ads detected in this window. The content is all related to the conversation between the hosts and Warren Sapp about football, personal stories, and experiences. There are no promotional elements, sponsor mentions, or calls to action present in this segment.",
+  "end_text": "Yeah, 3-1, 3-1, 3-1, so we won 12. It was 12-4."
+}

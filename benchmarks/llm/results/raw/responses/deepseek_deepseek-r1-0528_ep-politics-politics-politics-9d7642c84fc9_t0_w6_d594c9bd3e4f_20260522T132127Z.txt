@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2864.3,
+    "end": 2886.7,
+    "confidence": 0.95,
+    "reason": "Host-read sponsor segment promoting subscription service",
+    "end_text": "consider becoming a free or paid subscriber"
+  }
+]

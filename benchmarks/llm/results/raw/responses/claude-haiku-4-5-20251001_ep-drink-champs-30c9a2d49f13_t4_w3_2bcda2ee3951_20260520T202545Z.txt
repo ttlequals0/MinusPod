@@ -1,0 +1,32 @@
+```json
+[
+  {
+    "start": 1450.9,
+    "end": 1459.5,
+    "confidence": 0.92,
+    "reason": "Airtasker network-inserted brand tagline ad with product pitch and call to action",
+    "end_text": "Airtasker, get anything done"
+  },
+  {
+    "start": 1460.1,
+    "end": 1524.8,
+    "confidence": 0.88,
+    "reason": "Decisions Decisions podcast cross-promotion with Kiki Palmer episode sponsored by Care for the Culture from Gilead Sciences",
+    "end_text": "sponsored by Care for the Culture from Gilead Sciences"
+  },
+  {
+    "start": 1525.5,
+    "end": 1553.8,
+    "confidence": 0.95,
+    "reason": "OnDeck small business line of credit sponsor read with product details and call to action",
+    "end_text": "Apply today at OnDeck.com"
+  },
+  {
+    "start": 1555.6,
+    "end": 1627.4,
+    "confidence": 0.96,
+    "reason": "BetMGM MLB sponsor read with promotional offers, game details, and gambling disclaimer",
+    "end_text": "with Kansas Crossing Casino and Hotel"
+  }
+]
+```

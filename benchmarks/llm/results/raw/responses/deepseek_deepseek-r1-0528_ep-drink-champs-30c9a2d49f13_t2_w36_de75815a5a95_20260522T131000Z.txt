@@ -1,0 +1,9 @@
+[
+  {
+    "start": 15388.3,
+    "end": 15517.1,
+    "confidence": 1.0,
+    "reason": "Consecutive dynamically inserted ads: Airtasker (15388.3-15416.5), CVS (15416.7-15452.3), Trashy (15453.9-15481.1), fencing (15482.9-15517.1) with iHeart branding",
+    "end_text": "an iHeart Podcast Guaranteed human"
+  }
+]

@@ -1,0 +1,4 @@
+s.
+{
+
+":[{":"start"  ,"2200.5"  :"end"  ,"2237.0"  :"confidence"  ,"0.95"  :"reason"  ,"Blinds.com product promotion with URL, discount, and call to action"  :"end_text"  ,"Blinds.com."  :"}]"}

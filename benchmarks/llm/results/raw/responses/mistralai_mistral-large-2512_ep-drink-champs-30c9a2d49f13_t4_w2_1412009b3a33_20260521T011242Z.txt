@@ -1,0 +1,9 @@
+[
+    {
+        "start": 1341.5,
+        "end": 1430.4,
+        "confidence": 0.0,
+        "reason": "No promotional language, sponsor mentions, or calls to action detected in this segment. Content is purely conversational and related to the episode topic.",
+        "end_text": "Roscoe needed"
+    }
+]

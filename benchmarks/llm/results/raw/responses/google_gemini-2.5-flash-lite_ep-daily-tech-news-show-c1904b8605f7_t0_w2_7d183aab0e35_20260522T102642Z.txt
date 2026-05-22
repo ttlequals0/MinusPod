@@ -1,0 +1,34 @@
+[
+  {
+    "start": 821.4,
+    "end": 857.6,
+    "confidence": 0.98,
+    "reason": "Host-read ad for Capital One, mentioning \"tech team\", \"multi-agentic AI\", \"Chat Concierge\", \"simplifying car shopping\", \"self-reflection and layered reasoning with live API checks\", \"find a car they love\", \"schedule a test drive\", \"get pre-approved for financing\", \"estimate trade-in value\", \"Advanced, intuitive, and deployed. That's how they stack. That's technology at Capital One.\"",
+    "end_text": "technology at Capital One. A BetterHelp ad. Hold on. One second. I just need to..."
+  },
+  {
+    "start": 862.2,
+    "end": 889.7,
+    "confidence": 0.98,
+    "reason": "Host-read ad for BetterHelp, mentioning \"BetterHelp\", \"therapy happens in a space that's yours\", \"Visit betterhelp.com slash random podcast for 10% off your first month of online therapy.\"",
+    "end_text": "first month of online therapy. Amazon Health AI presents painful thoughts. I, um, I can't stop scratching my downtown."
+  },
+  {
+    "start": 890.6,
+    "end": 910.1,
+    "confidence": 0.98,
+    "reason": "Host-read ad for Amazon Health AI, mentioning \"Amazon Health AI\", \"Chat your symptoms and get virtual care 24-7. Healthcare just got less painful.\"",
+    "end_text": "Healthcare just got less painful."
+  },
+  {
+    "start": 912.2,
+    "end": 961.5,
+    "confidence": 0.98,
+    "reason": "Host-read ad for Spectrum Business, mentioning \"Spectrum Business\", \"build those connections stronger and faster\", \"fast, reliable, fiber-powered internet\", \"three-year price guarantee\", \"bundle\", \"100% US-based customer service\", \"Visit spectrum.com slash business today to get started.\"",
+    "end_text": "you get more than just internet. You get support with 100% US-based customer service. Real people who understand small business, ready 24-7 to help you stay up and running."
+  },
+  {
+    "start": 961.9,
+    "end": 1018.9,
+    "confidence": 0.98,
+    "reason": "

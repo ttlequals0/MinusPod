@@ -1,0 +1,1 @@
+{"start":1450.9,"end":1629.0,"confidence":0.97,"reason":"Back-to-back network-inserted ads: Airtasker sponsor read, Decisions Decisions podcast promo, OnDeck business loan ad, BetMGM MLB betting promo with legal disclaimers","end_text":"Kansas Crossing Casino and Hotel."}

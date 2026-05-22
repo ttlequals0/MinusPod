@@ -1,0 +1,1 @@
+{"start": 13912.6, "end": 13938.9, "confidence": 0.95, "reason": "Host-read ad for 'Coach, Warren, Sap, QB Killer' with promotional tagline and call to action", "end_text": "you haven't been mine."}

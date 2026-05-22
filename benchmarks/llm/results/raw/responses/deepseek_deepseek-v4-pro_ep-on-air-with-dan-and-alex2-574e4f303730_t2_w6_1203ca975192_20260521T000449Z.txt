@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 2609.5,
+      "end": 2634.3,
+      "confidence": 0.85,
+      "reason": "Potential ad insertion trigger keyword detection, but no distinct ad content or sponsor identified.",
+      "end_text": "Stamps.com,"
+    }
+  ]
+}

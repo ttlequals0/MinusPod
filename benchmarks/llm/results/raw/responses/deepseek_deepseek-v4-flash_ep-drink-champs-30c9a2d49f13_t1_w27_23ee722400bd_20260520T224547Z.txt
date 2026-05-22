@@ -1,0 +1,1 @@
+[{"start": 11335.2, "end": 11455.4, "confidence": 0.99, "reason": "Airtasker ad, cross-promotion for Decisions Decisions podcast sponsored by Gilead Sciences, and OnDeck business line of credit ad merged into one segment", "end_text": "an amount subject to lender approval"}]

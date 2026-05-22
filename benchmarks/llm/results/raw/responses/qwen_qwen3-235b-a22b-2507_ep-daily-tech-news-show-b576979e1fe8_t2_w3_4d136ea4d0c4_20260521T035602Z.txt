@@ -1,0 +1,1 @@
+{"start": 1493.2, "end": 1536.8, "confidence": 0.98, "reason": "Host-read Capital One ad with promotional language, product pitch, and call to action", "end_text": "Download the free app today and find your outside"}

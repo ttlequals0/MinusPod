@@ -1,0 +1,1 @@
+[{"start": 1012.8, "end": 1035.7, "confidence": 0.85, "reason": "Partial ad segment starting with financial sponsor hook 'Debt can get messy fast.' continues in next window", "end_text": "Debt can get messy fast."}]

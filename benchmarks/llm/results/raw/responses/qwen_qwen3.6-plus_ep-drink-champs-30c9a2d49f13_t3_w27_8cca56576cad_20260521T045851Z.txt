@@ -1,0 +1,1 @@
+[{"start": 11335.2, "end": 11455.4, "confidence": 0.96, "reason": "Back-to-back ads for Airtasker, Decisions Decisions podcast, and OnDeck merged due to <15s gaps", "end_text": "subject to lender approval."}, {"start": 11614.6, "end": 11630.6, "confidence": 0.88, "reason": "Quick sponsor roll call listing multiple brands and promo codes", "end_text": "Manscaped, Stamps.com,"}]

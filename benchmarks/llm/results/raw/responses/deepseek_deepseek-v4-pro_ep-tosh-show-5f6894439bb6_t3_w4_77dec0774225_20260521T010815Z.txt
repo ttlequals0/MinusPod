@@ -1,0 +1,25 @@
+{
+  "segments": [
+    {
+      "start": 1836.9,
+      "end": 1912.2,
+      "confidence": 0.98,
+      "reason": "Mint Mobile sponsor read with promo code",
+      "end_text": "See Mint Mobile for details."
+    },
+    {
+      "start": 1913.4,
+      "end": 1942.4,
+      "confidence": 0.97,
+      "reason": "Mattress Warehouse Memorial Day sale commercial",
+      "end_text": "only at Mattress Warehouse."
+    },
+    {
+      "start": 1943.2,
+      "end": 1999.5,
+      "confidence": 0.97,
+      "reason": "PC Richard & Son Aseema Lease to Own commercial with terms and URL",
+      "end_text": "PCRichard.com slash Aseema dot HTML for details."
+    }
+  ]
+}

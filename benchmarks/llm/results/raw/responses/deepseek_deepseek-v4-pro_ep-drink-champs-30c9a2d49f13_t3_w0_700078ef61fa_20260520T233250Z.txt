@@ -1,0 +1,30 @@
+{"segments": [
+  {
+    "start": 0.0,
+    "end": 42.2,
+    "confidence": 0.95,
+    "reason": "iHeart podcast platform ad and Airtasker ad",
+    "end_text": "Download the Airtasker app"
+  },
+  {
+    "start": 42.8,
+    "end": 72.1,
+    "confidence": 0.98,
+    "reason": "Care for the Culture sponsored HIV awareness PSA",
+    "end_text": "Sponsored by Care for the Culture"
+  },
+  {
+    "start": 72.9,
+    "end": 101.0,
+    "confidence": 0.95,
+    "reason": "Nissan vehicle durability campaign ad",
+    "end_text": "hold their ground in real-world conditions"
+  },
+  {
+    "start": 109.0,
+    "end": 150.5,
+    "confidence": 0.98,
+    "reason": "Shopify sponsor read with promo code and call to action",
+    "end_text": "Shopify.com slash B-E-N"
+  }
+]}

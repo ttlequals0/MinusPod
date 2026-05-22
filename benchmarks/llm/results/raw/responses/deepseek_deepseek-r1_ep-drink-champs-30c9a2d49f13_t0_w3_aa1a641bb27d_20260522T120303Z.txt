@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1450.9,
+    "end": 1629.0,
+    "confidence": 1.0,
+    "reason": "Ad block containing multiple sponsors: Airtasker (task service), Decisions Decisions podcast promo sponsored by Care for the Culture/Gilead Sciences, OnDeck (business financing), BetMGM (sports betting)",
+    "end_text": "with Kansas Crossing Casino and Hotel"
+  }
+]

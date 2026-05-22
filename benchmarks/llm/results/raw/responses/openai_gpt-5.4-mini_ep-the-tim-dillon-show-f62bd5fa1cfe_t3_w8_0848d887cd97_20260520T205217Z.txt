@@ -1,0 +1,1 @@
+{"start":3950.7,"end":3975.9,"confidence":0.91,"reason":"Continues show content with no ad break detected in this window; mentions Facebook/Meta in conversation only, not promotional ad copy.","end_text":"I went on Meta. I went on Facebook"}

@@ -1,0 +1,1 @@
+{"start": 3478.9, "end": 3528.5, "confidence": 0.95, "reason": "Airtasker ad read", "end_text": "get anything done"}

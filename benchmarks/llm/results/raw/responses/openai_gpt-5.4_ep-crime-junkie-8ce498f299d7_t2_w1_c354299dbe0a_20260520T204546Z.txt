@@ -1,0 +1,1 @@
+{"start": 1035.7, "end": 1035.7, "confidence": 0.99, "reason": "Produced ad begins with promotional language for debt-related service; partial ad continues in next window", "end_text": "Debt can get messy fast."}

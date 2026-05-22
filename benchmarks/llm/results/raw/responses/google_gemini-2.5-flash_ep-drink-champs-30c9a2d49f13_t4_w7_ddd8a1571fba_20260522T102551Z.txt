@@ -1,0 +1,16 @@
+[
+  {
+    "start": 3499.0,
+    "end": 3528.5,
+    "confidence": 0.96,
+    "reason": "Airtasker sponsor read",
+    "end_text": "Airtasker, get anything done."
+  },
+  {
+    "start": 3528.5,
+    "end": 3556.2,
+    "confidence": 0.95,
+    "reason": "Podcast cross-promotion",
+    "end_text": "about abstinence?"
+  }
+]

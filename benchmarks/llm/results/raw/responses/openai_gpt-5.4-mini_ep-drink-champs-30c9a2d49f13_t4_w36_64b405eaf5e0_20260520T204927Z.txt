@@ -1,0 +1,1 @@
+{"start":15388.3,"end":15517.1,"confidence":0.99,"reason":"Continuation of a multi-ad break after the show outro: Airtasker promo, CVS brand spot, Trashy take-back/rewards pitch, fencing promotional copy, ending with platform insert 'This is an iHeart Podcast. Guaranteed human.'","end_text":"This is an iHeart Podcast. Guaranteed human."}

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 8980.5,
+    "end": 9008.6,
+    "confidence": 0.95,
+    "reason": "The transcript ends abruptly during a narrative segment, but the provided metadata indicates an ad for Perplexity and a podcast ad choices disclaimer follow the episode content. Since the transcript cuts off at 9008.6s, the ad segment is inferred to begin immediately following the final narrative.",
+    "end_text": "hire me on the spot. Then,"
+  }
+]

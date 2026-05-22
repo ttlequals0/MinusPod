@@ -1,0 +1,1 @@
+{"start": 6283.4, "end": 6318.1, "confidence": 0.99, "reason": "OnDeck small business line of credit ad with URL and Public investing platform ad", "end_text": "Public, the investing platform for those who take it seriously."}

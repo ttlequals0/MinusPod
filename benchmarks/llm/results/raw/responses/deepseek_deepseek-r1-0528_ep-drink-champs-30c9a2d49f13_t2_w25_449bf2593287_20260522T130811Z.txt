@@ -1,0 +1,16 @@
+[
+  {
+    "start": 10567.1,
+    "end": 10575.1,
+    "confidence": 0.95,
+    "reason": "Host-read ad transition",
+    "end_text": "Hold on, let me add something to that."
+  },
+  {
+    "start": 10981.1,
+    "end": 10985.8,
+    "confidence": 0.9,
+    "reason": "Possible ad insertion gap",
+    "end_text": "Oh lord, oh."
+  }
+]

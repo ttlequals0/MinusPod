@@ -1,0 +1,1 @@
+{"start": 9652.4, "end": 10260.1, "confidence": 0.99, "reason": "No advertisement segments detected; all content is organic conversation about food, personal stories, and cultural commentary without promotional language, sponsor mentions, URLs, or calls to action", "end_text": "he didn't."}

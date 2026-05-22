@@ -1,0 +1,1 @@
+[{"start": 3478.9, "end": 3540.0, "confidence": 0.95, "reason": "Airtasker sponsor read and Decisions Decisions podcast cross-promotion. Ad content begins mid-segment at 'Meet Chris'. Segment extends past window limit.", "end_text": "No shame, no stigma. Here's a sneak peek."}]

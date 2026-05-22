@@ -1,0 +1,1 @@
+{"start":0.0,"end":98.4,"confidence":0.99,"reason":"Multiple sponsor reads before show content: Vitel Global, LinkedIn Premium All-in-One, and Hertz with promotional copy, URLs, and calls to action; includes transition into the episode at the end.","end_text":"Hi, Crime Junkies. I'm your host, Ashley Flowers."}

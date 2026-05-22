@@ -1,0 +1,6 @@
+[
+    {"start": 8724.9, "end": 8737.9, "confidence": 0.95, "reason": "AirTasker sponsor read with URL and call to action", "end_text": "AirTasker."},
+    {"start": 8738.1, "end": 8766.2, "confidence": 0.85, "reason": "Cross-promotion for 'Decisions Decisions' podcast", "end_text": "sneak peek."},
+    {"start": 8799.1, "end": 8826.4, "confidence": 0.98, "reason": "OnDeck loan service sponsor read with URL and promotional language", "end_text": "OnDeck.com."},
+    {"start": 8827.0, "end": 8831.4, "confidence": 0.9, "reason": "Public investing platform sponsor mention", "end_text": "take it seriously."}
+]

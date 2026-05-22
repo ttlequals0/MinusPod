@@ -1,0 +1,1 @@
+{"start":8980.5,"end":9008.6,"confidence":0.73,"reason":"Mentions Lockheed Martin only in a story about a past job interview; no promotional language, sponsor read, or call to action, so not an ad.","end_text":"Then, I'm like, I'll"}

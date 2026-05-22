@@ -1,0 +1,3 @@
+[
+{"start":2242.3,"end":2268.8,"confidence":0.96,"reason":"Host‑read plug for Patreon and TheToshShowStore merchandise","end_text":"what it is"},{"start":2412.8,"end":2427.6,"confidence":0.96,"reason":"Sponsored mention of HealthCast by Stony Brook Medicine","end_text":"health.stonybrookmedicine.edu slash podcasts"},{"start":2428.9,"end":2484.9,"confidence":0.96,"reason":"PC Richard & Son lease‑to‑own promotion (multiple consecutive blocks merged)","end_text":"dot HTML for details"}
+]

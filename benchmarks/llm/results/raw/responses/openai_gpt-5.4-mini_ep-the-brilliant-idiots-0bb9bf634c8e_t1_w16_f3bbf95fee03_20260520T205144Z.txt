@@ -1,0 +1,1 @@
+{"start":7159.2,"end":7196.8,"confidence":0.99,"reason":"Netflix cross-promo ad; explicit sponsor language \"This episode is brought to you by Netflix's Remarkably Bright Creatures\" and promotional show synopsis","end_text":"now playing only on Netflix"}

@@ -1,0 +1,25 @@
+{
+  "ads": [
+    {
+      "start": 11335.2,
+      "end": 11416.3,
+      "confidence": 0.95,
+      "reason": "Airtasker host-read ad with call to action and promo; cross-promo for Decisions Decisions podcast with Keke Palmer on sexual health",
+      "end_text": "Get anything done"
+    },
+    {
+      "start": 11425.3,
+      "end": 11454.4,
+      "confidence": 0.97,
+      "reason": "OnDeck small business line of credit ad with call to action and URL",
+      "end_text": "subject to lender approval"
+    },
+    {
+      "start": 11485.3,
+      "end": 11497.9,
+      "confidence": 0.60,
+      "reason": "CastingWords transcription service mention, likely platform-inserted ad based on timing and context",
+      "end_text": "Transcription by CastingWords"
+    }
+  ]
+}

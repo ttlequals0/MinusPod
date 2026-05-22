@@ -1,0 +1,1 @@
+{"start":58.0,"end":80.1,"confidence":0.94,"reason":"Host-read sponsor segment includes transition and promotional language: 'brought to you by Core Read' and 'Let's kick things off' before interview content resumes.","end_text":"Let's kick things off with"}

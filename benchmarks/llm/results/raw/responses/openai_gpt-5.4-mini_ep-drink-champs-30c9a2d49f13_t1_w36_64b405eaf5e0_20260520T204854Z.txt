@@ -1,0 +1,1 @@
+{"start":15388.3,"end":15517.1,"confidence":0.99,"reason":"Host break into multiple ad spots with promotional copy and calls to action: Airtasker app/website, CVS community/prescriptions, Trashy.io, tryfencing.org, ending with platform promo 'This is an iHeart Podcast' and 'Guaranteed human.'","end_text":"This is an iHeart Podcast. Guaranteed human"}

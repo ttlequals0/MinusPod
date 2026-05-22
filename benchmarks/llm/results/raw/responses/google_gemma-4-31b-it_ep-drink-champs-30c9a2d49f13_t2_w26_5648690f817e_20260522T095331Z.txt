@@ -1,0 +1,32 @@
+{
+  "ads": [
+    {
+      "start": 11335.2,
+      "end": 11365.6,
+      "confidence": 0.98,
+      "reason": "Airtasker sponsor read with call to action and URL",
+      "end_text": "get anything done"
+    },
+    {
+      "start": 11366.2,
+      "end": 11424.6,
+      "confidence": 0.95,
+      "reason": "Cross-promotion for 'Decisions Decisions' podcast sponsored by Care for the Culture from Gilead Sciences",
+      "end_text": "from Gilead Sciences"
+    },
+    {
+      "start": 11425.3,
+      "end": 11455.4,
+      "confidence": 0.98,
+      "reason": "OnDeck small business line of credit advertisement with URL",
+      "end_text": "subject to lender approval"
+    },
+    {
+      "start": 11513.7,
+      "end": 11520.0,
+      "confidence": 0.9,
+      "reason": "Public.com disclosure/ad segment (partial)",
+      "end_text": "public.com slash disclosures"
+    }
+  ]
+}

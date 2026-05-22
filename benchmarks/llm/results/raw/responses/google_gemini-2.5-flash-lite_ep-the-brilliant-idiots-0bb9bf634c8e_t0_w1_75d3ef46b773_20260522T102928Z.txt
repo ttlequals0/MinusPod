@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1002.8,
+    "end": 1030.8,
+    "confidence": 0.95,
+    "reason": "Platform-inserted ad for Charlamagne's network and other podcasts. Includes calls to action and URLs.",
+    "end_text": "blackeffect.com"
+  }
+]

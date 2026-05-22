@@ -1,0 +1,1 @@
+{"start":9741.9,"end":9823.1,"confidence":0.34,"reason":"Possible McDonald's/Chick-fil-A product discussion mentions brand names but lacks clear sponsor language, promo, or call to action; not a confirmed ad","end_text":"They don't open on Sunday either."}

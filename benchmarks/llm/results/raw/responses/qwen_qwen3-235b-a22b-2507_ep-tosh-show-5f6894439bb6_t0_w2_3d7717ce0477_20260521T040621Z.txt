@@ -1,0 +1,1 @@
+{"start": 1421.3, "end": 1449.3, "confidence": 0.3, "reason": "Conversation about Mother's Day plans, no promotional language, sponsor mention, or call to action present. Mentions of church and toast are part of natural dialogue, not advertising. No ad detected.", "end_text": "son?"}

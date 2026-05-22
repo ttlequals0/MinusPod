@@ -1,0 +1,16 @@
+[
+  {
+    "start": 1036.2,
+    "end": 1097.9,
+    "confidence": 0.98,
+    "reason": "SoFi sponsor read with debt consolidation pitch and vanity URL",
+    "end_text": "slash CJ. Loans originated"
+  },
+  {
+    "start": 1099.8,
+    "end": 1129.6,
+    "confidence": 0.97,
+    "reason": "LinkedIn Premium All-in-One ad with business growth claims and free trial URL",
+    "end_text": "slash all-in-one"
+  }
+]

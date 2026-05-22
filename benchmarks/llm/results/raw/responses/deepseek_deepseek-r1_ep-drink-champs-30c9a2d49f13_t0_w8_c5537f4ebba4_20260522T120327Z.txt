@@ -1,0 +1,30 @@
+[
+  {
+    "start": 3478.9,
+    "end": 3528.5,
+    "confidence": 1.0,
+    "reason": "Airtasker sponsor read with URL and call to action",
+    "end_text": "go to Airtasker.com"
+  },
+  {
+    "start": 3528.8,
+    "end": 3577.4,
+    "confidence": 1.0,
+    "reason": "Cross-promotion for Decisions Decisions podcast with sponsor mention (Gilead Sciences)",
+    "end_text": "from Gilead Sciences"
+  },
+  {
+    "start": 3578.1,
+    "end": 3608.0,
+    "confidence": 1.0,
+    "reason": "OnDeck financial services ad with URL and call to action",
+    "end_text": "lender approval"
+  },
+  {
+    "start": 3608.5,
+    "end": 3637.4,
+    "confidence": 1.0,
+    "reason": "Public investing platform ad with product pitch and URL",
+    "end_text": "backtest it again"
+  }
+]

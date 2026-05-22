@@ -1,0 +1,1 @@
+{"start": 1036.2, "end": 1129.6, "confidence": 0.99, "reason": "Host-read sponsor segments for SoFi (debt consolidation, URL SoFi.com/CJ) and LinkedIn Premium All-in-One (LinkedIn.com/all-in-one); merged as single block due to <15s gap between them", "end_text": "Try for free at LinkedIn.com slash all-in-one"}

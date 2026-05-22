@@ -1,0 +1,7 @@
+[{
+    "start": 4195.3,
+    "end": 4285.6,
+    "confidence": 0.98,
+    "reason": "Host-read promotion for premium subscription service with pricing, calls to action (TakePoliticsSeriously.com), and membership benefits",
+    "end_text": "TakePoliticsSeriously.com"
+}]

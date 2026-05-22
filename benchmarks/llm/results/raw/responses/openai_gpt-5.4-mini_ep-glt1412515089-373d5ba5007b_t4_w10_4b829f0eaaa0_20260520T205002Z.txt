@@ -1,0 +1,1 @@
+{"start":4790.1,"end":4819.0,"confidence":0.2,"reason":"No advertisement detected in this window; transcript continues with interview content about telepathy trials and no sponsor pitch, promo code, URL, or transition phrase like 'let's take a break'.","end_text":"how to make the telepathy work better"}

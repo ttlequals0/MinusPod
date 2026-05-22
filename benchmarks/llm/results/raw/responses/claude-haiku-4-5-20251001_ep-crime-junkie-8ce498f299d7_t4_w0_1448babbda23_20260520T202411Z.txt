@@ -1,0 +1,18 @@
+```json
+[
+  {
+    "start": 0.0,
+    "end": 40.8,
+    "confidence": 0.95,
+    "reason": "Vitel Global and LinkedIn Premium All-in-One network-inserted brand tagline ads with product positioning and URLs",
+    "end_text": "linkedin.com slash all-in-one"
+  },
+  {
+    "start": 41.5,
+    "end": 69.8,
+    "confidence": 0.92,
+    "reason": "Hertz car rental network-inserted brand tagline ad with product pitch and URL",
+    "end_text": "newest fleet yet at Hertz.com"
+  }
+]
+```

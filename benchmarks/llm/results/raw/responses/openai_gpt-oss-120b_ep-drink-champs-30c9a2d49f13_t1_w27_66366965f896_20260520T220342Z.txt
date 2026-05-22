@@ -1,0 +1,32 @@
+{
+  "ads": [
+    {
+      "start": 11335.2,
+      "end": 11365.6,
+      "confidence": 0.98,
+      "reason": "Airtasker sponsor read",
+      "end_text": "Airtasker, get anything done."
+    },
+    {
+      "start": 11416.3,
+      "end": 11424.6,
+      "confidence": 0.97,
+      "reason": "Care for the Culture sponsor mention",
+      "end_text": "Gilead Sciences."
+    },
+    {
+      "start": 11425.3,
+      "end": 11472.5,
+      "confidence": 0.96,
+      "reason": "OnDeck small business line of credit ad",
+      "end_text": "approval."
+    },
+    {
+      "start": 11614.6,
+      "end": 11630.6,
+      "confidence": 0.94,
+      "reason": "List of sponsor names with promo code mention",
+      "end_text": "Stamps.com,"
+    }
+  ]
+}

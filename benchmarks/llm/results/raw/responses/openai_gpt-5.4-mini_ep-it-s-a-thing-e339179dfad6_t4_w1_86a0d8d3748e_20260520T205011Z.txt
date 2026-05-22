@@ -1,0 +1,1 @@
+{"start": 613.7,"end": 638.7,"confidence": 0.63,"reason":"Host says \"if we could take a break\" but this is only a normal content transition about water park snacks; no promotional sponsor language or ad copy is present in this window.","end_text":"chicken fingers and pizza"}

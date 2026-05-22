@@ -1,0 +1,1 @@
+{"start":6016.6,"end":6083.5,"confidence":0.99,"reason":"Host transition 'we'll take a little break' into a sponsored read for Hoxhunt / Hawkshunt, with direct promotional copy about phishing training, AI-powered micro-training, and admin benefits","end_text":"just like the bad guys"}

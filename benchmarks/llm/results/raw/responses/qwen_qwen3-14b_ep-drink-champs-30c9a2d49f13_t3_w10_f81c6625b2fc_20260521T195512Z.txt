@@ -1,0 +1,2 @@
+w.
+{"start": 4800.0, "end": 4800.0, "confidence": 0.0, "reason": "No ads detected in the provided transcript segment", "end_text": "dealing. It ran up a bill like..."}

@@ -1,0 +1,25 @@
+{
+"ads": [
+    {
+      "start": 3478.9,
+      "end": 3503.7,
+      "confidence": 0.98,
+      "reason": "Airtasker sponsor read",
+      "end_text": "Airtasker, get anything done"
+    },
+    {
+      "start": 3578.1,
+      "end": 3606.4,
+      "confidence": 0.98,
+      "reason": "OnDeck sponsor read",
+      "end_text": "Apply today at OnDeck.com"
+    },
+    {
+      "start": 3608.5,
+      "end": 3637.4,
+      "confidence": 0.98,
+      "reason": "Public sponsor read",
+      "end_text": "Disclosures available at public.com slash disclosures"
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+{"start":4949.0,"end":4968.9,"confidence":0.29,"reason":"No clear advertisement detected; brand mentions like Pizza Hut, Allstate, and Samsung are part of discussion, not promotional copy","end_text":"I was getting $32 a weekend"}

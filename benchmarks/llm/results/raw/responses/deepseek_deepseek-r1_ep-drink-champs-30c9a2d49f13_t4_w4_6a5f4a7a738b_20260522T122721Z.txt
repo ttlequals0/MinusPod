@@ -1,0 +1,7 @@
+{
+  "start": 2263.4,
+  "end": 2267.2,
+  "confidence": 0.95,
+  "reason": "Host transition to ad break",
+  "end_text": "Take one. Take one. Take one."
+}

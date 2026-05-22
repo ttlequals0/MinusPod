@@ -1,0 +1,1 @@
+{"start":6208.7,"end":6318.1,"confidence":0.99,"reason":"Merged ad break with three inserted ads: Airtasker app promotion, Decisions Decisions/Keke Palmer cross-promo sponsored by Care for the Culture from Gilead Sciences, and OnDeck small business line of credit ad, ending with Public sponsorship mention","end_text":"those who take it seriously"}

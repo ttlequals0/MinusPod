@@ -1,0 +1,1 @@
+{"start": 6390.2, "end": 6419.1, "confidence": 0.98, "reason": "Sponsor segment with promotional language for Blue Chew, including product mention and implied endorsement", "end_text": "You're not pre-diabetic?"}

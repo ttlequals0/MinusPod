@@ -1,0 +1,11 @@
+[
+
+[{"start": 13617.2, "end": 13696.9, "confidence": 0.98, "reason": "Airtasker sponsor read with promotional language and call to action", "end_text": "Airtasker.com."}, 
+
+{"start": 13720.1, "end": 13746.5, "confidence": 0.95, "reason": "Care for the Culture sponsor read with promotional language", "end_text": "Gilead Sciences."}, 
+
+{"start": 13747.1, "end": 13786.2, "confidence": 0.97, "reason": "OnDeck sponsor read with promotional language and call to action", "end_text": "OnDeck.com."}, 
+
+{"start": 13815.9, "end": 13828.9, "confidence": 0.96, "reason": "Public sponsor read with promotional language and call to action", "end_text": "public.com."}]
+
+]

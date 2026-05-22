@@ -1,0 +1,1 @@
+{"start": 588.5, "end": 613.4, "confidence": 0.98, "reason": "Transition phrase 'We'll see you next time' followed by silence indicates a break; however, no promotional content or sponsor language is present in the transcript. This is a content gap, not an ad.", "end_text": "We'll see you next time."}

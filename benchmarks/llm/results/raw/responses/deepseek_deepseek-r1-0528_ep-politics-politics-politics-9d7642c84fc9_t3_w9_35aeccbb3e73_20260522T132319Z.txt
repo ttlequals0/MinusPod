@@ -1,0 +1,9 @@
+[
+  {
+    "start": 4143.7,
+    "end": 4285.6,
+    "confidence": 0.95,
+    "reason": "Host-read call to action for show support, including email, social media, payment methods, and subscription promotion",
+    "end_text": "Zombie Doc, you want your name"
+  }
+]

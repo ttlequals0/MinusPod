@@ -1,0 +1,1 @@
+{"start": 8521.9, "end": 8588.6, "confidence": 0.95, "reason": "Host-read ad for Cash App with promotional language and call to action", "end_text": "send her money, so, you know, I thought, how about that?"}

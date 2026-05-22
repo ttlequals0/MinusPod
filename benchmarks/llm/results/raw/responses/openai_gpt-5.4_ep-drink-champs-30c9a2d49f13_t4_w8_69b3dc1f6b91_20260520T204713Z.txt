@@ -1,0 +1,1 @@
+{"start": 3478.9, "end": 3650.4, "confidence": 0.99, "reason": "Merged ad break with multiple inserted ads: Airtasker, Decisions Decisions/Keke Palmer episode sponsored by Care for the Culture from Gilead Sciences, OnDeck, and Public investing platform", "end_text": "Transcription by CastingWords"}

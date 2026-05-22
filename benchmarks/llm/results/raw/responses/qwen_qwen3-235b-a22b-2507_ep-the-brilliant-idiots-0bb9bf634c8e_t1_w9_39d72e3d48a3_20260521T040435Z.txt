@@ -1,0 +1,1 @@
+{"start": 4059.4, "end": 4077.5, "confidence": 0.98, "reason": "Host-read transition to ad segment with 'Let's pay some bills, Chris' indicating sponsorship break", "end_text": "Lil P got to eat, Taylor gang."}

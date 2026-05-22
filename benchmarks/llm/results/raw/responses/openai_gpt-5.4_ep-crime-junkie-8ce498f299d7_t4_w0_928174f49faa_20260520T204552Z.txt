@@ -1,0 +1,1 @@
+{"start": 0.0, "end": 98.4, "confidence": 0.99, "reason": "Three back-to-back network-inserted ads for Vitel Global, LinkedIn Premium All-in-One, and Hertz with promotional copy and URLs before show content begins", "end_text": "Get paired with our newest fleet yet at Hertz.com"}

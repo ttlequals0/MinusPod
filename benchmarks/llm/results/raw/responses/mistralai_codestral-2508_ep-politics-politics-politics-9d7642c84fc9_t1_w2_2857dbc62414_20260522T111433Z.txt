@@ -1,0 +1,1 @@
+[{"start": 909.6, "end": 933.9, "confidence": 0.95, "reason": "TakePoliticsSeriously.com sponsor read", "end_text": "get two episodes of this show"}]

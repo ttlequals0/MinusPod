@@ -1,0 +1,1 @@
+[{"start": 6208.7, "end": 6233.9, "confidence": 0.98, "reason": "Airtasker host\u2011read sponsor segment", "end_text": "Airtasker, get anything done."}, {"start": 6262.1, "end": 6318.1, "confidence": 0.97, "reason": "Back\u2011to\u2011back sponsor ads (Care for the Culture, OnDeck, Public) merged due to <15\u202fs gaps", "end_text": "take it seriously."}]

@@ -1,0 +1,2 @@
+w.
+{"start": 15261.8, "end": 15285.2, "confidence": 0.5, "reason": "Repetitive mention of 'discount code' possibly indicating a promo code segment, though lacks clear sponsor name or product context", "end_text": "discount code, discount code"}

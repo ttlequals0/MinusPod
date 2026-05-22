@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 2532.3,
+      "end": 2687.4,
+      "confidence": 0.98,
+      "reason": "Meter sponsor read including transition phrase 'break time' and promotional language, URL, call to action",
+      "end_text": "meter.com."
+    }
+  ]
+}

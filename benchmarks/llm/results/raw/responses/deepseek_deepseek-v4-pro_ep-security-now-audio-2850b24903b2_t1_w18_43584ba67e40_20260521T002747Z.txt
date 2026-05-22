@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 7607.7,
+      "end": 7797.4,
+      "confidence": 0.99,
+      "reason": "Host-read ad for Trusted Tech with promo code and call to action",
+      "end_text": "team securitynow365 Now, back to Steve"
+    }
+  ]
+}

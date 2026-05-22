@@ -1,0 +1,1 @@
+{"start":147.0,"end":157.0,"confidence":0.61,"reason":"No advertisement segment detected in this transcript window; only interview content with no sponsor copy, promo code, URL callout, or transition like 'let's take a break'.","end_text":"no ad content found"}

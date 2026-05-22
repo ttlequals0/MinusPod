@@ -1,0 +1,16 @@
+[
+  {
+    "start": 4600.8,
+    "end": 5015.7,
+    "confidence": 0.95,
+    "reason": "This segment is a direct read from Anthropic about their new AI cybersecurity capabilities, 'Claude Security'. It includes promotional language, a call to action ('organizations to act to improve their security', 'start scanning today'), and mentions specific product names and features ('Claude Security', 'Claude Enterprise', 'Project Glasswing', 'Opus 4.7'). The host also discusses the product and its benefits.",
+    "end_text": "Thank you for watching."
+  },
+  {
+    "start": 5129.4,
+    "end": 5220.0,
+    "confidence": 0.95,
+    "reason": "This segment is a host-read advertisement for OpenAI's 'Advanced Account Security' feature for ChatGPT. It includes promotional language ('make account login security a selling point', 'strongest account protections available', 'safeguard against account takeover') and describes the benefits of the product. The host expresses personal endorsement ('I was very impressed by this').",
+    "end_text": "For some people,"
+  }
+]

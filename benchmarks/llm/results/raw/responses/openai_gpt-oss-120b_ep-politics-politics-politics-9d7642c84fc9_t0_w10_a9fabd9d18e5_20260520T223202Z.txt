@@ -1,0 +1,1 @@
+{"start":4242.8,"end":4285.6,"confidence":0.96,"reason":"Host‑read sponsor segment thanking foundational tier supporters and promoting TakePoliticsSeriously.com with call‑to‑action","end_text":"TakePoliticsSeriously.com"}

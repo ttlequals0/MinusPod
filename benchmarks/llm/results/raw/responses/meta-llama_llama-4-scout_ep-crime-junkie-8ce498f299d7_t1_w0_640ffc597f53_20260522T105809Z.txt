@@ -1,0 +1,25 @@
+{
+"ads": [
+    {
+      "start": 0.0,
+      "end": 14.1,
+      "confidence": 0.99,
+      "reason": "Vitel Global sponsor read",
+      "end_text": "make every connection count"
+    },
+    {
+      "start": 14.7,
+      "end": 40.8,
+      "confidence": 0.99,
+      "reason": "LinkedIn Premium All-in-One sponsor read",
+      "end_text": "try for free at linkedin.com slash all-in-one"
+    },
+    {
+      "start": 41.5,
+      "end": 69.8,
+      "confidence": 0.98,
+      "reason": "Hertz sponsor read",
+      "end_text": "get paired with our newest fleet yet at Hertz.com"
+    }
+  ]
+}

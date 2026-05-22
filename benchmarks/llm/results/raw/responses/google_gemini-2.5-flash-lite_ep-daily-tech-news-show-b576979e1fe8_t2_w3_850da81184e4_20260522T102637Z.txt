@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1493.2,
+    "end": 1536.8,
+    "confidence": 0.98,
+    "reason": "This is a host-read ad for Capital One, mentioning their tech team and AI initiatives, and then transitions into an ad for AllTrails with a call to action to download the app.",
+    "end_text": "find your outside"
+  }
+]

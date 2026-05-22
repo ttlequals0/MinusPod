@@ -1,0 +1,37 @@
+[
+{
+  "start": 13669.1,
+   "end": 13719.5,
+   "confidence": 0.95,
+   "reason": "Airtasker sponsor read",
+   "end_text": "Airtasker.com"
+},
+{
+   "start": 13720.1,
+   "end": 13746.5,
+   "confidence": 0.95,
+   "reason": "Care for the Culture sponsor read",
+   "end_text": "sponsored by Care for the Culture"
+},
+{
+   "start": 13759.0,
+   "end": 13815.9,
+   "confidence": 0.95,
+   "reason": "OnDeck sponsor read",
+   "end_text": "OnDeck.com"
+},
+{
+   "start": 13815.9,
+   "end": 13828.9,
+   "confidence": 0.95,
+   "reason": "Public sponsor read",
+   "end_text": "public.com slash disclosures"
+},
+{
+   "start": 13912.6,
+   "end": 13938.9,
+   "confidence": 0.95,
+   "reason": "Coach's Corner sponsor read",
+   "end_text": "QB Killer"
+}
+]

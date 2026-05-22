@@ -1,0 +1,18 @@
+{
+  "ads": [
+    {
+      "start": 8799.1,
+      "end": 8831.4,
+      "confidence": 0.99,
+      "reason": "Host-read sponsorship segments for OnDeck and Public. Includes promotional language: loan offer, URL OnDeck.com, and sponsored tagline for Public investing platform.",
+      "end_text": "those who take it seriously"
+    },
+    {
+      "start": 8856.4,
+      "end": 8869.0,
+      "confidence": 0.85,
+      "reason": "Transcription service mention 'Transcription by CastingWords' appears to be a platform-inserted advertisement or sponsor credit for transcription services.",
+      "end_text": "Transcription by CastingWords"
+    }
+  ]
+}

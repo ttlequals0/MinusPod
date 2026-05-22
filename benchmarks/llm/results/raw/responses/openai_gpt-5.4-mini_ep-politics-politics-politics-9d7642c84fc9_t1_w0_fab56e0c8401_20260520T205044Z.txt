@@ -1,0 +1,1 @@
+{"start":0.0,"end":0.0,"confidence":0.0,"reason":"No advertisement segment found in this transcript window; the only promotional wording is a non-ad episode intro mention of the show being brought to you by Just Another Pilot without a full sponsor read or break transition.","end_text":""}

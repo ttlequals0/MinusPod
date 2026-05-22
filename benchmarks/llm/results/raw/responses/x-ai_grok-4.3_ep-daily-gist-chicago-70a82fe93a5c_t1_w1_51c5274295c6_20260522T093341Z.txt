@@ -1,0 +1,9 @@
+[
+  {
+    "start": 506.4,
+    "end": 548.5,
+    "confidence": 0.85,
+    "reason": "Crain's self-promotion for weekly news quiz with URL and call to action after transition phrase",
+    "end_text": "with Amy Guth."
+  }
+]

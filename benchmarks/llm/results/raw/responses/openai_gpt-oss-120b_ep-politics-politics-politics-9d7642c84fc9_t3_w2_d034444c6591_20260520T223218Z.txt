@@ -1,0 +1,1 @@
+{"start":909.6,"end":933.9,"confidence":0.99,"reason":"Host-read sponsor read promoting TakePoliticsSeriously.com with promotional language and URL","end_text":"two episodes of this show"}

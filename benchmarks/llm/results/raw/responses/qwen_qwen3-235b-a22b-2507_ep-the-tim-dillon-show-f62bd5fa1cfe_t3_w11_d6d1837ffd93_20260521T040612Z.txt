@@ -1,0 +1,1 @@
+{"start": 4646.2, "end": 4697.4, "confidence": 0.98, "reason": "Colgate Women's Games sponsor message with promotional language, brand name, and tagline", "end_text": "Colgate, your smile is your strength."}

@@ -1,0 +1,1 @@
+{"start": 4782.6, "end": 4804.9, "confidence": 0.9, "reason": "Continuation of organic conversation about college athletes getting paid; no promotional language, sponsor mentions, URLs, or calls to action present. This is a natural extension of the interview topic.", "end_text": "ran up a bill like..."}

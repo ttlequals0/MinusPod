@@ -1,0 +1,1 @@
+{"start":5692.6,"end":5712.8,"confidence":0.89,"reason":"Host mentions Brooklinen as a brand in a promotional-style exchange, but this appears to be organic conversation rather than a clear ad read; no transition phrase or pitch. Not flagged as full ad.","end_text":"Brooklinen, New York."}

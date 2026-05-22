@@ -1,0 +1,3 @@
+[
+  {"start": 0.0, "end": 98.4, "confidence": 0.95, "reason": "Pre-roll sponsor ads: Vitel Global, LinkedIn Premium, Hertz with URLs and pitches", "end_text": "at Hertz.com"}
+]

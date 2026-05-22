@@ -1,0 +1,1 @@
+">// 0.0000000001 to 0.0000000001, but no ads found in the window. All values must be numeric, so we use 0.0 for start and end, and 0.0 for confidence. The reason is "

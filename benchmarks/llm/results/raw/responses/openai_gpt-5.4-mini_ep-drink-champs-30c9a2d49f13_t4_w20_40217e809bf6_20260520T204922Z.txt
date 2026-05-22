@@ -1,0 +1,1 @@
+{"start":8724.9,"end":8826.4,"confidence":0.97,"reason":"Platform/host ad break with AirTasker promo, then cross-promotional sponsored segments for Care for the Culture by Gilead Sciences and OnDeck, plus Public support mention. Includes ad-like transition into promotions and ends before show content resumes.","end_text":"for those who take it seriously"}

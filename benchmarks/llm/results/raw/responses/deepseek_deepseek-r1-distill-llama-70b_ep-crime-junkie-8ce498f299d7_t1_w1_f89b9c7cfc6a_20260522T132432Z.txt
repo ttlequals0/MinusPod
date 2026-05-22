@@ -1,0 +1,7 @@
+{
+  "start": 500.4,
+  "end": 523.4,
+  "confidence": 0.95,
+  "reason": "Host-read sponsor segment mentioning a strip search and Cole freaking out",
+  "end_text": "Stephen starts filling in some of the blanks."
+}

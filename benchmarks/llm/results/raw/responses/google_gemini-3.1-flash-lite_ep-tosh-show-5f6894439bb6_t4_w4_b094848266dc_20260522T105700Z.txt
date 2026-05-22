@@ -1,0 +1,23 @@
+[
+  {
+    "start": 1837.5,
+    "end": 1912.2,
+    "confidence": 1.0,
+    "reason": "Mint Mobile host-read advertisement",
+    "end_text": "See Mint Mobile for details"
+  },
+  {
+    "start": 1913.4,
+    "end": 1942.4,
+    "confidence": 1.0,
+    "reason": "Mattress Warehouse network-inserted advertisement",
+    "end_text": "only at Mattress Warehouse"
+  },
+  {
+    "start": 1943.2,
+    "end": 1999.5,
+    "confidence": 1.0,
+    "reason": "PC Richard & Son network-inserted advertisement",
+    "end_text": "PCRichard.com slash Aseema dot HTML for details"
+  }
+]

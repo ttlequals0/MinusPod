@@ -1,0 +1,1 @@
+[{"start": 0.0, "end": 52.7, "confidence": 0.95, "reason": "Pre-roll sponsor mention 'Just Another Pilot'", "end_text": "you by Just Another Pilot."}]

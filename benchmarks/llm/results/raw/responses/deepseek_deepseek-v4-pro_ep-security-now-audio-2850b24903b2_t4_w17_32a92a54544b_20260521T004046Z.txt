@@ -1,0 +1,1 @@
+{"start": 7607.7, "end": 7716.8, "confidence": 0.98, "reason": "Trusted Tech sponsor read - Microsoft 365 licensing service promotion with call to action", "end_text": "their certified support services"}

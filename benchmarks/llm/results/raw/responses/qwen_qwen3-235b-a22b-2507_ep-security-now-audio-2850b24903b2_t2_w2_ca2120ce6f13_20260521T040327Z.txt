@@ -1,0 +1,1 @@
+{"start": 1405.0, "end": 1441.5, "confidence": 0.98, "reason": "Transition into sponsor-like segment with promotional tone and URL mention; matches known sponsor Meter with dedicated landing page meter.com/securitynow", "end_text": "technical debt."}

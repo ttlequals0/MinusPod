@@ -1,0 +1,1 @@
+{"start":909.6,"end":933.9,"confidence":0.72,"reason":"Short in-house promotional sponsor tag for TakePoliticsSeriously.com with call to action to get two episodes of the show","end_text":"episodes of this show"}

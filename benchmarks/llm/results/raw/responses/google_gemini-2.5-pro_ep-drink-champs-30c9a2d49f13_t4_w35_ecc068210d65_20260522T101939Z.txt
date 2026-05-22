@@ -1,0 +1,9 @@
+[
+  {
+    "start": 15261.8,
+    "end": 15285.2,
+    "confidence": 0.85,
+    "reason": "This segment appears to be a placeholder or meta-ad, consisting only of the repeated words 'promo code' and 'discount code'. It is not editorial content and functions as a break.",
+    "end_text": "code, discount code, discount code"
+  }
+]

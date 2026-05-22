@@ -1,0 +1,30 @@
+{"ad_segments": [
+  {
+    "start": 13669.1,
+    "end": 13696.9,
+    "confidence": 0.98,
+    "reason": "Airtasker sponsor read",
+    "end_text": "Airtasker.com"
+  },
+  {
+    "start": 13720.1,
+    "end": 13758.2,
+    "confidence": 0.95,
+    "reason": "Care for the Culture from Gilead Sciences sponsor mention",
+    "end_text": "Gilead Sciences"
+  },
+  {
+    "start": 13759.0,
+    "end": 13786.2,
+    "confidence": 0.98,
+    "reason": "OnDeck sponsor read",
+    "end_text": "OnDeck.com"
+  },
+  {
+    "start": 13815.9,
+    "end": 13828.9,
+    "confidence": 0.95,
+    "reason": "Public.com sponsor mention",
+    "end_text": "public.com"
+  }
+]}

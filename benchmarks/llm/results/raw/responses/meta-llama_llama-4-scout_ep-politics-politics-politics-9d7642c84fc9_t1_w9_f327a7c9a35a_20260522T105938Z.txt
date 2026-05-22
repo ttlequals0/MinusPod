@@ -1,0 +1,7 @@
+{ 
+  "start": 4195.9, 
+  "end": 4240.6, 
+  "confidence": 0.98, 
+  "reason": "host-read ad segment for TakePoliticsSeriously.com and listing of supporters", 
+  "end_text": "TakePoliticsSeriously.com"
+}

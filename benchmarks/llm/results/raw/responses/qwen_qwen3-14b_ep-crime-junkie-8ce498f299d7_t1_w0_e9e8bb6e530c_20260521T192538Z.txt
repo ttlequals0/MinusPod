@@ -1,0 +1,4 @@
+e.
+{
+
+":[{":"start"  ,"end"  :"", "confidence": 0.95, "reason": "Vitel Global sponsor read", "end_text": "make every connection count."}

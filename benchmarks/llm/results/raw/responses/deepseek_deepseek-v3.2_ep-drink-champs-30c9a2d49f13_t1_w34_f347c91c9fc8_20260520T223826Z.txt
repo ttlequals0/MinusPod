@@ -1,0 +1,1 @@
+{"start": 14854.0, "end": 14861.3, "confidence": 0.95, "reason": "Platform-inserted post-roll ad: 'Thank you for watching' is a typical sign-off for a video/podcast platform ad insertion.", "end_text": "Thank you for watching."}

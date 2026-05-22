@@ -1,0 +1,7 @@
+{
+	"start": 4302.7,
+	"end": 4373.7,
+	"confidence": 0.95,
+	"reason": "Discussion about a coach's strategy and impact on the team",
+	"end_text": "You think that formula still works in today's game? I think it'll work in anything because we all react to something new."
+}

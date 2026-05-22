@@ -1,0 +1,16 @@
+[
+  {
+    "start": 54.1,
+    "end": 64.7,
+    "confidence": 0.98,
+    "reason": "Sponsor read for Old National Bank with a URL.",
+    "end_text": "banking. Member FDIC."
+  },
+  {
+    "start": 506.4,
+    "end": 548.5,
+    "confidence": 0.95,
+    "reason": "Promotional segment for the Crain's Weekly News Quiz with a URL.",
+    "end_text": "Gist with Amy Guth."
+  }
+]

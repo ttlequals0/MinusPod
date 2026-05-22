@@ -1,0 +1,18 @@
+```json
+[
+  {
+    "start": 1035.7,
+    "end": 1097.9,
+    "confidence": 0.98,
+    "reason": "SoFi personal loan sponsor read with promo code and URL",
+    "end_text": "SoFi.com slash CJ. Loans originated by SoFi Bank"
+  },
+  {
+    "start": 1099.8,
+    "end": 1129.6,
+    "confidence": 0.95,
+    "reason": "LinkedIn Premium All-in-One sponsor read with URL",
+    "end_text": "LinkedIn.com slash all-in-one"
+  }
+]
+```

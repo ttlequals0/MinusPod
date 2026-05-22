@@ -1,0 +1,2 @@
+s.
+{"start": 4675.4, "end": 4705.5, "confidence": 0.98, "reason": "Colgate Women's Games sponsor read", "end_text": "your smile is your strength."}

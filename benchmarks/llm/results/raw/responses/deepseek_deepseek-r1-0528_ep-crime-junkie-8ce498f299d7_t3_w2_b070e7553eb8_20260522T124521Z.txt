@@ -1,0 +1,16 @@
+[
+  {
+    "start": 1036.2,
+    "end": 1097.9,
+    "confidence": 0.95,
+    "reason": "SoFi sponsor read, promoting debt consolidation loans and the SoFi app",
+    "end_text": "apply. NMLS 696891"
+  },
+  {
+    "start": 1099.8,
+    "end": 1129.6,
+    "confidence": 0.95,
+    "reason": "LinkedIn Premium All-in-One ad, promoting tools for small business growth",
+    "end_text": "free at LinkedIn.com slash all-in-one"
+  }
+]

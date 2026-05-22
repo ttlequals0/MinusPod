@@ -1,0 +1,13 @@
+{
+  "ad_segments": [
+    {
+      "start": 5568.0,
+      "end": 5596.3,
+      "confidence": 0.97,
+      "reason": "Netflix sponsor read for Remarkably Bright Creatures",
+      "end_text": "only on Netflix."
+    }
+  ],
+  "window_start": 5038.4,
+  "window_end": 5641.0
+}

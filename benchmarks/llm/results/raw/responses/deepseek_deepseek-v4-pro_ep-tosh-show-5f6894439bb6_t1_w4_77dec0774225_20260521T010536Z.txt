@@ -1,0 +1,25 @@
+{
+  "segments": [
+    {
+      "start": 1837.5,
+      "end": 1912.2,
+      "confidence": 0.98,
+      "reason": "Mint Mobile host-read sponsor ad with promo code and URL",
+      "end_text": "See Mint Mobile for details."
+    },
+    {
+      "start": 1913.4,
+      "end": 1942.4,
+      "confidence": 0.95,
+      "reason": "Mattress Warehouse network-inserted brand tagline ad",
+      "end_text": "only at Mattress Warehouse."
+    },
+    {
+      "start": 1943.2,
+      "end": 1999.5,
+      "confidence": 0.95,
+      "reason": "PC Richard & Son network-inserted brand tagline ad",
+      "end_text": "PCRichard.com slash Aseema dot HTML for details."
+    }
+  ]
+}

@@ -1,0 +1,3 @@
+{
+  "analysis": "We need to parse the transcript segment. The timestamps are huge (12600 seconds etc). The window is 210-220 minutes, which is 12600-13200 seconds. The transcript provided covers from 12600.1s to 13208.2s, which is within the window. Need to detect ad segments. Look for promotional language, sponsor mentions, transition phrases like \"let's take a break\" etc. I see no such phrases. The content is a conversation about various topics, no sponsor names, no URLs, no promo codes, no \"let's take a break\". So likely no ads. Return [] as per instructions.\n\nWe must output JSON array only.\n"
+}

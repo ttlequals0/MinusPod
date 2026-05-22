@@ -1,0 +1,1 @@
+{"start": 1589.9, "end": 1601.7, "confidence": 0.6, "reason": "Possible organic comment on subscription cost, not a structured ad; lacks promotional language, URL, or call to action", "end_text": "episode? Huh. Interesting."}

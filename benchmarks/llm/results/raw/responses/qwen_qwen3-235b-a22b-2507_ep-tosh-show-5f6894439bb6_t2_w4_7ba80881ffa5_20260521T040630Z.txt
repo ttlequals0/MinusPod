@@ -1,0 +1,1 @@
+{"start": 1837.5, "end": 1912.2, "confidence": 0.99, "reason": "Host-read Mint Mobile ad with promo code and call to action", "end_text": "mintmobile.com slash tosh"}

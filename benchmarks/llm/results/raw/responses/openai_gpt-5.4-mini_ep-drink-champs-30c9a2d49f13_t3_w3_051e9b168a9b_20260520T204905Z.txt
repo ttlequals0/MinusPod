@@ -1,0 +1,1 @@
+{"start":1450.9,"end":1629.0,"confidence":0.99,"reason":"Multi-part ad break with Airtasker, Care for the Culture from Gilead Sciences, OnDeck, and BetMGM promotional reads; includes sponsor pitches, URLs/calls to action, and the break transition into sponsored content.","end_text":"with Kansas Crossing Casino and Hotel"}

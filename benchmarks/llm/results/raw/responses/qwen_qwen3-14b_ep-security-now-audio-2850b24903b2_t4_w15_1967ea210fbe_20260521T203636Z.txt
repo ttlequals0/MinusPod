@@ -1,0 +1,2 @@
+t.
+{"start": 6300.0, "end": 6900.0, "confidence": 0.0, "reason": "No advertisement segments detected in the provided transcript window", "end_text": "web developer doesn't care which one they're interacting with."}

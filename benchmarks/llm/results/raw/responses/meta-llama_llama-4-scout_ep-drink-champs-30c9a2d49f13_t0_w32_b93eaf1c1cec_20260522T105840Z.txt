@@ -1,0 +1,25 @@
+{
+"ads": [
+    {
+      "start": 13669.1,
+      "end": 13719.5,
+      "confidence": 0.98,
+      "reason": "Airtasker sponsor read",
+      "end_text": "Airtasker.com"
+    },
+    {
+      "start": 13759.0,
+      "end": 13786.2,
+      "confidence": 0.98,
+      "reason": "OnDeck sponsor read",
+      "end_text": "OnDeck.com"
+    },
+    {
+      "start": 13815.9,
+      "end": 13828.9,
+      "confidence": 0.98,
+      "reason": "Public sponsor read",
+      "end_text": "public.com"
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+{"start": 5471.4, "end": 5500.8, "confidence": 0.3, "reason": "Silence or gap in transcript with no promotional content; insufficient evidence to classify as ad", "end_text": "None of that shit"}

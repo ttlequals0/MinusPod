@@ -1,0 +1,1 @@
+[{"start": 1065.2, "end": 1097.9, "confidence": 0.98, "reason": "SoFi financial services promotion", "end_text": "SoFi.com slash CJ"}, {"start": 1111.1, "end": 1129.6, "confidence": 0.95, "reason": "LinkedIn Premium All-in-One advertisement", "end_text": "LinkedIn.com slash all-in-one"}]

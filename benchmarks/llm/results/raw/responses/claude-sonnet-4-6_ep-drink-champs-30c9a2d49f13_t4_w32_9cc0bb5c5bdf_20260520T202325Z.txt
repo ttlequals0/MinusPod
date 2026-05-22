@@ -1,0 +1,32 @@
+```json
+[
+  {
+    "start": 13669.1,
+    "end": 13696.9,
+    "confidence": 0.97,
+    "reason": "Airtasker platform ad with call to action, URL, and promotional language about earning income through tasks",
+    "end_text": "get anything done"
+  },
+  {
+    "start": 13697.3,
+    "end": 13758.2,
+    "confidence": 0.92,
+    "reason": "Cross-promotion for 'Decisions Decisions' podcast episode with Kiki Palmer, sponsored by Care for the Culture from Gilead Sciences",
+    "end_text": "wherever you get your podcasts"
+  },
+  {
+    "start": 13759.0,
+    "end": 13786.2,
+    "confidence": 0.98,
+    "reason": "OnDeck small business loans sponsor read with URL, BBB rating, and call to action",
+    "end_text": "subject to lender approval"
+  },
+  {
+    "start": 13786.9,
+    "end": 13844.8,
+    "confidence": 0.97,
+    "reason": "Public investing platform sponsor read promoting multi-asset portfolio and AI-generated indexes with URL mention",
+    "end_text": "public.com slash disclosures"
+  }
+]
+```

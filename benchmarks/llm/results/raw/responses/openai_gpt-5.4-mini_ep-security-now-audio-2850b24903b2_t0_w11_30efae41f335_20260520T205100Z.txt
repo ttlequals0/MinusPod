@@ -1,0 +1,1 @@
+{"start":4639.7,"end":4978.4,"confidence":0.93,"reason":"Anthropic Claude Security sponsored promo segment with product positioning, feature pitch, and direct access URL mention (claude.ai/security); part of a long host-read/inserted ad that continues across multiple transcript lines.","end_text":"jumping on this with all possible speed"}

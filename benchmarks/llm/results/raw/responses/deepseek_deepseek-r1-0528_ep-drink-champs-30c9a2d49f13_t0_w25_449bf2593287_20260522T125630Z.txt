@@ -1,0 +1,44 @@
+[
+  {
+    "start": 10567.1,
+    "end": 10575.1,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Ballers TV show",
+    "end_text": "Hold on, let me add something to that."
+  },
+  {
+    "start": 10705.6,
+    "end": 10732.1,
+    "confidence": 0.95,
+    "reason": "Host-read ad for O'Bannon boys and EA Sports",
+    "end_text": "That's what started this whole thing."
+  },
+  {
+    "start": 10805.8,
+    "end": 10815.5,
+    "reason": "Host-read ad for Luke's club",
+    "confidence": 0.95,
+    "end_text": "what they call Unk now"
+  },
+  {
+    "start": 10845.1,
+    "end": 10867.0,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Rolex Lounge",
+    "end_text": "Lewis Oliver, Pat Swilling."
+  },
+  {
+    "start": 10921.7,
+    "end": 10943.2,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Miami clubs",
+    "end_text": "our star receiver."
+  },
+  {
+    "start": 11012.0,
+    "end": 11032.2,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Rolex Lounge",
+    "end_text": "with the plastic, yeah."
+  }
+]

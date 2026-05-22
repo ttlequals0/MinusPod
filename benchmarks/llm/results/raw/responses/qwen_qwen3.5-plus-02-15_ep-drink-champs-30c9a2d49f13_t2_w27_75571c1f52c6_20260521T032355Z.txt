@@ -1,0 +1,9 @@
+[
+  {
+    "start": 11335.2,
+    "end": 11455.4,
+    "confidence": 0.98,
+    "reason": "Contiguous block of sponsor reads: Airtasker (URL/CTA), Decisions Decisions podcast promo (Gilead Sciences sponsor), and OnDeck (URL/disclaimer)",
+    "end_text": "amount subject to lender approval."
+  }
+]

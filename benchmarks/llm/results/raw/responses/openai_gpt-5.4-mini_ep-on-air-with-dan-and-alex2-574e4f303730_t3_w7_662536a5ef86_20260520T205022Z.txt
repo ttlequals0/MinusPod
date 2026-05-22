@@ -1,0 +1,1 @@
+{"start":3428.1,"end":3486.2,"confidence":0.97,"reason":"Platform/institutional promo block: Arizona State University ad followed immediately by University of Michigan brand spot, both with promotional language and URL/call to action; likely continued from previous segment or network-inserted ads.","end_text":"See more solutions at umich.edu"}

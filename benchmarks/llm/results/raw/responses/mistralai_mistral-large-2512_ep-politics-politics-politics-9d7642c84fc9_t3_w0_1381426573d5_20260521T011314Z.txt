@@ -1,0 +1,9 @@
+[
+    {
+        "start": 0.0,
+        "end": 30.4,
+        "confidence": 0.95,
+        "reason": "Platform-inserted pre-roll ad for 'Just Another Pilot' with promotional language ('The following is brought to you by...')",
+        "end_text": "coming up. The following is brought to you by Just Another Pilot."
+    }
+]

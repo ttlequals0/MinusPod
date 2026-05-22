@@ -1,0 +1,1 @@
+[{"start": 1460.1, "end": 1524.8, "confidence": 0.95, "reason": "Airtasker and Decisions Decisions podcast sponsorship", "end_text": "sponsored by Care for the Culture from Gilead Sciences"}]

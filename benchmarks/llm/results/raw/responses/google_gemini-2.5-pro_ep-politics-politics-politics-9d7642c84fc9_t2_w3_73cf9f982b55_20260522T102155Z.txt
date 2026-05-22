@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1589.9,
+    "end": 1601.7,
+    "confidence": 0.9,
+    "reason": "A short promotional spot for the podcast's paid subscription, referencing its low cost.",
+    "end_text": "Huh. Interesting."
+  }
+]

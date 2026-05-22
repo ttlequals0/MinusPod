@@ -1,0 +1,1 @@
+{"start":5420.4,"end":5441.4,"confidence":0.28,"reason":"Possible malformed/partial ad marker only contains repeated 'promo code, discount code' language with no identifiable sponsor or product; likely incomplete insertion","end_text":"discount code, discount code, discount code"}

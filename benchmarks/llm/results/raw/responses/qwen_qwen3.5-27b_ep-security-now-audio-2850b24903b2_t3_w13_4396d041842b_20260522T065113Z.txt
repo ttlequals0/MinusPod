@@ -1,0 +1,1 @@
+[{"start": 6016.6, "end": 6060.0, "confidence": 0.98, "reason": "Hawkshunt sponsor read, continues in next", "end_text": "empowers your employees"}]

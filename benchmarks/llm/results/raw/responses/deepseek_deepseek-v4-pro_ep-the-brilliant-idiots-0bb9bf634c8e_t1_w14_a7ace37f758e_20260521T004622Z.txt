@@ -1,0 +1,10 @@
+{
+  "analysis": "Looking at the transcript segment from 5871.4s to 6499.6s... Scanning for promotional language, product pitches, calls to action, or transitions to ad breaks...",
+  "flags": {
+    "ad_break_markers": ["Let's pay some bills"]  ,
+    "sponsor_names": ["Blue Chew"],
+    "promo_codes": [],
+    "ctas": [],
+    "network_ads": []
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "start": null,
+  "end": null,
+  "confidence": null,
+  "reason": "The transcript segment contains no promotional language, sponsor mentions, calls to action, branding taglines, or any other markers of advertisement content. It is entirely composed of narrative storytelling about the case of Christopher Cole Thomas.",
+  "end_text": ""
+}

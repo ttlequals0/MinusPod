@@ -1,0 +1,37 @@
+[
+  {
+    "start": 4646.2,
+    "end": 4697.4,
+    "confidence": 1.0,
+    "reason": "Colgate sponsored segment",
+    "end_text": "your smile is your strength"
+  },
+  {
+    "start": 4705.5,
+    "end": 4733.9,
+    "confidence": 1.0,
+    "reason": "Skinny Pop sponsored segment",
+    "end_text": "perfectly salted. Skinny Pop"
+  },
+  {
+    "start": 4734.3,
+    "end": 4763.1,
+    "confidence": 1.0,
+    "reason": "Colgate sponsored segment",
+    "end_text": "your smile is your strength"
+  },
+  {
+    "start": 4766.5,
+    "end": 4787.9,
+    "confidence": 1.0,
+    "reason": "Viz prescription eye drop sponsored segment",
+    "end_text": "Learn more at Viz.com"
+  },
+  {
+    "start": 4787.9,
+    "end": 4806.1,
+    "confidence": 1.0,
+    "reason": "Garnier sponsored segment",
+    "end_text": "GarnierUSA.com slash NPF"
+  }
+]

@@ -1,0 +1,1 @@
+{"start":4675.4,"end":4806.1,"confidence":0.98,"reason":"Multiple ad segments in sequence: Colgate Women's Games sponsor read, Skinny Pop product ad, Viz prescription eye drops ad, and Garnier/National Park Foundation promotional segment. Includes commercial copy, brand names, and calls to action/URLs.","end_text":"GarnierUSA.com slash NPF"}

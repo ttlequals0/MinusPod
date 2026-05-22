@@ -1,0 +1,1 @@
+{"start":0.0,"end":150.5,"confidence":0.99,"reason":"Cluster of platform/network inserted ads and sponsor reads: iHeart Podcast branding, Airtasker promo, Gilead/Care for the Culture PSA-style sponsored message, Nissan campaign, and Shopify sponsor pitch with URL","end_text":"Start now at Shopify.com slash B-E-N"}

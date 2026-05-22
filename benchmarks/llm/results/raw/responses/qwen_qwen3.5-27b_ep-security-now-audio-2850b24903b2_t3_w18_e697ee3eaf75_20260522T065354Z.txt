@@ -1,0 +1,7 @@
+{
+  "start": 7584.4,
+  "end": 7797.4,
+  "confidence": 0.98,
+  "reason": "Trusted Tech sponsor read with transition and return phrase",
+  "end_text": "Now, back to Steve."
+}

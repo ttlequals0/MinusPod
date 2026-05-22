@@ -1,0 +1,7 @@
+{
+  "start": 12.175,
+  "end": 12.37,
+  "confidence": 0.95,
+  "reason": "The segment contains a transition phrase 'Let me ask you a little bit off the subject, but still on the subject,' indicating a continuation of the ad segment. The segment includes promotional language and references to Stephen A. Smith and Watsapp, suggesting a sponsorship or promotional content.",
+  "end_text": "we're going to have lunch"
+}

@@ -1,0 +1,1 @@
+{"start": 4324.2, "end": 4334.1, "confidence": 0.9, "reason": "Charlamagne Tha God promotes AM Mornings and All Love Racquet Club event", "end_text": "head to All Love Racquet Club."}

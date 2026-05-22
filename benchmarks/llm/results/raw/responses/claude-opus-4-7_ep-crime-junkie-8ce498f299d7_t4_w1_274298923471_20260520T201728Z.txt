@@ -1,0 +1,1 @@
+[{"start": 1035.7, "end": 1035.7, "confidence": 0.6, "reason": "Debt relief ad beginning - continues in next window", "end_text": "Debt can get messy fast"}]

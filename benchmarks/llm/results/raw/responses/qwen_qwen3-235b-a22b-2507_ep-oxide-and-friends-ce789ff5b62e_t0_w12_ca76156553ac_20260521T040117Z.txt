@@ -1,0 +1,1 @@
+{"start": 5036.2, "end": 5069.8, "confidence": 0.3, "reason": "No promotional language, sponsor names, URLs, or calls to action present; this is a team expansion announcement and closing remarks, not an advertisement", "end_text": "see you all next time"}

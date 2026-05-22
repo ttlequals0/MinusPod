@@ -1,0 +1,1 @@
+{"start":2680.5,"end":2681.9,"confidence":0.74,"reason":"Possible platform/end-card promo for the show/substack context, but no clear sponsor copy or break transition in this window; likely show outro rather than ad","end_text":"We'll see you next time"}

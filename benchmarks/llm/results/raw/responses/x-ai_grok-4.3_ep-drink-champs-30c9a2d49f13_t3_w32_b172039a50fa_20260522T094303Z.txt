@@ -1,0 +1,1 @@
+[{"start": 13669.1, "end": 13758.2, "confidence": 0.95, "reason": "Airtasker ad followed by cross-promo for Decisions Decisions podcast", "end_text": "Gilead Sciences"}, {"start": 13759.0, "end": 13815.9, "confidence": 0.95, "reason": "OnDeck and Public.com sponsor reads", "end_text": "back test it again"}]

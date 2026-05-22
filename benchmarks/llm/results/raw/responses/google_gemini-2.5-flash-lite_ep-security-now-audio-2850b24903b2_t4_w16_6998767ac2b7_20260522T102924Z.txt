@@ -1,0 +1,9 @@
+[
+  {
+    "start": 6744.0,
+    "end": 7320.0,
+    "confidence": 0.98,
+    "reason": "The host is discussing the technical details and potential implications of a new browser AI API, which is a core topic of the episode. There is no promotional language or sponsor mention within this segment. This appears to be editorial content.",
+    "end_text": "respond."
+  }
+]

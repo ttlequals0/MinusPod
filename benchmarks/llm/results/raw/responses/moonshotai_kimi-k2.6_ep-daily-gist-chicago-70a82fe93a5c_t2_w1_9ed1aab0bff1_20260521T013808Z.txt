@@ -1,0 +1,1 @@
+{"start": 506.4, "end": 548.5, "confidence": 0.85, "reason": "Crain's Weekly News Quiz and podcast feed self-promotion (housekeeping, not paid sponsor)", "end_text": "Crain's Daily Gist with Amy Guth"}

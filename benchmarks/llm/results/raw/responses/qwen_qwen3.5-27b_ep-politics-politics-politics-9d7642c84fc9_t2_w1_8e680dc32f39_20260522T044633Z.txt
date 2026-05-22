@@ -1,0 +1,9 @@
+[
+  {
+    "start": 909.6,
+    "end": 933.9,
+    "confidence": 0.9,
+    "reason": "TakePoliticsSeriously.com sponsor read for news update segment",
+    "end_text": "managing security risks."
+  }
+]

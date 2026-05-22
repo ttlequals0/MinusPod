@@ -1,0 +1,1 @@
+{"start": 6283.4, "end": 6318.1, "confidence": 0.98, "reason": "OnDeck small business credit pitch with URL and disclaimer, followed by Public investing platform sponsor mention; merged due to <15s gap", "end_text": "those who take it seriously."}

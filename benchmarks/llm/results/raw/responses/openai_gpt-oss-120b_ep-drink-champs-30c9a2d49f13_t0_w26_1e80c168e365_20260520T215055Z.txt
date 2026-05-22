@@ -1,0 +1,25 @@
+{
+  "result": [
+    {
+      "start": 11335.2,
+      "end": 11365.6,
+      "confidence": 0.98,
+      "reason": "Airtasker sponsor read",
+      "end_text": "Airtasker, get anything done"
+    },
+    {
+      "start": 11416.3,
+      "end": 11424.6,
+      "confidence": 0.97,
+      "reason": "Care for the Culture sponsorship mention",
+      "end_text": "Gilead Sciences"
+    },
+    {
+      "start": 11425.3,
+      "end": 11455.4,
+      "confidence": 0.97,
+      "reason": "OnDeck small business loan ad",
+      "end_text": "lender approval"
+    }
+  ]
+}

@@ -1,0 +1,30 @@
+[
+  {
+    "start": 13669.1,
+    "end": 13696.9,
+    "confidence": 0.95,
+    "reason": "Airtasker ad read. Includes product pitch and call to action to download the app or visit Airtasker.com.",
+    "end_text": "Airtasker, get anything done."
+  },
+  {
+    "start": 13697.3,
+    "end": 13758.2,
+    "confidence": 0.95,
+    "reason": "This segment promotes a special episode about sexual health sponsored by Care for the Culture from Gilead Sciences. It includes a sneak peek and a call to listen to the episode.",
+    "end_text": "disclose."
+  },
+  {
+    "start": 13759.0,
+    "end": 13786.9,
+    "confidence": 0.95,
+    "reason": "OnDeck ad read. Promotes loans for small businesses and includes a call to action to apply at OnDeck.com.",
+    "end_text": "approval."
+  },
+  {
+    "start": 13786.9,
+    "end": 13828.9,
+    "confidence": 0.95,
+    "reason": "Public ad read. Promotes the investing platform and its features, including AI-generated assets, with a call to action to visit public.com/disclosures.",
+    "end_text": "again."
+  }
+]

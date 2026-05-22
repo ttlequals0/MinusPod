@@ -1,0 +1,1 @@
+{"start": 506.4, "end": 548.5, "confidence": 0.95, "reason": "Host-read ad for Crain's Weekly News Quiz with call to action (chicagobusiness.com/quiz)", "end_text": "wherever you get your podcasts"}

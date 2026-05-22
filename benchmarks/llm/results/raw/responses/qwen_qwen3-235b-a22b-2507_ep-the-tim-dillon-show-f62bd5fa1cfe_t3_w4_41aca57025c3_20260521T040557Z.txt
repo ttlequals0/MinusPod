@@ -1,0 +1,1 @@
+{"start": 1668.7, "end": 2286.3, "confidence": 0.99, "reason": "Host discusses Facebook, Meta, aging, screen time, and children's technology use without any promotional language, sponsor mentions, URLs, or calls to action. No ad content present in this segment.", "end_text": "And there's nothing you can do about it. I'm sorry."}

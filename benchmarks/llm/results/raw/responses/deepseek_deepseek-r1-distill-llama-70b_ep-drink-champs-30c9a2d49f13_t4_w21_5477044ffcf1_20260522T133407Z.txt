@@ -1,0 +1,7 @@
+{
+  "start": 8799.1,
+  "end": 8826.4,
+  "confidence": 0.95,
+  "reason": "OnDeck loan service ad",
+  "end_text": "OnDeck.com."
+}

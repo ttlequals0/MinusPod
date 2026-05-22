@@ -1,0 +1,1 @@
+{"start": 1233.7, "end": 1870.3, "confidence": 0.99, "reason": "continuous technical discussion about rack manufacturing, PEMs, and extrude and tap features with no promotional content or ad markers", "end_text": "manufacturability of the rack"}

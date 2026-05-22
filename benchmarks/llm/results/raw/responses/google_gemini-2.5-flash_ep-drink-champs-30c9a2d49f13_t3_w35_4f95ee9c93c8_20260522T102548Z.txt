@@ -1,0 +1,9 @@
+[
+  {
+    "start": 15261.8,
+    "end": 15285.2,
+    "confidence": 0.9,
+    "reason": "Repeated 'discount code' suggests an ad segment or a discussion about discount codes, which is promotional.",
+    "end_text": "discount code, discount code,"
+  }
+]

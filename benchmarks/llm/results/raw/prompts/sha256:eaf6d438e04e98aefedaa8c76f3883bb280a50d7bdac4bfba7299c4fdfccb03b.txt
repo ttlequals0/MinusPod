@@ -1,0 +1,62 @@
+Podcast: security-now-audio
+Episode: SN 1077: A Browser AI API? - End of Bug Bounties?
+
+
+Episode description: <p>Google is sneaking a massive 4.7GB AI model into Chrome, and Mozilla is fighting back as the future of browsers threatens to turn into an AI arms race. Find out what's really happening behind this push and why it's setting off alarm bells across the web.</p><ul> 
+<li>Hackers AI-code a portal, forget to add authentication.</li> 
+<li>The UK's NCSC issues a Mythos warning. Where's CISA?</li> 
+<li>Another (of many) Linux local privilege escalations.</li> 
+<li>AI may be spelling the end of bug bounties.</li> 
+<li>Anthropic releases "Claude Security" mini-Mythos.</li> 
+<li>ChatGPT gets very serious about login security.</li> 
+<li>Syncthing's SyncTrayzor v1 abandoned; v2 created.</li> 
+<li>Google drops an AI API into Chrome; Mozilla objects</li></ul> 
+<p>Show Notes - <a href="https://www.grc.com/sn/SN-1077-Notes.pdf">https://www.grc.com/sn/SN-1077-Notes.pdf</a></p> 
+<p><strong>Hosts:</strong> <a href="https://twit.tv/people/steve-gibson">Steve Gibson</a> and <a href="https://twit.tv/people/leo-laporte">Leo Laporte</a></p> 
+<p>Download or subscribe to <em>Security Now</em> at <a href="https://twit.tv/shows/security-now">https://twit.tv/shows/security-now</a>.</p> 
+<p>You can submit a question to <em>Security Now</em> at the <a href="https://www.grc.com/feedback.htm" target="_blank">GRC Feedback Page</a>.</p> 
+<p>For 16kbps versions, transcripts, and notes (including fixes), visit Steve's site: <a href="https://www.grc.com/securitynow.htm" target="_blank">grc.com</a>, also the home of the best disk maintenance and recovery utility ever written <a href="https://www.grc.com/sr/spinrite.htm" target="_blank">Spinrite 6</a>.</p> 
+<p><strong>Join Club TWiT for Ad-Free Podcasts!</strong><br /> 
+Support what you love and get ad-free audio <em>and</em> video feeds, a members-only Discord, and exclusive content. Join today: <a href="https://twit.tv/clubtwit" rel="payment">https://twit.tv/clubtwit</a></p>
+<p><strong>Sponsors:</strong><ul>
+<li><a href="http://zscaler.com/security" rel="sponsored" target="_blank">zscaler.com/security</a></li>
+<li><a href="http://meter.com/securitynow" rel="sponsored" target="_blank">meter.com/securitynow</a></li>
+<li><a href="http://bitwarden.com/twit" rel="sponsored" target="_blank">bitwarden.com/twit</a></li>
+<li><a href="http://hoxhunt.com/securitynow" rel="sponsored" target="_blank">hoxhunt.com/securitynow</a></li>
+<li><a href="http://trustedtech.team/securitynow365" rel="sponsored" target="_blank">trustedtech.team/securitynow365</a></li>
+</ul></p>
+
+Transcript:
+[6284.0s - 6304.7s] John cited, as a no-thanks example, Microsoft's Recall, compiling a long-term history of everyone's desktop screenshots every five seconds. Giving Recall the label of AI now seems sort of quaint in today's world. We've come a long way in a short time. Tetchner said,
+[6305.2s - 6331.8s] that, quote, the future of browsers is about who controls the pathway to information and who gets to monetize you, unquote, which frames the race to insert AI into our browsers as a power grab, more than as a feature competition. So the thing that put this on my radar last week was seeing that Vivaldi's John von Teichner has some other company.
+[6332.6s - 6341.6s] Notably, Mozilla. In a posting to Blue Sky last Thursday, April 30th, Mozilla's Jake Archibald wrote,
+[6342.6s - 6367.5s] Chrome looks set to ship an LLM prompt API to the web platform. At Mozilla, we oppose this API. We feel it has a large interoperability risk and Google imposing terms and conditions
+[6368.2s - 6396.1s] on a web API sets a dangerous precedent. Okay, now Leo, listen to this. Before I go any further, I want to touch on those terms and conditions, since that alone is a deal breaker for me. Last week, in a thread in Mozilla's GitHub account, Jake wrote, according to Chrome's documentation, to use the prompt API, you must acknowledge
+[6396.9s - 6421.9s] Google's generative AI prohibited uses policy. Elements of this policy go beyond law. For example, do not engage in generating or distributing content that facilitates sexually explicit content. Do not engage in misinformation, misrepresentation, or misleading activities.
+[6422.8s - 6429.6s] This includes facilitating misleading claims related to governmental or democratic processes.
+[6432.2s - 6455.9s] So here we have a proposed web browser API that implicitly contains acceptable use policy. This would be like a web browser refusing to display controversial four-letter words on the grounds that someone might be upset by what a website might wish to have their browser display.
+[6457.2s - 6483.8s] Hearing this causes me to want to select a couple of four-letter words myself. This is so wrong. Yeah. Now, this is the system prompt, though, for the AI, right? No, there is a system prompt for the AI, which is part of the API. Yeah. So, this is saying that the use of the prompt API by JavaScript running in the browser
+[6484.9s - 6512.6s] Must Acknowledge These Acceptable Uses Policy. Because it sounds more like the kind of thing you tell an AI not to do, and that's kind of understandable. No, no, this is for developers. These are rules. This is rules of the road. Yes, for developers. So, I just thank God we have respected developers at Mozilla to push back, and I hope this also comes to the attention of the EFF, because this seems wrong. Okay, so.
+[6512.9s - 6539.4s] To obtain some pro and con balance here, let's first look more closely at what this new so-called prompt API, that's the name that they're giving it, the prompt API, that Google has already implemented and moved into Chrome. It's already in Chrome, which is why, Leo, you noted that this multi-gig download is happening, because they're also downloading a model, their so-called nano model.
+[6541.1s - 6561.6s] The explainer for this nascent feature says, and so this is now Google speaking, this explainer and the accompanied draft report are in active development by the Web Machine Learning Community Group. Community Group members are seeking feedback, and they're getting some, seeking feedback and support.
+[6562.1s - 6588.7s] for this proposal to gain working group and implementer adoption. Implementations are experimentally available in Google Chrome and Microsoft Edge. Browsers and operating systems, they write, in order to set the context here, browsers and operating systems are increasingly expected to gain access to language models. Okay, I didn't know that, but okay. Language models are known for their versatility.
+[6589.7s - 6617.3s] With enough creative prompting, they can help accomplish tasks as diverse as, we have some bullet points, classification, tagging, and keyword extraction of arbitrary text. Helping users compose text such as blog posts, reviews, or biographies. Summarizing, for example, of articles, user reviews, or chat logs.
+[6617.8s - 6619.6s] Generating titles or headlines.
+[6617.8s - 6644.4s] Generating titles or headlines from article contents, answering questions based on the unstructured contents of a webpage, translation between languages, and proofreading. In other words, all of the things, I mean like AI in your browser things, that Vivaldi said, I don't know if we want to jump into that just yet. They said, the Google Chrome, Microsoft Edge,
+[6645.0s - 6672.2s] and the Web Machine Learning Community Group are exploring purpose-built APIs for some of these use cases, namely Translator, Language Detector, Summarizer, Writer, Rewriter, and Proofreader. This proposal additionally explores a general-purpose prompt API that allows web developers to prompt a language model directly.
+[6673.0s - 6699.0s] This gives web developers access to many more capabilities at the cost of requiring them to do their own prompt engineering. Currently, web developers wishing to use language models must either call out to cloud APIs or bring their own and run them using technologies like WebASAM or WebGPU, usually through JavaScript runtime frameworks.
+[6699.7s - 6725.5s] By providing web platform API access to the browser or operating system's existing language model, we can provide the following benefits compared to cloud APIs. Local processing of sensitive data, for example, allowing websites to combine AI features with end-to-end encryption. Potentially faster results, since there's no server round trip involved. Offline usage.
+[6726.1s - 6742.9s] Lower API costs for web developers and allowing hybrid approaches such as free users of a website to use on-device AI, whereas paid users use a more powerful API-based model. Okay, I'll just interrupt here to note that
+[6744.0s - 6767.8s] Those seemingly, I don't know, those to me, they feel like made up reasons. You know, local processing of sensitive data, for example, allowing websites to combine AI features with end-to-end encryption. I get the local processing angle. That's potentially valid. But the end-to-end encryption part makes little sense to me in this context. We already have...
+[6768.2s - 6791.6s] TLS connections with all websites and we have decades of history and experience with making TLS privacy and security bulletproof. Then there's potentially faster results since there's no server round trip involved, they cite. Okay, so the assumption here is that a local potentially underpowered LLM
+[6791.9s - 6799.7s] is going to outperform an LLM in these monster data centers that are being frantically built today.
+[6800.6s - 6825.9s] All of everything I'm seeing says that the cloud blows away local LLM. And so on for the remaining three benefits. You know, our browsers already do have the ability to query cloud-based LLMs using the tried and true XML HTTP request API, which has been around forever, or the more recent Fetch API. And both of those
+[6826.3s - 6853.4s] offer state-of-the-art, mature security and privacy protections. So what really appears to be going on here is for Google to be engineering a means for their Chrome and other Chromium-based browsers, notably Edge from Microsoft, to access non-cloud-based LLMs since everyone can already do that. That is, can already...
+[6853.7s - 6872.6s] Access cloud-based LLMs. Their explainer continues, writing, Compared to developer-supplied model approaches, using a built-in language model can save the user's bandwidth, storage, and memory resources while using a model that's optimized for the device.
+[6873.4s - 6883.0s] This pattern could also provide a lower barrier to entry for web developers by removing the need for developers to serve models and manage their dependencies.
+[6884.7s - 6907.2s] Okay, now, I'm not sure that that makes sense to me. Again, this presumes that any and all large language models are identical and interchangeable, and that the web developer doesn't care which one they're interacting with. They're just using a generic LLM that the user has provided to their browser.
+
+=== WINDOW 16/23: 105.0-115.0 minutes ===
+- Use absolute timestamps from transcript (as shown in brackets)
+- If an ad starts before this window, use the first timestamp with note "continues from previous"
+- If an ad extends past this window, use 6900.0 with note "continues in next"

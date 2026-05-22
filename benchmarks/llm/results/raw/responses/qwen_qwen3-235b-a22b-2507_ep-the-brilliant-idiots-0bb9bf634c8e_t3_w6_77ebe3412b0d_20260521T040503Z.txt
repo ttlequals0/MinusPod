@@ -1,0 +1,1 @@
+{"start": 2659.4, "end": 2688.1, "confidence": 0.85, "reason": "Host mentions 'shout out to the mid-roll' indicating a self-referential ad break, though no external sponsor is named; possible organic reference but timing and phrasing suggest ad transition", "end_text": "making some of the"}

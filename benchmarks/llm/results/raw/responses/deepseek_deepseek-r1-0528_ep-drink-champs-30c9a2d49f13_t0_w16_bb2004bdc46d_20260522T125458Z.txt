@@ -1,0 +1,9 @@
+[
+  {
+    "start": 7227.0,
+    "end": 7336.8,
+    "confidence": 0.95,
+    "reason": "Host-read ad for Tinder, including personal endorsement and call to action",
+    "end_text": "not able to talk"
+  }
+]

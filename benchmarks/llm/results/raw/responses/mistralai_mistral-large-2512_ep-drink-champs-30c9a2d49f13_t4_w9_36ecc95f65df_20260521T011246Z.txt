@@ -1,0 +1,16 @@
+[
+    {
+        "start": 4007.7,
+        "end": 4038.9,
+        "confidence": 0.9,
+        "reason": "Platform-inserted outro music and promotional language for the podcast network. Mentions 'omnystudio.com/listener' in the episode description, which is a hosting platform ad.",
+        "end_text": "Selvin Post Curfew."
+    },
+    {
+        "start": 4375.7,
+        "end": 4380.0,
+        "confidence": 0.85,
+        "reason": "Partial ad segment likely continues in the next window. No explicit sponsor mention here, but the abrupt end suggests a potential platform-inserted ad break (e.g., network promo or hosting platform ad).",
+        "end_text": "continues in next"
+    }
+]

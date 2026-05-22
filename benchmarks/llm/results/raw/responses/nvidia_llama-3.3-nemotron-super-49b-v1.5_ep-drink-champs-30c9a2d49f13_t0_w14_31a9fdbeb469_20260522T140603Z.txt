@@ -1,0 +1,6 @@
+[
+    {"start": 6208.7, "end": 6233.9, "confidence": 0.95, "reason": "Airtasker sponsor read with call to action", "end_text": "get anything done"},
+    {"start": 6234.1, "end": 6261.5, "confidence": 0.98, "reason": "Care for the Culture sponsored segment", "end_text": "wherever you get your podcasts"},
+    {"start": 6283.4, "end": 6313.4, "confidence": 0.97, "reason": "OnDeck loan service ad with URL", "end_text": "All loans and..."},
+    {"start": 6313.8, "end": 6318.1, "confidence": 0.96, "reason": "Public investing platform sponsorship", "end_text": "take it seriously"}
+]

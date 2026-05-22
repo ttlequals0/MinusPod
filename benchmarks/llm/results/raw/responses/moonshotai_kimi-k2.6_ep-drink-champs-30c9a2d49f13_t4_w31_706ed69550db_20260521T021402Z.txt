@@ -1,0 +1,1 @@
+{"start": 13018.5, "end": 13635.5, "confidence": 0.0, "reason": "No promotional language, sponsor names, URLs, promo codes, or calls to action detected in this window. All content appears to be organic show conversation.", "end_text": "AI is just a bootlicker"}

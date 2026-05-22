@@ -1,0 +1,9 @@
+[
+    {
+        "start": 12266.8,
+        "end": 12268.4,
+        "confidence": 0.9,
+        "reason": "Mention of '1.25 each month' and 'shaders' appears to be a promotional reference to a fishing bait subscription service, likely a dynamically inserted ad or host-read sponsorship. Promotional language includes pricing and product pitch.",
+        "end_text": "month. You know what"
+    }
+]

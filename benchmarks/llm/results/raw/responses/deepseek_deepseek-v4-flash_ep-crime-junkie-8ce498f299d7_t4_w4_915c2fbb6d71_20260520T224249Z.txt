@@ -1,0 +1,7 @@
+{
+  "start": 1959.8,
+  "end": 2032.3,
+  "confidence": 0.98,
+  "reason": "Rakuten cashback sponsor read with promo call to action (Rakuten.com/app, 17 million members)",
+  "end_text": "linkedin.com slash all-in-one"
+}

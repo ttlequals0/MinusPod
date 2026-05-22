@@ -1,0 +1,1 @@
+{"start": 1860.0, "end": 1860.0, "confidence": 0.0, "reason": "No promotional content found", "end_text": "end_text"}

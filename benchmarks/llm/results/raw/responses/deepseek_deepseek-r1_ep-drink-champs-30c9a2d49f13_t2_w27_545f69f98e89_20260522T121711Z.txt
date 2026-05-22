@@ -1,0 +1,23 @@
+[
+  {
+    "start": 11335.2,
+    "end": 11365.6,
+    "confidence": 0.97,
+    "reason": "Airtasker host-read ad with call to action and URL",
+    "end_text": "Airtasker, get anything done"
+  },
+  {
+    "start": 11366.2,
+    "end": 11415.2,
+    "confidence": 0.96,
+    "reason": "Decisions Decisions podcast cross-promotion with sponsorship tag",
+    "end_text": "disclose. And then I'm looking at these comments like"
+  },
+  {
+    "start": 11425.3,
+    "end": 11455.4,
+    "confidence": 0.98,
+    "reason": "OnDeck business loan sponsored segment with URL and call to action",
+    "end_text": "subject to lender approval"
+  }
+]

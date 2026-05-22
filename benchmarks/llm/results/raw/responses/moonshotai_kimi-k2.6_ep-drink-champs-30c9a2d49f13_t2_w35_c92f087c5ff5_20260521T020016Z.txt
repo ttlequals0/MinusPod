@@ -1,0 +1,1 @@
+{"start": 15261.8, "end": 15285.2, "confidence": 0.82, "reason": "Network-inserted ad segment containing repeated promotional language: promo code and discount code", "end_text": "discount code, discount code"}

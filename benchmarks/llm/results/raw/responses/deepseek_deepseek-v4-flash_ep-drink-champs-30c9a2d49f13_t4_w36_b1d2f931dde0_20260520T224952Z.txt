@@ -1,0 +1,53 @@
+{
+  "ads": [
+    {
+      "start": 15118.6,
+      "end": 15229.9,
+      "confidence": 0.95,
+      "reason": "Host-read sponsorship segment with lotion/discount code conversation and promotional language",
+      "end_text": "YouTube 60, come on!"
+    },
+    {
+      "start": 15239.0,
+      "end": 15285.2,
+      "confidence": 0.98,
+      "reason": "Sponsor segment with repeated promo/discount code phrases",
+      "end_text": "discount code, discount code, discount code"
+    },
+    {
+      "start": 15323.9,
+      "end": 15383.7,
+      "confidence": 0.97,
+      "reason": "Show outro with promotional language about socials, platforms, and website",
+      "end_text": "stay up to date with the latest releases, news, and merch by going to drinkchamps.com."
+    },
+    {
+      "start": 15388.3,
+      "end": 15416.5,
+      "confidence": 0.99,
+      "reason": "Airtasker advertisement with URL, call to action, and promotional pitch",
+      "end_text": "Airtasker. Get anything done."
+    },
+    {
+      "start": 15416.7,
+      "end": 15452.3,
+      "confidence": 0.98,
+      "reason": "CVS network-inserted advertisement with brand tagline and call to visit",
+      "end_text": "We can't wait to meet you. Store hours vary by location."
+    },
+    {
+      "start": 15453.9,
+      "end": 15481.1,
+      "confidence": 0.99,
+      "reason": "Trashy advertisement with promotional offer and URL",
+      "end_text": "Visit Trashy.io to get started."
+    },
+    {
+      "start": 15482.9,
+      "end": 15517.1,
+      "confidence": 0.99,
+      "reason": "Try Fencing network-inserted ad with URL, promotional pitch, and iHeart tag",
+      "end_text": "tryfencing.org. This is an iHeart Podcast. Guaranteed human."
+    }
+  ]
+}

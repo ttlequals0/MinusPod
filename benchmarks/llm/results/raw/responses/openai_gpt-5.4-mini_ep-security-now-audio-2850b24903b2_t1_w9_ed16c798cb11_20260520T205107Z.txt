@@ -1,0 +1,1 @@
+{"start":4204.1,"end":4264.3,"confidence":0.99,"reason":"Host says 'Okay. You want to take a little break?' then the show returns with a full Bitwarden sponsor read promoting password/passkey/secrets management, Access Intelligence, Agent Access SDK, and a call to action via the sponsor name and product pitch.","end_text":"We'll have more Security Now right after this."}

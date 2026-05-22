@@ -1,0 +1,1 @@
+{"start": 842.3, "end": 1430.4, "confidence": 0.0, "reason": "No promotional content, sponsor mentions, URLs, promo codes, or transition phrases detected. All transcript content is organic show conversation about football and Warren Sapp's career.", "end_text": "Roscoe needed"}

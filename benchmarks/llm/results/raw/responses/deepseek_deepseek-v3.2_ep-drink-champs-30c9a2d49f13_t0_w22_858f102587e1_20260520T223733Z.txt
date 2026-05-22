@@ -1,0 +1,1 @@
+{"start": 9228.0, "end": 9728.2, "confidence": 0.0, "reason": "No promotional content found in transcript segment. All content is conversational about fishing, sharks, iguanas, and food.", "end_text": "I'll eat your black ass."}

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 15388.3,
+    "end": 15517.1,
+    "confidence": 1.0,
+    "reason": "Consecutive network-inserted ads: Airtasker (app download call-to-action), CVS (brand promotion with URL), Trashy (product pitch with URL), Try Fencing (call-to-action with URL), ending with iHeartRadio platform tag",
+    "end_text": "iHeart Podcast. Guaranteed human"
+  }
+]

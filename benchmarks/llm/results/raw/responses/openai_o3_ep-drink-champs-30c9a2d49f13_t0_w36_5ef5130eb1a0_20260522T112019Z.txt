@@ -1,0 +1,18 @@
+{
+  "ads": [
+    {
+      "start": 15261.8,
+      "end": 15285.2,
+      "confidence": 0.25,
+      "reason": "Repeated 'promo code, discount code' call-to-action suggests truncated ad read",
+      "end_text": "discount code"
+    },
+    {
+      "start": 15388.3,
+      "end": 15517.1,
+      "confidence": 0.97,
+      "reason": "Back-to-back network-inserted ads for Airtasker, CVS, Trashy, TryFencing.org plus iHeart promo",
+      "end_text": "Guaranteed human."
+    }
+  ]
+}

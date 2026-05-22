@@ -1,0 +1,1 @@
+{"start": 15261.8, "end": 15285.2, "confidence": 0.78, "reason": "Partial ad-like segment with repeated promotional phrase 'promo code, discount code' but sponsor/product not identifiable; likely dynamic insertion or incomplete ad", "end_text": "discount code, discount code, discount code"}

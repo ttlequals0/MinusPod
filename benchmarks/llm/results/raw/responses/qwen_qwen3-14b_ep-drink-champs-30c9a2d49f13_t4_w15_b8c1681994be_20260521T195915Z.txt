@@ -1,0 +1,1 @@
+{"start": 6313.8, "end": 6318.1, "confidence": 0.95, "reason": "Public sponsor read", "end_text": "for those who take it seriously."}

@@ -1,0 +1,1 @@
+[{"start": 909.6, "end": 933.9, "confidence": 0.98, "reason": "Host-read sponsor segment for TakePoliticsSeriously.com with promotional language and call to action", "end_text": "go if you want to get two episodes of this show"}]

@@ -1,0 +1,1 @@
+{"start":0.5,"end":43.4,"confidence":0.99,"reason":"Carvana host-read ad with clear promotional language, including the brand name, 'give it a whirl,' 'Sell your car today on Carvana,' and the transition into the show from the ad copy.","end_text":"Sell your car today on Carvana"}

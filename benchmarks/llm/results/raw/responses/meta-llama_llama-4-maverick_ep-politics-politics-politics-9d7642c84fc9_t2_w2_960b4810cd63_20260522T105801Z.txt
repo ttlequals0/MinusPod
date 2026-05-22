@@ -1,0 +1,1 @@
+{"start": 909.6, "end": 934.5, "confidence": 0.9, "reason": "Sponsor read for TakePoliticsSeriously.com", "end_text": "Beijing aimed at deepening"}

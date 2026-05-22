@@ -1,0 +1,9 @@
+[
+  {
+    "start": 909.6,
+    "end": 991.0,
+    "confidence": 0.95,
+    "reason": "Host-read promotion for the show's subscription service, using the transition 'brought to you by' and providing a URL (TakePoliticsSeriously.com).",
+    "end_text": "China's Clear economic interest."
+  }
+]

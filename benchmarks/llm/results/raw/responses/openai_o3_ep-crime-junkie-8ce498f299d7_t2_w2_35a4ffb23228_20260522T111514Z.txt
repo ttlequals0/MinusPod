@@ -1,0 +1,1 @@
+{"start": 1036.2, "end": 1129.6, "confidence": 0.96, "reason": "Back-to-back host-read ads for SoFi (promo URL SoFi.com/CJ) and LinkedIn Premium (promo URL LinkedIn.com/all-in-one) with promotional copy and loan disclaimer", "end_text": "LinkedIn.com slash all-in-one"}

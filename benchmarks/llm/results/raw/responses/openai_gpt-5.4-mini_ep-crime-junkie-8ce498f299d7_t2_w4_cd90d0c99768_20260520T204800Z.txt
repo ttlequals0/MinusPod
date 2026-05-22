@@ -1,0 +1,1 @@
+{"start":1959.8,"end":2080.5,"confidence":0.99,"reason":"Mid-roll ad break featuring Rakuten, LinkedIn Premium All-in-One, and Hertz with promotional copy, URLs, and calls to action. Starts with the sponsor pitch at Rakuten and continues through LinkedIn Premium and Hertz before show content resumes.","end_text":"Get paired with our newest fleet yet at Hertz.com."}

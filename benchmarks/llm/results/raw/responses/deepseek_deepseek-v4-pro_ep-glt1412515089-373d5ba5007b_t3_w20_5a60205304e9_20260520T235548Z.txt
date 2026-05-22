@@ -1,0 +1,7 @@
+{
+  "start": 8405.6,
+  "end": 9000.0,
+  "confidence": 0.0,
+  "reason": "No advertisements detected in this window. The content is continuous conversation about creativity, writing, and personal experiences.",
+  "end_text": "interview in the morning"
+}

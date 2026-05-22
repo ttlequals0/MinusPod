@@ -1,0 +1,1 @@
+{"start": 0.0, "end": 30.4, "confidence": 0.98, "reason": "Host-read sponsor segment with transition and promotional language: 'The following is brought to you by Just Another Pilot'", "end_text": "coming up. The following is brought to you by Just Another Pilot"}

@@ -1,0 +1,1 @@
+{"start": 4401.9, "end": 4401.9, "confidence": 0.0, "reason": "No ad segments detected in this transcript window. The content is a continuous conversation about football, John Gruden, and coaching strategies.", "end_text": "so we won 12. It was 12-4."}

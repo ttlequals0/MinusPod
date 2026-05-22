@@ -1,0 +1,9 @@
+[
+  {
+    "start": 5420.4,
+    "end": 5441.4,
+    "confidence": 0.9,
+    "reason": "Short brand tagline ad, likely network-inserted. Contains repetitive marketing language.",
+    "end_text": "discount code, discount code,"
+  }
+]

@@ -1,0 +1,1 @@
+{"start": 7538.4, "end": 8187.1, "confidence": 0.1, "reason": "No advertisement segments detected; all content is part of the main interview discussion with Warren Sapp", "end_text": "going through this gate? They like, yeah."}

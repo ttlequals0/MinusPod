@@ -1,0 +1,2 @@
+5.
+{"start": 1837.5, "end": 1861.3, "confidence": 0.95, "reason": "Mint Mobile sponsor read continues in next", "end_text": "crazy high bills?"}

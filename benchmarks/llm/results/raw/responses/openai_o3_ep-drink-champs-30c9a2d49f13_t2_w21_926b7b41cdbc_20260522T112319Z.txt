@@ -1,0 +1,1 @@
+{"error": "The input appears truncated. No complete advertisement segments with the necessary promotional language and clear boundaries are present inside this window."}

@@ -1,0 +1,7 @@
+{
+	"start": 1589.9,
+	"end": 1601.7,
+	"confidence": 0.95,
+	"reason": "Unidentified ad mentioning less than 50 cents per episode",
+	"end_text": "Huh. Interesting."
+}

@@ -1,0 +1,1 @@
+{"start":2015.9,"end":2045.2,"confidence":0.99,"reason":"Capital One sponsor read with clear promo language ('This episode is brought to you by Capital One') and product pitch for Chat Concierge","end_text":"That's technology at Capital One"}

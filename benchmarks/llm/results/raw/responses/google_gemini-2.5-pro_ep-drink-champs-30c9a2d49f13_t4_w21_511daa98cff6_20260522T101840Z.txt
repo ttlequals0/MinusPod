@@ -1,0 +1,9 @@
+[
+  {
+    "start": 8799.1,
+    "end": 8831.4,
+    "confidence": 1.0,
+    "reason": "This is a merged ad segment for OnDeck and Public. It contains clear promotional language, a call to action with a URL (OnDeck.com), and a standard sponsorship intro phrase ('Support for the show comes from...').",
+    "end_text": "those who take it seriously."
+  }
+]

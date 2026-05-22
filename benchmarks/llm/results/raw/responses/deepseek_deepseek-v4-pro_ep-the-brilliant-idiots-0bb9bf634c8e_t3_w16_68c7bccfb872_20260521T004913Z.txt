@@ -1,0 +1,11 @@
+{
+  "segments": [
+    {
+      "start": 7173.7,
+      "end": 7196.8,
+      "confidence": 0.98,
+      "reason": "Host-read ad for Netflix's Remarkably Bright Creatures with clear promotional language and call to action",
+      "end_text": "now playing only on Netflix"
+    }
+  ]
+}

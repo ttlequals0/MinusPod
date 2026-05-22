@@ -1,0 +1,1 @@
+{ "start": 0.0, "end": 10.0, "confidence": 0.95, "reason": "Platform-inserted ad", "end_text": "Just Another Pilot" }

@@ -1,0 +1,7 @@
+{
+	"start": 1244.8,
+	"end": 1271.4,
+	"confidence": 1,
+	"reason": "Political news update",
+	"end_text": "Virginia Supreme Court voided a Democratic-friendly referendum-backed map."
+}

@@ -1,0 +1,1 @@
+{"start":7301.4,"end":7312.3,"confidence":0.72,"reason":"possible partial Modelo brand mention, but lacks clear promotional language and appears conversational","end_text":"No more Modelo for you"}

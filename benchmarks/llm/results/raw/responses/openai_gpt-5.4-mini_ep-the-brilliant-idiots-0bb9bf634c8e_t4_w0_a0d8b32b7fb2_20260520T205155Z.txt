@@ -1,0 +1,1 @@
+{"start":0.5,"end":43.4,"confidence":0.99,"reason":"Carvana host-read sponsor spot with promotional copy, sale call-to-action, and transition into show content; starts with a scripted ad story and ends when the podcast resumes","end_text":"So good, you'll want to leave a voicemail about it. Sell your car today on Carvana."}

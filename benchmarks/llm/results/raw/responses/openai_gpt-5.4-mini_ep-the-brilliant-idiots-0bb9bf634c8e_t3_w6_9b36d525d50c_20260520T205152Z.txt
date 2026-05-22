@@ -1,0 +1,1 @@
+{"start":2652.2,"end":2688.1,"confidence":0.87,"reason":"Host mentions 'shout out to the mid-roll' and discusses partnering for money to promote podcasting/network placement; appears to be a sponsor/promo insertion rather than organic discussion.","end_text":"partner with this because"}

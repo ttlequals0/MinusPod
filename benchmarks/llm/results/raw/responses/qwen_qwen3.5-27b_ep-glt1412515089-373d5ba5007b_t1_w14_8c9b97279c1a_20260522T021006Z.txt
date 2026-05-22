@@ -1,0 +1,1 @@
+[{"start": 6339.6, "end": 6394.8, "confidence": 0.95, "reason": "Perplexity sponsor integration and acknowledgment", "end_text": "past, present, and potential future."}]

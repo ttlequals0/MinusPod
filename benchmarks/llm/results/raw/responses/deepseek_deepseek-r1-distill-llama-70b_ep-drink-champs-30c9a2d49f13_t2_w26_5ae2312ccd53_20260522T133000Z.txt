@@ -1,0 +1,7 @@
+{
+  "start": 11335.2,
+  "end": 11340.6,
+  "confidence": 0.95,
+  "reason": "Airtasker sponsor read",
+  "end_text": "Airtasker.com. Airtasker, get anything done."
+}

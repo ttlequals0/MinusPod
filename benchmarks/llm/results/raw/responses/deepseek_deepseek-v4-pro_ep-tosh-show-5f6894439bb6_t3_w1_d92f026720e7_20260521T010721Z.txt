@@ -1,0 +1,18 @@
+{
+  "segments": [
+    {
+      "start": 537.5,
+      "end": 567.0,
+      "confidence": 0.99,
+      "reason": "Host-read sponsor segment with Thrive Cosmetics, including a product pitch, promo code (SHINE26), and URL (thrivecosmetics.com/shine26). Begins with transition 'We'll be right back' and ends with repeated URL.",
+      "end_text": "dot com slash shine26. Shine 26."
+    },
+    {
+      "start": 594.7,
+      "end": 654.3,
+      "confidence": 0.95,
+      "reason": "Network-inserted ads for Mattress Warehouse and PC Richard & Son with legal disclaimers and promotional language. Audio content between 567.0s and 594.7s is missing from transcript, suggesting additional ads, but only these promotional segments are detectable in the transcript.",
+      "end_text": "for details."
+    }
+  ]
+}

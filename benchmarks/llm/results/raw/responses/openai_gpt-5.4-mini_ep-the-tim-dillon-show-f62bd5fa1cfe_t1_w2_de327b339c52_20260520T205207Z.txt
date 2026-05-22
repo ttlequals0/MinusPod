@@ -1,0 +1,1 @@
+{"start":1439.2,"end":1465.2,"confidence":0.99,"reason":"Mint Mobile sponsor read with promotional language and product pitch; continues from previous content into ad segment","end_text":"nation's largest 5G network"}

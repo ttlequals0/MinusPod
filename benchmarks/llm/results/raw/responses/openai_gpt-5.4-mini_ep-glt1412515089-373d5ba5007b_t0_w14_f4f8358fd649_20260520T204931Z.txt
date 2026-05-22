@@ -1,0 +1,1 @@
+{"start":6368.2,"end":6394.8,"confidence":0.92,"reason":"Perplexity sponsor read mentioning 'Perplexity, our AI sponsor' and the ad copy in the episode description for the app/URL","end_text":"it's flexing on us, showing us how smart it is"}

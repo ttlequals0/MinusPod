@@ -1,0 +1,8 @@
+[
+  {
+    "start": 3478.9,
+    "end": 3528.5,
+    "confidence": 0.95,
+    "reason": "Airtasker sponsor read with promotional language and URL",
+    "end_text": "get anything done."
+ 

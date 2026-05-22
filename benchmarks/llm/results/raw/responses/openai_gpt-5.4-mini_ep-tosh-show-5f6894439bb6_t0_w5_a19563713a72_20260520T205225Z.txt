@@ -1,0 +1,1 @@
+{"start":2412.8,"end":2484.9,"confidence":0.99,"reason":"Platform-inserted HealthCast by Stony Brook Medicine promo followed by PC Richard & Son / Aseema Lease to Own retail ad with promotional language, CTA, and URL; ad break continues through disclaimer copy","end_text":"Visit PCRichard.com slash Asima dot HTML for details"}

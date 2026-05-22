@@ -1,0 +1,1 @@
+{"start": 4052.1, "end": 4054.4, "confidence": 0.3, "reason": "Short gap with no promotional content, likely normal audio transition", "end_text": "You're having all these experiences."}

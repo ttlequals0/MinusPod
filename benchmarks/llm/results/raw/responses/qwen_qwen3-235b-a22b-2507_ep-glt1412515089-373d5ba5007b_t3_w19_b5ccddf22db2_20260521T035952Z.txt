@@ -1,0 +1,1 @@
+{"start": 8215.0, "end": 8218.9, "confidence": 0.3, "reason": "Transcript credit to Rev.com - this is a service mention but not promotional with no call to action or URL beyond the company name. Not a sponsor segment.", "end_text": "Transcript by Rev.com."}

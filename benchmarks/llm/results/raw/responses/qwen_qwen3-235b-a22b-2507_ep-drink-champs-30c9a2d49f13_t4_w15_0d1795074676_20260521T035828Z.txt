@@ -1,0 +1,1 @@
+{"start": 6283.4, "end": 6313.4, "confidence": 0.98, "reason": "OnDeck small business line of credit advertisement with promotional language, URL, and call to action", "end_text": "All loans and..."}

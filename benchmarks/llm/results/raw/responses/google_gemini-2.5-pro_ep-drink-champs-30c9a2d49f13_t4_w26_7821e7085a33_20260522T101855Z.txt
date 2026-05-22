@@ -1,0 +1,9 @@
+[
+  {
+    "start": 11335.2,
+    "end": 11455.4,
+    "confidence": 1.0,
+    "reason": "A multi-part ad break featuring ads for Airtasker, a podcast cross-promotion for 'Decisions Decisions' sponsored by Gilead Sciences, and an ad for OnDeck.",
+    "end_text": "amount subject to lender approval."
+  }
+]

@@ -1,0 +1,1 @@
+{"start": 15261.8, "end": 15383.7, "confidence": 0.95, "reason": "Host-read outro with show promotion, social media handles, and website call to action", "end_text": "by going to drinkchamps.com."}

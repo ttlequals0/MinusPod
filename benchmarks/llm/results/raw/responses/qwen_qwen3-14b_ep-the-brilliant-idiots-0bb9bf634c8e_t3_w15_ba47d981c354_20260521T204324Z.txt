@@ -1,0 +1,2 @@
+w.
+{"start": 6300.0, "end": 6900.0, "confidence": 0.0, "reason": "No advertisement segments detected within the specified window.", "end_text": "push him out. Why? Tell me why. Um, because..."}

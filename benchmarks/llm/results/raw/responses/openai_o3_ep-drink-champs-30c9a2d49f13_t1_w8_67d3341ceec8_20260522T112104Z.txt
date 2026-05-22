@@ -1,0 +1,1 @@
+{"start":3478.9,"end":3650.4,"confidence":0.98,"reason":"Back-to-back ad block: Airtasker host-read, Decisions Decisions podcast promo, OnDeck credit line ad, Public investing platform ad with URLs & calls to action","end_text":"public.com slash disclosures"}

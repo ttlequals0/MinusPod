@@ -1,0 +1,18 @@
+{
+  "segments": [
+    {
+      "start": 0.5,
+      "end": 16.8,
+      "confidence": 0.98,
+      "reason": "Carvana pre-roll ad with voicemail script and call-to-action",
+      "end_text": "left my chair."
+    },
+    {
+      "start": 17.7,
+      "end": 43.4,
+      "confidence": 0.98,
+      "reason": "Carvana ad continuation with pitch, tagline, and disclaimer; transitions into show intro",
+      "end_text": "your ad choices."
+    }
+  ]
+}

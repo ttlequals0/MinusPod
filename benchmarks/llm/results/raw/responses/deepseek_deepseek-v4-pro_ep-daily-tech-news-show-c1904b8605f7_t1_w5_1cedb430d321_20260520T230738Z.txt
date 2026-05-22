@@ -1,0 +1,1 @@
+{"confidence": 0.98, "end": 2241.6, "end_text": "you have enjoyed this program", "reason": "Host-read Patreon and DTNS show promotion", "start": 2155.2}

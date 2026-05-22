@@ -1,0 +1,1 @@
+{"error": "The requested operation failed due to insufficient content. Please ensure the transcript provided contains sufficient context for ad detection, including full segments before and after potential ad breaks."}

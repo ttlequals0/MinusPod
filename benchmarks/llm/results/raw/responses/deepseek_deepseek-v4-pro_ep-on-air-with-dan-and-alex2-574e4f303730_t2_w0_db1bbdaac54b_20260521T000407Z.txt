@@ -1,0 +1,9 @@
+{
+  "ad_1": {
+    "start": 0.0,
+    "end": 59.8,
+    "confidence": 0.95,
+    "reason": "Network inserted pre-roll ads for HEX and PickOCNY, promotional language, URLs, calls to action",
+    "end_text": "at PickOCNY.com"
+  }
+}

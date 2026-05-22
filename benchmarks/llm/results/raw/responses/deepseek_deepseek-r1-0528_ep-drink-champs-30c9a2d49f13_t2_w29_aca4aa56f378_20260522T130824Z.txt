@@ -1,0 +1,9 @@
+[
+  {
+    "start": 12180.0,
+    "end": 12780.0,
+    "confidence": 0.0,
+    "reason": "No promotional content detected in transcript",
+    "end_text": ""
+  }
+]

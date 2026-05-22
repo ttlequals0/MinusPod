@@ -1,0 +1,7 @@
+{
+  "start": 13907.2,
+  "end": 13912.6,
+  "confidence": 0.8,
+  "reason": "Host transition to break",
+  "end_text": "Let's take a sunny shot to that."
+}

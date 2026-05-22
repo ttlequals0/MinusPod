@@ -1,0 +1,6 @@
+[
+  {
+    "start": 8498.3,
+    "end": 8572.8,
+    "confidence": 0.95,
+    "reason": "Host discusses Google's search results and app store practices, framing them as a trade-off for free services, but then pivots to criticize intermixing web

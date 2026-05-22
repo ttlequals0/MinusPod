@@ -1,0 +1,1 @@
+{"start":821.4,"end":1019.4,"confidence":0.99,"reason":"Multiple host-read and inserted sponsor ads: Capital One intro, BetterHelp with promo URL, Amazon Health AI, Spectrum Business, and Rinse. Includes ad transition language and promotional copy.","end_text":"It's time to be great."}

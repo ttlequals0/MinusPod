@@ -1,0 +1,16 @@
+[
+    {
+        "start": 4270.4,
+        "end": 4285.6,
+        "confidence": 0.98,
+        "reason": "Host-read ad for Patreon-like subscription tier with call to action (TakePoliticsSeriously.com) and promotional language",
+        "end_text": "TakePoliticsSeriously.com"
+    },
+    {
+        "start": 4286.7,
+        "end": 4317.9,
+        "confidence": 0.95,
+        "reason": "Network-inserted outro promo for the show's branding and platform, tonally distinct from editorial content",
+        "end_text": "broker. Dog and Pony Show Audio"
+    }
+]

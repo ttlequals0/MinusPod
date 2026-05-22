@@ -1,0 +1,16 @@
+[
+    {
+        "start": 5059.9,
+        "end": 5082.4,
+        "confidence": 0.85,
+        "reason": "Promotional segment for a drink product from Maui, described as a 'Drink Champ' with a call to action ('I got one for y'all'). Hosts engage in a drinking game setup, which is atypical for organic conversation and suggests sponsorship or product placement.",
+        "end_text": "that's a great bar trip"
+    },
+    {
+        "start": 5083.0,
+        "end": 5094.6,
+        "confidence": 0.75,
+        "reason": "Continued promotional tone with rules for a drinking game tied to product selection. While not a traditional ad, the structured 'pick one' challenge feels like a branded segment or sponsor integration.",
+        "end_text": "all of us drinking. Okay"
+    }
+]

@@ -1,0 +1,23 @@
+{"ad_segments": [
+  {
+    "start": 8724.9,
+    "end": 8737.9,
+    "confidence": 0.98,
+    "reason": "AirTasker sponsor read",
+    "end_text": "AirTasker.com"
+  },
+  {
+    "start": 8738.1,
+    "end": 8766.2,
+    "confidence": 0.95,
+    "reason": "Decisions Decisions podcast ad",
+    "end_text": "no shame, no stigma"
+  },
+  {
+    "start": 8799.1,
+    "end": 8826.4,
+    "confidence": 0.98,
+    "reason": "OnDeck sponsor read",
+    "end_text": "OnDeck.com"
+  }
+]}

@@ -1,0 +1,1 @@
+{"start":4167.1,"end":4195.3,"confidence":0.62,"reason":"Host promotional membership pitch for bonus content at TakePoliticsSeriously.com with pricing and benefits","end_text":"that $99 annual fee."}

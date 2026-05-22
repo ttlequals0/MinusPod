@@ -1,0 +1,7 @@
+{
+  "start": 1103.3,
+  "end": 1102.7,
+  "confidence": 0.0,
+  "reason": "No promotional content detected in the transcript window.",
+  "end_text": ""
+}

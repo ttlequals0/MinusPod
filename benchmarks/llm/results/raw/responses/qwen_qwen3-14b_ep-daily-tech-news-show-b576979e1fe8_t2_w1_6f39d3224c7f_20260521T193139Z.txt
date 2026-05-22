@@ -1,0 +1,1 @@
+{"start": 591.3, "end": 748.3, "confidence": 0.95, "reason": "Multiple sponsor segments including Parloa, Capital One, AllTrails, Zinn Nicotine Pouches, and Lemonada Media", "end_text": "products are sold near you."}

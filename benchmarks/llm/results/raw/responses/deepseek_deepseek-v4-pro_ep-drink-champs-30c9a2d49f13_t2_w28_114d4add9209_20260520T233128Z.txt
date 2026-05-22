@@ -1,0 +1,23 @@
+{"ad_segments": [
+  {
+    "start": 12175.2,
+    "end": 12266.8,
+    "confidence": 0.98,
+    "reason": "Host-read sponsor read for AG1/Athletic Greens, with promotional language, product pitch, URL, and promo code, including transition into and out of the ad",
+    "end_text": "athleticgreens.com/drinkchamps"
+  },
+  {
+    "start": 12296.7,
+    "end": 12338.0,
+    "confidence": 0.97,
+    "reason": "Host-read sponsor read for DoorDash, with promotional language, product pitch, call to action, and promo code, including transition into the ad",
+    "end_text": "use code drinkchamps"
+  },
+  {
+    "start": 12358.7,
+    "end": 12382.9,
+    "confidence": 0.98,
+    "reason": "Host-read sponsor read for Miller Lite, with promotional language, product pitch, and call to action, continuing past window",
+    "end_text": "taste like Miller Time"
+  }
+]}

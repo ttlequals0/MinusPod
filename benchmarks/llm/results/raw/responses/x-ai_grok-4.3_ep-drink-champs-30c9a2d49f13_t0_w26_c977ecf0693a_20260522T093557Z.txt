@@ -1,0 +1,9 @@
+[
+  {
+    "start": 11335.2,
+    "end": 11455.4,
+    "confidence": 0.95,
+    "reason": "Airtasker host-read ad followed immediately by Decisions Decisions cross-promo and OnDeck sponsor read",
+    "end_text": "lender approval."
+  }
+]

@@ -1,0 +1,1 @@
+[{"start": 1439.2, "end": 1665.9, "confidence": 0.98, "reason": "Mint Mobile and Aura Frames sponsor reads, Colgate and Skinny Pop brand tagline ads", "end_text": "perfectly salted. Skinny Pop."}]

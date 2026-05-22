@@ -1,0 +1,1 @@
+{"start":1837.5,"end":1860.0,"confidence":0.99,"reason":"Mint Mobile sponsor read after \"we'll be right back\" transition; promotes switching to Mint Mobile and lower wireless bills","end_text":"fed up with crazy high bills"}

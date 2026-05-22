@@ -1,0 +1,37 @@
+[
+  {
+    "start": 1718.3,
+    "end": 1735.3,
+    "confidence": 0.95,
+    "reason": "Host read ad for the Daily Tech News Show store, promoting merchandise as a way to support the show.",
+    "end_text": "there you go."
+  },
+  {
+    "start": 1742.3,
+    "end": 1771.5,
+    "confidence": 0.98,
+    "reason": "Host read ad for Capital One, discussing their AI technology in car shopping.",
+    "end_text": "at Capital One."
+  },
+  {
+    "start": 1772.6,
+    "end": 1803.6,
+    "confidence": 0.95,
+    "reason": "Network-inserted ad for Lemonada Media's 'Good Things' podcast, promoting the 'Thrive' series.",
+    "end_text": "Thrive series."
+  },
+  {
+    "start": 2246.0,
+    "end": 2275.3,
+    "confidence": 0.98,
+    "reason": "Host read ad for Capital One, discussing their AI technology in car shopping. This appears to be a repeat or dynamically inserted ad.",
+    "end_text": "at Capital One."
+  },
+  {
+    "start": 2276.2,
+    "end": 2301.6,
+    "confidence": 0.95,
+    "reason": "Network-inserted ad for Rinse, a laundry service, framed as a way to rethink productivity.",
+    "end_text": "of a relentless task."
+  }
+]

@@ -1,0 +1,16 @@
+[
+  {
+    "start": 8820.0,
+    "end": 8831.4,
+    "confidence": 0.98,
+    "reason": "OnDeck and Public sponsor reads, OnDeck continues from previous",
+    "end_text": "take it seriously"
+  },
+  {
+    "start": 8856.4,
+    "end": 8869.0,
+    "confidence": 0.85,
+    "reason": "CastingWords transcription sponsor credit",
+    "end_text": "by CastingWords"
+  }
+]

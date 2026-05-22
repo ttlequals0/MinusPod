@@ -1,0 +1,1 @@
+{"start":0.0,"end":51.6,"confidence":0.99,"reason":"Colgate Women’s Games sponsored opening read with promotional language and brand tagline","end_text":"your smile is your strength"}

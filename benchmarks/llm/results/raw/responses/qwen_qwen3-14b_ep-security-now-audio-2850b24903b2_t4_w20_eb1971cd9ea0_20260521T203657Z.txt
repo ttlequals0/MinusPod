@@ -1,0 +1,2 @@
+s.
+{"start": 8380.6, "end": 9004.0, "confidence": 0.0, "reason": "No advertisement segments detected in the provided transcript. The content is a continuous discussion without sponsor mentions, promotional language, or ad transitions.", "end_text": "internet,"}

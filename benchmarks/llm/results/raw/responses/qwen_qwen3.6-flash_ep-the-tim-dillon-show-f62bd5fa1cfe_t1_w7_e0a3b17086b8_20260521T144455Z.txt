@@ -1,0 +1,1 @@
+[{"start": 3079.6, "end": 3270.1, "confidence": 0.99, "reason": "Host-read sponsor reads for Morgan & Morgan, Stash, and Neuro Gum.", "end_text": "You can also find Neuro at CVS and Amazon."}]

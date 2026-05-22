@@ -1,0 +1,16 @@
+[
+  {
+    "start": 11335.2,
+    "end": 11455.4,
+    "confidence": 0.98,
+    "reason": "Airtasker, Decisions Decisions, and OnDeck sponsor reads",
+    "end_text": "subject to lender approval."
+  },
+  {
+    "start": 11513.7,
+    "end": 11520.0,
+    "confidence": 0.90,
+    "reason": "Public.com sponsor disclosure (ad tail)",
+    "end_text": "public.com slash disclosures."
+  }
+]

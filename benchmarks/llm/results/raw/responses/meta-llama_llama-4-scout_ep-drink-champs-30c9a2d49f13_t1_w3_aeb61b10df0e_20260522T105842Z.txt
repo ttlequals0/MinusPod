@@ -1,0 +1,30 @@
+{"ad_segments": [
+  {
+    "start": 1450.9,
+    "end": 1486.1,
+    "confidence": 0.98,
+    "reason": "Airtasker ad",
+    "end_text": "Airtasker, get anything done"
+  },
+  {
+    "start": 1486.6,
+    "end": 1513.0,
+    "confidence": 0.95,
+    "reason": "Care for the Culture from Gilead Sciences ad",
+    "end_text": "sponsored by Care for the Culture from Gilead Sciences"
+  },
+  {
+    "start": 1525.5,
+    "end": 1553.8,
+    "confidence": 0.98,
+    "reason": "OnDeck ad",
+    "end_text": "Apply today at OnDeck.com"
+  },
+  {
+    "start": 1555.6,
+    "end": 1582.2,
+    "confidence": 0.95,
+    "reason": "BetMGM ad",
+    "end_text": "Download the BetMGM app"
+  }
+]}

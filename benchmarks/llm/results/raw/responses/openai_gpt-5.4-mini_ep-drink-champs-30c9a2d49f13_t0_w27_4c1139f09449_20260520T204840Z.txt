@@ -1,0 +1,1 @@
+{"start":11335.2,"end":11454.3,"confidence":0.99,"reason":"Airtasker ad with clear promo language, app/download CTA, and a platform-inserted sponsored promo for Care for the Culture from Gilead Sciences following a produced teaser segment","end_text":"Depending on certain loan attributes, your business"}

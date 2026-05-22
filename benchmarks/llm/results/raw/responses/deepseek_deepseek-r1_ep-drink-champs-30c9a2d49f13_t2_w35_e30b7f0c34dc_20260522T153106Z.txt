@@ -1,0 +1,9 @@
+[
+  {
+    "start": 15261.8,
+    "end": 15285.2,
+    "confidence": 0.9,
+    "reason": "Repetitive 'promo code, discount code' phrases indicating a promotional segment",
+    "end_text": "discount code, discount code"
+  }
+]

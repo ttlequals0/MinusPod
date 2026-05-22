@@ -1,0 +1,7 @@
+{
+  "start": 6208.7,
+  "end": 6318.1,
+  "confidence": 0.96,
+  "reason": "Multiple network-inserted ads: Airtasker promo, Decisions Decisions podcast cross-promo with Kiki Palmer, OnDeck business line of credit ad, Public investing platform tagline",
+  "end_text": "who take it seriously"
+}

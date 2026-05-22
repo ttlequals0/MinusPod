@@ -1,0 +1,1 @@
+{"start": 13018.5, "end": 13620.0, "confidence": 0.0, "reason": "No promotional content found in transcript segment. Contains only show conversation.", "end_text": "AI is just a bootlicker."}

@@ -1,0 +1,16 @@
+[
+  {
+    "start": 1009.1,
+    "end": 1147.8,
+    "confidence": 0.95,
+    "reason": "This segment discusses Jerry's Store, a credit card vetting tool, and mentions its use of legitimate merchants like Amazon, Grubhub, and Lyft for credit card validity checks. It details the process of verifying stolen cards and selling them on the dark web, including the value of the data. This is a detailed description of a cybercrime operation and its tools, which is often the subject of sponsored content or network-inserted ads discussing security threats.",
+    "end_text": "between $7 and $18 each on the dark web, meaning that the value of the valid..."
+  },
+  {
+    "start": 1149.2,
+    "end": 1227.2,
+    "confidence": 0.95,
+    "reason": "This segment continues the discussion about Jerry's Store, detailing the amount of verified and invalid credit card data found, the types of information included (card numbers, expiration dates, security codes, names, addresses), and the estimated value of the stolen data. It also mentions the marketplace administrator's fluency in Chinese and the server being hosted in Germany. This detailed discussion of a cybercrime marketplace and its operations, especially with the mention of the administrator's language and hosting location, suggests it could be part of a sponsored segment or a network-inserted ad discussing cybersecurity threats.",
+    "end_text": "Fluent in Chinese, but not AI, apparently. You know, this comes up a lot. We're going to see more of these. Whoops. Whoa. So hold on. Camera, I'm over here. Thank you. People blame AI."
+  }
+]

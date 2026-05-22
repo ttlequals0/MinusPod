@@ -1,0 +1,1 @@
+{"start":469.0,"end":572.1,"confidence":0.99,"reason":"Host-read Zscaler sponsor segment with explicit ad intro ('This episode of Security Now brought to you by Zscaler'), product pitch, and CTA to zscaler.com/security","end_text":"That's zscaler.com slash security"}

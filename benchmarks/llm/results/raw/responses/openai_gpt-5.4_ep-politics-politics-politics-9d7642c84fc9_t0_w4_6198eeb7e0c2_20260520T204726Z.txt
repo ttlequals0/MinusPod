@@ -1,0 +1,1 @@
+{"start":2201.5,"end":2257.8,"confidence":0.86,"reason":"Host-read cross-promotion for Netflix with explicit product mention and endorsement language ('Stream Netflix. They're okay with it'), partial segment in this window","end_text":"all the infrastructure that goes with it"}

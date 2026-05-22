@@ -1,0 +1,5 @@
+ads": [ 
+    {"start": 11341.1, "end": 11365.6, "confidence": 0.98, " "Airtasker sponsor read", "end_text": "Airtasker, get anything done"},
+    {"start": 11425.3, "end": 11454.3, "confidence": 0.98, "reason": "OnDeck sponsor read", "end_text": "OnDeck.com"},
+    {"start": 11614.6, "end": 11630.6, "confidence": 0.8, "reason": "List of sponsors mentioned", "end_text": "Stamps.com"}
+ ]}

@@ -1,0 +1,1 @@
+{"start": 3976.7, "end": 4002.7, "confidence": 0.9, "reason": "Mention of government decision to make everyone walk the plank as a metaphor for pandemic risk", "end_text": "economy repair itself by people buying Martin's potato rolls, burgers, dogs, etc."}

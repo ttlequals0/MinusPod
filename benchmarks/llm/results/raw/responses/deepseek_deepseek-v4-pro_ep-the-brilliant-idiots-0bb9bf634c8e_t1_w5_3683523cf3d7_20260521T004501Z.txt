@@ -1,0 +1,11 @@
+{
+  "segments": [
+    {
+      "start": 2311.7,
+      "end": 2450.0,
+      "confidence": 0.98,
+      "reason": "BlueChew and ZipRecruiter sponsored ad reads",
+      "end_text": "Match on ZipRecruiter."
+    }
+  ]
+}

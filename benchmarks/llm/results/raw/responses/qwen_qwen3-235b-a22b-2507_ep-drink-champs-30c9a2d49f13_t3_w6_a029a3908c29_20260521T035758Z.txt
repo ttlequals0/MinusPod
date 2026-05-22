@@ -1,0 +1,1 @@
+{"start": 2520.2, "end": 3137.2, "confidence": 0.99, "reason": "continuous conversation without any promotional language, sponsor mentions, URLs, promo codes, or ad transitions; content is organic discussion about Warren Sapp's draft day experience and rookie season stories", "end_text": "did some special things, but."}

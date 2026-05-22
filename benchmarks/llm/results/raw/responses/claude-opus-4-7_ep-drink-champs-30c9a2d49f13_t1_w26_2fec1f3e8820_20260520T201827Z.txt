@@ -1,0 +1,1 @@
+[{"start": 11335.2, "end": 11455.4, "confidence": 0.98, "reason": "Ad block: Airtasker, Decisions Decisions podcast promo (Care for the Culture/Gilead), OnDeck small business loans", "end_text": "subject to lender approval"}]

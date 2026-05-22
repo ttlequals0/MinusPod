@@ -1,0 +1,1 @@
+{"start":11335.2,"end":11454.3,"confidence":0.99,"reason":"Airtasker host-read sponsor segment plus inserted promo for Decisions Decisions/Keke Palmer and OnDeck; includes promotional language, sponsor names, call to action, and 'Sponsored by Care for the Culture from Gilead Sciences.'","end_text":"Funds could be available as soon as tomorrow."}

@@ -1,0 +1,1 @@
+[{"start": 0.0, "end": 600.0, "confidence": 0.95, "reason": "Vitel Global and LinkedIn Premium All-in-One sponsor reads", "end_text": "linkedin.com slash all-in-one"}]

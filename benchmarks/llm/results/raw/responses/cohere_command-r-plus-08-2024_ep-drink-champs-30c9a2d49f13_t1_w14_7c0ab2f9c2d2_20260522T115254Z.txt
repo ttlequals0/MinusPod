@@ -1,0 +1,25 @@
+{
+  "ads": [
+    {
+      "start": 6208.7,
+      "end": 6233.9,
+      "confidence": 0.95,
+      "reason": "Airtasker host-read ad",
+      "end_text": "Airtasker.com. Airtasker, get anything done."
+    },
+    {
+      "start": 6234.1,
+      "end": 6282.7,
+      "confidence": 0.95,
+      "reason": "Care for the Culture from Gilead Sciences host-read ad",
+      "end_text": "Gilead Sciences."
+    },
+    {
+      "start": 6283.4,
+      "end": 6312.4,
+      "confidence": 0.95,
+      "reason": "OnDeck host-read ad",
+      "end_text": "OnDeck.com. Funds could be available as soon as tomorrow."
+    }
+  ]
+}

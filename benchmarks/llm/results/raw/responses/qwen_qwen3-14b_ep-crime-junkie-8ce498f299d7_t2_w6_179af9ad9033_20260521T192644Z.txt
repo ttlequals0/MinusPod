@@ -1,0 +1,4 @@
+s.
+{
+
+":[{":"start"  ,"end"  :"", "confidence": 0.95, "reason": "LinkedIn Premium All-in-One platform-inserted ad", "end_text": "LinkedIn.com slash all-in-one"}

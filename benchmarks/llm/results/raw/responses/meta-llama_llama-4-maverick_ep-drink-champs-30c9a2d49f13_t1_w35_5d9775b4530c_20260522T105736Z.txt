@@ -1,0 +1,1 @@
+{"start": 15261.8, "end": 15300.2, "confidence": 0.8, "reason": "Sponsor read with promo code mention", "end_text": "it puts us on a level there"}

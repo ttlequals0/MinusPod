@@ -1,0 +1,1 @@
+{"start":1450.9,"end":1627.4,"confidence":0.99,"reason":"Merged ad break containing Airtasker commercial, Decisions Decisions/Kiki Palmer cross-promo sponsored by Care for the Culture from Gilead Sciences, OnDeck small business credit ad, and BetMGM sportsbook ad with CTA and legal disclaimer","end_text":"with Kansas Crossing Casino and Hotel."}

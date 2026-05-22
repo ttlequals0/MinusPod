@@ -1,0 +1,7 @@
+{
+	"start": 10260.0,
+	"end": 10260.0,
+	"confidence": 0.9,
+	"reason": "End of episode content",
+	"end_text": "No, he didn't."
+}

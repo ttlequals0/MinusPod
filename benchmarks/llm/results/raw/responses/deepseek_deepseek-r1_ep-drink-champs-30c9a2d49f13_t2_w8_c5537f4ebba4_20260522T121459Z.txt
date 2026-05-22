@@ -1,0 +1,7 @@
+{
+  "start": 3478.9,
+  "end": 3503.7,
+  "confidence": 0.95,
+  "reason": "Airtasker advertisement with promotional language and call to action",
+  "end_text": "that's what he loves about it."
+  }

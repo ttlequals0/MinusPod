@@ -1,0 +1,1 @@
+{"start": 10981.1, "end": 11009.2, "confidence": 0.3, "reason": "Possible audio gap or pause, but no promotional content or transition phrases indicating an ad. Normal conversational lull.", "end_text": "I'm a kid. You've never been a kid."}

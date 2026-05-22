@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1450.9,
+    "end": 1629.0,
+    "confidence": 0.95,
+    "reason": "Ad block: Airtasker, Decisions Decisions podcast promo (sponsored by Gilead Sciences), OnDeck, BetMGM",
+    "end_text": "Kansas Crossing Casino and Hotel"
+  }
+]

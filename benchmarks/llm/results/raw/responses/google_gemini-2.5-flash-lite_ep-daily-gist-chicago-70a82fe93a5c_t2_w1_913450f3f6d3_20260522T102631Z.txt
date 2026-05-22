@@ -1,0 +1,16 @@
+[
+  {
+    "start": 506.4,
+    "end": 515.6,
+    "confidence": 0.95,
+    "reason": "This segment transitions to an advertisement with a call to action to follow the podcast on various platforms.",
+    "end_text": "Amy. Coming up, the closure"
+  },
+  {
+    "start": 521.5,
+    "end": 548.5,
+    "confidence": 0.98,
+    "reason": "This is a host-read advertisement for Crain's Weekly News Quiz, including a URL and a call to action.",
+    "end_text": "Amy Guth."
+  }
+]

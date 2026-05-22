@@ -1,0 +1,1 @@
+{"start": 6208.7, "end": 6318.1, "confidence": 0.99, "reason": "Multiple ads: Airtasker, Decisions Decisions podcast cross-promo (sponsored by Gilead), OnDeck, Public", "end_text": "take it seriously."}

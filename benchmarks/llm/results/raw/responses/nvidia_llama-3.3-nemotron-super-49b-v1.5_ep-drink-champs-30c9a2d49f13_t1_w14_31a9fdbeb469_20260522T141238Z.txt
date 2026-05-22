@@ -1,0 +1,6 @@
+[
+    {"start": 6208.7, "end": 6233.9, "confidence": 0.95, "reason": "Airtasker sponsor read with URL and call to action", "end_text": "Decisions Decisions"},
+    {"start": 6234.1, "end": 6261.5, "confidence": 0.95, "reason": "Care for the Culture sponsored segment mention", "end_text": "Gilead Sciences"},
+    {"start": 6283.4, "end": 6313.4, "confidence": 0.95, "reason": "OnDeck loan service ad with URL and call to action", "end_text": "All loans and..."},
+    {"start": 6313.8, "end": 6318.1, "confidence": 0.9, "reason": "Public investing platform sponsor mention", "end_text": "take it seriously"}
+]

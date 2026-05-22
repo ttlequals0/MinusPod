@@ -1,0 +1,8 @@
+
+{
+  "request_type": "ad_detection",
+  "transcript_window": "28.0-38.0 minutes",
+  "analysis": "No promotional content, sponsor names, URLs, promo codes, or calls to action detected in transcript window.",
+  "ads_found": 0,
+  "result": []
+}

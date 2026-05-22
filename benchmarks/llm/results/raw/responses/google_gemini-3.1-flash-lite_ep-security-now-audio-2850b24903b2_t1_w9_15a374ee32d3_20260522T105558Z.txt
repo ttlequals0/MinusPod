@@ -1,0 +1,9 @@
+[
+  {
+    "start": 4204.1,
+    "end": 4396.1,
+    "confidence": 1.0,
+    "reason": "Host-read ad for Bitwarden including transition and product pitch",
+    "end_text": "unlocking devices at the OS level"
+  }
+]

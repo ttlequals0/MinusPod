@@ -1,0 +1,25 @@
+{
+  "segments": [
+    {
+      "start": 9259.3,
+      "end": 9290.5,
+      "confidence": 0.98,
+      "reason": "Leo Laporte cross-promoting This Week in Tech podcast",
+      "end_text": "from the TWiT Network. Thank you"
+    },
+    {
+      "start": 9312.9,
+      "end": 9315.5,
+      "confidence": 0.85,
+      "reason": "Short brand tagline ad (Fit for your ambition)",
+      "end_text": "for citizens back"
+    },
+    {
+      "start": 9344.4,
+      "end": 9374.4,
+      "confidence": 0.98,
+      "reason": "Mint Mobile sponsor read with promo code and legal disclaimer",
+      "end_text": "full terms at mintmobile.com"
+    }
+  ]
+}

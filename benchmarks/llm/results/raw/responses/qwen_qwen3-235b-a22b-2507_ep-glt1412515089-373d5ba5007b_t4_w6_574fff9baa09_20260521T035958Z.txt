@@ -1,0 +1,1 @@
+{"start": 2510.5, "end": 3120.9, "confidence": 0.99, "reason": "Continuous conversation without any promotional content or ad markers; discussion flows from flow states to precognitive dreams and academic journey without interruption; no sponsor mentions, URLs, promo codes, or platform-inserted ad language present", "end_text": "oh, okay."}

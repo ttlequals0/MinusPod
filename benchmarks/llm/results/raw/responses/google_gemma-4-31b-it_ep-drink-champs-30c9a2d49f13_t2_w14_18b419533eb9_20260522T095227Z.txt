@@ -1,0 +1,1 @@
+{"start": 6208.7, "end": 6313.4, "confidence": 0.98, "reason": "Multiple network-inserted ads including Airtasker, a cross-promotion for 'Decisions Decisions' sponsored by Gilead Sciences, and OnDeck.", "end_text": "subject to lender approval."}

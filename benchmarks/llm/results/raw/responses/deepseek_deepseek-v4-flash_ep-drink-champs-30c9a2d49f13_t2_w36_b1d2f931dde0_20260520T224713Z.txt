@@ -1,0 +1,7 @@
+{
+  "start": 15118.6,
+  "end": 15517.1,
+  "confidence": 0.95,
+  "reason": "The segment from 15261.8s-15285.2s contains repetitive 'discount code' phrases and a promo code pitch, which is unambiguously an ad. Additionally, there are network-inserted retail ads for Airtasker (15416.5s), CVS (15438.4s), Trashy (15481.1s), and Try Fencing (15512.2s) that are tonally distinct from editorial content. The entire window is bookended by host wrap-up and a final iHeart podcast tag, indicating a continuous ad break.",
+  "end_text": "tryfencing.org"
+}

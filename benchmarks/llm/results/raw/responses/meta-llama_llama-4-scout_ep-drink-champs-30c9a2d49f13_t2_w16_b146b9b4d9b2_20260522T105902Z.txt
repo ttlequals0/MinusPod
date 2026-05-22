@@ -1,0 +1,7 @@
+{ 
+"start": 7301.4, 
+"end": 7336.8, 
+"confidence": 0.98, 
+"reason": "Modelo ad mention", 
+"end_text": "No more Modelo"
+}

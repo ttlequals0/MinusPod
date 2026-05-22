@@ -1,0 +1,1 @@
+{"start": 2931.2, "end": 3556.0, "confidence": 0.9, "reason": "continues from previous", "end_text": "am I able to pull this part in the direction that I want to?"}

@@ -1,0 +1,1 @@
+{"start":6390.2,"end":6419.1,"confidence":0.89,"reason":"Host says 'Let's pay some bills' and then a sponsor-style BlueChew mention with product discussion, but no full sponsor intro; partial ad break likely continues from previous segment.","end_text":"Why was you giving her Blue Chew?"}

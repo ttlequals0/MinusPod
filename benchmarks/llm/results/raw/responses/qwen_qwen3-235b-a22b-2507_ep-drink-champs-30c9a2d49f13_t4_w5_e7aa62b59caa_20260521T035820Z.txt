@@ -1,0 +1,1 @@
+{"start": 2152.2, "end": 2179.0, "confidence": 0.3, "reason": "Content discussion about family and personal experiences, no promotional language or sponsor mentions", "end_text": "Mama and dada, this is unheard of"}

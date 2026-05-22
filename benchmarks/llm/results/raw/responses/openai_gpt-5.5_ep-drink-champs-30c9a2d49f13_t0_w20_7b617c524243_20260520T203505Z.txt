@@ -1,0 +1,7 @@
+{
+  "start": 8724.9,
+  "end": 8831.4,
+  "confidence": 0.99,
+  "reason": "Merged ad break: AirTasker task service ad with call to action, Decisions Decisions podcast cross-promo sponsored by Gilead Sciences, OnDeck small business loan ad with URL, and brief Public investing platform sponsor line",
+  "end_text": "those who take it seriously"
+}

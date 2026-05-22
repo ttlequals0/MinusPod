@@ -1,0 +1,1 @@
+[{"start": 1.6, "end": 77.2, "confidence": 0.98, "reason": "Acast platform-inserted pre-roll and cross-promotions: includes 'Acast powers the world's best podcasts', promotion of 'Wrong Turns' podcast, and 'Formative' podcast with calls to action", "end_text": "leaders of tomorrow."}]

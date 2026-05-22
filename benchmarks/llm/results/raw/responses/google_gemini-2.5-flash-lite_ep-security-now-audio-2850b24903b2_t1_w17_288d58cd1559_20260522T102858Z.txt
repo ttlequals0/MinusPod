@@ -1,0 +1,9 @@
+[
+  {
+    "start": 7607.7,
+    "end": 7743.9,
+    "confidence": 0.98,
+    "reason": "Trusted Tech sponsor read. Includes promotional language, call to action, and mentions price increases.",
+    "end_text": "you will be too."
+  }
+]

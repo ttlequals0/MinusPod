@@ -1,0 +1,10 @@
+{
+  "ad_segments": [
+    {
+      "start": 674.2,
+      "end": 693.7,
+      "confidence": 0.35,
+      "reason": "Possible soup ad transition but lacks clear sponsor, URL, or promo code. Host says 'you might need something a little more sophisticated... You could get yourself a little soup shot' which is likely just the episode topic 'SOUP' transition."
+    }
+  ]
+}

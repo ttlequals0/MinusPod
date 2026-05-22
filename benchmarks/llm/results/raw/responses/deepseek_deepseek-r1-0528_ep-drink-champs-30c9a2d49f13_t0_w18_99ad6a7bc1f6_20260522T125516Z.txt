@@ -1,0 +1,16 @@
+[
+  {
+    "start": 8025.2,
+    "end": 8026.8,
+    "confidence": 0.95,
+    "reason": "Host-read sponsor mention",
+    "end_text": "Biggie Smalls or Big L?"
+  },
+  {
+    "start": 8158.4,
+    "end": 8160.0,
+    "confidence": 0.9,
+    "reason": "Partial ad segment continuing beyond window",
+    "end_text": "going through this gate"
+  }
+]

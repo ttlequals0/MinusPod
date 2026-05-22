@@ -1,0 +1,1 @@
+{"start": 506.4, "end": 548.5, "confidence": 0.93, "reason": "Host-read promotional break for Crain's Weekly News Quiz with URL and calls to action, introduced by 'right after this'", "end_text": "Gist with Amy Guth."}

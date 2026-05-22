@@ -1,0 +1,18 @@
+```json
+[
+  {
+    "start": 3478.9,
+    "end": 3528.5,
+    "confidence": 0.92,
+    "reason": "Airtasker sponsor read with product pitch and call to action (download app, visit website)",
+    "end_text": "Airtasker, get anything done"
+  },
+  {
+    "start": 3528.8,
+    "end": 3556.2,
+    "confidence": 0.85,
+    "reason": "Cross-promotion for Decisions Decisions podcast episode with Kiki Palmer on sexual health - network-inserted podcast ad",
+    "end_text": "conversation about abstinence?"
+  }
+]
+```

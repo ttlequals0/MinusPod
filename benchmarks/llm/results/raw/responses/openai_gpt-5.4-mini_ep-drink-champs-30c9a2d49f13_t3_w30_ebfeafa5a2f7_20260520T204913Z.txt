@@ -1,0 +1,1 @@
+{"start":12600.1,"end":12602.9,"confidence":0.22,"reason":"No clear advertisement segment found in this window; just episode dialogue and no promo language or sponsor callouts.","end_text":"Thank you."}

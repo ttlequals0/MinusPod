@@ -1,0 +1,18 @@
+{
+  "ads": [
+    {
+      "start": 0.0,
+      "end": 29.1,
+      "confidence": 0.99,
+      "reason": "Host-read sponsor segment for Capital One",
+      "end_text": "technology at Capital One."
+    },
+    {
+      "start": 74.8,
+      "end": 104.3,
+      "confidence": 0.95,
+      "reason": "Host-read sponsor segment for Zinn Nicotine Pouches",
+      "end_text": "sold near you."
+    }
+  ]
+}

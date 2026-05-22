@@ -1,0 +1,5 @@
+[
+    {"start": 6208.7, "end": 6233.9, "confidence": 0.95, "reason": "Airtasker sponsor read with URL and call to action", "end_text": "get anything done."},
+    {"start": 6234.1, "end": 6261.5, "confidence": 0.95, "reason": "Cross-promotion for Decisions Decisions podcast sponsored by Care for the Culture", "end_text": "Gilead Sciences."},
+    {"start": 6283.4, "end": 6318.1, "confidence": 0.95, "reason": "OnDeck loan service ad and Public investing platform sponsor mention (merged due to <15s gap)", "end_text": "take it seriously."}
+]

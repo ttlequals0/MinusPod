@@ -1,0 +1,1 @@
+{"start": 1341.5, "end": 1363.8, "confidence": 0.85, "reason": "Platform/network promo for other content - 'Oh wait, I'm about to retire' appears to be a produced transition/insertion with different audio cadence, followed by cross-promotional content about Mark and Brooklyn that differs from main interview flow", "end_text": "We're going to renegotiate your money"}

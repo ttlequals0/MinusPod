@@ -1,0 +1,1 @@
+{"start":15388.3,"end":15517.1,"confidence":0.99,"reason":"Post-roll ad block with promotional spots for Airtasker, CVS, Trashie, Try Fencing, and iHeart Podcast; includes calls to download apps, visit URLs, and brand pitches.","end_text":"iHeart Podcast. Guaranteed human."}

@@ -1,0 +1,1 @@
+{"start":5019.7,"end":5019.7,"confidence":0.42,"reason":"No clear advertisement segment detected in this window; transcript is ongoing show conversation with no sponsor promo language, URLs, or call to action.","end_text":"number eight white man black woman"}

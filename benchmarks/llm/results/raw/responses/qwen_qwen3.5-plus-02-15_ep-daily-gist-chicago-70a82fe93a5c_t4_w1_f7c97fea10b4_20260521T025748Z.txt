@@ -1,0 +1,1 @@
+[{"start": 506.4, "end": 548.5, "confidence": 0.9, "reason": "Mid-roll break with promotional segment for Crain's Weekly News Quiz", "end_text": "Daily Gist with Amy Guth."}]

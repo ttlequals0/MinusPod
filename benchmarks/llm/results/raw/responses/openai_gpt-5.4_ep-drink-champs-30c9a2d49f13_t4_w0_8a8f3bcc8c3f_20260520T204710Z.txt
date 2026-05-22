@@ -1,0 +1,1 @@
+{"start":0.0,"end":150.5,"confidence":0.99,"reason":"Pre-roll ad block with multiple inserted ads/promos: iHeart Podcast branding, Airtasker commercial, Gilead Sciences/Care for the Culture message, Nissan campaign, and Shopify sponsor read with CTA Shopify.com slash B-E-N","end_text":"Start now at Shopify.com slash B-E-N"}

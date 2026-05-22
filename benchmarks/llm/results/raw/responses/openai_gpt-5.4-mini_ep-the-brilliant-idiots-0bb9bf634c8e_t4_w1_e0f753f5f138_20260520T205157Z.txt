@@ -1,0 +1,1 @@
+{"start":1020.0,"end":1030.8,"confidence":0.41,"reason":"Possible continuation of sponsor/promo window but no explicit ad copy in this transcript window; includes show content only.","end_text":"different Twitter pages that put out things and information"}

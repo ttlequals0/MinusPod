@@ -1,0 +1,1 @@
+{"start":7135.4,"end":7168.9,"confidence":0.95,"reason":"Host-read promo for Lauren LaRosa's podcast with promotional language and plug for Black Effect/episode sign-off, continues from show outro into sponsor-style end segment","end_text":"It's the Brilliant Idiots podcast. Thank you for listening."}

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 58.0,
+    "end": 102.0,
+    "confidence": 0.95,
+    "reason": "This segment includes a podcast network identifier \"a podcast series brought to you by Core Read\" which is a form of advertisement.",
+    "end_text": "perspective on it."
+  }
+]

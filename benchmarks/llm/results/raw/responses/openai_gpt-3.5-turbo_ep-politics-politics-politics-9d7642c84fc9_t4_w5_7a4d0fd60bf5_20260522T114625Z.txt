@@ -1,0 +1,8 @@
+
+{
+	"start": 2230.3,
+	"end": 2257.8,
+	"confidence": 0.95,
+	"reason": "Discussion about AI and data centers",
+	"end_text": "you gotta have, so there's a lot of narrative, like there's just a lot of education and narrative building that also needs to be done for folks"
+}

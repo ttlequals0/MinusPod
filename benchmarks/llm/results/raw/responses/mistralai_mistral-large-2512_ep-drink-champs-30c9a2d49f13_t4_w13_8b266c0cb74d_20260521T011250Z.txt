@@ -1,0 +1,9 @@
+[
+    {
+        "start": 5714.6,
+        "end": 5745.2,
+        "confidence": 0.98,
+        "reason": "Brooklinen sponsor read with product pitch and brand name repetition",
+        "end_text": "Brooklinen, New York."
+    }
+]

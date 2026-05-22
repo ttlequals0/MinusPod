@@ -1,0 +1,11 @@
+{
+  "segments": [
+    {
+      "start": 2863.0,
+      "end": 2894.5,
+      "confidence": 0.98,
+      "reason": "LinkedIn Premium sponsor ad with call to action and URL",
+      "end_text": "at LinkedIn.com slash all-in-one"
+    }
+  ]
+}

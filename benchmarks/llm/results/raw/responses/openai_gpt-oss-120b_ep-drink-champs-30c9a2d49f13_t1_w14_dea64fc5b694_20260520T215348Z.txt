@@ -1,0 +1,32 @@
+{
+  "ads": [
+    {
+      "start": 6208.7,
+      "end": 6233.9,
+      "confidence": 0.97,
+      "reason": "Host-read sponsor promotion for Airtasker with download call to action",
+      "end_text": "overlooked, sexual health"
+    },
+    {
+      "start": 6262.1,
+      "end": 6282.7,
+      "confidence": 0.96,
+      "reason": "Sponsor mention: Sponsored by Care for the Culture from Gilead Sciences",
+      "end_text": "from Gilead Sciences"
+    },
+    {
+      "start": 6283.4,
+      "end": 6313.4,
+      "confidence": 0.96,
+      "reason": "Host-read sponsor promotion for OnDeck small business line of credit",
+      "end_text": "subject to lender approval"
+    },
+    {
+      "start": 6313.8,
+      "end": 6318.1,
+      "confidence": 0.95,
+      "reason": "Host-read sponsor promotion for Public investing platform",
+      "end_text": "take it seriously"
+    }
+  ]
+}

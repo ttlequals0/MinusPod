@@ -1,0 +1,1 @@
+{"start":2560.1,"end":2687.4,"confidence":0.99,"reason":"Meter sponsor segment; begins after 'break time' transition and includes promotional copy about Meter's networking stack plus call to action to visit meter.com/securitynow and book a demo.","end_text":"meter.com."}

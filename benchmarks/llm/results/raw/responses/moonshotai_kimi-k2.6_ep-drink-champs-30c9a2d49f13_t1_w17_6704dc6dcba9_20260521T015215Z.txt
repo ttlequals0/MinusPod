@@ -1,0 +1,1 @@
+{"start": 7426.8, "end": 7448.7, "confidence": 0.3, "reason": "22-second content gap with no transcript; possible inserted ad or production pause but no promotional language present to confirm", "end_text": "Dead Man's Court."}

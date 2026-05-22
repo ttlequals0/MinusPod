@@ -1,0 +1,7 @@
+{
+    "reason": "Just Another Pilot sponsorship segment",
+    "start": 0.0,
+    "confidence": 0.95,
+    "end": 30.4,
+    "end_text": "by Just Another Pilot."
+  }

@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 3168.0,
+      "end": 3198.0,
+      "confidence": 0.92,
+      "reason": "Short clip reads 'ebook' promo, followed by mention of 'Audible' as sponsor",
+      "end_text": "start your free trial"
+    }
+  ]
+}

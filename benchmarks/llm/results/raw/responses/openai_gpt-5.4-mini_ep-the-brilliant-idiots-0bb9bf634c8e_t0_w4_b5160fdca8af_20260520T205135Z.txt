@@ -1,0 +1,1 @@
+{"start": 2184.0,"end": 2198.0,"confidence": 0.93,"reason":"Host mentions 'Drink Champs is definitely partnering with the Black Effect Podcast Network' in a sponsor-style promo context; no clear full ad break transition, but this is promotional network copy.","end_text":"Black Effect Podcast Network. Once again, Nori"}

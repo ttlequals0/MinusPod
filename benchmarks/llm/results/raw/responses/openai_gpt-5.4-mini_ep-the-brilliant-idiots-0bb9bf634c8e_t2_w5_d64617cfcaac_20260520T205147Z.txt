@@ -1,0 +1,1 @@
+{"start":2324.6,"end":2443.9,"confidence":0.99,"reason":"Host-read BlueChew Gold sponsor segment with promo language, URL, and promo code; followed immediately by ZipRecruiter sponsor read before show content resumes","end_text":"Try it for free."}

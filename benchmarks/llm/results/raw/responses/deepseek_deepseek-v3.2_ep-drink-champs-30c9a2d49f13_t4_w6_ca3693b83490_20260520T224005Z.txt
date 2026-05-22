@@ -1,0 +1,1 @@
+{"start": 2520.2, "end": 2534.5, "confidence": 0.0, "reason": "No promotional content detected. This is a story about a tip and a car ride.", "end_text": "hauled ass back to the house. I walked in the door. Mama looked and said, ooh, I like it."}

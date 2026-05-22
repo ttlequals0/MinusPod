@@ -1,0 +1,1 @@
+{"start":6283.4,"end":6318.1,"confidence":0.98,"reason":"Ad break with OnDeck small business line of credit promotion and Public sponsor mention; includes calls to action like Apply today at OnDeck.com and promotional sponsor language for Public. Public portion appears partial/incomplete.","end_text":"those who take it seriously"}

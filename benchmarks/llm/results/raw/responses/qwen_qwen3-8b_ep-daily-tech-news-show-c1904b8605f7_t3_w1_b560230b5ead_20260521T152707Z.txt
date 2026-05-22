@@ -1,0 +1,1 @@
+"displayed in JSON format as specified, with each ad segment including start, end, confidence, reason, and end_text. The ads are identified based on the presence of sponsor mentions, promo codes, and transition phrases."

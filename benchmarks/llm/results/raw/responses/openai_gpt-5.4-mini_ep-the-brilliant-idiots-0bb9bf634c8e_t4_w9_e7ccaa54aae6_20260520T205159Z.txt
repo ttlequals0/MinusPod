@@ -1,0 +1,1 @@
+{"start":4059.4,"end":4077.5,"confidence":0.91,"reason":"Host says \"let's pay some bills\" and then a sponsor-style break for the show with promotional episode/brand context; partial ad break in this window with no specific code but clear monetized transition","end_text":"Lil P got to eat"}

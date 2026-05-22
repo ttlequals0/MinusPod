@@ -1,0 +1,1 @@
+{"start":0.0,"end":0.0,"confidence":0.0,"reason":"No advertisement segments found in the provided transcript window. The included text is editorial discussion about Chrome/AI APIs and contains no sponsor-read, promo code, or platform-inserted ad content.","end_text":""}

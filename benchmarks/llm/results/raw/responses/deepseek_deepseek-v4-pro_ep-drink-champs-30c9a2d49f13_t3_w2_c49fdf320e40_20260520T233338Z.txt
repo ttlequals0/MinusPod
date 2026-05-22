@@ -1,0 +1,7 @@
+{
+  "start": 1341.5,
+  "end": 1416.0,
+  "confidence": 0.92,
+  "reason": "Host-read ad for 'Drink Champs' episode, featuring promotional language for the podcast and sponsor's product",
+  "end_text": "Level up your game"
+}

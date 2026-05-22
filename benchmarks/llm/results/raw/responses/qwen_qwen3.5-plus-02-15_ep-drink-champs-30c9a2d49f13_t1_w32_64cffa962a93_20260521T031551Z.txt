@@ -1,0 +1,9 @@
+[
+  {
+    "start": 13669.1,
+    "end": 13854.6,
+    "confidence": 0.98,
+    "reason": "Continuous ad break featuring Airtasker, Decisions Decisions cross-promo, OnDeck, and Public sponsor reads with URLs and CTAs",
+    "end_text": "gallons a day. Of water."
+  }
+]

@@ -1,0 +1,9 @@
+[
+    {
+        "start": 2900.9,
+        "end": 2927.0,
+        "confidence": 0.85,
+        "reason": "Mention of 'Rolex' in a promotional context (Rolex bag) with repeated emphasis, though not a traditional ad, it aligns with high-end brand name-dropping that could be a subtle sponsorship or product placement. However, lacks explicit promotional language or call to action.",
+        "end_text": "I got it. Yeah"
+    }
+]

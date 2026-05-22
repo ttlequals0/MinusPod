@@ -1,0 +1,16 @@
+[
+  {
+    "start": 0.0,
+    "end": 42.2,
+    "confidence": 0.95,
+    "reason": "Platform-inserted ad for Airtasker and Care for the Culture/Gilead Sciences.",
+    "end_text": "grown woman energy."
+  },
+  {
+    "start": 72.9,
+    "end": 150.5,
+    "confidence": 0.95,
+    "reason": "Platform-inserted ad for Nissan Rogue and Shopify.",
+    "end_text": "com slash B-E-N."
+  }
+]

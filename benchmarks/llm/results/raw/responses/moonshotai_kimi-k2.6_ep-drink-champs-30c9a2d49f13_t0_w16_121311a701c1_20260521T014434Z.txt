@@ -1,0 +1,1 @@
+{"start": 6723.5, "end": 7336.8, "confidence": 0.0, "reason": "No promotional language, sponsor reads, URLs, promo codes, or platform-inserted ads detected in this window. All brand mentions (Hennessy, Remy Martin, Modelo, Tinder, etc.) appear to be organic conversation within the show content.", "end_text": "Trust me. She show up."}

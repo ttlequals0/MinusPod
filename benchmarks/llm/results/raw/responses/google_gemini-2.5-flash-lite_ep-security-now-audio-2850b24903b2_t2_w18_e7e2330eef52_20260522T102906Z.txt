@@ -1,0 +1,9 @@
+[
+  {
+    "start": 7607.7,
+    "end": 7797.9,
+    "confidence": 0.98,
+    "reason": "Host-read ad for Trusted Tech, promoting Microsoft 365 licensing services with a call to action and a specific URL.",
+    "end_text": "trustedtech.team securitynow365"
+  }
+]

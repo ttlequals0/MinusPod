@@ -1,0 +1,1 @@
+[{"start": 3578.1, "end": 3606.4, "confidence": 0.98, "reason": "Public investing platform sponsorship", "end_text": "public.com slash disclosures"}]

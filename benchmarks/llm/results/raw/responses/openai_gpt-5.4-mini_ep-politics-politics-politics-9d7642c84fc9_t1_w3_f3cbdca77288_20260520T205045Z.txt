@@ -1,0 +1,1 @@
+{"start":1589.9,"end":1601.7,"confidence":0.62,"reason":"Possible platform insertion due to abrupt sponsor-style line about price per episode, but transcript lacks clear promotional brand/call-to-action language; likely not an ad segment","end_text":"Less than 50 cents an episode? Huh. Interesting."}

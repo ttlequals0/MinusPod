@@ -1,0 +1,1 @@
+{"start": 58.0, "end": 80.1, "confidence": 0.99, "reason": "Hosted on Acast. This is a platform-inserted ad for the hosting service, indicated by the formal introduction that includes sponsorship language and branding typical of network promos", "end_text": "episode two, and I'm super excited"}

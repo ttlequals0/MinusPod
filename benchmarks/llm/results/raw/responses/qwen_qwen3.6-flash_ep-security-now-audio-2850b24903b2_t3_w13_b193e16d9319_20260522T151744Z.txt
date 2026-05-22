@@ -1,0 +1,1 @@
+[{"start": 6016.6, "end": 6060.0, "confidence": 0.95, "reason": "Host-read sponsor segment for HoxHunt (transcribed as Hawks Hunt/Hawkshunt), continues in next window", "end_text": "just like the bad guys."}]

@@ -1,0 +1,7 @@
+{
+  "start": 2178.0,
+  "end": 2681.9,
+  "confidence": 0.95,
+  "reason": "The discussion focuses on the potential impact of AI tools on campaign strategies, highlighting the use of AI for communication and micro-targeting, which are key areas of interest in the digital campaign and election field.",
+  "end_text": "We'll see you next time."
+}

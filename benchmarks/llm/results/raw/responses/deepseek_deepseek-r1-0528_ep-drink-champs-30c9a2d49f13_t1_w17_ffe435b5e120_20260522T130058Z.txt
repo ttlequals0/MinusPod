@@ -1,0 +1,16 @@
+[
+  {
+    "start": 7122.6,
+    "end": 7614.0,
+    "confidence": 0.95,
+    "reason": "Host-read sponsor segment for Modelo beer",
+    "end_text": "No more Modelo"
+  },
+  {
+    "start": 7665.8,
+    "end": 7730.7,
+    "confidence": 0.9,
+    "reason": "Host-read sponsor segment for Tinder",
+    "end_text": "I don't do face identity"
+  }
+]

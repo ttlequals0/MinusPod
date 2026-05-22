@@ -1,0 +1,40 @@
+{
+  "transcript_segments": [
+    {
+      "start": 6208.7,
+      "end": 6233.9,
+      "text": "I love living in New York, except when my to-do list is longer than a drugstore receipt. So I post my tasks on Airtasker, hang the shelves, organize the closet, return the packages, done. Download the Airtasker app or go to Airtasker.com. Airtasker, get anything done. This is Mandy B. And Wheezy WTF from Decisions Decisions. We just sat down with Kiki Palmer to discuss a topic that is often overlooked, sexual health.",
+      "speaker": "host"
+    },
+    {
+      "start": 6234.1,
+      "end": 6261.5,
+      "text": "In this special episode, we dive into the facts, self-care, and share tips for navigating intimacy with confidence. No shame, no stigma. Here's a sneak peek. We live in this world, y'all, where it's like one second it's fluid out, city girls, and the next minute, don't ask me about my health. It's literally that. And we were talking. Why is it either porn or not at all? And that's the problem with those comments that day. It was like, what happened to the conversation about abstinence?",
+      "speaker": "host"
+    },
+    {
+      "start": 6262.1,
+      "end": 6282.7,
+      "text": "It doesn't, it's not real. And the problem with abstinence conversation is you discourage people to be honest, to get tested, and to disclose. And then I'm looking at these comments like, it's a human thing. Our episode with Kiki Palmer is now out wherever you get your podcasts. Sponsored by Care for the Culture from Gilead Sciences.",
+      "speaker": "host"
+    },
+    {
+      "start": 6283.4,
+      "end": 6312.4,
+      "text": "Cashflow Crunch? OnDeck's small business line of credit gives your business immediate access to funds, up to $200,000, right when you need it. Cover seasonal dips, manage payroll, restock inventory, or tackle unexpected expenses without missing a beat. With flexible draws, transparent pricing, and control over repayment, get funded quickly and confidently. Apply today at OnDeck.com. Funds could be available as soon as tomorrow. Depending on certain loan attributes, your business loan may be issued by OnDeck or Celtic Bank. OnDeck does not lend in North Dakota. All loans and...",
+      "speaker": "host"
+    },
+    {
+      "start": 6312.4,
+      "end": 6313.4,
+      "text": "All amounts subject to lender approval.",
+      "speaker": "host"
+    },
+    {
+      "start": 6313.8,
+      "end": 6318.1,
+      "text": "Support for the show comes from Public, the investing platform for those who take it seriously.",
+      "speaker": "host"
+    }
+  ]
+}

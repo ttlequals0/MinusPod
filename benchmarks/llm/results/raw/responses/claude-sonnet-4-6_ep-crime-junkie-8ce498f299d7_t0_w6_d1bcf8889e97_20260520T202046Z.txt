@@ -1,0 +1,1 @@
+[{"start": 2863.0, "end": 2894.5, "confidence": 0.97, "reason": "LinkedIn Premium All-in-One host/platform-inserted ad with promotional language, call to action URL linkedin.com/all-in-one", "end_text": "try for free at LinkedIn.com slash all-in-one"}]

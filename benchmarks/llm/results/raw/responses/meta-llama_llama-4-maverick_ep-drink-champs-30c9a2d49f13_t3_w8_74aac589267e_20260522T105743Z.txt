@@ -1,0 +1,1 @@
+{"type": "function", "name": "analyze_transcript", "parameters": {"transcript": "Drink Champs Episode 501 w/ Warren Sapp", "window_start": 3360.0, "window_end": 3960.0}}

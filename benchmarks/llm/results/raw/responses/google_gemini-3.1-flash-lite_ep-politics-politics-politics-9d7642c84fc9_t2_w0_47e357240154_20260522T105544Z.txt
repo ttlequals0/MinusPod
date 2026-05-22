@@ -1,0 +1,9 @@
+[
+  {
+    "start": 30.4,
+    "end": 52.7,
+    "confidence": 0.95,
+    "reason": "Host-read sponsor segment for Just Another Pilot",
+    "end_text": "brought to you by Just Another Pilot"
+  }
+]

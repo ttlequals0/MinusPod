@@ -1,0 +1,17 @@
+{
+  "ads": [
+    {
+      "start": 6283.4,
+      "end": 6313.4,
+      "confidence": 0.98,
+      "reason": "OnDeck small business line of credit sponsor read",
+      "end_text": "subject to lender approval"
+    },
+    {
+      "start": 6313.8,
+      "end": 6318.1,
+      "confidence": 0.98,
+      "reason": "Public investing platform sponsor read",
+      "end_text": "take it seriously"
+    }
+  ]

@@ -1,0 +1,8 @@
+
+{
+	"start": 2230.3,
+	"end": 2257.8,
+	"confidence": 0.95,
+	"reason": "Discussion about AI companies and decision-making",
+	"end_text": "I go to Netflix, I watch it, I turn on my computer, I go to this thing, it works."
+}

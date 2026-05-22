@@ -1,0 +1,3 @@
+{
+  "reason": "No advertisements detected in this window. Content consists of host discussing upcoming ad content, reading supporter names, and show outro."
+}

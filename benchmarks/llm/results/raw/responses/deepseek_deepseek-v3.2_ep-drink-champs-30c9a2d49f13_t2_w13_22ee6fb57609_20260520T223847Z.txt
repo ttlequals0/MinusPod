@@ -1,0 +1,1 @@
+{"start": 5471.4, "end": 5500.8, "confidence": 0.85, "reason": "Extended silence gap (13 seconds) with no promotional content, likely a content break or ad insertion point, but no transcript to confirm ad.", "end_text": ". . . . . . . . . . . ."}

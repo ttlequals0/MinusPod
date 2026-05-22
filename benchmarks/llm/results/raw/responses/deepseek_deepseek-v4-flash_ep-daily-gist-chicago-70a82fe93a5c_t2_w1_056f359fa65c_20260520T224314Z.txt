@@ -1,0 +1,11 @@
+{  
+  "ads": [  
+    {  
+      "start": 506.4,  
+      "end": 548.5,  
+      "confidence": 0.98,  
+      "reason": "Host-read cross-promotion for Crain's Weekly News Quiz, including URL chicagobusiness.com and call to action to follow the podcast",  
+      "end_text": "Daily Gist with Amy Guth"  
+    }  
+  ]  
+}

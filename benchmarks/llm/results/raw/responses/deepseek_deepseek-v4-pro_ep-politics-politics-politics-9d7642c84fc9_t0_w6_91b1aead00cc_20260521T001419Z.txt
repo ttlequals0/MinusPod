@@ -1,0 +1,1 @@
+{"start": 2680.5, "end": 2681.9, "confidence": 0.0, "reason": "No promotional content found in transcript window - 'We'll see you next time' appears but no sponsor names, URLs, promo codes, or product pitches follow in the transcript", "end_text": "We'll see you next time."}

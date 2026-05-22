@@ -1,0 +1,7 @@
+{
+  "start": 909.6,
+  "end": 933.9,
+  "confidence": 0.58,
+  "reason": "Self-promotional call to action for TakePoliticsSeriously.com and getting two episodes of the show; partial segment in this window",
+  "end_text": "security risks."
+}

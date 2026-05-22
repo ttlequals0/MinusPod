@@ -1,0 +1,1 @@
+{"start": 1589.9, "end": 1601.7, "confidence": 0.6, "reason": "Possible host comment on subscription cost, but no clear promotional language or call to action; likely organic reaction, not an ad", "end_text": "episode? Huh. Interesting."}

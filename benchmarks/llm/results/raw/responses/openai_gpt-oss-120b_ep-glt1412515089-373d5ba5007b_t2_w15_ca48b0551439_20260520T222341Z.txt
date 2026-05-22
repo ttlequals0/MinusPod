@@ -1,0 +1,7 @@
+{
+  "start": 6368.2,
+  "end": 6394.8,
+  "confidence": 0.96,
+  "reason": "Host-read sponsor mention of Perplexity, identified as AI sponsor with promotional language",
+  "end_text": "how smart it is."
+}

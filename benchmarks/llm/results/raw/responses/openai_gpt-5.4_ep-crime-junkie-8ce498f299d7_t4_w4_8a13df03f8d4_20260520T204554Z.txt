@@ -1,0 +1,1 @@
+{"start":1959.8,"end":2080.5,"confidence":0.99,"reason":"Merged ad break containing Rakuten, LinkedIn Premium All-in-One, and Hertz promotional reads with calls to action like Rakuten.com, linkedin.com/all-in-one, and Hertz.com","end_text":"our newest fleet yet at Hertz.com."}

@@ -1,0 +1,12 @@
+{
+  "ad_segments": [
+    {
+      "start": 10211.8,
+      "end": 10241.0,
+      "confidence": 0.9,
+      "reason": "WhatsApp is mentioned in a promotional context as a video calling service.",
+      "end_text": "Where you at?"
+    }
+  ],
+  "confidence": 0.9
+}

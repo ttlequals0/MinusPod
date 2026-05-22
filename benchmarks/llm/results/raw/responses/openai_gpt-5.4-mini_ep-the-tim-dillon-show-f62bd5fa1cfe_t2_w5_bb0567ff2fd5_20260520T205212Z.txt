@@ -1,0 +1,1 @@
+{"start":2085.5,"end":2670.1,"confidence":0.93,"reason":"No ad segments detected in this transcript window. The content is continuous commentary on children, screens, and GLP-1s with no sponsor transition phrases, promo codes, URLs, or promotional language.","end_text":"exploded. It was full of chicken nuggets"}

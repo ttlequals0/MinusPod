@@ -1,0 +1,16 @@
+[
+  {
+    "start": 1742.3,
+    "end": 1799.6,
+    "confidence": 0.98,
+    "reason": "Capital One and Lemonada Media sponsor reads",
+    "end_text": "six-part Thrive series."
+  },
+  {
+    "start": 2246.0,
+    "end": 2301.6,
+    "confidence": 0.98,
+    "reason": "Capital One and Rinse/Ted's Rethinking sponsor reads",
+    "end_text": "relentless task."
+  }
+]

@@ -1,0 +1,32 @@
+{
+  "segments": [
+    {
+      "start": 10069.7,
+      "end": 10092.0,
+      "confidence": 0.95,
+      "reason": "Host-read sponsor segment for Athletic Greens with promo code",
+      "end_text": "go to athleticgreens.com/drinkchamps"
+    },
+    {
+      "start": 10111.1,
+      "end": 10139.9,
+      "confidence": 0.95,
+      "reason": "Host-read sponsor segment for Shopify",
+      "end_text": "sign up for a free trial at shopify.com/drinkchamps"
+    },
+    {
+      "start": 10160.3,
+      "end": 10187.5,
+      "confidence": 0.95,
+      "reason": "Host-read sponsor segment for BetterHelp",
+      "end_text": "get 10% off your first month at betterhelp.com/drinkchamps"
+    },
+    {
+      "start": 10211.8,
+      "end": 10222.2,
+      "confidence": 0.95,
+      "reason": "Host-read sponsor segment for DoorDash",
+      "end_text": "get $0 delivery fees on your first order"
+    }
+  ]
+}

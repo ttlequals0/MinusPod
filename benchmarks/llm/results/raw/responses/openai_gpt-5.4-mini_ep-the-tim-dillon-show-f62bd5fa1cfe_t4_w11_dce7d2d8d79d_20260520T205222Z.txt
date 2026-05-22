@@ -1,0 +1,1 @@
+{"start":4675.4,"end":4806.1,"confidence":0.99,"reason":"Consecutive host-read and network-style sponsor reads: Colgate Women's Games, Skinny Pop, Viz prescription eye drop, and Garnier/National Park Foundation promo copy with product pitches and URLs; begins mid-ad segment and continues through the end of the window.","end_text":"at GarnierUSA.com slash NPF"}

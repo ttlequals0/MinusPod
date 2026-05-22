@@ -1,0 +1,4 @@
+{
+  "segments": [],
+  "notes": "No advertisement segments detected in this transcript window. The content is editorial discussion about Complex's Most Powerful People in Hip Hop Media list, with hosts talking about DJ Head, Gina Views, and other media personalities. There are no sponsor reads, promo codes, product endorsements, or commercial transitions ('let's take a break', 'brought to you by', etc.). The sponsor links appear in the episode description but not in the spoken transcript."
+}

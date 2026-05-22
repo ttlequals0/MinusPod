@@ -1,0 +1,1 @@
+{"start": 2659.4, "end": 2688.1, "confidence": 0.85, "reason": "Host mentions 'shout out to the mid-roll' indicating a self-referential acknowledgment of an ad break, though no promotional content is present in transcript; likely a placeholder or edited-out sponsor segment", "end_text": "great music I've been on record saying I think Jim has been making some of the"}

@@ -1,0 +1,2 @@
+t.
+{"start": 54.1, "end": 64.7, "confidence": 0.95, "reason": "Old National Bank sponsor read with URL and call to action", "end_text": "Member FDIC."}

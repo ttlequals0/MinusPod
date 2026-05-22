@@ -1,0 +1,7 @@
+{
+  "start": 401.4,
+  "end": 997.3,
+  "confidence": 0.95,
+  "reason": "The segment contains a transition phrase indicating the start of an ad ('Coming up, the closure of Spirit Airlines costs Chicago hundreds of jobs. We'll talk about that and more right after this.') and ends with a continuation phrase ('And as Ecker noted, the agreement also leaves an open question about the future of the $150 million plan from Chicago-based Curve Industrial to redevelop the main mall site with four warehouses. Curve is under contract to buy the main building from Great Neck, New York-based Namdar, though the developer has yet to win approval from the city council to rezone the mall for the project.')",
+  "end_text": "another hearing on the case is scheduled for June 29th."
+}

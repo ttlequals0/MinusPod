@@ -1,0 +1,39 @@
+s.
+{
+
+"[{" 
+  :"",
+  "start": 4675.4, 
+  "end": 4697.4, 
+  "confidence": 0.95, 
+  "reason": "Colgate Women's Games sponsorship with product positioning and tagline", 
+  "end_text": "your smile is your strength"
+  ,"{" 
+  :"",
+  "start": 4705.5, 
+  "end": 4733.9, 
+  "confidence": 0.95, 
+  "reason": "Skinny Pop product promotion with ingredient focus and call to action", 
+  "end_text": "Skinny Pop just makes sense"
+  ,"{" 
+  :"",
+  "start": 4734.3, 
+  "end": 4763.1, 
+  "confidence": 0.95, 
+  "reason": "Colgate Women's Games repeat sponsorship with athlete empowerment messaging", 
+  "end_text": "your smile is your strength"
+  ,"{" 
+  :"",
+  "start": 4766.5, 
+  "end": 4787.9, 
+  "confidence": 0.95, 
+  "reason": "Viz prescription eye drop promotion with medical disclaimer and URL", 
+  "end_text": "Learn more at Viz.com"
+  ,"{" 
+  :"",
+  "start": 4788.6, 
+  "end": 4806.1, 
+  "confidence": 0.95, 
+  "reason": "Garnier National Park Foundation partnership with call to action URL", 
+  "end_text": "at GarnierUSA.com slash NPF"
+}

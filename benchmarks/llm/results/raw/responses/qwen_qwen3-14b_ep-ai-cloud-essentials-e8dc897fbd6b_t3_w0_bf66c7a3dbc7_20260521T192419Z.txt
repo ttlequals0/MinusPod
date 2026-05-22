@@ -1,0 +1,2 @@
+t.
+{"start": 0.0, "end": 0.0, "confidence": 0.0, "reason": "No advertisement segments found in the provided transcript.", "end_text": "No advertisement segments found in the provided transcript."}

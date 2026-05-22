@@ -1,0 +1,16 @@
+[
+  {
+    "start": 1.4,
+    "end": 9.3,
+    "confidence": 0.9,
+    "reason": "Joe Rogan Podcast pre-roll bumper",
+    "end_text": "Podcast by night, all day."
+  },
+  {
+    "start": 539.2,
+    "end": 600.0,
+    "confidence": 0.98,
+    "reason": "In the Gray movie and Skechers sponsor reads, continues in next",
+    "end_text": "dress footwear, sandals, sneakers"
+  }
+]

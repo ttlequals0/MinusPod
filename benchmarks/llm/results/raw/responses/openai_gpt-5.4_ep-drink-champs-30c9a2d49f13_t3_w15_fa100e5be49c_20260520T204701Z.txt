@@ -1,0 +1,1 @@
+{"start":6283.4,"end":6318.1,"confidence":0.98,"reason":"OnDeck small business line of credit ad followed immediately by Public investing platform sponsor mention; merged into one ad break due to contiguous promotional content","end_text":"those who take it seriously"}

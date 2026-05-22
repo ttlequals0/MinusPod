@@ -1,0 +1,9 @@
+[
+  {
+    "start": 2560.1,
+    "end": 2687.4,
+    "confidence": 0.98,
+    "reason": "Host-read ad for Meter, a networking infrastructure company. Includes a call to action to visit meter.com/securitynow.",
+    "end_text": "meter.com."
+  }
+]

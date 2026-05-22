@@ -1,0 +1,1 @@
+{"start": 8580.0, "end": 8580.0, "confidence": 0.0, "reason": "no ads found in this window", "end_text": "N.W.A. or Wu-Tang?"}

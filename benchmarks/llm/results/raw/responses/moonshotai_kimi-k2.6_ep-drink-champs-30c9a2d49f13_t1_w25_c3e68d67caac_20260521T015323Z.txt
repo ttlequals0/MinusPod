@@ -1,0 +1,1 @@
+{"start": 10981.1, "end": 10985.8, "confidence": 0.1, "reason": "Brief interjection 'Oh lord, oh' following a 16-second content gap; no promotional language, sponsor names, URLs, or calls to action present. This is a conversational reaction, not an advertisement.", "end_text": "Oh lord, oh"}

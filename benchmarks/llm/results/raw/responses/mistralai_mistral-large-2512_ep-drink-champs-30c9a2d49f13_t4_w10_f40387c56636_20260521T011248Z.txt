@@ -1,0 +1,9 @@
+[
+    {
+        "start": 4782.6,
+        "end": 4804.9,
+        "confidence": 0.3,
+        "reason": "Mention of '10 over 10' and college athletes getting paid, but no clear promotional language or sponsor identified. Likely organic conversation.",
+        "end_text": "like..."
+    }
+]

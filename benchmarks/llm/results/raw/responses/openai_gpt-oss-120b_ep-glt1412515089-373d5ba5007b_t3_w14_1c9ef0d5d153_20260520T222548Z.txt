@@ -1,0 +1,10 @@
+{
+  "ads": [
+    {
+      "start": 6368.2,
+      "end": 6394.8,
+      "confidence": 0.96,
+      "reason": "Host-read sponsor mention of Perplexity AI sponsor with promotional language",
+      "end_text": "and potential future."
+    }
+  ]

@@ -1,0 +1,7 @@
+{  
+  "start": 20.82,  
+  "end": 21.10,  
+  "confidence": 0.95,  
+  "reason": "Christopher 'Cole' Thomas was involved in a drug-related incident, leading to his disappearance. The narrative suggests he was taken by someone named 'Gordo', possibly under duress or coercion, which aligns with typical ad structures involving sponsor mentions and calls to action.",  
+  "end_text": "Gordo's car"  
+}

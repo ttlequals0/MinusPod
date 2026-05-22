@@ -1,0 +1,13 @@
+[{
+    "start": 8724.9,
+    "end": 8737.9,
+    "confidence": 0.95,
+    "reason": "AirTasker sponsor read",
+    "end_text": "handle it. AirTasker."
+}, {
+    "start": 8799.1,
+    "end": 8826.4,
+    "confidence": 0.98,
+    "reason": "OnDeck sponsor read",
+    "end_text": "lender approval."
+}]

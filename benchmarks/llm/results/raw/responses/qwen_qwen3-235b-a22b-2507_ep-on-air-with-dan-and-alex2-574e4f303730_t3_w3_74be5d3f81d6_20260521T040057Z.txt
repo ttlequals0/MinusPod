@@ -1,0 +1,1 @@
+{"start": 1246.0, "end": 1879.5, "confidence": 0.99, "reason": "Continuous discussion of alcohol bans, airline policies, cultural norms, and regulatory comparisons without any promotional content or ad markers. No sponsor names, URLs, promo codes, or calls to action present. This is editorial content.", "end_text": "a thousand euros more just because you'll get..."}

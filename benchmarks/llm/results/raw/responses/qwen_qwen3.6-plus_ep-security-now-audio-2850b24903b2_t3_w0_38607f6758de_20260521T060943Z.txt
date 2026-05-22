@@ -1,0 +1,1 @@
+[{"start": 16.7, "end": 84.9, "confidence": 0.98, "reason": "OutSystems sponsor read with product pitch and vanity URL", "end_text": "OutSystems.com slash twit."}, {"start": 445.6, "end": 572.1, "confidence": 0.98, "reason": "Transition to break followed by Zscaler sponsor read with testimonial and URL", "end_text": "Now back to Steve and Security Now."}]

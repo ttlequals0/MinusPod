@@ -1,0 +1,32 @@
+```json
+[
+  {
+    "start": 3503.7,
+    "end": 3528.5,
+    "confidence": 0.95,
+    "reason": "Airtasker network-inserted brand tagline ad with product pitch and call to action",
+    "end_text": "Airtasker, get anything done"
+  },
+  {
+    "start": 3528.8,
+    "end": 3577.4,
+    "confidence": 0.92,
+    "reason": "Decisions Decisions podcast cross-promotion with Care for the Culture sponsorship mention",
+    "end_text": "Sponsored by Care for the Culture from Gilead Sciences"
+  },
+  {
+    "start": 3578.1,
+    "end": 3608.0,
+    "confidence": 0.96,
+    "reason": "OnDeck small business line of credit sponsor read with URL and call to action",
+    "end_text": "OnDeck does not lend in North Dakota"
+  },
+  {
+    "start": 3608.5,
+    "end": 3650.4,
+    "confidence": 0.94,
+    "reason": "Public investing platform sponsor read with product features and URL",
+    "end_text": "Disclosures available at public.com slash disclosures"
+  }
+]
+```

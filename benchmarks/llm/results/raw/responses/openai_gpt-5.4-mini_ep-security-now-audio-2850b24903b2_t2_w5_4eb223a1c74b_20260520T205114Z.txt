@@ -1,0 +1,1 @@
+{"start":2560.1,"end":2687.4,"confidence":0.99,"reason":"Meter sponsor read with transition 'break time' and promotional copy for Meter networking, including demo CTA and URL meter.com/securitynow","end_text":"meter.com"}

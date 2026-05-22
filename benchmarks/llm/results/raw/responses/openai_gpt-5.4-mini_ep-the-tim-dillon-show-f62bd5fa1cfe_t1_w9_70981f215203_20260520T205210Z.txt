@@ -1,0 +1,1 @@
+{"start":3976.8,"end":4002.7,"confidence":0.83,"reason":"Host reads a sponsor-style promo mentioning 'before the summer months' and 'buying Martin's potato rolls, burgers, dogs' with a clear commercial tone; appears as a partial ad insert in this window and resumes back to show content with 'Anyway, let's watch his statement.'","end_text":"a couple of vacations. Anyway, let's"}

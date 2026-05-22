@@ -1,0 +1,51 @@
+[
+{
+  "start": 5892.2,
+   "end": 5916.2,
+   "confidence": 0.95,
+   "reason": "Airtasker ad read",
+   "end_text": "get anything done"
+},
+{
+   "start": 6208.7,
+   "end": 6233.9,
+   "confidence": 0.95,
+   "reason": "Airtasker ad read",
+   "end_text": "get anything done"
+},
+{
+   "start": 6283.4,
+   "end": 6312.4,
+   "confidence": 0.95,
+   "reason": "OnDeck ad read",
+   "end_text": "without missing a beat"
+},
+{
+   "start": 6313.8,
+   "end": 6318.1,
+   "confidence": 0.95,
+   "reason": "OnDeck ad read",
+   "end_text": "lender approval"
+},
+{
+   "start": 6343.1,
+   "end": 6355.7,
+   "confidence": 0.95,
+   "reason": "Public ad read",
+   "end_text": "take it seriously"
+},
+{
+   "start": 6374.4,
+   "end": 6383.3,
+   "confidence": 0.95,
+   "reason": "Transcription by CastingWords",
+   "end_text": "CastingWords"
+},
+{
+   "start": 6234.1,
+   "end": 6261.5,
+   "confidence": 0.95,
+   "reason": "Care for the Culture ad read",
+   "end_text": "get tested"
+}
+]

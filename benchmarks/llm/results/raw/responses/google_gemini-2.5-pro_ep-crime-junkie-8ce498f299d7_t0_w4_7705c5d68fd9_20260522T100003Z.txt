@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1959.8,
+    "end": 2080.5,
+    "confidence": 1.0,
+    "reason": "Host-read ad break for Rakuten, LinkedIn, and Hertz.",
+    "end_text": "fleet yet at Hertz.com."
+  }
+]

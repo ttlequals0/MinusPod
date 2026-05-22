@@ -1,0 +1,17 @@
+[
+  {
+    "start": 524.1,
+    "end": 567.0,
+    "confidence": 0.99,
+    "reason": "Thrive Cosmetics sponsor read, including the transition phrase 'We'll be right back'",
+    "end_text": "Shine 26"
+  },
+  {
+    "start": 594.7,
+    "end": 597.3,
+    "confidence": 0.95,
+    "reason": "Mattress Warehouse promotional tagline",
+    "end_text": "at Mattress Warehouse"
+  },
+  {
+    "

@@ -1,0 +1,1 @@
+{"start": 588.5, "end": 613.4, "confidence": 0.98, "reason": "transition phrase 'We'll see you next time' followed by silence and return without promotional content indicates a content break, not an ad", "end_text": "We'll see you next time."}

@@ -1,0 +1,1 @@
+{"start":0.0,"end":30.4,"confidence":0.78,"reason":"Produced promo/brand mention: \"The following is brought to you by Just Another Pilot\"","end_text":"brought to you by Just Another Pilot"}

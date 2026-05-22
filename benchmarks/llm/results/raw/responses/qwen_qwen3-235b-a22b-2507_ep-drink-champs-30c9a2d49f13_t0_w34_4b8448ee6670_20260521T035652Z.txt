@@ -1,0 +1,1 @@
+{"start": 14854.0, "end": 14861.3, "confidence": 0.99, "reason": "End-of-episode sign-off and call to action typical of platform-inserted or host-read ad/sponsorship break, commonly followed by promotional content or credits", "end_text": "Thank you for watching"}

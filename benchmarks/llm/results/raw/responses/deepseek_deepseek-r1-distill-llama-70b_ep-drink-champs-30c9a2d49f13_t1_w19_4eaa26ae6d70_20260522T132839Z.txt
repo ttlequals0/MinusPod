@@ -1,0 +1,7 @@
+{
+  "start": 8520.6,
+  "end": 8540.6,
+  "confidence": 0.95,
+  "reason": "Host transition to ad break with 'Let's take a break' phrase",
+  "end_text": "Come on. Bucks or Raiders? Both. Okay. Come on. Come on."
+}

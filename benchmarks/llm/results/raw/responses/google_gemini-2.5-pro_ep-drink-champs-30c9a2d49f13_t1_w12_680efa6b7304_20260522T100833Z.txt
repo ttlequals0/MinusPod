@@ -1,0 +1,9 @@
+[
+  {
+    "start": 5420.4,
+    "end": 5441.4,
+    "confidence": 0.9,
+    "reason": "Ad segment indicated by repeated 'promo code, discount code' placeholder text in the transcript, likely a transcription error for a dynamically inserted ad.",
+    "end_text": "code, discount code, discount code"
+  }
+]

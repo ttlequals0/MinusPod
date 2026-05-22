@@ -1,0 +1,1 @@
+{"start":58.0,"end":80.1,"confidence":0.98,"reason":"Core Read sponsor read (brought to you by)","end_text":"we are going to talk about"}

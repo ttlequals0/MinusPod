@@ -1,0 +1,1 @@
+{"start":1959.8,"end":2020.4,"confidence":0.99,"reason":"Rakuten host-read sponsor segment with promotional language, cash back pitch, and call to action; includes break transition context from surrounding ad block","end_text":"or download the Rakuten app to start saving money today"}

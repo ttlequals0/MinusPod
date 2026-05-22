@@ -1,0 +1,9 @@
+[
+  {
+    "start": 10260.1,
+    "end": 10260.1,
+    "confidence": 0.0,
+    "reason": "No ad content detected",
+    "end_text": ""
+  }
+]

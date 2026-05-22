@@ -1,0 +1,7 @@
+{
+  "start": 2927.9,
+  "end": 2954.6,
+  "confidence": 0.8,
+  "reason": "AI video discussion",
+  "end_text": "because it elevates"
+}

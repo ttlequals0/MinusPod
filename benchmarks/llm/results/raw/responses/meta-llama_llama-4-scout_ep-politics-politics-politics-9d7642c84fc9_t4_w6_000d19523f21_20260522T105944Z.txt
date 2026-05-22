@@ -1,0 +1,7 @@
+{ 
+  "start": 2499.6, 
+  "end": 3088.8, 
+  "confidence": 0.3, 
+  "reason": "No clear ad segment detected, appears to be part of the interview or discussion", 
+  "end_text": "So it's a more"
+}

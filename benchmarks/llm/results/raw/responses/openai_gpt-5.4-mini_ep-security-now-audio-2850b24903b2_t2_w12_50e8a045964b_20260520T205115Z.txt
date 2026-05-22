@@ -1,0 +1,1 @@
+{"start":5491.1,"end":5578.4,"confidence":0.91,"reason":"Host discusses OpenAI's account security section and then explicitly promotes a partnered Yubico bundle with preferred pricing for YubiKey hardware authentication; this is sponsored promotional content even though it is embedded in the discussion.","end_text":"use software-based pass keys."}

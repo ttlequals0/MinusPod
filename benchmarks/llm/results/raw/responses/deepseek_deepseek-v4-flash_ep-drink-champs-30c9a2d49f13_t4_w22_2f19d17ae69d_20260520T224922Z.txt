@@ -1,0 +1,7 @@
+{
+  "start": 9840.0,
+  "end": 9840.0,
+  "confidence": 0.0,
+  "reason": "No advertising language detected in the provided transcript segment. The discussion covers fishing, shark/lobster stories, iguana eating, and McDonald's/Epstein file mention in a conversational manner, with no sponsor names, promo codes, calls to action, or promotional taglines.",
+  "end_text": ""
+}

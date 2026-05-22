@@ -1,0 +1,1 @@
+{"start": 7981.9, "end": 8588.6, "confidence": 0.0, "reason": "No promotional content, sponsor mentions, or platform-inserted ads detected in this window. Entire segment consists of interview content with Warren Sapp discussing NFL stories, Biggie Smalls anecdotes, and music preferences.", "end_text": "y'all got DJ Clue"}

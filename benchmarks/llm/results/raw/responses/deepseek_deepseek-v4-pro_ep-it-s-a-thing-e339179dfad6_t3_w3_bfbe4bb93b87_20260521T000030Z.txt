@@ -1,0 +1,18 @@
+{
+  "ad_segments": [
+    {
+      "start": 1524.5,
+      "end": 1561.9,
+      "end_text": "search XERO for your free trial. Conditions apply.",
+      "confidence": 0.95,
+      "reason": "Xero accounting platform sponsor read with promotional copy and call-to-action within the transcript"
+    },
+    {
+      "start": 1561.9,
+      "end": 1602.6,
+      "end_text": "grow, and monetize their podcasts everywhere. Acast.com.",
+      "confidence": 0.85,
+      "reason": "Network-inserted platform advertisements from Acast promoting Wrong Turns podcast and Acast services"
+    }
+  ]
+}

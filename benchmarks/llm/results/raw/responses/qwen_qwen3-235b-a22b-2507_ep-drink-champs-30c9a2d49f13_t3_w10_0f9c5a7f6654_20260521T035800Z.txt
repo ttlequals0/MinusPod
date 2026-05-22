@@ -1,0 +1,1 @@
+{"start": 4197.5, "end": 4804.9, "confidence": 0.99, "reason": "continuous conversation without any promotional language, sponsor mentions, URLs, promo codes, or ad-like transitions; content is organic discussion about football, coaching, and personal experiences", "end_text": "ran up a bill like..."}

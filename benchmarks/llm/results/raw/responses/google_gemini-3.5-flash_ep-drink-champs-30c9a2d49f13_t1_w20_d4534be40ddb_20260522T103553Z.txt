@@ -1,0 +1,9 @@
+[
+  {
+    "start": 8724.9,
+    "end": 8831.4,
+    "confidence": 0.99,
+    "reason": "Ad break containing AirTasker, Decisions Decisions podcast promo, OnDeck, and Public.com ads",
+    "end_text": "those who take it seriously."
+  }
+]

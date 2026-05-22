@@ -1,0 +1,1 @@
+{"result":[{"start":0.0,"end":150.5,"confidence":0.98,"reason":"Platform pre-roll ad cluster featuring Airtasker, Gilead HIV PSA, Nissan durability campaign, and Shopify sponsor read","end_text":"Shopify.com slash B-E-N"}]}

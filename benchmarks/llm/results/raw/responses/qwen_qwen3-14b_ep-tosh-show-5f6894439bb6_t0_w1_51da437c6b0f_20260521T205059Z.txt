@@ -1,0 +1,2 @@
+."
+{"start": 537.5, "end": 566.6, "confidence": 0.98, "reason": "Thrive Cosmetics sponsor read with URL and promo code", "end_text": "shine26"}

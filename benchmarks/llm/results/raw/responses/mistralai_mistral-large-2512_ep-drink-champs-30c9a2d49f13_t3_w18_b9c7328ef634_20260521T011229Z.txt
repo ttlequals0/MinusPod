@@ -1,0 +1,9 @@
+[
+    {
+        "start": 7981.9,
+        "end": 8010.1,
+        "confidence": 0.9,
+        "reason": "Platform-inserted brand tagline ad for 'Not For Long' (NFL) with concentrated marketing language and tonally distinct delivery. No promo code but clear promotional messaging.",
+        "end_text": "Not for long."
+    }
+]

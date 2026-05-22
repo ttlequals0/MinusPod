@@ -1,0 +1,1 @@
+{"start": 13074.2, "end": 13091.7, "confidence": 0.98, "reason": "Host-read transition phrase 'He's going back for more' followed by abrupt topic shift and silence gap; typical ad break structure in podcast", "end_text": "I wake up every morning"}

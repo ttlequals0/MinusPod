@@ -1,0 +1,37 @@
+[
+    {
+        "start": 15388.3,
+        "end": 15416.5,
+        "confidence": 0.99,
+        "reason": "Airtasker network-inserted ad with promotional language, call to action, and brand tagline",
+        "end_text": "Airtasker makes city life easier"
+    },
+    {
+        "start": 15416.7,
+        "end": 15452.3,
+        "confidence": 0.99,
+        "reason": "CVS network-inserted ad with community-focused promotional language and brand messaging",
+        "end_text": "where you get your medicine matters"
+    },
+    {
+        "start": 15453.9,
+        "end": 15481.1,
+        "confidence": 0.99,
+        "reason": "Trashy network-inserted ad with promotional language, call to action, and URL (Trashy.io)",
+        "end_text": "Visit Trashy.io to get started"
+    },
+    {
+        "start": 15482.9,
+        "end": 15517.1,
+        "confidence": 0.98,
+        "reason": "Fencing network-inserted ad with promotional language and URL (tryfencing.org)",
+        "end_text": "tryfencing.org"
+    },
+    {
+        "start": 15517.1,
+        "end": 15517.1,
+        "confidence": 0.95,
+        "reason": "iHeart Podcast platform-inserted ad (partial, continues in next segment)",
+        "end_text": "Guaranteed human"
+    }
+]

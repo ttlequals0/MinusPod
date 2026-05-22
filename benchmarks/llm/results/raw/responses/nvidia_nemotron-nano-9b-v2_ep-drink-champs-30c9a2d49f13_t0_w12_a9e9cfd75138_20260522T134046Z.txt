@@ -1,0 +1,3 @@
+[{"start": 5441.3, "end": 5469.9, "confidence": 0.95, "reason": "Promo code discount code segment", "end_text": "discount code"}] 
+
+Note: This segment contains repeated promotional language ("promo code, discount code") without specific brand names or URLs, but meets the criteria for an ad due to explicit call-to-action language. The transition phrase "Let's take a break" is not present here, but the promo code repetition qualifies it as an ad under the rules.

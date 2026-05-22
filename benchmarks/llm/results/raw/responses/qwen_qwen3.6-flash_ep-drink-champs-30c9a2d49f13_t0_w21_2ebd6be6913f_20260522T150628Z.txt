@@ -1,0 +1,1 @@
+[{"start": 8799.1, "end": 8831.4, "confidence": 0.98, "reason": "OnDeck and Public sponsor reads", "end_text": "those who take it seriously."}]

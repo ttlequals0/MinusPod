@@ -1,0 +1,20 @@
+[
+  {
+    "start": 3478.9,
+    "end": 3503.7,
+    "confidence": 1.0,
+    "reason": "Airtasker sponsor read",
+    "end_text": "get anything done"
+  },
+  {
+    "start": 3504.1,
+    "end": 3577.4,
+    "confidence": 1.0,
+    "reason": "Decisions Decisions podcast cross-promotion sponsored by Care for the Culture",
+    "end_text": "Gilead Sciences"
+  },
+  {
+    "start": 3578.1,
+    "end": 3608.0,
+    "confidence": 1.0,
+    "reason": "OnDeck small business loan ad

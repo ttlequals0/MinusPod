@@ -1,0 +1,25 @@
+{
+  "ads": [
+    {
+      "start": 1959.8,
+      "end": 2020.4,
+      "confidence": 0.97,
+      "reason": "Rakuten host-read sponsor ad with promotional language, call to action, and website URL",
+      "end_text": "Rakuten app to start saving money today"
+    },
+    {
+      "start": 2032.3,
+      "end": 2061.4,
+      "confidence": 0.96,
+      "reason": "LinkedIn Premium All-in-One host-read sponsor ad with promotional language, value proposition, and URL",
+      "end_text": "linkedin.com slash all-in-one"
+    },
+    {
+      "start": 2061.4,
+      "end": 2080.5,
+      "confidence": 0.90,
+      "reason": "Hertz network-inserted brand tagline ad with promotional language and website URL",
+      "end_text": "newest fleet yet at Hertz.com"
+    }
+  ]
+}

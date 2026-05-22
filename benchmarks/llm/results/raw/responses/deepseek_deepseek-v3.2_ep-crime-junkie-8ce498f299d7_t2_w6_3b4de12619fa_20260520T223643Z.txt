@@ -1,0 +1,1 @@
+{"start": 2863.0, "end": 2894.5, "confidence": 0.99, "reason": "LinkedIn Premium All-in-One host-read ad with promo code and call to action", "end_text": "slash all-in-one."}

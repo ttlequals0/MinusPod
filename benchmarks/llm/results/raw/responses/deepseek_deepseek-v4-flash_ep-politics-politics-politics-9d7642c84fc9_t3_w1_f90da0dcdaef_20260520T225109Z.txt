@@ -1,0 +1,11 @@
+{
+  "ads": [
+    {
+      "start": 909.6,
+      "end": 933.9,
+      "confidence": 0.75,
+      "reason": "Host reads a sponsored segment promoting TakePoliticsSeriously.com, a paid subscription URL for the show. The segment includes promotional language ('this is your update brought to you by...') and a call to action ('that's where you need to go if you want to get two episodes of this show'). It is a host-read ad for the show's own paid subscription service, but follows the structure of a sponsored message.",
+      "end_text": "episodes of this show. Treasury Secretary"
+    }
+  ]
+}

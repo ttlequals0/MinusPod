@@ -1,0 +1,4 @@
+[{"start": 8724.9, "end": 8737.9, "confidence": 0.95, "reason": "AirTasker sponsor read", "end_text": "AirTasker"}, 
+{"start": 8738.1, "end": 8798.3, "confidence": 0.9, "reason": "Care for the Culture from Gilead Sciences cross-promotion", "end_text": "get your podcasts"}, 
+{"start": 8799.1, "end": 8826.4, "confidence": 0.95, "reason": "OnDeck sponsor read", "end_text": "OnDeck.com"}, 
+{"start": 8827.0, "end": 8831.4, "confidence": 0.8, "reason": "Public investing platform sponsor mention", "end_text": "take it seriously"}]

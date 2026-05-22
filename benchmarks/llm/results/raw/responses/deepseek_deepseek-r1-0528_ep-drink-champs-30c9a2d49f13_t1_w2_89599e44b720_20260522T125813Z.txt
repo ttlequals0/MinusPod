@@ -1,0 +1,16 @@
+[
+  {
+    "start": 1341.5,
+    "end": 1363.8,
+    "confidence": 0.95,
+    "reason": "Host-read ad for retirement planning service",
+    "end_text": "renegotiate your money"
+  },
+  {
+    "start": 1390.8,
+    "end": 1416.0,
+    "confidence": 0.92,
+    "reason": "Promotion for sports betting platform",
+    "end_text": "biggest bus ever"
+  }
+]

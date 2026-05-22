@@ -1,0 +1,1 @@
+{"start":13669.1,"end":13786.2,"confidence":0.99,"reason":"Airtasker ad read followed by Care for the Culture from Gilead Sciences promo; includes product pitch and calls to action like 'Download the Airtasker app' and 'sponsored by Care for the Culture'","end_text":"Apply in minutes at OnDeck.com"}

@@ -1,0 +1,16 @@
+[
+  {
+    "start": 8025.2,
+    "end": 8026.8,
+    "confidence": 0.95,
+    "reason": "Host-read sponsor segment for Athletic Greens",
+    "end_text": "athleticgreens.com/drinkchamps"
+  },
+  {
+    "start": 8028.6,
+    "end": 8056.1,
+    "confidence": 0.95,
+    "reason": "Host-read sponsor segment for BetterHelp",
+    "end_text": "betterhelp.com/drinkchamps"
+  }
+]

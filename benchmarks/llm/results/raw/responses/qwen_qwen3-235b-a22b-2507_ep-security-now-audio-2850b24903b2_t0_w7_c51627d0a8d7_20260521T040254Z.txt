@@ -1,0 +1,1 @@
+{"start": 2936.4, "end": 3545.1, "confidence": 0.98, "reason": "Sponsor read for Bitwarden, Hoxhunt, Meter, Trusted Tech, and Zscaler with promotional language, URLs, and calls to action", "end_text": "we're doing stupid things faster with more energy."}

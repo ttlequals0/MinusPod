@@ -1,0 +1,9 @@
+[
+    {
+        "start": 4163.7,
+        "end": 4285.6,
+        "confidence": 0.98,
+        "reason": "Host-read ad segment promoting bonus content, membership tiers, and payment methods (PayPal, Venmo, Cash App, postal address). Includes calls to action for TakePoliticsSeriously.com and mentions of paying members getting bonus episodes. Also lists foundational tier supporters as part of the ad read.",
+        "end_text": "one place to do it, TakePoliticsSeriously.com"
+    }
+]

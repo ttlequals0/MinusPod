@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1959.8,
+    "end": 2080.5,
+    "confidence": 0.95,
+    "reason": "Rakuten, LinkedIn Premium, and Hertz host-read sponsorships with CTAs and URLs",
+    "end_text": "newest fleet yet at Hertz.com"
+  }
+]

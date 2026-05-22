@@ -1,0 +1,9 @@
+[
+  {
+    "start": 1240.8,
+    "end": 1266.6,
+    "confidence": 0.95,
+    "reason": "Host promoting Crain's own news feed, podcast platforms, and requesting ratings/reviews",
+    "end_text": "produced by Todd Manley"
+  }
+]

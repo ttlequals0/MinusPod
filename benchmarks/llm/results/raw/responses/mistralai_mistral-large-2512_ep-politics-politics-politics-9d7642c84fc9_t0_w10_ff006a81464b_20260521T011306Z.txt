@@ -1,0 +1,16 @@
+[
+    {
+        "start": 4270.4,
+        "end": 4286.7,
+        "confidence": 0.98,
+        "reason": "Host-read ad for paid subscription tier with call-to-action URL (TakePoliticsSeriously.com) and promotional language ('you want your name right on the show, one place to do it')",
+        "end_text": "TakePoliticsSeriously.com"
+    },
+    {
+        "start": 4317.9,
+        "end": 4317.9,
+        "confidence": 0.9,
+        "reason": "Network-inserted promo for the hosting platform ('Diamond Club hopes you have enjoyed this broker. Dog and Pony Show Audio') with distinct branding language, partial segment (continues in next)",
+        "end_text": "Dog and Pony Show Audio"
+    }
+]

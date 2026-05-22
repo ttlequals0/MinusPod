@@ -1,0 +1,1 @@
+{"start":2938.5,"end":2959.5,"confidence":0.88,"reason":"Host explicitly transitions into a ranked segment promoting DJ Hed and Gina Views with show mentions; no clear sponsor language, but this is the only promotional-style inserted segment in the provided window and may be a network promo/cross-promo continuation","end_text":"DJ Head and Gina Views, Gang Gang, West Coast"}

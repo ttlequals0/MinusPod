@@ -1,0 +1,7 @@
+{
+  "start": 9.228,
+  "end": 9.752,
+  "confidence": 0.95,
+  "reason": "The segment contains promotional language and references to McDonald's, a known brand, indicating a sponsorship segment.",
+  "end_text": "McDonald's is in the Epstein files."
+}

@@ -1,0 +1,1 @@
+{"ad_segments":[{"start":5420.4,"end":5441.4,"confidence":0.4,"reason":"Repeated promotional phrases 'promo code, discount code' indicate an ad break even though brand details are missing","end_text":"discount code, discount code"}]}

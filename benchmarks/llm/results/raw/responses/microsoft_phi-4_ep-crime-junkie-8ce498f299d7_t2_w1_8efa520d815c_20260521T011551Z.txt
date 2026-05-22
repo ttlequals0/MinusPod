@@ -1,0 +1,7 @@
+{  
+  "start": 942.5,  
+  "end": 1012.3,  
+  "confidence": 0.95,  
+  "reason": "Christopher 'Cole' Thomas was seen in the Walgreens parking lot in Benson, North Carolina, with someone following him, which could indicate a drug deal gone wrong. This is a high-confidence ad segment due to the detailed description of the footage and the context provided by Chief Percy.",  
+  "end_text": "Cole was actually in Benson, just a five-minute walk from where the car was left, and someone was following him on foot."  
+}

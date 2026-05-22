@@ -1,0 +1,1 @@
+{"start": 58.0, "end": 80.1, "confidence": 0.98, "reason": "Hosted by Coreweave sponsorship read with promotional language and transition", "end_text": "episode two, and I'm super excited"}

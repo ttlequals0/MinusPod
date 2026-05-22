@@ -1,0 +1,1 @@
+{"start": 1450.9, "end": 1524.8, "confidence": 0.95, "reason": "Dynamic ad read for Airtasker and Care for the Culture", "end_text": "sponsored by Care for the Culture"}

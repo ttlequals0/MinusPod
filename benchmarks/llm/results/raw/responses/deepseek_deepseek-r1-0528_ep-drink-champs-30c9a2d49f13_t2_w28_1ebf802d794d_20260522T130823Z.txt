@@ -1,0 +1,16 @@
+[
+  {
+    "start": 11796.2,
+    "end": 11819.9,
+    "confidence": 0.95,
+    "reason": "Host transition with repeated 'Give me a shot' indicating potential ad break setup",
+    "end_text": "But look, so..."
+  },
+  {
+    "start": 12151.9,
+    "end": 12159.3,
+    "confidence": 0.9,
+    "reason": "Mention of Juicy Juice brand in conversational context without explicit promotion",
+    "end_text": "hey, hey, hey"
+  }
+]

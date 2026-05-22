@@ -1,0 +1,30 @@
+[
+  {
+    "start": 11335.2,
+    "end": 11365.6,
+    "confidence": 0.98,
+    "reason": "Airtasker sponsor read with story and call to action",
+    "end_text": "get anything done."
+  },
+  {
+    "start": 11366.2,
+    "end": 11424.6,
+    "confidence": 0.98,
+    "reason": "Decisions Decisions network promo with Gilead Sciences sponsorship",
+    "end_text": "from Gilead Sciences."
+  },
+  {
+    "start": 11425.3,
+    "end": 11455.4,
+    "confidence": 0.98,
+    "reason": "OnDeck financial services ad with legal disclaimer",
+    "end_text": "subject to lender approval."
+  },
+  {
+    "start": 11513.7,
+    "end": 11536.6,
+    "confidence": 0.95,
+    "reason": "Public.com sponsor read (disclosure + pitch), conversation resumes mid-block",
+    "end_text": "That ain't no art."
+  }
+]

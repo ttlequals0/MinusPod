@@ -1,0 +1,1 @@
+{"start": 636.8, "end": 658.8, "confidence": 0.98, "reason": "Host-read Parloa AI platform sponsorship with promotional language and call to action", "end_text": "every customer across every interaction"}

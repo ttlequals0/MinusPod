@@ -1,0 +1,10 @@
+{
+  "ads": [
+    {
+      "start": 3428.1,
+      "end": 3486.2,
+      "confidence": 0.96,
+      "reason": "University promotional ad block (Arizona State University and University of Michigan) with URLs and call to action",
+      "end_text": "at umich.edu."
+    }
+  ]

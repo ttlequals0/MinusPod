@@ -1,0 +1,1 @@
+{"start":2938.5,"end":3539.3,"confidence":0.91,"reason":"Sponsor-free transcript section is actually a continuing promotional discussion of the Complex list and includes no ad markers like a break, sponsor name, URL, or promo code. No advertisement segment detected in this window.","end_text":"I would probably have put him 35, though"}

@@ -1,0 +1,1 @@
+{  "start": 1441.0,  "end": 1441.0,  "confidence": 0.0,  "reason": "No advertisement segments found in this transcript window; no sponsor names, promo codes, URLs, or promotional language detected.",  "end_text": "Roscoe needed"}

@@ -1,0 +1,30 @@
+[
+  {
+    "start": 1439.2,
+    "end": 1489.6,
+    "confidence": 1.0,
+    "reason": "Mint Mobile host-read advertisement",
+    "end_text": "slash Tim Dillon"
+  },
+  {
+    "start": 1489.6,
+    "end": 1576.1,
+    "confidence": 1.0,
+    "reason": "Aura Frames host-read advertisement",
+    "end_text": "Promo code TIM"
+  },
+  {
+    "start": 1578.3,
+    "end": 1629.5,
+    "confidence": 1.0,
+    "reason": "Colgate network-inserted advertisement",
+    "end_text": "your smile is your strength"
+  },
+  {
+    "start": 1637.6,
+    "end": 1665.9,
+    "confidence": 1.0,
+    "reason": "Skinny Pop network-inserted advertisement",
+    "end_text": "perfectly salted. Skinny Pop"
+  }
+]

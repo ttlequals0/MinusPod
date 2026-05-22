@@ -1,0 +1,16 @@
+[
+  {
+    "start": 537.5,
+    "end": 566.6,
+    "confidence": 0.95,
+    "reason": "Thrive Cosmetics network-inserted brand tagline ad",
+    "end_text": "shine26"
+  },
+  {
+    "start": 594.7,
+    "end": 654.3,
+    "confidence": 0.95,
+    "reason": "Asima/PC Richard & Son network-inserted brand tagline ad",
+    "end_text": "Asima dot HTML for details"
+  }
+]

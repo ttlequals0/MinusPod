@@ -1,0 +1,11 @@
+{
+  "segments": [
+    {
+      "start": 2324.6,
+      "end": 2450.0,
+      "confidence": 0.98,
+      "reason": "BlueChew and ZipRecruiter sponsor reads with promo code and URLs",
+      "end_text": "ZipRecruiter.com slash idiots"
+    }
+  ]
+}

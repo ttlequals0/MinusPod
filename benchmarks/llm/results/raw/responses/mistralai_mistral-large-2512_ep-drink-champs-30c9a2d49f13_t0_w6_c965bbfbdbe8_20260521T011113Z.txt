@@ -1,0 +1,9 @@
+[
+    {
+        "start": 2660.7,
+        "end": 2661.5,
+        "confidence": 0.95,
+        "reason": "Platform-inserted retail ad for 'OmnyStudio' (implied by 'and many more' following a list of sponsors, typical of network-inserted ad segments)",
+        "end_text": "and many more."
+    }
+]

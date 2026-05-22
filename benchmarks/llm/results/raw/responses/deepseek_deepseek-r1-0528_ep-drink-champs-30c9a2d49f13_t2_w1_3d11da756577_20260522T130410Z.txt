@@ -1,0 +1,9 @@
+[
+  {
+    "start": 588.5,
+    "end": 597.9,
+    "confidence": 0.95,
+    "reason": "Host transition phrase indicating segment end, followed by 15.5s gap consistent with ad break",
+    "end_text": "We'll see you next time"
+  }
+]

@@ -1,0 +1,1 @@
+[{"start": 3478.9, "end": 3690.2, "confidence": 0.98, "reason": "Contiguous ad block featuring Airtasker sponsor read, Decisions Decisions podcast cross-promo, OnDeck business loan ad, and Public investing platform ad", "end_text": "public.com slash disclosures."}]

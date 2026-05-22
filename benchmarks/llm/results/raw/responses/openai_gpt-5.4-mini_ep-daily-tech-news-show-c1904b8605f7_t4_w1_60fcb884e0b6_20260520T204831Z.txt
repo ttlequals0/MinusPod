@@ -1,0 +1,1 @@
+{"start":796.9,"end":1018.9,"confidence":0.98,"reason":"Multiple contiguous sponsor segments: DTNS listener support transition, Capital One tech promo, BetterHelp ad, Amazon Health AI spot, Spectrum Business promo, and Rinse host-read with URLs and product pitches","end_text":"Schedule at rinse.com. Rinse"}

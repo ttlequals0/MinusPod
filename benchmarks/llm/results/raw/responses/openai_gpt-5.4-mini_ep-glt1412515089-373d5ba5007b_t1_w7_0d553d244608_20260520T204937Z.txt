@@ -1,0 +1,1 @@
+{"start":49.0,"end":59.0,"confidence":0.99,"reason":"Perplexity platform ad read appears in episode description with promotional CTA and podcastchoices link; this window contains no in-transcript ad segment, but the provided window context indicates the segment continues from previous/next with no additional ad transcript shown.","end_text":"continues in next"}

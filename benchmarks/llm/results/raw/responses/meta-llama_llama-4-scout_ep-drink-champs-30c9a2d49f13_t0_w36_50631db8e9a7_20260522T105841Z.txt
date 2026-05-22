@@ -1,0 +1,30 @@
+{"ad_segments": [
+  {
+    "start": 15388.3,
+    "end": 15416.5,
+    "confidence": 0.98,
+    "reason": "Airtasker sponsor read",
+    "end_text": "Airtasker"
+  },
+  {
+    "start": 15416.7,
+    "end": 15438.4,
+    "confidence": 0.98,
+    "reason": "CVS sponsor read",
+    "end_text": "cvs.com"
+  },
+  {
+    "start": 15439.0,
+    "end": 15452.3,
+    "confidence": 0.98,
+    "reason": "Trashy sponsor read",
+    "end_text": "Trashy.io"
+  },
+  {
+    "start": 15453.9,
+    "end": 15512.2,
+    "confidence": 0.98,
+    "reason": "Try Fencing sponsor read",
+    "end_text": "tryfencing.org"
+  }
+] }

@@ -1,0 +1,9 @@
+[
+  {
+    "start": 909.6,
+    "end": 991.0,
+    "confidence": 0.95,
+    "reason": "Host-read promotion for the podcast's subscription service, framed with 'brought to you by TakePoliticsSeriously.com'.",
+    "end_text": "is China's clear economic interest."
+  }
+]

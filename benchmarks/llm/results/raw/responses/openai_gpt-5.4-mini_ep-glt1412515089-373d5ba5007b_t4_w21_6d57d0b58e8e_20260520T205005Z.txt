@@ -1,0 +1,1 @@
+{"start":147.0,"end":157.0,"confidence":0.97,"reason":"Perplexity host-read sponsor segment mentioned in episode metadata and likely read as an ad, featuring direct promo copy 'Download the app or ask Perplexity anything' and the vanity URL 'https://pplx.ai/rogan' plus the standard 'Learn more about your ad choices' insert.","end_text":"visit podcastchoices.com/adchoices"}

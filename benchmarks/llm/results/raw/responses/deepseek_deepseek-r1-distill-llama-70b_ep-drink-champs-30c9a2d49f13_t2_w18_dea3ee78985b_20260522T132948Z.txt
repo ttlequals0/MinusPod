@@ -1,0 +1,7 @@
+{
+  "start": 7538.4,
+  "end": 7563.5,
+  "confidence": 0.95,
+  "reason": "Host-read sponsor segment mentioning Shopify",
+  "end_text": "Shopify"
+}

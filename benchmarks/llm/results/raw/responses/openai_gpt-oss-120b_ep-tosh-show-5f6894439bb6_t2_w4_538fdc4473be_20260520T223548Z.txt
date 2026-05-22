@@ -1,0 +1,25 @@
+{
+  "ads": [
+    {
+      "start": 1837.5,
+      "end": 1912.2,
+      "confidence": 0.99,
+      "reason": "Host-read sponsor for Mint Mobile with promotional language, URL and pricing details",
+      "end_text": "mintmobile.com slash tosh."
+    },
+    {
+      "start": 1913.4,
+      "end": 1942.4,
+      "confidence": 0.99,
+      "reason": "Host-read sponsor for Mattress Warehouse Memorial Day Sale with promotional pricing and call to action",
+      "end_text": "at Mattress Warehouse."
+    },
+    {
+      "start": 1943.2,
+      "end": 1999.5,
+      "confidence": 0.99,
+      "reason": "Host-read sponsor for PC Richard & Son Aseema Lease to Own program with promotional details and URL",
+      "end_text": "for details."
+    }
+  ]
+}

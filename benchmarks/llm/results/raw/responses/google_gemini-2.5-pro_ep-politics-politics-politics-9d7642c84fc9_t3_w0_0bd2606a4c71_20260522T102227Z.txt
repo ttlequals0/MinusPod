@@ -1,0 +1,9 @@
+[
+  {
+    "start": 0.0,
+    "end": 52.7,
+    "confidence": 0.9,
+    "reason": "Pre-roll sponsorship announcement for 'Just Another Pilot' at the end of the show's topic teaser. The ad itself appears to run in the untranscribed gap that follows.",
+    "end_text": "by Just Another Pilot."
+  }
+]

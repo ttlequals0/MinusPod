@@ -1,0 +1,46 @@
+{
+  "ad_segments": [
+    {
+      "start": 821.4,
+      "end": 857.6,
+      "confidence": 0.98,
+      "reason": "Capital One sponsor read",
+      "end_text": "One second. I just need to..."
+    },
+    {
+      "start": 862.2,
+      "end": 889.7,
+      "confidence": 0.98,
+      "reason": "BetterHelp sponsor read",
+      "end_text": "first month of online therapy."
+    },
+    {
+      "start": 890.6,
+      "end": 910.1,
+      "confidence": 0.95,
+      "reason": "Amazon Health AI network-inserted ad",
+      "end_text": "less painful."
+    },
+    {
+      "start": 912.2,
+      "end": 961.5,
+      "confidence": 0.98,
+      "reason": "Spectrum Business sponsor read",
+      "end_text": "to help you stay up and running."
+    },
+    {
+      "start": 961.9,
+      "end": 990.3,
+      "confidence": 0.98,
+      "reason": "Spectrum Business sponsor read continued",
+      "end_text": "in all areas."
+    },
+    {
+      "start": 990.6,
+      "end": 1021.1,
+      "confidence": 0.98,
+      "reason": "Rinse sponsor read",
+      "end_text": "time to be great."
+    }
+  ]
+}

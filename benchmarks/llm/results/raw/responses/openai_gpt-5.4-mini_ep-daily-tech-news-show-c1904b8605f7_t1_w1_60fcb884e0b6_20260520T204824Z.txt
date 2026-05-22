@@ -1,0 +1,1 @@
+{"start":796.9,"end":1018.9,"confidence":0.97,"reason":"Ad break starts with DTNS support thank-you transition and includes multiple sponsor reads: Capital One, BetterHelp, Amazon Health AI, Spectrum Business, and Rinse with promo URLs and ad copy; continuous inserted ad block","end_text":"Rinse. It's time to be great"}

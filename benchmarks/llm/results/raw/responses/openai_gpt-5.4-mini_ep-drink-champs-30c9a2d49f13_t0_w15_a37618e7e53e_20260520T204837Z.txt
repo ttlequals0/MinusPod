@@ -1,0 +1,1 @@
+{"start":6283.4,"end":6313.4,"confidence":0.99,"reason":"OnDeck sponsor read with promotional copy, funding pitch, and apply-today CTA; begins with ad-style segment and continues through lender disclaimer","end_text":"All amounts subject to lender approval"}

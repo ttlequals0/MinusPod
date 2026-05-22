@@ -1,0 +1,1 @@
+">// [0.0-10.0 minutes] - 600.0s window context: ad continues in next window if it extends beyond this segment. All ads must have promotional language in the transcript. Platform-inserted ads (e.g., "

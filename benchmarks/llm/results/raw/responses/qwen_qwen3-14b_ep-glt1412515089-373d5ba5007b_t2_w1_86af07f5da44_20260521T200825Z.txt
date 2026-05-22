@@ -1,0 +1,2 @@
+s.
+{"start": 539.2, "end": 568.3, "confidence": 0.95, "reason": "In the Gray movie promotion", "end_text": "May 15th. Rated R, under 17, requires accompanying parent or adult guardian."}

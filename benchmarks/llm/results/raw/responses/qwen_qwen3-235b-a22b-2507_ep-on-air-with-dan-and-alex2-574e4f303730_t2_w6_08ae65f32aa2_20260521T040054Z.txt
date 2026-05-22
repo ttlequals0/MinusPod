@@ -1,0 +1,1 @@
+{"start": 2609.5, "end": 2634.3, "confidence": 0.98, "reason": "List of known sponsor brands and ad-related terms like 'promo code', 'discount code', 'sponsored by' inserted as placeholder or automated ad marker", "end_text": "Stamps.com,"}

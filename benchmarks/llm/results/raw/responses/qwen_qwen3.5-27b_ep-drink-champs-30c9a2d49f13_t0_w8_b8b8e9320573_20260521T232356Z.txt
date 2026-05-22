@@ -1,0 +1,1 @@
+[{"start": 3478.9, "end": 3690.2, "confidence": 0.95, "reason": "Mid-roll ad break featuring Airtasker, Decisions Decisions, OnDeck, and Public", "end_text": "public.com slash disclosures"}]

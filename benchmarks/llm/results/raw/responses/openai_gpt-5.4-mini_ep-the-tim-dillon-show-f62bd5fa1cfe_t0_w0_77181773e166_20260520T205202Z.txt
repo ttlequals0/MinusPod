@@ -1,0 +1,1 @@
+{"ads":[{"start":0.0,"end":27.7,"confidence":0.99,"reason":"Host-read Colgate sponsor segment promoting Colgate Women's Games and Colgate smile tagline","end_text":"for girls and women"},{"start":0.0,"end":0.0,"confidence":0.0,"reason":"No other ad segments found in this window beyond the Colgate sponsor read.","end_text":""}]}

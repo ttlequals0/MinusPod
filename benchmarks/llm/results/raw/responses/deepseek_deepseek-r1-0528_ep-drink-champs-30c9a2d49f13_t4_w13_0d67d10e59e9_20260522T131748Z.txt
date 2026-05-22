@@ -1,0 +1,9 @@
+[
+  {
+    "start": 5714.6,
+    "end": 5745.2,
+    "confidence": 0.95,
+    "reason": "Mention of Brooklinen in a context that may be promotional, but lacks explicit call to action",
+    "end_text": "I don't want to go far"
+  }
+]

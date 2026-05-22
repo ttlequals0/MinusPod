@@ -1,0 +1,1 @@
+{"start": 10574.0, "end": 10575.6, "confidence": 0.95, "reason": "Host transition phrase 'Hold on, let me add something to that' followed by a content gap, but no promotional language found in the transcript segment.", "end_text": "Hold on, let me add something to that."}

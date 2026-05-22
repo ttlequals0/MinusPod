@@ -1,0 +1,1 @@
+{"start":5491.1,"end":5578.4,"confidence":0.94,"reason":"Host‑read sponsor segment promoting Yubico partnership and preferred pricing for security keys","end_text":"software-based pass keys"}

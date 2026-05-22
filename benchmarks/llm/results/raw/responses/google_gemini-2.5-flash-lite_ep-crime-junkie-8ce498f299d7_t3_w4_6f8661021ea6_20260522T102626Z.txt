@@ -1,0 +1,23 @@
+[
+  {
+    "start": 1959.8,
+    "end": 2020.4,
+    "confidence": 0.95,
+    "reason": "Rakuten network-inserted brand tagline ad",
+    "end_text": "app to start saving money today."
+  },
+  {
+    "start": 2022.1,
+    "end": 2061.4,
+    "confidence": 0.95,
+    "reason": "LinkedIn Premium All-in-One network-inserted brand tagline ad",
+    "end_text": "sell, market, and hire now all-in-one product."
+  },
+  {
+    "start": 2062.1,
+    "end": 2080.5,
+    "confidence": 0.95,
+    "reason": "Hertz network-inserted brand tagline ad",
+    "end_text": "Get paired with our newest fleet yet at Hertz.com."
+  }
+]

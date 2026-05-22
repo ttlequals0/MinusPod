@@ -1,0 +1,1 @@
+{"start": 4993.1, "end": 5220.0, "confidence": 0.98, "reason": "Host-read promotional segment for Drink Champs with calls to action and brand reinforcement", "end_text": "back from the top."}

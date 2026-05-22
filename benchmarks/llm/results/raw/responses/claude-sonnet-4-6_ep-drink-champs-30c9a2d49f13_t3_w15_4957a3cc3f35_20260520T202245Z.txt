@@ -1,0 +1,1 @@
+[{"start": 6283.4, "end": 6343.1, "confidence": 0.97, "reason": "OnDeck small business line of credit sponsor read with URL and call to action, followed by Public investing platform sponsor mention", "end_text": "those who take it seriously"}]

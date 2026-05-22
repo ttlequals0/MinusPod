@@ -1,0 +1,25 @@
+```json
+[
+  {
+    "start": 1959.8,
+    "end": 2020.4,
+    "confidence": 0.98,
+    "reason": "Rakuten sponsor read with product pitch, brand partnerships, and call to action to join at Rakuten.com",
+    "end_text": "start saving money today"
+  },
+  {
+    "start": 2022.1,
+    "end": 2061.4,
+    "confidence": 0.97,
+    "reason": "LinkedIn Premium All-in-One sponsor read with product benefits and call to action at linkedin.com/all-in-one",
+    "end_text": "all-in-one product"
+  },
+  {
+    "start": 2062.1,
+    "end": 2080.5,
+    "confidence": 0.96,
+    "reason": "Hertz car rental sponsor read with product pitch and call to action at Hertz.com",
+    "end_text": "newest fleet yet at Hertz.com"
+  }
+]
+```

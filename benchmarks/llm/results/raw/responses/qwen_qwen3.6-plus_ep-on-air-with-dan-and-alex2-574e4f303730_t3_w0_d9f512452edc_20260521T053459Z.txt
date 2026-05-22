@@ -1,0 +1,1 @@
+[{"start": 0.0, "end": 59.8, "confidence": 0.98, "reason": "Pre-roll sponsor reads for HEX analytics platform and PickOCNY.com tourism board", "end_text": "state of mind at PickOCNY.com."}]

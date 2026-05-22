@@ -1,0 +1,1 @@
+{"start": 2927.9, "end": 3540.0, "confidence": 0.01, "reason": "No promotional content detected in this segment", "end_text": "different places"}

@@ -1,0 +1,1 @@
+{"start":7173.7,"end":7196.8,"confidence":0.99,"reason":"Netflix produced promo segment with explicit sponsor language 'This episode is brought to you by Netflix's Remarkably Bright Creatures' and show-description style call to action","end_text":"now playing only on Netflix"}

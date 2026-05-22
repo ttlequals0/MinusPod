@@ -1,0 +1,7 @@
+{
+  "start": 7916.6,
+  "end": 7937.1,
+  "confidence": 0.85,
+  "reason": "Likely network-inserted outro/ad for another podcast/show ('Thank you for watching') before content resumes.",
+  "end_text": "Thank you for watching."
+}

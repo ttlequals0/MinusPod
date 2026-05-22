@@ -1,0 +1,1 @@
+{"start": 0.0, "end": 150.5, "confidence": 0.98, "reason": "Pre-roll ads: iHeart Podcast tag, Airtasker, HIV awareness sponsored by Gilead, Nissan Rogue, Shopify", "end_text": "Shopify.com slash B-E-N"}

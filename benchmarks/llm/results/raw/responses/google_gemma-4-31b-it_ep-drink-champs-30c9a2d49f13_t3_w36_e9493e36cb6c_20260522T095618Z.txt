@@ -1,0 +1,1 @@
+{"start": 15388.3, "end": 15517.1, "confidence": 0.98, "reason": "Sequence of network-inserted ads including Airtasker, CVS, Trashy, tryfencing.org, and iHeart Podcast tag", "end_text": "Guaranteed human."}

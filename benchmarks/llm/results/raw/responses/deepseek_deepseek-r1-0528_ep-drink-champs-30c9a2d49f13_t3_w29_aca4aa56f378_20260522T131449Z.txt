@@ -1,0 +1,9 @@
+[
+  {
+    "start": 12175.2,
+    "end": 12798.5,
+    "confidence": 0.0,
+    "reason": "No promotional content detected",
+    "end_text": "Que Pasa USA?"
+  }
+]

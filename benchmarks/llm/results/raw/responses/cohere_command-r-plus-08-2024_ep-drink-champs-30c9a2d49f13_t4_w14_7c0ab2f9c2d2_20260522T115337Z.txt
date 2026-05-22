@@ -1,0 +1,32 @@
+{
+  "ads": [
+    {
+      "start": 6208.7,
+      "end": 6233.9,
+      "confidence": 0.99,
+      "reason": "Airtasker host-read ad",
+      "end_text": "Airtasker.com. Airtasker, get anything done."
+    },
+    {
+      "start": 6234.1,
+      "end": 6282.7,
+      "confidence": 0.99,
+      "reason": "Care for the Culture from Gilead Sciences host-read ad",
+      "end_text": "Sponsored by Care for the Culture from Gilead Sciences."
+    },
+    {
+      "start": 6283.4,
+      "end": 6312.4,
+      "confidence": 0.99,
+      "reason": "OnDeck host-read ad",
+      "end_text": "Apply today at OnDeck.com. Funds could be available as soon as tomorrow."
+    },
+    {
+      "start": 6313.8,
+      "end": 6318.1,
+      "confidence": 0.99,
+      "reason": "Public host-read ad",
+      "end_text": "Support for the show comes from Public, the investing platform for those who take it seriously."
+    }
+  ]
+}
