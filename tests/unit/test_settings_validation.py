@@ -254,3 +254,59 @@ class TestProviderChangeModelPruning:
         assert response.status_code == 200, response.data
         assert db.get_setting('claude_model') == 'claude-sonnet-4-5-20250929'
         assert db.get_setting('chapters_model') == 'claude-haiku-4-5-20251001'
+
+
+class TestAudioBitrateValidation:
+    """audioBitrate round-trip + validation.
+
+    Regression: GET /settings omitted audioBitrate and PUT had no apply phase,
+    so the frontend selector silently did nothing.
+    """
+
+    def _get_settings(self, client):
+        resp = client.get('/api/v1/settings')
+        assert resp.status_code == 200
+        return json.loads(resp.data)
+
+    def test_get_exposes_audio_bitrate_with_default(self, client):
+        data = self._get_settings(client)
+        assert 'audioBitrate' in data
+        assert data['audioBitrate']['value'] == '128k'
+        assert data['audioBitrate']['isDefault'] is True
+        assert data['defaults']['audioBitrate'] == '128k'
+
+    def test_put_persists_valid_bitrate(self, client):
+        resp = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'audioBitrate': '256k'}),
+            content_type='application/json',
+        )
+        assert resp.status_code == 200
+
+        data = self._get_settings(client)
+        assert data['audioBitrate']['value'] == '256k'
+        assert data['audioBitrate']['isDefault'] is False
+
+    def test_put_rejects_invalid_bitrate(self, client):
+        resp = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'audioBitrate': '999k'}),
+            content_type='application/json',
+        )
+        assert resp.status_code == 400
+        assert 'audioBitrate' in json.loads(resp.data)['error']
+
+    def test_reset_restores_default_bitrate(self, client):
+        client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'audioBitrate': '64k'}),
+            content_type='application/json',
+        )
+        assert self._get_settings(client)['audioBitrate']['value'] == '64k'
+
+        resp = client.post('/api/v1/settings/ad-detection/reset')
+        assert resp.status_code == 200
+
+        data = self._get_settings(client)
+        assert data['audioBitrate']['value'] == '128k'
+        assert data['audioBitrate']['isDefault'] is True

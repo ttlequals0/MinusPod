@@ -642,3 +642,9 @@ def resolve_stage_tunables(prefix: str, settings: Optional[dict] = None):
     else:
         reasoning = get_stage_tunable(f'{prefix}_reasoning_level', settings=settings)
     return max_tokens, temperature, reasoning
+
+
+# Allowed encode bitrates for processed audio. Mirror any change in
+# frontend/src/pages/settings/AudioSection.tsx.
+ALLOWED_AUDIO_BITRATES = ('64k', '96k', '128k', '192k', '256k')
+DEFAULT_AUDIO_BITRATE = '128k'

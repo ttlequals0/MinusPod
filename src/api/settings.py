@@ -19,6 +19,7 @@ from config import (
     WHISPER_COMPUTE_TYPES, WHISPER_COMPUTE_TYPE_DEFAULT,
     OPENROUTER_BASE_URL,
     PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER, PROVIDER_OPENAI_COMPATIBLE, PROVIDER_OLLAMA,
+    ALLOWED_AUDIO_BITRATES, DEFAULT_AUDIO_BITRATE,
 )
 from pricing_fetcher import force_refresh_pricing
 from llm_client import (
@@ -190,6 +191,8 @@ def get_settings():
     vad_gap_mid = _db_float('vad_gap_mid_min_seconds', default_vad_gap_mid)
     vad_gap_tail = _db_float('vad_gap_tail_min_seconds', default_vad_gap_tail)
 
+    audio_bitrate = _setting_value(settings, 'audio_bitrate', DEFAULT_AUDIO_BITRATE)
+
     # Per-stage LLM tunables: resolved value (env > DB > default) and env-override status.
     from config import (
         get_stage_tunable, stage_tunable_env_override,
@@ -275,6 +278,7 @@ def get_settings():
         'vadGapStartMinSeconds': _sv('vad_gap_start_min_seconds', vad_gap_start),
         'vadGapMidMinSeconds': _sv('vad_gap_mid_min_seconds', vad_gap_mid),
         'vadGapTailMinSeconds': _sv('vad_gap_tail_min_seconds', vad_gap_tail),
+        'audioBitrate': _sv('audio_bitrate', audio_bitrate),
         'apiKeyConfigured': api_key_configured,
         'retentionDays': int(db.get_setting('retention_days') or '30'),
         'stageTunables': tunables_payload,
@@ -312,6 +316,7 @@ def get_settings():
             'vadGapStartMinSeconds': default_vad_gap_start,
             'vadGapMidMinSeconds': default_vad_gap_mid,
             'vadGapTailMinSeconds': default_vad_gap_tail,
+            'audioBitrate': DEFAULT_AUDIO_BITRATE,
         }
     })
 
@@ -339,6 +344,7 @@ def update_ad_detection_settings():
         _apply_model_fields,
         _apply_processing_flags,
         _apply_min_cut_confidence,
+        _apply_audio_fields,
         _apply_provider_fields,
         _apply_whisper_fields,
         _apply_vad_gap_fields,
@@ -455,6 +461,19 @@ def _apply_min_cut_confidence(db, data):
         value = max(0.50, min(0.95, float(data['minCutConfidence'])))
         db.set_setting('min_cut_confidence', str(value), is_default=False)
         logger.info(f"Updated min cut confidence to: {value}")
+    return None
+
+
+def _apply_audio_fields(db, data):
+    """Persist the audio output bitrate, restricted to the allowed encode set."""
+    if 'audioBitrate' in data:
+        val = str(data['audioBitrate']).strip()
+        if val not in ALLOWED_AUDIO_BITRATES:
+            return json_response(
+                {'error': f'audioBitrate must be one of: {", ".join(ALLOWED_AUDIO_BITRATES)}'}, 400
+            )
+        db.set_setting('audio_bitrate', val, is_default=False)
+        logger.info(f"Updated audio bitrate to: {val}")
     return None
 
 
@@ -793,6 +812,7 @@ def reset_ad_detection_settings():
 
     db.reset_setting('min_cut_confidence')
     db.reset_setting('auto_process_enabled')
+    db.reset_setting('audio_bitrate')
 
     # Reset LLM provider settings back to env var defaults
     db.reset_setting('llm_provider')

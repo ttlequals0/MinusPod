@@ -953,20 +953,36 @@ def get_processing_episodes():
 @api.route('/feeds/<slug>/episodes/<episode_id>/cancel', methods=['POST'])
 @log_request
 def cancel_episode_processing(slug, episode_id):
-    """Cancel/reset an episode stuck in processing status."""
+    """Cancel an episode that is processing OR queued."""
     from cancel import cancel_processing
 
     db = get_database()
+    status_service = get_status_service()
 
     episode = db.get_episode(slug, episode_id)
     if not episode:
         return error_response('Episode not found', 404)
 
     if episode['status'] != EpisodeStatus.PROCESSING:
-        return error_response(
-            f"Episode is not processing (status: {episode['status']})",
-            400
-        )
+        # Queued (waiting on the lock): close the DB queue row first so the
+        # background worker stops seeing it as pending, then drop from the
+        # display queue. Reversing this order would leave a window between
+        # the display-queue write and the DB write in which the worker could
+        # pick up the row and start processing it after the user clicked
+        # Cancel.
+        closed_db_rows = db.close_queue_rows_for_episode(slug, episode_id)
+        removed_from_display = status_service.remove_queued_episode(slug, episode_id)
+        if not removed_from_display and not closed_db_rows:
+            return error_response(
+                f"Episode is not processing or queued (status: {episode['status']})",
+                400
+            )
+        logger.info(f"Removed queued episode from queue: {slug}:{episode_id}")
+        return json_response({
+            'message': 'Episode removed from queue',
+            'episodeId': episode_id,
+            'slug': slug
+        })
 
     # Signal the processing thread to stop
     thread_signalled = cancel_processing(slug, episode_id)
@@ -989,6 +1005,11 @@ def cancel_episode_processing(slug, episode_id):
         except Exception as e:
             logger.warning(f"Could not release processing queue: {e}")
     # else: thread will handle DB reset, file cleanup, and queue release
+
+    # Belt-and-suspenders: clear any stale display-queue / auto_process_queue
+    # entry for this episode so a follow-up enqueue starts from a clean slate.
+    status_service.remove_queued_episode(slug, episode_id)
+    db.close_queue_rows_for_episode(slug, episode_id)
 
     logger.info(f"Canceled processing: {slug}:{episode_id} (thread_signalled={thread_signalled})")
     return json_response({

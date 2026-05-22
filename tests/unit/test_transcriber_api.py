@@ -6,6 +6,7 @@ from unittest.mock import patch, MagicMock
 from transcriber import (
     Transcriber, _get_whisper_settings, _get_whisper_compute_type,
     calculate_optimal_chunk_duration,
+    _whisper_api_rejects_word_timestamps,
 )
 from config import (
     API_CHUNK_DURATION_SECONDS,
@@ -455,3 +456,54 @@ class TestWhisperModelSingletonFallback:
             _, kwargs = mock_model.call_args
             assert kwargs['compute_type'] == 'int8'
             assert kwargs['device'] == 'cpu'
+
+
+class TestWordTimestampRejectionDetection:
+    """_whisper_api_rejects_word_timestamps body-marker matcher.
+
+    Servers reject the ['segment','word'] granularity request inconsistently:
+    OpenAI proper returns HTTP 400, OpenVINO Model Server surfaces it as a 5xx.
+    The helper routes both into the segment-only fallback by inspecting the
+    response body for known markers.
+    """
+
+    def _resp(self, status, body=''):
+        r = MagicMock()
+        r.status_code = status
+        r.text = body
+        return r
+
+    def test_none_response(self):
+        assert _whisper_api_rejects_word_timestamps(None) is False
+
+    def test_200_is_never_rejection(self):
+        assert _whisper_api_rejects_word_timestamps(
+            self._resp(200, 'Word timestamps not supported')
+        ) is False
+
+    def test_400_with_word_timestamp_marker(self):
+        assert _whisper_api_rejects_word_timestamps(
+            self._resp(400, 'Word timestamps require a different model')
+        ) is True
+
+    def test_500_with_ovms_style_marker(self):
+        assert _whisper_api_rejects_word_timestamps(
+            self._resp(500, 'MediaPipe graph: Word timestamps not supported for this model')
+        ) is True
+
+    def test_marker_match_is_case_insensitive(self):
+        assert _whisper_api_rejects_word_timestamps(
+            self._resp(400, 'TIMESTAMP_GRANULARITIES[] WORD not allowed')
+        ) is True
+
+    def test_unrelated_error_body_does_not_trigger(self):
+        assert _whisper_api_rejects_word_timestamps(
+            self._resp(500, 'Internal server error: upstream timeout')
+        ) is False
+
+    def test_body_read_failure_returns_false(self):
+        """A response whose .text access raises must not blow up the caller."""
+        r = MagicMock()
+        r.status_code = 500
+        type(r).text = property(lambda self_: (_ for _ in ()).throw(RuntimeError('boom')))
+        assert _whisper_api_rejects_word_timestamps(r) is False
