@@ -20,9 +20,27 @@ from config import (
     SPONSOR_GLOBAL_THRESHOLD
 )
 from text_pattern_matcher import TextPatternMatcher
-from utils.constants import canonical_sponsor
+from utils.constants import (
+    canonical_sponsor,
+    is_sponsor_reasoning_rationale,
+    LEARNING_MIN_CONFIDENCE,
+    LEARNING_MIN_CONFIDENCE_LONG,
+    LEARNING_LONG_DURATION_THRESHOLD,
+)
 from utils.language import get_pattern_language
+from utils.text import extract_text_from_segments
 from sponsor_normalize import get_or_create_known_sponsor
+from community_export import (
+    find_foreign_sponsors,
+    declared_sponsor_names_lower,
+    count_brand_occurrences,
+)
+
+# Verification-miss thresholds re-exported for back-compat with existing
+# test names. New code should import the LEARNING_* names directly.
+VERIFICATION_MIN_CONFIDENCE = LEARNING_MIN_CONFIDENCE
+VERIFICATION_MIN_CONFIDENCE_LONG = LEARNING_MIN_CONFIDENCE_LONG
+VERIFICATION_LONG_DURATION_THRESHOLD = LEARNING_LONG_DURATION_THRESHOLD
 
 logger = logging.getLogger('podcast.patterns')
 
@@ -435,6 +453,38 @@ class PatternService:
             source_langs = {p.get('source_language') for p in patterns if p.get('source_language')}
             merged_language = next(iter(source_langs)) if len(source_langs) == 1 else None
 
+            # Reject merges whose combined template names sponsors outside the
+            # consolidated sponsor. A kitchen-sink template (e.g. "AG1,
+            # BetterHelp, Squarespace, ZipRecruiter...") gets high-weight TF-IDF
+            # tokens for every brand and over-matches any episode that mentions
+            # 2-3 of them.
+            known_sponsors = self.db.get_known_sponsors(active_only=True)
+            sponsor_row = None
+            if merged_sponsor_name:
+                merged_lower = merged_sponsor_name.lower()
+                sponsor_row = next(
+                    (s for s in known_sponsors
+                     if (s.get('name') or '').lower() == merged_lower),
+                    None,
+                )
+            declared_lower = declared_sponsor_names_lower(sponsor_row)
+            if merged_sponsor_name:
+                declared_lower.add(merged_sponsor_name.lower())
+            foreign = find_foreign_sponsors(
+                best_template or '',
+                declared_lower,
+                known_sponsors,
+                require_active=True,
+            )
+            if foreign:
+                logger.warning(
+                    "Aborting merge of patterns %s: combined template names "
+                    "foreign sponsors %s",
+                    pattern_ids,
+                    foreign[:5],
+                )
+                return None
+
             merged_id = self.db.create_ad_pattern(
                 scope=target_scope,
                 text_template=best_template,
@@ -623,7 +673,7 @@ class PatternService:
                     dai_platform=dai_platform,
                     network_id=network_id
                 )
-                logger.info(
+                logger.debug(
                     f"Updated podcast {podcast_id}: "
                     f"platform={dai_platform}, network={network_id}"
                 )
@@ -787,6 +837,33 @@ class PatternService:
             if not sponsor or sponsor.lower() in ('unknown', 'n/a', ''):
                 continue
 
+            # Filter parity with ad_detector.learn_from_detections. Pre-2.5.13
+            # this branch trusted every verification miss; the first-pass
+            # learner required confidence + was_cut + sane sponsor. Pattern
+            # #354 ("the big, Modelo?") came in through that gap.
+            confidence = float(ad.get('confidence') or 0.0)
+            duration = float(ad.get('end') or 0.0) - float(ad.get('start') or 0.0)
+            min_confidence = (
+                LEARNING_MIN_CONFIDENCE_LONG
+                if duration > LEARNING_LONG_DURATION_THRESHOLD
+                else LEARNING_MIN_CONFIDENCE
+            )
+            if confidence < min_confidence:
+                logger.info(
+                    f"[{slug}:{episode_id}] Rejecting verification miss for "
+                    f"'{sponsor}' (confidence {confidence:.2f} < {min_confidence:.2f})"
+                )
+                continue
+
+            reason_text = (ad.get('reason') or '').strip()
+            if is_sponsor_reasoning_rationale(reason_text):
+                logger.info(
+                    f"[{slug}:{episode_id}] Rejecting verification miss for "
+                    f"'{sponsor}' (reason looks like an LLM rationale, not an "
+                    f"ad: {reason_text[:80]!r})"
+                )
+                continue
+
             sponsor = canonical_sponsor(sponsor)
 
             try:
@@ -813,6 +890,27 @@ class PatternService:
                     logger.info(
                         f"[{slug}:{episode_id}] No existing pattern for missed sponsor "
                         f"'{sponsor}' and no transcript segments available for auto-creation"
+                    )
+                    continue
+
+                # Final occurrence-count gate against the actual transcript
+                # window. The brand should appear at least twice in any real
+                # sponsor read (intro + outro). Reuses count_brand_occurrences
+                # so aliases and whitespace variants both count.
+                start_s = float(ad.get('start') or 0.0)
+                end_s = float(ad.get('end') or 0.0)
+                window_text = extract_text_from_segments(segments, start_s, end_s)
+                sponsor_row = (
+                    self.db.get_known_sponsor_by_name(sponsor)
+                    if self.db else None
+                ) or {'name': sponsor, 'aliases': '[]'}
+                occurrences = count_brand_occurrences(window_text, sponsor_row)
+                if occurrences < 2:
+                    logger.info(
+                        f"[{slug}:{episode_id}] Rejecting verification miss for "
+                        f"'{sponsor}' (brand appears only {occurrences}x in "
+                        f"{start_s:.0f}-{end_s:.0f}s window - likely a host "
+                        f"name-drop, not a sponsor read)"
                     )
                     continue
 

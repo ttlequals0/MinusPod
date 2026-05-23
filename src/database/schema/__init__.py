@@ -1,10 +1,12 @@
 """Schema initialization and migration mixin for MinusPod database."""
+import fcntl
 import sqlite3
 import logging
 import json
 import os
 import re
 import time
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Dict, List
 
@@ -13,30 +15,69 @@ logger = logging.getLogger(__name__)
 
 # SQL DDL constants live in tables.py - re-exported for backward compat
 from database.schema.tables import SCHEMA_SQL, MIGRATION_INDEXES_SQL
+from community_export import find_foreign_sponsors, declared_sponsor_names_lower
+
+
+@contextmanager
+def _migration_file_lock(data_dir):
+    """Cross-process serializing lock for schema migrations.
+
+    Gunicorn runs 2 workers; both fork into Database.__init__ and race the
+    schema init path. The work is idempotent, but each worker emits its own
+    "Migration: Created X" log line and doubles the SQLite write contention.
+    Worker B blocks here until Worker A releases, then walks the
+    already-stamped revision flags and short-circuits each gate.
+    """
+    lock_path = os.path.join(str(data_dir), '.migration.lock')
+    fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+        finally:
+            os.close(fd)
 
 
 class SchemaMixin:
     """Schema initialization and migration methods."""
 
-    def _init_schema(self):
-        """Initialize database schema with retry logic for concurrent workers."""
-        max_retries = 5
-        base_delay = 0.5  # seconds
+    @staticmethod
+    def _table_exists(conn, name: str) -> bool:
+        """True iff a table or view named `name` is registered in sqlite_master."""
+        cursor = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type IN ('table','view') AND name = ?",
+            (name,),
+        )
+        return cursor.fetchone() is not None
 
-        for attempt in range(max_retries):
-            try:
-                self._init_schema_inner()
-                return
-            except sqlite3.OperationalError as e:
-                if "database is locked" in str(e) and attempt < max_retries - 1:
-                    delay = base_delay * (2 ** attempt)  # Exponential backoff
-                    logger.warning(
-                        f"Database locked during schema init, retrying in {delay:.1f}s "
-                        f"(attempt {attempt + 1}/{max_retries})"
-                    )
-                    time.sleep(delay)
-                else:
-                    raise
+    def _init_schema(self):
+        """Initialize database schema with cross-worker serialization + retry.
+
+        The fcntl lock serializes the second gunicorn worker behind the first;
+        the retry loop survives any remaining SQLite contention from other
+        processes (manual sqlite3 sessions, ad-hoc scripts) that bypass the
+        file lock.
+        """
+        with _migration_file_lock(self.data_dir):
+            max_retries = 5
+            base_delay = 0.5  # seconds
+
+            for attempt in range(max_retries):
+                try:
+                    self._init_schema_inner()
+                    return
+                except sqlite3.OperationalError as e:
+                    if "database is locked" in str(e) and attempt < max_retries - 1:
+                        delay = base_delay * (2 ** attempt)  # Exponential backoff
+                        logger.warning(
+                            f"Database locked during schema init, retrying in {delay:.1f}s "
+                            f"(attempt {attempt + 1}/{max_retries})"
+                        )
+                        time.sleep(delay)
+                    else:
+                        raise
 
     def _init_schema_inner(self):
         """Initialize database schema (inner method called with retry wrapper)."""
@@ -51,7 +92,7 @@ class SchemaMixin:
         if is_existing_db:
             # For existing databases, only create new tables and run migrations
             # Don't run full SCHEMA_SQL as indexes may reference columns that don't exist yet
-            logger.info(f"Existing database found at {self.db_path}, running migrations...")
+            logger.debug(f"Existing database found at {self.db_path}, running migrations...")
             self._create_new_tables_only(conn)
             self._run_schema_migrations()
         else:
@@ -64,6 +105,10 @@ class SchemaMixin:
 
     def _create_new_tables_only(self, conn):
         """Create new tables for existing databases without running indexes."""
+        # Sentinel: ad_reviewer_log is the last table created in this block.
+        # If it already exists, every other CREATE IF NOT EXISTS below is a
+        # no-op too, so we can skip the boot "Created new tables..." log.
+        sentinel_existed = self._table_exists(conn, 'ad_reviewer_log')
         # Create ad_patterns table if not exists (must match SCHEMA_SQL exactly)
         conn.execute("""
             CREATE TABLE IF NOT EXISTS ad_patterns (
@@ -236,7 +281,8 @@ class SchemaMixin:
         )
 
         conn.commit()
-        logger.info("Created new tables for cross-episode training and processing history")
+        if not sentinel_existed:
+            logger.info("Created new tables for cross-episode training and processing history")
 
     def _add_column_if_missing(self, conn, table: str, column: str,
                                definition: str, existing_columns: set) -> bool:
@@ -606,6 +652,7 @@ class SchemaMixin:
 
         # Migration: Create auto_process_queue table if not exists
         try:
+            fresh = not self._table_exists(conn, 'auto_process_queue')
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS auto_process_queue (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -626,7 +673,8 @@ class SchemaMixin:
             conn.execute("CREATE INDEX IF NOT EXISTS idx_queue_created ON auto_process_queue(created_at)")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_queue_podcast_episode ON auto_process_queue(podcast_id, episode_id)")
             conn.commit()
-            logger.info("Migration: Created auto_process_queue table")
+            if fresh:
+                logger.info("Migration: Created auto_process_queue table")
         except Exception as e:
             logger.debug(f"auto_process_queue table creation (may already exist): {e}")
 
@@ -687,6 +735,7 @@ class SchemaMixin:
 
         # Migration: Create FTS5 search index table
         try:
+            fresh = not self._table_exists(conn, 'search_index')
             conn.execute("""
                 CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
                     content_type,
@@ -699,7 +748,8 @@ class SchemaMixin:
                 )
             """)
             conn.commit()
-            logger.info("Migration: Created FTS5 search_index table")
+            if fresh:
+                logger.info("Migration: Created FTS5 search_index table")
         except Exception as e:
             logger.debug(f"FTS5 search_index creation (may already exist): {e}")
 
@@ -715,6 +765,7 @@ class SchemaMixin:
 
         # Migration: Create auth_failures table for login-lockout tracking
         try:
+            fresh = not self._table_exists(conn, 'auth_failures')
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS auth_failures (
                     ip TEXT PRIMARY KEY,
@@ -728,7 +779,8 @@ class SchemaMixin:
                 "CREATE INDEX IF NOT EXISTS idx_auth_failures_last ON auth_failures(last_failed_at)"
             )
             conn.commit()
-            logger.info("Migration: Created auth_failures table")
+            if fresh:
+                logger.info("Migration: Created auth_failures table")
         except Exception as e:
             logger.debug(f"auth_failures table creation (may already exist): {e}")
 
@@ -827,6 +879,7 @@ class SchemaMixin:
 
         # Migration: Create token usage tables and seed default model pricing
         try:
+            fresh = not self._table_exists(conn, 'model_pricing')
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS model_pricing (
                     model_id TEXT PRIMARY KEY,
@@ -863,7 +916,8 @@ class SchemaMixin:
                     (model_id, info['name'], info['input'], info['output'])
                 )
             conn.commit()
-            logger.info("Migration: Created token usage tables and seeded model pricing")
+            if fresh:
+                logger.info("Migration: Created token usage tables and seeded model pricing")
         except Exception as e:
             logger.warning(f"Migration failed for token usage tables: {e}")
 
@@ -1016,6 +1070,23 @@ class SchemaMixin:
         # frozen at detection time, so the 2.2.10 pattern cleanup alone
         # doesn't update what the editor displays for already-detected ads.
         self._cleanup_zyn_ad_markers(conn)
+
+        # 2.5.7: retire kitchen-sink ad_patterns that name multiple foreign
+        # sponsors in their text_template. The merge guard prevents new ones
+        # going forward; this disables what's already there.
+        try:
+            self._cleanup_multi_sponsor_patterns(conn)
+        except Exception as e:
+            logger.warning(f"Multi-sponsor pattern cleanup failed: {e}")
+
+        # 2.5.13: retire patterns whose sponsor name appears <2 times in the
+        # text_template. Real ads repeat the brand; a single mention is a
+        # host name-drop the verification pass mis-classified. The
+        # create_pattern_from_ad guard prevents new ones going forward.
+        try:
+            self._cleanup_low_mention_patterns(conn)
+        except Exception as e:
+            logger.warning(f"Low-mention pattern cleanup failed: {e}")
 
         # Sponsor seed reseed (2.4.0): CSV is authoritative. Runs LAST so
         # `_migrate_sponsor_fk` has already deduped case-variants from
@@ -1244,6 +1315,228 @@ class SchemaMixin:
                 )
         except Exception as e:
             logger.warning(f"Migration: Zyn cascade cleanup failed: {e}")
+
+    def _cleanup_low_mention_patterns(self, conn):
+        """Retire ad_patterns that are structurally false-positive-shaped.
+
+        Two retirement criteria, both conservative:
+
+        1. **Low-mention auto-created, never-matched**:
+           sponsor in any variant appears <2 times in text_template
+           AND created_by == 'auto'
+           AND confirmation_count == 0
+           AND false_positive_count == 0
+           This is the Pattern #354 shape - a verification miss the LLM
+           shouldn't have flagged. Patterns that have matched real ads
+           (`confirmation_count > 0`) are left alone even if they also
+           sit in the low-mention bucket, because we cannot tell the
+           difference between a legitimate brand-once-mentioned ad and a
+           bad pattern that boosted its own conf via the
+           record_verification_misses "boost" path.
+
+        2. **Structurally broken sponsor field**:
+           - sponsor starts with a SPONSOR_REASONING_PREFIXES entry
+             (e.g. "Inferred from ..." stored as the sponsor name); OR
+           - sponsor ends with a known LLM-suffix tell (" brand",
+             " pre-roll", " sponsor ad", " sponsor ad with URL", etc.); OR
+           - sponsor stripped of whitespace differs from any
+             known_sponsors row AND no variant appears in template
+             (the "statefarm"-without-spaces shape).
+
+        Reversible per row (`is_active=1` re-enables). Idempotent via
+        the `low_mention_cleanup_revision` settings flag.
+        """
+        CLEANUP_REVISION = '2.5.13'
+        try:
+            current = conn.execute(
+                "SELECT value FROM settings "
+                "WHERE key = 'low_mention_cleanup_revision'"
+            ).fetchone()
+            if current and current['value'] == CLEANUP_REVISION:
+                return
+        except Exception:
+            pass
+
+        try:
+            from community_export import count_brand_occurrences
+            from utils.constants import is_sponsor_reasoning_rationale
+            SPONSOR_SUFFIX_TELLS = (
+                ' brand',
+                ' pre-roll',
+                ' sponsor ad',
+                ' sponsor ad with url',
+                ' advertisement',
+            )
+
+            rows = conn.execute(
+                "SELECT p.id, p.text_template, p.confirmation_count, "
+                "p.false_positive_count, p.created_by, "
+                "s.name, s.aliases "
+                "FROM ad_patterns p "
+                "JOIN known_sponsors s ON s.id = p.sponsor_id "
+                "WHERE p.is_active = 1 "
+                "AND p.text_template IS NOT NULL "
+                "AND p.text_template != '' "
+                "AND s.name IS NOT NULL"
+            ).fetchall()
+
+            # Build a set of canonical sponsor names (lowercased, with and
+            # without whitespace) so the structural "whitespace-stripped
+            # sponsor that no longer matches anything" rule can decide.
+            known_canonicals = set()
+            for s in conn.execute(
+                "SELECT name FROM known_sponsors WHERE is_active = 1"
+            ).fetchall():
+                n = (s[0] or '').lower().strip()
+                if not n:
+                    continue
+                known_canonicals.add(n)
+                known_canonicals.add(n.replace(' ', ''))
+
+            disabled = []
+            for pid, text_template, conf_count, fp_count, created_by, sponsor_name, aliases in rows:
+                sponsor_row = {'name': sponsor_name, 'aliases': aliases}
+                occ = count_brand_occurrences(text_template, sponsor_row)
+                sp_lower = (sponsor_name or '').lower().strip()
+
+                reasons = []
+
+                # Criterion 1: low-mention auto-created never-matched
+                if (
+                    occ < 2
+                    and (created_by or '').lower() == 'auto'
+                    and (conf_count or 0) == 0
+                    and (fp_count or 0) == 0
+                ):
+                    reasons.append(
+                        f"sponsor '{sponsor_name}' appears {occ}x in template, "
+                        f"auto-created, never matched"
+                    )
+
+                # Criterion 2a: sponsor field looks like a reasoning sentence
+                if is_sponsor_reasoning_rationale(sponsor_name):
+                    reasons.append(
+                        f"sponsor field looks like an LLM rationale: "
+                        f"{sponsor_name[:60]!r}"
+                    )
+
+                # Criterion 2b: sponsor field has a known LLM suffix tell
+                if any(sp_lower.endswith(suffix) for suffix in SPONSOR_SUFFIX_TELLS):
+                    reasons.append(
+                        f"sponsor field has an LLM-suffix tell: "
+                        f"{sponsor_name!r}"
+                    )
+
+                # Criterion 2c: whitespace-stripped sponsor doesn't match any
+                # known_sponsors row AND no variant appears in template
+                # (the 'statefarm' shape).
+                if (
+                    sp_lower not in known_canonicals
+                    and sp_lower.replace(' ', '') not in known_canonicals
+                    and occ == 0
+                ):
+                    reasons.append(
+                        f"sponsor '{sponsor_name}' is not canonical AND no "
+                        f"variant appears in template"
+                    )
+
+                if reasons:
+                    disabled.append((pid, sponsor_name, occ, '; '.join(reasons)))
+
+            for pid, sponsor_name, occ, reason in disabled:
+                conn.execute(
+                    "UPDATE ad_patterns SET is_active = 0, "
+                    "disabled_reason = ? WHERE id = ?",
+                    (
+                        f"2.5.13 cleanup: {reason}",
+                        pid,
+                    ),
+                )
+            conn.execute(
+                "INSERT INTO settings (key, value, is_default) VALUES (?, ?, 0) "
+                "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                ('low_mention_cleanup_revision', CLEANUP_REVISION),
+            )
+            conn.commit()
+            if disabled:
+                logger.info(
+                    f"Migration: disabled {len(disabled)} ad_patterns "
+                    f"(low-mention auto-created or structurally broken sponsor)"
+                )
+        except Exception as e:
+            logger.warning(f"Migration: low-mention pattern cleanup failed: {e}")
+
+    def _cleanup_multi_sponsor_patterns(self, conn):
+        """Disable active ad_patterns whose text_template names two or more
+        sponsors outside the pattern's declared sponsor row.
+
+        A "kitchen-sink" template (e.g. naming a half-dozen unrelated brands
+        in one comma-separated list) generates high-weight TF-IDF tokens for
+        every brand and over-matches any episode that mentions a handful of
+        them. The 2.5.7 merge guard prevents new ones; this one-shot pass
+        retires the existing rows. Stamped via settings flag so a second
+        boot doesn't re-scan all patterns x all sponsors.
+        """
+        CLEANUP_REVISION = '2.5.7'
+        try:
+            current = conn.execute(
+                "SELECT value FROM settings "
+                "WHERE key = 'multi_sponsor_cleanup_revision'"
+            ).fetchone()
+            if current and current['value'] == CLEANUP_REVISION:
+                return
+        except Exception:
+            pass
+        try:
+            rows = conn.execute(
+                "SELECT id, name, aliases, is_active FROM known_sponsors "
+                "WHERE is_active = 1"
+            ).fetchall()
+            sponsors = [
+                {"id": r[0], "name": r[1], "aliases": r[2], "is_active": r[3]}
+                for r in rows
+            ]
+            sponsor_by_id = {s["id"]: s for s in sponsors}
+
+            patterns = conn.execute(
+                "SELECT id, text_template, sponsor_id FROM ad_patterns "
+                "WHERE is_active = 1 "
+                "AND text_template IS NOT NULL AND text_template != ''"
+            ).fetchall()
+
+            disabled = []
+            for pid, text_template, sponsor_id in patterns:
+                row = sponsor_by_id.get(sponsor_id) if sponsor_id else None
+                declared_lower = declared_sponsor_names_lower(row)
+                foreign = find_foreign_sponsors(
+                    text_template, declared_lower, sponsors, require_active=True
+                )
+                if len(foreign) >= 2:
+                    disabled.append((pid, foreign[:5]))
+
+            for pid, names in disabled:
+                conn.execute(
+                    "UPDATE ad_patterns SET is_active = 0, "
+                    "disabled_reason = ? WHERE id = ?",
+                    (
+                        f"Multi-sponsor garbage (2.5.7 cleanup): "
+                        f"foreign sponsors {names}",
+                        pid,
+                    ),
+                )
+            conn.execute(
+                "INSERT INTO settings (key, value, is_default) VALUES (?, ?, 0) "
+                "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                ('multi_sponsor_cleanup_revision', CLEANUP_REVISION),
+            )
+            conn.commit()
+            if disabled:
+                logger.info(
+                    f"Migration: disabled {len(disabled)} multi-sponsor "
+                    f"ad_patterns (threshold: 2+ foreign brands)"
+                )
+        except Exception as e:
+            logger.warning(f"Migration: multi-sponsor pattern cleanup failed: {e}")
 
     def _migrate_ad_detection_max_tokens(self, conn):
         """Rename ad_detection_max_tokens -> detection_max_tokens.

@@ -7,7 +7,18 @@ from storage import (
     _ALLOWED_IMAGE_TYPES,
     _detect_image_mime,
     _max_artwork_bytes,
+    Storage,
 )
+
+
+@pytest.fixture(autouse=True)
+def _reset_storage_singleton():
+    # Storage is a singleton; reset around every test so each one-off
+    # Storage(data_dir=str(tmp_path)) construction in this file gets a
+    # fresh instance rooted at its own tmp_path.
+    Storage._instance = None
+    yield
+    Storage._instance = None
 
 
 JPEG = b'\xff\xd8\xff\xe0' + b'\x00' * 20

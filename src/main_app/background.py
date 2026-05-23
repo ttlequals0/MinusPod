@@ -40,13 +40,14 @@ def run_cleanup():
     except Exception as e:
         refresh_logger.error(f"Orphan cleanup failed: {e}")
 
-    # Periodic search index rebuild (every 6 hours)
+    # Periodic search index rebuild (every 6 hours). rebuild_search_index
+    # logs "Search index rebuilt with N items" itself, so no duplicate log
+    # line is needed at this caller.
     try:
         last_rebuild = getattr(run_cleanup, '_last_index_rebuild', 0)
         if time.time() - last_rebuild > 21600:
-            count = db.rebuild_search_index()
+            db.rebuild_search_index()
             run_cleanup._last_index_rebuild = time.time()
-            refresh_logger.info(f"Periodic search index rebuild: {count} items indexed")
     except Exception as e:
         refresh_logger.error(f"Search index rebuild failed: {e}")
 

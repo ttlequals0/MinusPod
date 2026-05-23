@@ -282,7 +282,7 @@ class Database(SchemaMixin, PodcastMixin, EpisodeMixin, SettingsMixin,
             ks_count = conn.execute(
                 "SELECT COUNT(*) FROM known_sponsors WHERE is_active = 1"
             ).fetchone()[0]
-            logger.info(
+            logger.debug(
                 f"Pattern catalog: ad_patterns active={ap_count}, "
                 f"known_sponsors active={ks_count}"
             )

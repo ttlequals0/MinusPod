@@ -488,7 +488,7 @@ if _trusted_proxy_hops > 0:
     # Log without formatting the raw env-derived value; an operator who
     # wants the exact hop count can read MINUSPOD_TRUSTED_PROXY_COUNT. This
     # keeps CodeQL's py/clear-text-logging-sensitive-data heuristic quiet.
-    audio_logger.info("ProxyFix enabled from MINUSPOD_TRUSTED_PROXY_COUNT")
+    audio_logger.debug("ProxyFix enabled from MINUSPOD_TRUSTED_PROXY_COUNT")
 else:
     # Docker deployments behind a proxy typically need this; a loud warn
     # on startup saves a support round-trip when lockout appears not to
@@ -624,38 +624,50 @@ from main_app.background import background_rss_refresh, background_queue_process
 
 # Startup initialization (runs when module is imported by gunicorn)
 def _startup():
-    """Initialize the application on startup."""
+    """Initialize the application on startup.
+
+    Gunicorn runs N workers; only one of them is the background leader.
+    Operator-facing banners (version, base URL, LLM verification, web
+    UI hint) fire ONLY on the leader to keep the boot log surface a
+    single copy instead of N copies. Followers emit one DEBUG line.
+    """
     from main_app.feeds import get_feed_map, refresh_rss_feed
     from main_app.background import background_rss_refresh, background_queue_processor, reset_stuck_processing_episodes
 
-    # Import version (version.py is in project root, not src/)
-    try:
-        sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-        from version import __version__
-        logger.info(f"MinusPod v{__version__} starting...")
-    except ImportError:
-        logger.warning("Could not import version")
+    is_leader = _try_become_background_leader()
 
-    base_url = os.getenv('BASE_URL', 'http://localhost:8000')
-    logger.info(f"BASE_URL: {base_url}")
+    # Reset any episodes stuck in 'processing' status from previous crash.
+    # Leader-only - the followers would just race the same UPDATE.
+    if is_leader:
+        reset_stuck_processing_episodes()
 
-    # Verify LLM endpoint is reachable (important for openai-compatible providers)
-    try:
-        from llm_client import verify_llm_connection
-        verify_llm_connection()
-    except Exception as e:
-        logger.warning(f"LLM verification skipped: {e}")
-
-    # Reset any episodes stuck in 'processing' status from previous crash
-    reset_stuck_processing_episodes()
-
-    # Register signal handlers for graceful shutdown
+    # Register signal handlers for graceful shutdown (every worker needs them).
     signal.signal(signal.SIGTERM, graceful_shutdown)
     signal.signal(signal.SIGINT, graceful_shutdown)
-    logger.info("Registered signal handlers for graceful shutdown")
+    logger.debug("Registered signal handlers for graceful shutdown")
 
-    # Only one worker should run background tasks to avoid SQLite contention
-    if _try_become_background_leader():
+    base_url = os.getenv('BASE_URL', 'http://localhost:8000')
+
+    if is_leader:
+        # Import version (version.py is in project root, not src/)
+        try:
+            sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+            from version import __version__
+            logger.info(f"MinusPod v{__version__} starting...")
+        except ImportError:
+            logger.warning("Could not import version")
+
+        logger.info(f"BASE_URL: {base_url}")
+
+        # Verify LLM endpoint is reachable. Leader-only - all workers run
+        # on the same host and reach the same network, so a single verify
+        # covers the deployment.
+        try:
+            from llm_client import verify_llm_connection
+            verify_llm_connection()
+        except Exception as e:
+            logger.warning(f"LLM verification skipped: {e}")
+
         # Seed sponsor and normalization data. The 2.0.13 rewrite made this
         # idempotent (per-startup name-diff insert), so it must run on the
         # leader only or the workers race on writes and trigger
@@ -678,11 +690,11 @@ def _startup():
         feed_map = get_feed_map()
         for slug, feed_info in feed_map.items():
             refresh_rss_feed(slug, feed_info['in'])
-            logger.info(f"Feed: {base_url}/{slug}")
-    else:
-        logger.info("Background threads managed by another worker, skipping")
+            logger.debug(f"Feed: {base_url}/{slug}")
 
-    logger.info(f"Web UI available at: {base_url}/ui/")
+        logger.info(f"Web UI available at: {base_url}/ui/")
+    else:
+        logger.debug("Follower worker booted; background threads managed by leader")
 
 
 _startup()

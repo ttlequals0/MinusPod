@@ -9,7 +9,12 @@ from storage import Storage
 
 @pytest.fixture
 def storage(tmp_path):
-    return Storage(data_dir=str(tmp_path))
+    # Storage is a singleton (mirrors Database); reset it so each test gets
+    # a fresh instance rooted at its own tmp_path.
+    Storage._instance = None
+    s = Storage(data_dir=str(tmp_path))
+    yield s
+    Storage._instance = None
 
 
 def _make_episode_file(storage, slug, episode_id, version=None, content=b"x"):

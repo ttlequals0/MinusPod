@@ -19,6 +19,8 @@ from utils.llm_response import (
 from utils.constants import (
     INVALID_SPONSOR_VALUES, STRUCTURAL_FIELDS,
     SPONSOR_PRIORITY_FIELDS, SPONSOR_PATTERN_KEYWORDS,
+    SPONSOR_MAX_NAME_CHARS,
+    is_sponsor_reasoning_rationale,
     NOT_AD_CLASSIFICATIONS,
 )
 from config import (
@@ -158,6 +160,10 @@ def parse_ads_from_response(response_text: str, slug: str = None,
         if len(str_value) < 2:
             return None
         if str_value.lower() in INVALID_SPONSOR_VALUES:
+            return None
+        if len(str_value) > SPONSOR_MAX_NAME_CHARS:
+            return None
+        if is_sponsor_reasoning_rationale(str_value):
             return None
         return str_value
 

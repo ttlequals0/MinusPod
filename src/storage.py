@@ -2,6 +2,7 @@
 import json
 import logging
 import os
+import threading
 from pathlib import Path
 from typing import Dict, Any, Optional, List, Tuple
 import tempfile
@@ -87,9 +88,27 @@ def _safe_join_under(base: Path, *parts: str) -> Path:
 
 
 class Storage:
-    """Storage manager using SQLite for metadata and filesystem for large files."""
+    """Storage manager using SQLite for metadata and filesystem for large files.
+
+    Singleton, mirroring Database. Without this, every /api/v1/health call
+    (or any get_storage() accessor) constructs a fresh Storage and re-fires
+    the init log line - that path was producing ~120 lines/hr in prod.
+    """
+
+    _instance = None
+    _lock = threading.Lock()
+
+    def __new__(cls, data_dir: Optional[str] = None):
+        if cls._instance is None:
+            with cls._lock:
+                if cls._instance is None:
+                    cls._instance = super().__new__(cls)
+                    cls._instance._initialized = False
+        return cls._instance
 
     def __init__(self, data_dir: Optional[str] = None):
+        if self._initialized:
+            return
         # Tests and non-container deploys need a configurable root;
         # /app/data is the in-container default.
         if data_dir is None:
@@ -109,6 +128,7 @@ class Storage:
         from database import Database
         self.db = Database(str(self.data_dir))
 
+        self._initialized = True
         logger.info(f"Storage initialized with data_dir: {self.data_dir}")
 
     def get_podcast_dir(self, slug: str) -> Path:

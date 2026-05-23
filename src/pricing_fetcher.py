@@ -364,7 +364,7 @@ def refresh_pricing_if_stale(force: bool = False):
     base_url = get_effective_base_url()
     source = get_pricing_source(provider, base_url)
 
-    logger.info(f"Pricing refresh: provider={provider} source_type={source.get('type')}")
+    logger.debug(f"Pricing refresh: provider={provider} source_type={source.get('type')}")
 
     models = fetch_pricing(source, provider_for_fallback=provider)
 

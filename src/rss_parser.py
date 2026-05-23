@@ -323,7 +323,7 @@ class RSSParser:
             )
 
             if response.status_code == 304:
-                logger.info(f"Feed not modified (304): {safe_url_for_log(url)}")
+                logger.debug(f"Feed not modified (304): {safe_url_for_log(url)}")
                 _get_rss_circuit_breaker(url).record_success()
                 return None, etag, last_modified
 
@@ -332,7 +332,7 @@ class RSSParser:
             new_etag = response.headers.get('ETag')
             new_last_modified = response.headers.get('Last-Modified')
 
-            logger.info(f"Fetched RSS feed, size: {len(response.content)} bytes")
+            logger.debug(f"Fetched RSS feed, size: {len(response.content)} bytes")
             _get_rss_circuit_breaker(url).record_success()
             return response.text, new_etag, new_last_modified
 
@@ -411,7 +411,7 @@ class RSSParser:
             if feed.bozo:
                 logger.warning(f"RSS parse warning: {feed.bozo_exception}")
 
-            logger.info(f"Parsed RSS feed: {feed.feed.get('title', 'Unknown')} with {len(feed.entries)} entries")
+            logger.debug(f"Parsed RSS feed: {feed.feed.get('title', 'Unknown')} with {len(feed.entries)} entries")
             return feed
         except Exception as e:
             logger.error(f"Failed to parse RSS feed: {e}")
@@ -576,7 +576,8 @@ class RSSParser:
                     max_episodes: int = 300,
                     extra_episodes: Optional[List[Dict]] = None,
                     processed_only: bool = False,
-                    processed_episode_ids: Optional[set] = None) -> str:
+                    processed_episode_ids: Optional[set] = None,
+                    parsed_feed=None) -> str:
         """Modify RSS feed to use our server URLs.
 
         Args:
@@ -593,8 +594,12 @@ class RSSParser:
             processed_episode_ids: Allow-list of episode_ids the caller has
                 determined to be status='processed'. Required when
                 processed_only=True; ignored otherwise.
+            parsed_feed: Optional pre-parsed feedparser object. When supplied,
+                skips the internal parse_feed call - the caller will have
+                already paid that cost. Passing a None here re-parses
+                feed_content for backwards compatibility.
         """
-        feed = self.parse_feed(feed_content)
+        feed = parsed_feed if parsed_feed is not None else self.parse_feed(feed_content)
         if not feed:
             return feed_content
 
@@ -644,7 +649,7 @@ class RSSParser:
         entries = feed.entries[:max_episodes]
 
         if len(feed.entries) > max_episodes:
-            logger.info(f"[{slug}] Limiting feed from {len(feed.entries)} to {max_episodes} episodes")
+            logger.debug(f"[{slug}] Limiting feed from {len(feed.entries)} to {max_episodes} episodes")
 
         # Process each episode from RSS
         included_episode_ids = set()
@@ -1131,9 +1136,16 @@ class RSSParser:
 
         return deduplicated
 
-    def extract_episodes(self, feed_content: str) -> List[Dict]:
-        """Extract episode information from feed."""
-        feed = self.parse_feed(feed_content)
+    def extract_episodes(self, feed_content: str, parsed_feed=None) -> List[Dict]:
+        """Extract episode information from feed.
+
+        Args:
+            feed_content: Original RSS feed XML.
+            parsed_feed: Optional pre-parsed feedparser object. When supplied,
+                skips the internal parse_feed call so a single refresh cycle
+                does not pay the parse cost three times.
+        """
+        feed = parsed_feed if parsed_feed is not None else self.parse_feed(feed_content)
         if not feed:
             return []
 

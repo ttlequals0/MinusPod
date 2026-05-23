@@ -98,7 +98,7 @@ def strip_pii(text: str) -> str:
     return _strip_phones(_strip_emails(text))
 
 
-def _normalize_aliases(value) -> List[str]:
+def normalize_aliases(value) -> List[str]:
     """Accept aliases as either a list (CSV-derived seed) or a JSON string
     (DB rows). Return a plain list of non-empty strings."""
     if isinstance(value, list):
@@ -111,6 +111,52 @@ def _normalize_aliases(value) -> List[str]:
         if isinstance(parsed, list):
             return [str(a) for a in parsed if a]
     return []
+
+
+def count_brand_occurrences(text: str, sponsor_row: Optional[Dict]) -> int:
+    """Maximum case-insensitive substring count of the sponsor's name and any
+    of its aliases against `text`. Also counts whitespace-stripped variants
+    so a sponsor stored as 'statefarm' still scores against a 'State Farm'
+    mention, and vice versa.
+
+    Returns 0 when sponsor_row is missing, has no name/aliases, or no
+    variant appears in text. The 2.5.13 pattern-correctness guard rejects
+    patterns where the returned count is <2.
+    """
+    if not sponsor_row or not text:
+        return 0
+    name = (sponsor_row.get('name') or '').strip()
+    if not name:
+        return 0
+    candidates = {name.lower()}
+    no_ws = name.replace(' ', '').lower()
+    if no_ws:
+        candidates.add(no_ws)
+    for alias in normalize_aliases(sponsor_row.get('aliases')):
+        if not alias:
+            continue
+        candidates.add(alias.lower())
+        alias_no_ws = alias.replace(' ', '').lower()
+        if alias_no_ws:
+            candidates.add(alias_no_ws)
+    text_lower = text.lower()
+    return max((text_lower.count(c) for c in candidates), default=0)
+
+
+def declared_sponsor_names_lower(sponsor_row: Optional[Dict]) -> set:
+    """Return the lowercased name + aliases set for a known_sponsors row.
+
+    Empty set when the row is missing or has no name; callers can pass this
+    straight to find_foreign_sponsors as `declared_names_lower`.
+    """
+    if not sponsor_row:
+        return set()
+    name = (sponsor_row.get('name') or '').lower()
+    declared = {name} if name else set()
+    for alias in normalize_aliases(sponsor_row.get('aliases')):
+        if alias:
+            declared.add(alias.lower())
+    return declared
 
 
 def find_foreign_sponsors(
@@ -141,7 +187,7 @@ def find_foreign_sponsors(
         name_l = name.lower()
         if not name_l:
             continue
-        candidates = [name_l] + [a.lower() for a in _normalize_aliases(s.get('aliases'))]
+        candidates = [name_l] + [a.lower() for a in normalize_aliases(s.get('aliases'))]
         if any(c in declared_names_lower for c in candidates):
             continue
         for c in candidates:
@@ -183,7 +229,7 @@ def _quality_gates(pattern: Dict, sponsors: List[Dict]) -> List[str]:
         reasons.append('sponsor not found')
         return reasons
 
-    declared_aliases = _normalize_aliases(sponsor_row.get('aliases'))
+    declared_aliases = normalize_aliases(sponsor_row.get('aliases'))
     sponsor_names = [sponsor_row['name']] + declared_aliases
 
     text_lower = text.lower()

@@ -94,7 +94,7 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
         # Track feed refresh in status service
         status_service.start_feed_refresh(slug, podcast_name)
 
-        refresh_logger.info(f"[{slug}] Starting RSS refresh from: {feed_url}")
+        refresh_logger.debug(f"[{slug}] Starting RSS refresh from: {feed_url}")
 
         # Fetch original RSS with conditional GET (ETag/Last-Modified)
         # Skip conditional GET if force=True (cache was deleted, need full content)
@@ -133,7 +133,7 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
                             feed_url, etag=None, last_modified=None
                         )
                     else:
-                        refresh_logger.info(f"[{slug}] Feed unchanged (304), skipping refresh")
+                        refresh_logger.debug(f"[{slug}] Feed unchanged (304), skipping refresh")
                         db.update_podcast(slug, last_checked_at=utc_now_iso())
                         status_service.complete_feed_refresh(slug, 0)
                         return True
@@ -198,7 +198,7 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
                 feed_author=feed_author
             )
             if network_info.get('dai_platform') or network_info.get('network_id'):
-                refresh_logger.info(
+                refresh_logger.debug(
                     f"[{slug}] Detected: platform={network_info.get('dai_platform')}, "
                     f"network={network_info.get('network_id')}"
                 )
@@ -207,8 +207,10 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
             if artwork_url:
                 storage.download_artwork(slug, artwork_url)
 
-        # Discover all episodes from the feed (upsert as 'discovered')
-        all_episodes = rss_parser.extract_episodes(feed_content)
+        # Discover all episodes from the feed (upsert as 'discovered').
+        # Pass parsed_feed so extract_episodes does not re-parse the same
+        # XML we already parsed above.
+        all_episodes = rss_parser.extract_episodes(feed_content, parsed_feed=parsed_feed)
         inserted = db.bulk_upsert_discovered_episodes(slug, all_episodes)
         if inserted > 0:
             refresh_logger.info(f"[{slug}] Discovered {inserted} new episode(s)")
@@ -288,7 +290,8 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
                                                max_episodes=feed_cap,
                                                extra_episodes=extra_episodes,
                                                processed_only=processed_only,
-                                               processed_episode_ids=processed_ids)
+                                               processed_episode_ids=processed_ids,
+                                               parsed_feed=parsed_feed)
 
         # Save modified RSS
         storage.save_rss(slug, modified_rss)
@@ -296,7 +299,7 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
         # Update last_checked timestamp
         db.update_podcast(slug, last_checked_at=utc_now_iso())
 
-        refresh_logger.info(f"[{slug}] RSS refresh complete")
+        refresh_logger.debug(f"[{slug}] RSS refresh complete")
         status_service.complete_feed_refresh(slug, 0)
         return True
     except Exception as e:
