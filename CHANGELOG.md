@@ -30,6 +30,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The committed `calls.jsonl` rows were generated against a `SEED_SPONSORS` list that briefly excluded the `Zyn` entry (a local diff that was later reverted to match main). The system prompt for ad detection joins SEED_SPONSORS names, so the stored `prompt_hash` values do not match what current `src/utils/constants.py` would produce. A fresh `benchmark run` will therefore see zero completed rows and dispatch the full ~40k-call sweep from scratch. The committed report and per-call artifacts remain valid for review; they are just not bit-reproducible from the committed code without restoring the Zyn-removed state.
 
+## [2.5.19] - 2026-05-23
+
+### Fixed
+
+- **Ad Review transport bar no longer overflows on narrow viewports.** The playback-rate `<select>` lives in the same inner flex container as the play/seek buttons inside the bordered transport bar in `AdReviewModal`. The outer container already had `flex-wrap`, so the right-side time readout dropped to a new row on narrow widths, but the inner buttons div lacked `flex-wrap`, so the speed selector was pushed past the container's right border and rendered visually outside the box. Added `flex-wrap` to the inner div so the selector now wraps onto a new row inside the bordered control rather than escaping it.
+
 ## [2.5.18] - 2026-05-22
 
 ### Added

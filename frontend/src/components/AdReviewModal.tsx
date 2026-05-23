@@ -1289,7 +1289,7 @@ function AdReviewModal({
 
           {/* Transport bar */}
           <div className="mt-3 flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-secondary/50 border border-border flex-wrap">
-            <div className="flex items-center gap-1">
+            <div className="flex flex-wrap items-center gap-1">
               <button type="button" onClick={seekToAdStart}
                 className={`p-2 rounded ${ghostBtn}`}
                 title="Jump to START pin">
