@@ -30,6 +30,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The committed `calls.jsonl` rows were generated against a `SEED_SPONSORS` list that briefly excluded the `Zyn` entry (a local diff that was later reverted to match main). The system prompt for ad detection joins SEED_SPONSORS names, so the stored `prompt_hash` values do not match what current `src/utils/constants.py` would produce. A fresh `benchmark run` will therefore see zero completed rows and dispatch the full ~40k-call sweep from scratch. The committed report and per-call artifacts remain valid for review; they are just not bit-reproducible from the committed code without restoring the Zyn-removed state.
 
+## [2.5.20] - 2026-05-23
+
+### Fixed
+
+- **Ad Review transport bar keeps the speed selector inline with the playback buttons on narrow viewports** instead of wrapping it to a new row inside the box (2.5.19's approach, which the design rejected). The buttons cluster + selector is compacted in place: per-button padding `p-2` -> `p-1.5`, inner gap `gap-1` -> `gap-0.5`, the decorative `border-l` divider between Stop and the selector is dropped, and the selector itself shrinks from `h-8 pl-2 pr-5` to `h-7 pl-1.5 pr-4` with the chevron pulled in from `right-1.5` to `right-1`. Saves roughly 50 px of inner-row width, enough that all 7 controls fit on a single row inside the bordered transport bar at typical mobile widths. Outer container's `flex-wrap` is kept so the time readout still drops below the controls if space is too tight; the readout was never the overflow culprit.
+
 ## [2.5.19] - 2026-05-23
 
 ### Fixed
