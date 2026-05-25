@@ -1289,52 +1289,51 @@ function AdReviewModal({
 
           {/* Transport bar */}
           <div className="mt-3 flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-secondary/50 border border-border flex-wrap">
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-0.5">
               <button type="button" onClick={seekToAdStart}
-                className={`p-2 rounded ${ghostBtn}`}
+                className={`p-1.5 rounded ${ghostBtn}`}
                 title="Jump to START pin">
                 <SkipBack className="w-4 h-4" />
               </button>
               <button type="button" onClick={() => seekRelative(-10)}
-                className={`p-2 rounded ${ghostBtn}`}
+                className={`p-1.5 rounded ${ghostBtn}`}
                 title="Back 10s">
                 <Rewind className="w-4 h-4" />
               </button>
               <button type="button" onClick={togglePlay}
-                className={`p-2 rounded-full ${primaryBtn}`}
+                className={`p-1.5 rounded-full ${primaryBtn}`}
                 title="Play / pause (Space)">
                 {isPlaying ? <Pause className="w-5 h-5" /> : <Play className="w-5 h-5" />}
               </button>
               <button type="button" onClick={() => seekRelative(10)}
-                className={`p-2 rounded ${ghostBtn}`}
+                className={`p-1.5 rounded ${ghostBtn}`}
                 title="Forward 10s">
                 <FastForward className="w-4 h-4" />
               </button>
               <button type="button" onClick={seekToAdEnd}
-                className={`p-2 rounded ${ghostBtn}`}
+                className={`p-1.5 rounded ${ghostBtn}`}
                 title="Jump to END pin">
                 <SkipForward className="w-4 h-4" />
               </button>
               <button type="button" onClick={stopPlayback}
-                className={`p-2 rounded ${ghostBtn}`}
+                className={`p-1.5 rounded ${ghostBtn}`}
                 title="Stop (pause + return to START)">
                 <Square className="w-4 h-4" />
               </button>
-              <div className="ml-1 pl-1 border-l border-border/60" aria-hidden="true" />
-              <label className="relative inline-flex items-center" title="Playback speed">
+              <label className="relative inline-flex items-center ml-0.5" title="Playback speed">
                 <span className="sr-only">Playback speed</span>
                 <select
                   value={playbackRate}
                   onChange={(e) => setPlaybackRate(Number(e.target.value))}
                   aria-label="Playback speed"
-                  className={`appearance-none h-8 pl-2 pr-5 rounded text-xs font-semibold tabular-nums cursor-pointer ${ghostBtn} ${playbackRate !== 1 ? 'text-foreground' : ''} focus:outline-hidden focus:ring-2 focus:ring-ring`}
+                  className={`appearance-none h-7 pl-1.5 pr-4 rounded text-xs font-semibold tabular-nums cursor-pointer ${ghostBtn} ${playbackRate !== 1 ? 'text-foreground' : ''} focus:outline-hidden focus:ring-2 focus:ring-ring`}
                 >
                   {PLAYBACK_RATES.map((r) => (
                     <option key={r} value={r}>{r}&times;</option>
                   ))}
                 </select>
                 <svg
-                  className="pointer-events-none absolute right-1.5 top-1/2 -translate-y-1/2 w-3 h-3 opacity-60"
+                  className="pointer-events-none absolute right-1 top-1/2 -translate-y-1/2 w-3 h-3 opacity-60"
                   viewBox="0 0 12 12" fill="none" aria-hidden="true"
                 >
                   <path d="M3 5l3 3 3-3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />

@@ -30,6 +30,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The committed `calls.jsonl` rows were generated against a `SEED_SPONSORS` list that briefly excluded the `Zyn` entry (a local diff that was later reverted to match main). The system prompt for ad detection joins SEED_SPONSORS names, so the stored `prompt_hash` values do not match what current `src/utils/constants.py` would produce. A fresh `benchmark run` will therefore see zero completed rows and dispatch the full ~40k-call sweep from scratch. The committed report and per-call artifacts remain valid for review; they are just not bit-reproducible from the committed code without restoring the Zyn-removed state.
 
+## [2.5.22] - 2026-05-25
+
+### Fixed
+
+- **Third-party HTTP/LLM SDK DEBUG output no longer bleeds into Loki when `LOG_LEVEL=DEBUG`.** Production runs at DEBUG so the application's own loggers (`podcast.refresh`, `podcast.patterns`, `pricing_fetcher`, `storage`, etc.) can be inspected, but the same setting was letting `openai._base_client`, `httpcore.http11`, and `httpx` emit full request/response dumps -- request headers, idempotency keys, response bodies -- on every LLM call. `setup_logging` in `src/main_app/__init__.py` now pins `openai`, `httpx`, `httpcore`, `anthropic`, `asyncio`, `charset_normalizer`, and `requests` to WARNING regardless of root level. The application's `podcast.llm_io` logger is unaffected so prompt/response capture still works on demand. Loki triage post-2.5.21 surfaced roughly 35 of these DEBUG lines per ad-detection run, plus continuous chatter from RSS refresh and pricing-fetcher; that volume now stays out of the log stream.
+
+## [2.5.21] - 2026-05-24
+
+### Changed
+
+- **Rolled up 14 open Dependabot updates** onto the 2.5.20 transport-bar fix. Pip: `idna` 3.15 -> 3.16 (CVE-2026-45409 floor bump), `huggingface-hub` 1.15.0 -> 1.16.1, `ctranslate2` 4.7.1 -> 4.7.2, `openai` 2.37.0 -> 2.38.0, `pyjwt` 2.12.1 -> 2.13.0. npm (frontend dev/runtime): `@tailwindcss/vite` 4.2.4 -> 4.3.0, `typescript-eslint` 8.59.3 -> 8.59.4, `@typescript-eslint/eslint-plugin` 8.59.3 -> 8.59.4, `@types/react` 19.2.14 -> 19.2.15, `react-router-dom` 7.15.0 -> 7.15.1. Docker base: `nvidia/cuda` 12.9.1-runtime-ubuntu24.04 -> 12.9.2-runtime-ubuntu24.04 (GPU image only; `Dockerfile.cpu` stays on `ubuntu:24.04` per the mirror checklist). GitHub Actions (SHA-pinned, SHAs copied from each Dependabot PR rather than typed): `actions/setup-python` v5.6.0 -> v6.2.0 (regenerate-manifest workflow), `docker/setup-buildx-action` v4.0.0 -> v4.1.0 and `docker/build-push-action` v7.1.0 -> v7.2.0 (cpu-image workflow, both setup-buildx call sites). Closes #272, #273, #274, #275, #276, #277, #278, #279, #280, #281, #282, #283, #284, #285.
+
+## [2.5.20] - 2026-05-23
+
+### Fixed
+
+- **Ad Review transport bar keeps the speed selector inline with the playback buttons on narrow viewports** instead of wrapping it to a new row inside the box (2.5.19's approach, which the design rejected). The buttons cluster + selector is compacted in place: per-button padding `p-2` -> `p-1.5`, inner gap `gap-1` -> `gap-0.5`, the decorative `border-l` divider between Stop and the selector is dropped, and the selector itself shrinks from `h-8 pl-2 pr-5` to `h-7 pl-1.5 pr-4` with the chevron pulled in from `right-1.5` to `right-1`. Saves roughly 50 px of inner-row width, enough that all 7 controls fit on a single row inside the bordered transport bar at typical mobile widths. Outer container's `flex-wrap` is kept so the time readout still drops below the controls if space is too tight; the readout was never the overflow culprit.
+
+## [2.5.19] - 2026-05-23
+
+### Fixed
+
+- **Ad Review transport bar no longer overflows on narrow viewports.** The playback-rate `<select>` lives in the same inner flex container as the play/seek buttons inside the bordered transport bar in `AdReviewModal`. The outer container already had `flex-wrap`, so the right-side time readout dropped to a new row on narrow widths, but the inner buttons div lacked `flex-wrap`, so the speed selector was pushed past the container's right border and rendered visually outside the box. Added `flex-wrap` to the inner div so the selector now wraps onto a new row inside the bordered control rather than escaping it.
+
 ## [2.5.18] - 2026-05-22
 
 ### Added
