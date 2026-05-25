@@ -23,6 +23,7 @@ from config import (
     AD_DETECTION_PARALLEL_WINDOWS_DEFAULT,
     AD_DETECTION_PARALLEL_WINDOWS_MIN,
     AD_DETECTION_PARALLEL_WINDOWS_MAX,
+    coerce_bool_setting,
 )
 from pricing_fetcher import force_refresh_pricing
 from llm_client import (
@@ -197,7 +198,7 @@ def get_settings():
     audio_bitrate = _setting_value(settings, 'audio_bitrate', DEFAULT_AUDIO_BITRATE)
     default_skip_flac = os.environ.get('SKIP_FLAC_COMPRESSION', 'false')
     skip_flac_raw = _setting_value(settings, 'skip_flac_compression', default_skip_flac)
-    skip_flac = str(skip_flac_raw).lower() in ('true', '1', 'yes')
+    skip_flac = coerce_bool_setting(skip_flac_raw)
 
     default_parallel_windows = str(AD_DETECTION_PARALLEL_WINDOWS_DEFAULT)
     parallel_windows_raw = _setting_value(
@@ -338,7 +339,7 @@ def get_settings():
             'vadGapMidMinSeconds': default_vad_gap_mid,
             'vadGapTailMinSeconds': default_vad_gap_tail,
             'audioBitrate': DEFAULT_AUDIO_BITRATE,
-            'skipFlacCompression': str(os.environ.get('SKIP_FLAC_COMPRESSION', 'false')).lower() in ('true', '1', 'yes'),
+            'skipFlacCompression': coerce_bool_setting(os.environ.get('SKIP_FLAC_COMPRESSION', 'false')),
             'adDetectionParallelWindows': AD_DETECTION_PARALLEL_WINDOWS_DEFAULT,
         }
     })
@@ -671,11 +672,7 @@ def _apply_whisper_fields(db, data):
         logger.info(f"Updated whisper compute type to: {ct_val}")
 
     if 'skipFlacCompression' in data:
-        raw = data['skipFlacCompression']
-        if isinstance(raw, bool):
-            enabled = raw
-        else:
-            enabled = str(raw).strip().lower() in ('true', '1', 'yes')
+        enabled = coerce_bool_setting(data['skipFlacCompression'])
         db.set_setting('skip_flac_compression', 'true' if enabled else 'false', is_default=False)
         logger.info(f"Updated skip_flac_compression to: {enabled}")
     return None

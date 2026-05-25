@@ -109,7 +109,6 @@ def _resolve_parallel_windows() -> int:
     the validated [1, 32] range so a misconfigured DB row never breaks
     detection.
     """
-    db_val: Optional[str] = None
     try:
         from llm_client import _get_cached_setting
         db_val = _get_cached_setting('ad_detection_parallel_windows')

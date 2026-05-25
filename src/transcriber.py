@@ -37,6 +37,7 @@ from config import (
     HTTP_MAX_REDIRECTS_API,
     HTTP_MAX_REDIRECTS_FEED,
     HTTP_TIMEOUT_WHISPER,
+    coerce_bool_setting,
 )
 
 # Suppress ONNX Runtime warnings before importing faster_whisper
@@ -292,7 +293,7 @@ def _get_whisper_settings() -> Dict[str, str]:
         'api_key': os.environ.get('WHISPER_API_KEY', ''),
         'api_model': os.environ.get('WHISPER_API_MODEL', 'whisper-1'),
         'language': os.environ.get('WHISPER_LANGUAGE') or 'en',
-        'skip_flac_compression': str(os.environ.get('SKIP_FLAC_COMPRESSION', 'false')).lower() in ('true', '1', 'yes'),
+        'skip_flac_compression': coerce_bool_setting(os.environ.get('SKIP_FLAC_COMPRESSION', 'false')),
     }
     try:
         # Inline import: Database depends on modules that import transcriber,
@@ -315,7 +316,7 @@ def _get_whisper_settings() -> Dict[str, str]:
 
         skip_flac_raw = db.get_setting('skip_flac_compression')
         if skip_flac_raw is not None:
-            defaults['skip_flac_compression'] = str(skip_flac_raw).lower() in ('true', '1', 'yes')
+            defaults['skip_flac_compression'] = coerce_bool_setting(skip_flac_raw)
     except Exception as e:
         logger.warning(f"Could not read whisper settings from DB, using env defaults: {e}")
 

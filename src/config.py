@@ -666,6 +666,24 @@ def _validate_bool_string(value: str) -> bool:
     return str(value).strip().lower() in ('true', 'false', '1', '0', 'yes', 'no')
 
 
+# Truthy set shared by every boolean settings coercion. Mirror in
+# frontend code if the wire format ever needs to accept more variants.
+_TRUTHY_STRINGS = ('true', '1', 'yes')
+
+
+def coerce_bool_setting(value) -> bool:
+    """Coerce a raw setting value to bool the same way everywhere.
+
+    Accepts native ``bool``, strings, or anything string-coercible. Returns
+    True if the lowercased string form is in the truthy set, else False.
+    Used by settings GET, PUT, and the transcriber consumer so all four
+    sites agree on the truthy/falsy boundary.
+    """
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in _TRUTHY_STRINGS
+
+
 def _validate_parallel_windows(value: str) -> bool:
     try:
         n = int(value)

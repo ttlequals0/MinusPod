@@ -1158,7 +1158,7 @@ class SchemaMixin:
         )
 
         # Step 2: audit log.
-        for db_key, env_var, _fallback, _validator in ENV_BACKED_SETTINGS:
+        for db_key, _env_var, _fallback, _validator in ENV_BACKED_SETTINGS:
             env_value = resolve_env_backed_default(db_key)
             row = conn.execute(
                 "SELECT value, is_default FROM settings WHERE key = ?",
@@ -1183,7 +1183,7 @@ class SchemaMixin:
             "SELECT 1 FROM schema_migrations WHERE name = 'env_backed_settings_correct_flags'"
         ).fetchone()
         if gate is None:
-            for db_key, env_var, _fallback, _validator in ENV_BACKED_SETTINGS:
+            for db_key, _env_var, _fallback, _validator in ENV_BACKED_SETTINGS:
                 env_value = resolve_env_backed_default(db_key)
                 row = conn.execute(
                     "SELECT value, is_default FROM settings WHERE key = ?",
@@ -1207,7 +1207,7 @@ class SchemaMixin:
             )
 
         # Step 4: per-boot resync (also inserts missing rows for new keys).
-        for db_key, env_var, _fallback, _validator in ENV_BACKED_SETTINGS:
+        for db_key, _env_var, _fallback, _validator in ENV_BACKED_SETTINGS:
             env_value = resolve_env_backed_default(db_key)
             row = conn.execute(
                 "SELECT value, is_default FROM settings WHERE key = ?",
