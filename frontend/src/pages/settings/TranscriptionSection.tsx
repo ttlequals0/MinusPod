@@ -161,23 +161,27 @@ function TranscriptionSection({
               </p>
             </div>
 
-            <div>
-              <label className="flex items-center gap-3 cursor-pointer">
-                <ToggleSwitch
-                  checked={skipFlacCompression}
-                  onChange={onSkipFlacCompressionChange}
-                  ariaLabel={skipFlacCompression ? 'Skip FLAC compression enabled' : 'Skip FLAC compression disabled'}
-                />
-                <span className="text-sm font-medium text-foreground">
-                  Skip FLAC compression
-                </span>
-              </label>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Upload the preprocessed WAV directly to the Whisper API. Useful only for self-hosted Whisper servers that accept uncompressed audio. Default off so that public OpenAI / OpenRouter endpoints stay under their upload size limits.
-              </p>
-            </div>
           </>
         )}
+
+        <div className="pt-2 border-t border-border">
+          <label className="flex items-center gap-3 cursor-pointer">
+            <ToggleSwitch
+              checked={skipFlacCompression}
+              onChange={onSkipFlacCompressionChange}
+              ariaLabel={skipFlacCompression ? 'Skip FLAC compression enabled' : 'Skip FLAC compression disabled'}
+            />
+            <span className="text-sm font-medium text-foreground">
+              Skip FLAC compression
+            </span>
+          </label>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Upload the preprocessed WAV directly to the Whisper API instead of re-encoding to FLAC first.
+            Only applies when the Whisper backend is set to API. Useful for self-hosted Whisper servers
+            that accept uncompressed audio. Default off so that public OpenAI / OpenRouter endpoints
+            stay under their upload size limits.
+          </p>
+        </div>
 
         <div className="pt-2 border-t border-border">
           <label htmlFor="whisperLanguage" className="block text-sm font-medium text-foreground mb-2">

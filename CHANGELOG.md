@@ -30,6 +30,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The committed `calls.jsonl` rows were generated against a `SEED_SPONSORS` list that briefly excluded the `Zyn` entry (a local diff that was later reverted to match main). The system prompt for ad detection joins SEED_SPONSORS names, so the stored `prompt_hash` values do not match what current `src/utils/constants.py` would produce. A fresh `benchmark run` will therefore see zero completed rows and dispatch the full ~40k-call sweep from scratch. The committed report and per-call artifacts remain valid for review; they are just not bit-reproducible from the committed code without restoring the Zyn-removed state.
 
+## [2.5.24] - 2026-05-25
+
+### Fixed
+
+- **"Skip FLAC compression" toggle is now visible in Settings regardless of the active Whisper backend.** 2.5.23 placed the control inside the `whisperBackend === WHISPER_BACKENDS.OPENAI_API` conditional block, which made the toggle invisible on Local-Whisper deployments and prevented operators from configuring the preference before switching backends. Moved the toggle out of the conditional so it always renders under the Transcription section. The help text now states explicitly that the setting only takes effect when the Whisper backend is set to API; on Local Whisper the toggle stores the preference for later use but is a no-op because no audio is uploaded to begin with.
+
 ## [2.5.23] - 2026-05-25
 
 ### Added
