@@ -30,6 +30,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The committed `calls.jsonl` rows were generated against a `SEED_SPONSORS` list that briefly excluded the `Zyn` entry (a local diff that was later reverted to match main). The system prompt for ad detection joins SEED_SPONSORS names, so the stored `prompt_hash` values do not match what current `src/utils/constants.py` would produce. A fresh `benchmark run` will therefore see zero completed rows and dispatch the full ~40k-call sweep from scratch. The committed report and per-call artifacts remain valid for review; they are just not bit-reproducible from the committed code without restoring the Zyn-removed state.
 
+## [2.5.22] - 2026-05-25
+
+### Fixed
+
+- **Third-party HTTP/LLM SDK DEBUG output no longer bleeds into Loki when `LOG_LEVEL=DEBUG`.** Production runs at DEBUG so the application's own loggers (`podcast.refresh`, `podcast.patterns`, `pricing_fetcher`, `storage`, etc.) can be inspected, but the same setting was letting `openai._base_client`, `httpcore.http11`, and `httpx` emit full request/response dumps -- request headers, idempotency keys, response bodies -- on every LLM call. `setup_logging` in `src/main_app/__init__.py` now pins `openai`, `httpx`, `httpcore`, `anthropic`, `asyncio`, `charset_normalizer`, and `requests` to WARNING regardless of root level. The application's `podcast.llm_io` logger is unaffected so prompt/response capture still works on demand. Loki triage post-2.5.21 surfaced roughly 35 of these DEBUG lines per ad-detection run, plus continuous chatter from RSS refresh and pricing-fetcher; that volume now stays out of the log stream.
+
 ## [2.5.21] - 2026-05-24
 
 ### Changed

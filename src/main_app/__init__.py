@@ -117,6 +117,15 @@ def setup_logging():
     logging.getLogger('werkzeug').setLevel(logging.INFO)
     logging.getLogger('urllib3').setLevel(logging.WARNING)
 
+    # Third-party HTTP / LLM SDK loggers stay at WARNING even when
+    # LOG_LEVEL=DEBUG -- their DEBUG output is request/response dumps that
+    # bleed into Loki and bury real signal. The application's own
+    # podcast.llm_io logger still emits prompt/response bodies at DEBUG when
+    # the operator asks for it.
+    for noisy in ('openai', 'httpx', 'httpcore', 'anthropic',
+                  'asyncio', 'charset_normalizer', 'requests'):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
+
     # Create application loggers
     for name in ['podcast.api', 'podcast.feed', 'podcast.audio',
                  'podcast.transcribe', 'podcast.claude', 'podcast.refresh',
