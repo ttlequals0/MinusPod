@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.5.24
+  version: 2.5.25
   contact:
     name: MinusPod
   license:
@@ -4299,6 +4299,16 @@ paths:
                 properties:
                   updatePatternsFromReviewerAdjustments: { type: boolean }
                   minTrimThreshold: { type: number }
+                  parallelAds:
+                    type: integer
+                    minimum: 1
+                    maximum: 32
+                    description: |
+                      Number of ads the reviewer reviews concurrently via the LLM.
+                      1 preserves the original sequential behavior.
+                  parallelAdsDefault:
+                    type: integer
+                    description: Default value of parallelAds (env-backed registry).
     put:
       summary: Update ad-reviewer auto-update settings
       tags: [Settings]
@@ -4311,6 +4321,13 @@ paths:
               properties:
                 updatePatternsFromReviewerAdjustments: { type: boolean }
                 minTrimThreshold: { type: number, minimum: 1, maximum: 120 }
+                parallelAds:
+                  type: integer
+                  minimum: 1
+                  maximum: 32
+                  description: |
+                    Number of ads the reviewer reviews concurrently. Range 1-32,
+                    default 4.
       responses:
         '200':
           description: Updated settings

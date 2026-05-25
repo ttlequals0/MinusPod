@@ -30,6 +30,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The committed `calls.jsonl` rows were generated against a `SEED_SPONSORS` list that briefly excluded the `Zyn` entry (a local diff that was later reverted to match main). The system prompt for ad detection joins SEED_SPONSORS names, so the stored `prompt_hash` values do not match what current `src/utils/constants.py` would produce. A fresh `benchmark run` will therefore see zero completed rows and dispatch the full ~40k-call sweep from scratch. The committed report and per-call artifacts remain valid for review; they are just not bit-reproducible from the committed code without restoring the Zyn-removed state.
 
+## [2.5.25] - 2026-05-25
+
+### Added
+
+- **Parallel reviewer passes via a separate `AD_REVIEWER_PARALLEL_ADS` knob.** 2.5.23 parallelized ad detection and verification windows; the Ad Reviewer was left sequential because it iterates one ad at a time rather than one window at a time. `AdReviewer._review_inner` now runs the accepted and resurrection pools through a shared `_run_review_batch` helper that uses `ThreadPoolExecutor` with bounded concurrency, position-indexed merge to keep verdicts in input order, and an early-exit single-item path that skips the executor entirely. Default 4 concurrent reviews; validated [1, 32]. Exposed in the Settings page under the existing "Ad Reviewer" section as a new "Parallel ad reviews" numeric input, and on the API via `GET/PUT /settings/reviewer` as `parallelAds` / `parallelAdsDefault`. Setting to 1 preserves the original sequential behavior. Registered in `ENV_BACKED_SETTINGS` so the same data-preserving migration story from 2.5.23 applies (UI customizations survive env changes).
+
 ## [2.5.24] - 2026-05-25
 
 ### Fixed

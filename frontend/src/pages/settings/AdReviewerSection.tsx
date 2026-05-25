@@ -7,6 +7,7 @@ import { getReviewerSettings, updateReviewerSettings } from '../../api/community
 interface Draft {
   enabled?: boolean;
   threshold?: number;
+  parallelAds?: number;
 }
 
 function AdReviewerSection() {
@@ -19,12 +20,15 @@ function AdReviewerSection() {
   const [draft, setDraft] = useState<Draft>({});
   const enabled = draft.enabled ?? data?.updatePatternsFromReviewerAdjustments ?? true;
   const threshold = draft.threshold ?? data?.minTrimThreshold ?? 20;
+  const parallelAdsDefault = data?.parallelAdsDefault ?? 4;
+  const parallelAds = draft.parallelAds ?? data?.parallelAds ?? parallelAdsDefault;
 
   const save = useMutation({
     mutationFn: () =>
       updateReviewerSettings({
         updatePatternsFromReviewerAdjustments: enabled,
         minTrimThreshold: threshold,
+        parallelAds,
       }),
     onSuccess: () => {
       setDraft({});
@@ -73,6 +77,44 @@ function AdReviewerSection() {
               <span className="text-sm text-muted-foreground">seconds</span>
             </div>
           )}
+
+          <div className="pt-2 border-t border-border">
+            <div className="flex items-center gap-3">
+              <label htmlFor="reviewerParallelAds" className="text-sm text-muted-foreground whitespace-nowrap">
+                Parallel ad reviews:
+              </label>
+              <input
+                id="reviewerParallelAds"
+                type="number"
+                min={1}
+                max={32}
+                step={1}
+                value={parallelAds}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  if (raw === '') {
+                    setDraft((d) => ({ ...d, parallelAds: parallelAdsDefault }));
+                    return;
+                  }
+                  const v = parseInt(raw, 10);
+                  if (!Number.isFinite(v)) return;
+                  setDraft((d) => ({ ...d, parallelAds: Math.max(1, Math.min(32, v)) }));
+                }}
+                onBlur={(e) => {
+                  if (e.target.value === '') {
+                    setDraft((d) => ({ ...d, parallelAds: parallelAdsDefault }));
+                  }
+                }}
+                className="w-24 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground"
+              />
+              <span className="text-sm text-muted-foreground">ads at a time</span>
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Number of ads the reviewer asks the LLM about at the same time. 1 means sequential
+              (original behavior). Higher values speed up reviewer passes on episodes with many
+              ads, at the cost of more concurrent LLM load. Range 1-32, default {parallelAdsDefault}.
+            </p>
+          </div>
 
           <button
             type="button"

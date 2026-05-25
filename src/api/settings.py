@@ -1425,12 +1425,28 @@ def test_webhook(webhook_id):
 @log_request
 def get_reviewer_settings():
     """Return the ad-reviewer auto-update settings."""
+    from config import (
+        AD_REVIEWER_PARALLEL_ADS_DEFAULT,
+        AD_REVIEWER_PARALLEL_ADS_MIN,
+        AD_REVIEWER_PARALLEL_ADS_MAX,
+    )
     db = get_database()
+    parallel_raw = db.get_setting('ad_reviewer_parallel_ads')
+    try:
+        parallel_ads = int(parallel_raw) if parallel_raw is not None else AD_REVIEWER_PARALLEL_ADS_DEFAULT
+    except (TypeError, ValueError):
+        parallel_ads = AD_REVIEWER_PARALLEL_ADS_DEFAULT
+    parallel_ads = max(
+        AD_REVIEWER_PARALLEL_ADS_MIN,
+        min(AD_REVIEWER_PARALLEL_ADS_MAX, parallel_ads),
+    )
     return json_response({
         'updatePatternsFromReviewerAdjustments': db.get_setting_bool(
             'update_patterns_from_reviewer_adjustments', default=True
         ),
         'minTrimThreshold': db.get_setting_float('min_trim_threshold', default=20.0),
+        'parallelAds': parallel_ads,
+        'parallelAdsDefault': AD_REVIEWER_PARALLEL_ADS_DEFAULT,
     })
 
 
@@ -1439,8 +1455,13 @@ def get_reviewer_settings():
 def update_reviewer_settings():
     """Update the ad-reviewer auto-update settings.
 
-    Body: {updatePatternsFromReviewerAdjustments: bool, minTrimThreshold: float}
+    Body: {updatePatternsFromReviewerAdjustments: bool, minTrimThreshold: float,
+           parallelAds: int}
     """
+    from config import (
+        AD_REVIEWER_PARALLEL_ADS_MIN,
+        AD_REVIEWER_PARALLEL_ADS_MAX,
+    )
     db = get_database()
     data = request.get_json() or {}
     if 'updatePatternsFromReviewerAdjustments' in data:
@@ -1454,6 +1475,18 @@ def update_reviewer_settings():
         if v <= 0 or v > 120:
             return error_response('minTrimThreshold must be between 1 and 120', 400)
         db.set_setting('min_trim_threshold', str(v))
+    if 'parallelAds' in data:
+        try:
+            n = int(data['parallelAds'])
+        except (TypeError, ValueError):
+            return error_response('parallelAds must be an integer', 400)
+        if not (AD_REVIEWER_PARALLEL_ADS_MIN <= n <= AD_REVIEWER_PARALLEL_ADS_MAX):
+            return error_response(
+                f'parallelAds must be between {AD_REVIEWER_PARALLEL_ADS_MIN} '
+                f'and {AD_REVIEWER_PARALLEL_ADS_MAX}',
+                400,
+            )
+        db.set_setting('ad_reviewer_parallel_ads', str(n), is_default=False)
     return get_reviewer_settings()
 
 

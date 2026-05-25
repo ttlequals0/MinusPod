@@ -2,10 +2,17 @@
 import logging
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import Callable, Dict, List, Literal, Optional, Tuple
 
-from config import resolve_stage_tunables
+from config import (
+    resolve_stage_tunables,
+    AD_REVIEWER_PARALLEL_ADS_DEFAULT,
+    AD_REVIEWER_PARALLEL_ADS_MIN,
+    AD_REVIEWER_PARALLEL_ADS_MAX,
+    resolve_env_backed_default,
+)
 from database import DEFAULT_REVIEW_PROMPT, DEFAULT_RESURRECT_PROMPT
 from llm_capabilities import PASS_REVIEWER_1, PASS_REVIEWER_2
 from llm_client import get_llm_max_retries, get_llm_timeout
@@ -18,6 +25,29 @@ from utils.text import get_transcript_text_for_range
 Verdict = Literal["confirmed", "adjust", "reject", "resurrect", "failure"]
 
 logger = logging.getLogger(__name__)
+
+
+def _resolve_reviewer_parallel_ads() -> int:
+    """Resolve the reviewer parallel-ads concurrency for this run.
+
+    DB-customized value wins over env default; both fall back to the
+    registered default in ENV_BACKED_SETTINGS. Clamped to [1, 32].
+    """
+    try:
+        from llm_client import _get_cached_setting
+        db_val = _get_cached_setting('ad_reviewer_parallel_ads')
+    except Exception:
+        db_val = None
+
+    raw = db_val if db_val is not None else resolve_env_backed_default('ad_reviewer_parallel_ads')
+    try:
+        n = int(raw) if raw is not None else AD_REVIEWER_PARALLEL_ADS_DEFAULT
+    except (ValueError, TypeError):
+        n = AD_REVIEWER_PARALLEL_ADS_DEFAULT
+    return max(
+        AD_REVIEWER_PARALLEL_ADS_MIN,
+        min(AD_REVIEWER_PARALLEL_ADS_MAX, n),
+    )
 
 
 # How wide the resurrection band is below the user's min_cut_confidence
@@ -145,19 +175,31 @@ class AdReviewer:
 
         result = ReviewResult(verdicts=[])
 
-        for ad in accepted_ads:
-            verdict, updated_ad = self._review_single(
-                ad=ad,
-                pool="accepted",
-                pass_num=pass_num,
-                segments=segments,
-                episode_meta=episode_meta,
-                system_prompt=review_prompt,
-                model=model,
-                max_shift=max_shift,
+        parallel_ads = _resolve_reviewer_parallel_ads()
+        if parallel_ads > 1 and (len(accepted_ads) + len(resurrection_eligible)) > 1:
+            logger.info(
+                f"[{episode_meta.get('slug')}:{episode_meta.get('episode_id')}] "
+                f"Reviewer pass {pass_num} running "
+                f"{len(accepted_ads)}+{len(resurrection_eligible)} ads with "
+                f"concurrency={parallel_ads}"
             )
-            result.verdicts.append(verdict)
 
+        # Accepted pool first. Position-indexed merge preserves input order so
+        # verdicts list and downstream pattern-correction lookups match the
+        # original sequential semantics.
+        accepted_results = self._run_review_batch(
+            accepted_ads,
+            pool="accepted",
+            pass_num=pass_num,
+            segments=segments,
+            episode_meta=episode_meta,
+            system_prompt=review_prompt,
+            model=model,
+            max_shift=max_shift,
+            max_workers=parallel_ads,
+        )
+        for verdict, updated_ad in accepted_results:
+            result.verdicts.append(verdict)
             if verdict.verdict == "reject":
                 marked = dict(updated_ad)
                 marked["was_cut"] = False
@@ -168,23 +210,21 @@ class AdReviewer:
                 marked["source"] = "reviewer"
                 result.rejected_by_reviewer.append(marked)
             else:
-                # confirmed/adjust/failure stay in cut list; _review_single
-                # already mutated boundaries for adjust.
                 result.accepted_after_review.append(updated_ad)
 
-        for ad in resurrection_eligible:
-            verdict, updated_ad = self._review_single(
-                ad=ad,
-                pool="resurrection",
-                pass_num=pass_num,
-                segments=segments,
-                episode_meta=episode_meta,
-                system_prompt=resurrect_prompt,
-                model=model,
-                max_shift=max_shift,
-            )
+        resurrection_results = self._run_review_batch(
+            resurrection_eligible,
+            pool="resurrection",
+            pass_num=pass_num,
+            segments=segments,
+            episode_meta=episode_meta,
+            system_prompt=resurrect_prompt,
+            model=model,
+            max_shift=max_shift,
+            max_workers=parallel_ads,
+        )
+        for verdict, updated_ad in resurrection_results:
             result.verdicts.append(verdict)
-
             if verdict.verdict == "resurrect":
                 marked = dict(updated_ad)
                 marked["was_cut"] = True
@@ -198,6 +238,39 @@ class AdReviewer:
 
         self._flush_log(result.verdicts, episode_meta)
         return result
+
+    def _run_review_batch(self, ads, *, pool, pass_num, segments,
+                          episode_meta, system_prompt, model, max_shift,
+                          max_workers):
+        """Run _review_single across a list of ads, sequential or via thread
+        pool depending on max_workers. Returns (verdict, updated_ad) pairs
+        in input order regardless of completion order."""
+        if not ads:
+            return []
+
+        def _run_one(idx):
+            return self._review_single(
+                ad=ads[idx],
+                pool=pool,
+                pass_num=pass_num,
+                segments=segments,
+                episode_meta=episode_meta,
+                system_prompt=system_prompt,
+                model=model,
+                max_shift=max_shift,
+            )
+
+        if max_workers <= 1 or len(ads) == 1:
+            return [_run_one(i) for i in range(len(ads))]
+
+        ordered = [None] * len(ads)
+        with ThreadPoolExecutor(max_workers=max_workers,
+                                thread_name_prefix='reviewer') as executor:
+            futures = {executor.submit(_run_one, i): i for i in range(len(ads))}
+            for fut in as_completed(futures):
+                idx = futures[fut]
+                ordered[idx] = fut.result()
+        return ordered
 
     def _review_single(
         self,

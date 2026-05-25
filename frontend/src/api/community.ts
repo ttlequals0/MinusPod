@@ -53,6 +53,8 @@ export async function purgeAllCommunityPatterns(): Promise<{ deleted: number }> 
 export interface ReviewerSettings {
   updatePatternsFromReviewerAdjustments: boolean;
   minTrimThreshold: number;
+  parallelAds: number;
+  parallelAdsDefault: number;
 }
 
 export async function getReviewerSettings(): Promise<ReviewerSettings> {

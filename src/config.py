@@ -658,6 +658,14 @@ AD_DETECTION_PARALLEL_WINDOWS_MIN = 1
 AD_DETECTION_PARALLEL_WINDOWS_MAX = 32
 
 
+# Ad-reviewer parallelism. Tracks the same shape as the detector knob but
+# is tuned separately because each reviewer call is one ad (not one
+# transcript window), so the cost / latency profile is different.
+AD_REVIEWER_PARALLEL_ADS_DEFAULT = 4
+AD_REVIEWER_PARALLEL_ADS_MIN = 1
+AD_REVIEWER_PARALLEL_ADS_MAX = 32
+
+
 def _validate_audio_bitrate(value: str) -> bool:
     return value in ALLOWED_AUDIO_BITRATES
 
@@ -692,6 +700,14 @@ def _validate_parallel_windows(value: str) -> bool:
     return AD_DETECTION_PARALLEL_WINDOWS_MIN <= n <= AD_DETECTION_PARALLEL_WINDOWS_MAX
 
 
+def _validate_reviewer_parallel(value: str) -> bool:
+    try:
+        n = int(value)
+    except (ValueError, TypeError):
+        return False
+    return AD_REVIEWER_PARALLEL_ADS_MIN <= n <= AD_REVIEWER_PARALLEL_ADS_MAX
+
+
 # Registry of settings whose default is an environment variable.
 #
 # Each tuple: (db_key, env_var, fallback_default, optional_validator)
@@ -715,6 +731,12 @@ ENV_BACKED_SETTINGS = (
         'AD_DETECTION_PARALLEL_WINDOWS',
         str(AD_DETECTION_PARALLEL_WINDOWS_DEFAULT),
         _validate_parallel_windows,
+    ),
+    (
+        'ad_reviewer_parallel_ads',
+        'AD_REVIEWER_PARALLEL_ADS',
+        str(AD_REVIEWER_PARALLEL_ADS_DEFAULT),
+        _validate_reviewer_parallel,
     ),
 )
 
