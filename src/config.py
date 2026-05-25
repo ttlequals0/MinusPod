@@ -648,3 +648,70 @@ def resolve_stage_tunables(prefix: str, settings: Optional[dict] = None):
 # frontend/src/pages/settings/AudioSection.tsx.
 ALLOWED_AUDIO_BITRATES = ('64k', '96k', '128k', '192k', '256k')
 DEFAULT_AUDIO_BITRATE = '128k'
+
+
+# Ad-detection parallelism. Bounded ceiling protects against accidental
+# fan-out into upstream LLM rate limits. Default of 4 was chosen as a
+# conservative starting point for tier 1+ Anthropic / OpenRouter plans.
+AD_DETECTION_PARALLEL_WINDOWS_DEFAULT = 4
+AD_DETECTION_PARALLEL_WINDOWS_MIN = 1
+AD_DETECTION_PARALLEL_WINDOWS_MAX = 32
+
+
+def _validate_audio_bitrate(value: str) -> bool:
+    return value in ALLOWED_AUDIO_BITRATES
+
+
+def _validate_bool_string(value: str) -> bool:
+    return str(value).strip().lower() in ('true', 'false', '1', '0', 'yes', 'no')
+
+
+def _validate_parallel_windows(value: str) -> bool:
+    try:
+        n = int(value)
+    except (ValueError, TypeError):
+        return False
+    return AD_DETECTION_PARALLEL_WINDOWS_MIN <= n <= AD_DETECTION_PARALLEL_WINDOWS_MAX
+
+
+# Registry of settings whose default is an environment variable.
+#
+# Each tuple: (db_key, env_var, fallback_default, optional_validator)
+#
+# Behavior in src/database/schema/__init__.py _run_env_backed_settings_migration:
+# - On every boot: rows where is_default=1 re-sync to the current env_var
+#   value. Rows where is_default=0 (user customized via UI) are never touched.
+# - One-shot corrective migration on the FIRST 2.5.23 boot: any row where
+#   is_default=1 but value != env_var is treated as evidence the value was
+#   customized in the past without the flag being set; the migration flips
+#   is_default to 0 and KEEPS the existing value. The migration never writes
+#   value during the corrective pass -- data is never lost.
+# - validator runs on the env_var value at boot. If validation fails the
+#   env_var is ignored and the registry's fallback_default is used instead.
+ENV_BACKED_SETTINGS = (
+    ('llm_provider', 'LLM_PROVIDER', 'anthropic', None),
+    ('audio_bitrate', 'AUDIO_BITRATE', DEFAULT_AUDIO_BITRATE, _validate_audio_bitrate),
+    ('skip_flac_compression', 'SKIP_FLAC_COMPRESSION', 'false', _validate_bool_string),
+    (
+        'ad_detection_parallel_windows',
+        'AD_DETECTION_PARALLEL_WINDOWS',
+        str(AD_DETECTION_PARALLEL_WINDOWS_DEFAULT),
+        _validate_parallel_windows,
+    ),
+)
+
+
+def resolve_env_backed_default(key: str) -> Optional[str]:
+    """Return the validated env_var value for a registered key, or its
+    fallback default. Returns None if the key is not in ENV_BACKED_SETTINGS.
+    """
+    for db_key, env_var, fallback, validator in ENV_BACKED_SETTINGS:
+        if db_key != key:
+            continue
+        raw = os.environ.get(env_var)
+        if raw is None:
+            return fallback
+        if validator is not None and not validator(raw):
+            return fallback
+        return raw
+    return None

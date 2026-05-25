@@ -1118,6 +1118,126 @@ class SchemaMixin:
         except Exception as e:
             logger.error(f"Community scope normalize failed: {e}")
 
+        # ENV_BACKED_SETTINGS registry sync (2.5.23+). Runs on every boot,
+        # idempotent. See src/config.py ENV_BACKED_SETTINGS for the full
+        # contract. Never overwrites a row's value during the corrective
+        # pass -- only flips is_default in the protective direction.
+        try:
+            self._run_env_backed_settings_migration(conn)
+        except Exception as e:
+            logger.error(f"env-backed settings migration failed: {e}")
+
+    def _run_env_backed_settings_migration(self, conn):
+        """One-shot corrective pass + per-boot resync for env-backed settings.
+
+        Three steps, in order:
+
+        1. Ensure ``schema_migrations`` table exists. Idempotent.
+        2. Audit log every registered key's current state at INFO so any
+           deployer has a recoverable trail without per-key custom queries.
+        3. If the ``env_backed_settings_correct_flags`` migration row is
+           absent, run the corrective pass once: for each registered key
+           where the row exists, ``is_default=1`` and the stored value
+           differs from the validated env value, flip ``is_default`` to 0
+           and KEEP the stored value. The migration never writes value
+           during this pass, so no data is lost on any deployer's DB.
+        4. Per-boot resync: for each registered key, if the row is missing
+           insert it from env with ``is_default=1``; if the row exists and
+           ``is_default=1`` and value differs from env, update the value
+           (env changed since last boot, treat as canonical default).
+        """
+        from config import ENV_BACKED_SETTINGS, resolve_env_backed_default
+
+        conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS schema_migrations (
+                name TEXT PRIMARY KEY,
+                applied_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+            )
+            """
+        )
+
+        # Step 2: audit log.
+        for db_key, env_var, _fallback, _validator in ENV_BACKED_SETTINGS:
+            env_value = resolve_env_backed_default(db_key)
+            row = conn.execute(
+                "SELECT value, is_default FROM settings WHERE key = ?",
+                (db_key,),
+            ).fetchone()
+            if row is None:
+                logger.info(
+                    "env-backed-settings audit: key=%s row=absent env=%s",
+                    db_key, env_value,
+                )
+            else:
+                value = row['value'] if isinstance(row, sqlite3.Row) else row[0]
+                is_default = row['is_default'] if isinstance(row, sqlite3.Row) else row[1]
+                match = (value == env_value)
+                logger.info(
+                    "env-backed-settings audit: key=%s value=%s is_default=%s env=%s match=%s",
+                    db_key, value, is_default, env_value, match,
+                )
+
+        # Step 3: one-shot corrective flag pass, gated.
+        gate = conn.execute(
+            "SELECT 1 FROM schema_migrations WHERE name = 'env_backed_settings_correct_flags'"
+        ).fetchone()
+        if gate is None:
+            for db_key, env_var, _fallback, _validator in ENV_BACKED_SETTINGS:
+                env_value = resolve_env_backed_default(db_key)
+                row = conn.execute(
+                    "SELECT value, is_default FROM settings WHERE key = ?",
+                    (db_key,),
+                ).fetchone()
+                if row is None:
+                    continue
+                value = row['value'] if isinstance(row, sqlite3.Row) else row[0]
+                is_default = row['is_default'] if isinstance(row, sqlite3.Row) else row[1]
+                if is_default and value != env_value:
+                    conn.execute(
+                        "UPDATE settings SET is_default = 0 WHERE key = ?",
+                        (db_key,),
+                    )
+                    logger.info(
+                        "env-backed-settings corrective: key=%s value=%s flagged is_default=0 (was 1, env=%s)",
+                        db_key, value, env_value,
+                    )
+            conn.execute(
+                "INSERT INTO schema_migrations (name) VALUES ('env_backed_settings_correct_flags')"
+            )
+
+        # Step 4: per-boot resync (also inserts missing rows for new keys).
+        for db_key, env_var, _fallback, _validator in ENV_BACKED_SETTINGS:
+            env_value = resolve_env_backed_default(db_key)
+            row = conn.execute(
+                "SELECT value, is_default FROM settings WHERE key = ?",
+                (db_key,),
+            ).fetchone()
+            if row is None:
+                conn.execute(
+                    """INSERT INTO settings (key, value, is_default)
+                       VALUES (?, ?, 1)""",
+                    (db_key, env_value),
+                )
+                logger.info(
+                    "env-backed-settings seed: key=%s value=%s is_default=1",
+                    db_key, env_value,
+                )
+                continue
+            value = row['value'] if isinstance(row, sqlite3.Row) else row[0]
+            is_default = row['is_default'] if isinstance(row, sqlite3.Row) else row[1]
+            if is_default and value != env_value:
+                conn.execute(
+                    "UPDATE settings SET value = ? WHERE key = ?",
+                    (env_value, db_key),
+                )
+                logger.info(
+                    "env-backed-settings resync: key=%s %s -> %s (is_default=1)",
+                    db_key, value, env_value,
+                )
+
+        conn.commit()
+
     def _normalize_community_scope(self, conn):
         """Set scope='global' on every source=community pattern; clear
         podcast_id / network_id since they were stripped on export. Stamped
