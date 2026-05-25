@@ -2853,6 +2853,17 @@ paths:
                       description: Output bitrate used when re-encoding processed audio.
                     isDefault:
                       type: boolean
+                skipFlacCompression:
+                  type: object
+                  description: |
+                    When true, skip the FLAC encode pass before uploading audio
+                    to the Whisper API and send the preprocessed WAV directly.
+                    Useful for self-hosted Whisper servers that accept WAV.
+                  properties:
+                    value:
+                      type: boolean
+                    isDefault:
+                      type: boolean
                 autoProcessEnabled:
                   type: boolean
                   description: Enable automatic processing of new episodes when feeds refresh
@@ -2877,6 +2888,12 @@ paths:
                   enum: ['64k', '96k', '128k', '192k', '256k']
                   description: Output bitrate used when re-encoding processed audio.
                   example: 128k
+                skipFlacCompression:
+                  type: boolean
+                  description: |
+                    When true, skip the FLAC encode pass before uploading audio
+                    to the Whisper API. Send the preprocessed WAV directly.
+                  example: false
                 llmProvider:
                   type: string
                   description: LLM provider to use (anthropic, openrouter, openai-compatible, ollama)
@@ -4898,6 +4915,13 @@ components:
               enum: ['64k', '96k', '128k', '192k', '256k']
             isDefault:
               type: boolean
+        skipFlacCompression:
+          type: object
+          properties:
+            value:
+              type: boolean
+            isDefault:
+              type: boolean
         autoProcessEnabled:
           type: object
           properties:
@@ -5024,6 +5048,8 @@ components:
             audioBitrate:
               type: string
               enum: ['64k', '96k', '128k', '192k', '256k']
+            skipFlacCompression:
+              type: boolean
             autoProcessEnabled:
               type: boolean
             maxFeedEpisodes:

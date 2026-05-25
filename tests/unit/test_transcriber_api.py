@@ -507,3 +507,129 @@ class TestWordTimestampRejectionDetection:
         r.status_code = 500
         type(r).text = property(lambda self_: (_ for _ in ()).throw(RuntimeError('boom')))
         assert _whisper_api_rejects_word_timestamps(r) is False
+
+
+class TestSkipFlacCompressionSetting:
+    """skip_flac_compression flag plumbing through _get_whisper_settings
+    and _transcribe_via_api."""
+
+    def _make_settings(self, **overrides):
+        settings = {
+            'backend': WHISPER_BACKEND_API,
+            'api_base_url': 'http://localhost:8765/v1',
+            'api_key': '',
+            'api_model': 'whisper-1',
+            'skip_flac_compression': False,
+        }
+        settings.update(overrides)
+        return settings
+
+    def _make_api_response(self, segments):
+        return {
+            'text': ' '.join(s.get('text', '') for s in segments),
+            'segments': segments,
+        }
+
+    def test_get_whisper_settings_reads_true_from_db(self):
+        mock_db = _mock_db_with_settings({
+            'whisper_backend': WHISPER_BACKEND_API,
+            'skip_flac_compression': 'true',
+        })
+        with patch('database.Database', return_value=mock_db):
+            settings = _get_whisper_settings()
+        assert settings['skip_flac_compression'] is True
+
+    def test_get_whisper_settings_reads_false_from_db(self):
+        mock_db = _mock_db_with_settings({
+            'whisper_backend': WHISPER_BACKEND_API,
+            'skip_flac_compression': 'false',
+        })
+        with patch('database.Database', return_value=mock_db):
+            settings = _get_whisper_settings()
+        assert settings['skip_flac_compression'] is False
+
+    @patch.dict(os.environ, {'SKIP_FLAC_COMPRESSION': 'true'})
+    def test_get_whisper_settings_falls_back_to_env(self):
+        with patch('database.Database', side_effect=Exception("no db")):
+            settings = _get_whisper_settings()
+        assert settings['skip_flac_compression'] is True
+
+    def test_get_whisper_settings_defaults_to_false(self):
+        env = os.environ.copy()
+        env.pop('SKIP_FLAC_COMPRESSION', None)
+        with patch.dict(os.environ, env, clear=True):
+            with patch('database.Database', side_effect=Exception("no db")):
+                settings = _get_whisper_settings()
+        assert settings['skip_flac_compression'] is False
+
+    def test_transcribe_via_api_skips_flac_when_enabled(self):
+        """skip_flac_compression=True must not invoke FFmpeg flac encoding."""
+        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as f:
+            f.write(b'fake audio data' * 200)
+            temp_path = f.name
+
+        try:
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = self._make_api_response([
+                {'start': 0.0, 'end': 1.0, 'text': ' hi', 'words': []},
+            ])
+
+            with patch('transcriber.safe_post', return_value=mock_response), \
+                 patch('transcriber.tracked_run') as mock_tracked_run:
+                transcriber = Transcriber()
+                transcriber.preprocess_audio = MagicMock(return_value=None)
+                result = transcriber._transcribe_via_api(
+                    temp_path,
+                    'TestPodcast',
+                    self._make_settings(skip_flac_compression=True),
+                )
+                assert result is not None
+                # The FFmpeg flac encode is the only tracked_run() call in this
+                # function. With skip_flac_compression=True it must not fire.
+                for call in mock_tracked_run.call_args_list:
+                    args = call.args[0] if call.args else []
+                    assert 'flac' not in args, (
+                        f"FFmpeg flac encode should not run when skip_flac_compression=True, "
+                        f"but tracked_run was called with: {args}"
+                    )
+        finally:
+            os.unlink(temp_path)
+
+    def test_transcribe_via_api_runs_flac_when_disabled(self):
+        """Regression: skip_flac_compression=False keeps the existing FLAC
+        encode behavior so public OpenAI / OpenRouter uploads stay under the
+        413 limit."""
+        with tempfile.NamedTemporaryFile(suffix='.wav', delete=False) as f:
+            f.write(b'fake audio data' * 200)
+            temp_path = f.name
+
+        try:
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = self._make_api_response([
+                {'start': 0.0, 'end': 1.0, 'text': ' hi', 'words': []},
+            ])
+
+            ffmpeg_result = MagicMock()
+            ffmpeg_result.returncode = 1  # Force fallback path so no flac file lookup needed.
+
+            with patch('transcriber.safe_post', return_value=mock_response), \
+                 patch('transcriber.tracked_run', return_value=ffmpeg_result) as mock_tracked_run:
+                transcriber = Transcriber()
+                transcriber.preprocess_audio = MagicMock(return_value=None)
+                transcriber._transcribe_via_api(
+                    temp_path,
+                    'TestPodcast',
+                    self._make_settings(skip_flac_compression=False),
+                )
+
+                flac_calls = [
+                    call for call in mock_tracked_run.call_args_list
+                    if call.args and 'flac' in (call.args[0] or [])
+                ]
+                assert len(flac_calls) >= 1, (
+                    "FFmpeg flac encode should run when skip_flac_compression=False"
+                )
+        finally:
+            os.unlink(temp_path)

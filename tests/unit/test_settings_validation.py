@@ -310,3 +310,84 @@ class TestAudioBitrateValidation:
         data = self._get_settings(client)
         assert data['audioBitrate']['value'] == '128k'
         assert data['audioBitrate']['isDefault'] is True
+
+
+class TestSkipFlacCompressionValidation:
+    """skipFlacCompression boolean round-trip + reset.
+
+    The toggle lives in `_apply_whisper_fields` and only matters when the
+    Whisper API backend is selected, but the setting itself is global so it
+    is exercised here regardless of backend.
+    """
+
+    def _get_settings(self, client):
+        resp = client.get('/api/v1/settings')
+        assert resp.status_code == 200
+        return json.loads(resp.data)
+
+    def test_get_exposes_skip_flac_with_default_false(self, client):
+        data = self._get_settings(client)
+        assert 'skipFlacCompression' in data
+        assert data['skipFlacCompression']['value'] is False
+        assert data['skipFlacCompression']['isDefault'] is True
+        assert data['defaults']['skipFlacCompression'] is False
+
+    def test_put_persists_true_as_bool(self, client):
+        resp = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'skipFlacCompression': True}),
+            content_type='application/json',
+        )
+        assert resp.status_code == 200
+
+        data = self._get_settings(client)
+        assert data['skipFlacCompression']['value'] is True
+        assert data['skipFlacCompression']['isDefault'] is False
+
+    def test_put_accepts_truthy_strings(self, client):
+        for raw in ('true', '1', 'yes', 'TRUE', 'Yes'):
+            resp = client.put(
+                '/api/v1/settings/ad-detection',
+                data=json.dumps({'skipFlacCompression': raw}),
+                content_type='application/json',
+            )
+            assert resp.status_code == 200, raw
+            assert self._get_settings(client)['skipFlacCompression']['value'] is True
+
+    def test_put_accepts_falsy_strings(self, client):
+        # First flip it on so we can confirm the falsy path actually turns it off.
+        client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'skipFlacCompression': True}),
+            content_type='application/json',
+        )
+        for raw in ('false', '0', 'no', 'FALSE', 'No'):
+            resp = client.put(
+                '/api/v1/settings/ad-detection',
+                data=json.dumps({'skipFlacCompression': True}),
+                content_type='application/json',
+            )
+            assert resp.status_code == 200
+
+            resp = client.put(
+                '/api/v1/settings/ad-detection',
+                data=json.dumps({'skipFlacCompression': raw}),
+                content_type='application/json',
+            )
+            assert resp.status_code == 200, raw
+            assert self._get_settings(client)['skipFlacCompression']['value'] is False
+
+    def test_reset_restores_false(self, client):
+        client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'skipFlacCompression': True}),
+            content_type='application/json',
+        )
+        assert self._get_settings(client)['skipFlacCompression']['value'] is True
+
+        resp = client.post('/api/v1/settings/ad-detection/reset')
+        assert resp.status_code == 200
+
+        data = self._get_settings(client)
+        assert data['skipFlacCompression']['value'] is False
+        assert data['skipFlacCompression']['isDefault'] is True

@@ -142,6 +142,7 @@ export interface Settings {
   maxFeedEpisodes: SettingValueNumber;
   onlyExposeProcessedDefault: SettingValueBoolean;
   audioBitrate: SettingValue;
+  skipFlacCompression: SettingValueBoolean;
   vttTranscriptsEnabled: SettingValueBoolean;
   chaptersEnabled: SettingValueBoolean;
   chaptersModel: SettingValue;
@@ -203,6 +204,7 @@ export interface UpdateSettingsPayload {
   maxFeedEpisodes?: number;
   onlyExposeProcessedDefault?: boolean;
   audioBitrate?: string;
+  skipFlacCompression?: boolean;
   vttTranscriptsEnabled?: boolean;
   chaptersEnabled?: boolean;
   chaptersModel?: string;

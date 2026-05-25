@@ -292,6 +292,7 @@ def _get_whisper_settings() -> Dict[str, str]:
         'api_key': os.environ.get('WHISPER_API_KEY', ''),
         'api_model': os.environ.get('WHISPER_API_MODEL', 'whisper-1'),
         'language': os.environ.get('WHISPER_LANGUAGE') or 'en',
+        'skip_flac_compression': str(os.environ.get('SKIP_FLAC_COMPRESSION', 'false')).lower() in ('true', '1', 'yes'),
     }
     try:
         # Inline import: Database depends on modules that import transcriber,
@@ -311,6 +312,10 @@ def _get_whisper_settings() -> Dict[str, str]:
                 val = db.get_setting(setting_key)
             if val:
                 defaults[default_key] = val
+
+        skip_flac_raw = db.get_setting('skip_flac_compression')
+        if skip_flac_raw is not None:
+            defaults['skip_flac_compression'] = str(skip_flac_raw).lower() in ('true', '1', 'yes')
     except Exception as e:
         logger.warning(f"Could not read whisper settings from DB, using env defaults: {e}")
 
@@ -663,7 +668,10 @@ class Transcriber:
 
             # After preprocessing, compress to FLAC for upload (lossless, ~4-5x smaller than WAV).
             # Prevents 413 errors from APIs with tight upload limits (e.g. OpenRouter).
-            if transcribe_path.endswith('.wav'):
+            # Self-hosted Whisper servers that accept WAV directly can opt out via the
+            # skip_flac_compression setting and avoid the extra encode pass.
+            skip_flac = bool(whisper_settings.get('skip_flac_compression', False))
+            if not skip_flac and transcribe_path.endswith('.wav'):
                 fd, flac_path = tempfile.mkstemp(suffix='.flac')
                 os.close(fd)
                 try:

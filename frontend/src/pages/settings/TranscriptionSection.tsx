@@ -1,6 +1,7 @@
 import { WHISPER_BACKENDS, type WhisperModel, type WhisperBackend, type WhisperApiConfig } from '../../api/types';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import LanguageCombobox from '../../components/LanguageCombobox';
+import ToggleSwitch from '../../components/ToggleSwitch';
 import ProviderKeyField from './ProviderKeyField';
 import type { ProviderName, ProviderStatus, ProviderTestResult, ProvidersResponse } from '../../api/providers';
 
@@ -20,6 +21,8 @@ interface TranscriptionSectionProps {
   onWhisperLanguageChange: (language: string) => void;
   whisperComputeType: string;
   onWhisperComputeTypeChange: (computeType: string) => void;
+  skipFlacCompression: boolean;
+  onSkipFlacCompressionChange: (value: boolean) => void;
   softTimeoutMinutes: number;
   hardTimeoutMinutes: number;
   softMinMinutes: number;
@@ -50,6 +53,8 @@ function TranscriptionSection({
   onWhisperLanguageChange,
   whisperComputeType,
   onWhisperComputeTypeChange,
+  skipFlacCompression,
+  onSkipFlacCompressionChange,
   softTimeoutMinutes,
   hardTimeoutMinutes,
   softMinMinutes,
@@ -153,6 +158,22 @@ function TranscriptionSection({
               />
               <p className="mt-1 text-sm text-muted-foreground">
                 Model identifier sent to the API (e.g. whisper-1, whisper-large-v3-turbo)
+              </p>
+            </div>
+
+            <div>
+              <label className="flex items-center gap-3 cursor-pointer">
+                <ToggleSwitch
+                  checked={skipFlacCompression}
+                  onChange={onSkipFlacCompressionChange}
+                  ariaLabel={skipFlacCompression ? 'Skip FLAC compression enabled' : 'Skip FLAC compression disabled'}
+                />
+                <span className="text-sm font-medium text-foreground">
+                  Skip FLAC compression
+                </span>
+              </label>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Upload the preprocessed WAV directly to the Whisper API. Useful only for self-hosted Whisper servers that accept uncompressed audio. Default off so that public OpenAI / OpenRouter endpoints stay under their upload size limits.
               </p>
             </div>
           </>

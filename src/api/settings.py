@@ -192,6 +192,9 @@ def get_settings():
     vad_gap_tail = _db_float('vad_gap_tail_min_seconds', default_vad_gap_tail)
 
     audio_bitrate = _setting_value(settings, 'audio_bitrate', DEFAULT_AUDIO_BITRATE)
+    default_skip_flac = os.environ.get('SKIP_FLAC_COMPRESSION', 'false')
+    skip_flac_raw = _setting_value(settings, 'skip_flac_compression', default_skip_flac)
+    skip_flac = str(skip_flac_raw).lower() in ('true', '1', 'yes')
 
     # Per-stage LLM tunables: resolved value (env > DB > default) and env-override status.
     from config import (
@@ -279,6 +282,7 @@ def get_settings():
         'vadGapMidMinSeconds': _sv('vad_gap_mid_min_seconds', vad_gap_mid),
         'vadGapTailMinSeconds': _sv('vad_gap_tail_min_seconds', vad_gap_tail),
         'audioBitrate': _sv('audio_bitrate', audio_bitrate),
+        'skipFlacCompression': _sv('skip_flac_compression', skip_flac),
         'apiKeyConfigured': api_key_configured,
         'retentionDays': int(db.get_setting('retention_days') or '30'),
         'stageTunables': tunables_payload,
@@ -317,6 +321,7 @@ def get_settings():
             'vadGapMidMinSeconds': default_vad_gap_mid,
             'vadGapTailMinSeconds': default_vad_gap_tail,
             'audioBitrate': DEFAULT_AUDIO_BITRATE,
+            'skipFlacCompression': str(os.environ.get('SKIP_FLAC_COMPRESSION', 'false')).lower() in ('true', '1', 'yes'),
         }
     })
 
@@ -625,6 +630,15 @@ def _apply_whisper_fields(db, data):
         except Exception:
             logger.exception("Failed to mark Whisper model for reload after compute_type change")
         logger.info(f"Updated whisper compute type to: {ct_val}")
+
+    if 'skipFlacCompression' in data:
+        raw = data['skipFlacCompression']
+        if isinstance(raw, bool):
+            enabled = raw
+        else:
+            enabled = str(raw).strip().lower() in ('true', '1', 'yes')
+        db.set_setting('skip_flac_compression', 'true' if enabled else 'false', is_default=False)
+        logger.info(f"Updated skip_flac_compression to: {enabled}")
     return None
 
 
@@ -826,6 +840,7 @@ def reset_ad_detection_settings():
     db.reset_setting('whisper_api_key')
     db.reset_setting('whisper_api_model')
     db.reset_setting('whisper_compute_type')
+    db.reset_setting('skip_flac_compression')
     db.reset_setting('vad_gap_detection_enabled')
     db.reset_setting('vad_gap_start_min_seconds')
     db.reset_setting('vad_gap_mid_min_seconds')
