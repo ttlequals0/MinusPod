@@ -30,6 +30,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The committed `calls.jsonl` rows were generated against a `SEED_SPONSORS` list that briefly excluded the `Zyn` entry (a local diff that was later reverted to match main). The system prompt for ad detection joins SEED_SPONSORS names, so the stored `prompt_hash` values do not match what current `src/utils/constants.py` would produce. A fresh `benchmark run` will therefore see zero completed rows and dispatch the full ~40k-call sweep from scratch. The committed report and per-call artifacts remain valid for review; they are just not bit-reproducible from the committed code without restoring the Zyn-removed state.
 
+## [2.5.21] - 2026-05-24
+
+### Changed
+
+- **Rolled up 14 open Dependabot updates** onto the 2.5.20 transport-bar fix. Pip: `idna` 3.15 -> 3.16 (CVE-2026-45409 floor bump), `huggingface-hub` 1.15.0 -> 1.16.1, `ctranslate2` 4.7.1 -> 4.7.2, `openai` 2.37.0 -> 2.38.0, `pyjwt` 2.12.1 -> 2.13.0. npm (frontend dev/runtime): `@tailwindcss/vite` 4.2.4 -> 4.3.0, `typescript-eslint` 8.59.3 -> 8.59.4, `@typescript-eslint/eslint-plugin` 8.59.3 -> 8.59.4, `@types/react` 19.2.14 -> 19.2.15, `react-router-dom` 7.15.0 -> 7.15.1. Docker base: `nvidia/cuda` 12.9.1-runtime-ubuntu24.04 -> 12.9.2-runtime-ubuntu24.04 (GPU image only; `Dockerfile.cpu` stays on `ubuntu:24.04` per the mirror checklist). GitHub Actions (SHA-pinned, SHAs copied from each Dependabot PR rather than typed): `actions/setup-python` v5.6.0 -> v6.2.0 (regenerate-manifest workflow), `docker/setup-buildx-action` v4.0.0 -> v4.1.0 and `docker/build-push-action` v7.1.0 -> v7.2.0 (cpu-image workflow, both setup-buildx call sites). Closes #272, #273, #274, #275, #276, #277, #278, #279, #280, #281, #282, #283, #284, #285.
+
 ## [2.5.20] - 2026-05-23
 
 ### Fixed
