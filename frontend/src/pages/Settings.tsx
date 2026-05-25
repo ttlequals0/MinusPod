@@ -61,6 +61,7 @@ function Settings() {
     maxShift: 60,
     reviewPrompt: '',
     resurrectPrompt: '',
+    parallelAds: 4,
   });
   const [selectedModel, setSelectedModel] = useState('');
   const [verificationModel, setVerificationModel] = useState('');
@@ -239,6 +240,7 @@ function Settings() {
         maxShift: settings.reviewMaxBoundaryShift?.value ?? 60,
         reviewPrompt: settings.reviewPrompt?.value || '',
         resurrectPrompt: settings.resurrectPrompt?.value || '',
+        parallelAds: settings.adReviewerParallelAds?.value ?? settings.defaults?.adReviewerParallelAds ?? 4,
       });
       setSelectedModel(settings.claudeModel?.value || '');
       setVerificationModel(settings.verificationModel?.value || '');
@@ -291,6 +293,7 @@ function Settings() {
     if (reviewer.enabled !== (settings.enableAdReview?.value ?? d.enableAdReview)) payload.enableAdReview = reviewer.enabled;
     if (reviewer.model !== (settings.reviewModel?.value || 'same_as_pass')) payload.reviewModel = reviewer.model;
     if (reviewer.maxShift !== (settings.reviewMaxBoundaryShift?.value ?? d.reviewMaxBoundaryShift)) payload.reviewMaxBoundaryShift = reviewer.maxShift;
+    if (reviewer.parallelAds !== (settings.adReviewerParallelAds?.value ?? settings.defaults?.adReviewerParallelAds ?? 4)) payload.adReviewerParallelAds = reviewer.parallelAds;
     if (selectedModel !== (settings.claudeModel?.value || '')) payload.claudeModel = selectedModel;
     if (verificationModel !== (settings.verificationModel?.value || '')) payload.verificationModel = verificationModel;
     if (whisperModel !== (settings.whisperModel?.value || 'small')) payload.whisperModel = whisperModel;

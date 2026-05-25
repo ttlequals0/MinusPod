@@ -8,6 +8,7 @@ export interface ReviewerState {
   maxShift: number;
   reviewPrompt: string;
   resurrectPrompt: string;
+  parallelAds: number;
 }
 
 interface ExperimentsSectionProps {
@@ -90,6 +91,39 @@ function ExperimentsSection({
           </div>
           <p className="mt-2 text-sm text-muted-foreground">
             Cap on how far the reviewer can move boundaries when it chooses adjust. Enforced in code, not just the prompt.
+          </p>
+        </div>
+
+        <div>
+          <label htmlFor="reviewerParallelAds" className="block text-sm font-medium text-foreground mb-2">
+            Parallel ad reviews
+          </label>
+          <div className="flex items-center gap-3">
+            <input
+              type="number"
+              id="reviewerParallelAds"
+              value={reviewer.parallelAds}
+              onChange={(e) => {
+                const raw = e.target.value;
+                if (raw === '') {
+                  update('parallelAds', 4);
+                  return;
+                }
+                const v = parseInt(raw, 10);
+                if (!Number.isFinite(v)) return;
+                update('parallelAds', Math.max(1, Math.min(32, v)));
+              }}
+              min={1}
+              max={32}
+              step={1}
+              className="w-24 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
+            />
+            <span className="text-sm text-muted-foreground">ads at a time (1-32)</span>
+          </div>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Number of ads the reviewer asks the LLM about at the same time. 1 means sequential
+            (original behavior). Higher values cut wall-clock review time but increase concurrent
+            load on your LLM provider. Default 4.
           </p>
         </div>
 

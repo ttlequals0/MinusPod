@@ -23,6 +23,9 @@ from config import (
     AD_DETECTION_PARALLEL_WINDOWS_DEFAULT,
     AD_DETECTION_PARALLEL_WINDOWS_MIN,
     AD_DETECTION_PARALLEL_WINDOWS_MAX,
+    AD_REVIEWER_PARALLEL_ADS_DEFAULT,
+    AD_REVIEWER_PARALLEL_ADS_MIN,
+    AD_REVIEWER_PARALLEL_ADS_MAX,
     coerce_bool_setting,
 )
 from pricing_fetcher import force_refresh_pricing
@@ -213,6 +216,19 @@ def get_settings():
         min(AD_DETECTION_PARALLEL_WINDOWS_MAX, parallel_windows),
     )
 
+    default_reviewer_parallel = str(AD_REVIEWER_PARALLEL_ADS_DEFAULT)
+    reviewer_parallel_raw = _setting_value(
+        settings, 'ad_reviewer_parallel_ads', default_reviewer_parallel
+    )
+    try:
+        reviewer_parallel = int(reviewer_parallel_raw)
+    except (ValueError, TypeError):
+        reviewer_parallel = AD_REVIEWER_PARALLEL_ADS_DEFAULT
+    reviewer_parallel = max(
+        AD_REVIEWER_PARALLEL_ADS_MIN,
+        min(AD_REVIEWER_PARALLEL_ADS_MAX, reviewer_parallel),
+    )
+
     # Per-stage LLM tunables: resolved value (env > DB > default) and env-override status.
     from config import (
         get_stage_tunable, stage_tunable_env_override,
@@ -301,6 +317,7 @@ def get_settings():
         'audioBitrate': _sv('audio_bitrate', audio_bitrate),
         'skipFlacCompression': _sv('skip_flac_compression', skip_flac),
         'adDetectionParallelWindows': _sv('ad_detection_parallel_windows', parallel_windows),
+        'adReviewerParallelAds': _sv('ad_reviewer_parallel_ads', reviewer_parallel),
         'apiKeyConfigured': api_key_configured,
         'retentionDays': int(db.get_setting('retention_days') or '30'),
         'stageTunables': tunables_payload,
@@ -341,6 +358,7 @@ def get_settings():
             'audioBitrate': DEFAULT_AUDIO_BITRATE,
             'skipFlacCompression': coerce_bool_setting(os.environ.get('SKIP_FLAC_COMPRESSION', 'false')),
             'adDetectionParallelWindows': AD_DETECTION_PARALLEL_WINDOWS_DEFAULT,
+            'adReviewerParallelAds': AD_REVIEWER_PARALLEL_ADS_DEFAULT,
         }
     })
 
@@ -519,6 +537,27 @@ def _apply_audio_fields(db, data):
             )
         db.set_setting('ad_detection_parallel_windows', str(n), is_default=False)
         logger.info(f"Updated ad_detection_parallel_windows to: {n}")
+
+    if 'adReviewerParallelAds' in data:
+        try:
+            n = int(data['adReviewerParallelAds'])
+        except (ValueError, TypeError):
+            return json_response(
+                {'error': 'adReviewerParallelAds must be an integer'}, 400
+            )
+        if not (AD_REVIEWER_PARALLEL_ADS_MIN <= n <= AD_REVIEWER_PARALLEL_ADS_MAX):
+            return json_response(
+                {
+                    'error': (
+                        f'adReviewerParallelAds must be between '
+                        f'{AD_REVIEWER_PARALLEL_ADS_MIN} and '
+                        f'{AD_REVIEWER_PARALLEL_ADS_MAX}'
+                    )
+                },
+                400,
+            )
+        db.set_setting('ad_reviewer_parallel_ads', str(n), is_default=False)
+        logger.info(f"Updated ad_reviewer_parallel_ads to: {n}")
     return None
 
 
@@ -864,6 +903,7 @@ def reset_ad_detection_settings():
     db.reset_setting('auto_process_enabled')
     db.reset_setting('audio_bitrate')
     db.reset_setting('ad_detection_parallel_windows')
+    db.reset_setting('ad_reviewer_parallel_ads')
 
     # Reset LLM provider settings back to env var defaults
     db.reset_setting('llm_provider')

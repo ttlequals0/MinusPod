@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.5.25
+  version: 2.5.26
   contact:
     name: MinusPod
   license:
@@ -2878,6 +2878,19 @@ paths:
                       maximum: 32
                     isDefault:
                       type: boolean
+                adReviewerParallelAds:
+                  type: object
+                  description: |
+                    Number of ads the reviewer asks the LLM about at the same
+                    time. Range 1-32; 1 preserves the original sequential
+                    behavior.
+                  properties:
+                    value:
+                      type: integer
+                      minimum: 1
+                      maximum: 32
+                    isDefault:
+                      type: boolean
                 autoProcessEnabled:
                   type: boolean
                   description: Enable automatic processing of new episodes when feeds refresh
@@ -2915,6 +2928,13 @@ paths:
                   description: |
                     Number of transcript windows the ad detector processes
                     concurrently through the LLM.
+                  example: 4
+                adReviewerParallelAds:
+                  type: integer
+                  minimum: 1
+                  maximum: 32
+                  description: |
+                    Number of ads the reviewer asks the LLM about at the same time.
                   example: 4
                 llmProvider:
                   type: string
@@ -4970,6 +4990,15 @@ components:
               maximum: 32
             isDefault:
               type: boolean
+        adReviewerParallelAds:
+          type: object
+          properties:
+            value:
+              type: integer
+              minimum: 1
+              maximum: 32
+            isDefault:
+              type: boolean
         autoProcessEnabled:
           type: object
           properties:
@@ -5099,6 +5128,10 @@ components:
             skipFlacCompression:
               type: boolean
             adDetectionParallelWindows:
+              type: integer
+              minimum: 1
+              maximum: 32
+            adReviewerParallelAds:
               type: integer
               minimum: 1
               maximum: 32
