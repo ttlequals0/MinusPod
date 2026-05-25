@@ -391,3 +391,71 @@ class TestSkipFlacCompressionValidation:
         data = self._get_settings(client)
         assert data['skipFlacCompression']['value'] is False
         assert data['skipFlacCompression']['isDefault'] is True
+
+
+class TestAdDetectionParallelWindowsValidation:
+    """adDetectionParallelWindows int round-trip, range validator, and reset."""
+
+    def _get_settings(self, client):
+        resp = client.get('/api/v1/settings')
+        assert resp.status_code == 200
+        return json.loads(resp.data)
+
+    def test_get_exposes_default_of_4(self, client):
+        data = self._get_settings(client)
+        assert 'adDetectionParallelWindows' in data
+        assert data['adDetectionParallelWindows']['value'] == 4
+        assert data['adDetectionParallelWindows']['isDefault'] is True
+        assert data['defaults']['adDetectionParallelWindows'] == 4
+
+    def test_put_persists_valid_int(self, client):
+        resp = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'adDetectionParallelWindows': 8}),
+            content_type='application/json',
+        )
+        assert resp.status_code == 200
+
+        data = self._get_settings(client)
+        assert data['adDetectionParallelWindows']['value'] == 8
+        assert data['adDetectionParallelWindows']['isDefault'] is False
+
+    def test_put_rejects_zero(self, client):
+        resp = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'adDetectionParallelWindows': 0}),
+            content_type='application/json',
+        )
+        assert resp.status_code == 400
+        assert 'adDetectionParallelWindows' in json.loads(resp.data)['error']
+
+    def test_put_rejects_over_ceiling(self, client):
+        resp = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'adDetectionParallelWindows': 33}),
+            content_type='application/json',
+        )
+        assert resp.status_code == 400
+
+    def test_put_rejects_non_integer(self, client):
+        resp = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'adDetectionParallelWindows': 'four'}),
+            content_type='application/json',
+        )
+        assert resp.status_code == 400
+
+    def test_reset_restores_default(self, client):
+        client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'adDetectionParallelWindows': 16}),
+            content_type='application/json',
+        )
+        assert self._get_settings(client)['adDetectionParallelWindows']['value'] == 16
+
+        resp = client.post('/api/v1/settings/ad-detection/reset')
+        assert resp.status_code == 200
+
+        data = self._get_settings(client)
+        assert data['adDetectionParallelWindows']['value'] == 4
+        assert data['adDetectionParallelWindows']['isDefault'] is True

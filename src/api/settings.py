@@ -20,6 +20,9 @@ from config import (
     OPENROUTER_BASE_URL,
     PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER, PROVIDER_OPENAI_COMPATIBLE, PROVIDER_OLLAMA,
     ALLOWED_AUDIO_BITRATES, DEFAULT_AUDIO_BITRATE,
+    AD_DETECTION_PARALLEL_WINDOWS_DEFAULT,
+    AD_DETECTION_PARALLEL_WINDOWS_MIN,
+    AD_DETECTION_PARALLEL_WINDOWS_MAX,
 )
 from pricing_fetcher import force_refresh_pricing
 from llm_client import (
@@ -196,6 +199,19 @@ def get_settings():
     skip_flac_raw = _setting_value(settings, 'skip_flac_compression', default_skip_flac)
     skip_flac = str(skip_flac_raw).lower() in ('true', '1', 'yes')
 
+    default_parallel_windows = str(AD_DETECTION_PARALLEL_WINDOWS_DEFAULT)
+    parallel_windows_raw = _setting_value(
+        settings, 'ad_detection_parallel_windows', default_parallel_windows
+    )
+    try:
+        parallel_windows = int(parallel_windows_raw)
+    except (ValueError, TypeError):
+        parallel_windows = AD_DETECTION_PARALLEL_WINDOWS_DEFAULT
+    parallel_windows = max(
+        AD_DETECTION_PARALLEL_WINDOWS_MIN,
+        min(AD_DETECTION_PARALLEL_WINDOWS_MAX, parallel_windows),
+    )
+
     # Per-stage LLM tunables: resolved value (env > DB > default) and env-override status.
     from config import (
         get_stage_tunable, stage_tunable_env_override,
@@ -283,6 +299,7 @@ def get_settings():
         'vadGapTailMinSeconds': _sv('vad_gap_tail_min_seconds', vad_gap_tail),
         'audioBitrate': _sv('audio_bitrate', audio_bitrate),
         'skipFlacCompression': _sv('skip_flac_compression', skip_flac),
+        'adDetectionParallelWindows': _sv('ad_detection_parallel_windows', parallel_windows),
         'apiKeyConfigured': api_key_configured,
         'retentionDays': int(db.get_setting('retention_days') or '30'),
         'stageTunables': tunables_payload,
@@ -322,6 +339,7 @@ def get_settings():
             'vadGapTailMinSeconds': default_vad_gap_tail,
             'audioBitrate': DEFAULT_AUDIO_BITRATE,
             'skipFlacCompression': str(os.environ.get('SKIP_FLAC_COMPRESSION', 'false')).lower() in ('true', '1', 'yes'),
+            'adDetectionParallelWindows': AD_DETECTION_PARALLEL_WINDOWS_DEFAULT,
         }
     })
 
@@ -479,6 +497,27 @@ def _apply_audio_fields(db, data):
             )
         db.set_setting('audio_bitrate', val, is_default=False)
         logger.info(f"Updated audio bitrate to: {val}")
+
+    if 'adDetectionParallelWindows' in data:
+        try:
+            n = int(data['adDetectionParallelWindows'])
+        except (ValueError, TypeError):
+            return json_response(
+                {'error': 'adDetectionParallelWindows must be an integer'}, 400
+            )
+        if not (AD_DETECTION_PARALLEL_WINDOWS_MIN <= n <= AD_DETECTION_PARALLEL_WINDOWS_MAX):
+            return json_response(
+                {
+                    'error': (
+                        f'adDetectionParallelWindows must be between '
+                        f'{AD_DETECTION_PARALLEL_WINDOWS_MIN} and '
+                        f'{AD_DETECTION_PARALLEL_WINDOWS_MAX}'
+                    )
+                },
+                400,
+            )
+        db.set_setting('ad_detection_parallel_windows', str(n), is_default=False)
+        logger.info(f"Updated ad_detection_parallel_windows to: {n}")
     return None
 
 
@@ -827,6 +866,7 @@ def reset_ad_detection_settings():
     db.reset_setting('min_cut_confidence')
     db.reset_setting('auto_process_enabled')
     db.reset_setting('audio_bitrate')
+    db.reset_setting('ad_detection_parallel_windows')
 
     # Reset LLM provider settings back to env var defaults
     db.reset_setting('llm_provider')

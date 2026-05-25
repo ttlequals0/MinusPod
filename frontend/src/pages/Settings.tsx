@@ -481,6 +481,9 @@ function Settings() {
           defaults={settings.stageTunableDefaults}
           llmProvider={llmProvider}
           onUpdate={(payload) => tunableMutation.mutate(payload)}
+          parallelWindows={settings.adDetectionParallelWindows?.value ?? settings.defaults?.adDetectionParallelWindows ?? 4}
+          parallelWindowsIsDefault={settings.adDetectionParallelWindows?.isDefault ?? true}
+          parallelWindowsDefault={settings.defaults?.adDetectionParallelWindows ?? 4}
         />
       )}
 

@@ -132,6 +132,7 @@ class SettingsMixin:
             'auto_process_enabled': 'true',
             'audio_bitrate': '128k',
             'skip_flac_compression': os.environ.get('SKIP_FLAC_COMPRESSION', 'false'),
+            'ad_detection_parallel_windows': os.environ.get('AD_DETECTION_PARALLEL_WINDOWS', '4'),
             'whisper_backend': os.environ.get('WHISPER_BACKEND', 'local'),
             'whisper_api_base_url': os.environ.get('WHISPER_API_BASE_URL', ''),
             'whisper_api_model': os.environ.get('WHISPER_API_MODEL', 'whisper-1'),

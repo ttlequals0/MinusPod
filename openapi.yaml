@@ -2864,6 +2864,20 @@ paths:
                       type: boolean
                     isDefault:
                       type: boolean
+                adDetectionParallelWindows:
+                  type: object
+                  description: |
+                    Number of transcript windows the ad detector processes
+                    concurrently through the LLM. Range 1-32; 1 preserves the
+                    original sequential behavior. Higher values cut wall-clock
+                    detection time but increase load on the LLM provider.
+                  properties:
+                    value:
+                      type: integer
+                      minimum: 1
+                      maximum: 32
+                    isDefault:
+                      type: boolean
                 autoProcessEnabled:
                   type: boolean
                   description: Enable automatic processing of new episodes when feeds refresh
@@ -2894,6 +2908,14 @@ paths:
                     When true, skip the FLAC encode pass before uploading audio
                     to the Whisper API. Send the preprocessed WAV directly.
                   example: false
+                adDetectionParallelWindows:
+                  type: integer
+                  minimum: 1
+                  maximum: 32
+                  description: |
+                    Number of transcript windows the ad detector processes
+                    concurrently through the LLM.
+                  example: 4
                 llmProvider:
                   type: string
                   description: LLM provider to use (anthropic, openrouter, openai-compatible, ollama)
@@ -4922,6 +4944,15 @@ components:
               type: boolean
             isDefault:
               type: boolean
+        adDetectionParallelWindows:
+          type: object
+          properties:
+            value:
+              type: integer
+              minimum: 1
+              maximum: 32
+            isDefault:
+              type: boolean
         autoProcessEnabled:
           type: object
           properties:
@@ -5050,6 +5081,10 @@ components:
               enum: ['64k', '96k', '128k', '192k', '256k']
             skipFlacCompression:
               type: boolean
+            adDetectionParallelWindows:
+              type: integer
+              minimum: 1
+              maximum: 32
             autoProcessEnabled:
               type: boolean
             maxFeedEpisodes:

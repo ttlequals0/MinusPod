@@ -7,8 +7,10 @@ Package layout:
   external callers (production and tests) imported from the pre-split module
 """
 import logging
+import threading
 import time
-from typing import List, Dict, Optional
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import List, Dict, Optional, NamedTuple
 
 from cancel import _check_cancel
 from llm_client import (
@@ -29,8 +31,12 @@ from config import (
     MAX_AD_DURATION_WINDOW,
     PATTERN_CORRECTION_OVERLAP_THRESHOLD,
     DEFAULT_AD_DETECTION_MODEL,
+    AD_DETECTION_PARALLEL_WINDOWS_DEFAULT,
+    AD_DETECTION_PARALLEL_WINDOWS_MIN,
+    AD_DETECTION_PARALLEL_WINDOWS_MAX,
     resolve_stage_tunables,
     get_stage_tunable,
+    resolve_env_backed_default,
 )
 from llm_capabilities import PASS_AD_DETECTION_1, PASS_AD_DETECTION_2
 from sponsor_service import SponsorService
@@ -76,6 +82,49 @@ from .prompts import (
 )
 
 logger = logging.getLogger('podcast.claude')
+
+
+class WindowResult(NamedTuple):
+    """Per-window output from _process_single_window.
+
+    ``window_idx`` is the position in the original windows list. The detect
+    loops collect WindowResults and use this to merge ads back in transcript
+    order even when the executor returns futures out of order.
+    """
+    window_idx: int
+    window_start: float
+    window_end: float
+    ads: List[Dict]
+    raw_response: Optional[str]
+    failed: bool
+    last_error: Optional[Exception]
+
+
+def _resolve_parallel_windows() -> int:
+    """Resolve the ad-detection parallel-window concurrency for this run.
+
+    Reads the customized value from the DB (via the cached settings layer
+    used elsewhere on the LLM call path), falls back to the env-backed
+    default registered in ENV_BACKED_SETTINGS, and clamps the result into
+    the validated [1, 32] range so a misconfigured DB row never breaks
+    detection.
+    """
+    db_val: Optional[str] = None
+    try:
+        from llm_client import _get_cached_setting
+        db_val = _get_cached_setting('ad_detection_parallel_windows')
+    except Exception:
+        db_val = None
+
+    raw = db_val if db_val is not None else resolve_env_backed_default('ad_detection_parallel_windows')
+    try:
+        n = int(raw) if raw is not None else AD_DETECTION_PARALLEL_WINDOWS_DEFAULT
+    except (ValueError, TypeError):
+        n = AD_DETECTION_PARALLEL_WINDOWS_DEFAULT
+    return max(
+        AD_DETECTION_PARALLEL_WINDOWS_MIN,
+        min(AD_DETECTION_PARALLEL_WINDOWS_MAX, n),
+    )
 
 
 class AdDetector:
@@ -357,6 +406,180 @@ class AdDetector:
             pass_name=pass_name,
         )
 
+    def _process_single_window(self, *, window_idx, window, total_windows,
+                                model, system_prompt, description_section,
+                                podcast_name, episode_title,
+                                audio_enforcer, audio_analysis,
+                                llm_timeout, max_retries,
+                                slug, episode_id, pass_name,
+                                window_label_prefix, validate_timestamps):
+        """Run one window through prompt-build + LLM call + parse + filter.
+
+        Returns a ``WindowResult``. Thread-safe: writes nothing to shared
+        instance state. The DB / token-accumulator side effects happen
+        through ``_call_llm_for_window`` which uses lock-protected helpers
+        downstream.
+        """
+        window_segments = window['segments']
+        window_start = window['start']
+        window_end = window['end']
+
+        transcript_lines = [
+            f"[{seg['start']:.1f}s - {seg['end']:.1f}s] {seg['text']}"
+            for seg in window_segments
+        ]
+        audio_context = audio_enforcer.format_for_window(
+            audio_analysis, window_start, window_end
+        ) if audio_enforcer else ""
+
+        prompt = format_window_prompt(
+            podcast_name=podcast_name,
+            episode_title=episode_title,
+            description_section=description_section,
+            transcript_lines=transcript_lines,
+            window_index=window_idx,
+            total_windows=total_windows,
+            window_start=window_start,
+            window_end=window_end,
+            audio_context=audio_context,
+        )
+
+        window_label = f"{window_label_prefix} {window_idx + 1}"
+        logger.info(
+            f"[{slug}:{episode_id}] {window_label}/{total_windows}: "
+            f"{window_start/60:.1f}-{window_end/60:.1f}min, "
+            f"{len(window_segments)} segments"
+        )
+
+        response, last_error = self._call_llm_for_window(
+            model=model, system_prompt=system_prompt, prompt=prompt,
+            llm_timeout=llm_timeout, max_retries=max_retries,
+            slug=slug, episode_id=episode_id,
+            window_label=window_label,
+            pass_name=pass_name,
+        )
+        if response is None:
+            logger.error(
+                f"[{slug}:{episode_id}] {window_label}/{total_windows} failed after all retries, "
+                f"skipping (error: {last_error})"
+            )
+            return WindowResult(
+                window_idx=window_idx,
+                window_start=window_start,
+                window_end=window_end,
+                ads=[],
+                raw_response=None,
+                failed=True,
+                last_error=last_error,
+            )
+
+        response_text = response.content
+        raw_block = (
+            f"=== Window {window_idx + 1} "
+            f"({window_start/60:.1f}-{window_end/60:.1f}min) ===\n{response_text}"
+        )
+
+        preview = response_text[:500] + ('...' if len(response_text) > 500 else '')
+        logger.info(
+            f"[{slug}:{episode_id}] {window_label} LLM response ({len(response_text)} chars): {preview}"
+        )
+
+        window_ads = parse_ads_from_response(
+            response_text, slug, episode_id, sponsor_service=self.sponsor_service
+        )
+
+        if validate_timestamps:
+            window_ads = validate_ad_timestamps(
+                window_ads, window_segments, window_start, window_end
+            )
+
+        valid_window_ads = []
+        for ad in window_ads:
+            duration = ad['end'] - ad['start']
+            in_window = (ad['start'] >= window_start - MIN_OVERLAP_TOLERANCE and
+                         ad['start'] <= window_end + MIN_OVERLAP_TOLERANCE)
+            reasonable_length = duration <= MAX_AD_DURATION_WINDOW
+
+            if in_window and reasonable_length:
+                valid_window_ads.append(ad)
+            else:
+                logger.warning(
+                    f"[{slug}:{episode_id}] {window_label} rejected ad: "
+                    f"{ad['start']:.1f}s-{ad['end']:.1f}s ({duration:.0f}s) - "
+                    f"{'outside window' if not in_window else 'too long'}"
+                )
+
+        logger.info(
+            f"[{slug}:{episode_id}] {window_label} found {len(valid_window_ads)} ads"
+        )
+
+        return WindowResult(
+            window_idx=window_idx,
+            window_start=window_start,
+            window_end=window_end,
+            ads=valid_window_ads,
+            raw_response=raw_block,
+            failed=False,
+            last_error=None,
+        )
+
+    def _run_windows(self, windows, *, max_workers, progress_callback,
+                     progress_base, progress_range, **kwargs):
+        """Execute one of the window loops sequentially or via thread pool.
+
+        Returns the list of WindowResults in window-position order regardless
+        of completion order.
+
+        ``progress_callback(stage, percent)`` is invoked once per completed
+        window. Percent steps from ``progress_base`` through
+        ``progress_base + progress_range`` over the run. A lock prevents
+        re-entrant calls from parallel workers from corrupting the displayed
+        count.
+        """
+        total = len(windows)
+        if total == 0:
+            return []
+
+        progress_lock = threading.Lock()
+        completed = [0]
+
+        def _report_progress():
+            if not progress_callback:
+                return
+            with progress_lock:
+                completed[0] += 1
+                done = completed[0]
+            percent = progress_base + int((done / max(total, 1)) * progress_range)
+            try:
+                progress_callback(f"detecting:{done}/{total}", percent)
+            except Exception as e:
+                logger.warning(f"progress_callback raised: {e}")
+
+        def _run_one(idx):
+            return self._process_single_window(
+                window_idx=idx, window=windows[idx], total_windows=total, **kwargs
+            )
+
+        # max_workers=1 preserves the original sequential semantics exactly,
+        # including any per-call ordering side effects, since no executor
+        # spins up.
+        if max_workers <= 1:
+            results = []
+            for i in range(total):
+                results.append(_run_one(i))
+                _report_progress()
+            return results
+
+        ordered = [None] * total
+        with ThreadPoolExecutor(max_workers=max_workers,
+                                thread_name_prefix='addet-window') as executor:
+            futures = {executor.submit(_run_one, i): i for i in range(total)}
+            for fut in as_completed(futures):
+                i = futures[fut]
+                ordered[i] = fut.result()
+                _report_progress()
+        return ordered
+
 
     def detect_ads(self, segments: List[Dict], podcast_name: str = "Unknown",
                    episode_title: str = "Unknown", slug: str = None,
@@ -435,96 +658,47 @@ class AdDetector:
                 from audio_enforcer import AudioEnforcer
                 audio_enforcer = AudioEnforcer()
 
-            # Process each window
-            for i, window in enumerate(windows):
-                # Report progress for each window (keeps UI indicator alive)
-                if progress_callback:
-                    # First pass: 50-80% range (detecting phase)
-                    progress = 50 + int((i / max(len(windows), 1)) * 30)
-                    progress_callback(f"detecting:{i+1}/{len(windows)}", progress)
-
-                window_segments = window['segments']
-                window_start = window['start']
-                window_end = window['end']
-
-                transcript_lines = [
-                    f"[{seg['start']:.1f}s - {seg['end']:.1f}s] {seg['text']}"
-                    for seg in window_segments
-                ]
-                audio_context = audio_enforcer.format_for_window(
-                    audio_analysis, window_start, window_end
-                ) if audio_enforcer else ""
-
-                prompt = format_window_prompt(
-                    podcast_name=podcast_name,
-                    episode_title=episode_title,
-                    description_section=description_section,
-                    transcript_lines=transcript_lines,
-                    window_index=i,
-                    total_windows=len(windows),
-                    window_start=window_start,
-                    window_end=window_end,
-                    audio_context=audio_context,
+            # Process windows (sequential when concurrency=1; otherwise
+            # via ThreadPoolExecutor up to AD_DETECTION_PARALLEL_WINDOWS_MAX).
+            parallel_windows = _resolve_parallel_windows()
+            if parallel_windows > 1:
+                logger.info(
+                    f"[{slug}:{episode_id}] Detection running {len(windows)} windows "
+                    f"with concurrency={parallel_windows}"
                 )
 
-                logger.info(f"[{slug}:{episode_id}] Window {i+1}/{len(windows)}: "
-                           f"{window_start/60:.1f}-{window_end/60:.1f}min, {len(window_segments)} segments")
+            window_results = self._run_windows(
+                windows,
+                max_workers=parallel_windows,
+                progress_callback=progress_callback,
+                progress_base=50,
+                progress_range=30,
+                model=model,
+                system_prompt=system_prompt,
+                description_section=description_section,
+                podcast_name=podcast_name,
+                episode_title=episode_title,
+                audio_enforcer=audio_enforcer,
+                audio_analysis=audio_analysis,
+                llm_timeout=llm_timeout,
+                max_retries=max_retries,
+                slug=slug,
+                episode_id=episode_id,
+                pass_name=PASS_AD_DETECTION_1,
+                window_label_prefix='Window',
+                validate_timestamps=True,
+            )
 
-                response, last_error = self._call_llm_for_window(
-                    model=model, system_prompt=system_prompt, prompt=prompt,
-                    llm_timeout=llm_timeout, max_retries=max_retries,
-                    slug=slug, episode_id=episode_id,
-                    window_label=f"Window {i+1}",
-                    pass_name=PASS_AD_DETECTION_1,
-                )
-                if response is None:
+            # Merge in window order (futures may complete out of order under
+            # parallel execution; window_idx restores transcript-time order).
+            for result in window_results:
+                if result.failed:
                     failed_windows += 1
-                    logger.error(
-                        f"[{slug}:{episode_id}] Window {i+1}/{len(windows)} failed after all retries, "
-                        f"skipping (error: {last_error})"
-                    )
+                    last_error = result.last_error
                     continue
-
-                # Parse response (LLMResponse.content is already extracted text)
-                response_text = response.content
-                all_raw_responses.append(f"=== Window {i+1} ({window_start/60:.1f}-{window_end/60:.1f}min) ===\n{response_text}")
-
-                preview = response_text[:500] + ('...' if len(response_text) > 500 else '')
-                logger.info(f"[{slug}:{episode_id}] Window {i+1} LLM response ({len(response_text)} chars): {preview}")
-
-                # Parse ads from response
-                window_ads = parse_ads_from_response(response_text, slug, episode_id, sponsor_service=self.sponsor_service)
-
-                # Validate timestamps against actual transcript content
-                # (catches Claude hallucinating ad positions)
-                window_ads = validate_ad_timestamps(
-                    window_ads, window_segments, window_start, window_end
-                )
-
-                # Filter ads to window bounds - Claude sometimes hallucinates start=0.0
-                # when no ads found, speculating about "beginning of episode"
-                # MIN_OVERLAP_TOLERANCE, MAX_AD_DURATION_WINDOW imported from config.py
-
-                valid_window_ads = []
-                for ad in window_ads:
-                    duration = ad['end'] - ad['start']
-                    in_window = (ad['start'] >= window_start - MIN_OVERLAP_TOLERANCE and
-                                 ad['start'] <= window_end + MIN_OVERLAP_TOLERANCE)
-                    reasonable_length = duration <= MAX_AD_DURATION_WINDOW
-
-                    if in_window and reasonable_length:
-                        valid_window_ads.append(ad)
-                    else:
-                        logger.warning(
-                            f"[{slug}:{episode_id}] Window {i+1} rejected ad: "
-                            f"{ad['start']:.1f}s-{ad['end']:.1f}s ({duration:.0f}s) - "
-                            f"{'outside window' if not in_window else 'too long'}"
-                        )
-
-                window_ads = valid_window_ads
-                logger.info(f"[{slug}:{episode_id}] Window {i+1} found {len(window_ads)} ads")
-
-                all_window_ads.extend(window_ads)
+                if result.raw_response:
+                    all_raw_responses.append(result.raw_response)
+                all_window_ads.extend(result.ads)
 
             if failed_windows > 0:
                 logger.warning(
@@ -1306,84 +1480,47 @@ class AdDetector:
                 from audio_enforcer import AudioEnforcer
                 audio_enforcer = AudioEnforcer()
 
-            for i, window in enumerate(windows):
-                if progress_callback:
-                    progress = 85 + int((i / max(len(windows), 1)) * 10)
-                    progress_callback(f"detecting:{i+1}/{len(windows)}", progress)
-
-                window_segments = window['segments']
-                window_start = window['start']
-                window_end = window['end']
-
-                transcript_lines = [
-                    f"[{seg['start']:.1f}s - {seg['end']:.1f}s] {seg['text']}"
-                    for seg in window_segments
-                ]
-                audio_context = audio_enforcer.format_for_window(
-                    audio_analysis, window_start, window_end
-                ) if audio_enforcer else ""
-
-                prompt = format_window_prompt(
-                    podcast_name=podcast_name,
-                    episode_title=episode_title,
-                    description_section=description_section,
-                    transcript_lines=transcript_lines,
-                    window_index=i,
-                    total_windows=len(windows),
-                    window_start=window_start,
-                    window_end=window_end,
-                    audio_context=audio_context,
+            parallel_windows = _resolve_parallel_windows()
+            if parallel_windows > 1:
+                logger.info(
+                    f"[{slug}:{episode_id}] Verification running {len(windows)} windows "
+                    f"with concurrency={parallel_windows}"
                 )
 
-                logger.info(f"[{slug}:{episode_id}] Verification Window {i+1}/{len(windows)}: "
-                           f"{window_start/60:.1f}-{window_end/60:.1f}min")
+            window_results = self._run_windows(
+                windows,
+                max_workers=parallel_windows,
+                progress_callback=progress_callback,
+                progress_base=85,
+                progress_range=10,
+                model=model,
+                system_prompt=system_prompt,
+                description_section=description_section,
+                podcast_name=podcast_name,
+                episode_title=episode_title,
+                audio_enforcer=audio_enforcer,
+                audio_analysis=audio_analysis,
+                llm_timeout=llm_timeout,
+                max_retries=max_retries,
+                slug=slug,
+                episode_id=episode_id,
+                pass_name=PASS_AD_DETECTION_2,
+                window_label_prefix='Verification Window',
+                validate_timestamps=False,
+            )
 
-                response, last_error = self._call_llm_for_window(
-                    model=model, system_prompt=system_prompt, prompt=prompt,
-                    llm_timeout=llm_timeout, max_retries=max_retries,
-                    slug=slug, episode_id=episode_id,
-                    window_label=f"Verification Window {i+1}",
-                    pass_name=PASS_AD_DETECTION_2,
-                )
-                if response is None:
+            for result in window_results:
+                if result.failed:
                     failed_windows += 1
-                    logger.error(
-                        f"[{slug}:{episode_id}] Verification Window {i+1}/{len(windows)} "
-                        f"failed after all retries, skipping (error: {last_error})"
-                    )
+                    last_error = result.last_error
                     continue
-
-                response_text = response.content
-                all_raw_responses.append(
-                    f"=== Window {i+1} ({window_start/60:.1f}-{window_end/60:.1f}min) ===\n{response_text}"
-                )
-
-                preview = response_text[:500] + ('...' if len(response_text) > 500 else '')
-                logger.info(f"[{slug}:{episode_id}] Verification Window {i+1} LLM response ({len(response_text)} chars): {preview}")
-
-                window_ads = parse_ads_from_response(response_text, slug, episode_id, sponsor_service=self.sponsor_service)
-
-                # Filter to window bounds
-                valid_window_ads = []
-                for ad in window_ads:
-                    duration = ad['end'] - ad['start']
-                    in_window = (ad['start'] >= window_start - MIN_OVERLAP_TOLERANCE and
-                                 ad['start'] <= window_end + MIN_OVERLAP_TOLERANCE)
-                    reasonable_length = duration <= MAX_AD_DURATION_WINDOW
-
-                    if in_window and reasonable_length:
-                        valid_window_ads.append(ad)
-                    else:
-                        logger.warning(
-                            f"[{slug}:{episode_id}] Verification Window {i+1} rejected ad: "
-                            f"{ad['start']:.1f}s-{ad['end']:.1f}s ({duration:.0f}s)"
-                        )
-
-                for ad in valid_window_ads:
+                if result.raw_response:
+                    all_raw_responses.append(result.raw_response)
+                # Verification pass stamps every surviving ad so the merge
+                # downstream can distinguish first-pass from verification.
+                for ad in result.ads:
                     ad['detection_stage'] = 'verification'
-
-                logger.info(f"[{slug}:{episode_id}] Verification Window {i+1} found {len(valid_window_ads)} ads")
-                all_window_ads.extend(valid_window_ads)
+                all_window_ads.extend(result.ads)
 
             if failed_windows > 0:
                 logger.warning(

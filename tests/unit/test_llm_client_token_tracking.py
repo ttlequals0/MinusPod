@@ -1,4 +1,13 @@
-"""Tests for per-episode token accumulator thread safety."""
+"""Tests for the per-episode token accumulator.
+
+Pre-2.5.23 the accumulator was thread-local so concurrent episode handlers
+couldn't corrupt each other. 2.5.23 replaced it with a single
+lock-protected object so that ad-detection windows running on a
+ThreadPoolExecutor all contribute to the same totals. Single-episode
+isolation is now enforced upstream by the fcntl flock on
+.processing_queue.lock, not by the accumulator. The tests below reflect
+that contract change.
+"""
 
 import threading
 
@@ -7,38 +16,59 @@ from llm_client import (
     get_episode_token_totals,
     _get_accumulator_active,
     _record_token_usage,
+    _episode_accumulator,
 )
 
 
-def test_thread_local_isolation():
-    """Two threads accumulate different values concurrently; each gets its own totals."""
+def test_parallel_workers_aggregate_into_shared_accumulator():
+    """Two threads making token-usage calls concurrently against the same
+    active accumulator both get their contributions counted, with no torn
+    increments. This is the behavior ad-detection windows depend on."""
+    start_episode_token_tracking()
     barrier = threading.Barrier(2)
-    results = {}
 
-    def accumulate(thread_id, input_tok, output_tok):
-        start_episode_token_tracking()
-        assert _get_accumulator_active()
+    def accumulate(input_tok, output_tok):
         barrier.wait()  # Force both threads to overlap
         _record_token_usage(
             "claude-test",
             {"input_tokens": input_tok, "output_tokens": output_tok},
         )
-        totals = get_episode_token_totals()
-        results[thread_id] = totals
 
-    t1 = threading.Thread(target=accumulate, args=("t1", 100, 50))
-    t2 = threading.Thread(target=accumulate, args=("t2", 200, 75))
+    t1 = threading.Thread(target=accumulate, args=(100, 50))
+    t2 = threading.Thread(target=accumulate, args=(200, 75))
     t1.start()
     t2.start()
     t1.join()
     t2.join()
 
-    # Each thread should see only its own tokens (cost may vary by pricing table
-    # availability, so we only assert on token counts)
-    assert results["t1"]["input_tokens"] == 100
-    assert results["t1"]["output_tokens"] == 50
-    assert results["t2"]["input_tokens"] == 200
-    assert results["t2"]["output_tokens"] == 75
+    totals = get_episode_token_totals()
+    # Cost varies by pricing table availability; only assert tokens.
+    assert totals["input_tokens"] == 300
+    assert totals["output_tokens"] == 125
+
+
+def test_high_concurrency_no_lost_updates():
+    """Hammer the accumulator from 16 threads and verify the total exactly
+    matches the expected sum (no double-counting, no lost updates)."""
+    start_episode_token_tracking()
+    n_threads = 16
+    calls_per_thread = 50
+    per_call = 10
+
+    def worker():
+        for _ in range(calls_per_thread):
+            _episode_accumulator.add(per_call, per_call, 0.0)
+
+    threads = [threading.Thread(target=worker) for _ in range(n_threads)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    totals = get_episode_token_totals()
+    expected = n_threads * calls_per_thread * per_call
+    assert totals["input_tokens"] == expected
+    assert totals["output_tokens"] == expected
 
 
 def test_get_totals_without_start_returns_zeros():

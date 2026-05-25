@@ -13,6 +13,9 @@ interface StageTunablesSectionProps {
   defaults: Record<keyof StageTunables, number | string | null>;
   llmProvider: LlmProvider;
   onUpdate: (payload: UpdateSettingsPayload) => void;
+  parallelWindows: number;
+  parallelWindowsIsDefault: boolean;
+  parallelWindowsDefault: number;
 }
 
 interface StageBlock {
@@ -447,16 +450,80 @@ function WindowConfigBlock({
   );
 }
 
+function ConcurrencyConfigBlock({
+  value,
+  isDefault,
+  defaultValue,
+  onUpdate,
+}: {
+  value: number;
+  isDefault: boolean;
+  defaultValue: number;
+  onUpdate: (payload: UpdateSettingsPayload) => void;
+}) {
+  const clamp = (n: number) => Math.max(1, Math.min(32, n));
+
+  return (
+    <div className="border border-border rounded-lg p-3 space-y-3">
+      <div>
+        <h4 className="text-sm font-semibold text-foreground">Detection Concurrency</h4>
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Run multiple transcript windows through the LLM at once. 1 means sequential (original
+          behavior). Higher values cut detection time but raise concurrent load on your LLM provider.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div>
+          <div className="flex items-center justify-between mb-1">
+            <label className="block text-xs font-medium text-foreground">
+              Parallel ad-detection windows
+            </label>
+            <ResetButton
+              disabled={isDefault}
+              onClick={() => onUpdate({ adDetectionParallelWindows: defaultValue })}
+            />
+          </div>
+          <NumberCommitInput
+            value={value}
+            min={1}
+            max={32}
+            step={1}
+            disabled={false}
+            parse={(raw) => {
+              if (raw.trim() === '') return defaultValue;
+              const v = parseInt(raw, 10);
+              if (!Number.isFinite(v)) return null;
+              return clamp(v);
+            }}
+            onCommit={(parsed) => {
+              if (parsed === null) return;
+              onUpdate({ adDetectionParallelWindows: parsed });
+            }}
+            className="w-full px-2 py-1 rounded border border-input bg-background text-foreground text-sm focus:outline-hidden focus:ring-2 focus:ring-ring disabled:opacity-60"
+          />
+          <p className="mt-1 text-xs text-muted-foreground">
+            1 to 32. Default {defaultValue}.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function StageTunablesSection({
   tunables,
   defaults,
   llmProvider,
   onUpdate,
+  parallelWindows,
+  parallelWindowsIsDefault,
+  parallelWindowsDefault,
 }: StageTunablesSectionProps) {
   return (
     <CollapsibleSection title="LLM Tunables">
       <p className="text-sm text-muted-foreground mb-3">
-        Temperature, max tokens, reasoning, and detection-window geometry. Applies on the next episode.
+        Temperature, max tokens, reasoning, detection-window geometry, and parallelism. Applies on the next episode.
       </p>
       <div className="space-y-3">
         {STAGES.map((block) => (
@@ -472,6 +539,12 @@ function StageTunablesSection({
         <WindowConfigBlock
           tunables={tunables}
           defaults={defaults}
+          onUpdate={onUpdate}
+        />
+        <ConcurrencyConfigBlock
+          value={parallelWindows}
+          isDefault={parallelWindowsIsDefault}
+          defaultValue={parallelWindowsDefault}
           onUpdate={onUpdate}
         />
       </div>

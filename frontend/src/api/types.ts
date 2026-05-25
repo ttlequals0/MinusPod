@@ -143,6 +143,7 @@ export interface Settings {
   onlyExposeProcessedDefault: SettingValueBoolean;
   audioBitrate: SettingValue;
   skipFlacCompression: SettingValueBoolean;
+  adDetectionParallelWindows: SettingValueNumber;
   vttTranscriptsEnabled: SettingValueBoolean;
   chaptersEnabled: SettingValueBoolean;
   chaptersModel: SettingValue;
@@ -186,6 +187,7 @@ export interface Settings {
     whisperApiModel: string;
     whisperLanguage: string;
     whisperComputeType: string;
+    adDetectionParallelWindows?: number;
   };
 }
 
@@ -205,6 +207,7 @@ export interface UpdateSettingsPayload {
   onlyExposeProcessedDefault?: boolean;
   audioBitrate?: string;
   skipFlacCompression?: boolean;
+  adDetectionParallelWindows?: number;
   vttTranscriptsEnabled?: boolean;
   chaptersEnabled?: boolean;
   chaptersModel?: string;
