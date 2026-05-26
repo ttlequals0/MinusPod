@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.5.26
+  version: 2.5.27
   contact:
     name: MinusPod
   license:
@@ -2844,53 +2844,6 @@ paths:
                     Minimum post-transcript tail gap that the VAD detector
                     will cut when no postroll marker already covers it.
                   example: 3.0
-                audioBitrate:
-                  type: object
-                  properties:
-                    value:
-                      type: string
-                      enum: ['64k', '96k', '128k', '192k', '256k']
-                      description: Output bitrate used when re-encoding processed audio.
-                    isDefault:
-                      type: boolean
-                skipFlacCompression:
-                  type: object
-                  description: |
-                    When true, skip the FLAC encode pass before uploading audio
-                    to the Whisper API and send the preprocessed WAV directly.
-                    Useful for self-hosted Whisper servers that accept WAV.
-                  properties:
-                    value:
-                      type: boolean
-                    isDefault:
-                      type: boolean
-                adDetectionParallelWindows:
-                  type: object
-                  description: |
-                    Number of transcript windows the ad detector processes
-                    concurrently through the LLM. Range 1-32; 1 preserves the
-                    original sequential behavior. Higher values cut wall-clock
-                    detection time but increase load on the LLM provider.
-                  properties:
-                    value:
-                      type: integer
-                      minimum: 1
-                      maximum: 32
-                    isDefault:
-                      type: boolean
-                adReviewerParallelAds:
-                  type: object
-                  description: |
-                    Number of ads the reviewer asks the LLM about at the same
-                    time. Range 1-32; 1 preserves the original sequential
-                    behavior.
-                  properties:
-                    value:
-                      type: integer
-                      minimum: 1
-                      maximum: 32
-                    isDefault:
-                      type: boolean
                 autoProcessEnabled:
                   type: boolean
                   description: Enable automatic processing of new episodes when feeds refresh

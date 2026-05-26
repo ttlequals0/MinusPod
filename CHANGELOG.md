@@ -30,6 +30,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The committed `calls.jsonl` rows were generated against a `SEED_SPONSORS` list that briefly excluded the `Zyn` entry (a local diff that was later reverted to match main). The system prompt for ad detection joins SEED_SPONSORS names, so the stored `prompt_hash` values do not match what current `src/utils/constants.py` would produce. A fresh `benchmark run` will therefore see zero completed rows and dispatch the full ~40k-call sweep from scratch. The committed report and per-call artifacts remain valid for review; they are just not bit-reproducible from the committed code without restoring the Zyn-removed state.
 
+## [2.5.27] - 2026-05-26
+
+### Fixed
+
+- **`openapi.yaml`: duplicate keys in the `PUT /settings/ad-detection` request body.** The request-body schema redundantly defined `audioBitrate`, `skipFlacCompression`, `adDetectionParallelWindows`, and `adReviewerParallelAds` twice -- once with the GET-response shape (`{value, isDefault}` object) and once with the actual request shape (plain string / boolean / integer). YAML parsers silently keep the last occurrence; OpenAPI validators warn or fail. The misplaced object-shape entries were copied from the response-side schema; the API only accepts plain values (e.g. `{"audioBitrate": "192k"}`), and the `_apply_audio_fields` handler in `src/api/settings.py` reads `data['audioBitrate']` directly as a string. Removed the misplaced object-shape block from the PUT request body and kept the plain-type entries. The other two locations where these fields appear (the `Settings` response schema at line 4922 with object shape, and the `Settings.defaults` sub-object at line 5078 with plain shape) are intentional and unchanged -- they describe distinct response shapes, not the request body. Original duplicate-key bug was for `audioBitrate` only; the same broken pattern was extended to the three new fields when they were added in 2.5.23.
+
 ## [2.5.26] - 2026-05-25
 
 ### Fixed
