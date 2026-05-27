@@ -257,7 +257,8 @@ def validate_doc(
     result.sponsor_match = _classify_sponsor(doc.get('sponsor') or '', seed)
     if result.sponsor_match == 'unknown':
         result.warnings.append(
-            f'sponsor "{doc.get("sponsor")}" not in seed list (triage required)'
+            f'new sponsor "{doc.get("sponsor")}" -- not yet in seed list '
+            '(informational; community submissions can introduce new sponsors)'
         )
 
     if result.status == 'reject':
@@ -358,8 +359,9 @@ def render_markdown_comment(results: List[ValidationResult]) -> str:
     if warned:
         lines.append(f'### Warnings ({len(warned)})')
         lines.append(
-            f'Variant suggestions ({dedupe_link}) and unknown-sponsor flags '
-            f'({sponsor_link}) are advisory -- the maintainer decides during review.'
+            f'Variant suggestions ({dedupe_link}) are advisory -- the '
+            f'maintainer decides during review. New sponsors are expected '
+            f'and welcome; see {sponsor_link} if you want to canonicalize.'
         )
         lines.append('')
         for r in warned:
