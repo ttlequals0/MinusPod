@@ -327,6 +327,17 @@ class SchemaMixin:
 
         conn = self.get_connection()
 
+        # Ensure schema_migrations exists before any sub-step references
+        # it. Avoids cascading failures if an earlier sub-migration fails
+        # before reaching its own CREATE TABLE IF NOT EXISTS.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS schema_migrations (
+                name TEXT PRIMARY KEY,
+                applied_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+            )
+        """)
+        conn.commit()
+
         # -- Episodes table columns --
         ep_cols = self._get_table_columns(conn, 'episodes')
         episodes_migrations = [
@@ -1129,9 +1140,13 @@ class SchemaMixin:
 
         # One-shot backfill of processing_history.ads_detected (2.5.29).
         # See _run_backfill_history_ads_detected for the bug + predicate.
+        # rollback() here is safe to scope to this migration's writes only
+        # because the CREATE TABLE schema_migrations + commit() at the top
+        # of this method finalized any prior sub-migration's transaction.
         try:
             self._run_backfill_history_ads_detected(conn)
         except Exception as e:
+            conn.rollback()
             logger.error(f"history ads_detected backfill failed: {e}")
 
         # v2 backfill (2.5.30) with corrected predicate. The v1 pass
@@ -1145,6 +1160,7 @@ class SchemaMixin:
         try:
             self._run_backfill_history_ads_detected_v2(conn)
         except Exception as e:
+            conn.rollback()
             logger.error(f"history ads_detected v2 backfill failed: {e}")
 
     def _run_backfill_history_ads_detected(self, conn):
@@ -1174,6 +1190,15 @@ class SchemaMixin:
 
         Gated by ``schema_migrations`` so the migration runs once per
         database. Logs each update at INFO with before/after values.
+
+        Multi-worker race: two gunicorn workers can both pass the gate
+        SELECT, both run the UPDATE loop (idempotent: same value writes
+        on already-corrected rows), and both attempt the gate INSERT.
+        ``INSERT OR IGNORE`` makes the second INSERT a silent no-op, so
+        the only operator-visible effect is that both workers log their
+        per-row update lines. Acceptable; cleaner serialization would
+        require ``BEGIN IMMEDIATE`` which conflicts with Python's
+        sqlite3 auto-begin under deferred isolation.
         """
         gate = conn.execute(
             "SELECT 1 FROM schema_migrations "
@@ -1182,6 +1207,11 @@ class SchemaMixin:
         if gate is not None:
             return
 
+        # Predicates intentionally use raw columns (no COALESCE): SQL's
+        # three-valued logic evaluates NULL comparisons to NULL (falsy
+        # in WHERE), so legacy rows with NULL ads_removed/firstpass/
+        # secondpass are excluded automatically. COALESCE-to-0 would
+        # match those rows and overwrite ads_detected with 0.
         rows = conn.execute("""
             WITH ranked AS (
                 SELECT h.id AS history_id,
@@ -1193,7 +1223,7 @@ class SchemaMixin:
                        e.ads_removed_secondpass,
                        ROW_NUMBER() OVER (
                            PARTITION BY h.podcast_id, h.episode_id
-                           ORDER BY h.processed_at DESC
+                           ORDER BY h.processed_at DESC, h.id DESC
                        ) AS rn
                 FROM processing_history h
                 JOIN episodes e
@@ -1219,21 +1249,19 @@ class SchemaMixin:
             )
             updated += 1
             logger.info(
-                "history-backfill: podcast_id=%s episode_id=%s "
-                "ads_detected %s -> %s (firstpass=%s + secondpass=%s)",
-                row['podcast_id'], row['episode_id'],
-                row['old_ads_detected'], row['true_total'],
-                row['ads_removed_firstpass'], row['ads_removed_secondpass'],
+                f"history-backfill: podcast_id={row['podcast_id']} "
+                f"episode_id={row['episode_id']} "
+                f"ads_detected {row['old_ads_detected']} -> {row['true_total']} "
+                f"(firstpass={row['ads_removed_firstpass']} + "
+                f"secondpass={row['ads_removed_secondpass']})"
             )
 
         conn.execute(
-            "INSERT INTO schema_migrations (name) VALUES "
+            "INSERT OR IGNORE INTO schema_migrations (name) VALUES "
             "('backfill_history_ads_detected_for_verification')"
         )
         conn.commit()
-        logger.info(
-            "history-backfill: complete, %d row(s) corrected", updated
-        )
+        logger.info(f"history-backfill: complete, {updated} row(s) corrected")
 
     def _run_backfill_history_ads_detected_v2(self, conn):
         """v2 correction of ``processing_history.ads_detected``.
@@ -1266,11 +1294,6 @@ class SchemaMixin:
         Gated by ``schema_migrations`` row
         ``backfill_history_ads_detected_v2_postreviewer_cuts``. v1's
         gate stays set, so v1 never re-runs.
-
-        Log messages use f-strings instead of the deferred %-formatting
-        v1 used; v1's per-row log lines never appeared in Loki on the
-        2.5.29 deploy despite the data being correctly updated. Cause
-        unknown; f-strings are the defensive fix while we investigate.
         """
         gate = conn.execute(
             "SELECT 1 FROM schema_migrations "
@@ -1279,6 +1302,10 @@ class SchemaMixin:
         if gate is not None:
             return
 
+        # Predicates intentionally use raw columns (no COALESCE): NULL
+        # comparisons evaluate to NULL (falsy in WHERE), so legacy rows
+        # with NULL ads_removed/firstpass/secondpass are excluded.
+        # COALESCE-to-0 would match and overwrite ads_detected with 0.
         rows = conn.execute("""
             WITH ranked AS (
                 SELECT h.id AS history_id,
@@ -1291,7 +1318,7 @@ class SchemaMixin:
                        (e.ads_removed - e.ads_removed_secondpass) AS pass1_cuts,
                        ROW_NUMBER() OVER (
                            PARTITION BY h.podcast_id, h.episode_id
-                           ORDER BY h.processed_at DESC
+                           ORDER BY h.processed_at DESC, h.id DESC
                        ) AS rn
                 FROM processing_history h
                 JOIN episodes e
@@ -1326,7 +1353,7 @@ class SchemaMixin:
             )
 
         conn.execute(
-            "INSERT INTO schema_migrations (name) VALUES "
+            "INSERT OR IGNORE INTO schema_migrations (name) VALUES "
             "('backfill_history_ads_detected_v2_postreviewer_cuts')"
         )
         conn.commit()
@@ -1337,32 +1364,25 @@ class SchemaMixin:
 
         Three steps, in order:
 
-        1. Ensure ``schema_migrations`` table exists. Idempotent.
-        2. Audit log every registered key's current state at INFO so any
+        1. Audit log every registered key's current state at INFO so any
            deployer has a recoverable trail without per-key custom queries.
-        3. If the ``env_backed_settings_correct_flags`` migration row is
+        2. If the ``env_backed_settings_correct_flags`` migration row is
            absent, run the corrective pass once: for each registered key
            where the row exists, ``is_default=1`` and the stored value
            differs from the validated env value, flip ``is_default`` to 0
            and KEEP the stored value. The migration never writes value
            during this pass, so no data is lost on any deployer's DB.
-        4. Per-boot resync: for each registered key, if the row is missing
+        3. Per-boot resync: for each registered key, if the row is missing
            insert it from env with ``is_default=1``; if the row exists and
            ``is_default=1`` and value differs from env, update the value
            (env changed since last boot, treat as canonical default).
+
+        ``schema_migrations`` is created at the top of
+        ``_run_schema_migrations`` before this helper runs.
         """
         from config import ENV_BACKED_SETTINGS, resolve_env_backed_default
 
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS schema_migrations (
-                name TEXT PRIMARY KEY,
-                applied_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-            )
-            """
-        )
-
-        # Step 2: audit log.
+        # Step 1: audit log.
         for db_key, _env_var, _fallback, _validator in ENV_BACKED_SETTINGS:
             env_value = resolve_env_backed_default(db_key)
             row = conn.execute(
@@ -1383,7 +1403,7 @@ class SchemaMixin:
                     db_key, value, is_default, env_value, match,
                 )
 
-        # Step 3: one-shot corrective flag pass, gated.
+        # Step 2: one-shot corrective flag pass, gated.
         gate = conn.execute(
             "SELECT 1 FROM schema_migrations WHERE name = 'env_backed_settings_correct_flags'"
         ).fetchone()
@@ -1411,7 +1431,7 @@ class SchemaMixin:
                 "INSERT INTO schema_migrations (name) VALUES ('env_backed_settings_correct_flags')"
             )
 
-        # Step 4: per-boot resync (also inserts missing rows for new keys).
+        # Step 3: per-boot resync (also inserts missing rows for new keys).
         for db_key, _env_var, _fallback, _validator in ENV_BACKED_SETTINGS:
             env_value = resolve_env_backed_default(db_key)
             row = conn.execute(

@@ -17,6 +17,7 @@ import os
 import shutil
 import sqlite3
 import tempfile
+from contextlib import closing
 
 import pytest
 
@@ -33,7 +34,7 @@ def fresh_db_dir():
 
 
 def _migration_marker_present(db_path, name):
-    with sqlite3.connect(db_path) as conn:
+    with closing(sqlite3.connect(db_path)) as conn:
         row = conn.execute(
             "SELECT 1 FROM schema_migrations WHERE name = ?", (name,)
         ).fetchone()
@@ -71,7 +72,7 @@ def _insert_history(conn, *, podcast_id, podcast_slug, episode_id,
 def _seed_state(db_path, *, episode, history_rows):
     podcast_id = episode['podcast_id']
     podcast_slug = episode['podcast_slug']
-    with sqlite3.connect(db_path) as conn:
+    with closing(sqlite3.connect(db_path)) as conn:
         _insert_podcast(conn, podcast_id, podcast_slug)
         _insert_episode(
             conn, podcast_id, episode['episode_id'],
@@ -86,7 +87,7 @@ def _seed_state(db_path, *, episode, history_rows):
 
 
 def _clear_v2_marker(db_path):
-    with sqlite3.connect(db_path) as conn:
+    with closing(sqlite3.connect(db_path)) as conn:
         conn.execute(
             "DELETE FROM schema_migrations "
             "WHERE name = 'backfill_history_ads_detected_v2_postreviewer_cuts'"
@@ -123,7 +124,7 @@ class TestV2CorrectsReviewerRejectionCases:
         _clear_v2_marker(db_path)
         _reload_db(fresh_db_dir)
 
-        with sqlite3.connect(db_path) as conn:
+        with closing(sqlite3.connect(db_path)) as conn:
             conn.row_factory = sqlite3.Row
             row = conn.execute(
                 "SELECT ads_detected FROM processing_history WHERE episode_id = ?",
@@ -162,7 +163,7 @@ class TestV2DoesNotDoubleCorrectV1Rows:
         _clear_v2_marker(db_path)
         _reload_db(fresh_db_dir)
 
-        with sqlite3.connect(db_path) as conn:
+        with closing(sqlite3.connect(db_path)) as conn:
             conn.row_factory = sqlite3.Row
             row = conn.execute(
                 "SELECT ads_detected FROM processing_history WHERE episode_id = 'ep1'"
@@ -188,7 +189,7 @@ class TestV2SkipsNoVerificationEpisodes:
         _clear_v2_marker(db_path)
         _reload_db(fresh_db_dir)
 
-        with sqlite3.connect(db_path) as conn:
+        with closing(sqlite3.connect(db_path)) as conn:
             conn.row_factory = sqlite3.Row
             row = conn.execute(
                 "SELECT ads_detected FROM processing_history WHERE episode_id = 'ep1'"
@@ -221,7 +222,7 @@ class TestV2SkipsOlderReprocessRows:
         _clear_v2_marker(db_path)
         _reload_db(fresh_db_dir)
 
-        with sqlite3.connect(db_path) as conn:
+        with closing(sqlite3.connect(db_path)) as conn:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(
                 "SELECT ads_detected, processed_at FROM processing_history "
@@ -252,7 +253,7 @@ class TestV2Idempotency:
 
         # Plant a row that matches the v2 predicate again. Gate must
         # prevent the second boot from touching it.
-        with sqlite3.connect(db_path) as conn:
+        with closing(sqlite3.connect(db_path)) as conn:
             conn.execute(
                 "UPDATE processing_history SET ads_detected = 6 "
                 "WHERE episode_id = 'ep1'"
@@ -260,7 +261,7 @@ class TestV2Idempotency:
             conn.commit()
         _reload_db(fresh_db_dir)
 
-        with sqlite3.connect(db_path) as conn:
+        with closing(sqlite3.connect(db_path)) as conn:
             conn.row_factory = sqlite3.Row
             row = conn.execute(
                 "SELECT ads_detected FROM processing_history WHERE episode_id = 'ep1'"
@@ -289,7 +290,7 @@ class TestV2SkipsFailedRows:
         _clear_v2_marker(db_path)
         _reload_db(fresh_db_dir)
 
-        with sqlite3.connect(db_path) as conn:
+        with closing(sqlite3.connect(db_path)) as conn:
             conn.row_factory = sqlite3.Row
             row = conn.execute(
                 "SELECT ads_detected FROM processing_history WHERE episode_id = 'ep1'"
@@ -308,7 +309,7 @@ class TestV1AndV2CoexistInSingleBoot:
         _reload_db(fresh_db_dir)
         db_path = os.path.join(fresh_db_dir, 'podcast.db')
 
-        with sqlite3.connect(db_path) as conn:
+        with closing(sqlite3.connect(db_path)) as conn:
             _insert_podcast(conn, 1, 'show')
             # Episode A: no reviewer rejection (firstpass detection
             # equals pass-1 cuts). v1 should correct.
@@ -329,7 +330,7 @@ class TestV1AndV2CoexistInSingleBoot:
             conn.commit()
 
         # Clear both gate rows so both migrations run on next boot.
-        with sqlite3.connect(db_path) as conn:
+        with closing(sqlite3.connect(db_path)) as conn:
             conn.execute(
                 "DELETE FROM schema_migrations WHERE name IN "
                 "('backfill_history_ads_detected_for_verification', "
@@ -339,7 +340,7 @@ class TestV1AndV2CoexistInSingleBoot:
 
         _reload_db(fresh_db_dir)
 
-        with sqlite3.connect(db_path) as conn:
+        with closing(sqlite3.connect(db_path)) as conn:
             conn.row_factory = sqlite3.Row
             rows = {r['episode_id']: r['ads_detected'] for r in conn.execute(
                 "SELECT episode_id, ads_detected FROM processing_history"

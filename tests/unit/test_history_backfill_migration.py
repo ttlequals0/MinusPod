@@ -14,6 +14,7 @@ import os
 import shutil
 import sqlite3
 import tempfile
+from contextlib import closing
 
 import pytest
 
@@ -29,16 +30,8 @@ def fresh_db_dir():
     shutil.rmtree(d, ignore_errors=True)
 
 
-def _row(db_path, history_id):
-    with sqlite3.connect(db_path) as conn:
-        conn.row_factory = sqlite3.Row
-        return conn.execute(
-            "SELECT ads_detected FROM processing_history WHERE id = ?", (history_id,)
-        ).fetchone()
-
-
 def _migration_marker_present(db_path):
-    with sqlite3.connect(db_path) as conn:
+    with closing(sqlite3.connect(db_path)) as conn:
         row = conn.execute(
             "SELECT 1 FROM schema_migrations "
             "WHERE name = 'backfill_history_ads_detected_for_verification'"
@@ -83,7 +76,7 @@ def _seed_state(db_path, *, episode, history_rows):
     """
     podcast_id = episode['podcast_id']
     podcast_slug = episode['podcast_slug']
-    with sqlite3.connect(db_path) as conn:
+    with closing(sqlite3.connect(db_path)) as conn:
         _insert_podcast(conn, podcast_id, podcast_slug)
         _insert_episode(
             conn, podcast_id, episode['episode_id'],
@@ -101,7 +94,7 @@ def _clear_migration_marker(db_path):
     """Drop the schema_migrations marker so the backfill runs again on
     next Database init. Lets tests stage state and trigger the migration
     explicitly."""
-    with sqlite3.connect(db_path) as conn:
+    with closing(sqlite3.connect(db_path)) as conn:
         conn.execute(
             "DELETE FROM schema_migrations "
             "WHERE name = 'backfill_history_ads_detected_for_verification'"
@@ -135,7 +128,7 @@ class TestBackfillLatestHistoryRow:
         _clear_migration_marker(db_path)
         _reload_db(fresh_db_dir)
 
-        with sqlite3.connect(db_path) as conn:
+        with closing(sqlite3.connect(db_path)) as conn:
             conn.row_factory = sqlite3.Row
             row = conn.execute(
                 "SELECT ads_detected FROM processing_history WHERE episode_id = 'ep1'"
@@ -162,7 +155,7 @@ class TestBackfillSkipsAlreadyCorrect:
         _clear_migration_marker(db_path)
         _reload_db(fresh_db_dir)
 
-        with sqlite3.connect(db_path) as conn:
+        with closing(sqlite3.connect(db_path)) as conn:
             conn.row_factory = sqlite3.Row
             row = conn.execute(
                 "SELECT ads_detected FROM processing_history WHERE episode_id = 'ep1'"
@@ -191,7 +184,7 @@ class TestBackfillSkipsNoVerificationCuts:
         _clear_migration_marker(db_path)
         _reload_db(fresh_db_dir)
 
-        with sqlite3.connect(db_path) as conn:
+        with closing(sqlite3.connect(db_path)) as conn:
             conn.row_factory = sqlite3.Row
             row = conn.execute(
                 "SELECT ads_detected FROM processing_history WHERE episode_id = 'ep1'"
@@ -227,7 +220,7 @@ class TestBackfillSkipsOldReprocessRows:
         _clear_migration_marker(db_path)
         _reload_db(fresh_db_dir)
 
-        with sqlite3.connect(db_path) as conn:
+        with closing(sqlite3.connect(db_path)) as conn:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(
                 "SELECT ads_detected, processed_at FROM processing_history "
@@ -262,7 +255,7 @@ class TestBackfillIdempotency:
         # Now plant a fresh divergent row that would match the bug
         # signature, but the gate row is set so the migration must NOT
         # re-run.
-        with sqlite3.connect(db_path) as conn:
+        with closing(sqlite3.connect(db_path)) as conn:
             conn.execute(
                 "UPDATE processing_history SET ads_detected = 2 "
                 "WHERE episode_id = 'ep1'"
@@ -270,7 +263,7 @@ class TestBackfillIdempotency:
             conn.commit()
         _reload_db(fresh_db_dir)  # second run: should NOT touch the row
 
-        with sqlite3.connect(db_path) as conn:
+        with closing(sqlite3.connect(db_path)) as conn:
             conn.row_factory = sqlite3.Row
             row = conn.execute(
                 "SELECT ads_detected FROM processing_history WHERE episode_id = 'ep1'"
@@ -299,7 +292,7 @@ class TestBackfillSkipsFailedRow:
         _clear_migration_marker(db_path)
         _reload_db(fresh_db_dir)
 
-        with sqlite3.connect(db_path) as conn:
+        with closing(sqlite3.connect(db_path)) as conn:
             conn.row_factory = sqlite3.Row
             row = conn.execute(
                 "SELECT ads_detected FROM processing_history WHERE episode_id = 'ep1'"

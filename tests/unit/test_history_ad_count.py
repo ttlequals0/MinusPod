@@ -15,8 +15,10 @@ verification re-cut count.
 Also covers the matching log-line bug in ``_log_completion_summary``
 where the "Complete: N ads removed" message used the same wrong value.
 """
+import atexit
 import logging
 import os
+import shutil
 import sys
 import tempfile
 from unittest.mock import MagicMock, patch
@@ -32,10 +34,17 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 import database
 import storage as storage_mod
+
+# Mutating __defaults__ on shared classes leaks across the pytest session,
+# but every other test file that uses this pattern leaks the same way and
+# none restore -- per-file snapshot-and-restore would only paper over the
+# symptom. Suite-wide cleanup belongs in conftest.py if/when it matters.
 database.Database._instance = None
 database.Database.__init__.__defaults__ = (_test_data_dir,)
 database.Database.__new__.__defaults__ = (_test_data_dir,)
 storage_mod.Storage.__init__.__defaults__ = (_test_data_dir,)
+
+atexit.register(shutil.rmtree, _test_data_dir, ignore_errors=True)
 
 from main_app.processing import _record_history_and_event, _log_completion_summary
 
@@ -131,7 +140,12 @@ class TestCompletionLogLineIncludesVerification:
 
     def test_log_includes_verification_count(self, caplog):
         db = MagicMock()
-        with caplog.at_level(logging.INFO, logger='podcast.audio'):
+        # Mock get_episode_token_totals so we don't read/reset the
+        # module-level _episode_accumulator that other tests share.
+        token_stub = {'input_tokens': 0, 'output_tokens': 0, 'cost': 0.0}
+        with caplog.at_level(logging.INFO, logger='podcast.audio'), \
+                patch('main_app.processing.get_episode_token_totals',
+                      return_value=token_stub):
             _log_completion_summary(
                 slug='s', episode_id='e',
                 ads_to_remove=[{'start': 60.0, 'end': 90.0}],
@@ -149,7 +163,10 @@ class TestCompletionLogLineIncludesVerification:
 
     def test_log_zero_total_when_no_cuts_anywhere(self, caplog):
         db = MagicMock()
-        with caplog.at_level(logging.INFO, logger='podcast.audio'):
+        token_stub = {'input_tokens': 0, 'output_tokens': 0, 'cost': 0.0}
+        with caplog.at_level(logging.INFO, logger='podcast.audio'), \
+                patch('main_app.processing.get_episode_token_totals',
+                      return_value=token_stub):
             _log_completion_summary(
                 slug='s', episode_id='e',
                 ads_to_remove=[], verification_count=0,
