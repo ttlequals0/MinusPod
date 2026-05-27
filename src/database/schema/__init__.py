@@ -327,6 +327,17 @@ class SchemaMixin:
 
         conn = self.get_connection()
 
+        # Ensure schema_migrations exists before any sub-step references
+        # it. Avoids cascading failures if an earlier sub-migration fails
+        # before reaching its own CREATE TABLE IF NOT EXISTS.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS schema_migrations (
+                name TEXT PRIMARY KEY,
+                applied_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+            )
+        """)
+        conn.commit()
+
         # -- Episodes table columns --
         ep_cols = self._get_table_columns(conn, 'episodes')
         episodes_migrations = [
@@ -1127,37 +1138,251 @@ class SchemaMixin:
         except Exception as e:
             logger.error(f"env-backed settings migration failed: {e}")
 
+        # One-shot backfill of processing_history.ads_detected (2.5.29).
+        # See _run_backfill_history_ads_detected for the bug + predicate.
+        # rollback() here is safe to scope to this migration's writes only
+        # because the CREATE TABLE schema_migrations + commit() at the top
+        # of this method finalized any prior sub-migration's transaction.
+        try:
+            self._run_backfill_history_ads_detected(conn)
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"history ads_detected backfill failed: {e}")
+
+        # v2 backfill (2.5.30) with corrected predicate. The v1 pass
+        # compared history.ads_detected against episodes.ads_removed_firstpass,
+        # which is pass-1 DETECTION count (pre-reviewer), not pass-1 CUTS
+        # (post-reviewer). The buggy 2.5.27 writer captured cuts, so v1
+        # only matched episodes where the reviewer rejected zero ads. v2
+        # uses (ads_removed - ads_removed_secondpass) which equals pass-1
+        # cuts post-reviewer regardless of how many the reviewer rejected
+        # or resurrected.
+        try:
+            self._run_backfill_history_ads_detected_v2(conn)
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"history ads_detected v2 backfill failed: {e}")
+
+    def _run_backfill_history_ads_detected(self, conn):
+        """One-shot correction of ``processing_history.ads_detected``
+        rows undercounted by the verification re-cut.
+
+        Pre-2.5.28 bug: ``_record_history_and_event`` recorded
+        ``len(ads_to_remove)`` (pass-1-after-reviewer only) and ignored
+        the ``verification_count`` parameter. The ``episodes`` table
+        had the correct total stored via ``_persist_episode_state``.
+
+        Safe-update predicate: for each (podcast_id, episode_id) pair,
+        find the latest completed history row and update it only when
+        all of:
+        - status='completed' (failed rows have ads_detected=0 by design)
+        - matching episode row exists
+        - episode.ads_removed_secondpass > 0 (the bug only undercounted
+          episodes that had a verification re-cut)
+        - history.ads_detected == episode.ads_removed_firstpass (the
+          exact bug signature: history captured pass-1, the true total
+          is firstpass + secondpass)
+        - history.ads_detected != episode.ads_removed (skip rows that
+          already happen to be correct)
+
+        Non-latest history rows (earlier reprocesses) are left alone
+        because the episodes row only retains the latest state.
+
+        Gated by ``schema_migrations`` so the migration runs once per
+        database. Logs each update at INFO with before/after values.
+
+        Multi-worker race: two gunicorn workers can both pass the gate
+        SELECT, both run the UPDATE loop (idempotent: same value writes
+        on already-corrected rows), and both attempt the gate INSERT.
+        ``INSERT OR IGNORE`` makes the second INSERT a silent no-op, so
+        the only operator-visible effect is that both workers log their
+        per-row update lines. Acceptable; cleaner serialization would
+        require ``BEGIN IMMEDIATE`` which conflicts with Python's
+        sqlite3 auto-begin under deferred isolation.
+        """
+        gate = conn.execute(
+            "SELECT 1 FROM schema_migrations "
+            "WHERE name = 'backfill_history_ads_detected_for_verification'"
+        ).fetchone()
+        if gate is not None:
+            return
+
+        # Predicates intentionally use raw columns (no COALESCE): SQL's
+        # three-valued logic evaluates NULL comparisons to NULL (falsy
+        # in WHERE), so legacy rows with NULL ads_removed/firstpass/
+        # secondpass are excluded automatically. COALESCE-to-0 would
+        # match those rows and overwrite ads_detected with 0.
+        rows = conn.execute("""
+            WITH ranked AS (
+                SELECT h.id AS history_id,
+                       h.podcast_id,
+                       h.episode_id,
+                       h.ads_detected AS old_ads_detected,
+                       e.ads_removed AS true_total,
+                       e.ads_removed_firstpass,
+                       e.ads_removed_secondpass,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY h.podcast_id, h.episode_id
+                           ORDER BY h.processed_at DESC, h.id DESC
+                       ) AS rn
+                FROM processing_history h
+                JOIN episodes e
+                  ON e.podcast_id = h.podcast_id
+                 AND e.episode_id = h.episode_id
+                WHERE h.status = 'completed'
+            )
+            SELECT history_id, podcast_id, episode_id,
+                   old_ads_detected, true_total,
+                   ads_removed_firstpass, ads_removed_secondpass
+            FROM ranked
+            WHERE rn = 1
+              AND ads_removed_secondpass > 0
+              AND old_ads_detected = ads_removed_firstpass
+              AND old_ads_detected != true_total
+        """).fetchall()
+
+        updated = 0
+        for row in rows:
+            conn.execute(
+                "UPDATE processing_history SET ads_detected = ? WHERE id = ?",
+                (row['true_total'], row['history_id']),
+            )
+            updated += 1
+            logger.info(
+                f"history-backfill: podcast_id={row['podcast_id']} "
+                f"episode_id={row['episode_id']} "
+                f"ads_detected {row['old_ads_detected']} -> {row['true_total']} "
+                f"(firstpass={row['ads_removed_firstpass']} + "
+                f"secondpass={row['ads_removed_secondpass']})"
+            )
+
+        conn.execute(
+            "INSERT OR IGNORE INTO schema_migrations (name) VALUES "
+            "('backfill_history_ads_detected_for_verification')"
+        )
+        conn.commit()
+        logger.info(f"history-backfill: complete, {updated} row(s) corrected")
+
+    def _run_backfill_history_ads_detected_v2(self, conn):
+        """v2 correction of ``processing_history.ads_detected``.
+
+        v1 predicate compared ``history.ads_detected`` against
+        ``episodes.ads_removed_firstpass``, but ``firstpass`` stores the
+        pass-1 DETECTION count (pre-reviewer) at
+        ``processing.py:_detect_ads_first_pass:340``, not the
+        post-reviewer CUTS that the buggy 2.5.27 writer captured. v1
+        only matched episodes where the reviewer rejected zero ads, so
+        episodes like macbreak-weekly-audio:2d9ccd57b93b (firstpass
+        detection=10, reviewer kept 6, verification=2, total cuts=8)
+        stayed at the wrong history value of 6.
+
+        v2 predicate derives pass-1 cuts as ``ads_removed -
+        ads_removed_secondpass``, which equals the buggy writer's value
+        regardless of how many ads the reviewer rejected or resurrected.
+
+        Safe-update predicate (only the LATEST history row per episode):
+        - status='completed'
+        - matching episode row exists
+        - ads_removed_secondpass > 0 (bug only undercounted episodes
+          where verification re-cut ran)
+        - history.ads_detected == ads_removed - ads_removed_secondpass
+          (the buggy writer's value, derived correctly)
+        - history.ads_detected != ads_removed (skip already correct or
+          already-v1-corrected; v1-corrected rows have ads_detected ==
+          ads_removed, so this clause naturally excludes them)
+
+        Gated by ``schema_migrations`` row
+        ``backfill_history_ads_detected_v2_postreviewer_cuts``. v1's
+        gate stays set, so v1 never re-runs.
+        """
+        gate = conn.execute(
+            "SELECT 1 FROM schema_migrations "
+            "WHERE name = 'backfill_history_ads_detected_v2_postreviewer_cuts'"
+        ).fetchone()
+        if gate is not None:
+            return
+
+        # Predicates intentionally use raw columns (no COALESCE): NULL
+        # comparisons evaluate to NULL (falsy in WHERE), so legacy rows
+        # with NULL ads_removed/firstpass/secondpass are excluded.
+        # COALESCE-to-0 would match and overwrite ads_detected with 0.
+        rows = conn.execute("""
+            WITH ranked AS (
+                SELECT h.id AS history_id,
+                       h.podcast_id,
+                       h.episode_id,
+                       h.ads_detected AS old_ads_detected,
+                       e.ads_removed AS true_total,
+                       e.ads_removed_firstpass,
+                       e.ads_removed_secondpass,
+                       (e.ads_removed - e.ads_removed_secondpass) AS pass1_cuts,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY h.podcast_id, h.episode_id
+                           ORDER BY h.processed_at DESC, h.id DESC
+                       ) AS rn
+                FROM processing_history h
+                JOIN episodes e
+                  ON e.podcast_id = h.podcast_id
+                 AND e.episode_id = h.episode_id
+                WHERE h.status = 'completed'
+            )
+            SELECT history_id, podcast_id, episode_id,
+                   old_ads_detected, true_total,
+                   ads_removed_firstpass, ads_removed_secondpass, pass1_cuts
+            FROM ranked
+            WHERE rn = 1
+              AND ads_removed_secondpass > 0
+              AND old_ads_detected = pass1_cuts
+              AND old_ads_detected != true_total
+        """).fetchall()
+
+        updated = 0
+        for row in rows:
+            conn.execute(
+                "UPDATE processing_history SET ads_detected = ? WHERE id = ?",
+                (row['true_total'], row['history_id']),
+            )
+            updated += 1
+            logger.info(
+                f"history-backfill-v2: podcast_id={row['podcast_id']} "
+                f"episode_id={row['episode_id']} "
+                f"ads_detected {row['old_ads_detected']} -> {row['true_total']} "
+                f"(pass1_cuts={row['pass1_cuts']} = "
+                f"total {row['true_total']} - secondpass {row['ads_removed_secondpass']}; "
+                f"firstpass_detection={row['ads_removed_firstpass']})"
+            )
+
+        conn.execute(
+            "INSERT OR IGNORE INTO schema_migrations (name) VALUES "
+            "('backfill_history_ads_detected_v2_postreviewer_cuts')"
+        )
+        conn.commit()
+        logger.info(f"history-backfill-v2: complete, {updated} row(s) corrected")
+
     def _run_env_backed_settings_migration(self, conn):
         """One-shot corrective pass + per-boot resync for env-backed settings.
 
         Three steps, in order:
 
-        1. Ensure ``schema_migrations`` table exists. Idempotent.
-        2. Audit log every registered key's current state at INFO so any
+        1. Audit log every registered key's current state at INFO so any
            deployer has a recoverable trail without per-key custom queries.
-        3. If the ``env_backed_settings_correct_flags`` migration row is
+        2. If the ``env_backed_settings_correct_flags`` migration row is
            absent, run the corrective pass once: for each registered key
            where the row exists, ``is_default=1`` and the stored value
            differs from the validated env value, flip ``is_default`` to 0
            and KEEP the stored value. The migration never writes value
            during this pass, so no data is lost on any deployer's DB.
-        4. Per-boot resync: for each registered key, if the row is missing
+        3. Per-boot resync: for each registered key, if the row is missing
            insert it from env with ``is_default=1``; if the row exists and
            ``is_default=1`` and value differs from env, update the value
            (env changed since last boot, treat as canonical default).
+
+        ``schema_migrations`` is created at the top of
+        ``_run_schema_migrations`` before this helper runs.
         """
         from config import ENV_BACKED_SETTINGS, resolve_env_backed_default
 
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS schema_migrations (
-                name TEXT PRIMARY KEY,
-                applied_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
-            )
-            """
-        )
-
-        # Step 2: audit log.
+        # Step 1: audit log.
         for db_key, _env_var, _fallback, _validator in ENV_BACKED_SETTINGS:
             env_value = resolve_env_backed_default(db_key)
             row = conn.execute(
@@ -1178,7 +1403,7 @@ class SchemaMixin:
                     db_key, value, is_default, env_value, match,
                 )
 
-        # Step 3: one-shot corrective flag pass, gated.
+        # Step 2: one-shot corrective flag pass, gated.
         gate = conn.execute(
             "SELECT 1 FROM schema_migrations WHERE name = 'env_backed_settings_correct_flags'"
         ).fetchone()
@@ -1206,7 +1431,7 @@ class SchemaMixin:
                 "INSERT INTO schema_migrations (name) VALUES ('env_backed_settings_correct_flags')"
             )
 
-        # Step 4: per-boot resync (also inserts missing rows for new keys).
+        # Step 3: per-boot resync (also inserts missing rows for new keys).
         for db_key, _env_var, _fallback, _validator in ENV_BACKED_SETTINGS:
             env_value = resolve_env_backed_default(db_key)
             row = conn.execute(

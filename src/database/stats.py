@@ -269,7 +269,13 @@ class StatsMixin:
              reprocess_number, input_tokens, output_tokens, llm_cost)
         )
         conn.commit()
-        logger.info(f"Recorded processing history: {podcast_slug}/{episode_id} - {status} (reprocess #{reprocess_number})")
+        # Logger errors must not propagate: callers (e.g. _record_history_and_event)
+        # treat any exception from this function as "row not written" and skip
+        # downstream webhooks. The row is committed at this point.
+        try:
+            logger.info(f"Recorded processing history: {podcast_slug}/{episode_id} - {status} (reprocess #{reprocess_number})")
+        except Exception:
+            pass
         return cursor.lastrowid
 
     def increment_episode_token_usage(self, episode_id: str,

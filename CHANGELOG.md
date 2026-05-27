@@ -30,6 +30,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The committed `calls.jsonl` rows were generated against a `SEED_SPONSORS` list that briefly excluded the `Zyn` entry (a local diff that was later reverted to match main). The system prompt for ad detection joins SEED_SPONSORS names, so the stored `prompt_hash` values do not match what current `src/utils/constants.py` would produce. A fresh `benchmark run` will therefore see zero completed rows and dispatch the full ~40k-call sweep from scratch. The committed report and per-call artifacts remain valid for review; they are just not bit-reproducible from the committed code without restoring the Zyn-removed state.
 
+## [2.5.31] - 2026-05-27
+
+### Fixed
+
+- **v1/v2 backfill: removed unsafe `COALESCE(..., 0)` on `ads_removed` and `ads_removed_firstpass`.** The 2.5.30 hardening pass added COALESCE wrappers intending to make the predicate NULL-tolerant, but the result was the opposite: for legacy episode rows where `ads_removed IS NULL` (manual repair, partial restore, or pre-default-backfill schema state), the COALESCE coerced NULL to 0 and the predicate matched, causing the UPDATE to overwrite `history.ads_detected` with 0. SQL's three-valued logic already excludes NULL rows automatically (`NULL = X` evaluates to NULL, falsy in WHERE), so dropping the COALESCE restores the safer behavior. Added a code comment to both v1 and v2 SQL blocks explaining why raw columns are intentional.
+- **`record_processing_history` post-commit `logger.info` no longer false-negatives the webhook.** The trailing `logger.info(...)` after `conn.commit()` in `src/database/stats.py:record_processing_history` is now wrapped in `try/except: pass`. The 2.5.30 webhook short-circuit treats any exception from `record_processing_history` as "row not written" and skips `EVENT_EPISODE_PROCESSED`. Without this wrap, a broken log handler raising after the commit would skip the webhook for an episode whose row was already in the DB.
+- **Webhook now fires when `podcast_data` is None.** The 2.5.30 short-circuit treated "podcast row not found" identically to "INSERT raised", which dropped the webhook for episodes whose podcast row was deleted/renamed mid-pipeline. The webhook payload only needs slug + episode_id + counts, all of which are available regardless of the podcast row state. Now only an actual exception from `record_processing_history` suppresses the webhook.
+
+### Changed
+
+- **`tests/unit/test_history_ad_count.py`: dropped the `__defaults__` snapshot+restore atexit hook.** Other test files using the same pattern do not restore either, so per-file restoration was theater rather than safety. Kept the tempdir `shutil.rmtree` cleanup.
+- **`src/database/schema/__init__.py`: removed the duplicate `CREATE TABLE IF NOT EXISTS schema_migrations`** inside `_run_env_backed_settings_migration`. The hoisted CREATE at the top of `_run_schema_migrations` covers it. Renumbered the step comments accordingly.
+- **CHANGELOG: restored the 2.5.29 Loki-silence breadcrumb** that the 2.5.30 rewrite had softened.
+
+## [2.5.30] - 2026-05-26
+
+### Fixed
+
+- **v2 backfill of `processing_history.ads_detected` for episodes where the reviewer rejected some pass-1 ads.** The v1 backfill in 2.5.29 compared `history.ads_detected` against `episodes.ads_removed_firstpass`, but `firstpass` stores the pass-1 DETECTION count (pre-reviewer), not the post-reviewer cuts that the buggy 2.5.27 writer captured. v1 only matched episodes where the reviewer rejected zero ads, so cases like `macbreak-weekly-audio:2d9ccd57b93b` (firstpass detection=10, reviewer kept 6, verification=2, total cuts=8) stayed at the wrong value of 6. v2 (`_run_backfill_history_ads_detected_v2` in `src/database/schema/__init__.py`) derives the correct pass-1 cut count as `ads_removed - ads_removed_secondpass`, which equals the buggy writer's value regardless of how many ads the reviewer rejected or resurrected. New gate row `backfill_history_ads_detected_v2_postreviewer_cuts` so v2 runs once on the next boot for every deployer; v1's gate stays set and v1 does not re-run. v1-corrected rows are naturally excluded from v2 because their `ads_detected == ads_removed` and v2 requires `ads_detected == ads_removed - secondpass`, impossible when `secondpass > 0`.
+- **Webhook now only fires when the history row is written.** `_record_history_and_event` previously had separate `try/except` blocks for `record_processing_history` vs `fire_event`, so a failed history INSERT (disk full, locked DB, missing podcast row) still fired `EVENT_EPISODE_PROCESSED` with an `ads_removed` total that no `/api/v1/history` row backed. External webhook consumers and the History page are now consistent: if the history row was not written, the webhook is skipped and the skip is logged.
+- **Backfill hardening for v1 and v2.** Five defensive changes to `_run_backfill_history_ads_detected[_v2]` in `src/database/schema/__init__.py`: (a) `conn.rollback()` on outer-`except` so a v1 failure cannot leak uncommitted UPDATEs into v2's commit; (b) `INSERT OR IGNORE` on the gate-row INSERT so a concurrent gunicorn worker's race does not raise `UNIQUE constraint failed`; (c) `CREATE TABLE IF NOT EXISTS schema_migrations` is hoisted to the top of `_run_schema_migrations` so the backfills no longer depend on `_run_env_backed_settings_migration` succeeding first; (d) `ROW_NUMBER() OVER (... ORDER BY processed_at DESC, h.id DESC)` adds a stable tie-break so two history rows written in the same second pick the actual latest by primary-key order; (e) `COALESCE(..., 0)` wraps `ads_removed`, `ads_removed_firstpass`, `ads_removed_secondpass` so legacy rows with NULL columns are treated as 0 instead of silently failing the predicate.
+- **`_log_completion_summary` `verification_count` is now keyword-only.** Inserting `verification_count` into the positional signature in 2.5.28 created a footgun where a future positional caller using the older 7-arg form would shift a float `original_duration` into the `verification_count` slot. The `*,` separator forces all callers to pass it by name.
+- **v1 log lines unified with v2 f-string format.** On the 2.5.29 deploy, v1's per-row `%`-format `logger.info(...)` calls never surfaced in Loki despite the data update committing correctly; other `database.schema` log lines from the same boot were ingested fine. Root cause is still unconfirmed (likely upstream of the logger: a Loki promtail filter or an early-boot stdout buffering issue, not the format style itself), but switching v1 to f-strings keeps the migration's log shape consistent across both helpers and avoids one variable while we investigate.
+
+### Operator notes
+
+- **Aggregate ad-count totals will step up after this release.** Endpoints and dashboards that SUM/AVG/MIN/MAX `processing_history.ads_detected` (`/api/v1/history/stats`, the dashboard stats query in `src/database/stats.py`) reflect the corrected totals after backfill, so historical numbers jump for any deployer who had pre-2.5.28 episodes with verification re-cuts. This is the intended correction, not a regression.
+- **Orphan history rows are not backfilled.** Both migrations `INNER JOIN episodes`, so any history row whose episode row was already purged (feed dropped the episode, manual cleanup) stays at its undercounted value. The History page entry for such episodes will continue to show the pre-2.5.28 number.
+
+### Added
+
+- **`tests/unit/test_history_backfill_migration_v2.py`: 7 cases.** The macbreak-style row (firstpass != cuts because reviewer rejected) gets corrected. v1-already-corrected rows are not touched. Episodes with `secondpass=0` are untouched. Older reprocess rows are left alone while the latest row is corrected. The gate prevents v2 from running twice. Failed-status rows are untouched. The coexistence test verifies that a single boot of a deployer upgrading from `<=2.5.28` directly to 2.5.30 corrects both the easy-case rows (via v1) and the reviewer-rejected rows (via v2).
+
+## [2.5.29] - 2026-05-26
+
+### Fixed
+
+- **Backfilled `processing_history.ads_detected` for episodes affected by the pre-2.5.28 verification undercount.** A one-shot migration in `src/database/schema/__init__.py` (`_run_backfill_history_ads_detected`) repairs the LATEST `processing_history` row per `(podcast_id, episode_id)` where the bug pattern is unambiguous. Safe-update predicate: `status='completed'` AND the matching `episodes` row has `ads_removed_secondpass > 0` (verification re-cut happened) AND `history.ads_detected == episode.ads_removed_firstpass` (history captured pass-1 only, the bug signature) AND `history.ads_detected != episode.ads_removed` (skip rows already correct). For matching rows, `ads_detected` is updated to `episode.ads_removed` (the correct total stored by `_persist_episode_state`). Each update logs the before/after values at INFO. Gated by `schema_migrations` row `backfill_history_ads_detected_for_verification`, so the migration runs once per database.
+- **Older reprocess rows are deliberately left alone.** The `episodes` table retains only the latest processing state, so for episodes that were reprocessed before 2.5.28, prior history rows cannot be safely corrected without inventing data. The migration only touches the LATEST history row per episode. Aggregate totals in `/api/v1/history/stats` will rise after this migration runs but will remain slightly low for any deployer who had reprocessed episodes with verification cuts before the fix.
+
+### Added
+
+- **`tests/unit/test_history_backfill_migration.py`: 6 cases.** Latest row gets corrected when bug signature matches; already-correct rows are untouched; rows for episodes with `secondpass=0` are untouched; older reprocess rows survive while the latest row is corrected; the gate prevents the migration from running twice; failed-status rows (which legitimately store `ads_detected=0`) are untouched.
+
+## [2.5.28] - 2026-05-26
+
+### Fixed
+
+- **History page (and `/api/v1/history`) ad count undercounted by the verification re-cut.** `src/main_app/processing.py:_record_history_and_event` recorded `ads_detected=len(ads_to_remove)` and ignored the `verification_count` it received as a parameter; `_persist_episode_state` already stored the total (`len(ads_to_remove) + verification_count`) on the episodes table, so the two write paths disagreed. Settings -> History showed pass-1-after-reviewer counts; episodes where pass 1 removed nothing but verification re-cut found ads showed `0` next to real cuts. The webhook payload (`EVENT_EPISODE_PROCESSED`) inherits the bug since `webhook_service.py:420` reads `ads_removed` from `history.ads_detected`. Changed the `ads_detected` argument in `_record_history_and_event` to `len(ads_to_remove) + verification_count`.
+- **`Complete: N ads removed` log line had the same undercount.** `_log_completion_summary` formatted `len(ads_to_remove)` into the completion log without receiving `verification_count`, so it reported pass-1 cuts only. Episodes where pass 1 removed nothing but verification re-cut found 1 logged `Complete: 0 ads removed` next to a real 1-minute drop in duration. Plumbed `verification_count` into the function; the log now reports `len(ads_to_remove) + verification_count`.
+
+### Added
+
+- **`tests/unit/test_history_ad_count.py`: regression test pinning the history-ad-count contract.** Five cases: history records total (pass-1 + verification) and not pass-1 alone; the zero-verification path still records pass-1; the zero-pass-1-positive-verification path (the `glt1412515089:a40d43aec65b` scenario that prompted the audit) records the verification cuts; the completion log line includes verification in its total; the completion log reports `0 ads removed` when neither pass cut anything. Without these, the omission would have been invisible to CI for a third release in a row.
+
 ## [2.5.27] - 2026-05-26
 
 ### Fixed
