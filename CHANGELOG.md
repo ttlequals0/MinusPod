@@ -30,6 +30,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The committed `calls.jsonl` rows were generated against a `SEED_SPONSORS` list that briefly excluded the `Zyn` entry (a local diff that was later reverted to match main). The system prompt for ad detection joins SEED_SPONSORS names, so the stored `prompt_hash` values do not match what current `src/utils/constants.py` would produce. A fresh `benchmark run` will therefore see zero completed rows and dispatch the full ~40k-call sweep from scratch. The committed report and per-call artifacts remain valid for review; they are just not bit-reproducible from the committed code without restoring the Zyn-removed state.
 
+## [2.5.28] - 2026-05-26
+
+### Fixed
+
+- **History page (and `/api/v1/history`) ad count undercounted by the verification re-cut.** `src/main_app/processing.py:_record_history_and_event` recorded `ads_detected=len(ads_to_remove)` and ignored the `verification_count` it received as a parameter; `_persist_episode_state` already stored the total (`len(ads_to_remove) + verification_count`) on the episodes table, so the two write paths disagreed. Settings -> History showed pass-1-after-reviewer counts; episodes where pass 1 removed nothing but verification re-cut found ads showed `0` next to real cuts. The webhook payload (`EVENT_EPISODE_PROCESSED`) inherits the bug since `webhook_service.py:420` reads `ads_removed` from `history.ads_detected`. Changed the `ads_detected` argument in `_record_history_and_event` to `len(ads_to_remove) + verification_count`.
+- **`Complete: N ads removed` log line had the same undercount.** `_log_completion_summary` formatted `len(ads_to_remove)` into the completion log without receiving `verification_count`, so it reported pass-1 cuts only. Episodes where pass 1 removed nothing but verification re-cut found 1 logged `Complete: 0 ads removed` next to a real 1-minute drop in duration. Plumbed `verification_count` into the function; the log now reports `len(ads_to_remove) + verification_count`.
+
+### Added
+
+- **`tests/unit/test_history_ad_count.py`: regression test pinning the history-ad-count contract.** Five cases: history records total (pass-1 + verification) and not pass-1 alone; the zero-verification path still records pass-1; the zero-pass-1-positive-verification path (the `glt1412515089:a40d43aec65b` scenario that prompted the audit) records the verification cuts; the completion log line includes verification in its total; the completion log reports `0 ads removed` when neither pass cut anything. Without these, the omission would have been invisible to CI for a third release in a row.
+
 ## [2.5.27] - 2026-05-26
 
 ### Fixed

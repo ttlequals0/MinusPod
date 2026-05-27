@@ -1122,19 +1122,25 @@ def _refresh_rss_for_slug(slug, episode_id):
         audio_logger.warning(f"[{slug}:{episode_id}] Failed to regenerate RSS cache: {cache_err}")
 
 
-def _log_completion_summary(slug, episode_id, ads_to_remove, original_duration,
-                             new_duration, processing_time, db):
-    """Log completion summary and post-cleanup memory; return token totals."""
+def _log_completion_summary(slug, episode_id, ads_to_remove, verification_count,
+                             original_duration, new_duration, processing_time, db):
+    """Log completion summary and post-cleanup memory; return token totals.
+
+    Total cuts reported as pass-1 (after reviewer) + verification re-cut.
+    Matches what ``_persist_episode_state`` stores in episodes.ads_removed
+    and what ``_record_history_and_event`` writes to history.ads_detected.
+    """
+    total_cuts = len(ads_to_remove) + verification_count
     if original_duration and new_duration:
         time_saved = original_duration - new_duration
         if time_saved > 0:
             db.increment_total_time_saved(time_saved)
         audio_logger.info(
             f"[{slug}:{episode_id}] Complete: {original_duration/60:.1f}->{new_duration/60:.1f}min, "
-            f"{len(ads_to_remove)} ads removed, {processing_time:.1f}s"
+            f"{total_cuts} ads removed, {processing_time:.1f}s"
         )
     else:
-        audio_logger.info(f"[{slug}:{episode_id}] Complete: {len(ads_to_remove)} ads removed, {processing_time:.1f}s")
+        audio_logger.info(f"[{slug}:{episode_id}] Complete: {total_cuts} ads removed, {processing_time:.1f}s")
 
     token_totals = get_episode_token_totals()
     audio_logger.info(f"[{slug}:{episode_id}] Token totals: in={token_totals['input_tokens']} out={token_totals['output_tokens']} cost=${token_totals['cost']:.6f}")
@@ -1162,7 +1168,7 @@ def _record_history_and_event(slug, episode_id, episode_title, podcast_name,
                 podcast_title=podcast_data.get('title') or podcast_name,
                 episode_id=episode_id, episode_title=episode_title,
                 status='completed', processing_duration_seconds=processing_time,
-                ads_detected=len(ads_to_remove),
+                ads_detected=len(ads_to_remove) + verification_count,
                 input_tokens=token_totals['input_tokens'],
                 output_tokens=token_totals['output_tokens'],
                 llm_cost=token_totals['cost'],
@@ -1196,8 +1202,8 @@ def _finalize_episode(slug, episode_id, episode_title, podcast_name,
     processing_time = time.time() - start_time
 
     token_totals = _log_completion_summary(
-        slug, episode_id, ads_to_remove, original_duration,
-        new_duration, processing_time, db,
+        slug, episode_id, ads_to_remove, verification_count,
+        original_duration, new_duration, processing_time, db,
     )
 
     _record_history_and_event(
