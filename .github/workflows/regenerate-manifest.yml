@@ -12,6 +12,10 @@ on:
     paths:
       - 'patterns/community/**.json'
       - '!patterns/community/index.json'  # avoid recursive triggers from our own commits
+  # workflow_dispatch lets us re-run by hand after a transient failure
+  # (e.g. the run on 0fa1f48b after #289 hit a pip --require-hashes
+  # regression against setuptools and left the manifest stale).
+  workflow_dispatch:
 
 # Prevent overlapping runs. If two pattern PRs merge back-to-back, the second
 # run waits for the first so the manifest is consistent.
@@ -29,10 +33,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
-          # Use a PAT or GITHUB_TOKEN that can push back to main.
           # Default GITHUB_TOKEN works for same-repo pushes that don't trigger
-          # further workflows; if branch protection requires PRs, swap for a
-          # PAT secret.
+          # further workflows. If branch protection ever requires PRs, swap
+          # for a PAT secret.
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
@@ -40,16 +43,18 @@ jobs:
         uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
         with:
           python-version: '3.12'
-          cache: 'pip'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          # No pip cache: generate_manifest.py and utils.community_tags are
+          # stdlib-only, so this workflow does not pip install anything.
 
       - name: Regenerate manifest
-        run: |
-          python -m src.tools.generate_manifest
+        # src.tools.generate_manifest only reads JSON files and writes
+        # patterns/community/index.json. It uses only stdlib (json, sys,
+        # datetime, pathlib, typing) plus utils.community_tags which is
+        # also stdlib-only. Do NOT add `pip install -r requirements.txt`
+        # here -- that pulled in the full GPU runtime stack (torch,
+        # ctranslate2, scikit-learn) and broke this workflow when pip's
+        # --require-hashes mode rejected an unpinned setuptools transitive.
+        run: python -m src.tools.generate_manifest
 
       - name: Check for manifest changes
         id: check
