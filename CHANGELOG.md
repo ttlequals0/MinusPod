@@ -30,6 +30,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The committed `calls.jsonl` rows were generated against a `SEED_SPONSORS` list that briefly excluded the `Zyn` entry (a local diff that was later reverted to match main). The system prompt for ad detection joins SEED_SPONSORS names, so the stored `prompt_hash` values do not match what current `src/utils/constants.py` would produce. A fresh `benchmark run` will therefore see zero completed rows and dispatch the full ~40k-call sweep from scratch. The committed report and per-call artifacts remain valid for review; they are just not bit-reproducible from the committed code without restoring the Zyn-removed state.
 
+## [2.5.30] - 2026-05-26
+
+### Fixed
+
+- **v2 backfill of `processing_history.ads_detected` for episodes where the reviewer rejected some pass-1 ads.** The v1 backfill in 2.5.29 compared `history.ads_detected` against `episodes.ads_removed_firstpass`, but `firstpass` stores the pass-1 DETECTION count (pre-reviewer), not the post-reviewer cuts that the buggy 2.5.27 writer captured. v1 only matched episodes where the reviewer rejected zero ads, so cases like `macbreak-weekly-audio:2d9ccd57b93b` (firstpass detection=10, reviewer kept 6, verification=2, total cuts=8) stayed at the wrong value of 6. v2 (`_run_backfill_history_ads_detected_v2` in `src/database/schema/__init__.py`) derives the correct pass-1 cut count as `ads_removed - ads_removed_secondpass`, which equals the buggy writer's value regardless of how many ads the reviewer rejected or resurrected. New gate row `backfill_history_ads_detected_v2_postreviewer_cuts` so v2 runs once on the next boot for every deployer; v1's gate stays set and v1 does not re-run. v1-corrected rows are naturally excluded from v2 because their `ads_detected == ads_removed` and v2 requires `ads_detected == ads_removed - secondpass`, impossible when `secondpass > 0`.
+- **Log format switched from `%`-deferred to f-strings in the new v2 helper.** v1's per-row `logger.info(...)` calls did not appear in Loki on the 2.5.29 deploy despite the data being correctly updated; other `database.schema` log lines from the same boot were ingested fine. Cause remains unknown. The f-string change in v2 is a defensive measure; the data correction does not depend on the logs.
+
+### Added
+
+- **`tests/unit/test_history_backfill_migration_v2.py`: 7 cases.** The macbreak-style row (firstpass != cuts because reviewer rejected) gets corrected. v1-already-corrected rows are not touched. Episodes with `secondpass=0` are untouched. Older reprocess rows are left alone while the latest row is corrected. The gate prevents v2 from running twice. Failed-status rows are untouched. The coexistence test verifies that a single boot of a deployer upgrading from `<=2.5.28` directly to 2.5.30 corrects both the easy-case rows (via v1) and the reviewer-rejected rows (via v2).
+
 ## [2.5.29] - 2026-05-26
 
 ### Fixed

@@ -1134,6 +1134,19 @@ class SchemaMixin:
         except Exception as e:
             logger.error(f"history ads_detected backfill failed: {e}")
 
+        # v2 backfill (2.5.30) with corrected predicate. The v1 pass
+        # compared history.ads_detected against episodes.ads_removed_firstpass,
+        # which is pass-1 DETECTION count (pre-reviewer), not pass-1 CUTS
+        # (post-reviewer). The buggy 2.5.27 writer captured cuts, so v1
+        # only matched episodes where the reviewer rejected zero ads. v2
+        # uses (ads_removed - ads_removed_secondpass) which equals pass-1
+        # cuts post-reviewer regardless of how many the reviewer rejected
+        # or resurrected.
+        try:
+            self._run_backfill_history_ads_detected_v2(conn)
+        except Exception as e:
+            logger.error(f"history ads_detected v2 backfill failed: {e}")
+
     def _run_backfill_history_ads_detected(self, conn):
         """One-shot correction of ``processing_history.ads_detected``
         rows undercounted by the verification re-cut.
@@ -1221,6 +1234,103 @@ class SchemaMixin:
         logger.info(
             "history-backfill: complete, %d row(s) corrected", updated
         )
+
+    def _run_backfill_history_ads_detected_v2(self, conn):
+        """v2 correction of ``processing_history.ads_detected``.
+
+        v1 predicate compared ``history.ads_detected`` against
+        ``episodes.ads_removed_firstpass``, but ``firstpass`` stores the
+        pass-1 DETECTION count (pre-reviewer) at
+        ``processing.py:_detect_ads_first_pass:340``, not the
+        post-reviewer CUTS that the buggy 2.5.27 writer captured. v1
+        only matched episodes where the reviewer rejected zero ads, so
+        episodes like macbreak-weekly-audio:2d9ccd57b93b (firstpass
+        detection=10, reviewer kept 6, verification=2, total cuts=8)
+        stayed at the wrong history value of 6.
+
+        v2 predicate derives pass-1 cuts as ``ads_removed -
+        ads_removed_secondpass``, which equals the buggy writer's value
+        regardless of how many ads the reviewer rejected or resurrected.
+
+        Safe-update predicate (only the LATEST history row per episode):
+        - status='completed'
+        - matching episode row exists
+        - ads_removed_secondpass > 0 (bug only undercounted episodes
+          where verification re-cut ran)
+        - history.ads_detected == ads_removed - ads_removed_secondpass
+          (the buggy writer's value, derived correctly)
+        - history.ads_detected != ads_removed (skip already correct or
+          already-v1-corrected; v1-corrected rows have ads_detected ==
+          ads_removed, so this clause naturally excludes them)
+
+        Gated by ``schema_migrations`` row
+        ``backfill_history_ads_detected_v2_postreviewer_cuts``. v1's
+        gate stays set, so v1 never re-runs.
+
+        Log messages use f-strings instead of the deferred %-formatting
+        v1 used; v1's per-row log lines never appeared in Loki on the
+        2.5.29 deploy despite the data being correctly updated. Cause
+        unknown; f-strings are the defensive fix while we investigate.
+        """
+        gate = conn.execute(
+            "SELECT 1 FROM schema_migrations "
+            "WHERE name = 'backfill_history_ads_detected_v2_postreviewer_cuts'"
+        ).fetchone()
+        if gate is not None:
+            return
+
+        rows = conn.execute("""
+            WITH ranked AS (
+                SELECT h.id AS history_id,
+                       h.podcast_id,
+                       h.episode_id,
+                       h.ads_detected AS old_ads_detected,
+                       e.ads_removed AS true_total,
+                       e.ads_removed_firstpass,
+                       e.ads_removed_secondpass,
+                       (e.ads_removed - e.ads_removed_secondpass) AS pass1_cuts,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY h.podcast_id, h.episode_id
+                           ORDER BY h.processed_at DESC
+                       ) AS rn
+                FROM processing_history h
+                JOIN episodes e
+                  ON e.podcast_id = h.podcast_id
+                 AND e.episode_id = h.episode_id
+                WHERE h.status = 'completed'
+            )
+            SELECT history_id, podcast_id, episode_id,
+                   old_ads_detected, true_total,
+                   ads_removed_firstpass, ads_removed_secondpass, pass1_cuts
+            FROM ranked
+            WHERE rn = 1
+              AND ads_removed_secondpass > 0
+              AND old_ads_detected = pass1_cuts
+              AND old_ads_detected != true_total
+        """).fetchall()
+
+        updated = 0
+        for row in rows:
+            conn.execute(
+                "UPDATE processing_history SET ads_detected = ? WHERE id = ?",
+                (row['true_total'], row['history_id']),
+            )
+            updated += 1
+            logger.info(
+                f"history-backfill-v2: podcast_id={row['podcast_id']} "
+                f"episode_id={row['episode_id']} "
+                f"ads_detected {row['old_ads_detected']} -> {row['true_total']} "
+                f"(pass1_cuts={row['pass1_cuts']} = "
+                f"total {row['true_total']} - secondpass {row['ads_removed_secondpass']}; "
+                f"firstpass_detection={row['ads_removed_firstpass']})"
+            )
+
+        conn.execute(
+            "INSERT INTO schema_migrations (name) VALUES "
+            "('backfill_history_ads_detected_v2_postreviewer_cuts')"
+        )
+        conn.commit()
+        logger.info(f"history-backfill-v2: complete, {updated} row(s) corrected")
 
     def _run_env_backed_settings_migration(self, conn):
         """One-shot corrective pass + per-boot resync for env-backed settings.
