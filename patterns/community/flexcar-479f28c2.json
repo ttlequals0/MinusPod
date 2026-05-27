@@ -1,0 +1,23 @@
+{
+  "scope": "global",
+  "text_template": "Spring is all about fresh starts and getting a car should be no different. Meet FlexCar, a new way to get a car without the large down payments or dealership hassles. One simple monthly payment includes your car insurance, maintenance and more. Use code SPRING for $50 off your first month at FlexCar.com.",
+  "intro_variants": [
+    "Spring is all about fresh starts and getting a car should be no different."
+  ],
+  "outro_variants": [
+    "Use code SPRING for $50 off your first month at FlexCar.com."
+  ],
+  "avg_duration": 113.94285714285716,
+  "sponsor": "Flexcar",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "auto",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "479f28c2-87b3-492c-8b84-869d0bd2cf2f",
+  "version": 1,
+  "submitted_at": "2026-05-27T02:31:11.364726+00:00",
+  "submitted_app_version": "unknown",
+  "sponsor_match": "exact"
+}

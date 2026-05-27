@@ -1,0 +1,30 @@
+{
+  "scope": "global",
+  "text_template": "Virgin Voyages presents With Love from Bermuda. We didn't Uber to the airport. We didn't take our shoes off for security. We just sailed from New York. Now it's cocktails on deck, adults only everything, and waking up in warm pink sand paradise without flying there. No TSA, no chaos, just an epic winter escape. Award-winning kid-free cruises from Virgin Voyages. Now sailing from New York to Bermuda and beyond. Explore sailings at virginvoyages.com.",
+  "intro_variants": [
+    "Virgin Voyages presents With Love from Alaska. The scenery out here is unreal. Mountains, glaciers, waterfalls, the ship? Designed for panoramic views, which is why I'm pretending to be a wildlife photographer. I am not. Yesterday we were hiking and kayaking. Today, I'm watching for humpback whales. Anyway, wish you were here.",
+    "Virgin Voyages presents With Love from Bermuda. We didn't Uber to the airport. We didn't take our shoes off for security. We just sailed from New York. Now it's cocktails on deck, adults only everything, and waking up in warm pink sand paradise without flying there. No TSA, no chaos, just an epic winter escape.",
+    "Virgin Voyages presents With Love from Bermuda. We didn't Uber to the airport. We didn't take our shoes off for security. We just sailed from New York. Now it's cocktails on deck, adults only everything, and waking up in warm pink sand paradise without flying there. No TSA, no chaos, just an epic winter escape.",
+    "Virgin Voyages presents, with love from the Caribbean. Today was snorkeling. Tomorrow is poolside DJs. Tonight is dinner by chefs who take this very seriously. Also, no kids. At all. Which somehow makes everything better. Sorry you couldn't come. But also, you should fix that.",
+    "Virgin Voyages presents with love from the Caribbean. Today was snorkeling Tomorrow is poolside DJs Tonight is dinner by chefs who take this very seriously Also no kids at all which somehow makes everything better Sorry you couldn come But also you should fix that "
+  ],
+  "outro_variants": [
+    "A modern, award-winning, kid-free cruise from Virgin Voyages. Explore Caribbean sailings at virginvoyages.com.",
+    "A modern award kid cruise from Virgin Voyages Explore Caribbean sailings at virginvoyages",
+    "Award-winning, kid-free Alaskan cruises from Virgin Voyages with immersive shore excursions and zero kid energy. VirginVoyages.com",
+    "Award-winning kid-free cruises from Virgin Voyages. Now sailing from New York to Bermuda and beyond. Explore sailings at virginvoyages.com.",
+  ],
+  "avg_duration": 113.94285714285716,
+  "sponsor": "Virgin Voyages",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "travel",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "40e16c26-231d-4bb0-a5da-789e8917b198",
+  "version": 1,
+  "submitted_at": "2026-05-27T02:31:11.364726+00:00",
+  "submitted_app_version": "unknown",
+  "sponsor_match": "exact"
+}

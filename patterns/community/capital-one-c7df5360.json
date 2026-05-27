@@ -1,0 +1,23 @@
+{
+  "scope": "global",
+  "text_template": "With no fees or minimums on checking accounts, it's no wonder the Capital One bank guy is so passionate about banking with Capital One. If he were here, he wouldn't just tell you about no fees or minimums. He'd also talk about how most Capital One cafes are open seven days a week to assist with your banking needs. Yep, even on weekends. It's pretty much all he talks about, in a good way. What's in your wallet? Terms apply. See CapitalOne.com slash bank. Capital One N-A member FDIC.",
+  "intro_variants": [
+    "With no fees or minimums on checking accounts, it's no wonder the Capital One bank guy is so passionate about banking with Capital One. If he were here, he wouldn't just tell you about no fees or minimums. He'd also talk about how most Capital One cafes are open seven days a week to assist with your banking needs. Yep, even on weekends. It's pretty much all he talks about, in a good way."
+  ],
+  "outro_variants": [
+    "What's in your wallet? Terms apply. See CapitalOne.com slash bank. Capital One N-A member FDIC."
+  ],
+  "avg_duration": 113.94285714285716,
+  "sponsor": "Capital One",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "finance",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "c7df5360-546b-4114-9d51-ae2e63bf063d",
+  "version": 1,
+  "submitted_at": "2026-05-27T02:31:11.364726+00:00",
+  "submitted_app_version": "unknown",
+  "sponsor_match": "exact"
+}
