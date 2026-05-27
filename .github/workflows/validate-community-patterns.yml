@@ -6,9 +6,13 @@ on:
     paths:
       - 'patterns/community/**'
 
+# Fork-PR safety: this workflow runs with the PR's token, which is
+# read-only when the PR comes from a fork. We do NOT request write
+# scopes here. The companion workflow comment-community-patterns.yml
+# runs on workflow_run from the base repo and is responsible for
+# posting the validation report back to the PR.
 permissions:
   contents: read
-  pull-requests: write
 
 jobs:
   validate:
@@ -55,30 +59,40 @@ jobs:
           CHANGED_FILES: ${{ steps.changed.outputs.files }}
         run: |
           set +e
+          mkdir -p /tmp/pattern-validation
           python -m src.tools.community_pattern_validator \
             --pr-files $CHANGED_FILES \
-            --comment-output /tmp/comment.md \
-            --status-output /tmp/status.txt
+            --comment-output /tmp/pattern-validation/comment.md \
+            --status-output /tmp/pattern-validation/status.txt
           echo "exit=$?" >> "$GITHUB_OUTPUT"
 
-      - name: Post results comment
+      - name: Emit report to job summary
         if: always() && steps.changed.outputs.files != ''
-        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3  # v9.0.0
+        run: |
+          if [ -f /tmp/pattern-validation/comment.md ]; then
+            cat /tmp/pattern-validation/comment.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Record PR number for comment workflow
+        if: always() && steps.changed.outputs.files != ''
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          mkdir -p /tmp/pattern-validation
+          echo "$PR_NUMBER" > /tmp/pattern-validation/pr_number.txt
+
+      - name: Upload validation report
+        if: always() && steps.changed.outputs.files != ''
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4  # v5.0.0
         with:
-          script: |
-            const fs = require('fs');
-            const path = '/tmp/comment.md';
-            if (!fs.existsSync(path)) return;
-            const body = fs.readFileSync(path, 'utf8');
-            await github.rest.issues.createComment({
-              issue_number: context.issue.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body,
-            });
+          name: pattern-validation-report
+          path: /tmp/pattern-validation/
+          if-no-files-found: error
+          retention-days: 7
 
       - name: Fail job on rejection
         if: steps.changed.outputs.files != '' && steps.validate.outputs.exit != '0'
         run: |
           echo "Community pattern validation rejected one or more files."
+          echo "See the job summary or PR comment for details."
           exit 1

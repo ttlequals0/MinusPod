@@ -1,0 +1,62 @@
+name: Comment Community Pattern Results
+
+# Runs in the base repo's context (not the fork's), so GITHUB_TOKEN
+# can be granted pull_request write scope to post the validation
+# report back to a fork PR. The companion validate-community-patterns
+# workflow runs read-only on the PR itself and uploads the report as
+# an artifact this workflow then downloads.
+on:
+  workflow_run:
+    workflows: ["Community Pattern Validation"]
+    types: [completed]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  comment:
+    name: Post validation report to PR
+    runs-on: ubuntu-latest
+    # Only act on PR-triggered runs from this repo's workflow.
+    if: github.event.workflow_run.event == 'pull_request'
+    steps:
+      - name: Download validation report
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0  # v5.0.0
+        with:
+          name: pattern-validation-report
+          path: /tmp/pattern-validation
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Post comment
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3  # v9.0.0
+        with:
+          script: |
+            const fs = require('fs');
+            const commentPath = '/tmp/pattern-validation/comment.md';
+            const prNumberPath = '/tmp/pattern-validation/pr_number.txt';
+            if (!fs.existsSync(commentPath) || !fs.existsSync(prNumberPath)) {
+              core.info('Validation report artifact missing expected files; nothing to post.');
+              return;
+            }
+            const body = fs.readFileSync(commentPath, 'utf8').trim();
+            if (!body) {
+              core.info('Validation report is empty; nothing to post.');
+              return;
+            }
+            const prNumber = parseInt(
+              fs.readFileSync(prNumberPath, 'utf8').trim(),
+              10,
+            );
+            if (!Number.isInteger(prNumber) || prNumber <= 0) {
+              core.setFailed('pr_number.txt did not contain a valid PR number');
+              return;
+            }
+            await github.rest.issues.createComment({
+              issue_number: prNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body,
+            });
+            core.info(`Posted validation report to PR #${prNumber}.`);
