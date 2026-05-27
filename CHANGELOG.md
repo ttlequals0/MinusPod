@@ -30,6 +30,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The committed `calls.jsonl` rows were generated against a `SEED_SPONSORS` list that briefly excluded the `Zyn` entry (a local diff that was later reverted to match main). The system prompt for ad detection joins SEED_SPONSORS names, so the stored `prompt_hash` values do not match what current `src/utils/constants.py` would produce. A fresh `benchmark run` will therefore see zero completed rows and dispatch the full ~40k-call sweep from scratch. The committed report and per-call artifacts remain valid for review; they are just not bit-reproducible from the committed code without restoring the Zyn-removed state.
 
+## [2.5.29] - 2026-05-26
+
+### Fixed
+
+- **Backfilled `processing_history.ads_detected` for episodes affected by the pre-2.5.28 verification undercount.** A one-shot migration in `src/database/schema/__init__.py` (`_run_backfill_history_ads_detected`) repairs the LATEST `processing_history` row per `(podcast_id, episode_id)` where the bug pattern is unambiguous. Safe-update predicate: `status='completed'` AND the matching `episodes` row has `ads_removed_secondpass > 0` (verification re-cut happened) AND `history.ads_detected == episode.ads_removed_firstpass` (history captured pass-1 only, the bug signature) AND `history.ads_detected != episode.ads_removed` (skip rows already correct). For matching rows, `ads_detected` is updated to `episode.ads_removed` (the correct total stored by `_persist_episode_state`). Each update logs the before/after values at INFO. Gated by `schema_migrations` row `backfill_history_ads_detected_for_verification`, so the migration runs once per database.
+- **Older reprocess rows are deliberately left alone.** The `episodes` table retains only the latest processing state, so for episodes that were reprocessed before 2.5.28, prior history rows cannot be safely corrected without inventing data. The migration only touches the LATEST history row per episode. Aggregate totals in `/api/v1/history/stats` will rise after this migration runs but will remain slightly low for any deployer who had reprocessed episodes with verification cuts before the fix.
+
+### Added
+
+- **`tests/unit/test_history_backfill_migration.py`: 6 cases.** Latest row gets corrected when bug signature matches; already-correct rows are untouched; rows for episodes with `secondpass=0` are untouched; older reprocess rows survive while the latest row is corrected; the gate prevents the migration from running twice; failed-status rows (which legitimately store `ads_detected=0`) are untouched.
+
 ## [2.5.28] - 2026-05-26
 
 ### Fixed

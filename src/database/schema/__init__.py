@@ -1127,6 +1127,101 @@ class SchemaMixin:
         except Exception as e:
             logger.error(f"env-backed settings migration failed: {e}")
 
+        # One-shot backfill of processing_history.ads_detected (2.5.29).
+        # See _run_backfill_history_ads_detected for the bug + predicate.
+        try:
+            self._run_backfill_history_ads_detected(conn)
+        except Exception as e:
+            logger.error(f"history ads_detected backfill failed: {e}")
+
+    def _run_backfill_history_ads_detected(self, conn):
+        """One-shot correction of ``processing_history.ads_detected``
+        rows undercounted by the verification re-cut.
+
+        Pre-2.5.28 bug: ``_record_history_and_event`` recorded
+        ``len(ads_to_remove)`` (pass-1-after-reviewer only) and ignored
+        the ``verification_count`` parameter. The ``episodes`` table
+        had the correct total stored via ``_persist_episode_state``.
+
+        Safe-update predicate: for each (podcast_id, episode_id) pair,
+        find the latest completed history row and update it only when
+        all of:
+        - status='completed' (failed rows have ads_detected=0 by design)
+        - matching episode row exists
+        - episode.ads_removed_secondpass > 0 (the bug only undercounted
+          episodes that had a verification re-cut)
+        - history.ads_detected == episode.ads_removed_firstpass (the
+          exact bug signature: history captured pass-1, the true total
+          is firstpass + secondpass)
+        - history.ads_detected != episode.ads_removed (skip rows that
+          already happen to be correct)
+
+        Non-latest history rows (earlier reprocesses) are left alone
+        because the episodes row only retains the latest state.
+
+        Gated by ``schema_migrations`` so the migration runs once per
+        database. Logs each update at INFO with before/after values.
+        """
+        gate = conn.execute(
+            "SELECT 1 FROM schema_migrations "
+            "WHERE name = 'backfill_history_ads_detected_for_verification'"
+        ).fetchone()
+        if gate is not None:
+            return
+
+        rows = conn.execute("""
+            WITH ranked AS (
+                SELECT h.id AS history_id,
+                       h.podcast_id,
+                       h.episode_id,
+                       h.ads_detected AS old_ads_detected,
+                       e.ads_removed AS true_total,
+                       e.ads_removed_firstpass,
+                       e.ads_removed_secondpass,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY h.podcast_id, h.episode_id
+                           ORDER BY h.processed_at DESC
+                       ) AS rn
+                FROM processing_history h
+                JOIN episodes e
+                  ON e.podcast_id = h.podcast_id
+                 AND e.episode_id = h.episode_id
+                WHERE h.status = 'completed'
+            )
+            SELECT history_id, podcast_id, episode_id,
+                   old_ads_detected, true_total,
+                   ads_removed_firstpass, ads_removed_secondpass
+            FROM ranked
+            WHERE rn = 1
+              AND ads_removed_secondpass > 0
+              AND old_ads_detected = ads_removed_firstpass
+              AND old_ads_detected != true_total
+        """).fetchall()
+
+        updated = 0
+        for row in rows:
+            conn.execute(
+                "UPDATE processing_history SET ads_detected = ? WHERE id = ?",
+                (row['true_total'], row['history_id']),
+            )
+            updated += 1
+            logger.info(
+                "history-backfill: podcast_id=%s episode_id=%s "
+                "ads_detected %s -> %s (firstpass=%s + secondpass=%s)",
+                row['podcast_id'], row['episode_id'],
+                row['old_ads_detected'], row['true_total'],
+                row['ads_removed_firstpass'], row['ads_removed_secondpass'],
+            )
+
+        conn.execute(
+            "INSERT INTO schema_migrations (name) VALUES "
+            "('backfill_history_ads_detected_for_verification')"
+        )
+        conn.commit()
+        logger.info(
+            "history-backfill: complete, %d row(s) corrected", updated
+        )
+
     def _run_env_backed_settings_migration(self, conn):
         """One-shot corrective pass + per-boot resync for env-backed settings.
 
