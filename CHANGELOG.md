@@ -30,6 +30,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The committed `calls.jsonl` rows were generated against a `SEED_SPONSORS` list that briefly excluded the `Zyn` entry (a local diff that was later reverted to match main). The system prompt for ad detection joins SEED_SPONSORS names, so the stored `prompt_hash` values do not match what current `src/utils/constants.py` would produce. A fresh `benchmark run` will therefore see zero completed rows and dispatch the full ~40k-call sweep from scratch. The committed report and per-call artifacts remain valid for review; they are just not bit-reproducible from the committed code without restoring the Zyn-removed state.
 
+## [2.5.31] - 2026-05-27
+
+### Fixed
+
+- **v1/v2 backfill: removed unsafe `COALESCE(..., 0)` on `ads_removed` and `ads_removed_firstpass`.** The 2.5.30 hardening pass added COALESCE wrappers intending to make the predicate NULL-tolerant, but the result was the opposite: for legacy episode rows where `ads_removed IS NULL` (manual repair, partial restore, or pre-default-backfill schema state), the COALESCE coerced NULL to 0 and the predicate matched, causing the UPDATE to overwrite `history.ads_detected` with 0. SQL's three-valued logic already excludes NULL rows automatically (`NULL = X` evaluates to NULL, falsy in WHERE), so dropping the COALESCE restores the safer behavior. Added a code comment to both v1 and v2 SQL blocks explaining why raw columns are intentional.
+- **`record_processing_history` post-commit `logger.info` no longer false-negatives the webhook.** The trailing `logger.info(...)` after `conn.commit()` in `src/database/stats.py:record_processing_history` is now wrapped in `try/except: pass`. The 2.5.30 webhook short-circuit treats any exception from `record_processing_history` as "row not written" and skips `EVENT_EPISODE_PROCESSED`. Without this wrap, a broken log handler raising after the commit would skip the webhook for an episode whose row was already in the DB.
+- **Webhook now fires when `podcast_data` is None.** The 2.5.30 short-circuit treated "podcast row not found" identically to "INSERT raised", which dropped the webhook for episodes whose podcast row was deleted/renamed mid-pipeline. The webhook payload only needs slug + episode_id + counts, all of which are available regardless of the podcast row state. Now only an actual exception from `record_processing_history` suppresses the webhook.
+
+### Changed
+
+- **`tests/unit/test_history_ad_count.py`: dropped the `__defaults__` snapshot+restore atexit hook.** Other test files using the same pattern do not restore either, so per-file restoration was theater rather than safety. Kept the tempdir `shutil.rmtree` cleanup.
+- **`src/database/schema/__init__.py`: removed the duplicate `CREATE TABLE IF NOT EXISTS schema_migrations`** inside `_run_env_backed_settings_migration`. The hoisted CREATE at the top of `_run_schema_migrations` covers it. Renumbered the step comments accordingly.
+- **CHANGELOG: restored the 2.5.29 Loki-silence breadcrumb** that the 2.5.30 rewrite had softened.
+
 ## [2.5.30] - 2026-05-26
 
 ### Fixed
