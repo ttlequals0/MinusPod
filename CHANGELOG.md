@@ -30,6 +30,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The committed `calls.jsonl` rows were generated against a `SEED_SPONSORS` list that briefly excluded the `Zyn` entry (a local diff that was later reverted to match main). The system prompt for ad detection joins SEED_SPONSORS names, so the stored `prompt_hash` values do not match what current `src/utils/constants.py` would produce. A fresh `benchmark run` will therefore see zero completed rows and dispatch the full ~40k-call sweep from scratch. The committed report and per-call artifacts remain valid for review; they are just not bit-reproducible from the committed code without restoring the Zyn-removed state.
 
+## [2.5.33] - 2026-05-27
+
+### Changed
+
+- **Re-publish under a new tag so Portainer's webhook pulls a fresh image.** No code changes vs `2.5.32` -- the `ttlequals0/minuspod:2.5.32` push contained the `bulk_upsert` discovery-count fix, but the running stack restarted from its local image cache (the tag string was unchanged) and never picked up the new layers. Bumping the tag forces a registry pull on the next webhook fire. Future deploys against a same-tag rebuild should either set the stack's pull policy to always or follow this same pattern.
+
 ## [2.5.32] - 2026-05-27
 
 ### Changed
