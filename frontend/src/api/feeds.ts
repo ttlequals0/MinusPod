@@ -107,9 +107,12 @@ export async function refreshFeed(
   });
 }
 
-export async function refreshAllFeeds(): Promise<{ message: string }> {
+export async function refreshAllFeeds(
+  options?: { force?: boolean },
+): Promise<{ message: string }> {
   return apiRequest<{ message: string }>('/feeds/refresh', {
     method: 'POST',
+    body: options?.force ? { force: true } : undefined,
   });
 }
 

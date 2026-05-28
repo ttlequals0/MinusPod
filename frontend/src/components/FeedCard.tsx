@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { Trash2 } from 'lucide-react';
 import { Feed } from '../api/types';
 import Artwork from './Artwork';
 import CopyButton from './CopyButton';
@@ -15,9 +16,9 @@ function FeedCard({ feed, onRefresh, onDelete, isRefreshing }: FeedCardProps) {
   const artworkUrl = feed.artworkUrl || `/api/v1/feeds/${feed.slug}/artwork`;
 
   return (
-    <div className="bg-card rounded-lg border border-border overflow-hidden">
+    <div className="bg-card rounded-lg border border-border">
       <div className="flex">
-        <div className="w-24 h-24 shrink-0">
+        <div className="w-24 h-24 shrink-0 overflow-hidden rounded-tl-lg">
           <Artwork
             src={artworkUrl}
             alt={feed.title}
@@ -41,15 +42,14 @@ function FeedCard({ feed, onRefresh, onDelete, isRefreshing }: FeedCardProps) {
           )}
         </div>
       </div>
-      <div className="px-4 py-3 bg-secondary/50 border-t border-border flex justify-between items-center">
-        <CopyButton text={feed.feedUrl} />
+      <div className="px-4 py-3 bg-secondary/50 border-t border-border rounded-b-lg flex justify-between items-center">
+        <CopyButton text={feed.feedUrl} hideLabelOnMobile />
         <div className="flex gap-2">
           <DropdownMenu
             triggerLabel={isRefreshing ? 'Refreshing...' : 'Refresh'}
-            triggerClassName="px-3 py-1 text-sm rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center gap-1.5"
+            triggerClassName="px-3 py-1.5 sm:px-4 sm:py-2 text-sm rounded bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center gap-2 whitespace-nowrap"
             disabled={isRefreshing}
             title="Refresh feed"
-            chevronClassName="w-3 h-3"
             items={[
               {
                 title: 'Refresh',
@@ -65,9 +65,12 @@ function FeedCard({ feed, onRefresh, onDelete, isRefreshing }: FeedCardProps) {
           />
           <button
             onClick={() => onDelete(feed.slug)}
-            className="px-3 py-1 text-sm rounded bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors"
+            className="inline-flex items-center justify-center gap-2 px-3 py-1.5 sm:px-4 sm:py-2 text-sm rounded bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors"
+            title="Delete feed"
+            aria-label="Delete feed"
           >
-            Delete
+            <Trash2 className="w-4 h-4 sm:hidden" />
+            <span className="hidden sm:inline">Delete</span>
           </button>
         </div>
       </div>

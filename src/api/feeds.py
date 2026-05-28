@@ -587,21 +587,15 @@ def refresh_all_feeds():
     try:
         db = get_database()
 
-        # Check for force parameter
         data = request.get_json(silent=True)
-        if data and data.get('force'):
-            # Clear all ETags to force non-conditional fetch
-            podcasts = db.get_all_podcasts()
-            for podcast in podcasts:
-                db.update_podcast_etag(podcast['slug'], None, None)
-            logger.info(f"Force refresh requested, cleared ETags for {len(podcasts)} feeds")
+        force = bool(data and data.get('force'))
 
         from main_app.feeds import refresh_all_feeds as do_refresh
-        do_refresh()
+        do_refresh(force=force)
 
         podcasts = db.get_all_podcasts()
 
-        logger.info("Refreshed all feeds")
+        logger.info(f"Refreshed all feeds (force={force})")
         return json_response({
             'message': 'All feeds refreshed',
             'feedCount': len(podcasts)

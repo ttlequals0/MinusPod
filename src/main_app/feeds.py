@@ -168,7 +168,11 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
                 artwork_url=artwork_url,
                 last_checked_at=utc_now_iso()
             )
-            if new_etag or new_last_modified:
+            # On force=True, always overwrite the stored ETag/Last-Modified --
+            # even with None -- so a server that drops the header on this
+            # response can't cause the next conditional GET to send a stale
+            # validator and get a false 304.
+            if new_etag or new_last_modified or force:
                 update_kwargs['etag'] = new_etag
                 update_kwargs['last_modified_header'] = new_last_modified
             db.update_podcast(slug, **update_kwargs)
@@ -308,17 +312,24 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
         return False
 
 
-def refresh_all_feeds():
-    """Refresh all RSS feeds in parallel."""
+def refresh_all_feeds(force: bool = False):
+    """Refresh all RSS feeds in parallel.
+
+    Args:
+        force: If True, bypass each feed's ETag and 30s refresh-coalesce window
+               so every feed is fully re-fetched. Used by the UI Force Refresh
+               All action; the 15-minute background scheduler always calls with
+               force=False.
+    """
     try:
-        refresh_logger.info("Refreshing all RSS feeds")
+        refresh_logger.info(f"Refreshing all RSS feeds (force={force})")
 
         feed_map = get_feed_map()
 
         # Parallelize feed refresh with ThreadPoolExecutor
         with ThreadPoolExecutor(max_workers=5) as executor:
             futures = {
-                executor.submit(refresh_rss_feed, slug, feed_info['in']): slug
+                executor.submit(refresh_rss_feed, slug, feed_info['in'], force): slug
                 for slug, feed_info in feed_map.items()
             }
             for future in as_completed(futures):

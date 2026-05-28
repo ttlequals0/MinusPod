@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.5.31
+  version: 2.5.32
   contact:
     name: MinusPod
   license:
@@ -543,8 +543,29 @@ paths:
       tags:
         - Feeds
       summary: Refresh all feeds
-      description: Refresh RSS feeds for all configured podcasts
+      description: |
+        Refresh RSS feeds for all configured podcasts. By default this
+        sends a conditional GET per feed -- if upstream returns 304 Not
+        Modified, that feed is a no-op. Pass `{"force": true}` in the
+        body to clear every podcast's stored ETag / Last-Modified before
+        fetching so upstream cannot short-circuit with 304.
       operationId: refreshAllFeeds
+      requestBody:
+        required: false
+        description: Optional force-refresh flag. Omit for default conditional GET per feed.
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                force:
+                  type: boolean
+                  description: |
+                    When true, clears every podcast's stored ETag +
+                    Last-Modified values before fetching so upstream
+                    cannot short-circuit with 304 Not Modified.
+                  default: false
+              additionalProperties: false
       responses:
         '200':
           description: All feeds refreshed
