@@ -22,7 +22,12 @@ jobs:
       - name: Checkout PR
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
-          fetch-depth: 2
+          # Need full history so the diff against pull_request.base.sha
+          # works even after main has advanced past the PR's recorded
+          # base. A shallow clone fails with "bad object <sha>" when the
+          # base commit is not in the local pack, and the resulting
+          # empty change list silently skips validation.
+          fetch-depth: 0
 
       - name: List changed JSON files under patterns/community/
         id: changed
@@ -30,9 +35,14 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          set -e
-          changed=$(git diff --diff-filter=AM --name-only "$BASE_SHA" "$HEAD_SHA" \
-            | grep -E '^patterns/community/.+\.json$' \
+          set -euo pipefail
+          # Diff failures must abort the job -- we previously masked them
+          # with `|| true` on the pipeline, which let an unreachable base
+          # SHA produce an empty changed list and a misleading green run.
+          git diff --diff-filter=AM --name-only "$BASE_SHA" "$HEAD_SHA" > /tmp/changed-raw.txt
+          # Filtering can legitimately return zero matches; only `grep`'s
+          # exit code 1 here is allowed to roll up to an empty result.
+          changed=$(grep -E '^patterns/community/.+\.json$' /tmp/changed-raw.txt \
             | grep -v 'patterns/community/index.json' \
             | tr '\n' ' ' || true)
           echo "files=$changed" >> "$GITHUB_OUTPUT"
