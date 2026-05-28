@@ -1,0 +1,25 @@
+{
+  "scope": "global",
+  "text_template": "The wait is over. Live table games have arrived in New York City. Experience Blackjack, Baccarat, Crabs and Roulette 24-7 only at Resorts World New York City. Gambling problem? Call 877-8HOPE-NY or text HOPE-NY-467-369.",
+  "intro_variants": [
+    "The wait is over. Live table games have arrived in New York City. Experience Blackjack, Baccarat, Crabs and Roulette 24-7 only at Resorts World New York City.",
+    "The wait is over. Live table games have arrived in New York City. Experience blackjack, baccara, crabs and roulette 24-7 only at Resorts World New York City."
+  ],
+  "outro_variants": [
+    "Gambling problem? Call 877-8HOPE-NY or text HOPE-NY-467-369.",
+    "Gambling problem call 877-8HOPE-NY or text HOPE-NY-467-369. Must be 21 or older to gamble. Standard message is applied."
+  ],
+  "avg_duration": null,
+  "sponsor": "Resorts World",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "gambling",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "61b7f12f-3bb3-4e80-b6c2-a87103c00743",
+  "version": 1,
+  "submitted_at": "2026-05-27T02:31:11.364726+00:00",
+  "submitted_app_version": "unknown",
+  "sponsor_match": "exact"
+}

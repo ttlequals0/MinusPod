@@ -1,0 +1,23 @@
+{
+  "scope": "global",
+  "text_template": "Support for the show comes from Amazon. There are the things you can plan for. A first birthday party, a movie marathon, a renter-friendly bathroom reno. And then there are the things you can never plan for. A surprise rainstorm, a Blu-ray player calling it quits, stick-on tiles that looked way better on the package. For all things planned and unplanned, Amazon has you covered. You'll find low prices on everyday essentials and last-minute lifesavers. Shop Amazon and save on essentials. Save the everyday.",
+  "intro_variants": [
+    "Support for the show comes from Amazon.",
+    "There are the things you can plan for. A first birthday party, a movie marathon, a renter-friendly bathroom reno."
+],
+  "outro_variants": [
+    "Shop Amazon and save on essentials. Save the everyday."
+  ],
+  "avg_duration": null,
+  "sponsor": "Amazon",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "645e026a-7fb2-4645-8a9e-42570d74d193",
+  "version": 1,
+  "submitted_at": "2026-05-27T02:31:11.364726+00:00",
+  "submitted_app_version": "unknown",
+  "sponsor_match": "exact"
+}

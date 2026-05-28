@@ -1,0 +1,25 @@
+{
+  "scope": "global",
+  "text_template": "Here's the thing about bad cholesterol. It can silently build up in your arteries over time. High bad cholesterol may increase your risk of heart attack or stroke. Is your bad cholesterol low enough? Talk to your doctor about setting a goal to help lower your bad cholesterol and reduce your risk of heart attack or stroke. There's more to know about bad cholesterol. Learn more about the risks at badcholesterol.com. Brought to you by Merck.",
+  "intro_variants": [
+    "Here's the thing about bad cholesterol. It can silently build up in your arteries over time. High bad cholesterol may increase your risk of heart attack or stroke."
+  ],
+  "outro_variants": [
+    "Learn more about the risks at badcholesterol.com. Brought to you by Merck.",
+    "There's more to know about bad cholesterol."
+  ],
+  "avg_duration": null,
+  "sponsor": "badcholesterol.com",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "health",
+    "supplements",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "ca6c0db7-f959-4dcb-9412-e736bf3a16e5",
+  "version": 1,
+  "submitted_at": "2026-05-27T02:31:11.364726+00:00",
+  "submitted_app_version": "unknown",
+  "sponsor_match": "exact"
+}

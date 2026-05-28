@@ -1,0 +1,27 @@
+{
+  "scope": "global",
+  "text_template": "There's nowhere I wouldn't go to help someone customize and save on car insurance with Liberty Mutual, even if it means sitting front row at a comedy show. Hey everyone, check out this guy and his bird. What is this, your first date? Oh, no. We help people customize and save on car insurance with Liberty Mutual together. We're married. Me to a human, him to a bird. Yeah, the bird looks out of your league anyways. Get a quote at LibertyMutual.com or with your local agent.",
+  "intro_variants": [
+    "There's nowhere I wouldn't go to help someone customize and save on car insurance with Liberty Mutual, even if it means sitting front row at a comedy show."
+  ],
+  "outro_variants": [
+    "Get a quote at LibertyMutual.com or with your local agent.",
+    "and need at LibertyMutual.com. Liberty, Liberty, Liberty, Liberty."
+  ],
+  "avg_duration": null,
+  "sponsor": "Liberty Mutual",
+  "sponsor_aliases": [
+    "LibertyMutual"
+  ],
+  "sponsor_tags": [
+    "automotive",
+    "insurance",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "00ebc6f4-ecd4-4cd5-a92d-0dfe70c6e971",
+  "version": 1,
+  "submitted_at": "2026-05-27T02:31:11.364726+00:00",
+  "submitted_app_version": "unknown",
+  "sponsor_match": "exact"
+}

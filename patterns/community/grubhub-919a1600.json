@@ -1,0 +1,28 @@
+{
+  "scope": "global",
+  "text_template": "Gold Days at Grubhub Plus is officially here. We're talking Grubhub's best offers of the year all month long. It's the best time to order, but the worst time to have friends over, because when the deals are this good, everyone's going to want to bite. Not a member? Join now for just 99 cents a month for your first six months. You'll enjoy $0 delivery fees and lower service fees on eligible orders. Sign up now at grubhub.com slash plus slash gold. Terms apply.",
+  "intro_variants": [
+    "Gold Days at Grubhub Plus is officially here. We're talking Grubhub's best offers of the year all month long.",
+    "Listen up! Gold Days at Grubhub Plus is officially here. We're talking Grubhub's best offers of the year, all month long.",
+    "Listen up Gold Days at Grubhub Plus is officially here We talking Grubhub best offers of the year all month long",
+    "Gold Days at Grubhub Plus is officially here. We're talking Grubhub's best offers of the year, all month long."
+  ],
+  "outro_variants": [
+    "Sign up now at grubhub.com slash plus slash gold. Terms apply."
+  ],
+  "avg_duration": null,
+  "sponsor": "Grubhub",
+  "sponsor_aliases": [
+    "Grub Hub"
+  ],
+  "sponsor_tags": [
+    "food",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "919a1600-268d-4f93-9ae1-73db5f3dab1f",
+  "version": 1,
+  "submitted_at": "2026-05-27T02:31:11.364726+00:00",
+  "submitted_app_version": "unknown",
+  "sponsor_match": "exact"
+}

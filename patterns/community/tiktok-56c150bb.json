@@ -1,0 +1,26 @@
+{
+  "scope": "global",
+  "text_template": "Want to be a star? No problem! Anyone can shine on TikTok! Post your first video today! Real life, real story, real you. Download TikTok and get started!",
+  "intro_variants": [
+    "Want to be a star? No problem! Anyone can shine on TikTok!"
+  ],
+  "outro_variants": [
+    "Download TikTok and get started!"
+  ],
+  "avg_duration": null,
+  "sponsor": "TikTok",
+  "sponsor_aliases": [
+    "Tik Tok"
+  ],
+  "sponsor_tags": [
+    "comedy",
+    "music",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "56c150bb-c761-4025-bacb-85a1f5e39e64",
+  "version": 1,
+  "submitted_at": "2026-05-27T02:31:11.364726+00:00",
+  "submitted_app_version": "unknown",
+  "sponsor_match": "exact"
+}

@@ -1,0 +1,24 @@
+{
+  "scope": "global",
+  "text_template": "This is Jana Kramer from Wind Down with Jana Kramer. So why do they call it a dishwasher? Well, don't worry. It's not a trick question or anything. It's just because it washes dishes. If the filter and the dishwasher itself are dirty, those dishes aren't actually getting clean. That's why you need Cascade Platinum Plus. Powered by two times the cleaning power of Dawn, Cascade Platinum Plus doesn't just remove 100% of grease and residue from dishes. It cleans your dishwasher and filter too. So you get clean dishes and a dishwasher that keeps washing. Just scrape, load and done. Find Cascade Platinum Plus at your local retailer.",
+  "intro_variants": [
+    "This is Jana Kramer from Wind Down with Jana Kramer. So why do they call it a dishwasher? Well, don't worry."
+  ],
+  "outro_variants": [
+    "So you get clean dishes and a dishwasher that keeps washing. Just scrape, load, and done.",
+    "Find Cascade Platinum Plus at your local retailer."
+  ],
+  "avg_duration": null,
+  "sponsor": "Cascade Platinum",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "home_goods",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "7928fd80-cb24-491b-a5e5-f908f0aa2f34",
+  "version": 1,
+  "submitted_at": "2026-05-27T02:31:11.364726+00:00",
+  "submitted_app_version": "unknown",
+  "sponsor_match": "exact"
+}

@@ -1,0 +1,29 @@
+{
+  "scope": "global",
+  "text_template": "How is TD making banking more human? Easy. With less bank talk and more real talk. Less, your call is important to us, and more, how can we help? Less confusion, and more clarity. It's things like tapping your phone to use your TD card, and getting your paycheck two business days early. It's getting more of what you want, and less of what you don't. That's how TD's making banking more human. Are we human?",
+  "intro_variants": [
+    "How is TD making banking more human? Easy.",
+    "How is TD making banking more human Easy"
+  ],
+  "outro_variants": [
+    "That's how TD is making banking more human. Are we human?",
+    "That's how TD's making banking more human. Are we human?",
+    "That's how TD's making banking more human."
+  ],
+  "avg_duration": null,
+  "sponsor": "TD card",
+  "sponsor_aliases": [
+    "TD Bank",
+    "Toronto-Dominion Bank"
+  ],
+  "sponsor_tags": [
+    "finance",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "32ae2eaa-3148-4b7e-9d96-e7fc59576ed1",
+  "version": 1,
+  "submitted_at": "2026-05-27T02:31:11.364726+00:00",
+  "submitted_app_version": "unknown",
+  "sponsor_match": "exact"
+}
