@@ -173,3 +173,23 @@ Open an issue on the main MinusPod repo if:
 - A pattern was incorrectly rejected as a duplicate
 
 This document evolves with the project.
+
+-----
+
+## Filename rules
+
+Per-pattern files MUST be named `<slug>-<short_uuid>.json`, where:
+
+- `<slug>` is the lowercased, hyphen-joined version of the `sponsor` field
+  (e.g. `Shopify` -> `shopify`, `TD Bank` -> `td-bank`, `Hims.com` -> `hims-com`).
+- `<short_uuid>` is the first 8-char segment of `community_id`
+  (e.g. `community_id: "07df78ed-..."` -> `07df78ed`).
+
+The PR validator hard-rejects mismatches because the filename is the only
+hint a reviewer browsing `patterns/community/` has about what a file
+contains. If a contributor edits the `sponsor` field after export, the file
+must be renamed too.
+
+Bundle files (`format: "minuspod-community-submission"`) follow the
+`minuspod-submission-<id>.json` convention instead. The validator warns
+when these two shapes are mixed up.

@@ -142,11 +142,31 @@ Open the Export dialog on the Patterns page and pick the **Submit to community**
 
 See `CONTRIBUTING.md` for the full explainer on what gets submitted, what gets stripped, and what the automated checks look for.
 
-Manual submission (without the app) is possible but discouraged. You would need to:
+Manual submission (without the app) is possible but discouraged. Use the
+scaffold helper so the filename and `sponsor` field cannot drift:
 
-1. Hand-craft a pattern JSON file matching the format above
-1. Open a PR adding the file to `patterns/community/`
-1. The GitHub Action will validate; expect the same checks as automatic submission
+```
+python -m src.tools.scaffold_community_pattern \
+    --sponsor "Shopify" \
+    --text-template "Shopify is the commerce platform behind millions of businesses..." \
+    --tags universal business
+```
+
+The tool writes `patterns/community/<slug>-<short_uuid>.json` with the correct
+schema. Fill in `intro_variants` / `outro_variants` afterward as needed, then:
+
+1. Open a PR adding the file.
+1. The GitHub Action validates; expect the same checks as automatic submission.
+
+Maintainers who receive a bundle (`minuspod-submission-<id>.json`) and want to
+land it as per-pattern files instead can run:
+
+```
+python -m src.tools.split_bundle patterns/community/minuspod-submission-<id>.json
+```
+
+The bundle is replaced in place by one `<slug>-<short_uuid>.json` file per
+contained pattern.
 
 -----
 
