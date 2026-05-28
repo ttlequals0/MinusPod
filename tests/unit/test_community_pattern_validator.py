@@ -310,3 +310,29 @@ def test_filename_errors_accepts_correct_name():
 def test_filename_errors_skips_when_community_id_missing():
     """Required-field check owns missing community_id; we don't double-report."""
     assert _filename_errors('patterns/community/whatever.json', _doc(community_id='')) == []
+
+
+from tools.community_pattern_validator import _file_shape_warnings  # noqa: E402
+
+
+def test_file_shape_warns_bundle_named_as_per_pattern():
+    raw = {'format': BUNDLE_FORMAT, 'patterns': []}
+    warns = _file_shape_warnings('patterns/community/shopify-07df78ed.json', raw)
+    assert any('bundle' in w.lower() for w in warns)
+
+
+def test_file_shape_warns_per_pattern_named_as_bundle():
+    raw = {'community_id': 'abc', 'sponsor': 'Shopify'}
+    warns = _file_shape_warnings('patterns/community/minuspod-submission-xyz.json', raw)
+    assert any('per-pattern' in w.lower() for w in warns)
+
+
+def test_file_shape_silent_on_matching_pairs():
+    assert _file_shape_warnings(
+        'patterns/community/minuspod-submission-xyz.json',
+        {'format': BUNDLE_FORMAT, 'patterns': []},
+    ) == []
+    assert _file_shape_warnings(
+        'patterns/community/shopify-07df78ed.json',
+        {'community_id': 'abc', 'sponsor': 'Shopify'},
+    ) == []

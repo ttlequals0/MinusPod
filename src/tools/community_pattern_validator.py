@@ -189,6 +189,43 @@ def _filename_errors(path: str, doc: Dict[str, Any]) -> List[str]:
     ]
 
 
+_BUNDLE_NAME_PREFIX = 'minuspod-submission-'
+
+
+def _file_shape_warnings(path: str, raw: Dict[str, Any]) -> List[str]:
+    """Surface filename / payload-shape mismatches.
+
+    - Bundle payload in a `<slug>-<short>.json`-shaped file: probably a hand
+      split that forgot to flatten; the contained patterns will validate
+      individually but the directory convention is per-pattern files.
+    - Per-pattern payload in a `minuspod-submission-*.json`-shaped file: the
+      contributor dropped a bundle filename on a single pattern; the manifest
+      generator will still pick it up, but the directory convention should
+      hold.
+
+    Warnings, not rejections -- both shapes already parse correctly downstream.
+    """
+    if not isinstance(raw, dict):
+        return []
+    name = Path(path).name
+    is_bundle_payload = raw.get('format') == BUNDLE_FORMAT
+    is_bundle_name = name.startswith(_BUNDLE_NAME_PREFIX)
+    if is_bundle_payload and not is_bundle_name:
+        return [
+            f'shape mismatch: "{name}" looks like a per-pattern filename '
+            f'but the payload is a bundle (format={BUNDLE_FORMAT}). '
+            f'Either rename it to "{_BUNDLE_NAME_PREFIX}<id>.json" or use '
+            '`python -m src.tools.split_bundle` to land it as per-pattern files.'
+        ]
+    if not is_bundle_payload and is_bundle_name:
+        return [
+            f'shape mismatch: "{name}" looks like a bundle filename but the '
+            'payload is a per-pattern document. Rename to '
+            '`<slug>-<short_uuid>.json` (see patterns/CONTRIBUTING.md).'
+        ]
+    return []
+
+
 def _single_pattern_errors(doc: Dict[str, Any], seed: List[Dict[str, Any]]) -> List[str]:
     """Reject submissions that stitch multiple ads together.
 
@@ -481,6 +518,12 @@ def run(pr_files: List[str], comment_output: Optional[str] = None,
                 errors=['empty submission: no patterns found in file'],
             ))
             continue
+        shape_warns = _file_shape_warnings(path, raw)
+        if shape_warns:
+            results.append(ValidationResult(
+                path=path, status='warn', sponsor='(file)',
+                warnings=list(shape_warns),
+            ))
         for sub_path, doc in extracted:
             results.append(validate_doc(sub_path, doc, seed, existing))
 
