@@ -885,6 +885,26 @@ class TestBulkUpsertDiscoveredEpisodes:
         count = temp_db.bulk_upsert_discovered_episodes('no-such-slug', [self._make_episode('ep-1')])
         assert count == 0
 
+    def test_bulk_upsert_returns_zero_when_all_episodes_already_exist(self, temp_db):
+        """Force-refresh re-upserts every episode in the feed. The return value
+        must reflect the count of GENUINELY new rows (not upsert-touched rows),
+        otherwise the 'Discovered N new episode(s)' log over-reports."""
+        slug = 'bulk-recount'
+        temp_db.create_podcast(slug, 'https://example.com/feed.xml', 'Test')
+
+        episodes = [self._make_episode(f'ep-{i}') for i in range(5)]
+        first = temp_db.bulk_upsert_discovered_episodes(slug, episodes)
+        assert first == 5
+
+        # Re-upsert the same five GUIDs -- no new rows, count must be 0.
+        second = temp_db.bulk_upsert_discovered_episodes(slug, episodes)
+        assert second == 0
+
+        # Mix: 3 existing + 2 new -- count must be 2.
+        mixed = episodes + [self._make_episode('ep-new-a'), self._make_episode('ep-new-b')]
+        third = temp_db.bulk_upsert_discovered_episodes(slug, mixed)
+        assert third == 2
+
 
 class TestGetEpisodesByIds:
     """Tests for get_episodes_by_ids."""

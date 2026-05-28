@@ -648,6 +648,19 @@ class EpisodeMixin:
         podcast_id = podcast['id']
         inserted = 0
 
+        # Snapshot existing GUIDs so we can count real inserts. SQLite's
+        # cursor.rowcount is 1 for both the INSERT and the UPDATE branch of
+        # an UPSERT (and even for an UPDATE that sets every column to its
+        # current value), so it cannot distinguish "new" from "re-touched".
+        # The downstream log line "Discovered N new episode(s)" needs the
+        # real new-row count, not the upsert-touched count.
+        existing_ids = {
+            row['episode_id'] for row in conn.execute(
+                "SELECT episode_id FROM episodes WHERE podcast_id = ?",
+                (podcast_id,),
+            ).fetchall()
+        }
+
         for ep in episodes:
             iso_published = normalize_published_at(ep.get('published', '')) or None
 
@@ -707,8 +720,9 @@ class EpisodeMixin:
                         tags_json,
                     )
                 )
-                if cursor.rowcount > 0:
+                if cursor.rowcount > 0 and ep['id'] not in existing_ids:
                     inserted += 1
+                    existing_ids.add(ep['id'])
             except Exception as e:
                 logger.warning(f"Failed to upsert discovered episode {ep.get('id')}: {e}")
 
