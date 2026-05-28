@@ -38,6 +38,7 @@ from utils.community_tags import (
     GITHUB_REPO,
     PHONE_REGEX,
     is_tollfree,
+    slugify,
     valid_tags,
 )
 
@@ -61,11 +62,6 @@ class ExportError(Exception):
         super().__init__('; '.join(reasons))
         self.reasons = reasons
 
-
-def _slugify(name: str) -> str:
-    """Lowercase, hyphenated, ASCII-safe slug."""
-    s = re.sub(r'[^a-z0-9]+', '-', name.lower())
-    return s.strip('-') or 'sponsor'
 
 
 def _strip_emails(text: str) -> str:
@@ -389,7 +385,7 @@ def build_pr_url(payload: Dict) -> Tuple[str, str, bool]:
     still returned but it should NOT be opened -- the caller should offer the
     JSON file as a download instead.
     """
-    sponsor_slug = _slugify(payload.get('sponsor') or 'sponsor')
+    sponsor_slug = slugify(payload.get('sponsor') or 'sponsor')
     short_uuid = payload['community_id'].split('-')[0]
     filename = f'{sponsor_slug}-{short_uuid}.json'
     body = json.dumps(payload, indent=2, ensure_ascii=False)

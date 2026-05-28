@@ -230,3 +230,30 @@ def is_tollfree(phone_match: str) -> bool:
     if phone_match.startswith(TOLLFREE_PREFIX_UIFN):
         return True
     return False
+
+
+def slugify(name: str) -> str:
+    """Lowercase, hyphenated, ASCII-safe slug used for community pattern filenames.
+
+    Shared by the exporter (community_export), the PR validator
+    (tools.community_pattern_validator), the scaffold helper, and the
+    bundle-split helper, so the filename a contributor sees on disk is the
+    same one the validator expects.
+    """
+    if not isinstance(name, str):
+        return 'sponsor'
+    s = re.sub(r'[^a-z0-9]+', '-', name.lower())
+    return s.strip('-') or 'sponsor'
+
+
+def expected_filename(sponsor: str, community_id: str) -> str | None:
+    """Build the canonical per-pattern filename: `<slug(sponsor)>-<short_uuid>.json`.
+
+    Returns None when `community_id` is empty -- the caller treats that as a
+    missing required field and reports it through the existing required-field
+    check, not this one.
+    """
+    if not community_id:
+        return None
+    short = community_id.split('-')[0]
+    return f'{slugify(sponsor)}-{short}.json'
