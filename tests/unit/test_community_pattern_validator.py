@@ -336,3 +336,29 @@ def test_file_shape_silent_on_matching_pairs():
         'patterns/community/shopify-07df78ed.json',
         {'community_id': 'abc', 'sponsor': 'Shopify'},
     ) == []
+
+
+from tools.community_pattern_validator import _truncation_warnings  # noqa: E402
+
+
+def test_truncation_warns_on_outro_ending_in_stopword():
+    doc = _doc(outro_variants=['Go to V-A-N-T-A dot com slash com'])
+    warns = _truncation_warnings(doc)
+    assert any('outro_variants[0]' in w and 'slash com' in w.lower() for w in warns)
+
+
+def test_truncation_warns_on_intro_ending_in_article():
+    doc = _doc(intro_variants=['Today we are sponsored by the'])
+    warns = _truncation_warnings(doc)
+    assert any('intro_variants[0]' in w for w in warns)
+
+
+def test_truncation_silent_on_clean_variants():
+    doc = _doc(outro_variants=['Visit shopify dot com slash explained.'])
+    assert _truncation_warnings(doc) == []
+
+
+def test_truncation_silent_on_short_words_in_middle():
+    """Don't false-positive when the variant has 'to' or 'a' anywhere but the end."""
+    doc = _doc(outro_variants=['Go to shopify dot com.'])
+    assert _truncation_warnings(doc) == []

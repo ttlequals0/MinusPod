@@ -191,6 +191,53 @@ def _filename_errors(path: str, doc: Dict[str, Any]) -> List[str]:
 
 _BUNDLE_NAME_PREFIX = 'minuspod-submission-'
 
+_TRAILING_STOPWORDS = frozenset({
+    'a', 'an', 'and', 'at', 'com', 'for', 'in', 'of', 'on', 'or',
+    'slash', 'the', 'to',
+})
+
+_DOMAIN_TLDS = frozenset({'com', 'org', 'net', 'io', 'co'})
+
+
+def _truncation_warnings(doc: Dict[str, Any]) -> List[str]:
+    """Warn when an intro/outro variant looks cut mid-clause.
+
+    Heuristic: strip trailing punctuation, split into tokens; flag the variant
+    if the last token is in a stopword set ("the", "at", "and", "com", "slash",
+    ...) or is a single non-"a"/"i" letter. Exception: a "dot <tld>" tail
+    (e.g. "shopify dot com") is treated as a completed URL and NOT flagged.
+    Variants are recall boosters, so a stray fragment never matches anything
+    and just clutters the pattern. Warning only -- the variant could still be
+    a legitimate anchor.
+    """
+    warnings: List[str] = []
+    for kind in ('intro_variants', 'outro_variants'):
+        for i, v in enumerate(doc.get(kind) or []):
+            if not isinstance(v, str):
+                continue
+            stripped = v.rstrip(' .,;!?"\'')
+            if not stripped:
+                continue
+            tokens = stripped.split()
+            if not tokens:
+                continue
+            last = tokens[-1].lower()
+            prev = tokens[-2].lower() if len(tokens) >= 2 else ''
+            if prev == 'dot' and last in _DOMAIN_TLDS:
+                continue
+            if last in _TRAILING_STOPWORDS:
+                tail = f'{prev} {last}' if prev else last
+                warnings.append(
+                    f'{kind}[{i}] looks truncated -- ends with "{tail}". '
+                    f'Trim, drop, or extend the variant.'
+                )
+                continue
+            if len(last) == 1 and last not in {'a', 'i'}:
+                warnings.append(
+                    f'{kind}[{i}] looks truncated -- ends with single letter "{last}".'
+                )
+    return warnings
+
 
 def _file_shape_warnings(path: str, raw: Dict[str, Any]) -> List[str]:
     """Surface filename / payload-shape mismatches.
@@ -354,6 +401,10 @@ def validate_doc(
                 doc.get('text_template') or '',
                 matched.get('text_template') or '',
             )
+
+    trunc_warns = _truncation_warnings(doc)
+    if trunc_warns:
+        result.warnings.extend(trunc_warns)
 
     if result.warnings and result.status != 'reject':
         result.status = 'warn'
