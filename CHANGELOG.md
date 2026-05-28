@@ -51,6 +51,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **OpenAPI: `POST /feeds/refresh` now documents the `force` request body** (the backend already accepted it; the spec was silent). Schema mirrors `/feeds/{slug}/refresh` with `additionalProperties: false`.
 
+### Removed
+
+- **`Keeps` removed from `SEED_SPONSORS`** (constants.py, the docstring sponsor list in the LLM prompt, and `sponsors_final.csv`). The brand name collides with the common English verb "keeps" and was generating too many validation false-positives in community pattern submissions. Sponsor count drops from 255 to 254; two count assertions in `tests/unit/test_sponsor_seed_idempotent.py` and `tests/unit/test_community_tags_constants.py` updated accordingly. Existing DB rows are untouched (sponsor seeding is additive; user-managed sponsors persist).
+
 ## [2.5.31] - 2026-05-27
 
 ### Fixed

@@ -17,11 +17,11 @@ from sponsor_service import SponsorService, SEED_NORMALIZATIONS
 
 class TestSeedIdempotent:
     def test_baseline_db_has_migrated_seed(self, temp_db):
-        """The migration runs during Database init and seeds 255 sponsors."""
+        """The migration runs during Database init and seeds 254 sponsors."""
         rows = temp_db.get_known_sponsors(active_only=False)
-        # 255 from sponsors_final.csv (migration v2.4.0). The number is a hard
+        # 254 from sponsors_final.csv (migration v2.4.0). The number is a hard
         # contract: changing it requires bumping the seed revision in schema.py.
-        assert len(rows) == 255
+        assert len(rows) == 254
 
     def test_seed_initial_data_is_noop_against_migration_baseline(self, temp_db):
         svc = SponsorService(temp_db)
@@ -30,7 +30,7 @@ class TestSeedIdempotent:
         after = len(temp_db.get_known_sponsors(active_only=False))
         # SponsorService only inserts names not already present;
         # every SEED_SPONSORS name overlaps with the migration seed.
-        assert before == after == 255
+        assert before == after == 254
 
     def test_user_edited_aliases_preserved(self, temp_db):
         """Editing a sponsor's aliases after migration is preserved by seed_initial_data."""

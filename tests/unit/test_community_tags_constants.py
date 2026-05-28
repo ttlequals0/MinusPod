@@ -27,9 +27,9 @@ def test_valid_tags_includes_universal_and_vocab():
     assert len(vt) == 49
 
 
-def test_sponsor_seed_loads_255_entries():
+def test_sponsor_seed_loads_254_entries():
     seed = sponsor_seed()
-    assert len(seed) == 255
+    assert len(seed) == 254
     # Each row has the right shape
     sample = seed[0]
     assert 'name' in sample and 'aliases' in sample and 'tags' in sample
