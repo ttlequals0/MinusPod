@@ -1,6 +1,6 @@
 {
   "scope": "global",
-  "text_template": "Gold Days at Grubhub Plus is officially here. We're talking Grubhub's best offers of the year all month long. It's the best time to order, but the worst time to have friends over, because when the deals are this good, everyone's going to want to bite. Not a member? Join now for just 99 cents a month for your first six months. You'll enjoy $0 delivery fees and lower service fees on eligible orders. Sign up now at grubhub.com slash plus slash gold. Terms apply.",
+  "text_template": "How is TD making banking more human? Easy. With less bank talk and more real talk. Less, your call is important to us, and more, how can we help? Less confusion, and more clarity. It's things like tapping your phone to use your TD card, and getting your paycheck two business days early. It's getting more of what you want, and less of what you don't. That's how TD's making banking more human. Are we human?",
   "intro_variants": [
     "How is TD making banking more human? Easy.",
     "How is TD making banking more human Easy"
@@ -11,8 +11,9 @@
     "That's how TD's making banking more human."
   ],
   "avg_duration": null,
-  "sponsor": "TD Bank",
+  "sponsor": "TD card",
   "sponsor_aliases": [
+    "TD Bank",
     "Toronto-Dominion Bank"
   ],
   "sponsor_tags": [
