@@ -103,7 +103,7 @@ def test_validate_doc_warns_unknown_sponsor():
         'text_template': 'AcmeBrandThatDoesNotExist dot com slash show ten percent off launch your idea today now',
         'sponsor_tags': [],
     }
-    result = validate_doc('a.json', doc, seed, [])
+    result = validate_doc('acmebrandthatdoesnotexist-abc.json', doc, seed, [])
     assert result.status == 'warn'
     assert result.sponsor_match == 'unknown'
 
@@ -152,7 +152,7 @@ def test_validate_doc_accepts_own_alias_in_text():
         ),
         'sponsor_tags': ['supplements'],
     }
-    result = validate_doc('a.json', doc, seed, [])
+    result = validate_doc('athletic-greens-abc.json', doc, seed, [])
     assert result.status in ('pass', 'warn'), (result.status, result.errors)
     assert not any('multi-sponsor block' in e for e in result.errors)
 
@@ -175,7 +175,7 @@ def test_validate_doc_accepts_seed_alias_of_declared_sponsor():
         ),
         'sponsor_tags': ['supplements'],
     }
-    result = validate_doc('a.json', doc, seed, [])
+    result = validate_doc('athletic-greens-abc.json', doc, seed, [])
     assert result.status in ('pass', 'warn'), (result.status, result.errors)
     assert not any('multi-sponsor block' in e for e in result.errors)
 
@@ -270,6 +270,43 @@ def test_validate_doc_accepts_alias_as_declared_sponsor():
         ),
         'sponsor_tags': ['supplements'],
     }
-    result = validate_doc('a.json', doc, seed, [])
+    result = validate_doc('ag1-abc.json', doc, seed, [])
     assert result.status in ('pass', 'warn'), (result.status, result.errors)
     assert not any('multi-sponsor block' in e for e in result.errors)
+
+
+from tools.community_pattern_validator import _filename_errors  # noqa: E402
+
+
+def _doc(**overrides):
+    base = {
+        'community_id': '07df78ed-9b7f-4600-a9b7-1aee45b5bfc7',
+        'version': 1,
+        'sponsor': 'Shopify',
+        'sponsor_aliases': [],
+        'sponsor_tags': ['universal'],
+        'text_template': 'Shopify is the commerce platform behind millions of businesses around the world.',
+        'intro_variants': [],
+        'outro_variants': [],
+    }
+    base.update(overrides)
+    return base
+
+
+def test_filename_errors_rejects_wrong_slug():
+    errs = _filename_errors('patterns/community/spotify-07df78ed.json', _doc())
+    assert any('shopify-07df78ed.json' in e for e in errs)
+
+
+def test_filename_errors_rejects_wrong_short_uuid():
+    errs = _filename_errors('patterns/community/shopify-deadbeef.json', _doc())
+    assert any('07df78ed' in e for e in errs)
+
+
+def test_filename_errors_accepts_correct_name():
+    assert _filename_errors('patterns/community/shopify-07df78ed.json', _doc()) == []
+
+
+def test_filename_errors_skips_when_community_id_missing():
+    """Required-field check owns missing community_id; we don't double-report."""
+    assert _filename_errors('patterns/community/whatever.json', _doc(community_id='')) == []

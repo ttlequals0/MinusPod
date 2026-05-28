@@ -38,6 +38,7 @@ from utils.community_tags import (  # noqa: E402
     CANONICAL_STOPWORDS,
     DATE_REGEX,
     YEAR_REGEX,
+    expected_filename,
     iter_bundle_patterns,
     sponsor_seed,
     valid_tags,
@@ -164,6 +165,30 @@ def _quality_errors(doc: Dict[str, Any]) -> List[str]:
     return errs
 
 
+def _filename_errors(path: str, doc: Dict[str, Any]) -> List[str]:
+    """Reject when the on-disk filename does not equal slugify(sponsor)-<short>.json.
+
+    Caught the v2.5.x PR #292 footgun where a contributor hand-edited the
+    `sponsor` field but did not rename the file (or where the local DB had a
+    sponsor classification that disagreed with the ad text).
+
+    Skipped when `community_id` is empty -- the required-field check already
+    rejects that and a duplicate message would be noise.
+    """
+    actual = Path(path).name
+    community_id = doc.get('community_id') or ''
+    if not community_id:
+        return []
+    expected = expected_filename(doc.get('sponsor') or '', community_id)
+    if expected is None or actual == expected:
+        return []
+    return [
+        f'filename mismatch: file is named "{actual}" but sponsor '
+        f'"{doc.get("sponsor")}" + community_id "{community_id[:8]}..." '
+        f'requires "{expected}". Rename the file or fix the sponsor field.'
+    ]
+
+
 def _single_pattern_errors(doc: Dict[str, Any], seed: List[Dict[str, Any]]) -> List[str]:
     """Reject submissions that stitch multiple ads together.
 
@@ -238,6 +263,15 @@ def validate_doc(
         result.errors.extend(schema_errs)
         result.status = 'reject'
         return result
+
+    # Strip bundle entry suffix ("file.json#patterns[3]") so the filename
+    # check inspects the actual on-disk path. Bundle entries skip the
+    # check entirely -- bundles are validated as one file, not per-entry.
+    if '#patterns[' not in path:
+        fname_errs = _filename_errors(path, doc)
+        if fname_errs:
+            result.errors.extend(fname_errs)
+            result.status = 'reject'
 
     tag_errs = _tag_errors(doc)
     if tag_errs:
