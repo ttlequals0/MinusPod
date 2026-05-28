@@ -37,6 +37,7 @@ from utils.community_tags import (
     EMAIL_REGEX,
     GITHUB_REPO,
     PHONE_REGEX,
+    app_version,
     is_tollfree,
     slugify,
     valid_tags,
@@ -345,14 +346,6 @@ def _strip_metadata(pattern: Dict, sponsor_row: Dict) -> Dict:
     }
 
 
-def _app_version() -> str:
-    try:
-        from version import __version__
-        return __version__
-    except Exception:
-        return 'unknown'
-
-
 def build_export_payload(pattern: Dict, sponsors: List[Dict]) -> Dict:
     """Run the full pipeline and return the JSON payload + sponsor classification."""
     sponsor_id = pattern.get('sponsor_id')
@@ -372,7 +365,7 @@ def build_export_payload(pattern: Dict, sponsors: List[Dict]) -> Dict:
         'community_id': str(uuid.uuid4()),
         'version': 1,
         'submitted_at': datetime.now(timezone.utc).isoformat(),
-        'submitted_app_version': _app_version(),
+        'submitted_app_version': app_version(),
         'sponsor_match': sponsor_match,
     })
     return payload
@@ -445,7 +438,7 @@ def build_bundle(pattern_ids: List[int], db) -> Tuple[Dict, List[Dict]]:
         'format': BUNDLE_FORMAT,
         'bundle_version': BUNDLE_VERSION,
         'submitted_at': datetime.now(timezone.utc).isoformat(),
-        'submitted_app_version': _app_version(),
+        'submitted_app_version': app_version(),
         'pattern_count': len(ready),
         'patterns': ready,
     }

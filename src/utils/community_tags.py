@@ -34,6 +34,7 @@ VOCABULARY_VERSION = 1
 # drift on the spelling.
 BUNDLE_FORMAT = 'minuspod-community-submission'
 BUNDLE_VERSION = 1
+BUNDLE_NAME_PREFIX = 'minuspod-submission-'
 
 
 def iter_bundle_patterns(raw):
@@ -193,6 +194,13 @@ CANONICAL_STOPWORDS: FrozenSet[str] = frozenset({
     'you', 'your', 'we', 'our', 'my', 'me', 'it', 'its', 'as',
 })
 
+TRAILING_TRUNCATION_STOPWORDS: FrozenSet[str] = frozenset({
+    'a', 'an', 'and', 'at', 'com', 'for', 'in', 'of', 'on', 'or',
+    'slash', 'the', 'to',
+})
+
+DOMAIN_TLDS: FrozenSet[str] = frozenset({'com', 'org', 'net', 'io', 'co'})
+
 CANONICAL_DAYS: FrozenSet[str] = frozenset({
     'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday',
     'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun',
@@ -244,6 +252,19 @@ def slugify(name: str) -> str:
         return 'sponsor'
     s = re.sub(r'[^a-z0-9]+', '-', name.lower())
     return s.strip('-') or 'sponsor'
+
+
+def app_version() -> str:
+    """Return the running app version, or 'unknown' if version.py is not on path.
+
+    Shared by community_export (bundle metadata) and the manual-contributor
+    scaffold tool so the submitted_app_version field is consistent.
+    """
+    try:
+        from version import __version__  # type: ignore
+        return __version__
+    except Exception:
+        return 'unknown'
 
 
 def expected_filename(sponsor: str, community_id: str) -> str | None:

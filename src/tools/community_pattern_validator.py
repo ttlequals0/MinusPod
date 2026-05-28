@@ -32,11 +32,14 @@ if str(_REPO_SRC) not in sys.path:
 from community_export import find_foreign_sponsors  # noqa: E402
 from utils.community_tags import (  # noqa: E402
     BUNDLE_FORMAT,
+    BUNDLE_NAME_PREFIX,
     CANONICAL_DAYS,
     CANONICAL_MONTHS,
     CANONICAL_RELATIVE_TIME,
     CANONICAL_STOPWORDS,
     DATE_REGEX,
+    DOMAIN_TLDS,
+    TRAILING_TRUNCATION_STOPWORDS,
     YEAR_REGEX,
     expected_filename,
     iter_bundle_patterns,
@@ -189,16 +192,6 @@ def _filename_errors(path: str, doc: Dict[str, Any]) -> List[str]:
     ]
 
 
-_BUNDLE_NAME_PREFIX = 'minuspod-submission-'
-
-_TRAILING_STOPWORDS = frozenset({
-    'a', 'an', 'and', 'at', 'com', 'for', 'in', 'of', 'on', 'or',
-    'slash', 'the', 'to',
-})
-
-_DOMAIN_TLDS = frozenset({'com', 'org', 'net', 'io', 'co'})
-
-
 def _truncation_warnings(doc: Dict[str, Any]) -> List[str]:
     """Warn when an intro/outro variant looks cut mid-clause.
 
@@ -215,7 +208,10 @@ def _truncation_warnings(doc: Dict[str, Any]) -> List[str]:
         for i, v in enumerate(doc.get(kind) or []):
             if not isinstance(v, str):
                 continue
-            stripped = v.rstrip(' .,;!?"\'')
+            # Strip ASCII + curly quotes / ellipsis so Whisper output with
+            # smart quotes does not hide the real trailing token.
+            # Escape forms keep source ASCII-only per the repo lint rule.
+            stripped = v.rstrip(' .,;!?"\'\u2018\u2019\u201c\u201d\u2026')
             if not stripped:
                 continue
             tokens = stripped.split()
@@ -223,16 +219,16 @@ def _truncation_warnings(doc: Dict[str, Any]) -> List[str]:
                 continue
             last = tokens[-1].lower()
             prev = tokens[-2].lower() if len(tokens) >= 2 else ''
-            if prev == 'dot' and last in _DOMAIN_TLDS:
+            if prev == 'dot' and last in DOMAIN_TLDS:
                 continue
-            if last in _TRAILING_STOPWORDS:
-                tail = f'{prev} {last}' if prev else last
+            if last in TRAILING_TRUNCATION_STOPWORDS:
+                tail = ' '.join(tokens[-2:])
                 warnings.append(
                     f'{kind}[{i}] looks truncated -- ends with "{tail}". '
                     f'Trim, drop, or extend the variant.'
                 )
                 continue
-            if len(last) == 1 and last not in {'a', 'i'}:
+            if len(last) == 1 and last != 'i':
                 warnings.append(
                     f'{kind}[{i}] looks truncated -- ends with single letter "{last}".'
                 )
@@ -256,12 +252,12 @@ def _file_shape_warnings(path: str, raw: Dict[str, Any]) -> List[str]:
         return []
     name = Path(path).name
     is_bundle_payload = raw.get('format') == BUNDLE_FORMAT
-    is_bundle_name = name.startswith(_BUNDLE_NAME_PREFIX)
+    is_bundle_name = name.startswith(BUNDLE_NAME_PREFIX)
     if is_bundle_payload and not is_bundle_name:
         return [
             f'shape mismatch: "{name}" looks like a per-pattern filename '
             f'but the payload is a bundle (format={BUNDLE_FORMAT}). '
-            f'Either rename it to "{_BUNDLE_NAME_PREFIX}<id>.json" or use '
+            f'Either rename it to "{BUNDLE_NAME_PREFIX}<id>.json" or use '
             '`python -m src.tools.split_bundle` to land it as per-pattern files.'
         ]
     if not is_bundle_payload and is_bundle_name:

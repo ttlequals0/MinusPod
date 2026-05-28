@@ -34,19 +34,11 @@ for _p in (_REPO_SRC, _REPO_ROOT):
     if str(_p) not in sys.path:
         sys.path.insert(0, str(_p))
 
-from utils.community_tags import expected_filename, valid_tags  # noqa: E402
+from utils.community_tags import app_version, expected_filename, valid_tags  # noqa: E402
 
 
 def _default_out_dir() -> Path:
     return _REPO_SRC.parent / 'patterns' / 'community'
-
-
-def _app_version() -> str:
-    try:
-        from version import __version__  # type: ignore
-        return __version__
-    except Exception:
-        return 'unknown'
 
 
 def scaffold(
@@ -83,7 +75,7 @@ def scaffold(
         'community_id': community_id,
         'version': 1,
         'submitted_at': datetime.now(timezone.utc).isoformat(),
-        'submitted_app_version': _app_version(),
+        'submitted_app_version': app_version(),
         'sponsor_match': 'unknown',
     }
 

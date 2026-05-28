@@ -1292,8 +1292,9 @@ def submit_bundle_to_community():
             'message': 'No patterns passed quality gates',
             'rejected': rejected,
         }, 400)
+    from utils.community_tags import BUNDLE_NAME_PREFIX
     first_cid = bundle['patterns'][0]['community_id']
-    filename = f'minuspod-submission-{first_cid.split("-")[0]}.json'
+    filename = f'{BUNDLE_NAME_PREFIX}{first_cid.split("-")[0]}.json'
     body_text = json.dumps(bundle, indent=2, ensure_ascii=False)
     return Response(
         body_text,
