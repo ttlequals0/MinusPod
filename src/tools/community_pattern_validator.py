@@ -197,7 +197,7 @@ def _truncation_warnings(doc: Dict[str, Any]) -> List[str]:
 
     Heuristic: strip trailing punctuation, split into tokens; flag the variant
     if the last token is in a stopword set ("the", "at", "and", "com", "slash",
-    ...) or is a single non-"a"/"i" letter. Exception: a "dot <tld>" tail
+    ...) or is a single non-"i" letter. Exception: a "dot <tld>" tail
     (e.g. "shopify dot com") is treated as a completed URL and NOT flagged.
     Variants are recall boosters, so a stray fragment never matches anything
     and just clutters the pattern. Warning only -- the variant could still be
@@ -230,7 +230,8 @@ def _truncation_warnings(doc: Dict[str, Any]) -> List[str]:
                 continue
             if len(last) == 1 and last != 'i':
                 warnings.append(
-                    f'{kind}[{i}] looks truncated -- ends with single letter "{last}".'
+                    f'{kind}[{i}] looks truncated -- ends with single letter "{last}". '
+                    f'Trim, drop, or extend the variant.'
                 )
     return warnings
 

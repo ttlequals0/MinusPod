@@ -39,11 +39,15 @@ def split(bundle_path: Path, *, keep_original: bool = False) -> List[Path]:
         raise ValueError(f'{bundle_path.name} is not a bundle '
                          f'(format != {BUNDLE_FORMAT})')
 
+    patterns = list(iter_bundle_patterns(raw))
+    if not patterns:
+        raise ValueError(f'{bundle_path.name} contains zero patterns')
+
     out_dir = bundle_path.parent
     written: List[Path] = []
     # First pass: compute names + check for collisions before writing anything.
     targets = []
-    for i, p in enumerate(iter_bundle_patterns(raw)):
+    for i, p in enumerate(patterns):
         sponsor = p.get('sponsor') or ''
         cid = p.get('community_id') or ''
         filename = expected_filename(sponsor, cid)

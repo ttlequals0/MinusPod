@@ -35,11 +35,11 @@ from utils.community_tags import (
     BUNDLE_VERSION,
     CONSUMER_EMAIL_DOMAINS,
     EMAIL_REGEX,
+    expected_filename,
     GITHUB_REPO,
     PHONE_REGEX,
     app_version,
     is_tollfree,
-    slugify,
     valid_tags,
 )
 
@@ -378,9 +378,8 @@ def build_pr_url(payload: Dict) -> Tuple[str, str, bool]:
     still returned but it should NOT be opened -- the caller should offer the
     JSON file as a download instead.
     """
-    sponsor_slug = slugify(payload.get('sponsor') or 'sponsor')
-    short_uuid = payload['community_id'].split('-')[0]
-    filename = f'{sponsor_slug}-{short_uuid}.json'
+    filename = expected_filename(payload.get('sponsor') or 'sponsor',
+                                payload['community_id'])
     body = json.dumps(payload, indent=2, ensure_ascii=False)
     encoded = urllib.parse.quote(body, safe='')
     url = PR_URL_TEMPLATE.format(

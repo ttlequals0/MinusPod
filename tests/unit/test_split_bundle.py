@@ -85,6 +85,18 @@ def test_split_rejects_non_bundle(tmp_path):
         raise AssertionError('expected ValueError')
 
 
+def test_split_rejects_empty_bundle(tmp_path):
+    bundle_path = tmp_path / 'minuspod-submission-empty.json'
+    bundle_path.write_text(json.dumps(_bundle()))  # no patterns
+    try:
+        split(bundle_path)
+    except ValueError as e:
+        assert 'zero patterns' in str(e).lower()
+        assert bundle_path.exists(), 'bundle preserved on error'
+    else:
+        raise AssertionError('expected ValueError')
+
+
 def test_split_atomic_multi_pattern_collision(tmp_path):
     bundle_path = tmp_path / 'minuspod-submission-abc.json'
     bundle_path.write_text(json.dumps(_bundle(

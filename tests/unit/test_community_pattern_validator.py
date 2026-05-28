@@ -88,7 +88,7 @@ def test_validate_doc_rejects_unknown_tags():
         'text_template': 'Squarespace dot com slash show for ten percent off your website today launch confidently!',
         'sponsor_tags': ['tech', 'not_a_real_tag'],
     }
-    result = validate_doc('a.json', doc, seed, [])
+    result = validate_doc('squarespace-abc.json', doc, seed, [])
     assert result.status == 'reject'
     assert any('unknown tag: not_a_real_tag' in e for e in result.errors)
 
@@ -132,7 +132,7 @@ def test_validate_doc_rejects_multi_sponsor_block():
         ),
         'sponsor_tags': ['tech'],
     }
-    result = validate_doc('a.json', doc, seed, [])
+    result = validate_doc('squarespace-abc.json', doc, seed, [])
     assert result.status == 'reject'
     assert any('multi-sponsor block' in e for e in result.errors), result.errors
 

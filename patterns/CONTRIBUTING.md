@@ -193,3 +193,16 @@ must be renamed too.
 Bundle files (`format: "minuspod-community-submission"`) follow the
 `minuspod-submission-<id>.json` convention instead. The validator warns
 when these two shapes are mixed up.
+
+## Variant truncation warnings
+
+The validator also warns when an `intro_variants` or `outro_variants` entry
+looks cut mid-clause: it ends in a stopword like `the`, `at`, `and`, `com`,
+`slash`, `to`, or in a bare single letter other than `i`. A URL tail like
+`shopify dot com` is exempt and does not warn.
+
+Warnings are advisory, not rejections. Variants are recall boosters; a fragment
+that never matches anything just clutters the pattern. To clear a warning,
+trim the variant to its anchor noun, drop it, or extend it past the truncation
+point. If the variant ends in a smart quote or ellipsis from a Whisper
+transcript, the validator strips those before checking.
