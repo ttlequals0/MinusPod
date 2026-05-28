@@ -7,7 +7,7 @@ filename check passes by construction.
 
 Usage:
 
-    python -m tools.scaffold_community_pattern \\
+    python -m src.tools.scaffold_community_pattern \\
         --sponsor "Shopify" \\
         --text-template "Shopify is the commerce platform ..." \\
         --tags universal business \\

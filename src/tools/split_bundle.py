@@ -9,8 +9,8 @@ validator enforces.
 
 Usage:
 
-    python -m tools.split_bundle patterns/community/minuspod-submission-abc.json
-    python -m tools.split_bundle path/to/bundle.json --keep-original
+    python -m src.tools.split_bundle patterns/community/minuspod-submission-abc.json
+    python -m src.tools.split_bundle path/to/bundle.json --keep-original
 """
 from __future__ import annotations
 
