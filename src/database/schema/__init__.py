@@ -1539,15 +1539,23 @@ class SchemaMixin:
             logger.info(f"Re-encoded intro/outro_variants on {repaired} ad_patterns rows")
 
     def _reseed_known_sponsors(self, conn):
-        """Apply the authoritative sponsor seed list (src/seed_data/sponsors_final.csv).
+        """One-shot v2.4.0 seed of the known_sponsors table from
+        `src/seed_data/validator_known_sponsors.csv`.
 
-        UPDATE on name match (case-insensitive) to preserve `id` for any
-        existing ad_patterns.sponsor_id foreign keys. INSERT new rows.
-        Soft-delete (is_active=0) any existing sponsor whose name is not in
-        the CSV. Idempotent: re-running yields the same end state.
+        Runs on first boot at this revision: UPDATE on name match
+        (case-insensitive) to preserve `id` for any existing
+        ad_patterns.sponsor_id foreign keys, INSERT new rows,
+        soft-delete (is_active=0) any sponsor not in the CSV. The
+        `sponsor_seed_revision` setting is stamped on success so the
+        migration is a no-op on every subsequent boot at the same
+        revision.
 
-        Stamps a settings flag (`sponsor_seed_revision`) on success so we
-        only do meaningful work once per app version that ships a new seed.
+        The CSV is no longer the source of truth for the in-app
+        classifier -- after this migration runs, the live
+        known_sponsors table is. Edits to the CSV reach only the PR
+        validator's multi-sponsor check; see `sponsor_seed()`. Bump
+        SEED_REVISION below only if you intentionally want the
+        seed-from-CSV step to replay against existing installs.
         """
         from utils.community_tags import sponsor_seed
 

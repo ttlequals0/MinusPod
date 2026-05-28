@@ -43,7 +43,7 @@ def _seed_pattern(
     intro_variants=None,
     outro_variants=None,
 ):
-    # The schema migration already seeded Squarespace from sponsors_final.csv.
+    # The schema migration already seeded Squarespace from validator_known_sponsors.csv.
     sponsor = db.get_known_sponsor_by_name('Squarespace')
     assert sponsor is not None, 'Squarespace should be in the migrated seed list'
     sid = sponsor['id']

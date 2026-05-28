@@ -1,7 +1,7 @@
 """Tests for SponsorService.seed_initial_data() idempotency.
 
 As of 2.4.0 the schema migration is the authoritative seed for sponsors
-(loaded from src/seed_data/sponsors_final.csv). SponsorService.seed_initial_data()
+(loaded from src/seed_data/validator_known_sponsors.csv). SponsorService.seed_initial_data()
 still runs at startup and is responsible for normalizations; for sponsors it is
 effectively a no-op against the post-migration baseline because every SEED_SPONSORS
 name already exists. These tests pin that idempotency contract.
@@ -19,7 +19,7 @@ class TestSeedIdempotent:
     def test_baseline_db_has_migrated_seed(self, temp_db):
         """The migration runs during Database init and seeds 254 sponsors."""
         rows = temp_db.get_known_sponsors(active_only=False)
-        # 254 from sponsors_final.csv (migration v2.4.0). The number is a hard
+        # 254 from validator_known_sponsors.csv (migration v2.4.0). The number is a hard
         # contract: changing it requires bumping the seed revision in schema.py.
         assert len(rows) == 254
 

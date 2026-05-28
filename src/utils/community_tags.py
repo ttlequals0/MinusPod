@@ -133,11 +133,21 @@ def map_itunes_category(category: str) -> str | None:
 
 @lru_cache(maxsize=1)
 def sponsor_seed() -> List[Dict[str, object]]:
-    """List of {name, aliases: List[str], tags: List[str]} from sponsors_final.csv.
+    """List of {name, aliases: List[str], tags: List[str]} read from
+    `src/seed_data/validator_known_sponsors.csv`.
 
-    Names and tags are preserved verbatim. Aliases and tags are pipe-delimited in the CSV.
+    Originally the v2.4.0 DB seed (see `_reseed_known_sponsors`). That
+    migration is now gated by `sponsor_seed_revision = '2.4.0'`, so CSV
+    edits no longer reach existing instances; the in-app `known_sponsors`
+    table is the source of truth on the app side. The only ongoing
+    consumer is the PR validator's multi-sponsor-contamination check
+    (`find_foreign_sponsors`). Add a row only when a brand commonly
+    appears as a foreign mention inside other sponsors' ad copy.
+
+    Names and tags are preserved verbatim. Aliases and tags are
+    pipe-delimited in the CSV.
     """
-    path = os.path.join(_SEED_DIR, 'sponsors_final.csv')
+    path = os.path.join(_SEED_DIR, 'validator_known_sponsors.csv')
     rows: List[Dict[str, object]] = []
     with open(path, 'r', encoding='utf-8') as fh:
         reader = csv.DictReader(fh)
