@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **`src/tools/generate_manifest.py` no longer rewrites `published_at` on no-op runs.** `build_manifest` stamped the current UTC time on every invocation, so the regenerate-manifest workflow's `git diff --quiet` was never quiet and it committed a timestamp-only change even when no pattern content changed (surfaced on PR #299). `main()` now reuses the prior timestamp when re-rendering the manifest with it reproduces the on-disk `index.json` byte-for-byte (`reuse_published_at`) -- the same rendered-bytes comparison the workflow's `git diff` makes, so a true no-op stays byte-identical and the commit step is skipped, while any real content change still bumps the timestamp.
+- **`src/tools/generate_manifest.py` no longer rewrites `published_at` on no-op runs.** `build_manifest` stamped the current UTC time on every run, so the regenerate-manifest workflow's `git diff --quiet` was never quiet and it committed a timestamp-only change even when no pattern content changed (surfaced on PR #299). `main()` now reuses the prior timestamp when re-rendering the manifest with it reproduces the on-disk `index.json` byte-for-byte (`reuse_published_at`). That is the same rendered-bytes comparison the workflow's `git diff` makes, so a true no-op stays byte-identical and the commit is skipped, while a real content change still bumps the timestamp.
 
 ## [2.5.34] - 2026-05-29
 
