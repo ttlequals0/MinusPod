@@ -1,10 +1,20 @@
 import { useMemo, useState } from 'react';
-import type { AdPattern, BundlePreview } from '../api/patterns';
+import type { AdPattern, BundlePreview, PatternOverride, PatternOverrides } from '../api/patterns';
 import {
   PATTERN_SOURCE_COMMUNITY,
   previewExportBundle,
   downloadCommunityBundle,
 } from '../api/patterns';
+import { PatternExportEditRow } from './PatternExportEditRow';
+
+// Deterministic 8-char hex from the integer pattern id (Knuth multiplicative
+// hash). Feeds the live filename preview in the edit row so the contributor
+// can see the slug shape before submission. The real community_id is
+// allocated server-side at submit time.
+function previewShortId(patternId: number): string {
+  const n = (patternId * 2654435761) >>> 0;
+  return n.toString(16).padStart(8, '0').slice(0, 8);
+}
 
 interface Props {
   open: boolean;
@@ -28,6 +38,8 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
   const [preview, setPreview] = useState<BundlePreview | null>(null);
   const [downloadedFilename, setDownloadedFilename] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [patternOverrides, setPatternOverrides] = useState<PatternOverrides>({});
+  const [expandedRowId, setExpandedRowId] = useState<number | null>(null);
   // Stage is fully derivable from the two artifacts; making it a separate
   // useState would let it drift out of sync (preview=null but stage='preview').
   const stage: 'pick' | 'preview' | 'done' = downloadedFilename
@@ -104,12 +116,23 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
     onClose();
   }
 
+  function overridesForIds(ids: number[]): PatternOverrides | undefined {
+    const idSet = new Set(ids);
+    const scoped: PatternOverrides = {};
+    for (const [k, v] of Object.entries(patternOverrides)) {
+      const pid = Number(k);
+      if (idSet.has(pid)) scoped[pid] = v;
+    }
+    return Object.keys(scoped).length > 0 ? scoped : undefined;
+  }
+
   async function runPreview() {
     if (effectiveSelection.size === 0 || busy) return;
     setBusy(true);
     setError(null);
     try {
-      const result = await previewExportBundle(Array.from(effectiveSelection));
+      const ids = Array.from(effectiveSelection);
+      const result = await previewExportBundle(ids, overridesForIds(ids));
       setPreview(result);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Preview failed');
@@ -123,7 +146,7 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
     setBusy(true);
     setError(null);
     try {
-      const { filename } = await downloadCommunityBundle(preview.ready);
+      const { filename } = await downloadCommunityBundle(preview.ready, overridesForIds(preview.ready));
       setDownloadedFilename(filename);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Download failed');
@@ -237,6 +260,9 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
                           {p.source === PATTERN_SOURCE_COMMUNITY && (
                             <span className="text-xs text-teal-700 dark:text-teal-400">community</span>
                           )}
+                          {patternOverrides[p.id] && destination === 'community' && (
+                            <span className="text-xs text-amber-700 dark:text-amber-400">edited</span>
+                          )}
                         </div>
                         {p.text_template && (
                           <div className="text-xs text-muted-foreground truncate">
@@ -244,7 +270,38 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
                           </div>
                         )}
                       </div>
+                      {destination === 'community' && (
+                        <button
+                          type="button"
+                          className="shrink-0 text-xs px-2 py-0.5 rounded border border-border hover:bg-accent/50 focus:outline-none focus:ring-1 focus:ring-ring"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            setExpandedRowId((prev) => (prev === p.id ? null : p.id));
+                          }}
+                        >
+                          {expandedRowId === p.id ? 'Done' : 'Edit'}
+                        </button>
+                      )}
                     </label>
+                    {destination === 'community' && expandedRowId === p.id && (
+                      <PatternExportEditRow
+                        patternId={p.id}
+                        communityIdHint={previewShortId(p.id)}
+                        baseSponsor={p.sponsor || ''}
+                        baseAliases={[]}
+                        baseTags={[]}
+                        override={patternOverrides[p.id]}
+                        onChange={(next: PatternOverride | undefined) =>
+                          setPatternOverrides((prev) => {
+                            const copy = { ...prev };
+                            if (next) copy[p.id] = next;
+                            else delete copy[p.id];
+                            return copy;
+                          })
+                        }
+                      />
+                    )}
                   </li>
                 ))}
               </ul>
