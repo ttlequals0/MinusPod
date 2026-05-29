@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [2.5.34] - 2026-05-29
+
 ### Added
 
 - **Three new benchmark corpus episodes** verified into `benchmarks/llm/data/corpus/`: `ep-crime-junkie-8ce498f299d7`, `ep-daily-gist-chicago-70a82fe93a5c`, `ep-drink-champs-30c9a2d49f13`. Each ships with `metadata.toml`, `truth.txt` (timestamps realigned via `scripts/realign_truth.py` to match the word-level whisper output), `segments.json`, and `windows.json`. Corpus grows from 11 to 14 episodes (now 10 ad-bearing + 4 no-ad). A fourth candidate (`ep-politics-politics-politics-9d7642c84fc9`) was verified, swept, then dropped: its single labeled sponsor read (4 seconds) was too tight to score against window-aligned predictions, and the episode's actual self-promo ads were missing from truth -- the net effect was every model scoring F1 = 0 on that episode regardless of correctness.
