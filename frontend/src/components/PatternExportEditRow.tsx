@@ -58,8 +58,16 @@ export function PatternExportEditRow({
     // semantic change) does not light the "override" badge.
     const sameList = (a: string[] | undefined, b: string[]) =>
       a === undefined || JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
+    // The backend treats an empty / whitespace-only sponsor override as
+    // "no override" and falls back to the DB name. Mirror that here so the
+    // UI badge does not lie when the contributor clears the field.
+    const trimmedSponsor = (merged.sponsor ?? '').trim();
+    const sameSponsor =
+      merged.sponsor === undefined ||
+      trimmedSponsor === '' ||
+      merged.sponsor === baseSponsor;
     const same =
-      (merged.sponsor === undefined || merged.sponsor === baseSponsor) &&
+      sameSponsor &&
       sameList(merged.sponsor_aliases, baseAliases) &&
       sameList(merged.sponsor_tags, baseTags);
     onChange(same ? undefined : merged);

@@ -100,6 +100,10 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
     setPreview(null);
     setDownloadedFilename(null);
     setError(null);
+    // Overrides only apply in community mode; switching destinations
+    // resets the workflow surface, including any pending edits.
+    setPatternOverrides({});
+    setExpandedRowId(null);
   }
 
   function downloadSelected() {

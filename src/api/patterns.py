@@ -1252,8 +1252,13 @@ def _coerce_overrides(raw):
     Expects ``{ "<pattern_id>": { sponsor?, sponsor_aliases?, sponsor_tags? } }``
     with string keys (JSON object) and int-coercible values. Drops keys whose
     pattern id is not int-coercible and fields that are not in the allowed set
-    so route handlers do not need to defend themselves. Returns None when
-    `raw` is None; raises ValueError when `raw` is present but not a dict.
+    so route handlers do not need to defend themselves. Field VALUES are also
+    type-checked at this boundary: `sponsor` must be a string, `sponsor_aliases`
+    and `sponsor_tags` must be lists of strings. Bad values are dropped silently
+    so a malformed body cannot reach the export pipeline and trigger an
+    AttributeError on `.strip()` or a char-list explosion via `list(str)`.
+    Returns None when `raw` is None; raises ValueError when `raw` is present
+    but not a dict.
     """
     if raw is None:
         return None
@@ -1267,7 +1272,15 @@ def _coerce_overrides(raw):
             continue
         if not isinstance(v, dict):
             continue
-        cleaned = {fld: v[fld] for fld in _ALLOWED_OVERRIDE_FIELDS if fld in v}
+        cleaned = {}
+        if isinstance(v.get('sponsor'), str):
+            cleaned['sponsor'] = v['sponsor']
+        aliases = v.get('sponsor_aliases')
+        if isinstance(aliases, list) and all(isinstance(x, str) for x in aliases):
+            cleaned['sponsor_aliases'] = aliases
+        tags = v.get('sponsor_tags')
+        if isinstance(tags, list) and all(isinstance(x, str) for x in tags):
+            cleaned['sponsor_tags'] = tags
         out[pid] = cleaned
     return out
 
