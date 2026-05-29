@@ -1,0 +1,25 @@
+{
+  "scope": "global",
+  "text_template": "This episode is brought to you by Nordstrom. Spring calls for a wardrobe refresh, and Nordstrom has the best styles of the season. From dresses and denim to standout tops and accessories, find the trends and essentials that feel right for you. Discover new arrivals from brands you love, like WAIFE, Princess Polly, Mango, Adidas, and Free People. Plus, free shipping and returns and free styling appointments make everything so easy. Shop in stores at Nordstrom.com or download the Nordstrom app.",
+  "intro_variants": [
+    "This episode is brought to you by Nordstrom."
+  ],
+  "outro_variants": [
+    "Shop in stores at Nordstrom.com or download the Nordstrom app."
+  ],
+  "avg_duration": null,
+  "sponsor": "Nordstrom",
+  "sponsor_aliases": [
+    "Nordstrom.com"
+  ],
+  "sponsor_tags": [
+    "apparel",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "933db58b-f50f-4529-9369-86336e0a0456",
+  "version": 1,
+  "submitted_at": "2026-05-27T02:31:11.364726+00:00",
+  "submitted_app_version": "unknown",
+  "sponsor_match": "exact"
+}

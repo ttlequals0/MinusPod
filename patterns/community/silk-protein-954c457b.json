@@ -1,0 +1,24 @@
+{
+  "scope": "global",
+  "text_template": "Mornings can feel like a lot, but there's one small choice that can make mornings feel good. Silk Protein. It's a smooth, plant-based beverage with 13 grams of complete plant protein and 50% less sugar than dairy milk. Pour it into your cereal, blend it into a smoothie, stir it into your coffee. Silk Protein makes mornings feel a little calmer, a little brighter, a little more okay. I got this. Silk Protein. Feel planty good.",
+  "intro_variants": [
+    "Mornings can feel like a lot, but there's one small choice that can make mornings feel good. Silk Protein."
+  ],
+  "outro_variants": [
+    "Silk Protein. Feel planty good.",
+    "Silk Protein. Feel plenty good."
+  ],
+  "avg_duration": null,
+  "sponsor": "Silk Protein",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "food",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "954c457b-1464-478e-86aa-f73bf6585367",
+  "version": 1,
+  "submitted_at": "2026-05-27T02:31:11.364726+00:00",
+  "submitted_app_version": "unknown",
+  "sponsor_match": "exact"
+}

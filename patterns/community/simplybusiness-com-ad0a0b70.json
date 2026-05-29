@@ -1,0 +1,26 @@
+{
+  "scope": "global",
+  "text_template": "Running a business means checking a lot of boxes. Let's see. Payroll? Check. Inventory? Check. Insurance? Ah! Good thing Simply Business makes getting small business insurance fast and easy. Check insurance off your list at simplybusiness.com.",
+  "intro_variants": [
+    "Running a business means checking a lot of boxes."
+  ],
+  "outro_variants": [
+    "Check insurance off your list at simplybusiness.com."
+  ],
+  "avg_duration": null,
+  "sponsor": "simplybusiness.com",
+  "sponsor_aliases": [
+    "Simply Business"
+  ],
+  "sponsor_tags": [
+    "business",
+    "insurance",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "ad0a0b70-450d-4b8e-b164-609b87dcf6d9",
+  "version": 1,
+  "submitted_at": "2026-05-27T02:31:11.364726+00:00",
+  "submitted_app_version": "unknown",
+  "sponsor_match": "exact"
+}

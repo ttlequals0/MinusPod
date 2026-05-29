@@ -1,0 +1,28 @@
+{
+  "scope": "global",
+  "text_template": "Quick reminder, everybody, tax season is here. Before anyone panics, here's another reminder. Intuit TurboTax is also here. With TurboTax Expert full service, you can match with a real tax expert who handles your taxes from start to finish. Like, it basically turns tax season into a non-event, which is saying something. You can chill, listen to your favorite podcast, maybe ours, and get real-time updates on your phone while your TurboTax expert checks every deduction and credit to help get you the best possible outcome. It's that simple. Visit TurboTax.com to get started. Real-time updates are available in the iOS mobile app.",
+  "intro_variants": [
+    "Handing off your taxes? Get the best outcome with a local expert",
+    "Quick reminder, everybody, tax season is here. Before anyone panics, here's another reminder"
+  ],
+  "outro_variants": [
+    "Find your local tax expert at TurboTax.com.",
+    "Find your local tax expert at turbotax.com slash local.",
+    "Visit TurboTax.com to get started."
+  ],
+  "avg_duration": null,
+  "sponsor": "TurboTax",
+  "sponsor_aliases": [
+    "Turbo Tax"
+  ],
+  "sponsor_tags": [
+    "finance",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "643ea52b-5e67-43d0-9fee-f0adf1d408e7",
+  "version": 1,
+  "submitted_at": "2026-05-27T02:31:11.364726+00:00",
+  "submitted_app_version": "unknown",
+  "sponsor_match": "exact"
+}

@@ -1,0 +1,32 @@
+{
+  "scope": "global",
+  "text_template": "Support for Today, Explained comes from Starbucks. Perhaps you're clocking out today with TGIF on your lips. You can keep the good vibes going with an energy boost with Starbucks' new energy refreshers. Their handcrafted energy refreshers can be the perfect thing to round out your Friday afternoon with flavors such as strawberry acai or even mango dragon fruit. Try the all new energy refreshers at Starbucks.",
+  "intro_variants": [
+    "Support for Today, Explained comes from Starbucks.",
+    "Support for Explained to Me comes from Starbucks.",
+    "Support for Explain It To Me comes from Starbucks.",
+    "Support for Today Explained comes from Starbucks.",
+    "Support for Today, Explained comes from Starbucks.",
+    "This is Advertiser Content from Starbucks.",
+    "Jonklin, I think of you as the queen of answering questions. Oh my gosh, thank you. What question do you have for me today? Okay, talk to me about energy levels."
+  ],
+  "outro_variants": [
+    "Try the all new energy refreshers at Starbucks.",
+    "Try the all-new Energy Refreshers at Starbucks.",
+    "Long story short, we all need moments throughout the day to refresh, and Starbucks has you covered with their new Energy Refreshers, your go-to lift to help you stay energized throughout the day."
+  ],
+  "avg_duration": null,
+  "sponsor": "Starbucks",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "beverage",
+    "food",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "13832c5f-e72c-45c3-9cdc-1251588933b7",
+  "version": 1,
+  "submitted_at": "2026-05-27T02:31:11.364726+00:00",
+  "submitted_app_version": "unknown",
+  "sponsor_match": "exact"
+}

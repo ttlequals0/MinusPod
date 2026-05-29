@@ -1,0 +1,26 @@
+{
+  "scope": "global",
+  "text_template": "The all new Whoop is here. Now more advanced than ever. Train smarter. Sleep deeper. Recover faster. Extend your healthy years. Understand your cycle phases. Now 7% smaller with 14 plus days of battery life. So your data never stops, and neither do you. Power your best performance with memberships made for every goal. Join Whoop today.",
+  "intro_variants": [
+    "The all new Whoop is here. Now more advanced than ever.",
+    "Now, 7% smaller with 14 plus days of battery life. So your data never stops, and neither do you."
+  ],
+  "outro_variants": [
+    "Join Whoop today."
+  ],
+  "avg_duration": null,
+  "sponsor": "Whoop",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "health",
+    "sports",
+    "dtc",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "95a21087-54df-43ae-8ecd-8e7fd280afc8",
+  "version": 1,
+  "submitted_at": "2026-05-27T02:31:11.364726+00:00",
+  "submitted_app_version": "unknown",
+  "sponsor_match": "exact"
+}
