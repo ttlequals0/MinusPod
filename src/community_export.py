@@ -432,8 +432,15 @@ def _sponsor_name_for(pattern: Dict, sponsors: List[Dict]) -> Optional[str]:
     return row.get('name') if row else None
 
 
-def build_bundle(pattern_ids: List[int], db) -> Tuple[Dict, List[Dict]]:
+def build_bundle(
+    pattern_ids: List[int],
+    db,
+    overrides: Optional[Dict[int, Dict]] = None,
+) -> Tuple[Dict, List[Dict]]:
     """Run the export pipeline on each id and produce one bundle JSON.
+
+    `overrides` maps pattern id -> partial field dict forwarded to
+    build_export_payload for that pattern (e.g. corrected sponsor name).
 
     Returns (bundle_payload, rejected). `rejected` is a list of
     `{id, sponsor, reasons:[str]}` for patterns that failed pre-flight.
@@ -457,7 +464,8 @@ def build_bundle(pattern_ids: List[int], db) -> Tuple[Dict, List[Dict]]:
             })
             continue
         try:
-            payload = build_export_payload(pattern, sponsors)
+            override = (overrides or {}).get(pid)
+            payload = build_export_payload(pattern, sponsors, override=override)
         except ExportError as e:
             rejected.append({
                 'id': pid,

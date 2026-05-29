@@ -376,3 +376,102 @@ def test_build_export_payload_no_override_unchanged():
     assert payload['sponsor'] == 'Shopify'
     assert payload['sponsor_aliases'] == ['Shop']
     assert payload['sponsor_tags'] == ['universal']
+
+
+def test_build_bundle_applies_per_pattern_overrides():
+    """build_bundle threads overrides[pattern_id] to each build_export_payload call."""
+    from community_export import build_bundle
+
+    class FakeDb:
+        def get_known_sponsors(self, active_only=False):
+            return [{
+                'id': 99,
+                'name': 'Spotify',
+                'aliases': '[]',
+                'tags': '["universal"]',
+                'is_active': True,
+            }]
+
+        def get_ad_patterns_by_ids(self, ids):
+            return {1: {
+                'id': 1,
+                'sponsor_id': 99,
+                'text_template': 'Shopify is the commerce platform behind millions of businesses.',
+                'intro_variants': [],
+                'outro_variants': [],
+                'avg_duration': 30.0,
+                'confirmation_count': 1,
+                'false_positive_count': 0,
+                'source_language': None,
+                'source': 'local',
+            }}
+
+    bundle, rejected = build_bundle([1], FakeDb(), overrides={1: {'sponsor': 'Shopify'}})
+    assert rejected == []
+    assert bundle['patterns'][0]['sponsor'] == 'Shopify'
+
+
+def test_build_bundle_overrides_for_unknown_pattern_id_ignored():
+    """An override entry whose key is not in the input ids is dropped silently."""
+    from community_export import build_bundle
+
+    class FakeDb:
+        def get_known_sponsors(self, active_only=False):
+            return [{
+                'id': 99,
+                'name': 'Shopify',
+                'aliases': '[]',
+                'tags': '["universal"]',
+                'is_active': True,
+            }]
+
+        def get_ad_patterns_by_ids(self, ids):
+            return {1: {
+                'id': 1,
+                'sponsor_id': 99,
+                'text_template': 'Shopify is the commerce platform behind millions of businesses.',
+                'intro_variants': [],
+                'outro_variants': [],
+                'avg_duration': 30.0,
+                'confirmation_count': 1,
+                'false_positive_count': 0,
+                'source_language': None,
+                'source': 'local',
+            }}
+
+    bundle, rejected = build_bundle([1], FakeDb(), overrides={9999: {'sponsor': 'Ignored'}})
+    assert rejected == []
+    assert bundle['patterns'][0]['sponsor'] == 'Shopify'
+
+
+def test_build_bundle_no_overrides_unchanged():
+    """No overrides arg = same behavior as before this task."""
+    from community_export import build_bundle
+
+    class FakeDb:
+        def get_known_sponsors(self, active_only=False):
+            return [{
+                'id': 99,
+                'name': 'Shopify',
+                'aliases': '[]',
+                'tags': '["universal"]',
+                'is_active': True,
+            }]
+
+        def get_ad_patterns_by_ids(self, ids):
+            return {1: {
+                'id': 1,
+                'sponsor_id': 99,
+                'text_template': 'Shopify is the commerce platform behind millions of businesses.',
+                'intro_variants': [],
+                'outro_variants': [],
+                'avg_duration': 30.0,
+                'confirmation_count': 1,
+                'false_positive_count': 0,
+                'source_language': None,
+                'source': 'local',
+            }}
+
+    bundle, rejected = build_bundle([1], FakeDb())
+    assert rejected == []
+    assert bundle['patterns'][0]['sponsor'] == 'Shopify'
