@@ -6,7 +6,12 @@ from pathlib import Path
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
-from tools.generate_manifest import _load_pattern_files, build_manifest  # noqa: E402
+from tools.generate_manifest import (  # noqa: E402
+    _load_pattern_files,
+    _render,
+    build_manifest,
+    reuse_published_at,
+)
 
 
 def _write(path: Path, doc):
@@ -52,6 +57,58 @@ def test_bundle_file_flattens_into_manifest(tmp_path):
     manifest = build_manifest(patterns)
     manifest_ids = {entry['community_id'] for entry in manifest['patterns']}
     assert manifest_ids == {'flat-1', 'b-1', 'b-2'}
+
+
+def test_published_at_preserved_when_render_unchanged():
+    patterns = [{
+        'community_id': 'x-1',
+        'version': 1,
+        'sponsor': 'A',
+        'submitted_at': '2026-01-01T00:00:00Z',
+        'text_template': 'one',
+    }]
+    existing = build_manifest(patterns)
+    existing['published_at'] = '2020-01-01T00:00:00Z'
+    existing_text = _render(existing)
+    rebuilt = reuse_published_at(build_manifest(patterns), existing_text)
+    assert rebuilt['published_at'] == '2020-01-01T00:00:00Z'
+    # The whole point: re-rendering reproduces the on-disk bytes exactly.
+    assert _render(rebuilt) == existing_text
+
+
+def test_published_at_bumped_when_content_changes():
+    base = [{
+        'community_id': 'x-1',
+        'version': 1,
+        'sponsor': 'A',
+        'submitted_at': '2026-01-01T00:00:00Z',
+        'text_template': 'one',
+    }]
+    existing = build_manifest(base)
+    existing['published_at'] = '2020-01-01T00:00:00Z'
+    existing_text = _render(existing)
+    changed = base + [{
+        'community_id': 'x-2',
+        'version': 1,
+        'sponsor': 'B',
+        'submitted_at': '2026-01-02T00:00:00Z',
+        'text_template': 'two',
+    }]
+    rebuilt = reuse_published_at(build_manifest(changed), existing_text)
+    assert rebuilt['published_at'] != '2020-01-01T00:00:00Z'
+
+
+def test_reuse_published_at_ignores_unreadable_existing():
+    patterns = [{
+        'community_id': 'x-1',
+        'version': 1,
+        'sponsor': 'A',
+        'submitted_at': '2026-01-01T00:00:00Z',
+        'text_template': 'one',
+    }]
+    manifest = build_manifest(patterns)
+    assert reuse_published_at(manifest, None) is manifest
+    assert reuse_published_at(manifest, 'not json {') is manifest
 
 
 def test_bundle_with_missing_community_id_is_skipped(tmp_path, capsys):

@@ -8,9 +8,11 @@ local testing or recovery from a workflow failure:
 
 Pattern files live at `patterns/community/<sponsor>-<uuid>.json`. The
 manifest is a single document that embeds every pattern inline so the
-client fetches everything in one request. `published_at` is bumped to
-the current UTC time; `manifest_version` and `vocabulary_version` are
-constants that bump only when the format changes.
+client fetches everything in one request. `published_at` is bumped to the
+current UTC time only when the rendered manifest actually changes -- a no-op
+run reuses the prior timestamp so the regenerate-manifest workflow's
+`git diff --quiet` stays quiet and skips a spurious commit. `manifest_version`
+and `vocabulary_version` are constants that bump only when the format changes.
 """
 from __future__ import annotations
 
@@ -80,13 +82,14 @@ def _load_pattern_files(directory: Path) -> List[Dict[str, Any]]:
 
 def build_manifest(patterns: List[Dict[str, Any]]) -> Dict[str, Any]:
     """Build the manifest document from the loaded pattern dicts."""
-    entries = []
-    for p in patterns:
-        entries.append({
+    entries = [
+        {
             'community_id': p['community_id'],
             'version': int(p.get('version') or 1),
             'data': p,
-        })
+        }
+        for p in patterns
+    ]
     return {
         'manifest_version': MANIFEST_VERSION,
         'published_at': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
@@ -95,12 +98,39 @@ def build_manifest(patterns: List[Dict[str, Any]]) -> Dict[str, Any]:
     }
 
 
+def _render(manifest: Dict[str, Any]) -> str:
+    """Serialize the manifest exactly as it is written to disk."""
+    return json.dumps(manifest, indent=2) + '\n'
+
+
+def reuse_published_at(manifest: Dict[str, Any], existing_text: str | None) -> Dict[str, Any]:
+    """Reuse the prior `published_at` when nothing but the timestamp changed.
+
+    `existing_text` is the on-disk index.json verbatim. If re-rendering the new
+    manifest with the prior timestamp reproduces that text byte-for-byte, only
+    the timestamp would have changed, so we keep the old value. The comparison
+    is on rendered bytes -- the same thing the regenerate-manifest workflow's
+    `git diff --quiet` checks -- so a true no-op stays quiet and skips the
+    spurious timestamp-only commit. Any real content change re-renders
+    differently and the fresh timestamp stands.
+    """
+    if not existing_text:
+        return manifest
+    try:
+        previous = json.loads(existing_text)
+    except json.JSONDecodeError:
+        return manifest
+    prev_published = previous.get('published_at')
+    if not isinstance(prev_published, str):
+        return manifest
+    candidate = {**manifest, 'published_at': prev_published}
+    return candidate if _render(candidate) == existing_text else manifest
+
+
 def write_manifest(manifest: Dict[str, Any], path: Path) -> None:
     """Write the manifest atomically to `path`, preserving a trailing newline."""
     tmp = path.with_suffix(path.suffix + '.tmp')
-    with tmp.open('w', encoding='utf-8') as fh:
-        json.dump(manifest, fh, indent=2)
-        fh.write('\n')
+    tmp.write_text(_render(manifest), encoding='utf-8')
     tmp.replace(path)
 
 
@@ -110,8 +140,14 @@ def main() -> int:
         print(f'ERROR: {directory} does not exist', file=sys.stderr)
         return 1
     patterns = _load_pattern_files(directory)
-    manifest = build_manifest(patterns)
     target = directory / 'index.json'
+    existing_text: str | None = None
+    if target.exists():
+        try:
+            existing_text = target.read_text(encoding='utf-8')
+        except OSError as e:
+            print(f'WARN: ignoring unreadable {target.name}: {e}', file=sys.stderr)
+    manifest = reuse_published_at(build_manifest(patterns), existing_text)
     write_manifest(manifest, target)
     print(
         f'Wrote {target.relative_to(_REPO_SRC.parent)} '
