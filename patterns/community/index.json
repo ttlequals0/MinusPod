@@ -1,6 +1,6 @@
 {
   "manifest_version": 1,
-  "published_at": "2026-05-29T00:59:29Z",
+  "published_at": "2026-05-29T22:48:08Z",
   "vocabulary_version": 1,
   "patterns": [
     {
@@ -419,6 +419,42 @@
       }
     },
     {
+      "community_id": "13832c5f-e72c-45c3-9cdc-1251588933b7",
+      "version": 1,
+      "data": {
+        "scope": "global",
+        "text_template": "Support for Today, Explained comes from Starbucks. Perhaps you're clocking out today with TGIF on your lips. You can keep the good vibes going with an energy boost with Starbucks' new energy refreshers. Their handcrafted energy refreshers can be the perfect thing to round out your Friday afternoon with flavors such as strawberry acai or even mango dragon fruit. Try the all new energy refreshers at Starbucks.",
+        "intro_variants": [
+          "Support for Today, Explained comes from Starbucks.",
+          "Support for Explained to Me comes from Starbucks.",
+          "Support for Explain It To Me comes from Starbucks.",
+          "Support for Today Explained comes from Starbucks.",
+          "Support for Today, Explained comes from Starbucks.",
+          "This is Advertiser Content from Starbucks.",
+          "Jonklin, I think of you as the queen of answering questions. Oh my gosh, thank you. What question do you have for me today? Okay, talk to me about energy levels."
+        ],
+        "outro_variants": [
+          "Try the all new energy refreshers at Starbucks.",
+          "Try the all-new Energy Refreshers at Starbucks.",
+          "Long story short, we all need moments throughout the day to refresh, and Starbucks has you covered with their new Energy Refreshers, your go-to lift to help you stay energized throughout the day."
+        ],
+        "avg_duration": null,
+        "sponsor": "Starbucks",
+        "sponsor_aliases": [],
+        "sponsor_tags": [
+          "beverage",
+          "food",
+          "universal"
+        ],
+        "source_language": null,
+        "community_id": "13832c5f-e72c-45c3-9cdc-1251588933b7",
+        "version": 1,
+        "submitted_at": "2026-05-27T02:31:11.364726+00:00",
+        "submitted_app_version": "unknown",
+        "sponsor_match": "exact"
+      }
+    },
+    {
       "community_id": "30d6ba68-9293-4e7b-b536-adef664a5468",
       "version": 1,
       "data": {
@@ -622,6 +658,35 @@
       }
     },
     {
+      "community_id": "551c624a-3d56-480b-8bfd-5e87b14e5a28",
+      "version": 1,
+      "data": {
+        "scope": "global",
+        "text_template": "Support for the show today comes from Bombas If your sock drawer could use a little love you can upgrade to Bombas They have a range of well socks designed for every activity every activity Like their cushioned sweat sports socks They say you don need to worry about sliding down your foot while you stay active this spring They have more than socks too with breathable soft high basics underwear and t Our colleague Nisha Chital has tried Bombas One thing that's great is Bombas, they have warmer socks that are really thick and warm and great in the winter, and they're like the only sock I want to wear in the winter. And they also have lighter weight ones, like the no-show socks that are great for like sneakers, flats, loafers, warmer weather footwear. You can go to Bombas.com slash explain and use the code EXPLAINED for 20% off your first purchase. That's B-O-M-B-A-S dot com slash explained. The code at checkout is EXPLAINED.",
+        "intro_variants": [
+          "Support for the show today comes from Bombas",
+          "If your sock drawer could use a little love you can upgrade to Bombas"
+        ],
+        "outro_variants": [
+          "You can go to Bombas.com slash explain and use the code EXPLAINED for 20% off your first purchase. That's B-O-M-B-A-S dot com slash explained. The code at checkout is EXPLAINED."
+        ],
+        "avg_duration": null,
+        "sponsor": "Bombas",
+        "sponsor_aliases": [],
+        "sponsor_tags": [
+          "apparel",
+          "dtc",
+          "universal"
+        ],
+        "source_language": null,
+        "community_id": "551c624a-3d56-480b-8bfd-5e87b14e5a28",
+        "version": 1,
+        "submitted_at": "2026-05-27T02:31:11.364726+00:00",
+        "submitted_app_version": "unknown",
+        "sponsor_match": "exact"
+      }
+    },
+    {
       "community_id": "56c150bb-c761-4025-bacb-85a1f5e39e64",
       "version": 1,
       "data": {
@@ -674,6 +739,39 @@
         ],
         "source_language": null,
         "community_id": "61b7f12f-3bb3-4e80-b6c2-a87103c00743",
+        "version": 1,
+        "submitted_at": "2026-05-27T02:31:11.364726+00:00",
+        "submitted_app_version": "unknown",
+        "sponsor_match": "exact"
+      }
+    },
+    {
+      "community_id": "643ea52b-5e67-43d0-9fee-f0adf1d408e7",
+      "version": 1,
+      "data": {
+        "scope": "global",
+        "text_template": "Quick reminder, everybody, tax season is here. Before anyone panics, here's another reminder. Intuit TurboTax is also here. With TurboTax Expert full service, you can match with a real tax expert who handles your taxes from start to finish. Like, it basically turns tax season into a non-event, which is saying something. You can chill, listen to your favorite podcast, maybe ours, and get real-time updates on your phone while your TurboTax expert checks every deduction and credit to help get you the best possible outcome. It's that simple. Visit TurboTax.com to get started. Real-time updates are available in the iOS mobile app.",
+        "intro_variants": [
+          "Handing off your taxes? Get the best outcome with a local expert",
+          "Quick reminder, everybody, tax season is here. Before anyone panics, here's another reminder"
+        ],
+        "outro_variants": [
+          "Find your local tax expert at TurboTax.com.",
+          "Find your local tax expert at turbotax.com slash local.",
+          "Visit TurboTax.com to get started."
+        ],
+        "avg_duration": null,
+        "sponsor": "Intuit",
+        "sponsor_aliases": [
+          "TurboTax",
+          "Turbo Tax"
+        ],
+        "sponsor_tags": [
+          "finance",
+          "universal"
+        ],
+        "source_language": null,
+        "community_id": "643ea52b-5e67-43d0-9fee-f0adf1d408e7",
         "version": 1,
         "submitted_at": "2026-05-27T02:31:11.364726+00:00",
         "submitted_app_version": "unknown",
@@ -789,6 +887,123 @@
         ],
         "source_language": null,
         "community_id": "919a1600-268d-4f93-9ae1-73db5f3dab1f",
+        "version": 1,
+        "submitted_at": "2026-05-27T02:31:11.364726+00:00",
+        "submitted_app_version": "unknown",
+        "sponsor_match": "exact"
+      }
+    },
+    {
+      "community_id": "933db58b-f50f-4529-9369-86336e0a0456",
+      "version": 1,
+      "data": {
+        "scope": "global",
+        "text_template": "This episode is brought to you by Nordstrom. Spring calls for a wardrobe refresh, and Nordstrom has the best styles of the season. From dresses and denim to standout tops and accessories, find the trends and essentials that feel right for you. Discover new arrivals from brands you love, like WAIFE, Princess Polly, Mango, Adidas, and Free People. Plus, free shipping and returns and free styling appointments make everything so easy. Shop in stores at Nordstrom.com or download the Nordstrom app.",
+        "intro_variants": [
+          "This episode is brought to you by Nordstrom."
+        ],
+        "outro_variants": [
+          "Shop in stores at Nordstrom.com or download the Nordstrom app."
+        ],
+        "avg_duration": null,
+        "sponsor": "Nordstrom",
+        "sponsor_aliases": [
+          "Nordstrom.com"
+        ],
+        "sponsor_tags": [
+          "apparel",
+          "universal"
+        ],
+        "source_language": null,
+        "community_id": "933db58b-f50f-4529-9369-86336e0a0456",
+        "version": 1,
+        "submitted_at": "2026-05-27T02:31:11.364726+00:00",
+        "submitted_app_version": "unknown",
+        "sponsor_match": "exact"
+      }
+    },
+    {
+      "community_id": "954c457b-1464-478e-86aa-f73bf6585367",
+      "version": 1,
+      "data": {
+        "scope": "global",
+        "text_template": "Mornings can feel like a lot, but there's one small choice that can make mornings feel good. Silk Protein. It's a smooth, plant-based beverage with 13 grams of complete plant protein and 50% less sugar than dairy milk. Pour it into your cereal, blend it into a smoothie, stir it into your coffee. Silk Protein makes mornings feel a little calmer, a little brighter, a little more okay. I got this. Silk Protein. Feel planty good.",
+        "intro_variants": [
+          "Mornings can feel like a lot, but there's one small choice that can make mornings feel good. Silk Protein."
+        ],
+        "outro_variants": [
+          "Silk Protein. Feel planty good.",
+          "Silk Protein. Feel plenty good."
+        ],
+        "avg_duration": null,
+        "sponsor": "Silk Protein",
+        "sponsor_aliases": [],
+        "sponsor_tags": [
+          "food",
+          "universal"
+        ],
+        "source_language": null,
+        "community_id": "954c457b-1464-478e-86aa-f73bf6585367",
+        "version": 1,
+        "submitted_at": "2026-05-27T02:31:11.364726+00:00",
+        "submitted_app_version": "unknown",
+        "sponsor_match": "exact"
+      }
+    },
+    {
+      "community_id": "95a21087-54df-43ae-8ecd-8e7fd280afc8",
+      "version": 1,
+      "data": {
+        "scope": "global",
+        "text_template": "The all new Whoop is here. Now more advanced than ever. Train smarter. Sleep deeper. Recover faster. Extend your healthy years. Understand your cycle phases. Now 7% smaller with 14 plus days of battery life. So your data never stops, and neither do you. Power your best performance with memberships made for every goal. Join Whoop today.",
+        "intro_variants": [
+          "The all new Whoop is here. Now more advanced than ever.",
+          "Now, 7% smaller with 14 plus days of battery life. So your data never stops, and neither do you."
+        ],
+        "outro_variants": [
+          "Join Whoop today."
+        ],
+        "avg_duration": null,
+        "sponsor": "Whoop",
+        "sponsor_aliases": [],
+        "sponsor_tags": [
+          "health",
+          "sports",
+          "dtc",
+          "universal"
+        ],
+        "source_language": null,
+        "community_id": "95a21087-54df-43ae-8ecd-8e7fd280afc8",
+        "version": 1,
+        "submitted_at": "2026-05-27T02:31:11.364726+00:00",
+        "submitted_app_version": "unknown",
+        "sponsor_match": "exact"
+      }
+    },
+    {
+      "community_id": "ad0a0b70-450d-4b8e-b164-609b87dcf6d9",
+      "version": 1,
+      "data": {
+        "scope": "global",
+        "text_template": "Running a business means checking a lot of boxes. Let's see. Payroll? Check. Inventory? Check. Insurance? Ah! Good thing Simply Business makes getting small business insurance fast and easy. Check insurance off your list at simplybusiness.com.",
+        "intro_variants": [
+          "Running a business means checking a lot of boxes."
+        ],
+        "outro_variants": [
+          "Check insurance off your list at simplybusiness.com."
+        ],
+        "avg_duration": null,
+        "sponsor": "simplybusiness.com",
+        "sponsor_aliases": [
+          "Simply Business"
+        ],
+        "sponsor_tags": [
+          "business",
+          "insurance",
+          "universal"
+        ],
+        "source_language": null,
+        "community_id": "ad0a0b70-450d-4b8e-b164-609b87dcf6d9",
         "version": 1,
         "submitted_at": "2026-05-27T02:31:11.364726+00:00",
         "submitted_app_version": "unknown",
