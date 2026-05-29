@@ -194,7 +194,7 @@ def find_foreign_sponsors(
     return foreign
 
 
-def _quality_gates(pattern: Dict, sponsors: List[Dict]) -> List[str]:
+def _quality_gates(pattern: Dict, sponsors: List[Dict], override: Optional[Dict] = None) -> List[str]:
     """Run quality gates. Returns a list of failure reasons (empty = pass)."""
     reasons: List[str] = []
     text = pattern.get('text_template') or ''
@@ -226,8 +226,23 @@ def _quality_gates(pattern: Dict, sponsors: List[Dict]) -> List[str]:
         reasons.append('sponsor not found')
         return reasons
 
-    declared_aliases = normalize_aliases(sponsor_row.get('aliases'))
-    sponsor_names = [sponsor_row['name']] + declared_aliases
+    # Per-export override: contributor refined the sponsor in the Export
+    # dialog. Re-run the sponsor-in-text check against the overridden
+    # values so an edit that strips the brand name out of the text fails
+    # the gate the same way the original would.
+    if override:
+        override_name = (override.get('sponsor') or '').strip() or None
+        override_aliases = override.get('sponsor_aliases')
+    else:
+        override_name = None
+        override_aliases = None
+
+    sponsor_name = override_name if override_name else sponsor_row['name']
+    if override_aliases is not None:
+        declared_aliases = list(override_aliases)
+    else:
+        declared_aliases = normalize_aliases(sponsor_row.get('aliases'))
+    sponsor_names = [sponsor_name] + declared_aliases
 
     text_lower = text.lower()
     name_present = any(
@@ -245,14 +260,20 @@ def _quality_gates(pattern: Dict, sponsors: List[Dict]) -> List[str]:
     return reasons
 
 
-def _validate_tags(pattern: Dict, sponsor_row: Dict) -> List[str]:
+def _validate_tags(pattern: Dict, sponsor_row: Dict, override: Optional[Dict] = None) -> List[str]:
     """Reject any tag not in VALID_TAGS."""
     bad: List[str] = []
     vt = valid_tags()
-    try:
-        tags = json.loads(sponsor_row.get('tags') or '[]')
-    except (TypeError, ValueError):
-        tags = []
+    if override and override.get('sponsor_tags') is not None:
+        try:
+            tags = list(override['sponsor_tags'])
+        except (TypeError, ValueError):
+            tags = []
+    else:
+        try:
+            tags = json.loads(sponsor_row.get('tags') or '[]')
+        except (TypeError, ValueError):
+            tags = []
     for t in tags or []:
         if t not in vt:
             bad.append(t)
@@ -346,18 +367,30 @@ def _strip_metadata(pattern: Dict, sponsor_row: Dict) -> Dict:
     }
 
 
-def build_export_payload(pattern: Dict, sponsors: List[Dict]) -> Dict:
+def build_export_payload(
+    pattern: Dict,
+    sponsors: List[Dict],
+    override: Optional[Dict] = None,
+) -> Dict:
     """Run the full pipeline and return the JSON payload + sponsor classification."""
     sponsor_id = pattern.get('sponsor_id')
     sponsor_row = next((s for s in sponsors if s['id'] == sponsor_id), None)
 
-    failures = _quality_gates(pattern, sponsors)
+    failures = _quality_gates(pattern, sponsors, override=override)
     if sponsor_row:
-        failures.extend(_validate_tags(pattern, sponsor_row))
+        failures.extend(_validate_tags(pattern, sponsor_row, override=override))
     if failures:
         raise ExportError(failures)
 
     payload = _strip_metadata(pattern, sponsor_row)
+
+    if override:
+        if override.get('sponsor'):
+            payload['sponsor'] = override['sponsor']
+        if override.get('sponsor_aliases') is not None:
+            payload['sponsor_aliases'] = list(override['sponsor_aliases'])
+        if override.get('sponsor_tags') is not None:
+            payload['sponsor_tags'] = list(override['sponsor_tags'])
 
     sponsor_match = _classify_sponsor(payload['sponsor'], sponsors)
 

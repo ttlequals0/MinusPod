@@ -240,3 +240,139 @@ def test_pr_url_falls_back_when_too_large():
     url, _, too_large = build_pr_url(payload)
     # Force the size check
     assert (len(url.encode('utf-8')) > URL_LENGTH_LIMIT_BYTES) == too_large
+
+
+def test_build_export_payload_applies_sponsor_override():
+    """An override sponsor replaces the sponsor in the payload and re-classifies."""
+    from community_export import build_export_payload
+    pattern = {
+        'id': 1,
+        'sponsor_id': 99,
+        'text_template': 'Shopify is the commerce platform behind millions of businesses.',
+        'intro_variants': [],
+        'outro_variants': [],
+        'avg_duration': 30.0,
+        'confirmation_count': 1,
+        'false_positive_count': 0,
+        'source_language': None,
+    }
+    sponsors = [{
+        'id': 99,
+        'name': 'Spotify',
+        'aliases': '[]',
+        'tags': '["streaming","universal"]',
+        'is_active': True,
+    }]
+    payload = build_export_payload(pattern, sponsors, override={'sponsor': 'Shopify'})
+    assert payload['sponsor'] == 'Shopify'
+    assert payload['sponsor_aliases'] == []
+
+
+def test_build_export_payload_override_sponsor_must_appear_in_text():
+    """Override sponsor that does not appear in text fails the gate."""
+    from community_export import build_export_payload, ExportError
+    pattern = {
+        'id': 1,
+        'sponsor_id': 99,
+        'text_template': 'Shopify is the commerce platform behind millions of businesses.',
+        'intro_variants': [],
+        'outro_variants': [],
+        'avg_duration': 30.0,
+        'confirmation_count': 1,
+        'false_positive_count': 0,
+        'source_language': None,
+    }
+    sponsors = [{
+        'id': 99,
+        'name': 'Shopify',
+        'aliases': '[]',
+        'tags': '["universal"]',
+        'is_active': True,
+    }]
+    try:
+        build_export_payload(pattern, sponsors, override={'sponsor': 'NotInTheText'})
+    except ExportError as e:
+        assert any('sponsor name' in r and 'does not appear' in r for r in e.reasons)
+    else:
+        raise AssertionError('expected ExportError')
+
+
+def test_build_export_payload_alias_override_clears_aliases():
+    """Override sponsor_aliases to an empty list clears all aliases."""
+    from community_export import build_export_payload
+    pattern = {
+        'id': 1,
+        'sponsor_id': 99,
+        'text_template': 'Shopify is the commerce platform behind millions of businesses.',
+        'intro_variants': [],
+        'outro_variants': [],
+        'avg_duration': 30.0,
+        'confirmation_count': 1,
+        'false_positive_count': 0,
+        'source_language': None,
+    }
+    sponsors = [{
+        'id': 99,
+        'name': 'Shopify',
+        'aliases': '["Shop"]',
+        'tags': '["universal"]',
+        'is_active': True,
+    }]
+    payload = build_export_payload(pattern, sponsors, override={'sponsor_aliases': []})
+    assert payload['sponsor_aliases'] == []
+
+
+def test_build_export_payload_tag_override_re_validates():
+    """Override sponsor_tags to include an unknown tag triggers rejection."""
+    from community_export import build_export_payload, ExportError
+    pattern = {
+        'id': 1,
+        'sponsor_id': 99,
+        'text_template': 'Shopify is the commerce platform behind millions of businesses.',
+        'intro_variants': [],
+        'outro_variants': [],
+        'avg_duration': 30.0,
+        'confirmation_count': 1,
+        'false_positive_count': 0,
+        'source_language': None,
+    }
+    sponsors = [{
+        'id': 99,
+        'name': 'Shopify',
+        'aliases': '[]',
+        'tags': '["universal"]',
+        'is_active': True,
+    }]
+    try:
+        build_export_payload(pattern, sponsors, override={'sponsor_tags': ['universal', 'made_up_tag']})
+    except ExportError as e:
+        assert any('made_up_tag' in r for r in e.reasons)
+    else:
+        raise AssertionError('expected ExportError')
+
+
+def test_build_export_payload_no_override_unchanged():
+    """No override = same behavior as before this task."""
+    from community_export import build_export_payload
+    pattern = {
+        'id': 1,
+        'sponsor_id': 99,
+        'text_template': 'Shopify is the commerce platform behind millions of businesses.',
+        'intro_variants': [],
+        'outro_variants': [],
+        'avg_duration': 30.0,
+        'confirmation_count': 1,
+        'false_positive_count': 0,
+        'source_language': None,
+    }
+    sponsors = [{
+        'id': 99,
+        'name': 'Shopify',
+        'aliases': '["Shop"]',
+        'tags': '["universal"]',
+        'is_active': True,
+    }]
+    payload = build_export_payload(pattern, sponsors)
+    assert payload['sponsor'] == 'Shopify'
+    assert payload['sponsor_aliases'] == ['Shop']
+    assert payload['sponsor_tags'] == ['universal']
