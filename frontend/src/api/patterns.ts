@@ -210,6 +210,14 @@ export interface CommunityExportResult {
   sponsor_match: 'exact' | 'alias' | 'fuzzy' | 'unknown';
 }
 
+export interface PatternOverride {
+  sponsor?: string;
+  sponsor_aliases?: string[];
+  sponsor_tags?: string[];
+}
+
+export type PatternOverrides = Record<number, PatternOverride>;
+
 export async function submitPatternToCommunity(id: number): Promise<CommunityExportResult> {
   return apiRequest<CommunityExportResult>(`/patterns/${id}/submit-to-community`, {
     method: 'POST',
@@ -230,10 +238,13 @@ export interface BundlePreview {
   pattern_count: number;
 }
 
-export async function previewExportBundle(ids: number[]): Promise<BundlePreview> {
+export async function previewExportBundle(
+  ids: number[],
+  overrides?: PatternOverrides,
+): Promise<BundlePreview> {
   return apiRequest<BundlePreview>('/patterns/preview-export', {
     method: 'POST',
-    body: { ids },
+    body: overrides ? { ids, overrides } : { ids },
   });
 }
 
@@ -241,10 +252,13 @@ export async function previewExportBundle(ids: number[]): Promise<BundlePreview>
 // so we use apiFileRequest which preserves CSRF + error-stringification.
 // The actual browser download happens here so callers only deal with the
 // resulting filename.
-export async function downloadCommunityBundle(ids: number[]): Promise<{ filename: string }> {
+export async function downloadCommunityBundle(
+  ids: number[],
+  overrides?: PatternOverrides,
+): Promise<{ filename: string }> {
   const { blob, filename } = await apiFileRequest('/patterns/submit-bundle', {
     method: 'POST',
-    body: { ids },
+    body: overrides ? { ids, overrides } : { ids },
     fallbackFilename: 'minuspod-community-submission.json',
   });
   downloadBlob(blob, filename);
