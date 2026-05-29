@@ -475,3 +475,35 @@ def test_build_bundle_no_overrides_unchanged():
     bundle, rejected = build_bundle([1], FakeDb())
     assert rejected == []
     assert bundle['patterns'][0]['sponsor'] == 'Shopify'
+
+
+def test_coerce_overrides_accepts_int_keys_and_filters_unknown_keys():
+    """The route helper coerces string-keyed JSON into an int-keyed dict
+    and drops any field that is not sponsor / sponsor_aliases / sponsor_tags."""
+    from api.patterns import _coerce_overrides
+    raw = {
+        '1': {'sponsor': 'Shopify', 'sponsor_aliases': ['Shop'], 'sponsor_tags': ['universal']},
+        '2': {'sponsor': 'Hims.com', 'unsupported_field': 'ignored'},
+        'not_an_int': {'sponsor': 'X'},
+    }
+    out = _coerce_overrides(raw)
+    assert out == {
+        1: {'sponsor': 'Shopify', 'sponsor_aliases': ['Shop'], 'sponsor_tags': ['universal']},
+        2: {'sponsor': 'Hims.com'},
+    }
+
+
+def test_coerce_overrides_returns_none_when_missing():
+    from api.patterns import _coerce_overrides
+    assert _coerce_overrides(None) is None
+    assert _coerce_overrides({}) == {}
+
+
+def test_coerce_overrides_rejects_non_dict():
+    from api.patterns import _coerce_overrides
+    try:
+        _coerce_overrides([1, 2, 3])
+    except ValueError as e:
+        assert 'object' in str(e).lower()
+    else:
+        raise AssertionError('expected ValueError')

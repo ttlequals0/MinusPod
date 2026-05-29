@@ -1243,22 +1243,54 @@ def _coerce_int_ids(raw) -> list:
     return out
 
 
+_ALLOWED_OVERRIDE_FIELDS = ('sponsor', 'sponsor_aliases', 'sponsor_tags')
+
+
+def _coerce_overrides(raw):
+    """Validate and coerce the optional `overrides` body field.
+
+    Expects ``{ "<pattern_id>": { sponsor?, sponsor_aliases?, sponsor_tags? } }``
+    with string keys (JSON object) and int-coercible values. Drops keys whose
+    pattern id is not int-coercible and fields that are not in the allowed set
+    so route handlers do not need to defend themselves. Returns None when
+    `raw` is None; raises ValueError when `raw` is present but not a dict.
+    """
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise ValueError('overrides must be a JSON object keyed by pattern id')
+    out = {}
+    for k, v in raw.items():
+        try:
+            pid = int(k)
+        except (TypeError, ValueError):
+            continue
+        if not isinstance(v, dict):
+            continue
+        cleaned = {fld: v[fld] for fld in _ALLOWED_OVERRIDE_FIELDS if fld in v}
+        out[pid] = cleaned
+    return out
+
+
 @api.route('/patterns/preview-export', methods=['POST'])
 @log_request
 def preview_export_to_community():
     """Dry-run: report which of these pattern ids would pass quality gates.
 
-    Body: ``{"ids": [int, ...]}``. Returns
-    ``{ready, rejected, ready_count, rejected_count}`` where ``rejected``
-    is ``[{id, sponsor, reasons:[str]}]``.
+    Body: ``{"ids": [int, ...], "overrides"?: {<id>: {sponsor?, sponsor_aliases?, sponsor_tags?}}}``.
+    Returns ``{ready, rejected, ready_count, rejected_count, pattern_count}``.
     """
     from community_export import build_bundle
     body = request.get_json(silent=True) or {}
     ids = _coerce_int_ids(body.get('ids'))
     if not ids:
         return error_response('ids required (non-empty list of integers)', 400)
+    try:
+        overrides = _coerce_overrides(body.get('overrides'))
+    except ValueError as e:
+        return error_response(str(e), 400)
     db = get_database()
-    bundle, rejected = build_bundle(ids, db)
+    bundle, rejected = build_bundle(ids, db, overrides=overrides)
     rejected_id_set = {r['id'] for r in rejected}
     ready_ids = [i for i in ids if i not in rejected_id_set]
     return json_response({
@@ -1275,9 +1307,9 @@ def preview_export_to_community():
 def submit_bundle_to_community():
     """Build a single-file community submission bundle for download.
 
-    Body: ``{"ids": [int, ...]}``. Returns ``application/json`` with a
-    ``Content-Disposition: attachment`` header so the browser downloads
-    the file. The bundle is the artifact the user commits into
+    Body: ``{"ids": [int, ...], "overrides"?: {<id>: {sponsor?, sponsor_aliases?, sponsor_tags?}}}``.
+    Returns ``application/json`` with a ``Content-Disposition: attachment`` header so the browser
+    downloads the file. The bundle is the artifact the user commits into
     ``patterns/community/`` to open one PR for all selected patterns.
     """
     from community_export import build_bundle
@@ -1285,8 +1317,12 @@ def submit_bundle_to_community():
     ids = _coerce_int_ids(body.get('ids'))
     if not ids:
         return error_response('ids required (non-empty list of integers)', 400)
+    try:
+        overrides = _coerce_overrides(body.get('overrides'))
+    except ValueError as e:
+        return error_response(str(e), 400)
     db = get_database()
-    bundle, rejected = build_bundle(ids, db)
+    bundle, rejected = build_bundle(ids, db, overrides=overrides)
     if bundle['pattern_count'] == 0:
         return error_response({
             'message': 'No patterns passed quality gates',
