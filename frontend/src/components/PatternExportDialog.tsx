@@ -261,7 +261,7 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
                             <span className="text-xs text-teal-700 dark:text-teal-400">community</span>
                           )}
                           {patternOverrides[p.id] && destination === 'community' && (
-                            <span className="text-xs text-amber-700 dark:text-amber-400">edited</span>
+                            <span className="text-xs text-amber-700 dark:text-amber-400">override</span>
                           )}
                         </div>
                         {p.text_template && (
@@ -292,14 +292,19 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
                         baseAliases={[]}
                         baseTags={[]}
                         override={patternOverrides[p.id]}
-                        onChange={(next: PatternOverride | undefined) =>
+                        onChange={(next: PatternOverride | undefined) => {
+                          // Any edit invalidates the last preview -- the next
+                          // download must re-run preview against the new
+                          // override map to surface fresh rejections.
+                          setPreview(null);
+                          setDownloadedFilename(null);
                           setPatternOverrides((prev) => {
                             const copy = { ...prev };
                             if (next) copy[p.id] = next;
                             else delete copy[p.id];
                             return copy;
-                          })
-                        }
+                          });
+                        }}
                       />
                     )}
                   </li>

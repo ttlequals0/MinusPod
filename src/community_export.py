@@ -265,10 +265,12 @@ def _validate_tags(pattern: Dict, sponsor_row: Dict, override: Optional[Dict] = 
     bad: List[str] = []
     vt = valid_tags()
     if override and override.get('sponsor_tags') is not None:
-        try:
-            tags = list(override['sponsor_tags'])
-        except (TypeError, ValueError):
-            tags = []
+        # Refuse to coerce a non-list (`list("universal")` would explode
+        # into single chars and produce a wall of nonsense "unknown tag"
+        # rejections). The route layer already filters allowed fields;
+        # this is defense in depth against a malformed body.
+        raw_tags = override['sponsor_tags']
+        tags = list(raw_tags) if isinstance(raw_tags, list) else []
     else:
         try:
             tags = json.loads(sponsor_row.get('tags') or '[]')
@@ -385,12 +387,20 @@ def build_export_payload(
     payload = _strip_metadata(pattern, sponsor_row)
 
     if override:
-        if override.get('sponsor'):
-            payload['sponsor'] = override['sponsor']
-        if override.get('sponsor_aliases') is not None:
-            payload['sponsor_aliases'] = list(override['sponsor_aliases'])
-        if override.get('sponsor_tags') is not None:
-            payload['sponsor_tags'] = list(override['sponsor_tags'])
+        # `or '').strip()` matches the _quality_gates resolution: an
+        # empty or whitespace-only sponsor override is treated as "no
+        # override" so the payload mirrors the gate's view of the
+        # sponsor name. Aliases / tags only apply when the override is
+        # a list (strings would silently coerce to chars).
+        sponsor_override = (override.get('sponsor') or '').strip()
+        if sponsor_override:
+            payload['sponsor'] = sponsor_override
+        raw_aliases = override.get('sponsor_aliases')
+        if isinstance(raw_aliases, list):
+            payload['sponsor_aliases'] = list(raw_aliases)
+        raw_tags = override.get('sponsor_tags')
+        if isinstance(raw_tags, list):
+            payload['sponsor_tags'] = list(raw_tags)
 
     sponsor_match = _classify_sponsor(payload['sponsor'], sponsors)
 

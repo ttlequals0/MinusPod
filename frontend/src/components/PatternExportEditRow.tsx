@@ -54,12 +54,14 @@ export function PatternExportEditRow({
       sponsor_tags: override?.sponsor_tags ?? undefined,
       ...next,
     };
+    // Sort before comparison so reordering aliases or tags (with no
+    // semantic change) does not light the "override" badge.
+    const sameList = (a: string[] | undefined, b: string[]) =>
+      a === undefined || JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
     const same =
       (merged.sponsor === undefined || merged.sponsor === baseSponsor) &&
-      (merged.sponsor_aliases === undefined ||
-        JSON.stringify(merged.sponsor_aliases) === JSON.stringify(baseAliases)) &&
-      (merged.sponsor_tags === undefined ||
-        JSON.stringify(merged.sponsor_tags) === JSON.stringify(baseTags));
+      sameList(merged.sponsor_aliases, baseAliases) &&
+      sameList(merged.sponsor_tags, baseTags);
     onChange(same ? undefined : merged);
   }
 
@@ -120,7 +122,7 @@ export function PatternExportEditRow({
           <TagChips tags={tags} />
           {unknownTags.length > 0 && (
             <p className="text-xs text-rose-600 dark:text-rose-400">
-              Unknown tag(s) will be rejected on submission: {unknownTags.join(', ')}. See patterns/vocabulary.json.
+              Unknown tags will be rejected: {unknownTags.join(', ')}. See patterns/vocabulary.json.
             </p>
           )}
         </div>

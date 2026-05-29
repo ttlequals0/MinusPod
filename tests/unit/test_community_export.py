@@ -507,3 +507,58 @@ def test_coerce_overrides_rejects_non_dict():
         assert 'object' in str(e).lower()
     else:
         raise AssertionError('expected ValueError')
+
+
+def test_build_export_payload_override_string_tags_does_not_explode_to_chars():
+    """A malformed string-shaped sponsor_tags override is treated as 'no tag override'
+    rather than coerced into a per-character list."""
+    from community_export import build_export_payload
+    pattern = {
+        'id': 1,
+        'sponsor_id': 99,
+        'text_template': 'Shopify is the commerce platform behind millions of businesses.',
+        'intro_variants': [],
+        'outro_variants': [],
+        'avg_duration': 30.0,
+        'confirmation_count': 1,
+        'false_positive_count': 0,
+        'source_language': None,
+    }
+    sponsors = [{
+        'id': 99,
+        'name': 'Shopify',
+        'aliases': '[]',
+        'tags': '["universal"]',
+        'is_active': True,
+    }]
+    payload = build_export_payload(
+        pattern, sponsors, override={'sponsor_tags': 'universal'}
+    )
+    # The bad string is ignored, so the payload keeps the sponsor-row tags.
+    assert payload['sponsor_tags'] == ['universal']
+
+
+def test_build_export_payload_whitespace_only_sponsor_override_falls_back_to_db():
+    """An override that sets sponsor to '' or '   ' falls back to the DB sponsor
+    in the payload (matching the gate's resolution)."""
+    from community_export import build_export_payload
+    pattern = {
+        'id': 1,
+        'sponsor_id': 99,
+        'text_template': 'Shopify is the commerce platform behind millions of businesses.',
+        'intro_variants': [],
+        'outro_variants': [],
+        'avg_duration': 30.0,
+        'confirmation_count': 1,
+        'false_positive_count': 0,
+        'source_language': None,
+    }
+    sponsors = [{
+        'id': 99,
+        'name': 'Shopify',
+        'aliases': '[]',
+        'tags': '["universal"]',
+        'is_active': True,
+    }]
+    payload = build_export_payload(pattern, sponsors, override={'sponsor': '   '})
+    assert payload['sponsor'] == 'Shopify'
