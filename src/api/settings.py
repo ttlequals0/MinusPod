@@ -277,12 +277,16 @@ def get_settings():
         review_max_boundary_shift = int(_setting_value(settings, 'review_max_boundary_shift', '60'))
     except (ValueError, TypeError):
         review_max_boundary_shift = 60
-    review_prompt = _setting_value(settings, 'review_prompt', DEFAULT_REVIEW_PROMPT)
-    resurrect_prompt = _setting_value(settings, 'resurrect_prompt', DEFAULT_RESURRECT_PROMPT)
+    # `or DEFAULT` (not just the _setting_value fallback) so a stored empty/whitespace
+    # row also yields the default text -- _setting_value only covers a missing row, so a
+    # blank one would render an unrecoverable empty textarea. All four prompts share this
+    # contract, hence the same coalesce on system/verification below.
+    review_prompt = _setting_value(settings, 'review_prompt', DEFAULT_REVIEW_PROMPT) or DEFAULT_REVIEW_PROMPT
+    resurrect_prompt = _setting_value(settings, 'resurrect_prompt', DEFAULT_RESURRECT_PROMPT) or DEFAULT_RESURRECT_PROMPT
 
     return json_response({
-        'systemPrompt': _sv('system_prompt', _setting_value(settings, 'system_prompt', DEFAULT_SYSTEM_PROMPT)),
-        'verificationPrompt': _sv('verification_prompt', _setting_value(settings, 'verification_prompt', DEFAULT_VERIFICATION_PROMPT)),
+        'systemPrompt': _sv('system_prompt', _setting_value(settings, 'system_prompt', DEFAULT_SYSTEM_PROMPT) or DEFAULT_SYSTEM_PROMPT),
+        'verificationPrompt': _sv('verification_prompt', _setting_value(settings, 'verification_prompt', DEFAULT_VERIFICATION_PROMPT) or DEFAULT_VERIFICATION_PROMPT),
         'enableAdReview': _sv('enable_ad_review', enable_ad_review),
         'reviewModel': _sv('review_model', review_model),
         'reviewMaxBoundaryShift': _sv('review_max_boundary_shift', review_max_boundary_shift),
@@ -402,7 +406,12 @@ def update_ad_detection_settings():
 
 
 def _apply_prompt_fields(db, data):
-    """Persist the four prompt strings (no coercion, no validation)."""
+    """Persist the four prompt strings.
+
+    An empty/whitespace prompt is never valid (the runtime falls back to the
+    default), so clearing a field and saving resets it to default rather than
+    storing a blank row that would render as an unrecoverable empty textarea.
+    """
     for payload_key, db_key, log_label in (
         ('systemPrompt', 'system_prompt', 'system prompt'),
         ('verificationPrompt', 'verification_prompt', 'verification prompt'),
@@ -410,8 +419,12 @@ def _apply_prompt_fields(db, data):
         ('resurrectPrompt', 'resurrect_prompt', 'resurrect prompt'),
     ):
         if payload_key in data:
-            db.set_setting(db_key, data[payload_key], is_default=False)
-            logger.info(f"Updated {log_label}")
+            if not str(data[payload_key] or '').strip():
+                db.reset_setting(db_key)
+                logger.info(f"Reset {log_label} to default (blank submitted)")
+            else:
+                db.set_setting(db_key, data[payload_key], is_default=False)
+                logger.info(f"Updated {log_label}")
     return None
 
 

@@ -92,6 +92,63 @@ class TestResetSettingSecretKeys:
         assert db.get_setting('whisper_model') is not None
 
 
+class TestReviewerPromptReset:
+    """Issue #301: the Ad Reviewer review/resurrect prompts were missing from
+    reset_setting's defaults dict, so the reset button was a silent no-op and a
+    cleared-then-saved prompt stayed blank forever. These lock in that reset
+    works for all four prompts and that a blank save reverts to default."""
+
+    def test_reset_setting_restores_reviewer_prompt_defaults(self):
+        db = database.Database()
+        db.set_setting('review_prompt', 'custom review', is_default=False)
+        db.set_setting('resurrect_prompt', 'custom resurrect', is_default=False)
+
+        assert db.reset_setting('review_prompt') is True
+        assert db.reset_setting('resurrect_prompt') is True
+        assert db.get_setting('review_prompt') == database.DEFAULT_REVIEW_PROMPT
+        assert db.get_setting('resurrect_prompt') == database.DEFAULT_RESURRECT_PROMPT
+
+    def test_prompts_reset_endpoint_restores_reviewer_prompts(self, client):
+        db = database.Database()
+        db.set_setting('review_prompt', 'custom review', is_default=False)
+        db.set_setting('resurrect_prompt', 'custom resurrect', is_default=False)
+
+        response = client.post('/api/v1/settings/prompts/reset')
+        assert response.status_code == 200, response.data
+
+        data = json.loads(client.get('/api/v1/settings').data)
+        assert data['reviewPrompt']['value'] == database.DEFAULT_REVIEW_PROMPT
+        assert data['reviewPrompt']['isDefault'] is True
+        assert data['resurrectPrompt']['value'] == database.DEFAULT_RESURRECT_PROMPT
+        assert data['resurrectPrompt']['isDefault'] is True
+
+    def test_blank_reviewer_prompt_save_reverts_to_default(self, client):
+        db = database.Database()
+        db.set_setting('review_prompt', 'custom review', is_default=False)
+
+        response = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'reviewPrompt': '', 'resurrectPrompt': '   '}),
+            content_type='application/json',
+        )
+        assert response.status_code == 200, response.data
+
+        data = json.loads(client.get('/api/v1/settings').data)
+        assert data['reviewPrompt']['value'] == database.DEFAULT_REVIEW_PROMPT
+        assert data['reviewPrompt']['isDefault'] is True
+        assert data['resurrectPrompt']['value'] == database.DEFAULT_RESURRECT_PROMPT
+        assert data['resurrectPrompt']['isDefault'] is True
+
+    def test_non_string_prompt_payload_does_not_500(self, client):
+        # A wrong-typed value must not crash the blank-check .strip() (regression).
+        response = client.put(
+            '/api/v1/settings/ad-detection',
+            data=json.dumps({'reviewPrompt': 5}),
+            content_type='application/json',
+        )
+        assert response.status_code != 500, response.data
+
+
 class TestWebhookUrlValidation:
     """Issue #158: webhooks must accept private-IP / non-default-port URLs
     (the OPERATOR_CONFIGURED trust posture used by LLM and Whisper base URLs)
