@@ -9,6 +9,8 @@ export interface ReviewerState {
   reviewPrompt: string;
   resurrectPrompt: string;
   parallelAds: number;
+  updatePatterns: boolean;
+  minTrimThreshold: number;
 }
 
 interface ExperimentsSectionProps {
@@ -125,6 +127,51 @@ function ExperimentsSection({
             (original behavior). Higher values cut wall-clock review time but increase concurrent
             load on your LLM provider. Default 4.
           </p>
+        </div>
+
+        <div>
+          <label className="flex items-center gap-3 cursor-pointer">
+            <ToggleSwitch
+              checked={reviewer.updatePatterns}
+              onChange={(v) => update('updatePatterns', v)}
+              ariaLabel={reviewer.updatePatterns ? 'Auto-update enabled' : 'Auto-update disabled'}
+            />
+            <span className="text-sm font-medium text-foreground">
+              Update patterns from reviewer adjustments
+            </span>
+          </label>
+          <p className="mt-2 text-sm text-muted-foreground ml-14">
+            When a reviewer narrows an ad's boundaries by more than the threshold below, the
+            matching local pattern's text is re-extracted from the new bounds. Community patterns
+            are never auto-rewritten.
+          </p>
+          {reviewer.updatePatterns && (
+            <div className="mt-3 flex items-center gap-3 ml-14">
+              <label htmlFor="minTrimThreshold" className="text-sm text-muted-foreground whitespace-nowrap">
+                Minimum trim threshold:
+              </label>
+              <input
+                id="minTrimThreshold"
+                type="number"
+                min={1}
+                max={120}
+                value={reviewer.minTrimThreshold}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  if (raw === '') {
+                    update('minTrimThreshold', 20);
+                    return;
+                  }
+                  const v = parseFloat(raw);
+                  if (!Number.isFinite(v)) return;
+                  // Backend rejects anything outside 1-120; clamp so Save never 400s.
+                  update('minTrimThreshold', Math.max(1, Math.min(120, v)));
+                }}
+                className="w-24 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
+              />
+              <span className="text-sm text-muted-foreground">seconds</span>
+            </div>
+          )}
         </div>
 
         <PromptField

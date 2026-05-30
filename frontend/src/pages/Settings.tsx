@@ -3,6 +3,7 @@ import { useSyncFromQuery } from '../hooks/useSyncFromQuery';
 import { useLocation } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getSettings, updateSettings, resetSettings, resetPrompts, getModels, getWhisperModels, getSystemStatus, runCleanup, getProcessingEpisodes, cancelProcessing, refreshModels, getRetention, updateRetention, getProcessingTimeouts, updateProcessingTimeouts, getAudioSettings, updateAudioSettings } from '../api/settings';
+import { getReviewerSettings, updateReviewerSettings } from '../api/community';
 import { useAuth } from '../context/AuthContext';
 import LoadingSpinner from '../components/LoadingSpinner';
 import type { LlmProvider, WhisperBackend, WhisperApiConfig, UpdateSettingsPayload } from '../api/types';
@@ -34,7 +35,6 @@ import GlobalDefaultsSection from './settings/GlobalDefaultsSection';
 import Podcasting20Section from './settings/Podcasting20Section';
 import PromptsSection from './settings/PromptsSection';
 import ExperimentsSection from './settings/ExperimentsSection';
-import AdReviewerSection from './settings/AdReviewerSection';
 import CommunityPatternsSection from './settings/CommunityPatternsSection';
 import { formatModelLabel } from './settings/settingsUtils';
 
@@ -62,6 +62,10 @@ function Settings() {
     reviewPrompt: '',
     resurrectPrompt: '',
     parallelAds: 4,
+    // From the separate /settings/reviewer endpoint (reviewerSettings query),
+    // merged into this section so the page Save persists everything together.
+    updatePatterns: true,
+    minTrimThreshold: 20,
   });
   const [selectedModel, setSelectedModel] = useState('');
   const [verificationModel, setVerificationModel] = useState('');
@@ -119,6 +123,14 @@ function Settings() {
   const { data: settings, isLoading: settingsLoading } = useQuery({
     queryKey: ['settings'],
     queryFn: getSettings,
+  });
+
+  // The Ad Reviewer pattern-update toggle and trim threshold live on a
+  // separate endpoint but are surfaced in the same section; seeded into
+  // `reviewer` so the global Save writes them alongside the rest.
+  const { data: reviewerSettings } = useQuery({
+    queryKey: ['reviewerSettings'],
+    queryFn: getReviewerSettings,
   });
 
   const { data: models, isLoading: modelsLoading } = useQuery({
@@ -191,6 +203,14 @@ function Settings() {
     setHardTimeoutMinutes(Math.round(t.hardTimeoutSeconds / 60));
   });
 
+  useSyncFromQuery(reviewerSettings, (rs) => {
+    setReviewer((prev) => ({
+      ...prev,
+      updatePatterns: rs.updatePatternsFromReviewerAdjustments,
+      minTrimThreshold: rs.minTrimThreshold,
+    }));
+  });
+
   useSyncFromQuery(audioSettings, (a) => {
     setKeepOriginalAudio(a.keepOriginalAudio);
   });
@@ -234,14 +254,17 @@ function Settings() {
     if (settings) {
       setSystemPrompt(settings.systemPrompt?.value || '');
       setVerificationPrompt(settings.verificationPrompt?.value || '');
-      setReviewer({
+      // Spread prev so the pattern-update fields seeded from the separate
+      // reviewerSettings query (see useSyncFromQuery below) are preserved.
+      setReviewer((prev) => ({
+        ...prev,
         enabled: settings.enableAdReview?.value ?? false,
         model: settings.reviewModel?.value || 'same_as_pass',
         maxShift: settings.reviewMaxBoundaryShift?.value ?? 60,
         reviewPrompt: settings.reviewPrompt?.value || '',
         resurrectPrompt: settings.resurrectPrompt?.value || '',
         parallelAds: settings.adReviewerParallelAds?.value ?? settings.defaults?.adReviewerParallelAds ?? 4,
-      });
+      }));
       setSelectedModel(settings.claudeModel?.value || '');
       setVerificationModel(settings.verificationModel?.value || '');
       setWhisperModel(settings.whisperModel?.value || 'small');
@@ -318,26 +341,51 @@ function Settings() {
     return payload;
   };
 
+  // The two pattern-update fields save via /settings/reviewer, not the main
+  // ad-detection PUT, so they are diffed separately from computeChangedFields.
+  const reviewerPatternsChanged = () => {
+    if (!reviewerSettings) return false;
+    return reviewer.updatePatterns !== reviewerSettings.updatePatternsFromReviewerAdjustments
+      || reviewer.minTrimThreshold !== reviewerSettings.minTrimThreshold;
+  };
+
   const hasChanges = useMemo(() => {
     if (!settings) return false;
     if (Object.keys(computeChangedFields()).length > 0) return true;
+    if (reviewerPatternsChanged()) return true;
     return podcastIndexApiKey !== '' && podcastIndexApiSecret !== '';
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [systemPrompt, verificationPrompt, reviewer, selectedModel, verificationModel, whisperModel, autoProcessEnabled, maxFeedEpisodes, onlyExposeProcessedDefault, audioBitrate, skipFlacCompression, vttTranscriptsEnabled, chaptersEnabled, chaptersModel, minCutConfidence, llmProvider, openaiBaseUrl, whisperBackend, whisperApiConfig.baseUrl, whisperApiConfig.model, whisperLanguage, whisperComputeType, podcastIndexApiKey, podcastIndexApiSecret, settings]);
+  }, [systemPrompt, verificationPrompt, reviewer, selectedModel, verificationModel, whisperModel, autoProcessEnabled, maxFeedEpisodes, onlyExposeProcessedDefault, audioBitrate, skipFlacCompression, vttTranscriptsEnabled, chaptersEnabled, chaptersModel, minCutConfidence, llmProvider, openaiBaseUrl, whisperBackend, whisperApiConfig.baseUrl, whisperApiConfig.model, whisperLanguage, whisperComputeType, podcastIndexApiKey, podcastIndexApiSecret, settings, reviewerSettings]);
 
   const updateMutation = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       if (!settings) throw new Error('Settings not loaded yet');
       const payload = computeChangedFields();
       if (podcastIndexApiKey) payload.podcastIndexApiKey = podcastIndexApiKey;
       if (podcastIndexApiSecret) payload.podcastIndexApiSecret = podcastIndexApiSecret;
-      return updateSettings(payload);
+      const tasks: Promise<unknown>[] = [];
+      // Skip the main PUT when nothing in its payload changed (e.g. only the
+      // reviewer-pattern fields are dirty) to avoid a no-op request.
+      if (Object.keys(payload).length > 0) tasks.push(updateSettings(payload));
+      if (reviewerPatternsChanged()) {
+        tasks.push(updateReviewerSettings({
+          updatePatternsFromReviewerAdjustments: reviewer.updatePatterns,
+          minTrimThreshold: reviewer.minTrimThreshold,
+        }));
+      }
+      await Promise.all(tasks);
     },
     onSuccess: () => {
       setPodcastIndexApiKey('');
       setPodcastIndexApiSecret('');
+    },
+    // onSettled (not onSuccess) so a partial failure across the two writes
+    // still re-hydrates the form from server truth instead of leaving stale
+    // local state next to a write that did land.
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
       queryClient.invalidateQueries({ queryKey: ['models'] });
+      queryClient.invalidateQueries({ queryKey: ['reviewerSettings'] });
     },
   });
 
@@ -538,8 +586,6 @@ function Settings() {
         onResetPrompts={() => resetPromptsMutation.mutate()}
         resetIsPending={resetPromptsMutation.isPending}
       />
-
-      <AdReviewerSection />
 
       <CommunityPatternsSection />
 

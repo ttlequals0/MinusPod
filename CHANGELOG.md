@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The two Ad Reviewer settings sections are now one, under Experiments.** The reviewer LLM config (enable, model, boundary shift, parallel reviews, prompts) and the pattern-update controls (the update-from-adjustments toggle and trim threshold) were separate Settings sections that shared the name "Ad Reviewer" and each had its own Save button. They now live in a single Ad Reviewer section and persist together through the page's Save button. The pattern-update fields still write to `/settings/reviewer`; only the UI and save flow merged.
+
 ### Fixed
 
 - **Ad Reviewer prompts no longer get stuck blank, and the "Reset Reviewer Prompts to Default" button works (issue #301).** `review_prompt` and `resurrect_prompt` were missing from the defaults map in `reset_setting` (`src/database/settings.py`), so resetting them was a silent no-op and a cleared-then-saved prompt stayed empty with no way back. Both keys are now in the map. The settings GET handler also falls back to the default when a stored prompt is empty or whitespace, so an already-stuck install heals on the next load, and `_apply_prompt_fields` reverts a blank prompt to its default on save instead of storing the empty value.
