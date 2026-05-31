@@ -1,23 +1,26 @@
 {
   "scope": "global",
-  "text_template": "Ryan Reynolds here from Mint Mobile. I don't know if you knew this, but anyone can get the same premium wireless for $15 a month plan that I've been enjoying. It's not just for celebrities. So do like I did and have one of your assistant's assistants switch you to Mint Mobile today. I'm told it's super easy to do at mintmobile.com slash switch. Upfront payment of $45 for three-month plan equivalent to $15 per month required. Intro rate first three months only, then full price plan options available. Taxes and fees extra. See full terms at mintmobile.com.",
+  "text_template": "I don't know if you knew this, but anyone can get the same premium wireless for $15 a month plan that I've been enjoying. It's not just for celebrities. So do like I did and have one of your assistant's assistants switch you to Mint Mobile today. I'm told it's super easy to do at MintMobile.com slash switch. Upfront payment of $45 for three month plan equivalent to $15 per month required. Intro rate first three months only, then full price plan options available. Taxes and fees extra. Default terms at MintMobile.com.",
   "intro_variants": [
-    "Ryan Reynolds here from Mint Mobile. I don't know if you knew this, but anyone can get the same premium wireless for $15 a month plan that I've been enjoying. It's not just for celebrities. So do like I did and have one of your assistant's assistants switch you to"
+    "I don't know if you knew this, but anyone can get the same premium wireless for $15 a month plan that I've been enjoying.",
+    "Ryan Reynolds here from Mint Mobile, with a message for everyone paying big wireless way too much."
   ],
   "outro_variants": [
-    "for three-month plan equivalent to $15 per month required. Intro rate first three months only, then full price plan options available. Taxes and fees extra. See full terms at mintmobile.com."
+    "Intro rate first three months only, then full price plan options available. Taxes and fees extra. Default terms at MintMobile.com.",
+    "Intro rate first three months only, then full price plan options available. Taxes and fees extra. See for the next month. and Payful Terms at MintMobile.com."
   ],
   "avg_duration": null,
   "sponsor": "Mint Mobile",
   "sponsor_aliases": [
-    "MintMobile"
+    "MintMobile",
+    "mintmobile.com"
   ],
   "sponsor_tags": [
     "telecom",
     "universal"
   ],
   "community_id": "17b2b4b8-660e-4ab8-96c0-c51a0dc3163d",
-  "version": 1,
+  "version": 2,
   "submitted_at": "2026-05-15T13:44:56.269526+00:00",
   "submitted_app_version": "unknown",
   "sponsor_match": "exact"

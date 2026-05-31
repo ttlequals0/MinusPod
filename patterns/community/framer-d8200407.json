@@ -8,8 +8,10 @@
     "That's Framer.com slash explain for 30% off Framer.com slash explain. Rules and restrictions may apply."
   ],
   "avg_duration": null,
-  "sponsor": "Framer.com",
-  "sponsor_aliases": [],
+  "sponsor": "Framer",
+  "sponsor_aliases": [
+    "framer.com"
+  ],
   "sponsor_tags": [
     "business",
     "saas",

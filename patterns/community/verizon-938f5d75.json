@@ -8,8 +8,10 @@
     "Call today at 800-483-4428 or find out more at verizon.com slash smallbusiness."
   ],
   "avg_duration": null,
-  "sponsor": "Verizon Business",
-  "sponsor_aliases": [],
+  "sponsor": "Verizon",
+  "sponsor_aliases": [
+    "verizon.com"
+  ],
   "sponsor_tags": [
     "business",
     "technology",
