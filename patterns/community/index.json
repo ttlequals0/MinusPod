@@ -1,8 +1,68 @@
 {
   "manifest_version": 1,
-  "published_at": "2026-05-29T22:48:08Z",
+  "published_at": "2026-05-31T21:48:44Z",
   "vocabulary_version": 1,
   "patterns": [
+    {
+      "community_id": "856da58c-7d70-4daa-a442-f15141eb1ec0",
+      "version": 1,
+      "data": {
+        "scope": "global",
+        "text_template": "This is Chelsea Handler from Dear Chelsea Let take a quick break with one of our favorite sponsors Vital Proteins Vital Proteins just launched their new collagen sparkling waters in three crisp refreshing flavors strawberry blossom lemon and blood orange Each can includes collagen peptides that improve skin health in as little as 30 days when sipped daily With zero grams added sugar no artificial sweeteners and a full daily dose of vitamin C it an easy enjoyable way to support your wellness goals",
+        "intro_variants": [
+          "This is Chelsea Handler from Dear Chelsea Let take a quick break with one of our favorite sponsors Vital Proteins"
+        ],
+        "outro_variants": [
+          "With zero grams added sugar no artificial sweeteners and a full daily dose of vitamin C it an easy enjoyable way to support your wellness goals"
+        ],
+        "avg_duration": null,
+        "sponsor": "Vital Proteins",
+        "sponsor_aliases": [],
+        "sponsor_tags": [
+          "dtc",
+          "health",
+          "supplements",
+          "universal"
+        ],
+        "source_language": null,
+        "community_id": "856da58c-7d70-4daa-a442-f15141eb1ec0",
+        "version": 1,
+        "submitted_at": "2026-05-06T19:28:41Z",
+        "submitted_app_version": "unknown",
+        "sponsor_match": "exact"
+      }
+    },
+    {
+      "community_id": "938f5d75-2101-4290-b792-7b2e83b5dc73",
+      "version": 1,
+      "data": {
+        "scope": "global",
+        "text_template": "Support for this show comes from Verizon Business. Verizon Small Business Days are happening from April 27th through May 10th. And it's the perfect time to get great deals for your business that include business internet, OneTalk, and a 5G phone. Find all the services and features you need to tap in and grow, including expert guidance and know-how. That's Verizon Business' commitment to helping small businesses succeed. Check out Verizon Small Business Days from April 27th through May 10th. Call today at 800-483-4428 or find out more at verizon.com slash smallbusiness.",
+        "intro_variants": [
+          "Support for this show comes from Verizon Business."
+        ],
+        "outro_variants": [
+          "Call today at 800-483-4428 or find out more at verizon.com slash smallbusiness."
+        ],
+        "avg_duration": null,
+        "sponsor": "Verizon",
+        "sponsor_aliases": [
+          "verizon.com"
+        ],
+        "sponsor_tags": [
+          "business",
+          "technology",
+          "telecom",
+          "universal"
+        ],
+        "source_language": null,
+        "community_id": "938f5d75-2101-4290-b792-7b2e83b5dc73",
+        "version": 1,
+        "submitted_at": "2026-05-07T18:13:06Z",
+        "submitted_app_version": "unknown",
+        "sponsor_match": "exact"
+      }
+    },
     {
       "community_id": "3c348177-fdf5-4f4f-a3de-25f4e65bf591",
       "version": 1,
@@ -109,27 +169,30 @@
     },
     {
       "community_id": "17b2b4b8-660e-4ab8-96c0-c51a0dc3163d",
-      "version": 1,
+      "version": 2,
       "data": {
         "scope": "global",
-        "text_template": "Ryan Reynolds here from Mint Mobile. I don't know if you knew this, but anyone can get the same premium wireless for $15 a month plan that I've been enjoying. It's not just for celebrities. So do like I did and have one of your assistant's assistants switch you to Mint Mobile today. I'm told it's super easy to do at mintmobile.com slash switch. Upfront payment of $45 for three-month plan equivalent to $15 per month required. Intro rate first three months only, then full price plan options available. Taxes and fees extra. See full terms at mintmobile.com.",
+        "text_template": "I don't know if you knew this, but anyone can get the same premium wireless for $15 a month plan that I've been enjoying. It's not just for celebrities. So do like I did and have one of your assistant's assistants switch you to Mint Mobile today. I'm told it's super easy to do at MintMobile.com slash switch. Upfront payment of $45 for three month plan equivalent to $15 per month required. Intro rate first three months only, then full price plan options available. Taxes and fees extra. Default terms at MintMobile.com.",
         "intro_variants": [
-          "Ryan Reynolds here from Mint Mobile. I don't know if you knew this, but anyone can get the same premium wireless for $15 a month plan that I've been enjoying. It's not just for celebrities. So do like I did and have one of your assistant's assistants switch you to"
+          "I don't know if you knew this, but anyone can get the same premium wireless for $15 a month plan that I've been enjoying.",
+          "Ryan Reynolds here from Mint Mobile, with a message for everyone paying big wireless way too much."
         ],
         "outro_variants": [
-          "for three-month plan equivalent to $15 per month required. Intro rate first three months only, then full price plan options available. Taxes and fees extra. See full terms at mintmobile.com."
+          "Intro rate first three months only, then full price plan options available. Taxes and fees extra. Default terms at MintMobile.com.",
+          "Intro rate first three months only, then full price plan options available. Taxes and fees extra. See for the next month. and Payful Terms at MintMobile.com."
         ],
         "avg_duration": null,
         "sponsor": "Mint Mobile",
         "sponsor_aliases": [
-          "MintMobile"
+          "MintMobile",
+          "mintmobile.com"
         ],
         "sponsor_tags": [
           "telecom",
           "universal"
         ],
         "community_id": "17b2b4b8-660e-4ab8-96c0-c51a0dc3163d",
-        "version": 1,
+        "version": 2,
         "submitted_at": "2026-05-15T13:44:56.269526+00:00",
         "submitted_app_version": "unknown",
         "sponsor_match": "exact"
@@ -321,6 +384,66 @@
         "community_id": "9e83a5f6-097b-4378-8077-b9ccec49b389",
         "version": 1,
         "submitted_at": "2026-05-15T13:44:56.533543+00:00",
+        "submitted_app_version": "unknown",
+        "sponsor_match": "exact"
+      }
+    },
+    {
+      "community_id": "755f116a-8700-4306-984b-74fe81302aad",
+      "version": 1,
+      "data": {
+        "scope": "global",
+        "text_template": "Did you know if your windows are bare, indoor temperatures can go up 20 degrees? Turn the temperature down with Blinds.com and get up to 50% off custom window treatments like solar roller shades and more during the Memorial Day Mega Sale. Whether you want to DIY it or have a pro handle everything, we've got you. Free samples, real design experts, and zero pressure just help when you need it. Shop up to 50% off site-wide and huge savings on doorbusters right now during the Memorial Day Mega Sale. Mega Sale at Blinds.com. Rules and restrictions apply.",
+        "intro_variants": [
+          "Did you know if your windows are bare, indoor temperatures can go up 20 degrees?",
+          "Did you know if your windows are bare, indoor temperatures can go up 20 degrees? Turn the temperature down with Blinds.com and get up to 50% off custom window treatments like solar roller shades and more during the Memorial Day Mega Sale.",
+          "The right window treatments change everything. Your sleep, your privacy, the way every room looks and feels. At Blinds.com we've spent 30 years making it surprisingly simple to get exactly what your home needs. We've covered over 25 million windows and have 50,000 5-star reviews to prove we deliver."
+        ],
+        "outro_variants": [
+          "Shop up to 50% off site-wide and huge savings on doorbusters right now during the Memorial Day mega sale at blinds.com. Rules and restrictions apply.",
+          "Right now, get up to 45% off with minimum purchase, plus get a free professional measure at Blinds.com. Rules and restrictions apply."
+        ],
+        "avg_duration": null,
+        "sponsor": "Blinds.com",
+        "sponsor_aliases": [],
+        "sponsor_tags": [
+          "home_goods",
+          "universal"
+        ],
+        "source_language": null,
+        "community_id": "755f116a-8700-4306-984b-74fe81302aad",
+        "version": 1,
+        "submitted_at": "2026-05-21T20:48:36Z",
+        "submitted_app_version": "unknown",
+        "sponsor_match": "exact"
+      }
+    },
+    {
+      "community_id": "c88cda7b-bdd8-4e14-a977-1508e5cc0e4d",
+      "version": 1,
+      "data": {
+        "scope": "global",
+        "text_template": "Hey mom, now that I have an afterschool job, I think I want to buy a drum kit. Okay, rockstar. Let's look at your account. When kids start making money, Chase has easy to use tools and expert bankers to help them learn how to manage it. And next month, I'll buy the bass drum and the cymbals. Oh, and maybe some noise canceling headphones for you. Aww, you've thought of everything. Help kids save, budget, and build financial independence all with Chase. That's good for kids and good for parents. Visit your local Chase branch and get started. Account subject to approval, JPMorgan Chase Bank, N.A. Member FDIC.",
+        "intro_variants": [
+          "Hey mom, now that I have an afterschool job, I think I want to buy a drum kit. Okay, rockstar. Let's look at your account."
+        ],
+        "outro_variants": [
+          "Visit your local Chase branch and get started. Account subject to approval, JPMorgan Chase Bank, N.A. Member FDIC."
+        ],
+        "avg_duration": null,
+        "sponsor": "JP Morgan Chase",
+        "sponsor_aliases": [
+          "JPMorgan Chase",
+          "Chase Bank"
+        ],
+        "sponsor_tags": [
+          "finance",
+          "universal"
+        ],
+        "source_language": null,
+        "community_id": "c88cda7b-bdd8-4e14-a977-1508e5cc0e4d",
+        "version": 1,
+        "submitted_at": "2026-05-27T02:27:14Z",
         "submitted_app_version": "unknown",
         "sponsor_match": "exact"
       }
@@ -981,6 +1104,34 @@
       }
     },
     {
+      "community_id": "96b18e49-1a8e-4ae6-aeeb-8a4cba2d216e",
+      "version": 1,
+      "data": {
+        "scope": "global",
+        "text_template": "Hey, sorry to interrupt your playlist but this is better than music. It's free stuff. Download TikTok. Search slash free and share the link to get items for free. Start slashing now.",
+        "intro_variants": [],
+        "outro_variants": [
+          "Download TikTok. Search slash free and share the link to get items for free. Start slashing now."
+        ],
+        "avg_duration": null,
+        "sponsor": "TikTok",
+        "sponsor_aliases": [
+          "Tik Tok"
+        ],
+        "sponsor_tags": [
+          "comedy",
+          "music",
+          "universal"
+        ],
+        "source_language": null,
+        "community_id": "96b18e49-1a8e-4ae6-aeeb-8a4cba2d216e",
+        "version": 1,
+        "submitted_at": "2026-05-27T02:31:11.364726+00:00",
+        "submitted_app_version": "unknown",
+        "sponsor_match": "exact"
+      }
+    },
+    {
       "community_id": "ad0a0b70-450d-4b8e-b164-609b87dcf6d9",
       "version": 1,
       "data": {
@@ -1067,6 +1218,33 @@
       }
     },
     {
+      "community_id": "d896bf4f-72f8-4540-8e2f-337923625888",
+      "version": 1,
+      "data": {
+        "scope": "global",
+        "text_template": "We all do it. You have a night for yourself but don't like the sound of the silence, so you turn on the TV just for the ambience. It's a little trick that helps you feel like you've got company and aren't alone. And other insurers, well, they may make you feel alone. But when you switch to GEICO, you've got claims reps available around the clock. So whenever you need, you'll have people around to help. And let's turn on the washing machine, just for good measure. Isn't that soothing? It feels good to have support. It feels good to Geico.",
+        "intro_variants": [
+          "We all do it. You have a night for yourself but don't like the sound of the silence, so you turn on the TV just for the ambience."
+        ],
+        "outro_variants": [
+          "It feels good to have support. It feels good to Geico."
+        ],
+        "avg_duration": null,
+        "sponsor": "Geico",
+        "sponsor_aliases": [],
+        "sponsor_tags": [
+          "insurance",
+          "universal"
+        ],
+        "source_language": null,
+        "community_id": "d896bf4f-72f8-4540-8e2f-337923625888",
+        "version": 1,
+        "submitted_at": "2026-05-27T02:31:11.364726+00:00",
+        "submitted_app_version": "unknown",
+        "sponsor_match": "exact"
+      }
+    },
+    {
       "community_id": "db8638e8-45b8-4581-81c0-b8837aedfd07",
       "version": 1,
       "data": {
@@ -1146,6 +1324,521 @@
         "community_id": "f081026b-f9a5-459e-85dc-1c13430cc915",
         "version": 1,
         "submitted_at": "2026-05-27T02:31:11.364726+00:00",
+        "submitted_app_version": "unknown",
+        "sponsor_match": "exact"
+      }
+    },
+    {
+      "community_id": "8770fcd0-2f78-4b67-8978-1b2af536efdb",
+      "version": 1,
+      "data": {
+        "scope": "global",
+        "text_template": "Support for the show comes from Chime. Banking can sometimes feel like you're playing a game of dodgeball. Love dodgeball. Doing everything in your power to not get hit with overdraft fees minimum balance requirements and monthly fees Don love that Chime wants to help They say that they approaching things differently and changing the way people bank Chime says they are offering you the most rewarding fee banking banking built for you Why pay to get your own money They're not looking to charge you overdraft and or monthly fees, and they have thousands of fee-free ATMs for you to use built for you, not the 1%. Take that 1%. Chime members can even benefit from up to $1,150 in annual rewards fee free plus direct deposit unlocks the most rewarding way to bank at Chime. Chime says they're not just smarter banking, they're the most rewarding way to bank. You can join the millions who are already banking fee free today. It just takes a few minutes to sign up. Head to Chime.com slash explained. That's Chime.com slash explained. Chime is a fintech, not a bank. Banking services for MyPay and ChimeCard provided by Chime's bank partners. Optional products and services may have fees or charges. Stated annual percentage yield and cashback for Chime Prime only. No minimum balance required. Checking account ranking based on a J.D. Power survey published October 20, 2025. For more information on APY rates, MyPay, SpotMe, and Travel Perks, go to chime.com slash disclosures.",
+        "intro_variants": [
+          "Support for the show comes from Chime."
+        ],
+        "outro_variants": [
+          "For more information on APY rates, MyPay, SpotMe, and Travel Perks, go to chime.com slash disclosures."
+        ],
+        "avg_duration": null,
+        "sponsor": "Chime",
+        "sponsor_aliases": [
+          "ChimeCard",
+          "chime.com"
+        ],
+        "sponsor_tags": [
+          "finance",
+          "universal"
+        ],
+        "source_language": null,
+        "community_id": "8770fcd0-2f78-4b67-8978-1b2af536efdb",
+        "version": 1,
+        "submitted_at": "2026-05-28T18:14:52Z",
+        "submitted_app_version": "unknown",
+        "sponsor_match": "exact"
+      }
+    },
+    {
+      "community_id": "c9414951-d4c6-4d02-8169-138f89a2da64",
+      "version": 1,
+      "data": {
+        "scope": "global",
+        "text_template": "Ready to soundtrack your summer? With Red Bull Summer All Day Play, you choose a playlist that fits your summer vibe the best. Are you a festival fanatic, a deep-end DJ, a road dog, or a trail mixer? Just add a song to your chosen playlist and put your summer on track. Red Bull Summer All-Day Play. Red Bull gives you wings. Visit redbull.com slash brightsummer ahead to learn more. See you this summer.",
+        "intro_variants": [
+          "Ready to soundtrack your summer? With Red Bull Summer All Day Play"
+        ],
+        "outro_variants": [
+          "Visit redbull.com slash brightsummer ahead to learn more. See you this summer.",
+          "Visit redbull.com slash bright summer ahead to learn more. See you this summer."
+        ],
+        "avg_duration": null,
+        "sponsor": "Red Bull",
+        "sponsor_aliases": [
+          "RedBull",
+          "redbull.com"
+        ],
+        "sponsor_tags": [
+          "food",
+          "universal"
+        ],
+        "source_language": null,
+        "community_id": "c9414951-d4c6-4d02-8169-138f89a2da64",
+        "version": 1,
+        "submitted_at": "2026-05-30T15:23:15Z",
+        "submitted_app_version": "unknown",
+        "sponsor_match": "exact"
+      }
+    },
+    {
+      "community_id": "96e378cb-8642-4386-a906-e7cacc94c793",
+      "version": 1,
+      "data": {
+        "scope": "global",
+        "text_template": "What's up, y'all? I'm Skylar Diggins, seven-time WNBA All-Star, Olympic gold medalist, and mom. And I'm Cassidy Hubbard, host and reporter for nearly 20 years, covering the biggest names and stories in sports. And mom. And this is And Mom, a community for athletes, game changers, and moms of all kinds. Pans. Dropping May 14th. Tap in with us.",
+        "intro_variants": [
+          "What's up, y'all? I'm Skylar Diggins, seven-time WNBA All-Star, Olympic gold medalist, and mom."
+        ],
+        "outro_variants": [
+          "And this is And Mom, a community for athletes, game changers, and moms of all kinds. Pans. Dropping May 14th. Tap in with us."
+        ],
+        "avg_duration": null,
+        "sponsor": "And Mom",
+        "sponsor_aliases": [
+          "AndMom"
+        ],
+        "sponsor_tags": [
+          "kids_family",
+          "universal"
+        ],
+        "source_language": null,
+        "community_id": "96e378cb-8642-4386-a906-e7cacc94c793",
+        "version": 1,
+        "submitted_at": "2026-05-30T15:39:06Z",
+        "submitted_app_version": "unknown",
+        "sponsor_match": "exact"
+      }
+    },
+    {
+      "community_id": "9d8a3bf8-ef58-403d-b2e5-2295133a9d27",
+      "version": 1,
+      "data": {
+        "scope": "global",
+        "text_template": "Support for Today Explained comes from ShipStation When your company is growing fast order fulfillment can make or break your success That where ShipStation comes in says ShipStation ShipStation says their intelligence platform helps take the pressure off by bringing order management rate shopping warehouse systems and powerful analytics into one place With ShipStation everything you need to manage getting orders to customers is in one place You can connect to over 200 sales channels and instead of five to seven disconnected tools you got one ShipStation says they can share tracking details to reduce customer service inquiries by up to 12%. While their returns management gives you insight into what's coming back and why, their analytics show where you're saving, where you can optimize. They also say they can select the best carrier, find competitive rates, print labels in bulk, so much more. You can try ShipStation free for 60 days with full access to all features. No credit card needed. Go to ShipStation.com and use code TODAY for 60 days free. 60 days gives you plenty of time to see exactly how much you can save. and how much time and money you're saving on every shipment. That's ShipStation.com code today. ShipStation.com code today.",
+        "intro_variants": [
+          "Support for Today Explained comes from ShipStation",
+          "Support for JXplained comes from ShipStation",
+          "When your company is growing fast order fulfillment can make or break your success. That where ShipStation comes in"
+        ],
+        "outro_variants": [
+          "That's ShipStation.com code today. ShipStation.com code today."
+        ],
+        "avg_duration": null,
+        "sponsor": "ShipStation",
+        "sponsor_aliases": [
+          "Ship Station",
+          "ShipStation.com"
+        ],
+        "sponsor_tags": [
+          "business",
+          "saas",
+          "universal"
+        ],
+        "source_language": null,
+        "community_id": "9d8a3bf8-ef58-403d-b2e5-2295133a9d27",
+        "version": 1,
+        "submitted_at": "2026-05-30T15:40:08Z",
+        "submitted_app_version": "unknown",
+        "sponsor_match": "exact"
+      }
+    },
+    {
+      "community_id": "d8200407-45b6-4377-b63d-f62de1a57439",
+      "version": 1,
+      "data": {
+        "scope": "global",
+        "text_template": "Support for the show today comes from Framer, not Farmer for those of you with bad eyesight. These days, if you're a business owner, you need to have a website that can actually help your business grow. And with Framer, you can do it quickly and easily. Framer is a website builder that works like your team's favorite design tool with real-time collaboration or robust CMS. With everything you need for great SEO and advanced analytics that include integrated A-B testing, your designers and marketers are empowered to build and maximize your dot-com from day one. Changes to your Framer site go live to the web in seconds with one click without help from engineering, which can help your team reduce dependencies and reach escape velocity. Cisney, that sounds cool. You can learn how you can get more out of your .com from a Framer specialist or get started building for free today at Framer.com slash explain for 30% off of Framer Pro annual plan. That's Framer.com slash explain for 30% off Framer.com slash explain. Rules and restrictions may apply.",
+        "intro_variants": [
+          "Support for the show today comes from Framer"
+        ],
+        "outro_variants": [
+          "That's Framer.com slash explain for 30% off Framer.com slash explain. Rules and restrictions may apply."
+        ],
+        "avg_duration": null,
+        "sponsor": "Framer",
+        "sponsor_aliases": [
+          "framer.com"
+        ],
+        "sponsor_tags": [
+          "business",
+          "saas",
+          "universal"
+        ],
+        "source_language": null,
+        "community_id": "d8200407-45b6-4377-b63d-f62de1a57439",
+        "version": 1,
+        "submitted_at": "2026-05-30T15:44:25Z",
+        "submitted_app_version": "unknown",
+        "sponsor_match": "exact"
+      }
+    },
+    {
+      "community_id": "5940422b-5f00-45da-beee-339bc425a9ed",
+      "version": 1,
+      "data": {
+        "scope": "global",
+        "text_template": "Hi, I'm Maria Sharapova, host of the Pretty Tough Podcast. Each episode, I sit down with high-achieving women to discuss the pursuit of excellence without apology. This week on the show, clinical psychologist and founder Dr. Becky Kennedy and I unpack what it really means to raise kids today. I think parenting is the most important job in the world and the one that has the most impact on your world and the world It is nonstop Check out Pretty Tough new episodes on Wednesdays You can watch or listen in your favorite podcast app",
+        "intro_variants": [
+          "Hi, I'm Maria Sharapova, host of the Pretty Tough Podcast. Each episode, I sit down with high-achieving women to discuss the pursuit of excellence without apology."
+        ],
+        "outro_variants": [
+          "Check out Pretty Tough new episodes on Wednesdays You can watch or listen in your favorite podcast app"
+        ],
+        "avg_duration": null,
+        "sponsor": "Pretty Tough Podcast",
+        "sponsor_aliases": [],
+        "sponsor_tags": [
+          "streaming",
+          "universal"
+        ],
+        "source_language": null,
+        "community_id": "5940422b-5f00-45da-beee-339bc425a9ed",
+        "version": 1,
+        "submitted_at": "2026-05-30T15:45:26Z",
+        "submitted_app_version": "unknown",
+        "sponsor_match": "exact"
+      }
+    },
+    {
+      "community_id": "dfbb639a-908d-47c6-b330-9b9e7ed51733",
+      "version": 1,
+      "data": {
+        "scope": "global",
+        "text_template": "Ray Ban Meta glasses take the friction out of travel. Hey Meta, where's the closest metro station? Closest metro to you is Union Square, about 3 blocks away. Hey Meta, text mom I'm getting on the train now. Sending message. Check all your itinerary, take calls, and listen to music with open ear audio. No digging for your phone. No stopping for a map. Just you and your glasses. Ray Ban Meta. Iconic style meets Meta AI. Available at Walmart and other authorized retailers.",
+        "intro_variants": [
+          "Ray Ban Meta glasses take the friction out of travel.",
+          "Ray-Ban Meta glasses take the friction out of travel."
+        ],
+        "outro_variants": [
+          "Ray Ban Meta. Iconic style meets Meta AI. Available at Walmart and other authorized retailers.",
+          "Ray-Ban Meta, iconic style meets Meta AI. Available at Walmart and other authorized retailers."
+        ],
+        "avg_duration": null,
+        "sponsor": "Ray Ban Meta",
+        "sponsor_aliases": [
+          "Ray-Ban Meta",
+          "RayBan Meta"
+        ],
+        "sponsor_tags": [
+          "personal_care",
+          "technology",
+          "travel",
+          "universal"
+        ],
+        "source_language": null,
+        "community_id": "dfbb639a-908d-47c6-b330-9b9e7ed51733",
+        "version": 1,
+        "submitted_at": "2026-05-30T15:53:44Z",
+        "submitted_app_version": "unknown",
+        "sponsor_match": "exact"
+      }
+    },
+    {
+      "community_id": "10ed0ed2-5574-4840-b122-944c673ea9b7",
+      "version": 1,
+      "data": {
+        "scope": "global",
+        "text_template": "Support for this show comes from Quince. You make difficult choices each and every day. So why does your outfit need to be one of them? Instead, you can try effortless, comfortable, sleek, and well-put-together clothes with the help of Quince. Quince has all the wardrobe staples for spring. Think 100% European linen shorts and shirts from $34, lightweight, breathable, and comfortable, but still look put together. And clean 100% Pima cotton tees with a softness that has to be felt. Everything is priced 50 to 80% less than what you'd find at similar brands. Our colleague Andrew Melnizik has gotten some Quince. So Quince recently sent me their organic comfort stretch chore jacket. I got it in the tobacco color. It's not too heavy. It's not too light. I've now worn it to a few basketball games, a couple concerts, a few dinners, and even just meeting up with some friends. You can refresh your spring wardrobe with Quince Go to Quince slash explainit for free shipping on your order and 365 day returns Now available in Canada too That Q dot com slash explain it to get free shipping and 365 day returns Quince slash explain it",
+        "intro_variants": [
+          "Support for this show comes from Quince."
+        ],
+        "outro_variants": [
+          "That Q dot com slash explain it to get free shipping and 365 day returns Quince slash explain it.",
+          "That's Quince dot com slash explain it to get free shipping and 365 day returns Quince slash explain it",
+          "That's Q-U-I-N-C-E dot com slash explainit to get free shipping and 365 day returns. Quince.com slash explainit."
+        ],
+        "avg_duration": null,
+        "sponsor": "Quince",
+        "sponsor_aliases": [
+          "quince.com"
+        ],
+        "sponsor_tags": [
+          "apparel",
+          "universal"
+        ],
+        "source_language": null,
+        "community_id": "10ed0ed2-5574-4840-b122-944c673ea9b7",
+        "version": 1,
+        "submitted_at": "2026-05-31T02:30:45Z",
+        "submitted_app_version": "unknown",
+        "sponsor_match": "exact"
+      }
+    },
+    {
+      "community_id": "26a0e318-50a2-40d8-bcb6-199f445b42db",
+      "version": 1,
+      "data": {
+        "scope": "global",
+        "text_template": "Support for the show today comes from the boldly named Granola. It can be a real struggle to get through back to back meetings. You're nodding along, contributing, trying to stay present, but in the back of your mind, you just want to go home and put on Olivia Rodrigo. Meetings can be a mess. Granola wants to fix that. Granola is an AI-powered notepad built for the way people actually meet. You simply take rough notes like you normally would, and in the background, Granola's securely transcribing the meeting. Then it turns everything into clean, structured, actually useful notes when the meeting ends. Then Granola works through your device's audio, which means it integrates seamlessly into the video conferencing tools you already use, no setup, no awkward bots. Granola says it's just your normal meeting with superpowers that you need to do your job better. So if meetings are eating up your day, Granola says there's a no-brainer situation here. You can try it totally free for three months. Just head to granola.ai.explained. It's granola.ai.explained to get your time back. Get three months free at granola.ai.explained.",
+        "intro_variants": [
+          "Support for the show today comes from the boldly named Granola."
+        ],
+        "outro_variants": [
+          "Get three months free at granola.ai.explained.",
+          "Get three months free at granola.ai slash explained."
+        ],
+        "avg_duration": null,
+        "sponsor": "Granola.ai",
+        "sponsor_aliases": [],
+        "sponsor_tags": [
+          "business",
+          "saas",
+          "universal"
+        ],
+        "source_language": null,
+        "community_id": "26a0e318-50a2-40d8-bcb6-199f445b42db",
+        "version": 1,
+        "submitted_at": "2026-05-31T02:31:58Z",
+        "submitted_app_version": "unknown",
+        "sponsor_match": "exact"
+      }
+    },
+    {
+      "community_id": "576bbf9a-d3f6-4ac3-914b-92a3055458ec",
+      "version": 1,
+      "data": {
+        "scope": "global",
+        "text_template": "Pura's new summer collection. Find your flow and fragrance and explore the scents at Pura.com.",
+        "intro_variants": [],
+        "outro_variants": [
+          "Find your flow and fragrance and explore the scents at Pura.com."
+        ],
+        "avg_duration": null,
+        "sponsor": "Pura",
+        "sponsor_aliases": [
+          "pura.com"
+        ],
+        "sponsor_tags": [
+          "personal_care",
+          "universal"
+        ],
+        "source_language": null,
+        "community_id": "576bbf9a-d3f6-4ac3-914b-92a3055458ec",
+        "version": 1,
+        "submitted_at": "2026-05-31T02:32:46Z",
+        "submitted_app_version": "unknown",
+        "sponsor_match": "exact"
+      }
+    },
+    {
+      "community_id": "b6a9ca16-bb9c-44cb-a078-6407c76daa1c",
+      "version": 1,
+      "data": {
+        "scope": "global",
+        "text_template": "That feeling when you're trying to build your credit. And it's like, over and over again. Good news! Chase Credit Journey can help you with a personalized score improvement plan provided by Experian. So when you still need that credit built, you have the guidance you need. You can even get a Chase Secure Banking account with no monthly service fee if you're 17 to 24 years old. Hallelujah! This tool is for education purposes and doesn't guarantee you'll reach your credit score goal. The score you receive uses VantageScore 3.0 model and may not be the model used by lenders. Member FDIC.",
+        "intro_variants": [
+          "That feeling when you're trying to build your credit. And it's like, over and over again."
+        ],
+        "outro_variants": [
+          "The score you receive uses VantageScore 3.0 model and may not be the model used by lenders. Member FDIC."
+        ],
+        "avg_duration": null,
+        "sponsor": "Chase Secure Banking",
+        "sponsor_aliases": [
+          "Chase Credit Journey"
+        ],
+        "sponsor_tags": [
+          "finance",
+          "universal"
+        ],
+        "source_language": null,
+        "community_id": "b6a9ca16-bb9c-44cb-a078-6407c76daa1c",
+        "version": 1,
+        "submitted_at": "2026-05-31T02:44:24Z",
+        "submitted_app_version": "unknown",
+        "sponsor_match": "exact"
+      }
+    },
+    {
+      "community_id": "9dc55c46-16a7-475b-9b3d-7454485f397e",
+      "version": 1,
+      "data": {
+        "scope": "global",
+        "text_template": "This episode is brought to you by Nespresso. Life moves quickly and looking after yourself shouldn't feel like another chore. With the new Nespresso virtual up machine, morning routines become rituals. Whether organizing, getting the household moving, or preparing the home, or preparing the home. Preparing for the day, your coffee shouldn't ask for more. With Virtuo Up, just press brew and your morning begins. Rich aroma, bold flavor, zero effort. Press to explore. Every coffee, a new world. New Virtuo Up. Shop now at Nespresso.com.",
+        "intro_variants": [
+          "This episode is brought to you by Nespresso."
+        ],
+        "outro_variants": [
+          "Shop now at Nespresso.com."
+        ],
+        "avg_duration": null,
+        "sponsor": "Nespresso",
+        "sponsor_aliases": [
+          "nespresso.com",
+          "Virtuo Up"
+        ],
+        "sponsor_tags": [
+          "food",
+          "universal"
+        ],
+        "source_language": null,
+        "community_id": "9dc55c46-16a7-475b-9b3d-7454485f397e",
+        "version": 1,
+        "submitted_at": "2026-05-31T17:32:36Z",
+        "submitted_app_version": "unknown",
+        "sponsor_match": "exact"
+      }
+    },
+    {
+      "community_id": "58b26de4-b0f3-404a-adab-8978f067e92a",
+      "version": 1,
+      "data": {
+        "scope": "global",
+        "text_template": "Trying to complete your daily tasks can feel like driving along the highway, on empty, without a gas station in sight. If you're having a hard time finishing your day strong, then you might want to check out IM8's Daily Ultimate Essentials. It's a daily all-in-one wellness drink that can give your body the support it needs, without juggling a bunch of different supplements. IMAID's Daily Ultimate Essentials is a go-to for getting the benefits of 16 different supplements in one tasty drink. Co-founded by David Beckham and crafted with insight from experts at Mayo Clinic, Cedars-Sinai, and a former NASA chief scientist, it can simplify your wellness routine and make it easier to support your health. This drink is loaded with 92 nutrient-rich ingredients such as vitamins, minerals, adaptogens, CoQ10, MSM, and pre-, pro-, and postbiotics. It's designed to help you feel good from the inside out. Feel your best self every day with IM8. Go to im8health.com slash explained and use code EXPLAINED for a free welcome kit, 5 free travel sachets, plus 10% off your order. That's I-M number 8, H-E-A-L-T-H dot com slash explained, code explained. For a free welcome kit, 5 free travel sachets plus 10% off your order, im8health.com slash explained, code explained. These statements have not been evaluated by the Food and Drug Administration. This product is not intended to diagnose, treat, cure, or prevent any disease.",
+        "intro_variants": [
+          "Trying to complete your daily tasks can feel like driving along the highway, on empty, without a gas station in sight. If you're having a hard time finishing your day strong, then you might want to check out IM8's Daily Ultimate Essentials."
+        ],
+        "outro_variants": [
+          "For a free welcome kit, 5 free travel sachets plus 10% off your order, im8health.com slash explained, code explained. These statements have not been evaluated by the Food and Drug Administration. This product is not intended to diagnose, treat, cure, or prevent any disease."
+        ],
+        "avg_duration": null,
+        "sponsor": "IM8",
+        "sponsor_aliases": [
+          "im8health.com"
+        ],
+        "sponsor_tags": [
+          "health",
+          "mental_health",
+          "personal_care",
+          "self_improvement",
+          "universal"
+        ],
+        "source_language": null,
+        "community_id": "58b26de4-b0f3-404a-adab-8978f067e92a",
+        "version": 1,
+        "submitted_at": "2026-05-31T17:37:26Z",
+        "submitted_app_version": "unknown",
+        "sponsor_match": "exact"
+      }
+    },
+    {
+      "community_id": "506d8520-0a07-4b7b-a05e-f9b3cf6ace60",
+      "version": 1,
+      "data": {
+        "scope": "global",
+        "text_template": "Hi, Diva. It's Rachel. And Jordan. Yeah, hi. Quick question. Why are you not spending your Venmo balance? Yeah, we're concerned. You can, like, buy stuff with it. Ugh, you love buying stuff. And earn cash back on eligible purchases. Mm, you love purchasing eligible things. things. So the money your friend sent you yesterday, that's today's ramen, or rideshare, or eye patches. The skincare kind, not the pyro kind. Spend with Venmo, and you can earn cash back with Venmo Stash. Venmo Stash bundle terms and exclusions apply. Max $100 cash back per month. See terms at Venmo.me slash slash terms. ID verification required to use a Venmo balance.",
+        "intro_variants": [
+          "Hi, Diva. It's Rachel. And Jordan. Yeah, hi. Quick question. Why are you not spending your Venmo balance?"
+        ],
+        "outro_variants": [
+          "ID verification required to use a Venmo balance."
+        ],
+        "avg_duration": null,
+        "sponsor": "Venmo",
+        "sponsor_aliases": [
+          "venmo.me"
+        ],
+        "sponsor_tags": [
+          "finance",
+          "universal"
+        ],
+        "source_language": null,
+        "community_id": "506d8520-0a07-4b7b-a05e-f9b3cf6ace60",
+        "version": 1,
+        "submitted_at": "2026-05-31T17:39:38Z",
+        "submitted_app_version": "unknown",
+        "sponsor_match": "exact"
+      }
+    },
+    {
+      "community_id": "e856c58c-0260-4eb9-b82c-816a02590a9f",
+      "version": 1,
+      "data": {
+        "scope": "global",
+        "text_template": "Where's your playlist taking you? Down the highway? To the mountains? Or just into daydream mode while you're stuck in traffic? With over 4,000 hotels worldwide, Best Western is there to help you make the most of your getaway, wherever that is. Because the only thing better than a great playlist is a great trip. Life's the trip. Make the most of it at Best Western. Book direct and save at bestwestern.com.",
+        "intro_variants": [
+          "Where's your playlist taking you? Down the highway? To the mountains? Or just into daydream mode while you're stuck in traffic? With over 4,000 hotels worldwide, Best Western is there to help you make the most of your getaway"
+        ],
+        "outro_variants": [
+          "Book direct and save at bestwestern.com."
+        ],
+        "avg_duration": null,
+        "sponsor": "Best Western",
+        "sponsor_aliases": [
+          "bestwestern.com"
+        ],
+        "sponsor_tags": [
+          "travel",
+          "universal"
+        ],
+        "source_language": null,
+        "community_id": "e856c58c-0260-4eb9-b82c-816a02590a9f",
+        "version": 1,
+        "submitted_at": "2026-05-31T17:42:36Z",
+        "submitted_app_version": "unknown",
+        "sponsor_match": "exact"
+      }
+    },
+    {
+      "community_id": "85ef2479-3564-4cc7-990f-165b1198dd54",
+      "version": 1,
+      "data": {
+        "scope": "global",
+        "text_template": "Support for the show today comes from Takaya Tree. What's your favorite kind of tree? Mine is a Takaya Tree. If you've ever tried to find a psychiatrist who takes your insurance only to be told you have to wait months for an appointment or that they're not accepting patients. You're not alone. Talkiatry makes it easy to see a licensed psychiatrist online who takes your insurance in just a few days. It's virtual psychiatry designed to fit your life and your insurance. Talkiatry is 100% online psychiatry practice offering comprehensive evaluations, diagnoses, and ongoing medication management for conditions like ADHD, anxiety, depression, bipolar disorder, OCD. PTSD, insomnia, and even more. You can head to talkiatry.com slash explained and complete the short assessment to get matched with an in-network psychiatrist in just a few minutes. That's talkiatry.com slash explained to get matched in minutes. You know what else is 100% online? Me. I'm just kidding. I sleep.",
+        "intro_variants": [
+          "Support for the show today comes from Takaya Tree.",
+          "Support for the show today comes from Talkiatry."
+        ],
+        "outro_variants": [
+          "You can head to talkiatry.com slash explained and complete the short assessment to get matched with an in-network psychiatrist in just a few minutes.",
+          "That's talkiatry.com slash explained to get matched in minutes. You know what else is 100% online? Me. I'm just kidding. I sleep."
+        ],
+        "avg_duration": null,
+        "sponsor": "Talkiatry",
+        "sponsor_aliases": [
+          "talkiatry.com"
+        ],
+        "sponsor_tags": [
+          "health",
+          "mental_health",
+          "personal_care",
+          "self_improvement",
+          "universal"
+        ],
+        "source_language": null,
+        "community_id": "85ef2479-3564-4cc7-990f-165b1198dd54",
+        "version": 1,
+        "submitted_at": "2026-05-31T17:49:55Z",
+        "submitted_app_version": "unknown",
+        "sponsor_match": "exact"
+      }
+    },
+    {
+      "community_id": "42c2b217-586d-4ec7-ac86-ca2f0de2898d",
+      "version": 1,
+      "data": {
+        "scope": "global",
+        "text_template": "Support for the program comes from PipeDrive. Sales teams can often spend a huge chunk of their time on administrative tasks rather than selling, building relationships, and closing deals required to maintain a strong business. That's where PipeDrive comes in, a simple, intelligent CRM tool for small and medium businesses with smart automations that handle repetitive stuff like follow-up reminders, deal updates, and activity logging. Plus, you can customize these automations to fit your business. Your unique sales process and AI features will analyze your pipeline. It'll flag stalled deals, surface what needs attention, and tell your team what to do next without having to go looking for it. You can switch to a CRM built by salespeople for salespeople and join the over 100,000 companies already using PipeDrive. With this link, you can get an exclusive 30-day free instead of the usual 14-day trial, no credit card or payment needed. Just head to Pipedrive.com slash explained to get started. That's Pipedrive.com slash explained. And you can be up and running in minutes.",
+        "intro_variants": [
+          "Support for the program comes from PipeDrive."
+        ],
+        "outro_variants": [
+          "That's Pipedrive.com slash explained. And you can be up and running in minutes."
+        ],
+        "avg_duration": null,
+        "sponsor": "PipeDrive",
+        "sponsor_aliases": [
+          "Pipe Drive",
+          "pipedrive.com"
+        ],
+        "sponsor_tags": [
+          "business",
+          "saas",
+          "universal"
+        ],
+        "source_language": null,
+        "community_id": "42c2b217-586d-4ec7-ac86-ca2f0de2898d",
+        "version": 1,
+        "submitted_at": "2026-05-31T17:50:40Z",
         "submitted_app_version": "unknown",
         "sponsor_match": "exact"
       }
