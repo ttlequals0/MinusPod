@@ -1,0 +1,25 @@
+{
+  "scope": "global",
+  "text_template": "Hi, Diva. It's Rachel. And Jordan. Yeah, hi. Quick question. Why are you not spending your Venmo balance? Yeah, we're concerned. You can, like, buy stuff with it. Ugh, you love buying stuff. And earn cash back on eligible purchases. Mm, you love purchasing eligible things. things. So the money your friend sent you yesterday, that's today's ramen, or rideshare, or eye patches. The skincare kind, not the pyro kind. Spend with Venmo, and you can earn cash back with Venmo Stash. Venmo Stash bundle terms and exclusions apply. Max $100 cash back per month. See terms at Venmo.me slash slash terms. ID verification required to use a Venmo balance.",
+  "intro_variants": [
+    "Hi, Diva. It's Rachel. And Jordan. Yeah, hi. Quick question. Why are you not spending your Venmo balance?"
+  ],
+  "outro_variants": [
+    "ID verification required to use a Venmo balance."
+  ],
+  "avg_duration": null,
+  "sponsor": "Venmo",
+  "sponsor_aliases": [
+    "venmo.me"
+  ],
+  "sponsor_tags": [
+    "finance",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "506d8520-0a07-4b7b-a05e-f9b3cf6ace60",
+  "version": 1,
+  "submitted_at": "2026-05-31T17:39:38Z",
+  "submitted_app_version": "unknown",
+  "sponsor_match": "exact"
+}

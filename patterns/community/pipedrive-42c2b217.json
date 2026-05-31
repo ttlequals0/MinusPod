@@ -1,0 +1,27 @@
+{
+  "scope": "global",
+  "text_template": "Support for the program comes from PipeDrive. Sales teams can often spend a huge chunk of their time on administrative tasks rather than selling, building relationships, and closing deals required to maintain a strong business. That's where PipeDrive comes in, a simple, intelligent CRM tool for small and medium businesses with smart automations that handle repetitive stuff like follow-up reminders, deal updates, and activity logging. Plus, you can customize these automations to fit your business. Your unique sales process and AI features will analyze your pipeline. It'll flag stalled deals, surface what needs attention, and tell your team what to do next without having to go looking for it. You can switch to a CRM built by salespeople for salespeople and join the over 100,000 companies already using PipeDrive. With this link, you can get an exclusive 30-day free instead of the usual 14-day trial, no credit card or payment needed. Just head to Pipedrive.com slash explained to get started. That's Pipedrive.com slash explained. And you can be up and running in minutes.",
+  "intro_variants": [
+    "Support for the program comes from PipeDrive."
+  ],
+  "outro_variants": [
+    "That's Pipedrive.com slash explained. And you can be up and running in minutes."
+  ],
+  "avg_duration": null,
+  "sponsor": "PipeDrive",
+  "sponsor_aliases": [
+    "Pipe Drive",
+    "pipedrive.com"
+  ],
+  "sponsor_tags": [
+    "business",
+    "saas",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "42c2b217-586d-4ec7-ac86-ca2f0de2898d",
+  "version": 1,
+  "submitted_at": "2026-05-31T17:50:40Z",
+  "submitted_app_version": "unknown",
+  "sponsor_match": "exact"
+}

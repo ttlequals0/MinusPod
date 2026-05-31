@@ -1,0 +1,23 @@
+{
+  "scope": "global",
+  "text_template": "Hi, I'm Maria Sharapova, host of the Pretty Tough Podcast. Each episode, I sit down with high-achieving women to discuss the pursuit of excellence without apology. This week on the show, clinical psychologist and founder Dr. Becky Kennedy and I unpack what it really means to raise kids today. I think parenting is the most important job in the world and the one that has the most impact on your world and the world It is nonstop Check out Pretty Tough new episodes on Wednesdays You can watch it on YouTube or listen in your favorite podcast app",
+  "intro_variants": [
+    "Hi, I'm Maria Sharapova, host of the Pretty Tough Podcast. Each episode, I sit down with high-achieving women to discuss the pursuit of excellence without apology."
+  ],
+  "outro_variants": [
+    "Check out Pretty Tough new episodes on Wednesdays You can watch it on YouTube or listen in your favorite podcast app"
+  ],
+  "avg_duration": null,
+  "sponsor": "Pretty Tough Podcast",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "streaming",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "5940422b-5f00-45da-beee-339bc425a9ed",
+  "version": 1,
+  "submitted_at": "2026-05-30T15:45:26Z",
+  "submitted_app_version": "unknown",
+  "sponsor_match": "exact"
+}

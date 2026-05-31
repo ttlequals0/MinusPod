@@ -1,0 +1,27 @@
+{
+  "scope": "global",
+  "text_template": "Ready to soundtrack your summer? With Red Bull Summer All Day Play, you choose a playlist that fits your summer vibe the best. Are you a festival fanatic, a deep-end DJ, a road dog, or a trail mixer? Just add a song to your chosen playlist and put your summer on track. Red Bull Summer All-Day Play. Red Bull gives you wings. Visit redbull.com slash brightsummer ahead to learn more. See you this summer.",
+  "intro_variants": [
+    "Ready to soundtrack your summer? With Red Bull Summer All Day Play"
+  ],
+  "outro_variants": [
+    "Visit redbull.com slash brightsummer ahead to learn more. See you this summer.",
+    "Visit redbull.com slash bright summer ahead to learn more. See you this summer."
+  ],
+  "avg_duration": null,
+  "sponsor": "Red Bull",
+  "sponsor_aliases": [
+    "RedBull",
+    "redbull.com"
+  ],
+  "sponsor_tags": [
+    "food",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "c9414951-d4c6-4d02-8169-138f89a2da64",
+  "version": 1,
+  "submitted_at": "2026-05-30T15:23:15Z",
+  "submitted_app_version": "unknown",
+  "sponsor_match": "exact"
+}

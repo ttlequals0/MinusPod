@@ -1,0 +1,30 @@
+{
+  "scope": "global",
+  "text_template": "Support for the show today comes from Takaya Tree. What's your favorite kind of tree? Mine is a Takaya Tree. If you've ever tried to find a psychiatrist who takes your insurance only to be told you have to wait months for an appointment or that they're not accepting patients. You're not alone. Talkiatry makes it easy to see a licensed psychiatrist online who takes your insurance in just a few days. It's virtual psychiatry designed to fit your life and your insurance. Talkiatry is 100% online psychiatry practice offering comprehensive evaluations, diagnoses, and ongoing medication management for conditions like ADHD, anxiety, depression, bipolar disorder, OCD. PTSD, insomnia, and even more. You can head to talkiatry.com slash explained and complete the short assessment to get matched with an in-network psychiatrist in just a few minutes. That's talkiatry.com slash explained to get matched in minutes. You know what else is 100% online? Me. I'm just kidding. I sleep.",
+  "intro_variants": [
+    "Support for the show today comes from Takaya Tree.",
+    "Support for the show today comes from Talkiatry."
+  ],
+  "outro_variants": [
+    "You can head to talkiatry.com slash explained and complete the short assessment to get matched with an in-network psychiatrist in just a few minutes.",
+    "That's talkiatry.com slash explained to get matched in minutes. You know what else is 100% online? Me. I'm just kidding. I sleep."
+  ],
+  "avg_duration": null,
+  "sponsor": "Talkiatry",
+  "sponsor_aliases": [
+    "talkiatry.com"
+  ],
+  "sponsor_tags": [
+    "health",
+    "mental_health",
+    "personal_care",
+    "self_improvement",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "85ef2479-3564-4cc7-990f-165b1198dd54",
+  "version": 1,
+  "submitted_at": "2026-05-31T17:49:55Z",
+  "submitted_app_version": "unknown",
+  "sponsor_match": "exact"
+}

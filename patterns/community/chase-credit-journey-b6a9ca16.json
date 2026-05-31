@@ -1,0 +1,25 @@
+{
+  "scope": "global",
+  "text_template": "That feeling when you're trying to build your credit. And it's like, over and over again. Good news! Chase Credit Journey can help you with a personalized score improvement plan provided by Experian. So when you still need that credit built, you have the guidance you need. You can even get a Chase Secure Banking account with no monthly service fee if you're 17 to 24 years old. Hallelujah! This tool is for education purposes and doesn't guarantee you'll reach your credit score goal. The score you receive uses VantageScore 3.0 model and may not be the model used by lenders. Member FDIC.",
+  "intro_variants": [
+    "That feeling when you're trying to build your credit. And it's like, over and over again."
+  ],
+  "outro_variants": [
+    "The score you receive uses VantageScore 3.0 model and may not be the model used by lenders. Member FDIC."
+  ],
+  "avg_duration": null,
+  "sponsor": "Chase Secure Banking",
+  "sponsor_aliases": [
+    "Chase Credit Journey"
+  ],
+  "sponsor_tags": [
+    "finance",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "b6a9ca16-bb9c-44cb-a078-6407c76daa1c",
+  "version": 1,
+  "submitted_at": "2026-05-31T02:44:24Z",
+  "submitted_app_version": "unknown",
+  "sponsor_match": "exact"
+}

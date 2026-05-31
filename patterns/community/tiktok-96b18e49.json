@@ -1,0 +1,24 @@
+{
+  "scope": "global",
+  "text_template": "Hey, sorry to interrupt your playlist but this is better than music. It's free stuff. Download TikTok. Search slash free and share the link to get items for free. Start slashing now.",
+  "intro_variants": [],
+  "outro_variants": [
+    "Download TikTok. Search slash free and share the link to get items for free. Start slashing now."
+  ],
+  "avg_duration": null,
+  "sponsor": "TikTok",
+  "sponsor_aliases": [
+    "Tik Tok"
+  ],
+  "sponsor_tags": [
+    "comedy",
+    "music",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "96b18e49-1a8e-4ae6-aeeb-8a4cba2d216e",
+  "version": 1,
+  "submitted_at": "2026-05-27T02:31:11.364726+00:00",
+  "submitted_app_version": "unknown",
+  "sponsor_match": "exact"
+}

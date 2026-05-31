@@ -1,0 +1,25 @@
+{
+  "scope": "global",
+  "text_template": "What's up, y'all? I'm Skylar Diggins, seven-time WNBA All-Star, Olympic gold medalist, and mom. And I'm Cassidy Hubbard, host and reporter for nearly 20 years, covering the biggest names and stories in sports. And mom. And this is And Mom, a community for athletes, game changers, and moms of all kinds. Pans. Dropping May 14th. Tap in with us.",
+  "intro_variants": [
+    "What's up, y'all? I'm Skylar Diggins, seven-time WNBA All-Star, Olympic gold medalist, and mom."
+  ],
+  "outro_variants": [
+    "And this is And Mom, a community for athletes, game changers, and moms of all kinds. Pans. Dropping May 14th. Tap in with us."
+  ],
+  "avg_duration": null,
+  "sponsor": "And Mom",
+  "sponsor_aliases": [
+    "AndMom"
+  ],
+  "sponsor_tags": [
+    "kids_family",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "96e378cb-8642-4386-a906-e7cacc94c793",
+  "version": 1,
+  "submitted_at": "2026-05-30T15:39:06Z",
+  "submitted_app_version": "unknown",
+  "sponsor_match": "exact"
+}

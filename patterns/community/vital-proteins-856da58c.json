@@ -1,0 +1,25 @@
+{
+  "scope": "global",
+  "text_template": "This is Chelsea Handler from Dear Chelsea Let take a quick break with one of our favorite sponsors Vital Proteins Vital Proteins just launched their new collagen sparkling waters in three crisp refreshing flavors strawberry blossom lemon lime and blood orange Each can includes collagen peptides that improve skin health in as little as 30 days when sipped daily With zero grams added sugar no artificial sweeteners and a full daily dose of vitamin C it an easy enjoyable way to support your wellness goals",
+  "intro_variants": [
+    "This is Chelsea Handler from Dear Chelsea Let take a quick break with one of our favorite sponsors Vital Proteins"
+  ],
+  "outro_variants": [
+    "With zero grams added sugar no artificial sweeteners and a full daily dose of vitamin C it an easy enjoyable way to support your wellness goals"
+  ],
+  "avg_duration": null,
+  "sponsor": "Vital Proteins",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "dtc",
+    "health",
+    "supplements",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "856da58c-7d70-4daa-a442-f15141eb1ec0",
+  "version": 1,
+  "submitted_at": "2026-05-06T19:28:41Z",
+  "submitted_app_version": "unknown",
+  "sponsor_match": "exact"
+}

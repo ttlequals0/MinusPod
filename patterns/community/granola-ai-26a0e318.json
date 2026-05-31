@@ -1,0 +1,25 @@
+{
+  "scope": "global",
+  "text_template": "Support for the show today comes from the boldly named Granola. It can be a real struggle to get through back to back meetings. You're nodding along, contributing, trying to stay present, but in the back of your mind, you just want to go home and put on Olivia Rodrigo. Meetings can be a mess. Granola wants to fix that. Granola is an AI-powered notepad built for the way people actually meet. You simply take rough notes like you normally would, and in the background, Granola's securely transcribing the meeting. Then it turns everything into clean, structured, actually useful notes when the meeting ends. Then Granola works through your device's audio, which means it integrates seamlessly into the video conferencing tools you already use, no setup, no awkward bots. Granola says it's just your normal meeting with superpowers that you need to do your job better. So if meetings are eating up your day, Granola says there's a no-brainer situation here. You can try it totally free for three months. Just head to granola.ai.explained. It's granola.ai.explained to get your time back. Get three months free at granola.ai.explained.",
+  "intro_variants": [
+    "Support for the show today comes from the boldly named Granola."
+  ],
+  "outro_variants": [
+    "Get three months free at granola.ai.explained.",
+    "Get three months free at granola.ai slash explained."
+  ],
+  "avg_duration": null,
+  "sponsor": "Granola.ai",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "business",
+    "saas",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "26a0e318-50a2-40d8-bcb6-199f445b42db",
+  "version": 1,
+  "submitted_at": "2026-05-31T02:31:58Z",
+  "submitted_app_version": "unknown",
+  "sponsor_match": "exact"
+}

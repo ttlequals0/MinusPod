@@ -1,0 +1,25 @@
+{
+  "scope": "global",
+  "text_template": "Support for this show comes from Verizon Business. Verizon Small Business Days are happening from April 27th through May 10th. And it's the perfect time to get great deals for your business that include business internet, OneTalk, and a 5G phone. Find all the services and features you need to tap in and grow, including expert guidance and know-how. That's Verizon Business' commitment to helping small businesses succeed. Check out Verizon Small Business Days from April 27th through May 10th. Call today at 800-483-4428 or find out more at verizon.com slash smallbusiness.",
+  "intro_variants": [
+    "Support for this show comes from Verizon Business."
+  ],
+  "outro_variants": [
+    "Call today at 800-483-4428 or find out more at verizon.com slash smallbusiness."
+  ],
+  "avg_duration": null,
+  "sponsor": "Verizon Business",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "business",
+    "technology",
+    "telecom",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "938f5d75-2101-4290-b792-7b2e83b5dc73",
+  "version": 1,
+  "submitted_at": "2026-05-07T18:13:06Z",
+  "submitted_app_version": "unknown",
+  "sponsor_match": "exact"
+}

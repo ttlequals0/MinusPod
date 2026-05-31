@@ -1,0 +1,26 @@
+{
+  "scope": "global",
+  "text_template": "Hey mom, now that I have an afterschool job, I think I want to buy a drum kit. Okay, rockstar. Let's look at your account. When kids start making money, Chase has easy to use tools and expert bankers to help them learn how to manage it. And next month, I'll buy the bass drum and the cymbals. Oh, and maybe some noise canceling headphones for you. Aww, you've thought of everything. Help kids save, budget, and build financial independence all with Chase. That's good for kids and good for parents. Visit your local Chase branch and get started. Account subject to approval, JPMorgan Chase Bank, N.A. Member FDIC.",
+  "intro_variants": [
+    "Hey mom, now that I have an afterschool job, I think I want to buy a drum kit. Okay, rockstar. Let's look at your account."
+  ],
+  "outro_variants": [
+    "Visit your local Chase branch and get started. Account subject to approval, JPMorgan Chase Bank, N.A. Member FDIC."
+  ],
+  "avg_duration": null,
+  "sponsor": "JP Morgan Chase",
+  "sponsor_aliases": [
+    "JPMorgan Chase",
+    "Chase Bank"
+  ],
+  "sponsor_tags": [
+    "finance",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "c88cda7b-bdd8-4e14-a977-1508e5cc0e4d",
+  "version": 1,
+  "submitted_at": "2026-05-27T02:27:14Z",
+  "submitted_app_version": "unknown",
+  "sponsor_match": "exact"
+}

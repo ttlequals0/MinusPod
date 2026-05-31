@@ -1,0 +1,23 @@
+{
+  "scope": "global",
+  "text_template": "Pura's new summer collection. Find your flow and fragrance and explore the scents at Pura.com.",
+  "intro_variants": [],
+  "outro_variants": [
+    "Find your flow and fragrance and explore the scents at Pura.com."
+  ],
+  "avg_duration": null,
+  "sponsor": "Pura",
+  "sponsor_aliases": [
+    "pura.com"
+  ],
+  "sponsor_tags": [
+    "personal_care",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "576bbf9a-d3f6-4ac3-914b-92a3055458ec",
+  "version": 1,
+  "submitted_at": "2026-05-31T02:32:46Z",
+  "submitted_app_version": "unknown",
+  "sponsor_match": "exact"
+}

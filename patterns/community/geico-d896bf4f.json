@@ -1,0 +1,23 @@
+{
+  "scope": "global",
+  "text_template": "We all do it. You have a night for yourself but don't like the sound of the silence, so you turn on the TV just for the ambience. It's a little trick that helps you feel like you've got company and aren't alone. And other insurers, well, they may make you feel alone. But when you switch to GEICO, you've got claims reps available around the clock. So whenever you need, you'll have people around to help. And let's turn on the washing machine, just for good measure. Isn't that soothing? It feels good to have support. It feels good to Geico.",
+  "intro_variants": [
+    "We all do it. You have a night for yourself but don't like the sound of the silence, so you turn on the TV just for the ambience."
+  ],
+  "outro_variants": [
+    "It feels good to have support. It feels good to Geico."
+  ],
+  "avg_duration": null,
+  "sponsor": "Geico",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "insurance",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "d896bf4f-72f8-4540-8e2f-337923625888",
+  "version": 1,
+  "submitted_at": "2026-05-27T02:31:11.364726+00:00",
+  "submitted_app_version": "unknown",
+  "sponsor_match": "exact"
+}

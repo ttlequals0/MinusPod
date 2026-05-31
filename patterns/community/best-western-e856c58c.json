@@ -1,0 +1,25 @@
+{
+  "scope": "global",
+  "text_template": "Where's your playlist taking you? Down the highway? To the mountains? Or just into daydream mode while you're stuck in traffic? With over 4,000 hotels worldwide, Best Western is there to help you make the most of your getaway, wherever that is. Because the only thing better than a great playlist is a great trip. Life's the trip. Make the most of it at Best Western. Book direct and save at bestwestern.com.",
+  "intro_variants": [
+    "Where's your playlist taking you? Down the highway? To the mountains? Or just into daydream mode while you're stuck in traffic? With over 4,000 hotels worldwide, Best Western is there to help you make the most of your getaway"
+  ],
+  "outro_variants": [
+    "Book direct and save at bestwestern.com."
+  ],
+  "avg_duration": null,
+  "sponsor": "Best Western",
+  "sponsor_aliases": [
+    "bestwestern.com"
+  ],
+  "sponsor_tags": [
+    "travel",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "e856c58c-0260-4eb9-b82c-816a02590a9f",
+  "version": 1,
+  "submitted_at": "2026-05-31T17:42:36Z",
+  "submitted_app_version": "unknown",
+  "sponsor_match": "exact"
+}

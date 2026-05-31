@@ -1,0 +1,26 @@
+{
+  "scope": "global",
+  "text_template": "This episode is brought to you by Nespresso. Life moves quickly and taking care of yourself shouldn't feel like another chore. With the new Nespresso virtual up machine, morning routines become rituals. Whether organizing, getting the household moving, or preparing the home, or preparing the home. Preparing for the day, your coffee shouldn't ask for more. With Virtuo Up, just press brew and your morning begins. Rich aroma, bold flavor, zero effort. Press to explore. Every coffee, a new world. New Virtuo Up. Shop now at Nespresso.com.",
+  "intro_variants": [
+    "This episode is brought to you by Nespresso."
+  ],
+  "outro_variants": [
+    "Shop now at Nespresso.com."
+  ],
+  "avg_duration": null,
+  "sponsor": "Nespresso",
+  "sponsor_aliases": [
+    "nespresso.com",
+    "Virtuo Up"
+  ],
+  "sponsor_tags": [
+    "food",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "9dc55c46-16a7-475b-9b3d-7454485f397e",
+  "version": 1,
+  "submitted_at": "2026-05-31T17:32:36Z",
+  "submitted_app_version": "unknown",
+  "sponsor_match": "exact"
+}
