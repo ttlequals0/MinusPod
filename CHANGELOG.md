@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`validator_known_sponsors.csv` is now sorted by sponsor name.** The seed list the PR validator checks against was in insertion order, which made it hard to scan when reviewing a submission. Rows are now sorted case-insensitively by name. The set of sponsors is unchanged, so validation results are identical.
 - **The two Ad Reviewer settings sections are now one, under Experiments.** The reviewer LLM config (enable, model, boundary shift, parallel reviews, prompts) and the pattern-update controls (the update-from-adjustments toggle and trim threshold) were separate Settings sections that shared the name "Ad Reviewer" and each had its own Save button. They now live in a single Ad Reviewer section and persist together through the page's Save button. The fields are grouped with dividers (reviewer behavior, pattern learning, prompts) to match the layout of the other settings sections, and the trim-threshold input now follows the same style as the section's other numeric fields. The pattern-update fields still write to `/settings/reviewer`; only the UI and save flow merged.
 
 ### Fixed
