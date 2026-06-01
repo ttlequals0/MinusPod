@@ -21,7 +21,7 @@
     "recharts": "^3.8.1",
     "swagger-ui-dist": "^5.32.6",
     "tailwind-merge": "^3.6.0",
-    "wavesurfer.js": "^7.12.6"
+    "wavesurfer.js": "^7.12.7"
   },
   "overrides": {
     "serialize-javascript": ">=7.0.5",
