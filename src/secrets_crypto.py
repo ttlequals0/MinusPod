@@ -65,6 +65,14 @@ def is_ciphertext(value: str | None) -> bool:
     return bool(value) and value.startswith(ENVELOPE_PREFIX)
 
 
+def _has_ciphertext_secrets(db) -> bool:
+    """True if any provider-secret row still holds enc:v1: ciphertext."""
+    for key in SECRET_SETTING_KEYS:
+        if is_ciphertext(db.get_setting(key)):
+            return True
+    return False
+
+
 def _load_or_create_salt(db) -> bytes:
     existing = db.get_setting(_SALT_KEY)
     if existing:
@@ -73,7 +81,24 @@ def _load_or_create_salt(db) -> bytes:
             if len(salt) == _SALT_LEN:
                 return salt
         except (ValueError, TypeError):
-            logger.warning("provider_crypto_salt corrupt; regenerating")
+            pass
+        # Salt row present but unusable. Regenerating would derive a different
+        # DEK and permanently orphan any existing ciphertext, so fail closed
+        # when secrets still exist rather than silently destroy them
+        # (secrets-storage-1 / creds-6). The ciphertext is intact and
+        # recoverable once the original salt/DB is restored from backup.
+        if _has_ciphertext_secrets(db):
+            raise CryptoUnavailableError(
+                "provider_crypto_salt is corrupt but encrypted secrets still "
+                "exist; refusing to regenerate the salt (that would make them "
+                "permanently undecryptable). Restore the salt/DB from a backup."
+            )
+        logger.warning("provider_crypto_salt corrupt and no ciphertext present; regenerating")
+    elif _has_ciphertext_secrets(db):
+        raise CryptoUnavailableError(
+            "encrypted secrets exist but provider_crypto_salt is missing; "
+            "refusing to mint a new salt. Restore from a backup."
+        )
     salt = secrets.token_bytes(_SALT_LEN)
     db.set_setting(_SALT_KEY, base64.b64encode(salt).decode("ascii"))
     return salt
@@ -133,6 +158,11 @@ def rotate(db, old_passphrase: str, new_passphrase: str) -> int:
         raise ValueError("new passphrase required")
     if new_passphrase == old_passphrase:
         raise ValueError("new passphrase must differ from current")
+
+    # Mandatory pre-rotation backup so a crash or operator mistake mid-rotation
+    # is recoverable, mirroring the plaintext-migration backup (creds-1).
+    backup_path = _create_pre_migration_backup(db)
+    logger.info("rotate: pre-rotation backup written to %s", backup_path)
 
     # Decrypt under the current DEK while it is still authoritative.
     plaintexts: dict[str, str] = {}
@@ -285,7 +315,13 @@ def _create_pre_migration_backup(db) -> str:
     """
     ts = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     suffix = f"{os.getpid()}-{uuid.uuid4().hex[:6]}"
-    backup_path = BACKUP_DIR / f"pre-secret-migration-{ts}-{suffix}.db"
+    # Write under the live DB's data dir rather than the import-time BACKUP_DIR,
+    # which ignores a relocated MINUSPOD_DATA_DIR, so the snapshot lands beside
+    # the database it protects (secrets-storage-2).
+    base = Path(getattr(db, "data_dir", None) or BACKUP_DIR.parent)
+    backup_dir = base / "backups"
+    backup_dir.mkdir(parents=True, exist_ok=True)
+    backup_path = backup_dir / f"pre-secret-migration-{ts}-{suffix}.db"
     return snapshot_database(db, backup_path)
 
 

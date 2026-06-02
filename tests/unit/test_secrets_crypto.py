@@ -130,3 +130,33 @@ def test_admin_password_change_independence(temp_db):
     # Simulate password change: ciphertext row untouched.
     temp_db.set_setting('admin_password_hash', 'bcrypt$new')
     assert temp_db.get_secret('openrouter_api_key') == 'sk-or-xyz'
+
+
+def test_corrupt_salt_with_ciphertext_fails_closed(temp_db):
+    """secrets-storage-1: a corrupt salt row must NOT be regenerated while
+    enc:v1: ciphertext still exists, or those secrets become permanently
+    undecryptable. Fail closed instead and leave the salt untouched."""
+    temp_db.set_secret('anthropic_api_key', 'sk-secret')
+    assert temp_db.get_secret('anthropic_api_key') == 'sk-secret'
+
+    # Corrupt the salt (valid base64, wrong length) and drop the cached DEK.
+    bad_salt = base64.b64encode(b'short').decode('ascii')
+    temp_db.set_setting('provider_crypto_salt', bad_salt)
+    secrets_crypto.reset_cache()
+
+    with pytest.raises(secrets_crypto.CryptoUnavailableError):
+        secrets_crypto._derive_dek(temp_db)
+
+    # Salt row must be unchanged (not silently regenerated).
+    assert temp_db.get_setting('provider_crypto_salt') == bad_salt
+
+
+def test_corrupt_salt_without_ciphertext_regenerates(temp_db):
+    """With no ciphertext to orphan, a corrupt salt is safely regenerated."""
+    bad_salt = base64.b64encode(b'short').decode('ascii')
+    temp_db.set_setting('provider_crypto_salt', bad_salt)
+    secrets_crypto.reset_cache()
+
+    dek = secrets_crypto._derive_dek(temp_db)
+    assert isinstance(dek, (bytes, bytearray)) and len(dek) == 32
+    assert temp_db.get_setting('provider_crypto_salt') != bad_salt

@@ -76,9 +76,11 @@ def test_count_skips_non_secret_keys(temp_db, crypto_env):
 
 def test_backup_failure_aborts_migration(temp_db, crypto_env, monkeypatch):
     temp_db.set_setting("whisper_api_key", "sk-plaintext-should-survive")
-    monkeypatch.setattr(
-        secrets_crypto, "BACKUP_DIR", Path("/nonexistent/read-only/path")
-    )
+
+    def _boom(*args, **kwargs):
+        raise OSError("simulated backup failure")
+
+    monkeypatch.setattr(secrets_crypto, "snapshot_database", _boom)
 
     result = secrets_crypto.migrate_plaintext_secrets(temp_db)
     assert result["migrated"] == 0
