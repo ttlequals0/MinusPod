@@ -17,6 +17,7 @@ from api import (
     _serialize_nullable_bool, _deserialize_nullable_bool,
 )
 from utils.url import validate_url, SSRFError
+from utils.validation import is_valid_slug
 
 from slugify import slugify as make_slug
 
@@ -29,7 +30,13 @@ def _slug_from_url_path(source_url: str) -> Optional[str]:
     parsed = urlparse(source_url)
     slug_base = parsed.path.strip('/').split('/')[-1] or parsed.netloc
     slug_base = slug_base.replace('.xml', '').replace('.rss', '')
-    return make_slug(slug_base) if slug_base else None
+    candidate = make_slug(slug_base) if slug_base else None
+    # A purely-numeric path segment (e.g. a feed id like /1411126.rss) makes a
+    # meaningless slug; return None so the caller asks the user for one rather
+    # than committing a numeric slug (feeds-api-1).
+    if candidate and candidate.isdigit():
+        return None
+    return candidate
 
 logger = logging.getLogger('podcast.api')
 
@@ -135,6 +142,16 @@ def add_feed():
             400,
         )
 
+    # Validate the final slug. A client may supply one directly, bypassing the
+    # derivation path; is_valid_slug rejects reserved words, uppercase, spaces,
+    # path-traversal characters, and over-length values (feeds-api-1).
+    if not is_valid_slug(slug):
+        return error_response(
+            f'Invalid slug "{slug}": use lowercase letters, digits and hyphens '
+            '(max 200 chars), not a reserved word.',
+            400,
+        )
+
     db = get_database()
 
     # Check if slug already exists
@@ -221,13 +238,19 @@ def import_opml():
         logger.error(f"OPML encoding error: {e}")
         return error_response('File must be UTF-8 encoded', 400)
 
-    # Find all outline elements with xmlUrl (RSS feeds)
+    # Find all outline elements with xmlUrl (RSS feeds). Cap the count so a huge
+    # OPML can't tie up a worker doing thousands of synchronous DNS lookups and
+    # feed creations in one request (feeds-api-4).
+    MAX_OPML_FEEDS = 500
     feeds_found = []
     for outline in root.iter('outline'):
         xml_url = outline.get('xmlUrl')
         if xml_url:
             title = outline.get('text') or outline.get('title') or ''
             feeds_found.append({'url': xml_url, 'title': title})
+            if len(feeds_found) >= MAX_OPML_FEEDS:
+                logger.warning("OPML import truncated at %d feeds", MAX_OPML_FEEDS)
+                break
 
     if not feeds_found:
         return error_response('No RSS feeds found in OPML file', 400)
@@ -444,7 +467,10 @@ def update_feed(slug):
     if 'maxEpisodes' in data:
         max_ep = data['maxEpisodes']
         if max_ep is not None:
-            max_ep = max(10, min(int(max_ep), 500))
+            try:
+                max_ep = max(10, min(int(max_ep), 500))
+            except (ValueError, TypeError):
+                return error_response('maxEpisodes must be an integer', 400)
         updates['max_episodes'] = max_ep
 
     if 'onlyExposeProcessedEpisodes' in data:
