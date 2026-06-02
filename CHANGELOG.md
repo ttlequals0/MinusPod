@@ -36,6 +36,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Private/LAN feed hosts: set `MINUSPOD_ALLOW_PRIVATE_FEED_HOSTS=true` if any feed source is on a private/LAN address, otherwise those feeds are rejected at fetch time.
 - Reverse proxy: set `MINUSPOD_TRUSTED_PROXY_COUNT` to the number of proxies in front of MinusPod so login lockout and rate limiting see the real client IP (defaults to 0).
 
+### Dependencies
+
+- Folded in the open Dependabot bumps: pip (`anthropic` 0.102.0 -> 0.105.2, `huggingface-hub` 1.16.1 -> 1.17.0, `idna` 3.16 -> 3.17), npm (`@tanstack/react-query`, `wavesurfer.js`, `vite`, `typescript-eslint`, `@typescript-eslint/eslint-plugin`), and GitHub Actions (`docker/login-action`, `actions/download-artifact`, `actions/upload-artifact`).
+
 ### Changed
 
 - **`validator_known_sponsors.csv` is now sorted by sponsor name.** The seed list the PR validator checks against was in insertion order, which made it hard to scan when reviewing a submission. Rows are now sorted case-insensitively by name. The set of sponsors is unchanged, so validation results are identical.
