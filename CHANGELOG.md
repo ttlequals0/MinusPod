@@ -8,6 +8,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Pattern import replace-mode is now atomic.** A failure partway through a `mode=replace` import could permanently wipe the entire `ad_patterns` table, because the delete/create DB helpers committed individually and defeated the route's rollback. The import now runs as a single transaction through non-committing primitives, so a mid-import failure leaves every existing pattern intact.
+- **The hardened Docker compose stack now boots.** `cap_drop: ALL` removed the capabilities `setpriv` needs to drop root, so the container crash-looped before gunicorn started. A `cap_add` block now restores only `SETUID`/`SETGID`/`CHOWN`/`DAC_OVERRIDE`/`FOWNER` while keeping `cap_drop: ALL` and `no-new-privileges`. Mirrored to `docker-compose.cpu.yml`.
+- **Feed fetches use the strict SSRF tier by default (behavior change).** Stored feed URLs are re-fetched on every refresh; they are now DNS-resolved and blocked from private/loopback/metadata targets, closing a refresh-time DNS-rebinding window. Operators who serve feeds from a private/LAN address can opt back in with `MINUSPOD_ALLOW_PRIVATE_FEED_HOSTS=true`.
+- **The API fails closed before an app password is set (behavior change).** A not-yet-bootstrapped install no longer exposes the database backup, cleanup/reset, provider rotate/test, or feed delete/update routes; read-only browsing and first-run feed creation still work so setup can finish.
+- **Outbound fetches enforce hard byte caps and strip provider keys across host redirects.** Feed conditional/gzip-retry reads and audio downloads now cap the streamed body, closing decompression-bomb and disk-fill paths; `validate_base_url` resolves and rejects cloud-metadata/link-local targets reached via a hostname; and a redirect to a different host drops `x-api-key`/`api-key`.
+- **A corrupt or missing crypto salt fails closed.** It is no longer silently regenerated while encrypted secrets exist (which would orphan them permanently), and the backup-decrypt tool reads the salt read-only instead of constructing the full database.
+- **Login lockout hardened.** The failure counter increments atomically rather than via a SELECT-then-write that undercounts under concurrency, and an IPv4-mapped IPv6 public address can no longer evade it.
+
+### Fixed (audit remediation)
+
+- Interrupted DB table rebuilds no longer brick startup: `DROP TABLE IF EXISTS` guards each `*_new` rebuild and the episodes rebuilds recreate their full lookup-index set.
+- Ad-detection window creation can no longer hang the worker when the overlap is configured at or above the window size.
+- TF-IDF content matching now respects scope/tag/language filtering instead of scoring against every loaded pattern.
+- Volume analysis no longer stalls the pipeline for hours: the ebur128 ffmpeg call is time-capped and, with the other ffmpeg/ffprobe calls, routed through the shutdown-aware subprocess wrapper.
+- Custom webhook templates no longer silently drop auth-failure / rate-limit alerts; a render error falls back to the default payload and still delivers.
+- Cron accepts day-of-week 7 as Sunday and applies a step to a single-value base (`5/15` -> 5, 20, 35, 50).
+- The LLM benchmark report deduplicates overlapping-window predictions before scoring, removing a systematic downward bias on F1/precision/recall.
+- Settings form edits are no longer discarded by a background `['settings']` refetch.
+- Reprocess and artwork saves keep the existing file until the replacement is durable; community-sync refuses to mass-delete on an empty/truncated manifest; `split_bundle` rejects intra-run filename collisions; feed slugs are validated; OPML import is capped; plus assorted hardening across SSRF, secrets, concurrency, and the community-pattern tools.
+
+### Upgrade notes
+
+- No-password installs: without `APP_PASSWORD`, sensitive routes (backup, cleanup, provider rotate/test, feed delete/update) now return 403 until a password is set.
+- Private/LAN feed hosts: set `MINUSPOD_ALLOW_PRIVATE_FEED_HOSTS=true` if any feed source is on a private/LAN address, otherwise those feeds are rejected at fetch time.
+- Reverse proxy: set `MINUSPOD_TRUSTED_PROXY_COUNT` to the number of proxies in front of MinusPod so login lockout and rate limiting see the real client IP (defaults to 0).
+
 ### Changed
 
 - **`validator_known_sponsors.csv` is now sorted by sponsor name.** The seed list the PR validator checks against was in insertion order, which made it hard to scan when reviewing a submission. Rows are now sorted case-insensitively by name. The set of sponsors is unchanged, so validation results are identical.
