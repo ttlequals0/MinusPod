@@ -45,6 +45,19 @@ def _max_rss_bytes() -> int:
     return max(1 * 1024 * 1024, raw)
 
 
+def _feed_trust() -> URLTrust:
+    """Trust tier for fetching feed source URLs. Feed URLs are untrusted user
+    input that get re-fetched on every refresh, so validate them with the
+    strict SSRF tier (resolve DNS, block private/loopback/metadata) by default
+    to close refresh-time DNS-rebinding SSRF (rss-http-1). Operators who host
+    feeds on a private/LAN address can opt back in with
+    ``MINUSPOD_ALLOW_PRIVATE_FEED_HOSTS=true``."""
+    opt_in = os.environ.get('MINUSPOD_ALLOW_PRIVATE_FEED_HOSTS', '').strip().lower()
+    if opt_in in ('1', 'true', 'yes', 'on'):
+        return URLTrust.OPERATOR_CONFIGURED
+    return URLTrust.FEED_CONTENT
+
+
 def _content_type_looks_like_feed(header_value: str | None) -> bool:
     """Accept anything that plausibly carries RSS / Atom bytes.
 
@@ -225,7 +238,7 @@ class RSSParser:
             # add_feed slug derivation fail on UA-strict hosts.
             response = safe_get(
                 url,
-                trust=URLTrust.OPERATOR_CONFIGURED,
+                trust=_feed_trust(),
                 timeout=timeout,
                 max_redirects=HTTP_MAX_REDIRECTS_FEED,
                 stream=True,
@@ -262,18 +275,29 @@ class RSSParser:
             try:
                 response = safe_get(
                     url,
-                    trust=URLTrust.OPERATOR_CONFIGURED,
+                    trust=_feed_trust(),
                     timeout=timeout,
                     max_redirects=HTTP_MAX_REDIRECTS_FEED,
+                    stream=True,
                     headers={
                         'Accept-Encoding': 'identity',
                         'User-Agent': APP_USER_AGENT,
                     },
                 )
                 response.raise_for_status()
-                logger.info(f"Successfully fetched RSS feed (uncompressed), size: {len(response.content)} bytes")
+                max_bytes = _max_rss_bytes()
+                try:
+                    body = read_response_capped(response, max_bytes)
+                except ResponseTooLargeError:
+                    logger.warning("feed_size_cap_exceeded: url=%s max=%d",
+                                   safe_url_for_log(url), max_bytes)
+                    _get_rss_circuit_breaker(url).record_failure()
+                    return None
+                finally:
+                    response.close()
+                logger.info(f"Successfully fetched RSS feed (uncompressed), size: {len(body)} bytes")
                 _get_rss_circuit_breaker(url).record_success()
-                return response.text
+                return body.decode('utf-8', errors='replace')
             except (requests.RequestException, SSRFError) as retry_e:
                 logger.error(f"Failed to fetch RSS feed (retry): {retry_e}")
                 _get_rss_circuit_breaker(url).record_failure()
@@ -316,25 +340,46 @@ class RSSParser:
         try:
             response = safe_get(
                 url,
-                trust=URLTrust.OPERATOR_CONFIGURED,
+                trust=_feed_trust(),
                 timeout=timeout,
                 max_redirects=HTTP_MAX_REDIRECTS_FEED,
+                stream=True,
                 headers=headers,
             )
 
             if response.status_code == 304:
                 logger.debug(f"Feed not modified (304): {safe_url_for_log(url)}")
                 _get_rss_circuit_breaker(url).record_success()
+                response.close()
                 return None, etag, last_modified
 
             response.raise_for_status()
+            if not _content_type_looks_like_feed(response.headers.get('Content-Type')):
+                logger.warning(
+                    "RSS conditional fetch rejected on content-type: url=%s content_type=%r",
+                    url, response.headers.get('Content-Type'),
+                )
+                response.close()
+                _get_rss_circuit_breaker(url).record_failure()
+                return None, None, None
 
             new_etag = response.headers.get('ETag')
             new_last_modified = response.headers.get('Last-Modified')
 
-            logger.debug(f"Fetched RSS feed, size: {len(response.content)} bytes")
+            max_bytes = _max_rss_bytes()
+            try:
+                body = read_response_capped(response, max_bytes)
+            except ResponseTooLargeError:
+                logger.warning("feed_size_cap_exceeded: url=%s max=%d",
+                               safe_url_for_log(url), max_bytes)
+                _get_rss_circuit_breaker(url).record_failure()
+                return None, None, None
+            finally:
+                response.close()
+
+            logger.debug(f"Fetched RSS feed, size: {len(body)} bytes")
             _get_rss_circuit_breaker(url).record_success()
-            return response.text, new_etag, new_last_modified
+            return body.decode('utf-8', errors='replace'), new_etag, new_last_modified
 
         except SSRFError as e:
             logger.warning(f"SSRF blocked in fetch_feed_conditional: {e} (url={safe_url_for_log(url)})")
@@ -347,20 +392,34 @@ class RSSParser:
                 headers['Accept-Encoding'] = 'identity'
                 response = safe_get(
                     url,
-                    trust=URLTrust.OPERATOR_CONFIGURED,
+                    trust=_feed_trust(),
                     timeout=timeout,
                     max_redirects=HTTP_MAX_REDIRECTS_FEED,
+                    stream=True,
                     headers=headers,
                 )
                 if response.status_code == 304:
                     _get_rss_circuit_breaker(url).record_success()
+                    response.close()
                     return None, etag, last_modified
                 response.raise_for_status()
+                new_etag = response.headers.get('ETag')
+                new_last_modified = response.headers.get('Last-Modified')
+                max_bytes = _max_rss_bytes()
+                try:
+                    body = read_response_capped(response, max_bytes)
+                except ResponseTooLargeError:
+                    logger.warning("feed_size_cap_exceeded: url=%s max=%d",
+                                   safe_url_for_log(url), max_bytes)
+                    _get_rss_circuit_breaker(url).record_failure()
+                    return None, None, None
+                finally:
+                    response.close()
                 _get_rss_circuit_breaker(url).record_success()
                 return (
-                    response.text,
-                    response.headers.get('ETag'),
-                    response.headers.get('Last-Modified')
+                    body.decode('utf-8', errors='replace'),
+                    new_etag,
+                    new_last_modified,
                 )
             except (SSRFError, requests.RequestException):
                 _get_rss_circuit_breaker(url).record_failure()

@@ -1115,11 +1115,28 @@ class Transcriber:
                     return None
                 logger.info(f"Audio file size: {size_mb:.1f}MB")
 
-            # Save to temp file
+            # Save to temp file, enforcing a hard byte cap independent of the
+            # Content-Length header (absent on chunked responses) so a malicious
+            # feed enclosure cannot stream unbounded bytes to disk (transcription-1).
+            max_bytes = 500 * 1024 * 1024
+            written = 0
             with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as tmp:
-                for chunk in response.iter_content(chunk_size=8192):
-                    tmp.write(chunk)
                 temp_path = tmp.name
+                for chunk in response.iter_content(chunk_size=8192):
+                    if not chunk:
+                        continue
+                    written += len(chunk)
+                    if written > max_bytes:
+                        logger.error(
+                            f"Audio stream exceeded {max_bytes // (1024 * 1024)}MB "
+                            f"cap: {safe_url_for_log(url)}"
+                        )
+                        try:
+                            os.unlink(temp_path)
+                        except OSError:
+                            pass
+                        return None
+                    tmp.write(chunk)
 
             logger.info(f"Downloaded audio to: {temp_path}")
             return temp_path
@@ -1193,10 +1210,27 @@ class Transcriber:
                     return None
                 logger.info(f"Audio file size: {size_mb:.1f}MB")
 
-            # Download with resume support
+            # Download with resume support, enforcing a hard total byte cap
+            # independent of Content-Length (transcription-1/5).
+            max_bytes = 500 * 1024 * 1024
+            total = downloaded
             mode = 'ab' if downloaded > 0 else 'wb'
             with open(temp_path, mode) as f:
                 for chunk in response.iter_content(chunk_size=8192):
+                    if not chunk:
+                        continue
+                    total += len(chunk)
+                    if total > max_bytes:
+                        logger.error(
+                            f"Audio stream exceeded {max_bytes // (1024 * 1024)}MB "
+                            f"cap: {safe_url_for_log(url)}"
+                        )
+                        f.close()
+                        try:
+                            os.remove(temp_path)
+                        except OSError:
+                            pass
+                        return None
                     f.write(chunk)
 
             logger.info(f"Downloaded audio to: {temp_path}")

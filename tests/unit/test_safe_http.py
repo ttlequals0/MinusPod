@@ -75,3 +75,46 @@ def test_safe_get_invokes_session_get():
         result = safe_get('https://api.openrouter.ai/v1/models', URLTrust.OPERATOR_CONFIGURED)
         assert result is mock_resp
         mock_get.assert_called_once()
+
+
+def test_rebuild_auth_strips_api_key_on_cross_host_redirect():
+    """creds-5: a 3xx to a different host must not carry provider API keys."""
+    import requests
+    from utils.safe_http import _RevalidatingSession
+
+    session = _RevalidatingSession(URLTrust.OPERATOR_CONFIGURED, max_redirects=3)
+    original = requests.Request('GET', 'https://api.provider.example/v1').prepare()
+    response = MagicMock()
+    response.request = original
+    response.url = 'https://api.provider.example/v1'
+
+    redirected = requests.Request(
+        'GET', 'https://attacker.example/v1',
+        headers={'x-api-key': 'secret', 'api-key': 'secret2', 'Authorization': 'Bearer t'},
+    ).prepare()
+
+    session.rebuild_auth(redirected, response)
+
+    assert 'x-api-key' not in redirected.headers
+    assert 'api-key' not in redirected.headers
+    assert 'Authorization' not in redirected.headers
+
+
+def test_rebuild_auth_keeps_api_key_on_same_host_redirect():
+    import requests
+    from utils.safe_http import _RevalidatingSession
+
+    session = _RevalidatingSession(URLTrust.OPERATOR_CONFIGURED, max_redirects=3)
+    original = requests.Request('GET', 'https://api.provider.example/v1').prepare()
+    response = MagicMock()
+    response.request = original
+    response.url = 'https://api.provider.example/v1'
+
+    redirected = requests.Request(
+        'GET', 'https://api.provider.example/v2',
+        headers={'x-api-key': 'secret'},
+    ).prepare()
+
+    session.rebuild_auth(redirected, response)
+
+    assert redirected.headers.get('x-api-key') == 'secret'

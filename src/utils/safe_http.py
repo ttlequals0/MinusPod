@@ -128,10 +128,17 @@ class _RevalidatingSession(requests.Session):
         self.max_redirects = max_redirects
 
     def rebuild_auth(self, prepared_request, response):
+        original_host = urlparse(response.request.url).hostname if response.request else None
         super().rebuild_auth(prepared_request, response)
         target = prepared_request.url
         _reject_https_downgrade(response.url, target)
         _validate_for_tier(target, self._trust)
+        # requests' rebuild_auth strips Authorization on a cross-host redirect
+        # but not provider-specific auth headers; drop those too so a 3xx to an
+        # attacker-controlled host cannot exfiltrate an API key (creds-5).
+        if original_host and urlparse(target).hostname != original_host:
+            for header in ('x-api-key', 'api-key'):
+                prepared_request.headers.pop(header, None)
 
 
 def safe_get(
@@ -156,6 +163,29 @@ def safe_get(
     finally:
         if not stream:
             session.close()
+
+
+def get_capped(
+    url: str,
+    trust: URLTrust,
+    max_bytes: int,
+    *,
+    max_redirects: int = HTTP_MAX_REDIRECTS_API,
+    timeout: float = HTTP_TIMEOUT_FETCH,
+    headers: Optional[dict] = None,
+) -> bytes:
+    """GET ``url`` and return the body, enforcing a hard byte cap on the
+    streamed response so a small compressed payload cannot balloon in memory.
+    Always closes the session. Raises ``SSRFError``, ``requests.RequestException``,
+    or ``ResponseTooLargeError``."""
+    response = safe_get(
+        url, trust, max_redirects=max_redirects, timeout=timeout,
+        stream=True, headers=headers,
+    )
+    try:
+        return read_response_capped(response, max_bytes)
+    finally:
+        response.close()
 
 
 def safe_head(
