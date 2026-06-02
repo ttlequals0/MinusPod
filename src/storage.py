@@ -477,14 +477,20 @@ class Storage:
 
             artwork_path = podcast_dir / f"artwork{ext}"
 
+            # Write the new image to a temp file and atomically move it into
+            # place, then delete the other-extension stale files. Deleting only
+            # after the new artwork is durable means a failed write can never
+            # leave the podcast with no artwork (secrets-storage-6).
+            with tempfile.NamedTemporaryFile(mode='wb', delete=False,
+                                             dir=podcast_dir, suffix='.tmp') as tmp:
+                tmp.write(image_data)
+                tmp_path = tmp.name
+            os.replace(tmp_path, artwork_path)
+
             for old_ext in ('.jpg', '.png', '.gif', '.webp'):
                 old_path = podcast_dir / f"artwork{old_ext}"
                 if old_path.exists() and old_path != artwork_path:
                     old_path.unlink()
-
-            # Save image
-            with open(artwork_path, 'wb') as f:
-                f.write(image_data)
 
             # Update database
             self.db.update_podcast(

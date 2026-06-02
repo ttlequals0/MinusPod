@@ -388,8 +388,10 @@ def merge_patterns():
             total_confirmations += pattern.get('confirmation_count', 0)
             total_false_positives += pattern.get('false_positive_count', 0)
 
-        # Update the kept pattern with merged stats
-        db.update_ad_pattern(keep_id,
+        # Update the kept pattern with merged stats on the same connection (no
+        # inner commit) so the stat update, corrections move, and pattern
+        # deletes below are one atomic transaction (api-settings-patterns-5).
+        db._update_ad_pattern_conn(conn, keep_id,
             confirmation_count=total_confirmations,
             false_positive_count=total_false_positives
         )
