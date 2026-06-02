@@ -145,7 +145,7 @@ class PatternMixin:
         row = cursor.fetchone()
         return dict(row) if row else None
 
-    def create_ad_pattern(self, scope: str, text_template: str = None,
+    def _create_ad_pattern_conn(self, conn, scope: str, text_template: str = None,
                           sponsor_id: int = None, podcast_id: str = None,
                           network_id: str = None, dai_platform: str = None,
                           intro_variants: List[str] = None,
@@ -159,8 +159,9 @@ class PatternMixin:
                           submitted_app_version: str = None,
                           protected_from_sync: int = 0,
                           source_language: str = None) -> int:
-        """Create a new ad pattern. Returns pattern ID."""
-        conn = self.get_connection()
+        """Insert an ad pattern on the caller's connection without committing.
+        Lets a multi-statement caller (e.g. replace-mode import) own the
+        transaction boundary so the whole batch is atomic. Returns pattern ID."""
         cursor = conn.execute(
             """INSERT INTO ad_patterns
                (scope, text_template, sponsor_id, podcast_id, network_id, dai_platform,
@@ -177,13 +178,15 @@ class PatternMixin:
              source, community_id, version, submitted_app_version, protected_from_sync,
              source_language)
         )
-        conn.commit()
         return cursor.lastrowid
 
-    def update_ad_pattern(self, pattern_id: int, **kwargs) -> bool:
-        """Update an ad pattern."""
-        conn = self.get_connection()
+    def create_ad_pattern(self, *args, **kwargs) -> int:
+        """Create a new ad pattern in its own transaction. Returns pattern ID."""
+        with self.transaction() as conn:
+            return self._create_ad_pattern_conn(conn, *args, **kwargs)
 
+    def _update_ad_pattern_conn(self, conn, pattern_id: int, **kwargs) -> bool:
+        """Update an ad pattern on the caller's connection without committing."""
         fields = []
         values = []
         for key, value in kwargs.items():
@@ -207,8 +210,12 @@ class PatternMixin:
             f"UPDATE ad_patterns SET {', '.join(fields)} WHERE id = ?",
             values
         )
-        conn.commit()
         return True
+
+    def update_ad_pattern(self, pattern_id: int, **kwargs) -> bool:
+        """Update an ad pattern in its own transaction."""
+        with self.transaction() as conn:
+            return self._update_ad_pattern_conn(conn, pattern_id, **kwargs)
 
     def find_pattern_by_community_id(self, community_id: str) -> Optional[Dict]:
         """Find a pattern by its community_id. Returns dict or None."""
@@ -241,18 +248,21 @@ class PatternMixin:
         conn.commit()
         return cursor.rowcount > 0
 
-    def bulk_delete_patterns(self, ids: List[int]) -> int:
-        """Hard-delete patterns by id. Returns rows deleted."""
+    def _bulk_delete_patterns_conn(self, conn, ids: List[int]) -> int:
+        """Hard-delete patterns by id on the caller's connection (no commit)."""
         if not ids:
             return 0
-        conn = self.get_connection()
         placeholders = ','.join('?' * len(ids))
         cursor = conn.execute(
             f"DELETE FROM ad_patterns WHERE id IN ({placeholders})",
             ids,
         )
-        conn.commit()
         return cursor.rowcount
+
+    def bulk_delete_patterns(self, ids: List[int]) -> int:
+        """Hard-delete patterns by id in its own transaction. Returns rows deleted."""
+        with self.transaction() as conn:
+            return self._bulk_delete_patterns_conn(conn, ids)
 
     def bulk_disable_patterns(self, ids: List[int]) -> int:
         """Set is_active=0 on patterns by id. Returns rows changed."""
@@ -322,14 +332,17 @@ class PatternMixin:
         )
         conn.commit()
 
-    def delete_ad_pattern(self, pattern_id: int) -> bool:
-        """Delete an ad pattern. Returns True if deleted."""
-        conn = self.get_connection()
+    def _delete_ad_pattern_conn(self, conn, pattern_id: int) -> bool:
+        """Delete an ad pattern on the caller's connection without committing."""
         cursor = conn.execute(
             "DELETE FROM ad_patterns WHERE id = ?", (pattern_id,)
         )
-        conn.commit()
         return cursor.rowcount > 0
+
+    def delete_ad_pattern(self, pattern_id: int) -> bool:
+        """Delete an ad pattern in its own transaction. Returns True if deleted."""
+        with self.transaction() as conn:
+            return self._delete_ad_pattern_conn(conn, pattern_id)
 
     def delete_all_community_patterns(self) -> int:
         """Hard-delete every pattern with source='community'. Returns the

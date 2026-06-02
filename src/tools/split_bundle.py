@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 from typing import List, Optional
@@ -44,9 +45,12 @@ def split(bundle_path: Path, *, keep_original: bool = False) -> List[Path]:
         raise ValueError(f'{bundle_path.name} contains zero patterns')
 
     out_dir = bundle_path.parent
-    written: List[Path] = []
-    # First pass: compute names + check for collisions before writing anything.
+    # First pass: compute names + check collisions before writing anything.
+    # Check against BOTH the on-disk state and the other targets queued in this
+    # same run -- two bundle entries that slugify to the same filename would
+    # otherwise silently overwrite each other and lose a pattern.
     targets = []
+    seen: set = set()
     for i, p in enumerate(patterns):
         sponsor = p.get('sponsor') or ''
         cid = p.get('community_id') or ''
@@ -56,17 +60,39 @@ def split(bundle_path: Path, *, keep_original: bool = False) -> List[Path]:
                 f'patterns[{i}]: missing community_id; cannot derive filename'
             )
         target = out_dir / filename
+        if target in seen:
+            raise ValueError(
+                f'patterns[{i}]: two bundle entries map to the same filename '
+                f'{filename}; refusing to overwrite one with the other'
+            )
         if target.exists():
             raise FileExistsError(
                 f'refusing to overwrite existing {filename}; '
                 f'resolve manually before re-running'
             )
+        seen.add(target)
         targets.append((target, p))
 
-    for target, p in targets:
-        target.write_text(json.dumps(p, indent=2, ensure_ascii=False) + '\n',
-                          encoding='utf-8')
-        written.append(target)
+    # Two-phase write: stage every file to a temp sibling, then rename into
+    # place. A failure mid-loop unlinks the temps and leaves no partial split.
+    written: List[Path] = []
+    temps: List[Path] = []
+    try:
+        for idx, (target, p) in enumerate(targets):
+            tmp = target.with_name(f'{target.name}.tmp{idx}')
+            tmp.write_text(json.dumps(p, indent=2, ensure_ascii=False) + '\n',
+                           encoding='utf-8')
+            temps.append(tmp)
+        for (target, _p), tmp in zip(targets, temps):
+            os.replace(tmp, target)
+            written.append(target)
+    except Exception:
+        for tmp in temps:
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
+        raise
 
     if not keep_original:
         bundle_path.unlink()

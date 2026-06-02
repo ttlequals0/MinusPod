@@ -943,8 +943,11 @@ def _validate_import_items(patterns):
     return valid_patterns, None
 
 
-def _upsert_import_pattern(db, pattern_data, existing, mode):
-    """Apply one validated import item against an existing match (if any).
+def _upsert_import_pattern(db, conn, pattern_data, existing, mode):
+    """Apply one validated import item against an existing match (if any),
+    writing on the caller's open transaction (no inner commit) so the whole
+    import is atomic. Sponsor ids are pre-resolved into '_sponsor_id' before
+    the transaction opens.
 
     Returns 'imported', 'updated', or 'skipped'.
     """
@@ -952,31 +955,23 @@ def _upsert_import_pattern(db, pattern_data, existing, mode):
         if mode == 'supplement':
             return 'skipped'
         # merge or replace
-        pd_sponsor = pattern_data.get('sponsor')
-        pd_sponsor_id = (
-            get_or_create_known_sponsor(db, pd_sponsor)
-            if pd_sponsor else None
-        )
         updates = {
             'text_template': pattern_data.get('text_template'),
             'intro_variants': pattern_data.get('intro_variants'),
             'outro_variants': pattern_data.get('outro_variants'),
-            'sponsor_id': pd_sponsor_id,
+            'sponsor_id': pattern_data.get('_sponsor_id'),
         }
         updates = {k: v for k, v in updates.items() if v is not None}
         if updates:
-            db.update_ad_pattern(existing['id'], **updates)
+            db._update_ad_pattern_conn(conn, existing['id'], **updates)
             return 'updated'
         return 'skipped'
 
-    bulk_sponsor = pattern_data.get('sponsor')
-    bulk_sponsor_id = (
-        get_or_create_known_sponsor(db, bulk_sponsor) if bulk_sponsor else None
-    )
-    db.create_ad_pattern(
+    db._create_ad_pattern_conn(
+        conn,
         scope=pattern_data.get('scope'),
         text_template=pattern_data.get('text_template'),
-        sponsor_id=bulk_sponsor_id,
+        sponsor_id=pattern_data.get('_sponsor_id'),
         podcast_id=pattern_data.get('podcast_id'),
         network_id=pattern_data.get('network_id'),
         dai_platform=pattern_data.get('dai_platform'),
@@ -986,10 +981,12 @@ def _upsert_import_pattern(db, pattern_data, existing, mode):
     return 'imported'
 
 
-def _apply_pattern_imports(db, valid_patterns, mode, skipped_count=0):
-    """Wrap the whole import in a single transaction. Returns
-    (imported, updated, skipped) on success or raises on failure;
-    the caller handles rollback.
+def _apply_pattern_imports(db, conn, valid_patterns, mode, skipped_count=0):
+    """Apply the import on the caller's open transaction. Every write goes
+    through the non-committing pattern primitives, so replace-mode deletes and
+    the subsequent creates are all-or-nothing: a failure mid-loop rolls back
+    via the caller and no existing pattern is lost. Returns
+    (imported, updated, skipped) on success or raises on failure.
     """
     imported_count = 0
     updated_count = 0
@@ -997,12 +994,12 @@ def _apply_pattern_imports(db, valid_patterns, mode, skipped_count=0):
     if mode == 'replace':
         existing = db.get_ad_patterns(active_only=False)
         for p in existing:
-            db.delete_ad_pattern(p['id'])
+            db._delete_ad_pattern_conn(conn, p['id'])
         logger.info(f"Replace mode: deleted {len(existing)} existing patterns")
 
     for pattern_data in valid_patterns:
         existing = _find_similar_pattern(db, pattern_data)
-        result = _upsert_import_pattern(db, pattern_data, existing, mode)
+        result = _upsert_import_pattern(db, conn, pattern_data, existing, mode)
         if result == 'imported':
             imported_count += 1
         elif result == 'updated':
@@ -1071,11 +1068,21 @@ def import_patterns():
     if err is not None:
         return err
 
+    # Resolve sponsor ids up front (this may create known_sponsors rows that
+    # commit independently; an orphaned sponsor row is harmless if the import
+    # later rolls back) so the atomic pattern transaction below contains no
+    # inner commits and replace-mode is truly all-or-nothing.
+    for pattern_data in valid_patterns:
+        sponsor = pattern_data.get('sponsor')
+        pattern_data['_sponsor_id'] = (
+            get_or_create_known_sponsor(db, sponsor) if sponsor else None
+        )
+
     conn = db.get_connection()
     try:
         conn.execute('BEGIN IMMEDIATE')
         imported_count, updated_count, skipped_count = _apply_pattern_imports(
-            db, valid_patterns, mode
+            db, conn, valid_patterns, mode
         )
         conn.commit()
     except Exception:

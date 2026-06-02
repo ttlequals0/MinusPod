@@ -97,6 +97,25 @@ def test_split_rejects_empty_bundle(tmp_path):
         raise AssertionError('expected ValueError')
 
 
+def test_split_rejects_intra_run_filename_collision(tmp_path):
+    # Two entries share a sponsor and the same first UUID segment, so both map
+    # to the same filename. The pre-write check must catch the in-run collision
+    # (not just on-disk) so neither overwrites the other.
+    bundle_path = tmp_path / 'minuspod-submission-abc.json'
+    bundle_path.write_text(json.dumps(_bundle(
+        _pattern('Shopify', '07df78ed-1111-4600-a9b7-1aee45b5bfc7'),
+        _pattern('Shopify', '07df78ed-2222-4600-a9b7-1aee45b5bfc7'),
+    )))
+    try:
+        split(bundle_path)
+    except ValueError as e:
+        assert 'shopify-07df78ed.json' in str(e)
+    else:
+        raise AssertionError('expected ValueError on intra-run collision')
+    assert not (tmp_path / 'shopify-07df78ed.json').exists(), 'no file written on collision'
+    assert bundle_path.exists(), 'bundle untouched on error'
+
+
 def test_split_atomic_multi_pattern_collision(tmp_path):
     bundle_path = tmp_path / 'minuspod-submission-abc.json'
     bundle_path.write_text(json.dumps(_bundle(

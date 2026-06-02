@@ -147,15 +147,43 @@ def apply_manifest(db, manifest: Dict[str, Any]) -> Dict[str, int]:
             errors += 1
             logger.warning(f"community_sync: failed to apply {community_id}: {e}")
 
-    # Reconcile deletes: existing community patterns absent from the manifest
+    # Reconcile deletes: existing community patterns absent from the manifest.
+    # Guard against an empty / truncated / mis-regenerated upstream manifest
+    # mass-deleting the catalog: if the manifest carried no applicable entries,
+    # or the reconcile would remove more than half of the non-protected
+    # community rows, skip the delete phase entirely rather than wipe.
     community_rows = db.get_patterns_by_source('community', active_only=False)
+    non_protected_absent = [
+        r for r in community_rows
+        if r.get('community_id') and r['community_id'] not in incoming_ids
+        and not r.get('protected_from_sync')
+    ]
+    non_protected_total = sum(
+        1 for r in community_rows
+        if r.get('community_id') and not r.get('protected_from_sync')
+    )
+    allow_deletes = True
+    if non_protected_absent and (
+        not incoming_ids
+        or (non_protected_total
+            and len(non_protected_absent) / non_protected_total > 0.5)
+    ):
+        allow_deletes = False
+        logger.warning(
+            "community_sync: refusing to delete %d/%d non-protected community "
+            "patterns (incoming_ids=%d); manifest looks empty or truncated. "
+            "Skipping delete reconciliation.",
+            len(non_protected_absent), non_protected_total, len(incoming_ids),
+        )
+
     for row in community_rows:
         cid = row.get('community_id')
-        if not cid:
-            continue
-        if cid in incoming_ids:
+        if not cid or cid in incoming_ids:
             continue
         if row.get('protected_from_sync'):
+            skips += 1
+            continue
+        if not allow_deletes:
             skips += 1
             continue
         try:
