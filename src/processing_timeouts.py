@@ -47,12 +47,13 @@ def _resolve(key: str, env_name: str, default: int) -> int:
 
     value: Optional[int] = None
     try:
-        # `get_database` lives in the api package, not the database package.
-        # The pre-2.4.x code imported from `database` and silently swallowed
-        # an ImportError on every refresh tick -- env-var / default fallback
-        # picked up the slack so the bug went unnoticed.
-        from api import get_database
-        raw = get_database().get_setting(key)
+        # Read the singleton straight from the `database` package rather than
+        # via `api.get_database` (which just returns this same singleton).
+        # status_service/processing_queue can resolve a timeout during early
+        # startup before the `api` package finishes importing, which raised a
+        # circular ImportError that got caught and fell back to the default.
+        from database import Database
+        raw = Database().get_setting(key)
         if raw is not None and str(raw).strip():
             try:
                 value = int(raw)
