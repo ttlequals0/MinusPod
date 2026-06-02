@@ -108,6 +108,19 @@ services:
       - "no-new-privileges:true"
     cap_drop:
       - ALL
+    cap_add:
+      # The image starts as root; the entrypoint chowns the data volume
+      # (CHOWN, plus DAC_OVERRIDE/FOWNER for cross-owner files) and drops to
+      # the unprivileged `minuspod` user via setpriv (SETUID/SETGID). Under a
+      # bare `cap_drop: ALL` setpriv cannot drop root and the container
+      # crash-loops before gunicorn starts, so add back only those caps.
+      # Omit this block entirely if you set `user:` above (the entrypoint
+      # then takes its non-root branch and needs no capabilities).
+      - SETUID
+      - SETGID
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
     # Uncomment if using the wrapper service
     # depends_on:
     #   - claude-wrapper
