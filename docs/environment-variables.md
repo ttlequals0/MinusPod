@@ -51,6 +51,7 @@ Grouped by how often you'll touch them. **Standard** is what a typical deploymen
 | `SESSION_COOKIE_SAMESITE` | `Strict` | Override to `Lax` only if a specific integration breaks. |
 | `MINUSPOD_ENABLE_HSTS` | `false` | Set to `true` once the deployment is HTTPS-only. HSTS traps browsers so don't flip this on a dual-protocol setup. |
 | `MINUSPOD_TRUSTED_PROXY_COUNT` | `0` | Reverse-proxy hops to trust when reading `X-Forwarded-For`. `1` behind Cloudflare / cloudflared / nginx / Traefik, higher for a multi-proxy chain. **Leaving this at `0` behind a proxy breaks login lockout** (the proxy IP is private/loopback, which the lockout excludes) and per-IP rate limits (they key on the proxy instead of the client); audit logs + auth-failure webhooks also carry the wrong IP. Startup logs a WARN when unset. |
+| `MINUSPOD_ALLOW_PRIVATE_FEED_HOSTS` | `false` | Allow RSS feed sources on private / loopback / LAN hosts. Off by default: feed URLs are untrusted and validated with the strict SSRF tier (DNS-resolved, private/metadata blocked) so a stored URL can't be rebound to an internal address on refresh. Set `true` only if you serve a feed from a private address (e.g. a LAN Audiobookshelf). |
 
 ### Advanced
 
