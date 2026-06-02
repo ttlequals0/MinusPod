@@ -431,22 +431,44 @@ class TextPatternMatcher:
         if self._pattern_vectors is None or self._pattern_vectors.shape[0] == 0:
             return matches
 
+        # Restrict scoring to the scope/tag/language-filtered subset. The
+        # buckets and self._pattern_vectors are built from ALL patterns at load
+        # time, so scoring against them directly defeats the filter and lets a
+        # wrong-scope / wrong-language pattern match (patterns-service-1), and
+        # in the fallback the filtered `patterns` list and the all-patterns
+        # vector matrix drift out of alignment (patterns-service-2).
+        applicable_ids = {p.id for p in patterns}
+
         try:
             if self._pattern_buckets:
                 for window_size, bucket in self._pattern_buckets.items():
+                    idxs = [
+                        i for i, p in enumerate(bucket['patterns'])
+                        if p.id in applicable_ids
+                    ]
+                    if not idxs:
+                        continue
+                    sub_patterns = [bucket['patterns'][i] for i in idxs]
+                    sub_vectors = bucket['vectors'][idxs]
                     step_size = window_size // 3
                     self._score_windows(
                         full_text, segment_map, segments, matches,
-                        bucket['patterns'], bucket['vectors'],
+                        sub_patterns, sub_vectors,
                         window_size, step_size
                     )
             else:
-                # Fallback: original fixed-window behavior
-                self._score_windows(
-                    full_text, segment_map, segments, matches,
-                    patterns, self._pattern_vectors,
-                    1500, 500
-                )
+                # Fallback: rebuild aligned vectors for just the applicable
+                # patterns so the list and matrix stay in lockstep.
+                tmpl_patterns = [p for p in patterns if p.text_template]
+                if tmpl_patterns and self._vectorizer is not None:
+                    sub_vectors = self._vectorizer.transform(
+                        [p.text_template for p in tmpl_patterns]
+                    )
+                    self._score_windows(
+                        full_text, segment_map, segments, matches,
+                        tmpl_patterns, sub_vectors,
+                        1500, 500
+                    )
 
         except ImportError:
             # ImportError propagates from _score_windows's local sklearn/numpy imports

@@ -69,6 +69,18 @@ def create_windows(segments: List[Dict], window_size: float = None,
     # Get total transcript duration
     total_duration = segments[-1]['end']
     step_size = window_size - overlap
+    if step_size <= 0:
+        # overlap >= window_size never advances window_start and hangs the
+        # detection worker forever. The Settings API cross-field check can be
+        # bypassed via env vars or a direct DB write, so guard here too: fall
+        # back to non-overlapping windows rather than wedge (config-1 /
+        # ad-detection-1).
+        logger.warning(
+            "create_windows: window_overlap_seconds (%s) >= window_size_seconds "
+            "(%s); falling back to non-overlapping windows to avoid a "
+            "non-terminating loop.", overlap, window_size,
+        )
+        step_size = max(window_size, 1.0)
 
     windows = []
     window_start = 0.0
