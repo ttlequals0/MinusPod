@@ -97,6 +97,26 @@ PODCAST_APP_EXEMPT_PATTERNS = (
     re.compile(r'^/api/v1/feeds/[a-z0-9][a-z0-9-]{0,63}/artwork$'),
 )
 
+def _blocked_before_bootstrap(path: str, method: str) -> bool:
+    """In the not-yet-bootstrapped (no app_password) state, fail closed on the
+    routes that exfiltrate the database/secrets or destroy/mutate state, while
+    still allowing read-only browsing so the setup UI can render (api-rest-4).
+    """
+    # Full-DB / secret exfil via backup (any method).
+    if path == '/api/v1/system/backup' or path.startswith('/api/v1/system/backup/'):
+        return True
+    if method in ('GET', 'HEAD', 'OPTIONS'):
+        return False
+    # System maintenance (cleanup/reset) and provider config/rotate/test, which
+    # destroy data or use stored secrets, are always blocked before bootstrap.
+    if path.startswith('/api/v1/system/') or path.startswith('/api/v1/providers'):
+        return True
+    # Destructive/modifying ops on existing feeds. POST /feeds (create) stays
+    # open so first-run setup can add a feed before a password is set.
+    if path.startswith('/api/v1/feeds') and method in ('DELETE', 'PUT', 'PATCH'):
+        return True
+    return False
+
 
 @api.before_request
 def check_auth():
@@ -121,7 +141,15 @@ def check_auth():
     db = get_database()
     password_hash = db.get_setting('app_password')
     if not password_hash or password_hash == '':
-        return None  # No password set, allow access
+        # Not yet bootstrapped. Allow read-only browsing so the setup UI can
+        # render, but fail closed on anything that mutates state or exposes
+        # secrets so a network-exposed pre-setup install cannot be used to back
+        # up the DB, reset data, rotate provider keys, or delete feeds
+        # (api-rest-4 / creds-4). The bootstrap routes (auth/*, health) are
+        # already allowed above via AUTH_EXEMPT_PATHS.
+        if _blocked_before_bootstrap(path, request.method):
+            return error_response('Set an app password before using this endpoint', 403)
+        return None
 
     # Check session
     if not session.get('authenticated', False):

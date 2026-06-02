@@ -98,6 +98,12 @@ def is_public_ip_for_lockout(addr: str) -> bool:
     except ValueError:
         return False
 
+    # Normalize IPv4-mapped IPv6 (::ffff:a.b.c.d) to the embedded IPv4 so a
+    # public address presented in mapped form is classified on its real IPv4
+    # properties and cannot evade login lockout (midsize-backend-1).
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped is not None:
+        ip = ip.ipv4_mapped
+
     if (
         ip.is_loopback
         or ip.is_link_local

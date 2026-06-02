@@ -52,40 +52,41 @@ class AuthLockoutMixin:
         """Record a failed login for ``ip``. Returns the ``locked_until``
         timestamp when the failure crossed the lockout threshold; returns
         None otherwise.
+
+        The count is incremented with a single atomic UPSERT (no SELECT-then-
+        write) so concurrent failed attempts cannot each read the same count and
+        race past the threshold, undercounting the lockout (auth-2).
         """
         if not ip:
             return None
         now = _now_iso()
-        conn = self.get_connection()
-        row = conn.execute(
-            "SELECT failed_count, first_failed_at FROM auth_failures WHERE ip = ?",
-            (ip,),
-        ).fetchone()
-
         window_start = (
             datetime.datetime.now(datetime.timezone.utc)
             - datetime.timedelta(minutes=LOCKOUT_WINDOW_MINUTES)
         ).strftime("%Y-%m-%dT%H:%M:%SZ")
-
-        if not row or (row["first_failed_at"] and row["first_failed_at"] < window_start):
-            count = 1
-            first_failed = now
-        else:
-            count = int(row["failed_count"] or 0) + 1
-            first_failed = row["first_failed_at"] or now
-
-        locked_until = _future_iso(LOCKOUT_DURATION_MINUTES) if count >= LOCKOUT_THRESHOLD else None
-
-        conn.execute(
+        conn = self.get_connection()
+        row = conn.execute(
             """INSERT INTO auth_failures (ip, failed_count, first_failed_at, last_failed_at, locked_until)
-               VALUES (?, ?, ?, ?, ?)
+               VALUES (?, 1, ?, ?, NULL)
                ON CONFLICT(ip) DO UPDATE SET
-                 failed_count = excluded.failed_count,
-                 first_failed_at = excluded.first_failed_at,
-                 last_failed_at = excluded.last_failed_at,
-                 locked_until = excluded.locked_until""",
-            (ip, count, first_failed, now, locked_until),
-        )
+                 failed_count = CASE
+                     WHEN first_failed_at < ? THEN 1
+                     ELSE failed_count + 1 END,
+                 first_failed_at = CASE
+                     WHEN first_failed_at < ? THEN excluded.first_failed_at
+                     ELSE first_failed_at END,
+                 last_failed_at = excluded.last_failed_at
+               RETURNING failed_count""",
+            (ip, now, now, window_start, window_start),
+        ).fetchone()
+
+        count = int(row["failed_count"]) if row else 1
+        locked_until = _future_iso(LOCKOUT_DURATION_MINUTES) if count >= LOCKOUT_THRESHOLD else None
+        if locked_until:
+            conn.execute(
+                "UPDATE auth_failures SET locked_until = ? WHERE ip = ?",
+                (locked_until, ip),
+            )
         conn.commit()
 
         if locked_until:
