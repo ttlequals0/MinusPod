@@ -9,6 +9,7 @@ import subprocess
 from typing import Dict, Optional, Tuple
 
 from config import FFPROBE_TIMEOUT
+from utils.subprocess_registry import tracked_run
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,7 @@ def get_audio_duration(audio_path: str) -> Optional[float]:
         audio_path
     ]
     try:
-        result = subprocess.run(
+        result = tracked_run(
             cmd,
             capture_output=True,
             text=True,

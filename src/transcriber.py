@@ -181,7 +181,7 @@ def extract_audio_chunk(audio_path: str, start_time: float, end_time: float) -> 
             output_path
         ]
 
-        result = subprocess.run(
+        result = tracked_run(
             cmd,
             capture_output=True,
             timeout=FFMPEG_CHUNK_TIMEOUT

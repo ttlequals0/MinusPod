@@ -15,6 +15,7 @@ import os
 from .base import AudioSegmentSignal, LoudnessFrame, SignalType
 from config import VOLUME_ANOMALY_THRESHOLD_DB
 from utils.audio import get_audio_duration
+from utils.subprocess_registry import tracked_run
 
 logger = logging.getLogger('podcast.audio_analysis.volume')
 
@@ -121,13 +122,18 @@ class VolumeAnalyzer:
                 '-f', 'null', '-'
             ]
 
-            # Calculate timeout based on duration - ~1 minute per hour of audio
-            timeout = max(300, int(total_duration / 60) * 60 + 120)
+            # Calculate timeout based on duration, but cap it: the component
+            # timeout that wraps this call (ThreadPoolExecutor.future.result)
+            # cannot interrupt a blocking subprocess, so an uncapped duration-
+            # proportional timeout let a long file stall the pipeline for hours.
+            # tracked_run also registers the child so graceful shutdown can kill
+            # it instead of orphaning ffmpeg (audio-1 / audio-2).
+            timeout = min(max(300, int(total_duration / 60) * 60 + 120), 1200)
             logger.debug(f"Running ebur128 analysis with {timeout}s timeout")
 
             # Don't use text=True - FFMPEG can output non-UTF-8 characters
             # which would cause UnicodeDecodeError
-            result = subprocess.run(
+            result = tracked_run(
                 cmd, capture_output=True, timeout=timeout
             )
 
