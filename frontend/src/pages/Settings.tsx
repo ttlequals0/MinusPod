@@ -248,10 +248,14 @@ function Settings() {
     onError: (err: Error) => setTimeoutsError(err.message || 'Failed to save'),
   });
 
+  // Skip re-seeding form fields from a settings refetch while the user has
+  // unsaved edits, or an immediate-save refetch (tunables/retention invalidate
+  // ['settings']) would clobber them (fe-settings-history-1).
+  const [formDirty, setFormDirty] = useState(false);
   const [settingsSnapshot, setSettingsSnapshot] = useState(settings);
   if (settings !== settingsSnapshot) {
     setSettingsSnapshot(settings);
-    if (settings) {
+    if (settings && !formDirty) {
       setSystemPrompt(settings.systemPrompt?.value || '');
       setVerificationPrompt(settings.verificationPrompt?.value || '');
       // Spread prev so the pattern-update fields seeded from the separate
@@ -356,6 +360,11 @@ function Settings() {
     return podcastIndexApiKey !== '' && podcastIndexApiSecret !== '';
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [systemPrompt, verificationPrompt, reviewer, selectedModel, verificationModel, whisperModel, autoProcessEnabled, maxFeedEpisodes, onlyExposeProcessedDefault, audioBitrate, skipFlacCompression, vttTranscriptsEnabled, chaptersEnabled, chaptersModel, minCutConfidence, llmProvider, openaiBaseUrl, whisperBackend, whisperApiConfig.baseUrl, whisperApiConfig.model, whisperLanguage, whisperComputeType, podcastIndexApiKey, podcastIndexApiSecret, settings, reviewerSettings]);
+
+  // Mirror hasChanges into render-readable state so the hydration guard above
+  // (which runs before hasChanges is defined) skips re-seeding while dirty.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => { setFormDirty(hasChanges); }, [hasChanges]);
 
   const updateMutation = useMutation({
     mutationFn: async () => {

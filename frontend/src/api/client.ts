@@ -81,6 +81,16 @@ export function extractErrorMessage(body: unknown, status: number): string {
   return `HTTP ${status}`;
 }
 
+// Redirect to login on 401, preserving the current path. Throws so callers stop.
+function handleUnauthorized(endpoint: string): void {
+  const currentPath = window.location.pathname;
+  if (!currentPath.includes('/login') && !endpoint.startsWith('/auth/')) {
+    sessionStorage.setItem('loginRedirect', window.location.pathname);
+    window.location.href = '/ui/login';
+    throw new Error('Authentication required');
+  }
+}
+
 export async function apiRequest<T>(endpoint: string, options: RequestOptions = {}): Promise<T> {
   const { method = 'GET', body, skipAuthRedirect = false, signal, skipRetry = false } = options;
   const maxAttempts = skipRetry ? 1 : RETRY_DELAYS.length + 1;
@@ -102,12 +112,7 @@ export async function apiRequest<T>(endpoint: string, options: RequestOptions = 
 
       // Handle 401 Unauthorized - redirect to login
       if (response.status === 401 && !skipAuthRedirect) {
-        const currentPath = window.location.pathname;
-        if (!currentPath.includes('/login') && !endpoint.startsWith('/auth/')) {
-          sessionStorage.setItem('loginRedirect', window.location.pathname);
-          window.location.href = '/ui/login';
-          throw new Error('Authentication required');
-        }
+        handleUnauthorized(endpoint);
       }
 
       // Retry on 5xx / 429 (not on 4xx client errors)
@@ -182,6 +187,10 @@ export async function apiFileRequest(
     headers,
     body: serializedBody,
   });
+
+  if (response.status === 401) {
+    handleUnauthorized(endpoint);
+  }
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: 'Request failed' }));
