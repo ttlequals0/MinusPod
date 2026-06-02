@@ -130,6 +130,11 @@ def _schema_errors(doc: Dict[str, Any]) -> List[str]:
             int(doc['version'])
         except (TypeError, ValueError):
             errs.append('version must be an integer')
+    if doc.get('submitted_at') and not isinstance(doc['submitted_at'], str):
+        # A non-string submitted_at passes the truthiness check above but later
+        # crashes the manifest generator's sort (int vs str), DoS-ing manifest
+        # regeneration repo-wide (tools-cli-2).
+        errs.append('submitted_at must be a string')
     if doc.get('text_template') and not isinstance(doc['text_template'], str):
         errs.append('text_template must be a string')
     if doc.get('intro_variants') is not None and not isinstance(doc['intro_variants'], list):

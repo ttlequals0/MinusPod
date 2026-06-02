@@ -34,7 +34,11 @@ services:
     platform: linux/amd64
     container_name: whisper-server
     ports:
-      - "8765:8765"
+      # Bind to localhost only: whisper.cpp's server is unauthenticated, so do
+      # not publish it on every host interface. Both stacks share a Docker
+      # network, so MinusPod still reaches it via the whisper-server hostname
+      # (docker-3).
+      - "127.0.0.1:8765:8765"
     volumes:
       - ./models:/models
     # NOTE: command must be a single-element list because the image's

@@ -69,6 +69,7 @@ jobs:
           CHANGED_FILES: ${{ steps.changed.outputs.files }}
         run: |
           set +e
+          set -f  # noglob: $CHANGED_FILES is a word-split list, not a glob (ci-4)
           mkdir -p /tmp/pattern-validation
           python -m src.tools.community_pattern_validator \
             --pr-files $CHANGED_FILES \

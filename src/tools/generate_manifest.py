@@ -76,7 +76,9 @@ def _load_pattern_files(directory: Path) -> List[Dict[str, Any]]:
             print(f'WARN: skipping {path.name}: {e}', file=sys.stderr)
             continue
         patterns.extend(_flatten_to_patterns(path, data))
-    patterns.sort(key=lambda d: (d.get('submitted_at') or '', d.get('community_id') or ''))
+    # Coerce to str so a stray non-string submitted_at that slipped past
+    # validation can't crash the sort with a TypeError (tools-cli-2).
+    patterns.sort(key=lambda d: (str(d.get('submitted_at') or ''), str(d.get('community_id') or '')))
     return patterns
 
 
