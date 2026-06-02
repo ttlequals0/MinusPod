@@ -12,7 +12,7 @@ from typing import Iterable
 
 from utils.time import utc_now_iso
 
-from . import metrics, pricing
+from . import metrics, parsing, pricing
 from .corpus import Episode
 from .storage import read_jsonl
 
@@ -323,8 +323,22 @@ def _aggregate(
         per_window_pred: list[list[tuple[float, float]]] = [
             [(_start(ad), _end(ad)) for ad in w] for w in per_window_ads
         ]
-        flat_ads: list[dict] = [ad for w in per_window_ads for ad in w]
-        flat_preds: list[tuple[float, float]] = [p for w in per_window_pred for p in w]
+        # Deduplicate ads that span the 180s window overlap before scoring: an
+        # ad emitted by two adjacent windows would otherwise be counted as a TP
+        # plus a duplicate FP, systematically depressing precision/F1. This
+        # matches the production pipeline (derive_episode_results), which runs
+        # the same dedup (benchmark-1). The production dedup keys on 'start'/
+        # 'end'; benchmark ads use 'start_time'/'end_time', so normalize into
+        # copies first (without mutating the per-window records).
+        norm_ads: list[dict] = []
+        for w in per_window_ads:
+            for ad in w:
+                a = dict(ad)
+                a['start'] = _start(ad)
+                a['end'] = _end(ad)
+                norm_ads.append(a)
+        flat_ads: list[dict] = parsing.deduplicate_window_ads(norm_ads)
+        flat_preds: list[tuple[float, float]] = [(_start(ad), _end(ad)) for ad in flat_ads]
 
         stats = me.setdefault((model, ep_id), ModelEpisodeStats(model=model, episode_id=ep_id))
         if ep.truth.is_no_ad_episode:
