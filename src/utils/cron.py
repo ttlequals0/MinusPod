@@ -26,7 +26,7 @@ _FIELD_RANGES = (
     (0, 23),   # hour
     (1, 31),   # day of month
     (1, 12),   # month
-    (0, 6),    # day of week (Sunday = 0)
+    (0, 7),    # day of week (Sunday = 0 or 7, vixie-cron)
 )
 
 
@@ -37,7 +37,8 @@ def _parse_field(spec: str, lo: int, hi: int) -> Set[int]:
     out: Set[int] = set()
     for part in spec.split(','):
         step = 1
-        if '/' in part:
+        has_step = '/' in part
+        if has_step:
             base, step_str = part.split('/', 1)
             step = int(step_str)
             if step < 1:
@@ -56,7 +57,12 @@ def _parse_field(spec: str, lo: int, hi: int) -> Set[int]:
             v = int(base)
             if v < lo or v > hi:
                 raise ValueError(f'out-of-range value: {v}')
-            start = end = v
+            if has_step:
+                # vixie-cron: "N/step" means from N to the field max, stepping
+                # (e.g. "5/15" -> 5,20,35,...), not just the single value N.
+                start, end = v, hi
+            else:
+                start = end = v
         for n in range(start, end + 1, step):
             out.add(n)
     if not out:
@@ -69,10 +75,16 @@ def parse_expression(expr: str) -> Tuple[Set[int], Set[int], Set[int], Set[int],
     parts = expr.strip().split()
     if len(parts) != 5:
         raise ValueError(f'expected 5 fields, got {len(parts)}')
-    sets = tuple(
+    sets = [
         _parse_field(parts[i], *_FIELD_RANGES[i]) for i in range(5)
-    )
-    return sets  # type: ignore[return-value]
+    ]
+    # vixie-cron: day-of-week 7 is an alias for 0 (Sunday). Normalize so the
+    # weekday comparison in _matches (which uses 0=Sun) matches both forms.
+    dow = sets[4]
+    if 7 in dow:
+        dow.discard(7)
+        dow.add(0)
+    return tuple(sets)  # type: ignore[return-value]
 
 
 def is_valid_expression(expr: str) -> bool:

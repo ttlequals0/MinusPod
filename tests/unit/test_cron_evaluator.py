@@ -21,9 +21,22 @@ def test_validation_rejects_garbage():
     assert not is_valid_expression('bad')
     assert not is_valid_expression('* * * *')        # too few fields
     assert not is_valid_expression('60 * * * *')     # out of range minute
-    assert not is_valid_expression('* * * * 7')      # out of range dow
+    assert not is_valid_expression('* * * * 8')      # out of range dow (7 is Sunday)
     assert not is_valid_expression('*/0 * * * *')    # zero step
     assert not is_valid_expression('5-3 * * * *')    # backwards range
+
+
+def test_dow_7_is_sunday_alias():
+    # vixie-cron: 7 and 0 both mean Sunday (webhooks-misc-4).
+    assert is_valid_expression('0 3 * * 7')
+    after = datetime(2026, 5, 14, 12, 0, tzinfo=timezone.utc)  # Thursday
+    assert next_fire('0 3 * * 7', after) == datetime(2026, 5, 17, 3, 0, tzinfo=timezone.utc)
+
+
+def test_step_on_single_value_base():
+    # vixie-cron: "5/15" means from 5 to the field max stepping (webhooks-misc-5).
+    minute = parse_expression('5/15 * * * *')[0]
+    assert minute == {5, 20, 35, 50}
 
 
 def test_parse_field_handles_lists_and_steps():
