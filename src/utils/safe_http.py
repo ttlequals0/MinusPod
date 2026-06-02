@@ -105,6 +105,21 @@ def read_response_capped(
     return bytes(buf)
 
 
+def stream_to_file_capped(response, fh, max_bytes, *, already=0, chunk_size=8192):
+    """Stream a response body into file handle ``fh`` with a hard total byte cap
+    (counting ``already`` bytes already on disk). Raises ``ResponseTooLargeError``
+    if exceeded. Returns total bytes written."""
+    total = already
+    for chunk in response.iter_content(chunk_size=chunk_size):
+        if not chunk:
+            continue
+        total += len(chunk)
+        if total > max_bytes:
+            raise ResponseTooLargeError(f"stream exceeds {max_bytes} bytes")
+        fh.write(chunk)
+    return total
+
+
 def _validate_for_tier(url: str, trust: URLTrust) -> None:
     """Run the tier-appropriate SSRF validator. Raises ``SSRFError`` on reject."""
     if trust is URLTrust.OPERATOR_CONFIGURED:

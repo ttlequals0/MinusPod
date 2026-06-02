@@ -14,7 +14,7 @@ from utils.time import format_vtt_timestamp
 from utils.gpu import clear_gpu_memory, get_available_memory_gb, get_gpu_memory_info
 from utils.url import SSRFError
 from utils.http import safe_url_for_log
-from utils.safe_http import URLTrust, safe_get, safe_post
+from utils.safe_http import URLTrust, safe_get, safe_post, stream_to_file_capped, ResponseTooLargeError
 from utils.subprocess_registry import tracked_run
 from config import (
     API_CHUNK_DURATION_SECONDS,
@@ -1115,28 +1115,20 @@ class Transcriber:
                     return None
                 logger.info(f"Audio file size: {size_mb:.1f}MB")
 
-            # Save to temp file, enforcing a hard byte cap independent of the
-            # Content-Length header (absent on chunked responses) so a malicious
-            # feed enclosure cannot stream unbounded bytes to disk (transcription-1).
+            # Cap the stream independent of Content-Length (absent on chunked
+            # responses) so a feed enclosure can't fill the disk (transcription-1).
             max_bytes = 500 * 1024 * 1024
-            written = 0
             with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as tmp:
                 temp_path = tmp.name
-                for chunk in response.iter_content(chunk_size=8192):
-                    if not chunk:
-                        continue
-                    written += len(chunk)
-                    if written > max_bytes:
-                        logger.error(
-                            f"Audio stream exceeded {max_bytes // (1024 * 1024)}MB "
-                            f"cap: {safe_url_for_log(url)}"
-                        )
-                        try:
-                            os.unlink(temp_path)
-                        except OSError:
-                            pass
-                        return None
-                    tmp.write(chunk)
+                try:
+                    stream_to_file_capped(response, tmp, max_bytes)
+                except ResponseTooLargeError:
+                    logger.error(f"Audio stream over {max_bytes // (1024 * 1024)}MB cap: {safe_url_for_log(url)}")
+                    try:
+                        os.unlink(temp_path)
+                    except OSError:
+                        pass
+                    return None
 
             logger.info(f"Downloaded audio to: {temp_path}")
             return temp_path
@@ -1210,28 +1202,19 @@ class Transcriber:
                     return None
                 logger.info(f"Audio file size: {size_mb:.1f}MB")
 
-            # Download with resume support, enforcing a hard total byte cap
-            # independent of Content-Length (transcription-1/5).
+            # Cap the total download independent of Content-Length (transcription-1/5).
             max_bytes = 500 * 1024 * 1024
-            total = downloaded
             mode = 'ab' if downloaded > 0 else 'wb'
             with open(temp_path, mode) as f:
-                for chunk in response.iter_content(chunk_size=8192):
-                    if not chunk:
-                        continue
-                    total += len(chunk)
-                    if total > max_bytes:
-                        logger.error(
-                            f"Audio stream exceeded {max_bytes // (1024 * 1024)}MB "
-                            f"cap: {safe_url_for_log(url)}"
-                        )
-                        f.close()
-                        try:
-                            os.remove(temp_path)
-                        except OSError:
-                            pass
-                        return None
-                    f.write(chunk)
+                try:
+                    stream_to_file_capped(response, f, max_bytes, already=downloaded)
+                except ResponseTooLargeError:
+                    logger.error(f"Audio stream over {max_bytes // (1024 * 1024)}MB cap: {safe_url_for_log(url)}")
+                    try:
+                        os.remove(temp_path)
+                    except OSError:
+                        pass
+                    return None
 
             logger.info(f"Downloaded audio to: {temp_path}")
             return temp_path

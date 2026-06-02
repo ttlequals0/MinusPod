@@ -342,16 +342,9 @@ class CleanupService:
         try:
             conn = self.db.get_connection()
             conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
-            # VACUUM cannot run inside a transaction; clear isolation_level the
-            # same way maintenance.vacuum() does, otherwise the default
-            # isolation leaves an open transaction and VACUUM raises
-            # "cannot VACUUM from within a transaction" (db-maintenance-3).
-            old_isolation = conn.isolation_level
-            conn.isolation_level = None
-            try:
-                conn.execute("VACUUM")
-            finally:
-                conn.isolation_level = old_isolation
+            # Reuse the maintenance VACUUM, which clears isolation_level so the
+            # default transaction doesn't block it (db-maintenance-3).
+            self.db.vacuum()
             logger.info("Database VACUUM + WAL checkpoint completed")
         except Exception as e:
             logger.error(f"VACUUM failed: {e}")

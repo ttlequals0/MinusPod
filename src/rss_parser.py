@@ -46,12 +46,8 @@ def _max_rss_bytes() -> int:
 
 
 def _feed_trust() -> URLTrust:
-    """Trust tier for fetching feed source URLs. Feed URLs are untrusted user
-    input that get re-fetched on every refresh, so validate them with the
-    strict SSRF tier (resolve DNS, block private/loopback/metadata) by default
-    to close refresh-time DNS-rebinding SSRF (rss-http-1). Operators who host
-    feeds on a private/LAN address can opt back in with
-    ``MINUSPOD_ALLOW_PRIVATE_FEED_HOSTS=true``."""
+    """Strict SSRF tier for feed URLs by default (rss-http-1); opt back into
+    private/LAN hosts with MINUSPOD_ALLOW_PRIVATE_FEED_HOSTS=true."""
     opt_in = os.environ.get('MINUSPOD_ALLOW_PRIVATE_FEED_HOSTS', '').strip().lower()
     if opt_in in ('1', 'true', 'yes', 'on'):
         return URLTrust.OPERATOR_CONFIGURED

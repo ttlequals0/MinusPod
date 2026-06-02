@@ -437,11 +437,8 @@ def reprocess_episode(slug, episode_id):
         return error_response('Podcast not found', 404)
 
     try:
-        # Keep the existing processed audio in place: reprocessing writes a NEW
-        # versioned file and cleanup_stale_audio_versions removes the old one
-        # only after the new version is durable. Deleting up front left the
-        # episode audio-less if the queued reprocess never ran or failed
-        # (orchestration-5).
+        # Keep existing audio: reprocessing writes a new versioned file and
+        # prunes the old one only after it's durable (orchestration-5).
         db.clear_episode_details(slug, episode_id)
 
         # Mark as user-initiated so the background drainer honors it
@@ -645,9 +642,7 @@ def reprocess_all_episodes(slug):
             continue
 
         try:
-            # Keep existing processed audio until the reprocess produces a new
-            # durable version; deleting up front risked an audio-less episode
-            # on a failed/queued reprocess (orchestration-5).
+            # Keep existing audio until the new version is durable (orchestration-5).
             db.clear_episode_details(slug, episode_id)
 
             # Reset status to pending with reprocess mode for priority queue
@@ -743,10 +738,7 @@ def bulk_episode_action(slug):
                 if not episode or episode.get('status') not in ('processed', 'failed', 'permanently_failed'):
                     skipped += 1
                     continue
-                # Old processed audio is replaced by the new version on
-                # finalize (cleanup_stale_audio_versions); keep it until then so
-                # a failed reprocess does not leave the episode audio-less
-                # (orchestration-5).
+                # Keep existing audio until the new version is durable (orchestration-5).
                 eligible_ids.append(episode_id)
             except Exception as e:
                 logger.error(f"Bulk action error for {slug}:{episode_id}: {e}")
@@ -1067,10 +1059,8 @@ def reprocess_episode_with_mode(slug, episode_id):
             error_message=None
         )
 
-        # 2. Clear cached detection data. The processed audio file is kept:
-        # reprocessing writes a new versioned file and prunes the old one only
-        # after it is durable, so a failed reprocess can't leave the episode
-        # audio-less (orchestration-5).
+        # 2. Clear cached detection data; keep the processed audio until the new
+        # version is durable (orchestration-5).
         db.clear_episode_details(slug, episode_id)
 
         # 3. Get episode metadata for processing

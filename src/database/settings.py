@@ -175,14 +175,10 @@ class SettingsMixin:
             return None
 
     def set_secret(self, key: str, plaintext: str):
-        """Encrypt and store a secret. Requires provider crypto to be available.
-
-        A value that already looks like ciphertext (a UI round-trip of a masked
-        field) is stored verbatim only if it actually decrypts under the current
-        DEK; otherwise it is treated as plaintext and encrypted, so a replayed or
-        bogus enc:v1: string can't be persisted as an undecryptable secret that
-        later reads back as None (creds-3).
-        """
+        """Encrypt and store a secret. An enc:v1: input (UI round-trip of a
+        masked field) is kept verbatim only if it decrypts under the current DEK;
+        otherwise it's treated as plaintext, so a bogus envelope can't be stored
+        as an undecryptable secret (creds-3)."""
         if is_ciphertext(plaintext):
             try:
                 decrypt(self, plaintext)  # verify it round-trips under our DEK

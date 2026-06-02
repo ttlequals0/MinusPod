@@ -109,13 +109,9 @@ services:
     cap_drop:
       - ALL
     cap_add:
-      # The image starts as root; the entrypoint chowns the data volume
-      # (CHOWN, plus DAC_OVERRIDE/FOWNER for cross-owner files) and drops to
-      # the unprivileged `minuspod` user via setpriv (SETUID/SETGID). Under a
-      # bare `cap_drop: ALL` setpriv cannot drop root and the container
-      # crash-loops before gunicorn starts, so add back only those caps.
-      # Omit this block entirely if you set `user:` above (the entrypoint
-      # then takes its non-root branch and needs no capabilities).
+      # The entrypoint chowns the data volume and drops root via setpriv, which
+      # needs these caps; under a bare cap_drop: ALL it crash-loops. Omit this
+      # block if you set `user:` above (the entrypoint then needs no caps).
       - SETUID
       - SETGID
       - CHOWN
