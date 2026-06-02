@@ -39,6 +39,10 @@ SSRF_REQUEST_FILTER_WHITELIST=minuspod.local,192.168.1.100
 
 This is a comma-separated list of domains excluded from Audiobookshelf's SSRF filter. See [Audiobookshelf Security docs](https://www.audiobookshelf.org/docs/#security) for details.
 
+### Feeds on a private or LAN host
+
+MinusPod validates feed source URLs and blocks private/loopback/LAN addresses by default (SSRF protection). If a feed source is on a private address (a LAN Audiobookshelf server or a self-hosted feed), set `MINUSPOD_ALLOW_PRIVATE_FEED_HOSTS=true`.
+
 ---
 
 [< Docs index](README.md) | [Project README](../README.md)
