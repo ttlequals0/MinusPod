@@ -178,6 +178,31 @@ def test_migration_is_idempotent(temp_db):
     assert len(rows) == 1
 
 
+def test_migration_recovers_from_orphan_new_table(temp_db):
+    """db-schema-1: an orphan *_new table left by an interrupted prior rebuild
+    must not crash the migration with 'table already exists'; the DROP IF EXISTS
+    guard clears it and the rebuild completes."""
+    conn = temp_db.get_connection()
+    _rebuild_pre_migration_shape(conn)
+    conn.execute(
+        "INSERT INTO ad_patterns (scope, text_template, sponsor) VALUES ('global', 'ad1', 'Squarespace')"
+    )
+    # Simulate a crash after CREATE TABLE *_new but before the rename.
+    conn.execute("CREATE TABLE ad_patterns_new (id INTEGER PRIMARY KEY, junk TEXT)")
+    conn.execute("CREATE TABLE pattern_corrections_new (id INTEGER PRIMARY KEY, junk TEXT)")
+    conn.commit()
+
+    # Must not raise "table ad_patterns_new already exists".
+    temp_db._migrate_sponsor_fk(conn)
+
+    ap_cols = _column_names(conn, 'ad_patterns')
+    assert 'sponsor_id' in ap_cols
+    assert 'sponsor' not in ap_cols
+    assert conn.execute(
+        "SELECT name FROM sqlite_master WHERE type='table' AND name='ad_patterns_new'"
+    ).fetchone() is None
+
+
 def test_migration_on_fresh_post_schema_is_noop(temp_db):
     """A fresh Database init already creates new-shape tables. Running the
     migration again must be a clean no-op (no extra rows, no errors)."""

@@ -524,7 +524,11 @@ class SchemaMixin:
                 cursor = conn.execute("PRAGMA table_info(episodes)")
                 old_columns = [row['name'] for row in cursor.fetchall()]
 
-                # 1. Create new table with correct constraint (matches current SCHEMA_SQL)
+                # 1. Create new table with correct constraint (matches current SCHEMA_SQL).
+                # Drop any orphan _new table left by an interrupted prior run so a
+                # re-entry after a crash is idempotent rather than a fatal
+                # "table episodes_new already exists" boot crash-loop (db-schema-1).
+                conn.execute("DROP TABLE IF EXISTS episodes_new")
                 conn.execute("""
                     CREATE TABLE episodes_new (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -582,6 +586,13 @@ class SchemaMixin:
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_podcast ON episodes(podcast_id)")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_status ON episodes(status)")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_processed_at ON episodes(processed_at)")
+                # Recreate the rest of the fresh-schema lookup indexes that
+                # DROP TABLE episodes removed, so a migrated DB matches a fresh
+                # one (db-schema-2 / db-schema-7).
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_podcast_id ON episodes(podcast_id)")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_episode_id ON episodes(episode_id)")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_podcast_episode ON episodes(podcast_id, episode_id)")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_created_at ON episodes(created_at)")
 
                 conn.commit()
 
@@ -602,6 +613,8 @@ class SchemaMixin:
                 cursor = conn.execute("PRAGMA table_info(episodes)")
                 old_columns = [row['name'] for row in cursor.fetchall()]
 
+                # Idempotent re-entry: clear any orphan _new from an interrupted run.
+                conn.execute("DROP TABLE IF EXISTS episodes_new")
                 conn.execute("""
                     CREATE TABLE episodes_new (
                         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -651,6 +664,12 @@ class SchemaMixin:
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_podcast ON episodes(podcast_id)")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_status ON episodes(status)")
                 conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_processed_at ON episodes(processed_at)")
+                # Recreate the rest of the fresh-schema lookup indexes that
+                # DROP TABLE episodes removed (db-schema-2 / db-schema-7).
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_podcast_id ON episodes(podcast_id)")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_episode_id ON episodes(episode_id)")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_podcast_episode ON episodes(podcast_id, episode_id)")
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_episodes_created_at ON episodes(created_at)")
 
                 conn.commit()
 
@@ -2136,6 +2155,7 @@ class SchemaMixin:
             old_ap_cols = [
                 r['name'] for r in conn.execute("PRAGMA table_info(ad_patterns)").fetchall()
             ]
+            conn.execute("DROP TABLE IF EXISTS ad_patterns_new")
             conn.execute("""
                 CREATE TABLE ad_patterns_new (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -2179,6 +2199,7 @@ class SchemaMixin:
             old_pc_cols = [
                 r['name'] for r in conn.execute("PRAGMA table_info(pattern_corrections)").fetchall()
             ]
+            conn.execute("DROP TABLE IF EXISTS pattern_corrections_new")
             conn.execute("""
                 CREATE TABLE pattern_corrections_new (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
