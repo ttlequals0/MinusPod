@@ -439,9 +439,9 @@ def _extract_ad_keywords(ad: Dict) -> List[str]:
     """
     keywords = set()
 
-    # Primary: sponsor field
-    sponsor = ad.get('sponsor', '')
-    if sponsor and sponsor.lower() not in {'unknown', 'none', ''}:
+    # Primary: sponsor field (normalize stray/internal whitespace)
+    sponsor = ' '.join((ad.get('sponsor') or '').split())
+    if sponsor and sponsor.lower() not in {'unknown', 'none'}:
         keywords.add(sponsor.lower())
 
     # Secondary: capitalized words from reason and end_text
@@ -455,6 +455,13 @@ def _extract_ad_keywords(ad: Dict) -> List[str]:
             low = word.lower()
             if low not in _NON_BRAND_WORDS and len(low) >= MIN_KEYWORD_LENGTH:
                 keywords.add(low)
+
+    # For a multi-word sponsor, drop the individual words it decomposes into
+    # (e.g. 'capital'/'one' from 'Capital One'); a lone common word like 'one'
+    # otherwise relocates an ad onto unrelated editorial text.
+    if ' ' in sponsor:
+        constituents = set(sponsor.lower().split())
+        keywords = {k for k in keywords if ' ' in k or k not in constituents}
 
     return list(keywords)
 

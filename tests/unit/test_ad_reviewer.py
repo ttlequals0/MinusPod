@@ -9,8 +9,19 @@ from ad_reviewer import (
     RESURRECT_BAND_WIDTH,
     ReviewResult,
     ReviewVerdict,
+    _first_num,
     split_resurrection_pool,
 )
+
+
+def test_first_num_prefers_start_and_rejects_non_finite():
+    """start wins over corrected_*; NaN/Inf/bool/garbage fall through to default."""
+    assert _first_num({'start': 115.0, 'corrected_start': 120.0}, ('start', 'corrected_start'), 999.0) == 115.0
+    assert _first_num({'corrected_start': 7.0}, ('start', 'corrected_start'), 999.0) == 7.0
+    assert _first_num({'start': float('nan')}, ('start',), 5.0) == 5.0
+    assert _first_num({'start': float('inf')}, ('start',), 5.0) == 5.0
+    assert _first_num({'start': True}, ('start',), 5.0) == 5.0
+    assert _first_num({'start': 'x'}, ('start',), 5.0) == 5.0
 
 
 def _mock_segments():
@@ -156,6 +167,30 @@ def test_array_with_shifted_boundaries_yields_adjust():
     assert out['end'] == 185.0
     assert out['reviewer_original_start'] == 120.0
     assert out['reviewer_original_end'] == 180.0
+
+
+def test_corrected_start_keys_are_applied_as_adjust():
+    """A reviewer response using corrected_start/corrected_end still adjusts."""
+    reviewer = _build_reviewer({
+        'review_prompt': 'review',
+        'resurrect_prompt': 'resurrect',
+        'review_max_boundary_shift': '60',
+    })
+    reviewer._llm_client.messages_create.return_value = _resp(
+        '[{"corrected_start": 115.0, "corrected_end": 185.0, "confidence": 0.88, '
+        '"reason": "Pulled start back to include the opening line"}]'
+    )
+    ad = {'start': 120.0, 'end': 180.0, 'confidence': 0.9}
+    result = reviewer.review(
+        accepted_ads=[ad], resurrection_eligible=[],
+        segments=_mock_segments(), episode_meta=_mock_episode_meta(),
+        pass_num=1, pass_model='claude-test',
+    )
+    out = result.accepted_after_review[0]
+    assert result.verdicts[0].verdict == 'adjust'
+    assert out['start'] == 115.0
+    assert out['end'] == 185.0
+    assert out['reviewer_original_start'] == 120.0
 
 
 def test_array_with_shift_outside_cap_clamps():

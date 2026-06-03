@@ -257,6 +257,15 @@ class TestExtractAdKeywords:
         assert 'inserted' not in keywords
         assert 'promotion' not in keywords
 
+    def test_multiword_sponsor_drops_constituent_tokens(self):
+        """'Capital One' keeps the full phrase, drops standalone 'one'/'capital'."""
+        ad = {'start': 100, 'end': 160, 'sponsor': 'Capital One',
+              'reason': 'Capital One financing spot', 'confidence': 0.9}
+        keywords = _extract_ad_keywords(ad)
+        assert 'capital one' in keywords
+        assert 'one' not in keywords
+        assert 'capital' not in keywords
+
 
 class TestValidateAdTimestamps:
     """Tests for validate_ad_timestamps function."""
@@ -328,6 +337,23 @@ class TestValidateAdTimestamps:
         # Passed through unchanged since keywords not found anywhere
         assert result[0]['start'] == 100
         assert result[0]['end'] == 130
+
+    def test_multiword_sponsor_not_relocated_onto_generic_word(self):
+        """'Capital One' must not relocate onto editorial that only has 'one'."""
+        segments = self._make_segments([
+            (100, 110, 'Just regular discussion here'),
+            (200, 205, 'the only one here'),
+            (206, 211, 'no one knows that'),
+            (212, 217, 'one of them left'),
+            (218, 223, 'every one agreed'),
+            (400, 410, 'That is technology at Capital One'),
+        ])
+        ads = [{'start': 100, 'end': 130, 'confidence': 0.9,
+                'sponsor': 'Capital One', 'reason': 'Capital One spot'}]
+        result = validate_ad_timestamps(ads, segments, 0, 600)
+        assert len(result) == 1
+        # Lands on the real 'Capital One' read, not the 'one'-heavy editorial.
+        assert result[0]['start'] == 400
 
 
 class TestGetUncoveredPortions:

@@ -6,7 +6,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.6.1] - 2026-06-02
+
+### Fixed
+
+- Part of a Capital One ad could survive the cut. Two faults combined: the timestamp-correction step treated "one" (split out of the sponsor name "Capital One") as a brand keyword and moved the real detection onto unrelated show talk, and the reviewer's request to pull the cut start earlier was dropped because it came back under `corrected_start`/`corrected_end` keys the parser never read. A multi-word sponsor is now kept as a single phrase instead of being split into its generic words, and the reviewer honors the corrected-boundary keys when start/end are absent (the render prompt no longer asks for keys it ignores).
+
+## [2.6.0] - 2026-06-01
 
 ### Security
 

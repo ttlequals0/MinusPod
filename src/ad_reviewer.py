@@ -1,5 +1,6 @@
 """Opt-in LLM ad reviewer."""
 import logging
+import math
 import os
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -61,6 +62,25 @@ RESURRECT_BAND_WIDTH = 0.20
 # from the LLM surface as adjust verdicts in the audit log; only true
 # rounding noise rounds away.
 _CONFIRMED_BOUNDARY_TOLERANCE_S = 0.1
+
+
+def _first_num(d: dict, keys: tuple, default: float) -> float:
+    """Return the first finite numeric value among keys, else default.
+
+    Skips None, booleans, and NaN/Inf. The reviewer prompt may carry the
+    correction under a corrected_/adjusted_ key when start/end is absent.
+    """
+    for k in keys:
+        v = d.get(k)
+        if v is None or isinstance(v, bool):
+            continue
+        try:
+            f = float(v)
+        except (TypeError, ValueError):
+            continue
+        if math.isfinite(f):
+            return f
+    return default
 
 
 @dataclass
@@ -389,11 +409,12 @@ class AdReviewer:
                 ad,
             )
 
-        try:
-            new_start = float(kept.get("start", original_start))
-            new_end = float(kept.get("end", original_end))
-        except (TypeError, ValueError):
-            new_start, new_end = original_start, original_end
+        # Schema asks for start/end; fall back to corrected_/adjusted_ only when
+        # the model omits them (some responses carry the correction there).
+        new_start = _first_num(
+            kept, ("start", "corrected_start", "adjusted_start"), original_start)
+        new_end = _first_num(
+            kept, ("end", "corrected_end", "adjusted_end"), original_end)
         reason = kept.get("reason")
         try:
             confidence = float(kept["confidence"]) if "confidence" in kept else None
@@ -566,8 +587,8 @@ class AdReviewer:
         )
         if "{max_boundary_shift_seconds}" not in prompt:
             rendered = (
-                f"{rendered}\n\nBoundary cap: any adjusted_start or "
-                f"adjusted_end must be within {max_shift} seconds of the "
+                f"{rendered}\n\nBoundary cap: any start or "
+                f"end must be within {max_shift} seconds of the "
                 f"original detected boundaries."
             )
         return rendered
