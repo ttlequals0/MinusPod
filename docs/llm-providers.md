@@ -90,23 +90,26 @@ The `OPENAI_API_KEY` variable is not required for Ollama. Token counts will stil
 
 #### Cloud LLMs (benchmark-tested)
 
-These come from the [offline LLM benchmark](../benchmarks/llm/) included in this repo. The benchmark runs each candidate model against a corpus of human-verified episodes and scores accuracy (F1 at IoU >= 0.5), JSON compliance, latency, and per-episode cost. Full per-model breakdown (precision, recall, boundary accuracy, calibration, latency tail, token efficiency, cross-model agreement) is in [`benchmarks/llm/results/report.md`](../benchmarks/llm/results/report.md). Want to expand the corpus or test more models? See [`benchmarks/llm/CONTRIBUTING.md`](../benchmarks/llm/CONTRIBUTING.md).
+These come from the [offline LLM benchmark](../benchmarks/llm/) included in this repo. The benchmark runs each candidate model against a corpus of human-verified episodes and scores accuracy (F0.5 and F1 at IoU >= 0.5), JSON compliance, latency, and per-episode cost. Full per-model breakdown (precision, recall, boundary accuracy, calibration, latency tail, token efficiency, cross-model agreement) is in [`benchmarks/llm/results/report.md`](../benchmarks/llm/results/report.md). Want to expand the corpus or test more models? See [`benchmarks/llm/CONTRIBUTING.md`](../benchmarks/llm/CONTRIBUTING.md).
 
-| Use case | Model | F1 | Cost / episode | Why |
-|---|---|---:|---:|---|
-| Best accuracy overall | `qwen/qwen3.6-plus` (via OpenRouter) | 0.693 | $1.11 | Rank 1 of 44. Perfect JSON compliance, p50 39.9s -- offline batches, not live UX. Edges out `qwen3.5-plus-02-15` (F1 0.679, $1.23) by 0.014, which sits inside the trial-stdev noise floor, so treat them as a tie and pick on price. |
-| Best fast + accurate | `qwen/qwen3.6-flash` (via OpenRouter) | 0.660 | $0.55 | Rank 3, p50 13.0s. Top-tier accuracy at fast-model latency and cost -- a rare combo. Heads-up: hit by Alibaba shared-pool 429s during the initial sweep. Bring your own Dashscope key on OpenRouter if you plan to lean on it. |
-| Best Anthropic-direct | `claude-opus-4-7` | 0.576 | $7.81 | Rank 10. Perfect JSON compliance, perfect no-ad pass, but $7.81/episode is the priciest on this list and a Qwen will beat it for less. Pick this only if Anthropic-direct billing is non-negotiable. |
-| Cheap and production-fast | `openai/gpt-5.4-mini` | 0.584 | $0.76 | Rank 9, p50 1.2s. The accuracy-to-cost knee: noticeably better F1 than the under-$0.15/ep tier (gemma-4-31b-it and deepseek-v4-flash both around F1 0.47) at a still-reasonable price. JSON compliance 0.81. |
+The report ranks by F0.5, which weights precision twice as heavily as recall. The pipeline cuts the segments it flags, so a false positive (cutting real content) is a worse failure than a missed ad. F1 is shown next to it.
+
+| Use case | Model | F0.5 | F1 | Cost / episode | Why |
+|---|---|---:|---:|---:|---|
+| Best accuracy overall | `qwen/qwen3.6-plus` (via OpenRouter) | 0.829 | 0.807 | $1.11 | Leads the top tier, perfect JSON compliance, and clean on the no-ad control. p50 is 39.9s, so this is for offline batches, not live UX. The tier also holds `qwen3.5-plus-02-15`, `qwen3.6-flash`, and `claude-haiku-4-5`; they trade wins across episodes, so pick among them on speed, cost, and reliability. |
+| Fast and reliable | `google/gemini-2.5-flash` (via OpenRouter) | 0.728 | 0.777 | $0.34 | p50 1.0s, perfect JSON, clean on the no-ad control, and the highest recall of the cheap models. A few points of F0.5 below the top tier, but the production pick when latency and reliability matter more than topping the table. |
+| Best Anthropic-direct | `claude-sonnet-4-6` | 0.770 | 0.786 | $3.54 | p50 1.4s, JSON compliance 0.96, clean on the no-ad control, and cheaper than either Opus ($7.81-$7.82) for the same accuracy. `claude-haiku-4-5` scores higher (F0.5 0.804) but wraps output in markdown fences (JSON compliance 0.60), so it leans on the parser fallback. |
+| Cheapest viable | `google/gemma-4-31b-it` (via OpenRouter) | 0.709 | 0.729 | $0.13 | Best F0.5 under $0.15/episode. Caveats: JSON compliance 0.85, and it false-positived on the no-ad control, so it over-cuts more than the pricier picks. |
 
 Caveats:
-- Numbers come from a 14-episode corpus (10 ad-bearing, 4 no-ad control), 44 active models, 5 trials each, ~38,000 total calls. They will refine as the corpus grows.
+- Numbers come from a 14-episode corpus (12 ad-bearing, 2 no-ad control), 46 active models, 5 trials each, ~39,000 total calls. They will refine as the corpus grows.
+- The report groups models into tiers by a paired test across episodes. Models in the same tier are statistically tied on this corpus, so order within a tier is not meaningful. It also flags models for low JSON compliance or a no-ad control failure without changing their rank.
 - Latency for OpenRouter-routed models reflects routing-layer queueing, not just model compute. Treat it as an availability indicator.
-- F1 uses IoU >= 0.5 against human-verified ad spans. A model with F1 0.5 catches half the ads with the right boundaries; a higher F1 means closer to the truth.
+- F0.5 and F1 both use IoU >= 0.5 against human-verified ad spans. F0.5 rewards not over-cutting; F1 weights precision and recall equally. Higher is closer to the truth.
 
 #### Local Ollama Models (by VRAM tier)
 
-Note on benchmarking: the offline benchmark in [`benchmarks/llm/`](../benchmarks/llm/) covers cloud-hosted models (OpenRouter, Anthropic direct). Local Ollama runs are not in that sweep. Adding an Ollama provider would let contributors compare local quants apples-to-apples against the cloud numbers. The recommendations below come from author testing, not from a structured benchmark, and should be treated accordingly.
+Note on benchmarking: the offline benchmark in [`benchmarks/llm/`](../benchmarks/llm/) covers cloud-hosted models (OpenRouter, Anthropic direct). Local Ollama runs are not in that sweep. Adding an Ollama provider would let contributors compare local quants apples-to-apples against the cloud numbers. The recommendations below come from author testing, not a structured benchmark, so verify them on your own content.
 
 Models are loaded sequentially, not concurrently; VRAM requirements are not additive between passes.
 
@@ -146,13 +149,13 @@ Simplest task. Summarization only, no structured detection. Minimize VRAM usage 
 
 > **Example split for 16GB VRAM:** Pass 1 -> `qwen3:14b Q5_K_M` / Verification -> `qwen3:8b Q5_K_M` / Chapters -> `qwen3:4b Q4_K_M`
 
-> **Avoid models under 7B for production use.** JSON reliability degrades significantly at smaller sizes, which causes silent detection failures rather than recoverable errors. See [JSON Reliability Risks](#json-reliability-risks).
+> **Avoid models under 7B for production use.** JSON reliability drops sharply at smaller sizes, turning recoverable errors into silent detection failures. See [JSON Reliability Risks](#json-reliability-risks).
 
 ---
 
 ### Cloud vs. Local: What Changes
 
-Best cloud F1 in the [benchmark](../benchmarks/llm/) is 0.69 (`qwen/qwen3.6-plus` via OpenRouter) across 44 models on a 14-episode corpus. `claude-sonnet-4-6` scores 0.45 in the same sweep, well below the leader, so "use Claude" doesn't fix accuracy by itself. The cloud model you pick matters as much as cloud-vs-local does.
+Best cloud F0.5 in the [benchmark](../benchmarks/llm/) is 0.83 (`qwen/qwen3.6-plus` via OpenRouter, F1 0.81) across 46 models on a 14-episode corpus. Scores run the full range down to near zero, and the top tier is a four-way tie that includes a Qwen flash model and `claude-haiku-4-5`. The cloud model you pick matters as much as cloud-vs-local does: a capable mid-tier model beats a weak frontier one.
 
 The LLM only sees host-read ads that blend into content, new sponsors not yet in the pattern database, and ambiguous mid-rolls without promo codes or URLs. Everything else (audio fingerprinting, text pattern matching, pre/post-roll heuristics, audio-signal enforcement) runs without an LLM and catches a substantial share of ads regardless of model.
 
@@ -179,7 +182,7 @@ Failure modes:
 
 When a window fails to parse, those ads are silently missed. No UI error; the episode processes normally with gaps in detection coverage.
 
-Cloud models vary widely on this. Benchmark JSON compliance ranges from 0.05 (`openai/o4-mini`, which buries JSON in reasoning chains) and 0.07 (`mistral-7b-instruct-v0.1`, which often returns prose) up to 1.00 (Mistral Medium / Codestral / Large, Qwen 3.5-plus, Claude Opus, Gemini Flash). Claude Haiku 4.5 sits at 0.60 because it wraps every response in markdown code fences; the parser recovers, but the fallback path is slower and more brittle. See the JSON compliance chart in [`benchmarks/llm/results/report.md`](../benchmarks/llm/results/report.md).
+Cloud models vary widely on this. Benchmark JSON compliance ranges from 0.01 (`qwen3-8b`) and 0.05 (`openai/o4-mini`, which buries JSON in reasoning chains) up to 1.00 (Mistral Medium, the Qwen 3.5 and 3.6 plus and flash models, Gemini 2.5 Flash). Claude Haiku 4.5 sits at 0.60 because it wraps every response in markdown code fences; the parser recovers, but the fallback path is slower and more brittle. See the JSON compliance chart in [`benchmarks/llm/results/report.md`](../benchmarks/llm/results/report.md).
 
 Reducing the risk for local runs:
 
@@ -189,6 +192,7 @@ Reducing the risk for local runs:
 - Watch the `extraction_method` field in processing logs
 
 Healthy run signal: `extraction_method` reads `json_array_direct` for most calls. Fallback methods (`markdown_code_block`, `regex_*`) mean the model isn't returning clean JSON. Frequent fallback in production means you should upgrade the model.
+
 ## Using OpenRouter
 
 [OpenRouter](https://openrouter.ai) is a unified API that routes to 200+ models (Claude, GPT, Gemini, open-weights) with one API key. OpenRouter is supported as an **LLM provider only**: it does not support the `/v1/audio/transcriptions` endpoint required for Whisper transcription. For transcription without a GPU, use a [remote Whisper backend](transcription.md) such as Groq.
