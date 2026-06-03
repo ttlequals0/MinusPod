@@ -1,0 +1,7 @@
+```json
+[
+  {"start": 9259.3, "end": 9290.5, "confidence": 0.92, "reason": "TWiT network cross-promotion for This Week in Tech podcast", "end_text": "the TWiT Network. Thank you."},
+  {"start": 9312.9, "end": 9315.5, "confidence": 0.65, "reason": "Network-inserted Citizen watch brand tagline ad fragment", "end_text": "for citizens back."},
+  {"start": 9344.4, "end": 9374.4, "confidence": 0.98, "reason": "Mint Mobile sponsor ad with Ryan Reynolds, includes URL mintmobile.com/switch and pricing details", "end_text": "full terms at mintmobile.com."}
+]
+```

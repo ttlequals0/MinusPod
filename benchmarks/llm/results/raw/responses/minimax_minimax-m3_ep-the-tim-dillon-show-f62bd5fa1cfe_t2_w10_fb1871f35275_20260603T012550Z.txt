@@ -1,0 +1,3 @@
+```json
+[{"start": 4646.2, "end": 4806.1, "confidence": 0.95, "reason": "Multiple network-inserted ads merged (gaps <15s): Colgate Women's Games (self-doubt female athlete spot), SkinnyPop popcorn, Colgate repeat ad, Viz eye drops, and Garnier/National Park Foundation partnership ad. All are tonally distinct produced spots with concentrated marketing language and product positioning.", "end_text": "support our national parks"}]
+```

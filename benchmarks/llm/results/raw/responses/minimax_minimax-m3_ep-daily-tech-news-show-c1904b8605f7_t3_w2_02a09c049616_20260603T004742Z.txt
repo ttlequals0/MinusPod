@@ -1,0 +1,3 @@
+```json
+[{"start": 821.4, "end": 1021.1, "confidence": 0.99, "reason": "Consecutive ad block: Capital One (Chat Concierge AI), BetterHelp (betterhelp.com/randompodcast promo), Amazon Health AI, Spectrum Business (spectrum.com/business), and Rinse laundry (rinse.com) with Best One Yet podcast cross-promo intro. All within 15s gaps, merged per rules.", "end_text": "It's time to be great."}]
+```

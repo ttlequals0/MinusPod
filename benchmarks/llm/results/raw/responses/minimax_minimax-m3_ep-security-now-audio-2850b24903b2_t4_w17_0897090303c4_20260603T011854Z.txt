@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 7607.7,
+    "end": 7743.9,
+    "confidence": 0.97,
+    "reason": "Trusted Tech sponsor read - promotes Microsoft 365 licensing management services, includes transition phrase 'brought to you by Trusted Tech' and testimonial from former Microsoft COO Kevin Turner. Ad continues past transcript window.",
+    "end_text": "You will be too."
+  }
+]
+```

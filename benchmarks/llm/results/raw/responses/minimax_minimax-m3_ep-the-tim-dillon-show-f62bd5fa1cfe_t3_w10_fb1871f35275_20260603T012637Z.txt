@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 4646.2,
+    "end": 4806.1,
+    "confidence": 0.95,
+    "reason": "Network-inserted ad block: Colgate Women's Games (x2), SkinnyPop, Viz eye drops, and Garnier/National Park Foundation. All gaps <15s, merged per rules. Garnier ad extends past window.",
+    "end_text": "support our national parks at GarnierUSA.com slash NPF"
+  }
+]
+```

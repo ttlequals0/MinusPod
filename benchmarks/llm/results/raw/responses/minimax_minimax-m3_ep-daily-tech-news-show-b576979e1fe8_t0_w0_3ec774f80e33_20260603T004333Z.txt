@@ -1,0 +1,1 @@
+[{"start": 0.0, "end": 104.3, "confidence": 0.98, "reason": "Merged pre-roll ad block: Capital One Chat Concierge (0.0-29.1s), Every Brilliant Thing Broadway (29.4-58.3s), AllTrails (59.2-73.6s), and Zinn Nicotine Pouches with required warning (74.8-104.3s). All gaps < 15s.", "end_text": "addictive chemical"}]

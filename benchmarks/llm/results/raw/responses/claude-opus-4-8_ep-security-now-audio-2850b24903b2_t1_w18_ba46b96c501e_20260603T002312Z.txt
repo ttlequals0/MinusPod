@@ -1,0 +1,1 @@
+[{"start": 7600.7, "end": 7797.9, "confidence": 0.98, "reason": "Trusted Tech sponsor ad with break transition and URL trustedtech.team/securitynow365", "end_text": "Now, back to Steve"}]

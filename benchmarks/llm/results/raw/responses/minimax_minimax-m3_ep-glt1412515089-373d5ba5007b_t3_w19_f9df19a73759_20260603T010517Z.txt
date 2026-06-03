@@ -1,0 +1,3 @@
+```json
+[{"start": 8215.0, "end": 8218.9, "confidence": 0.6, "reason": "Platform-inserted Rev.com transcription service credit/brand mention", "end_text": "Transcript by Rev.com."}]
+```

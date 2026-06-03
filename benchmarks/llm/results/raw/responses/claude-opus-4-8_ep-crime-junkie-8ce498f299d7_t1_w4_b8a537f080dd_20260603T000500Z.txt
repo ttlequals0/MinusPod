@@ -1,0 +1,1 @@
+[{"start": 1959.8, "end": 2080.5, "confidence": 0.97, "reason": "Ad block for Rakuten, LinkedIn Premium, and Hertz", "end_text": "fleet yet at Hertz.com"}]

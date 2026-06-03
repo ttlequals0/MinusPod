@@ -1,0 +1,1 @@
+[{"start": 618.7, "end": 784.6, "confidence": 0.97, "reason": "Extended ad block containing Parloa, Capital One, AllTrails, Zinn nicotine pouches, and Good Things from Lemonada Media ads, with host transition in and out", "end_text": "to the briefs"}]

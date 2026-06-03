@@ -1,0 +1,25 @@
+```json
+[
+  {
+    "start": 1837.5,
+    "end": 1912.2,
+    "confidence": 0.99,
+    "reason": "Mint Mobile host-read sponsor segment with promo URL mintmobile.com/slashtosh",
+    "end_text": "See Mint Mobile for details"
+  },
+  {
+    "start": 1913.4,
+    "end": 1942.4,
+    "confidence": 0.97,
+    "reason": "Mattress Warehouse Memorial Day Sale network-inserted ad",
+    "end_text": "only at Mattress Warehouse"
+  },
+  {
+    "start": 1943.2,
+    "end": 1999.5,
+    "confidence": 0.97,
+    "reason": "PC Richard & Son Aseema Lease to Own network-inserted ad with disclaimer",
+    "end_text": "for details"
+  }
+]
+```

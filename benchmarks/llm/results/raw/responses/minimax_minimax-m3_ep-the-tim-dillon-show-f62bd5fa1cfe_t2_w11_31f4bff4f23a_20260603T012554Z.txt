@@ -1,0 +1,3 @@
+```json
+[{"start": 4646.2, "end": 4806.1, "confidence": 0.97, "reason": "Merged ad block containing Colgate Women's Games, Skinny Pop, Colgate Women's Games (repeat), VIZ eye drops, and Garnier/National Park Foundation produced spots with brand taglines, URLs, and promotional language", "end_text": "GarnierUSA.com slash NPF"}]
+```

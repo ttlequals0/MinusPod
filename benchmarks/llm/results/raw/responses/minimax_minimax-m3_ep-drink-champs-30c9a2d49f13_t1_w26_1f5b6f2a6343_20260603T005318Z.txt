@@ -1,0 +1,32 @@
+```json
+[
+  {
+    "start": 11335.2,
+    "end": 11365.6,
+    "confidence": 0.95,
+    "reason": "Airtasker ad with promotional pitch about Chris, call to action to download app or visit Airtasker.com, tagline 'Airtasker, get anything done'",
+    "end_text": "get anything done"
+  },
+  {
+    "start": 11366.2,
+    "end": 11424.6,
+    "confidence": 0.90,
+    "reason": "Cross-promotion for 'Decisions Decisions' podcast with Mandi B and Weezy WCF promoting episode with Keke Palmer; sponsored by 'Care for the Culture from Gilead Sciences'",
+    "end_text": "Care for the Culture from Gilead Sciences"
+  },
+  {
+    "start": 11425.3,
+    "end": 11472.5,
+    "confidence": 0.97,
+    "reason": "OnDeck small business line of credit ad with pitch for up to $200,000 funding, call to action at OnDeck.com, legal disclosures",
+    "end_text": "an amount subject to lender approval"
+  },
+  {
+    "start": 11513.7,
+    "end": 11520.0,
+    "confidence": 0.70,
+    "reason": "Public.com ad tail end with disclosure URL 'public.com/disclosures'; main ad pitch likely in previous window",
+    "end_text": "public.com slash disclosures"
+  }
+]
+```

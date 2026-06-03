@@ -1,0 +1,1 @@
+[{"start": 539.2, "end": 624.5, "confidence": 0.97, "reason": "Ad break with multiple sponsors: 'In the Gray' film and Skechers slip-ins, continues in next window", "end_text": "sandals, sneakers,"}]

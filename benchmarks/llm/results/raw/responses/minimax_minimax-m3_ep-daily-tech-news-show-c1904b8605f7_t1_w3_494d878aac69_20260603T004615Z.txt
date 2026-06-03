@@ -1,0 +1,3 @@
+```json
+[{"start": 1742.3, "end": 1799.6, "confidence": 0.95, "reason": "Capital One sponsor read followed by Lemonada Media 'Good Things' podcast cross-promotion, merged due to <15s gap", "end_text": "the six-part Thrive series."}]
+```

@@ -1,0 +1,3 @@
+```json
+[{"start": 4230.9, "end": 4465.7, "confidence": 0.93, "reason": "Network-produced show promo (promoting TWiT platforms and watch times) followed immediately by Bitwarden sponsor read with URL 'bitwarden.com/twit' and call to action", "end_text": "No more singing."}]
+```

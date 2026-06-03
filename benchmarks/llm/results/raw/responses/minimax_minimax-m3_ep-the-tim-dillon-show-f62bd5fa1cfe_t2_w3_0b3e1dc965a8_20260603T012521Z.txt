@@ -1,0 +1,1 @@
+[{"start": 1439.2, "end": 1665.9, "confidence": 0.97, "reason": "Consecutive sponsor reads merged (gaps <15s): Mint Mobile host-read, Aura Frames host-read, Colgate Women's Games network-inserted ad, and Skinny Pop network-inserted ad", "end_text": "perfectly salted. Skinny Pop"}]

@@ -1,0 +1,7 @@
+```json
+[
+  {"start": 524.1, "end": 567.0, "confidence": 0.98, "reason": "Thrive Cosmetics sponsor read with promo code shine26 and URL thrivecosmetics.com/shine26", "end_text": "slash shine26. Shine 26."},
+  {"start": 594.7, "end": 597.3, "confidence": 0.85, "reason": "Partial Mattress Warehouse brand tagline ad (continues from previous segment)", "end_text": "Only at Mattress Warehouse."},
+  {"start": 617.2, "end": 654.3, "confidence": 0.96, "reason": "PC Richard & Son lease-to-own ad with promotional pricing ($1 to start) and PCRichard.com URL", "end_text": "PCRichard.com slash Asima dot HTML for details."}
+]
+```

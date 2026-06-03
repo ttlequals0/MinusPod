@@ -1,0 +1,18 @@
+```json
+[
+  {
+    "start": 8724.9,
+    "end": 8798.3,
+    "confidence": 0.95,
+    "reason": "AirTasker sponsor read followed by cross-promotion for 'Decisions Decisions' podcast sponsored by Care for the Culture from Gilead Sciences",
+    "end_text": "from Gilead Sciences"
+  },
+  {
+    "start": 8799.1,
+    "end": 8831.4,
+    "confidence": 0.95,
+    "reason": "OnDeck small business loan sponsor read followed by Public investing platform ad",
+    "end_text": "take it seriously"
+  }
+]
+```

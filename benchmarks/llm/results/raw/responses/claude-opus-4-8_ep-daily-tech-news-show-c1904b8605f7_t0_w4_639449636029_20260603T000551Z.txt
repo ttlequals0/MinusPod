@@ -1,0 +1,6 @@
+[
+  {"start": 1718.3, "end": 1735.3, "confidence": 0.85, "reason": "DTNS store promotion with call to action", "end_text": "There you go"},
+  {"start": 1742.3, "end": 1771.5, "confidence": 0.97, "reason": "Capital One sponsor read", "end_text": "technology at Capital One"},
+  {"start": 1772.6, "end": 1803.6, "confidence": 0.9, "reason": "Lemonada Media Good Things podcast cross-promotion", "end_text": "six-part Thrive series"},
+  {"start": 2246.0, "end": 2301.6, "confidence": 0.97, "reason": "Capital One sponsor read followed by Rinse laundry service ad (continues in next window)", "end_text": "relentless task"}
+]

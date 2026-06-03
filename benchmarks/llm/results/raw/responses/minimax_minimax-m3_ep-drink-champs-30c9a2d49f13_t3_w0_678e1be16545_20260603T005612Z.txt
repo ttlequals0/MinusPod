@@ -1,0 +1,1 @@
+[{"start": 0.0, "end": 162.9, "confidence": 0.97, "reason": "Pre-roll ad block: iHeart platform intro, Airtasker, Gilead/Care for the Culture HIV awareness, Nissan Rogue, and Shopify ads — all merged per <15s gap rule, ending when Drink Champs show content begins", "end_text": "Shopify.com slash B-E-N"}]

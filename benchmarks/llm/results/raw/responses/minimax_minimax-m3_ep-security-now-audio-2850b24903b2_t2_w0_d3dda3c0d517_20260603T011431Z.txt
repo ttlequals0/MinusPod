@@ -1,0 +1,6 @@
+```json
+[
+  {"start": 16.7, "end": 84.9, "confidence": 0.98, "reason": "OutSystems sponsor read with URL OutSystems.com/twit, followed by TWiT network tagline", "end_text": "This is Twit."},
+  {"start": 469.0, "end": 572.1, "confidence": 0.98, "reason": "Zscaler sponsor read with URL zscaler.com/security, including customer testimonial from Zuora", "end_text": "Thank you, Leo."}
+]
+```

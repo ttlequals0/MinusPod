@@ -1,0 +1,6 @@
+```json
+[
+  {"start": 11335.2, "end": 11455.4, "confidence": 0.95, "reason": "Merged ad segment (all within 15s of each other): Airtasker app network-inserted ad, 'Decisions Decisions' podcast cross-promotion featuring Keke Palmer sponsored by Gilead Sciences, and OnDeck small business line of credit ad", "end_text": "an amount subject to lender approval"},
+  {"start": 11513.7, "end": 11516.0, "confidence": 0.75, "reason": "Public.com network-inserted disclaimer tagline — likely tail end of a larger ad that began before this window", "end_text": "public.com slash disclosures"}
+]
+```

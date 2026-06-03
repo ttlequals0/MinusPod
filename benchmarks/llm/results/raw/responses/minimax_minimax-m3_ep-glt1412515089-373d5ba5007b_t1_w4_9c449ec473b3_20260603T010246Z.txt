@@ -1,0 +1,3 @@
+```json
+[{"start": 2208.3, "end": 2262.0, "confidence": 0.98, "reason": "Blinds.com network-inserted ad with promotional language including discount offer (up to 45% off) and call to action", "end_text": "rules and restrictions apply"}]
+```

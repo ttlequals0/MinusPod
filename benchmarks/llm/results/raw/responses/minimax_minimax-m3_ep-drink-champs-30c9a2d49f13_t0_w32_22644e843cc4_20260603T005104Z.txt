@@ -1,0 +1,1 @@
+[{"start": 13669.1, "end": 13854.6, "confidence": 0.97, "reason": "Mid-roll ad block containing Airtasker, Decisions Decisions podcast cross-promo (sponsored by Gilead Sciences), OnDeck, and Public.com sponsor reads, plus Public.com legal disclosure tag", "end_text": "public.com slash disclosures"}]

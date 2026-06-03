@@ -1,0 +1,1 @@
+[{"start": 7607.7, "end": 7743.9, "confidence": 0.97, "reason": "Trusted Tech sponsor read about Microsoft 365 licensing management, with transition 'This episode of Security Now brought to you by Trusted Tech'. Ad continues past this window.", "end_text": "end quote. He was impressed. You will be too."}]

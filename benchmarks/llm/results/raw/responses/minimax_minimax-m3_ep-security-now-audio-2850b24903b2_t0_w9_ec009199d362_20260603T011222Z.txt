@@ -1,0 +1,3 @@
+```json
+[{"start": 4258.6, "end": 4380.0, "confidence": 0.98, "reason": "Bitwarden sponsor read - includes transition 'We'll have more Security Now right after this' and promotional content about Bitwarden password manager, Agent Access SDK, and passkey login. Continues in next window.", "end_text": "unlocking devices at the OS level"}]
+```

@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 636.8,
+    "end": 782.3,
+    "confidence": 0.98,
+    "reason": "Multi-sponsor ad block: Parloa AI platform (host-read with URL), Capital One Chat Concierge, network-inserted AllTrails app ad, network-inserted Zinn Nicotine Pouches brand tagline ad, and cross-promotion for Good Things from Lemonada Media podcast",
+    "end_text": "Thrive series."
+  }
+]
+```

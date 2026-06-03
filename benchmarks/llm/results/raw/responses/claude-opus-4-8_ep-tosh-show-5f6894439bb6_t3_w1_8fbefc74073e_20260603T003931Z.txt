@@ -1,0 +1,1 @@
+[{"start": 535.5, "end": 567.0, "confidence": 0.97, "reason": "Thrive Cosmetics sponsor read with promo code shine26", "end_text": "Shine 26"}, {"start": 594.7, "end": 654.3, "confidence": 0.95, "reason": "Mattress Warehouse / PC Richard & Son / Acima lease-to-own network ads", "end_text": "Asima dot HTML for details"}]

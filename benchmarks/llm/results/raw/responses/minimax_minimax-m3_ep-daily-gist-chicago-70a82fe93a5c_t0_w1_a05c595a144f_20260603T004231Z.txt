@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 521.5,
+    "end": 548.5,
+    "confidence": 0.82,
+    "reason": "Produced self-promotional segment for Crain's Weekly News Quiz with vanity URL and call to action",
+    "end_text": "Crain's Daily Gist with Amy Guth"
+  }
+]
+```

@@ -1,0 +1,1 @@
+[{"start": 2609.5, "end": 2633.6, "confidence": 0.85, "reason": "Dynamically inserted ad with concentrated list of sponsor names (Athletic Greens, AG1, BetterHelp, Squarespace, ZipRecruiter, etc.) interrupting editorial content", "end_text": "Stamps.com"}]

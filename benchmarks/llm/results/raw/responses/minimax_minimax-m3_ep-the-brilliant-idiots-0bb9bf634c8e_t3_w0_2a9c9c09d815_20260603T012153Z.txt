@@ -1,0 +1,1 @@
+[{"start": 0.5, "end": 16.8, "confidence": 0.97, "reason": "Carvana pre-roll ad read - produced testimonial-style spot promoting selling cars on Carvana, ends with call to action 'Sell your car today on Carvana'", "end_text": "Sell your car today on Carvana"}]

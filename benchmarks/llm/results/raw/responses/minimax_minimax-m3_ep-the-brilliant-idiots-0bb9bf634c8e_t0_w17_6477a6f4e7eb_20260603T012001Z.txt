@@ -1,0 +1,18 @@
+```json
+[
+  {
+    "start": 7135.4,
+    "end": 7158.5,
+    "confidence": 0.72,
+    "reason": "Cross-promotion for Lauren LaRosa's separate podcast, structured as a produced promo segment with show details and call to follow",
+    "end_text": "get into some things"
+  },
+  {
+    "start": 7173.7,
+    "end": 7196.8,
+    "confidence": 0.97,
+    "reason": "Netflix sponsor read for 'Remarkably Bright Creatures' with classic 'This episode is brought to you by' transition and platform-specific call to action",
+    "end_text": "playing only on Netflix"
+  }
+]
+```

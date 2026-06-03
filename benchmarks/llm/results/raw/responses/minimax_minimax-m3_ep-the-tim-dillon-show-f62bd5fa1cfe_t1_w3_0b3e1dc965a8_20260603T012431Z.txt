@@ -1,0 +1,3 @@
+```json
+[{"start": 1439.2, "end": 1665.9, "confidence": 0.95, "reason": "Merged ad block: Mint Mobile host read (mintmobile.com/TIMDILLON), Aura Frames host read (auraframes.com, code TIM), Colgate Women's Games network-inserted produced ad, and Skinny Pop network-inserted brand tagline ad. All gaps between ads < 15 seconds.", "end_text": "perfectly salted. Skinny Pop."}]
+```

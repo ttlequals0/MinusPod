@@ -1,0 +1,1 @@
+[{"start": 2412.8, "end": 2484.9, "confidence": 0.95, "reason": "Merged network-inserted ads: HealthCast by Stony Brook Medicine podcast promotion (health.stonybrookmedicine.edu/podcasts) and PC Richard & Son Aseema Lease to Own program with promotional details and legal disclaimers", "end_text": "for details"}]

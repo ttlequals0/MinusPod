@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 8724.9,
+    "end": 8831.4,
+    "confidence": 0.97,
+    "reason": "Merged ad block: AirTasker (app promo with URL), Decisions Decisions podcast cross-promo sponsored by Care for the Culture/Gilead Sciences, OnDeck small business loans (with URL OnDeck.com), and Public investing platform ('Support for the show comes from Public'). All gaps under 15 seconds.",
+    "end_text": "for those who take it seriously"
+  }
+]
+```

@@ -1,0 +1,1 @@
+[{"start": 0.0, "end": 28.1, "confidence": 0.97, "reason": "Pre-roll network-inserted ad for Colgate Women's Games with brand tagline 'your smile is your strength'", "end_text": "welcome to the Tim Dillon Show"}]

@@ -1,0 +1,3 @@
+```json
+[{"start": 469.0, "end": 572.1, "confidence": 0.97, "reason": "Zscaler sponsor read with testimonial, promoting Zero Trust Plus AI", "end_text": "back to Steve and Security Now"}]
+```

@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 7606.9,
+    "end": 7797.4,
+    "confidence": 0.97,
+    "reason": "Trusted Tech sponsor read for Microsoft 365 licensing consultation, includes transition phrase and repeated URL trustedtech.team/securitynow365",
+    "end_text": "trustedtech.team securitynow365"
+  }
+]
+```

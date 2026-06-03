@@ -1,0 +1,3 @@
+[{"start": 0.0, "end": 71.2, "confidence": 0.95, "reason": "iHeart platform pre-roll with Airtasker ad and Care for the Culture/Gilead Sciences HIV awareness sponsored message", "end_text": "from Gilead Sciences"},
+{"start": 72.9, "end": 101.0, "confidence": 0.93, "reason": "Nissan Rogue durability campaign ad", "end_text": "real-world conditions"},
+{"start": 109.0, "end": 150.5, "confidence": 0.97, "reason": "Shopify sponsor read with promo URL", "end_text": "Shopify.com slash B-E-N"}]

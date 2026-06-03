@@ -1,0 +1,3 @@
+```json
+[{"start": 8724.9, "end": 8831.4, "confidence": 0.97, "reason": "Consecutive ad break: AirTasker sponsor read, cross-promotion for 'Decisions Decisions' podcast (sponsored by Gilead Sciences), OnDeck small business loans ad, and Public investing platform sponsor read. All gaps < 15s, merged per rules.", "end_text": "those who take it seriously"}]
+```

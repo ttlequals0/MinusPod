@@ -1,0 +1,1 @@
+[{"start": 2208.3, "end": 2237.2, "confidence": 0.97, "reason": "Blinds.com ad with promotional language, 45% off offer, free professional measure, and call to action", "end_text": "rules and restrictions apply"}]

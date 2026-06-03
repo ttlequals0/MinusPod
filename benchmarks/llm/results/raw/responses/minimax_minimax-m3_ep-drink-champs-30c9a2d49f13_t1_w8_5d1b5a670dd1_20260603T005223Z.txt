@@ -1,0 +1,18 @@
+```json
+[
+  {
+    "start": 3503.7,
+    "end": 3607.1,
+    "confidence": 0.95,
+    "reason": "Back-to-back ad break: Airtasker sponsor read (Airtasker.com CTA), then Decisions Decisions podcast cross-promo with Gilead Sciences sponsorship, then OnDeck small business line of credit ad (OnDeck.com CTA). Merged per <15s gap rule.",
+    "end_text": "All amounts subject to lender approval"
+  },
+  {
+    "start": 3608.5,
+    "end": 3666.3,
+    "confidence": 0.95,
+    "reason": "Public.com investing platform sponsor read with AI-generated index feature pitch, ending with public.com/disclosures URL before show content resumes",
+    "end_text": "public.com slash disclosures"
+  }
+]
+```

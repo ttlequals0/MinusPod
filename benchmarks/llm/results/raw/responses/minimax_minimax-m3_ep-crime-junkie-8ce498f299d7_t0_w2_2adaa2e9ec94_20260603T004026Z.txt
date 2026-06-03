@@ -1,0 +1,1 @@
+[{"start": 1036.2, "end": 1129.6, "confidence": 0.98, "reason": "SoFi personal loan sponsor read merged with LinkedIn Premium ad (gap <15s); SoFi promotes debt consolidation with promo URL SoFi.com/cJ, followed by LinkedIn Premium all-in-one product pitch with LinkedIn.com/all-in-one", "end_text": "free at LinkedIn.com slash all-in-one"}]

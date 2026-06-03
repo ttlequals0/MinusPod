@@ -1,0 +1,18 @@
+```json
+[
+  {
+    "start": 4646.2,
+    "end": 4674.6,
+    "confidence": 0.95,
+    "reason": "Colgate Women's Games network-inserted ad - produced spot promoting Colgate's support of female athletes",
+    "end_text": "your smile is your strength"
+  },
+  {
+    "start": 4705.5,
+    "end": 4806.1,
+    "confidence": 0.95,
+    "reason": "Network-inserted ad block: Skinny Pop + Colgate Women's Games (second play) + Viz prescription eye drops + Garnier/National Park Foundation. All separate ads with gaps < 15 seconds, merged into one segment. Garnier ad continues past window end.",
+    "end_text": "GarnierUSA.com slash NPF"
+  }
+]
+```

@@ -1,0 +1,3 @@
+```json
+[{"start": 2609.5, "end": 2634.3, "confidence": 0.82, "reason": "Segment listing multiple podcast sponsors (Athletic Greens, AG1, BetterHelp, Squarespace, ZipRecruiter, Raycon, Manscaped, Stamps.com) with ad-related terminology (promo code, discount code, sponsored by). Likely dynamically inserted or concatenated sponsor block.", "end_text": "Stamps.com,"}]
+```

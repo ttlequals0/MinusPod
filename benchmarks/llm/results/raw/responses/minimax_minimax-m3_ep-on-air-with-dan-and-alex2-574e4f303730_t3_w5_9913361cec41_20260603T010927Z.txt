@@ -1,0 +1,1 @@
+[{"start": 2609.5, "end": 2634.3, "confidence": 0.9, "reason": "Dynamically inserted ad segment listing multiple known sponsors (AG1, BetterHelp, Squarespace, ZipRecruiter, Raycon, Manscaped, Stamps.com) with ad-related language ('promo code, discount code, sponsored by'). Breaks the flow of Emirates bonus discussion.", "end_text": "Stamps.com"}]

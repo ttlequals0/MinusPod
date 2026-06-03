@@ -1,0 +1,32 @@
+```json
+[
+  {
+    "start": 0.0,
+    "end": 22.1,
+    "confidence": 0.99,
+    "reason": "Progressive Insurance network-inserted ad with product pitch and URL (Progressive.com)",
+    "end_text": "Not available in all states"
+  },
+  {
+    "start": 29.8,
+    "end": 58.1,
+    "confidence": 0.99,
+    "reason": "Whole Foods Market network-inserted ad promoting Mother's Day products (cheese, seafood, bakery items)",
+    "end_text": "Celebrate mom with Whole Foods Market"
+  },
+  {
+    "start": 537.5,
+    "end": 567.0,
+    "confidence": 0.99,
+    "reason": "Thrive Cosmetics sponsor read with promo URL (thrivecosmetics.com/shine26) and 20% off offer",
+    "end_text": "slash shine26"
+  },
+  {
+    "start": 594.7,
+    "end": 597.3,
+    "confidence": 0.6,
+    "reason": "Brief Mattress Warehouse brand tagline fragment; likely end of a longer network-inserted ad mostly cut from this window",
+    "end_text": "Only at Mattress Warehouse"
+  }
+]
+```

@@ -1,0 +1,7 @@
+```json
+[
+  {"start": 11335.2, "end": 11455.4, "confidence": 0.97, "reason": "Merged ad block: Airtasker app ad + 'Decisions Decisions' podcast cross-promo (sponsored by Gilead Sciences/Care for the Culture) + OnDeck small business line of credit ad", "end_text": "subject to lender approval"},
+  {"start": 11513.7, "end": 11515.0, "confidence": 0.55, "reason": "Partial public.com ad disclosure remnant ('Disclosures available at public.com/disclosures') - main ad pitch cut from transcript", "end_text": "public.com slash disclosures"},
+  {"start": 11614.6, "end": 11630.6, "confidence": 0.6, "reason": "DAI ad break metadata listing sponsor names (Athletic Greens, Audible, Masterclass, ZipRecruiter, Raycon, Manscaped, Stamps.com) - actual ad copy not captured in transcript", "end_text": "Manscaped, Stamps.com"}
+]
+```

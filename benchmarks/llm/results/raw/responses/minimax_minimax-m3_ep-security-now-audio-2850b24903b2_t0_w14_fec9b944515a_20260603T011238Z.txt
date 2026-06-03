@@ -1,0 +1,1 @@
+[{"start": 6016.6, "end": 6162.3, "confidence": 0.97, "reason": "Hoxhunt sponsor read (hoxhunt.com/securitynow) with transition phrase 'we'll take a little break' and full promotional pitch for security training platform", "end_text": "hawkshunt.com security now"}]

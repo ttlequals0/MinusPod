@@ -1,0 +1,1 @@
+[{"start": 1.6, "end": 77.2, "confidence": 0.97, "reason": "Platform-inserted Acast promotional content and cross-promotions for podcasts 'Wrong Turns' (Jameeda Jamil) and 'Formative', with calls to action to listen and Acast.com", "end_text": "leaders of tomorrow."}]

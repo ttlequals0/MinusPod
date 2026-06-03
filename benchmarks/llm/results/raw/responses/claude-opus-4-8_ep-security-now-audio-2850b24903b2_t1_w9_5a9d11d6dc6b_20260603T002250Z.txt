@@ -1,0 +1,1 @@
+[{"start": 4204.1, "end": 4396.1, "confidence": 0.97, "reason": "Break transition into Bitwarden sponsor read, plus TWiT live show/platform promo", "end_text": "devices at the OS level"}]

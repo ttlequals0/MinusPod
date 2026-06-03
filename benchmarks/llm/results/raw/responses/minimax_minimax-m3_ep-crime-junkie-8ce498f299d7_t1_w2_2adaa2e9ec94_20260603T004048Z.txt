@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 1036.2,
+    "end": 1129.6,
+    "confidence": 0.98,
+    "reason": "SoFi personal loan ad (SoFi.com/CJ) merged with LinkedIn Premium All-in-One ad (LinkedIn.com/all-in-one); gap between ads <15s",
+    "end_text": "LinkedIn.com slash all-in-one"
+  }
+]
+```

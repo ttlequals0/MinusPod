@@ -1,0 +1,3 @@
+```json
+[{"start": 7607.7, "end": 7743.9, "confidence": 0.97, "reason": "Trusted Tech sponsor read about Microsoft 365 licensing and cost management; continues past this window", "end_text": "He was impressed. You will be too."}]
+```

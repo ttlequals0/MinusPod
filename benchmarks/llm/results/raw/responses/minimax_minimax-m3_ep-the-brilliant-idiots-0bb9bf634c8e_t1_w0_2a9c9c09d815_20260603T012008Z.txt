@@ -1,0 +1,3 @@
+```json
+[{"start": 0.5, "end": 16.8, "confidence": 0.97, "reason": "Carvana network-inserted ad with scripted testimonial format and call to action 'Sell your car today on Carvana'", "end_text": "Pickup fees may apply"}]
+```

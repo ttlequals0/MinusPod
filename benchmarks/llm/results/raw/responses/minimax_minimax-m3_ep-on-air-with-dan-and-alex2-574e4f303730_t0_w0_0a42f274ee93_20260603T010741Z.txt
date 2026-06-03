@@ -1,0 +1,3 @@
+```json
+[{"start": 0.0, "end": 59.8, "confidence": 0.96, "reason": "Pre-roll ads: HEX (Hex.ai) data analytics platform ad followed immediately by Orange County, NY tourism ad (PickOCNY.com). Both contain promotional language, product pitches, and URLs. Merged due to <15s gap.", "end_text": "Find your fresh state of mind at PickOCNY.com"}]
+```

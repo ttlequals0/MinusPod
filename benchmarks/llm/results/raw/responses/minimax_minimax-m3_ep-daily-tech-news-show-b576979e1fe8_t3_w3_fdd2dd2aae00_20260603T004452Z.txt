@@ -1,0 +1,1 @@
+[{"start": 1493.2, "end": 1536.8, "confidence": 0.97, "reason": "Back-to-back sponsor reads: Capital One Chat Concierge AI product pitch followed immediately by AllTrails app network-inserted brand tagline ad", "end_text": "find your outside"}]

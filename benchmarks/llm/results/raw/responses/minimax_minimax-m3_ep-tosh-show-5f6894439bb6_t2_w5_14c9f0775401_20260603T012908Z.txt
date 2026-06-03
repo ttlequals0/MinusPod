@@ -1,0 +1,18 @@
+```json
+[
+  {
+    "start": 2412.8,
+    "end": 2427.6,
+    "confidence": 0.95,
+    "reason": "Network-inserted cross-promotion ad for HealthCast by Stony Brook Medicine podcast with URL call to action",
+    "end_text": "health.stonybrookmedicine.edu/slash podcasts"
+  },
+  {
+    "start": 2428.9,
+    "end": 2484.9,
+    "confidence": 0.97,
+    "reason": "Network-inserted ad for PC Richard & Son Aseema Lease to Own program with Memorial Day Sale promotion, product categories, and fine print disclaimer; continues past window",
+    "end_text": "details"
+  }
+]
+```

@@ -1,0 +1,3 @@
+```json
+[{"start": 539.2, "end": 652.8, "confidence": 0.99, "reason": "Two consecutive ads: movie 'In the Gray' (Guy Ritchie, Jake Gyllenhaal) and Skechers Slip-ins shoe promotion. Merged as back-to-back with no content gap.", "end_text": "That's only at Skechers.com."}]
+```

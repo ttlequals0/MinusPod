@@ -1,0 +1,1 @@
+[{"start": 11335.2, "end": 11536.6, "confidence": 0.97, "reason": "Ad block: Airtasker app, Decisions Decisions podcast cross-promo (Care for the Culture/Gilead), OnDeck line of credit, and Public.com", "end_text": "public.com slash disclosures"}]

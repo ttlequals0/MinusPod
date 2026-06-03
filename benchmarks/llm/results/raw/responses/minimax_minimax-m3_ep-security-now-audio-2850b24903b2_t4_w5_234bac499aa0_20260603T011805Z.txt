@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 2559.0,
+    "end": 2693.0,
+    "confidence": 0.98,
+    "reason": "Meter sponsor read - host-read ad with transition 'break time' and URL meter.com/securitynow",
+    "end_text": "all right now back to steve"
+  }
+]
+```

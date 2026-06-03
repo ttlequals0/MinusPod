@@ -1,0 +1,3 @@
+```json
+[{"start": 821.4, "end": 1021.1, "confidence": 0.97, "reason": "Dynamically inserted ad block: Capital One, BetterHelp, Amazon Health AI, Spectrum Business, and Rinse/Best One Yet cross-promo with promo URLs and sponsor transitions", "end_text": "It's time to be great"}]
+```

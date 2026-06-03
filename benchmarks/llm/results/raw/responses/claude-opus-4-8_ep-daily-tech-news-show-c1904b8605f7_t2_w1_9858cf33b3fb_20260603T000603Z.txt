@@ -1,0 +1,1 @@
+[{"start": 796.9, "end": 1021.1, "confidence": 0.97, "reason": "Ad break with Capital One sponsor read, BetterHelp, Amazon Health AI, Spectrum Business, and Rinse ads; begins with patron thank-you transition", "end_text": "Rinse. It's time to be great"}]

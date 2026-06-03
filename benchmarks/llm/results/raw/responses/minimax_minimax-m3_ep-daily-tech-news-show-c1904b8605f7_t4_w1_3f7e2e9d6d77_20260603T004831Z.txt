@@ -1,0 +1,3 @@
+```json
+[{"start": 821.4, "end": 1018.9, "confidence": 0.97, "reason": "Consecutive ad block (gaps <15s): Capital One sponsor read, BetterHelp with promo URL, Amazon Health AI network-inserted ad, Spectrum Business network-inserted ad with URL, and Best One Yet podcast cross-promo promoting Rinse laundry service", "end_text": "Schedule at rinse.com. Rinse."}]
+```

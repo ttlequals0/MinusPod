@@ -1,0 +1,1 @@
+[{"start": 506.4, "end": 548.5, "confidence": 0.85, "reason": "Crain's Weekly News Quiz promo with chicagobusiness.com/quiz call to action, following ad break transition", "end_text": "wherever you get your podcasts"}]

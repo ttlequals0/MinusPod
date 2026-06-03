@@ -1,0 +1,18 @@
+```json
+[
+  {
+    "start": 15261.8,
+    "end": 15285.2,
+    "confidence": 0.5,
+    "reason": "Garbled ad read - transcript captures repeated 'promo code, discount code' suggesting ASR-mangled sponsor read (likely Squarespace or similar) during mid-roll break before show wrap-up",
+    "end_text": "discount code"
+  },
+  {
+    "start": 15388.3,
+    "end": 15517.1,
+    "confidence": 0.95,
+    "reason": "Merged network-inserted post-roll ads: Airtasker, CVS retail, Trashy/ThredUp, Fencing PSA, and iHeart Podcast platform tag",
+    "end_text": "iHeart Podcast. Guaranteed human."
+  }
+]
+```

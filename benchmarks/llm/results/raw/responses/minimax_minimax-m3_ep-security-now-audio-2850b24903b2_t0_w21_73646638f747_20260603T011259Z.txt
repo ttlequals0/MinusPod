@@ -1,0 +1,25 @@
+```json
+[
+  {
+    "start": 9259.3,
+    "end": 9290.5,
+    "confidence": 0.88,
+    "reason": "TWiT network cross-promo for This Week in Tech podcast",
+    "end_text": "TWiT Network. Thank you."
+  },
+  {
+    "start": 9312.9,
+    "end": 9315.5,
+    "confidence": 0.45,
+    "reason": "Possible short network-inserted brand tagline ad fragment ('Fit for your ambition'), transcript too brief to confirm sponsor",
+    "end_text": "for citizens back."
+  },
+  {
+    "start": 9344.4,
+    "end": 9374.4,
+    "confidence": 0.98,
+    "reason": "Mint Mobile ad featuring Ryan Reynolds with promo URL mintmobile.com/switch and pricing details",
+    "end_text": "terms at mintmobile.com."
+  }
+]
+```

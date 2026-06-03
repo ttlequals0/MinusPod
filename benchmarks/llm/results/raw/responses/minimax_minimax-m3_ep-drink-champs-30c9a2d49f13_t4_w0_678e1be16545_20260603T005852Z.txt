@@ -1,0 +1,1 @@
+[{"start": 0.0, "end": 150.5, "confidence": 0.97, "reason": "Merged network-inserted and host-read ads: Airtasker (0.0-42.2s), Care for the Culture/Gilead HIV awareness (42.8-72.1s), Nissan Rogue (72.9-101.0s), Shopify (109.0-150.5s). All gaps between segments are <15s, merged into single block.", "end_text": "Start now at Shopify.com"}]

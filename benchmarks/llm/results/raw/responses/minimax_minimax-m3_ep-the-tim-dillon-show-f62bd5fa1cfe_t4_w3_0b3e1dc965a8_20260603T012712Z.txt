@@ -1,0 +1,1 @@
+[{"start": 1439.2, "end": 1665.9, "confidence": 0.97, "reason": "Merged ad break containing Mint Mobile host read (mintmobile.com/TIMDILLON), Aura Frames host read (AuraFrames.com, promo code TIM), Colgate Women's Games network-inserted ad, and Skinny Pop network-inserted ad. All gaps between ads are under 15 seconds.", "end_text": "perfectly salted. Skinny Pop."}]

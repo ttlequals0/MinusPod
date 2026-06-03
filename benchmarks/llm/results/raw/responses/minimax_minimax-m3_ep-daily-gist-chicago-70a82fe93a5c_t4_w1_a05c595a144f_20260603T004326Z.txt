@@ -1,0 +1,1 @@
+[{"start": 515.6, "end": 548.5, "confidence": 0.92, "reason": "Host-read promo for Crain's Weekly News Quiz at chicagobusiness.com/slash-quiz and podcast follow CTA", "end_text": "Crain's Daily Gist with Amy Guth"}]

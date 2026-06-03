@@ -1,0 +1,18 @@
+```json
+[
+  {
+    "start": 2011.6,
+    "end": 2045.2,
+    "confidence": 0.85,
+    "reason": "Diamond Club network sign-off and Capital One sponsor read about their Chat Concierge AI for car shopping (multi-agentic AI deployment, test drive scheduling, pre-approval, trade-in estimation). Merged due to <15s gap.",
+    "end_text": "That's technology at Capital One."
+  },
+  {
+    "start": 2046.3,
+    "end": 2073.2,
+    "confidence": 0.92,
+    "reason": "Lemonada Media 'Good Things' podcast cross-promotion for the Thrive series about young people aged 14-24. Continues past window.",
+    "end_text": "the six-part Thrive series."
+  }
+]
+```

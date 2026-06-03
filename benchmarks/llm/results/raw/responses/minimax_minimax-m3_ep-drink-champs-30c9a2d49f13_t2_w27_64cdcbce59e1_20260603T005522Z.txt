@@ -1,0 +1,9 @@
+```json
+[
+  {"start": 11340.6, "end": 11365.6, "confidence": 0.92, "reason": "Airtasker network-inserted ad (continues from before window); Airtasker.com URL and CTA", "end_text": "get anything done"},
+  {"start": 11366.2, "end": 11424.6, "confidence": 0.95, "reason": "Decisions Decisions podcast cross-promotion with Gilead Sciences sponsor mention", "end_text": "Gilead Sciences"},
+  {"start": 11425.3, "end": 11455.4, "confidence": 0.95, "reason": "OnDeck small business line of credit ad; OnDeck.com URL and CTA", "end_text": "lender approval"},
+  {"start": 11513.7, "end": 11516.0, "confidence": 0.85, "reason": "Public.com dynamically inserted ad overlay (DAI) with disclosures URL; show content resumes underneath", "end_text": "public.com slash disclosures"},
+  {"start": 11614.6, "end": 11630.6, "confidence": 0.9, "reason": "Dynamically inserted sponsor keyword list (Athletic Greens, Audible, Masterclass, ZipRecruiter, Raycon, Manscaped, Stamps.com) — DAI ad segment", "end_text": "Stamps.com"}
+]
+```

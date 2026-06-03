@@ -1,0 +1,3 @@
+```json
+[{"start": 4057.2, "end": 4083.9, "confidence": 0.5, "reason": "Ad break bracketed by 'Let's pay some bills' transition and 'let's get back to this show' return; no specific sponsor or promotional content visible in transcript (likely dynamically inserted ad not captured)", "end_text": "All right, let's get back to this show"}]
+```

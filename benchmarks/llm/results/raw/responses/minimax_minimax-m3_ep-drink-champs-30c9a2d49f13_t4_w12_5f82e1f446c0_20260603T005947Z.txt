@@ -1,0 +1,1 @@
+[{"start": 5420.4, "end": 5441.3, "confidence": 0.72, "reason": "Dynamically inserted ad segment detected via repeated 'promo code, discount code' transcription artifact, indicating ad audio that was not fully captured by the transcriber", "end_text": "discount code, discount code"}]

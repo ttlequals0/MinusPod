@@ -1,0 +1,3 @@
+```json
+[{"start": 3503.7, "end": 3556.2, "confidence": 0.95, "reason": "Airtasker sponsor ad (app download CTA, Airtasker.com) followed immediately by cross-promotion for 'Decisions Decisions' podcast featuring Kiki Palmer; ad continues past window", "end_text": "conversation about abstinence"}]
+```

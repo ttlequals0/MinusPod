@@ -1,0 +1,1 @@
+[{"start": 2208.3, "end": 2237.2, "confidence": 0.97, "reason": "Blinds.com dynamically inserted ad with promotional language, discount offer (45% off), and URL", "end_text": "rules and restrictions apply"}]

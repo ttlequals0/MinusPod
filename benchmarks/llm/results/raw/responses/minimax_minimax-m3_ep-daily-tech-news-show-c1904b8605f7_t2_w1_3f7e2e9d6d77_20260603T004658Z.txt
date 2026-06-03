@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 821.4,
+    "end": 1020.0,
+    "confidence": 0.97,
+    "reason": "Merged ad block: Capital One, BetterHelp, Amazon Health AI, Spectrum Business, and Rinse/Best One Yet cross-promotion. All inter-ad gaps <15s. Ad extends slightly past window.",
+    "end_text": "It's time to be great."
+  }
+]
+```

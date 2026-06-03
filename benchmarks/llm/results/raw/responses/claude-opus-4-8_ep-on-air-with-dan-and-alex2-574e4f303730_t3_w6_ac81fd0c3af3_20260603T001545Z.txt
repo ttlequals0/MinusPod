@@ -1,0 +1,5 @@
+[]
+
+The segment at [2609.5s - 2634.3s] contains a list of brand names (Athletic Greens, AG1, BetterHelp, Squarespace, ZipRecruiter, etc.) but there is no actual promotional pitch, sponsor read, URL, promo code, or call to action. It appears to be a fragment/artifact without coherent advertising content. The surrounding content is editorial discussion about airline bonuses, with no ad pitch attached. Without genuine promotional language forming an actual ad, this does not qualify as a flagged advertisement.
+
+[]

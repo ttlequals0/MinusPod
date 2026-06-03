@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 7606.9,
+    "end": 7797.4,
+    "confidence": 0.99,
+    "reason": "Trusted Tech (Microsoft 365 licensing) sponsor read with transition phrase, promo URL trustedtech.team/securitynow365, and explicit 'Now, back to Steve' sign-off",
+    "end_text": "trustedtech.team securitynow365"
+  }
+]
+```

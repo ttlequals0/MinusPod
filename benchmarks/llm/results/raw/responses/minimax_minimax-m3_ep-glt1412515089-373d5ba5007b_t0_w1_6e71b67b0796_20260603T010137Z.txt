@@ -1,0 +1,1 @@
+[{"start": 539.2, "end": 652.8, "confidence": 0.99, "reason": "Back-to-back sponsor reads: 'In the Gray' movie ad (Guy Ritchie film with theatrical release date) and Skechers slip-ins ad with product pitch and Skechers.com URL", "end_text": "only at Skechers.com"}]

@@ -1,0 +1,3 @@
+```json
+[{"start": 6016.6, "end": 6060.0, "confidence": 0.97, "reason": "Hoxhunt sponsor read - 'This episode of Security Now brought to you by Hawks Hunt' with product pitch about AI-powered phishing simulation training; continues past window", "end_text": "just like the bad guys"}]
+```

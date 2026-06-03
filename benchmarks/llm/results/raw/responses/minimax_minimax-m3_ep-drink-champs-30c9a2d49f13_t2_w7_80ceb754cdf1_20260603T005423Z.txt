@@ -1,0 +1,3 @@
+```json
+[{"start": 3503.7, "end": 3540.0, "confidence": 0.95, "reason": "Airtasker host-read ad followed by network-inserted cross-promo for 'Decisions Decisions' podcast, merged due to <15s gap", "end_text": "the conversation about abstinence?"}]
+```

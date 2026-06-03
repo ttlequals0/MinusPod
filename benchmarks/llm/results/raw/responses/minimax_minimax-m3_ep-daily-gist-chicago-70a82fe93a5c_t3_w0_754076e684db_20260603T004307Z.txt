@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 54.1,
+    "end": 64.7,
+    "confidence": 0.95,
+    "reason": "Old National Bank sponsor read with URL (oldnational.com/slash commercial banking) and call to action",
+    "end_text": "Member FDIC"
+  }
+]
+```

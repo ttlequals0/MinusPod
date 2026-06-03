@@ -1,0 +1,3 @@
+```json
+[{"start": 444.6, "end": 572.1, "confidence": 0.97, "reason": "Zscaler sponsor read - host says 'This episode of Security Now brought to you by Zscaler', pitches their Zero Trust Plus AI platform, includes URL zscaler.com/slash security", "end_text": "Thank you, Leo."}]
+```

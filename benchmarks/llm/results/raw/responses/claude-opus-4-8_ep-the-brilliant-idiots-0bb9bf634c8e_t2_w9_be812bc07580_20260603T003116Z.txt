@@ -1,0 +1,1 @@
+[{"start": 4057.2, "end": 4083.9, "confidence": 0.85, "reason": "Pay the bills transition / ad break segment with playful filler before returning to show", "end_text": "let's get back to this show"}]

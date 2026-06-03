@@ -1,0 +1,3 @@
+```json
+[{"start": 0.0, "end": 27.7, "confidence": 0.95, "reason": "Colgate Women's Games network-inserted brand tagline ad", "end_text": "girls and women"}]
+```

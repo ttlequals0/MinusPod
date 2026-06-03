@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 1959.8,
+    "end": 2080.5,
+    "confidence": 0.97,
+    "reason": "Network-inserted ad block: Rakuten (cash back shopping), LinkedIn Premium All-in-One (small business tool), and Hertz (car rental). All feature brand names, promotional language, and calls to action with URLs.",
+    "end_text": "Get paired with our newest fleet yet at Hertz.com."
+  }
+]
+```

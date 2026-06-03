@@ -1,0 +1,1 @@
+[{"start": 3079.6, "end": 3270.1, "confidence": 0.97, "reason": "Consecutive host-read sponsor segments (Morgan & Morgan, Stash, Neuro Gum) with gaps under 15 seconds, merged into one ad break", "end_text": "Neuro at CVS and Amazon"}]

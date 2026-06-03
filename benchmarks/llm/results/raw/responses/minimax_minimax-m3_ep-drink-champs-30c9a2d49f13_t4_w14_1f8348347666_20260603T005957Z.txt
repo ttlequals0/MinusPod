@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 6208.7,
+    "end": 6318.1,
+    "confidence": 0.97,
+    "reason": "Ad break containing Airtasker app ad, Decisions Decisions podcast cross-promo (sponsored by Care for the Culture/Gilead Sciences), OnDeck small business line of credit ad, and Public investing platform ad - all back-to-back with gaps under 15 seconds",
+    "end_text": "those who take it seriously"
+  }
+]
+```

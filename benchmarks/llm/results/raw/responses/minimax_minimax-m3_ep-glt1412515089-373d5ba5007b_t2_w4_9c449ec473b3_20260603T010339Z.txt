@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 2208.3,
+    "end": 2237.2,
+    "confidence": 0.97,
+    "reason": "Network-inserted ad for Blinds.com promoting window treatments with promotional offer of up to 45% off and free professional measure",
+    "end_text": "rules and restrictions apply"
+  }
+]
+```

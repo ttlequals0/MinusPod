@@ -1,0 +1,3 @@
+```json
+[{"start": 1.6, "end": 77.2, "confidence": 0.97, "reason": "Platform-inserted pre-roll block: Acast hosting promo + cross-promotion for 'Wrong Turns' podcast + Acast/Formative cross-promotion. All segments separated by gaps <15s, merged into one.", "end_text": "the leaders of tomorrow."}]
+```

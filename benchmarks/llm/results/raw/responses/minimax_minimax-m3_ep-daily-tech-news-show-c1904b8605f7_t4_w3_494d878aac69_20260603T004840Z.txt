@@ -1,0 +1,1 @@
+[{"start": 1742.3, "end": 1799.6, "confidence": 0.95, "reason": "Capital One sponsor read followed immediately by Good Things from Lemonada Media cross-promotion for another podcast; merged per <15s gap rule", "end_text": "the six-part Thrive series"}]

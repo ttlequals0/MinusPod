@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 1.6,
+    "end": 77.2,
+    "confidence": 0.97,
+    "reason": "Acast platform-inserted ads including cross-promotions for 'Wrong Turns' (Jameela Jamil podcast) and 'Formative' (NYC middle schoolers podcast), plus Acast's own promotional messaging",
+    "end_text": "leaders of tomorrow."
+  }
+]
+```

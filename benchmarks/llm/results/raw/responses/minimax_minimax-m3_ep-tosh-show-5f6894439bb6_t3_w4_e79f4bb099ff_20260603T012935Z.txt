@@ -1,0 +1,1 @@
+[{"start": 1836.9, "end": 1999.5, "confidence": 0.97, "reason": "Back-to-back ad block: Mint Mobile host-read ad (mintmobile.com/slashtosh) followed by network-inserted Mattress Warehouse Memorial Day Sale and PC Richard & Son Aseema Lease to Own ads", "end_text": "for details."}]

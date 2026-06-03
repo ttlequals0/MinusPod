@@ -1,0 +1,8 @@
+```json
+[
+  {"start": 1742.3, "end": 1771.5, "confidence": 0.97, "reason": "Capital One sponsor read promoting Chat Concierge multi-agentic AI for car shopping", "end_text": "That's technology at Capital One."},
+  {"start": 1772.6, "end": 1799.6, "confidence": 0.95, "reason": "Cross-promotion for Good Things podcast from Lemonada Media (Thrive series)", "end_text": "hear the six-part Thrive series."},
+  {"start": 2246.0, "end": 2275.3, "confidence": 0.97, "reason": "Capital One sponsor ad repeated (dynamic insertion) promoting Chat Concierge AI for car shopping", "end_text": "That's technology at Capital One."},
+  {"start": 2276.2, "end": 2280.0, "confidence": 0.93, "reason": "Cross-promotion for TED's Rethinking Podcast with Adam Grant combined with Rinse laundry service ad; continues in next window", "end_text": "a relentless task."}
+]
+```

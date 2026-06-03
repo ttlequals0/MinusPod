@@ -1,0 +1,3 @@
+```json
+[{"start": 15261.8, "end": 15291.0, "confidence": 0.55, "reason": "Segment with repeated 'promo code, discount code' suggests a sponsor read with garbled/unclear audio transcription. Transitions to show wrap-up at 15291.0s.", "end_text": "Man, Warren, man,"}]
+```

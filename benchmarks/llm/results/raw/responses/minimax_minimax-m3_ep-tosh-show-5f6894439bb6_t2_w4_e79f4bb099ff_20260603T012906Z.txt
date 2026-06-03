@@ -1,0 +1,1 @@
+[{"start": 1837.5, "end": 1999.5, "confidence": 0.97, "reason": "Mint Mobile host-read sponsor ad (mintmobile.com/slash tosh) followed by Mattress Warehouse and PC Richard & Son network-inserted ads, merged with gaps < 15 seconds", "end_text": "HTML for details"}]

@@ -1,0 +1,1 @@
+[{"start": 1450.9, "end": 1629.0, "confidence": 0.98, "reason": "Multiple back-to-back network-inserted ads: Airtasker (post your task at Airtasker.com), Decisions Decisions podcast cross-promotion, OnDeck small business line of credit, and BetMGM sportsbook (MLB partnership, Swing for the Fences)", "end_text": "Kansas Crossing Casino and Hotel"}]

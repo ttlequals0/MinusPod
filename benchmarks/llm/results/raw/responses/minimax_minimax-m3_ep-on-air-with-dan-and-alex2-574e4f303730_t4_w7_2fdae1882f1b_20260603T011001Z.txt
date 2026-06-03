@@ -1,0 +1,1 @@
+[{"start": 3428.1, "end": 3486.2, "confidence": 0.97, "reason": "Two consecutive network-inserted university ads: Arizona State University (asunline.asu.edu) and University of Michigan (umich.edu), both with polished promotional language and calls to action", "end_text": "See more solutions at umich.edu"}]

@@ -1,0 +1,3 @@
+```json
+[{"start": 1493.2, "end": 1536.8, "confidence": 0.97, "reason": "Capital One sponsor read merged with AllTrails network-inserted ad (gap < 15s between them)", "end_text": "find your outside"}]
+```

@@ -1,0 +1,1 @@
+[{"start": 4646.2, "end": 4806.1, "confidence": 0.96, "reason": "Network-inserted ad block: Colgate Women's Games, Skinny Pop, Viz eye drops, and Garnier/National Park Foundation", "end_text": "GarnierUSA.com slash NPF"}]

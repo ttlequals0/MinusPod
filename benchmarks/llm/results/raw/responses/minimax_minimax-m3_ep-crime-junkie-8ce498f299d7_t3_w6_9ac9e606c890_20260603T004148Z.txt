@@ -1,0 +1,1 @@
+[{"start": 2863.0, "end": 2894.5, "confidence": 0.98, "reason": "LinkedIn Premium All-in-One dynamically inserted post-roll ad with promotional copy and call to action (LinkedIn.com/all-in-one)", "end_text": "Try for free at LinkedIn.com slash all-in-one"}]

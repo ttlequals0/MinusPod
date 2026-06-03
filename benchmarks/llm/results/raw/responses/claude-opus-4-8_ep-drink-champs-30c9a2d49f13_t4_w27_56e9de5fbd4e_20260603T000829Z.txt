@@ -1,0 +1,2 @@
+[{"start": 11335.2, "end": 11424.6, "confidence": 0.97, "reason": "Airtasker ad followed by Decisions Decisions podcast cross-promotion (Care for the Culture/Gilead)", "end_text": "Care for the Culture from Gilead Sciences"},
+{"start": 11425.3, "end": 11455.4, "confidence": 0.96, "reason": "OnDeck small business line of credit ad", "end_text": "subject to lender approval"}]

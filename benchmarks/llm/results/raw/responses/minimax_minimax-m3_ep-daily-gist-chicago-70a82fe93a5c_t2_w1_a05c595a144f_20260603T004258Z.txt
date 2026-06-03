@@ -1,0 +1,3 @@
+```json
+[{"start": 506.4, "end": 548.5, "confidence": 0.85, "reason": "Crain's self-promotion: promotes the Crain's Weekly News Quiz with URL chicagobusiness.com/quiz and calls to action to follow the podcast", "end_text": "Amy Guth."}]
+```

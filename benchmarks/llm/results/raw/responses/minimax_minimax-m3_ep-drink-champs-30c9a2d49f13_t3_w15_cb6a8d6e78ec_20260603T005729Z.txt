@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 6283.4,
+    "end": 6318.1,
+    "confidence": 0.97,
+    "reason": "OnDeck small business line of credit network-inserted ad followed by Public investing platform sponsor read, merged due to <15s gap",
+    "end_text": "those who take it seriously"
+  }
+]
+```

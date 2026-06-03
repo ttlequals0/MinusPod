@@ -1,0 +1,1 @@
+[{"start": 0.0, "end": 69.8, "confidence": 0.95, "reason": "Pre-roll network-inserted ads for Vitel Global, LinkedIn Premium All-in-One, and Hertz, merged as they run consecutively with <15s gaps", "end_text": "newest fleet yet at Hertz.com"}]

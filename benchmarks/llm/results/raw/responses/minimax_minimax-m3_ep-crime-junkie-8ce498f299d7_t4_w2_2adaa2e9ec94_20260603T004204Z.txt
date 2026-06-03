@@ -1,0 +1,1 @@
+[{"start": 1035.7, "end": 1129.6, "confidence": 0.97, "reason": "Merged ad break: SoFi personal loan sponsor read followed by LinkedIn Premium ad (gap < 15s). Both are dynamically inserted ads with promo URLs (SoFi.com/CJ, LinkedIn.com/all-in-one).", "end_text": "LinkedIn.com slash all-in-one"}]

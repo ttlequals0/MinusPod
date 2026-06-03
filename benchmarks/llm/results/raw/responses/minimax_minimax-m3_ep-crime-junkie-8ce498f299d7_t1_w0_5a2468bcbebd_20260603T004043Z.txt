@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 0.0,
+    "end": 98.4,
+    "confidence": 0.97,
+    "reason": "Network-inserted ad block containing three consecutive ads: Vitel Global (VitelGlobal.com), LinkedIn Premium All-in-One (linkedin.com/all-in-one), and Hertz (Hertz.com). Gaps between ads are under 15 seconds so they merge into one segment.",
+    "end_text": "fleet yet at Hertz.com"
+  }
+]
+```

@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 821.4,
+    "end": 1021.1,
+    "confidence": 0.97,
+    "reason": "Merged ad block: Capital One (Chat Concierge), BetterHelp, Amazon Health AI, Spectrum Business, Rinse laundry, plus cross-promo for Best One Yet podcast. All back-to-back with gaps under 15s.",
+    "end_text": "It's time to be great"
+  }
+]
+```

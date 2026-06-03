@@ -1,0 +1,1 @@
+[{"start": 13669.1, "end": 13854.6, "confidence": 0.97, "reason": "Merged ad break: Airtasker sponsor read, Decisions Decisions podcast cross-promo (sponsored by Gilead Sciences), OnDeck loan ad, and Public.com investing platform ad, all dynamically inserted with gaps under 15 seconds", "end_text": "public.com/slash disclosures"}]

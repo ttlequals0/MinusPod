@@ -1,0 +1,18 @@
+```json
+[
+  {
+    "start": 54.1,
+    "end": 64.7,
+    "confidence": 0.95,
+    "reason": "Old National Bank network-inserted ad with promotional URL (oldnational.com/commercialbanking), call to action, and FDIC disclaimer",
+    "end_text": "Member FDIC"
+  },
+  {
+    "start": 515.6,
+    "end": 548.5,
+    "confidence": 0.9,
+    "reason": "Crain's cross-promotion for Weekly News Quiz with promotional URL (chicagobusiness.com/quiz) and call to action; preceded by host transition 'right after this'",
+    "end_text": "Amy Guth"
+  }
+]
+```

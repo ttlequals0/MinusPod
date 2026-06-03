@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 3079.6,
+    "end": 3270.1,
+    "confidence": 0.98,
+    "reason": "Merged sponsor reads: Morgan & Morgan (ForThePeople.com/TIM), Stash (stash.com/mood), and Neuro Gum (NeuroGum.com, code TIM) — all with URLs, promo codes, and 'paid advertisement' disclosure",
+    "end_text": "Neuro at CVS and Amazon"
+  }
+]
+```

@@ -1,0 +1,1 @@
+[{"start": 2532.3, "end": 2693.0, "confidence": 0.98, "reason": "Meter sponsor read: 'This episode of Security Now brought to you by Meter' with full product pitch ending at meter.com/securitynow demo CTA, then transition back to show", "end_text": "now back to steve"}]

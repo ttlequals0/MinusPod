@@ -1,0 +1,1 @@
+[{"start": 2246.0, "end": 2314.4, "confidence": 0.98, "reason": "Merged back-to-back sponsor reads: Capital One (Chat Concierge AI product) and Rinse.com (laundry service) with promo URL, separated by <1s gap", "end_text": "Rinse. It's time to be great"}]

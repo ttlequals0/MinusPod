@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 3503.7,
+    "end": 3540.0,
+    "confidence": 0.95,
+    "reason": "Airtasker sponsor ad (host-read or produced) followed by cross-promotion for 'Decisions Decisions' podcast — merged into single ad break, continues past window",
+    "end_text": "conversation about abstinence?"
+  }
+]
+```

@@ -1,0 +1,1 @@
+[{"start": 636.8, "end": 784.6, "confidence": 0.97, "reason": "Network-inserted ad block: Parloa, Capital One, AllTrails, Zinn nicotine pouches, Lemonada Media Good Things podcast promo", "end_text": "Let's get to the briefs"}]

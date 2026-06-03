@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 0.0,
+    "end": 27.7,
+    "confidence": 0.97,
+    "reason": "Colgate brand tagline ad - network-inserted pre-roll promoting Colgate Women's Games with concentrated marketing language and brand tagline",
+    "end_text": "your smile is your strength"
+  }
+]
+```

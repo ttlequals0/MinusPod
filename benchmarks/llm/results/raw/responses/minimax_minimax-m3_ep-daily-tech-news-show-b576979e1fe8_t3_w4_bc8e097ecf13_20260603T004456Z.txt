@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 2015.9,
+    "end": 2073.2,
+    "confidence": 0.95,
+    "reason": "Capital One sponsor read ('This episode is brought to you by Capital One') followed immediately by Lemonada Media cross-promo for 'Good Things' podcast (network-inserted ad < 15s gap)",
+    "end_text": "the six-part Thrive series"
+  }
+]
+```

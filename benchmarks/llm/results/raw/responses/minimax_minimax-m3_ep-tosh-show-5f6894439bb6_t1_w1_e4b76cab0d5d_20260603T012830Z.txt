@@ -1,0 +1,25 @@
+```json
+[
+  {
+    "start": 537.5,
+    "end": 567.0,
+    "confidence": 0.98,
+    "reason": "Thrive Cosmetics sponsor read with promo code 'shine26' and URL thrivecosmetics.com/shine26, introduced by 'We'll be right back' transition",
+    "end_text": "Shine 26"
+  },
+  {
+    "start": 594.7,
+    "end": 597.3,
+    "confidence": 0.82,
+    "reason": "Mattress Warehouse short network-inserted brand tagline ad",
+    "end_text": "at Mattress Warehouse"
+  },
+  {
+    "start": 617.2,
+    "end": 654.3,
+    "confidence": 0.95,
+    "reason": "PC Richard & Son lease-to-own ad with $1 start promotion and Asima financing terms/disclaimers",
+    "end_text": "slash Asima dot HTML for details"
+  }
+]
+```

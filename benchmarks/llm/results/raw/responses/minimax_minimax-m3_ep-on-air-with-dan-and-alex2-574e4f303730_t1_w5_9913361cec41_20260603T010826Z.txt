@@ -1,0 +1,1 @@
+[{"start": 2609.5, "end": 2634.3, "confidence": 0.45, "reason": "Ad break containing sponsor name mentions (Athletic Greens, AG1, BetterHelp, Squarespace, ZipRecruiter, Raycon, Manscaped, Stamps.com) but lacking actual promotional copy, URLs, or calls to action — appears to be a placeholder or minimally transcribed DAI insertion", "end_text": "Stamps.com,"}]

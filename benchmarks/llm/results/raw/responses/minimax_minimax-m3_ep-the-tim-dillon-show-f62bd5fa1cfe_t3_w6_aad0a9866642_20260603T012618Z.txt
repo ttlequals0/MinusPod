@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 3079.6,
+    "end": 3134.3,
+    "confidence": 0.97,
+    "reason": "Morgan & Morgan paid sponsor read (forthepeople.com/Tim, Poundlaw, 'This is a paid advertisement') merging into Stash ad beginning (continues in next window)",
+    "end_text": "Stash is the one"
+  }
+]
+```

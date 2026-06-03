@@ -1,0 +1,1 @@
+[{"start": 7135.4, "end": 7196.8, "confidence": 0.95, "reason": "Cross-promotion for Lauren LaRosa's podcast followed by Netflix 'Remarkably Bright Creatures' sponsor read with 'This episode is brought to you by' transition. Merged due to <15s gap.", "end_text": "only on Netflix."}]

@@ -1,0 +1,1 @@
+[{"start": 2015.9, "end": 2073.2, "confidence": 0.97, "reason": "Capital One sponsor read (Chat Concierge AI) merged with Lemonada Media cross-promotion for 'Good Things' podcast", "end_text": "the six-part Thrive series"}]

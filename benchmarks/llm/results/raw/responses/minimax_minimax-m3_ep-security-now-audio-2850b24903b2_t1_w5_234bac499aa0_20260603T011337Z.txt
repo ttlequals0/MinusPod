@@ -1,0 +1,3 @@
+```json
+[{"start": 2558.9, "end": 2693.0, "confidence": 0.99, "reason": "Meter sponsor read with transition 'Okay, break time', includes promo language and URL meter.com/securitynow", "end_text": "back to steve"}]
+```

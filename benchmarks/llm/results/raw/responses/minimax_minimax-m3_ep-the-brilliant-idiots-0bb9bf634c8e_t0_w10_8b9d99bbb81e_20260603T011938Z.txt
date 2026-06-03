@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 4296.0,
+    "end": 4361.4,
+    "confidence": 0.75,
+    "reason": "Host-read sponsor/promo block: Jess Hilarious 'Til Death Do We Parent' book plug (listed as Sponsor in show notes), All Love Racquet Club tennis event on May 16th with ticket CTA, and AM Mornings YouTube show promotion — all back-to-back calls to action before returning to the Rihanna/Chanel Jones clip discussion.",
+    "end_text": "See you guys there. Peace."
+  }
+]
+```

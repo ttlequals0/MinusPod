@@ -1,0 +1,1 @@
+[{"start": 1959.8, "end": 2080.5, "confidence": 0.97, "reason": "Merged ad block: Rakuten cashback sponsor read, LinkedIn Premium All-in-One ad, and Hertz car rental ad with promotional language, brand names, and calls to action (Rakuten.com, linkedin.com/slash/all-in-one, Hertz.com)", "end_text": "newest fleet yet at Hertz.com"}]

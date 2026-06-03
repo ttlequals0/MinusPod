@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 1.6,
+    "end": 77.2,
+    "confidence": 0.97,
+    "reason": "Platform-inserted Acast pre-roll ad block containing Acast branding and cross-promotions for 'Wrong Turns' (Jameela Jamil podcast) and 'Formative' (middle schoolers podcast). Gaps between ad segments are under 15 seconds, so merged into one segment.",
+    "end_text": "leaders of tomorrow"
+  }
+]
+```

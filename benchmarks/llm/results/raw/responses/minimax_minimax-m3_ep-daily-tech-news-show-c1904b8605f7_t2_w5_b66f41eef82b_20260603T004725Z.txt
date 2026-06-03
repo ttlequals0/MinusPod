@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 2246.0,
+    "end": 2314.4,
+    "confidence": 0.98,
+    "reason": "Capital One sponsor read followed by Rinse.com ad (cross-promotion with TED's Rethinking Podcast); merged due to <15s gap",
+    "end_text": "It's time to be great."
+  }
+]
+```

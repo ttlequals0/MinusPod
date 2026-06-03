@@ -1,0 +1,1 @@
+[{"start": 2412.8, "end": 2484.9, "confidence": 0.97, "reason": "Two consecutive network-inserted ads: HealthCast by Stony Brook Medicine podcast promotion, followed by PC Richard & Son Aseema Lease to Own Memorial Day Sale ad. Merged as gap < 15s. Second ad continues past window.", "end_text": "for details"}]

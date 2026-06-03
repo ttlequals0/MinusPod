@@ -1,0 +1,1 @@
+[{"start": 7584.4, "end": 7743.9, "confidence": 0.98, "reason": "Trusted Tech sponsor read about Microsoft 365 licensing; transition 'let's take our final break' included; ad continues past window", "end_text": "You will be too."}]

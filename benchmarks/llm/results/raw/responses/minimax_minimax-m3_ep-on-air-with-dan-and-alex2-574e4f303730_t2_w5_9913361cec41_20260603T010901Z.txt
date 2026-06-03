@@ -1,0 +1,3 @@
+```json
+[{"start": 2609.5, "end": 2634.3, "confidence": 0.55, "reason": "Dynamically inserted ad captured as keyword list containing sponsor names (Athletic Greens, AG1, BetterHelp, Squarespace, ZipRecruiter, Raycon, Manscaped, Stamps.com) and detection terms (promo code, discount code, sponsored by). Likely a RedCircle programmatic ad insertion transcribed as raw keywords rather than spoken content.", "end_text": "Stamps.com,"}]
+```

@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 1837.5,
+    "end": 1861.3,
+    "confidence": 0.97,
+    "reason": "Mint Mobile sponsor read, continues in next window",
+    "end_text": "fed up with crazy high bills?"
+  }
+]
+```

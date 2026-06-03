@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 2324.6,
+    "end": 2450.0,
+    "confidence": 0.99,
+    "reason": "BlueChew Gold and ZipRecruiter sponsor read segment with promo code 'Idiots', vanity URLs (BlueChew.com, ZipRecruiter.com/idiots), and sponsor thank-yous",
+    "end_text": "your match on ZipRecruiter"
+  }
+]
+```

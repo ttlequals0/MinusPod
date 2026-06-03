@@ -1,0 +1,1 @@
+[{"start": 1450.9, "end": 1629.0, "confidence": 0.97, "reason": "Ad block: Airtasker, Decisions Decisions podcast cross-promo (Care for the Culture/Gilead), OnDeck small business line of credit, and BetMGM", "end_text": "Crossing Casino and Hotel"}]

@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 1.6,
+    "end": 77.2,
+    "confidence": 0.95,
+    "reason": "Platform-inserted Acast ads: 'Acast powers the world's best podcasts' opener, cross-promo for Jameeda Jamil's 'Wrong Turns' podcast, and 'Formative' podcast cross-promo with 'Acast.com' branding",
+    "end_text": "interviewed by the leaders of tomorrow"
+  }
+]
+```

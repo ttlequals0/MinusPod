@@ -1,0 +1,18 @@
+```json
+[
+  {
+    "start": 3079.6,
+    "end": 3208.0,
+    "confidence": 0.99,
+    "reason": "Morgan & Morgan and Stash back-to-back sponsor reads with promo URLs and paid ad disclosure",
+    "end_text": "Investing involves risk."
+  },
+  {
+    "start": 3209.1,
+    "end": 3270.1,
+    "confidence": 0.99,
+    "reason": "Neuro Gum sponsor read with promo code TIM and 20% off call to action",
+    "end_text": "Neuro at CVS and Amazon"
+  }
+]
+```

@@ -1,0 +1,18 @@
+```json
+[
+  {
+    "start": 8799.1,
+    "end": 8826.4,
+    "confidence": 0.97,
+    "reason": "OnDeck small business loan network-inserted ad with URL OnDeck.com, BBB rating, and fine print disclosures",
+    "end_text": "subject to lender approval"
+  },
+  {
+    "start": 8827.0,
+    "end": 8831.4,
+    "confidence": 0.92,
+    "reason": "Public investing platform sponsor read: 'Support for the show comes from Public, the investing platform'",
+    "end_text": "take it seriously"
+  }
+]
+```

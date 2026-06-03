@@ -1,0 +1,18 @@
+```json
+[
+  {
+    "start": 54.1,
+    "end": 64.7,
+    "confidence": 0.95,
+    "reason": "Old National Bank sponsor ad with URL (oldnational.com/slash commercial banking), call to action, and promotional tagline",
+    "end_text": "commercial banking. Member FDIC"
+  },
+  {
+    "start": 515.6,
+    "end": 548.5,
+    "confidence": 0.85,
+    "reason": "Crain's self-promotional ad break for Weekly News Quiz with URL (chicagobusiness.com/quiz) and call to action, preceded by 'right after this' transition",
+    "end_text": "with Amy Guth"
+  }
+]
+```

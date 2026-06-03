@@ -1,0 +1,18 @@
+```json
+[
+  {
+    "start": 15261.8,
+    "end": 15285.2,
+    "confidence": 0.4,
+    "reason": "Likely DAI mid-roll ad insertion; transcript captures only repeated 'promo code, discount code' markers with no identifiable sponsor or product content",
+    "end_text": "discount code discount code"
+  },
+  {
+    "start": 15388.3,
+    "end": 15517.1,
+    "confidence": 0.95,
+    "reason": "Post-roll ad block (merged <15s gaps): Airtasker app sponsor read, CVS brand ad, Trashy (thredUP) ad, Try Fencing PSA-style ad, and iHeart Radio platform outro",
+    "end_text": "This is an iHeart Podcast"
+  }
+]
+```

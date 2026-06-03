@@ -1,0 +1,1 @@
+[{"start": 3079.6, "end": 3120.0, "confidence": 0.97, "reason": "Morgan & Morgan personal injury law firm ad with ForThePeople.com/Tim URL, transitioning into Stash ad, continues in next window", "end_text": "Stash is the one"}]

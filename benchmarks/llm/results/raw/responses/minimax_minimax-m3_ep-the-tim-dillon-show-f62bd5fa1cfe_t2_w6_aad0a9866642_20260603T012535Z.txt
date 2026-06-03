@@ -1,0 +1,1 @@
+[{"start": 3079.6, "end": 3120.0, "confidence": 0.99, "reason": "Morgan & Morgan paid advertisement (host-read); fee structure pitch, ForThePeople.com/Tim URL, 'dial POUNDLAW', and explicit 'This is a paid advertisement' disclaimer. Stash ad beginning at end of window continues in next segment.", "end_text": "Stash is the one"}]

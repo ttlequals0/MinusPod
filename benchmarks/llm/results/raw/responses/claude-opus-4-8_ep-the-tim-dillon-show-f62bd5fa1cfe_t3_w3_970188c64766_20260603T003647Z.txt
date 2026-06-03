@@ -1,0 +1,5 @@
+[{"start": 1439.2, "end": 1576.1, "confidence": 0.98, "reason": "Ad block: Mint Mobile, Aura Frames, Colgate Women's Games, and Skinny Pop sponsor reads", "end_text": "promo code TIM"}, {"start": 1578.3, "end": 1665.9, "confidence": 0.95, "reason": "Colgate Women's Games and Skinny Pop network-inserted ads", "end_text": "perfectly salted. Skinny Pop"}]
+
+Wait, let me reconsider the boundaries. The ads run continuously.
+
+[{"start": 1439.2, "end": 1665.9, "confidence": 0.97, "reason": "Continuous ad block: Mint Mobile, Aura Frames, Colgate Women's Games, Skinny Pop sponsor reads", "end_text": "perfectly salted. Skinny Pop"}]

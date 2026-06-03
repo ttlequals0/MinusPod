@@ -1,0 +1,9 @@
+```json
+[
+  {"start": 4646.2, "end": 4697.4, "confidence": 0.95, "reason": "Colgate Women's Games network-inserted ad with brand tagline 'your smile is your strength'", "end_text": "your smile is your strength"},
+  {"start": 4705.5, "end": 4733.9, "confidence": 0.95, "reason": "SkinnyPop network-inserted ad promoting popcorn as a simple snack", "end_text": "perfectly salted. Skinny Pop"},
+  {"start": 4734.3, "end": 4763.1, "confidence": 0.95, "reason": "Colgate Women's Games network-inserted ad (second play) with brand tagline 'your smile is your strength'", "end_text": "your smile is your strength"},
+  {"start": 4766.5, "end": 4787.9, "confidence": 0.95, "reason": "Viz (Vuity) prescription eye drop ad with side effect disclosure and Viz.com CTA", "end_text": "Learn more at Viz.com"},
+  {"start": 4788.6, "end": 4806.1, "confidence": 0.94, "reason": "Garnier/National Park Foundation partnership ad with GarnierUSA.com/npf URL", "end_text": "at GarnierUSA.com slash NPF"}
+]
+```

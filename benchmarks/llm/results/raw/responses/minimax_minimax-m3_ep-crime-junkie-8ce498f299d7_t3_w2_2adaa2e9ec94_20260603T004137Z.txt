@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 1036.2,
+    "end": 1129.6,
+    "confidence": 0.97,
+    "reason": "SoFi sponsor read (personal loans/debt consolidation) merged with LinkedIn Premium network-inserted ad; gap <15s",
+    "end_text": "at LinkedIn.com slash all-in-one"
+  }
+]
+```

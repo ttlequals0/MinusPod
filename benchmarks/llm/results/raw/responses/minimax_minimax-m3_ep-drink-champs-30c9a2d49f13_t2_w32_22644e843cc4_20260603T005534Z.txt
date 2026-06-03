@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 13669.1,
+    "end": 13854.6,
+    "confidence": 0.97,
+    "reason": "Merged ad break (gaps <15s) containing Airtasker sponsor read, Decisions Decisions podcast cross-promotion, OnDeck small business loans ad, and Public.com investing platform sponsor read, separated by CastingWords production credit",
+    "end_text": "public.com/slash disclosures"
+  }
+]
+```

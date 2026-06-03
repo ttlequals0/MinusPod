@@ -1,0 +1,18 @@
+```json
+[
+  {
+    "start": 2246.0,
+    "end": 2275.3,
+    "confidence": 0.97,
+    "reason": "Capital One sponsor read about Chat Concierge AI for car shopping",
+    "end_text": "That's how they stack"
+  },
+  {
+    "start": 2276.2,
+    "end": 2314.4,
+    "confidence": 0.96,
+    "reason": "Rinse.com laundry service ad voiced by Adam Grant with cross-promotion for TED's Rethinking Podcast",
+    "end_text": "It's time to be great"
+  }
+]
+```

@@ -1,0 +1,1 @@
+[{"start": 1836.9, "end": 2008.5, "confidence": 0.97, "reason": "Ad break: Mint Mobile host read, Mattress Warehouse Memorial Day Sale, PC Richard & Son Acima lease ads", "end_text": "Aseema.HTML for details"}]

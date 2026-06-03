@@ -1,0 +1,1 @@
+[{"start": 3478.9, "end": 3650.4, "confidence": 0.95, "reason": "Multiple back-to-back dynamically inserted ads: Airtasker, Decisions Decisions podcast cross-promo (sponsored by Care for the

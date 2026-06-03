@@ -1,0 +1,1 @@
+[{"start": 3478.9, "end": 3666.3, "confidence": 0.97, "reason": "Block of network-inserted ads: Airtasker, Decisions Decisions podcast cross-promo (Gilead/Care for the Culture), OnDeck, and Public investing platform", "end_text": "public.com slash disclosures"}]

@@ -1,0 +1,9 @@
+```json
+[
+  {"start": 821.4, "end": 844.7, "confidence": 0.97, "reason": "Capital One sponsor read about Chat Concierge multi-agentic AI", "end_text": "technology at Capital One"},
+  {"start": 845.2, "end": 889.7, "confidence": 0.97, "reason": "BetterHelp sponsor read with promo URL betterhelp.com/slash random podcast", "end_text": "first month of online therapy"},
+  {"start": 890.6, "end": 910.1, "confidence": 0.95, "reason": "Amazon Health AI network-inserted ad for virtual care chat", "end_text": "got less painful"},
+  {"start": 912.2, "end": 961.5, "confidence": 0.97, "reason": "Spectrum Business network-inserted ad with spectrum.com/business URL", "end_text": "not available in all areas"},
+  {"start": 961.9, "end": 1021.1, "confidence": 0.96, "reason": "Cross-promotion for Best One Yet podcast combined with Rinse laundry service ad (rinse.com); extends slightly past window", "end_text": "time to be great"}
+]
+```

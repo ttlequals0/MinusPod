@@ -1,0 +1,3 @@
+```json
+[{"start": 1493.2, "end": 1536.8, "confidence": 0.97, "reason": "Capital One sponsor read followed by AllTrails ad ('This episode is brought to you by Capital One...Chat Concierge...AllTrails. Download the free app today and find your outside.')", "end_text": "find your outside"}]
+```

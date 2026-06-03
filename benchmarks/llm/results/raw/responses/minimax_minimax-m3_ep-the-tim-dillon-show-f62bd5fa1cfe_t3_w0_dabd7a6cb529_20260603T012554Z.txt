@@ -1,0 +1,3 @@
+```json
+[{"start": 0.0, "end": 27.7, "confidence": 0.97, "reason": "Colgate brand tagline ad - network-inserted spot promoting Colgate Women's Games with marketing language about 'your smile is your strength'", "end_text": "Colgate, your smile is your strength."}]
+```

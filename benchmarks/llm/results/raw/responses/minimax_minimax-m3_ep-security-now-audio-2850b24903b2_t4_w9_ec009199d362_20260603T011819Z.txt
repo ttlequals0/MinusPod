@@ -1,0 +1,1 @@
+[{"start": 4258.6, "end": 4380.0, "confidence": 0.97, "reason": "Bitwarden sponsor read - password/passkey management product promotion with feature pitch (Agent Access SDK, passkey login for Windows 11); continues past window", "end_text": "OS level."}]

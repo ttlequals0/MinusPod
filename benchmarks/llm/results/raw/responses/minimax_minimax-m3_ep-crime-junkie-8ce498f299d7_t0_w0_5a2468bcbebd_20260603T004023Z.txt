@@ -1,0 +1,3 @@
+```json
+[{"start": 0.0, "end": 69.8, "confidence": 0.95, "reason": "Triple network-inserted ad block: Vitel Global (AI communications platform, visit VitelGlobal.com), LinkedIn Premium All-in-One (linkedin.com/all-in-one free trial), and Hertz (new fleet promotion, Hertz.com). All three ads have gaps <15s and merge into one segment.", "end_text": "our newest fleet yet at Hertz.com"}]
+```

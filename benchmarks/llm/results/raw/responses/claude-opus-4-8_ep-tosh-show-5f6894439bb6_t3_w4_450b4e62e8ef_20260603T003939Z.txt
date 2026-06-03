@@ -1,0 +1,1 @@
+[{"start": 1836.9, "end": 1999.5, "confidence": 0.97, "reason": "Ad block: Mint Mobile sponsor read, Mattress Warehouse Memorial Day sale, and PC Richard & Son Aseema lease-to-own ads", "end_text": "Aseema dot HTML for details"}]

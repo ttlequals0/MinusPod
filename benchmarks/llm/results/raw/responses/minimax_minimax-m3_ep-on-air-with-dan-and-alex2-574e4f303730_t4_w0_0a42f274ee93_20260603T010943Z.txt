@@ -1,0 +1,18 @@
+```json
+[
+  {
+    "start": 0.0,
+    "end": 30.3,
+    "confidence": 0.95,
+    "reason": "HEX (Hex.ai) data analytics platform pre-roll ad - mentions Anthropic, Lovable, and 1500 customers at Hex.ai",
+    "end_text": "1500 other customers at Hex.ai"
+  },
+  {
+    "start": 30.9,
+    "end": 59.8,
+    "confidence": 0.95,
+    "reason": "Orange County, NY tourism pre-roll ad - promotes PickOCNY.com with attractions like Angry Orchard, Storm King Art Center, Brotherhood Winery",
+    "end_text": "fresh state of mind at PickOCNY.com"
+  }
+]
+```

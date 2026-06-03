@@ -1,0 +1,3 @@
+```json
+[{"start": 7607.7, "end": 7740.0, "confidence": 0.97, "reason": "Trusted Tech sponsor read with transition 'let's take our final break', Microsoft 365 licensing pitch, and Kevin Turner testimonial; ad continues past window", "end_text": "impressed. You will be too."}]
+```

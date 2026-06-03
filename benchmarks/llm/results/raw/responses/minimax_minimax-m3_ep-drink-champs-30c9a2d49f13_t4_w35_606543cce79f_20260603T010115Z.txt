@@ -1,0 +1,3 @@
+```json
+[{"start": 15261.8, "end": 15285.2, "confidence": 0.55, "reason": "Mid-roll ad read appears garbled/cut in transcript; repeated 'promo code, discount code' indicates promotional language but no identifiable sponsor name or product", "end_text": "discount code, discount code"}]
+```

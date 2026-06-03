@@ -1,0 +1,1 @@
+[{"start": 0.5, "end": 43.4, "confidence": 0.99, "reason": "Carvana network-inserted ad - scripted voicemail scenario about selling a car, ends with call to action 'Sell your car today on Carvana. Pickup fees may apply.'", "end_text": "Pickup fees may apply"}]

@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 6283.4,
+    "end": 6318.1,
+    "confidence": 0.97,
+    "reason": "Two consecutive dynamically inserted ads: OnDeck small business line of credit ('Apply today at OnDeck.com') and Public investing platform ('Support for the show comes from Public').",
+    "end_text": "take it seriously"
+  }
+]
+```

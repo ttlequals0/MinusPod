@@ -1,0 +1,1 @@
+[{"start": 539.2, "end": 652.8, "confidence": 0.97, "reason": "Back-to-back ads: 'In the Gray' movie promo and Skechers slip-ins sponsor read", "end_text": "only at Skechers.com"}]

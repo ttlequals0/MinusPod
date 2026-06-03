@@ -1,0 +1,3 @@
+```json
+[{"start": 3428.1, "end": 3486.2, "confidence": 0.97, "reason": "Network-inserted university ads (ASU and University of Michigan) with promotional language, taglines, and URLs (asunline.asu.edu, umich.edu), separated by less than 15 seconds so merged into one segment", "end_text": "solutions at umich.edu"}]
+```

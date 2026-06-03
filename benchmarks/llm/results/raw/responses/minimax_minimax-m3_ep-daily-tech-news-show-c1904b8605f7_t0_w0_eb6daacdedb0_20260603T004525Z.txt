@@ -1,0 +1,18 @@
+```json
+[
+  {
+    "start": 0.0,
+    "end": 100.9,
+    "confidence": 0.98,
+    "reason": "Pre-roll ad block: Capital One (Chat Concierge AI), Xero (accounting platform free trial), and Spectrum Business (fiber internet, 3-year price guarantee). All three read with promotional language and calls to action, gaps <15s between them.",
+    "end_text": "support with 100%"
+  },
+  {
+    "start": 124.0,
+    "end": 152.9,
+    "confidence": 0.98,
+    "reason": "Warby Parker ad: prescription glasses/sunglasses, eye exams, vision insurance, with call to action and vanity URL warbyparker.com.",
+    "end_text": "warbyparker.com."
+  }
+]
+```

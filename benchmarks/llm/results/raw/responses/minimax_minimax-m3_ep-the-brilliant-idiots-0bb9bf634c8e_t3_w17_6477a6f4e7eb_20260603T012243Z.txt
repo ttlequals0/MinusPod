@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 7173.7,
+    "end": 7196.8,
+    "confidence": 0.95,
+    "reason": "Netflix 'Remarkably Bright Creatures' sponsor read with promotional description and CTA 'now playing only on Netflix'",
+    "end_text": "now playing only on Netflix"
+  }
+]
+```

@@ -1,0 +1,8 @@
+[
+  {"start": 1718.3, "end": 1735.3, "confidence": 0.85, "reason": "Host-read promo for DTNS store merchandise", "end_text": "There you go"},
+  {"start": 1742.3, "end": 1771.5, "confidence": 0.97, "reason": "Capital One sponsor read", "end_text": "technology at Capital One"},
+  {"start": 1772.6, "end": 1803.6, "confidence": 0.9, "reason": "Good Things from Lemonada Media podcast cross-promotion", "end_text": "the six-part Thrive series"},
+  {"start": 2155.2, "end": 2171.6, "confidence": 0.7, "reason": "Patreon call to action", "end_text": "See you next time"},
+  {"start": 2246.0, "end": 2275.3, "confidence": 0.97, "reason": "Capital One sponsor read (repeat)", "end_text": "technology at Capital One"},
+  {"start": 2276.2, "end": 2280.0, "confidence": 0.95, "reason": "Rinse laundry service ad read by Adam Grant, continues in next window", "end_text": "of a relentless task"}
+]

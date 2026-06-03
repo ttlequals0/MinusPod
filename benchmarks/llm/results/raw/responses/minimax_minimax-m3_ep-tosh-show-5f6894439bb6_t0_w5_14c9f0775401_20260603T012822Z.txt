@@ -1,0 +1,1 @@
+[{"start": 2412.8, "end": 2484.9, "confidence": 0.97, "reason": "Two network-inserted ads merged (gap <15s): HealthCast by Stony Brook Medicine podcast promo and PC Richard & Son lease-to-own Memorial Day Sale ad with disclaimers", "end_text": "for details."}]

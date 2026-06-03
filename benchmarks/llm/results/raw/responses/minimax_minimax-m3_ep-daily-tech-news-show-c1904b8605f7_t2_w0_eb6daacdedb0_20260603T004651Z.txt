@@ -1,0 +1,18 @@
+```json
+[
+  {
+    "start": 0.0,
+    "end": 100.9,
+    "confidence": 0.95,
+    "reason": "Pre-roll ad block: Capital One Chat Concierge, Xero accounting platform, and Spectrum Business ads merged due to gaps under 15 seconds",
+    "end_text": "support with 100%"
+  },
+  {
+    "start": 124.0,
+    "end": 152.9,
+    "confidence": 0.95,
+    "reason": "Warby Parker network-inserted ad promoting prescription glasses, eye exams, and warbyparker.com URL",
+    "end_text": "That's warbyparker.com."
+  }
+]
+```

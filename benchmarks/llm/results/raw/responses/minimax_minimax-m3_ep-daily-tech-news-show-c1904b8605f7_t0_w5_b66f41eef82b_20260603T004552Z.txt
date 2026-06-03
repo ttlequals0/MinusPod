@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 2246.0,
+    "end": 2314.4,
+    "confidence": 0.98,
+    "reason": "Back-to-back network-inserted ads: Capital One sponsor read about multi-agentic AI/Chat Concierge, followed by Rinse.com ad voiced by Adam Grant (TED's Rethinking Podcast cross-promo) with call to action at Rinse.com",
+    "end_text": "It's time to be great."
+  }
+]
+```

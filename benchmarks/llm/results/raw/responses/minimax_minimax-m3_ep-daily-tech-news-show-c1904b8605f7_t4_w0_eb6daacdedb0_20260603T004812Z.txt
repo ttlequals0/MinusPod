@@ -1,0 +1,1 @@
+[{"start": 0.0, "end": 100.9, "confidence": 0.95, "reason": "Merged ads: Capital One Chat Concierge, Xero accounting platform, Spectrum Business internet (gaps <15s)", "end_text": "support with 100%"}, {"start": 124.0, "end": 152.9, "confidence": 0.97, "reason": "Warby Parker vision products ad with URL call to action", "end_text": "warbyparker.com today"}]

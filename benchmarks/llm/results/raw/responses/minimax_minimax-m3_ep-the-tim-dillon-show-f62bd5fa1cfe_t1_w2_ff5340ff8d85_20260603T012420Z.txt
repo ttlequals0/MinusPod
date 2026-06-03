@@ -1,0 +1,3 @@
+```json
+[{"start": 1439.2, "end": 1465.2, "confidence": 0.97, "reason": "Mint Mobile host-read sponsor segment continues into next window; promotional pitch about cell phone plans on the nation's largest 5G network", "end_text": "nation's largest 5G network"}]
+```

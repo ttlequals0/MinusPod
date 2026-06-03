@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 4265.2,
+    "end": 4396.1,
+    "confidence": 0.98,
+    "reason": "Bitwarden sponsor read promoting password management, Agent Access SDK, and passkey features. Continues past window end.",
+    "end_text": "devices at the OS level"
+  }
+]
+```

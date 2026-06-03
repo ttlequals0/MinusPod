@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 3503.7,
+    "end": 3666.3,
+    "confidence": 0.96,
+    "reason": "Merged consecutive ad block: Airtasker ('Meet Chris... Download the Airtasker app'), Decisions Decisions cross-promo with Kiki Palmer (Gilead Sciences sponsor), OnDeck small business line of credit, and Public.com investing platform. Gaps between ads <15s.",
+    "end_text": "public.com slash disclosures"
+  }
+]
+```

@@ -1,0 +1,3 @@
+```json
+[{"start": 2208.3, "end": 2237.0, "confidence": 0.95, "reason": "Blinds.com host-read sponsor segment with promotional language, URL, discount offer, and call to action", "end_text": "measure at Blinds.com"}]
+```

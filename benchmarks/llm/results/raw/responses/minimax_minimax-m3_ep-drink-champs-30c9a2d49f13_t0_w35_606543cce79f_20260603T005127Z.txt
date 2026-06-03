@@ -1,0 +1,3 @@
+```json
+[{"start": 15261.8, "end": 15285.2, "confidence": 0.55, "reason": "Repeated 'promo code, discount code' block between interview segments, suggesting an ad read or platform insertion where the actual sponsor copy was not captured in the transcript", "end_text": "discount code, discount code"}]
+```

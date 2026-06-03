@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 506.4,
+    "end": 548.5,
+    "confidence": 0.82,
+    "reason": "Host-read self-promotional ad for Crain's Weekly News Quiz at chicagobusiness.com/slash quiz and Crain's Daily Gist podcast, preceded by 'right after this' transition",
+    "end_text": "Crain's Daily Gist with Amy Guth"
+  }
+]
+```

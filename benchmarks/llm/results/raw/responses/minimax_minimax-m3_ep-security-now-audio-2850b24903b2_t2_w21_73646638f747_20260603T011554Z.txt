@@ -1,0 +1,25 @@
+```json
+[
+  {
+    "start": 9259.3,
+    "end": 9290.5,
+    "confidence": 0.92,
+    "reason": "TWiT network cross-promotion segment produced by Leo Laporte promoting 'This Week in Tech' show on the TWiT network - network-inserted ad",
+    "end_text": "This Week in Tech from the TWiT Network. Thank you."
+  },
+  {
+    "start": 9312.9,
+    "end": 9315.5,
+    "confidence": 0.5,
+    "reason": "Fragmented brand tagline ad - 'Fit for your ambition' is Zscaler's known slogan. Likely a partial/cut-off network-inserted ad; Zscaler is listed as an episode sponsor",
+    "end_text": "for citizens back."
+  },
+  {
+    "start": 9344.4,
+    "end": 9374.4,
+    "confidence": 0.98,
+    "reason": "Mint Mobile network-inserted ad with Ryan Reynolds endorsement, $15/month plan pricing, mintmobile.com/switch URL, and terms/conditions disclaimer",
+    "end_text": "terms at mintmobile.com."
+  }
+]
+```

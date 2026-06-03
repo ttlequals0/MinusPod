@@ -1,0 +1,3 @@
+```json
+[{"start": 1036.2, "end": 1129.6, "confidence": 0.97, "reason": "SoFi sponsor read (debt consolidation pitch with promo URL SoFi.com/CJ) merged with LinkedIn Premium network-inserted ad (LinkedIn.com/all-in-one)", "end_text": "LinkedIn.com/all-in-one"}]
+```

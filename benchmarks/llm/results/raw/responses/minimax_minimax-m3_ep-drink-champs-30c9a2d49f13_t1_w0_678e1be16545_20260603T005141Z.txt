@@ -1,0 +1,3 @@
+```json
+[{"start": 0.0, "end": 150.5, "confidence": 0.99, "reason": "Pre-roll ad break: iHeart intro + Airtasker (Airtasker.com), HIV/Care for the Culture/Gilead Sciences, Nissan Rogue durability campaign, and Shopify (Shopify.com/B-E-N) with Black Effect Podcast Festival mention", "end_text": "Shopify.com slash B-E-N"}]
+```

@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 4258.6,
+    "end": 4380.0,
+    "confidence": 0.98,
+    "reason": "Bitwarden sponsor read (continues past window). Transition 'more Security Now right after this' followed by host-read ad for Bitwarden password manager, Agent Access SDK, and passkey features.",
+    "end_text": "unlocking devices at the OS level"
+  }
+]
+```

@@ -1,0 +1,1 @@
+[{"start": 6208.7, "end": 6318.1, "confidence": 0.95, "reason": "Merged ad block: Airtasker app pitch, cross-promotion for 'Decisions Decisions' podcast (sponsored by Gilead Sciences/Care for the Culture), OnDeck small business line of credit, and Public investing platform — all within 15s gaps", "end_text": "who take it seriously"}]

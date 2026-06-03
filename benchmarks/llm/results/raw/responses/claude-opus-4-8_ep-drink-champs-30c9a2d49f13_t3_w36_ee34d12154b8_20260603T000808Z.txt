@@ -1,0 +1,1 @@
+[{"start": 15323.9, "end": 15517.1, "confidence": 0.97, "reason": "Outro credits transition into platform/network-inserted ads: Airtasker, CVS, Trashy, TryFencing, iHeart Podcast tag", "end_text": "iHeart Podcast. Guaranteed human"}]

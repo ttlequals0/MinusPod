@@ -1,0 +1,39 @@
+```json
+[
+  {
+    "start": 1718.3,
+    "end": 1735.3,
+    "confidence": 0.72,
+    "reason": "Host-read promotion for DTNS merchandise store with URL call-to-action",
+    "end_text": "wanna support the show, there you go"
+  },
+  {
+    "start": 1742.3,
+    "end": 1771.5,
+    "confidence": 0.97,
+    "reason": "Capital One sponsor read with 'brought to you by' transition, promoting Chat Concierge AI tool",
+    "end_text": "technology at Capital One"
+  },
+  {
+    "start": 1772.6,
+    "end": 1799.6,
+    "confidence": 0.90,
+    "reason": "Cross-promotion for Lemonada Media's 'Good Things' podcast Thrive series",
+    "end_text": "hear the six-part Thrive series"
+  },
+  {
+    "start": 2246.0,
+    "end": 2275.3,
+    "confidence": 0.97,
+    "reason": "Capital One sponsor ad repeated in post-roll",
+    "end_text": "technology at Capital One"
+  },
+  {
+    "start": 2276.2,
+    "end": 2280.0,
+    "confidence": 0.88,
+    "reason": "Adam Grant cross-promotion for TED's Rethinking Podcast with Rinse laundry service sponsor read; continues past window",
+    "end_text": "continues in next"
+  }
+]
+```

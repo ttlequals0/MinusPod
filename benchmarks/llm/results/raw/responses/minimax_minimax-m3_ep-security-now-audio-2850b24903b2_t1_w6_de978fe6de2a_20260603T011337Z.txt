@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 2532.3,
+    "end": 2693.0,
+    "confidence": 0.98,
+    "reason": "Meter sponsor read: 'This episode of Security Now brought to you by Meter' with meter.com/securitynow URL and call to action to book a demo",
+    "end_text": "back to steve"
+  }
+]
+```

@@ -1,0 +1,1 @@
+[{"start": 1836.9, "end": 1999.5, "confidence": 0.97, "reason": "Continuous ad break containing Mint Mobile host-read ad (mintmobile.com/slash tosh), plus network-inserted Mattress Warehouse and PC Richard & Son ads. All gaps < 15s, merged into one segment.", "end_text": "HTML for details"}]

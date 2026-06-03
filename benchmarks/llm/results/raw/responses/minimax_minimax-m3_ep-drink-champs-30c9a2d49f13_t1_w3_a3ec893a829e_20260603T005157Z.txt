@@ -1,0 +1,3 @@
+```json
+[{"start": 1450.9, "end": 1629.0, "confidence": 0.97, "reason": "Dynamically inserted ad block: Airtasker (mini pony nails/dryway repave pitch, Airtasker.com), Decisions Decisions podcast cross-promotion sponsored by Gilead Sciences (Care for the Culture), OnDeck small business line of credit ($200K, OnDeck.com), and BetMGM MLB Swing for the Frees promo (BetMGM.com). All gaps <15s so merged.", "end_text": "Kansas Crossing Casino and Hotel."}]
+```

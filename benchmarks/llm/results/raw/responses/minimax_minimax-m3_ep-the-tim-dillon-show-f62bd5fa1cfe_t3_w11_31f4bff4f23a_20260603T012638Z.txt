@@ -1,0 +1,39 @@
+```json
+[
+  {
+    "start": 4646.2,
+    "end": 4697.4,
+    "confidence": 0.93,
+    "reason": "Colgate Women's Games network-inserted ad - polished production, different voice from host, brand tagline 'your smile is your strength'",
+    "end_text": "your smile is your strength"
+  },
+  {
+    "start": 4705.5,
+    "end": 4733.9,
+    "confidence": 0.95,
+    "reason": "Skinny Pop popcorn network-inserted ad - polished commercial read with product pitch about simple ingredients and snacking",
+    "end_text": "perfectly salted. Skinny Pop"
+  },
+  {
+    "start": 4734.3,
+    "end": 4763.1,
+    "confidence": 0.93,
+    "reason": "Colgate Women's Games network-inserted ad (repeat) - same polished production as first Colgate spot, different voice from host",
+    "end_text": "your smile is your strength"
+  },
+  {
+    "start": 4766.5,
+    "end": 4787.9,
+    "confidence": 0.95,
+    "reason": "VIZ prescription eye drop network-inserted ad with standard pharma side effects disclosure and Viz.com URL",
+    "end_text": "learn more at Viz.com"
+  },
+  {
+    "start": 4787.9,
+    "end": 4806.1,
+    "confidence": 0.94,
+    "reason": "Garnier/National Park Foundation network-inserted ad - brand partnership promotion with GarnierUSA.com/NPF URL, continues past window",
+    "end_text": "national parks at GarnierUSA.com"
+  }
+]
+```

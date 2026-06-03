@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 821.4,
+    "end": 1021.1,
+    "confidence": 0.97,
+    "reason": "Multi-sponsor ad break: Capital One (Chat Concierge), BetterHelp (betterhelp.com/randompodcast), Amazon Health AI, Spectrum Business (spectrum.com/business), and Best One Yet / Rinse cross-promotion (rinse.com) — all network/host-read ads with promo URLs and CTAs",
+    "end_text": "It's time to be great."
+  }
+]
+```

@@ -1,0 +1,6 @@
+```json
+[
+  {"start": 54.1, "end": 64.7, "confidence": 0.95, "reason": "Old National Bank sponsor read with URL and call to action", "end_text": "Member FDIC."},
+  {"start": 506.4, "end": 548.5, "confidence": 0.85, "reason": "Crain's network self-promotion for Weekly News Quiz with URL chicagobusiness.com/quiz and call to action", "end_text": "Daily Gist with Amy Guth."}
+]
+```

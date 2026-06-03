@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 539.2,
+    "end": 652.8,
+    "confidence": 0.97,
+    "reason": "Two consecutive sponsor reads: 'In the Gray' movie (Guy Ritchie, Jake Gyllenhaal) and Skechers slip-ins, both introduced with 'This episode is brought to you by'",
+    "end_text": "That's only at Skechers.com."
+  }
+]
+```

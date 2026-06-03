@@ -1,0 +1,3 @@
+```json
+[{"start": 444.6, "end": 572.1, "confidence": 0.99, "reason": "Zscaler sponsor ad read with transition ('we'll take our first break'), promotional language, and URL (zscaler.com/security), ending with 'Now back to Steve and Security Now'", "end_text": "Thank you, Leo."}]
+```

@@ -1,0 +1,1 @@
+[{"start": 6283.4, "end": 6355.7, "confidence": 0.97, "reason": "OnDeck small business line of credit ad and Public investing platform ad", "end_text": "Transcription by CastingWords"}]

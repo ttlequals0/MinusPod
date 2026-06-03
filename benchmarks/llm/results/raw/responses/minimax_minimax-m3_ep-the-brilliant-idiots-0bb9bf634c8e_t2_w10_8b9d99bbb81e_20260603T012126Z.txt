@@ -1,0 +1,1 @@
+[{"start": 4323.9, "end": 4334.7, "confidence": 0.6, "reason": "Host promotion of All Love Racquet Club tennis event with date, location, activities, and call to action to get tickets on Instagram. Ambiguous whether personal event or paid sponsorship, but has clear ad-read structure with promotional details.", "end_text": "AM Mornings on YouTube"}]

@@ -1,0 +1,1 @@
+[{"start": 6016.6, "end": 6101.0, "confidence": 0.97, "reason": "Hoxhunt sponsor read, begins with 'We'll take a little break' transition and continues past window", "end_text": "just like the bad guys"}]

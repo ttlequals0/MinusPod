@@ -1,0 +1,1 @@
+[{"start": 15323.9, "end": 15517.1, "confidence": 0.97, "reason": "Outro with platform/show promo (Drink Champs subscribe across platforms) followed by network-inserted ads: Airtasker, CVS, Trashy, TryFencing, and iHeart Podcast tag", "end_text": "iHeart Podcast. Guaranteed human"}]

@@ -1,0 +1,10 @@
+```json
+[
+  {"start": 15261.8, "end": 15285.2, "confidence": 0.65, "reason": "Garbled sponsor read with repeated promotional language ('promo code', 'discount code')", "end_text": "discount code, discount code"},
+  {"start": 15388.3, "end": 15416.5, "confidence": 0.95, "reason": "Airtasker network-inserted ad with CTA to download app or visit airtasker.com", "end_text": "Airtasker."},
+  {"start": 15416.7, "end": 15452.3, "confidence": 0.93, "reason": "CVS network-inserted ad promoting store/pharmacy services with cvs.com CTA", "end_text": "Store hours vary by location."},
+  {"start": 15453.9, "end": 15481.1, "confidence": 0.92, "reason": "Trashy (ThredUp) network-inserted ad for clothing take-back service with Trashy.io CTA and pricing", "end_text": "Visit Trashy.io to get started."},
+  {"start": 15482.9, "end": 15512.2, "confidence": 0.93, "reason": "Fencing sport PSA/ad promoting tryfencing.org as a beginner resource", "end_text": "tryfencing.org."},
+  {"start": 15512.4, "end": 15517.1, "confidence": 0.97, "reason": "iHeart Radio platform-inserted outro promo ('This is an iHeart Podcast. Guaranteed human.')", "end_text": "iHeart Podcast. Guaranteed human."}
+]
+```

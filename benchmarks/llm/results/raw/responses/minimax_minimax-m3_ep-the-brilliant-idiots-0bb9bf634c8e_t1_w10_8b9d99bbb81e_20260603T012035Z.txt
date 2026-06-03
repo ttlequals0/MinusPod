@@ -1,0 +1,1 @@
+[{"start": 4296.0, "end": 4361.4, "confidence": 0.9, "reason": "Host-read ad segment promoting Jess Hilarious' book 'Til Death Do We Parent', All Love Racquet Club tennis event, and his show AM Mornings, followed by a 'Peace' sign-off", "end_text": "you guys there. Peace"}]

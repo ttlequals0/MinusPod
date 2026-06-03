@@ -1,0 +1,3 @@
+```json
+[{"start": 1450.9, "end": 1629.0, "confidence": 0.95, "reason": "Block of dynamically inserted ads: Airtasker ('Post your task at Airtasker.com'), cross-promotion for 'Decisions Decisions' podcast with Kiki Palmer (sponsored by Care for the Culture from Gilead Sciences), OnDeck small business line of credit ('Apply today at OnDeck.com'), and BetMGM MLB partnership ('Download the BetMGM app'). All segments have gaps under 15 seconds, merged into one ad block.", "end_text": "Kansas Crossing Casino and Hotel."}]
+```

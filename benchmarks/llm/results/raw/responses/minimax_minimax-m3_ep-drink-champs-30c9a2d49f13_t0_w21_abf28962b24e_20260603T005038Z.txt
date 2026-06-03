@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 8799.1,
+    "end": 8831.4,
+    "confidence": 0.97,
+    "reason": "Two network-inserted ads back-to-back: OnDeck small business loans (OnDeck.com) and Public investing platform sponsor read",
+    "end_text": "the investing platform for those who take it seriously"
+  }
+]
+```

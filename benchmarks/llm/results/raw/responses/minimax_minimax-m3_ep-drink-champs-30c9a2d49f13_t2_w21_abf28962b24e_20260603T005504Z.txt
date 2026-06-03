@@ -1,0 +1,1 @@
+[{"start": 8799.1, "end": 8831.4, "confidence": 0.95, "reason": "Back-to-back network-inserted ads: OnDeck small business loans and Public.com investing platform, separated by <1 second gap so merged per rules", "end_text": "those who take it seriously"}]

@@ -1,0 +1,3 @@
+```json
+[{"start": 0.0, "end": 59.8, "confidence": 0.97, "reason": "Two consecutive ads merged: HEX (Hex.ai) data analytics platform ad and Orange County NY tourism ('PickOCNY.com') ad, separated by <15s gap", "end_text": "mind at PickOCNY.com."}]
+```

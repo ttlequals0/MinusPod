@@ -1,0 +1,1 @@
+[{"start": 8724.9, "end": 8831.4, "confidence": 0.97, "reason": "Cluster of network-inserted ads: AirTasker, Decisions Decisions podcast cross-promo (Gilead/Care for the Culture), OnDeck loans, and Public investing platform", "end_text": "who take it seriously"}]

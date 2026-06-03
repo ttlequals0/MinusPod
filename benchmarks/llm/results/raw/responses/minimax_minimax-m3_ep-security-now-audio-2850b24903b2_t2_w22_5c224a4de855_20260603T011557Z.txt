@@ -1,0 +1,25 @@
+```json
+[
+  {
+    "start": 9259.3,
+    "end": 9290.5,
+    "confidence": 0.82,
+    "reason": "Network cross-promotion for This Week in Tech / TWiT Network after show sign-off, produced promo segment",
+    "end_text": "This Week in Tech from the TWiT Network. Thank you."
+  },
+  {
+    "start": 9312.9,
+    "end": 9315.5,
+    "confidence": 0.55,
+    "reason": "Fragmentary network-inserted brand tagline ad (appears to be Citizens Bank: 'Fit for your ambition'); very short, likely partial/pre-roll of a longer spot",
+    "end_text": "for citizens back"
+  },
+  {
+    "start": 9344.4,
+    "end": 9374.4,
+    "confidence": 0.97,
+    "reason": "Mint Mobile network-inserted ad featuring Ryan Reynolds with URL mintmobile.com/switch, including terms and conditions",
+    "end_text": "terms at mintmobile.com"
+  }
+]
+```

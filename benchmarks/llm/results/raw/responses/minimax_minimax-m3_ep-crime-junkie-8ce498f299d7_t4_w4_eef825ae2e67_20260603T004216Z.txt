@@ -1,0 +1,1 @@
+[{"start": 1959.8, "end": 2080.5, "confidence": 0.99, "reason": "Three consecutive network-inserted ads (Rakuten cashback, LinkedIn Premium, Hertz) merged due to <15s gaps between them. Each contains clear promotional language, brand names, and calls to action.", "end_text": "newest fleet yet at Hertz.com"}]

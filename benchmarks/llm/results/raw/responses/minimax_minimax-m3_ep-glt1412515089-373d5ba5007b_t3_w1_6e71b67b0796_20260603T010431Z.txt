@@ -1,0 +1,1 @@
+[{"start": 539.2, "end": 652.8, "confidence": 0.99, "reason": "Back-to-back sponsor reads: 'In the Gray' movie (brought to you by, release date, rating) and Skechers slip-ins (product pitch, Skechers.com URL)", "end_text": "Skechers.com for the biggest selection"}]

@@ -1,0 +1,3 @@
+```json
+[{"start": 6208.7, "end": 6318.1, "confidence": 0.97, "reason": "Merged ad block: Airtasker host-read, Decisions Decisions podcast cross-promo (sponsored by Gilead), OnDeck small business line of credit, and Public.com investing platform ad, all back-to-back", "end_text": "those who take it seriously"}]
+```

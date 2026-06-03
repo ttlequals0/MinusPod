@@ -1,0 +1,11 @@
+```json
+[
+  {
+    "start": 5420.4,
+    "end": 5441.4,
+    "confidence": 0.85,
+    "reason": "Ad read segment with repeated 'promo code' and 'discount code' markers, likely garbled transcript of a sponsor pitch interrupting the conversation",
+    "end_text": "discount code, discount code,"
+  }
+]
+```
