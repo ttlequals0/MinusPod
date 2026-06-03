@@ -52,6 +52,13 @@ class AccuracyResult:
         p, r = self.precision, self.recall
         return 2 * p * r / (p + r) if (p + r) > 0 else 0.0
 
+    def fbeta(self, beta: float) -> float:
+        """F-beta. beta<1 weights precision over recall (beta=0.5 -> precision 2x)."""
+        p, r = self.precision, self.recall
+        b2 = beta * beta
+        denom = b2 * p + r
+        return (1 + b2) * p * r / denom if denom > 0 else 0.0
+
 
 @dataclass
 class BoundaryError:

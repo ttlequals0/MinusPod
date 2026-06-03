@@ -110,8 +110,8 @@ def test_json_format_summary_classifies_native_prompt_inject_mixed():
     assert pct == 0.01
 
 
-def test_tldr_table_includes_f1_stdev_and_json_mode(tmp_path, minimal_cfg, make_episode, pricing_snapshot):
-    """Best Accuracy table renders the F1 stdev and JSON mode columns."""
+def test_tldr_table_columns_and_json_mode_telemetry(tmp_path, minimal_cfg, make_episode, pricing_snapshot):
+    """Best Accuracy table renders the F0.5 tier columns; per-model detail shows JSON mode."""
     ep = make_episode(n_windows=1)
     calls = tmp_path / "calls.jsonl"
     # Two trials on `m1` (one native, one prompt_injection) -> mixed.
@@ -132,8 +132,9 @@ def test_tldr_table_includes_f1_stdev_and_json_mode(tmp_path, minimal_cfg, make_
         output_path=out, assets_dir=tmp_path / "assets",
     )
     text = out.read_text()
-    assert "F1 stdev" in text
-    assert "JSON mode" in text
+    # Best Accuracy table now leads with F0.5 + paired-tier columns.
+    assert "### Best Accuracy (F0.5 @ IoU >= 0.5)" in text
+    assert "| Tier | Model | F0.5 | 95% CI | Precision | Recall | F1 |" in text
     # Per-model detail block surfaces the native percent + call count.
     assert "JSON mode: mixed" in text
     assert "50% native" in text

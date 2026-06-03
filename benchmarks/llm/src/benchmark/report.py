@@ -40,6 +40,7 @@ class ModelEpisodeStats:
     model: str
     episode_id: str
     trial_f1s: list[float] = field(default_factory=list)
+    trial_f05s: list[float] = field(default_factory=list)
     trial_precisions: list[float] = field(default_factory=list)
     trial_recalls: list[float] = field(default_factory=list)
     trial_tps: list[int] = field(default_factory=list)
@@ -57,6 +58,7 @@ class ModelEpisodeStats:
 class ModelStats:
     model: str
     f1_per_episode: dict[str, float] = field(default_factory=dict)
+    f05_per_episode: dict[str, float] = field(default_factory=dict)
     f1_stdev_per_episode: dict[str, float] = field(default_factory=dict)
     precision_per_episode: dict[str, float] = field(default_factory=dict)
     recall_per_episode: dict[str, float] = field(default_factory=dict)
@@ -98,6 +100,9 @@ class ModelStats:
     over_1024_count: int = 0
     salvaged_count: int = 0
     avg_f1: float = 0.0
+    avg_f05: float = 0.0
+    avg_precision: float = 0.0
+    avg_recall: float = 0.0
     mean_f1_stdev: float = 0.0
 
     @property
@@ -151,6 +156,7 @@ def render(
     pricing_snapshot: pricing.PricingSnapshot,
     output_path: Path,
     assets_dir: Path,
+    prompt_source: str = "live",
 ) -> None:
     raw_calls = list(read_jsonl(calls_path))
     if not raw_calls:
@@ -191,7 +197,7 @@ def render(
     sections += [
         _render_methodology(cfg, episodes, pricing_snapshot=pricing_snapshot),
         _render_transcript_source(),
-        _render_run_metadata(calls, pricing_snapshot=pricing_snapshot, raw_calls=raw_calls),
+        _render_run_metadata(calls, pricing_snapshot=pricing_snapshot, raw_calls=raw_calls, prompt_source=prompt_source),
     ]
 
     body = "\n\n".join(s for s in sections if s) + "\n"
@@ -354,6 +360,7 @@ def _aggregate(
             truth_ranges = [(ad.start, ad.end) for ad in ep.truth.ads]
             r = metrics.match_predictions(flat_preds, truth_ranges, threshold=DEFAULT_IOU_THRESHOLD)
             stats.trial_f1s.append(r.f1)
+            stats.trial_f05s.append(r.fbeta(0.5))
             stats.trial_precisions.append(r.precision)
             stats.trial_recalls.append(r.recall)
             stats.trial_tps.append(r.true_positives)
@@ -393,6 +400,8 @@ def _aggregate(
             if s.trial_f1s:
                 ms.f1_per_episode[ep_id] = statistics.fmean(s.trial_f1s)
                 ms.f1_stdev_per_episode[ep_id] = metrics.trial_stdev(s.trial_f1s)
+            if s.trial_f05s:
+                ms.f05_per_episode[ep_id] = statistics.fmean(s.trial_f05s)
             if s.trial_precisions:
                 ms.precision_per_episode[ep_id] = statistics.fmean(s.trial_precisions)
             if s.trial_recalls:
@@ -432,6 +441,10 @@ def _aggregate(
         ms.salvaged_count = method_counts[model].get("json_object_single_ad_truncated", 0)
         f1s = list(ms.f1_per_episode.values())
         ms.avg_f1 = statistics.fmean(f1s) if f1s else 0.0
+        f05s = list(ms.f05_per_episode.values())
+        ms.avg_f05 = statistics.fmean(f05s) if f05s else 0.0
+        ms.avg_precision = statistics.fmean(ms.precision_per_episode.values()) if ms.precision_per_episode else 0.0
+        ms.avg_recall = statistics.fmean(ms.recall_per_episode.values()) if ms.recall_per_episode else 0.0
         stdevs = list(ms.f1_stdev_per_episode.values())
         ms.mean_f1_stdev = statistics.fmean(stdevs) if stdevs else 0.0
         counts = json_format_counts_per_model[model]
@@ -495,52 +508,163 @@ def _percentile(sorted_values: list[int], p: int) -> float:
     return sorted_values[lo] + (sorted_values[hi] - sorted_values[lo]) * (k - lo)
 
 
+# 95% t critical values by degrees of freedom, two-sided and one-sided.
+# Beyond df=30, fall back to the normal-approximation z (1.960 / 1.645).
+_T_CRIT = {
+    "two": {
+        1: 12.706, 2: 4.303, 3: 3.182, 4: 2.776, 5: 2.571, 6: 2.447, 7: 2.365,
+        8: 2.306, 9: 2.262, 10: 2.228, 11: 2.201, 12: 2.179, 13: 2.160, 14: 2.145,
+        15: 2.131, 16: 2.120, 17: 2.110, 18: 2.101, 19: 2.093, 20: 2.086, 21: 2.080,
+        22: 2.074, 23: 2.069, 24: 2.064, 25: 2.060, 26: 2.056, 27: 2.052, 28: 2.048,
+        29: 2.045, 30: 2.042,
+    },
+    "one": {
+        1: 6.314, 2: 2.920, 3: 2.353, 4: 2.132, 5: 2.015, 6: 1.943, 7: 1.895,
+        8: 1.860, 9: 1.833, 10: 1.812, 11: 1.796, 12: 1.782, 13: 1.771, 14: 1.761,
+        15: 1.753, 16: 1.746, 17: 1.740, 18: 1.734, 19: 1.729, 20: 1.725, 21: 1.721,
+        22: 1.717, 23: 1.714, 24: 1.711, 25: 1.708, 26: 1.706, 27: 1.703, 28: 1.701,
+        29: 1.699, 30: 1.697,
+    },
+}
+
+
+def _t_crit(df: int, *, two_sided: bool) -> float:
+    table = _T_CRIT["two" if two_sided else "one"]
+    return table.get(df, 1.960 if two_sided else 1.645)
+
+
+def _ci_half_width(values: list[float]) -> float:
+    """95% CI half-width of the mean across episodes (t-based). 0.0 if < 2 points."""
+    n = len(values)
+    if n < 2:
+        return 0.0
+    return _t_crit(n - 1, two_sided=True) * metrics.trial_stdev(values) / math.sqrt(n)
+
+
+def _sig_worse(leader: dict[str, float], model: dict[str, float]) -> bool:
+    """Paired one-sided t-test (95%): is `model` significantly worse than
+    `leader` across the episodes they share? Models are scored on the same
+    episodes, so the per-episode difference cancels shared episode difficulty
+    and is far less noisy than each model's own spread. Two models that trade
+    wins across episodes (mean difference near zero) are NOT separated; a model
+    that is consistently below the leader is. Ties / < 2 shared episodes -> not
+    worse (same tier)."""
+    eps = [e for e in leader if e in model]
+    diffs = [leader[e] - model[e] for e in eps]
+    n = len(diffs)
+    if n < 2:
+        return False
+    mean_d = statistics.fmean(diffs)
+    if mean_d <= 0:
+        return False
+    sd = statistics.stdev(diffs)
+    if sd == 0:
+        return True  # strictly worse on every shared episode
+    t = mean_d / (sd / math.sqrt(n))
+    return t > _t_crit(n - 1, two_sided=False)
+
+
+def _tier_label(index: int) -> str:
+    """0->A, 25->Z, 26->AA, 27->AB ... spreadsheet-style so the label never
+    overflows past 'Z' into punctuation (a literal '|' would break the table)."""
+    label = ""
+    index += 1
+    while index > 0:
+        index, rem = divmod(index - 1, 26)
+        label = chr(ord("A") + rem) + label
+    return label
+
+
+def _assign_tiers(ranked: list[ModelStats]) -> list[str]:
+    """ranked sorted by avg_f05 descending. A model joins the current tier
+    unless it is significantly worse (paired, per-episode) than that tier's
+    leader, in which case it opens a new tier and becomes its leader."""
+    tiers: list[str] = []
+    leader: dict[str, float] | None = None
+    idx = -1
+    for s in ranked:
+        if leader is None or _sig_worse(leader, s.f05_per_episode):
+            idx += 1
+            leader = s.f05_per_episode
+        tiers.append(_tier_label(idx))
+    return tiers
+
+
+def _reliability_flags(s: ModelStats) -> str:
+    """Flags that caveat a ranking without reordering it."""
+    flags: list[str] = []
+    if s.json_compliance_mean < 0.90:
+        flags.append("(!) brittle JSON")
+    if s.no_ad_pass and not all(s.no_ad_pass.values()):
+        flags.append("(!) fails no-ad control")
+    return " ".join(flags)
+
+
 def _render_tldr(stats: dict[str, ModelStats], episodes: list[Episode]) -> str:
-    accuracy_rows = sorted(stats.values(), key=lambda s: _avg_f1(s), reverse=True)
+    cis = {s.model: _ci_half_width(list(s.f05_per_episode.values())) for s in stats.values()}
+
+    accuracy_rows = sorted(stats.values(), key=lambda s: s.avg_f05, reverse=True)
+    acc_tiers = _assign_tiers(accuracy_rows)
     paid_rows = [s for s in stats.values() if s.total_episode_cost > 0]
     free_rows = [s for s in stats.values() if s.total_episode_cost == 0]
-    value_rows = sorted(paid_rows, key=lambda s: _avg_f1(s) / s.total_episode_cost, reverse=True)
-    free_by_f1 = sorted(free_rows, key=lambda s: _avg_f1(s), reverse=True)
+    value_rows = sorted(paid_rows, key=lambda s: s.avg_f05 / s.total_episode_cost, reverse=True)
+    free_by_f05 = sorted(free_rows, key=lambda s: s.avg_f05, reverse=True)
 
-    lines = ["## TL;DR", "", "### Best Accuracy (F1 @ IoU >= 0.5)", ""]
-    lines.append("All models ranked by F1 against human-verified ground truth. Cost includes free-tier models (shown at $0.00).")
-    lines.append("")
-    lines.append("| Rank | Model | F1 | F1 stdev | Cost / episode | p50 latency | JSON compliance | JSON mode |")
-    lines.append("|------|-------|----|----------|----------------|-------------|-----------------|-----------|")
-    for i, s in enumerate(accuracy_rows, 1):
-        lines.append(
-            f"| {i} | `{s.model}` | {_avg_f1(s):.3f} | {s.mean_f1_stdev:.3f} | ${s.total_episode_cost:.4f} | "
-            f"{s.p50_call_latency_ms / 1000:.1f}s | {s.json_compliance_mean:.2f} | {s.json_format_primary} |"
-        )
-
-    lines += ["", "### Best Value (F1 per dollar)", ""]
+    lines = ["## TL;DR", "", "### Best Accuracy (F0.5 @ IoU >= 0.5)", ""]
     lines.append(
-        "Paid-tier only. Free-tier models are excluded here because F1 / 0 is undefined; "
-        "they are ranked separately under Best Free-Tier below."
+        "Models ranked by F0.5 (precision weighted 2x recall) against human-verified ground truth. "
+        "MinusPod cuts the segments it flags, so cutting real content (a false positive) is worse than "
+        "leaving an ad in (a false negative), and F0.5 penalizes it more. A model shares the tier above it "
+        "unless it scores consistently lower across the same episodes (paired one-sided t-test, 95%); models "
+        "that trade wins episode to episode share a tier, so order within a tier is not meaningful on this "
+        f"{sum(1 for e in episodes if not e.truth.is_no_ad_episode)}-episode corpus. Flags caveat a model "
+        "without changing its rank. Cost includes free-tier models (shown at $0.00)."
     )
     lines.append("")
-    lines.append("| Rank | Model | F1/$ | F1 | Cost / episode |")
-    lines.append("|------|-------|------|----|----------------|")
-    for i, s in enumerate(value_rows, 1):
+    lines.append("| Tier | Model | F0.5 | 95% CI | Precision | Recall | F1 | Cost / episode | p50 latency | JSON compliance | Flags |")
+    lines.append("|------|-------|------|--------|-----------|--------|----|----------------|-------------|-----------------|-------|")
+    for tier, s in zip(acc_tiers, accuracy_rows):
         lines.append(
-            f"| {i} | `{s.model}` | {_avg_f1(s) / s.total_episode_cost:.2f} | "
-            f"{_avg_f1(s):.3f} | ${s.total_episode_cost:.4f} |"
+            f"| {tier} | `{s.model}` | {s.avg_f05:.3f} | +/-{cis[s.model]:.3f} | "
+            f"{s.avg_precision:.3f} | {s.avg_recall:.3f} | {s.avg_f1:.3f} | "
+            f"${s.total_episode_cost:.4f} | {s.p50_call_latency_ms / 1000:.1f}s | "
+            f"{s.json_compliance_mean:.2f} | {_reliability_flags(s)} |"
         )
 
-    if free_by_f1:
-        lines += ["", "### Best Free-Tier (F1)", ""]
+    lines += ["", "### Best Value (F0.5 per dollar)", ""]
+    lines.append(
+        "Paid-tier only, ranked by F0.5 per dollar. Free-tier models are excluded here because F0.5 / 0 is "
+        "undefined; they are ranked separately under Best Free-Tier below. No confidence tiers on this table -- "
+        "a point ratio does not group cleanly -- but the reliability flags still apply."
+    )
+    lines.append("")
+    lines.append("| Rank | Model | F0.5/$ | F0.5 | F1 | Cost / episode | Flags |")
+    lines.append("|------|-------|--------|------|----|----------------|-------|")
+    for i, s in enumerate(value_rows, 1):
         lines.append(
-            "Models that came back at $0.00 cost. F1 / $ is undefined for these, so they are ranked by F1 alone. "
-            "Free-tier eligibility on OpenRouter depends on the attribution headers wired into the benchmark "
-            "(`HTTP-Referer`, `X-Title`); a model showing as free here may bill on your own deployment if those headers are missing."
+            f"| {i} | `{s.model}` | {s.avg_f05 / s.total_episode_cost:.2f} | {s.avg_f05:.3f} | "
+            f"{s.avg_f1:.3f} | ${s.total_episode_cost:.4f} | {_reliability_flags(s)} |"
+        )
+
+    if free_by_f05:
+        free_tiers = _assign_tiers(free_by_f05)
+        lines += ["", "### Best Free-Tier (F0.5)", ""]
+        lines.append(
+            "Models that came back at $0.00 cost, ranked by F0.5 with the same CI and flags as Best Accuracy. "
+            "Tiers are computed within the free-tier set against its own leader, so a tier letter here is not "
+            "comparable to the same letter in Best Accuracy. Free-tier eligibility on OpenRouter depends on the "
+            "attribution headers wired into the "
+            "benchmark (`HTTP-Referer`, `X-Title`); a model showing as free here may bill on your own deployment "
+            "if those headers are missing."
         )
         lines.append("")
-        lines.append("| Rank | Model | F1 | F1 stdev | p50 latency | JSON compliance | JSON mode |")
-        lines.append("|------|-------|----|----------|-------------|-----------------|-----------|")
-        for i, s in enumerate(free_by_f1, 1):
+        lines.append("| Tier | Model | F0.5 | 95% CI | Precision | Recall | F1 | p50 latency | JSON compliance | Flags |")
+        lines.append("|------|-------|------|--------|-----------|--------|----|-------------|-----------------|-------|")
+        for tier, s in zip(free_tiers, free_by_f05):
             lines.append(
-                f"| {i} | `{s.model}` | {_avg_f1(s):.3f} | {s.mean_f1_stdev:.3f} | "
-                f"{s.p50_call_latency_ms / 1000:.1f}s | {s.json_compliance_mean:.2f} | {s.json_format_primary} |"
+                f"| {tier} | `{s.model}` | {s.avg_f05:.3f} | +/-{cis[s.model]:.3f} | "
+                f"{s.avg_precision:.3f} | {s.avg_recall:.3f} | {s.avg_f1:.3f} | "
+                f"{s.p50_call_latency_ms / 1000:.1f}s | {s.json_compliance_mean:.2f} | {_reliability_flags(s)} |"
             )
 
     return "\n".join(lines)
@@ -704,7 +828,7 @@ def _render_charts_section() -> str:
         "### Cost vs F1 (Pareto)\n\n"
         "Each model is one colored point. Lower-left is unhelpful (expensive, inaccurate). Upper-left is the sweet spot (accurate, cheap). The legend below the chart shows each model's color next to its F1 and cost-per-episode.\n\n"
         "![Cost vs F1 by model](report_assets/pareto.svg)\n\n"
-        "Source data: [Best Accuracy](#best-accuracy-f1--iou--05), [Best Value](#best-value-f1-per-dollar), [Best Free-Tier](#best-free-tier-f1)\n\n"
+        "Source data: [Best Accuracy](#best-accuracy-f05--iou--05), [Best Value](#best-value-f05-per-dollar), [Best Free-Tier](#best-free-tier-f05)\n\n"
         "### JSON schema compliance\n\n"
         "Fraction of each model's responses that parsed as a clean JSON array. 1.0 means every response came back exactly as requested; lower numbers mean the parser had to recover from markdown fences, object wrappers, or extra fields.\n\n"
         "![JSON compliance per model](report_assets/compliance.svg)\n\n"
@@ -1045,6 +1169,7 @@ def _render_run_metadata(
     *,
     pricing_snapshot: pricing.PricingSnapshot,
     raw_calls: list[dict] | None = None,
+    prompt_source: str = "live",
 ) -> str:
     total_calls = len(calls)
     successful = sum(1 for c in calls if not c.get("error"))
@@ -1066,6 +1191,7 @@ def _render_run_metadata(
         f"- Failed: {failed}",
         f"- Lifetime actual spend (sum of at-runtime costs, includes superseded rows): ${lifetime_actual:.4f}",
         f"- Active pricing snapshot: {pricing_snapshot.captured_at}",
+        f"- System prompt: {prompt_source}",
     ]
     return "\n".join(lines)
 

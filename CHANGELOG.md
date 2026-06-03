@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- LLM benchmark: `benchmark run --snapshot <file>` and `benchmark report --snapshot <file>` pin the system prompt to a frozen file instead of the live `get_static_system_prompt()`. This decouples the stored corpus from the production `SEED_SPONSORS` list -- editing the sponsor list (or the prompt prose) no longer changes the prompt hashes and forces a full re-run. With no flag the live prompt is used as before. `benchmark dump-prompt <file>` writes the current live prompt to a file to seed a snapshot. The report's Run Metadata section records which prompt produced the run (`live` or `snapshot:<name>`) with a sha256 prefix.
+
+### Changed
+
+- LLM benchmark report: the TL;DR rankings (Best Accuracy, Best Value, Best Free-Tier) now lead with F0.5 instead of F1. MinusPod cuts the segments it flags, so a false positive (cutting real content) is worse than a false negative (leaving an ad in); F0.5 weights precision 2x recall to match. Best Accuracy and Best Free-Tier add a 95% confidence interval per model and group models into tiers by a paired one-sided t-test against the tier leader, so the top cluster that trades wins across the 12-episode corpus reads as one tier rather than a false strict order. Raw F1, precision, and recall stay as columns. Models are flagged (not reordered) for low JSON compliance (`brittle JSON`, < 0.90) or a failed no-ad negative control.
+
 ### Security
 
 - **Pattern import replace-mode is now atomic.** A failure partway through a `mode=replace` import could permanently wipe the entire `ad_patterns` table, because the delete/create DB helpers committed individually and defeated the route's rollback. The import now runs as a single transaction through non-committing primitives, so a mid-import failure leaves every existing pattern intact.

@@ -43,6 +43,14 @@ def _root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
+def _resolve_prompt(snapshot: Optional[Path]) -> tuple[str, str]:
+    try:
+        return parsing.resolve_system_prompt(snapshot)
+    except (FileNotFoundError, ValueError) as e:
+        typer.echo(f"error: {e}", err=True)
+        raise typer.Exit(1)
+
+
 @app.command()
 def capture(
     episode_url: str = typer.Option(..., "--episode-url", help="MinusPod UI URL of the episode to capture"),
@@ -153,10 +161,15 @@ def run(
     force: bool = typer.Option(False, "--force"),
     dry_run: bool = typer.Option(False, "--dry-run"),
     no_report_on_failure: bool = typer.Option(False, "--no-report-on-failure"),
+    snapshot: Optional[Path] = typer.Option(
+        None, "--snapshot",
+        help="Frozen system-prompt file to use instead of the live prompt (decouples the corpus from SEED_SPONSORS edits).",
+    ),
 ) -> None:
     """Auto-fill all gaps in calls.jsonl, then regenerate report."""
     _setup_logging()
     cfg = _load(config_path)
+    system_prompt, prompt_source = _resolve_prompt(snapshot)
     episodes = [corpus_mod.load_episode(cfg.corpus.path / e) for e in corpus_mod.list_episodes(cfg.corpus.path)]
     if not episodes:
         typer.echo("no corpus episodes; run `benchmark capture` first", err=True)
@@ -174,11 +187,11 @@ def run(
             paths.calls_jsonl.unlink()
 
     if dry_run:
-        units, skipped = _preview(cfg, episodes, paths=paths)
+        units, skipped = _preview(cfg, episodes, paths=paths, system_prompt=system_prompt)
         typer.echo(f"dry-run: {len(units)} calls would execute, {skipped} skipped (already done)")
         raise typer.Exit(0)
 
-    stats = asyncio.run(runner_mod.run(cfg, episodes, paths=paths, pricing_snapshot=snap, include_errored=retry_errors))
+    stats = asyncio.run(runner_mod.run(cfg, episodes, paths=paths, pricing_snapshot=snap, system_prompt=system_prompt, include_errored=retry_errors))
     typer.echo(f"run complete: total={stats.total_units} skipped={stats.skipped} completed={stats.completed} errored={stats.errored}")
 
     if stats.errored and no_report_on_failure:
@@ -195,6 +208,7 @@ def run(
         pricing_snapshot=snap,
         output_path=output,
         assets_dir=assets,
+        prompt_source=prompt_source,
     )
     typer.echo(f"report written: {output}")
 
@@ -202,10 +216,15 @@ def run(
 @app.command()
 def report(
     config_path: Path = typer.Option(Path("benchmark.toml"), "--config"),
+    snapshot: Optional[Path] = typer.Option(
+        None, "--snapshot",
+        help="Label the report with this prompt file; pass the same snapshot used for `run` so the footer matches the stored calls.",
+    ),
 ) -> None:
     """Regenerate results/report.md from existing calls.jsonl."""
     _setup_logging()
     cfg = _load(config_path)
+    _, prompt_source = _resolve_prompt(snapshot)
     episodes = [corpus_mod.load_episode(cfg.corpus.path / e) for e in corpus_mod.list_episodes(cfg.corpus.path)]
     paths = runner_mod.RunPaths.for_root(_root() / "results")
     snap = pricing.latest_snapshot(_root() / "data" / "pricing_snapshots") or pricing.fetch_current()
@@ -219,8 +238,20 @@ def report(
         pricing_snapshot=snap,
         output_path=output,
         assets_dir=assets,
+        prompt_source=prompt_source,
     )
     typer.echo(f"report written: {output}")
+
+
+@app.command()
+def dump_prompt(
+    output: Path = typer.Argument(..., help="File to write the current live system prompt to"),
+) -> None:
+    """Freeze the current live system prompt to a file for use with `run --snapshot`."""
+    text = parsing.get_static_system_prompt()
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(text)
+    typer.echo(f"wrote prompt snapshot: {output} ({len(text)} chars)")
 
 
 @app.command()
@@ -243,8 +274,7 @@ def archive() -> None:
     typer.echo(f"archived to {dst_dir}")
 
 
-def _preview(cfg, episodes, *, paths):
-    system_prompt = parsing.get_static_system_prompt()
+def _preview(cfg, episodes, *, paths, system_prompt):
     hashes = precompute_prompt_hashes(cfg, episodes, system_prompt=system_prompt)
     completed, _ = scan_calls(paths.calls_jsonl)
     units, skipped = build_work_list(cfg, episodes, completed=completed, prompt_hashes=hashes)

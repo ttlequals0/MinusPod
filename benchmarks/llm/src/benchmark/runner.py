@@ -155,9 +155,9 @@ async def run(
     *,
     paths: RunPaths,
     pricing_snapshot: pricing.PricingSnapshot,
+    system_prompt: str,
     include_errored: bool = False,
 ) -> RunStats:
-    system_prompt = parsing.get_static_system_prompt()
     prompt_hashes = precompute_prompt_hashes(cfg, episodes, system_prompt=system_prompt)
 
     completed, err_keys = scan_calls(paths.calls_jsonl)
