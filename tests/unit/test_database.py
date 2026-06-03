@@ -771,6 +771,118 @@ class TestTokenUsage:
         assert model['inputCostPerMtok'] == 1.0
         assert model['outputCostPerMtok'] == 5.0
 
+    def test_calculate_opus48_cost_exact_match_not_prefix(self, temp_db):
+        """Opus 4.8 resolves to its own 5/25 pricing, not Opus 4.0 (15/75) via prefix."""
+        conn = temp_db.get_connection()
+        # claudeopus48 seeded from DEFAULT_MODEL_PRICING at 5/25; claudeopus4 is 15/75.
+        cost = temp_db._calculate_token_cost(conn, 'claude-opus-4-8', 1_000_000, 1_000_000)
+        assert abs(cost - 30.0) < 0.001  # $5 input + $25 output, not $90 (15+75)
+
+
+class TestOpus48CostCorrectionMigration:
+    """One-time retroactive correction of mis-booked Opus 4.8 token cost."""
+
+    def _seed_miscosted(self, temp_db, in_tokens, out_tokens):
+        """Insert a token_usage row costed at Opus 4.0 (15/75) and matching global stat."""
+        conn = temp_db.get_connection()
+        bad_cost = (in_tokens / 1_000_000) * 15.0 + (out_tokens / 1_000_000) * 75.0
+        conn.execute(
+            """INSERT INTO token_usage
+                   (model_id, match_key, total_input_tokens, total_output_tokens,
+                    total_cost, call_count, updated_at)
+               VALUES ('claude-opus-4-8', 'claudeopus48', ?, ?, ?, 1,
+                       strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))""",
+            (in_tokens, out_tokens, bad_cost),
+        )
+        conn.execute(
+            """INSERT INTO stats (key, value, updated_at)
+               VALUES ('total_llm_cost', ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
+               ON CONFLICT(key) DO UPDATE SET value = excluded.value""",
+            (bad_cost,),
+        )
+        conn.execute("DELETE FROM schema_migrations WHERE name = 'correct_opus48_token_cost'")
+        conn.commit()
+        return bad_cost
+
+    def _assert_cost(self, conn, expected):
+        """Assert both the per-model row and the global stat equal `expected`."""
+        row = conn.execute(
+            "SELECT total_cost FROM token_usage WHERE match_key = 'claudeopus48'"
+        ).fetchone()
+        assert abs(row['total_cost'] - expected) < 0.001
+        stat = conn.execute(
+            "SELECT value FROM stats WHERE key = 'total_llm_cost'"
+        ).fetchone()
+        assert abs(stat['value'] - expected) < 0.001
+
+    def test_corrects_token_cost_and_global_stat(self, temp_db):
+        # 2M in, 1M out -> correct 5/25 cost = 10 + 25 = 35.0 (bad was 30 + 75 = 105.0)
+        bad_cost = self._seed_miscosted(temp_db, 2_000_000, 1_000_000)
+        assert abs(bad_cost - 105.0) < 0.001
+
+        conn = temp_db.get_connection()
+        temp_db._run_correct_opus48_token_cost(conn)
+        self._assert_cost(conn, 35.0)
+
+    def test_is_idempotent_under_repeat_runs(self, temp_db):
+        self._seed_miscosted(temp_db, 2_000_000, 1_000_000)
+        conn = temp_db.get_connection()
+
+        temp_db._run_correct_opus48_token_cost(conn)
+        # Drop the gate so the second run exercises the writes again, not the early return.
+        conn.execute("DELETE FROM schema_migrations WHERE name = 'correct_opus48_token_cost'")
+        conn.commit()
+        temp_db._run_correct_opus48_token_cost(conn)
+        self._assert_cost(conn, 35.0)
+
+    def test_gate_blocks_second_run(self, temp_db):
+        self._seed_miscosted(temp_db, 2_000_000, 1_000_000)
+        conn = temp_db.get_connection()
+        temp_db._run_correct_opus48_token_cost(conn)
+
+        # Gate is now set; manually corrupt the row and confirm a re-run leaves it.
+        conn.execute(
+            "UPDATE token_usage SET total_cost = 999.0 WHERE match_key = 'claudeopus48'"
+        )
+        conn.commit()
+        temp_db._run_correct_opus48_token_cost(conn)
+        row = conn.execute(
+            "SELECT total_cost FROM token_usage WHERE match_key = 'claudeopus48'"
+        ).fetchone()
+        assert row['total_cost'] == 999.0  # untouched: gate short-circuited
+
+    def test_no_opus48_row_leaves_global_untouched(self, temp_db):
+        """With no Opus 4.8 usage, the migration is a no-op and does not rewrite the global."""
+        conn = temp_db.get_connection()
+        conn.execute("DELETE FROM schema_migrations WHERE name = 'correct_opus48_token_cost'")
+        temp_db.record_token_usage('claude-haiku-4-5-20251001', 1_000_000, 0)  # $1.0
+        # Deliberately desync the global so we can prove the migration did not touch it.
+        conn.execute("UPDATE stats SET value = 2.5 WHERE key = 'total_llm_cost'")
+        conn.commit()
+
+        temp_db._run_correct_opus48_token_cost(conn)
+        stat = conn.execute(
+            "SELECT value FROM stats WHERE key = 'total_llm_cost'"
+        ).fetchone()
+        assert abs(stat['value'] - 2.5) < 0.001  # untouched: no Opus 4.8 row to correct
+
+    def test_global_reset_sums_all_models_after_correction(self, temp_db):
+        """When Opus 4.8 is corrected, the global is reset to the sum across all models."""
+        # Opus 4.8 miscosted at 15/75 for 2M/1M -> corrects to 35.0
+        self._seed_miscosted(temp_db, 2_000_000, 1_000_000)
+        conn = temp_db.get_connection()
+        # Other real usage: Haiku 1M/0 = $1.0, Sonnet 4.5 1M/0 = $3.0
+        temp_db.record_token_usage('claude-haiku-4-5-20251001', 1_000_000, 0)
+        temp_db.record_token_usage('claude-sonnet-4-5-20250929', 1_000_000, 0)
+        conn.execute("DELETE FROM schema_migrations WHERE name = 'correct_opus48_token_cost'")
+        conn.commit()
+
+        temp_db._run_correct_opus48_token_cost(conn)
+        stat = conn.execute(
+            "SELECT value FROM stats WHERE key = 'total_llm_cost'"
+        ).fetchone()
+        assert abs(stat['value'] - 39.0) < 0.001  # 35.0 + 1.0 + 3.0
+
 
 class MockStorage:
     """Mock storage for delete/cleanup tests."""

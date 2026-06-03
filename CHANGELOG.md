@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.6.2] - 2026-06-03
+
+### Fixed
+
+- Claude Opus 4.8 usage was cost-accounted at roughly 3x. The live pricing table (scraped from the provider's pricing page) did not list Opus 4.8 yet, so the lookup fell through to a prefix match and picked up Opus 4.0 rates ($15/$75 per million tokens) instead of the correct $5/$25. The built-in default pricing now includes Opus 4.7 and 4.8, and defaults are backfilled after every successful live fetch (Anthropic only), so a newly released Claude model is priced correctly until the upstream source catches up. A one-time migration recomputes any Opus 4.8 cost already recorded in the token-usage stats; no usage rows are removed.
+
 ## [2.6.1] - 2026-06-02
 
 ### Fixed

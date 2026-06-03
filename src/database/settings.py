@@ -10,6 +10,8 @@ logger = logging.getLogger(__name__)
 
 # Default pricing for known Anthropic models (USD per 1M tokens)
 DEFAULT_MODEL_PRICING = {
+    'claude-opus-4-8':            {'name': 'Claude Opus 4.8',   'input': 5.0,  'output': 25.0},
+    'claude-opus-4-7':            {'name': 'Claude Opus 4.7',   'input': 5.0,  'output': 25.0},
     'claude-opus-4-6':            {'name': 'Claude Opus 4.6',   'input': 5.0,  'output': 25.0},
     'claude-opus-4-5-20251101':   {'name': 'Claude Opus 4.5',   'input': 5.0,  'output': 25.0},
     'claude-opus-4-1-20250805':   {'name': 'Claude Opus 4.1',   'input': 15.0, 'output': 75.0},
@@ -269,10 +271,13 @@ class SettingsMixin:
         ]
 
     def seed_default_pricing(self):
-        """Seed model_pricing from DEFAULT_MODEL_PRICING as fallback.
+        """Seed model_pricing from DEFAULT_MODEL_PRICING.
 
-        Called only when live fetch fails and table is empty.
-        Marks rows with source='default' so they get overwritten on next live fetch.
+        Used two ways: as the empty-table fallback when a live fetch fails, and
+        as a post-fetch backfill that fills gaps for known models the live source
+        has not published yet (e.g. a just-released Claude model). ON CONFLICT
+        DO NOTHING means existing rows are never touched. Rows are marked
+        source='default' so a later live fetch overwrites them via DO UPDATE.
         """
         conn = self.get_connection()
         inserted = 0

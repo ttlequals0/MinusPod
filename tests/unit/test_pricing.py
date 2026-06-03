@@ -377,6 +377,41 @@ class TestSeedDefaultPricing:
         assert row['input_cost_per_mtok'] == 99.0
         assert row['source'] == 'pricepertoken'
 
+    def test_backfill_fills_gap_left_by_live_fetch(self):
+        """A live fetch missing claudeopus48 gets it backfilled at 5/25 (source=default)."""
+        from database.settings import SettingsMixin
+
+        conn = self._create_test_db()
+        mixin = SettingsMixin()
+        mixin.get_connection = lambda: conn
+
+        # Live source publishes everything except Opus 4.8 (too new to be listed).
+        mixin.upsert_fetched_pricing([{
+            'match_key': 'claudeopus4',
+            'raw_model_id': 'claude-opus-4',
+            'display_name': 'Claude Opus 4',
+            'input_cost_per_mtok': 15.0,
+            'output_cost_per_mtok': 75.0,
+        }], source='pricepertoken')
+
+        # Backfill defaults -> fills the claudeopus48 gap, leaves live rows intact.
+        mixin.seed_default_pricing()
+
+        opus48 = conn.execute(
+            "SELECT * FROM model_pricing WHERE match_key = 'claudeopus48'"
+        ).fetchone()
+        assert opus48 is not None
+        assert opus48['input_cost_per_mtok'] == 5.0
+        assert opus48['output_cost_per_mtok'] == 25.0
+        assert opus48['source'] == 'default'
+
+        # Live Opus 4.0 row untouched (DO NOTHING did not clobber it).
+        opus4 = conn.execute(
+            "SELECT * FROM model_pricing WHERE match_key = 'claudeopus4'"
+        ).fetchone()
+        assert opus4['input_cost_per_mtok'] == 15.0
+        assert opus4['source'] == 'pricepertoken'
+
 
 class TestPricingFetcher:
     """Test the unified pricing fetcher."""

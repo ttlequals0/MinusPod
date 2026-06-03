@@ -1182,6 +1182,92 @@ class SchemaMixin:
             conn.rollback()
             logger.error(f"history ads_detected v2 backfill failed: {e}")
 
+        # One-shot correction of Opus 4.8 token cost (2.6.2). Calls booked at
+        # 15/75 (Opus 4.0, via prefix-match fallback) instead of 5/25.
+        try:
+            self._run_correct_opus48_token_cost(conn)
+        except Exception as e:
+            conn.rollback()
+            logger.error(f"opus 4.8 token cost correction failed: {e}")
+
+    def _run_correct_opus48_token_cost(self, conn):
+        """One-time correction of recorded Opus 4.8 (`claudeopus48`) token cost.
+
+        Before the missing-default fix, Opus 4.8 calls fell through the exact
+        pricing lookup and prefix-matched `claudeopus4` (Opus 4.0) at 15/75 USD
+        per Mtok instead of the correct 5/25, so `token_usage.total_cost` and the
+        global `stats.total_llm_cost` were over-booked ~3x.
+
+        Gated by `schema_migrations` so it runs once per database. Writes are
+        absolute (not delta adjustments): the per-model row is set to the
+        recomputed cost and, when a row was corrected, the global counter is reset
+        to the sum of all per-model rows -- so the result is identical on re-run
+        (e.g. concurrent workers). A database that never used Opus 4.8 is left
+        untouched. No rows are deleted. (`record_token_usage` increments both
+        counters by the same per-call cost, so the global equals the sum of
+        per-model rows by construction.)
+        """
+        gate = conn.execute(
+            "SELECT 1 FROM schema_migrations WHERE name = 'correct_opus48_token_cost'"
+        ).fetchone()
+        if gate is not None:
+            return
+
+        from database.settings import DEFAULT_MODEL_PRICING
+
+        info = DEFAULT_MODEL_PRICING['claude-opus-4-8']
+        in_per_mtok = info['input']
+        out_per_mtok = info['output']
+
+        # Ensure the corrected pricing row exists regardless of whether a live
+        # fetch has run; harmless if the live source already populated it.
+        conn.execute(
+            """INSERT INTO model_pricing
+                   (model_id, match_key, raw_model_id, display_name,
+                    input_cost_per_mtok, output_cost_per_mtok, source)
+               VALUES ('claude-opus-4-8', 'claudeopus48', 'claude-opus-4-8', ?, ?, ?, 'default')
+               ON CONFLICT(match_key) DO NOTHING""",
+            (info['name'], in_per_mtok, out_per_mtok),
+        )
+
+        row = conn.execute(
+            """SELECT total_input_tokens, total_output_tokens, total_cost
+               FROM token_usage WHERE match_key = 'claudeopus48'"""
+        ).fetchone()
+
+        if row is not None:
+            new_cost = (
+                (row['total_input_tokens'] / 1_000_000) * in_per_mtok
+                + (row['total_output_tokens'] / 1_000_000) * out_per_mtok
+            )
+            conn.execute(
+                "UPDATE token_usage SET total_cost = ? WHERE match_key = 'claudeopus48'",
+                (new_cost,),
+            )
+            # Reset the global counter to the sum of per-model rows (absolute, so
+            # the result is identical on re-run). Scoped to the case where an Opus
+            # 4.8 row was actually corrected -- a database that never used Opus 4.8
+            # is left untouched rather than having its global silently rewritten.
+            conn.execute(
+                """UPDATE stats
+                   SET value = (SELECT COALESCE(SUM(total_cost), 0) FROM token_usage)
+                   WHERE key = 'total_llm_cost'"""
+            )
+            logger.info(
+                "opus48-cost-fix: claudeopus48 total_cost %.6f -> %.6f "
+                "(in=%s out=%s @ %s/%s per Mtok)",
+                row['total_cost'], new_cost,
+                row['total_input_tokens'], row['total_output_tokens'],
+                in_per_mtok, out_per_mtok,
+            )
+
+        conn.execute(
+            "INSERT OR IGNORE INTO schema_migrations (name) VALUES "
+            "('correct_opus48_token_cost')"
+        )
+        conn.commit()
+        logger.info("opus48-cost-fix: complete")
+
     def _run_backfill_history_ads_detected(self, conn):
         """One-shot correction of ``processing_history.ads_detected``
         rows undercounted by the verification re-cut.

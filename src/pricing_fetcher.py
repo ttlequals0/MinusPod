@@ -22,6 +22,7 @@ from config import (
     HTTP_TIMEOUT_EXTERNAL,
     normalize_model_key,
     PRICING_CACHE_TTL,
+    PROVIDER_ANTHROPIC,
 )
 from utils.http import safe_url_for_log
 from utils.safe_http import URLTrust, safe_get
@@ -375,6 +376,12 @@ def refresh_pricing_if_stale(force: bool = False):
         if models:
             db.upsert_fetched_pricing(models, source=source['type'])
             logger.info(f"Stored pricing for {len(models)} models (source={source['type']})")
+            # Backfill known Anthropic models the live source has not published yet
+            # (e.g. a just-released Claude model). DO NOTHING leaves live rows intact;
+            # a later fetch overwrites the default once the source catches up. Gated to
+            # Anthropic so other providers' tables don't gain stray Anthropic rows.
+            if provider == PROVIDER_ANTHROPIC:
+                db.seed_default_pricing()
             # Success -- set full TTL
             with _fetch_lock:
                 _last_fetch = time.monotonic()
