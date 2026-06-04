@@ -6,6 +6,7 @@ const NAV_ITEMS: { to: string; label: string }[] = [
   { to: '/', label: 'Dashboard' },
   { to: '/add', label: 'Add Feed' },
   { to: '/patterns', label: 'Patterns' },
+  { to: '/sponsors', label: 'Sponsors' },
   { to: '/history', label: 'History' },
   { to: '/stats', label: 'Stats' },
   { to: '/settings', label: 'Settings' },

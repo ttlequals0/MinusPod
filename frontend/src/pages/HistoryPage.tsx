@@ -235,11 +235,13 @@ function HistoryPage() {
             className="w-full sm:w-auto px-3 py-2 rounded bg-secondary text-secondary-foreground border border-border text-sm"
           >
             <option value="">All Podcasts</option>
-            {feeds?.map((feed) => (
-              <option key={feed.slug} value={feed.slug}>
-                {feed.title}
-              </option>
-            ))}
+            {[...(feeds ?? [])]
+              .sort((a, b) => a.title.localeCompare(b.title))
+              .map((feed) => (
+                <option key={feed.slug} value={feed.slug}>
+                  {feed.title}
+                </option>
+              ))}
           </select>
         </div>
         {stats && (

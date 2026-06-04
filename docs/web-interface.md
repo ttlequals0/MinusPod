@@ -15,6 +15,7 @@ The server includes a web-based management UI at `/ui/`:
 - Bulk actions: select multiple episodes to process, reprocess, reprocess (full), or delete
 - Sort by publish date, episode number, or creation date; paginated (25/50/100/500 per page)
 - Pattern management: view and manage cross-episode ad patterns with sponsor names
+- Sponsor management: view, add, edit, and remove sponsors, each with its linked-pattern count, created and last-matched dates, and tags; plus a tab for name normalization rules
 - Processing history with stats, filtering by podcast, and CSV/JSON export
 - Stats dashboard with charts: avg/min/max metrics, top podcasts by ads, episodes by day, token usage, sortable podcast table
 - Settings for LLM provider, AI models, ad detection prompts, retention, system stats, token usage and cost

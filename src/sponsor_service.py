@@ -405,12 +405,13 @@ class SponsorService:
             self.invalidate_cache()
         return result
 
-    def delete_sponsor(self, sponsor_id: int) -> bool:
-        """Delete (deactivate) a sponsor."""
-        result = self.db.delete_known_sponsor(sponsor_id)
-        if result:
+    def delete_sponsor(self, sponsor_id: int) -> tuple:
+        """Permanently delete a sponsor. Linked patterns are unlinked, not
+        deleted. Returns (deleted, unlinked_patterns)."""
+        deleted, unlinked = self.db.hard_delete_known_sponsor(sponsor_id)
+        if deleted:
             self.invalidate_cache()
-        return result
+        return deleted, unlinked
 
     def add_normalization(self, pattern: str, replacement: str, category: str) -> int:
         """Add a new normalization. Returns normalization ID."""

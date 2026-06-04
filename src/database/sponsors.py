@@ -93,14 +93,61 @@ class SponsorMixin:
         cursor = conn.execute(query, params)
         return [dict(row) for row in cursor.fetchall()]
 
-    def delete_known_sponsor(self, sponsor_id: int) -> bool:
-        """Delete a known sponsor (or set inactive)."""
+    def hard_delete_known_sponsor(self, sponsor_id: int) -> tuple:
+        """Permanently remove a known sponsor. Linked ad_patterns are unlinked
+        (sponsor_id set NULL), not deleted, so no pattern data is lost.
+
+        Returns (deleted, unlinked_patterns).
+        """
         conn = self.get_connection()
+        unlinked = conn.execute(
+            "UPDATE ad_patterns SET sponsor_id = NULL WHERE sponsor_id = ?",
+            (sponsor_id,)
+        ).rowcount
         cursor = conn.execute(
-            "UPDATE known_sponsors SET is_active = 0 WHERE id = ?", (sponsor_id,)
+            "DELETE FROM known_sponsors WHERE id = ?", (sponsor_id,)
         )
         conn.commit()
-        return cursor.rowcount > 0
+        return cursor.rowcount > 0, unlinked
+
+    # The two stats helpers below query ad_patterns but live here because they
+    # exist to enrich sponsor payloads (list/detail), not for pattern analysis.
+
+    def get_sponsor_pattern_stats(self) -> Dict[int, Dict]:
+        """Map sponsor_id -> {pattern_count, last_matched_at} aggregated over
+        active ad_patterns. One query, used to enrich the sponsor list."""
+        conn = self.get_connection()
+        cursor = conn.execute(
+            """SELECT sponsor_id,
+                      COUNT(*) AS pattern_count,
+                      MAX(last_matched_at) AS last_matched_at
+               FROM ad_patterns
+               WHERE is_active = 1 AND sponsor_id IS NOT NULL
+               GROUP BY sponsor_id"""
+        )
+        return {
+            row['sponsor_id']: {
+                'pattern_count': row['pattern_count'],
+                'last_matched_at': row['last_matched_at'],
+            }
+            for row in cursor
+        }
+
+    def get_sponsor_pattern_stats_by_id(self, sponsor_id: int) -> Dict:
+        """Pattern stats for a single sponsor via the indexed sponsor_id lookup,
+        avoiding a full aggregate scan for the detail endpoint."""
+        conn = self.get_connection()
+        row = conn.execute(
+            """SELECT COUNT(*) AS pattern_count,
+                      MAX(last_matched_at) AS last_matched_at
+               FROM ad_patterns
+               WHERE is_active = 1 AND sponsor_id = ?""",
+            (sponsor_id,)
+        ).fetchone()
+        return {
+            'pattern_count': row['pattern_count'] if row else 0,
+            'last_matched_at': row['last_matched_at'] if row else None,
+        }
 
     # ========== Sponsor Normalizations Methods ==========
 

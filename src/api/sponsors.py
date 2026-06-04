@@ -28,31 +28,33 @@ def list_sponsors():
     else:
         sponsors = service.db.get_known_sponsors(active_only=not include_inactive)
 
-    # Parse JSON fields
+    # Parse JSON fields and attach pattern stats (one aggregate query for all)
+    stats = service.db.get_sponsor_pattern_stats()
     result = []
     for s in sponsors:
-        sponsor_data = dict(s)
-        # Parse aliases from JSON string
-        if isinstance(sponsor_data.get('aliases'), str):
-            try:
-                sponsor_data['aliases'] = json.loads(sponsor_data['aliases'])
-            except json.JSONDecodeError:
-                sponsor_data['aliases'] = []
-        # Parse common_ctas from JSON string
-        if isinstance(sponsor_data.get('common_ctas'), str):
-            try:
-                sponsor_data['common_ctas'] = json.loads(sponsor_data['common_ctas'])
-            except json.JSONDecodeError:
-                sponsor_data['common_ctas'] = []
-        # Parse tags from JSON string
-        if isinstance(sponsor_data.get('tags'), str):
-            try:
-                sponsor_data['tags'] = json.loads(sponsor_data['tags'])
-            except json.JSONDecodeError:
-                sponsor_data['tags'] = []
+        sponsor_data = _parse_sponsor_json(dict(s))
+        _attach_pattern_stats(sponsor_data, stats.get(sponsor_data['id'], {}))
         result.append(sponsor_data)
 
     return json_response({'sponsors': result})
+
+
+def _parse_sponsor_json(sponsor_data):
+    """Deserialize the JSON-encoded aliases/common_ctas/tags columns in place."""
+    for field in ('aliases', 'common_ctas', 'tags'):
+        if isinstance(sponsor_data.get(field), str):
+            try:
+                sponsor_data[field] = json.loads(sponsor_data[field])
+            except json.JSONDecodeError:
+                sponsor_data[field] = []
+    return sponsor_data
+
+
+def _attach_pattern_stats(sponsor_data, stats):
+    """Set pattern_count / last_matched_at on a sponsor dict from a stats dict."""
+    sponsor_data['pattern_count'] = stats.get('pattern_count', 0)
+    sponsor_data['last_matched_at'] = stats.get('last_matched_at')
+    return sponsor_data
 
 
 @api.route('/sponsors/<int:sponsor_id>/tags', methods=['PUT'])
@@ -76,6 +78,7 @@ def update_sponsor_tags(sponsor_id):
     if bad:
         return error_response(f'unknown tags: {", ".join(bad)}', 400)
     service.db.update_known_sponsor(sponsor_id, tags=tags)
+    service.invalidate_cache()
     return json_response({'sponsor_id': sponsor_id, 'tags': tags})
 
 
@@ -116,17 +119,8 @@ def get_sponsor(sponsor_id):
     if not sponsor:
         return error_response('Sponsor not found', 404)
 
-    sponsor_data = dict(sponsor)
-    if isinstance(sponsor_data.get('aliases'), str):
-        try:
-            sponsor_data['aliases'] = json.loads(sponsor_data['aliases'])
-        except json.JSONDecodeError:
-            sponsor_data['aliases'] = []
-    if isinstance(sponsor_data.get('common_ctas'), str):
-        try:
-            sponsor_data['common_ctas'] = json.loads(sponsor_data['common_ctas'])
-        except json.JSONDecodeError:
-            sponsor_data['common_ctas'] = []
+    sponsor_data = _parse_sponsor_json(dict(sponsor))
+    _attach_pattern_stats(sponsor_data, db.get_sponsor_pattern_stats_by_id(sponsor_id))
 
     return json_response(sponsor_data)
 
@@ -156,13 +150,13 @@ def update_sponsor(sponsor_id):
 @api.route('/sponsors/<int:sponsor_id>', methods=['DELETE'])
 @log_request
 def delete_sponsor(sponsor_id):
-    """Delete (deactivate) a sponsor."""
+    """Permanently delete a sponsor. Linked patterns are unlinked, not deleted."""
     service = get_sponsor_service()
 
-    success = service.delete_sponsor(sponsor_id)
+    deleted, unlinked = service.delete_sponsor(sponsor_id)
 
-    if success:
-        return json_response({'message': 'Sponsor deleted'})
+    if deleted:
+        return json_response({'message': 'Sponsor deleted', 'unlinkedPatterns': unlinked})
     return error_response('Sponsor not found', 404)
 
 

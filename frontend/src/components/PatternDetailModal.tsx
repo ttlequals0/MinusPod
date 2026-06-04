@@ -34,7 +34,7 @@ function PatternDetailModal({ pattern, onClose, onSave }: PatternDetailModalProp
   // Fetch sponsors for autocomplete
   const { data: sponsors } = useQuery({
     queryKey: ['sponsors'],
-    queryFn: getSponsors,
+    queryFn: () => getSponsors(),
   });
 
   // Check if entered sponsor exists in list

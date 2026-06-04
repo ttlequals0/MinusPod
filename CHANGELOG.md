@@ -6,6 +6,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.0] - 2026-06-03
+
+### Added
+
+- Sponsors management page (issue #304). A new top-level Sponsors page surfaces the sponsor list that until now could only be managed through the API, so the auto-created and typo'd sponsors that accumulate during pattern learning can finally be cleaned up. Each row shows the number of ad patterns linked to the sponsor, its created date, and when a linked pattern last matched. You can add, edit (name, aliases, category, tags, active), and delete sponsors, filter by tag, search, and reveal inactive ones. A second tab manages name normalizations (regex find/replace). Deleting a sponsor is a real delete, not a deactivation; any ad patterns linked to it are unlinked (their sponsor link is cleared) rather than removed, so no pattern data is lost. The delete dialog shows how many patterns will be unlinked.
+
+### Changed
+
+- `DELETE /api/v1/sponsors/{id}` now permanently removes the sponsor instead of marking it inactive, and returns `unlinkedPatterns` (the count of patterns whose sponsor link was cleared). `GET /api/v1/sponsors` and `GET /api/v1/sponsors/{id}` now include `pattern_count` and `last_matched_at`. The OpenAPI `Sponsor` schema gains `tags`, `pattern_count`, and `last_matched_at`, and drops the `updated_at` field it documented but never returned.
+
+### Fixed
+
+- History page: the "filter by podcast" dropdown is now sorted alphabetically by title instead of arriving in feed order.
+
 ## [2.6.2] - 2026-06-03
 
 ### Fixed

@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.6.2
+  version: 2.7.0
   contact:
     name: MinusPod
   license:
@@ -2248,7 +2248,9 @@ paths:
       tags:
         - Sponsors
       summary: Delete a sponsor
-      description: Deactivate a sponsor (soft delete)
+      description: >-
+        Permanently remove a sponsor. Any ad patterns linked to it are unlinked
+        (their sponsor_id is set to null), not deleted, so no pattern data is lost.
       operationId: deleteSponsor
       parameters:
         - $ref: '#/components/parameters/sponsor_id'
@@ -2262,6 +2264,9 @@ paths:
                 properties:
                   message:
                     type: string
+                  unlinkedPatterns:
+                    type: integer
+                    description: Number of ad patterns that were unlinked
         '404':
           $ref: '#/components/responses/NotFound'
 
@@ -5415,13 +5420,24 @@ components:
           items:
             type: string
           description: Common calls to action associated with this sponsor
+        tags:
+          type: array
+          items:
+            type: string
+          description: Community tags applied to this sponsor
         is_active:
           type: boolean
           description: Whether the sponsor is active
-        created_at:
-          type: string
+        pattern_count:
+          type: integer
+          description: Number of active ad patterns linked to this sponsor
+        last_matched_at:
+          type:
+            - string
+            - 'null'
           format: date-time
-        updated_at:
+          description: Most recent time a linked pattern matched, or null if never
+        created_at:
           type: string
           format: date-time
 

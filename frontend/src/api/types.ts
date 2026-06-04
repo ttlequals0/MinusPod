@@ -357,16 +357,21 @@ export interface Sponsor {
   name: string;
   aliases: string[];
   category: string | null;
+  common_ctas: string[];
+  tags: string[];
   is_active: boolean;
+  pattern_count: number;
+  last_matched_at: string | null;
   created_at: string;
 }
+
+export type NormalizationCategory = 'sponsor' | 'url' | 'number' | 'phrase';
 
 export interface SponsorNormalization {
   id: number;
   pattern: string;
   replacement: string;
-  is_regex: boolean;
-  priority: number;
+  category: NormalizationCategory;
   is_active: boolean;
   created_at: string;
 }
