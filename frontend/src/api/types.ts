@@ -369,8 +369,8 @@ export type NormalizationCategory = 'sponsor' | 'url' | 'number' | 'phrase';
 
 export interface SponsorNormalization {
   id: number;
-  pattern: string;
-  replacement: string;
+  terms: string;
+  canonical: string;
   category: NormalizationCategory;
   is_active: boolean;
   created_at: string;

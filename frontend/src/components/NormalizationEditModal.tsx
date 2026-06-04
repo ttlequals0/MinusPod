@@ -16,8 +16,8 @@ function NormalizationEditModal({ normalization, onClose, onSaved }: Props) {
   const queryClient = useQueryClient();
   const isNew = normalization === null;
 
-  const [pattern, setPattern] = useState(normalization?.pattern ?? '');
-  const [replacement, setReplacement] = useState(normalization?.replacement ?? '');
+  const [terms, setTerms] = useState(normalization?.terms ?? '');
+  const [canonical, setCanonical] = useState(normalization?.canonical ?? '');
   const [category, setCategory] = useState<NormalizationCategory>(
     normalization?.category ?? 'sponsor'
   );
@@ -25,14 +25,14 @@ function NormalizationEditModal({ normalization, onClose, onSaved }: Props) {
 
   const save = useMutation({
     mutationFn: async () => {
-      const p = pattern.trim();
-      const r = replacement.trim();
-      if (!p) throw new Error('Pattern is required');
-      if (!r) throw new Error('Replacement is required');
+      const t = terms.trim();
+      const c = canonical.trim();
+      if (!t) throw new Error('Pattern is required');
+      if (!c) throw new Error('Replacement is required');
       if (isNew) {
-        await addNormalization({ pattern: p, replacement: r, category });
+        await addNormalization({ terms: t, canonical: c, category });
       } else {
-        await updateNormalization(normalization!.id, { pattern: p, replacement: r, category });
+        await updateNormalization(normalization!.id, { terms: t, canonical: c, category });
       }
     },
     onSuccess: () => {
@@ -64,10 +64,10 @@ function NormalizationEditModal({ normalization, onClose, onSaved }: Props) {
             </label>
             <input
               type="text"
-              value={pattern}
-              onChange={(e) => setPattern(e.target.value)}
+              value={terms}
+              onChange={(e) => setTerms(e.target.value)}
               className="w-full px-3 py-2 text-sm font-mono bg-secondary border border-border rounded"
-              placeholder="(?i)acme\\s+corp"
+              placeholder="(?i)acme\s+corp"
             />
           </div>
 
@@ -75,8 +75,8 @@ function NormalizationEditModal({ normalization, onClose, onSaved }: Props) {
             <label className="block text-sm font-medium text-foreground mb-1">Replacement</label>
             <input
               type="text"
-              value={replacement}
-              onChange={(e) => setReplacement(e.target.value)}
+              value={canonical}
+              onChange={(e) => setCanonical(e.target.value)}
               className="w-full px-3 py-2 text-sm bg-secondary border border-border rounded"
               placeholder="Acme"
             />

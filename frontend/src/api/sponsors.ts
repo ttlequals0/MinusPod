@@ -55,8 +55,8 @@ export async function getNormalizations(): Promise<SponsorNormalization[]> {
 }
 
 export async function addNormalization(normalization: {
-  pattern: string;
-  replacement: string;
+  terms: string;
+  canonical: string;
   category: NormalizationCategory;
 }): Promise<SponsorNormalization> {
   return apiRequest<SponsorNormalization>('/sponsors/normalizations', {
@@ -68,8 +68,8 @@ export async function addNormalization(normalization: {
 export async function updateNormalization(
   id: number,
   updates: {
-    pattern?: string;
-    replacement?: string;
+    terms?: string;
+    canonical?: string;
     category?: NormalizationCategory;
   }
 ): Promise<SponsorNormalization> {

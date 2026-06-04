@@ -355,7 +355,30 @@ function NormalizationsSection() {
         </button>
       </div>
 
-      <div className="bg-card rounded-lg border border-border overflow-hidden">
+      {/* Mobile cards */}
+      <div className="sm:hidden space-y-3">
+        {norms?.map((n) => (
+          <div key={n.id} className="bg-card rounded-lg border border-border p-4">
+            <div className="flex items-start justify-between gap-2 mb-2">
+              <span className="text-sm font-mono text-foreground break-all">{n.terms}</span>
+              <span className="shrink-0 px-2 py-0.5 text-xs rounded bg-slate-500/15 text-slate-700 dark:text-slate-300">{n.category}</span>
+            </div>
+            <div className="text-sm text-foreground mb-3 break-all">
+              <span className="text-muted-foreground">→ </span>{n.canonical}
+            </div>
+            <div className="flex gap-2">
+              <button onClick={() => setEditing(n)} className="px-2 py-1 text-xs rounded border border-border hover:bg-accent">Edit</button>
+              <button onClick={() => setDeleteId(n.id)} className="px-2 py-1 text-xs rounded border border-destructive/40 text-destructive hover:bg-destructive/10">Delete</button>
+            </div>
+          </div>
+        ))}
+        {norms?.length === 0 && (
+          <div className="bg-card rounded-lg border border-border p-8 text-center text-muted-foreground">No normalizations</div>
+        )}
+      </div>
+
+      {/* Desktop table */}
+      <div className="hidden sm:block bg-card rounded-lg border border-border overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full table-fixed divide-y divide-border">
             <colgroup>
@@ -375,8 +398,8 @@ function NormalizationsSection() {
             <tbody className="divide-y divide-border">
               {norms?.map((n) => (
                 <tr key={n.id} className="hover:bg-accent/50 transition-colors">
-                  <td className="px-4 py-3 overflow-hidden"><span className="text-sm font-mono text-foreground truncate block">{n.pattern}</span></td>
-                  <td className="px-4 py-3 overflow-hidden"><span className="text-sm text-foreground truncate block">{n.replacement}</span></td>
+                  <td className="px-4 py-3 overflow-hidden"><span className="text-sm font-mono text-foreground truncate block">{n.terms}</span></td>
+                  <td className="px-4 py-3 overflow-hidden"><span className="text-sm text-foreground truncate block">{n.canonical}</span></td>
                   <td className="px-4 py-3 whitespace-nowrap">
                     <span className="px-2 py-0.5 text-xs rounded bg-slate-500/15 text-slate-700 dark:text-slate-300">{n.category}</span>
                   </td>

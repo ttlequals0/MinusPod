@@ -6,6 +6,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.1] - 2026-06-03
+
+### Fixed
+
+- Sponsors page, Normalizations tab: the Pattern and Replacement columns were blank. The frontend read `pattern`/`replacement`, but the API returns those fields as `terms`/`canonical` (its v2 shape), so the values never rendered. The page now uses `terms`/`canonical`, matching the API. The OpenAPI `Normalization` schema is corrected to document `terms`/`canonical` (the legacy `pattern`/`replacement` names are still accepted on write).
+- Sponsors page, Normalizations tab on mobile: the table had no narrow-screen layout, so columns collapsed and the headers and action buttons overlapped. It now uses the same card layout as the sponsors list on small screens.
+
 ## [2.7.0] - 2026-06-03
 
 ### Added

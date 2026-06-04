@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.7.0
+  version: 2.7.1
   contact:
     name: MinusPod
   license:
@@ -5447,12 +5447,12 @@ components:
         id:
           type: integer
           description: Normalization rule ID
-        pattern:
+        terms:
           type: string
-          description: Regex pattern to match
-        replacement:
+          description: Regex pattern to match (legacy alias - pattern - accepted on write)
+        canonical:
           type: string
-          description: Canonical replacement string
+          description: Canonical replacement string (legacy alias - replacement - accepted on write)
         category:
           type: string
           enum: [sponsor, url, number, phrase]
