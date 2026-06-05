@@ -209,11 +209,17 @@ OPENROUTER_API_KEY=sk-or-v1-your-key-here
 
 ### Model Selection
 
-Change the model in the Settings UI or with the `OPENAI_MODEL` env var. Any [OpenRouter model ID](https://openrouter.ai/models) works:
+Set the model in the Settings UI, or seed it with the `OPENAI_MODEL` env var. There is no `LLM_MODEL` variable; only `LLM_PROVIDER` picks the provider. `OPENAI_MODEL` is read once, on first startup, to seed the database. After that the stored value wins and changing the env var has no effect, so switch models from the Settings UI.
+
+Any [OpenRouter model ID](https://openrouter.ai/models) works:
 
 - `anthropic/claude-sonnet-4-5`: Claude Sonnet via OpenRouter
 - `openai/gpt-4o`: GPT-4o via OpenRouter
 - `google/gemini-2.5-flash-preview`: Gemini Flash via OpenRouter
+- `openrouter/free`: router alias that picks a free model per request
+- `openrouter/auto`: router alias that picks the best model for the prompt
+
+The `openrouter/free` and `openrouter/auto` aliases are not in OpenRouter's `/api/v1/models` list, so MinusPod adds them to the dropdown for you. Other unlisted model IDs can still be seeded with `OPENAI_MODEL` on first startup.
 
 All of these can be changed at runtime from the Settings UI. No container restart needed.
 

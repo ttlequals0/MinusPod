@@ -6,6 +6,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.5] - 2026-06-05
+
+### Added
+
+- The OpenRouter model dropdown now lists the `openrouter/free` and `openrouter/auto` router aliases (issue #331). Both are valid OpenRouter model IDs -- `openrouter/free` routes each request to one of OpenRouter's free models, `openrouter/auto` picks a model for the prompt -- but neither appears in OpenRouter's `/api/v1/models` response, so they never showed up in the dropdown and could not be selected. MinusPod now injects them when the provider is OpenRouter.
+
+### Fixed
+
+- A model the provider rejects as not-found now fails the episode with an actionable error instead of a generic "all windows failed" message. When every detection or verification window fails with a 404 or not-found, the error names the model and provider and notes that the provider's advertised model list can be incomplete, and the failure is marked non-retryable since a bad model ID will not recover on retry.
+
+### Documentation
+
+- Clarified model selection for issue #331: there is no `LLM_MODEL` environment variable (only `LLM_PROVIDER` selects the provider), and `OPENAI_MODEL` only seeds the model on first startup -- after that the stored value wins, so the model is changed in the Settings UI. Updated `docs/llm-providers.md`, `docs/environment-variables.md`, `.env.example`, and the Settings UI help text, and documented the `openrouter/free` and `openrouter/auto` aliases.
+
 ## [2.7.4] - 2026-06-05
 
 ### Fixed
