@@ -39,6 +39,7 @@ from config import (
     LLM_TIMEOUT_LOCAL,
     LLM_RETRY_MAX_RETRIES,
     LLM_RETRY_MAX_RETRIES_LOCAL,
+    DEFAULT_OPENAI_BASE_URL,
     OPENROUTER_BASE_URL,
     OPENROUTER_HTTP_REFERER,
     OPENROUTER_APP_TITLE,
@@ -226,7 +227,7 @@ def get_effective_base_url() -> str:
     db_val = _get_cached_setting('openai_base_url')
     if db_val:
         return db_val
-    return os.environ.get('OPENAI_BASE_URL', 'http://localhost:8000/v1')
+    return os.environ.get('OPENAI_BASE_URL', DEFAULT_OPENAI_BASE_URL)
 
 
 def invalidate_provider_cache() -> None:
@@ -630,7 +631,7 @@ class OpenAICompatibleClient(LLMClient):
         extra_headers: Optional[Dict[str, str]] = None
     ):
         super().__init__()
-        self.base_url = base_url or os.environ.get('OPENAI_BASE_URL', 'http://localhost:8000/v1')
+        self.base_url = base_url or os.environ.get('OPENAI_BASE_URL', DEFAULT_OPENAI_BASE_URL)
         self.api_key = api_key or get_effective_openai_api_key()
         self.default_model = default_model or os.environ.get('OPENAI_MODEL', 'claude-sonnet-4-5-20250929')
         self.extra_headers = extra_headers or {}

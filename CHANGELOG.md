@@ -6,6 +6,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.2] - 2026-06-04
+
+### Fixed
+
+- **Settings reset to defaults when you reopen the page (issue #323, reopened).** Navigating away from Settings and back within the React Query cache window made every field show its hardcoded placeholder again -- LLM provider back to Anthropic, no key, models blank -- even though the values were still saved in the database. The 2.6.0 fix seeded the hydration snapshot from the loaded settings, so on a remount with cached data the form never re-hydrated and fell through to the component's hardcoded `useState` initializers. The snapshot now starts empty so the form always re-hydrates from the loaded settings (the unsaved-edit guard is unchanged), and the page renders a loader until settings load so the placeholders are never shown. The earlier "fixed in 2.6.0" call was wrong because it was tested via a full page reload (always a cold load); the bug only appears on in-app navigation. Confirmed reproduced and fixed with the navigate-away-and-back flow.
+- **No more hardcoded provider/model defaults in the Settings form.** The form's field defaults (provider, base URL, models, whisper backend/language/compute, audio bitrate, min-cut confidence, etc.) now come from the backend `GET /settings` `defaults` block -- the single source of truth -- instead of literals duplicated in the frontend. The hydration and change-detection paths share that source so the "Save Changes" button no longer risks getting stuck. On the backend, the OpenAI-compatible base URL default is now the `DEFAULT_OPENAI_BASE_URL` config constant (used by `get_effective_base_url`, the `LLMClient` fallback, and the defaults block), and the provider default in the defaults block resolves through the `ENV_BACKED_SETTINGS` registry, so each default is defined once. No default values changed.
+
 ## [2.7.1] - 2026-06-03
 
 ### Fixed

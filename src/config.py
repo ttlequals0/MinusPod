@@ -226,6 +226,11 @@ VAD_GAP_MID_MIN_SECONDS_DEFAULT = 8.0    # mid: cut only with signoff AND resume
 VAD_GAP_TAIL_MIN_SECONDS_DEFAULT = 3.0   # tail: cut when no postroll already covers it
 VAD_GAP_CONFIDENCE = 0.75                # emitted marker confidence
 
+# Default base URL for OpenAI-compatible providers (single source of truth;
+# the OPENAI_BASE_URL env var overrides). Used by get_effective_base_url, the
+# LLMClient fallback, and the GET /settings defaults block.
+DEFAULT_OPENAI_BASE_URL = 'http://localhost:8000/v1'
+
 # OpenRouter API
 OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1'
 OPENROUTER_HTTP_REFERER = 'https://github.com/ttlequals0/minuspod'

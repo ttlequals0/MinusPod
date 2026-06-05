@@ -188,8 +188,10 @@ export interface Settings {
     whisperApiModel: string;
     whisperLanguage: string;
     whisperComputeType: string;
-    adDetectionParallelWindows?: number;
-    adReviewerParallelAds?: number;
+    audioBitrate: string;
+    skipFlacCompression: boolean;
+    adDetectionParallelWindows: number;
+    adReviewerParallelAds: number;
   };
 }
 
