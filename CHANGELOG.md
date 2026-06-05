@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.3] - 2026-06-05
+
+### Added
+
+- `GUNICORN_BIND` now accepts a comma-separated list of addresses, so gunicorn can listen on more than one socket. This is mainly for rootless Podman, where you may want IPv4, IPv6, or both. For dual-stack, set `GUNICORN_BIND=[::]:8000` -- a single IPv6 wildcard also accepts IPv4 when the kernel keeps `bindv6only=0` (the Linux default). The default is unchanged (`0.0.0.0:8000`, IPv4), so existing Docker deployments behave as before. One caveat: don't list both `0.0.0.0:8000` and `[::]:8000` on a `bindv6only=0` kernel -- the IPv6 wildcard already claims the IPv4 port, so the second bind hits `EADDRINUSE` and gunicorn exits.
+
 ## [2.7.2] - 2026-06-04
 
 ### Fixed
