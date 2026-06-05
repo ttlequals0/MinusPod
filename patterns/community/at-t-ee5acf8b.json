@@ -1,0 +1,23 @@
+{
+  "scope": "global",
+  "text_template": "Whether you're calling the wise women in your life, video calling your girlfriends across the country, or checking in on someone who always knows how to make you smile, staying connected matters. Those small conversations, shared laughs, and quick hellos are what keep relationships strong, even when life gets busy. Some of the most life-giving conversations start with just a phone call. That's why AT&T guarantees a network you can rely on so you can focus on the moments and people that matter most. That's the AT&T guarantee. AT&T connecting changes everything. Terms and conditions apply. Just visit att.com slash guarantee for details.",
+  "intro_variants": [
+    "Whether you're calling the wise women in your life, video calling your girlfriends across the country, or checking in on someone who always knows how to make you smile, staying connected matters."
+  ],
+  "outro_variants": [
+    "AT&T connecting changes everything. Terms and conditions apply. Just visit att.com slash guarantee for details"
+  ],
+  "avg_duration": null,
+  "sponsor": "AT&T",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "telecom",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "ee5acf8b-8094-43ae-b4f8-44ac9d3e7439",
+  "version": 1,
+  "submitted_at": "2026-06-05T00:54:04.890967+00:00",
+  "submitted_app_version": "2.6.2",
+  "sponsor_match": "exact"
+}

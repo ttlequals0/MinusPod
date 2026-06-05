@@ -1,0 +1,23 @@
+{
+  "scope": "global",
+  "text_template": "Wouldn't it be great to never buy gas again? EVs are as easy to charge as your phone and they are a perfect addition to your everyday life. Most people are only driving about 40 miles a day and most EVs can handle 200 to 400 miles of range on a charge. And there are hundreds of EV models available today, so there's something perfect for every lifestyle and budget. I drive an EV. I've had it for a couple of years. It's my favorite car I've ever owned. It is so fun to drive. The pickup is incredible. It's super agile and it is easy to maintain. The way forward is electric. Learn more at electricforall.org.",
+  "intro_variants": [
+    "Wouldn't it be great to never buy gas again?"
+  ],
+  "outro_variants": [
+    "The way forward is electric. Learn more at electricforall.org."
+  ],
+  "avg_duration": 83.65,
+  "sponsor": "electricforall.org",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "automotive",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "526a2c10-0720-4c77-b278-21d157839ba8",
+  "version": 1,
+  "submitted_at": "2026-06-05T00:54:04.812876+00:00",
+  "submitted_app_version": "2.6.2",
+  "sponsor_match": "exact"
+}

@@ -1,0 +1,26 @@
+{
+  "scope": "global",
+  "text_template": "Support for Today Explained comes from CNN. Cool. Cable News Network, what's up? Do you want to live forever? What? Yes. Maybe? I haven't thought about it that much. Influential journalist Kara Swisher, I know her, is taking a hard look at the longevity industry to separate the influencer hype from evidence-backed science in her new CNN original series. Cool, Kara. Kara's talking to Silicon Valley power players and trying out the latest in anti-aging technology to see what works and what's a waste. I bet she is. Kara Swisher wants to live forever. New episodes streaming Sundays with a CNN subscription. Go to CNN.com slash subscribe to start watching.",
+  "intro_variants": [
+    "Support for Today Explained comes from CNN."
+  ],
+  "outro_variants": [
+    "New episodes streaming Sundays with a CNN subscription. Go to CNN.com slash subscribe to start watching."
+  ],
+  "avg_duration": 66.1,
+  "sponsor": "CNN",
+  "sponsor_aliases": [
+    "Cable News Network"
+  ],
+  "sponsor_tags": [
+    "news",
+    "tv_film",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "56bbe39c-a8c9-469a-976e-0ced39e402c6",
+  "version": 1,
+  "submitted_at": "2026-06-05T00:54:04.855400+00:00",
+  "submitted_app_version": "2.6.2",
+  "sponsor_match": "exact"
+}

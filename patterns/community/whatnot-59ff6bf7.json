@@ -1,0 +1,24 @@
+{
+  "scope": "global",
+  "text_template": "Support for the show today comes from WhatNot. And they provided me a pronunciation key that says, Oh, WhatNot, that's how it's pronounced, WhatNot, but it's one word, and WhatNot. If you sell products Podcast. I'm going to show you how difficult it can be to get noticed, but imagine if you sell products online or in a store. You could spend hours sourcing inventory, setting up your storefront, and creating listings, and then you're left waiting, hoping the right customer eventually comes across what you're selling. WhatNot wants to change that model. WhatNot is the largest dedicated live shopping platform, whether it's beauty, collectibles, electronics, luxury, fashion, even cookies, you guys. And our colleague Claire White has tried Whatnot. I had a really great time going through the variety of auctions that they had on Whatnot. It's not just clothes. It's not just jewelry. It's not just tech even, but vintage China, antique pieces, places around the world where folks are selling knickknacks from their vintage stores, from their archive, whatever it is. There's a ton of variety on Whatnot, just beyond what you would think for an auction house. Search Whatnot, W-H-A-T-N-O-T, one word, in the App Store, download, and you can start selling right away.",
+  "intro_variants": [
+    "Support for the show today comes from WhatNot."
+  ],
+  "outro_variants": [
+    "Search Whatnot, W-H-A-T-N-O-T, one word, in the App Store, download, and you can start selling right away."
+  ],
+  "avg_duration": 90.0,
+  "sponsor": "WhatNot",
+  "sponsor_aliases": [
+    "What Not"
+  ],
+  "sponsor_tags": [
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "59ff6bf7-7e2d-4f13-b870-cba9e2de92f8",
+  "version": 1,
+  "submitted_at": "2026-06-05T00:54:04.798019+00:00",
+  "submitted_app_version": "2.6.2",
+  "sponsor_match": "exact"
+}

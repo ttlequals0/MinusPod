@@ -1,0 +1,25 @@
+{
+  "scope": "global",
+  "text_template": "In business, there's no room for guesswork. Every shipment matters. Every deadline counts. When you're trying to keep operations running smoothly, the last thing you need is uncertainty. That's why reliability is at the core of USPS Ground Advantage. Each package moves through a secure nationwide network tracked from dock to door with affordable upfront pricing and delivery you can depend on. Because knowing your logistics are handled lets you focus on everything else. Visit usps.com slash ground advantage to start shipping with confidence. USPS Ground Advantage.",
+  "intro_variants": [
+    "In business, there's no room for guesswork. Every shipment matters."
+  ],
+  "outro_variants": [
+    "Visit usps.com slash ground advantage to start shipping with confidence. USPS Ground Advantage."
+  ],
+  "avg_duration": 18.0,
+  "sponsor": "USPS",
+  "sponsor_aliases": [
+    "usps.com"
+  ],
+  "sponsor_tags": [
+    "business",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "6b37486a-04c9-436c-abb7-3b5a3005f603",
+  "version": 1,
+  "submitted_at": "2026-06-05T00:54:04.775365+00:00",
+  "submitted_app_version": "2.6.2",
+  "sponsor_match": "exact"
+}

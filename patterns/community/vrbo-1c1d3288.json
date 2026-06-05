@@ -1,0 +1,23 @@
+{
+  "scope": "global",
+  "text_template": "This summer, don't squeeze in, spread out. Find homes big enough for your whole guest list on Vrbo. From family reunions to trips with friends Vrbo has spacious summer stays for every group size and budget That vacation rentals done right Start exploring on Vrbo and book your next day now",
+  "intro_variants": [
+    "This summer, don't squeeze in, spread out. Find homes big enough for your whole guest list on Vrbo."
+  ],
+  "outro_variants": [
+    "Start exploring on Vrbo and book your next day now"
+  ],
+  "avg_duration": 21.0,
+  "sponsor": "Vrbo",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "travel",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "1c1d3288-3bd2-46d8-817b-083f53fd08e8",
+  "version": 1,
+  "submitted_at": "2026-06-05T00:54:04.714790+00:00",
+  "submitted_app_version": "2.6.2",
+  "sponsor_match": "exact"
+}

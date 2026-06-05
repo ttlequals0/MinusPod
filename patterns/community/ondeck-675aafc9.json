@@ -1,0 +1,23 @@
+{
+  "scope": "global",
+  "text_template": "Cashflow Crunch? OnDeck's small business line of credit gives your business immediate access to funds up to $200,000 right when you need it. Cover seasonal dips, manage payroll, restock inventory, or tackle unexpected expenses without missing a beat. With flexible draws, transparent pricing, and control over repayment, get funded quickly and confidently. Apply today at Ondec.com. Funds could be available as soon as tomorrow. Depending on certain loan attributes, your business loan may be issued by Ondec or Celtic Bank. Ondeck does not lend in North Dakota. All loans and amounts subject to lender approval.",
+  "intro_variants": [
+    "Cashflow Crunch? OnDeck's small business line of credit gives your business immediate access to funds up to $200,000 right when you need it."
+  ],
+  "outro_variants": [
+    "Ondeck does not lend in North Dakota. All loans and amounts subject to lender approval."
+  ],
+  "avg_duration": 56.0,
+  "sponsor": "OnDeck",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "finance",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "675aafc9-4c76-4a96-b1b8-883c7ee993ad",
+  "version": 1,
+  "submitted_at": "2026-06-05T00:54:04.821131+00:00",
+  "submitted_app_version": "2.6.2",
+  "sponsor_match": "exact"
+}

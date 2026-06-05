@@ -1,0 +1,22 @@
+{
+  "scope": "global",
+  "text_template": "On eBay, every find has a story. Like if you're looking for a vintage band tee. Not just a tee. THE band tee. You wore it everywhere, until your ex-boyfriend stole it. Now you're on eBay, and there it is. Same tee, from the same tour. The things you love have a way of finding their way back to you, especially on eBay. Where else can you find that mint trading card you search for everywhere that's out of print? Or your first car, the one you wish you'd never sold? It has to be eBay. Shop eBay for millions of finds, each with a story. eBay, Things People Love.",
+  "intro_variants": [
+    "On eBay, every find has a story."
+  ],
+  "outro_variants": [
+    "Shop eBay for millions of finds, each with a story. eBay, Things People Love."
+  ],
+  "avg_duration": null,
+  "sponsor": "eBay",
+  "sponsor_aliases": [
+    "universal"
+  ],
+  "sponsor_tags": [],
+  "source_language": null,
+  "community_id": "6c6c9635-07c6-44c8-b7e3-a26770f531a7",
+  "version": 1,
+  "submitted_at": "2026-06-05T00:54:04.883229+00:00",
+  "submitted_app_version": "2.6.2",
+  "sponsor_match": "exact"
+}

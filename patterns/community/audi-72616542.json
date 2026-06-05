@@ -1,0 +1,24 @@
+{
+  "scope": "global",
+  "text_template": "With the all new Audi Q3. The answer is always yes. Yes to adventure. Yes to escape. Yes to right now. The all new Audi Q3 made for the yes life.",
+  "intro_variants": [
+    "With the all new Audi Q3. The answer is always yes.",
+    "With the all new Audi Q3, The answer is always yes."
+  ],
+  "outro_variants": [
+    "The all new Audi Q3 made for the yes life."
+  ],
+  "avg_duration": 25.0,
+  "sponsor": "Audi",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "automotive",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "72616542-5fc8-40ad-b885-4401603693c7",
+  "version": 1,
+  "submitted_at": "2026-06-05T00:54:04.766995+00:00",
+  "submitted_app_version": "2.6.2",
+  "sponsor_match": "exact"
+}

@@ -1,0 +1,25 @@
+{
+  "scope": "global",
+  "text_template": "At Arizona State University, we're bringing world-class education from our globally acclaimed faculty to you. Earn your degree from the nation's most innovative university online. That's a degree better. Learn more at asuonline.asu.edu",
+  "intro_variants": [
+    "At Arizona State University, we're bringing world-class education from our globally acclaimed faculty to you."
+  ],
+  "outro_variants": [
+    "That's a degree better. Learn more at asuonline.asu.edu"
+  ],
+  "avg_duration": null,
+  "sponsor": "Arizona State University",
+  "sponsor_aliases": [
+    "asu.edu"
+  ],
+  "sponsor_tags": [
+    "education",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "fdec9424-e3af-4a2c-85ce-014504d61f1a",
+  "version": 1,
+  "submitted_at": "2026-06-05T00:54:04.895915+00:00",
+  "submitted_app_version": "2.6.2",
+  "sponsor_match": "exact"
+}

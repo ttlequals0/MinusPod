@@ -1,0 +1,23 @@
+{
+  "scope": "global",
+  "text_template": "Service opens doors, and at American Military University, it can open doors for the whole family. If you have a loved one who served in the military, you may qualify for reduced tuition. AMU offers flexible online programs designed to fit your schedule, so you can keep moving forward wherever life takes you. Learn more at amu.apus.edu slash military. Open doors to the future for you and your family, with the help of American Military University.",
+  "intro_variants": [
+    "Service opens doors, and at American Military University, it can open doors for the whole family."
+  ],
+  "outro_variants": [
+    "Open doors to the future for you and your family, with the help of American Military University."
+  ],
+  "avg_duration": 31.0,
+  "sponsor": "American Military University",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "education",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "92d7c018-b9ce-4ac8-9dd0-34c9c7e9e1fd",
+  "version": 1,
+  "submitted_at": "2026-06-05T00:54:04.720892+00:00",
+  "submitted_app_version": "2.6.2",
+  "sponsor_match": "exact"
+}
