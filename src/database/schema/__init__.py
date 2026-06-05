@@ -959,24 +959,38 @@ class SchemaMixin:
             self._add_column_if_missing(conn, 'model_pricing', 'raw_model_id', 'TEXT', mp_cols)
             self._add_column_if_missing(conn, 'model_pricing', 'source', "TEXT DEFAULT 'legacy'", mp_cols)
 
-            # Backfill match_key for existing rows
+            # Backfill match_key for existing rows. Skip any row whose normalized
+            # key is already owned by another row: that NULL-match_key row is a
+            # redundant duplicate (cost lookups go by match_key, so it is never
+            # used). Forcing the UPDATE would hit the UNIQUE index and abort the
+            # whole migration, leaving the row NULL to re-fail on every restart.
             rows = conn.execute(
                 "SELECT model_id FROM model_pricing WHERE match_key IS NULL"
             ).fetchall()
             if rows:
+                backfilled = 0
                 for row in rows:
                     key = normalize_model_key(row['model_id'])
+                    taken = conn.execute(
+                        "SELECT 1 FROM model_pricing WHERE match_key = ? LIMIT 1",
+                        (key,)
+                    ).fetchone()
+                    if taken:
+                        continue
                     conn.execute(
                         "UPDATE model_pricing SET match_key = ?, raw_model_id = ? WHERE model_id = ?",
                         (key, row['model_id'], row['model_id'])
                     )
+                    backfilled += 1
 
-                # Deduplicate: if multiple model_ids map to the same match_key,
-                # keep the row with the highest rowid per match_key
+                # Deduplicate real (non-NULL) collisions, keeping the highest
+                # rowid per match_key. NULL match_keys are left alone -- they are
+                # un-keyable duplicates, not rows to delete.
                 dupes = conn.execute("""
                     SELECT model_id, match_key FROM model_pricing
-                    WHERE rowid NOT IN (
+                    WHERE match_key IS NOT NULL AND rowid NOT IN (
                         SELECT MAX(rowid) FROM model_pricing
+                        WHERE match_key IS NOT NULL
                         GROUP BY match_key
                     )
                 """).fetchall()
@@ -986,13 +1000,15 @@ class SchemaMixin:
                                     f"model_id={dupe['model_id']} match_key={dupe['match_key']}")
                     conn.execute("""
                         DELETE FROM model_pricing
-                        WHERE rowid NOT IN (
+                        WHERE match_key IS NOT NULL AND rowid NOT IN (
                             SELECT MAX(rowid) FROM model_pricing
+                            WHERE match_key IS NOT NULL
                             GROUP BY match_key
                         )
                     """)
                 conn.commit()
-                logger.info(f"Migration: Backfilled match_key for {len(rows)} model_pricing rows")
+                if backfilled:
+                    logger.info(f"Migration: Backfilled match_key for {backfilled} model_pricing rows")
 
             # Create UNIQUE index on match_key (after backfill + dedup)
             conn.execute(

@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.4] - 2026-06-05
+
+### Fixed
+
+- Stopped a `Migration failed for match_key backfill: UNIQUE constraint failed: model_pricing.match_key` warning that logged on every startup. The pricing migration backfills `match_key` for older rows, but when a row's normalized key already belonged to another row (for example a live-fetched variant of the same model), the per-row `UPDATE` hit the existing UNIQUE index and aborted the whole migration before its dedup step could run, so the row stayed unkeyed and the warning came back on the next boot. The backfill now skips a row whose key another row already owns -- that row is a redundant duplicate the cost lookup never uses -- and the dedup step only touches real keyed collisions, never the NULL rows. No pricing data is removed.
+
 ## [2.7.3] - 2026-06-05
 
 ### Added
