@@ -190,6 +190,7 @@ Without `MINUSPOD_TRUSTED_PROXY_COUNT=1`, login lockout and per-IP rate limits w
 - Use `SESSION_COOKIE_SECURE=true` whenever you serve over HTTPS. Default is `true`; set to `false` only for plain-HTTP localhost development.
 - RSS feed URLs contain a slug but no auth, so podcast apps can fetch them. Treat slugs as semi-private.
 - Cloudflare Tunnel or a VPN is recommended for remote access. Direct port-forwarding works but skips Cloudflare's WAF.
+- The compose file runs the container with `no-new-privileges` and `cap_drop: ALL`, then adds back only the capabilities the entrypoint needs to drop root and fix volume ownership (`SETUID`, `SETGID`, `CHOWN`, `DAC_OVERRIDE`, `FOWNER`). Keep the `cap_add` block as-is: removing it leaves a bare `cap_drop: ALL`, which crash-loops the container before gunicorn starts. The same block is mirrored in `docker-compose.cpu.yml`.
 
 ---
 

@@ -2211,7 +2211,7 @@ paths:
       tags:
         - Sponsors
       summary: Update a sponsor
-      description: Update sponsor properties like name, aliases, or category
+      description: Update sponsor properties. Any subset of the fields may be sent.
       operationId: updateSponsor
       parameters:
         - $ref: '#/components/parameters/sponsor_id'
@@ -2230,6 +2230,19 @@ paths:
                     type: string
                 category:
                   type: string
+                tags:
+                  type: array
+                  items:
+                    type: string
+                  description: Community tags for grouping and filtering
+                common_ctas:
+                  type: array
+                  items:
+                    type: string
+                  description: Common calls-to-action associated with this sponsor
+                is_active:
+                  type: boolean
+                  description: Set false to deactivate, true to reactivate
       responses:
         '200':
           description: Sponsor updated
@@ -2306,7 +2319,11 @@ paths:
       tags:
         - Sponsors
       summary: Add a normalization rule
-      description: Create a new sponsor name normalization rule using regex pattern matching
+      description: >-
+        Create a sponsor name normalization rule. `terms` is a regex pattern
+        applied case-insensitively; `canonical` is its replacement. The legacy
+        field names `pattern`/`replacement` are still accepted on write. The
+        regex is validated on create and rejected with 400 if invalid.
       operationId: addNormalization
       requestBody:
         required: true
@@ -2315,16 +2332,16 @@ paths:
             schema:
               type: object
               required:
-                - pattern
-                - replacement
+                - terms
+                - canonical
                 - category
               properties:
-                pattern:
+                terms:
                   type: string
-                  description: Regex pattern to match against sponsor names
-                replacement:
+                  description: Regex pattern to match (legacy alias - pattern)
+                canonical:
                   type: string
-                  description: Canonical replacement name
+                  description: Replacement text (legacy alias - replacement)
                 category:
                   type: string
                   enum: [sponsor, url, number, phrase]
@@ -2349,7 +2366,10 @@ paths:
       tags:
         - Sponsors
       summary: Update a normalization rule
-      description: Update an existing normalization rule's pattern, replacement, or category
+      description: >-
+        Update a normalization rule. Any subset of fields may be sent. The
+        legacy field names `pattern`/`replacement` are still accepted in place
+        of `terms`/`canonical`.
       operationId: updateNormalization
       parameters:
         - $ref: '#/components/parameters/norm_id'
@@ -2360,12 +2380,12 @@ paths:
             schema:
               type: object
               properties:
-                pattern:
+                terms:
                   type: string
-                  description: Regex pattern to match
-                replacement:
+                  description: Regex pattern to match (legacy alias - pattern)
+                canonical:
                   type: string
-                  description: Canonical replacement name
+                  description: Replacement text (legacy alias - replacement)
                 category:
                   type: string
                   enum: [sponsor, url, number, phrase]
