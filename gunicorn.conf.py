@@ -12,7 +12,9 @@ import os
 import sys
 
 
-bind = os.environ.get("GUNICORN_BIND", "0.0.0.0:8000")
+_default_bind = ["0.0.0.0:8000", "[::]:8000"]
+_env_bind = os.environ.get("GUNICORN_BIND")
+bind = _env_bind.split(",") if _env_bind else _default_bind
 workers = int(os.environ.get("GUNICORN_WORKERS", "2"))
 threads = int(os.environ.get("GUNICORN_THREADS", "8"))
 timeout = int(os.environ.get("GUNICORN_TIMEOUT", "600"))
