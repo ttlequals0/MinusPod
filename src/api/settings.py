@@ -17,7 +17,7 @@ from api import (
 from config import (
     WHISPER_BACKEND_LOCAL, WHISPER_BACKEND_API,
     WHISPER_COMPUTE_TYPES, WHISPER_COMPUTE_TYPE_DEFAULT,
-    DEFAULT_OPENAI_BASE_URL, OPENROUTER_BASE_URL,
+    DEFAULT_OPENAI_BASE_URL, OPENROUTER_BASE_URL, OPENROUTER_ROUTER_ALIASES,
     PROVIDER_ANTHROPIC, PROVIDER_OPENROUTER, PROVIDER_OPENAI_COMPATIBLE, PROVIDER_OLLAMA,
     resolve_env_backed_default,
     ALLOWED_AUDIO_BITRATES, DEFAULT_AUDIO_BITRATE,
@@ -968,6 +968,20 @@ def reset_prompts_only():
     return json_response({'message': 'Prompts reset to defaults'})
 
 
+def _ensure_openrouter_aliases_present(models: list) -> None:
+    """Prepend OpenRouter router aliases (openrouter/free, openrouter/auto) that
+    aren't already in the list. These are valid model IDs but are not returned by
+    /api/v1/models, so they'd otherwise never appear in the dropdown.
+    """
+    existing_ids = {m.get('id') for m in models}
+    missing = [
+        {'id': alias_id, 'name': alias_name, 'created': None}
+        for alias_id, alias_name in OPENROUTER_ROUTER_ALIASES
+        if alias_id not in existing_ids
+    ]
+    models[:0] = missing
+
+
 @api.route('/settings/models', methods=['GET'])
 @log_request
 def get_available_models():
@@ -1010,6 +1024,10 @@ def get_available_models():
         ad_detector = AdDetector()
         models = ad_detector.get_available_models()
 
+    target_provider = provider_override or get_effective_provider()
+    if target_provider == PROVIDER_OPENROUTER:
+        _ensure_openrouter_aliases_present(models)
+
     _enrich_models_with_pricing(models)
     return json_response({'models': models})
 
@@ -1028,6 +1046,8 @@ def refresh_models():
     get_llm_client(force_new=True)
     ad_detector = AdDetector()
     models = ad_detector.get_available_models()
+    if get_effective_provider() == PROVIDER_OPENROUTER:
+        _ensure_openrouter_aliases_present(models)
     _enrich_models_with_pricing(models)
 
     logger.info(f"Refreshed model list: {len(models)} models available")

@@ -1392,6 +1392,37 @@ def is_auth_error(error: Exception) -> bool:
     return False
 
 
+def is_not_found_error(error: Exception) -> bool:
+    """Check if error is a model/resource not-found failure (404).
+
+    A not-found usually means the configured model ID is wrong or the provider's
+    advertised model list is incomplete, so retrying will not help. Works with
+    both Anthropic and OpenAI error types, with a status-code and string fallback
+    for wrapped errors.
+    """
+    if error is None:
+        return False
+    if ANTHROPIC_ERRORS_AVAILABLE:
+        from anthropic import APIError, NotFoundError
+        if isinstance(error, NotFoundError):
+            return True
+        if isinstance(error, APIError) and getattr(error, 'status_code', None) == 404:
+            return True
+    try:
+        from openai import NotFoundError as OpenAINotFoundError
+        from openai import APIError as OpenAIAPIError
+        if isinstance(error, OpenAINotFoundError):
+            return True
+        if isinstance(error, OpenAIAPIError) and getattr(error, 'status_code', None) == 404:
+            return True
+    except ImportError:
+        pass
+    if getattr(error, 'status_code', None) == 404:
+        return True
+    err_text = str(error).lower()
+    return 'not_found' in err_text or 'not found' in err_text
+
+
 def is_rate_limit_error(error: Exception) -> bool:
     """Check if an error is specifically a rate limit error.
 

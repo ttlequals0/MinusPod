@@ -15,7 +15,7 @@ from typing import List, Dict, Optional, NamedTuple
 from cancel import _check_cancel
 from llm_client import (
     get_llm_client, get_api_key, LLMClient,
-    is_retryable_error,
+    is_retryable_error, is_not_found_error,
     get_llm_timeout, get_llm_max_retries,
     get_effective_provider, model_matches_provider,
 )
@@ -124,6 +124,49 @@ def _resolve_parallel_windows() -> int:
         AD_DETECTION_PARALLEL_WINDOWS_MIN,
         min(AD_DETECTION_PARALLEL_WINDOWS_MAX, n),
     )
+
+
+def _model_not_found_hint(last_error, model) -> str:
+    """Return an actionable hint if the failure is a model-not-found error, else
+    ''. A bad model ID won't recover on retry, and the provider's advertised model
+    list can be incomplete (e.g. OpenRouter router aliases like openrouter/free are
+    valid but absent from /v1/models). Callers treat a non-empty hint as "not
+    retryable".
+    """
+    if not is_not_found_error(last_error):
+        return ''
+    return (
+        f" model '{model}' not found on provider '{get_effective_provider()}'; "
+        f"verify the model ID -- the provider's advertised model list may be incomplete"
+    )
+
+
+def _all_windows_failed_response(stage: str, num_windows: int, last_error, model) -> dict:
+    """Build the failure response when every window in a pass fails.
+
+    Surfaces the last error so callers can tell rate-limit from generic failure
+    (#238). A model-not-found error gets an actionable hint and is marked
+    non-retryable, since a bad model ID will not recover on retry.
+    """
+    last_err_type = type(last_error).__name__ if last_error else 'Unknown'
+    last_err_status = getattr(last_error, 'status_code', None)
+    parts = [f"All {num_windows} {stage} windows failed (last error: {last_err_type}"]
+    if last_err_status:
+        parts.append(f", status={last_err_status}")
+    if last_error:
+        parts.append(f": {last_error}")
+    parts.append(")")
+    not_found_hint = _model_not_found_hint(last_error, model)
+    if not_found_hint:
+        parts.append(not_found_hint)
+    return {
+        "ads": [],
+        "status": "failed",
+        "error": "".join(parts),
+        "retryable": not not_found_hint,
+        "last_error_type": last_err_type,
+        "last_error_status": last_err_status,
+    }
 
 
 class AdDetector:
@@ -705,23 +748,7 @@ class AdDetector:
                     f"failed during detection"
                 )
             if failed_windows >= len(windows):
-                # Surface last error so the caller can detect rate-limit vs generic failure (#238).
-                last_err_type = type(last_error).__name__ if last_error else 'Unknown'
-                last_err_status = getattr(last_error, 'status_code', None)
-                parts = [f"All {len(windows)} detection windows failed (last error: {last_err_type}"]
-                if last_err_status:
-                    parts.append(f", status={last_err_status}")
-                if last_error:
-                    parts.append(f": {last_error}")
-                parts.append(")")
-                return {
-                    "ads": [],
-                    "status": "failed",
-                    "error": "".join(parts),
-                    "retryable": True,
-                    "last_error_type": last_err_type,
-                    "last_error_status": last_err_status,
-                }
+                return _all_windows_failed_response("detection", len(windows), last_error, model)
 
             # Deduplicate ads across windows
             final_ads = deduplicate_window_ads(all_window_ads)
@@ -1527,23 +1554,7 @@ class AdDetector:
                     f"failed during verification"
                 )
             if failed_windows >= len(windows):
-                # Surface last error so the caller can detect rate-limit vs generic failure (#238).
-                last_err_type = type(last_error).__name__ if last_error else 'Unknown'
-                last_err_status = getattr(last_error, 'status_code', None)
-                parts = [f"All {len(windows)} verification windows failed (last error: {last_err_type}"]
-                if last_err_status:
-                    parts.append(f", status={last_err_status}")
-                if last_error:
-                    parts.append(f": {last_error}")
-                parts.append(")")
-                return {
-                    "ads": [],
-                    "status": "failed",
-                    "error": "".join(parts),
-                    "retryable": True,
-                    "last_error_type": last_err_type,
-                    "last_error_status": last_err_status,
-                }
+                return _all_windows_failed_response("verification", len(windows), last_error, model)
 
             final_ads = deduplicate_window_ads(all_window_ads)
 

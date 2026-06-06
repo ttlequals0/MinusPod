@@ -91,7 +91,7 @@ function AIModelsSection({
             ))}
           </select>
           <p className="mt-1 text-sm text-muted-foreground">
-            Primary model for analyzing transcripts and detecting ads
+            Primary model for analyzing transcripts and detecting ads. Set the model here; the OPENAI_MODEL env var only seeds the initial value on first startup.
           </p>
         </div>
 

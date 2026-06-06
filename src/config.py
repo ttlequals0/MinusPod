@@ -236,6 +236,14 @@ OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1'
 OPENROUTER_HTTP_REFERER = 'https://github.com/ttlequals0/minuspod'
 OPENROUTER_APP_TITLE = 'MinusPod'
 
+# OpenRouter router aliases. These are valid model IDs that route dynamically
+# but are not returned by /api/v1/models, so they never show up in the model
+# dropdown unless we inject them. (id, display_name) pairs.
+OPENROUTER_ROUTER_ALIASES = (
+    ('openrouter/free', 'OpenRouter: Free (routes to free models)'),
+    ('openrouter/auto', 'OpenRouter: Auto (routes to best model for the prompt)'),
+)
+
 MASTER_PASSPHRASE = os.environ.get('MINUSPOD_MASTER_PASSPHRASE')
 
 
