@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Documentation
+
+- Documented `OMP_NUM_THREADS` for local CPU transcription on hybrid Intel CPUs (issue #333). On 12th gen and newer Intel chips the default OpenMP thread pool spreads `faster-whisper` work across the slow E-cores and thrashes the cache; capping `OMP_NUM_THREADS` to the performance-core count, and optionally pinning the container to P-cores with `--cpuset-cpus` (Docker) or `CPUSetCPUs=` (Podman), removes the bottleneck. Added an `OMP_NUM_THREADS` row to `docs/environment-variables.md`, a commented example in `.env.example`, and an "Intel hybrid CPU tuning" section to `docs/installation.md`. No code change; the value is read by CTranslate2 because MinusPod leaves `cpu_threads` at its default.
+
 ## [2.7.5] - 2026-06-05
 
 ### Added

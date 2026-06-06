@@ -76,6 +76,36 @@ WHISPER_API_MODEL=whisper-large-v3-turbo
 
 Groq, OpenAI, or a self-hosted whisper.cpp server (see `docker-compose.whisper.yml`) all work here.
 
+### Intel hybrid CPU tuning (optional)
+
+Modern Intel CPUs (12th gen and newer) split their cores into fast P-cores and slow E-cores. The thread pool behind `faster-whisper` is not aware of that split, so on a hybrid chip the work can land on the slow E-cores and thrash the shared cache. Capping the thread count and keeping the work on the P-cores can make a big difference: one user reported a 30-minute episode dropping from roughly 20 minutes to under a minute on an i7-13620H. More threads is not automatically faster, so match the count to your hardware rather than maxing it.
+
+Two knobs, smallest change first:
+
+1. Cap the OpenMP thread pool to your P-core count. This alone removes the oversubscription:
+
+   ```bash
+   docker run -e OMP_NUM_THREADS=8 ... ttlequals0/minuspod:cpu
+   ```
+
+2. Pin the container to the P-cores so the scheduler cannot push work onto E-cores. Find the P-core ids with `lscpu --all --extended` (the higher-clocked cores), then:
+
+   ```bash
+   # Docker
+   docker run -e OMP_NUM_THREADS=8 --cpuset-cpus=0-11 ... ttlequals0/minuspod:cpu
+   ```
+
+   ```ini
+   # Podman Quadlet (minuspod.container)
+   [Container]
+   Environment=OMP_NUM_THREADS=8
+   CPUSetCPUs=0-11
+   ```
+
+   If you would rather bind threads than restrict the cgroup, `OMP_PROC_BIND=close` with `OMP_PLACES=cores` does the same job.
+
+Match `OMP_NUM_THREADS` and the cpuset range to your own chip; the values above are for a 6 P-core part with 12 P-threads. The payoff depends on the CPU and model size, so treat the numbers above as one data point rather than a promise. For sustained transcription, a remote Whisper API is still the better answer.
+
 <details>
 <summary>Build the CPU image locally</summary>
 
