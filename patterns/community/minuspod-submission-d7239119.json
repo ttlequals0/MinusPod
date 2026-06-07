@@ -1,0 +1,874 @@
+{
+  "format": "minuspod-community-submission",
+  "bundle_version": 1,
+  "submitted_at": "2026-06-07T21:19:27.596614+00:00",
+  "submitted_app_version": "2.7.5",
+  "pattern_count": 38,
+  "patterns": [
+    {
+      "scope": "global",
+      "text_template": "Acast powers the world's best podcasts. Here's a show that we recommend. I'm Alexandra Fairweather, raised by one of the world's great creative geniuses, John Chamberlain, on his famous foam couches. Now I'm on the couch again with today's boldest creative minds for conversations that will spark your creativity and give you the courage to create something new. On the Couch launches May 19th with John Gray of Ghetto Gastro, whose food will make you rethink who belongs at the table. Season 1, Daniel Arsham, Alexander Wang, Annabelle Seldorf, and more. Subscribe wherever you stream and follow along at John Chamberlain Estate. Acast helps creators launch, grow, and monetize their podcasts everywhere. Acast.com.",
+      "intro_variants": [
+        "Acast powers the world's best podcasts. Here's a show that we recommend. I'm Alexandra Fairweather, raised by one of the world's great creative geniuses, John Chamberlain, on his famous foam couches."
+      ],
+      "outro_variants": [
+        "Subscribe wherever you stream and follow along at John Chamberlain Estate. Acast helps creators launch, grow, and monetize their podcasts everywhere. Acast.com."
+      ],
+      "avg_duration": 55.908364666666635,
+      "sponsor": "Acast",
+      "sponsor_aliases": [],
+      "sponsor_tags": [],
+      "source_language": "en",
+      "community_id": "d7239119-fba5-4bec-aada-9dad1229808c",
+      "version": 1,
+      "submitted_at": "2026-06-07T21:19:27.515180+00:00",
+      "submitted_app_version": "2.7.5",
+      "sponsor_match": "exact"
+    },
+    {
+      "scope": "global",
+      "text_template": "Should we go rip a little Patreon on these right now? Okay, we're going to rip Patreon right now. We'll see you guys there. Patreon.com slash Flagrant. Peace!",
+      "intro_variants": [
+        "Should we go rip a little Patreon on these right now? Okay, we're going to rip Patreon right now. We'll see you guys there."
+      ],
+      "outro_variants": [
+        "Okay, we're going to rip Patreon right now. We'll see you guys there. Patreon.com slash Flagrant. Peace!"
+      ],
+      "avg_duration": null,
+      "sponsor": "Patreon",
+      "sponsor_aliases": [],
+      "sponsor_tags": [
+        "tech",
+        "saas"
+      ],
+      "source_language": "en",
+      "community_id": "8763485a-ff4e-4ee0-a62e-073bfc9f43a7",
+      "version": 1,
+      "submitted_at": "2026-06-07T21:19:27.516449+00:00",
+      "submitted_app_version": "2.7.5",
+      "sponsor_match": "exact"
+    },
+    {
+      "scope": "global",
+      "text_template": "Should we go rip a little Patreon on these right now? Okay, we're going to rip Patreon right now. We'll see you guys there. Patreon.com slash Flagrant. Peace!",
+      "intro_variants": [
+        "Should we go rip a little Patreon on these right now? Okay, we're going to rip Patreon right now. We'll see you guys there."
+      ],
+      "outro_variants": [
+        "Okay, we're going to rip Patreon right now. We'll see you guys there. Patreon.com slash Flagrant. Peace!"
+      ],
+      "avg_duration": 79.18333333333337,
+      "sponsor": "Patreon",
+      "sponsor_aliases": [],
+      "sponsor_tags": [
+        "tech",
+        "saas"
+      ],
+      "source_language": "en",
+      "community_id": "62c10da0-7ae5-4dbe-a340-ceb206dec289",
+      "version": 1,
+      "submitted_at": "2026-06-07T21:19:27.517661+00:00",
+      "submitted_app_version": "2.7.5",
+      "sponsor_match": "exact"
+    },
+    {
+      "scope": "global",
+      "text_template": "Rinse isn't just a laundry service, it's a way to rethink your routine. By combining a seamless digital interface with high quality garment care, from dry cleaning to hang dry, they remove the friction of a relentless task. It's an invitation to stop managing a burden and start pursuing your actual ambitions. Because when you outsource the mundane, you unlock the space to be original. Sign up at Rinse.com. Rinse. It's time to be great.",
+      "intro_variants": [
+        "Well, folks, we need to let you know that we do live streams here at Daily Tech News Show, and you can catch them by becoming a subscriber at youtube.com forward slash Daily Tech News Show. This episo"
+      ],
+      "outro_variants": [
+        "our actual ambitions. Because when you outsource the mundane, you unlock the space to be original. Sign up at Rinse.com. Rinse. It's time to be great."
+      ],
+      "avg_duration": 94.16666666666674,
+      "sponsor": "Rinse",
+      "sponsor_aliases": [],
+      "sponsor_tags": [],
+      "source_language": null,
+      "community_id": "2e7e3263-6996-4dd2-9a7c-537e5dc94406",
+      "version": 1,
+      "submitted_at": "2026-06-07T21:19:27.519477+00:00",
+      "submitted_app_version": "2.7.5",
+      "sponsor_match": "exact"
+    },
+    {
+      "scope": "global",
+      "text_template": "They say everything happens for a reason, but I suspect everything happens for a Reese's. Like this commercial break. Did you need 15 seconds away from music or 15 seconds to eat a Reese's? Perhaps it's true. Everything happens for a Reese's. Your social media feed delivers plenty of advice, but it doesn't know you. It doesn't ask questions. It doesn't give physical exams or order tests. Doctors do.",
+      "intro_variants": [
+        "They say everything happens for a reason, but I suspect everything happens for a Reese's. Like this commercial break. Did you need 15 seconds away from music or 15 seconds to eat a Reese's?"
+      ],
+      "outro_variants": [
+        "Your social media feed delivers plenty of advice, but it doesn't know you. It doesn't ask questions. It doesn't give physical exams or order tests. Doctors do."
+      ],
+      "avg_duration": 51.91700000000003,
+      "sponsor": "Reese's",
+      "sponsor_aliases": [],
+      "sponsor_tags": [],
+      "source_language": null,
+      "community_id": "b5e77d8b-7cd1-48df-b86b-e67e1e14c163",
+      "version": 1,
+      "submitted_at": "2026-06-07T21:19:27.521184+00:00",
+      "submitted_app_version": "2.7.5",
+      "sponsor_match": "exact"
+    },
+    {
+      "scope": "global",
+      "text_template": "all backed by 24-7 US-based fraud support. Other companies might sell just credit monitoring or even just a VPN. Aura gives you all of it together at the same price competitors charge for just one service. Start your free trial today at Aura.com slash safety. Protect yourself now at Aura.com slash safety.",
+      "intro_variants": [
+        "all backed by 24-7 US-based fraud support. Other companies might sell just credit monitoring or even just a VPN. Aura gives you all of it together at the same price competitors charge for just one service."
+      ],
+      "outro_variants": [
+        "Start your free trial today at Aura.com slash safety. Protect yourself now at Aura.com slash safety."
+      ],
+      "avg_duration": 111.7666666666667,
+      "sponsor": "Aura",
+      "sponsor_aliases": [],
+      "sponsor_tags": [
+        "tech",
+        "security",
+        "saas",
+        "universal"
+      ],
+      "source_language": null,
+      "community_id": "0ef17b41-52ce-40e7-87ae-148b890a1281",
+      "version": 1,
+      "submitted_at": "2026-06-07T21:19:27.522570+00:00",
+      "submitted_app_version": "2.7.5",
+      "sponsor_match": "exact"
+    },
+    {
+      "scope": "global",
+      "text_template": "Emmy and Golden Globe Award winner Mariska Hargitay makes her Broadway debut in Every Brilliant Thing. The critically acclaimed hit now nominated for the Tony Award for Best Revival of a Play. The New York Times raves, It's unlike anything I'd seen before. Everybody was in a state of joy. The Wall Street Journal calls it inventive and infectiously upbeat. And the Los Angeles Times declares, What makes life worth living? Getting tickets to Every Brilliant Thing. See Mariska Hargitay on Broadway through June 28th only. Visit Every Brilliant Thing.",
+      "intro_variants": [
+        "Emmy and Golden Globe Award winner Mariska Hargitay makes her Broadway debut in Every Brilliant Thing. The critically acclaimed hit now nominated for the Tony Award for Best Revival of a Play."
+      ],
+      "outro_variants": [
+        "Episodes come out every Wednesday, and you can find Fantasy Fan Fellows wherever you get your podcasts."
+      ],
+      "avg_duration": 100.23818760000003,
+      "sponsor": "Brilliant",
+      "sponsor_aliases": [],
+      "sponsor_tags": [
+        "tech",
+        "education",
+        "saas",
+        "universal"
+      ],
+      "source_language": null,
+      "community_id": "bd78f8ba-9029-4b7b-8b1b-82c86a064e8b",
+      "version": 1,
+      "submitted_at": "2026-06-07T21:19:27.524431+00:00",
+      "submitted_app_version": "2.7.5",
+      "sponsor_match": "exact"
+    },
+    {
+      "scope": "global",
+      "text_template": "Emmy and Golden Globe Award winner Mariska Hargitay makes her Broadway debut in Every Brilliant Thing. The critically acclaimed hit now nominated for the Tony Award for Best Revival of a Play. The New York Times raves, it's unlike anything I'd seen before. Everybody was in a state of joy. The Wall Street Journal calls it inventive and infectiously upbeat. And the Los Angeles Times declares, what makes life worth living? Getting tickets to Every Brilliant Thing. See Mariska Hargitay on Broadway through June 28th only. Visit Every Brilliant Thing. and Tim Spangler.",
+      "intro_variants": [
+        "Emmy and Golden Globe Award winner Mariska Hargitay makes her Broadway debut in Every Brilliant Thing. The critically acclaimed hit now nominated for the Tony Award for Best Revival of a Play."
+      ],
+      "outro_variants": [
+        "See Mariska Hargitay on Broadway through June 28th only. Visit Every Brilliant Thing. and Tim Spangler."
+      ],
+      "avg_duration": 104.33749999999999,
+      "sponsor": "Brilliant",
+      "sponsor_aliases": [],
+      "sponsor_tags": [
+        "tech",
+        "education",
+        "saas",
+        "universal"
+      ],
+      "source_language": null,
+      "community_id": "05e35e8e-e253-44c6-820c-73d1903b2504",
+      "version": 1,
+      "submitted_at": "2026-06-07T21:19:27.526367+00:00",
+      "submitted_app_version": "2.7.5",
+      "sponsor_match": "exact"
+    },
+    {
+      "scope": "global",
+      "text_template": "Dear Empowered, Toyota leads the charge with 20 hybrids, plug-in hybrids, and battery electric vehicles. Slip into an all-electric vehicle, such as the Toyota BZ, with speedy charging at fast-charging stations galore, or zip away in a top-selling all-hybrid RAV4. Want to plug into efficiency? Check out the RAV4 plug-in hybrid. Get more choices, more miles, and more savings with Toyota. Toyota. Let's go places. I just try to create the most badass dad whip I can. Yeah. And it has to have four doors. Well, I mean, I have two-door cars, but I always have to have a sedan. I like a sedan. Your kids are older, though, too. Yeah. If I didn't have a Tesla and I had a sedan, what I would get is the Cadillac, the CT5V Blackwing. Let's go. And you can get a manual. You can get the new one. The F1 is only in manuals. The highest horsepower, 685.",
+      "intro_variants": [
+        "Dear Empowered, Toyota leads the charge with 20 hybrids, plug-in hybrids, and battery electric vehicles. Slip into an all-electric vehicle, such as the Toyota BZ, with speedy charging at fast-charging stations galore, or zip away in a top-selling all-hybrid RAV4."
+      ],
+      "outro_variants": [
+        "You can get the new one. The F1 is only in manuals. The highest horsepower, 685."
+      ],
+      "avg_duration": 43.5,
+      "sponsor": "Toyota",
+      "sponsor_aliases": [],
+      "sponsor_tags": [
+        "auto"
+      ],
+      "source_language": null,
+      "community_id": "26cda5be-5763-456e-b5ce-1d1e32af106c",
+      "version": 1,
+      "submitted_at": "2026-06-07T21:19:27.528989+00:00",
+      "submitted_app_version": "2.7.5",
+      "sponsor_match": "exact"
+    },
+    {
+      "scope": "global",
+      "text_template": "Business is booming, but you know what really helped? Xero, the accounting platform for small businesses. I used to think unpaid bills were just part of it. But batch payments? Wow. Automated accounts payable? Even better. All in one place? That's a big one. And I can keep track from my phone while I get the job done. No bills in sight. What a life. Do right by yourself and your business and search XERO for your free trial. Conditions apply. ",
+      "intro_variants": [
+        "Business is booming, but you know what really helped? Xero, the accounting platform for small businesses. I used to think unpaid bills were just part of it."
+      ],
+      "outro_variants": [
+        "So listen wherever you get your podcasts, Wrong Turns, where dignity goes to die. Acast helps creators launch, grow, and monetize their podcasts everywhere. Acast.com."
+      ],
+      "avg_duration": 64.44999999999996,
+      "sponsor": "Xero",
+      "sponsor_aliases": [],
+      "sponsor_tags": [
+        "finance",
+        "saas"
+      ],
+      "source_language": null,
+      "community_id": "4050e7b9-4e31-47e5-b320-a8a8dbbe912c",
+      "version": 1,
+      "submitted_at": "2026-06-07T21:19:27.530901+00:00",
+      "submitted_app_version": "2.7.5",
+      "sponsor_match": "exact"
+    },
+    {
+      "scope": "global",
+      "text_template": "Hey, sweetie, your mother showed me this Carvana thing for selling the car. I'm gonna give it a try. Wish me luck. Me again. I put in the license plate. It gave me an offer. Unbelievable. Okay, I accepted the offer. They're picking it up Tuesday from the driveway. I haven't even left my chair. It's done. The car is gone. I'm holding a check. Anyway, Carvana, give it a whirl. Love ya. So good, you'll want to leave a voicemail about it. Sell your car today on Carvana. Pickup fees may apply. ",
+      "intro_variants": [
+        "Hey, sweetie, your mother showed me this Carvana thing for selling the car. I'm gonna give it a try. Wish me luck."
+      ],
+      "outro_variants": [
+        "I don't know what the hell Hezi is doing. What is Hezi doing, Alex? Netflix is a joke."
+      ],
+      "avg_duration": 62.0,
+      "sponsor": "Carvana",
+      "sponsor_aliases": [],
+      "sponsor_tags": [
+        "auto",
+        "universal"
+      ],
+      "source_language": null,
+      "community_id": "868c5d2f-9270-4287-bd55-538524103e1e",
+      "version": 1,
+      "submitted_at": "2026-06-07T21:19:27.532644+00:00",
+      "submitted_app_version": "2.7.5",
+      "sponsor_match": "exact"
+    },
+    {
+      "scope": "global",
+      "text_template": "Zerotrust is clearly the future as threats get faster, quieter, and harder to detect. But implementing it shouldn't disrupt the business. ThreatLocker enforces default deny and execution in a way that remains enterprise ready, scalable, and operationally clean. Unknown software is stopped cold, trusted apps stay contained, and drift is locked down across the environment. It's zero trust that works in real enterprises and prepares you for the threats ahead. See why CISOs are adopting it at securityweekly.com forward slash ThreatLocker. There's a lot of data in this report, too. It's a 32-page report. But the thing is, the point is not how big the report is, but the point is that it's so huge. And I mean, this goes back to something we looked at a while back, zero-day clock. And the whole concept is that you don't have time anymore.",
+      "intro_variants": [
+        "Zerotrust is clearly the future as threats get faster, quieter, and harder to detect. But implementing it shouldn't disrupt the business. ThreatLocker enforces default deny and execution in a way that"
+      ],
+      "outro_variants": [
+        "so huge. And I mean, this goes back to something we looked at a while back, zero-day clock. And the whole concept is that you don't have time anymore."
+      ],
+      "avg_duration": null,
+      "sponsor": "ThreatLocker",
+      "sponsor_aliases": [],
+      "sponsor_tags": [
+        "tech",
+        "security",
+        "saas"
+      ],
+      "source_language": null,
+      "community_id": "fece5a3b-c326-45bb-a188-fc1afdc7ce76",
+      "version": 1,
+      "submitted_at": "2026-06-07T21:19:27.535331+00:00",
+      "submitted_app_version": "2.7.5",
+      "sponsor_match": "exact"
+    },
+    {
+      "scope": "global",
+      "text_template": " Marketers, you know that feeling when your creative clicks? When that social post sends engagement through the roof? When your outside-of-the-box campaign hits ROI positive? when a personalized homepage turns prospects into customers. It's utter marketing bliss. Contentful helps you create tailored omni-channel experiences without working overtime. No stress, no limits, only possibilities. Get the feels at Contentful.com.",
+      "intro_variants": [
+        "and the DTNS family of podcasts. Helping each other understand. Diamond Club hopes you have enjoyed this program. If you've used Babbel, you would."
+      ],
+      "outro_variants": [
+        "Contentful helps you create tailored omni-channel experiences without working overtime. No stress, no limits, only possibilities. Get the feels at Contentful.com."
+      ],
+      "avg_duration": 85.82716666666657,
+      "sponsor": "Contentful",
+      "sponsor_aliases": [],
+      "sponsor_tags": [],
+      "source_language": null,
+      "community_id": "5caecd34-be69-4073-be72-d9a492e864dc",
+      "version": 1,
+      "submitted_at": "2026-06-07T21:19:27.537024+00:00",
+      "submitted_app_version": "2.7.5",
+      "sponsor_match": "exact"
+    },
+    {
+      "scope": "global",
+      "text_template": "Helping each other understand. Admin Club hopes you have enjoyed this program. Shipping, billing, admin, payroll, marketing. You're managing all the things. So why waste time sending important documents the old-fashioned way? Mail and ship when you want, how you want, with Stamps.com. Print postage on demand 24-7 and schedule pickups from your office or home. Save up to 90% with automated rate shopping. That's why over 1 million small businesses trust Stamps.com. Go to Stamps.com and use code podcast to try Stamps.com risk-free for 60 days. ",
+      "intro_variants": [
+        "The DTNS Family of Podcasts. Helping each other understand. Admin Club hopes you have enjoyed this program. Shipping, billing, admin, payroll, marketing. You're managing all the things. So why waste t"
+      ],
+      "outro_variants": [
+        "he task at hand and make an extra sale or two. Sometimes I do miss the bonding time. Sometimes. AT&T Business Wireless. Connecting changes everything."
+      ],
+      "avg_duration": 95.55000000000001,
+      "sponsor": "Stamps.com",
+      "sponsor_aliases": [
+        "Stamps"
+      ],
+      "sponsor_tags": [
+        "tech",
+        "saas",
+        "universal"
+      ],
+      "source_language": null,
+      "community_id": "140352e9-5bd2-4a94-87e9-0425835db575",
+      "version": 1,
+      "submitted_at": "2026-06-07T21:19:27.539068+00:00",
+      "submitted_app_version": "2.7.5",
+      "sponsor_match": "exact"
+    },
+    {
+      "scope": "global",
+      "text_template": "ThreatLocker enforces default deny and execution in a way that remains enterprise ready, scalable, and operationally clean. Unknown software is stopped cold, trusted apps stay contained, and drift is locked down across the environment. It's zero trust that works in real enterprises and prepares you for the threats ahead. See why CISOs are adopting it at securityweekly.com forward slash ThreatLocker. There's a lot of data in this report, too. It's a 32-page report. But the thing is, the point is not how big the report is, but the point is that it's so huge. And I mean, this goes back to something we looked at a while back, zero-day clock. And the whole concept is that you don't have time anymore.",
+      "intro_variants": [
+        "ThreatLocker enforces default deny and execution in a way that remains enterprise ready, scalable, and operationally clean. Unknown software is stopped cold, trusted apps stay contained, and drift is locked down across the environment."
+      ],
+      "outro_variants": [
+        "And I mean, this goes back to something we looked at a while back, zero-day clock. And the whole concept is that you don't have time anymore."
+      ],
+      "avg_duration": 25.899999999999636,
+      "sponsor": "ThreatLocker",
+      "sponsor_aliases": [],
+      "sponsor_tags": [
+        "tech",
+        "security",
+        "saas"
+      ],
+      "source_language": null,
+      "community_id": "0d100d40-371e-44d4-a683-42b5d696a3da",
+      "version": 1,
+      "submitted_at": "2026-06-07T21:19:27.541475+00:00",
+      "submitted_app_version": "2.7.5",
+      "sponsor_match": "exact"
+    },
+    {
+      "scope": "global",
+      "text_template": "Legendary doesn't happen by chance. It happens because it's what BetMGM does. Sign up for BetMGM and receive up to $1,500 back in bonus bets if you don't win your first bet. Get into hockey, basketball, and more of your favorite sports with same-game parlays, live betting, and more. BetMGM. Make it legendary. BetMGM and GameSense remind you to play responsibly. See BetMGM.com for terms. 21 plus only. This specific promotional offer is not available in Michigan, Mississippi, New Jersey, New York, Nevada, Ontario, Pennsylvania, Puerto Rico, or Gambling problem? Call 1-800-GAMBLER or 1-800-MY-RESET. Available in the U.S. For New York, call 877-8-HOPE-NY or text HOPE-NY 467-369. For Massachusetts, 1-800-327-5050. For Iowa, 1-800-BETS-OFF. For Puerto Rico, 1-800-981-0023. First bet offer for new customers only, subject to eligibility requirements. Rewards are non-withdrawable bonus bets that expire in seven days. In partnership with Kansas Crossing Casino and Hotel. ",
+      "intro_variants": [
+        "Legendary doesn't happen by chance. It happens because it's what BetMGM does. Sign up for BetMGM and receive up to $1,500 back in bonus bets if you don't win your first bet."
+      ],
+      "outro_variants": [
+        "Meanwhile, researchers at Wiz published a remote code execution vulnerability affecting GitHub Enterprise Server and GitHub.com. They are really sorry though. DJI released the mic."
+      ],
+      "avg_duration": 77.91750000000002,
+      "sponsor": "BetMGM",
+      "sponsor_aliases": [
+        "Bet MGM"
+      ],
+      "sponsor_tags": [
+        "gambling",
+        "sports",
+        "universal"
+      ],
+      "source_language": null,
+      "community_id": "54d66bd8-84e4-4231-9ef2-0c97bbe91807",
+      "version": 1,
+      "submitted_at": "2026-06-07T21:19:27.544286+00:00",
+      "submitted_app_version": "2.7.5",
+      "sponsor_match": "exact"
+    },
+    {
+      "scope": "global",
+      "text_template": "Yeah. Kayak gets my flight, hotel, and rental car right, so I can tune out travel advice that's just plain wrong. Bro, Skycoin. way better than points never fly during a Scorpio full moon just tell the manager you'll sue instant room upgrade stop taking bad travel advice start comparing hundreds of sites with Kayak and get your trip right Kayak got that right",
+      "intro_variants": [
+        "Exit Prince Joaquin into the RZA. Nice. That's amazing. Yeah. Kayak gets my flight, hotel, and rental car right, so I can tune out travel advice that's just plain wrong."
+      ],
+      "outro_variants": [
+        "way better than points never fly during a Scorpio full moon just tell the manager you'll sue instant room upgrade stop taking bad travel advice start comparing hundreds of sites with Kayak and get your trip right Kayak got that right"
+      ],
+      "avg_duration": 30.199999999999818,
+      "sponsor": "Kayak",
+      "sponsor_aliases": [],
+      "sponsor_tags": [
+        "travel",
+        "universal"
+      ],
+      "source_language": null,
+      "community_id": "e223039d-dd8b-4323-b577-3e77046b189c",
+      "version": 1,
+      "submitted_at": "2026-06-07T21:19:27.545863+00:00",
+      "submitted_app_version": "2.7.5",
+      "sponsor_match": "exact"
+    },
+    {
+      "scope": "global",
+      "text_template": "The savings are stacked at Mattress Warehouse. Right now, save up to $800 warehouse-wide on top brands you know and trust. Plus, buy one, get one free deals so you can upgrade sleep for your entire family and get a free adjustable base with select mattress purchases. With 0% interest financing and free delivery available, getting better sleep has never been easier. And with our exclusive lifetime price guarantee, you'll always know you got the best deal. Save big today at Mattress Warehouse. We're more than a mattress store. We're Mattress Warehouse. ",
+      "intro_variants": [
+        "The savings are stacked at Mattress Warehouse. Right now, save up to $800 warehouse-wide on top brands you know and trust."
+      ],
+      "outro_variants": [
+        "Learn more about teen accounts at Instagram.com slash teen accounts. Which are you more proud of winning an Emmy or losing an Oscar?"
+      ],
+      "avg_duration": 42.34999999999991,
+      "sponsor": "Mattress Warehouse",
+      "sponsor_aliases": [],
+      "sponsor_tags": [],
+      "source_language": null,
+      "community_id": "97897e95-7636-41f9-bab3-eeb098397852",
+      "version": 1,
+      "submitted_at": "2026-06-07T21:19:27.547921+00:00",
+      "submitted_app_version": "2.7.5",
+      "sponsor_match": "exact"
+    },
+    {
+      "scope": "global",
+      "text_template": "If you work in university maintenance, Grainger considers you an MVP because your playbook ensures your arena is always ready for tip-off. And Grainger is your trusted partner, offering the products you need all in one place, from HVAC and plumbing supplies to lighting and more, and all delivered with plenty of time left on the clock so your team always gets the win. Call 1-800-GRAINGER, visit grainger.com, or just stop by. Grainger, for the ones who get it done.",
+      "intro_variants": [
+        "Hi, this is Farnoosh Tarabi from So Money with Farnoosh Tarabi, and today I want to talk to you about Boost Mobile."
+      ],
+      "outro_variants": [
+        "Call 1-800-GRAINGER, visit grainger.com, or just stop by. Grainger, for the ones who get it done."
+      ],
+      "avg_duration": 100.80803149999997,
+      "sponsor": "Grainger",
+      "sponsor_aliases": [],
+      "sponsor_tags": [],
+      "source_language": null,
+      "community_id": "890edd7c-684d-45b3-8b41-5a692590f864",
+      "version": 1,
+      "submitted_at": "2026-06-07T21:19:27.549688+00:00",
+      "submitted_app_version": "2.7.5",
+      "sponsor_match": "exact"
+    },
+    {
+      "scope": "global",
+      "text_template": "Stay alive and enjoy unlimited wireless for $25 a month forever with Boost Mobile. After 30 gigs, customers may experience lower speeds. Customers will pay $25 a month as long as they remain active on the Boost Mobile unlimited plan. T",
+      "intro_variants": [
+        "Stay alive and enjoy unlimited wireless for $25 a month forever with Boost Mobile. After 30 gigs, customers may experience lower speeds. Customers will pay $25 a month as long as they remain active on"
+      ],
+      "outro_variants": [
+        "tory like Apple getting a new CEO. Yeah, Apple getting a new boss in September. So we're going to talk about what you can expect from Mr. John Ternes."
+      ],
+      "avg_duration": 102.98000000000006,
+      "sponsor": "Boost Mobile",
+      "sponsor_aliases": [],
+      "sponsor_tags": [],
+      "source_language": null,
+      "community_id": "13646bd1-60db-4d84-a485-104321287eae",
+      "version": 1,
+      "submitted_at": "2026-06-07T21:19:27.550967+00:00",
+      "submitted_app_version": "2.7.5",
+      "sponsor_match": "exact"
+    },
+    {
+      "scope": "global",
+      "text_template": "No matter how you do game day, on the couch, in the crowd, or manning the snack table, Athletic Brewing fits right in. With a full lineup of non-alcoholic beer styles, you can enjoy bold flavors all game long. No hangovers, no buzz, no subbing out for water in the second half. Stock the fridge for tip-off with a variety of non-alcoholic craft styles available at your local grocery store or online at athleticbrewing.com. Your beer, fit for all times. ",
+      "intro_variants": [
+        "No matter how you do game day, on the couch, in the crowd, or manning the snack table, Athletic Brewing fits right in."
+      ],
+      "outro_variants": [
+        "Our best lineup is here at Lowe's. Valid through 422, while supplies last. Selection varies by location."
+      ],
+      "avg_duration": 89.1,
+      "sponsor": "Athletic Brewing",
+      "sponsor_aliases": [],
+      "sponsor_tags": [
+        "beverage",
+        "dtc"
+      ],
+      "source_language": null,
+      "community_id": "3335f3da-5d9e-4f96-9983-fdd3d6dfa524",
+      "version": 1,
+      "submitted_at": "2026-06-07T21:19:27.552588+00:00",
+      "submitted_app_version": "2.7.5",
+      "sponsor_match": "exact"
+    },
+    {
+      "scope": "global",
+      "text_template": "this week's show is brought to you by Squarespace. Squarespace is the all-in-one website platform designed to help you stand out, succeed online. Squarespace makes it easy to monetize your content by selling access to online courses, blogs, videos. and memberships start with a fully customizable website and earn recurring revenue by gathering your content behind a paywall. Simply set the price and choose whether to charge a one-time fee or subscription for access and get discovered fast with integrated SEO tools. Every Squarespace website is optimized to be indexed with meta descriptions and auto-generated site map and more so that you show up more often to more people in global search engine results. So head to squarespace.com slash idiots to save time. 10% off your first purchase of a website or domain. Use the code, idiots, that's squarespace.com slash idiots. ",
+      "intro_variants": [
+        "and this week's show is brought to you by Squarespace. Squarespace is the all-in-one website platform designed to help you stand out, succeed online."
+      ],
+      "outro_variants": [
+        "Yep, you're getting old, buddy. I am. What the fuck you did this weekend? Where was I?"
+      ],
+      "avg_duration": 76.69666666666667,
+      "sponsor": "Squarespace",
+      "sponsor_aliases": [
+        "Square Space"
+      ],
+      "sponsor_tags": [
+        "tech",
+        "saas",
+        "dtc",
+        "universal"
+      ],
+      "source_language": null,
+      "community_id": "26c976af-6c9c-4b38-81a0-c3bf6c12302d",
+      "version": 1,
+      "submitted_at": "2026-06-07T21:19:27.555331+00:00",
+      "submitted_app_version": "2.7.5",
+      "sponsor_match": "exact"
+    },
+    {
+      "scope": "global",
+      "text_template": "Want to dive deeper into the topics you've heard here? Read the full stories and get access to all of Crain's award-winning coverage with a Crain's Chicago Business subscription. Crain's Daily Gist listeners can get 20% off a one-year Crain's Chicago Business digital subscription by visiting chicagobusiness.com slash gist and using promo code gist at checkout. Once again, to redeem this offer, visit chicagobusiness.com slash gist and enter code gist to get this deal while it lasts. ",
+      "intro_variants": [
+        "Want to dive deeper into the topics you've heard here? Read the full stories and get access to all of Crain's award-winning coverage with a Crain's Chicago Business subscription."
+      ],
+      "outro_variants": [
+        "So tell me what stands out to you about this. You know, the governors are very"
+      ],
+      "avg_duration": 46.949999999999996,
+      "sponsor": "Crain's Chicago Business",
+      "sponsor_aliases": [],
+      "sponsor_tags": [],
+      "source_language": null,
+      "community_id": "527f96df-535f-4dd5-9d48-3fc9d6a216dc",
+      "version": 1,
+      "submitted_at": "2026-06-07T21:19:27.557125+00:00",
+      "submitted_app_version": "2.7.5",
+      "sponsor_match": "exact"
+    },
+    {
+      "scope": "global",
+      "text_template": "The following is brought to you by Just Another Pilot. Hello and welcome everybody to the Politics Politics Politics program for April 10th.",
+      "intro_variants": [
+        "The following is brought to you by Just Another Pilot. Hello and welcome everybody to the Politics Politics Politics program for April 10th."
+      ],
+      "outro_variants": [
+        "The following is brought to you by Just Another Pilot. Hello and welcome everybody to the Politics Politics Politics program for April 10th."
+      ],
+      "avg_duration": 25.6,
+      "sponsor": "Just Another",
+      "sponsor_aliases": [],
+      "sponsor_tags": [],
+      "source_language": null,
+      "community_id": "52dd9c00-5fbf-44db-a743-c1973e7fc592",
+      "version": 1,
+      "submitted_at": "2026-06-07T21:19:27.558314+00:00",
+      "submitted_app_version": "2.7.5",
+      "sponsor_match": "exact"
+    },
+    {
+      "scope": "global",
+      "text_template": "Did you know Fast Growing Trees is America's largest and most trusted online nursery with thousands of trees and plants and over 2 million happy customers. No green thumb required, just quality plants you can count on. Plus get ongoing support from trained plant experts who can help you. Plan your landscape, choose the right plants, and learn how to care for them every step of the way. More plants than you'll find anywhere else, including rare and unique varieties. Plants for every growing zone and climate. You don't need a big yard or lots of space. You can grow lemon, avocado, olive, fig trees indoors, along with a wide variety of houseplants, all grown with care and hand-selected to thrive in your home. Right now, They have great deals on spring planting essentials, up to half off on selected plants. And listeners to our show get 20% off their first purchase when using the code TOSH at checkout. That's an additional 20% off, better plants and better growing at FastGrowingTrees.com using code TOSH at checkout. FastGrowingTrees.com, code TOSH. Now's the perfect time to plant. Let's grow together. Use Tosh to save today. Offer is valid for a limited time. Terms and conditions may apply. Takovas is the go-to for premium, handcrafted Western boots. Stop by any store location for a warm welcome, a cold drink in hand, and a truly one-of-a-kind shopping experience. Let our friendly staff help you find your new go-to boots, whether your first pair or your 50th. Finish things off with a complimentary boot brand to make them extra special. Come for the boots, stay for the good times. Tekovas. Forever West.",
+      "intro_variants": [
+        "Did you know Fast Growing Trees is America's largest and most trusted online nursery with thousands of trees and plants and over 2 million happy customers. No green thumb required, just quality plants"
+      ],
+      "outro_variants": [
+        "0th. Finish things off with a complimentary boot brand to make them extra special. Come for the boots, stay for the good times. Tekovas. Forever West."
+      ],
+      "avg_duration": 103.2,
+      "sponsor": "Fast Growing Trees",
+      "sponsor_aliases": [],
+      "sponsor_tags": [],
+      "source_language": null,
+      "community_id": "f297f192-9116-4b73-b7d7-4f28e4c0330f",
+      "version": 1,
+      "submitted_at": "2026-06-07T21:19:27.562576+00:00",
+      "submitted_app_version": "2.7.5",
+      "sponsor_match": "exact"
+    },
+    {
+      "scope": "global",
+      "text_template": "This episode of Tosh Show is brought to you by Progressive Insurance. Do you ever find yourself playing the budgeting game? Well, with the Name Your Price tool from Progressive, you can find options that fit your budget and potentially lower your bills. Try it at Progressive.com. Progressive casualty insurance company and affiliates. Price and coverage match limited by state law. Not available in all states. You are the most important relationship. Before you swipe, text, or worry about being too much, start with you. Grow Therapy helps you build self-worth, set boundaries, and show up as your full self. Whether it's your first time in therapy or your 50th, Grow makes it easier to find a therapist who fits you, not the other way around. They connect you with thousands of independent licensed therapists across the US, offering both virtual and in-person sessions, nights and weekends. You can search by what matters, like insurance, specialty identity, or availability, and get started in as little as two days. And if something comes up, you can cancel up to That's GrowTherapy.com slash book now.",
+      "intro_variants": [
+        "This episode of Tosh Show is brought to you by Progressive Insurance. Do you ever find yourself playing the budgeting game?"
+      ],
+      "outro_variants": [
+        "And if something comes up, you can cancel up to That's GrowTherapy.com slash book now."
+      ],
+      "avg_duration": 81.89999999999999,
+      "sponsor": "Progressive",
+      "sponsor_aliases": [],
+      "sponsor_tags": [
+        "insurance",
+        "universal"
+      ],
+      "source_language": null,
+      "community_id": "d3959a99-d93e-4dd7-8217-fb2416164772",
+      "version": 1,
+      "submitted_at": "2026-06-07T21:19:27.565847+00:00",
+      "submitted_app_version": "2.7.5",
+      "sponsor_match": "exact"
+    },
+    {
+      "scope": "global",
+      "text_template": "Ryan Reynolds here from Mint Mobile. I don't know if you knew this, but anyone can get the same premium wireless for $15 a month plan that I've been enjoying. It's not just for celebrities. So do like I did and have one of your assistant's assistants switch you to Mint Mobile today. I'm told it's super easy to do at mintmobile.com slash switch. Upfront payment of $45 for three-month plan equivalent to $15 per month required. Intro rate first three months only, then full price plan options available. Taxes and fees extra. See full terms at mintmobile.com.",
+      "intro_variants": [
+        "Ryan Reynolds here from Mint Mobile. I don't know if you knew this, but anyone can get the same premium wireless for $15 a month plan that I've been enjoying. It's not just for celebrities. So do like I did and have one of your assistant's assistants switch you to"
+      ],
+      "outro_variants": [
+        "for three-month plan equivalent to $15 per month required. Intro rate first three months only, then full price plan options available. Taxes and fees extra. See full terms at mintmobile.com."
+      ],
+      "avg_duration": 96.75000000000003,
+      "sponsor": "Mint Mobile",
+      "sponsor_aliases": [
+        "MintMobile"
+      ],
+      "sponsor_tags": [
+        "telecom",
+        "universal"
+      ],
+      "source_language": null,
+      "community_id": "1edb90ef-ae77-4590-8e64-026741b0ebcb",
+      "version": 1,
+      "submitted_at": "2026-06-07T21:19:27.567861+00:00",
+      "submitted_app_version": "2.7.5",
+      "sponsor_match": "exact"
+    },
+    {
+      "scope": "global",
+      "text_template": "This episode of Tosh Show is brought to you by Progressive Insurance. Do you ever think about switching insurance companies to see if you could save some cash? Progressive makes it easy to see if you could save when you bundle your home and auto policies. Try it at Progressive.com. Progressive casualty insurance company and affiliates. Potential savings will vary. Not available in all states.",
+      "intro_variants": [
+        "This episode of Tosh Show is brought to you by Progressive Insurance. Do you ever think about switching insurance companies to see if you could save some cash? Progressive makes it easy to see if you could save when you bundle your home and auto policies. Try it at Progressive.com."
+      ],
+      "outro_variants": [
+        "you could save when you bundle your home and auto policies. Try it at Progressive.com. Progressive casualty insurance company and affiliates. Potential savings will vary. Not available in all states."
+      ],
+      "avg_duration": null,
+      "sponsor": "Progressive",
+      "sponsor_aliases": [],
+      "sponsor_tags": [
+        "insurance",
+        "universal"
+      ],
+      "source_language": null,
+      "community_id": "a3d32241-d1e4-4d37-b511-edba4381ed82",
+      "version": 1,
+      "submitted_at": "2026-06-07T21:19:27.569640+00:00",
+      "submitted_app_version": "2.7.5",
+      "sponsor_match": "exact"
+    },
+    {
+      "scope": "global",
+      "text_template": "Carvana's so easy, just a click and we've got ourselves a car. See? So many cars. That's a click-tastic inventory. And check out the financing options. Payments to fit our budget. I mean, that's... Clickonomics 101. Delivery to our door. Just a hop, skip, and a click away. And... bought. No better feeling than when everything just... clicks. Buy your car today on... Carvana. Delivery fees may apply.",
+      "intro_variants": [
+        "Carvana's so easy, just a click and we've got ourselves a car. See? So many cars. That's a click-tastic inventory. And check out the financing options. Payments to fit our budget. I mean, that's... Clickonomics 101. Delivery to our door. Just a hop, skip, and a click away. And... bought."
+      ],
+      "outro_variants": [
+        "our door. Just a hop, skip, and a click away. And... bought. No better feeling than when everything just... clicks. Buy your car today on... Carvana. Delivery fees may apply."
+      ],
+      "avg_duration": 28.0,
+      "sponsor": "Carvana",
+      "sponsor_aliases": [],
+      "sponsor_tags": [
+        "auto",
+        "universal"
+      ],
+      "source_language": null,
+      "community_id": "d1bff410-d7fd-4df7-a842-80569209b95c",
+      "version": 1,
+      "submitted_at": "2026-06-07T21:19:27.571224+00:00",
+      "submitted_app_version": "2.7.5",
+      "sponsor_match": "exact"
+    },
+    {
+      "scope": "global",
+      "text_template": "Reggie, I just sold my car online. Let's go, Grandpa. Wait, you did? Yep, on Carvana. Just put in the license plate, answered a few questions, got an offer in minutes. Easier than setting up that new digital picture frame. You don't say. Yeah, they're even picking it up tomorrow. Talk about fast. Wow, way to go. So, about that picture frame. Ah, forget about it. Until Carvana makes one, I'm not interested.",
+      "intro_variants": [
+        "Reggie, I just sold my car online. Let's go, Grandpa. Wait, you did? Yep, on Carvana. Just put in the license plate, answered a few questions, got an offer in minutes. Easier than setting up that new digital picture frame. You don't say. Yeah, they're even picking it up tomorrow."
+      ],
+      "outro_variants": [
+        "Yeah, they're even picking it up tomorrow. Talk about fast. Wow, way to go. So, about that picture frame. Ah, forget about it. Until Carvana makes one, I'm not interested."
+      ],
+      "avg_duration": 16.90000000000009,
+      "sponsor": "Carvana",
+      "sponsor_aliases": [],
+      "sponsor_tags": [
+        "auto",
+        "universal"
+      ],
+      "source_language": null,
+      "community_id": "dd202b1e-e446-49c6-a9ea-15308faf4b82",
+      "version": 1,
+      "submitted_at": "2026-06-07T21:19:27.572821+00:00",
+      "submitted_app_version": "2.7.5",
+      "sponsor_match": "exact"
+    },
+    {
+      "scope": "global",
+      "text_template": "We all prefer things a certain way, like groceries. If you want groceries just how you like them, you gotta try Instacart. They have a new preference picker that lets you pick how ripe or unripe you want your bananas. Shoppers can see your preferences up front, helping guide their choices. Because when it comes to groceries, the details matter. Instacart. Get groceries just how you like.",
+      "intro_variants": [
+        "We all prefer things a certain way, like groceries. If you want groceries just how you like them, you gotta try Instacart. They have a new preference picker that lets you pick how ripe or unripe you want your bananas. Shoppers can see your preferences up front, helping guide their"
+      ],
+      "outro_variants": [
+        "want your bananas. Shoppers can see your preferences up front, helping guide their choices. Because when it comes to groceries, the details matter. Instacart. Get groceries just how you like."
+      ],
+      "avg_duration": 62.7,
+      "sponsor": "Instacart",
+      "sponsor_aliases": [],
+      "sponsor_tags": [
+        "food",
+        "universal"
+      ],
+      "source_language": null,
+      "community_id": "b100abb3-7d56-41e3-ad3c-d0efce955827",
+      "version": 1,
+      "submitted_at": "2026-06-07T21:19:27.574477+00:00",
+      "submitted_app_version": "2.7.5",
+      "sponsor_match": "exact"
+    },
+    {
+      "scope": "global",
+      "text_template": "brought to you by Squarespace. Squarespace makes building and managing your website ridiculously easy. They give you everything you need to showcase what you do and get paid all in one place. And with cutting-edge design tools, anyone can create a custom site that truly fits their brand. Head to squarespace.com slash rogan for a free trial. And when you're ready... Ready to launch? Use the offer code ROGAN to save 10% off your first purchase of a website or domain.",
+      "intro_variants": [
+        "brought to you by Squarespace. Squarespace makes building and managing your website ridiculously easy. They give you everything you need to showcase what you do and get paid all in one place. And with cutting-edge design tools, anyone can create a custom site that truly fits their brand. Head to"
+      ],
+      "outro_variants": [
+        "slash rogan for a free trial. And when you're ready... Ready to launch? Use the offer code ROGAN to save 10% off your first purchase of a website or domain."
+      ],
+      "avg_duration": 21.300000000000182,
+      "sponsor": "Squarespace",
+      "sponsor_aliases": [
+        "Square Space"
+      ],
+      "sponsor_tags": [
+        "tech",
+        "saas",
+        "dtc",
+        "universal"
+      ],
+      "source_language": null,
+      "community_id": "868bb096-dbc1-4860-8b78-7adac791149a",
+      "version": 1,
+      "submitted_at": "2026-06-07T21:19:27.576410+00:00",
+      "submitted_app_version": "2.7.5",
+      "sponsor_match": "exact"
+    },
+    {
+      "scope": "global",
+      "text_template": "brought to you by SimpliSafe. The world can be scary sometimes. I mean, take the news for example. It feels like we hear about something outrageous happening Every week. Now, more than ever, it's more important to have a security system for your safety and peace of mind, and SimpliSafe is one of the best options out there, partly because of how proactive it is. It can help stop and prevent crime in real time. AI-powered cameras can detect suspicious activity and alert security agents who can immediately take action. They can speak to intruders, warn them away, flashlights and sirens and and Dispatch Police. With how great a job it does, no long-term contracts and no hidden fees, it's easy to see why SimpliSafe continues to be named best home security systems by U.S. News and World Report. Try it out right now. My listeners can get 50% off a SimpliSafe home security system at simplisafe.com slash Rogan. That's 50% off at simplisafe.com slash Rogan. There's no safe.",
+      "intro_variants": [
+        "brought to you by SimpliSafe. The world can be scary sometimes. I mean, take the news for example. It feels like we hear about something outrageous happening Every week. Now, more than ever, it's more important to have a security system for your safety and peace of mind, and SimpliSafe"
+      ],
+      "outro_variants": [
+        "Try it out right now. My listeners can get 50% off a SimpliSafe home security system at simplisafe.com slash Rogan. That's 50% off at simplisafe.com slash Rogan. There's no safe."
+      ],
+      "avg_duration": 67.15000000000009,
+      "sponsor": "SimpliSafe",
+      "sponsor_aliases": [
+        "Simpli Safe"
+      ],
+      "sponsor_tags": [
+        "home_security",
+        "universal"
+      ],
+      "source_language": null,
+      "community_id": "a053fd4d-df32-4a29-a53a-7b34d40b070c",
+      "version": 1,
+      "submitted_at": "2026-06-07T21:19:27.579444+00:00",
+      "submitted_app_version": "2.7.5",
+      "sponsor_match": "exact"
+    },
+    {
+      "scope": "global",
+      "text_template": " with all-inclusive vacation deals to Mexico and the Caribbean. Booking with Cheap Caribbean Vacations means you have more freedom to do your deal. Now through February 2nd, you can score up to an extra $250 off your next beach vacay at CheapCaribbean.com. So go ahead, do your deal. Visit CheapCaribbean.com and start the year with more beach.",
+      "intro_variants": [
+        "All right, folks, I want to tell you about something you may not realize we do here, honest reviews. Yeah, I know, you're used to all those lying reviews out there, but we have honest reviews from peo"
+      ],
+      "outro_variants": [
+        "an extra $250 off your next beach vacay at CheapCaribbean.com. So go ahead, do your deal. Visit CheapCaribbean.com and start the year with more beach."
+      ],
+      "avg_duration": null,
+      "sponsor": "Cheapcaribbean",
+      "sponsor_aliases": [],
+      "sponsor_tags": [],
+      "source_language": null,
+      "community_id": "866287ac-79cb-495a-a481-793b81feab44",
+      "version": 1,
+      "submitted_at": "2026-06-07T21:19:27.580986+00:00",
+      "submitted_app_version": "2.7.5",
+      "sponsor_match": "exact"
+    },
+    {
+      "scope": "global",
+      "text_template": "You'll be in the bus, doing what you do in the bus when we go places that are fun. Huh? What do you do? Take a nap? That sounds about right. We got some plugs. Patreon.com slash Tosh Show. I hear that's doing well with some of our unfiltered content. There you go. A lot of that. That's what they want. Yeah. Give it to them. Why was that always a move for the whores? Like licking your own nipple. Why is that something you want to see? Yeah, it's weird. No, no, no. You want to watch me lick my nipple? Or the whores. The whores lick their nipples. No, no, I know. Well, yeah, I know. What do you think? What? Are you trying to defend people that lick their nipple? You know someone that licks their nipple that's not a whore? You know a nun that does that, John? Yeah, you show me somebody that licks their nipple that's not a whore. Anyway. Somebody here? Hi. Speaking of whores, my wife's here. Carly, are you on our Patreon page? Have you subscribed yet? I love Patreon. How much do you pay per month for our Tosh Show? $2.99. Oh, you got some insider deal. Yeah, that's great. She's boning the boss. What's happening? My first farewell tour. Guys, come out and see Eddie and I perform. ToshShowStore.com. There's four or five things on there if you want it. That's pretty good. Okay, now let's get to the meat of act three.",
+      "intro_variants": [
+        "You'll be in the bus, doing what you do in the bus when we go places that are fun. Huh? What do you do? Take a nap? That sounds about right. We got some plugs. Patreon.com slash Tosh Show. I hear that"
+      ],
+      "outro_variants": [
+        "d I perform. ToshShowStore.com. There's four or five things on there if you want it. That's pretty good. Okay, now let's get to the meat of act three."
+      ],
+      "avg_duration": 28.09999999999991,
+      "sponsor": "Patreon",
+      "sponsor_aliases": [],
+      "sponsor_tags": [
+        "tech",
+        "saas"
+      ],
+      "source_language": null,
+      "community_id": "a0af390e-d9b3-4f13-81fc-d70f4f5fb048",
+      "version": 1,
+      "submitted_at": "2026-06-07T21:19:27.584663+00:00",
+      "submitted_app_version": "2.7.5",
+      "sponsor_match": "exact"
+    },
+    {
+      "scope": "global",
+      "text_template": "So, quick update on my dog. He's been on a real scratch-everything-in-sight tour lately. Paw licking, rubbing his face on the rug, the whole dramatic routine. And yes, he's spoiled rotten. But even with all that pampering, he still shares 99% of his DNA with wolves, which means modern life isn't exactly built for his biology. Dog allergies are up 30% in the last decade. Because 90% of his immune system lives in the gut, I started giving him Better Wild Allergy Relief Soft Chews. They're designed to strengthen digestion and support his natural allergy defenses with an ancestral blend of wolf probiotics called Ancestral Advantage. BetterWild also makes joint, dental, and digestive supplements. And it honestly feels good knowing I'm supporting his health with something science-backed and veterinarian approved. Right now, BetterWild is offering our listeners up to 40% off your order at BetterWild.com slash Daily Tech. That's BetterWild.com slash Daily Tech for up to 40% off of your order. BetterWild.com slash Daily Tech. Get more sin for your dollar. With all-inclusive vacation deals to Mexico and the Caribbean, booking with Cheap Caribbean Vacations means you have more freedom to do your deal. Now through February 2nd, you can score up to an extra $250 off your next beach vacay at CheapCaribbean.com. So go ahead, do your deal. Visit CheapCaribbean.com and start the year with more beach. Cheap Caribbean Vacations. Get more sin for your dollar. with all-inclusive vacation deals to Mexico and the Caribbean. Booking with Cheap Caribbean Vacations means you have more freedom to do your deal. Now through February 2nd, you can score up to an extra $250 off your next beach vacay at CheapCaribbean.com. So go ahead, do your deal. Visit CheapCaribbean.com and start the year with more beach. Vacation planning should feel like a breeze, not a deep dive into countless travel sites searching for the best deal. With Cheap Caribbean's Budget Beach Finder, get every destination and every date, all in one search. Go to CheapCaribbean.com and try the Budget Beach Finder and see how stress-free vacation planning should be.",
+      "intro_variants": [
+        "So, quick update on my dog. He's been on a real scratch-everything-in-sight tour lately. Paw licking, rubbing his face on the rug, the whole dramatic routine. And yes, he's spoiled rotten. But even wi"
+      ],
+      "outro_variants": [
+        "ation and every date, all in one search. Go to CheapCaribbean.com and try the Budget Beach Finder and see how stress-free vacation planning should be."
+      ],
+      "avg_duration": null,
+      "sponsor": "Betterwild",
+      "sponsor_aliases": [],
+      "sponsor_tags": [],
+      "source_language": null,
+      "community_id": "09f1ead4-6c5d-443a-9fe5-08684175c899",
+      "version": 1,
+      "submitted_at": "2026-06-07T21:19:27.590344+00:00",
+      "submitted_app_version": "2.7.5",
+      "sponsor_match": "exact"
+    },
+    {
+      "scope": "global",
+      "text_template": "Now, at Pura.com. Ah, DSW, birthplace of the humblebrag. Here, the shoes are so good, no one would ever know how little you paid. If you didn't go telling everyone, that is. And with never-ending options for every style, mood, and occasion, all at really great prices, we'll definitely give you something to brag about. So go ahead, stock up on fresh sneakers from your favorite brands. Or try those boots you always secretly knew you could pull off. Find the shoes that get you at prices that get your budget at DSW stores or DSW.com. Welcome to Cordkillers Reckoning. The world of entertainment is turned upside down, and we are just trying to find out how to watch what we want, where we want, whenever we want. I'm Tom Merritt. Where is the good stuff for one last time in 2025, Brian? Oh, my God. This is the last time. After this, we do our Killies episode. Yes, the biggest night in television. Yeah, they're all talking about it. They're all like, somebody destroyed everything, and now they're having an awards ceremony to laugh at the remains. Exactly. So that'll be coming your way next week. The greatest moment of human history, the Killies, where Brian Amos and I will award television shows and movies.",
+      "intro_variants": [
+        "Now, at Pura.com. Ah, DSW, birthplace of the humblebrag. Here, the shoes are so good, no one would ever know how little you paid. If you didn't go telling everyone, that is. And with never-ending opti"
+      ],
+      "outro_variants": [
+        "hat'll be coming your way next week. The greatest moment of human history, the Killies, where Brian Amos and I will award television shows and movies."
+      ],
+      "avg_duration": null,
+      "sponsor": "Pura",
+      "sponsor_aliases": [],
+      "sponsor_tags": [
+        "home_goods",
+        "home_security",
+        "dtc"
+      ],
+      "source_language": null,
+      "community_id": "b8e79250-29db-4328-a95e-32bf7d4f0f78",
+      "version": 1,
+      "submitted_at": "2026-06-07T21:19:27.593807+00:00",
+      "submitted_app_version": "2.7.5",
+      "sponsor_match": "exact"
+    },
+    {
+      "scope": "global",
+      "text_template": "Meet Pura4, the smart way to scent your home year-round. Get your diffuser free when you subscribe for 12 months, plus a 30-day risk-free trial. Visit pura.com before this offer ends. Hey, I'm Dr. Z and I'm a neurosurgeon. So that means long hours, early rounds, late nights, and everything in between. And through it all, I wear figs. Because they're built for what I do. Through the chaos, through the hours, and through whatever the day throws at me, they do their job so I can do mine. They're comfortable when it counts and functional when I need them the most. So where do you wear your figs? on shift, on call, on the couch, in the break room, listening to this podcast, wherever it is, they fit right in. And now listeners of this podcast can get 15% off their first order. Just head to wherefigs.com and use code FIGSRX at checkout. That's wherefigs.com, code FIGSRX.",
+      "intro_variants": [
+        "Meet Pura4, the smart way to scent your home year-round. Get your diffuser free when you subscribe for 12 months, plus a 30-day risk-free trial. Visit pura.com before this offer ends. Hey, I'm Dr. Z a"
+      ],
+      "outro_variants": [
+        "ners of this podcast can get 15% off their first order. Just head to wherefigs.com and use code FIGSRX at checkout. That's wherefigs.com, code FIGSRX."
+      ],
+      "avg_duration": null,
+      "sponsor": "Pura",
+      "sponsor_aliases": [],
+      "sponsor_tags": [
+        "home_goods",
+        "home_security",
+        "dtc"
+      ],
+      "source_language": null,
+      "community_id": "8c7d1522-d43c-44bc-9327-65a16f500981",
+      "version": 1,
+      "submitted_at": "2026-06-07T21:19:27.596601+00:00",
+      "submitted_app_version": "2.7.5",
+      "sponsor_match": "exact"
+    }
+  ]
+}
