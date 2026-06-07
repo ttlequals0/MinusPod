@@ -1,0 +1,22 @@
+{
+  "scope": "global",
+  "text_template": "Let's talk about Peyronie's disease, or PD. It's not widely talked about, and some men may feel reluctant to bring it up, but it's more common than you'd think. PD can happen when scar tissue builds up under the skin of the penis causing a curve with a bump during an erection that for some men may lead to pain during intimacy and impact mental health A trusted urology specialist can help diagnose PD and walk you through your options, including nonsurgical treatment. Visit TalkAboutPD.com.",
+  "intro_variants": [
+    "Let's talk about Peyronie's disease, or PD."
+  ],
+  "outro_variants": [
+    "Visit TalkAboutPD.com."
+  ],
+  "avg_duration": 28.4,
+  "sponsor": "talkaboutpd.com",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "health"
+  ],
+  "source_language": null,
+  "community_id": "7391620b-9c2b-43a0-82ce-9a8fc7cedba7",
+  "version": 1,
+  "submitted_at": "2026-06-06T23:42:17.339897+00:00",
+  "submitted_app_version": "2.7.5",
+  "sponsor_match": "exact"
+}

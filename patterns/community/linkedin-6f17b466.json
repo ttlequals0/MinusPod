@@ -1,0 +1,31 @@
+{
+  "scope": "global",
+  "text_template": "Work can be a little weird. Cringy training seminars, co-workers who won't stop talking about their plant, forgetting the mute button at an inopportune moment. We have to deal with a lot on any given work day. Sometimes it can feel hard to thrive and move forward in your career. Well, that's where LinkedIn comes in. LinkedIn helps you get ideas and insights from experts in your field, connect with people professionally, grow your network, and access tools designed to help you find the and the right fit for your next role. Whether you're just getting started, figuring out your next move, or looking to accelerate your career, LinkedIn is built to support you at every stage. Because LinkedIn is the network that works for you. Visit linkedin.com slash class to learn more.",
+  "intro_variants": [
+    "Work can be a little weird. Cringy training seminars, co-workers who won't stop talking about their plant, forgetting the mute button at an inopportune moment.",
+    "Work can be a little weird. One minute you're in a meeting that could have been an email, the next you're trying to decode corporate jargon that somehow means nothing, and don't even get me started on the quick sync that turns into a 45-minute deep dive.",
+    "Work can be a little weird and I know when I first started working, networking for work was even weirder."
+  ],
+  "outro_variants": [
+    "Visit linkedin.com slash class to learn more.",
+    "Because LinkedIn is the network that works for you."
+  ],
+  "avg_duration": 26.5,
+  "sponsor": "LinkedIn",
+  "sponsor_aliases": [
+    "LinkedIn Jobs",
+    "linkedin.com"
+  ],
+  "sponsor_tags": [
+    "jobs",
+    "tech",
+    "saas",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "6f17b466-0d54-4eab-8e0b-f74396bc5bb1",
+  "version": 1,
+  "submitted_at": "2026-06-06T23:42:17.153199+00:00",
+  "submitted_app_version": "2.7.5",
+  "sponsor_match": "exact"
+}

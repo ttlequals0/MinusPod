@@ -1,0 +1,23 @@
+{
+  "scope": "global",
+  "text_template": "Hey guys, it's Dasha here. The World Cup brings cities to life. Streets buzzing, crowds gathering, every goal sparking celebration. Moments like this are impossible to miss, but some moments are so quiet. They slip right past us. Human trafficking affects real people across the U.S., and it often looks different from what we think. Some survivors cannot simply walk away or ask for help. So learn the signs. Break the silence. Visit bluecampaign.gov slash World Cup.",
+  "intro_variants": [
+    "Hey guys, it's Dasha here. The World Cup brings cities to life. Streets buzzing, crowds gathering, every goal sparking celebration."
+  ],
+  "outro_variants": [
+    "Visit bluecampaign.gov slash World Cup.",
+    "Visit bluecampaign.gov slash worldcup."
+  ],
+  "avg_duration": 27.6,
+  "sponsor": "bluecampaign.gov",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "d3b7c369-86f8-4144-83e3-1bbbfdba233e",
+  "version": 1,
+  "submitted_at": "2026-06-06T23:42:17.266816+00:00",
+  "submitted_app_version": "2.7.5",
+  "sponsor_match": "exact"
+}

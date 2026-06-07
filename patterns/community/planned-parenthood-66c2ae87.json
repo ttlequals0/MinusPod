@@ -1,0 +1,22 @@
+{
+  "scope": "global",
+  "text_template": "This is Chelsea Handler from Dear Chelsea. The Trump administration and its backers in Congress are messing around with our healthcare. In case you haven't heard, they already passed a law defunding De-Funding Planned Parenthood that blocks Medicaid patients from getting life-saving care like cancer screenings, wellness exams, birth control, STI treatment, and more. And now these lawmakers want to shut down health centers by defunding Planned Parenthood permanently. Our communities deserve better. So to learn how you can get involved, text UPDATE to 22422.",
+  "intro_variants": [
+    "This is Chelsea Handler from Dear Chelsea. The Trump administration and its backers in Congress are messing around with our healthcare."
+  ],
+  "outro_variants": [
+    "Our communities deserve better. So to learn how you can get involved, text UPDATE to 22422."
+  ],
+  "avg_duration": null,
+  "sponsor": "Planned Parenthood",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "health"
+  ],
+  "source_language": null,
+  "community_id": "66c2ae87-6f65-4f83-99db-1df670b9ef79",
+  "version": 1,
+  "submitted_at": "2026-06-06T23:42:17.087480+00:00",
+  "submitted_app_version": "2.7.5",
+  "sponsor_match": "exact"
+}

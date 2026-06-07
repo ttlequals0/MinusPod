@@ -1,0 +1,25 @@
+{
+  "scope": "global",
+  "text_template": "Hey, Lisa here. And don't you hate when it's super hot out and you're stressing over whether your window AC unit will work and keep up with all the heat? Well, imagine a window air conditioner that is sleek, better looking, quieter, and here's the best part, easier to install. Well, it's an absolute reality with the Windmill Window AC Unit made for the modern home. Windmill set out to create the best window AC with a clean design, quiet cooling, single setup with the app and voice control. You can use the app and turn the AC on remotely so your place will be perfectly cool when you get home. So if your window AC is old, loud, or kind of a clunky eyesore, it's time to upgrade to a windmill AC unit. Windmill ACs are available at trusted retailers or just visit windmillair.com.",
+  "intro_variants": [
+    "Hey, Lisa here. And don't you hate when it's super hot out and you're stressing over whether your window AC unit will work and keep up with all the heat?"
+  ],
+  "outro_variants": [
+    "Windmill ACs are available at trusted retailers or just visit windmillair.com.",
+    "Windmill A.C.s are available at trusted retailers or just visit windmillair.com."
+  ],
+  "avg_duration": 53.8,
+  "sponsor": "windmillair.com",
+  "sponsor_aliases": [
+    "Windmill Air",
+    "Windmill AC",
+    "Windmill A.C."
+  ],
+  "sponsor_tags": [],
+  "source_language": null,
+  "community_id": "4f8fdef3-d60c-4b50-a11b-935ccf5658a6",
+  "version": 1,
+  "submitted_at": "2026-06-06T23:42:17.116636+00:00",
+  "submitted_app_version": "2.7.5",
+  "sponsor_match": "exact"
+}

@@ -1,0 +1,27 @@
+{
+  "scope": "global",
+  "text_template": "My name is Jessa. One of the things I love the most about working for UnitedHealthcare is that everybody matters. Every moment matters. There's a person behind every problem. I care because it's what I was put on this earth to do. I'm Ben and I work at UnitedHealthcare. I am just one piece of a larger puzzle, but every piece matters. It's more than just work. We want to make the healthcare system better for everyone. I care because I want to make a difference. That's what committed to care means to me.",
+  "intro_variants": [
+    "My name is Jessa. One of the things I love the most about working for UnitedHealthcare is that everybody matters.",
+    "My name is Jessa One of the things I love the most about working for UnitedHealthcare is that everybody matters",
+    "I'm Ben and I work at UnitedHealthcare. I am just one piece of a larger puzzle, but every piece matters."
+  ],
+  "outro_variants": [
+    "I care because I want to make a difference. That's what committed to care means to me."
+  ],
+  "avg_duration": 30.1,
+  "sponsor": "UnitedHealth Group",
+  "sponsor_aliases": [
+    "UnitedHealthcare"
+  ],
+  "sponsor_tags": [
+    "health",
+    "insurance"
+  ],
+  "source_language": null,
+  "community_id": "805866fc-a8a8-43b1-8595-c94d1b3bb2eb",
+  "version": 1,
+  "submitted_at": "2026-06-06T23:42:17.105048+00:00",
+  "submitted_app_version": "2.7.5",
+  "sponsor_match": "exact"
+}

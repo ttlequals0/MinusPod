@@ -1,0 +1,25 @@
+{
+  "scope": "global",
+  "text_template": "Brought to you in part by Vital Farms. I love eggs. I turn to them all the time as a quick and easy way to start a meal. And Vital Farms eggs are brought to you by hens that have access to fresh air and sunshine. And you can actually look up on the carton and see the farm that those eggs came from. Vital Farms is also a certified B Corporation with a purpose to improve the lives of people, animals, and the planet through food. Look for the black egg carton in the egg aisle and visit VitalFarms.com to learn more. Vital Farms, good eggs, no shortcuts.",
+  "intro_variants": [
+    "Brought to you in part by Vital Farms.",
+    "This podcast is brought to you in part by Vital Farms."
+  ],
+  "outro_variants": [
+    "Vital Farms, good eggs, no shortcuts."
+  ],
+  "avg_duration": 32.6,
+  "sponsor": "Vital Farms",
+  "sponsor_aliases": [
+    "VitalFarms.com"
+  ],
+  "sponsor_tags": [
+    "food"
+  ],
+  "source_language": null,
+  "community_id": "95d531ca-91af-4bdc-9406-469dd4bed29b",
+  "version": 1,
+  "submitted_at": "2026-06-06T23:42:17.309540+00:00",
+  "submitted_app_version": "2.7.5",
+  "sponsor_match": "exact"
+}

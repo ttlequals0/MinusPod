@@ -1,0 +1,23 @@
+{
+  "scope": "global",
+  "text_template": "At first, I didn't think it was real. I woke up to this blinding light and I was transported to another place. Pluto TV! Then I heard a voice. Come with me if you want to live. There were thousands of movies and shows and they were all free. The truth is ours. It's just so beautiful. On Pluto TV, free streaming of Terminator 2, Fringe, Arrow, The 100, and The X-Files may cause excitement, loss of sleep, and sudden belief in extraterrestrials. No credit cards or alien encounters necessary. Pluto TV. Stream now. Pay never.",
+  "intro_variants": [
+    "At first, I didn't think it was real. I woke up to this blinding light and I was transported to another place."
+  ],
+  "outro_variants": [
+    "Pluto TV. Stream now. Pay never."
+  ],
+  "avg_duration": 30.0,
+  "sponsor": "Pluto TV",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "tv_film",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "cedb2519-ff07-48d8-acc6-7c5d3b2ef1e7",
+  "version": 1,
+  "submitted_at": "2026-06-06T23:42:17.195010+00:00",
+  "submitted_app_version": "2.7.5",
+  "sponsor_match": "exact"
+}

@@ -1,0 +1,24 @@
+{
+  "scope": "global",
+  "text_template": "This is Matt Rogers from Las Culturistas, that's with Matt Rogers and Bowen Yang. This is Bowen Yang from Las Culturistas with Matt Rogers and Bowen Yang. Hey Bowen, is it just me or does it feel like nothing is actually what it says it is anymore? Yeah, like when you order chicken fingers, you don't get fingers, you get mystery nuggets. Exactly. Well, except Hotels.com I was gonna say, Hotels.com, because they do hotels. Refreshing. And when booked as a member, rewards are earned every stay, not points that disappear, rewards that work like cash and can actually be used. So the name checks out, and the perks do too. Yep, members can get up to 20% off tons of hotels with no blackout dates, just works with real travel. Okay, that tracks. Hotels.com, it's all in the name.",
+  "intro_variants": [
+    "This is Matt Rogers from Las Culturistas, that's with Matt Rogers and Bowen Yang.",
+    "Hey Bowen, is it just me or does it feel like nothing is actually what it says it is anymore?"
+  ],
+  "outro_variants": [
+    "Hotels.com, it's all in the name."
+  ],
+  "avg_duration": 41.7,
+  "sponsor": "Hotels.com",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "travel",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "78ca4505-290b-485e-8be9-e512ffaac455",
+  "version": 1,
+  "submitted_at": "2026-06-06T23:42:17.258500+00:00",
+  "submitted_app_version": "2.7.5",
+  "sponsor_match": "exact"
+}

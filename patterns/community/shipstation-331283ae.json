@@ -1,0 +1,29 @@
+{
+  "scope": "global",
+  "text_template": "Support for the show comes from ShipStation. When you're busy running a company, it's easy to miss those spots you might be overspending, especially when it comes to shipping. That's where ShipStation comes in after all. ShipStation is an end-to-end order fulfillment platform for e-commerce businesses built to handle your entire shipping workflow so your team can focus on growth. With ShipStation everything from order management to inventory and returns is centralized in one platform And with automated rate shipping you can compare rates across all your faves with savings up to 90% off The sooner you switch the sooner you can start saving time and money You can get started with ShipStation today and get 60 days free at ShipStation with code today That ShipStation code today ShipStation code today Taxes and fees apply",
+  "intro_variants": [
+    "Support for the show comes from ShipStation.",
+    "When you're busy running a company, it's easy to miss those spots you might be overspending, especially when it comes to shipping."
+  ],
+  "outro_variants": [
+    "That ShipStation code today ShipStation code today Taxes and fees apply",
+    "That's ShipStation.com code today. ShipStation.com code today."
+  ],
+  "avg_duration": 65.6,
+  "sponsor": "ShipStation",
+  "sponsor_aliases": [
+    "Ship Station",
+    "ShipStation.com"
+  ],
+  "sponsor_tags": [
+    "business",
+    "saas",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "331283ae-f184-4146-850c-5eb52931503f",
+  "version": 1,
+  "submitted_at": "2026-06-06T23:42:17.443793+00:00",
+  "submitted_app_version": "2.7.5",
+  "sponsor_match": "exact"
+}

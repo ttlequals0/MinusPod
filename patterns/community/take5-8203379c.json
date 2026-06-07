@@ -1,0 +1,24 @@
+{
+  "scope": "global",
+  "text_template": "We're always talking about how things work, and one thing that keeps your car running smoothly is regular oil changes. But life's busy, and the oil light always comes on at the worst time. Well, that's why there's Take 5 Oil Change. It doesn't just save time, it gives you control of your day back. You pull in, stay in your car, check something off your to-do list. No waiting room, no pressure. You're in and you're out in about 10 minutes. Oil changes include tire pressure checks and fluid top-offs, and the friendly staff explain everything and welcome you with a free water. Take 5 fitting into your busy schedule is something you should know. Find your nearest shop at Take5.com.",
+  "intro_variants": [
+    "We're always talking about how things work, and one thing that keeps your car running smoothly is regular oil changes."
+  ],
+  "outro_variants": [
+    "Find your nearest shop at Take5.com."
+  ],
+  "avg_duration": 104.9,
+  "sponsor": "Take5",
+  "sponsor_aliases": [
+    "Take 5 Oil Change"
+  ],
+  "sponsor_tags": [
+    "automotive"
+  ],
+  "source_language": null,
+  "community_id": "8203379c-7cea-416c-bcb8-3c9d654b4df0",
+  "version": 1,
+  "submitted_at": "2026-06-06T23:42:17.627836+00:00",
+  "submitted_app_version": "2.7.5",
+  "sponsor_match": "exact"
+}

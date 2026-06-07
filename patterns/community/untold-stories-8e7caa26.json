@@ -1,0 +1,21 @@
+{
+      "scope": "global",
+      "text_template": "Living with a rare autoimmune condition brings uncertainty, but it can also create community. In Season 6 of Untold Stories, Life with a Severe Autoimmune Condition, they go beyond MG and CIDP, as host Martine Hackett welcomes stories from other conditions like myositis and IgAN into the conversation. Untold Stories is produced by Ruby Studio in partnership with Argenix. Listen to Untold Stories life with a Severe Autoimmune Condition on the app or wherever you get your podcasts.",
+      "intro_variants": [
+        "Living with a rare autoimmune condition brings uncertainty, but it can also create community."
+      ],
+      "outro_variants": [
+        "Untold Stories is produced by Ruby Studio in partnership with Argenix.",
+        "Listen to Untold Stories life with a Severe Autoimmune Condition on the app or wherever you get your podcasts."
+      ],
+      "avg_duration": null,
+      "sponsor": "Untold Stories",
+      "sponsor_aliases": [],
+      "sponsor_tags": [],
+      "source_language": null,
+      "community_id": "8e7caa26-fe39-4c15-bfbe-b8431cb118fb",
+      "version": 1,
+      "submitted_at": "2026-06-06T23:42:17.489769+00:00",
+      "submitted_app_version": "2.7.5",
+      "sponsor_match": "exact"
+    }

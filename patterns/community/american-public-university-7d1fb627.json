@@ -1,0 +1,23 @@
+{
+  "scope": "global",
+  "text_template": "The future won't wait, and neither should you. That's why American Public University offers master's programs designed for momentum, affordable, high quality, and flexible, so you keep moving forward. With career-relevant programs in business, healthcare, education, IT, and more, you can gain skills you can use right away, and the confidence to power your next move. American Public University, made for what's next. Learn more at apu.apus.edu.",
+  "intro_variants": [
+    "The future won't wait, and neither should you."
+  ],
+  "outro_variants": [
+    "American Public University, made for what's next. Learn more at apu.apus.edu."
+  ],
+  "avg_duration": 27.9,
+  "sponsor": "American Public University",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "education",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "7d1fb627-c041-4ce2-a2a0-424b2312c195",
+  "version": 1,
+  "submitted_at": "2026-06-06T23:42:17.239163+00:00",
+  "submitted_app_version": "2.7.5",
+  "sponsor_match": "exact"
+}

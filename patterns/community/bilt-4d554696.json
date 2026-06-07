@@ -1,0 +1,26 @@
+{
+  "scope": "global",
+  "text_template": "Support for today's Explained comes from Bilt Rewards. How do you like your rewards? I like mine, Bilt. Housing is probably one of, if not the biggest expense you're paying every month, so why not make that expense work for you? That's where Bilt comes in. Bilt is a membership program for where you live. That rewards you with points on every housing payment. Bilt started out rewarding members on their rent. Now, as of 2026, Bilt members can also earn points on mortgage payments. Mortgage points, hello! Every housing payment earns you points you can use towards flights with top travel partners. My favorite travel partner is my wife. Ha ha ha ha ha ha! Rides also, purchases, and so much more. Oh gosh, they have something called a neighborhood concierge too. Do you want to know what that is? Check out BILT. You can join the membership for where you live at joinbilt.com slash explain. That's J-O-I-N-B-I-L-T.com slash explain. Make sure to use our URL so they know we sent ya.",
+  "intro_variants": [
+    "Support for Eoday Explained comes from Bilt Rewards.",
+    "Support for today's Explained comes from Built Rewards."
+  ],
+  "outro_variants": [
+    "That's J-O-I-N-B-I-L-T.com slash explain. Make sure to use our URL so they know we sent ya."
+  ],
+  "avg_duration": null,
+  "sponsor": "Bilt",
+  "sponsor_aliases": [
+    "joinbilt.com"
+  ],
+  "sponsor_tags": [
+    "finance",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "4d554696-431c-4c84-98e4-0730f38a0ae6",
+  "version": 1,
+  "submitted_at": "2026-06-05T00:54:04.775365+00:00",
+  "submitted_app_version": "2.6.2",
+  "sponsor_match": "exact"
+}

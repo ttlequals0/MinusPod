@@ -1,0 +1,21 @@
+{
+  "scope": "global",
+  "text_template": "Megan Rapinoe here. This week is our last regular episode of A Touch More before I kick off a limited series, A Touch More, The Beautiful Game, a special series for the World Cup featuring in-depth interviews with some of soccer's biggest stars. But for this week, we are closing out the Arrow with a special compilation episode featuring our absolute favorite moments and themes from our last 90 episodes of A Touch More. Check out the latest episode of A Touch More wherever you get your podcasts.",
+  "intro_variants": [],
+  "outro_variants": [
+    "Check out the latest episode of A Touch More wherever you get your podcasts."
+  ],
+  "avg_duration": 28.0,
+  "sponsor": "A Touch More",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "sports",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "d7496425-afb9-4ca2-8b10-d45080302100",
+  "version": 1,
+  "submitted_at": "2026-06-06T23:42:17.482323+00:00",
+  "submitted_app_version": "2.7.5",
+  "sponsor_match": "exact"
+}

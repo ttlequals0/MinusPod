@@ -1,0 +1,22 @@
+{
+      "scope": "global",
+      "text_template": "You ever been to the pharmacy counter and the pharmacist asks, Do you have any questions? And suddenly your mind goes blank? Well, that's exactly why you need to listen to Beyond the Script. That's right. It's hosted by Dr. Jake Goodman, and this podcast brings you real conversations with pharmacists, the health experts you see most, answering the questions you wish you'd asked, like which medications may not mix well, what vaccines you should consider before a big trip, and even those questions that you were too embarrassed to say out loud. Each episode busts myths, decodes health trends, and gives you practical, trustworthy advice straight from the people behind the counter. No white coats, no lectures, just real talk, real answers, and maybe a few laughs.",
+      "intro_variants": [
+        "You ever been to the pharmacy counter and the pharmacist asks, Do you have any questions?"
+      ],
+      "outro_variants": [
+        "No white coats, no lectures, just real talk, real answers, and maybe a few laughs."
+      ],
+      "avg_duration": 116.8,
+      "sponsor": "Beyond the Script",
+      "sponsor_aliases": [],
+      "sponsor_tags": [
+        "health"
+      ],
+      "source_language": null,
+      "community_id": "f2f5c26c-9111-4b6d-85f8-afc96e57080c",
+      "version": 1,
+      "submitted_at": "2026-06-06T23:42:17.637415+00:00",
+      "submitted_app_version": "2.7.5",
+      "sponsor_match": "exact"
+    }

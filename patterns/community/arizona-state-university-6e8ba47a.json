@@ -1,0 +1,25 @@
+{
+  "scope": "global",
+  "text_template": "The question isn't whether the world is changing. It's whether you'll be ready for it. At Arizona State University, your education is built around the careers of the future. You learn from renowned faculty and researchers who are driving their fields forward, not just teaching about it. It's why we're ranked number one in innovation and number two in employability among U.S. public universities. Future-proof your career. Explore more than 350 programs at asuonline.asu.edu. That's a degree better.",
+  "intro_variants": [
+    "The question isn't whether the world is changing. It's whether you'll be ready for it."
+  ],
+  "outro_variants": [
+    "Explore more than 350 programs at asuonline.asu.edu. That's a degree better."
+  ],
+  "avg_duration": 29.6,
+  "sponsor": "Arizona State University",
+  "sponsor_aliases": [
+    "asu.edu"
+  ],
+  "sponsor_tags": [
+    "education",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "6e8ba47a-5cd5-458f-a427-24529a375ead",
+  "version": 1,
+  "submitted_at": "2026-06-06T23:42:17.232045+00:00",
+  "submitted_app_version": "2.7.5",
+  "sponsor_match": "exact"
+}

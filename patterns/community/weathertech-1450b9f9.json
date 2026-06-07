@@ -1,0 +1,25 @@
+{
+  "scope": "global",
+  "text_template": "Everyone knows winter is the real mess maker. You don't need WeatherTech floor liners for summer unless you hit the beach and half the beach ends up back in your car or the campsite dirt ends up in your trunk. Then you'd want a cargo liner or a road trip go sideways, drink spills, ketchup goes rogue, ice cream drips. Yeah, you'd be pretty happy about those WeatherTech seat protectors. So just to be clear, as the mud you're inevitably going to step in this summer, you don't need WeatherTech. Unless you plan on doing summer. Visit WeatherTech.com today.",
+  "intro_variants": [
+    "Everyone knows winter is the real mess maker. You don't need WeatherTech floor liners for summer unless you hit the beach and half the beach ends up back in your car or the campsite dirt ends up in your trunk."
+  ],
+  "outro_variants": [
+    "Unless you plan on doing summer. Visit WeatherTech.com today."
+  ],
+  "avg_duration": 34.3,
+  "sponsor": "WeatherTech",
+  "sponsor_aliases": [
+    "weathertech.com"
+  ],
+  "sponsor_tags": [
+    "auto",
+    "automotive"
+  ],
+  "source_language": null,
+  "community_id": "1450b9f9-be28-4e4e-9995-62d6fecf2645",
+  "version": 1,
+  "submitted_at": "2026-06-06T23:42:17.096569+00:00",
+  "submitted_app_version": "2.7.5",
+  "sponsor_match": "exact"
+}

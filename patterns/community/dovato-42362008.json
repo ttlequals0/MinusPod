@@ -1,0 +1,30 @@
+{
+  "scope": "global",
+  "text_template": "This ad is brought to you by Veeve Healthcare, the makers of Dovato, Dolutegravir, Lamivudine. If you living with HIV do learn about Dovato. Dovato is a complete HIV treatment by prescription only for some people 12 and older Your doctor will determine if Dovato is right for you Most HIV pills contain three or four medicines. Dovato is as effective with just two. No other complete HIV pill contains fewer medicines than Dovato It is unknown if Dovato is safe and effective if you have HIV and hepatitis B. If you have Hep B, don't stop Dovato without talking to your doctor, as it may get worse or harder to treat. Don't take Dovato if you're allergic to its ingredients or taking Daphetilide due to serious or life-threatening side effects. If you have a rash or allergic reaction symptoms, stop Dovato and get medical help right away. Other serious or life-threatening side effects include severe liver problems and lactic acid buildup. If you're female or obese, you may be more at risk. Tell your doctor about your medicines or supplements, medical conditions, liver or kidney problems, pregnancy, breastfeeding or planned pregnancy. Do ask your doctor about fewer medicines. Visit dovato.com or call 1-877-844-8872.",
+  "intro_variants": [
+    "This ad is brought to you by Veeve Healthcare"
+  ],
+  "outro_variants": [
+    "Visit dovato.com or call 1-877-844-8872.",
+    "Visit devato.com or call 1-877-844-8872.",
+    "Visit davado.com or call 1-877-844-8872."
+  ],
+  "avg_duration": 65.0,
+  "sponsor": "Dovato",
+  "sponsor_aliases": [
+    "Dovado",
+    "Devato",
+    "Dolutegravir",
+    "Lamivudine",
+    "Veeve Healthcare"
+  ],
+  "sponsor_tags": [
+    "health"
+  ],
+  "source_language": null,
+  "community_id": "42362008-ce03-4876-9c46-59afcdbc43ff",
+  "version": 1,
+  "submitted_at": "2026-06-06T23:42:17.375380+00:00",
+  "submitted_app_version": "2.7.5",
+  "sponsor_match": "exact"
+}

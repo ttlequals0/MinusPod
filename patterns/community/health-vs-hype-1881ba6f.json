@@ -1,0 +1,22 @@
+{
+  "scope": "global",
+  "text_template": "We've all done it. Tumbled down an internet rabbit hole trying to heal ourself. And sometimes doing our own research can leave us more anxious than informed. Your feed is packed with wellness trends telling you to cold plunge protein max detox track your sleep. But what's actually real? What's exaggerated? What's just wrong? That exactly what Health vs Hype from the American Medical Association are doing. Each episode, Emmy-nominated science communicator Trace Dominguez, who's racked up billions of views across channels, talks to doctors, influencers, and real people trying these trends. Not to cancel them, not to hype them more, but to actually understand them. Because when it comes to your health, who you listen to matters. Start asking better questions and listen to Health vs. Hype on the app or wherever you get your podcasts.",
+  "intro_variants": [
+    "We've all done it. Tumbled down an internet rabbit hole trying to heal ourself."
+  ],
+  "outro_variants": [
+    "Start asking better questions and listen to Health vs. Hype on the app or wherever you get your podcasts."
+  ],
+  "avg_duration": 63.0,
+  "sponsor": "Health vs Hype",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "health"
+  ],
+  "source_language": null,
+  "community_id": "1881ba6f-92c7-4f0c-b1fe-2e3cc828bc9e",
+  "version": 1,
+  "submitted_at": "2026-06-06T23:42:17.285887+00:00",
+  "submitted_app_version": "2.7.5",
+  "sponsor_match": "exact"
+}

@@ -1,0 +1,25 @@
+{
+  "scope": "global",
+  "text_template": "Lots of places can expose you to identity theft. Oh no. That's why LifeLock monitors hundreds of millions of data points a second for threats to your identity, which is way more than anyone can do on their own. If we find anything suspicious, like new loans or changes to your financial accounts, we alert you right away, all through text, phone, email, or the LifeLock app. Get the alerts that could make all the difference. Save up to 30% your first year at LifeLock.com slash podcast. Terms apply.",
+  "intro_variants": [
+    "Lots of places can expose you to identity theft."
+  ],
+  "outro_variants": [
+    "Save up to 30% your first year at LifeLock.com slash podcast. Terms apply."
+  ],
+  "avg_duration": 28.9,
+  "sponsor": "LifeLock",
+  "sponsor_aliases": [
+    "Life Lock",
+    "LifeLock.com"
+  ],
+  "sponsor_tags": [
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "b1a08e34-777e-41c9-b0c3-730d4c0d6052",
+  "version": 1,
+  "submitted_at": "2026-06-06T23:42:17.432871+00:00",
+  "submitted_app_version": "2.7.5",
+  "sponsor_match": "exact"
+}

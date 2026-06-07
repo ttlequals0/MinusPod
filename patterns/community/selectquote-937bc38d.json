@@ -1,0 +1,26 @@
+{
+  "scope": "global",
+  "text_template": "Support for the show today comes from SelectQuote. It's never a bad time to start taking your financial future more seriously. And one thing that often gets overlooked in the mix is term life insurance. You know what I mean? But figuring out coverage can feel complicated. How much do you need? What does it cost? And where do you even start? But SelectQuote? Quote wants to make things easier and more affordable. For over 40 years, like me, SelectQuote has helped more than 2 million Americans secure over $700 billion in coverage. I haven't done that, but I've been around for more than 40 years, as of late, actually. Sounds like I should get some life insurance. Their goal is simple, help you find a term life insurance policy that fits your needs and budget. They do the shopping for you so you can save time and money. And in many cases, SelectQuote can give you same-day coverage, up to $2 million, no doctor's visit required. You can get the right life insurance for you for less and save more than 50% at selectquote.com. You can save more than 50% on term life insurance at selectquote.com. Today to get started, that's selectquote.com. Explained.",
+  "intro_variants": [
+    "Support for the show today comes from SelectQuote."
+  ],
+  "outro_variants": [
+    "You can save more than 50% on term life insurance at selectquote.com. Today to get started, that's selectquote.com. Explained.",
+    "You can save more than 50% on term life insurance at selectquote.com. Today to get started, that's selectquote.com slash explained."
+  ],
+  "avg_duration": 63.0,
+  "sponsor": "SelectQuote",
+  "sponsor_aliases": [
+    "Select Quote"
+  ],
+  "sponsor_tags": [
+    "insurance",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "937bc38d-f58a-48f7-9ced-4d5c0eb38fd1",
+  "version": 1,
+  "submitted_at": "2026-06-06T23:42:17.408894+00:00",
+  "submitted_app_version": "2.7.5",
+  "sponsor_match": "exact"
+}

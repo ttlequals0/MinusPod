@@ -1,0 +1,22 @@
+{
+  "scope": "global",
+  "text_template": "Looking for something new? Try fencing. The Olympic and Paralympic sport that mixes speed, strategy, and fun. It's like chess meets cardio, quick feet, quick decisions, and a satisfying beep when you score a point. Kids, teens, and adults can start anytime, no experience needed, and many clubs have loner gear. Coaches teach fundamentals and safety from day one. Find a beginner class for your kids near you at Tryfencing.org. That's Tryfencing.org.",
+  "intro_variants": [
+    "Looking for something new? Try fencing."
+  ],
+  "outro_variants": [
+    "Find a beginner class for your kids near you at Tryfencing.org. That's Tryfencing.org."
+  ],
+  "avg_duration": 28.2,
+  "sponsor": "tryfencing.org",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "sports"
+  ],
+  "source_language": null,
+  "community_id": "42188d07-4385-4a70-b392-e6bac00ceb99",
+  "version": 1,
+  "submitted_at": "2026-06-06T23:42:17.348539+00:00",
+  "submitted_app_version": "2.7.5",
+  "sponsor_match": "exact"
+}

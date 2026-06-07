@@ -1,0 +1,28 @@
+{
+  "scope": "global",
+  "text_template": "The springtime thaw is finally here. Flowers are blooming. Days are longer. We're saying yes to more plans and finally getting outside. Running, walking, just moving again. It's the perfect time to upgrade your everyday go-tos with Bombas. Take Bombas sport socks. They're super comfortable and designed with sports specific tech for running, cycling, yoga, hiking, you name it. I use them to run in and I can tell you they work beautifully. So head over to Bombas.com and use code SYSK for 20% off your first purchase. That's B-O-M-B-A-S dot com, code SYSK at checkout.",
+  "intro_variants": [
+    "The springtime thaw is finally here. Flowers are blooming. Days are longer.",
+    "Support for Today Explained comes from Bombas."
+  ],
+  "outro_variants": [
+    "So head over to Bombas.com and use code SYSK for 20% off your first purchase. That's B-O-M-B-A-S dot com, code SYSK at checkout.",
+    "You can go to Bombas.com slash explained and use the code explained for 20% off your first purchase. That's B-O-M-B-A-S dot com slash explained, code explained at checkout."
+  ],
+  "avg_duration": 33.7,
+  "sponsor": "Bombas",
+  "sponsor_aliases": [
+    "bombas.com"
+  ],
+  "sponsor_tags": [
+    "apparel",
+    "dtc",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "8db5b1bc-7d61-49da-a74d-1cef2ee2a641",
+  "version": 1,
+  "submitted_at": "2026-06-06T23:42:17.145114+00:00",
+  "submitted_app_version": "2.7.5",
+  "sponsor_match": "exact"
+}

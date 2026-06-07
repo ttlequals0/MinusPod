@@ -7,20 +7,22 @@
   "outro_variants": [
     "That Q dot com slash explain it to get free shipping and 365 day returns Quince slash explain it.",
     "That's Quince dot com slash explain it to get free shipping and 365 day returns Quince slash explain it",
-    "That's Q-U-I-N-C-E dot com slash explainit to get free shipping and 365 day returns. Quince.com slash explainit."
+    "That's Q-U-I-N-C-E dot com slash explainit to get free shipping and 365 day returns. Quince.com slash explainit.",
+    "That's quince.com slash astead, A-S-T-E-A-D, for free shipping and 365 day returns."
   ],
-  "avg_duration": null,
+  "avg_duration": 83.0,
   "sponsor": "Quince",
   "sponsor_aliases": [
     "quince.com"
   ],
   "sponsor_tags": [
     "apparel",
+    "dtc",
     "universal"
   ],
   "source_language": null,
   "community_id": "10ed0ed2-5574-4840-b122-944c673ea9b7",
-  "version": 1,
+  "version": 2,
   "submitted_at": "2026-05-31T02:30:45Z",
   "submitted_app_version": "unknown",
   "sponsor_match": "exact"

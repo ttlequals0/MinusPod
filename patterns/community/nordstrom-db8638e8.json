@@ -3,13 +3,15 @@
   "text_template": "Spring styles are at Nordstrom Rack stores now, and they're up to 60% off. Stock up and save on Rag & Bone, Madewell, Vince, All Saints, and more of your favorites. How did I not know Rack has Adidas? Why do we rack? For the hottest deals. Just so many good brands. Join the Nordiclub to unlock exclusive discounts, shop new arrivals first, and more. Plus, buy online and pick up at your favorite Rack store for free. Great brands, great prices. That's why you rack.",
   "intro_variants": [
     "Spring styles are at Nordstrom Rack stores now, and they're up to 60% off.",
-    "Stock up and save on Rag & Bone, Madewell, Vince, All Saints, and more of your favorites."
+    "Everything you want for summer is at Nordstrom Rack stores now and up to 60% off.",
+    "Stock up and save on Rag & Bone, Madewell, Vince, All Saints, and more of your favorites.",
+    "Stock up and save on the brands you love like Vince, Sam Edelman, Frame and Free People"
   ],
   "outro_variants": [
     "Great brands, great prices. That's why you rack."
   ],
   "avg_duration": null,
-  "sponsor": "Nordstrom Rack",
+  "sponsor": "Nordstrom",
   "sponsor_aliases": [],
   "sponsor_tags": [
     "home_goods",
@@ -18,7 +20,7 @@
   ],
   "source_language": null,
   "community_id": "db8638e8-45b8-4581-81c0-b8837aedfd07",
-  "version": 1,
+  "version": 2,
   "submitted_at": "2026-05-27T02:31:11.364726+00:00",
   "submitted_app_version": "unknown",
   "sponsor_match": "exact"

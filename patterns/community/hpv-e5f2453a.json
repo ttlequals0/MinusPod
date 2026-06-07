@@ -1,0 +1,23 @@
+{
+  "scope": "global",
+  "text_template": "Mom I'm heading out. You're wearing shorts. It's freezing. And wear your coat. I'm good, bye mom! Does your tween care more about looking cool than staying warm? Time to talk to their doctor about HPV vaccination to help protect them against certain HPV-related cancers before exposure. For most people, HPV clears on its own. But for those who don't clear the virus, it can cause certain cancers later in life. Why wait to vaccinate?",
+  "intro_variants": [
+    "Mom I'm heading out. You're wearing shorts. It's freezing. And wear your coat. I'm good, bye mom!"
+  ],
+  "outro_variants": [
+    "For most people, HPV clears on its own. But for those who don't clear the virus, it can cause certain cancers later in life. Why wait to vaccinate?"
+  ],
+  "avg_duration": 26.4,
+  "sponsor": "HPV",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "health",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "e5f2453a-1d25-4863-a596-24ffcfc6c603",
+  "version": 1,
+  "submitted_at": "2026-06-06T23:42:17.382690+00:00",
+  "submitted_app_version": "2.7.5",
+  "sponsor_match": "exact"
+}

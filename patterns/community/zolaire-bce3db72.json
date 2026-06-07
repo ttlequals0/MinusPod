@@ -1,0 +1,28 @@
+{
+  "scope": "global",
+  "text_template": "She's been thinking about this sleepover all week, but I think about her food allergies all the time. Fortunately, her doctor prescribed Zolaire, omalizumab. It's proven to significantly reduce allergic reactions if a food allergy accident happens. Zolaire 150mg is a prescription medication used to treat food allergy in people one year of age and older to reduce allergic reactions due to accidental exposure to one or more foods While taking Zolaire you should continue to avoid all foods to which you are allergic Don use if you are allergic to Zolaire Zolaire may cause a severe life allergic reaction called anaphylaxis Tell your doctor if you ever had anaphylaxis Get help right away if you have trouble breathing or if you have swelling of your throat or tongue Zolaire should not be used for the emergency treatment of allergic reactions including anaphylaxis Zolaire is for maintenance use to reduce allergic reactions including anaphylaxis while avoiding food allergens Serious side effects such as cancer fever muscle aches and rash parasitic infection or heart and circulation problems and the problems have been reported. Please see Zolaire.com for full prescribing information. Ask an allergist about Zolaire. This is an advertisement for Zolaire paid for by Genentech and Novartis.",
+  "intro_variants": [
+    "She's been thinking about this sleepover all week, but I think about her food allergies all the time. Fortunately, her doctor prescribed Zolaire, omalizumab."
+  ],
+  "outro_variants": [
+    "This is an advertisement for Zolaire paid for by Genentech and Novartis."
+  ],
+  "avg_duration": 103.7,
+  "sponsor": "Zolaire",
+  "sponsor_aliases": [
+    "zolaire.com",
+    "omalizumab",
+    "Genentech",
+    "Novartis"
+  ],
+  "sponsor_tags": [
+    "health",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "bce3db72-4300-4ea1-aca7-2637457bb9d6",
+  "version": 1,
+  "submitted_at": "2026-06-06T23:42:17.563804+00:00",
+  "submitted_app_version": "2.7.5",
+  "sponsor_match": "exact"
+}

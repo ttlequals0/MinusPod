@@ -2,26 +2,30 @@
   "scope": "global",
   "text_template": "Guys don't like talking about ED, but if something's been off in the bedroom, you're not alone, and you don't need to wait longer than you need to take action. Getting real treatment is simple, and through HIMSS, it's 100% online. At some point, you've gotta stop blaming stress, sleep, or just getting older. If bedroom performance is in question, it's probably crossed your mind to do something about it. The good news? You don't have to jump through hoops to fix it. HIMSS connects you with licensed healthcare providers online, giving you simple access to legitimate ED treatment options from home. No awkward appointments, no pharmacy lines. You just complete a simple online intake form and a provider will review your information and determine if treatment is right for you. If prescribed, your treatment ships directly to your door in discreet packaging. To get simple, online access to personalized, affordable care for ED, weight loss, and more, visit HEMS.com slash BTB. That's HEMS.com slash BTB for your free online visit. HEMS.com slash BTB. Prescription required. See website for details and important safety information. Sledenafil is the generic version of Viagra. Viagra is a registered trademark of Viatris, a Viatris Specialty LLC. HEMS is not affiliated with or endorsed by Viatris.",
   "intro_variants": [
-    "Guys don't like talking about ED, but if something's been off in the bedroom, you're not alone, and you don't need to wait longer than you need to take action."
+    "Guys don't like talking about ED, but if something's been off in the bedroom, you're not alone, and you don't need to wait longer than you need to take action.",
+    "Support for the show today comes from HIMSS.",
+    "Support for the show today comes from Hims."
   ],
   "outro_variants": [
     "Sledenafil is the generic version of Viagra. Viagra is a registered trademark of Viatris, a Viatris Specialty LLC. HEMS is not affiliated with or endorsed by Viatris.",
-    "To get simple, online access to personalized, affordable care for ED, weight loss, and more, visit HEMS.com"
+    "To get simple, online access to personalized, affordable care for ED, weight loss, and more, visit HEMS.com",
+    "Hymns is not affiliated with or endorsed by Viatris."
   ],
   "avg_duration": null,
-  "sponsor": "Hims.com",
+  "sponsor": "Hims",
   "sponsor_aliases": [
-    "Hems.com",
-    "Hers.com"
+    "Hems",
+    "hims.com"
   ],
   "sponsor_tags": [
     "health",
-    "supplements",
+    "personal_care",
+    "dtc",
     "universal"
   ],
   "source_language": null,
   "community_id": "4c132f88-bb8b-47b6-8d74-b1c38c7c90f0",
-  "version": 1,
+  "version": 2,
   "submitted_at": "2026-05-27T02:31:11.364726+00:00",
   "submitted_app_version": "unknown",
   "sponsor_match": "exact"

@@ -1,0 +1,25 @@
+{
+  "scope": "global",
+  "text_template": "Support for this show comes from Norwegian Cruise Line. A cruise with Norwegian is a vacation you'll never forget, with an onboard experience that makes it easy for the whole family to settle into their own version of vacation. Because on a cruise with Norwegian, choice comes naturally for the whole family, and destinations feel just as effortless. Wander beautiful cities and take in stunning natural scenery. Norwegian Cruise Line, it's different out here. Visit ncl.com, call your travel advisor, or 1-888-NCL-CRUISE. Norwegian Cruise Line, Chips Registry, The Bahamas, and USA.",
+  "intro_variants": [
+    "Support for this show comes from Norwegian Cruise Line."
+  ],
+  "outro_variants": [
+    "Visit ncl.com, call your travel advisor, or 1-888-NCL-CRUISE.",
+    "Norwegian Cruise Line, Chips Registry, The Bahamas, and USA."
+  ],
+  "avg_duration": 29.9,
+  "sponsor": "Norwegian Cruise Line",
+  "sponsor_aliases": [
+    "ncl.com"
+  ],
+  "sponsor_tags": [
+    "travel"
+  ],
+  "source_language": null,
+  "community_id": "8e81eb4d-0fe5-4676-be10-5c78428c3ab9",
+  "version": 1,
+  "submitted_at": "2026-06-06T23:42:17.203569+00:00",
+  "submitted_app_version": "2.7.5",
+  "sponsor_match": "exact"
+}
