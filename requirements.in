@@ -19,7 +19,7 @@ gunicorn==26.0.0
 requests>=2.34.2
 
 # HTML parsing (pricepertoken.com pricing scraper)
-beautifulsoup4>=4.12.0
+beautifulsoup4>=4.15.0
 
 # Utilities
 feedparser==6.0.12
