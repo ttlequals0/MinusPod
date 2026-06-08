@@ -7,7 +7,7 @@
 
 # Core transcription
 faster-whisper>=1.1.0
-ctranslate2==4.7.2
+ctranslate2==4.8.0
 
 # API and web
 anthropic>=0.105.2
