@@ -16,7 +16,7 @@
     "pulltorefreshjs": "^0.1.22",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
-    "react-is": "^19.2.5",
+    "react-is": "^19.2.7",
     "react-router-dom": "^7.15.1",
     "recharts": "^3.8.1",
     "swagger-ui-dist": "^5.32.6",
