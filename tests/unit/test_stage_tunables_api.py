@@ -3,7 +3,7 @@ import json
 import os
 import sys
 import tempfile
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -149,3 +149,25 @@ class TestNullClears:
         assert r.status_code == 200
         # After clear, stored value is empty string (treated as default by reader).
         assert db.get_setting('detection_temperature') == ''
+
+
+class TestResetClearsStageTunables:
+    """POST /settings/ad-detection/reset must clear stage tunables, not skip them."""
+
+    def test_reset_clears_set_stage_tunables(self, client):
+        from database import Database
+        db = Database()
+        db.set_setting('reviewer_max_tokens', '16384', is_default=False)
+        db.set_setting('window_size_seconds', '900', is_default=False)
+        db.set_setting('reviewer_reasoning_level', 'high', is_default=False)
+
+        # Patch out the LLM-client recreation so the reset doesn't touch a provider.
+        with patch('api.settings.get_llm_client', return_value=MagicMock()):
+            r = client.post('/api/v1/settings/ad-detection/reset')
+        assert r.status_code == 200, r.data
+
+        assert db.get_setting('reviewer_max_tokens') == ''
+        assert db.get_setting('window_size_seconds') == ''
+        assert db.get_setting('reviewer_reasoning_level') == ''
+        alls = db.get_all_settings()
+        assert alls['reviewer_max_tokens']['is_default'] is True

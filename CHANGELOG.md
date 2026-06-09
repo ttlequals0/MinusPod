@@ -6,6 +6,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.8] - 2026-06-09
+
+### Fixed
+
+- LLM Tunables settings now save reliably (#351). The section had no Save button, and each field only committed when it lost focus, so on mobile an edit like raising the reviewer-pass token limit was usually discarded before it reached the server and reopening Settings showed the old default. Edits are now held and written in one request behind an explicit "Save LLM Tunables" button, matching the rest of the settings page.
+- "Reset All" and the per-field Reset now return the per-stage LLM tunables to their defaults. These keys were skipped on reset, so a tunable kept its last value.
+
 ## [2.7.7] - 2026-06-07
 
 ### Changed

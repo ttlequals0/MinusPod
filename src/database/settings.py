@@ -103,12 +103,20 @@ class SettingsMixin:
         )
         from config import DEFAULT_AD_DETECTION_MODEL as DEFAULT_MODEL
         from chapters_generator import CHAPTERS_MODEL
-        from config import PROVIDER_ANTHROPIC
+        from config import PROVIDER_ANTHROPIC, STAGE_TUNABLE_DEFAULTS
         from llm_client import get_effective_provider
         from secrets_crypto import SECRET_SETTING_KEYS
 
         if key in SECRET_SETTING_KEYS:
             self.clear_secret(key)
+            return True
+
+        if key in STAGE_TUNABLE_DEFAULTS:
+            # Stage tunables resolve env > DB > default at read time. Clear the
+            # row (empty value, is_default=True) so that resolution takes over --
+            # mirrors the clear path in api.settings._apply_stage_tunables and
+            # avoids stringifying None for the reasoning budget/level defaults.
+            self.set_setting(key, "", is_default=True)
             return True
 
         # Provider-aware defaults for model settings
