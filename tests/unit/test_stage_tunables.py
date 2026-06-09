@@ -155,6 +155,51 @@ class TestDbFallback:
         assert config.get_stage_tunable("detection_max_tokens", settings=settings) == 8192
 
 
+class TestStageTunableReset:
+    """reset_setting must clear stage-tunable rows (not silently no-op).
+
+    Before the fix, reset_setting's hardcoded defaults dict omitted every stage
+    tunable, so reset_setting('reviewer_max_tokens') fell through to return False
+    and left the user's value in place -- the "Reset All" no-op behind issue #351.
+    """
+
+    def test_reset_clears_numeric_tunable(self, temp_db):
+        temp_db.set_setting('reviewer_max_tokens', '16384', is_default=False)
+        assert temp_db.reset_setting('reviewer_max_tokens') is True
+        row = temp_db.get_all_settings()['reviewer_max_tokens']
+        assert row['value'] == ''
+        assert row['is_default'] is True
+
+    def test_reset_clears_non_numeric_tunable_without_none_string(self, temp_db):
+        # The default for reasoning level is None; clearing must write "" not "None".
+        temp_db.set_setting('reviewer_reasoning_level', 'high', is_default=False)
+        assert temp_db.reset_setting('reviewer_reasoning_level') is True
+        assert temp_db.get_setting('reviewer_reasoning_level') == ''
+
+    def test_reset_restores_default_resolution(self, temp_db, monkeypatch):
+        _clear_envs(monkeypatch, 'REVIEWER_MAX_TOKENS', 'REVIEW_MAX_TOKENS')
+        temp_db.set_setting('reviewer_max_tokens', '16384', is_default=False)
+        temp_db.reset_setting('reviewer_max_tokens')
+        settings = temp_db.get_all_settings()
+        assert config.get_stage_tunable('reviewer_max_tokens', settings=settings) == 4096
+
+    def test_reset_loop_clears_all_stage_tunables(self, temp_db):
+        # Mirrors the loop in api.settings.reset_ad_detection_settings.
+        from config import STAGE_TUNABLE_PAYLOAD_KEYS
+        temp_db.set_setting('reviewer_max_tokens', '16384', is_default=False)
+        temp_db.set_setting('window_size_seconds', '900', is_default=False)
+        temp_db.set_setting('detection_temperature', '0.7', is_default=False)
+        for _payload_key, db_key, _kind in STAGE_TUNABLE_PAYLOAD_KEYS:
+            assert temp_db.reset_setting(db_key) is True
+        alls = temp_db.get_all_settings()
+        for key in ('reviewer_max_tokens', 'window_size_seconds', 'detection_temperature'):
+            assert alls[key]['value'] == ''
+            assert alls[key]['is_default'] is True
+
+    def test_reset_setting_returns_false_for_unknown_key(self, temp_db):
+        assert temp_db.reset_setting('not_a_real_setting') is False
+
+
 class TestEnvOverrideDetection:
     def test_no_override_when_env_unset(self, monkeypatch):
         _clear_envs(monkeypatch, "DETECTION_MAX_TOKENS", "AD_DETECTION_MAX_TOKENS")

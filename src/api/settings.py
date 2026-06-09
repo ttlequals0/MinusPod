@@ -28,6 +28,7 @@ from config import (
     AD_REVIEWER_PARALLEL_ADS_MIN,
     AD_REVIEWER_PARALLEL_ADS_MAX,
     coerce_bool_setting,
+    STAGE_TUNABLE_PAYLOAD_KEYS,
 )
 from pricing_fetcher import force_refresh_pricing
 from llm_client import (
@@ -936,6 +937,12 @@ def reset_ad_detection_settings():
     db.reset_setting('vad_gap_start_min_seconds')
     db.reset_setting('vad_gap_mid_min_seconds')
     db.reset_setting('vad_gap_tail_min_seconds')
+
+    # Per-stage LLM tunables (temperature, max tokens, reasoning, Ollama context
+    # window, detection-window geometry). reset_setting clears each row so
+    # env > default resolution applies.
+    for _payload_key, db_key, _kind in STAGE_TUNABLE_PAYLOAD_KEYS:
+        db.reset_setting(db_key)
 
     # Recreate LLM client with reset settings
     client = get_llm_client(force_new=True)

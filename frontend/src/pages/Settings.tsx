@@ -411,11 +411,23 @@ function Settings() {
     },
   });
 
-  // Per-stage tunables save immediately rather than waiting for the global Save
-  // button: each field is independent and users tweak them iteratively.
+  // Single-field tunable saves (e.g. Ollama context window) commit immediately.
   const tunableMutation = useMutation({
     mutationFn: (payload: UpdateSettingsPayload) => updateSettings(payload),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['settings'] });
+    },
+  });
+
+  // The LLM Tunables section batches all its field edits behind one explicit
+  // Save button; its own mutation keeps the Saving/Saved state scoped to that
+  // section rather than flashing on unrelated single-field saves.
+  const stageTunablesMutation = useMutation({
+    mutationFn: (payload: UpdateSettingsPayload) => updateSettings(payload),
+    // onSettled (not onSuccess): the PUT applies fields in phases and commits
+    // each as it goes, so a 400 on a later field can still leave an earlier one
+    // written. Re-hydrate on both outcomes so the section reflects what landed.
+    onSettled: () => {
       queryClient.invalidateQueries({ queryKey: ['settings'] });
     },
   });
@@ -553,9 +565,11 @@ function Settings() {
           tunables={settings.stageTunables}
           defaults={settings.stageTunableDefaults}
           llmProvider={llmProvider}
-          onUpdate={(payload) => tunableMutation.mutate(payload)}
+          onSave={(payload) => stageTunablesMutation.mutate(payload)}
+          saveIsPending={stageTunablesMutation.isPending}
+          saveIsSuccess={stageTunablesMutation.isSuccess}
+          saveError={stageTunablesMutation.error ? (stageTunablesMutation.error as Error).message : null}
           parallelWindows={settings.adDetectionParallelWindows?.value ?? settings.defaults?.adDetectionParallelWindows ?? 4}
-          parallelWindowsIsDefault={settings.adDetectionParallelWindows?.isDefault ?? true}
           parallelWindowsDefault={settings.defaults?.adDetectionParallelWindows ?? 4}
         />
       )}
