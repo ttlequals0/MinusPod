@@ -6,7 +6,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.7.9] - 2026-06-09
+
+### Added
+
+- `MINUSPOD_PORT` sets the internal listen port, defaulting to 8000. It helps when you run with host networking or several instances on one host and need to move off 8000. `GUNICORN_BIND` still wins when set. The container healthcheck and the compose port mapping, expose, and healthcheck all follow the variable, so a custom port no longer leaves the container reporting unhealthy. (#352)
 
 ### Documentation
 
