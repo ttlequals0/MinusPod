@@ -158,7 +158,7 @@ EXPOSE 8000
 
 # Health check - verify the app is responding
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 --start-period=30s \
-  CMD curl -f http://localhost:8000/api/v1/health || exit 1
+  CMD curl -f http://localhost:${MINUSPOD_PORT:-8000}/api/v1/health || exit 1
 
 # Run the application via entrypoint
 ENTRYPOINT ["/app/entrypoint.sh"]

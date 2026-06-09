@@ -67,6 +67,7 @@ Grouped by how often you'll touch them. **Standard** is what a typical deploymen
 | `APP_UID` | `1000` | UID gunicorn runs as inside the container. Override to match host volume ownership. |
 | `APP_GID` | `1000` | GID counterpart to `APP_UID`. |
 | `GUNICORN_BIND` | `0.0.0.0:8000` | Listen address. Accepts a comma-separated list for multiple sockets. For dual-stack on rootless Podman, use `[::]:8000` -- one IPv6 wildcard also accepts IPv4 when the kernel keeps `bindv6only=0` (the default). Do not list both `0.0.0.0:8000` and `[::]:8000` on such a kernel; the second bind fails with `EADDRINUSE` and gunicorn exits. |
+| `MINUSPOD_PORT` | `8000` | Port for the default listen address (`0.0.0.0:$MINUSPOD_PORT`). Handy for `network_mode: host` or running several instances on one host without a port-mapping conflict. Ignored when `GUNICORN_BIND` is set, which takes precedence. The container `EXPOSE` stays at `8000` (build-time metadata only); the actual listen port follows this var. |
 | `GUNICORN_WORKERS` | `2` | Worker count. Lower means single-threaded UI blocking during RSS refresh; higher multiplies per-worker rate-limit counters (when using `memory://`). |
 | `GUNICORN_TIMEOUT` | `600` | Per-request hard timeout. |
 | `GUNICORN_GRACEFUL_TIMEOUT` | `330` | Seconds between SIGTERM and SIGKILL on shutdown. |

@@ -33,7 +33,7 @@ services:
     # owned by a different user -- e.g. `user: "2000:2000"`.
     # user: "1000:1000"
     ports:
-      - "8000:8000"
+      - "${MINUSPOD_PORT:-8000}:${MINUSPOD_PORT:-8000}"
     volumes:
       - ./data:/app/data
       # Optional: Custom assets directory for replacement audio
@@ -67,6 +67,9 @@ services:
       # Server Configuration
       # =================================================================
       - BASE_URL=${BASE_URL:-http://localhost:8000}
+      # Internal listen port. Default 8000. Useful for host networking or
+      # running multiple instances. Ignored when GUNICORN_BIND is set.
+      - MINUSPOD_PORT=${MINUSPOD_PORT:-8000}
 
       # =================================================================
       # 2.0.0+ Security (defaults shown; override via .env when needed)
@@ -94,7 +97,7 @@ services:
       - MINUSPOD_TRUSTED_PROXY_COUNT=${MINUSPOD_TRUSTED_PROXY_COUNT:-0}
 
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      test: ["CMD-SHELL", "curl -f http://localhost:$${MINUSPOD_PORT:-8000}/api/v1/health || exit 1"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -106,7 +109,7 @@ services:
         max-file: "3"
     restart: unless-stopped
     expose:
-      - "8000"
+      - "${MINUSPOD_PORT:-8000}"
     security_opt:
       - "no-new-privileges:true"
     cap_drop:
