@@ -10,6 +10,7 @@ from ad_detector import (
     extract_sponsor_names,
     refine_ad_boundaries,
     merge_same_sponsor_ads,
+    deduplicate_window_ads,
     _extract_ad_keywords,
     validate_ad_timestamps,
     get_uncovered_portions,
@@ -505,3 +506,44 @@ class TestClaudeFeedbackDedup:
                         updated_patterns.add(pid)
 
         assert mock_pattern_service.update_duration.call_count == 2
+
+
+class TestDeduplicateWindowMergeFlag:
+    """deduplicate_window_ads must flag a chained-distinct-ad span (positive
+    gap) so the reviewer keeps it expand-only, but NOT flag a same-ad overlap."""
+
+    def test_gap_chain_sets_merged_distinct_ads(self):
+        # Three back-to-back distinct ads within the 5s merge threshold, like
+        # the DTNS Live With It / Capital One / Grainger chain.
+        ads = [
+            {'start': 1987.2, 'end': 2006.0, 'sponsor': 'Live With It'},
+            {'start': 2006.0, 'end': 2034.1, 'sponsor': 'Capital One'},
+            {'start': 2034.6, 'end': 2073.3, 'sponsor': 'Grainger'},
+        ]
+        merged = deduplicate_window_ads(ads)
+        assert len(merged) == 1
+        assert merged[0]['start'] == 1987.2
+        assert merged[0]['end'] == 2073.3
+        assert merged[0].get('merged_distinct_ads') is True
+
+    def test_touching_distinct_ads_set_merged_distinct_ads(self):
+        # Two distinct ads emitted back-to-back with no gap (end == next start) -
+        # the common LLM contiguous-break shape. Must be flagged (touch counts).
+        ads = [
+            {'start': 100.0, 'end': 130.0, 'sponsor': 'Acme'},
+            {'start': 130.0, 'end': 160.0, 'sponsor': 'Beta'},
+        ]
+        merged = deduplicate_window_ads(ads)
+        assert len(merged) == 1
+        assert merged[0].get('merged_distinct_ads') is True
+
+    def test_overlap_dedup_does_not_set_merged_distinct_ads(self):
+        # Same ad detected twice across an overlapping window boundary.
+        ads = [
+            {'start': 100.0, 'end': 135.0, 'sponsor': 'Acme'},
+            {'start': 130.0, 'end': 138.0, 'sponsor': 'Acme'},
+        ]
+        merged = deduplicate_window_ads(ads)
+        assert len(merged) == 1
+        # Key must be absent, not merely falsy, so deleting the gap logic fails.
+        assert 'merged_distinct_ads' not in merged[0]

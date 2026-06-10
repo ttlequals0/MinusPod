@@ -630,6 +630,7 @@ class AdValidator:
                 # Always merge small gaps (< 5s)
                 last['end'] = max(last['end'], current['end'])
                 last['validation_merged'] = True
+                last['merged_distinct_ads'] = True
                 if current.get('reason') and current['reason'] != last.get('reason'):
                     last['reason'] = f"{last.get('reason', '')} + {current['reason']}"
                 if current.get('confidence', 0) > last.get('confidence', 0):
@@ -639,6 +640,7 @@ class AdValidator:
                 # Merge larger gaps if no speech in between
                 last['end'] = max(last['end'], current['end'])
                 last['validation_merged'] = True
+                last['merged_distinct_ads'] = True
                 if current.get('reason') and current['reason'] != last.get('reason'):
                     last['reason'] = f"{last.get('reason', '')} + {current['reason']}"
                 if current.get('confidence', 0) > last.get('confidence', 0):

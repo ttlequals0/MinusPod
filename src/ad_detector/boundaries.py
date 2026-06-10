@@ -810,6 +810,7 @@ def merge_same_sponsor_ads(ads: List[Dict], segments: List[Dict], max_gap: float
                     # Extend current ad to include next ad
                     current_ad['end'] = next_ad['end']
                     current_ad['merged_sponsor'] = True
+                    current_ad['merged_distinct_ads'] = True
                     current_ad['sponsor_names'] = list(common_sponsors)
                     # Combine reason
                     if current_ad.get('reason') and next_ad.get('reason'):
@@ -861,6 +862,14 @@ def deduplicate_window_ads(all_ads: List[Dict], merge_threshold: float = 5.0) ->
 
         # Check for overlap (ads within threshold seconds are considered overlapping)
         if current['start'] <= last['end'] + merge_threshold:
+            # Non-overlapping spans (touching or gapped) are distinct ads
+            # chained together, not the same ad re-detected across an
+            # overlapping window. LLM ad breaks are often exactly contiguous
+            # (end == next start), so touch must count too. Keep these
+            # expand-only in the reviewer; a true overlap (start < end) is the
+            # same ad and stays tightenable.
+            if current['start'] >= last['end']:
+                last['merged_distinct_ads'] = True
             # Merge: extend end time if current goes further
             if current['end'] > last['end']:
                 last['end'] = current['end']

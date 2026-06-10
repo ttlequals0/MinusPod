@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.4] - 2026-06-10
+
+### Fixed
+
+- Extended the 2.8.3 reviewer fix to the merge path that actually caused the Grainger survival. A back-to-back ad chain is collapsed into one cut by the window-deduplication step before validation ever sees it, and that step did not mark the result as a multi-ad span. So when the reviewer trimmed the merged block's end, it still severed the trailing ad. Re-verifying 2.8.3 on the Daily Tech News Show episode showed the cut was only saved by a second detection pass, not by the reviewer guard. Every merge that joins separate ads now sets one shared marker, including window and detection-stage merges and ads that sit exactly back-to-back, so the reviewer treats the whole span as expand-only. A single ad re-detected across an overlapping window is left tightenable as before.
+
 ## [2.8.3] - 2026-06-10
 
 ### Fixed

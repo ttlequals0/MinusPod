@@ -440,19 +440,17 @@ class AdReviewer:
             )
 
         # A merged ad's [start, end] is the union of multiple independently
-        # confirmed sub-ads: adjacent distinct ads joined across a gap by
-        # _merge_close_ads (validation_merged), or same-sponsor fragments by
-        # merge_same_sponsor_ads (merged_sponsor). The reviewer refines
-        # boundaries; it must not pull one inward and silently drop a
-        # still-confirmed sub-ad. Allow outward growth (leading/trailing CTA),
-        # forbid inward shrink.
+        # confirmed sub-ads. Every merge that joins NON-overlapping spans
+        # (adjacent distinct ads, or same-sponsor fragments) sets the canonical
+        # merged_distinct_ads flag: _merge_close_ads, merge_same_sponsor_ads,
+        # and the gap branch of deduplicate_window_ads / _merge_detection_results.
+        # The reviewer refines boundaries; it must not pull one inward and
+        # silently drop a still-confirmed sub-ad. Allow outward growth
+        # (leading/trailing CTA), forbid inward shrink.
         #
-        # The window/stage dedup flags (merged_windows from
-        # deduplicate_window_ads, and _merge_detection_results) are deliberately
-        # excluded: those fire on OVERLAP and mostly re-join the same ad
-        # detected twice, so freezing inward tightening there would over-protect
-        # ordinary single ads. Only gap/sponsor unions are true multi-ad spans.
-        if ad.get('validation_merged') or ad.get('merged_sponsor'):
+        # Overlap-based dedup (the same ad re-detected across windows/stages)
+        # does NOT set the flag, so ordinary single ads still tighten normally.
+        if ad.get('merged_distinct_ads'):
             floor_start = min(clamped_start, original_start)
             floor_end = max(clamped_end, original_end)
             if floor_start != clamped_start or floor_end != clamped_end:

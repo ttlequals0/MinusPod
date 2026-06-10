@@ -1445,6 +1445,13 @@ class AdDetector:
 
             # Check for overlap (within 3 seconds)
             if current['start'] <= last['end'] + 3.0:
+                # Non-overlapping spans (touching or gapped) are distinct ads,
+                # not the same ad overlapping across stages. Touch counts too
+                # (LLM breaks are often exactly contiguous). Keep these
+                # expand-only in the reviewer so a later inward pull can't drop
+                # a sub-ad; a true overlap (start < end) stays tightenable.
+                if current['start'] >= last['end']:
+                    last['merged_distinct_ads'] = True
                 # Merge - prefer pattern-detected metadata
                 if current['end'] > last['end']:
                     last['end'] = current['end']

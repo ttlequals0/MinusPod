@@ -231,7 +231,7 @@ def test_merged_ad_inward_end_shrink_is_blocked():
     reviewer._llm_client.messages_create.return_value = _resp(
         '[{"start": 100.0, "end": 160.0, "confidence": 0.85}]'
     )
-    ad = {'start': 120.0, 'end': 180.0, 'confidence': 0.9, 'validation_merged': True}
+    ad = {'start': 120.0, 'end': 180.0, 'confidence': 0.9, 'merged_distinct_ads': True}
     result = reviewer.review(
         accepted_ads=[ad], resurrection_eligible=[],
         segments=_mock_segments(), episode_meta=_mock_episode_meta(),
@@ -253,7 +253,7 @@ def test_merged_ad_outward_growth_allowed():
     reviewer._llm_client.messages_create.return_value = _resp(
         '[{"start": 110.0, "end": 195.0, "confidence": 0.85}]'
     )
-    ad = {'start': 120.0, 'end': 180.0, 'confidence': 0.9, 'validation_merged': True}
+    ad = {'start': 120.0, 'end': 180.0, 'confidence': 0.9, 'merged_distinct_ads': True}
     result = reviewer.review(
         accepted_ads=[ad], resurrection_eligible=[],
         segments=_mock_segments(), episode_meta=_mock_episode_meta(),
@@ -265,8 +265,9 @@ def test_merged_ad_outward_growth_allowed():
     assert out['end'] == 195.0
 
 
-def test_merged_sponsor_flag_also_blocks_inward_shrink():
-    """The same-sponsor merge flag (merged_sponsor) gets the same protection."""
+def test_merged_distinct_full_inward_shrink_yields_confirmed():
+    """When both edges are pulled inward on a merged span and fully blocked,
+    the net delta is zero, so the verdict is confirmed (no change applied)."""
     reviewer = _build_reviewer({
         'review_prompt': 'review',
         'resurrect_prompt': 'resurrect',
@@ -275,7 +276,7 @@ def test_merged_sponsor_flag_also_blocks_inward_shrink():
     reviewer._llm_client.messages_create.return_value = _resp(
         '[{"start": 130.0, "end": 165.0, "confidence": 0.85}]'
     )
-    ad = {'start': 120.0, 'end': 180.0, 'confidence': 0.9, 'merged_sponsor': True}
+    ad = {'start': 120.0, 'end': 180.0, 'confidence': 0.9, 'merged_distinct_ads': True}
     result = reviewer.review(
         accepted_ads=[ad], resurrection_eligible=[],
         segments=_mock_segments(), episode_meta=_mock_episode_meta(),
