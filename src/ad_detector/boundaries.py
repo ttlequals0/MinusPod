@@ -809,7 +809,6 @@ def merge_same_sponsor_ads(ads: List[Dict], segments: List[Dict], max_gap: float
                     )
                     # Extend current ad to include next ad
                     current_ad['end'] = next_ad['end']
-                    current_ad['merged_sponsor'] = True
                     current_ad['merged_distinct_ads'] = True
                     current_ad['sponsor_names'] = list(common_sponsors)
                     # Combine reason
@@ -888,8 +887,6 @@ def deduplicate_window_ads(all_ads: List[Dict], merge_threshold: float = 5.0) ->
             last_sponsor = last.get('sponsor', '')
             if current_sponsor and not last_sponsor:
                 last['sponsor'] = current_sponsor
-            # Mark as merged from windows
-            last['merged_windows'] = True
         else:
             merged.append(current.copy())
 

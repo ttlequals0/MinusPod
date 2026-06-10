@@ -172,6 +172,8 @@ MIN_AD_DURATION_FOR_REMOVAL = 10.0   # Min ad duration to actually remove from a
 POST_ROLL_TRIM_THRESHOLD = 30.0      # Threshold for trimming post-roll content
 MERGE_GAP_SECONDS = 1.0              # Cuts separated by less than this merge into one
                                      # (distinct from the validator's MERGE_GAP_THRESHOLD)
+SEGMENT_AD_COVERAGE_THRESHOLD = 0.8  # Drop a transcript segment when removed ads
+                                     # cover more than this fraction of it
 
 # ============================================================
 # Subprocess Timeouts (seconds)

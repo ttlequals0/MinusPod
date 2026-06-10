@@ -6,6 +6,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.5] - 2026-06-10
+
+### Fixed
+
+- The processed transcript no longer keeps a line whose audio was cut. A removed ad was only stripped from the transcript when a single cut covered more than 80 percent of a transcript line. A line that straddles two adjacent cuts (a first-pass cut and a verification re-cut that each take roughly half of it) slipped through and left the sponsor copy in the published transcript even though the audio for it was gone. Coverage is now measured against all of the cuts together, so a line that is almost entirely removed by the combined cuts is dropped.
+
+### Changed
+
+- Removed three internal merge marker fields that nothing read anymore (`validation_merged`, `merged_sponsor`, `merged_windows`); a single `merged_distinct_ads` marker replaced them in 2.8.4.
+
 ## [2.8.4] - 2026-06-10
 
 ### Fixed

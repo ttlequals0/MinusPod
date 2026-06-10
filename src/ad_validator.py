@@ -629,7 +629,6 @@ class AdValidator:
             if 0 <= gap < MERGE_GAP_THRESHOLD:
                 # Always merge small gaps (< 5s)
                 last['end'] = max(last['end'], current['end'])
-                last['validation_merged'] = True
                 last['merged_distinct_ads'] = True
                 if current.get('reason') and current['reason'] != last.get('reason'):
                     last['reason'] = f"{last.get('reason', '')} + {current['reason']}"
@@ -639,7 +638,6 @@ class AdValidator:
             elif 0 <= gap < MAX_SILENT_GAP and not self._has_speech_in_range(last['end'], current['start']):
                 # Merge larger gaps if no speech in between
                 last['end'] = max(last['end'], current['end'])
-                last['validation_merged'] = True
                 last['merged_distinct_ads'] = True
                 if current.get('reason') and current['reason'] != last.get('reason'):
                     last['reason'] = f"{last.get('reason', '')} + {current['reason']}"
