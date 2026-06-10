@@ -22,6 +22,35 @@ from utils.retry import calculate_backoff
 logger = logging.getLogger(__name__)
 
 
+class EmptyCompletionError(Exception):
+    """The provider returned a completion with no content.
+
+    Distinct from a valid empty-ad-list (``[]``) response: an empty body means
+    the call never produced an answer (truncation, refusal, or a flaky
+    endpoint). Treated as a retryable failure so it is retried and, if it
+    persists, surfaced as a failed window rather than silently recorded as
+    "no ads" (issue #358).
+    """
+
+
+def _completion_is_empty(response) -> bool:
+    """True when the model returned no usable content (empty or whitespace)."""
+    content = getattr(response, 'content', None)
+    return not (content or "").strip()
+
+
+def _call_once(llm_client, llm_kwargs, model):
+    """One LLM call; raise EmptyCompletionError if it comes back content-less."""
+    response = llm_client.messages_create(**llm_kwargs)
+    if _completion_is_empty(response):
+        raise EmptyCompletionError(f"empty completion from {model} (no content returned)")
+    return response
+
+
+def _is_retryable(error) -> bool:
+    return isinstance(error, EmptyCompletionError) or is_retryable_error(error)
+
+
 def call_llm_for_window(
     *,
     llm_client,
@@ -60,7 +89,7 @@ def call_llm_for_window(
 
     for attempt in range(max_retries + 1):
         try:
-            response = llm_client.messages_create(**llm_kwargs)
+            response = _call_once(llm_client, llm_kwargs, model)
             return response, None
         except Exception as e:
             last_error = e
@@ -90,7 +119,7 @@ def call_llm_for_window(
                 except Exception:
                     logger.exception("Failed to fire structural rate-limit webhook")
                 break
-            if is_retryable_error(e) and attempt < max_retries:
+            if _is_retryable(e) and attempt < max_retries:
                 if is_rate_limit_error(e):
                     retry_after = extract_retry_after(e)
                     if retry_after is not None:
@@ -122,7 +151,7 @@ def call_llm_for_window(
                     )
                 break
 
-    if response is None and last_error is not None and is_retryable_error(last_error):
+    if response is None and last_error is not None and _is_retryable(last_error):
         for retry_num, delay in enumerate([2, 5], 1):
             logger.warning(
                 f"[{slug}:{episode_id}] {window_label} per-window retry "
@@ -130,7 +159,7 @@ def call_llm_for_window(
             )
             time.sleep(delay)
             try:
-                response = llm_client.messages_create(**llm_kwargs)
+                response = _call_once(llm_client, llm_kwargs, model)
                 logger.info(
                     f"[{slug}:{episode_id}] {window_label} succeeded on retry {retry_num}"
                 )

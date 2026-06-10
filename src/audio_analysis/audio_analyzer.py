@@ -80,19 +80,9 @@ class AudioAnalyzer:
             max_ad_duration=MAX_TRANSITION_AD_DURATION,
         )
 
-        # Audio cue detector (issue #350) -- opt-in experiment, off by default.
-        from config import (
-            AUDIO_CUE_FREQ_MIN_HZ, AUDIO_CUE_FREQ_MAX_HZ,
-            AUDIO_CUE_PROMINENCE_DB, AUDIO_CUE_MIN_CONFIDENCE,
-        )
-        from .cue_detector import AudioCueDetector
-        self.cue_detection_enabled = settings.get('audio_cue_detection_enabled', False)
-        self.cue_detector = AudioCueDetector(
-            freq_min_hz=settings.get('audio_cue_freq_min_hz', AUDIO_CUE_FREQ_MIN_HZ),
-            freq_max_hz=settings.get('audio_cue_freq_max_hz', AUDIO_CUE_FREQ_MAX_HZ),
-            prominence_db=settings.get('audio_cue_prominence_db', AUDIO_CUE_PROMINENCE_DB),
-            min_confidence=settings.get('audio_cue_min_confidence', AUDIO_CUE_MIN_CONFIDENCE),
-        )
+        # Audio cue detector (issue #350) is built per run in analyze() from
+        # current settings, not here, so the experiment toggle takes effect
+        # without a restart (this analyzer is a long-lived singleton).
 
     def _load_settings(self) -> Dict[str, Any]:
         """Load settings from database."""
@@ -108,19 +98,40 @@ class AudioAnalyzer:
                 if transition_threshold:
                     settings['transition_threshold_db'] = float(transition_threshold)
 
-                # Audio cue detection (issue #350, opt-in experiment)
-                settings['audio_cue_detection_enabled'] = self.db.get_setting_bool(
-                    'audio_cue_detection_enabled', default=False)
-                for key in ('audio_cue_freq_min_hz', 'audio_cue_freq_max_hz',
-                            'audio_cue_prominence_db', 'audio_cue_min_confidence'):
-                    raw = self.db.get_setting(key)
-                    if raw:
-                        settings[key] = float(raw)
-
             except Exception as e:
                 logger.warning(f"Failed to load audio analysis settings: {e}")
 
         return settings
+
+    def _load_cue_config(self):
+        """Read the audio-cue experiment settings fresh, per run (issue #350).
+
+        This analyzer is a long-lived singleton, so reading the enable flag and
+        tuneables here -- not at construction -- lets the Settings toggle take
+        effect without a container restart. Returns (enabled, detector); the
+        detector is None when the experiment is off or no DB is available.
+        """
+        if not self.db:
+            return False, None
+        from config import (
+            AUDIO_CUE_FREQ_MIN_HZ, AUDIO_CUE_FREQ_MAX_HZ,
+            AUDIO_CUE_PROMINENCE_DB, AUDIO_CUE_MIN_CONFIDENCE,
+        )
+        from .cue_detector import AudioCueDetector
+        try:
+            if not self.db.get_setting_bool('audio_cue_detection_enabled', default=False):
+                return False, None
+
+            detector = AudioCueDetector(
+                freq_min_hz=self.db.get_setting_float('audio_cue_freq_min_hz', AUDIO_CUE_FREQ_MIN_HZ),
+                freq_max_hz=self.db.get_setting_float('audio_cue_freq_max_hz', AUDIO_CUE_FREQ_MAX_HZ),
+                prominence_db=self.db.get_setting_float('audio_cue_prominence_db', AUDIO_CUE_PROMINENCE_DB),
+                min_confidence=self.db.get_setting_float('audio_cue_min_confidence', AUDIO_CUE_MIN_CONFIDENCE),
+            )
+            return True, detector
+        except Exception as e:
+            logger.warning(f"Failed to load audio cue settings: {e}")
+            return False, None
 
     def is_enabled(self) -> bool:
         """Audio analysis is always enabled (volume-only is lightweight, uses ffmpeg)."""
@@ -236,14 +247,16 @@ class AudioAnalyzer:
                 logger.warning(error_msg)
                 errors.append(error_msg)
 
-        # Audio cue detection (issue #350) -- opt-in. Runs its own band-passed
+        # Audio cue detection (issue #350) -- opt-in. Settings are read per run
+        # so the toggle takes effect without a restart. Runs its own band-passed
         # ffmpeg pass, so only when the experiment is enabled.
-        if self.cue_detection_enabled:
+        cue_enabled, cue_detector = self._load_cue_config()
+        if cue_enabled and cue_detector:
             if status_callback:
                 status_callback("analyzing: audio cues", 40)
             cue_result, cue_error = self._run_component_with_timeout(
                 'audio_cue',
-                lambda: self.cue_detector.detect(audio_path),
+                lambda: cue_detector.detect(audio_path),
                 timeouts.get('cue', timeouts['volume']),
             )
             if cue_error:

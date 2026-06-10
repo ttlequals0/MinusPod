@@ -54,11 +54,22 @@ class VerificationPass:
             'segments': transcript segments from verification
             'status': 'clean', 'found_ads', 'no_segments', or 'transcription_failed'
         """
-        # Step 1: Re-transcribe processed audio
-        if progress_callback:
-            progress_callback("transcribing", 85)
-        logger.info(f"[{slug}:{episode_id}] Verification: Re-transcribing processed audio")
-        verification_segments = self._transcribe_verification(processed_audio_path, podcast_name)
+        # Step 1: Get verification segments. When pass 1 cut nothing, the
+        # processed audio is identical to the original, so reuse the existing
+        # transcript instead of re-transcribing the whole episode (issue #349).
+        if not pass1_cuts and original_segments:
+            logger.info(
+                f"[{slug}:{episode_id}] Verification: reusing original transcript "
+                f"({len(original_segments)} segments, no pass 1 cuts)"
+            )
+            # Shallow copy so this matches the re-transcribe path (a fresh list)
+            # and downstream can't mutate the caller's segment list in place.
+            verification_segments = list(original_segments)
+        else:
+            if progress_callback:
+                progress_callback("transcribing", 85)
+            logger.info(f"[{slug}:{episode_id}] Verification: Re-transcribing processed audio")
+            verification_segments = self._transcribe_verification(processed_audio_path, podcast_name)
 
         if not verification_segments:
             logger.warning(f"[{slug}:{episode_id}] Verification: No segments from re-transcription")

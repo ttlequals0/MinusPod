@@ -6,6 +6,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.1] - 2026-06-09
+
+### Fixed
+
+- LLM-only reprocess (#349) now reuses the audio and transcript it already has instead of working against a fresh download. It reuses the retained original audio rather than re-downloading, so detection runs against the same recording it cuts. Dynamically inserted ads rotate between downloads, so the old behavior could detect one set of ads and cut another. It also reuses the saved Whisper segments, which carry word-level timestamps, instead of re-parsing the transcript text, which dropped that timing and measurably weakened first-pass detection.
+- The audio cue detection experiment (#350) now reads its enable toggle and tuneables on each run rather than once at startup, so turning it on in Settings takes effect on the next reprocess without a container restart.
+- The verification pass reuses the existing transcript when the first pass cut nothing, instead of re-transcribing the whole episode for an audio file that is identical to the original.
+- An empty completion from the LLM provider is now retried and, if it persists, recorded as a failed detection window instead of being treated as "no ads found" (#358). A flaky or rate-limited endpoint can no longer pass an episode through looking clean. A genuine empty-ad-list response is unaffected.
+
+### Changed
+
+- Dropped the redundant "Experimental" label from the Audio Cue Detection settings card; it already sits under the Experiments section.
+
 ## [2.8.0] - 2026-06-09
 
 ### Added

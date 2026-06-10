@@ -39,7 +39,7 @@ function AudioCueDetectionSection({ audioCue, onChange }: AudioCueDetectionSecti
 
   return (
     <CollapsibleSection
-      title="Audio Cue Detection (Experimental)"
+      title="Audio Cue Detection"
       subtitle="Detects a short ding/stinger some shows play before an ad break and feeds it to the detector as a timing hint. Off by default."
     >
       <div className="space-y-6">

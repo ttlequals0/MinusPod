@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import shutil
+import tempfile
 import threading
 import time
 
@@ -217,20 +218,45 @@ def _download_and_transcribe(slug, episode_id, episode_url, podcast_name):
     transcript_text = storage.get_transcript(slug, episode_id)
 
     if transcript_text:
-        audio_logger.info(f"[{slug}:{episode_id}] Found existing transcript in database")
-        segments = parse_transcript_segments(transcript_text)
-
+        # Prefer the saved whisper segments (with word-level timestamps) over
+        # re-parsing the transcript text. parse_transcript_segments drops the
+        # word timing that boundary refinement and detection rely on, which
+        # measurably weakened first-pass detection in LLM-only mode (issue #349).
+        # Fall back to the text parse if the original segments were never saved.
+        segments = db.get_original_segments(slug, episode_id)
         if segments:
-            duration_min = segments[-1]['end'] / 60
-            audio_logger.info(f"[{slug}:{episode_id}] Loaded {len(segments)} segments, {duration_min:.1f} min")
+            audio_logger.info(
+                f"[{slug}:{episode_id}] Reusing {len(segments)} saved whisper segments (word-level)")
+        else:
+            segments = parse_transcript_segments(transcript_text)
 
-        available, cdn_error = transcriber.check_audio_availability(episode_url)
-        if not available:
-            raise Exception(f"CDN not ready: {cdn_error}")
+    if segments:
+        # Existing usable transcript: reuse it and skip transcription. A
+        # transcript that yields no segments falls through to a fresh
+        # transcription below rather than proceeding with nothing.
+        duration_min = segments[-1]['end'] / 60
+        audio_logger.info(
+            f"[{slug}:{episode_id}] Found existing transcript: "
+            f"{len(segments)} segments, {duration_min:.1f} min")
 
-        audio_path = transcriber.download_audio(episode_url)
-        if not audio_path:
-            raise Exception("Failed to download audio")
+        # Reuse the retained original audio instead of re-downloading from the
+        # CDN when we kept it (issue #349 LLM-only reprocess). Copy it to a temp
+        # working file so the retain-move and cleanup-unlink later in
+        # process_episode operate on the copy, never on the retained original.
+        original_path = storage.get_original_path(slug, episode_id)
+        if original_path and os.path.exists(original_path):
+            fd, audio_path = tempfile.mkstemp(suffix='.mp3')
+            os.close(fd)
+            shutil.copyfile(original_path, audio_path)
+            audio_logger.info(f"[{slug}:{episode_id}] Reusing retained original audio (skipped download)")
+        else:
+            available, cdn_error = transcriber.check_audio_availability(episode_url)
+            if not available:
+                raise Exception(f"CDN not ready: {cdn_error}")
+
+            audio_path = transcriber.download_audio(episode_url)
+            if not audio_path:
+                raise Exception("Failed to download audio")
     else:
         available, cdn_error = transcriber.check_audio_availability(episode_url)
         if not available:

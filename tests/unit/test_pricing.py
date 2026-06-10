@@ -537,6 +537,87 @@ class TestCallLlmForWindowRetry:
         assert error is None
 
 
+class TestEmptyCompletionGuard:
+    """Empty LLM completions are retried and surfaced as failed, not '[]' (issue #358)."""
+
+    @staticmethod
+    def _resp(content):
+        from unittest.mock import MagicMock
+        r = MagicMock()
+        r.content = content
+        return r
+
+    def test_completion_is_empty_helper(self):
+        from utils.llm_call import _completion_is_empty
+        assert _completion_is_empty(self._resp(None)) is True
+        assert _completion_is_empty(self._resp("")) is True
+        assert _completion_is_empty(self._resp("  \n ")) is True
+        assert _completion_is_empty(self._resp("[]")) is False
+
+    def test_persistently_empty_completion_fails_window(self):
+        from unittest.mock import MagicMock, patch
+        from ad_detector import AdDetector
+        from utils.llm_call import EmptyCompletionError
+
+        detector = AdDetector.__new__(AdDetector)
+        detector._llm_client = MagicMock()
+        detector._llm_client.messages_create.return_value = self._resp("")
+
+        with patch('utils.llm_call.calculate_backoff', return_value=0.0), \
+             patch('utils.llm_call.time.sleep'):
+            response, error = detector._call_llm_for_window(
+                model="test-model", system_prompt="s", prompt="p",
+                max_retries=1, llm_timeout=10, slug="t", episode_id="ep1",
+                window_label="Window 1", pass_name="ad_detection_pass_1",
+            )
+
+        assert response is None
+        assert isinstance(error, EmptyCompletionError)
+        # It retried rather than accepting the first empty response.
+        assert detector._llm_client.messages_create.call_count > 1
+
+    def test_empty_then_valid_completion_succeeds(self):
+        from unittest.mock import MagicMock, patch
+        from ad_detector import AdDetector
+
+        detector = AdDetector.__new__(AdDetector)
+        detector._llm_client = MagicMock()
+        good = self._resp("[]")
+        detector._llm_client.messages_create.side_effect = [self._resp(""), good]
+
+        with patch('utils.llm_call.calculate_backoff', return_value=0.0), \
+             patch('utils.llm_call.time.sleep'):
+            response, error = detector._call_llm_for_window(
+                model="test-model", system_prompt="s", prompt="p",
+                max_retries=1, llm_timeout=10, slug="t", episode_id="ep1",
+                window_label="Window 1", pass_name="ad_detection_pass_1",
+            )
+
+        assert response is good
+        assert error is None
+
+    def test_valid_empty_array_is_not_a_failure(self):
+        # '[]' is a real "no ads" answer, not an empty completion.
+        from unittest.mock import MagicMock, patch
+        from ad_detector import AdDetector
+
+        detector = AdDetector.__new__(AdDetector)
+        detector._llm_client = MagicMock()
+        resp = self._resp("[]")
+        detector._llm_client.messages_create.return_value = resp
+
+        with patch('utils.llm_call.time.sleep'):
+            response, error = detector._call_llm_for_window(
+                model="test-model", system_prompt="s", prompt="p",
+                max_retries=1, llm_timeout=10, slug="t", episode_id="ep1",
+                window_label="Window 1", pass_name="ad_detection_pass_1",
+            )
+
+        assert response is resp
+        assert error is None
+        assert detector._llm_client.messages_create.call_count == 1
+
+
 class TestHistoryPageParam:
     """Test history endpoint page parameter conversion."""
 
