@@ -34,6 +34,7 @@ import GlobalDefaultsSection from './settings/GlobalDefaultsSection';
 import Podcasting20Section from './settings/Podcasting20Section';
 import PromptsSection from './settings/PromptsSection';
 import ExperimentsSection from './settings/ExperimentsSection';
+import AudioCueDetectionSection from './settings/AudioCueDetectionSection';
 import CommunityPatternsSection from './settings/CommunityPatternsSection';
 import { formatModelLabel } from './settings/settingsUtils';
 
@@ -70,6 +71,13 @@ function Settings() {
     // merged into this section so the page Save persists everything together.
     updatePatterns: true,
     minTrimThreshold: 20,
+  });
+  const [audioCue, setAudioCue] = useState({
+    enabled: false,
+    freqMinHz: 1500,
+    freqMaxHz: 8000,
+    prominenceDb: 9,
+    minConfidence: 0.8,
   });
   const [selectedModel, setSelectedModel] = useState('');
   const [verificationModel, setVerificationModel] = useState('');
@@ -292,6 +300,13 @@ function Settings() {
       setOnlyExposeProcessedDefault(settings.onlyExposeProcessedDefault?.value ?? d.onlyExposeProcessedDefault);
       setAudioBitrate(settings.audioBitrate?.value || d.audioBitrate);
       setSkipFlacCompression(settings.skipFlacCompression?.value ?? d.skipFlacCompression);
+      setAudioCue({
+        enabled: settings.audioCueDetectionEnabled?.value ?? d.audioCueDetectionEnabled,
+        freqMinHz: settings.audioCueFreqMinHz?.value ?? d.audioCueFreqMinHz,
+        freqMaxHz: settings.audioCueFreqMaxHz?.value ?? d.audioCueFreqMaxHz,
+        prominenceDb: settings.audioCueProminenceDb?.value ?? d.audioCueProminenceDb,
+        minConfidence: settings.audioCueMinConfidence?.value ?? d.audioCueMinConfidence,
+      });
       setVttTranscriptsEnabled(settings.vttTranscriptsEnabled?.value ?? d.vttTranscriptsEnabled);
       setChaptersEnabled(settings.chaptersEnabled?.value ?? d.chaptersEnabled);
       setChaptersModel(settings.chaptersModel?.value || '');
@@ -334,6 +349,11 @@ function Settings() {
     if (reviewer.model !== (settings.reviewModel?.value || d.reviewModel)) payload.reviewModel = reviewer.model;
     if (reviewer.maxShift !== (settings.reviewMaxBoundaryShift?.value ?? d.reviewMaxBoundaryShift)) payload.reviewMaxBoundaryShift = reviewer.maxShift;
     if (reviewer.parallelAds !== (settings.adReviewerParallelAds?.value ?? d.adReviewerParallelAds)) payload.adReviewerParallelAds = reviewer.parallelAds;
+    if (audioCue.enabled !== (settings.audioCueDetectionEnabled?.value ?? d.audioCueDetectionEnabled)) payload.audioCueDetectionEnabled = audioCue.enabled;
+    if (audioCue.freqMinHz !== (settings.audioCueFreqMinHz?.value ?? d.audioCueFreqMinHz)) payload.audioCueFreqMinHz = audioCue.freqMinHz;
+    if (audioCue.freqMaxHz !== (settings.audioCueFreqMaxHz?.value ?? d.audioCueFreqMaxHz)) payload.audioCueFreqMaxHz = audioCue.freqMaxHz;
+    if (audioCue.prominenceDb !== (settings.audioCueProminenceDb?.value ?? d.audioCueProminenceDb)) payload.audioCueProminenceDb = audioCue.prominenceDb;
+    if (audioCue.minConfidence !== (settings.audioCueMinConfidence?.value ?? d.audioCueMinConfidence)) payload.audioCueMinConfidence = audioCue.minConfidence;
     if (selectedModel !== (settings.claudeModel?.value || '')) payload.claudeModel = selectedModel;
     if (verificationModel !== (settings.verificationModel?.value || '')) payload.verificationModel = verificationModel;
     if (whisperModel !== (settings.whisperModel?.value || d.whisperModel)) payload.whisperModel = whisperModel;
@@ -372,7 +392,7 @@ function Settings() {
     if (reviewerPatternsChanged()) return true;
     return podcastIndexApiKey !== '' && podcastIndexApiSecret !== '';
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [systemPrompt, verificationPrompt, reviewer, selectedModel, verificationModel, whisperModel, autoProcessEnabled, maxFeedEpisodes, onlyExposeProcessedDefault, audioBitrate, skipFlacCompression, vttTranscriptsEnabled, chaptersEnabled, chaptersModel, minCutConfidence, llmProvider, openaiBaseUrl, whisperBackend, whisperApiConfig.baseUrl, whisperApiConfig.model, whisperLanguage, whisperComputeType, podcastIndexApiKey, podcastIndexApiSecret, settings, reviewerSettings]);
+  }, [systemPrompt, verificationPrompt, reviewer, audioCue, selectedModel, verificationModel, whisperModel, autoProcessEnabled, maxFeedEpisodes, onlyExposeProcessedDefault, audioBitrate, skipFlacCompression, vttTranscriptsEnabled, chaptersEnabled, chaptersModel, minCutConfidence, llmProvider, openaiBaseUrl, whisperBackend, whisperApiConfig.baseUrl, whisperApiConfig.model, whisperLanguage, whisperComputeType, podcastIndexApiKey, podcastIndexApiSecret, settings, reviewerSettings]);
 
   // Mirror hasChanges into render-readable state so the hydration guard above
   // (which runs before hasChanges is defined) skips re-seeding while dirty.
@@ -634,6 +654,8 @@ function Settings() {
         resetIsPending={resetPromptsMutation.isPending}
         modelOptions={models?.map((m) => ({ id: m.id, label: formatModelLabel(m) })) ?? []}
       />
+
+      <AudioCueDetectionSection audioCue={audioCue} onChange={setAudioCue} />
 
       <SettingsGroupHeader title="Output" />
 

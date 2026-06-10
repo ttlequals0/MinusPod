@@ -14,6 +14,7 @@ class SignalType(Enum):
     VOLUME_INCREASE = "volume_increase"
     VOLUME_DECREASE = "volume_decrease"
     DAI_TRANSITION_PAIR = "dai_transition_pair"
+    AUDIO_CUE = "audio_cue"  # Short non-spoken ding/stinger before an ad break (issue #350)
 
 
 @dataclass

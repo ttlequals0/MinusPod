@@ -1,4 +1,5 @@
 """Tests for multi-provider LLM pricing system."""
+import json
 import pytest
 from unittest.mock import patch, MagicMock
 
@@ -165,7 +166,7 @@ class TestPricePerTokenScraper:
         """
         with patch('pricing_fetcher.safe_get') as mock_get:
             mock_resp = MagicMock()
-            mock_resp.text = html
+            mock_resp.iter_content = MagicMock(return_value=[html.encode()])
             mock_resp.raise_for_status = MagicMock()
             mock_get.return_value = mock_resp
 
@@ -191,7 +192,7 @@ class TestPricePerTokenScraper:
         """
         with patch('pricing_fetcher.safe_get') as mock_get:
             mock_resp = MagicMock()
-            mock_resp.text = html
+            mock_resp.iter_content = MagicMock(return_value=[html.encode()])
             mock_resp.raise_for_status = MagicMock()
             mock_get.return_value = mock_resp
 
@@ -207,7 +208,7 @@ class TestPricePerTokenScraper:
 
         with patch('pricing_fetcher.safe_get') as mock_get:
             mock_resp = MagicMock()
-            mock_resp.text = '<html><body><p>No data</p></body></html>'
+            mock_resp.iter_content = MagicMock(return_value=[b'<html><body><p>No data</p></body></html>'])
             mock_resp.raise_for_status = MagicMock()
             mock_get.return_value = mock_resp
 
@@ -229,7 +230,7 @@ class TestPricePerTokenScraper:
         """
         with patch('pricing_fetcher.safe_get') as mock_get:
             mock_resp = MagicMock()
-            mock_resp.text = html
+            mock_resp.iter_content = MagicMock(return_value=[html.encode()])
             mock_resp.raise_for_status = MagicMock()
             mock_get.return_value = mock_resp
 
@@ -251,7 +252,7 @@ class TestPricePerTokenScraper:
         """
         with patch('pricing_fetcher.safe_get') as mock_get:
             mock_resp = MagicMock()
-            mock_resp.text = html
+            mock_resp.iter_content = MagicMock(return_value=[html.encode()])
             mock_resp.raise_for_status = MagicMock()
             mock_get.return_value = mock_resp
 
@@ -290,7 +291,7 @@ class TestOpenRouterFetcher:
 
         with patch('pricing_fetcher.safe_get') as mock_get:
             mock_resp = MagicMock()
-            mock_resp.json.return_value = mock_data
+            mock_resp.iter_content = MagicMock(return_value=[json.dumps(mock_data).encode()])
             mock_resp.raise_for_status = MagicMock()
             mock_get.return_value = mock_resp
 
@@ -636,7 +637,7 @@ class TestLiteLLMFallback:
 
     def _mock_resp(self):
         resp = MagicMock()
-        resp.json = MagicMock(return_value=self.SAMPLE_JSON)
+        resp.iter_content = MagicMock(return_value=[json.dumps(self.SAMPLE_JSON).encode()])
         resp.raise_for_status = MagicMock()
         return resp
 

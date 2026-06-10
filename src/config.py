@@ -147,6 +147,22 @@ MIN_TRANSITION_AD_DURATION = 15.0    # Min seconds for a valid transition-bounde
 MAX_TRANSITION_AD_DURATION = 180.0   # Max seconds for a valid transition-bounded ad
 
 # ============================================================
+# Audio Cue Detection (issue #350, opt-in experiment)
+# ============================================================
+# Detects a short non-spoken cue (a "ding"/stinger) that some shows play just
+# before an ad break by band-passing the audio to the cue's frequency band and
+# flagging brief loudness bursts that stand out from the speech baseline. The
+# cue is emitted as an ``audio_cue`` signal into the LLM prompt as a timing
+# hint -- it never marks an ad on its own. Off by default; gated by the
+# ``audio_cue_detection_enabled`` setting.
+AUDIO_CUE_FREQ_MIN_HZ = 1500         # Low edge of the band a stinger lives in
+AUDIO_CUE_FREQ_MAX_HZ = 8000         # High edge of that band
+AUDIO_CUE_PROMINENCE_DB = 9.0        # dB above the in-band baseline to count as a burst
+AUDIO_CUE_MIN_CONFIDENCE = 0.80      # Drop cues below this confidence (also the prompt floor)
+AUDIO_CUE_MIN_DURATION = 0.10        # Min burst length (s); shorter is noise
+AUDIO_CUE_MAX_DURATION = 2.0         # Max burst length (s); longer is content/music, not a ding
+
+# ============================================================
 # Audio Processing
 # ============================================================
 MIN_AD_DURATION_FOR_REMOVAL = 10.0   # Min ad duration to actually remove from audio

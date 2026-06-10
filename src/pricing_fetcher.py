@@ -5,6 +5,7 @@ Fetches model pricing from:
 - pricepertoken.com HTML scraping for all other providers
 - Falls back to DEFAULT_MODEL_PRICING if live fetch fails and table is empty
 """
+import json
 import logging
 import threading
 import time
@@ -25,9 +26,42 @@ from config import (
     PROVIDER_ANTHROPIC,
 )
 from utils.http import safe_url_for_log
-from utils.safe_http import URLTrust, safe_get
+from utils.safe_http import (
+    URLTrust,
+    safe_get,
+    read_response_capped,
+    ResponseTooLargeError,
+)
 from utils.time import parse_iso_datetime
 from utils.url import SSRFError
+
+# Hard byte cap on pricing response bodies. These are operator-trusted but
+# remote hosts; without a cap a hostile or broken host could stream a
+# multi-gigabyte body and OOM the worker. 16 MB leaves ample headroom for
+# LiteLLM's full model-price JSON (a few MB and growing) while bounding memory.
+PRICING_MAX_BYTES = 16 * 1024 * 1024
+
+
+def _fetch_capped_body(url: str) -> bytes:
+    """GET a pricing URL under the operator-configured SSRF tier, enforcing the
+    status check and a hard byte cap on the streamed body.
+
+    Keeps ``raise_for_status`` (which ``get_capped`` does not do) so a non-2xx
+    pricing response fails cleanly into the caller's ConnectionError fallback.
+    Raises ``SSRFError``, ``requests.RequestException`` or ``ResponseTooLargeError``.
+    """
+    resp = safe_get(
+        url,
+        trust=URLTrust.OPERATOR_CONFIGURED,
+        timeout=HTTP_TIMEOUT_EXTERNAL,
+        max_redirects=HTTP_MAX_REDIRECTS_API,
+        stream=True,
+    )
+    try:
+        resp.raise_for_status()
+        return read_response_capped(resp, PRICING_MAX_BYTES)
+    finally:
+        resp.close()
 
 logger = logging.getLogger(__name__)
 
@@ -43,18 +77,12 @@ def fetch_openrouter_pricing() -> List[Dict]:
         input_cost_per_mtok, output_cost_per_mtok}, ...]
     """
     try:
-        resp = safe_get(
-            'https://openrouter.ai/api/v1/models',
-            trust=URLTrust.OPERATOR_CONFIGURED,
-            timeout=HTTP_TIMEOUT_EXTERNAL,
-            max_redirects=HTTP_MAX_REDIRECTS_API,
-        )
-        resp.raise_for_status()
-    except (SSRFError, requests.RequestException) as exc:
+        body = _fetch_capped_body('https://openrouter.ai/api/v1/models')
+    except (SSRFError, requests.RequestException, ResponseTooLargeError) as exc:
         raise ConnectionError(f"Failed to fetch OpenRouter pricing: {exc}") from exc
 
     results = []
-    for model in resp.json().get('data', []):
+    for model in json.loads(body).get('data', []):
         pricing = model.get('pricing', {})
         try:
             input_per_mtok = float(pricing.get('prompt', '0')) * 1_000_000
@@ -108,18 +136,12 @@ def fetch_pricepertoken_pricing(url: str) -> List[Dict]:
         input_cost_per_mtok, output_cost_per_mtok}, ...]
     """
     try:
-        resp = safe_get(
-            url,
-            trust=URLTrust.OPERATOR_CONFIGURED,
-            timeout=HTTP_TIMEOUT_EXTERNAL,
-            max_redirects=HTTP_MAX_REDIRECTS_API,
-        )
-        resp.raise_for_status()
-    except (SSRFError, requests.RequestException) as exc:
+        body = _fetch_capped_body(url)
+    except (SSRFError, requests.RequestException, ResponseTooLargeError) as exc:
         raise ConnectionError(f"Failed to fetch pricing from {url}: {exc}") from exc
 
     from bs4 import BeautifulSoup
-    soup = BeautifulSoup(resp.text, 'html.parser')
+    soup = BeautifulSoup(body, 'html.parser')
 
     results = []
     table = soup.find('table')
@@ -214,18 +236,12 @@ def fetch_litellm_pricing(provider_filter: Optional[str] = None) -> List[Dict]:
     Returns list of dicts in the same shape as fetch_openrouter_pricing.
     """
     try:
-        resp = safe_get(
-            LITELLM_PRICING_URL,
-            trust=URLTrust.OPERATOR_CONFIGURED,
-            timeout=HTTP_TIMEOUT_EXTERNAL,
-            max_redirects=HTTP_MAX_REDIRECTS_API,
-        )
-        resp.raise_for_status()
-    except (SSRFError, requests.RequestException) as exc:
+        body = _fetch_capped_body(LITELLM_PRICING_URL)
+    except (SSRFError, requests.RequestException, ResponseTooLargeError) as exc:
         raise ConnectionError(f"Failed to fetch LiteLLM pricing: {exc}") from exc
 
     try:
-        raw = resp.json()
+        raw = json.loads(body)
     except ValueError as exc:
         raise ConnectionError(f"LiteLLM pricing response was not valid JSON: {exc}") from exc
 

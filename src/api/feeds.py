@@ -48,7 +48,6 @@ logger = logging.getLogger('podcast.api')
 def list_feeds():
     """List all podcast feeds with metadata."""
     db = get_database()
-    storage = get_storage()
 
     podcasts = db.get_all_podcasts()
 
@@ -580,7 +579,7 @@ def refresh_feed(slug):
 
     try:
         from main_app.feeds import refresh_rss_feed
-        refresh_rss_feed(slug, podcast['source_url'])
+        refresh_rss_feed(slug, podcast['source_url'], force=force)
 
         # Get updated info
         podcast = db.get_podcast_by_slug(slug)

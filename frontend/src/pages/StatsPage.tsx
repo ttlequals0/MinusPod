@@ -236,6 +236,12 @@ export default function StatsPage() {
             min={`In: ${formatTokenCount(dashboard.avgInputTokens)}`}
             max={`Out: ${formatTokenCount(dashboard.avgOutputTokens)}`}
           />
+          <StatCard
+            label="Avg Audio Cues"
+            value={dashboard.avgAudioCuesDetected.toFixed(1)}
+            min={String(dashboard.minAudioCuesDetected)}
+            max={String(dashboard.maxAudioCuesDetected)}
+          />
         </div>
       )}
 
@@ -249,6 +255,10 @@ export default function StatsPage() {
           <div className="bg-card rounded-lg border border-border p-4">
             <p className="text-sm text-muted-foreground">Total Ads Removed</p>
             <p className="text-xl font-bold text-foreground">{dashboard.totalAdsRemoved}</p>
+          </div>
+          <div className="bg-card rounded-lg border border-border p-4">
+            <p className="text-sm text-muted-foreground">Total Audio Cues</p>
+            <p className="text-xl font-bold text-foreground">{dashboard.totalAudioCuesDetected}</p>
           </div>
           <div className="bg-card rounded-lg border border-border p-4">
             <p className="text-sm text-muted-foreground">Total Time Saved</p>

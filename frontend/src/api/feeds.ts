@@ -155,7 +155,7 @@ export async function getArtwork(slug: string): Promise<string> {
 export async function reprocessEpisode(
   slug: string,
   episodeId: string,
-  mode: 'reprocess' | 'full' = 'reprocess'
+  mode: 'reprocess' | 'full' | 'llm' = 'reprocess'
 ): Promise<{ message: string; mode: string }> {
   return apiRequest<{ message: string; mode: string }>(`/episodes/${slug}/${episodeId}/reprocess`, {
     method: 'POST',
@@ -234,7 +234,7 @@ export interface ReprocessAllResult {
 
 export async function reprocessAllEpisodes(
   slug: string,
-  mode: 'reprocess' | 'full' = 'reprocess'
+  mode: 'reprocess' | 'full' | 'llm' = 'reprocess'
 ): Promise<ReprocessAllResult> {
   return apiRequest<ReprocessAllResult>(`/feeds/${slug}/reprocess-all`, {
     method: 'POST',
@@ -262,7 +262,7 @@ export async function regenerateChapters(
   );
 }
 
-export type BulkAction = 'process' | 'reprocess' | 'reprocess_full' | 'delete';
+export type BulkAction = 'process' | 'reprocess' | 'reprocess_full' | 'reprocess_llm' | 'delete';
 
 export async function bulkEpisodeAction(
   slug: string,

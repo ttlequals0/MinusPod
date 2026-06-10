@@ -245,7 +245,8 @@ class StatsMixin:
                                    error_message: str = None,
                                    input_tokens: int = 0,
                                    output_tokens: int = 0,
-                                   llm_cost: float = 0.0) -> int:
+                                   llm_cost: float = 0.0,
+                                   audio_cues_detected: int = 0) -> int:
         """Record a processing attempt in history. Returns history entry ID."""
         conn = self.get_connection()
 
@@ -262,11 +263,13 @@ class StatsMixin:
             """INSERT INTO processing_history
                (podcast_id, podcast_slug, podcast_title, episode_id, episode_title,
                 processed_at, processing_duration_seconds, status, ads_detected,
-                error_message, reprocess_number, input_tokens, output_tokens, llm_cost)
-               VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), ?, ?, ?, ?, ?, ?, ?, ?)""",
+                error_message, reprocess_number, input_tokens, output_tokens, llm_cost,
+                audio_cues_detected)
+               VALUES (?, ?, ?, ?, ?, strftime('%Y-%m-%dT%H:%M:%SZ', 'now'), ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (podcast_id, podcast_slug, podcast_title, episode_id, episode_title,
              processing_duration_seconds, status, ads_detected, error_message,
-             reprocess_number, input_tokens, output_tokens, llm_cost)
+             reprocess_number, input_tokens, output_tokens, llm_cost,
+             audio_cues_detected)
         )
         conn.commit()
         # Logger errors must not propagate: callers (e.g. _record_history_and_event)
@@ -558,6 +561,10 @@ class StatsMixin:
                 COALESCE(MIN(h.ads_detected), 0) AS min_ads_removed,
                 COALESCE(MAX(h.ads_detected), 0) AS max_ads_removed,
                 COALESCE(SUM(h.ads_detected), 0) AS total_ads_removed,
+                COALESCE(AVG(h.audio_cues_detected), 0) AS avg_audio_cues,
+                COALESCE(MIN(h.audio_cues_detected), 0) AS min_audio_cues,
+                COALESCE(MAX(h.audio_cues_detected), 0) AS max_audio_cues,
+                COALESCE(SUM(h.audio_cues_detected), 0) AS total_audio_cues,
                 COALESCE(AVG(h.llm_cost), 0) AS avg_cost,
                 COALESCE(MIN(h.llm_cost), 0) AS min_cost,
                 COALESCE(MAX(h.llm_cost), 0) AS max_cost,
@@ -598,6 +605,8 @@ class StatsMixin:
                 'minEpisodeLengthSeconds', 'maxEpisodeLengthSeconds',
                 'totalInputTokens', 'totalOutputTokens', 'totalLlmCost',
                 'avgInputTokens', 'avgOutputTokens',
+                'avgAudioCuesDetected', 'minAudioCuesDetected',
+                'maxAudioCuesDetected', 'totalAudioCuesDetected',
             ]}
 
         return {
@@ -624,6 +633,10 @@ class StatsMixin:
             'totalLlmCost': round(row['total_llm_cost'], 6),
             'avgInputTokens': round(row['avg_input_tokens']),
             'avgOutputTokens': round(row['avg_output_tokens']),
+            'avgAudioCuesDetected': round(row['avg_audio_cues'], 1),
+            'minAudioCuesDetected': row['min_audio_cues'],
+            'maxAudioCuesDetected': row['max_audio_cues'],
+            'totalAudioCuesDetected': row['total_audio_cues'],
         }
 
     def get_stats_by_day(self, podcast_slug: str = None) -> List[Dict]:

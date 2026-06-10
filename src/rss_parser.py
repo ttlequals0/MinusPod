@@ -670,7 +670,7 @@ class RSSParser:
         channel = feed.feed
         lines.append(f'<title>{self._escape_xml(channel.get("title", ""))}</title>')
         lines.append(f'<link>{self._escape_xml(channel.get("link", ""))}</link>')
-        lines.append(f'<description><![CDATA[{self._get_channel_description(channel)}]]></description>')
+        lines.append(f'<description><![CDATA[{self._escape_cdata(self._get_channel_description(channel))}]]></description>')
         lines.append(f'<language>{self._escape_xml(channel.get("language", "en"))}</language>')
 
         # Pass through standard RSS + iTunes channel metadata from upstream
@@ -729,7 +729,7 @@ class RSSParser:
 
             lines.append('<item>')
             lines.append(f'  <title>{self._escape_xml(entry.get("title", ""))}</title>')
-            lines.append(f'  <description><![CDATA[{self._get_episode_description(entry)}]]></description>')
+            lines.append(f'  <description><![CDATA[{self._escape_cdata(self._get_episode_description(entry))}]]></description>')
             lines.append(f'  <link>{self._escape_xml(entry.get("link", ""))}</link>')
             lines.append(f'  <guid>{self._escape_xml(entry.get("id", episode_url))}</guid>')
             lines.append(f'  <pubDate>{self._escape_xml(entry.get("published", ""))}</pubDate>')
@@ -809,7 +809,7 @@ class RSSParser:
         lines.append('<item>')
         lines.append(f'  <title>{self._escape_xml(ep.get("title") or "Unknown")}</title>')
         if ep.get('description'):
-            lines.append(f'  <description><![CDATA[{ep["description"]}]]></description>')
+            lines.append(f'  <description><![CDATA[{self._escape_cdata(ep["description"])}]]></description>')
         lines.append(f'  <enclosure url="{modified_url}" type="audio/mpeg" />')
         lines.append(f'  <guid isPermaLink="false">{ep_id}</guid>')
         if ep.get('published_at'):
@@ -903,6 +903,21 @@ class RSSParser:
             .replace('>', '&gt;')
             .replace('"', '&quot;')
             .replace("'", '&apos;'))
+
+    @staticmethod
+    def _escape_cdata(text) -> str:
+        """Make ``text`` safe to embed inside a ``<![CDATA[...]]>`` block.
+
+        CDATA has no character escaping; the only sequence that can break out
+        is the terminator ``]]>``. Upstream descriptions are attacker-influenced
+        (whatever the source feed publishes), so an unescaped ``]]>`` corrupts
+        the generated XML and breaks the served feed for every subscriber. The
+        canonical fix splits the terminator across two CDATA sections so the
+        literal text is preserved while the parser never sees a real ``]]>``.
+        """
+        if not text:
+            return ""
+        return str(text).replace(']]>', ']]]]><![CDATA[>')
 
     def _serialize_podcast_element(self, elem, _depth: int = 0) -> str:
         # Hand-rolled rather than ``ET.tostring`` because tostring re-declares

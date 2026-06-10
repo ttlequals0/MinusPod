@@ -1,6 +1,7 @@
 import CollapsibleSection from '../../components/CollapsibleSection';
 import ToggleSwitch from '../../components/ToggleSwitch';
 import PromptField from './PromptField';
+import { clampNumericInput } from '../../utils/clampNumericInput';
 
 export interface ReviewerState {
   enabled: boolean;
@@ -42,13 +43,8 @@ function ExperimentsSection({
     fallback: number,
     parse: (s: string) => number,
   ) => {
-    if (raw === '') {
-      update(key, fallback);
-      return;
-    }
-    const v = parse(raw);
-    if (!Number.isFinite(v)) return;
-    update(key, Math.max(lo, Math.min(hi, v)));
+    const v = clampNumericInput(raw, lo, hi, fallback, parse);
+    if (v !== undefined) update(key, v);
   };
 
   return (

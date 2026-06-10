@@ -1162,7 +1162,8 @@ def _log_completion_summary(slug, episode_id, ads_to_remove, *, verification_cou
 def _record_history_and_event(slug, episode_id, episode_title, podcast_name,
                                ads_to_remove, verification_count,
                                original_duration, new_duration,
-                               processing_time, token_totals, db):
+                               processing_time, token_totals, db,
+                               audio_cue_detections=0):
     """Record processing history row and fire the episode-processed webhook.
 
     The webhook fires whenever the episode pipeline completed, including
@@ -1185,6 +1186,7 @@ def _record_history_and_event(slug, episode_id, episode_title, podcast_name,
                 input_tokens=token_totals['input_tokens'],
                 output_tokens=token_totals['output_tokens'],
                 llm_cost=token_totals['cost'],
+                audio_cues_detected=audio_cue_detections,
             )
         else:
             audio_logger.warning(
@@ -1216,7 +1218,7 @@ def _record_history_and_event(slug, episode_id, episode_title, podcast_name,
 def _finalize_episode(slug, episode_id, episode_title, podcast_name,
                        ads_to_remove, verification_count, first_pass_count,
                        original_duration, new_duration, start_time,
-                       processed_version=0):
+                       processed_version=0, audio_cue_detections=0):
     """Pipeline stage: Update DB, record history, refresh RSS."""
     _persist_episode_state(slug, episode_id, ads_to_remove, verification_count,
                             first_pass_count, original_duration, new_duration,
@@ -1239,6 +1241,7 @@ def _finalize_episode(slug, episode_id, episode_title, podcast_name,
         ads_to_remove, verification_count,
         original_duration, new_duration,
         processing_time, token_totals, db,
+        audio_cue_detections=audio_cue_detections,
     )
 
 
@@ -1345,6 +1348,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
 
     episode_data = db.get_episode(slug, episode_id)
     reprocess_mode = episode_data.get('reprocess_mode') if episode_data else None
+    # Only 'full' skips the learned-pattern DB. 'reprocess', 'llm' (#349) and the
+    # default first run all keep patterns; any new mode keeps them unless added here.
     skip_patterns = reprocess_mode == 'full'
 
     if reprocess_mode:
@@ -1381,6 +1386,10 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
         try:
             # Stage 2: Audio analysis
             audio_analysis_result = _run_audio_analysis(slug, episode_id, audio_path, segments)
+            # Count audio-cue signals (issue #350) for the stats dashboard.
+            audio_cue_count = sum(
+                1 for s in audio_analysis_result.signals if s.signal_type == 'audio_cue'
+            ) if audio_analysis_result else 0
             _check_cancel(cancel_event, slug, episode_id)
 
             # Progress callback for detection stages
@@ -1517,7 +1526,8 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             _finalize_episode(slug, episode_id, episode_title, podcast_name,
                                ads_to_remove, verification_count, first_pass_count,
                                original_duration, new_duration, start_time,
-                               processed_version=new_version)
+                               processed_version=new_version,
+                               audio_cue_detections=audio_cue_count)
 
             status_service.complete_job()
             return True

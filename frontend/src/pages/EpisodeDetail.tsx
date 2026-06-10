@@ -71,7 +71,7 @@ function EpisodeDetail() {
   });
 
   const reprocessMutation = useMutation({
-    mutationFn: (mode: 'reprocess' | 'full') => reprocessEpisode(slug!, episodeId!, mode),
+    mutationFn: (mode: 'reprocess' | 'full' | 'llm') => reprocessEpisode(slug!, episodeId!, mode),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['episode', slug, episodeId] });
       setShowReprocessMenu(false);
@@ -294,6 +294,16 @@ function EpisodeDetail() {
                       <div className="font-medium">Full Analysis</div>
                       <div className="text-xs text-muted-foreground">Skip patterns, AI only</div>
                     </button>
+                    {episode.transcriptVttAvailable && (
+                      <button
+                        onClick={() => reprocessMutation.mutate('llm')}
+                        className="w-full px-3 py-2 text-left text-sm hover:bg-accent border-t border-border"
+                        title="Re-run ad detection and re-cut using the existing transcript (skips re-transcription)"
+                      >
+                        <div className="font-medium">Re-detect Ads</div>
+                        <div className="text-xs text-muted-foreground">Keep transcript, re-cut</div>
+                      </button>
+                    )}
                     {episode.transcriptVttAvailable && (
                       <button
                         onClick={() => {

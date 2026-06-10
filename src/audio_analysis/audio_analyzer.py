@@ -11,7 +11,7 @@ import os
 from typing import Dict, List, Optional, Any, Tuple, Callable
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
-from .base import AudioSegmentSignal, AudioAnalysisResult, SignalType
+from .base import AudioAnalysisResult
 from .volume_analyzer import VolumeAnalyzer
 from .transition_detector import TransitionDetector
 
@@ -80,6 +80,20 @@ class AudioAnalyzer:
             max_ad_duration=MAX_TRANSITION_AD_DURATION,
         )
 
+        # Audio cue detector (issue #350) -- opt-in experiment, off by default.
+        from config import (
+            AUDIO_CUE_FREQ_MIN_HZ, AUDIO_CUE_FREQ_MAX_HZ,
+            AUDIO_CUE_PROMINENCE_DB, AUDIO_CUE_MIN_CONFIDENCE,
+        )
+        from .cue_detector import AudioCueDetector
+        self.cue_detection_enabled = settings.get('audio_cue_detection_enabled', False)
+        self.cue_detector = AudioCueDetector(
+            freq_min_hz=settings.get('audio_cue_freq_min_hz', AUDIO_CUE_FREQ_MIN_HZ),
+            freq_max_hz=settings.get('audio_cue_freq_max_hz', AUDIO_CUE_FREQ_MAX_HZ),
+            prominence_db=settings.get('audio_cue_prominence_db', AUDIO_CUE_PROMINENCE_DB),
+            min_confidence=settings.get('audio_cue_min_confidence', AUDIO_CUE_MIN_CONFIDENCE),
+        )
+
     def _load_settings(self) -> Dict[str, Any]:
         """Load settings from database."""
         settings = {}
@@ -93,6 +107,15 @@ class AudioAnalyzer:
                 transition_threshold = self.db.get_setting('transition_threshold_db')
                 if transition_threshold:
                     settings['transition_threshold_db'] = float(transition_threshold)
+
+                # Audio cue detection (issue #350, opt-in experiment)
+                settings['audio_cue_detection_enabled'] = self.db.get_setting_bool(
+                    'audio_cue_detection_enabled', default=False)
+                for key in ('audio_cue_freq_min_hz', 'audio_cue_freq_max_hz',
+                            'audio_cue_prominence_db', 'audio_cue_min_confidence'):
+                    raw = self.db.get_setting(key)
+                    if raw:
+                        settings[key] = float(raw)
 
             except Exception as e:
                 logger.warning(f"Failed to load audio analysis settings: {e}")
@@ -212,6 +235,22 @@ class AudioAnalyzer:
                 error_msg = f"Transition detection failed: {e}"
                 logger.warning(error_msg)
                 errors.append(error_msg)
+
+        # Audio cue detection (issue #350) -- opt-in. Runs its own band-passed
+        # ffmpeg pass, so only when the experiment is enabled.
+        if self.cue_detection_enabled:
+            if status_callback:
+                status_callback("analyzing: audio cues", 40)
+            cue_result, cue_error = self._run_component_with_timeout(
+                'audio_cue',
+                lambda: self.cue_detector.detect(audio_path),
+                timeouts.get('cue', timeouts['volume']),
+            )
+            if cue_error:
+                errors.append(cue_error)
+            elif cue_result:
+                signals.extend(cue_result)
+                logger.info(f"Audio cue detection: {len(cue_result)} cue(s)")
 
         result.signals = signals
         result.errors = errors

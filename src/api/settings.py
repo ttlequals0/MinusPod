@@ -111,6 +111,10 @@ def get_settings():
     )
     from ad_detector import AdDetector
     from config import DEFAULT_AD_DETECTION_MODEL as DEFAULT_MODEL
+    from config import (
+        AUDIO_CUE_FREQ_MIN_HZ, AUDIO_CUE_FREQ_MAX_HZ,
+        AUDIO_CUE_PROMINENCE_DB, AUDIO_CUE_MIN_CONFIDENCE,
+    )
     from chapters_generator import CHAPTERS_MODEL
     settings = _settings_view(db.get_all_settings())
 
@@ -286,6 +290,21 @@ def get_settings():
     review_prompt = _setting_value(settings, 'review_prompt', DEFAULT_REVIEW_PROMPT) or DEFAULT_REVIEW_PROMPT
     resurrect_prompt = _setting_value(settings, 'resurrect_prompt', DEFAULT_RESURRECT_PROMPT) or DEFAULT_RESURRECT_PROMPT
 
+    # Audio cue detection experiment (#350)
+    audio_cue_enabled = str(
+        _setting_value(settings, 'audio_cue_detection_enabled', 'false')).strip().lower() == 'true'
+
+    def _cue_num(key, default):
+        try:
+            return float(_setting_value(settings, key, str(default)))
+        except (ValueError, TypeError):
+            return float(default)
+
+    audio_cue_freq_min = int(_cue_num('audio_cue_freq_min_hz', AUDIO_CUE_FREQ_MIN_HZ))
+    audio_cue_freq_max = int(_cue_num('audio_cue_freq_max_hz', AUDIO_CUE_FREQ_MAX_HZ))
+    audio_cue_prominence = _cue_num('audio_cue_prominence_db', AUDIO_CUE_PROMINENCE_DB)
+    audio_cue_min_conf = _cue_num('audio_cue_min_confidence', AUDIO_CUE_MIN_CONFIDENCE)
+
     return json_response({
         'systemPrompt': _sv('system_prompt', _setting_value(settings, 'system_prompt', DEFAULT_SYSTEM_PROMPT) or DEFAULT_SYSTEM_PROMPT),
         'verificationPrompt': _sv('verification_prompt', _setting_value(settings, 'verification_prompt', DEFAULT_VERIFICATION_PROMPT) or DEFAULT_VERIFICATION_PROMPT),
@@ -320,6 +339,11 @@ def get_settings():
         'vadGapStartMinSeconds': _sv('vad_gap_start_min_seconds', vad_gap_start),
         'vadGapMidMinSeconds': _sv('vad_gap_mid_min_seconds', vad_gap_mid),
         'vadGapTailMinSeconds': _sv('vad_gap_tail_min_seconds', vad_gap_tail),
+        'audioCueDetectionEnabled': _sv('audio_cue_detection_enabled', audio_cue_enabled),
+        'audioCueFreqMinHz': _sv('audio_cue_freq_min_hz', audio_cue_freq_min),
+        'audioCueFreqMaxHz': _sv('audio_cue_freq_max_hz', audio_cue_freq_max),
+        'audioCueProminenceDb': _sv('audio_cue_prominence_db', audio_cue_prominence),
+        'audioCueMinConfidence': _sv('audio_cue_min_confidence', audio_cue_min_conf),
         'audioBitrate': _sv('audio_bitrate', audio_bitrate),
         'skipFlacCompression': _sv('skip_flac_compression', skip_flac),
         'adDetectionParallelWindows': _sv('ad_detection_parallel_windows', parallel_windows),
@@ -361,6 +385,11 @@ def get_settings():
             'vadGapStartMinSeconds': default_vad_gap_start,
             'vadGapMidMinSeconds': default_vad_gap_mid,
             'vadGapTailMinSeconds': default_vad_gap_tail,
+            'audioCueDetectionEnabled': False,
+            'audioCueFreqMinHz': int(AUDIO_CUE_FREQ_MIN_HZ),
+            'audioCueFreqMaxHz': int(AUDIO_CUE_FREQ_MAX_HZ),
+            'audioCueProminenceDb': AUDIO_CUE_PROMINENCE_DB,
+            'audioCueMinConfidence': AUDIO_CUE_MIN_CONFIDENCE,
             'audioBitrate': DEFAULT_AUDIO_BITRATE,
             'skipFlacCompression': coerce_bool_setting(os.environ.get('SKIP_FLAC_COMPRESSION', 'false')),
             'adDetectionParallelWindows': AD_DETECTION_PARALLEL_WINDOWS_DEFAULT,
@@ -396,6 +425,7 @@ def update_ad_detection_settings():
         _apply_provider_fields,
         _apply_whisper_fields,
         _apply_vad_gap_fields,
+        _apply_audio_cue_fields,
         _apply_podcast_index_fields,
         _apply_stage_tunables,
     )
@@ -758,6 +788,55 @@ def _apply_vad_gap_fields(db, data):
             return json_response({'error': f'{field_name} must be a positive number'}, 400)
         db.set_setting(db_key, str(value), is_default=False)
         logger.info(f"Updated {db_key} to: {value}")
+    return None
+
+
+def _apply_audio_cue_fields(db, data):
+    """Persist the audio-cue detection experiment (#350): toggle + tuneables.
+
+    Validates every field (ranges and freq min < max) BEFORE writing anything,
+    so an invalid field cannot leave a half-applied set.
+    """
+    from config import AUDIO_CUE_FREQ_MIN_HZ, AUDIO_CUE_FREQ_MAX_HZ
+
+    writes = []  # (db_key, str_value) applied only after all validation passes
+
+    if 'audioCueDetectionEnabled' in data:
+        raw = data['audioCueDetectionEnabled']
+        enabled = raw if isinstance(raw, bool) else str(raw).strip().lower() in ('true', '1', 'yes')
+        writes.append(('audio_cue_detection_enabled', 'true' if enabled else 'false'))
+
+    parsed = {}
+    for field_name, db_key, lo, hi in (
+        ('audioCueFreqMinHz', 'audio_cue_freq_min_hz', 20.0, 20000.0),
+        ('audioCueFreqMaxHz', 'audio_cue_freq_max_hz', 20.0, 20000.0),
+        ('audioCueProminenceDb', 'audio_cue_prominence_db', 1.0, 40.0),
+        ('audioCueMinConfidence', 'audio_cue_min_confidence', 0.0, 1.0),
+    ):
+        if field_name not in data:
+            continue
+        try:
+            value = float(data[field_name])
+        except (TypeError, ValueError):
+            return json_response({'error': f'{field_name} must be a number'}, 400)
+        if value < lo or value > hi:
+            return json_response({'error': f'{field_name} must be between {lo} and {hi}'}, 400)
+        parsed[field_name] = value
+        writes.append((db_key, str(value)))
+
+    if 'audioCueFreqMinHz' in parsed or 'audioCueFreqMaxHz' in parsed:
+        fmin = parsed.get('audioCueFreqMinHz')
+        if fmin is None:
+            fmin = float(db.get_setting('audio_cue_freq_min_hz') or AUDIO_CUE_FREQ_MIN_HZ)
+        fmax = parsed.get('audioCueFreqMaxHz')
+        if fmax is None:
+            fmax = float(db.get_setting('audio_cue_freq_max_hz') or AUDIO_CUE_FREQ_MAX_HZ)
+        if fmin >= fmax:
+            return json_response({'error': 'audioCueFreqMinHz must be below audioCueFreqMaxHz'}, 400)
+
+    for db_key, str_value in writes:
+        db.set_setting(db_key, str_value, is_default=False)
+        logger.info(f"Updated {db_key} to: {str_value}")
     return None
 
 

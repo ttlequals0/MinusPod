@@ -145,6 +145,11 @@ export interface Settings {
   skipFlacCompression: SettingValueBoolean;
   adDetectionParallelWindows: SettingValueNumber;
   adReviewerParallelAds: SettingValueNumber;
+  audioCueDetectionEnabled: SettingValueBoolean;
+  audioCueFreqMinHz: SettingValueNumber;
+  audioCueFreqMaxHz: SettingValueNumber;
+  audioCueProminenceDb: SettingValueNumber;
+  audioCueMinConfidence: SettingValueNumber;
   vttTranscriptsEnabled: SettingValueBoolean;
   chaptersEnabled: SettingValueBoolean;
   chaptersModel: SettingValue;
@@ -192,6 +197,11 @@ export interface Settings {
     skipFlacCompression: boolean;
     adDetectionParallelWindows: number;
     adReviewerParallelAds: number;
+    audioCueDetectionEnabled: boolean;
+    audioCueFreqMinHz: number;
+    audioCueFreqMaxHz: number;
+    audioCueProminenceDb: number;
+    audioCueMinConfidence: number;
   };
 }
 
@@ -213,6 +223,11 @@ export interface UpdateSettingsPayload {
   skipFlacCompression?: boolean;
   adDetectionParallelWindows?: number;
   adReviewerParallelAds?: number;
+  audioCueDetectionEnabled?: boolean;
+  audioCueFreqMinHz?: number;
+  audioCueFreqMaxHz?: number;
+  audioCueProminenceDb?: number;
+  audioCueMinConfidence?: number;
   vttTranscriptsEnabled?: boolean;
   chaptersEnabled?: boolean;
   chaptersModel?: string;
@@ -466,6 +481,11 @@ export interface DashboardStats {
   totalLlmCost: number;
   avgInputTokens: number;
   avgOutputTokens: number;
+  // Audio cue detection experiment (#350); zero unless the experiment is enabled.
+  avgAudioCuesDetected: number;
+  minAudioCuesDetected: number;
+  maxAudioCuesDetected: number;
+  totalAudioCuesDetected: number;
 }
 
 export interface DayStats {

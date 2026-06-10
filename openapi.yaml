@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.7.9
+  version: 2.8.0
   contact:
     name: MinusPod
   license:
@@ -898,10 +898,12 @@ paths:
         - Episodes
       summary: Force reprocess an episode
       description: |
-        Deletes all cached data (audio, transcript, ads) and reprocesses the episode.
-        Supports two modes:
+        Deletes cached data and reprocesses the episode.
+        Supports three modes:
         - `reprocess` (default): Uses learned patterns from the pattern database plus AI analysis
         - `full`: Skips the pattern database entirely for a fresh AI-only analysis
+        - `llm`: Re-runs ad detection and re-cut using the SAVED transcript,
+          skipping re-transcription. Returns 400 if no transcript exists.
 
         Reprocessed episodes are prioritized in the processing queue.
       operationId: reprocessEpisode
@@ -917,12 +919,14 @@ paths:
               properties:
                 mode:
                   type: string
-                  enum: [reprocess, full]
+                  enum: [reprocess, full, llm]
                   default: reprocess
                   description: |
                     Processing mode:
                     - reprocess: Use pattern DB + AI (leverages learned patterns)
                     - full: AI only, skip pattern DB (fresh analysis)
+                    - llm: Re-detect + re-cut using the saved transcript (skips
+                      re-transcription); requires an existing transcript
       responses:
         '200':
           description: Episode reprocessing started
@@ -1012,12 +1016,14 @@ paths:
               properties:
                 mode:
                   type: string
-                  enum: [reprocess, full]
+                  enum: [reprocess, full, llm]
                   default: reprocess
                   description: |
                     Processing mode:
                     - reprocess: Use pattern DB + AI (leverages learned patterns)
                     - full: AI only, skip pattern DB (fresh analysis)
+                    - llm: Re-detect + re-cut using each saved transcript (skips
+                      re-transcription); episodes without a transcript are skipped
       responses:
         '200':
           description: Episodes queued for reprocessing
@@ -3944,7 +3950,7 @@ paths:
                   maxItems: 500
                 action:
                   type: string
-                  enum: [process, reprocess, reprocess_full, delete]
+                  enum: [process, reprocess, reprocess_full, reprocess_llm, delete]
       responses:
         '200':
           description: Bulk action result

@@ -529,6 +529,61 @@ class EpisodeMixin:
         conn.commit()
         logger.debug(f"[{slug}:{episode_id}] Cleared episode details from database")
 
+    def clear_episode_ad_data(self, slug: str, episode_id: str):
+        """Clear ad-detection outputs and regenerated assets while PRESERVING
+        the transcript inputs (issue #349 LLM-only reprocess).
+
+        Nulls the columns the ad-detection and cut stages regenerate (ad
+        markers, both LLM passes, chapters, VTT, post-cut segments) but keeps
+        ``transcript_text``, ``original_transcript_text`` and
+        ``original_segments_json`` so ``_download_and_transcribe`` reuses the
+        saved transcript and skips the expensive re-transcription. Unlike
+        ``clear_episode_details`` this UPDATEs to NULL rather than DELETEing the
+        row, so the transcript is never lost.
+        """
+        conn = self.get_connection()
+
+        db_episode_id = self._get_episode_db_id(slug, episode_id)
+        if not db_episode_id:
+            return
+
+        conn.execute(
+            """UPDATE episode_details
+               SET ad_markers_json = NULL,
+                   first_pass_prompt = NULL,
+                   first_pass_response = NULL,
+                   second_pass_prompt = NULL,
+                   second_pass_response = NULL,
+                   chapters_json = NULL,
+                   transcript_vtt = NULL,
+                   final_segments_json = NULL
+               WHERE episode_id = ?""",
+            (db_episode_id,)
+        )
+        conn.commit()
+        logger.debug(
+            f"[{slug}:{episode_id}] Cleared ad-detection data "
+            f"(transcript preserved) from database"
+        )
+
+    def has_transcript(self, slug: str, episode_id: str) -> bool:
+        """True if a non-empty transcript is saved for the episode, without
+        loading the transcript blob. Gates LLM-only reprocess (#349); cheaper
+        than ``storage.get_transcript`` which fetches the full text. The
+        ``!= ''`` check matches ``storage.get_transcript``'s truthiness
+        semantics so the guard and the transcript-reuse path agree."""
+        db_episode_id = self._get_episode_db_id(slug, episode_id)
+        if not db_episode_id:
+            return False
+        conn = self.get_connection()
+        row = conn.execute(
+            "SELECT 1 FROM episode_details "
+            "WHERE episode_id = ? AND transcript_text IS NOT NULL "
+            "AND transcript_text != '' LIMIT 1",
+            (db_episode_id,)
+        ).fetchone()
+        return row is not None
+
     def reset_episode_status(self, slug: str, episode_id: str):
         """Reset episode status to pending for reprocessing."""
         conn = self.get_connection()
@@ -605,6 +660,34 @@ class EpisodeMixin:
         placeholders = ','.join('?' for _ in db_ids)
         conn.execute(
             f"DELETE FROM episode_details WHERE episode_id IN ({placeholders})",
+            db_ids
+        )
+        conn.commit()
+
+    def batch_clear_episode_ad_data(self, slug: str, episode_ids: List[str]) -> None:
+        """Clear ad-detection outputs for multiple episodes while PRESERVING
+        their transcripts (issue #349 LLM-only bulk reprocess). UPDATE-to-NULL
+        mirror of ``batch_clear_episode_details``; see ``clear_episode_ad_data``
+        for the per-column rationale."""
+        if not episode_ids:
+            return
+        episodes = self.get_episodes_by_ids(slug, episode_ids)
+        if not episodes:
+            return
+        db_ids = [ep['id'] for ep in episodes]
+        conn = self.get_connection()
+        placeholders = ','.join('?' for _ in db_ids)
+        conn.execute(
+            f"""UPDATE episode_details
+                SET ad_markers_json = NULL,
+                    first_pass_prompt = NULL,
+                    first_pass_response = NULL,
+                    second_pass_prompt = NULL,
+                    second_pass_response = NULL,
+                    chapters_json = NULL,
+                    transcript_vtt = NULL,
+                    final_segments_json = NULL
+                WHERE episode_id IN ({placeholders})""",
             db_ids
         )
         conn.commit()

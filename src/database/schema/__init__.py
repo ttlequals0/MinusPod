@@ -209,6 +209,7 @@ class SchemaMixin:
                 processing_duration_seconds REAL,
                 status TEXT NOT NULL CHECK(status IN ('completed', 'failed')),
                 ads_detected INTEGER DEFAULT 0,
+                audio_cues_detected INTEGER DEFAULT 0,
                 error_message TEXT,
                 reprocess_number INTEGER DEFAULT 1,
                 input_tokens INTEGER DEFAULT 0,
@@ -1042,6 +1043,7 @@ class SchemaMixin:
             ('input_tokens', 'INTEGER DEFAULT 0'),
             ('output_tokens', 'INTEGER DEFAULT 0'),
             ('llm_cost', 'REAL DEFAULT 0.0'),
+            ('audio_cues_detected', 'INTEGER DEFAULT 0'),
         ]:
             self._add_column_if_missing(conn, 'processing_history', col, definition, hist_cols)
 

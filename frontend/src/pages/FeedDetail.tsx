@@ -13,12 +13,30 @@ import { FeedTagsEditor } from '../components/FeedTagsEditor';
 import { formatStorage } from './settings/settingsUtils';
 import { stripHtml } from '../utils/stripHtml';
 
+function reprocessModeLabel(mode: string): string {
+  if (mode === 'full') return 'AI Only';
+  if (mode === 'llm') return 'Re-detect Ads';
+  return 'Patterns + AI';
+}
+
+function reprocessModeDescription(mode: string): string {
+  if (mode === 'full') return 'Fresh analysis without pattern database';
+  if (mode === 'llm') return 'Reuses saved transcripts (skips re-transcription); re-cuts audio';
+  return 'Uses learned patterns for faster ad detection';
+}
+
+function reprocessModeVerb(mode: string): string {
+  if (mode === 'full') return 'full AI';
+  if (mode === 'llm') return 'transcript-reuse';
+  return 'pattern-assisted';
+}
+
 function FeedDetail() {
   const { slug } = useParams<{ slug: string }>();
   const queryClient = useQueryClient();
   const [isEditingNetwork, setIsEditingNetwork] = useState(false);
   const [showReprocessConfirm, setShowReprocessConfirm] = useState(false);
-  const [selectedReprocessMode, setSelectedReprocessMode] = useState<'reprocess' | 'full'>('reprocess');
+  const [selectedReprocessMode, setSelectedReprocessMode] = useState<'reprocess' | 'full' | 'llm'>('reprocess');
   const [reprocessResult, setReprocessResult] = useState<ReprocessAllResult | null>(null);
   const [editNetworkOverride, setEditNetworkOverride] = useState<string>('');
   const [editDaiPlatform, setEditDaiPlatform] = useState('');
@@ -81,7 +99,7 @@ function FeedDetail() {
   });
 
   const reprocessAllMutation = useMutation({
-    mutationFn: (mode: 'reprocess' | 'full') => reprocessAllEpisodes(slug!, mode),
+    mutationFn: (mode: 'reprocess' | 'full' | 'llm') => reprocessAllEpisodes(slug!, mode),
     onSuccess: (result) => {
       setReprocessResult(result);
       setShowReprocessConfirm(false);
@@ -391,6 +409,14 @@ function FeedDetail() {
                     setShowReprocessConfirm(true);
                   },
                 },
+                {
+                  title: 'Re-detect Ads',
+                  subtitle: 'Keep transcripts, skip re-transcription',
+                  onClick: () => {
+                    setSelectedReprocessMode('llm');
+                    setShowReprocessConfirm(true);
+                  },
+                },
               ]}
             />
             <DropdownMenu
@@ -486,6 +512,14 @@ function FeedDetail() {
                   Full Reprocess ({processedCount})
                 </button>
                 <button
+                  onClick={() => bulkMutation.mutate({ action: 'reprocess_llm' })}
+                  disabled={bulkMutation.isPending}
+                  className="px-3 py-1.5 text-sm rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50 whitespace-nowrap min-w-[8rem] text-center"
+                  title="Re-detect ads using existing transcripts (skips re-transcription)"
+                >
+                  Re-detect Ads ({processedCount})
+                </button>
+                <button
                   onClick={() => setShowBulkDeleteConfirm(true)}
                   disabled={bulkMutation.isPending}
                   className="px-3 py-1.5 text-sm rounded bg-destructive text-destructive-foreground hover:bg-destructive/90 disabled:opacity-50 whitespace-nowrap min-w-[8rem] text-center"
@@ -571,16 +605,16 @@ function FeedDetail() {
               </h2>
               <div className="mb-4 p-3 rounded-lg bg-accent/50">
                 <p className="text-sm font-medium text-foreground">
-                  Mode: {selectedReprocessMode === 'reprocess' ? 'Patterns + AI' : 'AI Only'}
+                  Mode: {reprocessModeLabel(selectedReprocessMode)}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {selectedReprocessMode === 'reprocess'
-                    ? 'Uses learned patterns for faster ad detection'
-                    : 'Fresh analysis without pattern database'}
+                  {reprocessModeDescription(selectedReprocessMode)}
                 </p>
               </div>
               <p className="text-sm text-muted-foreground mb-4">
-                This will queue all processed episodes for reprocessing. Existing processed audio files will be deleted and episodes will be re-transcribed and re-analyzed.
+                {selectedReprocessMode === 'llm'
+                  ? 'This will queue all processed episodes that have a saved transcript. The transcript is reused (no re-transcription); audio is re-analyzed and re-cut. Episodes without a transcript are skipped.'
+                  : 'This will queue all processed episodes for reprocessing. Existing processed audio files will be deleted and episodes will be re-transcribed and re-analyzed.'}
               </p>
               <p className="text-sm text-yellow-600 dark:text-yellow-400 mb-6">
                 This operation cannot be undone. Episodes currently processing will be skipped.
@@ -612,7 +646,7 @@ function FeedDetail() {
             <div className="p-6">
               <h2 className="text-xl font-semibold text-foreground mb-4">Reprocess Queued</h2>
               <p className="text-xs text-muted-foreground mb-4">
-                Mode: {reprocessResult.mode === 'reprocess' ? 'Patterns + AI' : 'AI Only'}
+                Mode: {reprocessModeLabel(reprocessResult.mode)}
               </p>
               <div className="grid grid-cols-2 gap-4 text-center mb-4">
                 <div className="p-3 rounded-lg bg-green-500/10">
@@ -626,7 +660,7 @@ function FeedDetail() {
               </div>
               {reprocessResult.queued > 0 && (
                 <p className="text-sm text-muted-foreground mb-4">
-                  {reprocessResult.queued} episodes have been queued for {reprocessResult.mode === 'reprocess' ? 'pattern-assisted' : 'full AI'} reprocessing. They will be processed in the background.
+                  {reprocessResult.queued} episodes have been queued for {reprocessModeVerb(reprocessResult.mode)} reprocessing. They will be processed in the background.
                 </p>
               )}
               <button

@@ -6,6 +6,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.0] - 2026-06-09
+
+### Added
+
+- LLM-only reprocess mode (#349). A new "Re-detect Ads" option reruns ad detection and re-cuts the audio using the transcript already saved for an episode, so it skips the transcription step that dominates processing time on local hardware. It is available per episode and in bulk; episodes without a saved transcript are skipped. The transcript is preserved rather than deleted, unlike the existing Reprocess and Full Analysis modes.
+- Audio cue detection, an opt-in experiment (#350). Some shows play a short non-spoken ding or stinger just before an ad break that the transcript cannot capture. When enabled in Settings under Experiments, an extra ffmpeg pass band-passes the audio and flags brief loudness bursts in the cue's frequency band, then passes them to the ad detector as a timing hint. The cue never marks an ad on its own; the model must still find ad content in the transcript, so it only sharpens an ad's start time. The band, prominence threshold, and minimum confidence are tunable, and the Stats page shows how many cues were detected. Off by default.
+
+### Fixed
+
+- A podcast description containing the sequence `]]>` no longer corrupts the generated feed. That sequence closes a CDATA block early, which leaked the rest of the description as raw markup and broke the served XML for every subscriber of that podcast. Description text is now split across CDATA sections so the literal content round-trips intact.
+- The single-feed "Force refresh" now actually forces a refresh. The handler cleared the ETag but dropped the force flag before calling the refresh, so the 30-second coalesce window could still suppress a refresh requested within that window.
+- The pricing fetchers (OpenRouter, pricepertoken, LiteLLM) now cap the response body they read. A hostile or broken pricing host could previously return an unbounded body and exhaust worker memory.
+
+### Changed
+
+- Removed dead imports and unused locals flagged by static analysis, and declared the public re-export surface of the `ad_detector` package explicitly.
+
 ## [2.7.9] - 2026-06-09
 
 ### Added

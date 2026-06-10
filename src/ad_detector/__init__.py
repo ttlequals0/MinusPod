@@ -8,7 +8,6 @@ Package layout:
 """
 import logging
 import threading
-import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Optional, NamedTuple
 
@@ -22,12 +21,10 @@ from llm_client import (
 from utils.language import get_pattern_language
 from utils.llm_call import call_llm_for_window
 from utils.prompt import format_sponsor_block, render_prompt
-from utils.text import get_transcript_text_for_range
-from utils.time import first_not_none, overlap_ratio
+from utils.time import overlap_ratio
 
 from config import (
-    MIN_TYPICAL_AD_DURATION, MIN_SPONSOR_READ_DURATION,
-    MAX_REALISTIC_SIGNAL, MIN_OVERLAP_TOLERANCE,
+    MIN_OVERLAP_TOLERANCE,
     MAX_AD_DURATION_WINDOW,
     PATTERN_CORRECTION_OVERLAP_THRESHOLD,
     DEFAULT_AD_DETECTION_MODEL,
@@ -41,9 +38,7 @@ from config import (
 from llm_capabilities import PASS_AD_DETECTION_1, PASS_AD_DETECTION_2
 from sponsor_service import SponsorService
 from utils.constants import (
-    INVALID_SPONSOR_VALUES, STRUCTURAL_FIELDS,
-    SPONSOR_PRIORITY_FIELDS, SPONSOR_PATTERN_KEYWORDS,
-    INVALID_SPONSOR_CAPTURE_WORDS, NON_BRAND_WORDS, NOT_AD_CLASSIFICATIONS,
+    INVALID_SPONSOR_VALUES,
     KNOWN_SHORT_BRANDS, canonical_sponsor,
     LEARNING_MIN_CONFIDENCE, LEARNING_MIN_CONFIDENCE_LONG,
     LEARNING_LONG_DURATION_THRESHOLD,
@@ -80,6 +75,43 @@ from .prompts import (
     extract_json_object,
     _find_json_array_candidates,
 )
+
+# Public surface re-exported from the pre-split module. External callers
+# (production and tests) import these names directly from ``ad_detector``;
+# declaring them here keeps that backward-compat contract explicit and marks
+# the re-export block as intentional rather than dead imports.
+__all__ = [
+    "AdDetector",
+    "WindowResult",
+    "_resolve_parallel_windows",
+    "_model_not_found_hint",
+    # re-exported from .boundaries
+    "EARLY_AD_SNAP_THRESHOLD",
+    "AD_START_PHRASES",
+    "AD_END_PHRASES",
+    "_NON_BRAND_WORDS",
+    "refine_ad_boundaries",
+    "snap_early_ads_to_zero",
+    "extend_ad_boundaries_by_content",
+    "_text_has_ad_content",
+    "extract_sponsor_names",
+    "_extract_ad_keywords",
+    "_find_keyword_region",
+    "validate_ad_timestamps",
+    "_unpack_region",
+    "get_uncovered_portions",
+    "merge_same_sponsor_ads",
+    "deduplicate_window_ads",
+    # re-exported from .prompts
+    "USER_PROMPT_TEMPLATE",
+    "create_windows",
+    "format_window_prompt",
+    "get_static_system_prompt",
+    "parse_ads_from_response",
+    "extract_json_ads_array",
+    "extract_json_object",
+    "_find_json_array_candidates",
+]
 
 logger = logging.getLogger('podcast.claude')
 
