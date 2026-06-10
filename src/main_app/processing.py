@@ -119,11 +119,13 @@ def is_transient_error(error: Exception) -> bool:
     if any(pattern in error_msg for pattern in transient_patterns):
         return True
 
-    # Permanent content/auth errors
+    # Permanent content/auth errors. 404 / "not found" is deliberately absent:
+    # a freshly published episode 404s briefly while the host provisions the
+    # media URL, so it is transient (the retry cap still fails a dead link).
     permanent_patterns = [
         'invalid audio', 'unsupported format', 'corrupt',
-        'authentication', 'unauthorized', 'forbidden', 'not found',
-        '400 ', '401 ', '403 ', '404 ',
+        'authentication', 'unauthorized', 'forbidden',
+        '400 ', '401 ', '403 ',
     ]
     if any(pattern in error_msg for pattern in permanent_patterns):
         return False

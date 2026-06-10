@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.6] - 2026-06-10
+
+### Fixed
+
+- A freshly published episode that 404s on download is now retried instead of failing permanently on the first attempt. Hosts like acast often advertise an episode in the feed a few minutes before the media URL is ready, so the first download attempt 404s. The error was classified as permanent, so the episode failed and served a 410 to subscribers until someone reprocessed it by hand. A download 404 is now treated as transient and flows into the existing retry ladder; a genuinely dead link still fails for good once it exhausts the retry limit.
+
 ## [2.8.5] - 2026-06-10
 
 ### Fixed
