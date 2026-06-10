@@ -1065,7 +1065,7 @@ def _drop_uncovered_pass2_ads(slug, episode_id, v_ads_to_cut, v_ads_for_ui,
 def _run_verification_pass(ctx, processed_path, pass1_cuts,
                             skip_patterns, min_cut_confidence,
                             local_audio_processor, progress_callback,
-                            original_segments=None):
+                            original_segments=None, reuse_transcript=False):
     """Pipeline stage: Run verification (second pass) on processed audio.
 
     ``pass1_cuts`` must be the cuts ffmpeg actually applied (see
@@ -1103,6 +1103,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
             skip_patterns=skip_patterns,
             progress_callback=progress_callback,
             original_segments=original_segments,
+            reuse_transcript=reuse_transcript,
         )
         verification_ads_original = verification_result.get('ads', [])
         verification_ads_processed = verification_result.get('ads_processed', [])
@@ -1642,6 +1643,9 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 skip_patterns, min_cut_confidence,
                 local_audio_processor, detection_progress_callback,
                 original_segments=segments,
+                # LLM-only reprocess maps the saved transcript through the cuts
+                # for pass 2 instead of re-transcribing (issue #349).
+                reuse_transcript=(reprocess_mode == 'llm'),
             )
             # Detection-event accounting, not unique cues (issue #350): a cue
             # in a region pass 1 left in the audio is re-detected here and

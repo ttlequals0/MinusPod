@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.7] - 2026-06-10
+
+### Changed
+
+- LLM-only reprocess (#349) no longer transcribes at all. The first pass already reused the saved transcript, but the verification pass still re-transcribed the cut audio, so re-detecting ads still paid for one transcription. It now maps the saved transcript through the cuts to get the post-cut transcript instead of re-transcribing, so iterating on detection or LLM config is transcription-free. Audio-cue detection still runs on the real processed audio. The trade is that the verification pass can only re-examine what the saved transcript already captured; the other reprocess modes still re-transcribe.
+
 ## [2.8.6] - 2026-06-10
 
 ### Fixed
