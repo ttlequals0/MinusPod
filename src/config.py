@@ -120,13 +120,16 @@ FINGERPRINT_MATCH_THRESHOLD = 0.65   # Audio fingerprint similarity threshold
 MIN_KEYWORD_LENGTH = 3              # Minimum keyword length for transcript search
 
 BOUNDARY_EXTENSION_WINDOW = 10.0   # Seconds before/after ad to check for ad content
-BOUNDARY_EXTENSION_MAX = 15.0      # Max seconds to extend a boundary
+BOUNDARY_EXTENSION_MAX = 30.0      # Max seconds to extend a boundary
+BOUNDARY_EXTENSION_CONNECTOR_SKIP = 2  # Max consecutive non-ad segments the end walk may skip
+BOUNDARY_EXTENSION_SKIP_MAX = 8.0  # Max total seconds of non-ad content the end walk may skip
 AD_CONTENT_URL_PATTERNS = ['.com', '.tv', '.co', '.org', '.net', '.io']
 AD_CONTENT_PROMO_PHRASES = [
     'use code', 'percent off', 'visit', 'sign up', 'free trial',
     'promo code', 'check out', 'head to', 'go to', 'click the link',
     'dot com', 'slash', 'coupon', 'discount', 'offer code',
 ]
+AD_CONTENT_PHONE_PATTERNS = ['1-800', '1 800', 'one eight hundred']
 
 # ============================================================
 # Ad Duration Estimation
@@ -167,6 +170,8 @@ AUDIO_CUE_MAX_DURATION = 2.0         # Max burst length (s); longer is content/m
 # ============================================================
 MIN_AD_DURATION_FOR_REMOVAL = 10.0   # Min ad duration to actually remove from audio
 POST_ROLL_TRIM_THRESHOLD = 30.0      # Threshold for trimming post-roll content
+MERGE_GAP_SECONDS = 1.0              # Cuts separated by less than this merge into one
+                                     # (distinct from the validator's MERGE_GAP_THRESHOLD)
 
 # ============================================================
 # Subprocess Timeouts (seconds)

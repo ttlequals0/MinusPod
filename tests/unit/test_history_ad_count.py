@@ -3,7 +3,7 @@
 Before this fix, `_record_history_and_event` recorded
 ``ads_detected=len(ads_to_remove)`` but ignored the ``verification_count``
 it received as a parameter. The episodes table got the total
-(``len(ads_to_remove) + verification_count``) via
+(``pass1_cut_count + verification_count``) via
 ``_persist_episode_state``, but the history table and the downstream
 ``EVENT_EPISODE_PROCESSED`` webhook got the pass-1-only count.
 
@@ -60,7 +60,7 @@ def _make_token_totals():
 
 
 class TestHistoryAdCountIncludesVerification:
-    """history.ads_detected = len(ads_to_remove) + verification_count.
+    """history.ads_detected = pass1_cut_count + verification_count.
 
     This is the field rendered by the Settings -> History page and the
     /api/v1/history endpoint. It is also the field the EVENT_EPISODE_PROCESSED
@@ -70,7 +70,6 @@ class TestHistoryAdCountIncludesVerification:
 
     def test_records_total_not_just_pass_1(self):
         db = _make_db()
-        ads_to_remove = [{'start': 60.0, 'end': 90.0}, {'start': 600.0, 'end': 660.0}]
         verification_count = 3
 
         # _record_history_and_event also fires a webhook; stub it so the
@@ -80,7 +79,7 @@ class TestHistoryAdCountIncludesVerification:
                 slug='daily-show', episode_id='ep1',
                 episode_title='Episode One',
                 podcast_name='Daily Show',
-                ads_to_remove=ads_to_remove,
+                pass1_cut_count=2,
                 verification_count=verification_count,
                 original_duration=3600.0, new_duration=3300.0,
                 processing_time=120.0,
@@ -91,7 +90,7 @@ class TestHistoryAdCountIncludesVerification:
         db.record_processing_history.assert_called_once()
         kwargs = db.record_processing_history.call_args.kwargs
         assert kwargs['ads_detected'] == 5, (
-            f"history.ads_detected should be len(ads_to_remove)+verification_count "
+            f"history.ads_detected should be pass1_cut_count+verification_count "
             f"(2+3=5), got {kwargs['ads_detected']}. Pre-2.5.28 this was 2."
         )
 
@@ -99,12 +98,11 @@ class TestHistoryAdCountIncludesVerification:
         """No verification re-cut: total equals pass-1 count (regression
         guard so the fix doesn't break the simple case)."""
         db = _make_db()
-        ads_to_remove = [{'start': 60.0, 'end': 90.0}]
 
         with patch('main_app.processing.fire_event'):
             _record_history_and_event(
                 slug='s', episode_id='e', episode_title='t', podcast_name='p',
-                ads_to_remove=ads_to_remove, verification_count=0,
+                pass1_cut_count=1, verification_count=0,
                 original_duration=3600.0, new_duration=3570.0,
                 processing_time=60.0, token_totals=_make_token_totals(), db=db,
             )
@@ -122,7 +120,7 @@ class TestHistoryAdCountIncludesVerification:
         with patch('main_app.processing.fire_event'):
             _record_history_and_event(
                 slug='s', episode_id='e', episode_title='t', podcast_name='p',
-                ads_to_remove=[], verification_count=1,
+                pass1_cut_count=0, verification_count=1,
                 original_duration=3600.0, new_duration=3540.0,
                 processing_time=60.0, token_totals=_make_token_totals(), db=db,
             )
@@ -148,7 +146,7 @@ class TestCompletionLogLineIncludesVerification:
                       return_value=token_stub):
             _log_completion_summary(
                 slug='s', episode_id='e',
-                ads_to_remove=[{'start': 60.0, 'end': 90.0}],
+                pass1_cut_count=1,
                 verification_count=2,
                 original_duration=3600.0, new_duration=3300.0,
                 processing_time=120.0, db=db,
@@ -169,7 +167,7 @@ class TestCompletionLogLineIncludesVerification:
                       return_value=token_stub):
             _log_completion_summary(
                 slug='s', episode_id='e',
-                ads_to_remove=[], verification_count=0,
+                pass1_cut_count=0, verification_count=0,
                 original_duration=3600.0, new_duration=3600.0,
                 processing_time=60.0, db=db,
             )

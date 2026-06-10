@@ -261,9 +261,11 @@ class AudioAnalyzer:
             )
             if cue_error:
                 errors.append(cue_error)
-            elif cue_result:
+            else:
+                # The detector logs its own summary line (frames, baseline,
+                # peak vs threshold, cue count) including the zero-cue case,
+                # so no extra log here.
                 signals.extend(cue_result)
-                logger.info(f"Audio cue detection: {len(cue_result)} cue(s)")
 
         result.signals = signals
         result.errors = errors

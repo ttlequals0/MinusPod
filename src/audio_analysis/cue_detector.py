@@ -76,14 +76,32 @@ class AudioCueDetector:
 
         measurements = self._measure_band_loudness(audio_path)
         if not measurements:
+            # ffmpeg ran but the ebur128 momentary-loudness regex matched no
+            # frames -- a format mismatch, not "no cue". Log so it is not
+            # silently indistinguishable from a clean zero-cue result.
+            logger.info("Audio cue: 0 in-band frames measured (no momentary-loudness output)")
             return []
 
         values = [m[1] for m in measurements if m[1] > _SILENCE_FLOOR_LUFS]
         if not values:
+            logger.info(
+                f"Audio cue: {len(measurements)} frames, all at/below silence floor "
+                f"({_SILENCE_FLOOR_LUFS:.0f} LUFS) -- 0 cue(s)"
+            )
             return []
         baseline = median(values)
 
-        return self._find_bursts(measurements, baseline)
+        signals = self._find_bursts(measurements, baseline)
+        # Always log the run, including the zero-cue case, so a quiet result is
+        # observable: it tells whether the audio simply had no burst (peak below
+        # threshold) versus the detector not running at all.
+        peak = max(values) - baseline
+        logger.info(
+            f"Audio cue: {len(measurements)} frames, baseline {baseline:.1f} LUFS, "
+            f"peak +{peak:.1f} dB vs threshold +{self.prominence_db:.1f} dB, "
+            f"{len(signals)} cue(s) emitted"
+        )
+        return signals
 
     def _measure_band_loudness(self, audio_path: str) -> List[Tuple[float, float]]:
         """Band-pass then ebur128; return [(timestamp, momentary_lufs), ...]."""

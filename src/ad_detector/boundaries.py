@@ -16,7 +16,9 @@ from config import (
     SHORT_GAP_THRESHOLD,
     MAX_MERGED_DURATION,
     BOUNDARY_EXTENSION_WINDOW, BOUNDARY_EXTENSION_MAX,
+    BOUNDARY_EXTENSION_CONNECTOR_SKIP, BOUNDARY_EXTENSION_SKIP_MAX,
     AD_CONTENT_URL_PATTERNS, AD_CONTENT_PROMO_PHRASES,
+    AD_CONTENT_PHONE_PATTERNS,
     MIN_KEYWORD_LENGTH, MIN_UNCOVERED_TAIL_DURATION,
 )
 
@@ -297,7 +299,8 @@ def snap_early_ads_to_zero(ads: List[Dict], threshold: float = EARLY_AD_SNAP_THR
     return snapped
 
 
-def extend_ad_boundaries_by_content(ads: List[Dict], segments: List[Dict]) -> List[Dict]:
+def extend_ad_boundaries_by_content(ads: List[Dict], segments: List[Dict],
+                                    extend_start: bool = True) -> List[Dict]:
     """Extend ad boundaries by checking adjacent segments for ad-like content.
 
     For each detected ad, examines transcript text immediately before and after
@@ -310,6 +313,8 @@ def extend_ad_boundaries_by_content(ads: List[Dict], segments: List[Dict]) -> Li
     Args:
         ads: List of detected ad segments
         segments: List of transcript segments with 'start', 'end', 'text'
+        extend_start: Also extend ad starts backwards (the post-reviewer tail
+            pass sets this False so it only sweeps trailing CTAs)
 
     Returns:
         List of ads with boundaries extended where ad content continues
@@ -333,15 +338,35 @@ def extend_ad_boundaries_by_content(ads: List[Dict], segments: List[Dict]) -> Li
         ).lower()
 
         if after_text and _text_has_ad_content(after_text, ad_sponsors):
-            # Find the last segment in the extension window
+            # Walk forward, skipping up to BOUNDARY_EXTENSION_CONNECTOR_SKIP
+            # consecutive non-qualifying segments: CTA tails often sandwich a
+            # connector line ("Thank you for the job you do") between sponsor
+            # mentions, but a long run of plain content means the ad is over.
+            # The skip is also bounded in seconds: two long story segments
+            # should end the walk just like three short ones.
             new_end = ad_end
+            skipped = 0
+            skipped_time = 0.0
             for seg in segments:
-                if seg['start'] >= ad_end and seg['start'] < ad_end + BOUNDARY_EXTENSION_MAX:
-                    seg_text = seg.get('text', '').lower()
-                    if _text_has_ad_content(seg_text, ad_sponsors):
-                        new_end = seg['end']
-                    else:
-                        break  # Stop at first non-ad segment
+                if seg['end'] <= ad_end:
+                    continue  # fully inside the ad; a straddler still counts
+                if seg['start'] >= ad_end + BOUNDARY_EXTENSION_MAX:
+                    break  # segments are time-sorted
+                if _text_has_ad_content(seg.get('text', '').lower(), ad_sponsors):
+                    # Cap at the window bound: a long qualifying segment
+                    # (straddler or merged transcription) must not pull the
+                    # end past the documented max extension.
+                    new_end = min(seg['end'], ad_end + BOUNDARY_EXTENSION_MAX)
+                    skipped = 0
+                    skipped_time = 0.0
+                else:
+                    skipped += 1
+                    # Only the portion past the ad end counts (first segment
+                    # can straddle the boundary).
+                    skipped_time += seg['end'] - max(seg['start'], ad_end)
+                    if (skipped > BOUNDARY_EXTENSION_CONNECTOR_SKIP
+                            or skipped_time > BOUNDARY_EXTENSION_SKIP_MAX):
+                        break
 
             if new_end > ad_end:
                 logger.info(
@@ -352,28 +377,32 @@ def extend_ad_boundaries_by_content(ads: List[Dict], segments: List[Dict]) -> Li
                 ad_copy['end_extended_by_content'] = True
 
         # Check text BEFORE ad start for continuation
-        before_text = get_transcript_text_for_range(
-            segments, max(0, ad_start - BOUNDARY_EXTENSION_WINDOW), ad_start
-        ).lower()
+        if extend_start:
+            before_text = get_transcript_text_for_range(
+                segments, max(0, ad_start - BOUNDARY_EXTENSION_WINDOW), ad_start
+            ).lower()
 
-        if before_text and _text_has_ad_content(before_text, ad_sponsors):
-            new_start = ad_start
-            # Walk backwards through segments
-            for seg in reversed(segments):
-                if seg['end'] <= ad_start and seg['end'] > ad_start - BOUNDARY_EXTENSION_MAX:
-                    seg_text = seg.get('text', '').lower()
-                    if _text_has_ad_content(seg_text, ad_sponsors):
-                        new_start = seg['start']
-                    else:
-                        break
+            if before_text and _text_has_ad_content(before_text, ad_sponsors):
+                new_start = ad_start
+                # Walk backwards through segments
+                for seg in reversed(segments):
+                    if seg['end'] <= ad_start - BOUNDARY_EXTENSION_MAX:
+                        break  # reversed walk: everything earlier is further out
+                    if seg['end'] <= ad_start:
+                        seg_text = seg.get('text', '').lower()
+                        if _text_has_ad_content(seg_text, ad_sponsors):
+                            # Same window cap as the end walk.
+                            new_start = max(seg['start'], ad_start - BOUNDARY_EXTENSION_MAX)
+                        else:
+                            break
 
-            if new_start < ad_start:
-                logger.info(
-                    f"Extended ad start by content: {ad_start:.1f}s -> {new_start:.1f}s "
-                    f"(-{ad_start - new_start:.1f}s, sponsors: {ad_sponsors})"
-                )
-                ad_copy['start'] = new_start
-                ad_copy['start_extended_by_content'] = True
+                if new_start < ad_start:
+                    logger.info(
+                        f"Extended ad start by content: {ad_start:.1f}s -> {new_start:.1f}s "
+                        f"(-{ad_start - new_start:.1f}s, sponsors: {ad_sponsors})"
+                    )
+                    ad_copy['start'] = new_start
+                    ad_copy['start_extended_by_content'] = True
 
         extended.append(ad_copy)
 
@@ -399,15 +428,12 @@ def _text_has_ad_content(text: str, sponsor_names: set = None) -> bool:
             if sponsor in text:
                 return True
 
-    # Check for URL patterns
-    for pattern in AD_CONTENT_URL_PATTERNS:
-        if pattern in text:
-            return True
-
-    # Check for promotional phrases
-    for phrase in AD_CONTENT_PROMO_PHRASES:
-        if phrase in text:
-            return True
+    # Check for URL, phone, and promotional patterns
+    for pattern_list in (AD_CONTENT_URL_PATTERNS, AD_CONTENT_PHONE_PATTERNS,
+                         AD_CONTENT_PROMO_PHRASES):
+        for pattern in pattern_list:
+            if pattern in text:
+                return True
 
     return False
 

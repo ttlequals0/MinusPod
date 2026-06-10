@@ -90,6 +90,14 @@ class VerificationPass:
         except Exception as e:
             logger.warning(f"[{slug}:{episode_id}] Verification audio analysis failed: {e}")
 
+        # Audio cues (issue #350) found on the processed audio. The stat counter
+        # in processing only sees the pass-1 analysis, so surface this count so
+        # cues found here are not dropped from the dashboard total.
+        verification_cue_count = (
+            len(processed_analysis.get_signals_by_type('audio_cue'))
+            if processed_analysis else 0
+        )
+
         # Step 3: Claude detection with verification prompt + audio context
         if progress_callback:
             progress_callback("detecting", 90)
@@ -104,7 +112,7 @@ class VerificationPass:
 
         if not processed_ads:
             return {'ads': [], 'ads_processed': [], 'segments': verification_segments,
-                    'status': 'clean'}
+                    'status': 'clean', 'audio_cue_count': verification_cue_count}
 
         # Tag all ads as verification stage
         for ad in processed_ads:
@@ -149,7 +157,8 @@ class VerificationPass:
             'ads': original_ads,
             'ads_processed': processed_ads,
             'segments': verification_segments,
-            'status': 'found_ads'
+            'status': 'found_ads',
+            'audio_cue_count': verification_cue_count,
         }
 
     def _transcribe_verification(self, audio_path: str,

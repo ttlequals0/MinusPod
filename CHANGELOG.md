@@ -6,6 +6,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.2] - 2026-06-10
+
+### Fixed
+
+- Trailing call-to-action lines no longer survive at the end of a removed ad. Cut ends consistently landed a few seconds short, leaving the sponsor URL, a toll-free number, or a closing thank-you (3 to 19 seconds in sampled episodes) in the processed audio. The content-based end extension now runs once more after the ad reviewer, whose boundary verdicts could undo it. It also keeps walking past a connector line sandwiched between sponsor mentions instead of stopping at the first non-ad segment, recognizes toll-free phone numbers as ad content, and can extend up to 30 seconds instead of 15.
+- The generated transcript, chapters, and the verification pass's timestamp mapping are now built from the cuts ffmpeg actually applied instead of the requested list. The two diverge whenever near-adjacent cuts merge, a sub-10-second cut is dropped as a likely false positive, or an end-of-episode cut runs to the end of the file. The divergence shifted every verification timestamp after the affected cut and made the published transcript disagree with the audio around it.
+- The per-episode ads-removed count (episodes table, History page, completion log, webhook payload) now counts cuts that exist in the audio. A requested cut that merged into a neighbor still counts, but one filtered out as too short no longer inflates the number, and a verification-pass ad that the re-cut filtered away is no longer listed as removed in the ad editor.
+- Cut timestamps are clamped to the audio bounds before cutting. Detection can produce an end past the real file duration (Whisper's last segment routinely overruns ffprobe), which previously fed ffmpeg an out-of-range trim; a fully out-of-range cut is now skipped with a log line. When every requested cut filters away, the audio is copied through instead of pointlessly re-encoded.
+- The content-based boundary extension respects its 30-second window on both sides: a single long transcript segment straddling the boundary can no longer pull a cut past the window, and the post-reviewer tail sweep never extends a cut into the next detected ad.
+
 ## [2.8.1] - 2026-06-09
 
 ### Fixed

@@ -6,11 +6,14 @@ import os
 import shutil
 from functools import lru_cache
 from pathlib import Path
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 
 from utils.audio import get_audio_duration
 from utils.subprocess_registry import tracked_run
-from config import FFMPEG_LONG_TIMEOUT, SUBPROCESS_VERSION_PROBE
+from config import (
+    FFMPEG_LONG_TIMEOUT, SUBPROCESS_VERSION_PROBE,
+    MIN_AD_DURATION_FOR_REMOVAL, POST_ROLL_TRIM_THRESHOLD, MERGE_GAP_SECONDS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -76,65 +79,112 @@ class AudioProcessor:
             self._beep_duration = self.get_audio_duration(self.replace_audio_path) or 1.0
         return self._beep_duration
 
-    def remove_ads(self, input_path: str, ad_segments: List[Dict], output_path: str) -> bool:
-        """Remove ad segments from audio file."""
+    def compute_applied_cuts(self, ad_segments: List[Dict],
+                             total_duration: float) -> List[Dict]:
+        """Compute the cuts remove_ads actually applies to the audio.
+
+        Requested segments diverge from applied cuts: near-adjacent segments
+        merge, short ones drop, and an end-of-episode cut extends to the end
+        of the file. Asset generation and verification timestamp mapping need
+        the applied list, not the requested one -- remove_ads returns it.
+        """
+        if not ad_segments or not total_duration:
+            return []
+
+        # Clamp to the audio bounds: detection can hand us a cut that starts
+        # below zero or runs past the end of the file, and an out-of-range
+        # atrim would silently cut the wrong region.
+        clamped = []
+        for ad in ad_segments:
+            start = max(0.0, ad['start'])
+            end = min(ad['end'], total_duration)
+            if end <= start:
+                logger.info(f"Skipping out-of-range ad ({ad['start']:.1f}s-{ad['end']:.1f}s "
+                            f"vs {total_duration:.1f}s audio)")
+                continue
+            ad = dict(ad)
+            ad['start'], ad['end'] = start, end
+            clamped.append(ad)
+        if not clamped:
+            return []
+
+        sorted_segments = sorted(clamped, key=lambda x: x['start'])
+
+        # Merge segments with < 1 second gaps
+        merged_ads = []
+        current_segment = None
+        for ad in sorted_segments:
+            if current_segment and ad['start'] - current_segment['end'] < MERGE_GAP_SECONDS:
+                # Extend current segment (use max to handle overlapping/contained ads)
+                current_segment['end'] = max(current_segment['end'], ad['end'])
+                if 'reason' in ad:
+                    current_segment['reason'] = current_segment.get('reason', '') + '; ' + ad['reason']
+            else:
+                if current_segment:
+                    merged_ads.append(current_segment)
+                current_segment = {'start': ad['start'], 'end': ad['end']}
+                if 'reason' in ad:
+                    current_segment['reason'] = ad['reason']
+        if current_segment:
+            merged_ads.append(current_segment)
+
+        # Filter out short ad detections (< 10 seconds) - likely false positives
+        ads = []
+        skipped_count = 0
+        for ad in merged_ads:
+            duration = ad['end'] - ad['start']
+            if duration >= MIN_AD_DURATION_FOR_REMOVAL:
+                ads.append(ad)
+            else:
+                skipped_count += 1
+                logger.info(f"Skipping short ad ({duration:.1f}s < {MIN_AD_DURATION_FOR_REMOVAL}s): {ad.get('reason', 'unknown')[:50]}")
+        if skipped_count > 0:
+            logger.info(f"Skipped {skipped_count} short ad detections (< {MIN_AD_DURATION_FOR_REMOVAL}s)")
+
+        # End-of-episode cut: when less than 30s would remain after the last
+        # cut, the episode ends at the beep, so the cut runs to the end.
+        if ads:
+            remaining = total_duration - ads[-1]['end']
+            if remaining < POST_ROLL_TRIM_THRESHOLD and ads[-1]['end'] != total_duration:
+                logger.info(f"End-of-episode cut: extending {ads[-1]['end']:.1f}s -> "
+                            f"{total_duration:.1f}s ({remaining:.1f}s would remain)")
+                ads[-1]['end'] = total_duration
+
+        return ads
+
+    def remove_ads(self, input_path: str, ad_segments: List[Dict],
+                   output_path: str) -> Optional[List[Dict]]:
+        """Remove ad segments from audio file.
+
+        Returns the applied cut list (see compute_applied_cuts) on success --
+        empty when nothing was cut -- or None on failure.
+        """
         if not ad_segments:
             # No ads to remove, just copy file
             logger.info("No ads to remove, copying original file")
             shutil.copy2(input_path, output_path)
-            return True
+            return []
 
         if not os.path.exists(self.replace_audio_path):
             logger.error(f"Replace audio not found: {self.replace_audio_path}")
-            return False
+            return None
 
         try:
             # Get total duration
             total_duration = self.get_audio_duration(input_path)
             if not total_duration:
                 logger.error("Could not get audio duration")
-                return False
+                return None
 
             logger.info(f"Processing audio: {total_duration:.1f}s total, {len(ad_segments)} ad segments")
 
-            # Sort ad segments by start time
-            sorted_segments = sorted(ad_segments, key=lambda x: x['start'])
-
-            # Merge segments with < 1 second gaps
-            merged_ads = []
-            current_segment = None
-
-            for ad in sorted_segments:
-                if current_segment and ad['start'] - current_segment['end'] < 1.0:
-                    # Extend current segment (use max to handle overlapping/contained ads)
-                    current_segment['end'] = max(current_segment['end'], ad['end'])
-                    if 'reason' in ad:
-                        current_segment['reason'] = current_segment.get('reason', '') + '; ' + ad['reason']
-                else:
-                    if current_segment:
-                        merged_ads.append(current_segment)
-                    current_segment = {'start': ad['start'], 'end': ad['end']}
-                    if 'reason' in ad:
-                        current_segment['reason'] = ad['reason']
-
-            if current_segment:
-                merged_ads.append(current_segment)
-
-            # Filter out short ad detections (< 10 seconds) - likely false positives
-            MIN_AD_DURATION_FOR_REMOVAL = 10.0  # seconds
-            ads = []
-            skipped_count = 0
-            for ad in merged_ads:
-                duration = ad['end'] - ad['start']
-                if duration >= MIN_AD_DURATION_FOR_REMOVAL:
-                    ads.append(ad)
-                else:
-                    skipped_count += 1
-                    logger.info(f"Skipping short ad ({duration:.1f}s < {MIN_AD_DURATION_FOR_REMOVAL}s): {ad.get('reason', 'unknown')[:50]}")
-
-            if skipped_count > 0:
-                logger.info(f"Skipped {skipped_count} short ad detections (< {MIN_AD_DURATION_FOR_REMOVAL}s)")
+            ads = self.compute_applied_cuts(ad_segments, total_duration)
             logger.info(f"After merging and filtering: {len(ads)} ad segments")
+            if not ads:
+                # Every requested cut merged/filtered away: nothing to cut,
+                # so skip the re-encode and ship the audio unchanged.
+                shutil.copy2(input_path, output_path)
+                return []
 
             # Build complex filter for FFMPEG
             # Strategy: Split audio into segments, replace ad segments with beep
@@ -155,43 +205,9 @@ class AudioProcessor:
                 beep_split = f"[1:a]asplit={num_ads}" + "".join(f"[beep_in{i}]" for i in range(num_ads))
                 filter_parts.append(beep_split)
 
-            # Threshold for trimming end-of-episode ads (beep then cut)
-            POST_ROLL_TRIM_THRESHOLD = 30.0  # seconds
-
             for i, ad in enumerate(ads):
                 ad_start = ad['start']
                 ad_end = ad['end']
-                is_last_ad = (i == num_ads - 1)
-
-                # Check if this is an end-of-episode ad that should be trimmed after beep
-                # (last ad with < 30s of content remaining after it)
-                remaining_after_ad = total_duration - ad_end
-                if is_last_ad and remaining_after_ad < POST_ROLL_TRIM_THRESHOLD:
-                    # End-of-episode ad: add content, beep, then end (no trailing content)
-                    logger.info(f"End-of-episode ad at {ad_start:.1f}s - will add beep then end (only {remaining_after_ad:.1f}s would remain)")
-                    if ad_start > current_time:
-                        content_duration = ad_start - current_time
-                        # Add final content with fade out at end
-                        if i == 0:
-                            if content_duration > fade_out_duration:
-                                filter_parts.append(f"[0:a]atrim={current_time}:{ad_start},asetpts=PTS-STARTPTS,afade=t=out:st={content_duration - fade_out_duration}:d={fade_out_duration}[s{segment_idx}]")
-                            else:
-                                filter_parts.append(f"[0:a]atrim={current_time}:{ad_start},asetpts=PTS-STARTPTS[s{segment_idx}]")
-                        else:
-                            if content_duration > fade_in_duration + fade_out_duration:
-                                filter_parts.append(f"[0:a]atrim={current_time}:{ad_start},asetpts=PTS-STARTPTS,afade=t=in:d={fade_in_duration},afade=t=out:st={content_duration - fade_out_duration}:d={fade_out_duration}[s{segment_idx}]")
-                            else:
-                                filter_parts.append(f"[0:a]atrim={current_time}:{ad_start},asetpts=PTS-STARTPTS[s{segment_idx}]")
-                        concat_parts.append(f"[s{segment_idx}]")
-                        segment_idx += 1
-
-                    # Add beep before ending episode
-                    beep_fade_out_start = max(0, beep_duration - beep_fade_duration)
-                    beep_input = f"[beep_in{i}]" if num_ads > 1 else "[1:a]"
-                    filter_parts.append(f"{beep_input}afade=t=in:d={beep_fade_duration},afade=t=out:st={beep_fade_out_start}:d={beep_fade_duration},volume=0.4[beep{segment_idx}]")
-                    concat_parts.append(f"[beep{segment_idx}]")
-                    # Episode ends here - don't process remaining content
-                    break
 
                 # Add content before ad (with fades at boundaries)
                 if ad_start > current_time:
@@ -222,20 +238,19 @@ class AudioProcessor:
                 concat_parts.append(f"[beep{segment_idx}]")
 
                 current_time = ad_end
-            else:
-                # Only add remaining content if we didn't break (trim end-of-episode ad)
-                # Add remaining content after last ad (with fade-in)
-                # Skip if less than 30 seconds remain (post-roll ad residue)
-                if current_time < total_duration:
-                    content_duration = total_duration - current_time
-                    if content_duration < POST_ROLL_TRIM_THRESHOLD:
-                        logger.info(f"Skipping {content_duration:.1f}s of post-roll content (< {POST_ROLL_TRIM_THRESHOLD}s threshold)")
-                    elif content_duration > fade_in_duration:
-                        filter_parts.append(f"[0:a]atrim={current_time}:{total_duration},asetpts=PTS-STARTPTS,afade=t=in:d={fade_in_duration}[s{segment_idx}]")
-                        concat_parts.append(f"[s{segment_idx}]")
-                    else:
-                        filter_parts.append(f"[0:a]atrim={current_time}:{total_duration},asetpts=PTS-STARTPTS[s{segment_idx}]")
-                        concat_parts.append(f"[s{segment_idx}]")
+
+            # Add remaining content after the last ad (with fade-in).
+            # compute_applied_cuts extends an end-of-episode cut to
+            # total_duration, so the episode ends at the beep in that case
+            # and no short post-roll residue can reach here.
+            if current_time < total_duration:
+                content_duration = total_duration - current_time
+                if content_duration > fade_in_duration:
+                    filter_parts.append(f"[0:a]atrim={current_time}:{total_duration},asetpts=PTS-STARTPTS,afade=t=in:d={fade_in_duration}[s{segment_idx}]")
+                    concat_parts.append(f"[s{segment_idx}]")
+                else:
+                    filter_parts.append(f"[0:a]atrim={current_time}:{total_duration},asetpts=PTS-STARTPTS[s{segment_idx}]")
+                    concat_parts.append(f"[s{segment_idx}]")
 
             # Concatenate all parts
             filter_str = ';'.join(filter_parts)
@@ -272,38 +287,44 @@ class AudioProcessor:
                 except Exception:
                     stderr_text = str(result.stderr)[:500]
                 logger.error(f"FFMPEG failed: {stderr_text}")
-                return False
+                return None
 
             # Verify output
             new_duration = self.get_audio_duration(output_path)
             if new_duration:
                 removed_time = total_duration - new_duration
                 logger.info(f"FFMPEG processing complete: {total_duration:.1f}s → {new_duration:.1f}s (removed {removed_time:.1f}s)")
-                return True
+                return ads
             else:
                 logger.error("Could not verify output file")
-                return False
+                return None
 
         except subprocess.TimeoutExpired:
             logger.error(f"FFMPEG processing timed out after {ffmpeg_timeout}s")
-            return False
+            return None
         except Exception as e:
             logger.error(f"Audio processing failed: {e}")
-            return False
+            return None
 
-    def process_episode(self, input_path: str, ad_segments: List[Dict]) -> Optional[str]:
-        """Process episode audio to remove ads."""
+    def process_episode(self, input_path: str,
+                        ad_segments: List[Dict]) -> Optional[Tuple[str, List[Dict]]]:
+        """Process episode audio to remove ads.
+
+        Returns (output_path, applied_cuts) on success, None on failure.
+        applied_cuts is the merged/filtered/end-trimmed list remove_ads cut,
+        which downstream asset generation and timestamp mapping consume.
+        """
         with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as tmp:
             temp_output = tmp.name
 
         try:
-            if self.remove_ads(input_path, ad_segments, temp_output):
-                return temp_output
-            else:
-                # Clean up on failure
-                if os.path.exists(temp_output):
-                    os.unlink(temp_output)
-                return None
+            applied_cuts = self.remove_ads(input_path, ad_segments, temp_output)
+            if applied_cuts is not None:
+                return temp_output, applied_cuts
+            # Clean up on failure
+            if os.path.exists(temp_output):
+                os.unlink(temp_output)
+            return None
         except Exception as e:
             logger.error(f"Episode processing failed: {e}")
             if os.path.exists(temp_output):
