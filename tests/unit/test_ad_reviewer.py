@@ -218,6 +218,99 @@ def test_array_with_shift_outside_cap_clamps():
     assert out['reviewer_original_end'] == 180.0
 
 
+def test_merged_ad_inward_end_shrink_is_blocked():
+    """A merged ad's span is the union of confirmed sub-ads; the reviewer may
+    expand the start but an inward end pull (which would drop a sub-ad) is
+    refused. Mirrors the Grainger case: start grows, end held at the union."""
+    reviewer = _build_reviewer({
+        'review_prompt': 'review',
+        'resurrect_prompt': 'resurrect',
+        'review_max_boundary_shift': '60',
+    })
+    # Model wants start earlier (expand) and end earlier (shrink past a sub-ad).
+    reviewer._llm_client.messages_create.return_value = _resp(
+        '[{"start": 100.0, "end": 160.0, "confidence": 0.85}]'
+    )
+    ad = {'start': 120.0, 'end': 180.0, 'confidence': 0.9, 'validation_merged': True}
+    result = reviewer.review(
+        accepted_ads=[ad], resurrection_eligible=[],
+        segments=_mock_segments(), episode_meta=_mock_episode_meta(),
+        pass_num=1, pass_model='claude-test',
+    )
+    out = result.accepted_after_review[0]
+    assert result.verdicts[0].verdict == 'adjust'
+    assert out['start'] == 100.0   # outward expansion allowed
+    assert out['end'] == 180.0     # inward shrink blocked, held at union end
+
+
+def test_merged_ad_outward_growth_allowed():
+    """Expand-only does not block legitimate outward growth on a merged ad."""
+    reviewer = _build_reviewer({
+        'review_prompt': 'review',
+        'resurrect_prompt': 'resurrect',
+        'review_max_boundary_shift': '60',
+    })
+    reviewer._llm_client.messages_create.return_value = _resp(
+        '[{"start": 110.0, "end": 195.0, "confidence": 0.85}]'
+    )
+    ad = {'start': 120.0, 'end': 180.0, 'confidence': 0.9, 'validation_merged': True}
+    result = reviewer.review(
+        accepted_ads=[ad], resurrection_eligible=[],
+        segments=_mock_segments(), episode_meta=_mock_episode_meta(),
+        pass_num=1, pass_model='claude-test',
+    )
+    out = result.accepted_after_review[0]
+    assert result.verdicts[0].verdict == 'adjust'
+    assert out['start'] == 110.0
+    assert out['end'] == 195.0
+
+
+def test_merged_sponsor_flag_also_blocks_inward_shrink():
+    """The same-sponsor merge flag (merged_sponsor) gets the same protection."""
+    reviewer = _build_reviewer({
+        'review_prompt': 'review',
+        'resurrect_prompt': 'resurrect',
+        'review_max_boundary_shift': '60',
+    })
+    reviewer._llm_client.messages_create.return_value = _resp(
+        '[{"start": 130.0, "end": 165.0, "confidence": 0.85}]'
+    )
+    ad = {'start': 120.0, 'end': 180.0, 'confidence': 0.9, 'merged_sponsor': True}
+    result = reviewer.review(
+        accepted_ads=[ad], resurrection_eligible=[],
+        segments=_mock_segments(), episode_meta=_mock_episode_meta(),
+        pass_num=1, pass_model='claude-test',
+    )
+    out = result.accepted_after_review[0]
+    assert out['start'] == 120.0   # inward start push blocked
+    assert out['end'] == 180.0     # inward end pull blocked
+    # Both edges fully cancelled -> net delta is zero -> confirmed, not adjust.
+    assert result.verdicts[0].verdict == 'confirmed'
+
+
+def test_non_merged_ad_inward_shrink_still_allowed():
+    """The guard is scoped to merged ads; a single detected ad can still be
+    tightened inward by the reviewer."""
+    reviewer = _build_reviewer({
+        'review_prompt': 'review',
+        'resurrect_prompt': 'resurrect',
+        'review_max_boundary_shift': '60',
+    })
+    reviewer._llm_client.messages_create.return_value = _resp(
+        '[{"start": 130.0, "end": 170.0, "confidence": 0.85}]'
+    )
+    ad = {'start': 120.0, 'end': 180.0, 'confidence': 0.9}
+    result = reviewer.review(
+        accepted_ads=[ad], resurrection_eligible=[],
+        segments=_mock_segments(), episode_meta=_mock_episode_meta(),
+        pass_num=1, pass_model='claude-test',
+    )
+    out = result.accepted_after_review[0]
+    assert result.verdicts[0].verdict == 'adjust'
+    assert out['start'] == 130.0   # inward tighten allowed (not merged)
+    assert out['end'] == 170.0
+
+
 def test_empty_array_yields_reject():
     """Empty array from accepted pool -> reject, ad removed from cut list."""
     reviewer = _build_reviewer({

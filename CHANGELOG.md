@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.3] - 2026-06-10
+
+### Fixed
+
+- The ad reviewer no longer drops a confirmed ad when several back-to-back ads were merged into one cut. When the validator joins adjacent ads across a short gap, or merges fragments of the same sponsor, the result is one span covering several independently detected ads. The reviewer refines that span's boundaries, and an inward pull could land mid-span and sever a trailing ad from the cut. On a sampled Daily Tech News Show episode this left a full Grainger read (about 26 seconds) in the audio after the reviewer trimmed the merged block's end. Merged spans are now expand-only in the reviewer: it can still grow a cut outward to catch a leading or trailing call to action, but it cannot shrink one below the union of the ads it already confirmed. Single detected ads are unaffected and still tighten normally.
+
 ## [2.8.2] - 2026-06-10
 
 ### Fixed
