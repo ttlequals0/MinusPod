@@ -968,13 +968,40 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
         false_positive_corrections=fp_corrections_processed,
         min_cut_confidence=min_cut_confidence,
     )
+
+    # Pair each processed candidate with its original-coords twin before
+    # validation: validate() sorts, merges and drops ads, so positional
+    # indexing against the unvalidated original list mispairs. The shallow
+    # ad.copy() inside validate() carries the reference through; a merge
+    # keeps the surviving ad's twin and drops the absorbed one, so the
+    # original list mirrors the processed list 1:1.
+    for proc, orig in zip(verification_ads_processed, verification_ads_original):
+        proc['_orig_twin'] = orig
+
     v_validation = v_validator.validate(verification_ads_processed)
 
-    keep_indices = {idx for idx, ad in enumerate(v_validation.ads)
-                    if ad.get('validation', {}).get('decision') != 'REJECT'}
-    verification_ads_processed = [ad for idx, ad in enumerate(v_validation.ads) if idx in keep_indices]
-    verification_ads_original = [ad for idx, ad in enumerate(verification_ads_original) if idx in keep_indices]
-    return verification_ads_processed, verification_ads_original
+    # validate() worked on copies; strip the key from the input dicts too so
+    # no later consumer of the raw verification result can serialize it.
+    for proc in verification_ads_processed:
+        proc.pop('_orig_twin', None)
+
+    kept_processed, kept_original = [], []
+    for ad in v_validation.ads:
+        # Strip the pairing key from every validator output (rejected ones
+        # included) so it can never leak into serialized payloads.
+        orig = ad.pop('_orig_twin', None)
+        if ad.get('validation', {}).get('decision') == 'REJECT':
+            continue
+        if orig is None:
+            audio_logger.warning(
+                f"[{slug}:{episode_id}] Pass 2 ad {ad['start']:.1f}s-"
+                f"{ad['end']:.1f}s has no original twin after validation; "
+                f"dropping"
+            )
+            continue
+        kept_processed.append(ad)
+        kept_original.append(orig)
+    return kept_processed, kept_original
 
 
 def _gate_verification_ads_by_confidence(verification_ads_processed,
