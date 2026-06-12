@@ -13,6 +13,7 @@ from utils.subprocess_registry import tracked_run
 from config import (
     FFMPEG_LONG_TIMEOUT, SUBPROCESS_VERSION_PROBE,
     MIN_AD_DURATION_FOR_REMOVAL, POST_ROLL_TRIM_THRESHOLD, MERGE_GAP_SECONDS,
+    SHORT_CUT_KEEP_CONFIDENCE,
 )
 
 logger = logging.getLogger(__name__)
@@ -119,22 +120,40 @@ class AudioProcessor:
                 current_segment['end'] = max(current_segment['end'], ad['end'])
                 if 'reason' in ad:
                     current_segment['reason'] = current_segment.get('reason', '') + '; ' + ad['reason']
+                # Carry the strongest trust signal of the merged members so
+                # the short-cut filter below can judge the merged span.
+                if ad.get('confidence', 0) > current_segment.get('confidence', 0):
+                    current_segment['confidence'] = ad['confidence']
+                if ad.get('detection_stage') == 'fingerprint':
+                    current_segment['detection_stage'] = 'fingerprint'
             else:
                 if current_segment:
                     merged_ads.append(current_segment)
                 current_segment = {'start': ad['start'], 'end': ad['end']}
-                if 'reason' in ad:
-                    current_segment['reason'] = ad['reason']
+                for key in ('reason', 'confidence', 'detection_stage'):
+                    if key in ad:
+                        current_segment[key] = ad[key]
         if current_segment:
             merged_ads.append(current_segment)
 
-        # Filter out short ad detections (< 10 seconds) - likely false positives
+        # Filter out short ad detections (< 10 seconds) - likely LLM
+        # hallucinations. Trusted short cuts stay: a fingerprint match is a
+        # known ad pattern, and a high-confidence detection (e.g. an 8s
+        # bumper) is more likely real than noise.
         ads = []
         skipped_count = 0
         for ad in merged_ads:
             duration = ad['end'] - ad['start']
+            trusted = (ad.get('detection_stage') == 'fingerprint'
+                       or ad.get('confidence', 0) >= SHORT_CUT_KEEP_CONFIDENCE)
             if duration >= MIN_AD_DURATION_FOR_REMOVAL:
                 ads.append(ad)
+            elif trusted:
+                ads.append(ad)
+                logger.info(
+                    f"Keeping short ad ({duration:.1f}s < {MIN_AD_DURATION_FOR_REMOVAL}s): "
+                    f"stage={ad.get('detection_stage', '?')} "
+                    f"confidence={ad.get('confidence', 'n/a')}")
             else:
                 skipped_count += 1
                 logger.info(f"Skipping short ad ({duration:.1f}s < {MIN_AD_DURATION_FOR_REMOVAL}s): {ad.get('reason', 'unknown')[:50]}")

@@ -1660,6 +1660,28 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 )
             processed_path, applied_cuts = result
 
+            # A requested cut the applied list does not cover (e.g. a short
+            # untrusted span the filter dropped) is still in the audio; the
+            # ad editor must not claim it was removed. Reviewer adjustments
+            # rebuild dicts, so match the master entry by identity or span
+            # (same approach as the tail-completion sweep).
+            uncovered = [ad for ad in ads_to_remove
+                         if not _covered_by_cuts(ad, applied_cuts, episode_duration)]
+            if uncovered:
+                for ad in uncovered:
+                    ad['was_cut'] = False
+                    for master in all_ads_with_validation:
+                        if master is ad or (master.get('start') == ad['start']
+                                            and master.get('end') == ad['end']):
+                            master['was_cut'] = False
+                            break
+                    audio_logger.info(
+                        f"[{slug}:{episode_id}] Pass 1 ad {ad['start']:.1f}s-"
+                        f"{ad['end']:.1f}s was filtered out of the applied "
+                        f"cuts; marking as not cut"
+                    )
+                storage.save_combined_ads(slug, episode_id, all_ads_with_validation)
+
             original_duration = episode_duration
             _check_cancel(cancel_event, slug, episode_id)
 

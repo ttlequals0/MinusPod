@@ -84,3 +84,52 @@ def test_fully_out_of_range_cut_dropped(processor):
         600.0,
     )
     assert cuts == [{'start': 100.0, 'end': 130.0}]
+
+
+def test_short_low_confidence_cut_dropped(processor):
+    cuts = processor.compute_applied_cuts(
+        [{'start': 100.0, 'end': 107.0, 'confidence': 0.7,
+          'detection_stage': 'claude'}],
+        600.0,
+    )
+    assert cuts == []
+
+
+def test_short_high_confidence_cut_kept(processor):
+    cuts = processor.compute_applied_cuts(
+        [{'start': 100.0, 'end': 107.0, 'confidence': 0.95,
+          'detection_stage': 'claude'}],
+        600.0,
+    )
+    assert len(cuts) == 1
+    assert cuts[0]['start'] == 100.0 and cuts[0]['end'] == 107.0
+
+
+def test_short_fingerprint_cut_kept_regardless_of_confidence(processor):
+    cuts = processor.compute_applied_cuts(
+        [{'start': 100.0, 'end': 106.0, 'confidence': 0.5,
+          'detection_stage': 'fingerprint'}],
+        600.0,
+    )
+    assert len(cuts) == 1
+
+
+def test_short_cut_without_trust_fields_dropped(processor):
+    # No confidence/stage at all (older callers): old behavior preserved.
+    cuts = processor.compute_applied_cuts([{'start': 100.0, 'end': 107.0}], 600.0)
+    assert cuts == []
+
+
+def test_merge_carries_strongest_trust_signal(processor):
+    # Two sub-10s spans merge into one >10s span; survives the floor anyway,
+    # but the merged dict must carry the max confidence and fingerprint stage
+    # of its members.
+    cuts = processor.compute_applied_cuts(
+        [{'start': 100.0, 'end': 106.0, 'confidence': 0.6},
+         {'start': 106.5, 'end': 112.0, 'confidence': 0.95,
+          'detection_stage': 'fingerprint'}],
+        600.0,
+    )
+    assert len(cuts) == 1
+    assert cuts[0]['confidence'] == 0.95
+    assert cuts[0]['detection_stage'] == 'fingerprint'
