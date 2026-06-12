@@ -25,10 +25,32 @@ def test_strong_burst_is_detected():
     assert len(sigs) == 1
     s = sigs[0]
     assert s.signal_type == SignalType.AUDIO_CUE.value
-    assert s.start == 2.0
+    # First above-threshold frame is at 2.0s; the reported start is pulled
+    # back by the ebur128 momentary-loudness onset lag.
+    assert s.start == 1.8
     assert s.confidence >= 0.80
     assert s.details['prominence_db'] == 15.0
     assert s.details['band_hz'] == [1500, 8000]
+
+
+def test_onset_lag_clamps_at_zero():
+    # A burst right at the head of the file cannot report a negative start.
+    d = AudioCueDetector(prominence_db=9.0, min_confidence=0.80)
+    meas = _frames(-45.0, {0: -30.0, 1: -30.0, 2: -30.0, 3: -30.0})
+    sigs = d._find_bursts(meas, -45.0)
+    assert len(sigs) == 1
+    assert sigs[0].start == 0.0
+
+
+def test_onset_lag_does_not_change_duration_gates():
+    # A 1.9s burst passes the 2.0s max-duration gate; the lag widens only the
+    # reported span, not the gated measurement.
+    d = AudioCueDetector(prominence_db=9.0, min_confidence=0.80, max_duration=2.0)
+    spikes = {i: -28.0 for i in range(10, 28)}  # 1.0s..2.7s -> 1.9s measured
+    meas = _frames(-45.0, spikes)
+    sigs = d._find_bursts(meas, -45.0)
+    assert len(sigs) == 1
+    assert sigs[0].start == 0.8
 
 
 def test_weak_burst_dropped_by_confidence_gate():

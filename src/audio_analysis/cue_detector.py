@@ -27,6 +27,7 @@ from config import (
     AUDIO_CUE_MIN_CONFIDENCE,
     AUDIO_CUE_MIN_DURATION,
     AUDIO_CUE_MAX_DURATION,
+    AUDIO_CUE_ONSET_LAG_SECONDS,
 )
 from utils.audio import get_audio_duration
 from utils.subprocess_registry import tracked_run
@@ -187,6 +188,11 @@ class AudioCueDetector:
         confidence = max(0.6, min(0.98, 0.6 + (peak_prominence - self.prominence_db) / 20.0))
         if confidence < self.min_confidence:
             return
+        # ebur128 momentary loudness integrates over 400ms, so the first
+        # above-threshold frame lags the true acoustic onset; pull the
+        # reported start back so the cue lands on the ding, not after it.
+        # Applied after the duration gates so they judge the measured burst.
+        start = max(0.0, start - AUDIO_CUE_ONSET_LAG_SECONDS)
         signals.append(AudioSegmentSignal(
             start=round(start, 2),
             end=round(end, 2),
