@@ -660,7 +660,8 @@ class AdDetector:
                    episode_id: str = None, episode_description: str = None,
                    podcast_description: str = None,
                    progress_callback=None,
-                   audio_analysis=None) -> Optional[Dict]:
+                   audio_analysis=None,
+                   positional_prior_hint: str = "") -> Optional[Dict]:
         """Detect ad segments using Claude API with sliding window approach.
 
         Processes transcript in overlapping windows to ensure ads at chunk
@@ -669,6 +670,8 @@ class AdDetector:
         Args:
             podcast_description: Podcast-level description for context
             progress_callback: Optional callback(stage, percent) to report progress
+            positional_prior_hint: Pre-rendered learned ad-position scrutiny
+                                   hint for the per-window prompt (issue #360)
         """
         if not self.api_key:
             logger.warning("Skipping ad detection - no API key")
@@ -718,6 +721,12 @@ class AdDetector:
             if sponsor_history:
                 description_section += sponsor_history
                 logger.info(f"[{slug}:{episode_id}] Including sponsor history: {sponsor_history.strip()}")
+
+            # Add learned ad-break position hint (issue #360 experiment)
+            if positional_prior_hint:
+                description_section += positional_prior_hint
+                logger.info(f"[{slug}:{episode_id}] Including positional prior hint: "
+                            f"{positional_prior_hint.splitlines()[0]}")
 
             all_window_ads = []
             all_raw_responses = []
@@ -821,7 +830,8 @@ class AdDetector:
                           audio_analysis=None,
                           cancel_event=None,
                           *,
-                          ctx=None) -> Dict:
+                          ctx=None,
+                          positional_prior_hint: str = "") -> Dict:
         """Process transcript for ad detection using three-stage pipeline.
 
         Pipeline stages:
@@ -1009,7 +1019,8 @@ class AdDetector:
             segments, podcast_name, episode_title, slug, episode_id, episode_description,
             podcast_description=podcast_description,
             progress_callback=progress_callback,
-            audio_analysis=audio_analysis
+            audio_analysis=audio_analysis,
+            positional_prior_hint=positional_prior_hint
         )
 
         if result is None:

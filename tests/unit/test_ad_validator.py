@@ -561,3 +561,48 @@ class TestAdValidatorVadGapVerification:
         # If the clamp fired it would drop to 0.79; without it the marker
         # stays at or above 0.85 (modulo position adjustments).
         assert result.ads[0]['validation']['adjusted_confidence'] > 0.79
+
+
+class TestPositionalPriorBoost:
+    """Tests for learned positional prior boosts (issue #360)."""
+
+    def _prior(self, zones):
+        from positional_prior import LearnedZone, PositionalPrior
+        return PositionalPrior(
+            episodes_considered=10, median_duration=1000.0,
+            zones=[LearnedZone(center=c, low=lo, high=hi, support=8, boost=b)
+                   for c, lo, hi, b in zones])
+
+    def test_in_zone_ad_gains_zone_boost(self):
+        prior = self._prior([(0.30, 0.25, 0.35, 0.075)])
+        validator = AdValidator(episode_duration=1000.0, segments=[],
+                                positional_prior=prior)
+        assert validator._apply_position_boost(0.80, 0.30) == pytest.approx(0.875)
+
+    def test_boost_capped_at_one(self):
+        prior = self._prior([(0.30, 0.25, 0.35, 0.075)])
+        validator = AdValidator(episode_duration=1000.0, segments=[],
+                                positional_prior=prior)
+        assert validator._apply_position_boost(0.97, 0.30) == pytest.approx(1.0)
+
+    def test_overlapping_zones_use_max_boost(self):
+        prior = self._prior([(0.30, 0.25, 0.35, 0.05),
+                             (0.40, 0.34, 0.46, 0.10)])
+        validator = AdValidator(episode_duration=1000.0, segments=[],
+                                positional_prior=prior)
+        # 0.345 sits in both zones; the stronger boost wins.
+        assert validator._apply_position_boost(0.80, 0.345) == pytest.approx(0.90)
+
+    def test_no_boost_outside_learned_zones_even_in_global_preroll(self):
+        prior = self._prior([(0.30, 0.25, 0.35, 0.075)])
+        validator = AdValidator(episode_duration=1000.0, segments=[],
+                                positional_prior=prior)
+        # 0.01 sits in the global PRE_ROLL zone; learned prior replaces it.
+        assert validator._apply_position_boost(0.80, 0.01) == pytest.approx(0.80)
+
+    def test_none_prior_keeps_global_zone_behavior(self):
+        validator = AdValidator(episode_duration=1000.0, segments=[])
+        assert validator._apply_position_boost(0.80, 0.01) == pytest.approx(0.90)
+        assert validator._apply_position_boost(0.80, 0.50) == pytest.approx(0.85)
+        assert validator._apply_position_boost(0.80, 0.97) == pytest.approx(0.85)
+        assert validator._apply_position_boost(0.80, 0.10) == pytest.approx(0.80)

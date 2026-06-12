@@ -16,7 +16,7 @@ from jinja2.sandbox import SandboxedEnvironment
 from config import HTTP_MAX_REDIRECTS_API, HTTP_TIMEOUT_PROBE
 from utils.http import safe_url_for_log
 from utils.safe_http import URLTrust, safe_post
-from utils.time import utc_now_iso
+from utils.time import format_duration, utc_now_iso
 from utils.url import SSRFError
 
 logger = logging.getLogger('podcast.webhooks')
@@ -55,12 +55,7 @@ def _format_duration(seconds):
     """Format seconds as M:SS or H:MM:SS for webhook payloads."""
     if seconds is None:
         return None
-    total = int(seconds)
-    h, remainder = divmod(total, 3600)
-    m, s = divmod(remainder, 60)
-    if h > 0:
-        return f"{h}:{m:02d}:{s:02d}"
-    return f"{m}:{s:02d}"
+    return format_duration(seconds)
 
 
 def _format_cost(cost):

@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.9] - 2026-06-12
+
+### Added
+
+- Learned ad positions experiment (#360), off by default. When enabled in Settings, each feed's historical cut starts (minus user-marked false positives, plus user-created and confirmed cuts) are clustered into per-feed ad-break zones once the feed has at least 5 learnable episodes (processed, over 60 seconds, with usable cut history) among its most recent 30. The zones feed the first-pass detection prompt as a scrutiny hint ("ad breaks have typically started near 12:30") and replace the global pre/mid/post-roll confidence boosts in validation with per-feed ones. A zone needs support in at least 60% of those learnable episodes and can span at most 10% of the episode (drifting break positions fail the gate instead of forming one giant zone); boosts stay capped at +0.10, cuts whose evidence is not position-independent (fingerprint, text pattern, language, manual, VAD gap) need at least 0.85 original confidence to feed the learning, and episodes whose length differs from the feed median by more than 2x skip the prior entirely. The verification pass and the retry-ad-detection endpoint are unaffected (both run on post-cut timelines where learned positions do not map).
+
 ## [2.8.8] - 2026-06-12
 
 ### Fixed

@@ -65,6 +65,16 @@ def parse_timestamp(ts) -> float:
     raise ValueError(f"Cannot parse timestamp: {ts!r}")
 
 
+def format_duration(seconds: float) -> str:
+    """Format whole seconds as M:SS, or H:MM:SS past an hour."""
+    total = int(seconds)
+    hours, remainder = divmod(total, 3600)
+    minutes, secs = divmod(remainder, 60)
+    if hours > 0:
+        return f"{hours}:{minutes:02d}:{secs:02d}"
+    return f"{minutes}:{secs:02d}"
+
+
 def format_time(seconds: float, include_hours: bool = False) -> str:
     """Format seconds as human-readable timestamp string.
 

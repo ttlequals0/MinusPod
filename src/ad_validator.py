@@ -96,7 +96,8 @@ class AdValidator:
                  episode_description: str = None,
                  false_positive_corrections: List[Dict] = None,
                  confirmed_corrections: List[Dict] = None,
-                 min_cut_confidence: float = 0.80):
+                 min_cut_confidence: float = 0.80,
+                 positional_prior=None):
         """Initialize validator.
 
         Args:
@@ -108,6 +109,8 @@ class AdValidator:
             confirmed_corrections: List of dicts with 'start' and 'end' keys
                                    for user-confirmed ads to auto-accept
             min_cut_confidence: Minimum confidence to auto-accept (user's slider value)
+            positional_prior: Optional PositionalPrior with this feed's learned
+                              ad-break zones; replaces the global position boosts
         """
         self.episode_duration = episode_duration
         self.segments = segments or []
@@ -116,11 +119,15 @@ class AdValidator:
         self.false_positive_corrections = false_positive_corrections or []
         self.confirmed_corrections = confirmed_corrections or []
         self.min_cut_confidence = min_cut_confidence
+        self.positional_prior = positional_prior
 
         if self.false_positive_corrections:
             logger.info(f"Loaded {len(self.false_positive_corrections)} false positive corrections")
         if self.confirmed_corrections:
             logger.info(f"Loaded {len(self.confirmed_corrections)} confirmed corrections")
+        if self.positional_prior is not None:
+            logger.info(f"Using learned positional prior: "
+                        f"{len(self.positional_prior.zones)} zones")
 
     def _extract_sponsors_from_description(self) -> set:
         """Extract sponsor names from episode description.
@@ -386,6 +393,10 @@ class AdValidator:
     def _apply_position_boost(self, confidence: float, position: float) -> float:
         """Boost confidence for typical ad positions.
 
+        When a learned positional prior is present it replaces the global
+        zones entirely: positions are only boosted where this feed's own
+        history supports it, and never outside.
+
         Args:
             confidence: Current confidence score
             position: Position in episode (0.0 - 1.0)
@@ -393,6 +404,14 @@ class AdValidator:
         Returns:
             Adjusted confidence
         """
+        if self.positional_prior is not None:
+            # Adjacent zones can overlap by their margins; take the strongest.
+            boosts = [zone.boost for zone in self.positional_prior.zones
+                      if zone.low <= position <= zone.high]
+            if boosts:
+                return min(1.0, confidence + max(boosts))
+            return confidence
+
         if PRE_ROLL[0] <= position <= PRE_ROLL[1]:
             # Pre-roll is very common - strong boost
             return min(1.0, confidence + 0.10)

@@ -25,6 +25,7 @@ from llm_capabilities import (
     clear_fallback,
 )
 from llm_client import is_retryable_error, is_llm_api_error, is_rate_limit_error, start_episode_token_tracking, get_episode_token_totals
+from positional_prior import format_prior_hint, load_positional_prior
 from utils.constants import EpisodeStatus
 from utils.episode_paths import episode_relative_path
 from utils.gpu import get_available_memory_gb, clear_gpu_memory
@@ -331,7 +332,8 @@ def _run_audio_analysis(slug, episode_id, audio_path, segments):
 
 def _detect_ads_first_pass(ctx, segments, audio_path,
                             skip_patterns, audio_analysis_result,
-                            progress_callback, cancel_event=None):
+                            progress_callback, cancel_event=None,
+                            positional_prior_hint=""):
     """Pipeline stage: Run first-pass Claude ad detection.
 
     Returns (first_pass_ads, first_pass_count, ad_result).
@@ -349,6 +351,7 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
         audio_analysis=audio_analysis_result,
         cancel_event=cancel_event,
         ctx=ctx,
+        positional_prior_hint=positional_prior_hint,
     )
     storage.save_ads_json(slug, episode_id, ad_result, pass_number=1)
 
@@ -482,7 +485,7 @@ def _gate_validation_by_confidence(slug, episode_id, validation_ads, min_cut_con
 
 def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
                           episode_description, episode_duration, min_cut_confidence,
-                          podcast_name, skip_patterns=False):
+                          podcast_name, skip_patterns=False, positional_prior=None):
     """Pipeline stage: Refine ad boundaries, detect rolls, validate, gate by confidence.
 
     Returns (ads_to_remove, all_ads_with_validation).
@@ -508,7 +511,8 @@ def _refine_and_validate(slug, episode_id, all_ads, segments, audio_path,
         episode_duration, segments, episode_description,
         false_positive_corrections=false_positive_corrections,
         confirmed_corrections=confirmed_corrections,
-        min_cut_confidence=min_cut_confidence
+        min_cut_confidence=min_cut_confidence,
+        positional_prior=positional_prior
     )
     validation_result = validator.validate(all_ads)
 
@@ -969,6 +973,8 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
         # Whisper's last segment end approximates the file duration but can
         # over- or under-run it; only used when the ffprobe probe failed.
         processed_duration = verification_segments[-1]['end']
+    # No positional_prior here: pass 2 runs in processed-audio coordinates
+    # (post-cut timeline), so zones learned on original durations do not map.
     v_validator = AdValidator(
         processed_duration, verification_segments,
         episode_description,
@@ -1614,26 +1620,34 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
                 podcast_tags=podcast_tags_for_ctx,
             )
 
+            # ffprobe duration of the original audio: the single timebase for
+            # the prior gate, the prompt hint, and validation normalization.
+            episode_duration = audio_processor.get_audio_duration(audio_path)
+            if not episode_duration:
+                episode_duration = segments[-1]['end'] if segments else 0
+
+            # Learned positional prior (issue #360 experiment, off by default)
+            positional_prior = load_positional_prior(db, slug, episode_id,
+                                                     episode_duration)
+
             # Stage 3: First-pass detection
             first_pass_ads, first_pass_count, ad_result = _detect_ads_first_pass(
                 ctx, segments, audio_path,
                 skip_patterns, audio_analysis_result,
                 detection_progress_callback,
                 cancel_event=cancel_event,
+                positional_prior_hint=format_prior_hint(positional_prior,
+                                                        episode_duration),
             )
             _check_cancel(cancel_event, slug, episode_id)
 
             all_ads = first_pass_ads.copy()
 
             # Stage 4: Refine and validate
-            episode_duration = audio_processor.get_audio_duration(audio_path)
-            if not episode_duration:
-                episode_duration = segments[-1]['end'] if segments else 0
-
             ads_to_remove, all_ads_with_validation = _refine_and_validate(
                 slug, episode_id, all_ads, segments, audio_path,
                 episode_description, episode_duration, min_cut_confidence, podcast_name,
-                skip_patterns=skip_patterns
+                skip_patterns=skip_patterns, positional_prior=positional_prior
             )
             _check_cancel(cancel_event, slug, episode_id)
 

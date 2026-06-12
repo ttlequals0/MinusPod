@@ -294,6 +294,10 @@ def get_settings():
     audio_cue_enabled = str(
         _setting_value(settings, 'audio_cue_detection_enabled', 'false')).strip().lower() == 'true'
 
+    # Learned positional prior experiment (#360)
+    positional_prior_enabled = coerce_bool_setting(
+        _setting_value(settings, 'positional_prior_enabled', 'false'))
+
     def _cue_num(key, default):
         try:
             return float(_setting_value(settings, key, str(default)))
@@ -344,6 +348,7 @@ def get_settings():
         'audioCueFreqMaxHz': _sv('audio_cue_freq_max_hz', audio_cue_freq_max),
         'audioCueProminenceDb': _sv('audio_cue_prominence_db', audio_cue_prominence),
         'audioCueMinConfidence': _sv('audio_cue_min_confidence', audio_cue_min_conf),
+        'positionalPriorEnabled': _sv('positional_prior_enabled', positional_prior_enabled),
         'audioBitrate': _sv('audio_bitrate', audio_bitrate),
         'skipFlacCompression': _sv('skip_flac_compression', skip_flac),
         'adDetectionParallelWindows': _sv('ad_detection_parallel_windows', parallel_windows),
@@ -386,6 +391,7 @@ def get_settings():
             'vadGapMidMinSeconds': default_vad_gap_mid,
             'vadGapTailMinSeconds': default_vad_gap_tail,
             'audioCueDetectionEnabled': False,
+            'positionalPriorEnabled': False,
             'audioCueFreqMinHz': int(AUDIO_CUE_FREQ_MIN_HZ),
             'audioCueFreqMaxHz': int(AUDIO_CUE_FREQ_MAX_HZ),
             'audioCueProminenceDb': AUDIO_CUE_PROMINENCE_DB,
@@ -426,6 +432,7 @@ def update_ad_detection_settings():
         _apply_whisper_fields,
         _apply_vad_gap_fields,
         _apply_audio_cue_fields,
+        _apply_positional_prior_fields,
         _apply_podcast_index_fields,
         _apply_stage_tunables,
     )
@@ -837,6 +844,15 @@ def _apply_audio_cue_fields(db, data):
     for db_key, str_value in writes:
         db.set_setting(db_key, str_value, is_default=False)
         logger.info(f"Updated {db_key} to: {str_value}")
+    return None
+
+
+def _apply_positional_prior_fields(db, data):
+    """Persist the learned positional prior experiment toggle (#360)."""
+    if 'positionalPriorEnabled' in data:
+        enabled = coerce_bool_setting(data['positionalPriorEnabled'])
+        db.set_setting('positional_prior_enabled', 'true' if enabled else 'false', is_default=False)
+        logger.info(f"Updated positional_prior_enabled to: {enabled}")
     return None
 
 

@@ -60,6 +60,23 @@ MID_ROLL_1 = (0.15, 0.85)       # Continuous mid-roll coverage
 POST_ROLL = (0.95, 1.0)         # Last 5%
 
 # ============================================================
+# Positional Prior (issue #360, opt-in experiment)
+# ============================================================
+POSITIONAL_PRIOR_MIN_EPISODES = 5        # Feed needs this many learnable episodes
+POSITIONAL_PRIOR_RECENT_EPISODES = 30    # Most-recent window so format changes age out
+POSITIONAL_PRIOR_MIN_EPISODE_SECONDS = 60  # Trailers/bonus clips below this never feed learning
+POSITIONAL_PRIOR_MIN_ZONE_SUPPORT = 0.60 # Zone must appear in >= 60% of considered episodes
+POSITIONAL_PRIOR_CLUSTER_GAP = 0.05      # Normalized gap-merge threshold for 1D clustering
+POSITIONAL_PRIOR_MAX_ZONE_SPAN = 0.10    # Max normalized cluster width; breaks drift chaining
+POSITIONAL_PRIOR_ZONE_MARGIN = 0.03      # Padding around cluster min/max -> zone bounds
+POSITIONAL_PRIOR_MAX_ZONES = 6
+POSITIONAL_PRIOR_EVENT_DEDUPE_GAP = 0.02 # Events this close within an episode count once
+POSITIONAL_PRIOR_MIN_LLM_CONFIDENCE = 0.85  # Untrusted-stage cuts below this never feed the prior
+POSITIONAL_PRIOR_MIN_BOOST = 0.05        # Boost at the support gate, same as today's mid-roll boost
+POSITIONAL_PRIOR_MAX_BOOST = 0.10        # Boost at 100% zone support, same as today's pre-roll boost
+POSITIONAL_PRIOR_MAX_DURATION_RATIO = 2.0  # Prior skipped when episode/median length ratio exceeds this
+
+# ============================================================
 # Ad Limits
 # ============================================================
 MAX_AD_PERCENTAGE = 0.30        # 30% of episode is suspicious
