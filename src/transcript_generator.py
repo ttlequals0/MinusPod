@@ -22,14 +22,18 @@ class TranscriptGenerator:
         Checking ads individually left that segment (and its ad text) in the
         transcript even though the audio for it was gone.
         """
+        return self._ad_coverage(segment, ads_removed) > SEGMENT_AD_COVERAGE_THRESHOLD
+
+    def _ad_coverage(self, segment: Dict, ads_removed: List[Dict]) -> float:
+        """Fraction of the segment covered by the union of removed-ad overlaps."""
         if not ads_removed:
-            return False
+            return 0.0
 
         seg_start = segment.get('start', 0)
         seg_end = segment.get('end', 0)
         segment_duration = seg_end - seg_start
         if segment_duration <= 0:
-            return False
+            return 0.0
 
         # Clip each ad to the segment, then merge the clipped intervals so two
         # cuts overlapping the same slice are not double-counted.
@@ -40,7 +44,7 @@ class TranscriptGenerator:
             if e > s:
                 clipped.append((s, e))
         if not clipped:
-            return False
+            return 0.0
 
         clipped.sort()
         covered = 0.0
@@ -53,7 +57,40 @@ class TranscriptGenerator:
                 cur_start, cur_end = s, e
         covered += cur_end - cur_start
 
-        return (covered / segment_duration) > SEGMENT_AD_COVERAGE_THRESHOLD
+        return covered / segment_duration
+
+    def _trim_ad_words(self, segment: Dict, ads_removed: List[Dict]) -> Optional[Dict]:
+        """Drop the words of a partially-covered segment that sit inside a cut.
+
+        A segment under the coverage threshold is kept, but without trimming
+        its in-cut words the removed ad's text bleeds into the transcript.
+        Uses each word's midpoint against the raw cut intervals (midpoint in
+        any interval == midpoint in their union, so no merge is needed).
+
+        Returns the segment unchanged when there is nothing to trim or no
+        usable word timing, a rebuilt segment when words were dropped, or
+        None when no words survive.
+        """
+        words = segment.get('words') or []
+        if not words or any('start' not in w or 'end' not in w for w in words):
+            return segment
+
+        kept = [
+            w for w in words
+            if not any(ad.get('start', 0) < (w['start'] + w['end']) / 2 < ad.get('end', 0)
+                       for ad in ads_removed)
+        ]
+        if len(kept) == len(words):
+            # Keep the original text byte-for-byte when nothing was dropped.
+            return segment
+        if not kept:
+            return None
+
+        return {
+            'start': kept[0]['start'],
+            'end': kept[-1]['end'],
+            'text': ''.join(w.get('word', '') for w in kept).strip(),
+        }
 
     def compute_final_segments(
         self,
@@ -68,8 +105,15 @@ class TranscriptGenerator:
         """
         out = []
         for segment in segments:
-            if self.is_segment_in_ad(segment, ads_removed):
+            coverage = self._ad_coverage(segment, ads_removed)
+            if coverage > SEGMENT_AD_COVERAGE_THRESHOLD:
                 continue
+            if coverage > 0:
+                # Partially covered: trim the in-cut words so the removed
+                # ad's text does not bleed into the transcript.
+                segment = self._trim_ad_words(segment, ads_removed)
+                if segment is None:
+                    continue
             text = segment.get('text', '').strip()
             if not text:
                 continue

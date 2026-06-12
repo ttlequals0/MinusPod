@@ -47,6 +47,88 @@ class TestIsSegmentInAd:
         assert self.gen.is_segment_in_ad(seg, ads) is False
 
 
+def _words(spec):
+    # spec: list of (start, end, word). Words carry leading spaces, matching
+    # the transcriber's faster-whisper format.
+    return [{'start': s, 'end': e, 'word': w} for s, e, w in spec]
+
+
+class TestWordLevelTrim:
+    def setup_method(self):
+        self.gen = TranscriptGenerator()
+
+    def test_tail_bleed_words_trimmed(self):
+        # Cut starts mid-segment; trailing ad words are dropped, text rebuilt,
+        # end tightened to the last kept word. Cut is after the kept range so
+        # adjust_timestamp leaves the kept bounds unchanged.
+        seg = {'start': 100.0, 'end': 120.0,
+               'text': 'real content then sponsor pitch',
+               'words': _words([
+                   (100.0, 103.0, 'real'), (103.0, 106.0, ' content'),
+                   (106.0, 109.0, ' then'), (114.5, 117.0, ' sponsor'),
+                   (117.0, 120.0, ' pitch'),
+               ])}
+        ads = [{'start': 114.0, 'end': 130.0}]
+        out = self.gen.compute_final_segments([seg], ads)
+        assert len(out) == 1
+        assert out[0]['text'] == 'real content then'
+        assert out[0]['start'] == 100.0
+        assert out[0]['end'] == 109.0
+
+    def test_head_bleed_words_trimmed_and_shifted(self):
+        # Cut covers the segment head; leading ad words drop, start tightens
+        # to the first kept word, then the whole cut duration shifts it left.
+        seg = {'start': 100.0, 'end': 120.0,
+               'text': 'sponsor pitch then real content',
+               'words': _words([
+                   (100.0, 103.0, 'sponsor'), (103.0, 106.0, ' pitch'),
+                   (106.5, 109.0, ' then'), (109.0, 114.0, ' real'),
+                   (114.0, 120.0, ' content'),
+               ])}
+        ads = [{'start': 90.0, 'end': 106.0}]
+        out = self.gen.compute_final_segments([seg], ads)
+        assert len(out) == 1
+        assert out[0]['text'] == 'then real content'
+        # start = 106.5 tightened, minus the 16s cut before it
+        assert abs(out[0]['start'] - 90.5) < 0.01
+        assert abs(out[0]['end'] - 104.0) < 0.01
+
+    def test_no_overlap_keeps_text_byte_for_byte(self):
+        seg = {'start': 100.0, 'end': 120.0,
+               'text': '  spacing preserved exactly ',
+               'words': _words([(100.0, 110.0, 'spacing'),
+                                (110.0, 120.0, ' preserved')])}
+        ads = [{'start': 300.0, 'end': 330.0}]
+        out = self.gen.compute_final_segments([seg], ads)
+        # No overlap -> no trim path -> only the pre-existing strip applies.
+        assert out[0]['text'] == 'spacing preserved exactly'
+
+    def test_partial_overlap_without_words_falls_back(self):
+        # No word timing available: current behavior (keep whole text).
+        seg = {'start': 100.0, 'end': 120.0, 'text': 'mixed line'}
+        ads = [{'start': 114.0, 'end': 130.0}]
+        out = self.gen.compute_final_segments([seg], ads)
+        assert out[0]['text'] == 'mixed line'
+
+    def test_words_missing_timestamps_fall_back(self):
+        seg = {'start': 100.0, 'end': 120.0, 'text': 'mixed line',
+               'words': [{'word': 'mixed'}, {'word': ' line'}]}
+        ads = [{'start': 114.0, 'end': 130.0}]
+        out = self.gen.compute_final_segments([seg], ads)
+        assert out[0]['text'] == 'mixed line'
+
+    def test_all_words_in_cuts_drops_segment(self):
+        # Union coverage is under the 80% drop threshold, but every word
+        # midpoint falls inside a cut -> nothing survives the trim.
+        seg = {'start': 100.0, 'end': 120.0, 'text': 'sponsor words only',
+               'words': _words([(104.0, 106.0, 'sponsor'),
+                                (106.0, 108.0, ' words'),
+                                (108.0, 110.0, ' only')])}
+        ads = [{'start': 103.0, 'end': 111.0}]  # 40% of the segment
+        out = self.gen.compute_final_segments([seg], ads)
+        assert out == []
+
+
 class TestComputeFinalSegments:
     def setup_method(self):
         self.gen = TranscriptGenerator()
