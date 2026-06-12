@@ -132,3 +132,29 @@ def test_pairing_key_never_leaks_into_outputs():
 
     for ad in kept_proc + kept_orig + processed + original:
         assert '_orig_twin' not in ad
+
+
+def test_explicit_duration_is_validator_clamp_target():
+    # Real file duration (520) is shorter than the last transcript segment
+    # end (600): an ad overrunning the file must clamp to the real duration.
+    processed = [{'start': 500.0, 'end': 590.0, 'confidence': 0.9}]
+    original = [{'start': 1500.0, 'end': 1590.0, 'marker': 'tail'}]
+    kept_proc, kept_orig = _validate_verification_ads(
+        'show', 'ep1', processed, original, _segments(600.0),
+        ads_to_remove=[], episode_description=None,
+        min_cut_confidence=0.8, db=_db(), processed_duration=520.0,
+    )
+    assert len(kept_proc) == 1
+    assert kept_proc[0]['end'] <= 520.0
+
+
+def test_missing_duration_falls_back_to_last_segment_end():
+    processed = [{'start': 500.0, 'end': 590.0, 'confidence': 0.9}]
+    original = [{'start': 1500.0, 'end': 1590.0}]
+    kept_proc, _ = _validate_verification_ads(
+        'show', 'ep1', processed, original, _segments(600.0),
+        ads_to_remove=[], episode_description=None,
+        min_cut_confidence=0.8, db=_db(),
+    )
+    assert len(kept_proc) == 1
+    assert kept_proc[0]['end'] <= 600.0

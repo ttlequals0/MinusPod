@@ -935,11 +935,15 @@ def _apply_pass2_heuristic_rolls(slug, episode_id, verification_ads_processed,
 def _validate_verification_ads(slug, episode_id, verification_ads_processed,
                                 verification_ads_original, verification_segments,
                                 ads_to_remove, episode_description,
-                                min_cut_confidence, db):
+                                min_cut_confidence, db,
+                                processed_duration=None):
     """Validate pass-2 ad candidates against processed-coordinate validator.
 
     Maps pass-1 user FP corrections from original to processed coordinates,
     then filters both processed and original ad lists by validator decision.
+    ``processed_duration`` is the real (ffprobe) duration of the pass-1
+    output; the validator clamps and extends trailing ads against it. Falls
+    back to the last transcript segment's end when not provided.
     Returns (verification_ads_processed, verification_ads_original).
     """
     from ad_validator import AdValidator
@@ -961,7 +965,10 @@ def _validate_verification_ads(slug, episode_id, verification_ads_processed,
                 f"{len(fp_corrections_processed)} user-rejected region(s)"
             )
 
-    processed_duration = verification_segments[-1]['end']
+    if not processed_duration:
+        # Whisper's last segment end approximates the file duration but can
+        # over- or under-run it; only used when the ffprobe probe failed.
+        processed_duration = verification_segments[-1]['end']
     v_validator = AdValidator(
         processed_duration, verification_segments,
         episode_description,
@@ -1148,6 +1155,12 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
         if verification_ads_processed:
             audio_logger.info(f"[{slug}:{episode_id}] Verification found {len(verification_ads_processed)} missed ads - re-cutting pass 1 output")
 
+            # Real duration of the pass-1 output, probed once: validation
+            # clamps and extends trailing ads against it (Whisper's last
+            # segment end can over- or under-run the file), and the recut
+            # coverage check below needs the same pre-recut bounds.
+            processed_duration = local_audio_processor.get_audio_duration(processed_path)
+
             # Validate verification ads
             if verification_segments:
                 verification_ads_processed, verification_ads_original = _validate_verification_ads(
@@ -1155,6 +1168,7 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                     verification_ads_original, verification_segments,
                     pass1_cuts, episode_description,
                     min_cut_confidence, db,
+                    processed_duration=processed_duration,
                 )
 
             if verification_ads_processed:
@@ -1177,9 +1191,10 @@ def _run_verification_pass(ctx, processed_path, pass1_cuts,
                 )
 
                 if v_ads_to_cut:
-                    # Captured before the recut deletes the pre-recut file:
-                    # the coverage check needs the bounds the recut clamped to.
-                    pre_recut_duration = local_audio_processor.get_audio_duration(processed_path)
+                    # Probed above, before the recut deletes the pre-recut
+                    # file: the coverage check needs the bounds the recut
+                    # clamped to.
+                    pre_recut_duration = processed_duration
                     processed_path, recut_applied, recut_ok = _recut_processed_audio(
                         slug, episode_id, processed_path, v_ads_to_cut,
                         local_audio_processor,
