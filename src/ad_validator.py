@@ -242,7 +242,9 @@ class AdValidator:
 
         result = ValidationResult(ads=[])
 
-        # Make copies to avoid modifying originals
+        # Make SHALLOW copies to avoid modifying originals. Callers rely on
+        # this staying shallow: _validate_verification_ads attaches an
+        # _orig_twin reference that must survive into the validated output.
         ads = [ad.copy() for ad in ads]
 
         # Step 1: Auto-correct boundaries
