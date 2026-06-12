@@ -85,3 +85,43 @@ class TestParseTimestampInvalid:
         # bool is a subclass of int, so these pass through as numeric
         assert parse_timestamp(True) == 1.0
         assert parse_timestamp(False) == 0.0
+
+
+class TestAdjustTimestampOverlaps:
+    """Overlapping spans in the combined pass-1 + pass-2 cut list must not
+    have their shared region subtracted twice."""
+
+    def test_overlapping_spans_subtract_union_once(self):
+        from utils.time import adjust_timestamp
+        # [100,150] and [140,180] overlap by 10s; union removes 80s.
+        ads = [{'start': 100.0, 'end': 150.0}, {'start': 140.0, 'end': 180.0}]
+        # Pre-fix: 50 + (40) double-counts the overlap -> 200-90=110.
+        assert adjust_timestamp(200.0, ads) == 120.0
+
+    def test_contained_span_ignored(self):
+        from utils.time import adjust_timestamp
+        ads = [{'start': 100.0, 'end': 200.0}, {'start': 120.0, 'end': 150.0}]
+        assert adjust_timestamp(300.0, ads) == 200.0
+
+    def test_touching_spans_merge(self):
+        from utils.time import adjust_timestamp
+        ads = [{'start': 100.0, 'end': 150.0}, {'start': 150.0, 'end': 180.0}]
+        assert adjust_timestamp(200.0, ads) == 120.0
+
+    def test_timestamp_inside_overlap_region_snaps_once(self):
+        from utils.time import adjust_timestamp
+        ads = [{'start': 100.0, 'end': 150.0}, {'start': 140.0, 'end': 180.0}]
+        # 160 is inside the merged [100,180]: snaps to its start.
+        assert adjust_timestamp(160.0, ads) == 100.0
+
+    def test_degenerate_span_skipped(self):
+        from utils.time import adjust_timestamp
+        ads = [{'start': 150.0, 'end': 150.0}, {'start': 100.0, 'end': 120.0}]
+        assert adjust_timestamp(200.0, ads) == 180.0
+
+    def test_non_overlapping_unchanged_behavior(self):
+        from utils.time import adjust_timestamp
+        ads = [{'start': 10.0, 'end': 20.0}, {'start': 50.0, 'end': 60.0}]
+        assert adjust_timestamp(100.0, ads) == 80.0
+        assert adjust_timestamp(55.0, ads) == 40.0   # snap inside 2nd ad
+        assert adjust_timestamp(5.0, ads) == 5.0

@@ -115,13 +115,23 @@ def adjust_timestamp(original_time: float, ads_removed: List[Dict]) -> float:
     if not ads_removed:
         return original_time
 
-    adjustment = 0.0
-    sorted_ads = sorted(ads_removed, key=lambda x: x['start'])
-
+    # Merge overlapping/touching spans first: the combined cut list can mix
+    # pass-1 applied cuts with pass-2 ads mapped back to original time, and
+    # an overlap would otherwise have its duration subtracted twice.
+    sorted_ads = sorted(ads_removed, key=lambda x: x.get('start', 0))
+    merged = []
     for ad in sorted_ads:
         ad_start = ad.get('start', 0)
         ad_end = ad.get('end', 0)
+        if ad_end <= ad_start:
+            continue
+        if merged and ad_start <= merged[-1][1]:
+            merged[-1][1] = max(merged[-1][1], ad_end)
+        else:
+            merged.append([ad_start, ad_end])
 
+    adjustment = 0.0
+    for ad_start, ad_end in merged:
         if ad_end <= original_time:
             # Entire ad was before our timestamp
             adjustment += (ad_end - ad_start)
