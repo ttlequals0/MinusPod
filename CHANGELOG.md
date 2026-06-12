@@ -6,6 +6,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.8] - 2026-06-12
+
+### Fixed
+
+- Pass-2 ads keep the right original-time twin through validation. The validator sorts, merges and drops ads, but the pipeline paired its output with the unvalidated original list by position, so after a merge or reorder a surviving ad could carry another ad's original timestamps into the ad editor. Each original now rides through validation attached to its processed twin.
+- A short real ad is no longer silently dropped. Cuts under 10 seconds were all discarded as likely hallucinations; a short cut now survives when a known fingerprint pattern matched it or detection confidence is at least 0.9. When a cut is dropped anyway, the ad editor now shows it as not cut instead of claiming it was removed.
+- Transcript lines partially covered by cuts no longer leak ad words. A line under the 80 percent drop threshold was kept whole; its in-cut words are now trimmed using Whisper's word timestamps, with the old behavior kept for episodes without word timing.
+- Overlapping spans in the combined cut list no longer double-shift transcript and chapter timestamps. adjust_timestamp merges spans into a union before subtracting, so a pass-2 ad touching a pass-1 cut cannot collapse segments to zero length.
+- Pass-2 validation clamps against the real audio duration (ffprobe) instead of the last transcript segment's end, which Whisper routinely over- or under-runs.
+- Audio cue (ding) timestamps land on the sound instead of up to a second after it. ebur128's momentary loudness window lags the true onset; the reported cue start is pulled back by a configurable onset lag (0.2s default).
+
 ## [2.8.7] - 2026-06-10
 
 ### Changed
