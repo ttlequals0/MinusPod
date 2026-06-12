@@ -117,6 +117,15 @@ class TestWordLevelTrim:
         out = self.gen.compute_final_segments([seg], ads)
         assert out[0]['text'] == 'mixed line'
 
+    def test_words_with_none_timestamps_fall_back(self):
+        # The API transcription path can carry JSON nulls through as None.
+        seg = {'start': 100.0, 'end': 120.0, 'text': 'mixed line',
+               'words': [{'word': 'mixed', 'start': None, 'end': None},
+                         {'word': ' line', 'start': 110.0, 'end': 120.0}]}
+        ads = [{'start': 114.0, 'end': 130.0}]
+        out = self.gen.compute_final_segments([seg], ads)
+        assert out[0]['text'] == 'mixed line'
+
     def test_all_words_in_cuts_drops_segment(self):
         # Union coverage is under the 80% drop threshold, but every word
         # midpoint falls inside a cut -> nothing survives the trim.

@@ -72,7 +72,11 @@ class TranscriptGenerator:
         None when no words survive.
         """
         words = segment.get('words') or []
-        if not words or any('start' not in w or 'end' not in w for w in words):
+        # Key-presence is not enough: the API transcription path can carry
+        # JSON nulls through as None values.
+        if not words or any(not isinstance(w.get('start'), (int, float))
+                            or not isinstance(w.get('end'), (int, float))
+                            for w in words):
             return segment
 
         kept = [
