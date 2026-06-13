@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.10] - 2026-06-13
+
+### Added
+
+- Ad Distribution panel on the feed detail page (#360), collapsed by default under the tags section. It charts where ads have historically been cut across a feed's episodes (a normalized-position histogram) and highlights the learned prior zones on it, so you can see a show's ad pattern at a glance and decide whether the learned-positions experiment is worth enabling. The panel is informational and shows for every feed regardless of the experiment toggle, backed by a new GET /feeds/{slug}/ad-distribution endpoint.
+
 ## [2.8.9] - 2026-06-12
 
 ### Added

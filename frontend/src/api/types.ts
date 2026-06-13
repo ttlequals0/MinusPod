@@ -18,6 +18,24 @@ export interface Feed {
   onlyExposeProcessedEpisodes?: boolean | null;
 }
 
+export interface AdDistributionZone {
+  center: number;  // normalized 0-1
+  low: number;
+  high: number;
+  support: number;  // distinct episodes
+  boost: number;
+}
+
+export interface AdDistribution {
+  slug: string;
+  episodesConsidered: number;
+  medianDurationSeconds: number;
+  bucketCount: number;
+  buckets: number[];  // cut-start counts per normalized-position bin
+  totalEvents: number;
+  zones: AdDistributionZone[];
+}
+
 export interface Episode {
   id: string;
   title: string;

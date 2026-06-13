@@ -16,6 +16,7 @@ from api import (
     _serialize_auto_process, _deserialize_auto_process,
     _serialize_nullable_bool, _deserialize_nullable_bool,
 )
+from positional_prior import compute_ad_distribution
 from utils.url import validate_url, SSRFError
 from utils.validation import is_valid_slug
 
@@ -700,6 +701,39 @@ def get_feed_tags(slug):
     if not db.get_podcast_by_slug(slug):
         return error_response('Feed not found', 404)
     return json_response(db.get_podcast_tags(slug))
+
+
+@api.route('/feeds/<slug>/ad-distribution', methods=['GET'])
+@log_request
+def get_ad_distribution(slug):
+    """Where this feed's ad cuts historically land across an episode.
+
+    Setting-independent (does not require the positional-prior experiment to
+    be enabled): purely informational for the feed detail panel.
+    """
+    db = get_database()
+    if not db.get_podcast_by_slug(slug):
+        return error_response('Feed not found', 404)
+
+    dist = compute_ad_distribution(db, slug)
+    return json_response({
+        'slug': slug,
+        'episodesConsidered': dist.episodes_considered,
+        'medianDurationSeconds': dist.median_duration,
+        'bucketCount': dist.bucket_count,
+        'buckets': dist.buckets,
+        'totalEvents': dist.total_events,
+        'zones': [
+            {
+                'center': z.center,
+                'low': z.low,
+                'high': z.high,
+                'support': z.support,
+                'boost': z.boost,
+            }
+            for z in dist.zones
+        ],
+    })
 
 
 @api.route('/feeds/<slug>/tags', methods=['PUT'])

@@ -1,5 +1,5 @@
 import { apiRequest, buildQueryString, csrfHeaders, extractErrorMessage } from './client';
-import { Feed, Episode, EpisodeDetail, BulkActionResult } from './types';
+import { Feed, Episode, EpisodeDetail, BulkActionResult, AdDistribution } from './types';
 
 
 export interface PeaksResponse {
@@ -78,6 +78,10 @@ export async function getFeeds(): Promise<Feed[]> {
 
 export async function getFeed(slug: string): Promise<Feed> {
   return apiRequest<Feed>(`/feeds/${slug}`);
+}
+
+export async function getAdDistribution(slug: string): Promise<AdDistribution> {
+  return apiRequest<AdDistribution>(`/feeds/${slug}/ad-distribution`);
 }
 
 export async function addFeed(sourceUrl: string, slug?: string, autoProcessOverride?: boolean | null, maxEpisodes?: number, onlyExposeProcessedEpisodes?: boolean | null): Promise<Feed> {

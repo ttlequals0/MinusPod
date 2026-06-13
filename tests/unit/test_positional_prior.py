@@ -7,9 +7,11 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', '..', 'src'))
 
 from positional_prior import (
-    LearnedZone, PositionalPrior, build_prior,
-    compute_positional_prior, format_prior_hint
+    LearnedZone, PositionalPrior, AdDistribution, build_prior,
+    build_distribution, compute_positional_prior, compute_ad_distribution,
+    format_prior_hint
 )
+from config import POSITIONAL_PRIOR_HISTOGRAM_BUCKETS
 
 DURATION = 1000.0
 
@@ -26,6 +28,92 @@ def _m(start, end=None, conf=0.95, stage='claude', was_cut=True):
         'detection_stage': stage,
         'was_cut': was_cut,
     }
+
+
+class TestBuildDistribution:
+
+    def test_buckets_sum_to_total_events(self):
+        episodes = [_ep(f'e{i}', [_m(300.0), _m(750.0)]) for i in range(6)]
+        dist = build_distribution('test', episodes)
+
+        assert dist.bucket_count == POSITIONAL_PRIOR_HISTOGRAM_BUCKETS
+        assert len(dist.buckets) == POSITIONAL_PRIOR_HISTOGRAM_BUCKETS
+        assert sum(dist.buckets) == dist.total_events == 12
+
+    def test_position_lands_in_expected_bucket(self):
+        # 20 buckets of 5%: 0.30 -> bucket 6, 0.0 -> 0, end -> last
+        episodes = [_ep(f'e{i}', [_m(300.0)]) for i in range(5)]
+        dist = build_distribution('test', episodes)
+
+        assert dist.buckets[6] == 5
+        assert sum(dist.buckets) == 5
+
+    def test_position_at_end_clamps_to_last_bucket(self):
+        episodes = [_ep(f'e{i}', [_m(1000.0)]) for i in range(5)]  # pos 1.0
+        dist = build_distribution('test', episodes)
+
+        assert dist.buckets[-1] == 5
+
+    def test_zones_present_when_gate_met(self):
+        episodes = [_ep(f'e{i}', [_m(300.0)]) for i in range(6)]
+        dist = build_distribution('test', episodes)
+
+        assert len(dist.zones) == 1
+        assert dist.zones[0].center == pytest.approx(0.30)
+        assert dist.episodes_considered == 6
+        assert dist.median_duration == pytest.approx(DURATION)
+
+    def test_histogram_without_zones_below_episode_gate(self):
+        # 4 episodes: under the 5-episode zone gate, but the histogram still fills
+        episodes = [_ep(f'e{i}', [_m(300.0)]) for i in range(4)]
+        dist = build_distribution('test', episodes)
+
+        assert dist.zones == []
+        assert dist.buckets[6] == 4
+        assert dist.total_events == 4
+        assert dist.episodes_considered == 4
+
+    def test_empty_history_is_all_zero(self):
+        dist = build_distribution('test', [])
+
+        assert dist.episodes_considered == 0
+        assert dist.total_events == 0
+        assert dist.median_duration == 0
+        assert sum(dist.buckets) == 0
+        assert dist.zones == []
+
+
+class TestComputeAdDistribution:
+
+    SLUG = 'dist-pod'
+
+    def _seed(self, db, count=6):
+        db.create_podcast(self.SLUG, 'https://example.com/feed.xml', 'Dist Pod')
+        for i in range(count):
+            eid = f'ep-{i:03d}'
+            db.upsert_episode(
+                self.SLUG, eid, original_url=f'https://example.com/{eid}.mp3',
+                title=f'Episode {i}', status='processed',
+                original_duration=DURATION,
+                published_at=f'2026-06-{i + 1:02d}T00:00:00+00:00')
+            db.save_episode_details(self.SLUG, eid, ad_markers=[_m(300.0)])
+
+    def test_setting_independent_returns_distribution(self, temp_db):
+        self._seed(temp_db)
+        # Toggle stays off; distribution must still compute.
+        dist = compute_ad_distribution(temp_db, self.SLUG)
+
+        assert isinstance(dist, AdDistribution)
+        assert dist.episodes_considered == 6
+        assert dist.buckets[6] == 6
+        assert len(dist.zones) == 1
+
+    def test_empty_feed_returns_zeroed_distribution(self, temp_db):
+        temp_db.create_podcast(self.SLUG, 'https://example.com/feed.xml', 'Dist Pod')
+        dist = compute_ad_distribution(temp_db, self.SLUG)
+
+        assert dist.episodes_considered == 0
+        assert sum(dist.buckets) == 0
 
 
 class TestClustering:

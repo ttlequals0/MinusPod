@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -8,35 +8,7 @@ import { getDashboardStats, getStatsByDay, getStatsByPodcast, getReviewerStats }
 import { getFeeds } from '../api/feeds';
 import { formatTokenCount } from './settings/settingsUtils';
 import LoadingSpinner from '../components/LoadingSpinner';
-
-function useThemeColors() {
-  const [colors, setColors] = useState({ primary: '', card: '', border: '', foreground: '', muted: '' });
-  useEffect(() => {
-    function resolve(name: string) {
-      const raw = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-      return raw ? `hsl(${raw})` : '';
-    }
-    function update() {
-      const next = {
-        primary: resolve('--primary'),
-        card: resolve('--card'),
-        border: resolve('--border'),
-        foreground: resolve('--card-foreground'),
-        muted: resolve('--muted-foreground'),
-      };
-      setColors(prev =>
-        prev.primary === next.primary && prev.card === next.card && prev.border === next.border
-        && prev.foreground === next.foreground && prev.muted === next.muted
-          ? prev : next
-      );
-    }
-    update();
-    const obs = new MutationObserver(update);
-    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'data-theme'] });
-    return () => obs.disconnect();
-  }, []);
-  return colors;
-}
+import { useThemeColors } from '../hooks/useThemeColors';
 
 type PodcastSortField = 'podcastTitle' | 'episodeCount' | 'totalAds' | 'avgAds' | 'avgTimeSavedSeconds' | 'avgEpisodeLengthSeconds' | 'totalCost' | 'avgTokensPerEpisode';
 

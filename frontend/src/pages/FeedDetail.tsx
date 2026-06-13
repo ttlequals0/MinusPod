@@ -10,6 +10,7 @@ import EpisodeList from '../components/EpisodeList';
 import LoadingSpinner from '../components/LoadingSpinner';
 import TriStateSelect from '../components/TriStateSelect';
 import { FeedTagsEditor } from '../components/FeedTagsEditor';
+import PodcastAdDistributionPanel from './feeds/PodcastAdDistributionPanel';
 import { formatStorage } from './settings/settingsUtils';
 import { stripHtml } from '../utils/stripHtml';
 
@@ -442,6 +443,8 @@ function FeedDetail() {
       </div>
 
       {slug && <FeedTagsEditor slug={slug} />}
+
+      {slug && <PodcastAdDistributionPanel slug={slug} />}
 
       {/* Episodes header with status filter */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">

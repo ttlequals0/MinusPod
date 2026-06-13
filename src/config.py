@@ -75,6 +75,7 @@ POSITIONAL_PRIOR_MIN_LLM_CONFIDENCE = 0.85  # Untrusted-stage cuts below this ne
 POSITIONAL_PRIOR_MIN_BOOST = 0.05        # Boost at the support gate, same as today's mid-roll boost
 POSITIONAL_PRIOR_MAX_BOOST = 0.10        # Boost at 100% zone support, same as today's pre-roll boost
 POSITIONAL_PRIOR_MAX_DURATION_RATIO = 2.0  # Prior skipped when episode/median length ratio exceeds this
+POSITIONAL_PRIOR_HISTOGRAM_BUCKETS = 20  # Position-distribution bins for the UI panel (keep a divisor of 100 for clean axis labels)
 
 # ============================================================
 # Ad Limits

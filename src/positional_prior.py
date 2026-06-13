@@ -18,7 +18,8 @@ from config import (
     POSITIONAL_PRIOR_ZONE_MARGIN, POSITIONAL_PRIOR_MAX_ZONES,
     POSITIONAL_PRIOR_EVENT_DEDUPE_GAP, POSITIONAL_PRIOR_MIN_LLM_CONFIDENCE,
     POSITIONAL_PRIOR_MIN_BOOST, POSITIONAL_PRIOR_MAX_BOOST,
-    POSITIONAL_PRIOR_MAX_DURATION_RATIO, PATTERN_CORRECTION_OVERLAP_THRESHOLD,
+    POSITIONAL_PRIOR_MAX_DURATION_RATIO, POSITIONAL_PRIOR_HISTOGRAM_BUCKETS,
+    PATTERN_CORRECTION_OVERLAP_THRESHOLD,
 )
 from utils.time import format_duration, overlap_ratio, ranges_overlap
 
@@ -39,6 +40,21 @@ class LearnedZone:
     high: float              # zone upper bound, normalized
     support: int             # distinct episodes contributing
     boost: float             # confidence boost for cuts starting in this zone
+
+
+@dataclass
+class AdDistribution:
+    """Where a feed's ad cuts land across episodes, for the UI panel.
+
+    Setting-independent and always returned (never None) so the panel can
+    render an empty state.
+    """
+    episodes_considered: int
+    median_duration: float
+    bucket_count: int
+    buckets: List[int]       # cut-start counts per normalized-position bin
+    total_events: int
+    zones: List[LearnedZone]  # learned prior zones (empty below the gate)
 
 
 @dataclass
@@ -107,18 +123,12 @@ def _episode_event_positions(markers: List[Dict], corrections: List[Dict],
     return deduped
 
 
-def build_prior(slug: str, episodes: List[Dict],
-                corrections: Optional[List[Dict]] = None) -> Optional[PositionalPrior]:
-    """Build a positional prior from episode cut history.
+def _collect_events(episodes: List[Dict],
+                    corrections: Optional[List[Dict]]) -> tuple:
+    """Reduce episode history to (durations, events).
 
-    Args:
-        episodes: dicts with episode_id, original_duration, ad_markers (parsed list)
-        corrections: dicts with episode_id, correction_type, start, end
-            (boundary_adjustment also carries orig_start/orig_end)
-
-    Returns:
-        PositionalPrior, or None when history is insufficient (caller falls
-        back to the global position zones).
+    events is a list of (episode_id, normalized_position) for every learnable
+    ad-break start; durations is one entry per considered episode.
     """
     corrections_by_episode: Dict[str, List[Dict]] = {}
     for correction in corrections or []:
@@ -141,15 +151,22 @@ def build_prior(slug: str, episodes: List[Dict],
         for pos in _episode_event_positions(markers, episode_corrections, duration):
             events.append((episode['episode_id'], pos))
 
-    considered = len(durations)
+    return durations, events
+
+
+def _build_zones(considered: int, events: List[tuple]) -> List[LearnedZone]:
+    """Cluster pooled normalized positions into supported zones (empty if none).
+
+    The episode-count gate lives here so every consumer (the prior and the
+    distribution panel) agrees on when zones are eligible: a feed with few
+    episodes never produces zones even if their cuts happen to align.
+    """
     if considered < POSITIONAL_PRIOR_MIN_EPISODES:
-        logger.info(f"[{slug}] Positional prior declined: insufficient history "
-                    f"({considered} < {POSITIONAL_PRIOR_MIN_EPISODES} episodes)")
-        return None
+        return []
 
     # 1D gap-merge clustering over pooled normalized positions. The span cap
     # keeps slowly drifting break positions from chaining into one giant zone.
-    events.sort(key=lambda e: e[1])
+    events = sorted(events, key=lambda e: e[1])
     clusters: List[List[tuple]] = []
     for event in events:
         if (clusters
@@ -180,8 +197,30 @@ def build_prior(slug: str, episodes: List[Dict],
         ))
 
     zones.sort(key=lambda z: z.support, reverse=True)
-    zones = sorted(zones[:POSITIONAL_PRIOR_MAX_ZONES], key=lambda z: z.center)
+    return sorted(zones[:POSITIONAL_PRIOR_MAX_ZONES], key=lambda z: z.center)
 
+
+def build_prior(slug: str, episodes: List[Dict],
+                corrections: Optional[List[Dict]] = None) -> Optional[PositionalPrior]:
+    """Build a positional prior from episode cut history.
+
+    Args:
+        episodes: dicts with episode_id, original_duration, ad_markers (parsed list)
+        corrections: dicts with episode_id, correction_type, start, end
+            (boundary_adjustment also carries orig_start/orig_end)
+
+    Returns:
+        PositionalPrior, or None when history is insufficient (caller falls
+        back to the global position zones).
+    """
+    durations, events = _collect_events(episodes, corrections)
+    considered = len(durations)
+    if considered < POSITIONAL_PRIOR_MIN_EPISODES:
+        logger.info(f"[{slug}] Positional prior declined: insufficient history "
+                    f"({considered} < {POSITIONAL_PRIOR_MIN_EPISODES} episodes)")
+        return None
+
+    zones = _build_zones(considered, events)
     if not zones:
         logger.info(f"[{slug}] Positional prior declined: no zone reached "
                     f"{POSITIONAL_PRIOR_MIN_ZONE_SUPPORT:.0%} support "
@@ -198,10 +237,37 @@ def build_prior(slug: str, episodes: List[Dict],
                            zones=zones)
 
 
-def compute_positional_prior(db, slug: str,
-                             exclude_episode_id: Optional[str] = None
-                             ) -> Optional[PositionalPrior]:
-    """Load a feed's cut history from the database and build its prior."""
+def build_distribution(slug: str, episodes: List[Dict],
+                       corrections: Optional[List[Dict]] = None) -> AdDistribution:
+    """Build the always-available ad-position distribution from cut history.
+
+    Unlike build_prior this never returns None: the histogram is shown even
+    for feeds with little history; zones are filled only once the prior gate
+    is met (5+ episodes, 60% support).
+    """
+    durations, events = _collect_events(episodes, corrections)
+    considered = len(durations)
+
+    buckets = [0] * POSITIONAL_PRIOR_HISTOGRAM_BUCKETS
+    for _, pos in events:
+        idx = min(int(pos * POSITIONAL_PRIOR_HISTOGRAM_BUCKETS),
+                  POSITIONAL_PRIOR_HISTOGRAM_BUCKETS - 1)
+        buckets[idx] += 1
+
+    zones = _build_zones(considered, events)
+
+    return AdDistribution(
+        episodes_considered=considered,
+        median_duration=statistics.median(durations) if durations else 0.0,
+        bucket_count=POSITIONAL_PRIOR_HISTOGRAM_BUCKETS,
+        buckets=buckets,
+        total_events=len(events),
+        zones=zones,
+    )
+
+
+def _load_history(db, slug: str, exclude_episode_id: Optional[str] = None) -> tuple:
+    """Load a feed's recent cut history from the database as (episodes, corrections)."""
     rows = db.get_recent_episode_ad_history(
         slug, exclude_episode_id=exclude_episode_id,
         limit=POSITIONAL_PRIOR_RECENT_EPISODES,
@@ -225,7 +291,25 @@ def compute_positional_prior(db, slug: str,
 
     corrections = db.get_podcast_corrections_for_prior(
         slug, [e['episode_id'] for e in episodes])
+    return episodes, corrections
+
+
+def compute_positional_prior(db, slug: str,
+                             exclude_episode_id: Optional[str] = None
+                             ) -> Optional[PositionalPrior]:
+    """Load a feed's cut history from the database and build its prior."""
+    episodes, corrections = _load_history(db, slug, exclude_episode_id)
     return build_prior(slug, episodes, corrections)
+
+
+def compute_ad_distribution(db, slug: str) -> AdDistribution:
+    """Load a feed's cut history and build its ad-position distribution.
+
+    Setting-independent (no experiment-toggle gate): purely informational for
+    the UI panel.
+    """
+    episodes, corrections = _load_history(db, slug)
+    return build_distribution(slug, episodes, corrections)
 
 
 def load_positional_prior(db, slug: str, episode_id: str,
