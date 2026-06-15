@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.12] - 2026-06-15
+
+### Security
+
+- Bumped cryptography from 48.0.0 to 48.0.1 to clear GHSA-537c-gmf6-5ccf, a newly disclosed advisory flagged by pip-audit. Patch-level dependency update only; no app behavior change.
+
 ## [2.8.11] - 2026-06-15
 
 ### Added
