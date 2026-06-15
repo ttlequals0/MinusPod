@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.13] - 2026-06-15
+
+### Changed
+
+- Feed detail page cleanup. The title's edit (pencil) icon is now always shown instead of only appearing on hover, so it can be tapped on touch devices. The Tags section starts collapsed. The per-feed controls that used to fill the header (network/DAI override, feed cap, auto-process, transcription language, and hide-unprocessed) now live in a "Feed settings" section that starts collapsed, pulled out into its own component to match the other feed panels.
+
 ## [2.8.12] - 2026-06-15
 
 ### Added
