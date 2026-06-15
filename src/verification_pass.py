@@ -14,6 +14,7 @@ import logging
 from typing import Dict, List, Optional, Tuple
 
 from transcript_generator import TranscriptGenerator
+from utils.language import get_feed_language_override
 
 logger = logging.getLogger('podcast.verification')
 
@@ -195,14 +196,7 @@ class VerificationPass:
         Lets exceptions propagate to caller so status correctly reflects
         'transcription_failed' vs 'no_segments'.
         """
-        language_override = None
-        if slug and self.db is not None:
-            try:
-                podcast = self.db.get_podcast_by_slug(slug)
-                if podcast:
-                    language_override = podcast.get('language_override')
-            except Exception:
-                language_override = None
+        language_override = get_feed_language_override(self.db, slug)
         return self.transcriber.transcribe_chunked(
             audio_path, podcast_name, language_override=language_override,
         )

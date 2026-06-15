@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getFeed, getEpisodes, refreshFeed, updateFeed, getNetworks, reprocessAllEpisodes, ReprocessAllResult, bulkEpisodeAction, BulkAction } from '../api/feeds';
+import { getFeed, getEpisodes, refreshFeed, updateFeed, getNetworks, reprocessAllEpisodes, ReprocessAllResult, bulkEpisodeAction, BulkAction, UpdateFeedPayload } from '../api/feeds';
 import type { BulkActionResult } from '../api/types';
 import Artwork from '../components/Artwork';
 import CopyButton from '../components/CopyButton';
@@ -93,7 +93,7 @@ function FeedDetail() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: { networkIdOverride?: string | null; daiPlatform?: string; autoProcessOverride?: boolean | null; languageOverride?: string | null; maxEpisodes?: number | null; onlyExposeProcessedEpisodes?: boolean | null }) => updateFeed(slug!, data),
+    mutationFn: (data: UpdateFeedPayload) => updateFeed(slug!, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['feed', slug] });
       setIsEditingNetwork(false);

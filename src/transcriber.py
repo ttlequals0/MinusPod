@@ -626,6 +626,19 @@ def _whisper_api_rejects_word_timestamps(response) -> bool:
     )
 
 
+def _effective_language(language_override: Optional[str], whisper_settings: Dict[str, str]) -> str:
+    """Resolve the effective Whisper language as a lowercased code.
+
+    A non-empty per-call override beats the global whisper_language setting;
+    blank falls through to the setting; default 'en'. 'auto' is preserved so
+    callers can branch on it.
+    """
+    override = (language_override or '').strip().lower()
+    if override:
+        return override
+    return (whisper_settings.get('language') or 'en').strip().lower()
+
+
 class Transcriber:
     def __init__(self):
         # Model is now managed by singleton
@@ -713,8 +726,7 @@ class Transcriber:
                 'model': model,
                 'response_format': 'verbose_json',
             }
-            override = (language_override or '').strip().lower()
-            language = override if override else (whisper_settings.get('language') or 'en').strip().lower()
+            language = _effective_language(language_override, whisper_settings)
             if language and language != 'auto':
                 form_data_base['language'] = language
             if initial_prompt:
@@ -1249,8 +1261,7 @@ class Transcriber:
                 language_override=language_override,
             )
 
-        override = (language_override or '').strip().lower()
-        language_setting = override if override else (whisper_settings.get('language') or 'en').strip().lower()
+        language_setting = _effective_language(language_override, whisper_settings)
         transcribe_language = None if language_setting == 'auto' else (language_setting or 'en')
 
         preprocessed_path = None
@@ -1455,6 +1466,9 @@ class Transcriber:
         Args:
             audio_path: Path to the audio file to transcribe
             podcast_name: Optional podcast name for context-aware prompting
+            language_override: Optional per-feed language; when set, takes
+                precedence over the global whisper_language setting for this
+                call only (forwarded to each chunk's transcribe()).
 
         Returns:
             List of transcript segments with timestamps, or None on failure

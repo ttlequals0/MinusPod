@@ -2,7 +2,6 @@
 import json
 import logging
 import os
-import re
 import threading
 import uuid
 from dataclasses import dataclass
@@ -35,6 +34,7 @@ from llm_client import (
     get_effective_provider, get_effective_base_url, get_api_key, get_effective_openrouter_api_key,
     get_llm_client, create_client_for_provider, _JSON_FORMAT_SETTING_KEY,
 )
+from utils.language import LANGUAGE_CODE_RE
 from utils.url import validate_base_url, SSRFError
 from utils.http import safe_url_for_log
 from utils.secret_writes import SecretWriteRejected, set_or_clear_secret
@@ -741,9 +741,9 @@ def _apply_whisper_fields(db, data):
     if 'whisperLanguage' in data:
         lang_val = str(data['whisperLanguage']).strip().lower()
         # Empty string collapses to default ('en'); 'auto' is allowed; otherwise
-        # require a plausible ISO-639-1 code shape (2-5 alphanum/hyphen chars).
-        if lang_val and lang_val != 'auto' and not re.match(r'^[a-z]{2,3}(-[a-z0-9]{2,4})?$', lang_val):
-            return json_response({'error': "whisperLanguage must be 'auto' or a valid language code (e.g. 'en', 'fi', 'pt-br')"}, 400)
+        # require a bare 2-3 letter language code (faster-whisper rejects subtags).
+        if lang_val and lang_val != 'auto' and not LANGUAGE_CODE_RE.match(lang_val):
+            return json_response({'error': "whisperLanguage must be 'auto' or a 2-3 letter language code (e.g. 'en', 'fi', 'pt')"}, 400)
         db.set_setting('whisper_language', lang_val or 'en', is_default=False)
         logger.info(f"Updated whisper language to: {lang_val or 'en'}")
 

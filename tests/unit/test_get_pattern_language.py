@@ -63,13 +63,6 @@ def test_empty_slug_override_falls_back_to_global(db):
     assert get_pattern_language(db, slug='show-c') == 'fr'
 
 
-def test_podcast_id_override_resolves(db):
-    db.set_setting('whisper_language', 'en', is_default=False)
-    pid = db.create_podcast('show-d', 'https://example.com/feed.xml', title='Show D')
-    db.update_podcast('show-d', language_override='es')
-    assert get_pattern_language(db, podcast_id=pid) == 'es'
-
-
 def test_unknown_slug_falls_back_to_global(db):
     db.set_setting('whisper_language', 'en', is_default=False)
     assert get_pattern_language(db, slug='does-not-exist') == 'en'

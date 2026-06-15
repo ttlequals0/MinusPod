@@ -1,7 +1,6 @@
 """Feed routes: /feeds/* endpoints."""
 import logging
 import os
-import re
 import time
 import xml.etree.ElementTree as ET  # defusedxml has no SubElement/tostring, so keep ET for OPML export only
 from typing import Optional
@@ -18,13 +17,11 @@ from api import (
     _serialize_nullable_bool, _deserialize_nullable_bool,
 )
 from positional_prior import compute_ad_distribution
+from utils.language import LANGUAGE_CODE_RE
 from utils.url import validate_url, SSRFError
 from utils.validation import is_valid_slug
 
 from slugify import slugify as make_slug
-
-
-_LANGUAGE_CODE_RE = re.compile(r'^[a-z]{2,3}(-[a-z0-9]{2,4})?$')
 
 
 def _normalize_language_override(value):
@@ -43,8 +40,8 @@ def _normalize_language_override(value):
     val = value.strip().lower()
     if not val:
         return None, None
-    if val != 'auto' and not _LANGUAGE_CODE_RE.match(val):
-        return None, "languageOverride must be 'auto' or a valid language code (e.g. 'en', 'de', 'pt-br')"
+    if val != 'auto' and not LANGUAGE_CODE_RE.match(val):
+        return None, "languageOverride must be 'auto' or a 2-3 letter language code (e.g. 'en', 'de', 'pt')"
     return val, None
 
 
