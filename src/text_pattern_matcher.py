@@ -1009,7 +1009,7 @@ class TextPatternMatcher:
                 network_id=network_id,
                 created_from_episode_id=episode_id,
                 duration=duration,
-                source_language=get_pattern_language(self.db, podcast_id=podcast_id),
+                source_language=get_pattern_language(self.db, slug=podcast_id),
             )
 
             logger.info(f"Created text pattern {pattern_id} for sponsor: {sponsor}")

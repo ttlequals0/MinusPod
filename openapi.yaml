@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.8.10
+  version: 2.8.11
   contact:
     name: MinusPod
   license:
@@ -463,6 +463,11 @@ paths:
                     - boolean
                     - 'null'
                   description: Override auto-process setting (null uses global)
+                languageOverride:
+                  type:
+                    - string
+                    - 'null'
+                  description: Per-feed Whisper transcription language. 'auto' pins auto-detect for this feed; a language code (e.g. 'en', 'de') forces that language; null falls back to the global whisperLanguage setting.
                 maxEpisodes:
                   type:
                     - integer
@@ -4679,6 +4684,11 @@ components:
             - boolean
             - 'null'
           description: Override auto-process setting for this feed (null uses global setting)
+        languageOverride:
+          type:
+            - string
+            - 'null'
+          description: Per-feed Whisper transcription language ('auto' or a language code like 'en'/'de'); null uses the global whisperLanguage setting.
         maxEpisodes:
           type:
             - integer

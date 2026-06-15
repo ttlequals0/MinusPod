@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.11] - 2026-06-15
+
+### Added
+
+- Per-feed transcription language override (#376). A new Language control on the feed detail page sets the Whisper language for a single show, overriding the global setting. Useful when you mix languages and "auto-detect (multilingual)" transcribes the wrong language or translates instead of transcribing. Choices are "Global default", "Auto-detect", or a specific language. The override is threaded through first-pass and verification transcription without mutating shared settings, and learned ad patterns are stamped with the feed's language so multi-lingual setups do not cross-contaminate the pattern database. (PR #377, authored by @ict.)
+
 ## [2.8.10] - 2026-06-13
 
 ### Added
