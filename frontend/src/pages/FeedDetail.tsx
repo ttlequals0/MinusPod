@@ -7,11 +7,10 @@ import Artwork from '../components/Artwork';
 import CopyButton from '../components/CopyButton';
 import DropdownMenu from '../components/DropdownMenu';
 import EpisodeList from '../components/EpisodeList';
-import LanguageCombobox from '../components/LanguageCombobox';
 import LoadingSpinner from '../components/LoadingSpinner';
 import TriStateSelect from '../components/TriStateSelect';
 import { FeedTagsEditor } from '../components/FeedTagsEditor';
-import { labelForLanguage } from '../utils/whisperLanguages';
+import { WHISPER_LANGUAGES, labelForLanguage } from '../utils/whisperLanguages';
 import PodcastAdDistributionPanel from './feeds/PodcastAdDistributionPanel';
 import { formatStorage } from './settings/settingsUtils';
 import { stripHtml } from '../utils/stripHtml';
@@ -351,40 +350,31 @@ function FeedDetail() {
               </div>
 
               {/* Per-feed transcription language override */}
-              <div className="flex flex-col sm:flex-row sm:items-start gap-2 sm:gap-3 text-sm">
-                <span className="text-muted-foreground whitespace-nowrap sm:pt-2">Language:</span>
-                <div className="flex-1 min-w-0 space-y-1">
-                  {feed.languageOverride ? (
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <div className="flex-1 min-w-[12rem]">
-                        <LanguageCombobox
-                          value={feed.languageOverride}
-                          onChange={(code) => updateMutation.mutate({ languageOverride: code })}
-                        />
-                      </div>
-                      <button
-                        onClick={() => updateMutation.mutate({ languageOverride: null })}
-                        disabled={updateMutation.isPending}
-                        className="px-2 py-1 text-xs bg-muted text-muted-foreground rounded hover:bg-accent disabled:opacity-50 whitespace-nowrap"
-                      >
-                        Use global
-                      </button>
-                      <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-500/20 text-blue-600 dark:text-blue-400">
-                        Override: {labelForLanguage(feed.languageOverride)}
-                      </span>
-                    </div>
-                  ) : (
-                    <button
-                      onClick={() => updateMutation.mutate({ languageOverride: 'en' })}
-                      disabled={updateMutation.isPending}
-                      className="px-2 py-1 text-xs bg-secondary text-secondary-foreground rounded hover:bg-secondary/80 disabled:opacity-50"
-                    >
-                      + Set per-feed language
-                    </button>
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
+                <span className="text-muted-foreground whitespace-nowrap">Language:</span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <select
+                    value={feed.languageOverride ?? ''}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      updateMutation.mutate({ languageOverride: v === '' ? null : v });
+                    }}
+                    disabled={updateMutation.isPending}
+                    className="px-2 py-1.5 text-sm bg-secondary border border-border rounded flex-1 sm:flex-none min-w-0 disabled:opacity-50"
+                  >
+                    <option value="">Global default</option>
+                    <option value="auto">Auto-detect (multilingual)</option>
+                    {WHISPER_LANGUAGES.map((l) => (
+                      <option key={l.code} value={l.code}>
+                        {l.name} ({l.code})
+                      </option>
+                    ))}
+                  </select>
+                  {feed.languageOverride && (
+                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-500/20 text-blue-600 dark:text-blue-400">
+                      Override: {labelForLanguage(feed.languageOverride)}
+                    </span>
                   )}
-                  <p className="text-xs text-muted-foreground">
-                    Overrides the global Whisper language for this feed only. Used for transcription and pattern stamping.
-                  </p>
                 </div>
               </div>
 
