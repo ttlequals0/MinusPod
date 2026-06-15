@@ -51,5 +51,5 @@ idna>=3.17                     # CVE-2026-45409 (pulled in by requests)
 backports.tarfile>=1.2.0
 
 # Testing
-pytest>=7.4.0
+pytest>=9.1.0
 pytest-cov>=4.1.0
