@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Pencil } from 'lucide-react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getFeed, getEpisodes, refreshFeed, updateFeed, getNetworks, reprocessAllEpisodes, ReprocessAllResult, bulkEpisodeAction, BulkAction, UpdateFeedPayload } from '../api/feeds';
@@ -37,6 +38,8 @@ function FeedDetail() {
   const { slug } = useParams<{ slug: string }>();
   const queryClient = useQueryClient();
   const [isEditingNetwork, setIsEditingNetwork] = useState(false);
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
   const [showReprocessConfirm, setShowReprocessConfirm] = useState(false);
   const [selectedReprocessMode, setSelectedReprocessMode] = useState<'reprocess' | 'full' | 'llm'>('reprocess');
   const [reprocessResult, setReprocessResult] = useState<ReprocessAllResult | null>(null);
@@ -97,6 +100,7 @@ function FeedDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['feed', slug] });
       setIsEditingNetwork(false);
+      setIsEditingTitle(false);
     },
   });
 
@@ -125,6 +129,15 @@ function FeedDetail() {
     setShowReprocessConfirm(false);
     setReprocessResult(null);
     reprocessAllMutation.reset();
+  };
+
+  const startEditingTitle = () => {
+    setEditTitle(feed?.titleOverride || '');
+    setIsEditingTitle(true);
+  };
+
+  const saveTitleEdit = () => {
+    updateMutation.mutate({ titleOverride: editTitle.trim() || null });
   };
 
   const startEditingNetwork = () => {
@@ -229,7 +242,61 @@ function FeedDetail() {
             />
           </div>
           <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-bold text-foreground">{feed.title}</h1>
+            {isEditingTitle ? (
+              <div className="space-y-1.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="text"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') saveTitleEdit();
+                      if (e.key === 'Escape') setIsEditingTitle(false);
+                    }}
+                    placeholder={feed.title}
+                    maxLength={500}
+                    autoFocus
+                    className="flex-1 min-w-0 px-2 py-1 text-lg font-semibold bg-secondary border border-border rounded focus:outline-hidden focus:ring-2 focus:ring-ring"
+                  />
+                  <button
+                    onClick={saveTitleEdit}
+                    disabled={updateMutation.isPending}
+                    className="px-2 py-1 text-xs bg-primary text-primary-foreground rounded hover:bg-primary/90 disabled:opacity-50"
+                  >
+                    {updateMutation.isPending ? 'Saving...' : 'Save'}
+                  </button>
+                  <button
+                    onClick={() => setIsEditingTitle(false)}
+                    className="px-2 py-1 text-xs bg-muted text-muted-foreground rounded hover:bg-accent"
+                  >
+                    Cancel
+                  </button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Shown to subscribers in podcast apps. Leave blank to use the source title
+                  {feed.titleOverride ? '' : ` ("${feed.title}")`}.
+                </p>
+              </div>
+            ) : (
+              <div className="group flex items-start gap-2">
+                <h1 className="text-2xl font-bold text-foreground min-w-0 break-words">
+                  {feed.titleOverride || feed.title}
+                </h1>
+                {feed.titleOverride && (
+                  <span className="mt-1.5 shrink-0 px-2 py-0.5 rounded text-xs font-medium bg-blue-500/15 text-blue-700 dark:text-blue-400">
+                    Custom
+                  </span>
+                )}
+                <button
+                  onClick={startEditingTitle}
+                  aria-label="Edit feed title"
+                  title="Edit feed title"
+                  className="mt-1.5 shrink-0 p-1 rounded text-muted-foreground opacity-0 group-hover:opacity-100 focus:opacity-100 hover:bg-accent transition-opacity"
+                >
+                  <Pencil className="w-4 h-4" />
+                </button>
+              </div>
+            )}
             {feed.description && (
               <p className="text-muted-foreground mt-2 line-clamp-3">{stripHtml(feed.description)}</p>
             )}

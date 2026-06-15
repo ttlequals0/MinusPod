@@ -30,7 +30,7 @@ function FeedCard({ feed, onRefresh, onDelete, isRefreshing }: FeedCardProps) {
             to={`/feeds/${feed.slug}`}
             className="text-lg font-semibold text-foreground hover:text-primary truncate block"
           >
-            {feed.title}
+            {feed.titleOverride || feed.title}
           </Link>
           <p className="text-sm text-muted-foreground mt-1">
             {feed.episodeCount} episodes

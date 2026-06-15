@@ -30,7 +30,7 @@ function FeedListItem({ feed, onRefresh, onDelete, isRefreshing }: FeedListItemP
           to={`/feeds/${feed.slug}`}
           className="text-sm font-semibold text-foreground hover:text-primary truncate block"
         >
-          {feed.title}
+          {feed.titleOverride || feed.title}
         </Link>
         <p className="text-xs text-muted-foreground truncate">
           {feed.episodeCount} episodes
