@@ -73,6 +73,13 @@ class TestServedFeedTitle:
         served = _serve(title_override="Tom & Jerry <news>")
         assert "Tom &amp; Jerry &lt;news&gt;" in served
 
+    def test_served_feed_with_special_title_is_well_formed(self):
+        import defusedxml.ElementTree as ET
+        served = _serve(title_override="A & B <C> \"D\" ']]>")
+        # must parse without raising -- the override cannot break the document
+        root = ET.fromstring(served)
+        assert root.find('channel/title').text == "A & B <C> \"D\" ']]>"
+
 
 @pytest.fixture
 def db(tmp_path):

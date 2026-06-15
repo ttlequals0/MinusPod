@@ -1,6 +1,7 @@
 """Feed routes: /feeds/* endpoints."""
 import logging
 import os
+import re
 import time
 import xml.etree.ElementTree as ET  # defusedxml has no SubElement/tostring, so keep ET for OPML export only
 from typing import Optional
@@ -46,20 +47,27 @@ def _normalize_language_override(value):
 
 
 _TITLE_OVERRIDE_MAX = 500
+# C0 control characters that XML 1.0 forbids even when escaped (everything
+# below 0x20 except tab/LF/CR), plus DEL. Left in a title they make the served
+# feed not-well-formed and every subscriber's app rejects it.
+_XML_FORBIDDEN_CONTROLS = re.compile(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]')
 
 
 def _normalize_title_override(value):
     """Validate the per-feed display title override (#375).
 
     Returns (db_value, error). None / empty / whitespace clears the override
-    (the served feed falls back to the source title). Trims surrounding
-    whitespace; rejects non-strings and titles over 500 chars.
+    (the served feed falls back to the source title). Strips surrounding
+    whitespace, removes XML-forbidden control characters, and collapses any
+    interior whitespace (newlines/tabs) so the served single-line <title>
+    stays well-formed. Rejects non-strings and titles over 500 chars.
     """
     if value is None:
         return None, None
     if not isinstance(value, str):
         return None, "titleOverride must be a string or null"
-    val = value.strip()
+    val = _XML_FORBIDDEN_CONTROLS.sub('', value)
+    val = re.sub(r'\s+', ' ', val).strip()
     if not val:
         return None, None
     if len(val) > _TITLE_OVERRIDE_MAX:
@@ -563,8 +571,10 @@ def update_feed(slug):
         # Settings changes that alter the served RSS body must regenerate it.
         # Clearing etag/last_modified first ensures that if the force-refresh
         # below throws, the next scheduled refresh cannot 304 and will fully
-        # regenerate the feed with the new settings applied.
-        if 'max_episodes' in updates or 'only_expose_processed_episodes' in updates:
+        # regenerate the feed with the new settings applied. title_override
+        # rewrites the served channel <title> (#375), so it belongs here too.
+        if ('max_episodes' in updates or 'only_expose_processed_episodes' in updates
+                or 'title_override' in updates):
             db.update_podcast_etag(slug, None, None)
             try:
                 from main_app.feeds import refresh_rss_feed
