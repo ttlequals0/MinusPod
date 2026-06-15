@@ -960,7 +960,7 @@ class AdDetector:
                     segments,
                     podcast_id=podcast_id,
                     podcast_tags=podcast_tags,
-                    language=get_pattern_language(self.db),
+                    language=get_pattern_language(self.db, slug=slug),
                 )
 
                 tp_added = 0

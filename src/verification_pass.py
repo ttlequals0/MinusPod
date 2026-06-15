@@ -91,7 +91,7 @@ class VerificationPass:
             if progress_callback:
                 progress_callback("transcribing", 85)
             logger.info(f"[{slug}:{episode_id}] Verification: Re-transcribing processed audio")
-            verification_segments = self._transcribe_verification(processed_audio_path, podcast_name)
+            verification_segments = self._transcribe_verification(processed_audio_path, podcast_name, slug=slug)
 
         if not verification_segments:
             logger.warning(f"[{slug}:{episode_id}] Verification: No segments")
@@ -183,7 +183,8 @@ class VerificationPass:
         }
 
     def _transcribe_verification(self, audio_path: str,
-                                 podcast_name: str = None) -> List[Dict]:
+                                 podcast_name: str = None,
+                                 slug: str = None) -> List[Dict]:
         """Re-transcribe for verification using the shared Transcriber.
 
         Delegates to self.transcriber.transcribe_chunked() so episodes longer
@@ -194,7 +195,17 @@ class VerificationPass:
         Lets exceptions propagate to caller so status correctly reflects
         'transcription_failed' vs 'no_segments'.
         """
-        return self.transcriber.transcribe_chunked(audio_path, podcast_name)
+        language_override = None
+        if slug and self.db is not None:
+            try:
+                podcast = self.db.get_podcast_by_slug(slug)
+                if podcast:
+                    language_override = podcast.get('language_override')
+            except Exception:
+                language_override = None
+        return self.transcriber.transcribe_chunked(
+            audio_path, podcast_name, language_override=language_override,
+        )
 
 
 def _build_timestamp_map(pass1_cuts: List[Dict]) -> List[Tuple[float, float]]:

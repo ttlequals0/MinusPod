@@ -276,7 +276,11 @@ def _download_and_transcribe(slug, episode_id, episode_url, podcast_name):
 
         status_service.update_job_stage("pass1:transcribing", 20)
         audio_logger.info(f"[{slug}:{episode_id}] Starting transcription")
-        segments = transcriber.transcribe_chunked(audio_path, podcast_name=podcast_name)
+        podcast_row = db.get_podcast_by_slug(slug)
+        language_override = (podcast_row or {}).get('language_override')
+        segments = transcriber.transcribe_chunked(
+            audio_path, podcast_name=podcast_name, language_override=language_override,
+        )
         if not segments:
             raise Exception("Failed to transcribe audio")
 
