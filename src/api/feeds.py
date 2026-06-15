@@ -579,7 +579,7 @@ def update_feed(slug):
             'daiPlatform': podcast.get('dai_platform'),
             'networkIdOverride': podcast.get('network_id_override'),
             'languageOverride': podcast.get('language_override'),
-        'titleOverride': podcast.get('title_override'),
+            'titleOverride': podcast.get('title_override'),
             'maxEpisodes': podcast.get('max_episodes'),
             'onlyExposeProcessedEpisodes': _deserialize_nullable_bool(podcast.get('only_expose_processed_episodes')),
             'feedUrl': f"{base_url}/{slug}"

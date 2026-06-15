@@ -12,6 +12,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import TriStateSelect from '../components/TriStateSelect';
 import { FeedTagsEditor } from '../components/FeedTagsEditor';
 import { WHISPER_LANGUAGES, labelForLanguage } from '../utils/whisperLanguages';
+import { feedDisplayTitle } from '../utils/feedTitle';
 import PodcastAdDistributionPanel from './feeds/PodcastAdDistributionPanel';
 import { formatStorage } from './settings/settingsUtils';
 import { stripHtml } from '../utils/stripHtml';
@@ -274,13 +275,13 @@ function FeedDetail() {
                 </div>
                 <p className="text-xs text-muted-foreground">
                   Shown to subscribers in podcast apps. Leave blank to use the source title
-                  {feed.titleOverride ? '' : ` ("${feed.title}")`}.
+                  {!feed.titleOverride && ` ("${feed.title}")`}.
                 </p>
               </div>
             ) : (
               <div className="group flex items-start gap-2">
                 <h1 className="text-2xl font-bold text-foreground min-w-0 break-words">
-                  {feed.titleOverride || feed.title}
+                  {feedDisplayTitle(feed)}
                 </h1>
                 {feed.titleOverride && (
                   <span className="mt-1.5 shrink-0 px-2 py-0.5 rounded text-xs font-medium bg-blue-500/15 text-blue-700 dark:text-blue-400">

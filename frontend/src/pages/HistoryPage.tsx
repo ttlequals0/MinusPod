@@ -9,6 +9,7 @@ import {
   HistoryQueryParams,
 } from '../api/history';
 import { getFeeds } from '../api/feeds';
+import { feedDisplayTitle } from '../utils/feedTitle';
 import { ProcessingHistoryEntry } from '../api/types';
 import LoadingSpinner from '../components/LoadingSpinner';
 
@@ -236,10 +237,10 @@ function HistoryPage() {
           >
             <option value="">All Podcasts</option>
             {[...(feeds ?? [])]
-              .sort((a, b) => a.title.localeCompare(b.title))
+              .sort((a, b) => feedDisplayTitle(a).localeCompare(feedDisplayTitle(b)))
               .map((feed) => (
                 <option key={feed.slug} value={feed.slug}>
-                  {feed.title}
+                  {feedDisplayTitle(feed)}
                 </option>
               ))}
           </select>
