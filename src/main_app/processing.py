@@ -29,6 +29,7 @@ from positional_prior import format_prior_hint, load_positional_prior
 from utils.constants import EpisodeStatus
 from utils.episode_paths import episode_relative_path
 from utils.gpu import get_available_memory_gb, clear_gpu_memory
+from utils.language import get_feed_language_override
 from utils.text import parse_transcript_segments
 from utils.time import parse_timestamp
 from webhook_service import fire_event, EVENT_EPISODE_PROCESSED, EVENT_EPISODE_FAILED
@@ -276,7 +277,10 @@ def _download_and_transcribe(slug, episode_id, episode_url, podcast_name):
 
         status_service.update_job_stage("pass1:transcribing", 20)
         audio_logger.info(f"[{slug}:{episode_id}] Starting transcription")
-        segments = transcriber.transcribe_chunked(audio_path, podcast_name=podcast_name)
+        language_override = get_feed_language_override(db, slug)
+        segments = transcriber.transcribe_chunked(
+            audio_path, podcast_name=podcast_name, language_override=language_override,
+        )
         if not segments:
             raise Exception("Failed to transcribe audio")
 

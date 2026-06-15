@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getFeed, getEpisodes, refreshFeed, updateFeed, getNetworks, reprocessAllEpisodes, ReprocessAllResult, bulkEpisodeAction, BulkAction } from '../api/feeds';
+import { getFeed, getEpisodes, refreshFeed, updateFeed, getNetworks, reprocessAllEpisodes, ReprocessAllResult, bulkEpisodeAction, BulkAction, UpdateFeedPayload } from '../api/feeds';
 import type { BulkActionResult } from '../api/types';
 import Artwork from '../components/Artwork';
 import CopyButton from '../components/CopyButton';
@@ -10,6 +10,7 @@ import EpisodeList from '../components/EpisodeList';
 import LoadingSpinner from '../components/LoadingSpinner';
 import TriStateSelect from '../components/TriStateSelect';
 import { FeedTagsEditor } from '../components/FeedTagsEditor';
+import { WHISPER_LANGUAGES, labelForLanguage } from '../utils/whisperLanguages';
 import PodcastAdDistributionPanel from './feeds/PodcastAdDistributionPanel';
 import { formatStorage } from './settings/settingsUtils';
 import { stripHtml } from '../utils/stripHtml';
@@ -92,7 +93,7 @@ function FeedDetail() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: (data: { networkIdOverride?: string | null; daiPlatform?: string; autoProcessOverride?: boolean | null; maxEpisodes?: number | null; onlyExposeProcessedEpisodes?: boolean | null }) => updateFeed(slug!, data),
+    mutationFn: (data: UpdateFeedPayload) => updateFeed(slug!, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['feed', slug] });
       setIsEditingNetwork(false);
@@ -343,6 +344,35 @@ function FeedDetail() {
                         : 'bg-red-500/20 text-red-600 dark:text-red-400'
                     }`}>
                       {feed.autoProcessOverride ? 'Enabled' : 'Disabled'}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Per-feed transcription language override */}
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 text-sm">
+                <span className="text-muted-foreground whitespace-nowrap">Language:</span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <select
+                    value={feed.languageOverride ?? ''}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      updateMutation.mutate({ languageOverride: v === '' ? null : v });
+                    }}
+                    disabled={updateMutation.isPending}
+                    className="px-2 py-1.5 text-sm bg-secondary border border-border rounded flex-1 sm:flex-none min-w-0 disabled:opacity-50"
+                  >
+                    <option value="">Global default</option>
+                    <option value="auto">Auto-detect (multilingual)</option>
+                    {WHISPER_LANGUAGES.map((l) => (
+                      <option key={l.code} value={l.code}>
+                        {l.name} ({l.code})
+                      </option>
+                    ))}
+                  </select>
+                  {feed.languageOverride && (
+                    <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-500/20 text-blue-600 dark:text-blue-400">
+                      Override: {labelForLanguage(feed.languageOverride)}
                     </span>
                   )}
                 </div>

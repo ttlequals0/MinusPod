@@ -626,6 +626,19 @@ def _whisper_api_rejects_word_timestamps(response) -> bool:
     )
 
 
+def _effective_language(language_override: Optional[str], whisper_settings: Dict[str, str]) -> str:
+    """Resolve the effective Whisper language as a lowercased code.
+
+    A non-empty per-call override beats the global whisper_language setting;
+    blank falls through to the setting; default 'en'. 'auto' is preserved so
+    callers can branch on it.
+    """
+    override = (language_override or '').strip().lower()
+    if override:
+        return override
+    return (whisper_settings.get('language') or 'en').strip().lower()
+
+
 class Transcriber:
     def __init__(self):
         # Model is now managed by singleton
@@ -636,6 +649,7 @@ class Transcriber:
         audio_path: str,
         podcast_name: str = None,
         whisper_settings: Dict[str, str] = None,
+        language_override: Optional[str] = None,
     ) -> Optional[List[Dict]]:
         """Transcribe audio using an OpenAI-compatible whisper API.
 
@@ -712,7 +726,7 @@ class Transcriber:
                 'model': model,
                 'response_format': 'verbose_json',
             }
-            language = (whisper_settings.get('language') or 'en').strip().lower()
+            language = _effective_language(language_override, whisper_settings)
             if language and language != 'auto':
                 form_data_base['language'] = language
             if initial_prompt:
@@ -1224,18 +1238,30 @@ class Transcriber:
             # Keep partial file for resume on next attempt
             return None
 
-    def transcribe(self, audio_path: str, podcast_name: str = None) -> List[Dict]:
+    def transcribe(
+        self,
+        audio_path: str,
+        podcast_name: str = None,
+        language_override: Optional[str] = None,
+    ) -> List[Dict]:
         """Transcribe audio file using Faster Whisper with batched pipeline.
 
         Uses adaptive batch sizing based on audio duration to prevent CUDA OOM errors.
         Automatically retries with smaller batch size on OOM.
+
+        `language_override` (when non-empty) takes precedence over the global
+        whisper_language setting for this call only -- used to honor per-feed
+        language overrides without mutating shared settings.
         """
         # Check whisper backend setting
         whisper_settings = _get_whisper_settings()
         if whisper_settings['backend'] == WHISPER_BACKEND_API:
-            return self._transcribe_via_api(audio_path, podcast_name, whisper_settings)
+            return self._transcribe_via_api(
+                audio_path, podcast_name, whisper_settings,
+                language_override=language_override,
+            )
 
-        language_setting = (whisper_settings.get('language') or 'en').strip().lower()
+        language_setting = _effective_language(language_override, whisper_settings)
         transcribe_language = None if language_setting == 'auto' else (language_setting or 'en')
 
         preprocessed_path = None
@@ -1423,7 +1449,12 @@ class Transcriber:
                 except OSError:
                     pass
 
-    def transcribe_chunked(self, audio_path: str, podcast_name: str = None) -> List[Dict]:
+    def transcribe_chunked(
+        self,
+        audio_path: str,
+        podcast_name: str = None,
+        language_override: Optional[str] = None,
+    ) -> List[Dict]:
         """Transcribe audio files with dynamic chunking to prevent OOM errors.
 
         This method:
@@ -1435,6 +1466,9 @@ class Transcriber:
         Args:
             audio_path: Path to the audio file to transcribe
             podcast_name: Optional podcast name for context-aware prompting
+            language_override: Optional per-feed language; when set, takes
+                precedence over the global whisper_language setting for this
+                call only (forwarded to each chunk's transcribe()).
 
         Returns:
             List of transcript segments with timestamps, or None on failure
@@ -1463,7 +1497,7 @@ class Transcriber:
                 f"({chunk_duration/60:.0f}min), trying regular transcription"
             )
             try:
-                result = self.transcribe(audio_path, podcast_name)
+                result = self.transcribe(audio_path, podcast_name, language_override=language_override)
                 if result is not None:
                     return result
                 # If transcribe returns None but didn't raise, fall through to chunked
@@ -1524,7 +1558,7 @@ class Transcriber:
 
             try:
                 # Transcribe chunk (will handle its own batch sizing and retries)
-                chunk_segments = self.transcribe(chunk_path, podcast_name)
+                chunk_segments = self.transcribe(chunk_path, podcast_name, language_override=language_override)
 
                 if chunk_segments is None:
                     failed_chunks.append((chunk_start, chunk_end_with_overlap))

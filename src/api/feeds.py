@@ -17,10 +17,32 @@ from api import (
     _serialize_nullable_bool, _deserialize_nullable_bool,
 )
 from positional_prior import compute_ad_distribution
+from utils.language import LANGUAGE_CODE_RE
 from utils.url import validate_url, SSRFError
 from utils.validation import is_valid_slug
 
 from slugify import slugify as make_slug
+
+
+def _normalize_language_override(value):
+    """Validate the per-feed language override.
+
+    Returns (db_value, error). db_value is the string to persist (None to
+    clear the override) and error is a user-facing message or None.
+    Accepts None / empty string to clear, 'auto' to pin auto-detect for
+    this feed, or an ISO-639-1-ish code that matches the same regex as
+    the global whisperLanguage setting.
+    """
+    if value is None:
+        return None, None
+    if not isinstance(value, str):
+        return None, "languageOverride must be a string, 'auto', or null"
+    val = value.strip().lower()
+    if not val:
+        return None, None
+    if val != 'auto' and not LANGUAGE_CODE_RE.match(val):
+        return None, "languageOverride must be 'auto' or a 2-3 letter language code (e.g. 'en', 'de', 'pt')"
+    return val, None
 
 
 def _slug_from_url_path(source_url: str) -> Optional[str]:
@@ -175,6 +197,14 @@ def add_feed():
         if max_ep is not None:
             max_ep = max(10, min(int(max_ep), 500))
             db.update_podcast(slug, max_episodes=max_ep)
+
+        # Apply language override if provided at creation time
+        if 'languageOverride' in data:
+            lang_val, lang_err = _normalize_language_override(data['languageOverride'])
+            if lang_err:
+                return error_response(lang_err, 400)
+            if lang_val is not None:
+                db.update_podcast(slug, language_override=lang_val)
 
         if 'onlyExposeProcessedEpisodes' in data:
             db.update_podcast(
@@ -424,6 +454,7 @@ def get_feed(slug):
         'daiPlatform': podcast.get('dai_platform'),
         'networkIdOverride': podcast.get('network_id_override'),
         'autoProcessOverride': auto_process_override_result,
+        'languageOverride': podcast.get('language_override'),
         'maxEpisodes': podcast.get('max_episodes'),
         'onlyExposeProcessedEpisodes': _deserialize_nullable_bool(podcast.get('only_expose_processed_episodes')),
     })
@@ -462,6 +493,12 @@ def update_feed(slug):
     # which guards with `if db_value is not None` since there's nothing to clear yet.
     if 'autoProcessOverride' in data:
         updates['auto_process_override'] = _serialize_auto_process(data['autoProcessOverride'])
+
+    if 'languageOverride' in data:
+        lang_val, lang_err = _normalize_language_override(data['languageOverride'])
+        if lang_err:
+            return error_response(lang_err, 400)
+        updates['language_override'] = lang_val
 
     # Handle maxEpisodes
     if 'maxEpisodes' in data:
@@ -510,6 +547,7 @@ def update_feed(slug):
             'networkId': podcast.get('network_id'),
             'daiPlatform': podcast.get('dai_platform'),
             'networkIdOverride': podcast.get('network_id_override'),
+            'languageOverride': podcast.get('language_override'),
             'maxEpisodes': podcast.get('max_episodes'),
             'onlyExposeProcessedEpisodes': _deserialize_nullable_bool(podcast.get('only_expose_processed_episodes')),
             'feedUrl': f"{base_url}/{slug}"

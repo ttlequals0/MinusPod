@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS podcasts (
     network_id_override TEXT,
     audio_analysis_override TEXT,
     auto_process_override TEXT,
+    language_override TEXT,
     skip_second_pass INTEGER DEFAULT 0,
     max_episodes INTEGER,
     only_expose_processed_episodes INTEGER,
