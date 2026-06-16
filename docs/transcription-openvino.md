@@ -56,12 +56,14 @@ If there is no `render` group, use the device's own group: `stat -c "%g" /dev/dr
 
 **Startup order.** Because the transcriber joins MinusPod's network namespace, MinusPod has to come up first. `depends_on` handles ordering; `restart: on-failure` covers the case where the transcriber starts before MinusPod has bound its socket.
 
+**Podman.** These image names assume Docker Hub. On Podman, prefix them with `docker.io/` (for example `docker.io/openvino/model_server:latest-gpu`). Rootless Podman also remaps UIDs and GIDs, so `user: "0:0"` is the reliable choice there.
+
 ### Other networking options
 
 If a shared namespace does not fit your setup, drop `network_mode` and pick one:
 
 1. **Shared bridge network.** Put both containers on the same Docker network and reach the transcriber by name: `http://minuspod-transcriber:8001/v3`.
-2. **Published port.** Publish the transcriber's port (`ports: ["8001:8001"]`) and point MinusPod at the host's LAN address: `http://your-host-ip:8001/v3`.
+2. **Published port.** Publish the transcriber's port (`ports: ["8001:8001"]`) and point MinusPod at the host's LAN address: `http://your-host-ip:8001/v3`. The transcriber can run on a separate machine from MinusPod this way.
 
 ## 2. Port conflict
 
@@ -73,7 +75,7 @@ OVMS can auto-download a model on startup, but that mode rewrites your config on
 
 ### Step 1: pull the model once
 
-This downloads the pre-quantized `whisper-large-v3-turbo` weights (~1.6 GB) into `./openvino/models`, builds the repository layout, and exits without starting the server. With the GPU doing the work you are not limited to the tiny or small models.
+This downloads the pre-quantized `whisper-large-v3-turbo` weights (~1.6 GB) from Hugging Face into `./openvino/models`, builds the repository layout, and exits without starting the server. With the GPU doing the work you are not limited to the tiny or small models.
 
 ```bash
 docker run --rm -it \
