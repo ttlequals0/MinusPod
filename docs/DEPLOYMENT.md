@@ -41,7 +41,7 @@ curl http://localhost:8000/api/v1/health
         "database": true,
         "storage": true
     },
-    "version": "2.4.9"
+    "version": "2.8.13"
 }
 ```
 

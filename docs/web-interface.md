@@ -10,9 +10,11 @@ The server includes a web-based management UI at `/ui/`:
 
 - Dashboard with feed artwork and episode counts
 - Add feeds by RSS URL with optional episode cap
-- Feed management: refresh, delete, copy URLs, set network override, per-feed episode cap
+- Feed management: refresh, delete, copy URLs, editable display title, set network override, per-feed episode cap, per-feed transcription language override
+- Feed detail page groups its controls into collapsible sections (feed settings, tags, ad distribution) so the page stays scannable
+- Ad Distribution panel on the feed detail page: a histogram of where ads have historically been cut across the feed, with learned prior zones marked
 - Episode discovery: all episodes surface on refresh, process any episode from the feed detail page
-- Bulk actions: select multiple episodes to process, reprocess, reprocess (full), or delete
+- Bulk actions: select multiple episodes to process, reprocess, reprocess (full), reprocess (LLM-only, re-detect on the existing transcript), or delete
 - Sort by publish date, episode number, or creation date; paginated (25/50/100/500 per page)
 - Pattern management: view and manage cross-episode ad patterns with sponsor names
 - Sponsor management: view, add, edit, and remove sponsors, each with its linked-pattern count, created and last-matched dates, and tags; plus a tab for name normalization rules

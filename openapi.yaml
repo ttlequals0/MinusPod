@@ -1147,7 +1147,7 @@ paths:
       summary: Force reprocess an episode (legacy)
       description: |
         Legacy reprocess endpoint. Prefer `/episodes/{slug}/{episode_id}/reprocess`,
-        which supports `mode=reprocess` and `mode=full`.
+        which supports `mode=reprocess`, `mode=full`, and `mode=llm`.
       operationId: reprocessEpisodeLegacy
       parameters:
         - $ref: '#/components/parameters/slug'

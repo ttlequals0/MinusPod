@@ -87,6 +87,10 @@ WHISPER_DEVICE=cpu
 
 > **Linux users:** Replace `host.docker.internal` with your host IP, or add `extra_hosts: ["host.docker.internal:host-gateway"]` to your Docker service definition.
 
+### Intel GPU (OpenVINO Model Server)
+
+On an Intel host with a capable integrated or discrete GPU, you can offload transcription to the GPU instead of the CPU. OpenVINO Model Server runs Whisper as a remote OpenAI-compatible backend with word-level timestamps, which keeps the CPU image's transcription from pinning every core. See the dedicated [Intel GPU Transcription (OpenVINO)](transcription-openvino.md) guide for the full setup.
+
 ### Groq
 
 [Groq](https://groq.com) offers fast cloud-based whisper transcription:

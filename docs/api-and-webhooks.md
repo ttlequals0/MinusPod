@@ -8,6 +8,8 @@
 
 REST API available at `/api/v1/`. Interactive docs at `/api/v1/docs`. Full specification: [`openapi.yaml`](../openapi.yaml).
 
+Write requests (`POST`, `PUT`, `DELETE`) require an `X-CSRF-Token` header matching the `minuspod_csrf` cookie. The built-in UI sends it for you; an external client has to read that cookie and echo it back on each write.
+
 Key endpoints:
 - `GET /api/v1/health` - Readiness check (database, storage); returns 503 if either is down
 - `GET /api/v1/health/live` - Liveness probe (process up); always 200, safe for frequent polling
@@ -17,12 +19,13 @@ Key endpoints:
 - `GET /api/v1/feeds/export-opml?mode=original|modified` - Export feeds as OPML (original or ad-free URLs)
 - `GET /api/v1/podcast-search?q=query` - Search podcasts via PodcastIndex.org
 - `GET /api/v1/feeds/{slug}/episodes` - List episodes (supports `sort_by`, `sort_dir`, `status` filter, pagination)
-- `POST /api/v1/feeds/{slug}/episodes/bulk` - Bulk episode actions (process, reprocess, reprocess_full, delete)
+- `POST /api/v1/feeds/{slug}/episodes/bulk` - Bulk episode actions (process, reprocess, reprocess_full, reprocess_llm, delete)
 - `GET /api/v1/feeds/{slug}/episodes/{id}` - Get episode detail with ad markers and transcript
-- `POST /api/v1/feeds/{slug}/episodes/{id}/reprocess` - Force reprocess (supports `mode`: reprocess/full)
+- `POST /api/v1/feeds/{slug}/episodes/{id}/reprocess` - Force reprocess (supports `mode`: reprocess/full/llm; `llm` re-runs ad detection on the existing transcript without re-transcribing)
 - `POST /api/v1/feeds/{slug}/episodes/{id}/cancel` - Cancel processing for a stuck episode
 - `POST /api/v1/feeds/{slug}/episodes/{id}/regenerate-chapters` - Regenerate chapter markers
 - `POST /api/v1/feeds/{slug}/reprocess-all` - Batch reprocess all episodes
+- `GET /api/v1/feeds/{slug}/ad-distribution` - Histogram of where ads have historically been cut across the feed's episodes, with learned prior zones. Informational; powers the feed detail Ad Distribution panel and is independent of the learned-positions experiment toggle.
 - `POST /api/v1/feeds/{slug}/episodes/{id}/retry-ad-detection` - Retry ad detection only
 - `POST /api/v1/feeds/{slug}/episodes/{id}/corrections` - Submit ad corrections
 - `GET /api/v1/patterns` - List ad patterns (filter by scope)

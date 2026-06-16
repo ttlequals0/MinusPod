@@ -6,7 +6,7 @@
 
 ## Environment Variables
 
-Grouped by how often you'll touch them. **Standard** is what a typical deployment sets; **Security** is the 2.0.0+ hardening surface; **Advanced** are tuning knobs for edge cases; **Optional** are opt-in features.
+Grouped by how often you'll touch them. **Standard** is what a typical deployment sets; **Security** is the hardening surface; **Advanced** are tuning knobs for edge cases; **Optional** are opt-in features.
 
 ### Standard
 
@@ -59,8 +59,6 @@ Grouped by how often you'll touch them. **Standard** is what a typical deploymen
 |----------|---------|-------------|
 | `PROCESSING_SOFT_TIMEOUT` | `3600` | Seconds before a stuck job is auto-cleared. Seeds fresh installs; runtime value lives in Settings > Transcription. |
 | `PROCESSING_HARD_TIMEOUT` | `7200` | Seconds before the processing lock is force-released. Must exceed the soft timeout. |
-| `AD_DETECTION_MAX_TOKENS` | `4096` | Max tokens for LLM ad detection responses. |
-| `REVIEW_MAX_TOKENS` | `4096` | Max tokens for the opt-in ad reviewer's per-ad JSON response. |
 | `MINUSPOD_MAX_ARTWORK_BYTES` | `5242880` (5 MB) | Cap on podcast artwork download size. Clamped to `[65536, 52428800]`. |
 | `MINUSPOD_MAX_RSS_BYTES` | `209715200` (200 MB) | Cap on RSS response body size. Floor is 1 MB. |
 | `RATE_LIMIT_STORAGE_URI` | `memory://` | Flask-limiter storage backend. Default is per-worker; set to `redis://host:6379` + run a Redis sidecar for exact declared limits across workers. |
@@ -74,6 +72,21 @@ Grouped by how often you'll touch them. **Standard** is what a typical deploymen
 | `SECRET_KEY` | _(auto-generated)_ | Flask session signing key. If unset, a random value is generated on first boot and persisted at `$DATA_DIR/.secret_key`. Set explicitly only for multi-instance deployments sharing a session store. Rotating invalidates all existing sessions. |
 | `SESSION_LIFETIME_HOURS` | `24` | How long authenticated sessions stay valid, in hours. |
 | `OMP_NUM_THREADS` | _(library default)_ | Caps OpenMP threads for local `faster-whisper` CPU transcription. On hybrid Intel CPUs the default can push work onto the slow E-cores and thrash the cache; set it to your performance-core count (more threads is not faster). No effect with a remote Whisper API or on GPU. See [Installation](installation.md#intel-hybrid-cpu-tuning-optional). |
+
+#### LLM stage tunables
+
+Every per-stage LLM control in Settings > Ad Detection has a matching env var: the setting key in uppercase. Set one to pin the control (the UI renders it read-only with a note); unset it to hand control back to the stored value. Defaults match the pre-tunable behavior, so an unset variable changes nothing. Annotated list in [`.env.example`](../.env.example); behavior detail in [Configuration](configuration.md#env-var-overrides).
+
+The stage prefixes are `DETECTION_`, `VERIFICATION_`, `REVIEWER_`, `CHAPTER_BOUNDARY_`, and `CHAPTER_TITLE_`. Each takes the same four suffixes:
+
+| Suffix | Type | Range / values |
+|--------|------|----------------|
+| `_TEMPERATURE` | float | 0.0 - 2.0 |
+| `_MAX_TOKENS` | int | 128 - 32768 |
+| `_REASONING_BUDGET` | int | 1024 - 65536 (Anthropic extended thinking) |
+| `_REASONING_LEVEL` | enum | `none`, `low`, `medium`, `high` (non-Anthropic providers) |
+
+So `DETECTION_TEMPERATURE`, `VERIFICATION_MAX_TOKENS`, `REVIEWER_REASONING_LEVEL`, and so on. Two legacy names still resolve: `AD_DETECTION_MAX_TOKENS` (alias of `DETECTION_MAX_TOKENS`) and `REVIEW_MAX_TOKENS` (alias of `REVIEWER_MAX_TOKENS`).
 
 ### Optional
 

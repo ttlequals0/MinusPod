@@ -17,14 +17,14 @@ The docker-compose includes an optional Cloudflare tunnel service for secure rem
 The tunnel exposes the admin interface to the public internet. Without all of these set, anyone who reaches the tunnel URL can hit unauthenticated paths and attempt to log in:
 
 1. Set a password via Settings > Security (or seed with `APP_PASSWORD`).
-2. `SESSION_COOKIE_SECURE=true` (default in 2.0.0+).
+2. `SESSION_COOKIE_SECURE=true` (the default).
 3. `MINUSPOD_MASTER_PASSPHRASE` set so provider API keys are encrypted at rest.
 4. Cloudflare WAF rule blocking `/ui` and `/api` (see below). The docs and OpenAPI spec live under `/api/v1/docs` and `/api/v1/openapi.yaml`, so they're already covered by the `/api` block.
 5. `MINUSPOD_TRUSTED_PROXY_COUNT=1` so login lockout keys on the real client IP, not the tunnel loopback.
 
 ### Client IP for login lockout
 
-The 2.0.0+ login lockout feature (5 fails / 15 min / 15 min block) keys on `request.remote_addr`. Depending on how traffic reaches the container, that address may or may not be the real client:
+The login lockout feature (5 fails / 15 min / 15 min block) keys on `request.remote_addr`. Depending on how traffic reaches the container, that address may or may not be the real client:
 
 - Direct exposure (no proxy, ports published): `remote_addr` is the client. No config needed.
 - Docker with published ports and no reverse proxy: `remote_addr` is the Docker bridge gateway; lockout will not fire. A startup WARN surfaces this. Deploy behind a proxy or switch to `network_mode: host`.
@@ -51,7 +51,7 @@ Operator checklist:
 - `MINUSPOD_ENABLE_HSTS=true` once the deployment is HTTPS-only.
 - WAF block on `/ui` and `/api`. Public feed paths must stay reachable: `/<slug>`, `/episodes/<slug>/<episode>.mp3`, `.vtt`, `/chapters.json`, and `/api/v1/feeds/<slug>/artwork`.
 
-2.0.0+ ships the rest by default: CSRF, login lockout, SSRF guards, artwork magic-number validation, XXE defense, baseline security headers, non-root container, rate limits on destructive endpoints. See [`CHANGELOG.md`](../CHANGELOG.md) for the full list.
+MinusPod ships the rest by default: CSRF, login lockout, SSRF guards, artwork magic-number validation, XXE defense, baseline security headers, non-root container, rate limits on destructive endpoints. See [`CHANGELOG.md`](../CHANGELOG.md) for the full list.
 
 **Cloudflare WAF example.** Allow only Pocket Casts on the feed host, block admin paths:
 
