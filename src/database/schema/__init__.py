@@ -394,6 +394,7 @@ class SchemaMixin:
             ('created_at', "TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))"),
             ('auto_process_override', 'TEXT'),
             ('language_override', 'TEXT'),
+            ('title_override', 'TEXT'),
             ('skip_second_pass', 'INTEGER DEFAULT 0'),
             ('max_episodes', 'INTEGER'),
             ('etag', 'TEXT'),

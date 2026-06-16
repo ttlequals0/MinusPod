@@ -64,8 +64,8 @@ class PodcastMixin:
             if key in ('title', 'description', 'artwork_url', 'artwork_cached',
                        'last_checked_at', 'source_url', 'network_id', 'dai_platform',
                        'network_id_override', 'audio_analysis_override', 'auto_process_override',
-                       'language_override', 'max_episodes', 'etag', 'last_modified_header',
-                       'only_expose_processed_episodes'):
+                       'language_override', 'title_override', 'max_episodes', 'etag',
+                       'last_modified_header', 'only_expose_processed_episodes'):
                 fields.append(f"{key} = ?")
                 values.append(value)
             elif key in ('tags', 'user_tags'):

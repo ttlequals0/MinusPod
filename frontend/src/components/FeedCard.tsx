@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Trash2 } from 'lucide-react';
 import { Feed } from '../api/types';
+import { feedDisplayTitle } from '../utils/feedTitle';
 import Artwork from './Artwork';
 import CopyButton from './CopyButton';
 import DropdownMenu from './DropdownMenu';
@@ -30,7 +31,7 @@ function FeedCard({ feed, onRefresh, onDelete, isRefreshing }: FeedCardProps) {
             to={`/feeds/${feed.slug}`}
             className="text-lg font-semibold text-foreground hover:text-primary truncate block"
           >
-            {feed.title}
+            {feedDisplayTitle(feed)}
           </Link>
           <p className="text-sm text-muted-foreground mt-1">
             {feed.episodeCount} episodes

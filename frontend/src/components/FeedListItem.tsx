@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { RefreshCw, Trash2 } from 'lucide-react';
 
 import { Feed } from '../api/types';
+import { feedDisplayTitle } from '../utils/feedTitle';
 import Artwork from './Artwork';
 import CopyButton from './CopyButton';
 import DropdownMenu from './DropdownMenu';
@@ -30,7 +31,7 @@ function FeedListItem({ feed, onRefresh, onDelete, isRefreshing }: FeedListItemP
           to={`/feeds/${feed.slug}`}
           className="text-sm font-semibold text-foreground hover:text-primary truncate block"
         >
-          {feed.title}
+          {feedDisplayTitle(feed)}
         </Link>
         <p className="text-xs text-muted-foreground truncate">
           {feed.episodeCount} episodes

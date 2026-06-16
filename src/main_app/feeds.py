@@ -295,7 +295,8 @@ def refresh_rss_feed(slug: str, feed_url: str, force: bool = False):
                                                extra_episodes=extra_episodes,
                                                processed_only=processed_only,
                                                processed_episode_ids=processed_ids,
-                                               parsed_feed=parsed_feed)
+                                               parsed_feed=parsed_feed,
+                                               title_override=(podcast or {}).get('title_override'))
 
         # Save modified RSS
         storage.save_rss(slug, modified_rss)

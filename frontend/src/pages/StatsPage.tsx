@@ -6,6 +6,7 @@ import {
 } from 'recharts';
 import { getDashboardStats, getStatsByDay, getStatsByPodcast, getReviewerStats } from '../api/stats';
 import { getFeeds } from '../api/feeds';
+import { feedDisplayTitle } from '../utils/feedTitle';
 import { formatTokenCount } from './settings/settingsUtils';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { useThemeColors } from '../hooks/useThemeColors';
@@ -163,7 +164,7 @@ export default function StatsPage() {
           <option value="">All Podcasts</option>
           {feeds?.map((feed) => (
             <option key={feed.slug} value={feed.slug}>
-              {feed.title}
+              {feedDisplayTitle(feed)}
             </option>
           ))}
         </select>

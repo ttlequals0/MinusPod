@@ -6,6 +6,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.13] - 2026-06-15
+
+### Changed
+
+- Feed detail page cleanup. The title's edit (pencil) icon is now always shown instead of only appearing on hover, so it can be tapped on touch devices. The Tags section starts collapsed. The per-feed controls that used to fill the header (network/DAI override, feed cap, auto-process, transcription language, and hide-unprocessed) now live in a "Feed settings" section that starts collapsed, pulled out into its own component to match the other feed panels.
+
+## [2.8.12] - 2026-06-15
+
+### Added
+
+- Editable feed title (#375). Each feed's detail page now has an inline title editor: rename a show and the new title is what subscribers see in their podcast app, so a MinusPod-processed feed is easy to tell apart from the source. The override survives RSS refreshes (the source title used to overwrite any manual edit), and clearing it falls back to the source title. Exposed as titleOverride on the feeds API.
+
+### Security
+
+- Bumped cryptography to 49.0.0, clearing GHSA-537c-gmf6-5ccf (the advisory pip-audit flagged on 48.0.0).
+
+### Changed
+
+- Swept the open dependency updates: anthropic 0.109.1, huggingface-hub 1.19.0, idna 3.18, pytest 9.1.0, and the frontend dev/lib bumps (typescript-eslint and @typescript-eslint/parser 8.61.0, @vitejs/plugin-react 6.0.2, @tailwindcss/vite 4.3.1, lucide-react 1.18.0).
+
 ## [2.8.11] - 2026-06-15
 
 ### Added

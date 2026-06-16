@@ -173,6 +173,7 @@ export interface UpdateFeedPayload {
   networkIdOverride?: string | null;
   autoProcessOverride?: boolean | null;
   languageOverride?: string | null;
+  titleOverride?: string | null;
   maxEpisodes?: number | null;
   onlyExposeProcessedEpisodes?: boolean | null;
 }

@@ -632,12 +632,16 @@ class RSSParser:
                     extra_episodes: Optional[List[Dict]] = None,
                     processed_only: bool = False,
                     processed_episode_ids: Optional[set] = None,
-                    parsed_feed=None) -> str:
+                    parsed_feed=None,
+                    title_override: Optional[str] = None) -> str:
         """Modify RSS feed to use our server URLs.
 
         Args:
             feed_content: Original RSS feed XML
             slug: Podcast slug
+            title_override: When non-empty, replaces the channel title shown to
+                subscribers (issue #375) so a processed feed can be told apart
+                from the source. Episode titles are unaffected.
             storage: Optional Storage instance for checking Podcasting 2.0 assets
             max_episodes: Max episodes to include in feed (1-500, default 300)
             extra_episodes: Processed episodes from DB to append beyond the cap.
@@ -668,7 +672,10 @@ class RSSParser:
 
         # Copy channel metadata (escape XML entities to prevent invalid XML from & in URLs)
         channel = feed.feed
-        lines.append(f'<title>{self._escape_xml(channel.get("title", ""))}</title>')
+        # Per-feed title override (#375): the rename must actually change the
+        # channel title subscribers see, not just the DB/UI.
+        effective_title = title_override if (title_override or '').strip() else channel.get("title", "")
+        lines.append(f'<title>{self._escape_xml(effective_title)}</title>')
         lines.append(f'<link>{self._escape_xml(channel.get("link", ""))}</link>')
         lines.append(f'<description><![CDATA[{self._escape_cdata(self._get_channel_description(channel))}]]></description>')
         lines.append(f'<language>{self._escape_xml(channel.get("language", "en"))}</language>')
@@ -685,7 +692,7 @@ class RSSParser:
         # <itunes:image> tag that Apple Podcasts and most apps prefer.
         artwork_url = self.extract_podcast_artwork_url(feed_content)
         if artwork_url:
-            channel_title = channel.get('title', '') or ''
+            channel_title = effective_title or ''
             channel_link = channel.get('link', '') or ''
             lines.append(f'<image>')
             lines.append(f'  <url>{self._escape_xml(artwork_url)}</url>')
