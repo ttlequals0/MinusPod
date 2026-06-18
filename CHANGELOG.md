@@ -6,9 +6,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-Merged to main, not yet shipped in a tagged release. Folds into the next version bump.
+## [2.8.14] - 2026-06-18
 
 ### Added
 
@@ -20,6 +18,14 @@ Merged to main, not yet shipped in a tagged release. Folds into the next version
 
 - Pattern import/export dialogs now follow the active theme (#389, by @SimpleHonors). They had hardcoded `bg-white dark:bg-slate-900` containers and `text-slate-*` text, so they rendered with the wrong colors on any theme other than the default light/dark pair. They now use `bg-card`, `text-card-foreground`, `border-border`, and `text-muted-foreground`, and the action buttons moved off a hardcoded `bg-blue-600` to `bg-primary` so they pick up the theme color like the rest of the app.
 - Scrollbars now follow the active theme instead of falling back to the default light system scrollbar (#389). The rules sit in `@layer base` so the `.no-scrollbar` utility still hides scrollbars where applied; an earlier unlayered version overrode it and left a thin scrollbar in Firefox on elements meant to have none.
+
+### Changed
+
+- Bumped `anthropic` to 0.109.2 (#372) and the `@typescript-eslint/parser` dev dependency to 8.61.1 (#369).
+
+### Docs
+
+- New Intel GPU transcription guide using OpenVINO Model Server (#364), linked from the transcription page. Also a docs accuracy pass against the code and removal of the obsolete 1.x to 2.0 upgrade notes (#382).
 
 ## [2.8.13] - 2026-06-15
 
