@@ -164,7 +164,7 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={handleClose}>
       <div
-        className="w-full max-w-2xl max-h-[80vh] flex flex-col rounded-lg bg-white dark:bg-slate-900 shadow-xl"
+        className="w-full max-w-2xl max-h-[80vh] flex flex-col rounded-lg bg-card text-card-foreground border border-border shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-6 pb-3 border-b border-border">
