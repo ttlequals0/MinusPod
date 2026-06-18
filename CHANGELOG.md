@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.15] - 2026-06-18
+
+### Fixed
+
+- Ad detection now recovers ads when the model wraps a break in a `{"ad_break_index": N, "ads": [...]}` envelope instead of emitting them flat (#395). The envelope has no top-level start/end, so the per-ad parser previously discarded the whole break (seen in prod as "found 0 ads" for the affected window). Such envelopes are flattened to their inner ad objects before parsing.
+
 ## [2.8.14] - 2026-06-18
 
 ### Added
