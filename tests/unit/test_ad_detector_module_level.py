@@ -45,6 +45,40 @@ def test_parse_ads_from_response_module_level_basic():
     assert ads[0]['end'] == 160.0
 
 
+def test_parse_ads_from_response_flattens_ad_break_envelope():
+    # The model intermittently wraps ads in {"ad_break_index": N, "ads": [...]}
+    # instead of emitting them flat (observed in prod 2026-06-18). The envelope
+    # has no top-level start/end, so without flattening the whole break is
+    # discarded. The inner ads must still be extracted.
+    response = json.dumps([
+        {"ad_break_index": 1, "ads": [
+            {"sponsor": "Arm & Hammer", "start_timestamp": 1714.0,
+             "end_timestamp": 1749.5, "confidence": 0.95},
+            {"sponsor": "Capital One", "start_timestamp": 1749.9,
+             "end_timestamp": 1776.0, "confidence": 0.95},
+        ]},
+        {"ad_break_index": 2, "ads": [
+            {"sponsor": "Babbel", "start_timestamp": 2307.3,
+             "end_timestamp": 2341.6, "confidence": 0.95},
+        ]},
+    ])
+    ads = parse_ads_from_response(response)
+    assert len(ads) == 3
+    assert sorted(round(a['start'], 1) for a in ads) == [1714.0, 1749.9, 2307.3]
+
+
+def test_parse_ads_from_response_mixed_flat_and_enveloped():
+    # A response mixing a flat ad and an envelope should yield both.
+    response = json.dumps([
+        {"sponsor": "BetterHelp", "start": 855.5, "end": 887.0, "confidence": 0.9},
+        {"ad_break_index": 1, "ads": [
+            {"sponsor": "Capital One", "start": 1749.9, "end": 1776.0, "confidence": 0.95},
+        ]},
+    ])
+    ads = parse_ads_from_response(response)
+    assert sorted(round(a['start'], 1) for a in ads) == [855.5, 1749.9]
+
+
 @pytest.mark.parametrize('bad_sponsor', [
     # The exact line we caught in prod 2026-05-20:
     'Inferred from ~26 second gap in transcript with no spoken content provided',

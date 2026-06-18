@@ -157,6 +157,24 @@ def get_static_system_prompt() -> str:
     )
 
 
+def _flatten_ad_envelopes(ads: List) -> List:
+    """Flatten ad-break envelopes the model intermittently emits.
+
+    Instead of a flat list of ad objects, the LLM sometimes wraps each break in
+    an envelope like ``{"ad_break_index": N, "ads": [ {ad}, {ad} ]}``. Such an
+    envelope has no top-level start/end, so the per-ad parser would discard the
+    whole break. Expand any dict whose ``ads`` value is a list into its inner ad
+    objects; pass everything else through unchanged.
+    """
+    flat = []
+    for item in ads:
+        if isinstance(item, dict) and isinstance(item.get('ads'), list):
+            flat.extend(inner for inner in item['ads'] if isinstance(inner, dict))
+        else:
+            flat.append(item)
+    return flat
+
+
 def parse_ads_from_response(response_text: str, slug: str = None,
                               episode_id: str = None,
                               sponsor_service=None) -> List[Dict]:
@@ -238,6 +256,10 @@ def parse_ads_from_response(response_text: str, slug: str = None,
         if ads is None or not isinstance(ads, list):
             logger.warning(f"[{slug}:{episode_id}] No valid JSON array found in response")
             return []
+
+        # Flatten any {"ad_break_index": N, "ads": [...]} envelopes the model
+        # sometimes emits, so the per-ad parser below sees the inner ad objects.
+        ads = _flatten_ad_envelopes(ads)
 
         # Validate and normalize ads - handle various field name patterns
         valid_ads = []
