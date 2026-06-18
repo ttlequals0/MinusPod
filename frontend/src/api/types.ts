@@ -162,6 +162,8 @@ export interface Settings {
   maxFeedEpisodes: SettingValueNumber;
   onlyExposeProcessedDefault: SettingValueBoolean;
   audioBitrate: SettingValue;
+  audioNormalizeEnabled: SettingValueBoolean;
+  audioNormalizeIntensity: SettingValue;
   skipFlacCompression: SettingValueBoolean;
   adDetectionParallelWindows: SettingValueNumber;
   adReviewerParallelAds: SettingValueNumber;
@@ -215,6 +217,8 @@ export interface Settings {
     whisperLanguage: string;
     whisperComputeType: string;
     audioBitrate: string;
+    audioNormalizeEnabled: boolean;
+    audioNormalizeIntensity: string;
     skipFlacCompression: boolean;
     adDetectionParallelWindows: number;
     adReviewerParallelAds: number;
@@ -242,6 +246,8 @@ export interface UpdateSettingsPayload {
   maxFeedEpisodes?: number;
   onlyExposeProcessedDefault?: boolean;
   audioBitrate?: string;
+  audioNormalizeEnabled?: boolean;
+  audioNormalizeIntensity?: string;
   skipFlacCompression?: boolean;
   adDetectionParallelWindows?: number;
   adReviewerParallelAds?: number;

@@ -29,6 +29,7 @@ from config import (
     coerce_bool_setting,
     STAGE_TUNABLE_PAYLOAD_KEYS,
 )
+from audio_processor import NORMALIZE_PRESETS
 from pricing_fetcher import force_refresh_pricing
 from llm_client import (
     get_effective_provider, get_effective_base_url, get_api_key, get_effective_openrouter_api_key,
@@ -205,6 +206,9 @@ def get_settings():
     vad_gap_tail = _db_float('vad_gap_tail_min_seconds', default_vad_gap_tail)
 
     audio_bitrate = _setting_value(settings, 'audio_bitrate', DEFAULT_AUDIO_BITRATE)
+    audio_normalize_enabled_raw = _setting_value(settings, 'audio_normalize_enabled', 'false')
+    audio_normalize_enabled = str(audio_normalize_enabled_raw).lower() in ('true', '1', 'yes')
+    audio_normalize_intensity = _setting_value(settings, 'audio_normalize_intensity', 'aggressive')
     default_skip_flac = os.environ.get('SKIP_FLAC_COMPRESSION', 'false')
     skip_flac_raw = _setting_value(settings, 'skip_flac_compression', default_skip_flac)
     skip_flac = coerce_bool_setting(skip_flac_raw)
@@ -350,6 +354,8 @@ def get_settings():
         'audioCueMinConfidence': _sv('audio_cue_min_confidence', audio_cue_min_conf),
         'positionalPriorEnabled': _sv('positional_prior_enabled', positional_prior_enabled),
         'audioBitrate': _sv('audio_bitrate', audio_bitrate),
+        'audioNormalizeEnabled': _sv('audio_normalize_enabled', audio_normalize_enabled),
+        'audioNormalizeIntensity': _sv('audio_normalize_intensity', audio_normalize_intensity),
         'skipFlacCompression': _sv('skip_flac_compression', skip_flac),
         'adDetectionParallelWindows': _sv('ad_detection_parallel_windows', parallel_windows),
         'adReviewerParallelAds': _sv('ad_reviewer_parallel_ads', reviewer_parallel),
@@ -397,6 +403,8 @@ def get_settings():
             'audioCueProminenceDb': AUDIO_CUE_PROMINENCE_DB,
             'audioCueMinConfidence': AUDIO_CUE_MIN_CONFIDENCE,
             'audioBitrate': DEFAULT_AUDIO_BITRATE,
+            'audioNormalizeEnabled': False,
+            'audioNormalizeIntensity': 'aggressive',
             'skipFlacCompression': coerce_bool_setting(os.environ.get('SKIP_FLAC_COMPRESSION', 'false')),
             'adDetectionParallelWindows': AD_DETECTION_PARALLEL_WINDOWS_DEFAULT,
             'adReviewerParallelAds': AD_REVIEWER_PARALLEL_ADS_DEFAULT,
@@ -568,6 +576,23 @@ def _apply_audio_fields(db, data):
             )
         db.set_setting('audio_bitrate', val, is_default=False)
         logger.info(f"Updated audio bitrate to: {val}")
+
+    if 'audioNormalizeEnabled' in data:
+        value = 'true' if data['audioNormalizeEnabled'] else 'false'
+        db.set_setting('audio_normalize_enabled', value, is_default=False)
+        logger.info(f"Updated audio normalize enabled to: {value}")
+
+    if 'audioNormalizeIntensity' in data:
+        # Derive the allowed set from the presets themselves so the validator
+        # can never drift from what AudioProcessor actually supports.
+        valid_intensities = set(NORMALIZE_PRESETS.keys())
+        if data['audioNormalizeIntensity'] not in valid_intensities:
+            return json_response(
+                {'error': f'audioNormalizeIntensity must be one of: {", ".join(sorted(valid_intensities))}'},
+                400,
+            )
+        db.set_setting('audio_normalize_intensity', data['audioNormalizeIntensity'], is_default=False)
+        logger.info(f"Updated audio normalize intensity to: {data['audioNormalizeIntensity']}")
 
     if 'adDetectionParallelWindows' in data:
         try:
@@ -1012,6 +1037,8 @@ def reset_ad_detection_settings():
     db.reset_setting('min_cut_confidence')
     db.reset_setting('auto_process_enabled')
     db.reset_setting('audio_bitrate')
+    db.reset_setting('audio_normalize_enabled')
+    db.reset_setting('audio_normalize_intensity')
     db.reset_setting('ad_detection_parallel_windows')
     db.reset_setting('ad_reviewer_parallel_ads')
 

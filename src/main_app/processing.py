@@ -1735,6 +1735,34 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             audio_cue_count += verification_cue_count
             _check_cancel(cancel_event, slug, episode_id)
 
+            # Stage 6b: Optional loudness normalization (second ffmpeg pass).
+            # Applied only to the FINAL settled output so the cut path
+            # (filter_complex) and the ad-detection audio analyzers see
+            # uncompressed dynamics.
+            normalize_raw = db.get_setting('audio_normalize_enabled')
+            if (normalize_raw or 'false').lower() == 'true':
+                intensity = db.get_setting('audio_normalize_intensity') or 'aggressive'
+                normalized_path = local_audio_processor.normalize_audio(
+                    processed_path, intensity=intensity,
+                )
+                if normalized_path:
+                    if os.path.exists(processed_path):
+                        try:
+                            os.unlink(processed_path)
+                        except OSError as e:
+                            audio_logger.warning(
+                                f"[{slug}:{episode_id}] Failed to remove pre-normalize file: {e}"
+                            )
+                    processed_path = normalized_path
+                    audio_logger.info(
+                        f"[{slug}:{episode_id}] Applied audio normalization ({intensity})"
+                    )
+                else:
+                    audio_logger.warning(
+                        f"[{slug}:{episode_id}] Normalize pass failed, keeping un-normalized output"
+                    )
+            _check_cancel(cancel_event, slug, episode_id)
+
             # Merge pass 2 ads into combined list for UI
             if v_ads_for_ui:
                 all_ads_with_validation = list(all_ads_with_validation) + v_ads_for_ui

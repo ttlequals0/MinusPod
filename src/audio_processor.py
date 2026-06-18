@@ -56,6 +56,24 @@ def get_replace_audio_path() -> str:
 DEFAULT_REPLACE_AUDIO = get_replace_audio_path()
 
 
+# Loudness leveling presets (optional dynaudnorm second pass). Tuned via the
+# dynaudnorm knobs: smaller frame (f) reacts to shorter loud spikes (more
+# level-bouncing); larger frame is gentler. Higher peak target (p) is
+# louder-but-safe.
+NORMALIZE_PRESETS = {
+    'gentle':     'dynaudnorm=f=500:g=11:p=0.97',
+    'normal':     'dynaudnorm=f=200:g=15:p=0.95',
+    'aggressive': 'dynaudnorm=f=100:g=21:p=0.90',
+    # Stronger tiers add make-up gain (m) to lift quiet passages and a
+    # compression factor (s) on top, so dynamics get flattened harder.
+    # 'maximum' is near-broadcast-flat; on already-consistent audio it can
+    # introduce mild pumping, which is the trade-off for the most even level.
+    'extreme':    'dynaudnorm=f=75:g=25:p=0.95:m=20:s=15',
+    'maximum':    'dynaudnorm=f=50:g=31:p=0.95:m=30:s=25',
+}
+DEFAULT_NORMALIZE_INTENSITY = 'aggressive'
+
+
 class AudioProcessor:
     def __init__(self, replace_audio_path: str = None, bitrate: str = '128k'):
         self.replace_audio_path = replace_audio_path or DEFAULT_REPLACE_AUDIO
@@ -79,6 +97,85 @@ class AudioProcessor:
         if self._beep_duration is None:
             self._beep_duration = self.get_audio_duration(self.replace_audio_path) or 1.0
         return self._beep_duration
+
+    def normalize_audio(self, input_path: str,
+                        intensity: str = DEFAULT_NORMALIZE_INTENSITY) -> Optional[str]:
+        """Run a second ffmpeg pass to even out loudness across an episode
+        (lift quiet passages, tame loud peaks). Returns the path of a new
+        normalized file on success, or None on failure. Caller is responsible
+        for cleanup of the input when swapping in the returned path.
+
+        This is intentionally a SEPARATE invocation from remove_ads — fusing
+        dynaudnorm into the cut filter graph would risk the cut behavior across
+        the variety of podcast feeds. Cost: ~3-5s on a 48-min episode.
+        """
+        filter_str = NORMALIZE_PRESETS.get(intensity)
+        if not filter_str:
+            logger.warning(f"Unknown normalize intensity '{intensity}', using {DEFAULT_NORMALIZE_INTENSITY}")
+            filter_str = NORMALIZE_PRESETS[DEFAULT_NORMALIZE_INTENSITY]
+
+        if not os.path.exists(input_path):
+            logger.error(f"Normalize input not found: {input_path}")
+            return None
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.normalized.mp3') as tmp:
+            output_path = tmp.name
+
+        try:
+            duration = self.get_audio_duration(input_path) or 0
+            cmd = [
+                'ffmpeg', '-y',
+                '-i', input_path,
+                '-filter:a', filter_str,
+                '-acodec', 'libmp3lame',
+                '-ab', self.bitrate,
+                output_path,
+            ]
+            timeout = FFMPEG_LONG_TIMEOUT + int(duration / 12)
+            logger.info(f"Running FFMPEG normalize (intensity={intensity})")
+            result = tracked_run(cmd, capture_output=True, timeout=timeout)
+
+            if result.returncode != 0:
+                try:
+                    stderr_text = result.stderr.decode('utf-8', errors='replace')
+                except Exception:
+                    stderr_text = str(result.stderr)[:500]
+                logger.error(f"FFMPEG normalize failed: {stderr_text}")
+                if os.path.exists(output_path):
+                    try:
+                        os.unlink(output_path)
+                    except OSError:
+                        pass
+                return None
+
+            if not self.get_audio_duration(output_path):
+                logger.error("Normalize output unreadable")
+                if os.path.exists(output_path):
+                    try:
+                        os.unlink(output_path)
+                    except OSError:
+                        pass
+                return None
+
+            logger.info("FFMPEG normalize complete")
+            return output_path
+
+        except subprocess.TimeoutExpired:
+            logger.error("FFMPEG normalize timed out")
+            if os.path.exists(output_path):
+                try:
+                    os.unlink(output_path)
+                except OSError:
+                    pass
+            return None
+        except Exception as e:
+            logger.error(f"Normalize failed: {e}")
+            if os.path.exists(output_path):
+                try:
+                    os.unlink(output_path)
+                except OSError:
+                    pass
+            return None
 
     def compute_applied_cuts(self, ad_segments: List[Dict],
                              total_duration: float) -> List[Dict]:

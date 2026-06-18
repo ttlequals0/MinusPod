@@ -146,6 +146,8 @@ class SettingsMixin:
             'min_cut_confidence': '0.80',
             'auto_process_enabled': 'true',
             'audio_bitrate': '128k',
+            'audio_normalize_enabled': 'false',
+            'audio_normalize_intensity': 'aggressive',
             'skip_flac_compression': os.environ.get('SKIP_FLAC_COMPRESSION', 'false'),
             'ad_detection_parallel_windows': os.environ.get('AD_DETECTION_PARALLEL_WINDOWS', '4'),
             'ad_reviewer_parallel_ads': os.environ.get('AD_REVIEWER_PARALLEL_ADS', '4'),
