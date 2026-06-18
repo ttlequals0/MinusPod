@@ -13,6 +13,8 @@ Merged to main, not yet shipped in a tagged release. Folds into the next version
 ### Added
 
 - Obsidian theme (#385, by @SimpleHonors): a true-black OLED dark theme in the "Other" group with a cyan accent. Dark-only, like the other true-black themes, and tuned so the near-black background saves power on OLED panels.
+- Parallel chunked transcription for remote API whisper backends (#388, by @SimpleHonors). Long episodes split into chunks that transcribe concurrently through a thread pool instead of one at a time, then merge in chronological order so overlap zones dedupe exactly as the sequential path does. Gated to the API backend; the local-model path is unchanged. Three DB-backed tunables (max chunk seconds, concurrent chunks, chunk overlap) with a Transcription settings panel shown only for the API backend. Maintainer follow-up clamped the tunables at the point of use so env-var or direct-DB values can't thread-bomb or break the merge dedupe.
+- Optional audio loudness leveling (#386, by @SimpleHonors). A separate `dynaudnorm` ffmpeg pass evens out loudness on the final output, run after the verification pass so the cut graph and ad-detection analyzers still see uncompressed dynamics. Off by default; on failure the un-normalized output is kept (no data loss). Five intensity presets surfaced in the Audio settings section. Maintainer follow-up set the default-when-enabled to `normal` (safer than `aggressive` for spoken word).
 
 ### Fixed
 
