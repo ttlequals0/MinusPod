@@ -352,6 +352,18 @@ def _get_chunk_settings() -> Dict[str, int]:
                     logger.warning(f"Invalid {setting_key}={val!r}, using default")
     except Exception as e:
         logger.warning(f"Could not read chunk settings from DB, using defaults: {e}")
+
+    # Clamp to the same bounds the API validator enforces. Values set via env
+    # var or a direct DB write skip that validator, so guard at the point of
+    # use: an unbounded concurrency would thread-bomb the API, and an overlap
+    # >= chunk size makes merge_overlapping_segments over-dedupe and drop real
+    # transcript content.
+    defaults['max_chunk_seconds'] = min(7200, defaults['max_chunk_seconds'])
+    defaults['concurrent_chunks'] = min(32, defaults['concurrent_chunks'])
+    defaults['chunk_overlap_seconds'] = min(
+        defaults['chunk_overlap_seconds'],
+        max(1, defaults['max_chunk_seconds'] - 1),
+    )
     return defaults
 
 
@@ -1563,9 +1575,7 @@ class Transcriber:
                         pass
 
         results: List[Optional[List[Dict]]] = [None] * num_chunks
-        completed = 0
         failed = 0
-        aborted = False
         # Managed manually (not `with`) so an early abort can return promptly:
         # a `with` block's __exit__ calls shutdown(wait=True), which would
         # re-block on the in-flight workers and defeat the short-circuit.
@@ -1574,10 +1584,9 @@ class Transcriber:
             futures = [
                 exe.submit(_process_chunk, i, s, e) for i, s, e in plan
             ]
-            for fut in as_completed(futures):
+            for completed, fut in enumerate(as_completed(futures), 1):
                 chunk_idx, segs = fut.result()
                 results[chunk_idx] = segs
-                completed += 1
                 if segs is None:
                     failed += 1
                 logger.info(
@@ -1588,21 +1597,18 @@ class Transcriber:
                 # Short-circuit like the sequential path: once the failure
                 # budget is blown the run can't succeed, so stop instead of
                 # burning a full HTTP timeout on each remaining doomed chunk.
+                # Returning here still runs the finally below (pool shutdown).
                 if failed > max_failed_chunks:
                     logger.error(
                         f"Too many failed chunks ({failed} > {max_failed_chunks}); "
                         f"aborting transcription early"
                     )
-                    aborted = True
-                    break
+                    return None
         finally:
             # wait=False: return without blocking on in-flight workers (they
             # finish in the background and self-clean temp files via
             # _process_chunk's finally). cancel_futures drops queued chunks.
             exe.shutdown(wait=False, cancel_futures=True)
-
-        if aborted:
-            return None
 
         # Merge in chronological order so merge_overlapping_segments
         # dedupes overlap zones the same way the sequential path does.
@@ -1620,13 +1626,9 @@ class Transcriber:
                     all_segments, chunk_segs, c_start, overlap
                 )
 
-        if len(failed_chunks) > max_failed_chunks:
-            logger.error(
-                f"Too many failed chunks ({len(failed_chunks)} > "
-                f"{max_failed_chunks}); aborting transcription"
-            )
-            return None
-
+        # The as_completed loop above already aborts (returns None) once the
+        # failure budget is blown, so by here failures are within budget; the
+        # surviving failed_chunks only feed the gap-summary log below.
         original_count = len(all_segments)
         all_segments = self.filter_hallucinations(all_segments)
         if len(all_segments) < original_count:
@@ -1682,7 +1684,7 @@ class Transcriber:
             logger.error("Cannot determine audio duration for chunked transcription")
             return None
 
-        # Branch to parallel path for remote API backends — no GPU or
+        # Branch to parallel path for remote API backends - no GPU or
         # WhisperModelSingleton constraints, so chunks can run concurrently.
         whisper_settings = _get_whisper_settings()
         if whisper_settings['backend'] == WHISPER_BACKEND_API:

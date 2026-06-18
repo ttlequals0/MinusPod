@@ -632,6 +632,7 @@ def _apply_audio_fields(db, data):
 
 def _apply_transcribe_chunk_fields(db, data):
     """Chunked transcription tuning (parallel API path)."""
+    parsed = {}
     for field_name, db_key, max_val in (
         ('transcribeMaxChunkSeconds', 'transcribe_max_chunk_seconds', 7200),
         ('transcribeConcurrentChunks', 'transcribe_concurrent_chunks', 32),
@@ -647,6 +648,31 @@ def _apply_transcribe_chunk_fields(db, data):
             return json_response(
                 {'error': f'{field_name} must be between 1 and {max_val}'}, 400
             )
+        parsed[db_key] = value
+
+    if not parsed:
+        return None
+
+    # Cross-field: overlap must stay below the chunk size. An overlap >= chunk
+    # makes every chunk span its whole neighbor, wasting work and degenerating
+    # the merge dedupe. Validate the effective values (incoming where present,
+    # stored otherwise) so changing one field can't cross the other.
+    def _effective(db_key, fallback):
+        if db_key in parsed:
+            return parsed[db_key]
+        stored = db.get_setting(db_key)
+        try:
+            return int(stored) if stored else fallback
+        except (ValueError, TypeError):
+            return fallback
+
+    if _effective('transcribe_chunk_overlap_seconds', 30) >= _effective('transcribe_max_chunk_seconds', 600):
+        return json_response(
+            {'error': 'transcribeChunkOverlapSeconds must be less than transcribeMaxChunkSeconds'},
+            400,
+        )
+
+    for db_key, value in parsed.items():
         db.set_setting(db_key, str(value), is_default=False)
         logger.info(f"Updated {db_key} to: {value}")
     return None
