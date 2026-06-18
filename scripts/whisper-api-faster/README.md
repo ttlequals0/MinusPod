@@ -75,8 +75,16 @@ Environment variables (set in the unit file or shell):
 |---|---|---|
 | `WHISPER_MODEL` | `large-v3` | Any faster-whisper model id |
 | `WHISPER_PORT` | `8090` | Listen port |
+| `WHISPER_HOST` | `0.0.0.0` | Bind address; set `127.0.0.1` to restrict to localhost |
 | `WHISPER_DEVICE` | `cuda` | Set to `cpu` for CPU-only hosts |
 | `WHISPER_COMPUTE_TYPE` | `float16` | Use `int8` for CPU, `float16`/`int8_float16` for GPU |
+| `WHISPER_API_KEY` | _(unset)_ | When set, requests must send `Authorization: Bearer <key>` |
+
+> **Security:** this server binds `0.0.0.0` by default and performs GPU-backed
+> work, so an open port is an unauthenticated compute endpoint. Whenever the
+> port is reachable beyond the host, set `WHISPER_API_KEY` (the server checks it
+> with a constant-time compare) and point the MinusPod client's `WHISPER_API_KEY`
+> at the same value, and/or restrict the bind with `WHISPER_HOST=127.0.0.1`.
 
 ## Point MinusPod at it
 

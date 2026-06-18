@@ -8,8 +8,13 @@ User=root
 WorkingDirectory=/opt/whisper-api
 Environment="WHISPER_MODEL=large-v3"
 Environment="WHISPER_PORT=8090"
+Environment="WHISPER_HOST=0.0.0.0"
 Environment="WHISPER_DEVICE=cuda"
 Environment="WHISPER_COMPUTE_TYPE=float16"
+# Strongly recommended whenever the port is reachable beyond this host:
+# require a bearer token (must match the WHISPER_API_KEY the MinusPod client
+# sends). Leave unset only on a fully trusted/private network.
+# Environment="WHISPER_API_KEY=change-me"
 ExecStart=/opt/whisper-api/venv/bin/python3 /opt/whisper-api/whisper_api.py
 Restart=always
 RestartSec=5

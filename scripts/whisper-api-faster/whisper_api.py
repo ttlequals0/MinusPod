@@ -11,10 +11,13 @@ word timings), which MinusPod requires for precise ad-boundary detection.
 Configuration via environment variables:
   WHISPER_MODEL         (default: large-v3)
   WHISPER_PORT          (default: 8090)
+  WHISPER_HOST          (default: 0.0.0.0; set 127.0.0.1 to bind localhost only)
   WHISPER_DEVICE        (default: cuda)
   WHISPER_COMPUTE_TYPE  (default: float16; use int8 for CPU)
+  WHISPER_API_KEY       (optional: when set, require `Authorization: Bearer <key>`)
 """
 
+import hmac
 import os
 import tempfile
 import threading
@@ -27,8 +30,14 @@ app = Flask(__name__)
 
 MODEL_SIZE = os.environ.get("WHISPER_MODEL", "large-v3")
 PORT = int(os.environ.get("WHISPER_PORT", 8090))
+HOST = os.environ.get("WHISPER_HOST", "0.0.0.0")
 DEVICE = os.environ.get("WHISPER_DEVICE", "cuda")
 COMPUTE_TYPE = os.environ.get("WHISPER_COMPUTE_TYPE", "float16")
+# Optional bearer-token auth. Empty = open (trusted-network deployments keep
+# working unchanged); set WHISPER_API_KEY to require a matching token. The
+# service binds 0.0.0.0 by default, so set this whenever the port is reachable
+# beyond the host.
+API_KEY = os.environ.get("WHISPER_API_KEY", "")
 
 print(f"Loading Whisper {MODEL_SIZE} on {DEVICE} ({COMPUTE_TYPE})...", flush=True)
 model = WhisperModel(MODEL_SIZE, device=DEVICE, compute_type=COMPUTE_TYPE)
@@ -39,6 +48,22 @@ print("Model ready", flush=True)
 # concurrent requests can never decode through the same model simultaneously,
 # which would otherwise spike GPU memory / OOM or corrupt output.
 _MODEL_LOCK = threading.Lock()
+
+
+def _auth_error():
+    """When WHISPER_API_KEY is configured, require a matching Bearer token.
+    Returns a 401 response tuple on failure, or None when the request is
+    allowed. Uses a constant-time compare to avoid token-timing leaks."""
+    if not API_KEY:
+        return None
+    auth = request.headers.get("Authorization", "")
+    token = auth[len("Bearer "):] if auth.startswith("Bearer ") else ""
+    # Compare as bytes: hmac.compare_digest raises TypeError on a non-ASCII str,
+    # so a non-ASCII Authorization header would otherwise 500 (a DoS vector).
+    # encode('utf-8') makes the compare total over all inputs.
+    if not hmac.compare_digest(token.encode("utf-8"), API_KEY.encode("utf-8")):
+        return jsonify({"error": "Unauthorized"}), 401
+    return None
 
 
 @app.route("/health", methods=["GET"])
@@ -61,13 +86,20 @@ def transcribe():
     `verbose_json` is required by MinusPod and emits per-segment `words[]`
     timing alongside `segments[]` and top-level `text`.
     """
+    auth_err = _auth_error()
+    if auth_err:
+        return auth_err
+
     if "file" not in request.files:
         return jsonify({"error": "No file provided"}), 400
 
     audio_file = request.files["file"]
     language = request.form.get("language", None)
     response_format = request.form.get("response_format", "json")
-    temperature = float(request.form.get("temperature", 0.0))
+    try:
+        temperature = float(request.form.get("temperature", 0.0))
+    except (TypeError, ValueError):
+        return jsonify({"error": "temperature must be a number"}), 400
     prompt = request.form.get("prompt", "")
 
     suffix = Path(audio_file.filename).suffix if audio_file.filename else ".wav"
@@ -167,4 +199,4 @@ def _vtt_time(seconds):
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=PORT, debug=False, threaded=True)
+    app.run(host=HOST, port=PORT, debug=False, threaded=True)
