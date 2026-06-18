@@ -88,6 +88,8 @@ function Settings() {
   const [maxFeedEpisodes, setMaxFeedEpisodes] = useState(0);
   const [onlyExposeProcessedDefault, setOnlyExposeProcessedDefault] = useState(false);
   const [audioBitrate, setAudioBitrate] = useState('');
+  const [audioNormalizeEnabled, setAudioNormalizeEnabled] = useState(false);
+  const [audioNormalizeIntensity, setAudioNormalizeIntensity] = useState('normal');
   const [skipFlacCompression, setSkipFlacCompression] = useState(false);
   const [vttTranscriptsEnabled, setVttTranscriptsEnabled] = useState(false);
   const [chaptersEnabled, setChaptersEnabled] = useState(false);
@@ -304,6 +306,8 @@ function Settings() {
       setMaxFeedEpisodes(settings.maxFeedEpisodes?.value ?? d.maxFeedEpisodes);
       setOnlyExposeProcessedDefault(settings.onlyExposeProcessedDefault?.value ?? d.onlyExposeProcessedDefault);
       setAudioBitrate(settings.audioBitrate?.value || d.audioBitrate);
+      setAudioNormalizeEnabled(settings.audioNormalizeEnabled?.value ?? d.audioNormalizeEnabled);
+      setAudioNormalizeIntensity(settings.audioNormalizeIntensity?.value || d.audioNormalizeIntensity);
       setSkipFlacCompression(settings.skipFlacCompression?.value ?? d.skipFlacCompression);
       setAudioCue({
         enabled: settings.audioCueDetectionEnabled?.value ?? d.audioCueDetectionEnabled,
@@ -380,6 +384,8 @@ function Settings() {
     if (transcribeConcurrentChunks !== (settings.transcribeConcurrentChunks?.value ?? 4)) payload.transcribeConcurrentChunks = transcribeConcurrentChunks;
     if (transcribeChunkOverlapSeconds !== (settings.transcribeChunkOverlapSeconds?.value ?? 30)) payload.transcribeChunkOverlapSeconds = transcribeChunkOverlapSeconds;
     if (audioBitrate !== (settings.audioBitrate?.value || d.audioBitrate)) payload.audioBitrate = audioBitrate;
+    if (audioNormalizeEnabled !== (settings.audioNormalizeEnabled?.value ?? d.audioNormalizeEnabled)) payload.audioNormalizeEnabled = audioNormalizeEnabled;
+    if (audioNormalizeIntensity !== (settings.audioNormalizeIntensity?.value || d.audioNormalizeIntensity)) payload.audioNormalizeIntensity = audioNormalizeIntensity;
     if (skipFlacCompression !== (settings.skipFlacCompression?.value ?? d.skipFlacCompression)) payload.skipFlacCompression = skipFlacCompression;
 
     if (autoProcessEnabled !== (settings.autoProcessEnabled?.value ?? d.autoProcessEnabled)) payload.autoProcessEnabled = autoProcessEnabled;
@@ -406,7 +412,7 @@ function Settings() {
     if (reviewerPatternsChanged()) return true;
     return podcastIndexApiKey !== '' && podcastIndexApiSecret !== '';
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [systemPrompt, verificationPrompt, reviewer, audioCue, positionalPriorEnabled, selectedModel, verificationModel, whisperModel, autoProcessEnabled, maxFeedEpisodes, onlyExposeProcessedDefault, audioBitrate, skipFlacCompression, vttTranscriptsEnabled, chaptersEnabled, chaptersModel, minCutConfidence, llmProvider, openaiBaseUrl, whisperBackend, whisperApiConfig.baseUrl, whisperApiConfig.model, whisperLanguage, whisperComputeType, transcribeMaxChunkSeconds, transcribeConcurrentChunks, transcribeChunkOverlapSeconds, podcastIndexApiKey, podcastIndexApiSecret, settings, reviewerSettings]);
+  }, [systemPrompt, verificationPrompt, reviewer, audioCue, positionalPriorEnabled, selectedModel, verificationModel, whisperModel, autoProcessEnabled, maxFeedEpisodes, onlyExposeProcessedDefault, audioBitrate, audioNormalizeEnabled, audioNormalizeIntensity, skipFlacCompression, vttTranscriptsEnabled, chaptersEnabled, chaptersModel, minCutConfidence, llmProvider, openaiBaseUrl, whisperBackend, whisperApiConfig.baseUrl, whisperApiConfig.model, whisperLanguage, whisperComputeType, transcribeMaxChunkSeconds, transcribeConcurrentChunks, transcribeChunkOverlapSeconds, podcastIndexApiKey, podcastIndexApiSecret, settings, reviewerSettings]);
 
   // Mirror hasChanges into render-readable state so the hydration guard above
   // (which runs before hasChanges is defined) skips re-seeding while dirty.
@@ -687,6 +693,10 @@ function Settings() {
       <AudioSection
         audioBitrate={audioBitrate}
         onAudioBitrateChange={setAudioBitrate}
+        audioNormalizeEnabled={audioNormalizeEnabled}
+        onAudioNormalizeEnabledChange={setAudioNormalizeEnabled}
+        audioNormalizeIntensity={audioNormalizeIntensity}
+        onAudioNormalizeIntensityChange={setAudioNormalizeIntensity}
       />
 
       <Podcasting20Section

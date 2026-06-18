@@ -146,6 +146,8 @@ class SettingsMixin:
             'min_cut_confidence': '0.80',
             'auto_process_enabled': 'true',
             'audio_bitrate': '128k',
+            'audio_normalize_enabled': 'false',
+            'audio_normalize_intensity': 'normal',
             'transcribe_max_chunk_seconds': os.environ.get('TRANSCRIBE_MAX_CHUNK_SECONDS', '600'),
             'transcribe_concurrent_chunks': os.environ.get('TRANSCRIBE_CONCURRENT_CHUNKS', '4'),
             'transcribe_chunk_overlap_seconds': os.environ.get('TRANSCRIBE_CHUNK_OVERLAP_SECONDS', '30'),
