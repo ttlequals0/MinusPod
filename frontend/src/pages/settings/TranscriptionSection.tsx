@@ -21,6 +21,12 @@ interface TranscriptionSectionProps {
   onWhisperLanguageChange: (language: string) => void;
   whisperComputeType: string;
   onWhisperComputeTypeChange: (computeType: string) => void;
+  transcribeMaxChunkSeconds: number;
+  onTranscribeMaxChunkSecondsChange: (value: number) => void;
+  transcribeConcurrentChunks: number;
+  onTranscribeConcurrentChunksChange: (value: number) => void;
+  transcribeChunkOverlapSeconds: number;
+  onTranscribeChunkOverlapSecondsChange: (value: number) => void;
   skipFlacCompression: boolean;
   onSkipFlacCompressionChange: (value: boolean) => void;
   softTimeoutMinutes: number;
@@ -53,6 +59,12 @@ function TranscriptionSection({
   onWhisperLanguageChange,
   whisperComputeType,
   onWhisperComputeTypeChange,
+  transcribeMaxChunkSeconds,
+  onTranscribeMaxChunkSecondsChange,
+  transcribeConcurrentChunks,
+  onTranscribeConcurrentChunksChange,
+  transcribeChunkOverlapSeconds,
+  onTranscribeChunkOverlapSecondsChange,
   skipFlacCompression,
   onSkipFlacCompressionChange,
   softTimeoutMinutes,
@@ -159,6 +171,62 @@ function TranscriptionSection({
               <p className="mt-1 text-sm text-muted-foreground">
                 Model identifier sent to the API (e.g. whisper-1, whisper-large-v3-turbo)
               </p>
+            </div>
+
+            <div className="pt-2 border-t border-border">
+              <h4 className="text-sm font-medium text-foreground mb-3">Parallel chunked transcription</h4>
+              <div className="space-y-3">
+                <div className="flex items-center gap-3">
+                  <label htmlFor="transcribeMaxChunkSeconds" className="text-sm text-muted-foreground w-44">
+                    Max chunk seconds:
+                  </label>
+                  <input
+                    type="number"
+                    id="transcribeMaxChunkSeconds"
+                    value={transcribeMaxChunkSeconds}
+                    onChange={(e) => onTranscribeMaxChunkSecondsChange(parseInt(e.target.value, 10) || 0)}
+                    min={1}
+                    max={7200}
+                    className="w-24 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
+                  />
+                  <span className="text-sm text-muted-foreground">600 for Whisper, 28 for Parakeet</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <label htmlFor="transcribeConcurrentChunks" className="text-sm text-muted-foreground w-44">
+                    Concurrent chunks:
+                  </label>
+                  <input
+                    type="number"
+                    id="transcribeConcurrentChunks"
+                    value={transcribeConcurrentChunks}
+                    onChange={(e) => onTranscribeConcurrentChunksChange(parseInt(e.target.value, 10) || 1)}
+                    min={1}
+                    max={32}
+                    className="w-24 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
+                  />
+                  <span className="text-sm text-muted-foreground">match backend's worker count</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <label htmlFor="transcribeChunkOverlapSeconds" className="text-sm text-muted-foreground w-44">
+                    Chunk overlap seconds:
+                  </label>
+                  <input
+                    type="number"
+                    id="transcribeChunkOverlapSeconds"
+                    value={transcribeChunkOverlapSeconds}
+                    onChange={(e) => onTranscribeChunkOverlapSecondsChange(parseInt(e.target.value, 10) || 0)}
+                    min={1}
+                    max={600}
+                    className="w-24 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
+                  />
+                  <span className="text-sm text-muted-foreground">for word-boundary dedupe</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  These tune the parallel API path: chunks are extracted with ffmpeg and submitted to the
+                  remote backend concurrently. Chunks are extracted as (max chunk + overlap), so for
+                  Parakeet's 30s ONNX cap set max chunk to 28 AND overlap to 1.
+                </p>
+              </div>
             </div>
 
           </>

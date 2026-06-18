@@ -6,6 +6,7 @@ import re
 import subprocess
 import hashlib
 import requests
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict, Optional, Tuple
 from pathlib import Path
 
@@ -320,6 +321,37 @@ def _get_whisper_settings() -> Dict[str, str]:
     except Exception as e:
         logger.warning(f"Could not read whisper settings from DB, using env defaults: {e}")
 
+    return defaults
+
+
+def _get_chunk_settings() -> Dict[str, int]:
+    """Read chunked-transcription tuning settings from DB with defaults.
+
+    Returns dict with keys: max_chunk_seconds, concurrent_chunks,
+    chunk_overlap_seconds. All ints. Used by the parallel API path to
+    size chunks per backend (e.g. 600 for Whisper, 28 for Parakeet).
+    """
+    defaults: Dict[str, int] = {
+        'max_chunk_seconds': API_CHUNK_DURATION_SECONDS,
+        'concurrent_chunks': 4,
+        'chunk_overlap_seconds': CHUNK_OVERLAP_SECONDS,
+    }
+    try:
+        from database import Database
+        db = Database()
+        for setting_key, default_key in [
+            ('transcribe_max_chunk_seconds', 'max_chunk_seconds'),
+            ('transcribe_concurrent_chunks', 'concurrent_chunks'),
+            ('transcribe_chunk_overlap_seconds', 'chunk_overlap_seconds'),
+        ]:
+            val = db.get_setting(setting_key)
+            if val:
+                try:
+                    defaults[default_key] = max(1, int(val))
+                except (ValueError, TypeError):
+                    logger.warning(f"Invalid {setting_key}={val!r}, using default")
+    except Exception as e:
+        logger.warning(f"Could not read chunk settings from DB, using defaults: {e}")
     return defaults
 
 
@@ -1449,6 +1481,177 @@ class Transcriber:
                 except OSError:
                     pass
 
+    def _transcribe_chunked_parallel_api(
+        self,
+        audio_path: str,
+        podcast_name: Optional[str],
+        duration: float,
+        whisper_settings: Dict[str, str],
+        language_override: Optional[str] = None,
+    ) -> Optional[List[Dict]]:
+        """Parallel chunked transcription for remote API backends.
+
+        Submits all chunks to a ThreadPoolExecutor; preserves chronological
+        ordering at merge time so merge_overlapping_segments dedupes the
+        overlap zone exactly as in the sequential path. Failure tolerance
+        matches the sequential loop (~20% chunks may fail before abort).
+        """
+        chunk_settings = _get_chunk_settings()
+        chunk_duration = chunk_settings['max_chunk_seconds']
+        overlap = chunk_settings['chunk_overlap_seconds']
+        max_workers = chunk_settings['concurrent_chunks']
+
+        # Single-shot if entire audio fits in one chunk
+        if duration <= chunk_duration:
+            logger.info(
+                f"Audio duration {duration/60:.1f}min fits in one chunk "
+                f"({chunk_duration}s), single-shot API transcription"
+            )
+            return self.transcribe(audio_path, podcast_name, language_override=language_override)
+
+        # Build chunk plan: list of (idx, start, end_with_overlap)
+        plan: List[Tuple[int, float, float]] = []
+        chunk_start = 0.0
+        idx = 0
+        while chunk_start < duration:
+            chunk_end = min(chunk_start + chunk_duration, duration)
+            chunk_end_with_overlap = (
+                min(chunk_end + overlap, duration)
+                if chunk_end < duration else chunk_end
+            )
+            plan.append((idx, chunk_start, chunk_end_with_overlap))
+            idx += 1
+            chunk_start = chunk_end
+
+        num_chunks = len(plan)
+        max_failed_chunks = max(1, num_chunks // 5)
+        logger.info(
+            f"Starting parallel chunked transcription: {duration/60:.1f} min "
+            f"in {num_chunks} chunks (chunk_size={chunk_duration}s, "
+            f"overlap={overlap}s, workers={max_workers})"
+        )
+
+        def _process_chunk(chunk_idx: int, c_start: float, c_end: float):
+            chunk_path = extract_audio_chunk(audio_path, c_start, c_end)
+            if not chunk_path:
+                logger.error(f"Chunk {chunk_idx + 1}: ffmpeg extract failed")
+                return chunk_idx, None
+            try:
+                segs = self._transcribe_via_api(
+                    chunk_path, podcast_name, whisper_settings,
+                    language_override=language_override,
+                )
+                if segs is None:
+                    return chunk_idx, None
+                # Adjust timestamps to be relative to full audio
+                for seg in segs:
+                    seg['start'] += c_start
+                    seg['end'] += c_start
+                    if 'words' in seg and seg['words']:
+                        for word in seg['words']:
+                            word['start'] += c_start
+                            word['end'] += c_start
+                return chunk_idx, segs
+            except Exception as e:
+                logger.error(f"Chunk {chunk_idx + 1} failed: {e}")
+                return chunk_idx, None
+            finally:
+                if chunk_path and os.path.exists(chunk_path):
+                    try:
+                        os.unlink(chunk_path)
+                    except OSError:
+                        pass
+
+        results: List[Optional[List[Dict]]] = [None] * num_chunks
+        completed = 0
+        failed = 0
+        aborted = False
+        # Managed manually (not `with`) so an early abort can return promptly:
+        # a `with` block's __exit__ calls shutdown(wait=True), which would
+        # re-block on the in-flight workers and defeat the short-circuit.
+        exe = ThreadPoolExecutor(max_workers=max_workers)
+        try:
+            futures = [
+                exe.submit(_process_chunk, i, s, e) for i, s, e in plan
+            ]
+            for fut in as_completed(futures):
+                chunk_idx, segs = fut.result()
+                results[chunk_idx] = segs
+                completed += 1
+                if segs is None:
+                    failed += 1
+                logger.info(
+                    f"Chunk {chunk_idx + 1} complete "
+                    f"({completed}/{num_chunks}): "
+                    f"{len(segs) if segs else 0} segments"
+                )
+                # Short-circuit like the sequential path: once the failure
+                # budget is blown the run can't succeed, so stop instead of
+                # burning a full HTTP timeout on each remaining doomed chunk.
+                if failed > max_failed_chunks:
+                    logger.error(
+                        f"Too many failed chunks ({failed} > {max_failed_chunks}); "
+                        f"aborting transcription early"
+                    )
+                    aborted = True
+                    break
+        finally:
+            # wait=False: return without blocking on in-flight workers (they
+            # finish in the background and self-clean temp files via
+            # _process_chunk's finally). cancel_futures drops queued chunks.
+            exe.shutdown(wait=False, cancel_futures=True)
+
+        if aborted:
+            return None
+
+        # Merge in chronological order so merge_overlapping_segments
+        # dedupes overlap zones the same way the sequential path does.
+        all_segments: List[Dict] = []
+        failed_chunks: List[Tuple[float, float]] = []
+        for chunk_idx, c_start, c_end in plan:
+            chunk_segs = results[chunk_idx]
+            if chunk_segs is None:
+                failed_chunks.append((c_start, c_end))
+                continue
+            if not all_segments:
+                all_segments = chunk_segs
+            else:
+                all_segments = merge_overlapping_segments(
+                    all_segments, chunk_segs, c_start, overlap
+                )
+
+        if len(failed_chunks) > max_failed_chunks:
+            logger.error(
+                f"Too many failed chunks ({len(failed_chunks)} > "
+                f"{max_failed_chunks}); aborting transcription"
+            )
+            return None
+
+        original_count = len(all_segments)
+        all_segments = self.filter_hallucinations(all_segments)
+        if len(all_segments) < original_count:
+            logger.info(
+                f"Filtered {original_count - len(all_segments)} "
+                f"hallucination segments after merge"
+            )
+
+        duration_min = all_segments[-1]['end'] / 60 if all_segments else 0
+        if failed_chunks:
+            gap_summary = ", ".join(
+                f"{s/60:.1f}-{e/60:.1f}min" for s, e in failed_chunks
+            )
+            logger.warning(
+                f"Parallel chunked transcription complete with "
+                f"{len(failed_chunks)} gap(s): {gap_summary}. "
+                f"Partial transcript returned."
+            )
+        logger.info(
+            f"Parallel chunked transcription complete: "
+            f"{len(all_segments)} segments, {duration_min:.1f} minutes "
+            f"from {num_chunks} chunks"
+        )
+        return all_segments
+
     def transcribe_chunked(
         self,
         audio_path: str,
@@ -1479,12 +1682,20 @@ class Transcriber:
             logger.error("Cannot determine audio duration for chunked transcription")
             return None
 
+        # Branch to parallel path for remote API backends — no GPU or
+        # WhisperModelSingleton constraints, so chunks can run concurrently.
+        whisper_settings = _get_whisper_settings()
+        if whisper_settings['backend'] == WHISPER_BACKEND_API:
+            return self._transcribe_chunked_parallel_api(
+                audio_path, podcast_name, duration, whisper_settings,
+                language_override=language_override,
+            )
+
         # Get current model and device for memory calculation
         model_name = WhisperModelSingleton.get_configured_model()
         device = os.getenv("WHISPER_DEVICE", "cpu")
 
         # Calculate optimal chunk duration based on available memory
-        whisper_settings = _get_whisper_settings()
         chunk_duration, memory_reason = calculate_optimal_chunk_duration(
             model_name, device, whisper_backend=whisper_settings['backend']
         )

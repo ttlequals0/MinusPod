@@ -102,6 +102,9 @@ function Settings() {
   });
   const [whisperLanguage, setWhisperLanguage] = useState('');
   const [whisperComputeType, setWhisperComputeType] = useState('');
+  const [transcribeMaxChunkSeconds, setTranscribeMaxChunkSeconds] = useState(600);
+  const [transcribeConcurrentChunks, setTranscribeConcurrentChunks] = useState(4);
+  const [transcribeChunkOverlapSeconds, setTranscribeChunkOverlapSeconds] = useState(30);
   const [providersState, setProvidersState] = useState<ProvidersResponse | null>(null);
   const [providersError, setProvidersError] = useState<string | null>(null);
 
@@ -324,6 +327,9 @@ function Settings() {
       });
       setWhisperLanguage(settings.whisperLanguage?.value || d.whisperLanguage);
       setWhisperComputeType(settings.whisperComputeType?.value || d.whisperComputeType);
+      setTranscribeMaxChunkSeconds(settings.transcribeMaxChunkSeconds?.value ?? 600);
+      setTranscribeConcurrentChunks(settings.transcribeConcurrentChunks?.value ?? 4);
+      setTranscribeChunkOverlapSeconds(settings.transcribeChunkOverlapSeconds?.value ?? 30);
     }
   }
 
@@ -370,6 +376,9 @@ function Settings() {
     if (whisperApiConfig.model !== (settings.whisperApiModel?.value || d.whisperApiModel)) payload.whisperApiModel = whisperApiConfig.model;
     if (whisperLanguage !== (settings.whisperLanguage?.value || d.whisperLanguage)) payload.whisperLanguage = whisperLanguage;
     if (whisperComputeType !== (settings.whisperComputeType?.value || d.whisperComputeType)) payload.whisperComputeType = whisperComputeType;
+    if (transcribeMaxChunkSeconds !== (settings.transcribeMaxChunkSeconds?.value ?? 600)) payload.transcribeMaxChunkSeconds = transcribeMaxChunkSeconds;
+    if (transcribeConcurrentChunks !== (settings.transcribeConcurrentChunks?.value ?? 4)) payload.transcribeConcurrentChunks = transcribeConcurrentChunks;
+    if (transcribeChunkOverlapSeconds !== (settings.transcribeChunkOverlapSeconds?.value ?? 30)) payload.transcribeChunkOverlapSeconds = transcribeChunkOverlapSeconds;
     if (audioBitrate !== (settings.audioBitrate?.value || d.audioBitrate)) payload.audioBitrate = audioBitrate;
     if (skipFlacCompression !== (settings.skipFlacCompression?.value ?? d.skipFlacCompression)) payload.skipFlacCompression = skipFlacCompression;
 
@@ -397,7 +406,7 @@ function Settings() {
     if (reviewerPatternsChanged()) return true;
     return podcastIndexApiKey !== '' && podcastIndexApiSecret !== '';
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [systemPrompt, verificationPrompt, reviewer, audioCue, positionalPriorEnabled, selectedModel, verificationModel, whisperModel, autoProcessEnabled, maxFeedEpisodes, onlyExposeProcessedDefault, audioBitrate, skipFlacCompression, vttTranscriptsEnabled, chaptersEnabled, chaptersModel, minCutConfidence, llmProvider, openaiBaseUrl, whisperBackend, whisperApiConfig.baseUrl, whisperApiConfig.model, whisperLanguage, whisperComputeType, podcastIndexApiKey, podcastIndexApiSecret, settings, reviewerSettings]);
+  }, [systemPrompt, verificationPrompt, reviewer, audioCue, positionalPriorEnabled, selectedModel, verificationModel, whisperModel, autoProcessEnabled, maxFeedEpisodes, onlyExposeProcessedDefault, audioBitrate, skipFlacCompression, vttTranscriptsEnabled, chaptersEnabled, chaptersModel, minCutConfidence, llmProvider, openaiBaseUrl, whisperBackend, whisperApiConfig.baseUrl, whisperApiConfig.model, whisperLanguage, whisperComputeType, transcribeMaxChunkSeconds, transcribeConcurrentChunks, transcribeChunkOverlapSeconds, podcastIndexApiKey, podcastIndexApiSecret, settings, reviewerSettings]);
 
   // Mirror hasChanges into render-readable state so the hydration guard above
   // (which runs before hasChanges is defined) skips re-seeding while dirty.
@@ -617,6 +626,12 @@ function Settings() {
         onWhisperLanguageChange={setWhisperLanguage}
         whisperComputeType={whisperComputeType}
         onWhisperComputeTypeChange={setWhisperComputeType}
+        transcribeMaxChunkSeconds={transcribeMaxChunkSeconds}
+        onTranscribeMaxChunkSecondsChange={setTranscribeMaxChunkSeconds}
+        transcribeConcurrentChunks={transcribeConcurrentChunks}
+        onTranscribeConcurrentChunksChange={setTranscribeConcurrentChunks}
+        transcribeChunkOverlapSeconds={transcribeChunkOverlapSeconds}
+        onTranscribeChunkOverlapSecondsChange={setTranscribeChunkOverlapSeconds}
         skipFlacCompression={skipFlacCompression}
         onSkipFlacCompressionChange={setSkipFlacCompression}
         softTimeoutMinutes={softTimeoutMinutes}

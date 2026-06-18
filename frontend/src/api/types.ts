@@ -165,6 +165,9 @@ export interface Settings {
   skipFlacCompression: SettingValueBoolean;
   adDetectionParallelWindows: SettingValueNumber;
   adReviewerParallelAds: SettingValueNumber;
+  transcribeMaxChunkSeconds: SettingValueNumber;
+  transcribeConcurrentChunks: SettingValueNumber;
+  transcribeChunkOverlapSeconds: SettingValueNumber;
   audioCueDetectionEnabled: SettingValueBoolean;
   audioCueFreqMinHz: SettingValueNumber;
   audioCueFreqMaxHz: SettingValueNumber;
@@ -218,6 +221,9 @@ export interface Settings {
     skipFlacCompression: boolean;
     adDetectionParallelWindows: number;
     adReviewerParallelAds: number;
+    transcribeMaxChunkSeconds: number;
+    transcribeConcurrentChunks: number;
+    transcribeChunkOverlapSeconds: number;
     audioCueDetectionEnabled: boolean;
     audioCueFreqMinHz: number;
     audioCueFreqMaxHz: number;
@@ -245,6 +251,9 @@ export interface UpdateSettingsPayload {
   skipFlacCompression?: boolean;
   adDetectionParallelWindows?: number;
   adReviewerParallelAds?: number;
+  transcribeMaxChunkSeconds?: number;
+  transcribeConcurrentChunks?: number;
+  transcribeChunkOverlapSeconds?: number;
   audioCueDetectionEnabled?: boolean;
   audioCueFreqMinHz?: number;
   audioCueFreqMaxHz?: number;
