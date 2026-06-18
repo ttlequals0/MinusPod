@@ -14,6 +14,7 @@ from database.sponsors import SponsorMixin
 from database.stats import StatsMixin
 from database.maintenance import MaintenanceMixin
 from database.fingerprints import FingerprintMixin
+from database.cue_templates import CueTemplateMixin
 from database.queue import QueueMixin
 from database.search import SearchMixin
 from database.auth_lockout import AuthLockoutMixin
@@ -76,6 +77,8 @@ it lacks promo codes or URLs. The distinction is: editorial content discusses a 
 context of a story; a tagline ad is pure promotional copy with no informational value.
 
 CRITICAL: Every ad you flag must contain identifiable promotional language in the transcript -- a sponsor name, URL, promo code, product pitch, or call to action. If the transcript text in a region is just normal conversation, silence, or a topic change, it is NOT an ad regardless of any audio signal changes.
+
+AUDIO CUE SIGNALS: When the prompt lists a labelled audio cue (a known show stinger, ding, or break jingle) inside an ad window, treat it as a strong boundary marker for that side of the break. A cue right before promotional copy means the ad starts at the cue, not at the first spoken word -- the spoken copy follows the chime. A cue right at the end of promotional copy means the ad ends at the cue, not after the host has resumed. Multiple cues can fire INSIDE a single break (intro stinger, mid-break bumper, outro stinger); two cues less than ~30 seconds apart with no genuine show content between them are almost always inside the same break. Do not end the ad at an intermediate cue while the transcript is still promotional -- extend to the LAST cue before show content resumes. The cue itself is never an ad on its own; it sharpens the boundary of an ad you have already identified from the transcript.
 
 HOW TO IDENTIFY FRAGMENTS:
 A fragment is promotional language that appears abruptly at the start or end of a content section. In the processed audio, the flow should be: natural conversation → transition tone → natural conversation. If instead you see: natural conversation → transition tone → "...dot com slash podcast. Anyway, back to..." → natural conversation, that trailing "dot com slash podcast" is a fragment from an incompletely removed ad.
@@ -158,6 +161,8 @@ DO NOT REJECT (these ARE real ads, keep them):
 
 The distinction between editorial mention and ad: an ad is paid promotional content with a sponsor name and a value proposition aimed at the listener. Editorial discussion is the host or guest talking about a topic, even if a brand name comes up.
 
+AUDIO CUE SIGNALS: If the prompt notes that a labelled audio cue (a show stinger, ding, or break jingle) sits next to the candidate boundary, treat it as ground truth for that side. Do not pull the boundary back across a cue that marks the start of the break, and do not push it past a cue that marks the resume of content. Multiple cues can fire INSIDE a single break (intro stinger, mid-break bumper between stacked sponsor reads, outro stinger). When two cues sit in short proximity (less than ~30 seconds apart, or with no genuine show content between them), they usually sit inside the same break -- do NOT trim the END back to an intermediate cue while the transcript after it is still promotional or silent. Extend to the LAST cue before show content resumes. The cue itself is never an ad on its own; it is the strongest available evidence of where the break actually begins and ends. When a "cue_pair" candidate is shown, the matcher has bracketed the break with two cues but the transcript may be sparse; keep the ad if any promotional language sits between the cues, even if the boundaries look loose.
+
 WHEN IN DOUBT: Keep the ad with original boundaries unchanged. Do not drop unless you have clear evidence from the transcript that the segment is not a real-world advertisement. Do not adjust unless the boundary error is unambiguous from the surrounding context. The cost of leaving a real ad in the audio (false negative) is higher than the cost of keeping a borderline detection.
 
 OUTPUT FORMAT:
@@ -214,6 +219,8 @@ KEEP REJECTED (return empty array): Agree with the validator. The segment is not
 - Comedic bits or fictional sponsor reads in the show's creative content
 - Silence, pauses, or topic transitions with no promotional transcript content
 
+AUDIO CUE SIGNALS: If the prompt notes a labelled audio cue (a show stinger, ding, or break jingle) adjacent to or bracketing the rejected segment, treat it as strong evidence that a break did happen there. A cue-bracketed segment with even a single sponsor mention or platform tag is almost always a real ad the validator was too cautious about; resurrect it.
+
 WHEN IN DOUBT: Agree with the validator and return empty. Only resurrect when the transcript shows clear evidence that this is a real ad. The validator already saw reason to flag low confidence; do not override without evidence.
 
 OUTPUT FORMAT:
@@ -243,7 +250,8 @@ Output: []{sponsor_database}"""
 
 class Database(SchemaMixin, PodcastMixin, EpisodeMixin, SettingsMixin,
                PatternMixin, SponsorMixin, StatsMixin, MaintenanceMixin,
-               FingerprintMixin, QueueMixin, SearchMixin, AuthLockoutMixin):
+               FingerprintMixin, CueTemplateMixin, QueueMixin, SearchMixin,
+               AuthLockoutMixin):
     """SQLite database manager with thread-safe connections."""
 
     _instance = None

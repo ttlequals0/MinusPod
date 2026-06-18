@@ -186,6 +186,12 @@ AUDIO_CUE_ONSET_LAG_SECONDS = 0.2    # ebur128 momentary loudness integrates ove
                                      # first above-threshold frame lags the true onset; pull the
                                      # reported start back by this much
 
+# Per-feed template matcher (#350): ZNCC score floor for a learned cue to
+# register. 0.75 balances cross-codec recurrences (which land 0.85-0.95 but can
+# dip below 0.85 with background beds) against false positives (non-cue audio
+# sits near 0.0). Tuneable via the audio_cue_template_score DB setting.
+AUDIO_CUE_TEMPLATE_SCORE = 0.75
+
 # ============================================================
 # Audio Processing
 # ============================================================

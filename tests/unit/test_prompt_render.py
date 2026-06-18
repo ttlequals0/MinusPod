@@ -179,7 +179,8 @@ def test_migration_skips_default_prompts(tmp_path):
 
     fixture_value = (
         'Custom default-flagged prompt with TAGLINE and PLATFORM-INSERTED ADS '
-        'and brand tagline ads keywords so prior migrations skip it.'
+        'and brand tagline ads and LABELLED AUDIO CUES keywords so prior '
+        'migrations skip it.'
     )
     db_path = tmp_path / "podcast.db"
     conn = sqlite3.connect(str(db_path))

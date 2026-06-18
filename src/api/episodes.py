@@ -94,6 +94,9 @@ def list_episodes(slug):
             'published': ep.get('published_at') or ep['created_at'],
             'duration': ep['original_duration'],
             'ad_count': ep['ads_removed'],
+            # True when this episode's original audio is still on disk (required
+            # to mark cue templates or replay original audio) (#350).
+            'hasOriginalAudio': bool(ep.get('original_file')),
             # Additional fields for backward compatibility
             'episodeId': ep['episode_id'],
             'createdAt': ep['created_at'],

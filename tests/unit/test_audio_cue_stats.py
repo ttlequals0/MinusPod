@@ -51,7 +51,7 @@ def test_verification_surfaces_processed_audio_cue_count():
     analysis = AudioAnalysisResult(signals=[cue, vol, cue])  # two cues, one non-cue
 
     class FakeAnalyzer:
-        def analyze(self, _path):
+        def analyze(self, _path, feed_id=None):
             return analysis
 
     class FakeDetector:

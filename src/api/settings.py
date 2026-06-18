@@ -115,6 +115,7 @@ def get_settings():
     from config import (
         AUDIO_CUE_FREQ_MIN_HZ, AUDIO_CUE_FREQ_MAX_HZ,
         AUDIO_CUE_PROMINENCE_DB, AUDIO_CUE_MIN_CONFIDENCE,
+        AUDIO_CUE_TEMPLATE_SCORE,
     )
     from chapters_generator import CHAPTERS_MODEL
     settings = _settings_view(db.get_all_settings())
@@ -307,6 +308,8 @@ def get_settings():
     # Audio cue detection experiment (#350)
     audio_cue_enabled = str(
         _setting_value(settings, 'audio_cue_detection_enabled', 'false')).strip().lower() == 'true'
+    audio_cue_create_from_pairs = coerce_bool_setting(
+        _setting_value(settings, 'audio_cue_create_from_pairs', 'false'))
 
     # Learned positional prior experiment (#360)
     positional_prior_enabled = coerce_bool_setting(
@@ -322,6 +325,7 @@ def get_settings():
     audio_cue_freq_max = int(_cue_num('audio_cue_freq_max_hz', AUDIO_CUE_FREQ_MAX_HZ))
     audio_cue_prominence = _cue_num('audio_cue_prominence_db', AUDIO_CUE_PROMINENCE_DB)
     audio_cue_min_conf = _cue_num('audio_cue_min_confidence', AUDIO_CUE_MIN_CONFIDENCE)
+    audio_cue_template_score = _cue_num('audio_cue_template_score', AUDIO_CUE_TEMPLATE_SCORE)
 
     return json_response({
         'systemPrompt': _sv('system_prompt', _setting_value(settings, 'system_prompt', DEFAULT_SYSTEM_PROMPT) or DEFAULT_SYSTEM_PROMPT),
@@ -362,6 +366,8 @@ def get_settings():
         'audioCueFreqMaxHz': _sv('audio_cue_freq_max_hz', audio_cue_freq_max),
         'audioCueProminenceDb': _sv('audio_cue_prominence_db', audio_cue_prominence),
         'audioCueMinConfidence': _sv('audio_cue_min_confidence', audio_cue_min_conf),
+        'audioCueCreateFromPairs': _sv('audio_cue_create_from_pairs', audio_cue_create_from_pairs),
+        'audioCueTemplateScore': _sv('audio_cue_template_score', audio_cue_template_score),
         'positionalPriorEnabled': _sv('positional_prior_enabled', positional_prior_enabled),
         'audioBitrate': _sv('audio_bitrate', audio_bitrate),
         'audioNormalizeEnabled': _sv('audio_normalize_enabled', audio_normalize_enabled),
@@ -415,6 +421,8 @@ def get_settings():
             'audioCueFreqMaxHz': int(AUDIO_CUE_FREQ_MAX_HZ),
             'audioCueProminenceDb': AUDIO_CUE_PROMINENCE_DB,
             'audioCueMinConfidence': AUDIO_CUE_MIN_CONFIDENCE,
+            'audioCueCreateFromPairs': False,
+            'audioCueTemplateScore': AUDIO_CUE_TEMPLATE_SCORE,
             'audioBitrate': DEFAULT_AUDIO_BITRATE,
             'audioNormalizeEnabled': False,
             'audioNormalizeIntensity': 'normal',
@@ -903,12 +911,18 @@ def _apply_audio_cue_fields(db, data):
         enabled = raw if isinstance(raw, bool) else str(raw).strip().lower() in ('true', '1', 'yes')
         writes.append(('audio_cue_detection_enabled', 'true' if enabled else 'false'))
 
+    if 'audioCueCreateFromPairs' in data:
+        raw = data['audioCueCreateFromPairs']
+        enabled = raw if isinstance(raw, bool) else str(raw).strip().lower() in ('true', '1', 'yes')
+        writes.append(('audio_cue_create_from_pairs', 'true' if enabled else 'false'))
+
     parsed = {}
     for field_name, db_key, lo, hi in (
         ('audioCueFreqMinHz', 'audio_cue_freq_min_hz', 20.0, 20000.0),
         ('audioCueFreqMaxHz', 'audio_cue_freq_max_hz', 20.0, 20000.0),
         ('audioCueProminenceDb', 'audio_cue_prominence_db', 1.0, 40.0),
         ('audioCueMinConfidence', 'audio_cue_min_confidence', 0.0, 1.0),
+        ('audioCueTemplateScore', 'audio_cue_template_score', 0.0, 0.99),
     ):
         if field_name not in data:
             continue

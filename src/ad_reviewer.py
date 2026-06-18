@@ -114,6 +114,89 @@ class ReviewResult:
     verdicts: List[ReviewVerdict] = field(default_factory=list)
 
 
+def _format_cue_section(*, audio_analysis, ad_start: float, ad_end: float,
+                        cue_pair=None, cue_snap=None) -> str:
+    """Render audio cue context for the reviewer's per-ad user prompt (#350).
+
+    Includes:
+    - Every ``audio_cue`` signal within 60 s of the candidate boundaries,
+      with its label, time, and confidence.
+    - The ``cue_pair`` block when the ad was synthesised from a bracketing
+      pair of cues; signals the reviewer to keep the ad even if the
+      transcript inside looks light on promotional language.
+    - The ``cue_snap`` block when the boundary snap already shifted an edge
+      to a cue; signals the reviewer not to undo that snap.
+
+    Returns the empty string when there is nothing relevant to surface.
+    """
+    lines = []
+    if audio_analysis is not None:
+        try:
+            cues = audio_analysis.get_signals_by_type('audio_cue')
+        except AttributeError:
+            cues = []
+        near_start = []
+        near_end = []
+        for cue in cues:
+            if cue.confidence < 0.80:
+                continue
+            details = cue.details or {}
+            label = details.get('label') or 'audio cue'
+            if abs(cue.start - ad_start) <= 60.0 or abs(cue.end - ad_start) <= 60.0:
+                near_start.append((cue, label))
+            if abs(cue.start - ad_end) <= 60.0 or abs(cue.end - ad_end) <= 60.0:
+                near_end.append((cue, label))
+        if near_start or near_end:
+            lines.append("AUDIO CUE EVIDENCE:")
+            for cue, label in near_start:
+                lines.append(
+                    f"  - near AD START: \"{label}\" cue at "
+                    f"{cue.start:.1f}s-{cue.end:.1f}s "
+                    f"(confidence {cue.confidence:.0%})"
+                )
+            for cue, label in near_end:
+                lines.append(
+                    f"  - near AD END: \"{label}\" cue at "
+                    f"{cue.start:.1f}s-{cue.end:.1f}s "
+                    f"(confidence {cue.confidence:.0%})"
+                )
+            lines.append(
+                "These cues are show stingers / break jingles. Treat each as a "
+                "ground-truth boundary marker for its side of the break -- do not "
+                "pull a boundary across a cue without strong transcript evidence."
+            )
+    if cue_pair:
+        start_label = (cue_pair.get('start') or {}).get('label')
+        end_label = (cue_pair.get('end') or {}).get('label')
+        lines.append(
+            f"CUE-PAIR ORIGIN: this ad was bracketed by matching cues "
+            f"(start={start_label!r}, end={end_label!r}). The transcript inside "
+            f"may be sparse on promotional language; keep the ad as long as any "
+            f"sponsor or platform copy appears between the cues."
+        )
+    if cue_snap:
+        moved = []
+        if 'start' in cue_snap:
+            moved.append(
+                f"start snapped to \"{cue_snap['start'].get('label') or 'cue'}\" "
+                f"end (was {cue_snap['start'].get('original')}s)"
+            )
+        if 'end' in cue_snap:
+            moved.append(
+                f"end snapped to \"{cue_snap['end'].get('label') or 'cue'}\" "
+                f"start (was {cue_snap['end'].get('original')}s)"
+            )
+        if moved:
+            lines.append(
+                "CUE SNAP APPLIED: " + "; ".join(moved) +
+                ". Do not undo these snaps; they land the cut on the chime "
+                "rather than mid-conversation."
+            )
+    if not lines:
+        return ""
+    return "\n".join(lines) + "\n\n"
+
+
 class AdReviewer:
     """Reviews detector + validator output before audio cuts are applied."""
 
@@ -591,11 +674,20 @@ class AdReviewer:
                 f"Original boundaries: {start:.2f}s - {end:.2f}s.\n"
             )
 
+        cue_section = _format_cue_section(
+            audio_analysis=episode_meta.get('audio_analysis'),
+            ad_start=start,
+            ad_end=end,
+            cue_pair=ad.get('cue_pair'),
+            cue_snap=ad.get('cue_snap'),
+        )
+
         return (
             f"Podcast: {podcast_name}\n"
             f"Episode: {episode_title}\n"
             f"{description_section}\n"
             f"{framing}\n"
+            f"{cue_section}"
             f"Transcript (60s before, the candidate ad, 60s after):\n"
             f"[{max(0.0, start - 60.0):.1f}s] {before_text}\n"
             f"[{start:.1f}s] >>> CANDIDATE AD START >>> {ad_text} <<< CANDIDATE AD END <<< [{end:.1f}s]\n"

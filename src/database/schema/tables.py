@@ -299,6 +299,36 @@ CREATE TABLE IF NOT EXISTS ad_reviewer_log (
 );
 CREATE INDEX IF NOT EXISTS idx_ad_reviewer_log_episode ON ad_reviewer_log(episode_id);
 CREATE INDEX IF NOT EXISTS idx_ad_reviewer_log_podcast ON ad_reviewer_log(podcast_id);
+
+-- audio_cue_templates (per-feed user-defined ding/stinger templates, #350)
+-- mfcc_blob: float32 little-endian, shape (n_frames, n_coeffs) row-major.
+--   Frames are 25 ms / 10 ms hop @ sample_rate Hz. n_coeffs stored separately.
+-- pcm_blob: raw captured window, int16 little-endian mono @ pcm_sample_rate.
+--   Source of truth so a template can be re-derived if MFCC params change or
+--   exported as a lossless WAV. Nullable for rows imported without raw PCM.
+-- scope: 'podcast' (this feed) or 'network' (all feeds sharing network_id).
+--   No 'global' tier -- a cue only matches a show using the exact same sound.
+CREATE TABLE IF NOT EXISTS audio_cue_templates (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    podcast_id INTEGER NOT NULL,
+    label TEXT NOT NULL,
+    source_episode_id TEXT,
+    source_offset_s REAL NOT NULL,
+    duration_s REAL NOT NULL,
+    sample_rate INTEGER NOT NULL,
+    n_coeffs INTEGER NOT NULL,
+    mfcc_blob BLOB NOT NULL,
+    pcm_blob BLOB,
+    pcm_sample_rate INTEGER,
+    scope TEXT NOT NULL DEFAULT 'podcast' CHECK(scope IN ('network', 'podcast')),
+    network_id TEXT,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+    created_by TEXT DEFAULT 'user',
+    FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_cue_templates_feed ON audio_cue_templates(podcast_id, enabled);
+CREATE INDEX IF NOT EXISTS idx_cue_templates_scope ON audio_cue_templates(scope, network_id, podcast_id) WHERE enabled = 1;
 """
 
 # Indexes that depend on columns added by migrations - created separately

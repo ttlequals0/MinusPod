@@ -46,6 +46,7 @@ export interface Episode {
   duration?: number;
   status: 'discovered' | 'pending' | 'processing' | 'completed' | 'failed' | 'permanently_failed';
   ad_count?: number;
+  hasOriginalAudio?: boolean;
 }
 
 export interface EpisodeDetail extends Episode {
@@ -175,6 +176,8 @@ export interface Settings {
   audioCueFreqMaxHz: SettingValueNumber;
   audioCueProminenceDb: SettingValueNumber;
   audioCueMinConfidence: SettingValueNumber;
+  audioCueCreateFromPairs: SettingValueBoolean;
+  audioCueTemplateScore: SettingValueNumber;
   positionalPriorEnabled: SettingValueBoolean;
   vttTranscriptsEnabled: SettingValueBoolean;
   chaptersEnabled: SettingValueBoolean;
@@ -233,6 +236,8 @@ export interface Settings {
     audioCueFreqMaxHz: number;
     audioCueProminenceDb: number;
     audioCueMinConfidence: number;
+    audioCueCreateFromPairs: boolean;
+    audioCueTemplateScore: number;
     positionalPriorEnabled: boolean;
   };
 }
@@ -265,6 +270,8 @@ export interface UpdateSettingsPayload {
   audioCueFreqMaxHz?: number;
   audioCueProminenceDb?: number;
   audioCueMinConfidence?: number;
+  audioCueCreateFromPairs?: boolean;
+  audioCueTemplateScore?: number;
   positionalPriorEnabled?: boolean;
   vttTranscriptsEnabled?: boolean;
   chaptersEnabled?: boolean;

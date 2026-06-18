@@ -1210,6 +1210,87 @@ class SchemaMixin:
             conn.rollback()
             logger.error(f"opus 4.8 token cost correction failed: {e}")
 
+        # Refresh default prompts to mention audio cue evidence (#350).
+        # Marker phrase per prompt is unique to this revision and idempotent:
+        # only overwrite a prompt that is still the stored default and lacks
+        # the marker, so user-customized prompts (is_default=0) are untouched.
+        try:
+            from database import DEFAULT_REVIEW_PROMPT, DEFAULT_RESURRECT_PROMPT
+            for key, value, marker in (
+                ('system_prompt', DEFAULT_SYSTEM_PROMPT, 'LABELLED AUDIO CUES'),
+                ('verification_prompt', DEFAULT_VERIFICATION_PROMPT, 'AUDIO CUE SIGNALS'),
+                ('review_prompt', DEFAULT_REVIEW_PROMPT, 'AUDIO CUE SIGNALS'),
+                ('resurrect_prompt', DEFAULT_RESURRECT_PROMPT, 'AUDIO CUE SIGNALS'),
+            ):
+                row = conn.execute(
+                    "SELECT value, is_default FROM settings WHERE key = ?",
+                    (key,)
+                ).fetchone()
+                if row and row['is_default'] and marker not in (row['value'] or ''):
+                    conn.execute(
+                        "UPDATE settings SET value = ? WHERE key = ?",
+                        (value, key),
+                    )
+                    conn.commit()
+                    logger.info(
+                        f"Migration: Updated default {key} with audio cue guidance (#350)"
+                    )
+        except Exception as e:
+            conn.rollback()
+            logger.warning(f"Migration failed for audio cue prompt refresh: {e}")
+
+        # Per-feed audio cue templates (#350). User-marked ding/stinger samples
+        # used by the template-based cue matcher. DDL is kept byte-identical to
+        # SCHEMA_SQL in tables.py. The ALTERs cover an existing table created by
+        # an earlier build that lacked the pcm/scope columns (additive, no data
+        # loss).
+        try:
+            fresh = not self._table_exists(conn, 'audio_cue_templates')
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS audio_cue_templates (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    podcast_id INTEGER NOT NULL,
+                    label TEXT NOT NULL,
+                    source_episode_id TEXT,
+                    source_offset_s REAL NOT NULL,
+                    duration_s REAL NOT NULL,
+                    sample_rate INTEGER NOT NULL,
+                    n_coeffs INTEGER NOT NULL,
+                    mfcc_blob BLOB NOT NULL,
+                    pcm_blob BLOB,
+                    pcm_sample_rate INTEGER,
+                    scope TEXT NOT NULL DEFAULT 'podcast' CHECK(scope IN ('network', 'podcast')),
+                    network_id TEXT,
+                    enabled INTEGER NOT NULL DEFAULT 1,
+                    created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
+                    created_by TEXT DEFAULT 'user',
+                    FOREIGN KEY (podcast_id) REFERENCES podcasts(id) ON DELETE CASCADE
+                )
+            """)
+            if not fresh:
+                cols = self._get_table_columns(conn, 'audio_cue_templates')
+                self._add_column_if_missing(conn, 'audio_cue_templates', 'pcm_blob', 'BLOB', cols)
+                self._add_column_if_missing(conn, 'audio_cue_templates', 'pcm_sample_rate', 'INTEGER', cols)
+                self._add_column_if_missing(
+                    conn, 'audio_cue_templates', 'scope',
+                    "TEXT NOT NULL DEFAULT 'podcast'", cols,
+                )
+                self._add_column_if_missing(conn, 'audio_cue_templates', 'network_id', 'TEXT', cols)
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_cue_templates_feed "
+                "ON audio_cue_templates(podcast_id, enabled)"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_cue_templates_scope "
+                "ON audio_cue_templates(scope, network_id, podcast_id) WHERE enabled = 1"
+            )
+            conn.commit()
+            if fresh:
+                logger.info("Migration: Created audio_cue_templates table")
+        except Exception as e:
+            conn.rollback()
+            logger.warning(f"audio_cue_templates table creation: {e}")
+
     def _run_correct_opus48_token_cost(self, conn):
         """One-time correction of recorded Opus 4.8 (`claudeopus48`) token cost.
 

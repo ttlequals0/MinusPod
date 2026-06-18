@@ -65,9 +65,17 @@ class AudioEnforcer:
             elif signal.signal_type == 'audio_cue':
                 # A short non-spoken ding/stinger that some shows play just
                 # before an ad break. Use it to set an ad's START edge when the
-                # transcript right after it is promotional.
+                # transcript right after it is promotional. When the signal came
+                # from a user-marked template the label is shown.
+                details = signal.details or {}
+                label = details.get('label')
+                source = details.get('source', 'spectral')
+                if source == 'template' and label:
+                    descriptor = f'"{label}" cue'
+                else:
+                    descriptor = 'Audio cue (ding/stinger)'
                 lines.append(
-                    f"- Audio cue (ding/stinger) at {signal.start:.1f}s "
+                    f"- {descriptor} at {signal.start:.1f}s "
                     f"(often just before an ad break, confidence {signal.confidence:.0%})"
                 )
 

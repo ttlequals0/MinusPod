@@ -103,25 +103,63 @@ class AudioAnalyzer:
 
         return settings
 
-    def _load_cue_config(self):
-        """Read the audio-cue experiment settings fresh, per run (issue #350).
+    def _load_cue_config(self, feed_id: Optional[int] = None):
+        """Resolve the audio cue detector for this run (issue #350).
 
-        This analyzer is a long-lived singleton, so reading the enable flag and
-        tuneables here -- not at construction -- lets the Settings toggle take
-        effect without a container restart. Returns (enabled, detector); the
-        detector is None when the experiment is off or no DB is available.
+        This analyzer is a long-lived singleton, so reading the settings here --
+        not at construction -- lets the Settings toggle take effect without a
+        container restart. Gated by the master ``audio_cue_detection_enabled``
+        toggle. When it is on:
+
+        1. If the feed has at least one enabled cue template, use the per-feed
+           template matcher -- it finds the exact user-marked sound.
+        2. Otherwise fall back to the spectral burst detector.
+
+        When the toggle is off, no cue detector runs, so boundary snap and the
+        cue prompt block stay inert. Both detectors expose ``.detect(audio_path)``
+        and emit the same ``audio_cue`` ``AudioSegmentSignal``, so the analyze()
+        invocation and all downstream consumers are identical. Returns
+        ``(enabled, detector)``; the detector is None when cue detection is off
+        or no DB is available.
         """
         if not self.db:
             return False, None
-        from config import (
-            AUDIO_CUE_FREQ_MIN_HZ, AUDIO_CUE_FREQ_MAX_HZ,
-            AUDIO_CUE_PROMINENCE_DB, AUDIO_CUE_MIN_CONFIDENCE,
-        )
-        from .cue_detector import AudioCueDetector
         try:
             if not self.db.get_setting_bool('audio_cue_detection_enabled', default=False):
                 return False, None
 
+            # Per-feed templates take precedence when the feed has any enabled.
+            # One query resolves both the gate and the template set.
+            templates = (
+                self.db.list_active_cue_templates_for_feed(feed_id)
+                if feed_id is not None else []
+            )
+            if templates:
+                from .cue_template_matcher import (
+                    AudioCueTemplateMatcher, DEFAULT_MATCH_SCORE,
+                )
+                score = self.db.get_setting_float(
+                    'audio_cue_template_score', DEFAULT_MATCH_SCORE,
+                )
+                matcher = AudioCueTemplateMatcher(
+                    templates=templates, score_threshold=score,
+                )
+                if matcher.is_usable:
+                    logger.info(
+                        f"Cue detection: using {len(templates)} per-feed "
+                        f"template(s) for feed_id={feed_id}"
+                    )
+                    return True, matcher
+                logger.warning(
+                    f"Cue detection: feed_id={feed_id} templates failed to "
+                    "load; falling back to spectral detector"
+                )
+
+            from config import (
+                AUDIO_CUE_FREQ_MIN_HZ, AUDIO_CUE_FREQ_MAX_HZ,
+                AUDIO_CUE_PROMINENCE_DB, AUDIO_CUE_MIN_CONFIDENCE,
+            )
+            from .cue_detector import AudioCueDetector
             detector = AudioCueDetector(
                 freq_min_hz=self.db.get_setting_float('audio_cue_freq_min_hz', AUDIO_CUE_FREQ_MIN_HZ),
                 freq_max_hz=self.db.get_setting_float('audio_cue_freq_max_hz', AUDIO_CUE_FREQ_MAX_HZ),
@@ -174,7 +212,8 @@ class AudioAnalyzer:
         audio_path: str,
         transcript_segments: Optional[List[Dict]] = None,
         run_parallel: bool = False,
-        status_callback: Optional[callable] = None
+        status_callback: Optional[callable] = None,
+        feed_id: Optional[int] = None,
     ) -> AudioAnalysisResult:
         """
         Run audio analysis (volume + transition detection).
@@ -184,6 +223,8 @@ class AudioAnalyzer:
             transcript_segments: Optional transcript (unused, kept for API compat)
             run_parallel: Unused (kept for API compatibility)
             status_callback: Optional callback(stage, progress) for status updates
+            feed_id: Optional feed PK; when set, selects the per-feed cue
+                template matcher over the spectral fallback (issue #350)
 
         Returns:
             AudioAnalysisResult with all detected signals
@@ -250,7 +291,7 @@ class AudioAnalyzer:
         # Audio cue detection (issue #350) -- opt-in. Settings are read per run
         # so the toggle takes effect without a restart. Runs its own band-passed
         # ffmpeg pass, so only when the experiment is enabled.
-        cue_enabled, cue_detector = self._load_cue_config()
+        cue_enabled, cue_detector = self._load_cue_config(feed_id=feed_id)
         if cue_enabled and cue_detector:
             if status_callback:
                 status_callback("analyzing: audio cues", 40)

@@ -47,7 +47,8 @@ class VerificationPass:
                skip_patterns: bool = False,
                progress_callback=None,
                original_segments: List[Dict] = None,
-               reuse_transcript: bool = False) -> Dict:
+               reuse_transcript: bool = False,
+               feed_id: Optional[int] = None) -> Dict:
         """
         Run full pipeline on processed audio to find missed ads.
 
@@ -105,7 +106,12 @@ class VerificationPass:
             progress_callback("analyzing", 88)
         processed_analysis = None
         try:
-            processed_analysis = self.audio_analyzer.analyze(processed_audio_path)
+            # Pass the feed PK so the cue analyzer can select the per-feed
+            # template matcher; without it the verification pass would only
+            # ever see the spectral fallback even when the feed has templates.
+            processed_analysis = self.audio_analyzer.analyze(
+                processed_audio_path, feed_id=feed_id,
+            )
             if processed_analysis and processed_analysis.signals:
                 logger.info(f"[{slug}:{episode_id}] Verification: "
                            f"{len(processed_analysis.signals)} audio signals")

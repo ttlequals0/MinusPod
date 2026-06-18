@@ -829,11 +829,32 @@ WHAT TO LOOK FOR:
   traditional ad markers like promo codes.
 
 AUDIO SIGNALS:
-Audio analysis may detect volume anomalies, DAI transitions, or silence gaps in the episode.
+Audio analysis may detect volume anomalies, DAI transitions, silence gaps, or labelled audio cues
+(show stingers / break jingles known to bracket ad breaks on this show).
 These signals are SUPPORTING EVIDENCE ONLY. They help locate potential ad boundaries but do NOT
 constitute ads by themselves. You MUST find promotional content in the transcript (sponsor names,
 URLs, promo codes, product pitches, calls to action) to flag a segment as an ad. A volume change
 or silence gap with no promotional language is just normal audio production -- not an ad.
+
+LABELLED AUDIO CUES (when present): A "<name>" cue is a known recurring sound this show plays
+right before and right after an ad break. Treat one as a strong boundary marker for the side of
+the break it sits on:
+  - A cue immediately before promotional copy in the transcript is the ad's START. Begin the ad
+    span at the cue, not at the first spoken word.
+  - A cue immediately after the last promotional phrase is the ad's END. End the ad span at the
+    cue, not after the host has resumed.
+  - Multiple cues can fire INSIDE a single break: an intro stinger, a mid-break bumper between
+    two stacked sponsor reads, and an outro stinger are all common. Two cues in short proximity
+    (less than ~30 seconds apart, or with no resumption of host/editorial content between them)
+    usually sit inside the same break, not bracket a complete one. Do NOT end the ad at an
+    intermediate cue while the transcript is still promotional or silent -- extend the span to
+    the LAST cue before genuine show content resumes.
+  - Two cues bracket a complete break only when the span between them contains promotional copy
+    and the cue after the second cue resumes show content. If the transcript after the second
+    cue is still promotional, the break is still in progress and another cue is likely the true
+    end marker.
+The cue itself is never an ad on its own; it is the strongest available signal of where the
+break actually begins and ends.
 
 COMMON PODCAST SPONSORS (high confidence if mentioned):
 BetterHelp, Athletic Greens, AG1, Shopify, Amazon, Audible, Squarespace, HelloFresh, Factor, NordVPN, ExpressVPN, Mint Mobile, MasterClass, Calm, Headspace, ZipRecruiter, Indeed, LinkedIn Jobs, LinkedIn, Stamps.com, SimpliSafe, Ring, ADT, Casper, Helix Sleep, Purple, Brooklinen, Bombas, Manscaped, Dollar Shave Club, Harry's, Quip, Hims, Hers, Roman, Function of Beauty, Native, Liquid IV, Athletic Brewing, Magic Spoon, Thrive Market, Butcher Box, Blue Apron, DoorDash, Uber Eats, Grubhub, Instacart, Rocket Money, Credit Karma, SoFi, Acorns, Betterment, Wealthfront, PolicyGenius, Lemonade, State Farm, Progressive, Geico, Liberty Mutual, T-Mobile, Visible, FanDuel, DraftKings, BetMGM, Toyota, Hyundai, CarMax, Carvana, eBay Motors, ZocDoc, GoodRx, Care/of, Ritual, Seed, HubSpot, NetSuite, Monday.com, Notion, Canva, Grammarly, Babbel, Rosetta Stone, Blinkist, Raycon, Bose, MacPaw, CleanMyMac, Green Chef, Magic Mind, Honeylove, Cozy Earth, Quince, LMNT, Nutrafol, Aura, OneSkin, Incogni, Gametime, 1Password, Bitwarden, CacheFly, Deel, DeleteMe, Framer, Miro, Monarch Money, OutSystems, Spaceship, Thinkst Canary, ThreatLocker, Vanta, Veeam, Zapier, Zscaler, Capital One, Ford, WhatsApp
