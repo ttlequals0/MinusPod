@@ -208,7 +208,7 @@ def get_settings():
     audio_bitrate = _setting_value(settings, 'audio_bitrate', DEFAULT_AUDIO_BITRATE)
     audio_normalize_enabled_raw = _setting_value(settings, 'audio_normalize_enabled', 'false')
     audio_normalize_enabled = str(audio_normalize_enabled_raw).lower() in ('true', '1', 'yes')
-    audio_normalize_intensity = _setting_value(settings, 'audio_normalize_intensity', 'aggressive')
+    audio_normalize_intensity = _setting_value(settings, 'audio_normalize_intensity', 'normal')
     default_skip_flac = os.environ.get('SKIP_FLAC_COMPRESSION', 'false')
     skip_flac_raw = _setting_value(settings, 'skip_flac_compression', default_skip_flac)
     skip_flac = coerce_bool_setting(skip_flac_raw)
@@ -404,7 +404,7 @@ def get_settings():
             'audioCueMinConfidence': AUDIO_CUE_MIN_CONFIDENCE,
             'audioBitrate': DEFAULT_AUDIO_BITRATE,
             'audioNormalizeEnabled': False,
-            'audioNormalizeIntensity': 'aggressive',
+            'audioNormalizeIntensity': 'normal',
             'skipFlacCompression': coerce_bool_setting(os.environ.get('SKIP_FLAC_COMPRESSION', 'false')),
             'adDetectionParallelWindows': AD_DETECTION_PARALLEL_WINDOWS_DEFAULT,
             'adReviewerParallelAds': AD_REVIEWER_PARALLEL_ADS_DEFAULT,

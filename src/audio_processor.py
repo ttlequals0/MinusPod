@@ -71,7 +71,7 @@ NORMALIZE_PRESETS = {
     'extreme':    'dynaudnorm=f=75:g=25:p=0.95:m=20:s=15',
     'maximum':    'dynaudnorm=f=50:g=31:p=0.95:m=30:s=25',
 }
-DEFAULT_NORMALIZE_INTENSITY = 'aggressive'
+DEFAULT_NORMALIZE_INTENSITY = 'normal'
 
 
 class AudioProcessor:
@@ -105,7 +105,7 @@ class AudioProcessor:
         normalized file on success, or None on failure. Caller is responsible
         for cleanup of the input when swapping in the returned path.
 
-        This is intentionally a SEPARATE invocation from remove_ads — fusing
+        This is intentionally a SEPARATE invocation from remove_ads - fusing
         dynaudnorm into the cut filter graph would risk the cut behavior across
         the variety of podcast feeds. Cost: ~3-5s on a 48-min episode.
         """
@@ -121,6 +121,7 @@ class AudioProcessor:
         with tempfile.NamedTemporaryFile(delete=False, suffix='.normalized.mp3') as tmp:
             output_path = tmp.name
 
+        success = False
         try:
             duration = self.get_audio_duration(input_path) or 0
             cmd = [
@@ -141,41 +142,29 @@ class AudioProcessor:
                 except Exception:
                     stderr_text = str(result.stderr)[:500]
                 logger.error(f"FFMPEG normalize failed: {stderr_text}")
-                if os.path.exists(output_path):
-                    try:
-                        os.unlink(output_path)
-                    except OSError:
-                        pass
                 return None
 
             if not self.get_audio_duration(output_path):
                 logger.error("Normalize output unreadable")
-                if os.path.exists(output_path):
-                    try:
-                        os.unlink(output_path)
-                    except OSError:
-                        pass
                 return None
 
             logger.info("FFMPEG normalize complete")
+            success = True
             return output_path
 
         except subprocess.TimeoutExpired:
             logger.error("FFMPEG normalize timed out")
-            if os.path.exists(output_path):
-                try:
-                    os.unlink(output_path)
-                except OSError:
-                    pass
             return None
         except Exception as e:
             logger.error(f"Normalize failed: {e}")
-            if os.path.exists(output_path):
+            return None
+        finally:
+            # On any non-success exit, drop the partial/unreadable temp output.
+            if not success and os.path.exists(output_path):
                 try:
                     os.unlink(output_path)
                 except OSError:
                     pass
-            return None
 
     def compute_applied_cuts(self, ad_segments: List[Dict],
                              total_duration: float) -> List[Dict]:
@@ -409,7 +398,7 @@ class AudioProcessor:
             new_duration = self.get_audio_duration(output_path)
             if new_duration:
                 removed_time = total_duration - new_duration
-                logger.info(f"FFMPEG processing complete: {total_duration:.1f}s → {new_duration:.1f}s (removed {removed_time:.1f}s)")
+                logger.info(f"FFMPEG processing complete: {total_duration:.1f}s -> {new_duration:.1f}s (removed {removed_time:.1f}s)")
                 return ads
             else:
                 logger.error("Could not verify output file")

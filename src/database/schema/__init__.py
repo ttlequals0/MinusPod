@@ -2695,7 +2695,7 @@ class SchemaMixin:
             ('audio_bitrate', '128k')
         )
 
-        # Loudness normalization (dynaudnorm second pass). Off by default —
+        # Loudness normalization (dynaudnorm second pass). Off by default -
         # opt-in so existing users see no behavior change.
         conn.execute(
             """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
@@ -2705,7 +2705,7 @@ class SchemaMixin:
         conn.execute(
             """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
                ON CONFLICT(key) DO NOTHING""",
-            ('audio_normalize_intensity', 'aggressive')
+            ('audio_normalize_intensity', 'normal')
         )
 
         # VTT transcripts enabled (Podcasting 2.0)

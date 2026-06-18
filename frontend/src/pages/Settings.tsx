@@ -89,7 +89,7 @@ function Settings() {
   const [onlyExposeProcessedDefault, setOnlyExposeProcessedDefault] = useState(false);
   const [audioBitrate, setAudioBitrate] = useState('');
   const [audioNormalizeEnabled, setAudioNormalizeEnabled] = useState(false);
-  const [audioNormalizeIntensity, setAudioNormalizeIntensity] = useState('aggressive');
+  const [audioNormalizeIntensity, setAudioNormalizeIntensity] = useState('normal');
   const [skipFlacCompression, setSkipFlacCompression] = useState(false);
   const [vttTranscriptsEnabled, setVttTranscriptsEnabled] = useState(false);
   const [chaptersEnabled, setChaptersEnabled] = useState(false);

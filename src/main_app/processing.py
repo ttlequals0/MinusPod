@@ -1741,7 +1741,7 @@ def process_episode(slug: str, episode_id: str, episode_url: str,
             # uncompressed dynamics.
             normalize_raw = db.get_setting('audio_normalize_enabled')
             if (normalize_raw or 'false').lower() == 'true':
-                intensity = db.get_setting('audio_normalize_intensity') or 'aggressive'
+                intensity = db.get_setting('audio_normalize_intensity') or 'normal'
                 normalized_path = local_audio_processor.normalize_audio(
                     processed_path, intensity=intensity,
                 )
