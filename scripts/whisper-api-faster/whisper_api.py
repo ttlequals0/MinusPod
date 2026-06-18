@@ -17,6 +17,7 @@ Configuration via environment variables:
 
 import os
 import tempfile
+import threading
 from pathlib import Path
 
 from flask import Flask, request, jsonify
@@ -32,6 +33,12 @@ COMPUTE_TYPE = os.environ.get("WHISPER_COMPUTE_TYPE", "float16")
 print(f"Loading Whisper {MODEL_SIZE} on {DEVICE} ({COMPUTE_TYPE})...", flush=True)
 model = WhisperModel(MODEL_SIZE, device=DEVICE, compute_type=COMPUTE_TYPE)
 print("Model ready", flush=True)
+
+# A single WhisperModel is not safe to drive from multiple threads at once
+# (Flask is started with threaded=True). Serialize all inference so two
+# concurrent requests can never decode through the same model simultaneously,
+# which would otherwise spike GPU memory / OOM or corrupt output.
+_MODEL_LOCK = threading.Lock()
 
 
 @app.route("/health", methods=["GET"])
@@ -64,20 +71,28 @@ def transcribe():
     prompt = request.form.get("prompt", "")
 
     suffix = Path(audio_file.filename).suffix if audio_file.filename else ".wav"
-    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-        audio_file.save(tmp)
-        tmp_path = tmp.name
-
+    tmp_path = None
     try:
-        segments, info = model.transcribe(
-            tmp_path,
-            language=language,
-            temperature=temperature,
-            initial_prompt=prompt if prompt else None,
-            beam_size=5,
-            vad_filter=True,
-            word_timestamps=True,
-        )
+        # Assign the path BEFORE save() so a failed save still cleans up the
+        # file created by delete=False (and doesn't raise UnboundLocalError in
+        # the finally block, which would mask the original error).
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+            tmp_path = tmp.name
+            audio_file.save(tmp)
+
+        with _MODEL_LOCK:
+            segments, info = model.transcribe(
+                tmp_path,
+                language=language,
+                temperature=temperature,
+                initial_prompt=prompt if prompt else None,
+                beam_size=5,
+                vad_filter=True,
+                word_timestamps=True,
+            )
+            # Force the lazy generator to completion while holding the lock —
+            # this is where the actual decode happens.
+            segments = list(segments)
 
         if response_format in ("json", "verbose_json"):
             text_parts = []
@@ -131,7 +146,8 @@ def transcribe():
             return jsonify({"error": f"Unknown format: {response_format}"}), 400
 
     finally:
-        os.unlink(tmp_path)
+        if tmp_path and os.path.exists(tmp_path):
+            os.unlink(tmp_path)
 
 
 def _srt_time(seconds):
