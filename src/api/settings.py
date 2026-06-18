@@ -239,6 +239,16 @@ def get_settings():
         min(AD_REVIEWER_PARALLEL_ADS_MAX, reviewer_parallel),
     )
 
+    def _db_int(key, default):
+        try:
+            return int(_setting_value(settings, key, default))
+        except (ValueError, TypeError):
+            return default
+
+    transcribe_max_chunk_seconds = _db_int('transcribe_max_chunk_seconds', 600)
+    transcribe_concurrent_chunks = _db_int('transcribe_concurrent_chunks', 4)
+    transcribe_chunk_overlap_seconds = _db_int('transcribe_chunk_overlap_seconds', 30)
+
     # Per-stage LLM tunables: resolved value (env > DB > default) and env-override status.
     from config import (
         get_stage_tunable, stage_tunable_env_override,
@@ -359,6 +369,9 @@ def get_settings():
         'skipFlacCompression': _sv('skip_flac_compression', skip_flac),
         'adDetectionParallelWindows': _sv('ad_detection_parallel_windows', parallel_windows),
         'adReviewerParallelAds': _sv('ad_reviewer_parallel_ads', reviewer_parallel),
+        'transcribeMaxChunkSeconds': _sv('transcribe_max_chunk_seconds', transcribe_max_chunk_seconds),
+        'transcribeConcurrentChunks': _sv('transcribe_concurrent_chunks', transcribe_concurrent_chunks),
+        'transcribeChunkOverlapSeconds': _sv('transcribe_chunk_overlap_seconds', transcribe_chunk_overlap_seconds),
         'apiKeyConfigured': api_key_configured,
         'retentionDays': int(db.get_setting('retention_days') or '30'),
         'stageTunables': tunables_payload,
@@ -408,6 +421,9 @@ def get_settings():
             'skipFlacCompression': coerce_bool_setting(os.environ.get('SKIP_FLAC_COMPRESSION', 'false')),
             'adDetectionParallelWindows': AD_DETECTION_PARALLEL_WINDOWS_DEFAULT,
             'adReviewerParallelAds': AD_REVIEWER_PARALLEL_ADS_DEFAULT,
+            'transcribeMaxChunkSeconds': 600,
+            'transcribeConcurrentChunks': 4,
+            'transcribeChunkOverlapSeconds': 30,
         }
     })
 
@@ -442,6 +458,7 @@ def update_ad_detection_settings():
         _apply_audio_cue_fields,
         _apply_positional_prior_fields,
         _apply_podcast_index_fields,
+        _apply_transcribe_chunk_fields,
         _apply_stage_tunables,
     )
     for phase in phases:
@@ -635,6 +652,54 @@ def _apply_audio_fields(db, data):
             )
         db.set_setting('ad_reviewer_parallel_ads', str(n), is_default=False)
         logger.info(f"Updated ad_reviewer_parallel_ads to: {n}")
+    return None
+
+
+def _apply_transcribe_chunk_fields(db, data):
+    """Chunked transcription tuning (parallel API path)."""
+    parsed = {}
+    for field_name, db_key, max_val in (
+        ('transcribeMaxChunkSeconds', 'transcribe_max_chunk_seconds', 7200),
+        ('transcribeConcurrentChunks', 'transcribe_concurrent_chunks', 32),
+        ('transcribeChunkOverlapSeconds', 'transcribe_chunk_overlap_seconds', 600),
+    ):
+        if field_name not in data:
+            continue
+        try:
+            value = int(data[field_name])
+        except (TypeError, ValueError):
+            return json_response({'error': f'{field_name} must be a positive integer'}, 400)
+        if value < 1 or value > max_val:
+            return json_response(
+                {'error': f'{field_name} must be between 1 and {max_val}'}, 400
+            )
+        parsed[db_key] = value
+
+    if not parsed:
+        return None
+
+    # Cross-field: overlap must stay below the chunk size. An overlap >= chunk
+    # makes every chunk span its whole neighbor, wasting work and degenerating
+    # the merge dedupe. Validate the effective values (incoming where present,
+    # stored otherwise) so changing one field can't cross the other.
+    def _effective(db_key, fallback):
+        if db_key in parsed:
+            return parsed[db_key]
+        stored = db.get_setting(db_key)
+        try:
+            return int(stored) if stored else fallback
+        except (ValueError, TypeError):
+            return fallback
+
+    if _effective('transcribe_chunk_overlap_seconds', 30) >= _effective('transcribe_max_chunk_seconds', 600):
+        return json_response(
+            {'error': 'transcribeChunkOverlapSeconds must be less than transcribeMaxChunkSeconds'},
+            400,
+        )
+
+    for db_key, value in parsed.items():
+        db.set_setting(db_key, str(value), is_default=False)
+        logger.info(f"Updated {db_key} to: {value}")
     return None
 
 
@@ -1039,6 +1104,9 @@ def reset_ad_detection_settings():
     db.reset_setting('audio_bitrate')
     db.reset_setting('audio_normalize_enabled')
     db.reset_setting('audio_normalize_intensity')
+    db.reset_setting('transcribe_max_chunk_seconds')
+    db.reset_setting('transcribe_concurrent_chunks')
+    db.reset_setting('transcribe_chunk_overlap_seconds')
     db.reset_setting('ad_detection_parallel_windows')
     db.reset_setting('ad_reviewer_parallel_ads')
 

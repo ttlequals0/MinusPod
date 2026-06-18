@@ -551,6 +551,32 @@ export const THEMES: ThemePair[] = [
     },
     accentColor: '#1CE783',
   },
+  {
+    id: 'obsidian',
+    label: 'Obsidian',
+    group: 'Other',
+    light: null,
+    dark: {
+      background: '222 18% 2%',
+      foreground: '210 14% 92%',
+      card: '222 16% 6%',
+      'card-foreground': '210 14% 92%',
+      primary: '188 72% 56%',
+      'primary-foreground': '200 30% 6%',
+      secondary: '222 14% 10%',
+      'secondary-foreground': '210 14% 92%',
+      muted: '222 14% 9%',
+      'muted-foreground': '215 12% 60%',
+      accent: '222 14% 12%',
+      'accent-foreground': '210 16% 96%',
+      destructive: '0 72% 58%',
+      'destructive-foreground': '0 0% 100%',
+      border: '222 12% 16%',
+      input: '222 12% 14%',
+      ring: '188 72% 56%',
+    },
+    accentColor: '#3fc2da',
+  },
 ];
 
 export function getThemeById(id: string): ThemePair | undefined {

@@ -164,7 +164,7 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={handleClose}>
       <div
-        className="w-full max-w-2xl max-h-[80vh] flex flex-col rounded-lg bg-white dark:bg-slate-900 shadow-xl"
+        className="w-full max-w-2xl max-h-[80vh] flex flex-col rounded-lg bg-card text-card-foreground border border-border shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-6 pb-3 border-b border-border">
@@ -358,7 +358,7 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
                     type="button"
                     onClick={downloadSelected}
                     disabled={effectiveSelection.size === 0}
-                    className="px-3 py-1.5 text-sm rounded bg-blue-600 text-white disabled:opacity-50"
+                    className="px-3 py-1.5 text-sm rounded bg-primary text-primary-foreground disabled:opacity-50"
                   >
                     Export {effectiveSelection.size} pattern{effectiveSelection.size === 1 ? '' : 's'}
                   </button>
@@ -367,7 +367,7 @@ function PatternExportDialogImpl({ patterns, onClose }: Omit<Props, 'open'>) {
                     type="button"
                     onClick={runPreview}
                     disabled={effectiveSelection.size === 0 || busy}
-                    className="px-3 py-1.5 text-sm rounded bg-blue-600 text-white disabled:opacity-50"
+                    className="px-3 py-1.5 text-sm rounded bg-primary text-primary-foreground disabled:opacity-50"
                   >
                     {busy ? 'Checking...' : 'Continue'}
                   </button>
@@ -437,7 +437,7 @@ function CommunityPreview({
           type="button"
           onClick={onDownload}
           disabled={ready_count === 0 || busy}
-          className="px-3 py-1.5 text-sm rounded bg-blue-600 text-white disabled:opacity-50"
+          className="px-3 py-1.5 text-sm rounded bg-primary text-primary-foreground disabled:opacity-50"
         >
           {busy ? 'Building bundle...' : `Download bundle (${ready_count})`}
         </button>
@@ -472,7 +472,7 @@ function CommunityDone({ filename, onClose }: { filename: string; onClose: () =>
         <button
           type="button"
           onClick={onClose}
-          className="px-3 py-1.5 text-sm rounded bg-blue-600 text-white"
+          className="px-3 py-1.5 text-sm rounded bg-primary text-primary-foreground"
         >
           Done
         </button>

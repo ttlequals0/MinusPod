@@ -56,11 +56,11 @@ export function PatternImportDialog({ open, onClose, onComplete }: Props) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
       <div
-        className="w-full max-w-md rounded-lg bg-white dark:bg-slate-900 p-6 shadow-xl"
+        className="w-full max-w-md rounded-lg bg-card text-card-foreground border border-border p-6 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 className="text-lg font-semibold mb-3">Import patterns</h2>
-        <p className="text-sm text-slate-500 mb-4">
+        <p className="text-sm text-muted-foreground mb-4">
           Upload a JSON file exported from MinusPod, or a single community-pattern JSON.
         </p>
 
@@ -111,7 +111,7 @@ export function PatternImportDialog({ open, onClose, onComplete }: Props) {
             type="button"
             onClick={handleImport}
             disabled={busy}
-            className="px-3 py-1.5 text-sm rounded bg-blue-600 text-white disabled:opacity-50"
+            className="px-3 py-1.5 text-sm rounded bg-primary text-primary-foreground disabled:opacity-50"
           >
             {busy ? 'Importing…' : 'Import'}
           </button>

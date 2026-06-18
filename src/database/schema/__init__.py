@@ -2708,6 +2708,23 @@ class SchemaMixin:
             ('audio_normalize_intensity', 'normal')
         )
 
+        # Parallel chunked transcription tuning (API backends)
+        conn.execute(
+            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
+               ON CONFLICT(key) DO NOTHING""",
+            ('transcribe_max_chunk_seconds', '600')
+        )
+        conn.execute(
+            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
+               ON CONFLICT(key) DO NOTHING""",
+            ('transcribe_concurrent_chunks', '4')
+        )
+        conn.execute(
+            """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
+               ON CONFLICT(key) DO NOTHING""",
+            ('transcribe_chunk_overlap_seconds', '30')
+        )
+
         # VTT transcripts enabled (Podcasting 2.0)
         conn.execute(
             """INSERT INTO settings (key, value, is_default) VALUES (?, ?, 1)
