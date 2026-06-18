@@ -111,7 +111,7 @@ export function PatternImportDialog({ open, onClose, onComplete }: Props) {
             type="button"
             onClick={handleImport}
             disabled={busy}
-            className="px-3 py-1.5 text-sm rounded bg-blue-600 text-white disabled:opacity-50"
+            className="px-3 py-1.5 text-sm rounded bg-primary text-primary-foreground disabled:opacity-50"
           >
             {busy ? 'Importing…' : 'Import'}
           </button>

@@ -61,30 +61,33 @@
   }
 }
 
-/* Themed scrollbars -- track follows the page background, thumb uses a
-   subtle border-toned grey so it reads on true-black (Pure Black) and every
-   other theme alike. The .no-scrollbar utility still wins where applied. */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: hsl(var(--border)) hsl(var(--background));
-}
-::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-::-webkit-scrollbar-track {
-  background: hsl(var(--background));
-}
-::-webkit-scrollbar-thumb {
-  background-color: hsl(var(--border));
-  border-radius: 6px;
-  border: 2px solid hsl(var(--background));
-}
-::-webkit-scrollbar-thumb:hover {
-  background-color: hsl(var(--muted-foreground));
-}
-::-webkit-scrollbar-corner {
-  background: hsl(var(--background));
+/* Themed scrollbars: track follows the page background, thumb uses a subtle
+   border-toned grey so it reads on the true-black Obsidian theme and every
+   other theme alike. Kept in @layer base so the .no-scrollbar utility (in
+   @layer utilities) still overrides scrollbar-width where applied. */
+@layer base {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) hsl(var(--background));
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: hsl(var(--background));
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--border));
+    border-radius: 6px;
+    border: 2px solid hsl(var(--background));
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: hsl(var(--muted-foreground));
+  }
+  ::-webkit-scrollbar-corner {
+    background: hsl(var(--background));
+  }
 }
 
 /* Visual cue while the App.tsx dwell timer is running. */
