@@ -51,6 +51,7 @@ function CueTemplatesPanel({ slug }: Props) {
   const [verifyState, setVerifyState] = useState<{ label: string; checked: number; matched: number } | null>(null);
   const [verifying, setVerifying] = useState(false);
   const [promoteState, setPromoteState] = useState<{ template: CueTemplate; feeds: Feed[] } | null>(null);
+  const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
   const templatesQuery = useQuery({
     queryKey: ['cue-templates', slug],
@@ -346,13 +347,32 @@ function CueTemplatesPanel({ slug }: Props) {
                     >
                       Rename
                     </button>
-                    <button
-                      type="button"
-                      className="text-xs text-destructive hover:text-destructive/80"
-                      onClick={() => deleteMutation.mutate(t.id)}
-                    >
-                      Delete
-                    </button>
+                    {confirmDeleteId === t.id ? (
+                      <>
+                        <button
+                          type="button"
+                          className="text-xs text-destructive font-medium"
+                          onClick={() => { deleteMutation.mutate(t.id); setConfirmDeleteId(null); }}
+                        >
+                          Confirm
+                        </button>
+                        <button
+                          type="button"
+                          className="text-xs text-muted-foreground hover:text-foreground"
+                          onClick={() => setConfirmDeleteId(null)}
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        className="text-xs text-destructive hover:text-destructive/80"
+                        onClick={() => setConfirmDeleteId(t.id)}
+                      >
+                        Delete
+                      </button>
+                    )}
                   </>
                 )}
               </li>
@@ -423,17 +443,17 @@ interface EpisodePickerProps {
 
 function EpisodePicker({ slug, onClose, onPick }: EpisodePickerProps) {
   useEscape(onClose);
-  const [statusFilter, setStatusFilter] = useState<'all' | 'completed'>('completed');
-  const [onlyWithOriginal, setOnlyWithOriginal] = useState(true);
   const [page, setPage] = useState(0);
 
+  // Cues can only be marked on a processed episode whose original audio is
+  // still retained, so the picker is fixed to that set.
   const query = useQuery({
-    queryKey: ['cue-template-picker', slug, statusFilter, page],
+    queryKey: ['cue-template-picker', slug, page],
     queryFn: () =>
       getEpisodes(slug, {
         limit: PICKER_PAGE_SIZE,
         offset: page * PICKER_PAGE_SIZE,
-        status: statusFilter === 'all' ? undefined : statusFilter,
+        status: 'completed',
         sortBy: 'published',
         sortDir: 'desc',
       }),
@@ -441,9 +461,7 @@ function EpisodePicker({ slug, onClose, onPick }: EpisodePickerProps) {
   });
 
   const allEpisodes = query.data?.episodes ?? [];
-  const episodes = onlyWithOriginal
-    ? allEpisodes.filter((ep) => ep.hasOriginalAudio !== false)
-    : allEpisodes;
+  const episodes = allEpisodes.filter((ep) => ep.hasOriginalAudio !== false);
   const total = query.data?.total ?? 0;
   const totalPages = Math.max(1, Math.ceil(total / PICKER_PAGE_SIZE));
 
@@ -467,25 +485,6 @@ function EpisodePicker({ slug, onClose, onPick }: EpisodePickerProps) {
           <button type="button" className="text-muted-foreground hover:text-foreground" onClick={onClose} aria-label="Close">
             <X size={18} />
           </button>
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3 mb-3 text-sm">
-          <div className="flex items-center gap-2">
-            <label htmlFor="cue-picker-filter">Show:</label>
-            <select
-              id="cue-picker-filter"
-              value={statusFilter}
-              onChange={(e) => { setStatusFilter(e.target.value as 'all' | 'completed'); setPage(0); }}
-              className="px-2 py-1 text-sm bg-secondary border border-border rounded"
-            >
-              <option value="completed">Processed only</option>
-              <option value="all">All episodes</option>
-            </select>
-          </div>
-          <label className="flex items-center gap-2">
-            <input type="checkbox" checked={onlyWithOriginal} onChange={(e) => setOnlyWithOriginal(e.target.checked)} />
-            With original audio only
-          </label>
         </div>
 
         <div className="flex-1 overflow-y-auto border rounded">

@@ -95,6 +95,7 @@ function CueMarkModal({
   const [loudSpotsLoading, setLoudSpotsLoading] = useState(true);
   const resetTick = 0;
 
+  const dialogRef = useRef<HTMLDivElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const waveformRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -115,6 +116,10 @@ function CueMarkModal({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
+
+  // Move focus into the dialog on open so keyboard and screen-reader users land
+  // inside it.
+  useEffect(() => { dialogRef.current?.focus(); }, []);
 
   // Fetch template-free "loud spots" (energy bursts) to mark on the waveform so
   // the user can jump to candidate cue locations.
@@ -389,10 +394,12 @@ function CueMarkModal({
       onClick={onClose}
     >
       <div
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-label="Mark audio cue"
-        className="bg-background text-foreground rounded-lg shadow-xl w-full max-w-4xl p-5 max-h-[92vh] overflow-y-auto"
+        className="bg-background text-foreground rounded-lg shadow-xl w-full max-w-4xl p-5 max-h-[92vh] overflow-y-auto focus:outline-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between mb-3">
@@ -415,8 +422,6 @@ function CueMarkModal({
         <p className="text-sm text-muted-foreground mb-3">
           Drag the green and red pins to bracket the cue sound on the waveform.
           Selection must be {MIN_REGION_SECONDS} to {MAX_REGION_SECONDS} seconds.
-          A cue is matched by its sound alone; if that sound also occurs outside
-          ad breaks, cuts can land in the wrong place.
         </p>
 
         {/* Waveform + pins. Same overlay pattern as AdReviewModal. */}
@@ -642,6 +647,11 @@ function CueMarkModal({
         {error && <p className="text-sm text-destructive mt-3">{error}</p>}
 
         <audio ref={audioRef} src={audioUrl} preload="metadata" />
+
+        <p className="text-xs text-muted-foreground mt-3 border-t border-border pt-3">
+          A transition sample is matched by its sound alone. If that sound also
+          occurs outside ad breaks, cuts can land in the wrong place.
+        </p>
 
         <div className="flex justify-end gap-2 mt-4">
           <button

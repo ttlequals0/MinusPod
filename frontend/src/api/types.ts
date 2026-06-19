@@ -101,7 +101,9 @@ export interface AdSegment {
   confidence: number;
   reason?: string;
   sponsor?: string;
-  detection_stage?: 'first_pass' | 'claude' | 'fingerprint' | 'text_pattern' | 'language' | 'verification' | 'manual';
+  detection_stage?: 'first_pass' | 'claude' | 'fingerprint' | 'text_pattern' | 'language' | 'verification' | 'manual' | 'cue_pair';
+  // Present when an audio cue snapped this ad's start/end edge (#350).
+  cue_snap?: { start?: Record<string, unknown>; end?: Record<string, unknown> };
   validation?: AdValidation;
   // Ad reviewer (issue #197) -- populated only when the reviewer ran on this ad.
   reviewer_verdict?: 'confirmed' | 'adjust' | 'reject' | 'resurrect' | 'failure';

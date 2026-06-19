@@ -5,7 +5,8 @@ export type DetectionStage =
   | 'text_pattern'
   | 'language'
   | 'verification'
-  | 'manual';
+  | 'manual'
+  | 'cue_pair';
 
 export const DETECTION_STAGE_META: Record<DetectionStage, { label: string; className: string }> = {
   first_pass: {
@@ -35,5 +36,9 @@ export const DETECTION_STAGE_META: Record<DetectionStage, { label: string; class
   manual: {
     label: 'Manual',
     className: 'bg-amber-500/20 text-amber-600 dark:text-amber-400',
+  },
+  cue_pair: {
+    label: 'Cue pair',
+    className: 'bg-violet-500/20 text-violet-600 dark:text-violet-400',
   },
 };

@@ -526,6 +526,14 @@ function EpisodeDetail() {
                       {DETECTION_STAGE_META[segment.detection_stage].label}
                     </span>
                   )}
+                  {segment.cue_snap && (
+                    <span
+                      className="px-1.5 py-0.5 text-xs rounded font-medium bg-violet-500/20 text-violet-600 dark:text-violet-400"
+                      title="An audio cue snapped this ad's edge to the chime"
+                    >
+                      Cue snapped
+                    </span>
+                  )}
                   {segment.sponsor && (
                     <span
                       className="px-1.5 py-0.5 text-xs rounded font-medium bg-muted text-muted-foreground"
