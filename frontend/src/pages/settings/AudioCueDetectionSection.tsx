@@ -90,7 +90,7 @@ function AudioCueDetectionSection({ audioCue, onChange }: AudioCueDetectionSecti
             </span>
           </label>
           <p className="mt-2 text-sm text-muted-foreground ml-14">
-            Adds one extra ffmpeg pass per episode to find a recurring non-spoken cue. The cue never marks an ad on its own; the model must still find ad content in the transcript. It only sharpens an ad's start time.
+            Adds one ffmpeg pass per episode to find a recurring non-spoken cue. The cue never marks an ad on its own - it only sharpens the boundary of an ad the model finds in the transcript.
           </p>
         </div>
 
@@ -189,7 +189,7 @@ function AudioCueDetectionSection({ audioCue, onChange }: AudioCueDetectionSecti
                 <span className="text-sm text-muted-foreground">0-0.99</span>
               </div>
               <p className="mt-2 text-sm text-muted-foreground">
-                Cross-correlation score a marked cue template must reach to register on another episode. Lower catches more occurrences but risks false matches. Only applies to feeds that have cue templates; the spectral knobs above are used when a feed has none.
+                Match score a marked cue must reach to register on another episode. Lower catches more but risks false matches. Applies only to feeds with templates; otherwise the spectral knobs above are used.
               </p>
             </div>
 
@@ -223,7 +223,7 @@ function AudioCueDetectionSection({ audioCue, onChange }: AudioCueDetectionSecti
             </span>
           </label>
           <p className="mt-2 text-sm text-muted-foreground ml-14">
-            When the matcher brackets a span with two high-confidence cues (0.85 or above) at a plausible break duration (30 s to 8 min) and the LLM did not detect an ad inside it, synthesize a cue-only ad covering the span. The reviewer still evaluates it. Off by default; this breaks the "cue is supporting evidence only" contract, so leave it off until you trust the matcher on this feed.
+            When two high-confidence cues bracket a break the model missed, create a cue-only ad for the reviewer to check. Off by default - turn it on once you trust the matcher on this feed.
           </p>
         </div>
       </div>

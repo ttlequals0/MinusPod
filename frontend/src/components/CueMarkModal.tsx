@@ -400,7 +400,7 @@ function CueMarkModal({
         role="dialog"
         aria-modal="true"
         aria-label="Mark audio cue"
-        className="bg-background text-foreground rounded-lg shadow-xl w-full max-w-4xl p-5 max-h-[92vh] overflow-y-auto focus:outline-hidden"
+        className="bg-background text-foreground rounded-lg shadow-xl w-full max-w-4xl p-4 sm:p-5 max-h-[92vh] overflow-y-auto focus:outline-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between mb-3">
@@ -421,12 +421,11 @@ function CueMarkModal({
         </div>
 
         <p className="text-sm text-muted-foreground mb-3">
-          Drag the green and red pins to bracket the cue sound on the waveform.
-          Selection must be {MIN_REGION_SECONDS} to {MAX_REGION_SECONDS} seconds.
+          Drag the pins to bracket the cue ({MIN_REGION_SECONDS}-{MAX_REGION_SECONDS}s).
         </p>
 
         {/* Waveform + pins. Same overlay pattern as AdReviewModal. */}
-        <div ref={scrollRef} className="overflow-x-auto border rounded bg-muted/30">
+        <div ref={scrollRef} className="overflow-x-auto border rounded bg-muted/30 min-h-[140px]">
           <div ref={overlayRef} className="relative">
             <div ref={waveformRef} />
             {/* Amber playhead -- same visual language as the ad editor cursor so
@@ -501,11 +500,11 @@ function CueMarkModal({
           <p className="text-xs text-muted-foreground mt-1">Scanning for loud spots...</p>
         ) : loudSpots.length > 0 ? (
           <p className="text-xs text-muted-foreground mt-1">
-            {loudSpots.length} loud spot{loudSpots.length === 1 ? '' : 's'} marked (violet ticks); click one to jump to a candidate cue.
+            {loudSpots.length} loud spot{loudSpots.length === 1 ? '' : 's'} (violet ticks) - tap one to jump.
           </p>
         ) : null}
 
-        {/* Controls row: play / playback rate / zoom / set-at-playhead. */}
+        {/* Playback + zoom + snap. Wraps cleanly on a phone. */}
         <div className="flex flex-wrap items-center gap-2 mt-3">
           <button type="button" className={`${ctrlBtn} flex items-center gap-1`} onClick={togglePlay}>
             {isPlaying ? <Pause size={14} /> : <Play size={14} />}
@@ -524,7 +523,7 @@ function CueMarkModal({
               <option key={r} value={r}>{r}x</option>
             ))}
           </select>
-          <div className="flex items-center gap-1 ml-2">
+          <div className="flex items-center gap-1 sm:ml-2">
             <button
               type="button"
               className="p-1.5 rounded border border-input hover:bg-muted"
@@ -553,20 +552,6 @@ function CueMarkModal({
               <ZoomIn size={14} />
             </button>
           </div>
-          <button
-            type="button"
-            className="px-2 py-1.5 rounded border border-emerald-500 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10 text-sm"
-            onClick={setStartAtPlayhead}
-          >
-            Set START at playhead
-          </button>
-          <button
-            type="button"
-            className="px-2 py-1.5 rounded border border-rose-500 text-rose-700 dark:text-rose-400 hover:bg-rose-500/10 text-sm"
-            onClick={setEndAtPlayhead}
-          >
-            Set END at playhead
-          </button>
           <label className="flex items-center gap-1.5 text-xs text-muted-foreground ml-1">
             <input
               type="checkbox"
@@ -575,9 +560,27 @@ function CueMarkModal({
             />
             Snap to onset
           </label>
-          <span className="text-xs text-muted-foreground ml-auto font-mono">
+          <span className="text-xs text-muted-foreground w-full sm:w-auto sm:ml-auto font-mono">
             playhead {formatTime(playheadTime)} - {peakResolutionMs}ms/peak
           </span>
+        </div>
+
+        {/* Set-edge buttons: full-width pair on a phone, natural size on desktop. */}
+        <div className="flex gap-2 mt-2">
+          <button
+            type="button"
+            className="flex-1 sm:flex-none px-2 py-1.5 rounded border border-emerald-500 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10 text-sm whitespace-nowrap"
+            onClick={setStartAtPlayhead}
+          >
+            Set START at playhead
+          </button>
+          <button
+            type="button"
+            className="flex-1 sm:flex-none px-2 py-1.5 rounded border border-rose-500 text-rose-700 dark:text-rose-400 hover:bg-rose-500/10 text-sm whitespace-nowrap"
+            onClick={setEndAtPlayhead}
+          >
+            Set END at playhead
+          </button>
         </div>
 
         {/* Time inputs + duration + label. */}
@@ -651,11 +654,10 @@ function CueMarkModal({
         <audio ref={audioRef} src={audioUrl} preload="metadata" />
 
         <p className="text-xs text-muted-foreground mt-3 border-t border-border pt-3">
-          A transition sample is matched by its sound alone. If that sound also
-          occurs outside ad breaks, cuts can land in the wrong place.
+          Matched by sound alone - if it also plays outside ad breaks, cuts can land wrong.
         </p>
 
-        <div className="flex justify-end gap-2 mt-4">
+        <div className="flex flex-col sm:flex-row sm:justify-end gap-2 mt-4">
           <button
             type="button"
             className={ctrlBtn}

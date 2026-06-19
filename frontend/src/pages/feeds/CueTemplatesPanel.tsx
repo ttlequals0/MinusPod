@@ -212,62 +212,56 @@ function CueTemplatesPanel({ slug }: Props) {
     <div className="mb-6">
       <CollapsibleSection
         title="Audio Cue Templates"
-        subtitle="User-marked ding/stinger samples. When at least one is enabled the matcher snaps ad edges to these cues."
+        subtitle="A recurring ding or stinger the matcher snaps ad edges to."
         defaultOpen={false}
         storageKey={`feed-cue-templates-${slug}`}
       >
-        <div className="flex items-center justify-between mb-3 gap-3">
-          <p className="text-sm text-muted-foreground">
-            Mark a short non-spoken cue (chime, stinger) from one episode and the
-            matcher finds it on every other episode. Per-feed only.
-          </p>
-          <div className="flex items-center gap-2 shrink-0">
-            <input
-              ref={importInputRef}
-              type="file"
-              accept=".zip,application/zip"
-              className="hidden"
-              onChange={handleImportFile}
-            />
-            <button
-              type="button"
-              className="px-3 py-1.5 rounded border border-input hover:bg-muted text-sm"
-              onClick={() => importInputRef.current?.click()}
-              disabled={importMutation.isPending}
-              title="Import a cue template zip exported from another install"
-            >
-              {importMutation.isPending ? 'Importing...' : 'Import'}
-            </button>
-            <button
-              type="button"
-              className="px-3 py-1.5 rounded border border-input hover:bg-muted text-sm"
-              onClick={() => setScanOpen(true)}
-              disabled={templates.length === 0}
-              title={templates.length === 0 ? 'Mark at least one cue first' : 'Run all enabled templates against an episode'}
-            >
-              Test on episode
-            </button>
-            <button
-              type="button"
-              className="px-3 py-1.5 rounded bg-primary text-primary-foreground hover:opacity-90 text-sm"
-              onClick={() => { setActionError(null); setPickerOpen(true); }}
-            >
-              + Mark cue
-            </button>
-          </div>
+        <input
+          ref={importInputRef}
+          type="file"
+          accept=".zip,application/zip"
+          className="hidden"
+          onChange={handleImportFile}
+        />
+        <div className="flex flex-wrap gap-2 mb-3">
+          <button
+            type="button"
+            className="flex-1 sm:flex-none basis-0 sm:basis-auto whitespace-nowrap px-3 py-1.5 rounded border border-input hover:bg-muted text-sm"
+            onClick={() => importInputRef.current?.click()}
+            disabled={importMutation.isPending}
+            title="Import a cue template zip exported from another install"
+          >
+            {importMutation.isPending ? 'Importing...' : 'Import'}
+          </button>
+          <button
+            type="button"
+            className="flex-1 sm:flex-none basis-0 sm:basis-auto whitespace-nowrap px-3 py-1.5 rounded border border-input hover:bg-muted text-sm disabled:opacity-50"
+            onClick={() => setScanOpen(true)}
+            disabled={templates.length === 0}
+            title={templates.length === 0 ? 'Mark at least one cue first' : 'Run all enabled templates against an episode'}
+          >
+            Test on episode
+          </button>
+          <button
+            type="button"
+            className="flex-1 sm:flex-none basis-0 sm:basis-auto whitespace-nowrap px-3 py-1.5 rounded bg-primary text-primary-foreground hover:opacity-90 text-sm"
+            onClick={() => { setActionError(null); setPickerOpen(true); }}
+          >
+            + Mark cue
+          </button>
         </div>
 
         {actionError && <p className="text-sm text-destructive mb-2">{actionError}</p>}
         {verifying && (
           <p className="text-sm text-muted-foreground mb-2 flex items-center gap-2">
-            <LoadingSpinner size="sm" inline /> Checking the new cue against recent episodes...
+            <LoadingSpinner size="sm" inline /> Checking recent episodes...
           </p>
         )}
         {verifyState && !verifying && (
           <p className={`text-sm mb-2 ${verifyState.matched > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
-            Cue "{verifyState.label}" matched {verifyState.matched} of {verifyState.checked} other recent
+            Cue "{verifyState.label}" matched {verifyState.matched} of {verifyState.checked} recent
             episode{verifyState.checked === 1 ? '' : 's'}.
-            {verifyState.matched === 0 ? ' It may not recur or the bracket may be loose; test it on an episode where you know it plays.' : ''}
+            {verifyState.matched === 0 ? ' No matches yet - it may not recur, or the bracket is loose.' : ''}
           </p>
         )}
         {templatesQuery.isLoading && <LoadingSpinner size="sm" className="my-2" />}
@@ -277,21 +271,22 @@ function CueTemplatesPanel({ slug }: Props) {
 
         {!templatesQuery.isLoading && templates.length === 0 && (
           <p className="text-sm text-muted-foreground">
-            No cue templates yet. Mark one from a recent episode to start.
+            No cues yet. Mark one to start.
           </p>
         )}
 
         {templates.length > 0 && (
           <ul className="divide-y divide-border border rounded">
             {templates.map((t) => (
-              <li key={t.id} className="flex items-center gap-3 px-3 py-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={t.enabled}
-                  onChange={() => handleToggle(t)}
-                  aria-label={`Enable cue ${t.label}`}
-                />
-                <div className="flex-1 min-w-0">
+              <li key={t.id} className="flex flex-col gap-2 px-3 py-2 text-sm sm:flex-row sm:items-center sm:gap-3">
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <input
+                    type="checkbox"
+                    checked={t.enabled}
+                    onChange={() => handleToggle(t)}
+                    aria-label={`Enable cue ${t.label}`}
+                  />
+                  <div className="flex-1 min-w-0">
                   {editingId === t.id ? (
                     <select
                       autoFocus
@@ -328,9 +323,10 @@ function CueTemplatesPanel({ slug }: Props) {
                       </p>
                     </>
                   )}
+                  </div>
                 </div>
                 {editingId !== t.id && (
-                  <>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 pl-7 sm:pl-0 sm:shrink-0">
                     <a
                       className="text-xs text-muted-foreground hover:text-foreground"
                       href={cueTemplateExportUrl(t.id)}
@@ -385,7 +381,7 @@ function CueTemplatesPanel({ slug }: Props) {
                         Delete
                       </button>
                     )}
-                  </>
+                  </div>
                 )}
               </li>
             ))}
@@ -490,8 +486,7 @@ function EpisodePicker({ slug, onClose, onPick }: EpisodePickerProps) {
           <div>
             <h3 className="text-base font-semibold">Pick an episode</h3>
             <p className="text-xs text-muted-foreground">
-              Choose any episode that still has its original audio retained. Cues
-              from any episode apply to the whole feed.
+              Any episode with retained original audio. A cue applies to the whole feed.
             </p>
           </div>
           <button type="button" className="text-muted-foreground hover:text-foreground" onClick={onClose} aria-label="Close">
