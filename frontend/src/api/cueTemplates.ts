@@ -140,3 +140,25 @@ export async function scanEpisodeCues(
     { method: 'POST', body },
   );
 }
+
+export interface LoudSpot {
+  start: number;
+  end: number;
+  prominenceDb: number | null;
+}
+
+export interface LoudSpotsResponse {
+  episodeId: string;
+  loudSpots: LoudSpot[];
+}
+
+// Template-free energy pass over an episode: candidate "loud spots" to help
+// locate a cue to bracket in the capture waveform.
+export async function getEpisodeLoudSpots(
+  slug: string,
+  episodeId: string,
+): Promise<LoudSpotsResponse> {
+  return apiRequest<LoudSpotsResponse>(
+    `/feeds/${slug}/episodes/${episodeId}/cue-loud-spots`,
+  );
+}

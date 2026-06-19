@@ -30,9 +30,16 @@ from audio_analysis.cue_features import (
 from audio_analysis.cue_template_matcher import (
     AudioCueTemplateMatcher, DEFAULT_MATCH_SCORE,
 )
-from config import AUDIO_CUE_CAPTURE_MIN_SECONDS, AUDIO_CUE_CAPTURE_MAX_SECONDS
+from audio_analysis.cue_detector import AudioCueDetector
+from config import (
+    AUDIO_CUE_CAPTURE_MIN_SECONDS, AUDIO_CUE_CAPTURE_MAX_SECONDS,
+    AUDIO_CUE_FREQ_MIN_HZ, AUDIO_CUE_FREQ_MAX_HZ, AUDIO_CUE_PROMINENCE_DB,
+)
 from utils.validation import is_valid_episode_id
 from version import __version__
+
+# Cap on loud-spot markers returned to the capture UI.
+MAX_LOUD_SPOTS = 200
 
 logger = logging.getLogger('podcast.api.cue_templates')
 
@@ -486,3 +493,47 @@ def import_cue_template(slug):
     logger.info(f"Cue template imported: id={template_id} feed={slug} label={label!r}")
     row = db.get_cue_template(template_id)
     return json_response({'template': _template_to_meta_dict(row)}, status=201)
+
+
+@api.route('/feeds/<slug>/episodes/<episode_id>/cue-loud-spots', methods=['GET'])
+@log_request
+def episode_loud_spots(slug, episode_id):
+    """Template-free energy pass over an episode's original audio for the capture
+    UI. Returns candidate "loud spots" (band-passed bursts) as jump-to markers
+    so the user can find a cue to bracket. These are NOT detected cues -- before
+    a template there is nothing to match against -- just loud spots to hunt in.
+    """
+    if not is_valid_episode_id(episode_id):
+        abort(400)
+    db = get_database()
+    storage = get_storage()
+    podcast = db.get_podcast_by_slug(slug)
+    if not podcast:
+        return error_response('feed not found', 404)
+    audio_path, err = _resolve_original_audio(db, storage, slug, episode_id)
+    if err:
+        return err
+
+    detector = AudioCueDetector(
+        freq_min_hz=db.get_setting_float('audio_cue_freq_min_hz', AUDIO_CUE_FREQ_MIN_HZ),
+        freq_max_hz=db.get_setting_float('audio_cue_freq_max_hz', AUDIO_CUE_FREQ_MAX_HZ),
+        prominence_db=db.get_setting_float('audio_cue_prominence_db', AUDIO_CUE_PROMINENCE_DB),
+        min_confidence=0.0,  # surface every burst, not just high-confidence ones
+    )
+    try:
+        signals = detector.detect(str(audio_path))
+    except Exception as e:
+        return error_response(f'loud-spot scan failed: {e}', 500)
+
+    signals = sorted(signals, key=lambda s: s.start)[:MAX_LOUD_SPOTS]
+    return json_response({
+        'episodeId': episode_id,
+        'loudSpots': [
+            {
+                'start': s.start,
+                'end': s.end,
+                'prominenceDb': (s.details or {}).get('prominence_db'),
+            }
+            for s in signals
+        ],
+    })

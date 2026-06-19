@@ -12,9 +12,11 @@ import {
 import {
   createCueTemplate,
   deleteCueTemplate,
+  getEpisodeLoudSpots,
   previewCueTemplate,
   type CueTemplate,
   type CueTemplateMatch,
+  type LoudSpot,
 } from '../api/cueTemplates';
 
 // Cue template marking modal. Mirrors the AdReviewModal layout: a wavesurfer
@@ -89,6 +91,8 @@ function CueMarkModal({
   const [previewing, setPreviewing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [previewMatches, setPreviewMatches] = useState<CueTemplateMatch[] | null>(null);
+  const [loudSpots, setLoudSpots] = useState<LoudSpot[]>([]);
+  const [loudSpotsLoading, setLoudSpotsLoading] = useState(true);
   const resetTick = 0;
 
   const overlayRef = useRef<HTMLDivElement>(null);
@@ -111,6 +115,22 @@ function CueMarkModal({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
+
+  // Fetch template-free "loud spots" (energy bursts) to mark on the waveform so
+  // the user can jump to candidate cue locations.
+  useEffect(() => {
+    let cancelled = false;
+    getEpisodeLoudSpots(podcastSlug, episodeId)
+      .then((res) => { if (!cancelled) setLoudSpots(res.loudSpots); })
+      .catch(() => { if (!cancelled) setLoudSpots([]); })
+      .finally(() => { if (!cancelled) setLoudSpotsLoading(false); });
+    return () => { cancelled = true; };
+  }, [podcastSlug, episodeId]);
+
+  const seekTo = useCallback((t: number) => {
+    const audio = audioRef.current;
+    if (audio) audio.currentTime = Math.max(0, t);
+  }, []);
 
   // Snap a candidate boundary to the nearest onset when the assist is on,
   // then clamp so the region stays inside [MIN, MAX] and ordered.
@@ -417,6 +437,25 @@ function CueMarkModal({
               </div>
               <div className="absolute top-[20px] bottom-0 left-1/2 -translate-x-1/2 w-0.5 bg-amber-500 shadow-[0_0_4px_rgba(245,158,11,0.8)]" />
             </div>
+            {/* Loud-spot jump markers: template-free energy bursts to hunt the
+                cue in. Click to seek; thin so they sit under the boundary pins. */}
+            {loudSpots.map((spot, i) => {
+              const rel = (spot.start - windowStart) / windowDuration;
+              if (rel < 0 || rel > 1) return null;
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => seekTo(spot.start)}
+                  title={`Loud spot at ${formatTime(spot.start)}${spot.prominenceDb != null ? ` (+${spot.prominenceDb} dB)` : ''} - click to jump`}
+                  aria-label={`Jump to loud spot at ${formatTime(spot.start)}`}
+                  className="absolute top-0 -translate-x-1/2 z-[5] h-3.5 w-3 cursor-pointer"
+                  style={{ left: `${rel * 100}%` }}
+                >
+                  <span className="block mx-auto h-3.5 w-0.5 bg-violet-500/80 hover:bg-violet-500" />
+                </button>
+              );
+            })}
             {/* Pins. */}
             {peaks && (
               <>
@@ -452,6 +491,13 @@ function CueMarkModal({
             Could not load waveform: {peaksError}
           </p>
         )}
+        {loudSpotsLoading ? (
+          <p className="text-xs text-muted-foreground mt-1">Scanning for loud spots...</p>
+        ) : loudSpots.length > 0 ? (
+          <p className="text-xs text-muted-foreground mt-1">
+            {loudSpots.length} loud spot{loudSpots.length === 1 ? '' : 's'} marked (violet ticks); click one to jump to a candidate cue.
+          </p>
+        ) : null}
 
         {/* Controls row: play / playback rate / zoom / set-at-playhead. */}
         <div className="flex flex-wrap items-center gap-2 mt-3">
