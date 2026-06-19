@@ -13,6 +13,7 @@ import { FeedTagsEditor } from '../components/FeedTagsEditor';
 import { feedDisplayTitle } from '../utils/feedTitle';
 import FeedSettingsPanel from './feeds/FeedSettingsPanel';
 import PodcastAdDistributionPanel from './feeds/PodcastAdDistributionPanel';
+import CueTemplatesPanel from './feeds/CueTemplatesPanel';
 import { formatStorage } from './settings/settingsUtils';
 import { stripHtml } from '../utils/stripHtml';
 
@@ -340,6 +341,8 @@ function FeedDetail() {
       {slug && <FeedTagsEditor slug={slug} />}
 
       {slug && <PodcastAdDistributionPanel slug={slug} />}
+
+      {slug && <CueTemplatesPanel slug={slug} />}
 
       {/* Episodes header with status filter */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-4">

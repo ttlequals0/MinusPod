@@ -5,10 +5,9 @@ import { formatTime } from '../../utils/adReviewHelpers';
 // corresponding ad boundary. Pins ARE the user's drag interface -- the
 // wavesurfer region is decorative (drag/resize disabled on it).
 
-// Keep in sync with the constant in AdReviewModal. Duplicating one
-// number here avoids a circular import for what's effectively a pin
-// presentation constant.
-const MIN_AD_DURATION = 1.0;
+// Default min separation between the two pins. CueMarkModal overrides to
+// 0.2s for short stingers; the ad editor leaves it at the 1.0s ad floor.
+const DEFAULT_MIN_SEPARATION = 1.0;
 
 export interface PinProps {
   kind: 'start' | 'end';
@@ -22,11 +21,13 @@ export interface PinProps {
   onDragStart?: () => void;
   onDragEnd?: () => void;
   otherBoundary: number;        // for min-separation clamp
+  minSeparation?: number;       // override the default 1.0s floor
 }
 
 export function Pin({
   kind, boundary, windowStart, windowDuration, containerRef,
   onChange, onDragMove, onDragStart, onDragEnd, otherBoundary,
+  minSeparation = DEFAULT_MIN_SEPARATION,
 }: PinProps) {
   const [dragging, setDragging] = useState(false);
 
@@ -60,8 +61,8 @@ export function Pin({
       const clampedPct = Math.max(0, Math.min(1, xPct));
       const t = windowStart + clampedPct * windowDuration;
       // Min-separation: never let start cross end (and vice-versa).
-      if (isStart) return Math.min(t, otherBoundary - MIN_AD_DURATION);
-      return Math.max(t, otherBoundary + MIN_AD_DURATION);
+      if (isStart) return Math.min(t, otherBoundary - minSeparation);
+      return Math.max(t, otherBoundary + minSeparation);
     };
 
     const handleMove = (ev: PointerEvent) => {

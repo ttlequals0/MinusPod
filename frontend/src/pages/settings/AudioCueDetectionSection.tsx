@@ -8,6 +8,8 @@ export interface AudioCueState {
   freqMaxHz: number;
   prominenceDb: number;
   minConfidence: number;
+  templateScore: number;
+  createFromPairs: boolean;
 }
 
 interface AudioCueDetectionSectionProps {
@@ -15,7 +17,7 @@ interface AudioCueDetectionSectionProps {
   onChange: (next: AudioCueState) => void;
 }
 
-type NumericKey = 'freqMinHz' | 'freqMaxHz' | 'prominenceDb' | 'minConfidence';
+type NumericKey = 'freqMinHz' | 'freqMaxHz' | 'prominenceDb' | 'minConfidence' | 'templateScore';
 
 const inputClass =
   'w-28 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground ' +
@@ -135,8 +137,46 @@ function AudioCueDetectionSection({ audioCue, onChange }: AudioCueDetectionSecti
                 Drop cues weaker than this. The model is never shown a cue below 0.80 confidence regardless of this value.
               </p>
             </div>
+
+            <div>
+              <label htmlFor="audioCueTemplateScore" className="block text-sm font-medium text-foreground mb-2">
+                Template match score
+              </label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="number"
+                  id="audioCueTemplateScore"
+                  value={audioCue.templateScore}
+                  onChange={(e) => numUpdate('templateScore', e.target.value, 0, 0.99, 0.75, parseFloat)}
+                  min={0}
+                  max={0.99}
+                  step={0.05}
+                  className="w-24 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
+                />
+                <span className="text-sm text-muted-foreground">0-0.99</span>
+              </div>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Cross-correlation score a marked cue template must reach to register on another episode. Lower catches more occurrences but risks false matches. Only applies to feeds that have cue templates; the spectral knobs above are used when a feed has none.
+              </p>
+            </div>
           </div>
         )}
+
+        <div className="border-t border-border pt-4">
+          <label className="flex items-center gap-3 cursor-pointer">
+            <ToggleSwitch
+              checked={audioCue.createFromPairs}
+              onChange={(v) => update('createFromPairs', v)}
+              ariaLabel="Create ads from cue pairs"
+            />
+            <span className="text-sm font-medium text-foreground">
+              Create ads from cue pairs when the LLM misses a break
+            </span>
+          </label>
+          <p className="mt-2 text-sm text-muted-foreground ml-14">
+            When the matcher brackets a span with two high-confidence cues (0.85 or above) at a plausible break duration (30 s to 8 min) and the LLM did not detect an ad inside it, synthesize a cue-only ad covering the span. The reviewer still evaluates it. Off by default; this breaks the "cue is supporting evidence only" contract, so leave it off until you trust the matcher on this feed.
+          </p>
+        </div>
       </div>
     </CollapsibleSection>
   );
