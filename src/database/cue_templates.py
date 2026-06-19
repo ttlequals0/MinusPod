@@ -165,3 +165,20 @@ class CueTemplateMixin:
         )
         conn.commit()
         return cursor.rowcount > 0
+
+    def promote_cue_template(
+        self, template_id: int, scope: str, network_id: Optional[str] = None,
+    ) -> bool:
+        """Set a template's scope (podcast or network) and network_id.
+
+        Promoting to 'network' makes the cue apply to every feed sharing
+        network_id; demoting to 'podcast' clears network_id. Returns True if a
+        row was updated.
+        """
+        conn = self.get_connection()
+        cursor = conn.execute(
+            "UPDATE audio_cue_templates SET scope = ?, network_id = ? WHERE id = ?",
+            (scope, network_id if scope == 'network' else None, template_id),
+        )
+        conn.commit()
+        return cursor.rowcount > 0

@@ -1,4 +1,4 @@
-import { apiRequest } from './client';
+import { apiRequest, csrfHeaders, extractErrorMessage } from './client';
 
 export type CueTemplateScope = 'podcast' | 'network';
 
@@ -61,12 +61,36 @@ export async function createCueTemplate(
 
 export async function updateCueTemplate(
   templateId: number,
-  patch: { label?: string; enabled?: boolean },
+  patch: { label?: string; enabled?: boolean; scope?: CueTemplateScope; networkId?: string },
 ): Promise<CueTemplate> {
   const res = await apiRequest<{ template: CueTemplate }>(
     `/cue-templates/${templateId}`,
     { method: 'PATCH', body: patch },
   );
+  return res.template;
+}
+
+// Direct URL for the export zip; an <a download> hits it with the session
+// cookie (GET needs no CSRF).
+export function cueTemplateExportUrl(templateId: number): string {
+  return `/api/v1/cue-templates/${templateId}/export`;
+}
+
+export async function importCueTemplate(slug: string, file: File): Promise<CueTemplate> {
+  const formData = new FormData();
+  formData.append('file', file);
+  // Raw fetch: apiRequest would JSON.stringify the FormData. CSRF header still
+  // required for the server-side double-submit check.
+  const response = await fetch(`/api/v1/feeds/${slug}/cue-templates/import`, {
+    method: 'POST',
+    body: formData,
+    headers: csrfHeaders('POST'),
+  });
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({ error: 'Import failed' }));
+    throw new Error(extractErrorMessage(data, response.status));
+  }
+  const res = (await response.json()) as { template: CueTemplate };
   return res.template;
 }
 

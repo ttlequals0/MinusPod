@@ -1,18 +1,21 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { X } from 'lucide-react';
 import CollapsibleSection from '../../components/CollapsibleSection';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import CueMarkModal from '../../components/CueMarkModal';
 import {
+  cueTemplateExportUrl,
   deleteCueTemplate,
+  importCueTemplate,
   listCueTemplates,
   scanEpisodeCues,
   updateCueTemplate,
   type CueScanResponse,
   type CueTemplate,
+  type CueTemplateScope,
 } from '../../api/cueTemplates';
-import { getEpisode, getEpisodes } from '../../api/feeds';
+import { getEpisode, getEpisodes, getFeed } from '../../api/feeds';
 import type { Episode } from '../../api/types';
 import { formatTime } from '../../utils/adReviewHelpers';
 
@@ -41,6 +44,7 @@ function CueTemplatesPanel({ slug }: Props) {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editValue, setEditValue] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   const templatesQuery = useQuery({
     queryKey: ['cue-templates', slug],
@@ -48,10 +52,18 @@ function CueTemplatesPanel({ slug }: Props) {
     enabled: !!slug,
   });
 
+  // The feed's network id gates the "promote to network" action.
+  const feedQuery = useQuery({
+    queryKey: ['feed', slug],
+    queryFn: () => getFeed(slug),
+    enabled: !!slug,
+  });
+  const networkId = feedQuery.data?.networkIdOverride || feedQuery.data?.networkId || null;
+
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['cue-templates', slug] });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, patch }: { id: number; patch: { label?: string; enabled?: boolean } }) =>
+    mutationFn: ({ id, patch }: { id: number; patch: { label?: string; enabled?: boolean; scope?: CueTemplateScope; networkId?: string } }) =>
       updateCueTemplate(id, patch),
     onSuccess: invalidate,
     onError: (e) => setActionError(e instanceof Error ? e.message : 'Update failed'),
@@ -85,6 +97,29 @@ function CueTemplatesPanel({ slug }: Props) {
     if (next && next !== template.label) {
       updateMutation.mutate({ id: template.id, patch: { label: next } });
     }
+  };
+
+  const handlePromote = (template: CueTemplate) => {
+    setActionError(null);
+    if (template.scope === 'network') {
+      updateMutation.mutate({ id: template.id, patch: { scope: 'podcast' } });
+    } else if (networkId) {
+      updateMutation.mutate({ id: template.id, patch: { scope: 'network', networkId } });
+    }
+  };
+
+  const importMutation = useMutation({
+    mutationFn: (file: File) => importCueTemplate(slug, file),
+    onSuccess: invalidate,
+    onError: (e) => setActionError(e instanceof Error ? e.message : 'Import failed'),
+  });
+
+  const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setActionError(null);
+    importMutation.mutate(file);
   };
 
   const handlePickEpisode = async (ep: Episode) => {
@@ -121,6 +156,22 @@ function CueTemplatesPanel({ slug }: Props) {
             matcher finds it on every other episode. Per-feed only.
           </p>
           <div className="flex items-center gap-2 shrink-0">
+            <input
+              ref={importInputRef}
+              type="file"
+              accept=".zip,application/zip"
+              className="hidden"
+              onChange={handleImportFile}
+            />
+            <button
+              type="button"
+              className="px-3 py-1.5 rounded border border-input hover:bg-muted text-sm"
+              onClick={() => importInputRef.current?.click()}
+              disabled={importMutation.isPending}
+              title="Import a cue template zip exported from another install"
+            >
+              {importMutation.isPending ? 'Importing...' : 'Import'}
+            </button>
             <button
               type="button"
               className="px-3 py-1.5 rounded border border-input hover:bg-muted text-sm"
@@ -197,6 +248,27 @@ function CueTemplatesPanel({ slug }: Props) {
                 </div>
                 {editingId !== t.id && (
                   <>
+                    <a
+                      className="text-xs text-muted-foreground hover:text-foreground"
+                      href={cueTemplateExportUrl(t.id)}
+                      title="Download this cue as a portable zip"
+                    >
+                      Export
+                    </a>
+                    {(t.scope === 'network' || networkId) && (
+                      <button
+                        type="button"
+                        className="text-xs text-muted-foreground hover:text-foreground"
+                        onClick={() => handlePromote(t)}
+                        title={
+                          t.scope === 'network'
+                            ? 'Limit this cue to this feed only'
+                            : `Apply this cue to every feed on network "${networkId}"`
+                        }
+                      >
+                        {t.scope === 'network' ? 'Make podcast-only' : 'Promote to network'}
+                      </button>
+                    )}
                     <button
                       type="button"
                       className="text-xs text-muted-foreground hover:text-foreground"

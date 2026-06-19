@@ -11,9 +11,13 @@ Routes mounted under the ``/api/v1`` blueprint:
 - ``POST   /feeds/<slug>/episodes/<episode_id>/cue-template-preview``
                                                    - run one template
 """
+import io
+import json
 import logging
+import wave
+import zipfile
 
-from flask import abort, request
+from flask import abort, request, send_file
 
 from api import (
     api, log_request, json_response, error_response,
@@ -21,14 +25,24 @@ from api import (
 )
 from audio_analysis.cue_features import (
     SAMPLE_RATE_HZ, N_COEFFS, compute_mfcc, decode_pcm_window,
-    serialize_mfcc, pcm_to_int16_bytes,
+    serialize_mfcc, pcm_to_int16_bytes, int16_bytes_to_pcm,
 )
 from audio_analysis.cue_template_matcher import (
     AudioCueTemplateMatcher, DEFAULT_MATCH_SCORE,
 )
 from utils.validation import is_valid_episode_id
+from version import __version__
 
 logger = logging.getLogger('podcast.api.cue_templates')
+
+# Template export/import envelope schema version. Bumped only on a breaking
+# change to the zip layout or manifest fields; for now import just checks the
+# field is present and parses (no migration / gating).
+CUE_TEMPLATE_SCHEMA_VERSION = 1
+# Hard cap on the decompressed WAV pulled from an imported zip. A 4 s 16 kHz
+# mono int16 cue is ~128 KB; 5 MB is generous headroom and a zip-bomb guard on
+# top of the app-wide 10 MB request limit.
+MAX_IMPORT_WAV_BYTES = 5 * 1024 * 1024
 
 
 def _resolve_original_audio(db, storage, slug, episode_id):
@@ -174,6 +188,19 @@ def update_cue_template_route(template_id):
     if enabled is not None and not isinstance(enabled, bool):
         return error_response('enabled must be true or false', 400)
     db.update_cue_template(template_id, label=new_label, enabled=enabled)
+
+    # Optional scope change (podcast <-> network promotion).
+    if 'scope' in payload:
+        scope = payload.get('scope')
+        if scope not in ('podcast', 'network'):
+            return error_response("scope must be 'podcast' or 'network'", 400)
+        network_id = None
+        if scope == 'network':
+            network_id = (payload.get('networkId') or '').strip()
+            if not network_id:
+                return error_response('networkId is required to promote to network scope', 400)
+        db.promote_cue_template(template_id, scope, network_id)
+
     row = db.get_cue_template(template_id)
     return json_response({'template': _template_to_meta_dict(row)})
 
@@ -326,3 +353,126 @@ def preview_cue_template(slug, episode_id):
             for s in signals
         ],
     })
+
+
+@api.route('/cue-templates/<int:template_id>/export', methods=['GET'])
+@log_request
+def export_cue_template(template_id):
+    """Export a template as a zip: a lossless WAV of the captured cue plus a
+    JSON manifest. Round-trips between a user's own or trusted installs.
+    """
+    db = get_database()
+    row = db.get_cue_template(template_id)
+    if not row:
+        return error_response('template not found', 404)
+    pcm_blob = row.get('pcm_blob')
+    if not pcm_blob:
+        return error_response(
+            'this template has no raw audio to export (created before raw-PCM storage)',
+            422,
+        )
+    sample_rate = int(row.get('pcm_sample_rate') or SAMPLE_RATE_HZ)
+
+    wav_buf = io.BytesIO()
+    with wave.open(wav_buf, 'wb') as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(sample_rate)
+        wf.writeframes(bytes(pcm_blob))
+
+    manifest = {
+        'schemaVersion': CUE_TEMPLATE_SCHEMA_VERSION,
+        'appVersion': __version__,
+        'label': row['label'],
+        'durationS': row['duration_s'],
+        'sampleRate': sample_rate,
+        'nCoeffs': row['n_coeffs'],
+        'sourceOffsetS': row['source_offset_s'],
+    }
+    zip_buf = io.BytesIO()
+    with zipfile.ZipFile(zip_buf, 'w', zipfile.ZIP_DEFLATED) as z:
+        z.writestr('cue.wav', wav_buf.getvalue())
+        z.writestr('template.json', json.dumps(manifest, indent=2))
+    zip_buf.seek(0)
+
+    safe_label = ''.join(c if c.isalnum() else '-' for c in row['label'])[:40] or 'cue'
+    return send_file(
+        zip_buf,
+        mimetype='application/zip',
+        as_attachment=True,
+        download_name=f'cue-{template_id}-{safe_label}.zip',
+    )
+
+
+@api.route('/feeds/<slug>/cue-templates/import', methods=['POST'])
+@log_request
+def import_cue_template(slug):
+    """Import a template zip (WAV + manifest) into a feed.
+
+    The MFCC is recomputed from the WAV here -- a foreign MFCC blob is never
+    trusted. Imports land as podcast scope; network scope is install-specific
+    and is promoted explicitly after import. Sample-rate / channel mismatches
+    are hard-rejected (no resampling).
+    """
+    db = get_database()
+    podcast = db.get_podcast_by_slug(slug)
+    if not podcast:
+        return error_response('feed not found', 404)
+
+    upload = request.files.get('file')
+    if upload is None:
+        return error_response('a zip file is required (multipart field "file")', 400)
+
+    try:
+        with zipfile.ZipFile(upload.stream) as z:
+            names = set(z.namelist())
+            if 'template.json' not in names or 'cue.wav' not in names:
+                return error_response('zip must contain template.json and cue.wav', 400)
+            manifest = json.loads(z.read('template.json').decode('utf-8'))
+            wav_info = z.getinfo('cue.wav')
+            if wav_info.file_size > MAX_IMPORT_WAV_BYTES:
+                return error_response('cue.wav is too large', 400)
+            wav_bytes = z.read('cue.wav')
+    except (zipfile.BadZipFile, KeyError, UnicodeDecodeError, json.JSONDecodeError) as e:
+        return error_response(f'could not read template zip: {e}', 400)
+
+    if 'schemaVersion' not in manifest:
+        return error_response('manifest is missing schemaVersion', 400)
+
+    try:
+        with wave.open(io.BytesIO(wav_bytes), 'rb') as wf:
+            if wf.getnchannels() != 1:
+                return error_response('cue.wav must be mono', 400)
+            if wf.getsampwidth() != 2:
+                return error_response('cue.wav must be 16-bit PCM', 400)
+            sr = wf.getframerate()
+            if sr != SAMPLE_RATE_HZ:
+                return error_response(
+                    f'cue.wav sample rate must be {SAMPLE_RATE_HZ}, got {sr}', 400)
+            frames = wf.readframes(wf.getnframes())
+    except wave.Error as e:
+        return error_response(f'cue.wav is not a valid WAV file: {e}', 400)
+
+    pcm = int16_bytes_to_pcm(frames)
+    mfcc = compute_mfcc(pcm)
+    if mfcc.shape[0] < 3:
+        return error_response('cue audio is too short to import', 400)
+
+    label = (str(manifest.get('label') or 'imported cue')).strip()[:80] or 'imported cue'
+    duration_s = round(len(pcm) / float(SAMPLE_RATE_HZ), 3)
+    template_id = db.create_cue_template(
+        podcast_id=podcast['id'],
+        label=label,
+        source_episode_id=None,
+        source_offset_s=0.0,
+        duration_s=duration_s,
+        sample_rate=SAMPLE_RATE_HZ,
+        n_coeffs=N_COEFFS,
+        mfcc_blob=serialize_mfcc(mfcc),
+        pcm_blob=frames,
+        pcm_sample_rate=sr,
+        created_by='import',
+    )
+    logger.info(f"Cue template imported: id={template_id} feed={slug} label={label!r}")
+    row = db.get_cue_template(template_id)
+    return json_response({'template': _template_to_meta_dict(row)}, status=201)
