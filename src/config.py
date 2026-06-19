@@ -192,6 +192,16 @@ AUDIO_CUE_ONSET_LAG_SECONDS = 0.2    # ebur128 momentary loudness integrates ove
 # sits near 0.0). Tuneable via the audio_cue_template_score DB setting.
 AUDIO_CUE_TEMPLATE_SCORE = 0.75
 
+# Cue boundary snap + cue-pair synthesis tunables (#350). All DB-settable so a
+# show with a noisy cue or unusual break lengths can be tuned without a code
+# change; the defaults match the values the feature shipped with.
+AUDIO_CUE_SNAP_CONFIDENCE = 0.80        # Min cue confidence to move an ad edge
+AUDIO_CUE_CAPTURE_MIN_SECONDS = 0.20    # Shortest cue a user may bracket (match-reliability floor)
+AUDIO_CUE_CAPTURE_MAX_SECONDS = 4.0     # Longest cue a user may bracket
+AUDIO_CUE_PAIR_CONFIDENCE = 0.85        # Min cue confidence to synthesize an ad from a pair
+AUDIO_CUE_PAIR_MIN_BREAK_SECONDS = 30.0   # Shortest plausible cue-pair break
+AUDIO_CUE_PAIR_MAX_BREAK_SECONDS = 480.0  # Longest plausible cue-pair break
+
 # ============================================================
 # Audio Processing
 # ============================================================

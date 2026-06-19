@@ -115,7 +115,10 @@ def get_settings():
     from config import (
         AUDIO_CUE_FREQ_MIN_HZ, AUDIO_CUE_FREQ_MAX_HZ,
         AUDIO_CUE_PROMINENCE_DB, AUDIO_CUE_MIN_CONFIDENCE,
-        AUDIO_CUE_TEMPLATE_SCORE,
+        AUDIO_CUE_TEMPLATE_SCORE, AUDIO_CUE_SNAP_CONFIDENCE,
+        AUDIO_CUE_CAPTURE_MIN_SECONDS, AUDIO_CUE_CAPTURE_MAX_SECONDS,
+        AUDIO_CUE_PAIR_CONFIDENCE, AUDIO_CUE_PAIR_MIN_BREAK_SECONDS,
+        AUDIO_CUE_PAIR_MAX_BREAK_SECONDS,
     )
     from chapters_generator import CHAPTERS_MODEL
     settings = _settings_view(db.get_all_settings())
@@ -326,6 +329,12 @@ def get_settings():
     audio_cue_prominence = _cue_num('audio_cue_prominence_db', AUDIO_CUE_PROMINENCE_DB)
     audio_cue_min_conf = _cue_num('audio_cue_min_confidence', AUDIO_CUE_MIN_CONFIDENCE)
     audio_cue_template_score = _cue_num('audio_cue_template_score', AUDIO_CUE_TEMPLATE_SCORE)
+    audio_cue_snap_conf = _cue_num('audio_cue_snap_confidence', AUDIO_CUE_SNAP_CONFIDENCE)
+    audio_cue_capture_min = _cue_num('audio_cue_capture_min_seconds', AUDIO_CUE_CAPTURE_MIN_SECONDS)
+    audio_cue_capture_max = _cue_num('audio_cue_capture_max_seconds', AUDIO_CUE_CAPTURE_MAX_SECONDS)
+    audio_cue_pair_conf = _cue_num('audio_cue_pair_confidence', AUDIO_CUE_PAIR_CONFIDENCE)
+    audio_cue_pair_min_break = _cue_num('audio_cue_pair_min_break_seconds', AUDIO_CUE_PAIR_MIN_BREAK_SECONDS)
+    audio_cue_pair_max_break = _cue_num('audio_cue_pair_max_break_seconds', AUDIO_CUE_PAIR_MAX_BREAK_SECONDS)
 
     return json_response({
         'systemPrompt': _sv('system_prompt', _setting_value(settings, 'system_prompt', DEFAULT_SYSTEM_PROMPT) or DEFAULT_SYSTEM_PROMPT),
@@ -368,6 +377,12 @@ def get_settings():
         'audioCueMinConfidence': _sv('audio_cue_min_confidence', audio_cue_min_conf),
         'audioCueCreateFromPairs': _sv('audio_cue_create_from_pairs', audio_cue_create_from_pairs),
         'audioCueTemplateScore': _sv('audio_cue_template_score', audio_cue_template_score),
+        'audioCueSnapConfidence': _sv('audio_cue_snap_confidence', audio_cue_snap_conf),
+        'audioCueCaptureMinSeconds': _sv('audio_cue_capture_min_seconds', audio_cue_capture_min),
+        'audioCueCaptureMaxSeconds': _sv('audio_cue_capture_max_seconds', audio_cue_capture_max),
+        'audioCuePairConfidence': _sv('audio_cue_pair_confidence', audio_cue_pair_conf),
+        'audioCuePairMinBreakSeconds': _sv('audio_cue_pair_min_break_seconds', audio_cue_pair_min_break),
+        'audioCuePairMaxBreakSeconds': _sv('audio_cue_pair_max_break_seconds', audio_cue_pair_max_break),
         'positionalPriorEnabled': _sv('positional_prior_enabled', positional_prior_enabled),
         'audioBitrate': _sv('audio_bitrate', audio_bitrate),
         'audioNormalizeEnabled': _sv('audio_normalize_enabled', audio_normalize_enabled),
@@ -423,6 +438,12 @@ def get_settings():
             'audioCueMinConfidence': AUDIO_CUE_MIN_CONFIDENCE,
             'audioCueCreateFromPairs': False,
             'audioCueTemplateScore': AUDIO_CUE_TEMPLATE_SCORE,
+            'audioCueSnapConfidence': AUDIO_CUE_SNAP_CONFIDENCE,
+            'audioCueCaptureMinSeconds': AUDIO_CUE_CAPTURE_MIN_SECONDS,
+            'audioCueCaptureMaxSeconds': AUDIO_CUE_CAPTURE_MAX_SECONDS,
+            'audioCuePairConfidence': AUDIO_CUE_PAIR_CONFIDENCE,
+            'audioCuePairMinBreakSeconds': AUDIO_CUE_PAIR_MIN_BREAK_SECONDS,
+            'audioCuePairMaxBreakSeconds': AUDIO_CUE_PAIR_MAX_BREAK_SECONDS,
             'audioBitrate': DEFAULT_AUDIO_BITRATE,
             'audioNormalizeEnabled': False,
             'audioNormalizeIntensity': 'normal',
@@ -923,6 +944,12 @@ def _apply_audio_cue_fields(db, data):
         ('audioCueProminenceDb', 'audio_cue_prominence_db', 1.0, 40.0),
         ('audioCueMinConfidence', 'audio_cue_min_confidence', 0.0, 1.0),
         ('audioCueTemplateScore', 'audio_cue_template_score', 0.0, 0.99),
+        ('audioCueSnapConfidence', 'audio_cue_snap_confidence', 0.0, 1.0),
+        ('audioCueCaptureMinSeconds', 'audio_cue_capture_min_seconds', 0.05, 10.0),
+        ('audioCueCaptureMaxSeconds', 'audio_cue_capture_max_seconds', 0.05, 30.0),
+        ('audioCuePairConfidence', 'audio_cue_pair_confidence', 0.0, 1.0),
+        ('audioCuePairMinBreakSeconds', 'audio_cue_pair_min_break_seconds', 1.0, 600.0),
+        ('audioCuePairMaxBreakSeconds', 'audio_cue_pair_max_break_seconds', 1.0, 3600.0),
     ):
         if field_name not in data:
             continue
@@ -1141,6 +1168,21 @@ def reset_ad_detection_settings():
     db.reset_setting('vad_gap_start_min_seconds')
     db.reset_setting('vad_gap_mid_min_seconds')
     db.reset_setting('vad_gap_tail_min_seconds')
+
+    # Audio cue detection family (#350)
+    db.reset_setting('audio_cue_detection_enabled')
+    db.reset_setting('audio_cue_freq_min_hz')
+    db.reset_setting('audio_cue_freq_max_hz')
+    db.reset_setting('audio_cue_prominence_db')
+    db.reset_setting('audio_cue_min_confidence')
+    db.reset_setting('audio_cue_template_score')
+    db.reset_setting('audio_cue_create_from_pairs')
+    db.reset_setting('audio_cue_snap_confidence')
+    db.reset_setting('audio_cue_capture_min_seconds')
+    db.reset_setting('audio_cue_capture_max_seconds')
+    db.reset_setting('audio_cue_pair_confidence')
+    db.reset_setting('audio_cue_pair_min_break_seconds')
+    db.reset_setting('audio_cue_pair_max_break_seconds')
 
     # Per-stage LLM tunables (temperature, max tokens, reasoning, Ollama context
     # window, detection-window geometry). reset_setting clears each row so

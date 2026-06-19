@@ -10,6 +10,12 @@ export interface AudioCueState {
   minConfidence: number;
   templateScore: number;
   createFromPairs: boolean;
+  snapConfidence: number;
+  captureMinSeconds: number;
+  captureMaxSeconds: number;
+  pairConfidence: number;
+  pairMinBreakSeconds: number;
+  pairMaxBreakSeconds: number;
 }
 
 interface AudioCueDetectionSectionProps {
@@ -17,7 +23,10 @@ interface AudioCueDetectionSectionProps {
   onChange: (next: AudioCueState) => void;
 }
 
-type NumericKey = 'freqMinHz' | 'freqMaxHz' | 'prominenceDb' | 'minConfidence' | 'templateScore';
+type NumericKey =
+  | 'freqMinHz' | 'freqMaxHz' | 'prominenceDb' | 'minConfidence' | 'templateScore'
+  | 'snapConfidence' | 'captureMinSeconds' | 'captureMaxSeconds'
+  | 'pairConfidence' | 'pairMinBreakSeconds' | 'pairMaxBreakSeconds';
 
 const inputClass =
   'w-28 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground ' +
@@ -38,6 +47,30 @@ function AudioCueDetectionSection({ audioCue, onChange }: AudioCueDetectionSecti
     const v = clampNumericInput(raw, lo, hi, fallback, parse);
     if (v !== undefined) update(key, v);
   };
+
+  const numRow = (
+    key: NumericKey, id: string, label: string,
+    lo: number, hi: number, step: number, fallback: number, hint: string,
+    parse: (s: string) => number = parseFloat,
+  ) => (
+    <div>
+      <label htmlFor={id} className="block text-sm font-medium text-foreground mb-2">{label}</label>
+      <div className="flex items-center gap-3">
+        <input
+          type="number"
+          id={id}
+          value={audioCue[key]}
+          min={lo}
+          max={hi}
+          step={step}
+          onChange={(e) => numUpdate(key, e.target.value, lo, hi, fallback, parse)}
+          className="w-24 px-3 py-1.5 rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring"
+        />
+        <span className="text-sm text-muted-foreground">{lo} to {hi}</span>
+      </div>
+      <p className="mt-2 text-sm text-muted-foreground">{hint}</p>
+    </div>
+  );
 
   return (
     <CollapsibleSection
@@ -158,6 +191,22 @@ function AudioCueDetectionSection({ audioCue, onChange }: AudioCueDetectionSecti
               <p className="mt-2 text-sm text-muted-foreground">
                 Cross-correlation score a marked cue template must reach to register on another episode. Lower catches more occurrences but risks false matches. Only applies to feeds that have cue templates; the spectral knobs above are used when a feed has none.
               </p>
+            </div>
+
+            <div className="border-t border-border pt-4 space-y-5">
+              <span className="block text-sm font-medium text-foreground">Advanced tuning</span>
+              {numRow('snapConfidence', 'audioCueSnapConfidence', 'Snap confidence floor', 0, 1, 0.05, 0.8,
+                'Minimum cue confidence before a cue may move an ad edge. Higher is stricter.')}
+              {numRow('captureMinSeconds', 'audioCueCaptureMinSeconds', 'Capture minimum length (s)', 0.05, 10, 0.05, 0.2,
+                'Shortest cue you may bracket; a floor that keeps very short sounds from matching everything.')}
+              {numRow('captureMaxSeconds', 'audioCueCaptureMaxSeconds', 'Capture maximum length (s)', 0.05, 30, 0.5, 4,
+                'Longest cue you may bracket.')}
+              {numRow('pairConfidence', 'audioCuePairConfidence', 'Cue-pair confidence floor', 0, 1, 0.05, 0.85,
+                'Minimum cue confidence to synthesize an ad from a cue pair. Higher than the snap floor because this creates an ad rather than refining one.')}
+              {numRow('pairMinBreakSeconds', 'audioCuePairMinBreakSeconds', 'Cue-pair minimum break (s)', 1, 600, 5, 30,
+                'Shortest span between two cues that may form a synthesized ad.')}
+              {numRow('pairMaxBreakSeconds', 'audioCuePairMaxBreakSeconds', 'Cue-pair maximum break (s)', 1, 3600, 30, 480,
+                'Longest span between two cues that may form a synthesized ad.')}
             </div>
           </div>
         )}

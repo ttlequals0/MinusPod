@@ -81,6 +81,12 @@ function Settings() {
     minConfidence: 0.8,
     templateScore: 0.75,
     createFromPairs: false,
+    snapConfidence: 0.8,
+    captureMinSeconds: 0.2,
+    captureMaxSeconds: 4,
+    pairConfidence: 0.85,
+    pairMinBreakSeconds: 30,
+    pairMaxBreakSeconds: 480,
   });
   const [positionalPriorEnabled, setPositionalPriorEnabled] = useState(false);
   const [selectedModel, setSelectedModel] = useState('');
@@ -319,6 +325,12 @@ function Settings() {
         minConfidence: settings.audioCueMinConfidence?.value ?? d.audioCueMinConfidence,
         templateScore: settings.audioCueTemplateScore?.value ?? d.audioCueTemplateScore ?? 0.75,
         createFromPairs: settings.audioCueCreateFromPairs?.value ?? d.audioCueCreateFromPairs ?? false,
+        snapConfidence: settings.audioCueSnapConfidence?.value ?? d.audioCueSnapConfidence ?? 0.8,
+        captureMinSeconds: settings.audioCueCaptureMinSeconds?.value ?? d.audioCueCaptureMinSeconds ?? 0.2,
+        captureMaxSeconds: settings.audioCueCaptureMaxSeconds?.value ?? d.audioCueCaptureMaxSeconds ?? 4,
+        pairConfidence: settings.audioCuePairConfidence?.value ?? d.audioCuePairConfidence ?? 0.85,
+        pairMinBreakSeconds: settings.audioCuePairMinBreakSeconds?.value ?? d.audioCuePairMinBreakSeconds ?? 30,
+        pairMaxBreakSeconds: settings.audioCuePairMaxBreakSeconds?.value ?? d.audioCuePairMaxBreakSeconds ?? 480,
       });
       setPositionalPriorEnabled(
         settings.positionalPriorEnabled?.value ?? d.positionalPriorEnabled);
@@ -374,6 +386,12 @@ function Settings() {
     if (audioCue.minConfidence !== (settings.audioCueMinConfidence?.value ?? d.audioCueMinConfidence)) payload.audioCueMinConfidence = audioCue.minConfidence;
     if (audioCue.templateScore !== (settings.audioCueTemplateScore?.value ?? d.audioCueTemplateScore ?? 0.75)) payload.audioCueTemplateScore = audioCue.templateScore;
     if (audioCue.createFromPairs !== (settings.audioCueCreateFromPairs?.value ?? d.audioCueCreateFromPairs ?? false)) payload.audioCueCreateFromPairs = audioCue.createFromPairs;
+    if (audioCue.snapConfidence !== (settings.audioCueSnapConfidence?.value ?? d.audioCueSnapConfidence ?? 0.8)) payload.audioCueSnapConfidence = audioCue.snapConfidence;
+    if (audioCue.captureMinSeconds !== (settings.audioCueCaptureMinSeconds?.value ?? d.audioCueCaptureMinSeconds ?? 0.2)) payload.audioCueCaptureMinSeconds = audioCue.captureMinSeconds;
+    if (audioCue.captureMaxSeconds !== (settings.audioCueCaptureMaxSeconds?.value ?? d.audioCueCaptureMaxSeconds ?? 4)) payload.audioCueCaptureMaxSeconds = audioCue.captureMaxSeconds;
+    if (audioCue.pairConfidence !== (settings.audioCuePairConfidence?.value ?? d.audioCuePairConfidence ?? 0.85)) payload.audioCuePairConfidence = audioCue.pairConfidence;
+    if (audioCue.pairMinBreakSeconds !== (settings.audioCuePairMinBreakSeconds?.value ?? d.audioCuePairMinBreakSeconds ?? 30)) payload.audioCuePairMinBreakSeconds = audioCue.pairMinBreakSeconds;
+    if (audioCue.pairMaxBreakSeconds !== (settings.audioCuePairMaxBreakSeconds?.value ?? d.audioCuePairMaxBreakSeconds ?? 480)) payload.audioCuePairMaxBreakSeconds = audioCue.pairMaxBreakSeconds;
     if (positionalPriorEnabled !== (settings.positionalPriorEnabled?.value ?? d.positionalPriorEnabled)) payload.positionalPriorEnabled = positionalPriorEnabled;
     if (selectedModel !== (settings.claudeModel?.value || '')) payload.claudeModel = selectedModel;
     if (verificationModel !== (settings.verificationModel?.value || '')) payload.verificationModel = verificationModel;

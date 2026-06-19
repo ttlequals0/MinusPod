@@ -20,19 +20,23 @@ import logging
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
+from config import (
+    AUDIO_CUE_PAIR_CONFIDENCE,
+    AUDIO_CUE_PAIR_MIN_BREAK_SECONDS,
+    AUDIO_CUE_PAIR_MAX_BREAK_SECONDS,
+)
+
 logger = logging.getLogger('podcast.claude.cue_pair')
 
 
-# Minimum confidence a cue must carry to participate in pair-based ad
-# synthesis. Tighter than the snap threshold (0.80) because synthesis
-# *creates* ads rather than just refining them.
-DEFAULT_MIN_PAIR_CONFIDENCE = 0.85
-# Plausible break-duration band: a cue pair separated by less than the
-# minimum is more likely an intro flourish or a double-tap stinger, and a
-# pair separated by more than the maximum is more likely two unrelated ad
-# breaks back-to-back rather than one bracketing pair.
-DEFAULT_MIN_BREAK_S = 30.0
-DEFAULT_MAX_BREAK_S = 480.0
+# Defaults (DB-settable; the caller threads the live values in). Minimum
+# confidence is tighter than the snap threshold because synthesis *creates*
+# ads rather than just refining them. The break-duration band rejects pairs
+# too close (intro flourish / double-tap stinger) or too far apart (two
+# unrelated breaks rather than one bracketing pair).
+DEFAULT_MIN_PAIR_CONFIDENCE = AUDIO_CUE_PAIR_CONFIDENCE
+DEFAULT_MIN_BREAK_S = AUDIO_CUE_PAIR_MIN_BREAK_SECONDS
+DEFAULT_MAX_BREAK_S = AUDIO_CUE_PAIR_MAX_BREAK_SECONDS
 # An LLM-detected ad that overlaps a cue pair by this many seconds (on
 # either side) is treated as "already covers it" and the pair is skipped.
 OVERLAP_TOLERANCE_S = 5.0

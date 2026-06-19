@@ -21,8 +21,8 @@ import {
 // waveform with green START / red END pins the user drags to bracket the cue
 // sound. Tuned for short stingers: 0.2 - 4s region with a deep-zoom waveform.
 
-const MIN_REGION_SECONDS = 0.2;
-const MAX_REGION_SECONDS = 4.0;
+const DEFAULT_MIN_REGION_SECONDS = 0.2;
+const DEFAULT_MAX_REGION_SECONDS = 4.0;
 const PLAYBACK_RATES = [0.5, 0.75, 1, 1.25, 1.5] as const;
 const ZOOM_MIN = 1;
 // Cues are short (often <1s) and episodes can be hours long, so the
@@ -43,12 +43,19 @@ export interface CueMarkModalProps {
   // Fired only on the final "Save cue" so the panel can auto-verify the new
   // cue against a few other episodes.
   onFinalSave?: (template: CueTemplate) => void;
+  // Capture length bounds (the audio_cue_capture_min/max_seconds settings).
+  captureMinSeconds?: number;
+  captureMaxSeconds?: number;
 }
 
 function CueMarkModal({
   podcastSlug, episodeId, episodeTitle, episodeDuration,
   initialStart, initialEnd, onClose, onSaved, onFinalSave,
+  captureMinSeconds = DEFAULT_MIN_REGION_SECONDS,
+  captureMaxSeconds = DEFAULT_MAX_REGION_SECONDS,
 }: CueMarkModalProps) {
+  const MIN_REGION_SECONDS = captureMinSeconds;
+  const MAX_REGION_SECONDS = captureMaxSeconds;
   // Window always covers the entire episode -- zoom widens the inner
   // wavesurfer canvas inside an overflow-x scroller, with the scroll
   // following the playhead, so the user always sees the whole episode at
@@ -110,11 +117,11 @@ function CueMarkModal({
   const snapStartTo = useCallback((t: number): number => {
     const snapped = snapEnabled ? snapToOnset(t, peaks, peakResolutionMs) : t;
     return Math.max(windowStart, Math.min(cueEnd - MIN_REGION_SECONDS, snapped));
-  }, [snapEnabled, peaks, peakResolutionMs, cueEnd]);
+  }, [snapEnabled, peaks, peakResolutionMs, cueEnd, MIN_REGION_SECONDS]);
   const snapEndTo = useCallback((t: number): number => {
     const snapped = snapEnabled ? snapToOnset(t, peaks, peakResolutionMs) : t;
     return Math.max(cueStart + MIN_REGION_SECONDS, Math.min(windowEnd, snapped));
-  }, [snapEnabled, peaks, peakResolutionMs, cueStart, windowEnd]);
+  }, [snapEnabled, peaks, peakResolutionMs, cueStart, windowEnd, MIN_REGION_SECONDS]);
 
   // Mount wavesurfer when peaks arrive.
   useEffect(() => {
@@ -279,7 +286,7 @@ function CueMarkModal({
     if (newEnd - t > MAX_REGION_SECONDS) newEnd = t + MAX_REGION_SECONDS;
     setCueStart(Math.max(0, t));
     setCueEnd(newEnd);
-  }, [playheadTime, cueEnd, totalDuration, snapEnabled, peaks, peakResolutionMs]);
+  }, [playheadTime, cueEnd, totalDuration, snapEnabled, peaks, peakResolutionMs, MIN_REGION_SECONDS, MAX_REGION_SECONDS]);
 
   const setEndAtPlayhead = useCallback(() => {
     const t = snapEnabled ? snapToOnset(playheadTime, peaks, peakResolutionMs) : playheadTime;
@@ -290,7 +297,7 @@ function CueMarkModal({
     if (t - newStart > MAX_REGION_SECONDS) newStart = t - MAX_REGION_SECONDS;
     setCueStart(newStart);
     setCueEnd(Math.min(totalDuration, t));
-  }, [playheadTime, cueStart, totalDuration, snapEnabled, peaks, peakResolutionMs]);
+  }, [playheadTime, cueStart, totalDuration, snapEnabled, peaks, peakResolutionMs, MIN_REGION_SECONDS, MAX_REGION_SECONDS]);
 
   const regionDuration = cueEnd - cueStart;
   const regionDurationValid =

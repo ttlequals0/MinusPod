@@ -17,6 +17,7 @@ import {
   type CueTemplateScope,
 } from '../../api/cueTemplates';
 import { getEpisode, getEpisodes, getFeed, getFeeds } from '../../api/feeds';
+import { getSettings } from '../../api/settings';
 import type { Feed } from '../../api/types';
 import type { Episode } from '../../api/types';
 import { formatTime } from '../../utils/adReviewHelpers';
@@ -64,6 +65,12 @@ function CueTemplatesPanel({ slug }: Props) {
     enabled: !!slug,
   });
   const networkId = feedQuery.data?.networkIdOverride || feedQuery.data?.networkId || null;
+
+  // Capture length bounds come from settings so the mark dialog honors the
+  // configured audio_cue_capture_min/max_seconds.
+  const settingsQuery = useQuery({ queryKey: ['settings'], queryFn: getSettings });
+  const captureMinSeconds = settingsQuery.data?.audioCueCaptureMinSeconds?.value ?? 0.2;
+  const captureMaxSeconds = settingsQuery.data?.audioCueCaptureMaxSeconds?.value ?? 4;
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['cue-templates', slug] });
 
@@ -367,6 +374,8 @@ function CueTemplatesPanel({ slug }: Props) {
           onClose={() => setOpenModal(null)}
           onSaved={invalidate}
           onFinalSave={runAutoVerify}
+          captureMinSeconds={captureMinSeconds}
+          captureMaxSeconds={captureMaxSeconds}
         />
       )}
 

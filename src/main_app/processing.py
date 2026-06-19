@@ -20,7 +20,11 @@ from ad_reviewer import (
     AdReviewer, ReviewVerdict, split_resurrection_pool,
 )
 from cancel import ProcessingCancelled, _check_cancel, _cancel_events, _cancel_events_lock
-from config import MIN_CUT_CONFIDENCE, MAX_EPISODE_RETRIES
+from config import (
+    MIN_CUT_CONFIDENCE, MAX_EPISODE_RETRIES,
+    AUDIO_CUE_SNAP_CONFIDENCE, AUDIO_CUE_PAIR_CONFIDENCE,
+    AUDIO_CUE_PAIR_MIN_BREAK_SECONDS, AUDIO_CUE_PAIR_MAX_BREAK_SECONDS,
+)
 from llm_capabilities import (
     PASS_AD_DETECTION_1, PASS_AD_DETECTION_2,
     PASS_CHAPTER_GENERATION, PASS_REVIEWER_1, PASS_REVIEWER_2,
@@ -391,7 +395,12 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
     # trusted. The reviewer still evaluates every synthesized ad (issue #350).
     if audio_analysis_result and db.get_setting_bool('audio_cue_create_from_pairs', default=False):
         try:
-            updated = synthesize_ads_from_cue_pairs(first_pass_ads, audio_analysis_result)
+            updated = synthesize_ads_from_cue_pairs(
+                first_pass_ads, audio_analysis_result,
+                min_confidence=db.get_setting_float('audio_cue_pair_confidence', AUDIO_CUE_PAIR_CONFIDENCE),
+                min_break_s=db.get_setting_float('audio_cue_pair_min_break_seconds', AUDIO_CUE_PAIR_MIN_BREAK_SECONDS),
+                max_break_s=db.get_setting_float('audio_cue_pair_max_break_seconds', AUDIO_CUE_PAIR_MAX_BREAK_SECONDS),
+            )
             added = len(updated) - len(first_pass_ads)
             if added:
                 audio_logger.info(
@@ -417,7 +426,10 @@ def _detect_ads_first_pass(ctx, segments, audio_path,
             except (TypeError, ValueError):
                 max_shift = 60.0
             # Mutates first_pass_ads in place (edges + cue_snap metadata).
-            snap_ad_boundaries_to_cues(first_pass_ads, audio_analysis_result, max_shift)
+            snap_ad_boundaries_to_cues(
+                first_pass_ads, audio_analysis_result, max_shift,
+                min_confidence=db.get_setting_float('audio_cue_snap_confidence', AUDIO_CUE_SNAP_CONFIDENCE),
+            )
         except Exception as e:
             audio_logger.warning(
                 f"[{slug}:{episode_id}] Cue boundary snap skipped: {e}"

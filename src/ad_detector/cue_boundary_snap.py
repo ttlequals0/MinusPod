@@ -17,6 +17,8 @@ from __future__ import annotations
 import logging
 from typing import Dict, List, Optional
 
+from config import AUDIO_CUE_SNAP_CONFIDENCE
+
 logger = logging.getLogger('podcast.claude.cue_snap')
 
 
@@ -30,8 +32,9 @@ DEFAULT_SNAP_LAG_SECONDS = 2.0
 # Gap between the cue's end and the snapped ad start. Tiny lead so the cut
 # does not slice into the trailing decay of the ding.
 SNAP_GAP_SECONDS = 0.05
-# Minimum cue confidence to consider for snapping.
-MIN_CUE_CONFIDENCE_FOR_SNAP = 0.80
+# Minimum cue confidence to consider for snapping (default; DB-settable via
+# audio_cue_snap_confidence, which the caller threads in as min_confidence).
+MIN_CUE_CONFIDENCE_FOR_SNAP = AUDIO_CUE_SNAP_CONFIDENCE
 
 
 def _snap_record(original: float, proposed: float, cue) -> Dict:
@@ -55,6 +58,7 @@ def snap_ad_boundaries_to_cues(
     max_boundary_shift_s: float,
     snap_lead_s: float = DEFAULT_SNAP_LEAD_SECONDS,
     snap_lag_s: float = DEFAULT_SNAP_LAG_SECONDS,
+    min_confidence: float = MIN_CUE_CONFIDENCE_FOR_SNAP,
 ) -> List[Dict]:
     """Return ``ads`` with each ``start`` and ``end`` snapped to a nearby cue.
 
@@ -75,7 +79,7 @@ def snap_ad_boundaries_to_cues(
     cues = audio_analysis_result.get_signals_by_type('audio_cue') if audio_analysis_result else []
     if not cues:
         return ads
-    cues = [c for c in cues if c.confidence >= MIN_CUE_CONFIDENCE_FOR_SNAP]
+    cues = [c for c in cues if c.confidence >= min_confidence]
     if not cues:
         return ads
 

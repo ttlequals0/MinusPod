@@ -178,6 +178,12 @@ export interface Settings {
   audioCueMinConfidence: SettingValueNumber;
   audioCueCreateFromPairs: SettingValueBoolean;
   audioCueTemplateScore: SettingValueNumber;
+  audioCueSnapConfidence: SettingValueNumber;
+  audioCueCaptureMinSeconds: SettingValueNumber;
+  audioCueCaptureMaxSeconds: SettingValueNumber;
+  audioCuePairConfidence: SettingValueNumber;
+  audioCuePairMinBreakSeconds: SettingValueNumber;
+  audioCuePairMaxBreakSeconds: SettingValueNumber;
   positionalPriorEnabled: SettingValueBoolean;
   vttTranscriptsEnabled: SettingValueBoolean;
   chaptersEnabled: SettingValueBoolean;
@@ -238,6 +244,12 @@ export interface Settings {
     audioCueMinConfidence: number;
     audioCueCreateFromPairs: boolean;
     audioCueTemplateScore: number;
+    audioCueSnapConfidence: number;
+    audioCueCaptureMinSeconds: number;
+    audioCueCaptureMaxSeconds: number;
+    audioCuePairConfidence: number;
+    audioCuePairMinBreakSeconds: number;
+    audioCuePairMaxBreakSeconds: number;
     positionalPriorEnabled: boolean;
   };
 }
@@ -272,6 +284,12 @@ export interface UpdateSettingsPayload {
   audioCueMinConfidence?: number;
   audioCueCreateFromPairs?: boolean;
   audioCueTemplateScore?: number;
+  audioCueSnapConfidence?: number;
+  audioCueCaptureMinSeconds?: number;
+  audioCueCaptureMaxSeconds?: number;
+  audioCuePairConfidence?: number;
+  audioCuePairMinBreakSeconds?: number;
+  audioCuePairMaxBreakSeconds?: number;
   positionalPriorEnabled?: boolean;
   vttTranscriptsEnabled?: boolean;
   chaptersEnabled?: boolean;

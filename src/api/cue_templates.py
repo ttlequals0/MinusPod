@@ -30,6 +30,7 @@ from audio_analysis.cue_features import (
 from audio_analysis.cue_template_matcher import (
     AudioCueTemplateMatcher, DEFAULT_MATCH_SCORE,
 )
+from config import AUDIO_CUE_CAPTURE_MIN_SECONDS, AUDIO_CUE_CAPTURE_MAX_SECONDS
 from utils.validation import is_valid_episode_id
 from version import __version__
 
@@ -124,10 +125,12 @@ def create_cue_template(slug):
         return error_response('label is required', 400)
     if len(label) > 80:
         return error_response('label is too long (max 80 chars)', 400)
-    if end_s - start_s < 0.2:
-        return error_response('selection must be at least 0.2 seconds', 400)
-    if end_s - start_s > 4.0:
-        return error_response('selection must be at most 4 seconds', 400)
+    cap_min = db.get_setting_float('audio_cue_capture_min_seconds', AUDIO_CUE_CAPTURE_MIN_SECONDS)
+    cap_max = db.get_setting_float('audio_cue_capture_max_seconds', AUDIO_CUE_CAPTURE_MAX_SECONDS)
+    if end_s - start_s < cap_min:
+        return error_response(f'selection must be at least {cap_min:g} seconds', 400)
+    if end_s - start_s > cap_max:
+        return error_response(f'selection must be at most {cap_max:g} seconds', 400)
 
     audio_path, err = _resolve_original_audio(db, storage, slug, episode_id)
     if err:
