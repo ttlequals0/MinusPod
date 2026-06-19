@@ -9,8 +9,10 @@
     "For more information on APY rates, MyPay, SpotMe, and Travel Perks, go to Chime.com slash disclosures."
   ],
   "avg_duration": 69.6,
-  "sponsor": "Chime.com",
-  "sponsor_aliases": [],
+  "sponsor": "Chime",
+  "sponsor_aliases": [
+    "chime.com"
+  ],
   "sponsor_tags": [
     "finance",
     "universal"
