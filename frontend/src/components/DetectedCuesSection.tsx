@@ -28,6 +28,8 @@ function formatTime(seconds: number): string {
   return `${m}:${s.toString().padStart(2, '0')}`;
 }
 
+const PAGE_SIZE = 10;
+
 const SOURCE_META: Record<DetectedCue['source'], { label: string; className: string }> = {
   template: { label: 'Template match', className: 'bg-violet-500/20 text-violet-600 dark:text-violet-400' },
   spectral: { label: 'Spectral cue', className: 'bg-blue-500/20 text-blue-600 dark:text-blue-400' },
@@ -47,6 +49,7 @@ function DetectedCuesSection({
   const [expanded, setExpanded] = useLocalStorageState<boolean>('episode-detected-cues', false);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [seed, setSeed] = useState<{ start: number; end: number } | null>(null);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
   const settingsQuery = useQuery({ queryKey: ['settings'], queryFn: getSettings });
   const captureMinSeconds = settingsQuery.data?.audioCueCaptureMinSeconds?.value ?? 0.2;
@@ -61,6 +64,7 @@ function DetectedCuesSection({
   });
 
   const cues = (cuesQuery.data?.detectedCues ?? []).filter((c) => !dismissed.has(cueKey(c)));
+  const visible = cues.slice(0, visibleCount);
 
   return (
     <CollapsibleSection
@@ -86,7 +90,7 @@ function DetectedCuesSection({
       )}
 
       <div className="space-y-2">
-        {cues.map((c) => {
+        {visible.map((c) => {
           const src = SOURCE_META[c.source];
           return (
             <div key={cueKey(c)} className="p-3 bg-secondary/40 rounded-lg border border-border">
@@ -132,6 +136,15 @@ function DetectedCuesSection({
           );
         })}
       </div>
+
+      {cues.length > visible.length && (
+        <button
+          onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}
+          className="mt-3 w-full sm:w-auto px-3 py-2 text-sm rounded border border-border text-muted-foreground hover:bg-secondary transition-colors touch-manipulation"
+        >
+          Load more ({cues.length - visible.length} remaining)
+        </button>
+      )}
 
       {seed && (
         <CueMarkModal
