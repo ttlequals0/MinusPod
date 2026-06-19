@@ -227,3 +227,26 @@ export async function getDetectedCues(
     `/feeds/${slug}/episodes/${episodeId}/detected-cues`,
   );
 }
+
+export interface CueCandidate {
+  start: number;
+  end: number;
+  prominenceDb: number | null;
+  count: number;
+}
+
+export interface CueCandidatesResponse {
+  episodeId: string;
+  candidates: CueCandidate[];
+}
+
+// On-demand scan: decode the audio, cluster loud bursts by similarity, and
+// return only sounds that recur (the ones worth templating). Slow.
+export async function getCueCandidates(
+  slug: string,
+  episodeId: string,
+): Promise<CueCandidatesResponse> {
+  return apiRequest<CueCandidatesResponse>(
+    `/feeds/${slug}/episodes/${episodeId}/cue-candidates`,
+  );
+}

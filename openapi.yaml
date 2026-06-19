@@ -12,7 +12,7 @@ info:
     - Monitor system status and trigger cleanup operations
     - Manage cross-episode ad patterns with network and podcast scope
     - Submit corrections to improve ad detection accuracy
-  version: 2.10.4
+  version: 2.10.5
   contact:
     name: MinusPod
   license:
@@ -4989,6 +4989,55 @@ paths:
                           nullable: true
         '404':
           description: Feed not found
+
+  /feeds/{slug}/episodes/{episode_id}/cue-candidates:
+    get:
+      tags: [AudioCueTemplates]
+      summary: Find recurring sounds in an episode as cue-template candidates
+      description: |
+        On-demand scan. Decodes the original audio, detects loud bursts,
+        computes each burst's MFCC, and clusters by acoustic similarity.
+        Returns only sounds that repeat (a real cue recurs; a laugh or music
+        hit does not). Slow, so the UI calls it on an explicit action.
+      operationId: episodeCueCandidates
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: episode_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Recurring cue candidates, most-recurring first
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  episodeId:
+                    type: string
+                  candidates:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        start:
+                          type: number
+                        end:
+                          type: number
+                        prominenceDb:
+                          type: number
+                          nullable: true
+                        count:
+                          type: integer
+                          description: How many times the sound recurs in the episode
+        '404':
+          description: Feed or original audio not found
 
   /cue-detections/{detectionId}/verdict:
     post:

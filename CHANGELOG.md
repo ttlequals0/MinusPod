@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.10.5] - 2026-06-19
+
+### Changed
+
+- The Detected Cues panel no longer lists every loud burst. An episode has dozens of one-off loud moments (laughs, music, applause) and they were drowning out the real cues. The panel now shows template matches plus a "Find cue candidates" scan that clusters the audio's loud bursts by sound and suggests only the ones that repeat, since a real ad-break ding recurs while a laugh does not. Spectral one-offs are no longer auto-listed. Two new tunables, `audio_cue_recurrence_similarity` and `audio_cue_recurrence_min_count`. New endpoint `GET /feeds/{slug}/episodes/{episode_id}/cue-candidates`.
+
 ## [2.10.4] - 2026-06-19
 
 ### Changed

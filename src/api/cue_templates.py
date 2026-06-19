@@ -32,11 +32,13 @@ from audio_analysis.cue_template_matcher import (
 )
 from audio_analysis.cue_detector import AudioCueDetector
 from audio_analysis.detected_cues import build_detected_cues
+from audio_analysis.cue_recurrence import cluster_recurring
 from config import (
     AUDIO_CUE_CAPTURE_MIN_SECONDS, AUDIO_CUE_CAPTURE_MAX_SECONDS,
     AUDIO_CUE_CAPTURE_MAX_BY_TYPE,
     AUDIO_CUE_FREQ_MIN_HZ, AUDIO_CUE_FREQ_MAX_HZ, AUDIO_CUE_PROMINENCE_DB,
-    AUDIO_CUE_TYPES, AUDIO_CUE_TYPE_DEFAULT,
+    AUDIO_CUE_RECURRENCE_SIMILARITY, AUDIO_CUE_RECURRENCE_MIN_COUNT,
+    AUDIO_CUE_TYPES, AUDIO_CUE_TYPE_DEFAULT, is_template_cue,
 )
 from utils.validation import is_valid_episode_id
 
@@ -573,9 +575,11 @@ def episode_loud_spots(slug, episode_id):
 @api.route('/feeds/<slug>/episodes/<episode_id>/detected-cues', methods=['GET'])
 @log_request
 def episode_detected_cues(slug, episode_id):
-    """Audio cues the analysis already found on an episode -- persisted template
-    and spectral cues plus template-free loud spots -- as candidates the user can
-    promote into a per-feed cue template. Advisory only; nothing here cuts.
+    """Template cue matches already found on this episode (instant, advisory).
+
+    Spectral bursts are intentionally excluded: an episode has dozens of one-off
+    loud spikes and they are too noisy to suggest as templates. Use the
+    cue-candidates endpoint to find sounds that actually recur.
     """
     if not is_valid_episode_id(episode_id):
         abort(400)
@@ -585,23 +589,18 @@ def episode_detected_cues(slug, episode_id):
     if not podcast:
         return error_response('feed not found', 404)
 
-    # Persisted audio_cue signals from the episode's saved analysis (free -- we
-    # already analyze the whole episode during processing).
     cue_signals = []
     raw = db.get_episode_audio_analysis(slug, episode_id)
     if raw:
         try:
             data = json.loads(raw)
             cue_signals = [s for s in (data.get('signals') or [])
-                           if s.get('signal_type') == 'audio_cue']
+                           if s.get('signal_type') == 'audio_cue'
+                           and is_template_cue(s.get('details'))]
         except (ValueError, TypeError):
             cue_signals = []
 
-    # Deliberately NOT running the loud-spot detector here. Decoding the whole
-    # episode took 25-75s and made the panel look stuck. The cues persisted during
-    # processing are the high-confidence set and read back instantly. The path
-    # check below only confirms the original audio still exists (no decode); it
-    # gates whether a template can be cut.
+    # Cheap existence check (no decode) -- gates whether a template can be cut.
     _, err = _resolve_original_audio(db, storage, slug, episode_id)
     has_original_audio = err is None
 
@@ -609,4 +608,59 @@ def episode_detected_cues(slug, episode_id):
         'episodeId': episode_id,
         'hasOriginalAudio': has_original_audio,
         'detectedCues': build_detected_cues(cue_signals, []),
+    })
+
+
+@api.route('/feeds/<slug>/episodes/<episode_id>/cue-candidates', methods=['GET'])
+@log_request
+def episode_cue_candidates(slug, episode_id):
+    """Find RECURRING sounds in an episode as cue-template candidates (on-demand).
+
+    Decodes the original audio once, detects loud bursts, computes each burst's
+    MFCC, and clusters by acoustic similarity. Only sounds that repeat are
+    returned (a real cue does; a laugh or music hit does not), cutting dozens of
+    one-off spikes down to the few worth templating. Slow (full decode), so the
+    UI calls it on an explicit action.
+    """
+    if not is_valid_episode_id(episode_id):
+        abort(400)
+    db = get_database()
+    storage = get_storage()
+    podcast = db.get_podcast_by_slug(slug)
+    if not podcast:
+        return error_response('feed not found', 404)
+    audio_path, err = _resolve_original_audio(db, storage, slug, episode_id)
+    if err:
+        return err
+
+    try:
+        spots = _scan_loud_spots(db, audio_path)
+        # Decode the episode to PCM once and slice each burst in memory, instead
+        # of one ffmpeg decode per burst. (The loud-spot detect() above ran a
+        # separate loudness pass, so the audio is walked twice total.)
+        full_pcm = decode_pcm_window(audio_path, 0.0, None, SAMPLE_RATE_HZ)
+        enriched = []
+        for s in spots:
+            a = int(s['start'] * SAMPLE_RATE_HZ)
+            b = int(s['end'] * SAMPLE_RATE_HZ)
+            mfcc = compute_mfcc(full_pcm[a:b])
+            if mfcc.shape[0] >= 3:
+                enriched.append({**s, 'mfcc': mfcc})
+        candidates = cluster_recurring(
+            enriched,
+            similarity=db.get_setting_float(
+                'audio_cue_recurrence_similarity', AUDIO_CUE_RECURRENCE_SIMILARITY),
+            min_count=int(db.get_setting_float(
+                'audio_cue_recurrence_min_count', AUDIO_CUE_RECURRENCE_MIN_COUNT)),
+        )
+    except Exception as e:
+        return error_response(f'cue candidate scan failed: {e}', 500)
+
+    return json_response({
+        'episodeId': episode_id,
+        'candidates': [
+            {'start': c['start'], 'end': c['end'],
+             'prominenceDb': c.get('prominenceDb'), 'count': c['count']}
+            for c in candidates
+        ],
     })

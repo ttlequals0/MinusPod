@@ -201,6 +201,11 @@ AUDIO_CUE_CAPTURE_MAX_SECONDS = 4.0     # Longest cue a user may bracket
 AUDIO_CUE_PAIR_CONFIDENCE = 0.85        # Min cue confidence to synthesize an ad from a pair
 AUDIO_CUE_PAIR_MIN_BREAK_SECONDS = 30.0   # Shortest plausible cue-pair break
 AUDIO_CUE_PAIR_MAX_BREAK_SECONDS = 480.0  # Longest plausible cue-pair break
+# Cue-candidate recurrence (episode-page "find candidates" scan). A real cue
+# repeats; a one-off loud burst does not. Bursts are clustered by MFCC
+# similarity and only sounds that recur at least MIN_COUNT times are suggested.
+AUDIO_CUE_RECURRENCE_SIMILARITY = 0.75   # peak sliding-ZNCC to call two bursts the same sound
+AUDIO_CUE_RECURRENCE_MIN_COUNT = 3       # minimum occurrences to suggest a sound
 
 # Cue template types (#350). A cue is one of a fixed set of types chosen from a
 # dropdown, never freeform text, so the phrase fed to the LLM prompt is always
