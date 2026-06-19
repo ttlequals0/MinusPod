@@ -60,8 +60,13 @@ function CueMarkModal({
   const [cueStart, setCueStart] = useState(defaults.cueStart);
   const [cueEnd, setCueEnd] = useState(defaults.cueEnd);
   const [playheadTime, setPlayheadTime] = useState(0);
+  // Text-input edit buffers. While not focused the inputs display the derived
+  // formatTime(cueStart/cueEnd) so a pin drag or set-at-playhead is reflected
+  // without a setState-in-effect sync; the buffer is seeded on focus.
   const [startInput, setStartInput] = useState(() => formatTime(defaults.cueStart));
   const [endInput, setEndInput] = useState(() => formatTime(defaults.cueEnd));
+  const [startEditing, setStartEditing] = useState(false);
+  const [endEditing, setEndEditing] = useState(false);
   const [label, setLabel] = useState('');
   const [zoom, setZoom] = useState(1);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -137,7 +142,6 @@ function CueMarkModal({
       ws.destroy();
       wsRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [peaks, windowStart, windowDuration]);
 
   // Zoom = scale wavesurfer's px/sec and grow the overlay so the pins (which
@@ -223,10 +227,6 @@ function CueMarkModal({
     raf = window.requestAnimationFrame(tick);
     return () => window.cancelAnimationFrame(raf);
   }, [windowStart, windowDuration]);
-
-  // Sync inputs <-> state.
-  useEffect(() => { setStartInput(formatTime(cueStart)); }, [cueStart]);
-  useEffect(() => { setEndInput(formatTime(cueEnd)); }, [cueEnd]);
 
   const commitStart = () => {
     const v = parseTimeInput(startInput);
@@ -500,10 +500,11 @@ function CueMarkModal({
             <input
               id="cue-start-in"
               type="text"
-              value={startInput}
+              value={startEditing ? startInput : formatTime(cueStart)}
+              onFocus={() => { setStartInput(formatTime(cueStart)); setStartEditing(true); }}
               onChange={(e) => setStartInput(e.target.value)}
-              onBlur={commitStart}
-              onKeyDown={(e) => { if (e.key === 'Enter') commitStart(); }}
+              onBlur={() => { commitStart(); setStartEditing(false); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
               className="w-24 border rounded px-2 py-1 bg-background text-sm font-mono"
             />
           </div>
@@ -512,10 +513,11 @@ function CueMarkModal({
             <input
               id="cue-end-in"
               type="text"
-              value={endInput}
+              value={endEditing ? endInput : formatTime(cueEnd)}
+              onFocus={() => { setEndInput(formatTime(cueEnd)); setEndEditing(true); }}
               onChange={(e) => setEndInput(e.target.value)}
-              onBlur={commitEnd}
-              onKeyDown={(e) => { if (e.key === 'Enter') commitEnd(); }}
+              onBlur={() => { commitEnd(); setEndEditing(false); }}
+              onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
               className="w-24 border rounded px-2 py-1 bg-background text-sm font-mono"
             />
           </div>
