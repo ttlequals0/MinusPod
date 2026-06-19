@@ -40,6 +40,7 @@ class AudioEnforcer:
             return ""
 
         lines = []
+        has_cue = False
 
         for signal in audio_analysis.signals:
             # Skip low-confidence signals
@@ -74,6 +75,7 @@ class AudioEnforcer:
                     descriptor = f'"{label}" cue'
                 else:
                     descriptor = 'Audio cue (ding/stinger)'
+                has_cue = True
                 lines.append(
                     f"- {descriptor} at {signal.start:.1f}s "
                     f"(often just before an ad break, confidence {signal.confidence:.0%})"
@@ -92,4 +94,20 @@ class AudioEnforcer:
             "with no promotional transcript content are NOT ads.\n"
         )
 
-        return header + "\n".join(lines) + "\n"
+        # When a cue actually fired in this window, inject the detailed cue
+        # interpretation at runtime so it reaches every user -- including those
+        # who customized their system prompt (is_default=0) and therefore do not
+        # carry the static LABELLED AUDIO CUES guidance (#350).
+        cue_guidance = (
+            "\nLABELLED AUDIO CUES: a cue above is a recurring non-spoken sound this show plays "
+            "around an ad break. A cue immediately before promotional copy marks the ad's START "
+            "(begin the span at the cue, not the first spoken word); a cue immediately after the "
+            "last promotional phrase marks the ad's END. Multiple cues can fire inside one break "
+            "(intro stinger, mid-break bumper, outro stinger); two cues within ~30 seconds with no "
+            "show content between them sit inside the same break, so do not end the ad at an "
+            "intermediate cue while the transcript is still promotional -- extend to the last cue "
+            "before show content resumes. The cue is never an ad on its own; it sharpens the "
+            "boundary of an ad you find in the transcript.\n"
+        ) if has_cue else ""
+
+        return header + "\n".join(lines) + "\n" + cue_guidance
