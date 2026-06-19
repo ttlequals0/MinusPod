@@ -153,13 +153,19 @@ function CueMarkModal({
   // Mount wavesurfer when peaks arrive.
   useEffect(() => {
     if (!waveformRef.current || !peaks) return;
+    // Color the bars with the theme accent (primary) so the capture waveform is
+    // vividly themed -- matching how the ad editor's waveform reads in each
+    // theme (green in hulu, orange in gruvbox, cyan in slate) rather than the
+    // muted grey wavesurfer would otherwise show at rest.
+    const themeWave = getThemeWaveformColors();
     const ws = WaveSurfer.create({
       container: waveformRef.current,
       height: 110,
       normalize: true,
       peaks: [peaks],
       duration: windowDuration,
-      ...getThemeWaveformColors(),
+      waveColor: themeWave.progressColor,
+      progressColor: themeWave.progressColor,
       // Render our own amber playhead overlay instead of wavesurfer's built-in
       // cursor; the built-in one is easy to confuse with a pin.
       cursorColor: 'transparent',
