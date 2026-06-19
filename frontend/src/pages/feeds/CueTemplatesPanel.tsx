@@ -26,6 +26,14 @@ import { formatTime } from '../../utils/adReviewHelpers';
 
 const PICKER_PAGE_SIZE = 50;
 
+// Design-system recipes shared by the panel and its modals (match the app's
+// confirm/edit modals and form controls; theme-aware in dark mode).
+const ghostBtn = 'border border-border hover:bg-accent transition-colors';
+const primaryBtn = 'bg-primary text-primary-foreground hover:bg-primary/90 transition-colors';
+const fieldCls = 'rounded-lg border border-input bg-background text-foreground focus:outline-hidden focus:ring-2 focus:ring-ring';
+const modalBackdrop = 'fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4';
+const modalPanel = 'bg-card text-foreground rounded-lg border border-border shadow-xl';
+
 interface Props {
   slug: string;
 }
@@ -226,7 +234,7 @@ function CueTemplatesPanel({ slug }: Props) {
         <div className="flex flex-wrap gap-2 mb-3">
           <button
             type="button"
-            className="flex-1 sm:flex-none basis-0 sm:basis-auto whitespace-nowrap px-3 py-1.5 rounded border border-input hover:bg-muted text-sm"
+            className={`flex-1 sm:flex-none basis-0 sm:basis-auto whitespace-nowrap px-3 py-1.5 rounded ${ghostBtn} text-sm`}
             onClick={() => importInputRef.current?.click()}
             disabled={importMutation.isPending}
             title="Import a cue template zip exported from another install"
@@ -235,7 +243,7 @@ function CueTemplatesPanel({ slug }: Props) {
           </button>
           <button
             type="button"
-            className="flex-1 sm:flex-none basis-0 sm:basis-auto whitespace-nowrap px-3 py-1.5 rounded border border-input hover:bg-muted text-sm disabled:opacity-50"
+            className={`flex-1 sm:flex-none basis-0 sm:basis-auto whitespace-nowrap px-3 py-1.5 rounded ${ghostBtn} text-sm disabled:opacity-50`}
             onClick={() => setScanOpen(true)}
             disabled={templates.length === 0}
             title={templates.length === 0 ? 'Mark at least one cue first' : 'Run all enabled templates against an episode'}
@@ -244,7 +252,7 @@ function CueTemplatesPanel({ slug }: Props) {
           </button>
           <button
             type="button"
-            className="flex-1 sm:flex-none basis-0 sm:basis-auto whitespace-nowrap px-3 py-1.5 rounded bg-primary text-primary-foreground hover:opacity-90 text-sm"
+            className={`flex-1 sm:flex-none basis-0 sm:basis-auto whitespace-nowrap px-3 py-1.5 rounded ${primaryBtn} text-sm`}
             onClick={() => { setActionError(null); setPickerOpen(true); }}
           >
             + Mark cue
@@ -258,7 +266,7 @@ function CueTemplatesPanel({ slug }: Props) {
           </p>
         )}
         {verifyState && !verifying && (
-          <p className={`text-sm mb-2 ${verifyState.matched > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
+          <p className={`text-sm mb-2 ${verifyState.matched > 0 ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`}>
             Cue "{verifyState.label}" matched {verifyState.matched} of {verifyState.checked} recent
             episode{verifyState.checked === 1 ? '' : 's'}.
             {verifyState.matched === 0 ? ' No matches yet - it may not recur, or the bracket is loose.' : ''}
@@ -276,7 +284,7 @@ function CueTemplatesPanel({ slug }: Props) {
         )}
 
         {templates.length > 0 && (
-          <ul className="divide-y divide-border border rounded">
+          <ul className="divide-y divide-border border border-border rounded">
             {templates.map((t) => (
               <li key={t.id} className="flex flex-col gap-2 px-3 py-2 text-sm sm:flex-row sm:items-center sm:gap-3">
                 <div className="flex items-center gap-3 min-w-0 flex-1">
@@ -300,7 +308,7 @@ function CueTemplatesPanel({ slug }: Props) {
                           e.currentTarget.blur();
                         }
                       }}
-                      className="w-full border rounded px-2 py-1 bg-background text-sm"
+                      className={`w-full px-3 py-1.5 ${fieldCls} text-sm`}
                       aria-label="Cue type"
                     >
                       {CUE_TYPE_OPTIONS.map((o) => (
@@ -312,7 +320,7 @@ function CueTemplatesPanel({ slug }: Props) {
                       <p className="font-medium truncate">
                         {t.label}
                         {t.scope === 'network' && (
-                          <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-secondary text-secondary-foreground align-middle">
+                          <span className="ml-2 px-2 py-0.5 rounded text-xs font-medium bg-purple-500/20 text-purple-600 dark:text-purple-400 align-middle">
                             NETWORK
                           </span>
                         )}
@@ -410,12 +418,12 @@ function CueTemplatesPanel({ slug }: Props) {
       {scanOpen && <CueScanModal slug={slug} onClose={() => setScanOpen(false)} />}
 
       {promoteState && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setPromoteState(null)}>
+        <div className={modalBackdrop} onClick={() => setPromoteState(null)}>
           <div
             role="dialog"
             aria-modal="true"
             aria-label="Promote cue to network"
-            className="bg-background text-foreground rounded-lg shadow-xl w-full max-w-md p-5"
+            className={`${modalPanel} w-full max-w-md p-5`}
             onClick={(e) => e.stopPropagation()}
           >
             <h3 className="text-base font-semibold mb-2">Promote to network</h3>
@@ -423,16 +431,16 @@ function CueTemplatesPanel({ slug }: Props) {
               Cue "{promoteState.template.label}" will start matching every feed on
               network "{networkId}" ({promoteState.feeds.length}):
             </p>
-            <ul className="text-sm border rounded divide-y divide-border max-h-48 overflow-y-auto mb-4">
+            <ul className="text-sm border border-border rounded divide-y divide-border max-h-48 overflow-y-auto mb-4">
               {promoteState.feeds.map((f) => (
                 <li key={f.slug} className="px-3 py-1.5 truncate">{f.title || f.slug}</li>
               ))}
             </ul>
             <div className="flex justify-end gap-2">
-              <button type="button" className="px-3 py-1.5 rounded border border-input hover:bg-muted text-sm" onClick={() => setPromoteState(null)}>
+              <button type="button" className={`px-3 py-1.5 rounded ${ghostBtn} text-sm`} onClick={() => setPromoteState(null)}>
                 Cancel
               </button>
-              <button type="button" className="px-3 py-1.5 rounded bg-primary text-primary-foreground hover:opacity-90 text-sm" onClick={confirmPromote}>
+              <button type="button" className={`px-3 py-1.5 rounded ${primaryBtn} text-sm`} onClick={confirmPromote}>
                 Promote
               </button>
             </div>
@@ -474,12 +482,12 @@ function EpisodePicker({ slug, onClose, onPick }: EpisodePickerProps) {
   const totalPages = Math.max(1, Math.ceil(total / PICKER_PAGE_SIZE));
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+    <div className={modalBackdrop} onClick={onClose}>
       <div
         role="dialog"
         aria-modal="true"
         aria-label="Pick an episode"
-        className="bg-background text-foreground rounded-lg shadow-xl w-full max-w-2xl p-5 max-h-[85vh] flex flex-col"
+        className={`${modalPanel} w-full max-w-2xl p-5 max-h-[85vh] flex flex-col`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between mb-3">
@@ -494,7 +502,7 @@ function EpisodePicker({ slug, onClose, onPick }: EpisodePickerProps) {
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto border rounded">
+        <div className="flex-1 overflow-y-auto border border-border rounded">
           {query.isLoading && <div className="p-4"><LoadingSpinner size="sm" /></div>}
           {query.error && <p className="p-3 text-sm text-destructive">Could not load episodes.</p>}
           {!query.isLoading && episodes.length === 0 && (
@@ -532,7 +540,7 @@ function EpisodePicker({ slug, onClose, onPick }: EpisodePickerProps) {
           <div className="flex items-center justify-between mt-3 text-sm">
             <button
               type="button"
-              className="px-2 py-1 border rounded disabled:opacity-50"
+              className={`px-2 py-1 rounded ${ghostBtn} disabled:opacity-50`}
               onClick={() => setPage((p) => Math.max(0, p - 1))}
               disabled={page === 0}
             >
@@ -543,7 +551,7 @@ function EpisodePicker({ slug, onClose, onPick }: EpisodePickerProps) {
             </span>
             <button
               type="button"
-              className="px-2 py-1 border rounded disabled:opacity-50"
+              className={`px-2 py-1 rounded ${ghostBtn} disabled:opacity-50`}
               onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
               disabled={page + 1 >= totalPages}
             >
@@ -607,12 +615,12 @@ function CueScanModal({ slug, onClose }: CueScanModalProps) {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={onClose}>
+    <div className={modalBackdrop} onClick={onClose}>
       <div
         role="dialog"
         aria-modal="true"
         aria-label="Cue scan"
-        className="bg-background text-foreground rounded-lg shadow-xl w-full max-w-3xl p-5 max-h-[90vh] overflow-y-auto"
+        className={`${modalPanel} w-full max-w-3xl p-5 max-h-[90vh] overflow-y-auto`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between mb-3">
@@ -639,12 +647,12 @@ function CueScanModal({ slug, onClose }: CueScanModalProps) {
               placeholder="default"
               value={scoreOverride}
               onChange={(e) => setScoreOverride(e.target.value)}
-              className="w-28 border rounded px-2 py-1 bg-background text-sm font-mono"
+              className={`w-28 px-3 py-1.5 ${fieldCls} text-sm font-mono`}
             />
           </div>
           <button
             type="button"
-            className="px-3 py-1.5 rounded border border-input hover:bg-muted text-sm"
+            className={`px-3 py-1.5 rounded ${ghostBtn} text-sm`}
             onClick={() => {
               if (!selectedEpisode) return;
               const n = scoreOverride.trim() === '' ? undefined : Number(scoreOverride);
@@ -660,7 +668,7 @@ function CueScanModal({ slug, onClose }: CueScanModalProps) {
           </button>
           <button
             type="button"
-            className="px-3 py-1.5 rounded border border-input hover:bg-muted text-sm"
+            className={`px-3 py-1.5 rounded ${ghostBtn} text-sm`}
             onClick={() => { setPicking(true); setResult(null); setSelectedEpisode(null); }}
           >
             Pick different episode
@@ -675,7 +683,7 @@ function CueScanModal({ slug, onClose }: CueScanModalProps) {
             <p className="text-xs text-muted-foreground">
               Threshold {result.thresholdUsed.toFixed(2)} - scan {result.elapsedSeconds.toFixed(1)}s
             </p>
-            <ul className="divide-y divide-border border rounded">
+            <ul className="divide-y divide-border border border-border rounded">
               {result.templates.map((t) => {
                 const passed = t.peakScore >= result.thresholdUsed;
                 return (
@@ -688,7 +696,7 @@ function CueScanModal({ slug, onClose }: CueScanModalProps) {
                         </p>
                       </div>
                       <div className="text-right shrink-0">
-                        <p className={`text-sm font-mono ${passed ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
+                        <p className={`text-sm font-mono ${passed ? 'text-green-600 dark:text-green-400' : 'text-amber-600 dark:text-amber-400'}`}>
                           peak {t.peakScore.toFixed(3)}
                         </p>
                         <p className="text-xs text-muted-foreground">

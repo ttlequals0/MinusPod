@@ -387,11 +387,22 @@ function CueMarkModal({
     }
   };
 
-  const ctrlBtn = 'px-2 py-1.5 rounded border border-input hover:bg-muted text-sm';
+  // Shared design-system recipes (match AdReviewModal / the app form controls).
+  const ghostBtn =
+    'border border-border text-foreground bg-card transition-colors ' +
+    'hover:bg-accent hover:text-accent-foreground hover:border-foreground/30 ' +
+    'disabled:opacity-40 disabled:cursor-not-allowed';
+  const ctrlBtn = `px-2 py-1.5 rounded ${ghostBtn} text-sm`;
+  const primaryBtn =
+    'bg-primary text-primary-foreground transition-colors hover:bg-primary/90 ' +
+    'disabled:opacity-50 disabled:cursor-not-allowed';
+  const fieldCls =
+    'rounded-lg border border-input bg-background text-foreground ' +
+    'focus:outline-hidden focus:ring-2 focus:ring-ring';
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-sm p-4"
       onClick={onClose}
     >
       <div
@@ -400,7 +411,7 @@ function CueMarkModal({
         role="dialog"
         aria-modal="true"
         aria-label="Mark audio cue"
-        className="bg-background text-foreground rounded-lg shadow-xl w-full max-w-4xl p-4 sm:p-5 max-h-[92vh] overflow-y-auto focus:outline-hidden"
+        className="bg-card text-foreground rounded-lg border border-border shadow-2xl w-full max-w-4xl p-4 sm:p-5 max-h-[92vh] overflow-y-auto focus:outline-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between mb-3">
@@ -425,7 +436,7 @@ function CueMarkModal({
         </p>
 
         {/* Waveform + pins. Same overlay pattern as AdReviewModal. */}
-        <div ref={scrollRef} className="overflow-x-auto border rounded bg-muted/30 min-h-[140px]">
+        <div ref={scrollRef} className="overflow-x-auto border border-border rounded-lg bg-secondary/40 min-h-[140px]">
           <div ref={overlayRef} className="relative">
             <div ref={waveformRef} />
             {/* Amber playhead -- same visual language as the ad editor cursor so
@@ -457,7 +468,7 @@ function CueMarkModal({
                   className="absolute top-0 -translate-x-1/2 z-[5] h-3.5 w-3 cursor-pointer"
                   style={{ left: `${rel * 100}%` }}
                 >
-                  <span className="block mx-auto h-3.5 w-0.5 bg-violet-500/80 hover:bg-violet-500" />
+                  <span className="block mx-auto h-3.5 w-0.5 bg-primary/70 hover:bg-primary" />
                 </button>
               );
             })}
@@ -500,7 +511,7 @@ function CueMarkModal({
           <p className="text-xs text-muted-foreground mt-1">Scanning for loud spots...</p>
         ) : loudSpots.length > 0 ? (
           <p className="text-xs text-muted-foreground mt-1">
-            {loudSpots.length} loud spot{loudSpots.length === 1 ? '' : 's'} (violet ticks) - tap one to jump.
+            {loudSpots.length} loud spot{loudSpots.length === 1 ? '' : 's'} (ticks) - tap one to jump.
           </p>
         ) : null}
 
@@ -516,7 +527,7 @@ function CueMarkModal({
           <select
             value={playbackRate}
             onChange={(e) => setPlaybackRate(Number(e.target.value))}
-            className="px-2 py-1.5 rounded border border-input bg-background text-sm"
+            className={`px-2 py-1.5 ${fieldCls} text-sm`}
             aria-label="Playback speed"
           >
             {PLAYBACK_RATES.map((r) => (
@@ -526,7 +537,7 @@ function CueMarkModal({
           <div className="flex items-center gap-1 sm:ml-2">
             <button
               type="button"
-              className="p-1.5 rounded border border-input hover:bg-muted"
+              className={`p-1.5 rounded ${ghostBtn}`}
               onClick={(e) => {
                 const step = e.shiftKey ? 1.4 : 1.15;
                 setZoom((z) => Math.max(ZOOM_MIN, z / step));
@@ -541,7 +552,7 @@ function CueMarkModal({
             </span>
             <button
               type="button"
-              className="p-1.5 rounded border border-input hover:bg-muted"
+              className={`p-1.5 rounded ${ghostBtn}`}
               onClick={(e) => {
                 const step = e.shiftKey ? 1.4 : 1.15;
                 setZoom((z) => Math.min(ZOOM_MAX, z * step));
@@ -555,6 +566,7 @@ function CueMarkModal({
           <label className="flex items-center gap-1.5 text-xs text-muted-foreground ml-1">
             <input
               type="checkbox"
+              className="accent-primary"
               checked={snapEnabled}
               onChange={(e) => setSnapEnabled(e.target.checked)}
             />
@@ -569,14 +581,14 @@ function CueMarkModal({
         <div className="flex gap-2 mt-2">
           <button
             type="button"
-            className="flex-1 sm:flex-none px-2 py-1.5 rounded border border-emerald-500 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/10 text-sm whitespace-nowrap"
+            className={`flex-1 sm:flex-none ${ctrlBtn} text-emerald-500 whitespace-nowrap`}
             onClick={setStartAtPlayhead}
           >
             Set START at playhead
           </button>
           <button
             type="button"
-            className="flex-1 sm:flex-none px-2 py-1.5 rounded border border-rose-500 text-rose-700 dark:text-rose-400 hover:bg-rose-500/10 text-sm whitespace-nowrap"
+            className={`flex-1 sm:flex-none ${ctrlBtn} text-rose-500 whitespace-nowrap`}
             onClick={setEndAtPlayhead}
           >
             Set END at playhead
@@ -595,7 +607,7 @@ function CueMarkModal({
               onChange={(e) => setStartInput(e.target.value)}
               onBlur={() => { commitStart(); setStartEditing(false); }}
               onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-              className="w-24 border rounded px-2 py-1 bg-background text-sm font-mono"
+              className={`w-24 px-3 py-1.5 ${fieldCls} text-sm font-mono text-emerald-500`}
             />
           </div>
           <div>
@@ -608,7 +620,7 @@ function CueMarkModal({
               onChange={(e) => setEndInput(e.target.value)}
               onBlur={() => { commitEnd(); setEndEditing(false); }}
               onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-              className="w-24 border rounded px-2 py-1 bg-background text-sm font-mono"
+              className={`w-24 px-3 py-1.5 ${fieldCls} text-sm font-mono text-rose-500`}
             />
           </div>
           <p className="text-sm">
@@ -623,7 +635,7 @@ function CueMarkModal({
               id="cue-type-in"
               value={cueType}
               onChange={(e) => setCueType(e.target.value as CueTemplateType)}
-              className="w-full border rounded px-2 py-1 bg-background text-sm"
+              className={`w-full px-3 py-1.5 ${fieldCls} text-sm`}
             >
               {CUE_TYPE_OPTIONS.map((o) => (
                 <option key={o.value} value={o.value}>{o.label}</option>
@@ -633,7 +645,7 @@ function CueMarkModal({
         </div>
 
         {previewMatches !== null && (
-          <div className="bg-muted/30 rounded p-3 mt-3">
+          <div className="bg-secondary/40 rounded-lg p-3 mt-3">
             <p className="text-sm font-medium mb-1">
               Preview matches on this episode: {previewMatches.length}
             </p>
@@ -676,7 +688,7 @@ function CueMarkModal({
           </button>
           <button
             type="button"
-            className="px-3 py-1.5 rounded bg-primary text-primary-foreground hover:opacity-90 text-sm"
+            className={`px-4 py-1.5 rounded-lg ${primaryBtn} text-sm`}
             onClick={handleSave}
             disabled={!canSave}
           >
