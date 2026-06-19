@@ -439,6 +439,21 @@ function CueMarkModal({
         <div ref={scrollRef} className="overflow-x-auto border border-border rounded-lg bg-secondary/40 min-h-[140px]">
           <div ref={overlayRef} className="relative">
             <div ref={waveformRef} />
+            {/* Selected-cue region highlight -- the analogue of the ad editor's
+                selection window, using the same amber fill (rgba(245,158,11,.18))
+                that modal uses, which also matches this modal's amber playhead.
+                Sits above the waveform, below the loud-spots/pins/playhead. */}
+            {peaks && windowDuration > 0 && (
+              <div
+                className="absolute inset-y-0 z-[4] pointer-events-none"
+                style={{
+                  left: `${((cueStart - windowStart) / windowDuration) * 100}%`,
+                  width: `${Math.max(0, ((cueEnd - cueStart) / windowDuration) * 100)}%`,
+                  backgroundColor: 'rgba(245, 158, 11, 0.18)',
+                }}
+                aria-hidden
+              />
+            )}
             {/* Amber playhead -- same visual language as the ad editor cursor so
                 it is not confused with the green/red boundary pins. */}
             <div
