@@ -2927,6 +2927,36 @@ paths:
                   description: ZNCC score a learned cue template must reach on another episode (default 0.75).
                   minimum: 0
                   maximum: 0.99
+                audioCueSnapConfidence:
+                  type: number
+                  description: Min cue confidence before a cue may move an ad edge (default 0.80).
+                  minimum: 0
+                  maximum: 1
+                audioCueCaptureMinSeconds:
+                  type: number
+                  description: Shortest cue a user may bracket (default 0.2s).
+                  minimum: 0.05
+                  maximum: 10
+                audioCueCaptureMaxSeconds:
+                  type: number
+                  description: Longest cue a user may bracket (default 4s).
+                  minimum: 0.05
+                  maximum: 30
+                audioCuePairConfidence:
+                  type: number
+                  description: Min cue confidence to synthesize an ad from a cue pair (default 0.85).
+                  minimum: 0
+                  maximum: 1
+                audioCuePairMinBreakSeconds:
+                  type: number
+                  description: Shortest cue-pair break (default 30s).
+                  minimum: 1
+                  maximum: 600
+                audioCuePairMaxBreakSeconds:
+                  type: number
+                  description: Longest cue-pair break (default 480s).
+                  minimum: 1
+                  maximum: 3600
                 audioCueCreateFromPairs:
                   type: boolean
                   description: Opt-in cue-pair ad synthesis. Off by default.
@@ -4580,6 +4610,13 @@ paths:
                 label:
                   type: string
                   maxLength: 80
+                scope:
+                  type: string
+                  enum: [podcast, network]
+                  default: podcast
+                networkId:
+                  type: string
+                  description: Required when scope is network
       responses:
         '201':
           description: Template created
@@ -4649,6 +4686,15 @@ paths:
       responses:
         '200':
           description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  deleted:
+                    type: boolean
+                  id:
+                    type: integer
         '404':
           description: Template not found
 
@@ -4742,10 +4788,42 @@ paths:
               properties:
                 scoreThreshold:
                   type: number
-                  description: Override the global threshold for this run only
+                  description: Override the global threshold for this run only (clamped to 0-0.99)
+                  minimum: 0
+                  maximum: 0.99
       responses:
         '200':
           description: Per-template peak scores and match times
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  episodeId:
+                    type: string
+                  thresholdUsed:
+                    type: number
+                  elapsedSeconds:
+                    type: number
+                  templates:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: integer
+                        label:
+                          type: string
+                        durationS:
+                          type: number
+                        peakScore:
+                          type: number
+                        matchCount:
+                          type: integer
+                        matches:
+                          type: array
+                          items:
+                            $ref: '#/components/schemas/CueMatch'
         '400':
           description: Feed has no enabled templates
         '404':
@@ -4780,8 +4858,68 @@ paths:
       responses:
         '200':
           description: Match times for the template
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  templateId:
+                    type: integer
+                  thresholdUsed:
+                    type: number
+                  peakScore:
+                    type: number
+                  matches:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CueMatch'
         '404':
           description: Template, feed, or original audio not found
+
+  /feeds/{slug}/episodes/{episode_id}/cue-loud-spots:
+    get:
+      tags: [AudioCueTemplates]
+      summary: Template-free energy "loud spots" for the capture UI
+      description: >
+        Runs the band-passed energy detector over an episode's original audio
+        and returns candidate loud spots (not detected cues) as jump-to markers
+        so the user can find a cue to bracket.
+      operationId: episodeLoudSpots
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: episode_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Candidate loud spots
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  episodeId:
+                    type: string
+                  loudSpots:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        start:
+                          type: number
+                        end:
+                          type: number
+                        prominenceDb:
+                          type: number
+                          nullable: true
+        '404':
+          description: Feed or original audio not found
 
 security:
   - sessionCookie: []
@@ -4854,6 +4992,18 @@ components:
         example: 550e8400-e29b-41d4-a716-446655440000
 
   schemas:
+    CueMatch:
+      type: object
+      description: One cue match within an episode
+      properties:
+        start:
+          type: number
+        end:
+          type: number
+        confidence:
+          type: number
+        score:
+          type: number
     CueTemplate:
       type: object
       description: A learned per-podcast audio-cue template (metadata; blobs omitted)
@@ -4878,6 +5028,7 @@ components:
         scope:
           type: string
           enum: [podcast, network]
+          default: podcast
         networkId:
           type: string
           nullable: true
@@ -5404,6 +5555,54 @@ components:
         audioCueTemplateScore:
           type: object
           description: ZNCC score (0-0.99, default 0.75) a learned cue template must reach to register on another episode.
+          properties:
+            value:
+              type: number
+            isDefault:
+              type: boolean
+        audioCueSnapConfidence:
+          type: object
+          description: Min cue confidence before a cue may move an ad edge (default 0.80).
+          properties:
+            value:
+              type: number
+            isDefault:
+              type: boolean
+        audioCueCaptureMinSeconds:
+          type: object
+          description: Shortest cue a user may bracket, seconds (default 0.2).
+          properties:
+            value:
+              type: number
+            isDefault:
+              type: boolean
+        audioCueCaptureMaxSeconds:
+          type: object
+          description: Longest cue a user may bracket, seconds (default 4).
+          properties:
+            value:
+              type: number
+            isDefault:
+              type: boolean
+        audioCuePairConfidence:
+          type: object
+          description: Min cue confidence to synthesize an ad from a cue pair (default 0.85).
+          properties:
+            value:
+              type: number
+            isDefault:
+              type: boolean
+        audioCuePairMinBreakSeconds:
+          type: object
+          description: Shortest cue-pair break, seconds (default 30).
+          properties:
+            value:
+              type: number
+            isDefault:
+              type: boolean
+        audioCuePairMaxBreakSeconds:
+          type: object
+          description: Longest cue-pair break, seconds (default 480).
           properties:
             value:
               type: number

@@ -143,7 +143,7 @@ Some shows play a short non-spoken cue, a chime or stinger, right before an ad b
 
 **Spectral fallback.** When a feed has no templates and this experiment is on, an extra ffmpeg pass band-passes the audio to the cue's frequency band and flags brief loudness bursts that stand out from the in-band speech baseline. Each burst is passed to the detector as an `audio_cue` signal, the same way volume changes and DAI transitions already are.
 
-Settings live under Experiments → Audio Cue Detection:
+Settings live under Experiments, in the Audio Cue Detection section:
 
 - **Enable audio cue detection** - master toggle, off by default. Turns on whichever mode applies to the feed.
 - **Frequency band** - the low and high edges, in Hz, of the band the spectral fallback listens in. Chimes and bells usually sit between roughly 1.5 and 8 kHz. The low edge must be below the high edge.
@@ -151,6 +151,7 @@ Settings live under Experiments → Audio Cue Detection:
 - **Minimum confidence** - drops cues weaker than this. The model is never shown a cue below 0.80 confidence regardless of this value.
 - **Template match score** - the cross-correlation score a marked template must reach to register on another episode (0 to 0.99, default 0.75). Lower catches more occurrences but risks false matches. Applies only to feeds that have templates.
 - **Create ads from cue pairs** - off by default. When two high-confidence cues bracket a plausible break the model missed, synthesize a cue-only ad for that span. The reviewer still evaluates it. This relaxes the "cue is supporting evidence only" rule, so leave it off until you trust the matcher on a feed.
+- **Advanced tuning** - the snap confidence floor (how confident a cue must be to move an ad edge), the capture length minimum and maximum, and the cue-pair confidence floor and break-duration band. The defaults suit most shows; tune them only if a feed's cue is noisy or its breaks are unusually short or long.
 
 Marking a cue requires the source episode's retained original audio, because a cue can sit inside a removed ad. `keep_original_audio` is on by default; there is no backfill, so only episodes processed after upgrading to 2.9.0 can be used to mark a cue. If you set a shorter `original_retention_days` than `retention_days`, originals age out earlier and those episodes drop out of the cue picker even though the processed audio remains. Each template stores its own raw audio, so a saved cue keeps working after its source episode's original is gone, and it can be exported as a lossless WAV and shared between your own or trusted installs.
 
