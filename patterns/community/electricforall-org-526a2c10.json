@@ -9,14 +9,17 @@
   ],
   "avg_duration": 83.65,
   "sponsor": "electricforall.org",
-  "sponsor_aliases": [],
+  "sponsor_aliases": [
+    "electricforall"
+  ],
   "sponsor_tags": [
     "automotive",
+    "technology",
     "universal"
   ],
   "source_language": null,
   "community_id": "526a2c10-0720-4c77-b278-21d157839ba8",
-  "version": 1,
+  "version": 2,
   "submitted_at": "2026-06-05T00:54:04.812876+00:00",
   "submitted_app_version": "2.6.2",
   "sponsor_match": "exact"

@@ -5,11 +5,15 @@
     "Support for Today Explained comes from Shopify."
   ],
   "outro_variants": [
-    "If you get stuck Shopify is always around to share advice with their 24 customer support."
+    "If you get stuck Shopify is always around to share advice with their 24 customer support.",
+    "You can sign up for your $1 per month trial at shopify.com.",
+    "You can go to Shopify.com. That's Shopify.com."
   ],
-  "avg_duration": 38.2,
+  "avg_duration": 89.6,
   "sponsor": "Shopify",
-  "sponsor_aliases": [],
+  "sponsor_aliases": [
+    "shopify.com"
+  ],
   "sponsor_tags": [
     "tech",
     "saas",
@@ -17,7 +21,7 @@
   ],
   "source_language": null,
   "community_id": "11e574d7-9552-4de9-9d82-9c65388674a7",
-  "version": 1,
+  "version": 2,
   "submitted_at": "2026-06-06T23:42:17.173825+00:00",
   "submitted_app_version": "2.7.5",
   "sponsor_match": "exact"

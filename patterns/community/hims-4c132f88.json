@@ -7,15 +7,19 @@
     "Support for the show today comes from Hims."
   ],
   "outro_variants": [
-    "Sledenafil is the generic version of Viagra. Viagra is a registered trademark of Viatris, a Viatris Specialty LLC. HEMS is not affiliated with or endorsed by Viatris.",
     "To get simple, online access to personalized, affordable care for ED, weight loss, and more, visit HEMS.com",
-    "Hymns is not affiliated with or endorsed by Viatris."
+    "Hymns is not affiliated with or endorsed by Viatris.",
+    "HIMSS is not affiliated with or endorsed by Viatris.",
+    "Hims is not affiliated with or endorsed by Viatris.",
+    "Hems is not affiliated with or endorsed by Viatris."
   ],
   "avg_duration": null,
   "sponsor": "Hims",
   "sponsor_aliases": [
     "Hems",
-    "hims.com"
+    "hims.com",
+    "HIMSS",
+    "Hems.com"
   ],
   "sponsor_tags": [
     "health",
@@ -25,7 +29,7 @@
   ],
   "source_language": null,
   "community_id": "4c132f88-bb8b-47b6-8d74-b1c38c7c90f0",
-  "version": 2,
+  "version": 3,
   "submitted_at": "2026-05-27T02:31:11.364726+00:00",
   "submitted_app_version": "unknown",
   "sponsor_match": "exact"

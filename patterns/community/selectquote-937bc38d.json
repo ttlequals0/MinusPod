@@ -5,13 +5,14 @@
     "Support for the show today comes from SelectQuote."
   ],
   "outro_variants": [
-    "You can save more than 50% on term life insurance at selectquote.com. Today to get started, that's selectquote.com. Explained.",
-    "You can save more than 50% on term life insurance at selectquote.com. Today to get started, that's selectquote.com slash explained."
+    "Today to get started, that's selectquote.com. Explained.",
+    "Today to get started, that's selectquote.com slash explained."
   ],
-  "avg_duration": 63.0,
+  "avg_duration": 65.0,
   "sponsor": "SelectQuote",
   "sponsor_aliases": [
-    "Select Quote"
+    "Select Quote",
+    "selectquote.com"
   ],
   "sponsor_tags": [
     "insurance",
@@ -19,7 +20,7 @@
   ],
   "source_language": null,
   "community_id": "937bc38d-f58a-48f7-9ced-4d5c0eb38fd1",
-  "version": 1,
+  "version": 2,
   "submitted_at": "2026-06-06T23:42:17.408894+00:00",
   "submitted_app_version": "2.7.5",
   "sponsor_match": "exact"
