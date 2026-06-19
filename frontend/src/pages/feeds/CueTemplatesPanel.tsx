@@ -9,13 +9,15 @@ import {
   deleteCueTemplate,
   importCueTemplate,
   listCueTemplates,
+  previewCueTemplate,
   scanEpisodeCues,
   updateCueTemplate,
   type CueScanResponse,
   type CueTemplate,
   type CueTemplateScope,
 } from '../../api/cueTemplates';
-import { getEpisode, getEpisodes, getFeed } from '../../api/feeds';
+import { getEpisode, getEpisodes, getFeed, getFeeds } from '../../api/feeds';
+import type { Feed } from '../../api/types';
 import type { Episode } from '../../api/types';
 import { formatTime } from '../../utils/adReviewHelpers';
 
@@ -45,6 +47,9 @@ function CueTemplatesPanel({ slug }: Props) {
   const [editValue, setEditValue] = useState('');
   const [actionError, setActionError] = useState<string | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
+  const [verifyState, setVerifyState] = useState<{ label: string; checked: number; matched: number } | null>(null);
+  const [verifying, setVerifying] = useState(false);
+  const [promoteState, setPromoteState] = useState<{ template: CueTemplate; feeds: Feed[] } | null>(null);
 
   const templatesQuery = useQuery({
     queryKey: ['cue-templates', slug],
@@ -99,12 +104,58 @@ function CueTemplatesPanel({ slug }: Props) {
     }
   };
 
-  const handlePromote = (template: CueTemplate) => {
+  const handlePromote = async (template: CueTemplate) => {
     setActionError(null);
     if (template.scope === 'network') {
+      // Demotion has no blast radius; apply immediately.
       updateMutation.mutate({ id: template.id, patch: { scope: 'podcast' } });
-    } else if (networkId) {
-      updateMutation.mutate({ id: template.id, patch: { scope: 'network', networkId } });
+      return;
+    }
+    if (!networkId) return;
+    // Promotion applies the cue to every feed on the network -- show which ones
+    // before committing.
+    try {
+      const feeds = await getFeeds();
+      const onNetwork = feeds.filter((f) => (f.networkIdOverride || f.networkId) === networkId);
+      setPromoteState({ template, feeds: onNetwork });
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Could not load network feeds');
+    }
+  };
+
+  const confirmPromote = () => {
+    if (!promoteState || !networkId) return;
+    updateMutation.mutate({ id: promoteState.template.id, patch: { scope: 'network', networkId } });
+    setPromoteState(null);
+  };
+
+  // After a cue is saved, confirm it actually recurs by previewing it against a
+  // few other recent episodes -- a bad or loose bracket shows up immediately.
+  const runAutoVerify = async (template: CueTemplate) => {
+    setVerifyState(null);
+    setVerifying(true);
+    try {
+      const resp = await getEpisodes(slug, {
+        limit: 12, status: 'completed', sortBy: 'published', sortDir: 'desc',
+      });
+      const candidates = (resp.episodes || [])
+        .filter((ep) => ep.hasOriginalAudio !== false && ep.id !== template.sourceEpisodeId)
+        .slice(0, 3);
+      if (!candidates.length) return;
+      let matched = 0;
+      for (const ep of candidates) {
+        try {
+          const res = await previewCueTemplate(slug, ep.id, template.id);
+          if (res.matches.length > 0) matched += 1;
+        } catch {
+          /* skip an episode that fails to scan */
+        }
+      }
+      setVerifyState({ label: template.label, checked: candidates.length, matched });
+    } catch (e) {
+      setActionError(e instanceof Error ? e.message : 'Auto-verify failed');
+    } finally {
+      setVerifying(false);
     }
   };
 
@@ -192,6 +243,18 @@ function CueTemplatesPanel({ slug }: Props) {
         </div>
 
         {actionError && <p className="text-sm text-destructive mb-2">{actionError}</p>}
+        {verifying && (
+          <p className="text-sm text-muted-foreground mb-2 flex items-center gap-2">
+            <LoadingSpinner size="sm" inline /> Checking the new cue against recent episodes...
+          </p>
+        )}
+        {verifyState && !verifying && (
+          <p className={`text-sm mb-2 ${verifyState.matched > 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}`}>
+            Cue "{verifyState.label}" matched {verifyState.matched} of {verifyState.checked} other recent
+            episode{verifyState.checked === 1 ? '' : 's'}.
+            {verifyState.matched === 0 ? ' It may not recur or the bracket may be loose; test it on an episode where you know it plays.' : ''}
+          </p>
+        )}
         {templatesQuery.isLoading && <LoadingSpinner size="sm" className="my-2" />}
         {templatesQuery.error && (
           <p className="text-sm text-destructive">Could not load cue templates.</p>
@@ -303,10 +366,42 @@ function CueTemplatesPanel({ slug }: Props) {
           episodeDuration={openModal.duration}
           onClose={() => setOpenModal(null)}
           onSaved={invalidate}
+          onFinalSave={runAutoVerify}
         />
       )}
 
       {scanOpen && <CueScanModal slug={slug} onClose={() => setScanOpen(false)} />}
+
+      {promoteState && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setPromoteState(null)}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Promote cue to network"
+            className="bg-background text-foreground rounded-lg shadow-xl w-full max-w-md p-5"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="text-base font-semibold mb-2">Promote to network</h3>
+            <p className="text-sm text-muted-foreground mb-3">
+              Cue "{promoteState.template.label}" will start matching every feed on
+              network "{networkId}" ({promoteState.feeds.length}):
+            </p>
+            <ul className="text-sm border rounded divide-y divide-border max-h-48 overflow-y-auto mb-4">
+              {promoteState.feeds.map((f) => (
+                <li key={f.slug} className="px-3 py-1.5 truncate">{f.title || f.slug}</li>
+              ))}
+            </ul>
+            <div className="flex justify-end gap-2">
+              <button type="button" className="px-3 py-1.5 rounded border border-input hover:bg-muted text-sm" onClick={() => setPromoteState(null)}>
+                Cancel
+              </button>
+              <button type="button" className="px-3 py-1.5 rounded bg-primary text-primary-foreground hover:opacity-90 text-sm" onClick={confirmPromote}>
+                Promote
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

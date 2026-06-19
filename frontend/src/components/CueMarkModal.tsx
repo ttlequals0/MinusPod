@@ -11,6 +11,7 @@ import {
 } from '../utils/adReviewHelpers';
 import {
   createCueTemplate,
+  deleteCueTemplate,
   previewCueTemplate,
   type CueTemplate,
   type CueTemplateMatch,
@@ -36,12 +37,17 @@ export interface CueMarkModalProps {
   initialStart?: number;
   initialEnd?: number;
   onClose: () => void;
+  // Fired whenever a template is persisted (create or preview) so the list can
+  // refresh.
   onSaved: (template: CueTemplate) => void;
+  // Fired only on the final "Save cue" so the panel can auto-verify the new
+  // cue against a few other episodes.
+  onFinalSave?: (template: CueTemplate) => void;
 }
 
 function CueMarkModal({
   podcastSlug, episodeId, episodeTitle, episodeDuration,
-  initialStart, initialEnd, onClose, onSaved,
+  initialStart, initialEnd, onClose, onSaved, onFinalSave,
 }: CueMarkModalProps) {
   // Window always covers the entire episode -- zoom widens the inner
   // wavesurfer canvas inside an overflow-x scroller, with the scroll
@@ -291,15 +297,40 @@ function CueMarkModal({
     regionDuration >= MIN_REGION_SECONDS && regionDuration <= MAX_REGION_SECONDS;
   const canSave = !!label.trim() && regionDurationValid && !saving;
 
+  // The last persisted template for the current selection. Save-and-preview and
+  // Save reuse it when the bounds and label have not changed, so previewing
+  // before saving does not leave a duplicate cue behind.
+  const persistedRef = useRef<{ start: number; end: number; label: string; template: CueTemplate } | null>(null);
+
+  const ensureTemplate = useCallback(async (): Promise<CueTemplate> => {
+    const lbl = label.trim();
+    const prev = persistedRef.current;
+    if (
+      prev && prev.label === lbl &&
+      Math.abs(prev.start - cueStart) < 0.001 &&
+      Math.abs(prev.end - cueEnd) < 0.001
+    ) {
+      return prev.template;
+    }
+    const template = await createCueTemplate(podcastSlug, episodeId, cueStart, cueEnd, lbl);
+    // The bracket or label changed since the last save/preview; drop the now
+    // superseded template so a preview-then-rebracket flow leaves only the
+    // latest cue rather than accumulating drafts.
+    if (prev) {
+      try { await deleteCueTemplate(prev.template.id); } catch { /* best effort */ }
+    }
+    persistedRef.current = { start: cueStart, end: cueEnd, label: lbl, template };
+    onSaved(template);
+    return template;
+  }, [cueStart, cueEnd, label, podcastSlug, episodeId, onSaved]);
+
   const handleSave = async () => {
     if (!canSave) return;
     setSaving(true);
     setError(null);
     try {
-      const template = await createCueTemplate(
-        podcastSlug, episodeId, cueStart, cueEnd, label.trim(),
-      );
-      onSaved(template);
+      const template = await ensureTemplate();
+      onFinalSave?.(template);
       onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Save failed');
@@ -313,12 +344,9 @@ function CueMarkModal({
     setPreviewing(true);
     setError(null);
     try {
-      const template = await createCueTemplate(
-        podcastSlug, episodeId, cueStart, cueEnd, label.trim(),
-      );
+      const template = await ensureTemplate();
       const res = await previewCueTemplate(podcastSlug, episodeId, template.id);
       setPreviewMatches(res.matches);
-      onSaved(template);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Preview failed');
     } finally {

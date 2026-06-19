@@ -152,7 +152,9 @@ Settings live under Experiments → Audio Cue Detection:
 - **Template match score** - the cross-correlation score a marked template must reach to register on another episode (0 to 0.99, default 0.75). Lower catches more occurrences but risks false matches. Applies only to feeds that have templates.
 - **Create ads from cue pairs** - off by default. When two high-confidence cues bracket a plausible break the model missed, synthesize a cue-only ad for that span. The reviewer still evaluates it. This relaxes the "cue is supporting evidence only" rule, so leave it off until you trust the matcher on a feed.
 
-Marking a cue requires the source episode's retained original audio, because a cue can sit inside a removed ad. `keep_original_audio` is on by default; there is no backfill, so only episodes processed after upgrading to 2.9.0 can be used to mark a cue. Each template also stores its raw audio so it can be exported as a lossless WAV and shared between your own or trusted installs.
+Marking a cue requires the source episode's retained original audio, because a cue can sit inside a removed ad. `keep_original_audio` is on by default; there is no backfill, so only episodes processed after upgrading to 2.9.0 can be used to mark a cue. If you set a shorter `original_retention_days` than `retention_days`, originals age out earlier and those episodes drop out of the cue picker even though the processed audio remains. Each template stores its own raw audio, so a saved cue keeps working after its source episode's original is gone, and it can be exported as a lossless WAV and shared between your own or trusted installs.
+
+These are DB settings configured in the UI and at `GET/PUT /api/v1/settings`; they have no environment variable, like the rest of the Audio Cue Detection controls.
 
 The Stats page shows an Avg Audio Cues card and a Total Audio Cues figure. Both read zero until the experiment is enabled. Detection quality depends on the show, so start with one whose cue is clear.
 
