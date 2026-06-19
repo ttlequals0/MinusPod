@@ -96,3 +96,43 @@ def test_no_result_returns_input_unchanged():
     existing = [{'start': 100.0, 'end': 160.0}]
     ads = synthesize_ads_from_cue_pairs(existing, None)
     assert ads == existing
+
+
+# ---------------------------------------------------------------------------
+# Role gating (only opener -> closer pairs synthesize an ad)
+# ---------------------------------------------------------------------------
+
+def _typed_cue(start, end, role, conf=0.9, template_id=1):
+    return AudioSegmentSignal(
+        start=start, end=end, signal_type='audio_cue', confidence=conf,
+        details={'source': 'template', 'label': role, 'role': role,
+                 'template_id': template_id},
+    )
+
+
+def test_two_start_cues_do_not_pair():
+    # Two break-entry stingers must NOT bracket the show content between two
+    # separate breaks: a 'start' role can open but never close a pair.
+    result = _result_with(
+        _typed_cue(100.0, 100.5, 'start'),
+        _typed_cue(220.0, 220.5, 'start'),
+    )
+    assert synthesize_ads_from_cue_pairs([], result) == []
+
+
+def test_start_then_end_pairs():
+    result = _result_with(
+        _typed_cue(100.0, 100.5, 'start'),
+        _typed_cue(220.0, 220.5, 'end'),
+    )
+    ads = synthesize_ads_from_cue_pairs([], result)
+    assert len(ads) == 1
+    assert ads[0]['detection_stage'] == 'cue_pair'
+
+
+def test_intro_outro_cues_never_pair():
+    result = _result_with(
+        _typed_cue(100.0, 100.5, 'non_ad'),
+        _typed_cue(220.0, 220.5, 'non_ad'),
+    )
+    assert synthesize_ads_from_cue_pairs([], result) == []

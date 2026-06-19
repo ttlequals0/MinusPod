@@ -25,7 +25,7 @@ from typing import Dict, List
 import numpy as np
 from scipy.signal import fftconvolve
 
-from config import AUDIO_CUE_TEMPLATE_SCORE
+from config import AUDIO_CUE_TEMPLATE_SCORE, AUDIO_CUE_TYPE_DEFAULT, audio_cue_type_role
 from .base import AudioSegmentSignal, SignalType
 from .cue_features import (
     FRAME_HOP_MS,
@@ -58,6 +58,8 @@ class _Template:
     mfcc: np.ndarray             # (n_frames, n_coeffs) float32
     duration_s: float
     n_coeffs: int
+    cue_type: str
+    role: str
 
 
 class AudioCueTemplateMatcher:
@@ -86,12 +88,15 @@ class AudioCueTemplateMatcher:
                     f"{mfcc.shape[0]} frames"
                 )
                 continue
+            cue_type = row.get('cue_type') or AUDIO_CUE_TYPE_DEFAULT
             self._templates.append(_Template(
                 template_id=int(row['id']),
                 label=row.get('label') or f"template-{row['id']}",
                 mfcc=mfcc,
                 duration_s=float(row['duration_s']),
                 n_coeffs=int(row['n_coeffs']),
+                cue_type=cue_type,
+                role=audio_cue_type_role(cue_type),
             ))
 
     @property
@@ -253,6 +258,8 @@ class AudioCueTemplateMatcher:
                         'source': 'template',
                         'template_id': tpl.template_id,
                         'label': tpl.label,
+                        'cue_type': tpl.cue_type,
+                        'role': tpl.role,
                         'score': round(score, 3),
                     },
                 ))

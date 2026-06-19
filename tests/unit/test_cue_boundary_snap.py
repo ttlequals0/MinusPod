@@ -129,3 +129,44 @@ def test_end_snap_never_pulls_before_start():
     result = _result_with(_cue(start=99.8, end=100.4))
     snap_ad_boundaries_to_cues(ads, result, max_boundary_shift_s=10.0)
     assert ads[0]['end'] == 100.6
+
+
+# ---------------------------------------------------------------------------
+# Role gating (cue type drives which edge a cue may snap)
+# ---------------------------------------------------------------------------
+
+def _typed_cue(start, end, role, conf=0.9, template_id=1):
+    return AudioSegmentSignal(
+        start=start, end=end, signal_type='audio_cue', confidence=conf,
+        details={'source': 'template', 'label': role, 'role': role,
+                 'template_id': template_id},
+    )
+
+
+def test_start_role_cue_does_not_snap_end_edge():
+    # A 'start'-typed cue sitting near the ad END must not move the end edge.
+    ads = [{'start': 100.0, 'end': 160.0}]
+    result = _result_with(_typed_cue(161.0, 161.6, 'start'))
+    snap_ad_boundaries_to_cues(ads, result, max_boundary_shift_s=10.0)
+    assert ads[0]['end'] == 160.0
+    assert 'cue_snap' not in ads[0]
+
+
+def test_end_role_cue_snaps_end_edge():
+    ads = [{'start': 100.0, 'end': 160.0}]
+    result = _result_with(_typed_cue(161.0, 161.6, 'end'))
+    snap_ad_boundaries_to_cues(ads, result, max_boundary_shift_s=10.0)
+    assert ads[0]['end'] == 160.95  # cue start (161.0) - 0.05
+    assert 'end' in ads[0]['cue_snap']
+
+
+def test_non_ad_cue_never_snaps_either_edge():
+    # Intro/outro cues adjacent to both edges are ignored entirely.
+    ads = [{'start': 100.0, 'end': 160.0}]
+    result = _result_with(
+        _typed_cue(98.0, 99.5, 'non_ad'),
+        _typed_cue(161.0, 161.6, 'non_ad'),
+    )
+    snap_ad_boundaries_to_cues(ads, result, max_boundary_shift_s=10.0)
+    assert ads[0]['start'] == 100.0 and ads[0]['end'] == 160.0
+    assert 'cue_snap' not in ads[0]

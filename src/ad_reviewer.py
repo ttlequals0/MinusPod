@@ -13,6 +13,8 @@ from config import (
     AD_REVIEWER_PARALLEL_ADS_MIN,
     AD_REVIEWER_PARALLEL_ADS_MAX,
     resolve_env_backed_default,
+    AUDIO_CUE_ROLE_DEFAULT,
+    AUDIO_CUE_ROLE_NON_AD,
 )
 from database import DEFAULT_REVIEW_PROMPT, DEFAULT_RESURRECT_PROMPT
 from llm_capabilities import PASS_REVIEWER_1, PASS_REVIEWER_2
@@ -137,14 +139,24 @@ def _format_cue_section(*, audio_analysis, ad_start: float, ad_end: float,
             cues = []
         near_start = []
         near_end = []
+        near_non_ad = []
         for cue in cues:
             if cue.confidence < 0.80:
                 continue
             details = cue.details or {}
             label = details.get('label') or 'audio cue'
-            if abs(cue.start - ad_start) <= 60.0 or abs(cue.end - ad_start) <= 60.0:
+            role = details.get('role', AUDIO_CUE_ROLE_DEFAULT)
+            near_start_edge = abs(cue.start - ad_start) <= 60.0 or abs(cue.end - ad_start) <= 60.0
+            near_end_edge = abs(cue.start - ad_end) <= 60.0 or abs(cue.end - ad_end) <= 60.0
+            if role == AUDIO_CUE_ROLE_NON_AD:
+                # Intro/outro markers are not boundary evidence; surface them
+                # only to warn the reviewer off anchoring the ad to them.
+                if near_start_edge or near_end_edge:
+                    near_non_ad.append((cue, label))
+                continue
+            if near_start_edge:
                 near_start.append((cue, label))
-            if abs(cue.start - ad_end) <= 60.0 or abs(cue.end - ad_end) <= 60.0:
+            if near_end_edge:
                 near_end.append((cue, label))
         if near_start or near_end:
             lines.append("AUDIO CUE EVIDENCE:")
@@ -164,6 +176,17 @@ def _format_cue_section(*, audio_analysis, ad_start: float, ad_end: float,
                 "These cues are show stingers / break jingles. Treat each as a "
                 "ground-truth boundary marker for its side of the break -- do not "
                 "pull a boundary across a cue without strong transcript evidence."
+            )
+        if near_non_ad:
+            lines.append("SHOW INTRO/OUTRO MARKERS NEARBY:")
+            for cue, label in near_non_ad:
+                lines.append(
+                    f"  - \"{label}\" at {cue.start:.1f}s-{cue.end:.1f}s "
+                    f"(the show's open/close, NOT an ad boundary)"
+                )
+            lines.append(
+                "Do not anchor this ad's boundary to these markers; they are the "
+                "show's own intro/outro, not break stingers."
             )
     if cue_pair:
         start_label = (cue_pair.get('start') or {}).get('label')

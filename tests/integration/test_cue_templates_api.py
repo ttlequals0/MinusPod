@@ -94,7 +94,7 @@ def _seed_template(db, slug):
     mfcc = rng.standard_normal((10, N_COEFFS)).astype(np.float32)
     pcm = np.clip(rng.standard_normal(1600), -1, 1).astype(np.float32)
     return db.create_cue_template(
-        podcast_id=pid, label='seed-cue', source_episode_id=None,
+        podcast_id=pid, cue_type='ad_break_boundary', source_episode_id=None,
         source_offset_s=0.0, duration_s=0.5, sample_rate=16000, n_coeffs=N_COEFFS,
         mfcc_blob=serialize_mfcc(mfcc), pcm_blob=pcm_to_int16_bytes(pcm),
         pcm_sample_rate=16000,
@@ -117,20 +117,20 @@ def test_create_validation_errors(app_client, seeded):
     slug, ep = seeded['slug'], seeded['episode_id']
     base = f'/api/v1/feeds/{slug}/cue-templates'
     # missing startS/endS
-    assert app_client.post(base, json={'episodeId': ep, 'label': 'x'}, headers=hdr).status_code == 400
-    # empty label
-    assert app_client.post(base, json={'episodeId': ep, 'startS': 0.6, 'endS': 1.1, 'label': ''}, headers=hdr).status_code == 400
+    assert app_client.post(base, json={'episodeId': ep}, headers=hdr).status_code == 400
+    # invalid cueType (not in the fixed vocabulary)
+    assert app_client.post(base, json={'episodeId': ep, 'startS': 0.6, 'endS': 1.1, 'cueType': 'freeform'}, headers=hdr).status_code == 400
     # too short
-    assert app_client.post(base, json={'episodeId': ep, 'startS': 0.6, 'endS': 0.61, 'label': 'x'}, headers=hdr).status_code == 400
+    assert app_client.post(base, json={'episodeId': ep, 'startS': 0.6, 'endS': 0.61}, headers=hdr).status_code == 400
     # bad scope
-    assert app_client.post(base, json={'episodeId': ep, 'startS': 0.6, 'endS': 1.1, 'label': 'x', 'scope': 'global'}, headers=hdr).status_code == 400
+    assert app_client.post(base, json={'episodeId': ep, 'startS': 0.6, 'endS': 1.1, 'scope': 'global'}, headers=hdr).status_code == 400
 
 
 def test_create_missing_episode_404(app_client, seeded):
     hdr = _csrf(app_client)
     r = app_client.post(
         f"/api/v1/feeds/{seeded['slug']}/cue-templates",
-        json={'episodeId': 'ffffffffffff', 'startS': 0.6, 'endS': 1.1, 'label': 'x'},
+        json={'episodeId': 'ffffffffffff', 'startS': 0.6, 'endS': 1.1, 'cueType': 'ad_break_start'},
         headers=hdr)
     assert r.status_code == 404
 
@@ -145,10 +145,11 @@ def test_full_lifecycle(app_client, seeded):
     base = f'/api/v1/feeds/{slug}/cue-templates'
 
     # create (decode -> mfcc -> persist)
-    r = app_client.post(base, json={'episodeId': ep, 'startS': 0.6, 'endS': 1.1, 'label': 'glass-clink'}, headers=hdr)
+    r = app_client.post(base, json={'episodeId': ep, 'startS': 0.6, 'endS': 1.1, 'cueType': 'ad_break_start'}, headers=hdr)
     assert r.status_code == 201, r.get_data(as_text=True)
     tpl = r.get_json()['template']
-    assert tpl['label'] == 'glass-clink' and tpl['scope'] == 'podcast'
+    assert tpl['cueType'] == 'ad_break_start' and tpl['label'] == 'ad-break start'
+    assert tpl['scope'] == 'podcast'
     tid = tpl['id']
 
     # list shows it
@@ -192,12 +193,12 @@ def test_full_lifecycle(app_client, seeded):
 def test_patch_scope_validated_before_write(app_client, seeded):
     hdr = _csrf(app_client)
     tid = _seed_template(seeded['db'], seeded['slug'])
-    # Invalid scope must 400 AND not apply the label change (validate-before-write).
+    # Invalid scope must 400 AND not apply the cueType change (validate-before-write).
     r = app_client.patch(f'/api/v1/cue-templates/{tid}',
-                         json={'label': 'changed', 'scope': 'bogus'}, headers=hdr)
+                         json={'cueType': 'ad_break_start', 'scope': 'bogus'}, headers=hdr)
     assert r.status_code == 400
     row = seeded['db'].get_cue_template(tid)
-    assert row['label'] == 'seed-cue'  # unchanged
+    assert row['cue_type'] == 'ad_break_boundary'  # unchanged
 
 
 def test_promote_to_network(app_client, seeded):
@@ -220,7 +221,7 @@ def test_export_without_pcm_is_422(app_client, seeded):
     pid = db.get_podcast_by_slug(seeded['slug'])['id']
     mfcc = np.zeros((5, N_COEFFS), dtype=np.float32)
     tid = db.create_cue_template(
-        podcast_id=pid, label='no-pcm', source_episode_id=None, source_offset_s=0.0,
+        podcast_id=pid, cue_type='ad_break_boundary', source_episode_id=None, source_offset_s=0.0,
         duration_s=0.5, sample_rate=16000, n_coeffs=N_COEFFS,
         mfcc_blob=serialize_mfcc(mfcc), pcm_blob=None, pcm_sample_rate=None)
     assert app_client.get(f'/api/v1/cue-templates/{tid}/export').status_code == 422

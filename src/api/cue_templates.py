@@ -34,6 +34,7 @@ from audio_analysis.cue_detector import AudioCueDetector
 from config import (
     AUDIO_CUE_CAPTURE_MIN_SECONDS, AUDIO_CUE_CAPTURE_MAX_SECONDS,
     AUDIO_CUE_FREQ_MIN_HZ, AUDIO_CUE_FREQ_MAX_HZ, AUDIO_CUE_PROMINENCE_DB,
+    AUDIO_CUE_TYPES, AUDIO_CUE_TYPE_DEFAULT,
 )
 from utils.validation import is_valid_episode_id
 from version import __version__
@@ -76,6 +77,7 @@ def _template_to_meta_dict(row: dict) -> dict:
         'id': row['id'],
         'podcastId': row['podcast_id'],
         'label': row['label'],
+        'cueType': row['cue_type'] if 'cue_type' in row.keys() else AUDIO_CUE_TYPE_DEFAULT,
         'sourceEpisodeId': row['source_episode_id'],
         'sourceOffsetS': row['source_offset_s'],
         'durationS': row['duration_s'],
@@ -120,7 +122,7 @@ def create_cue_template(slug):
 
     payload = request.get_json(silent=True) or {}
     episode_id = payload.get('episodeId')
-    label = (payload.get('label') or '').strip()
+    cue_type = payload.get('cueType', AUDIO_CUE_TYPE_DEFAULT)
     try:
         start_s = float(payload['startS'])
         end_s = float(payload['endS'])
@@ -128,10 +130,9 @@ def create_cue_template(slug):
         return error_response('startS and endS are required numbers', 400)
     if not episode_id or not is_valid_episode_id(episode_id):
         return error_response('episodeId is required and must be valid', 400)
-    if not label:
-        return error_response('label is required', 400)
-    if len(label) > 80:
-        return error_response('label is too long (max 80 chars)', 400)
+    if cue_type not in AUDIO_CUE_TYPES:
+        return error_response(
+            'cueType must be one of: ' + ', '.join(sorted(AUDIO_CUE_TYPES)), 400)
     cap_min = db.get_setting_float('audio_cue_capture_min_seconds', AUDIO_CUE_CAPTURE_MIN_SECONDS)
     cap_max = db.get_setting_float('audio_cue_capture_max_seconds', AUDIO_CUE_CAPTURE_MAX_SECONDS)
     if end_s - start_s < cap_min:
@@ -172,7 +173,7 @@ def create_cue_template(slug):
 
     template_id = db.create_cue_template(
         podcast_id=podcast['id'],
-        label=label,
+        cue_type=cue_type,
         source_episode_id=episode_id,
         source_offset_s=start_s,
         duration_s=round(end_s - start_s, 3),
@@ -186,7 +187,7 @@ def create_cue_template(slug):
     )
     logger.info(
         f"Cue template created: id={template_id} feed={slug} ep={episode_id} "
-        f"window={start_s:.2f}-{end_s:.2f}s label={label!r}"
+        f"window={start_s:.2f}-{end_s:.2f}s cue_type={cue_type!r}"
     )
     row = db.get_cue_template(template_id)
     return json_response({'template': _template_to_meta_dict(row)}, status=201)
@@ -201,14 +202,11 @@ def update_cue_template_route(template_id):
     if not row:
         return error_response('template not found', 404)
     payload = request.get_json(silent=True) or {}
-    new_label = payload.get('label')
+    new_cue_type = payload.get('cueType')
     enabled = payload.get('enabled')
-    if new_label is not None:
-        new_label = str(new_label).strip()
-        if not new_label:
-            return error_response('label cannot be empty', 400)
-        if len(new_label) > 80:
-            return error_response('label is too long (max 80 chars)', 400)
+    if new_cue_type is not None and new_cue_type not in AUDIO_CUE_TYPES:
+        return error_response(
+            'cueType must be one of: ' + ', '.join(sorted(AUDIO_CUE_TYPES)), 400)
     if enabled is not None and not isinstance(enabled, bool):
         return error_response('enabled must be true or false', 400)
 
@@ -225,7 +223,7 @@ def update_cue_template_route(template_id):
             if not network_id:
                 return error_response('networkId is required to promote to network scope', 400)
 
-    db.update_cue_template(template_id, label=new_label, enabled=enabled)
+    db.update_cue_template(template_id, cue_type=new_cue_type, enabled=enabled)
     if scope is not None:
         db.promote_cue_template(template_id, scope, network_id)
 
@@ -412,6 +410,7 @@ def export_cue_template(template_id):
         'schemaVersion': CUE_TEMPLATE_SCHEMA_VERSION,
         'appVersion': __version__,
         'label': row['label'],
+        'cueType': row['cue_type'] if 'cue_type' in row.keys() else AUDIO_CUE_TYPE_DEFAULT,
         'durationS': row['duration_s'],
         'sampleRate': sample_rate,
         'nCoeffs': row['n_coeffs'],
@@ -495,11 +494,15 @@ def import_cue_template(slug):
     if mfcc.shape[0] < 3:
         return error_response('cue audio is too short to import', 400)
 
-    label = (str(manifest.get('label') or 'imported cue')).strip()[:80] or 'imported cue'
+    # Older exports (pre-cue-type) carry no cueType; fall back to the default
+    # boundary type rather than rejecting a still-valid cue.
+    cue_type = manifest.get('cueType', AUDIO_CUE_TYPE_DEFAULT)
+    if cue_type not in AUDIO_CUE_TYPES:
+        cue_type = AUDIO_CUE_TYPE_DEFAULT
     duration_s = round(len(pcm) / float(SAMPLE_RATE_HZ), 3)
     template_id = db.create_cue_template(
         podcast_id=podcast['id'],
-        label=label,
+        cue_type=cue_type,
         source_episode_id=None,
         source_offset_s=0.0,
         duration_s=duration_s,
@@ -510,7 +513,7 @@ def import_cue_template(slug):
         pcm_sample_rate=SAMPLE_RATE_HZ,
         created_by='import',
     )
-    logger.info(f"Cue template imported: id={template_id} feed={slug} label={label!r}")
+    logger.info(f"Cue template imported: id={template_id} feed={slug} cue_type={cue_type!r}")
     row = db.get_cue_template(template_id)
     return json_response({'template': _template_to_meta_dict(row)}, status=201)
 

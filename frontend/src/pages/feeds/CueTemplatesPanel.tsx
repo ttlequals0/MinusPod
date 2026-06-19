@@ -5,6 +5,7 @@ import CollapsibleSection from '../../components/CollapsibleSection';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import CueMarkModal from '../../components/CueMarkModal';
 import {
+  CUE_TYPE_OPTIONS,
   cueTemplateExportUrl,
   deleteCueTemplate,
   importCueTemplate,
@@ -15,6 +16,7 @@ import {
   type CueScanResponse,
   type CueTemplate,
   type CueTemplateScope,
+  type CueTemplateType,
 } from '../../api/cueTemplates';
 import { getEpisode, getEpisodes, getFeed, getFeeds } from '../../api/feeds';
 import { getSettings } from '../../api/settings';
@@ -45,9 +47,11 @@ function CueTemplatesPanel({ slug }: Props) {
   const [openModal, setOpenModal] = useState<{ episodeId: string; episodeTitle: string; duration: number } | null>(null);
   const [scanOpen, setScanOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [editValue, setEditValue] = useState('');
+  const [editValue, setEditValue] = useState<CueTemplateType>('ad_break_boundary');
   const [actionError, setActionError] = useState<string | null>(null);
   const importInputRef = useRef<HTMLInputElement>(null);
+  // Set on Escape so the unmount-triggered blur cancels instead of committing.
+  const editCancelledRef = useRef(false);
   const [verifyState, setVerifyState] = useState<{ label: string; checked: number; matched: number } | null>(null);
   const [verifying, setVerifying] = useState(false);
   const [promoteState, setPromoteState] = useState<{ template: CueTemplate; feeds: Feed[] } | null>(null);
@@ -76,7 +80,7 @@ function CueTemplatesPanel({ slug }: Props) {
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['cue-templates', slug] });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, patch }: { id: number; patch: { label?: string; enabled?: boolean; scope?: CueTemplateScope; networkId?: string } }) =>
+    mutationFn: ({ id, patch }: { id: number; patch: { cueType?: CueTemplateType; enabled?: boolean; scope?: CueTemplateScope; networkId?: string } }) =>
       updateCueTemplate(id, patch),
     onSuccess: invalidate,
     onError: (e) => setActionError(e instanceof Error ? e.message : 'Update failed'),
@@ -98,17 +102,20 @@ function CueTemplatesPanel({ slug }: Props) {
     updateMutation.mutate({ id: template.id, patch: { enabled: !template.enabled } });
   };
 
-  const startRename = (template: CueTemplate) => {
+  const startEditType = (template: CueTemplate) => {
     setActionError(null);
     setEditingId(template.id);
-    setEditValue(template.label);
+    setEditValue(template.cueType);
   };
 
-  const commitRename = (template: CueTemplate) => {
-    const next = editValue.trim();
+  const commitType = (template: CueTemplate) => {
     setEditingId(null);
-    if (next && next !== template.label) {
-      updateMutation.mutate({ id: template.id, patch: { label: next } });
+    if (editCancelledRef.current) {
+      editCancelledRef.current = false;
+      return;
+    }
+    if (editValue !== template.cueType) {
+      updateMutation.mutate({ id: template.id, patch: { cueType: editValue } });
     }
   };
 
@@ -286,20 +293,25 @@ function CueTemplatesPanel({ slug }: Props) {
                 />
                 <div className="flex-1 min-w-0">
                   {editingId === t.id ? (
-                    <input
-                      type="text"
+                    <select
                       autoFocus
-                      maxLength={80}
                       value={editValue}
-                      onChange={(e) => setEditValue(e.target.value)}
-                      onBlur={() => commitRename(t)}
+                      onChange={(e) => setEditValue(e.target.value as CueTemplateType)}
+                      onBlur={() => commitType(t)}
                       onKeyDown={(e) => {
-                        if (e.key === 'Enter') commitRename(t);
-                        if (e.key === 'Escape') setEditingId(null);
+                        if (e.key === 'Enter') e.currentTarget.blur();
+                        if (e.key === 'Escape') {
+                          editCancelledRef.current = true;
+                          e.currentTarget.blur();
+                        }
                       }}
                       className="w-full border rounded px-2 py-1 bg-background text-sm"
-                      aria-label="Cue label"
-                    />
+                      aria-label="Cue type"
+                    >
+                      {CUE_TYPE_OPTIONS.map((o) => (
+                        <option key={o.value} value={o.value}>{o.label}</option>
+                      ))}
+                    </select>
                   ) : (
                     <>
                       <p className="font-medium truncate">
@@ -343,9 +355,9 @@ function CueTemplatesPanel({ slug }: Props) {
                     <button
                       type="button"
                       className="text-xs text-muted-foreground hover:text-foreground"
-                      onClick={() => startRename(t)}
+                      onClick={() => startEditType(t)}
                     >
-                      Rename
+                      Change type
                     </button>
                     {confirmDeleteId === t.id ? (
                       <>

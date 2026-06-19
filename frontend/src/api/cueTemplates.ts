@@ -2,10 +2,32 @@ import { apiRequest, csrfHeaders, extractErrorMessage } from './client';
 
 export type CueTemplateScope = 'podcast' | 'network';
 
+export type CueTemplateType =
+  | 'ad_break_boundary'
+  | 'ad_break_start'
+  | 'ad_break_end'
+  | 'show_intro'
+  | 'show_outro';
+
+// Fixed cue-type vocabulary for the capture dropdown. The label here is the
+// human option text; the server keeps its own canonical phrase for the LLM.
+export const CUE_TYPE_OPTIONS: { value: CueTemplateType; label: string }[] = [
+  { value: 'ad_break_boundary', label: 'Ad-break boundary (both ends)' },
+  { value: 'ad_break_start', label: 'Ad-break start' },
+  { value: 'ad_break_end', label: 'Ad-break end' },
+  { value: 'show_intro', label: 'Show intro (not an ad)' },
+  { value: 'show_outro', label: 'Show outro (not an ad)' },
+];
+
+export function cueTypeLabel(cueType: CueTemplateType): string {
+  return CUE_TYPE_OPTIONS.find((o) => o.value === cueType)?.label ?? cueType;
+}
+
 export interface CueTemplate {
   id: number;
   podcastId: number;
   label: string;
+  cueType: CueTemplateType;
   sourceEpisodeId: string | null;
   sourceOffsetS: number;
   durationS: number;
@@ -47,13 +69,13 @@ export async function createCueTemplate(
   episodeId: string,
   startS: number,
   endS: number,
-  label: string,
+  cueType: CueTemplateType,
 ): Promise<CueTemplate> {
   const res = await apiRequest<{ template: CueTemplate }>(
     `/feeds/${slug}/cue-templates`,
     {
       method: 'POST',
-      body: { episodeId, startS, endS, label },
+      body: { episodeId, startS, endS, cueType },
     },
   );
   return res.template;
@@ -61,7 +83,7 @@ export async function createCueTemplate(
 
 export async function updateCueTemplate(
   templateId: number,
-  patch: { label?: string; enabled?: boolean; scope?: CueTemplateScope; networkId?: string },
+  patch: { cueType?: CueTemplateType; enabled?: boolean; scope?: CueTemplateScope; networkId?: string },
 ): Promise<CueTemplate> {
   const res = await apiRequest<{ template: CueTemplate }>(
     `/cue-templates/${templateId}`,

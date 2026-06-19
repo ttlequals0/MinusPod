@@ -17,7 +17,7 @@ def _add_template(db, podcast_id):
     mfcc = rng.standard_normal((10, N_COEFFS)).astype(np.float32)
     pcm = np.clip(rng.standard_normal(1600), -1, 1).astype(np.float32)
     return db.create_cue_template(
-        podcast_id=podcast_id, label='ding', source_episode_id='ep-1',
+        podcast_id=podcast_id, cue_type='ad_break_boundary', source_episode_id='ep-1',
         source_offset_s=1.0, duration_s=0.6, sample_rate=16000,
         n_coeffs=N_COEFFS, mfcc_blob=serialize_mfcc(mfcc),
         pcm_blob=pcm_to_int16_bytes(pcm), pcm_sample_rate=16000,

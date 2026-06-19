@@ -9,10 +9,10 @@ def _result_with(*signals):
     return r
 
 
-def _cue(start, end, conf=0.92, source='template', label='ding'):
+def _cue(start, end, conf=0.92, source='template', label='ding', role='boundary'):
     return AudioSegmentSignal(
         start=start, end=end, signal_type='audio_cue', confidence=conf,
-        details={'source': source, 'label': label},
+        details={'source': source, 'label': label, 'role': role},
     )
 
 
@@ -43,4 +43,15 @@ def test_cue_outside_window_not_rendered():
     enforcer = AudioEnforcer()
     out = enforcer.format_for_window(_result_with(_cue(120.0, 120.4)), 0.0, 60.0)
     # No signal in window -> empty, no guidance.
+    assert 'LABELLED AUDIO CUES' not in out
+
+
+def test_intro_outro_cue_renders_non_ad_guidance():
+    enforcer = AudioEnforcer()
+    out = enforcer.format_for_window(
+        _result_with(_cue(10.0, 10.4, label='show intro', role='non_ad')), 0.0, 60.0)
+    # Intro/outro is framed as a non-ad marker, not an ad-break cue.
+    assert 'NOT an ad boundary' in out
+    assert 'SHOW INTRO/OUTRO MARKERS' in out
+    # And it does not pull in the ad-break cue guidance on its own.
     assert 'LABELLED AUDIO CUES' not in out

@@ -155,6 +155,7 @@ class SchemaMixin:
                 pcm_sample_rate INTEGER,
                 scope TEXT NOT NULL DEFAULT 'podcast' CHECK(scope IN ('network', 'podcast')),
                 network_id TEXT,
+                cue_type TEXT NOT NULL DEFAULT 'ad_break_boundary' CHECK(cue_type IN ('ad_break_boundary', 'ad_break_start', 'ad_break_end', 'show_intro', 'show_outro')),
                 enabled INTEGER NOT NULL DEFAULT 1,
                 created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
                 created_by TEXT DEFAULT 'user',
@@ -1284,6 +1285,7 @@ class SchemaMixin:
                     pcm_sample_rate INTEGER,
                     scope TEXT NOT NULL DEFAULT 'podcast' CHECK(scope IN ('network', 'podcast')),
                     network_id TEXT,
+                    cue_type TEXT NOT NULL DEFAULT 'ad_break_boundary' CHECK(cue_type IN ('ad_break_boundary', 'ad_break_start', 'ad_break_end', 'show_intro', 'show_outro')),
                     enabled INTEGER NOT NULL DEFAULT 1,
                     created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ', 'now')),
                     created_by TEXT DEFAULT 'user',
@@ -1299,6 +1301,14 @@ class SchemaMixin:
                     "TEXT NOT NULL DEFAULT 'podcast'", cols,
                 )
                 self._add_column_if_missing(conn, 'audio_cue_templates', 'network_id', 'TEXT', cols)
+                # Cue type added after the initial 2.9.0 columns. ALTER omits the
+                # CHECK (SQLite keeps it only on fresh-table DDL) -- the app layer
+                # validates the value; the default keeps every existing row at the
+                # back-compat 'boundary' role with no data loss.
+                self._add_column_if_missing(
+                    conn, 'audio_cue_templates', 'cue_type',
+                    "TEXT NOT NULL DEFAULT 'ad_break_boundary'", cols,
+                )
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_cue_templates_feed "
                 "ON audio_cue_templates(podcast_id, enabled)"

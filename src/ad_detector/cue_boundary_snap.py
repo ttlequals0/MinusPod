@@ -17,7 +17,12 @@ from __future__ import annotations
 import logging
 from typing import Dict, List, Optional
 
-from config import AUDIO_CUE_SNAP_CONFIDENCE
+from config import (
+    AUDIO_CUE_SNAP_CONFIDENCE,
+    AUDIO_CUE_ROLE_DEFAULT,
+    AUDIO_CUE_START_EDGE_ROLES,
+    AUDIO_CUE_END_EDGE_ROLES,
+)
 
 logger = logging.getLogger('podcast.claude.cue_snap')
 
@@ -35,6 +40,16 @@ SNAP_GAP_SECONDS = 0.05
 # Minimum cue confidence to consider for snapping (default; DB-settable via
 # audio_cue_snap_confidence, which the caller threads in as min_confidence).
 MIN_CUE_CONFIDENCE_FOR_SNAP = AUDIO_CUE_SNAP_CONFIDENCE
+
+
+def _cue_role(cue) -> str:
+    """Matching role carried in a cue's details.
+
+    Template cues carry the role of their type ('start' / 'end' / 'boundary' /
+    'non_ad'); spectral fallback cues and any legacy signal default to
+    'boundary' so their existing both-edges behavior is preserved.
+    """
+    return (cue.details or {}).get('role', AUDIO_CUE_ROLE_DEFAULT)
 
 
 def _snap_record(original: float, proposed: float, cue) -> Dict:
@@ -164,6 +179,8 @@ def _pick_cue_for_start(
     best = None
     best_key = None
     for cue in cues:
+        if _cue_role(cue) not in AUDIO_CUE_START_EDGE_ROLES:
+            continue
         cue_end = cue.end
         if cue_end < low or cue_end > high:
             continue
@@ -200,6 +217,8 @@ def _pick_cue_for_end(
     best_key = None
     for cue in cues:
         if id(cue) in exclude_ids:
+            continue
+        if _cue_role(cue) not in AUDIO_CUE_END_EDGE_ROLES:
             continue
         cue_start = cue.start
         if cue_start < low or cue_start > high:

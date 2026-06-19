@@ -15,6 +15,8 @@ show that uses the exact same sound, so a global stinger has no meaning.
 import logging
 from typing import Dict, List, Optional
 
+from config import audio_cue_type_label
+
 logger = logging.getLogger(__name__)
 
 
@@ -24,7 +26,7 @@ class CueTemplateMixin:
     def create_cue_template(
         self,
         podcast_id: int,
-        label: str,
+        cue_type: str,
         source_episode_id: Optional[str],
         source_offset_s: float,
         duration_s: float,
@@ -37,18 +39,24 @@ class CueTemplateMixin:
         network_id: Optional[str] = None,
         created_by: str = 'user',
     ) -> int:
-        """Insert a cue template. Returns the new row id."""
+        """Insert a cue template. Returns the new row id.
+
+        The human-readable ``label`` is derived from ``cue_type`` (not stored
+        freeform) so the phrase fed to the LLM prompt is always one of the
+        fixed type names.
+        """
+        label = audio_cue_type_label(cue_type)
         conn = self.get_connection()
         cursor = conn.execute(
             """INSERT INTO audio_cue_templates (
-                   podcast_id, label, source_episode_id, source_offset_s,
+                   podcast_id, label, cue_type, source_episode_id, source_offset_s,
                    duration_s, sample_rate, n_coeffs, mfcc_blob,
                    pcm_blob, pcm_sample_rate, scope, network_id,
                    enabled, created_by
                )
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)""",
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?)""",
             (
-                podcast_id, label, source_episode_id, source_offset_s,
+                podcast_id, label, cue_type, source_episode_id, source_offset_s,
                 duration_s, sample_rate, n_coeffs, mfcc_blob,
                 pcm_blob, pcm_sample_rate, scope, network_id, created_by,
             ),
@@ -96,7 +104,7 @@ class CueTemplateMixin:
         """List without the blobs, for UI listings."""
         conn = self.get_connection()
         cursor = conn.execute(
-            "SELECT id, podcast_id, label, source_episode_id, source_offset_s, "
+            "SELECT id, podcast_id, label, cue_type, source_episode_id, source_offset_s, "
             "duration_s, sample_rate, n_coeffs, scope, network_id, "
             "enabled, created_at, created_by "
             "FROM audio_cue_templates WHERE podcast_id = ? "
@@ -108,15 +116,21 @@ class CueTemplateMixin:
     def update_cue_template(
         self,
         template_id: int,
-        label: Optional[str] = None,
+        cue_type: Optional[str] = None,
         enabled: Optional[bool] = None,
     ) -> bool:
-        """Patch label and/or enabled. Returns True if a row was updated."""
+        """Patch cue_type and/or enabled. Returns True if a row was updated.
+
+        Changing ``cue_type`` also resets the derived ``label`` so the stored
+        phrase stays in sync with the type.
+        """
         sets = []
         args: list = []
-        if label is not None:
+        if cue_type is not None:
+            sets.append("cue_type = ?")
+            args.append(cue_type)
             sets.append("label = ?")
-            args.append(label)
+            args.append(audio_cue_type_label(cue_type))
         if enabled is not None:
             sets.append("enabled = ?")
             args.append(1 if enabled else 0)

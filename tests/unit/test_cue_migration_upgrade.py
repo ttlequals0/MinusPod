@@ -43,12 +43,14 @@ def test_upgrade_adds_pcm_and_scope_columns(tmp_path):
         conn = db.get_connection()
         cols = {r['name'] for r in conn.execute("PRAGMA table_info(audio_cue_templates)").fetchall()}
         # New columns added by the guarded ALTERs.
-        assert {'pcm_blob', 'pcm_sample_rate', 'scope', 'network_id'} <= cols
-        # The pre-existing row survived (no data loss) and defaults to podcast scope.
+        assert {'pcm_blob', 'pcm_sample_rate', 'scope', 'network_id', 'cue_type'} <= cols
+        # The pre-existing row survived (no data loss) and defaults to podcast
+        # scope and the back-compat boundary cue type.
         row = conn.execute(
-            "SELECT label, scope FROM audio_cue_templates WHERE label = 'legacy-cue'"
+            "SELECT label, scope, cue_type FROM audio_cue_templates WHERE label = 'legacy-cue'"
         ).fetchone()
         assert row is not None
         assert row['scope'] == 'podcast'
+        assert row['cue_type'] == 'ad_break_boundary'
     finally:
         Database._instance = None

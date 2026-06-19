@@ -9,6 +9,8 @@ evidence alongside the transcript and makes all ad/not-ad decisions itself.
 import logging
 from typing import Optional
 
+from config import AUDIO_CUE_ROLE_DEFAULT, AUDIO_CUE_ROLE_NON_AD
+
 logger = logging.getLogger('podcast.audio_enforcer')
 
 # Only include signals above this confidence in the prompt
@@ -40,7 +42,8 @@ class AudioEnforcer:
             return ""
 
         lines = []
-        has_cue = False
+        has_ad_cue = False
+        has_non_ad_cue = False
 
         for signal in audio_analysis.signals:
             # Skip low-confidence signals
@@ -64,21 +67,25 @@ class AudioEnforcer:
                     f"({signal.signal_type}, confidence {signal.confidence:.0%})"
                 )
             elif signal.signal_type == 'audio_cue':
-                # A short non-spoken ding/stinger that some shows play just
-                # before an ad break. Use it to set an ad's START edge when the
-                # transcript right after it is promotional. When the signal came
-                # from a user-marked template the label is shown.
+                # A short non-spoken ding/stinger that some shows play around an
+                # ad break. Ad-break-typed cues set an ad's edge when the nearby
+                # transcript is promotional; intro/outro cues (role 'non_ad')
+                # are the show's own open/close and must NOT move an ad boundary.
                 details = signal.details or {}
                 label = details.get('label')
                 source = details.get('source', 'spectral')
-                if source == 'template' and label:
-                    descriptor = f'"{label}" cue'
+                role = details.get('role', AUDIO_CUE_ROLE_DEFAULT)
+                if role == AUDIO_CUE_ROLE_NON_AD:
+                    descriptor = f'"{label}" marker' if label else 'Show intro/outro marker'
+                    suffix = "marks the show's open/close, NOT an ad boundary"
+                    has_non_ad_cue = True
                 else:
-                    descriptor = 'Audio cue (ding/stinger)'
-                has_cue = True
+                    descriptor = f'"{label}" cue' if (source == 'template' and label) else 'Audio cue (ding/stinger)'
+                    suffix = 'often just before an ad break'
+                    has_ad_cue = True
                 lines.append(
                     f"- {descriptor} at {signal.start:.1f}s "
-                    f"(often just before an ad break, confidence {signal.confidence:.0%})"
+                    f"({suffix}, confidence {signal.confidence:.0%})"
                 )
 
         if not lines:
@@ -108,6 +115,14 @@ class AudioEnforcer:
             "intermediate cue while the transcript is still promotional -- extend to the last cue "
             "before show content resumes. The cue is never an ad on its own; it sharpens the "
             "boundary of an ad you find in the transcript.\n"
-        ) if has_cue else ""
+        ) if has_ad_cue else ""
 
-        return header + "\n".join(lines) + "\n" + cue_guidance
+        # Intro/outro markers steer the model away from a false positive: the
+        # show's own open/close sound is not a break boundary.
+        non_ad_guidance = (
+            "\nSHOW INTRO/OUTRO MARKERS: a marker above is the show's own opening or closing "
+            "sound, not an ad cue. Do NOT treat it as an ad boundary or start or extend an ad "
+            "at it.\n"
+        ) if has_non_ad_cue else ""
+
+        return header + "\n".join(lines) + "\n" + cue_guidance + non_ad_guidance

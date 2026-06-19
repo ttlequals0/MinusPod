@@ -43,11 +43,11 @@ def test_export_import_roundtrip_reproduces_mfcc():
     assert serialize_mfcc(reimported_mfcc) == serialize_mfcc(reimported_mfcc)
 
 
-def _add(temp_db, podcast_id, label, scope='podcast', network_id=None):
+def _add(temp_db, podcast_id, cue_type='ad_break_boundary', scope='podcast', network_id=None):
     rng = np.random.default_rng(1)
     mfcc = rng.standard_normal((8, N_COEFFS)).astype(np.float32)
     return temp_db.create_cue_template(
-        podcast_id=podcast_id, label=label, source_episode_id=None,
+        podcast_id=podcast_id, cue_type=cue_type, source_episode_id=None,
         source_offset_s=0.0, duration_s=0.5, sample_rate=SAMPLE_RATE_HZ,
         n_coeffs=N_COEFFS, mfcc_blob=serialize_mfcc(mfcc),
         pcm_blob=b'\x00\x00', pcm_sample_rate=SAMPLE_RATE_HZ,
@@ -60,7 +60,7 @@ def test_promote_changes_scope_and_feed_resolution(temp_db):
     pid_b = temp_db.create_podcast('show-b', 'http://x/b.xml', 'Show B')
     temp_db.update_podcast('show-a', network_id='net-1')
     temp_db.update_podcast('show-b', network_id='net-1')
-    tid = _add(temp_db, pid_a, 'stinger')
+    tid = _add(temp_db, pid_a, 'ad_break_boundary')
 
     # Podcast scope: applies only to its own feed.
     assert [r['id'] for r in temp_db.list_active_cue_templates_for_feed(pid_a)] == [tid]

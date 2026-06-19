@@ -202,6 +202,49 @@ AUDIO_CUE_PAIR_CONFIDENCE = 0.85        # Min cue confidence to synthesize an ad
 AUDIO_CUE_PAIR_MIN_BREAK_SECONDS = 30.0   # Shortest plausible cue-pair break
 AUDIO_CUE_PAIR_MAX_BREAK_SECONDS = 480.0  # Longest plausible cue-pair break
 
+# Cue template types (#350). A cue is one of a fixed set of types chosen from a
+# dropdown, never freeform text, so the phrase fed to the LLM prompt is always
+# consistent and the matching role is explicit. Maps type key -> (canonical
+# phrase shown to the LLM and UI, matching role). Roles:
+#   'start'    - eligible to snap an ad START edge; opens a cue pair.
+#   'end'      - eligible to snap an ad END edge; closes a cue pair.
+#   'boundary' - both of the above (default; also the role of the spectral
+#                fallback's role-less cues, so legacy behavior is unchanged).
+#   'non_ad'   - intro/outro: never snaps or pairs; only tells the model the
+#                sound marks the show's open/close, not an ad boundary.
+AUDIO_CUE_TYPES = {
+    'ad_break_boundary': ('ad-break boundary', 'boundary'),
+    'ad_break_start': ('ad-break start', 'start'),
+    'ad_break_end': ('ad-break end', 'end'),
+    'show_intro': ('show intro', 'non_ad'),
+    'show_outro': ('show outro', 'non_ad'),
+}
+AUDIO_CUE_TYPE_DEFAULT = 'ad_break_boundary'
+
+
+def audio_cue_type_label(cue_type):
+    """Canonical LLM/UI phrase for a cue type (falls back to the default)."""
+    return AUDIO_CUE_TYPES.get(cue_type, AUDIO_CUE_TYPES[AUDIO_CUE_TYPE_DEFAULT])[0]
+
+
+def audio_cue_type_role(cue_type):
+    """Matching role for a cue type (falls back to the default)."""
+    return AUDIO_CUE_TYPES.get(cue_type, AUDIO_CUE_TYPES[AUDIO_CUE_TYPE_DEFAULT])[1]
+
+
+# Single source of truth for the cue-role vocabulary the consumers gate on, so
+# snap / cue-pair / prompt rendering never re-type the same role literals.
+# AUDIO_CUE_ROLE_DEFAULT is the role assumed for a signal with no explicit role
+# (the spectral fallback's cues and any legacy signal) -- it must stay equal to
+# the default type's role.
+AUDIO_CUE_ROLE_DEFAULT = audio_cue_type_role(AUDIO_CUE_TYPE_DEFAULT)  # 'boundary'
+AUDIO_CUE_ROLE_NON_AD = 'non_ad'  # intro/outro: never snaps or pairs
+# Roles eligible to move each ad edge. Snap uses them per edge; cue-pair uses
+# the start set as openers and the end set as closers, so the all-boundary case
+# behaves as before and a 'start' cue can only open while an 'end' can only close.
+AUDIO_CUE_START_EDGE_ROLES = ('start', 'boundary')
+AUDIO_CUE_END_EDGE_ROLES = ('end', 'boundary')
+
 # ============================================================
 # Audio Processing
 # ============================================================

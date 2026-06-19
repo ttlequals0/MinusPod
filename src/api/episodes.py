@@ -65,6 +65,11 @@ def list_episodes(slug):
 
     # Get query params
     status = request.args.get('status', 'all')
+    # The API emits 'completed' as the alias for processed episodes (see the
+    # output mapping below), so accept that alias as a filter value too;
+    # otherwise filtering by the status the client was handed returns nothing.
+    if status == EpisodeStatus.COMPLETED.value:
+        status = EpisodeStatus.PROCESSED.value
     limit = min(int(request.args.get('limit', 25)), 500)
     offset = int(request.args.get('offset', 0))
     sort_by = request.args.get('sort_by', 'published_at')

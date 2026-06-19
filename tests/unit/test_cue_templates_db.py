@@ -15,12 +15,12 @@ def _blobs(seed=0, frames=10):
     return serialize_mfcc(mfcc), pcm_to_int16_bytes(np.clip(pcm, -1, 1))
 
 
-def _create(db, podcast_id, label='ding', scope='podcast', network_id=None,
-            enabled=True, seed=0):
+def _create(db, podcast_id, cue_type='ad_break_boundary', scope='podcast',
+            network_id=None, enabled=True, seed=0):
     mfcc_blob, pcm_blob = _blobs(seed)
     tid = db.create_cue_template(
         podcast_id=podcast_id,
-        label=label,
+        cue_type=cue_type,
         source_episode_id='ep-1',
         source_offset_s=12.5,
         duration_s=0.6,
@@ -41,13 +41,14 @@ def test_create_get_roundtrip_preserves_blobs(temp_db):
     pid = temp_db.create_podcast('show-a', 'http://x/a.xml', 'Show A')
     mfcc_blob, pcm_blob = _blobs(seed=3)
     tid = temp_db.create_cue_template(
-        podcast_id=pid, label='clink', source_episode_id='ep-9',
+        podcast_id=pid, cue_type='ad_break_start', source_episode_id='ep-9',
         source_offset_s=3.0, duration_s=0.4, sample_rate=16000,
         n_coeffs=N_COEFFS, mfcc_blob=mfcc_blob, pcm_blob=pcm_blob,
         pcm_sample_rate=16000,
     )
     row = temp_db.get_cue_template(tid)
-    assert row['label'] == 'clink'
+    assert row['cue_type'] == 'ad_break_start'
+    assert row['label'] == 'ad-break start'  # derived from the type
     assert row['scope'] == 'podcast'  # default
     assert row['enabled'] == 1
     assert bytes(row['mfcc_blob']) == mfcc_blob
@@ -57,20 +58,23 @@ def test_create_get_roundtrip_preserves_blobs(temp_db):
 
 def test_metadata_excludes_blobs(temp_db):
     pid = temp_db.create_podcast('show-b', 'http://x/b.xml', 'Show B')
-    _create(temp_db, pid, label='swoosh')
+    _create(temp_db, pid, cue_type='ad_break_end')
     meta = temp_db.list_cue_templates_metadata(pid)
     assert len(meta) == 1
-    assert meta[0]['label'] == 'swoosh'
+    assert meta[0]['cue_type'] == 'ad_break_end'
+    assert meta[0]['label'] == 'ad-break end'
     assert 'mfcc_blob' not in meta[0]
     assert 'pcm_blob' not in meta[0]
 
 
-def test_update_and_delete(temp_db):
+def test_update_changes_type_and_label(temp_db):
     pid = temp_db.create_podcast('show-c', 'http://x/c.xml', 'Show C')
-    tid = _create(temp_db, pid, label='old')
-    assert temp_db.update_cue_template(tid, label='new', enabled=False)
+    tid = _create(temp_db, pid, cue_type='ad_break_start')
+    # Changing the type resets the derived label and can also flip enabled.
+    assert temp_db.update_cue_template(tid, cue_type='show_intro', enabled=False)
     row = temp_db.get_cue_template(tid)
-    assert row['label'] == 'new'
+    assert row['cue_type'] == 'show_intro'
+    assert row['label'] == 'show intro'
     assert row['enabled'] == 0
     assert temp_db.delete_cue_template(tid)
     assert temp_db.get_cue_template(tid) is None
@@ -88,10 +92,11 @@ def test_active_list_tracks_enabled_flag(temp_db):
 def test_active_resolution_podcast_scope_only(temp_db):
     pid_a = temp_db.create_podcast('show-e', 'http://x/e.xml', 'Show E')
     pid_b = temp_db.create_podcast('show-f', 'http://x/f.xml', 'Show F')
-    _create(temp_db, pid_a, label='a-cue')
-    _create(temp_db, pid_b, label='b-cue')
+    _create(temp_db, pid_a)
+    _create(temp_db, pid_b)
     rows = temp_db.list_active_cue_templates_for_feed(pid_a)
-    assert [r['label'] for r in rows] == ['a-cue']
+    assert len(rows) == 1
+    assert rows[0]['podcast_id'] == pid_a
 
 
 def test_active_resolution_includes_network_scope_most_specific_first(temp_db):
@@ -102,21 +107,21 @@ def test_active_resolution_includes_network_scope_most_specific_first(temp_db):
     temp_db.update_podcast('show-g', network_id='net-1')
     temp_db.update_podcast('show-h', network_id='net-1')
 
-    _create(temp_db, pid_g, label='net-cue', scope='network', network_id='net-1')
-    _create(temp_db, pid_h, label='h-own', scope='podcast', seed=1)
+    _create(temp_db, pid_g, cue_type='ad_break_end', scope='network', network_id='net-1')
+    _create(temp_db, pid_h, cue_type='ad_break_start', scope='podcast', seed=1)
 
     rows = temp_db.list_active_cue_templates_for_feed(pid_h)
-    labels = [r['label'] for r in rows]
-    assert set(labels) == {'h-own', 'net-cue'}
+    assert {r['scope'] for r in rows} == {'podcast', 'network'}
     # Most-specific (podcast scope) first.
-    assert labels[0] == 'h-own'
+    assert rows[0]['scope'] == 'podcast'
+    assert rows[0]['cue_type'] == 'ad_break_start'
 
 
 def test_active_resolution_excludes_disabled_and_other_networks(temp_db):
     pid = temp_db.create_podcast('show-i', 'http://x/i.xml', 'Show I')
     temp_db.update_podcast('show-i', network_id='net-2')
-    _create(temp_db, pid, label='disabled-own', enabled=False)
+    _create(temp_db, pid, enabled=False)
     # Network template on a different network must not leak in.
     other = temp_db.create_podcast('show-j', 'http://x/j.xml', 'Show J')
-    _create(temp_db, other, label='other-net', scope='network', network_id='net-3')
+    _create(temp_db, other, scope='network', network_id='net-3')
     assert temp_db.list_active_cue_templates_for_feed(pid) == []

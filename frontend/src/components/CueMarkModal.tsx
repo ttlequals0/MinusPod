@@ -14,8 +14,10 @@ import {
   deleteCueTemplate,
   getEpisodeLoudSpots,
   previewCueTemplate,
+  CUE_TYPE_OPTIONS,
   type CueTemplate,
   type CueTemplateMatch,
+  type CueTemplateType,
   type LoudSpot,
 } from '../api/cueTemplates';
 
@@ -82,7 +84,7 @@ function CueMarkModal({
   const [endInput, setEndInput] = useState(() => formatTime(defaults.cueEnd));
   const [startEditing, setStartEditing] = useState(false);
   const [endEditing, setEndEditing] = useState(false);
-  const [label, setLabel] = useState('');
+  const [cueType, setCueType] = useState<CueTemplateType>('ad_break_boundary');
   const [zoom, setZoom] = useState(1);
   const [isPlaying, setIsPlaying] = useState(false);
   const [playbackRate, setPlaybackRate] = useState<number>(1);
@@ -327,34 +329,33 @@ function CueMarkModal({
   const regionDuration = cueEnd - cueStart;
   const regionDurationValid =
     regionDuration >= MIN_REGION_SECONDS && regionDuration <= MAX_REGION_SECONDS;
-  const canSave = !!label.trim() && regionDurationValid && !saving;
+  const canSave = regionDurationValid && !saving;
 
   // The last persisted template for the current selection. Save-and-preview and
-  // Save reuse it when the bounds and label have not changed, so previewing
+  // Save reuse it when the bounds and type have not changed, so previewing
   // before saving does not leave a duplicate cue behind.
-  const persistedRef = useRef<{ start: number; end: number; label: string; template: CueTemplate } | null>(null);
+  const persistedRef = useRef<{ start: number; end: number; cueType: CueTemplateType; template: CueTemplate } | null>(null);
 
   const ensureTemplate = useCallback(async (): Promise<CueTemplate> => {
-    const lbl = label.trim();
     const prev = persistedRef.current;
     if (
-      prev && prev.label === lbl &&
+      prev && prev.cueType === cueType &&
       Math.abs(prev.start - cueStart) < 0.001 &&
       Math.abs(prev.end - cueEnd) < 0.001
     ) {
       return prev.template;
     }
-    const template = await createCueTemplate(podcastSlug, episodeId, cueStart, cueEnd, lbl);
-    // The bracket or label changed since the last save/preview; drop the now
+    const template = await createCueTemplate(podcastSlug, episodeId, cueStart, cueEnd, cueType);
+    // The bracket or type changed since the last save/preview; drop the now
     // superseded template so a preview-then-rebracket flow leaves only the
     // latest cue rather than accumulating drafts.
     if (prev) {
       try { await deleteCueTemplate(prev.template.id); } catch { /* best effort */ }
     }
-    persistedRef.current = { start: cueStart, end: cueEnd, label: lbl, template };
+    persistedRef.current = { start: cueStart, end: cueEnd, cueType, template };
     onSaved(template);
     return template;
-  }, [cueStart, cueEnd, label, podcastSlug, episodeId, onSaved]);
+  }, [cueStart, cueEnd, cueType, podcastSlug, episodeId, onSaved]);
 
   const handleSave = async () => {
     if (!canSave) return;
@@ -614,16 +615,17 @@ function CueMarkModal({
             </span>
           </p>
           <div className="flex-1 min-w-[220px]">
-            <label className="block text-xs text-muted-foreground" htmlFor="cue-label-in">Cue label</label>
-            <input
-              id="cue-label-in"
-              type="text"
-              maxLength={80}
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              placeholder="e.g. break stinger"
+            <label className="block text-xs text-muted-foreground" htmlFor="cue-type-in">Cue type</label>
+            <select
+              id="cue-type-in"
+              value={cueType}
+              onChange={(e) => setCueType(e.target.value as CueTemplateType)}
               className="w-full border rounded px-2 py-1 bg-background text-sm"
-            />
+            >
+              {CUE_TYPE_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
           </div>
         </div>
 

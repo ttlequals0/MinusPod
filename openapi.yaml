@@ -4599,7 +4599,7 @@ paths:
           application/json:
             schema:
               type: object
-              required: [episodeId, startS, endS, label]
+              required: [episodeId, startS, endS]
               properties:
                 episodeId:
                   type: string
@@ -4607,9 +4607,16 @@ paths:
                   type: number
                 endS:
                   type: number
-                label:
+                cueType:
                   type: string
-                  maxLength: 80
+                  enum: [ad_break_boundary, ad_break_start, ad_break_end, show_intro, show_outro]
+                  default: ad_break_boundary
+                  description: >-
+                    Fixed cue type chosen from a dropdown (not freeform). The
+                    type sets the consistent label fed to the LLM and the
+                    matching role: ad_break_start/end snap that edge, ad_break_boundary
+                    snaps both, show_intro/show_outro never snap or pair and only
+                    tell the model the sound is the show open/close, not an ad.
                 scope:
                   type: string
                   enum: [podcast, network]
@@ -4628,7 +4635,7 @@ paths:
                   template:
                     $ref: '#/components/schemas/CueTemplate'
         '400':
-          description: Invalid selection or label
+          description: Invalid selection or cueType
         '404':
           description: Feed or original audio not found
 
@@ -4650,9 +4657,10 @@ paths:
             schema:
               type: object
               properties:
-                label:
+                cueType:
                   type: string
-                  maxLength: 80
+                  enum: [ad_break_boundary, ad_break_start, ad_break_end, show_intro, show_outro]
+                  description: Change the cue type (also resets the derived label)
                 enabled:
                   type: boolean
                 scope:
@@ -5014,6 +5022,11 @@ components:
           type: integer
         label:
           type: string
+          description: Canonical phrase derived from cueType (shown to the LLM and UI)
+        cueType:
+          type: string
+          enum: [ad_break_boundary, ad_break_start, ad_break_end, show_intro, show_outro]
+          default: ad_break_boundary
         sourceEpisodeId:
           type: string
           nullable: true

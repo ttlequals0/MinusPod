@@ -24,6 +24,9 @@ from config import (
     AUDIO_CUE_PAIR_CONFIDENCE,
     AUDIO_CUE_PAIR_MIN_BREAK_SECONDS,
     AUDIO_CUE_PAIR_MAX_BREAK_SECONDS,
+    AUDIO_CUE_ROLE_DEFAULT,
+    AUDIO_CUE_START_EDGE_ROLES,
+    AUDIO_CUE_END_EDGE_ROLES,
 )
 
 logger = logging.getLogger('podcast.claude.cue_pair')
@@ -41,6 +44,13 @@ DEFAULT_MAX_BREAK_S = AUDIO_CUE_PAIR_MAX_BREAK_SECONDS
 # either side) is treated as "already covers it" and the pair is skipped.
 OVERLAP_TOLERANCE_S = 5.0
 
+# A pair spans an opener cue -> a later closer cue. A 'boundary' cue (and the
+# role-less spectral fallback) can play either part, so the all-boundary case
+# behaves exactly as before; a 'start'-typed cue can only open and an 'end'
+# can only close, which stops two break-entry stingers from pairing into a
+# span that covers the show content between two separate breaks. 'non_ad'
+# (intro/outro) cues match neither set, so they are never opener or closer.
+
 
 @dataclass
 class _Cue:
@@ -49,6 +59,7 @@ class _Cue:
     confidence: float
     label: Optional[str]
     template_id: Optional[int]
+    role: str
 
 
 def synthesize_ads_from_cue_pairs(
@@ -74,6 +85,8 @@ def synthesize_ads_from_cue_pairs(
     if not audio_analysis_result:
         return list(ads)
     raw_cues = audio_analysis_result.get_signals_by_type('audio_cue')
+    # Keep every cue above the confidence floor; the opener/closer role checks
+    # below exclude 'non_ad' (intro/outro) cues, so no separate filter is needed.
     cues = sorted(
         (_Cue(
             start=float(c.start),
@@ -81,6 +94,7 @@ def synthesize_ads_from_cue_pairs(
             confidence=float(c.confidence),
             label=(c.details or {}).get('label'),
             template_id=(c.details or {}).get('template_id'),
+            role=(c.details or {}).get('role', AUDIO_CUE_ROLE_DEFAULT),
         ) for c in raw_cues if c.confidence >= min_confidence),
         key=lambda x: x.start,
     )
@@ -96,10 +110,14 @@ def synthesize_ads_from_cue_pairs(
         if consumed[i]:
             continue
         cue_a = cues[i]
+        if cue_a.role not in AUDIO_CUE_START_EDGE_ROLES:
+            continue
         for j in range(i + 1, len(cues)):
             if consumed[j]:
                 continue
             cue_b = cues[j]
+            if cue_b.role not in AUDIO_CUE_END_EDGE_ROLES:
+                continue
             gap = cue_b.start - cue_a.end
             if gap < min_break_s:
                 # Too close: probably the same boundary's stinger reflected
