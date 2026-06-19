@@ -597,20 +597,16 @@ def episode_detected_cues(slug, episode_id):
         except (ValueError, TypeError):
             cue_signals = []
 
-    # Template-free loud spots over the original audio. Needs retained audio; a
-    # template can only be cut from the original, so without it there is nothing
-    # to promote.
-    loud_spots = []
-    audio_path, err = _resolve_original_audio(db, storage, slug, episode_id)
+    # Deliberately NOT running the loud-spot detector here. Decoding the whole
+    # episode took 25-75s and made the panel look stuck. The cues persisted during
+    # processing are the high-confidence set and read back instantly. The path
+    # check below only confirms the original audio still exists (no decode); it
+    # gates whether a template can be cut.
+    _, err = _resolve_original_audio(db, storage, slug, episode_id)
     has_original_audio = err is None
-    if has_original_audio:
-        try:
-            loud_spots = _scan_loud_spots(db, audio_path)
-        except Exception as e:
-            logger.warning(f"[{slug}:{episode_id}] detected-cues loud-spot scan failed: {e}")
 
     return json_response({
         'episodeId': episode_id,
         'hasOriginalAudio': has_original_audio,
-        'detectedCues': build_detected_cues(cue_signals, loud_spots),
+        'detectedCues': build_detected_cues(cue_signals, []),
     })

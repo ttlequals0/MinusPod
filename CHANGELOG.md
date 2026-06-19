@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.10.3] - 2026-06-19
+
+### Fixed
+
+- The Detected Cues panel hung for 25 to 75 seconds. The endpoint re-decoded the whole episode to run the loud-spot detector on every open. It now reads back the cues already found during processing, so the panel loads instantly. Loud-spot scanning stays in the capture tool, where it runs on an explicit action.
+
 ## [2.10.2] - 2026-06-19
 
 ### Changed
