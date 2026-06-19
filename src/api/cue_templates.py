@@ -425,14 +425,21 @@ def import_cue_template(slug):
 
     try:
         with zipfile.ZipFile(upload.stream) as z:
-            names = set(z.namelist())
+            names = z.namelist()
             if 'template.json' not in names or 'cue.wav' not in names:
                 return error_response('zip must contain template.json and cue.wav', 400)
-            manifest = json.loads(z.read('template.json').decode('utf-8'))
-            wav_info = z.getinfo('cue.wav')
-            if wav_info.file_size > MAX_IMPORT_WAV_BYTES:
+            # Stream both entries with a hard cap, reading at most one byte past
+            # the limit so a zip bomb cannot decompress beyond MAX_IMPORT_WAV_BYTES
+            # regardless of what the central directory claims as the size.
+            with z.open('template.json') as mf:
+                manifest_bytes = mf.read(MAX_IMPORT_WAV_BYTES + 1)
+            if len(manifest_bytes) > MAX_IMPORT_WAV_BYTES:
+                return error_response('template.json is too large', 400)
+            manifest = json.loads(manifest_bytes.decode('utf-8'))
+            with z.open('cue.wav') as wf:
+                wav_bytes = wf.read(MAX_IMPORT_WAV_BYTES + 1)
+            if len(wav_bytes) > MAX_IMPORT_WAV_BYTES:
                 return error_response('cue.wav is too large', 400)
-            wav_bytes = z.read('cue.wav')
     except (zipfile.BadZipFile, KeyError, UnicodeDecodeError, json.JSONDecodeError) as e:
         return error_response(f'could not read template zip: {e}', 400)
 
