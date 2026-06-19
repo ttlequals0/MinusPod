@@ -1,0 +1,25 @@
+{
+  "scope": "global",
+  "text_template": "Book a loved by guest property with Vrbo and you get a top rated vacation rental that's loved for all the right reasons. Ugh, I love my Vrbo for the location. Good reason. Oh, and for the pool, cause pools are cool. I feel the love. Book a Vrbo that's loved by guests. If you know, you Vrbo.",
+  "intro_variants": [
+    "Book a loved by guest property with Vrbo and you get a top rated vacation rental that's loved for all the right reasons."
+  ],
+  "outro_variants": [
+    "If you know, you Vrbo."
+  ],
+  "avg_duration": 29.9,
+  "sponsor": "Vrbo",
+  "sponsor_aliases": [
+    "VrboCare"
+  ],
+  "sponsor_tags": [
+    "travel",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "1d6a805e-a1be-486c-b591-565772e59055",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:14.308472+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

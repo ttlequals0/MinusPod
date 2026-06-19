@@ -1,0 +1,25 @@
+{
+  "scope": "global",
+  "text_template": "Support for the show today comes from the Futurology podcast. With so much changing every minute, it can feel useless to think more than a few days into the future, they say. But exploring what could happen in the weeks, years, even decades after tomorrow, can completely reshape how we approach today, which is exactly what futurology is for. This new podcast from the Berggruen Institute can help you Get Ahead of Tomorrow Futurology isn sci it not speculation Each week they have thoughtful conversations with scientists and artists technologists and philosophers who don just predict They illuminate the forces shaping our lives Imagine where they take us and how we can respond whether the future is something we have to endure or something we can design And if so what will we build Subscribe to Futurology wherever you get your podcasts or watch full episodes.",
+  "intro_variants": [
+    "Support for the show today comes from the Futurology podcast."
+  ],
+  "outro_variants": [
+    "Subscribe to Futurology wherever you get your podcasts or watch full episodes.",
+    "Subscribe to Futurology wherever you get your podcasts or watch full episodes on YouTube."
+  ],
+  "avg_duration": 55.6,
+  "sponsor": "Berggruen Institute",
+  "sponsor_aliases": [
+    "Futurology Podcast"
+  ],
+  "sponsor_tags": [
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "1a6c621c-1cad-4c37-9f18-ea5982ccf236",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:13.963374+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

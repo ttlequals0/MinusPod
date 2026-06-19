@@ -1,0 +1,27 @@
+{
+  "scope": "global",
+  "text_template": "This is Jenny Garth from I Choose Me with Jenny Garth. You know, history is full of surprising little details. And laundry? Turns out, it's got its own fascinating story too. Because not all detergents are created equal. Tide liquid laundry detergent isn't just clean, it's boosted clean. TideClean for cleaner, whiter, brighter, and fresher results compared to Tide Simply. And those stubborn stains that always seem to show up at the worst times? Tide tackles 100% of common stains for every load, every time. Now, if grease is your nemesis, think food spills, cooking splatters, Tide's got 10 times grease-fighting ingredients. and fascinating story too, because not all detergents are created equal. Tide liquid laundry detergent isn't just clean, it's boosted clean for cleaner, whiter, brighter, and fresher results compared to Tide simply. And those stubborn stains that always seem to show up at the worst times? Tide tackles 100% of common stains for every load, every time. Now, if grease is your nemesis, think food spills, cooking splatters, Tide's got 10 times grease fighting ingredients. and it works in a machine, in any water condition, on all your machine washable fabrics. It's no wonder Tide was America's number one detergent in sales last year. So if it's got to be clean and it's got to be fresh, it's got to be Tide. Shop now at your local retailer.",
+  "intro_variants": [
+    "This is Jenny Garth from I Choose Me with Jenny Garth. You know, history is full of surprising little details.",
+    "This is Jenny Garth from I Choose Me with Jenny Garth. History is full of mysteries, like how people ever survived before modern laundry detergent."
+  ],
+  "outro_variants": [
+    "So if it's got to be clean and it's got to be fresh, it's got to be Tide. Shop now at your local retailer.",
+    "So if it gotta be clean and it gotta be fresh it gotta be Tide. Shop now at your local retailer.",
+    "So if it's gotta be clean, and it's gotta be fresh, it's gotta be Tide. Shop now at your local retailer.",
+    "So, if it's gotta be clean, and it's gotta be fresh, it's gotta be Tide. Shop now at your local retailer.",
+    "If it's got to be clean, it's got to be Tide."
+  ],
+  "avg_duration": 68.6,
+  "sponsor": "Tide",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "home_goods"
+  ],
+  "source_language": null,
+  "community_id": "cb9dc53f-1f14-4737-b734-297a0ebc5931",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:14.670651+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

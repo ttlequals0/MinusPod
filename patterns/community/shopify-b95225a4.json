@@ -1,0 +1,26 @@
+{
+  "scope": "global",
+  "text_template": "Starting a business can seem like a daunting task, unless you have a partner like Shopify. They have the tools you need to start and grow your business. From designing a website, to marketing, to selling and beyond, Shopify can help with everything you need. There's a reason millions of companies continue to trust and use them. With Shopify on your side, turn your big business idea into... Sign up for your $1 per month trial at shopify.com slash special offer.",
+  "intro_variants": [
+    "Starting a business can seem like a daunting task, unless you have a partner like Shopify."
+  ],
+  "outro_variants": [
+    "Sign up for your $1 per month trial at shopify.com slash special offer."
+  ],
+  "avg_duration": 27.9,
+  "sponsor": "Shopify",
+  "sponsor_aliases": [
+    "shopify.com"
+  ],
+  "sponsor_tags": [
+    "tech",
+    "saas",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "b95225a4-a283-41a4-b78f-50b87a6b62ab",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:13.856033+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

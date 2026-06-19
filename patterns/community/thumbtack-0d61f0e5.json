@@ -1,0 +1,26 @@
+{
+  "scope": "global",
+  "text_template": "I'm pretty confident talking into a mic. Hey, I'm doing it right now. But Home Projects, I second guess everything. Is that noise normal? Is that water damage? And who should I even call? That's where Thumbtack comes in. Upload a photo or voice note and their AI powered search helps diagnose the issue and match you with the right top rated local pro. Instead of second guessing or searching for hours, you get clarity and can hire the right pro with confidence. For your next home project, try Thumbtack. They know homes. Hire the right pro today.",
+  "intro_variants": [
+    "I'm pretty confident talking into a mic. Hey, I'm doing it right now."
+  ],
+  "outro_variants": [
+    "For your next home project, try Thumbtack. They know homes. Hire the right pro today."
+  ],
+  "avg_duration": 45.3,
+  "sponsor": "Thumbtack",
+  "sponsor_aliases": [
+    "Thumb Tack",
+    "thumbtack.com"
+  ],
+  "sponsor_tags": [
+    "home_improvement",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "0d61f0e5-be4d-4cb1-acb1-494a2d408aaa",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:14.823325+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

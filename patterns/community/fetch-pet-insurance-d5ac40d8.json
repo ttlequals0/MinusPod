@@ -1,0 +1,26 @@
+{
+  "scope": "global",
+  "text_template": "Support for this show comes from Fetch Pet Insurance. Do you have a pet? Every six seconds, a pet owner in the U.S. gets hit with a vet bill of over a thousand dollars. And it's almost always an unwelcome surprise. That's where Fetch Pet Insurance comes in. Fetch is the most complete pet insurance. Get paid back up to 90% of vet bills. You can use any vet in the U.S. and Canada. All vets are in network. Go to FetchPet.com slash save right now for your free quote. That's FetchPet.com slash save.",
+  "intro_variants": [
+    "Support for this show comes from Fetch Pet Insurance."
+  ],
+  "outro_variants": [
+    "That's FetchPet.com slash save.",
+    "That FetchPet slash save"
+  ],
+  "avg_duration": 62.9,
+  "sponsor": "Fetch Pet Insurance",
+  "sponsor_aliases": [
+    "fetchpet.com"
+  ],
+  "sponsor_tags": [
+    "universal",
+    "insurance"
+  ],
+  "source_language": null,
+  "community_id": "d5ac40d8-3ada-450e-a70a-0b87b6c34b02",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:14.114981+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

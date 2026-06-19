@@ -1,0 +1,27 @@
+{
+  "scope": "global",
+  "text_template": "Support for today's explain comes from ServiceNow. ServiceNow says AI was supposed to handle the parts of the job that you hate. Instead, it just describes them, suggests what to do about them, and then leaves you to do it. What? That's not help, that's homework. ServiceNow's AI specialists are different, they say. They're not a tool. Think of them as digital teammates who actually do the work from start to finish. Cases get resolved. Request get processed loops get closed and most importantly they say no extra work for you because when you can truly delegate to AI you can get back to the work only you can do the work that requires a person with ideas and judgment and you know a pulse To learn how to put AI to work for people visit servicenow",
+  "intro_variants": [
+    "Support for today's explain comes from ServiceNow.",
+    "Support for today, Explained comes from ServiceNow.",
+    "Support for today's explain comes from ServiceNow."
+  ],
+  "outro_variants": [
+    "To learn how to put AI to work for people visit servicenow",
+    "To put AI to work for people, visit ServiceNow.com.",
+    "To learn how to put AI to work for people, visit servicenow.com."
+  ],
+  "avg_duration": 49.4,
+  "sponsor": "ServiceNow",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "tech",
+    "saas"
+  ],
+  "source_language": null,
+  "community_id": "66227960-37bc-4ef4-acbd-64bb92e7e3be",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:12.751695+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

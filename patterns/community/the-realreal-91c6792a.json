@@ -1,0 +1,23 @@
+{
+  "scope": "global",
+  "text_template": "So you're running out of closet space. The good news? You don't need to stop shopping. You just need to start selling with The RealReal. The RealReal is the world's largest and most trusted resource for authenticated luxury resale. Whether it's that mini bag that can't even fit your phone or those boots you never fully broke in, The RealReal handles everything from photography and copywriting to shipping and pricing. So you can just sit back, get paid, and make room for things that actually feel like you. And with 10,000-plus new arrivals every single day from top designers like Prada, Celine, Louis Vuitton, and Loewe, all for up to 90% off retail, you're bound to find something perfectly on-brand to fill that extra closet space with. Plus, right now, you can get an extra $100 to shop when you sell for the first time. Make room for what feels like you. Go to therealreal.com to start selling and get your extra hundred dollars to keep shopping at therealreal.com. That's therealreal.com. Terms apply.",
+  "intro_variants": [
+    "So you're running out of closet space. The good news? You don't need to stop shopping."
+  ],
+  "outro_variants": [
+    "That's therealreal.com. Terms apply."
+  ],
+  "avg_duration": 58.0,
+  "sponsor": "The RealReal",
+  "sponsor_aliases": [
+    "The Real Real",
+    "therealreal.com"
+  ],
+  "sponsor_tags": [],
+  "source_language": null,
+  "community_id": "91c6792a-79f6-43d5-9250-ff3ad7b0aaff",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:13.059287+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

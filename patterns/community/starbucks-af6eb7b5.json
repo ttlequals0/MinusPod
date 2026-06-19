@@ -1,0 +1,23 @@
+{
+  "scope": "global",
+  "text_template": "What's up y'all? Summer's got a different tempo. Everything's a little looser, brighter. One plan turns into another. You hear something, you stay a little longer. Next thing you know, you're somewhere you didn't plan to be. It's those in-between moments. That's where the ideas hit. Conversations stretch out, little memories sneak up on you. Sometimes, it's just about what's in your hand. That color. That chill. The new Tropical Butterfly Refresher from Starbucks. Guava and passion fruit flavors with mango pineapple flavored pearls. Yeah, that feels like summer before you even taste it. Funny how one small stop becomes the best part of the day. Start your summer rhythm with Starbucks. Try the new Tropical Butterfly Refresher from Starbucks.",
+  "intro_variants": [
+    "What's up y'all? Summer's got a different tempo."
+  ],
+  "outro_variants": [
+    "Try the new Tropical Butterfly Refresher from Starbucks."
+  ],
+  "avg_duration": 47.6,
+  "sponsor": "Starbucks",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "beverage",
+    "food"
+  ],
+  "source_language": null,
+  "community_id": "af6eb7b5-364d-4e89-b7ae-06cd6db6b21f",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:13.600362+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

@@ -1,0 +1,24 @@
+{
+  "scope": "global",
+  "text_template": "Every small business owner has that one story, the one moment that could have broken them, but remarkably, it didn't. Hi, I'm Ben Walter, CEO of Chase for Business, and on season three of The Unshakeables, my co-host Kathleen Griffith and I are bringing you more incredible stories of overcoming the impossible. You'll hear from entrepreneurs who faced make-or-break moments and came out stronger. We dig into how they did it, what they learned, what they'd never do again, and what kept pushing them forward. These are the stories that remind us that being unshakable isn't about never failing. It's about how you rise, rebuild, and keep going. Whether you're starting up, scaling up, or trying to find your footing again, these stories remind us that resilience lives everywhere, in small businesses all across America. Ssaka. Listen to The Unshakeables wherever you get your podcasts and learn more at chase.com slash podcast. JPMorgan Chase Bank and a member FDIC. Copyright 2026, JPMorgan Chase & Company.",
+  "intro_variants": [
+    "Every small business owner has that one story, the one moment that could have broken them, but remarkably, it didn't."
+  ],
+  "outro_variants": [
+    "JPMorgan Chase Bank and a member FDIC. Copyright 2026, JPMorgan Chase & Company.",
+    "Listen to The Unshakeables wherever you get your podcasts and learn more at chase.com slash podcast."
+  ],
+  "avg_duration": 62.1,
+  "sponsor": "JP Morgan Chase",
+  "sponsor_aliases": [
+    "JPMorgan Chase",
+    "The Unshakeables"
+  ],
+  "sponsor_tags": [],
+  "source_language": null,
+  "community_id": "aaf2feff-bb35-4766-ae76-69b9ba21a25b",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:14.883237+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

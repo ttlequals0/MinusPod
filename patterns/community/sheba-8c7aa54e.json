@@ -1,0 +1,25 @@
+{
+  "scope": "global",
+  "text_template": "You know, you could be adored by everyone and still completely ignored by your cat. Trust me, I know. But if you feed your cat Sheba, you can go from being ignored to truly adored in 12 days guaranteed or your money back. Sheba has a full menu of products, appetizers, entrees, treats, even a kitten's menu. It's so cute. So Sheba has a product for even the pickiest eater. Like Sheba puree, it's made with bone broth, they're chef inspired flavors. It's got a smooth and creamy texture that cats love and contains no corn, wheat, soy, or artificial flavors. It's food that your cat's gonna love. To learn more, check out Sheba.com. That's S-H-E-B-A dot com.",
+  "intro_variants": [
+    "You know, you could be adored by everyone and still completely ignored by your cat.",
+    "All cat parents understand the feeling of being totally ignored by your cat."
+  ],
+  "outro_variants": [
+    "To learn more, check out Sheba.com.",
+    "To learn more, check out Shiba.com.",
+    "That's S-H-E-B-A dot com."
+  ],
+  "avg_duration": 41.5,
+  "sponsor": "Sheba",
+  "sponsor_aliases": [
+    "sheba.com"
+  ],
+  "sponsor_tags": [],
+  "source_language": null,
+  "community_id": "8c7aa54e-82a8-48fb-86ff-b011a5464ddd",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:14.441018+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

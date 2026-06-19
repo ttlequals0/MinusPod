@@ -1,0 +1,25 @@
+{
+  "scope": "global",
+  "text_template": "Support for today, explain comes from Granola. Nobody likes meetings for the sake of meetings. So when you find yourself in an actually productive meeting, you probably want to keep track of the important stuff. Granola can help you do just that, believe it or not. Granola is not in your pantry. It's an AI powered notepad built for the way real people actually meet. It works in the background, so you can still take whatever rough notes you like to take. But during your meeting, Granola securely transcribes everything. Then after it's over, it turns everything into clean, structured, actually useful notes. Granola also works through your device's audio, which means it integrates seamlessly into the video conferencing tools you already use. If meetings are eating up your day, Granola is a no-brainer. You can try it totally free for three months. Just head to granola.ai.explained. That's granola.ai.explained to get your time back. Get three months free at granola.ai. slash explain.",
+  "intro_variants": [
+    "Support for today, explain comes from Granola.",
+    "Support for today explained comes from Granola."
+  ],
+  "outro_variants": [
+    "That's granola.ai.explained to get your time back",
+    "That's granola.ai slash explained to get your time back",
+    "Get three months free at granola.ai. slash explain.",
+    "Get three months free at granola.ai slash explain.",
+    "Get three months free at granola dot ai slash explain."
+  ],
+  "avg_duration": 64.3,
+  "sponsor": "Granola.ai",
+  "sponsor_aliases": [],
+  "sponsor_tags": [],
+  "source_language": null,
+  "community_id": "bf937654-1dfd-4468-953a-71d1e2f072fe",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:12.770562+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

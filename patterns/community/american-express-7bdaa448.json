@@ -1,0 +1,23 @@
+{
+  "scope": "global",
+  "text_template": "Anyone managing cash flow knows growth is expensive and flexibility matters. The American Express corporate program helps businesses manage spending and payment timing to support healthier working capital. Chat with a member of the American Express team to find the card program that's best for your needs. Learn more at AmericanExpress.com slash corporate. Terms apply.",
+  "intro_variants": [
+    "Anyone managing cash flow knows growth is expensive and flexibility matters."
+  ],
+  "outro_variants": [
+    "Learn more at AmericanExpress.com slash corporate. Terms apply."
+  ],
+  "avg_duration": 22.0,
+  "sponsor": "American Express",
+  "sponsor_aliases": [
+    "americanexpress.com",
+    "AmericanExpress"
+  ],
+  "sponsor_tags": [],
+  "source_language": null,
+  "community_id": "7bdaa448-98ab-48c5-82c4-4c4b5dce77b6",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:13.880142+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

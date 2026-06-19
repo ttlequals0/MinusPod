@@ -1,0 +1,23 @@
+{
+  "scope": "global",
+  "text_template": "Take this as your sign to go. Just get out there and go. This summer at Best Western, get 1,000 bonus points and a chance to win 250,000 bonus points. Life's a trip. Make the most of it at BestWestern.com. No additional purchase necessary for sweeps. See bonus point T's and C's and sweeps rules for details.",
+  "intro_variants": [
+    "Take this as your sign to go. Just get out there and go."
+  ],
+  "outro_variants": [
+    "See bonus point T's and C's and sweeps rules for details.",
+    "Make the most of it at BestWestern.com."
+  ],
+  "avg_duration": 44.4,
+  "sponsor": "Best Western",
+  "sponsor_aliases": [
+    "bestwestern.com"
+  ],
+  "sponsor_tags": [],
+  "source_language": null,
+  "community_id": "2f3aa0bf-543f-4a3b-8632-f5adef42a39f",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:13.512666+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

@@ -1,0 +1,21 @@
+{
+  "scope": "global",
+  "text_template": "Making sense of the news is a full-time job, but it doesn't have to be yours. Not when The Guardian's new podcast, Stateside with Kai and Carter, does it for you. Three times a week, journalists Kai Wright and Carter Sherman cut right to it, asking, what's actually happening? And why does it matter? Drawing on The Guardian's reporting, they provide perspectives on everything from sports to fashion and deliver it with clarity and context. Listen to Stateside with Kai and Carter, wherever you get podcasts, or watch.",
+  "intro_variants": [
+    "Making sense of the news is a full-time job, but it doesn't have to be yours."
+  ],
+  "outro_variants": [
+    "Listen to Stateside with Kai and Carter, wherever you get podcasts, or watch.",
+    "Listen to Stateside with Kai and Carter wherever you get podcasts, or watch on YouTube."
+  ],
+  "avg_duration": null,
+  "sponsor": "The Guardian",
+  "sponsor_aliases": [],
+  "sponsor_tags": [],
+  "source_language": null,
+  "community_id": "dfc5cee6-c4be-45b7-a8ef-3ad9d7062160",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:14.577305+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

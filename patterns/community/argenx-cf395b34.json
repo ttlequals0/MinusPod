@@ -1,0 +1,28 @@
+{
+  "scope": "global",
+  "text_template": "Join us for another season of Untold Stories, Life with a Severe Autoimmune Condition, a production of Ruby Studio in partnership with Argenix. We're sharing even more inspiring stories from people living with conditions like MG and CIDP, and also opening the conversation to voices from other rare diseases like myositis and Aigen. Through these journeys, we'll explore what it's like to participate in clinical trials seeking new treatments, how connection fuels hope, and how shared experiences help move research, awareness, and care forward. Because living with a rare disease isn't just about getting through it. It's about moving forward together. Listen to Untold Stories on America's number one podcast network. Follow Untold Stories and start listening on the free app today.",
+  "intro_variants": [
+    "Join us for another season of Untold Stories"
+  ],
+  "outro_variants": [
+    "Follow Untold Stories and start listening on the free app today.",
+    "Follow Untold Stories and start listening on the free iHeartRadio app today."
+  ],
+  "avg_duration": 54.2,
+  "sponsor": "Argenx",
+  "sponsor_aliases": [
+    "Untold Stories",
+    "Rare Well Done",
+    "Argenix"
+  ],
+  "sponsor_tags": [
+    "health",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "cf395b34-5bb4-4ce5-961a-1f73779da5e3",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:14.059511+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

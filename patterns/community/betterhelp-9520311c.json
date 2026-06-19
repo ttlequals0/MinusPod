@@ -1,0 +1,29 @@
+{
+  "scope": "global",
+  "text_template": "Support for Today Explained comes from BetterHelp. BetterHelp wants you to enjoy the summer, not just slip into survival mode with those kids at home and those vacation plans coming at you fast and that routine stressing you out. Then summer is over and you're wishing you enjoyed the sunny days a little more. Wow, BetterHelp therapy can help you slow down and be present for the moments that matter. With BetterHelp, you can connect with a licensed therapist from anywhere on your website.",
+  "intro_variants": [
+    "Support for Today Explained comes from BetterHelp."
+  ],
+  "outro_variants": [
+    "With BetterHelp, you can connect with a licensed therapist from anywhere on your website."
+  ],
+  "avg_duration": 29.9,
+  "sponsor": "BetterHelp",
+  "sponsor_aliases": [
+    "Better Help",
+    "betterhelp.com"
+  ],
+  "sponsor_tags": [
+    "health",
+    "mental_health",
+    "personal_care",
+    "self_improvement",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "9520311c-c78b-4a3f-a1d6-8c90c62747a9",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:14.378852+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

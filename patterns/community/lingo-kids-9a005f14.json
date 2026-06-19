@@ -1,0 +1,23 @@
+{
+  "scope": "global",
+  "text_template": "Mom, can I have Lingo Kids? Dad, Lingo Kids, please! When did we become the Lingo Kids house? No idea. Last week it was dinosaurs. This week it's... Lingo Kids! Why Lingo Kids? Because it's the best thing ever! We can play games! With astronauts! Wild animals! And superheroes! With more than 4,000 interactive games, songs, and shows, Lingo Kids is the number one entertainment platform for young kids. So, no dinosaurs? And dinosaurs! Lingo Kids! Everything Kids Love. Download it for free.",
+  "intro_variants": [
+    "Mom, can I have Lingo Kids?",
+    "Dad, Lingo Kids, please!"
+  ],
+  "outro_variants": [
+    "Lingo Kids! Everything Kids Love. Download it for free.",
+    "Lingo Kids, everything kids love. Download it for free.",
+    "Lingo Kids. Everything kids love. Download it for free."
+  ],
+  "avg_duration": 30.1,
+  "sponsor": "Lingo Kids",
+  "sponsor_aliases": [],
+  "sponsor_tags": [],
+  "source_language": null,
+  "community_id": "9a005f14-7caa-4dd2-8b66-3d26452b4475",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:14.601770+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

@@ -1,0 +1,28 @@
+{
+  "scope": "global",
+  "text_template": "A vacation rental should come with support, not surprises. That's why Vrbo comes with a VrboCare guarantee and 24-7 live support from real people. So if something goes sideways, VerboCare can help. If the host cancels? VerboCare. If the listing says heated pool, but there's actually no pool to heat? Definitely a VerboCare thing. If my teenager starts calling me Leslie instead of mom? That's a family thing, Leslie. That makes sense. Sorry. Book with support, not surprises. VerboCare and 24-7 live support. If you know, you Verbo. Terms apply. See Verbo.com slash trust for details.",
+  "intro_variants": [
+    "A vacation rental should come with support, not surprises."
+  ],
+  "outro_variants": [
+    "See Verbo.com slash trust for details."
+  ],
+  "avg_duration": 29.9,
+  "sponsor": "Vrbo",
+  "sponsor_aliases": [
+    "VrboCare",
+    "Verbo",
+    "verbo.com",
+    "vrbo.com"
+  ],
+  "sponsor_tags": [
+    "travel",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "d0227b7b-4c28-40d6-a8e0-65cd59c38566",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:14.696936+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

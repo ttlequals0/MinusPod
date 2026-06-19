@@ -1,0 +1,29 @@
+{
+  "scope": "global",
+  "text_template": "This episode is brought to you by Prime. Obsession is in session. And this summer, Prime originals have everything you want. Steamy romances, irresistible love stories, and the book to screen favorites you've already read twice. Off campus, Elle, Every Year After, The Love Hypothesis, Sterling Point, and more. Slow burns. Second chances, chemistry you can feel through the screen. Your next obsession is waiting. Watch only on Prime.",
+  "intro_variants": [
+    "This episode is brought to you by Prime. Obsession is in session. And this summer, Prime originals have everything you want.",
+    "This episode is brought to you by Prime Obsession is in session And this summer Prime originals have everything you want"
+  ],
+  "outro_variants": [
+    "Your next obsession is waiting. Watch only on Prime.",
+    "Your next obsession is waiting Watch only on Prime."
+  ],
+  "avg_duration": 31.1,
+  "sponsor": "Amazon",
+  "sponsor_aliases": [
+    "Amazon Prime",
+    "Prime Originals"
+  ],
+  "sponsor_tags": [
+    "tv_film",
+    "universal",
+    "technology"
+  ],
+  "source_language": null,
+  "community_id": "ff0f0b05-5793-4283-8bc1-d27169ab7237",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:14.946919+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

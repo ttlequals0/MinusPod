@@ -1,0 +1,22 @@
+{
+  "scope": "global",
+  "text_template": "By the time I hit my 50s, I'd learned a few things, like how family is precious. Work can always wait. and 99 of people over 50 already have the virus that causes shingles Not everyone at risk will develop it but I did The painful blistering rash disrupted my life for weeks Don learn about your shingles risk the hard way Talk to your doctor or pharmacist today Sponsored by GSK",
+  "intro_variants": [
+    "By the time I hit my 50s, I'd learned a few things, like how family is precious."
+  ],
+  "outro_variants": [
+    "Sponsored by GSK"
+  ],
+  "avg_duration": 29.8,
+  "sponsor": "GSK",
+  "sponsor_aliases": [],
+  "sponsor_tags": [
+    "health"
+  ],
+  "source_language": null,
+  "community_id": "bb6965e9-e8b8-48bc-ad27-1611738e3aee",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:14.032637+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

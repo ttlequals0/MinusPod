@@ -1,0 +1,26 @@
+{
+  "scope": "global",
+  "text_template": "Podcast assistants switch you to Mint Mobile today. I'm told it's super easy to do at MintMobile.com slash switch. Upfront payment of $45 for three month plan equivalent to $15 per month required. Intro rate first three months only, then full price plan options available. Taxes and fees extra. Default terms at MintMobile.com.",
+  "intro_variants": [
+    "Podcast assistants switch you to Mint Mobile today."
+  ],
+  "outro_variants": [
+    "Taxes and fees extra. Default terms at MintMobile.com."
+  ],
+  "avg_duration": 17.9,
+  "sponsor": "Mint Mobile",
+  "sponsor_aliases": [
+    "MintMobile",
+    "mintmobile.com"
+  ],
+  "sponsor_tags": [
+    "telecom",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "22efb529-0287-471c-ae6b-26c40be20dda",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:13.863444+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

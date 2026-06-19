@@ -1,0 +1,28 @@
+{
+  "scope": "global",
+  "text_template": "Things are feeling a little less human these days, aren't they? But isn't the whole point of progress to make things more human? That's why, at TD, when we design a product, whether it's getting you paid early or making debit card replacement easy, we ask one simple question. How does this help people? That's how we're making banking more simple, more seamless, and more intuitive. But most importantly, that's how TD's making banking more human.",
+  "intro_variants": [
+    "Things are feeling a little less human these days, aren't they?"
+  ],
+  "outro_variants": [
+    "But most importantly, that's how TD's making banking more human."
+  ],
+  "avg_duration": 28.5,
+  "sponsor": "TD",
+  "sponsor_aliases": [
+    "TD card",
+    "TD Bank",
+    "Toronto-Dominion Bank",
+    "td.com"
+  ],
+  "sponsor_tags": [
+    "finance",
+    "universal"
+  ],
+  "source_language": null,
+  "community_id": "88e0d7c8-b58e-4f35-8577-aee79db20207",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:14.787941+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

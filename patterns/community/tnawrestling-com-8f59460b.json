@@ -1,0 +1,24 @@
+{
+  "scope": "global",
+  "text_template": "Professional wrestling fans, the action continues every week. You got it coming! This is total nonstop action! TNA Thursday Night Impact, every week on AMC. For showtimes and more information, visit TNAwrestling.com.",
+  "intro_variants": [
+    "Professional wrestling fans, the action continues every week."
+  ],
+  "outro_variants": [
+    "For showtimes and more information, visit TNAwrestling.com."
+  ],
+  "avg_duration": 14.8,
+  "sponsor": "tnawrestling.com",
+  "sponsor_aliases": [
+    "TNA Thursday Night Impact"
+  ],
+  "sponsor_tags": [
+    "sports"
+  ],
+  "source_language": null,
+  "community_id": "8f59460b-01a4-42b0-82d4-4a7c88175755",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:14.592907+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

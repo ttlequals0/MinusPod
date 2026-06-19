@@ -1,0 +1,20 @@
+{
+  "scope": "global",
+  "text_template": "This is George Severus and Sam Taggart from StradioLab. Let's be real, home comes with a lot of odors. Cooking, pets, everyday life. That's where Febreze comes in. Febreze helps fight household odors and leaves behind freshness that lasts. And with over 30 cents to choose from, you'll always find one that feels like you. Febreze, freshness that fits your life, your space, your style.",
+  "intro_variants": [
+    "This is George Severus and Sam Taggart from StradioLab. Let's be real, home comes with a lot of odors."
+  ],
+  "outro_variants": [
+    "Febreze, freshness that fits your life, your space, your style."
+  ],
+  "avg_duration": 21.5,
+  "sponsor": "Febreze",
+  "sponsor_aliases": [],
+  "sponsor_tags": [],
+  "source_language": null,
+  "community_id": "21b733ea-6bdb-4b9b-8b4c-02538420cdcf",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:14.289827+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

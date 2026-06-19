@@ -1,0 +1,23 @@
+{
+  "scope": "global",
+  "text_template": "Ssuit, like the delicious waffle with salsa, barbecue, cheese, waffle tots, and a drink to start your day. available at 7-11 for just $4 with 7 rewards. Visit your 7-11 local in Boston and satisfy your favorite today.",
+  "intro_variants": [],
+  "outro_variants": [
+    "Visit your 7-11 local in Boston and satisfy your favorite today.",
+    "Visit your 7-11 local in New York City and satisfy your favorite today.",
+    "Visit your 7-11 local in your city and satisfy your favorite today."
+  ],
+  "avg_duration": 12.9,
+  "sponsor": "7 Eleven",
+  "sponsor_aliases": [
+    "7-11",
+    "Seven Eleven"
+  ],
+  "sponsor_tags": [],
+  "source_language": null,
+  "community_id": "ae53b762-5eda-43d4-ad0a-14dcc24fc364",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:14.024689+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

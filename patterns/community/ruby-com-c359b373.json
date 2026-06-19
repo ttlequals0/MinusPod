@@ -1,0 +1,21 @@
+{
+  "scope": "global",
+  "text_template": "We've all had the experience of calling a business and just wanting to talk to a real person. Not an automated voice pretending to be human, an actual person who can listen and understand and offer help. That's exactly what you can do with Ruby. Ruby is the virtual receptionist company that takes care your callers when you're unavailable in the middle of something or simply don't want to pick up. That's right. They can answer, screen, transfer calls, they can take messages, collect payments, book appointments, and more, all while making the people you serve feel special. And best of all, it can help you be more productive. For example, nine out of 10 lawyers who use Ruby log more billable hours per day than the national average. And other professionals like plumbers and technicians win more customers while being able to stay focused on the job But whatever kind of small business you run Ruby is built to save you time earn you more customers or clients and make meaningful connections with the people You Serve It available 24 365 days a year and 100 based in the U See why more than 15 small businesses use Ruby Visit ruby.com or better yet call them.",
+  "intro_variants": [
+    "We've all had the experience of calling a business and just wanting to talk to a real person."
+  ],
+  "outro_variants": [
+    "Visit ruby.com or better yet call them.",
+    "Visit ruby.com or better yet, call them at 844-900-R-U-B-Y."
+  ],
+  "avg_duration": 68.6,
+  "sponsor": "ruby.com",
+  "sponsor_aliases": [],
+  "sponsor_tags": [],
+  "source_language": null,
+  "community_id": "c359b373-499e-46c4-a8a3-31c4a816adc8",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:14.553098+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}

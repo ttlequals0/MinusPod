@@ -1,0 +1,23 @@
+{
+  "scope": "global",
+  "text_template": "Running a business shouldn't feel like surviving a software group project. One app for accounting, another for inventory, another for sales, and somehow none of them talk to each other. That's where Odoo comes in, an all-in-one business management software that brings every part of your business together, from sales and accounting to inventory and marketing, all in one powerful platform. No messy integrations, no bouncing between tabs, and best of all, no spreadsheets. Stop managing software and start managing your business with one unified system. Try for free today at odoo.com slash ihr. That's O-D-O-O dot com slash ihr.",
+  "intro_variants": [
+    "Running a business shouldn't feel like surviving a software group project."
+  ],
+  "outro_variants": [
+    "Try for free today at odoo.com slash ihr.",
+    "That's O-D-O-O dot com slash ihr."
+  ],
+  "avg_duration": 42.6,
+  "sponsor": "Odoo",
+  "sponsor_aliases": [
+    "odoo.com"
+  ],
+  "sponsor_tags": [],
+  "source_language": null,
+  "community_id": "9ec7651c-03db-4aed-b9f8-2359f16f846b",
+  "version": 1,
+  "submitted_at": "2026-06-19T02:23:13.216365+00:00",
+  "submitted_app_version": "2.8.15",
+  "sponsor_match": "exact"
+}
